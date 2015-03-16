@@ -11,7 +11,6 @@ import ru.yandex.metrika.clickhouse.copypaste.*;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
-import java.nio.charset.StandardCharsets;
 import java.sql.*;
 
 /**
@@ -59,7 +58,7 @@ public class CHStatement implements Statement {
 
     private CountingInputStream getInputStream(String sql) {
         HttpPost post = new HttpPost(url);
-        post.setEntity(new StringEntity(sql, StandardCharsets.UTF_8));
+        post.setEntity(new StringEntity(sql, CopypasteUtils.UTF_8));
         HttpEntity entity = null;
         InputStream is = null;
         try {
@@ -285,16 +284,6 @@ public class CHStatement implements Statement {
 
     @Override
     public boolean isPoolable() throws SQLException {
-        return false;
-    }
-
-    @Override
-    public void closeOnCompletion() throws SQLException {
-
-    }
-
-    @Override
-    public boolean isCloseOnCompletion() throws SQLException {
         return false;
     }
 

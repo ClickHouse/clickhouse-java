@@ -2,7 +2,6 @@ package ru.yandex.metrika.clickhouse.copypaste;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
 /**
@@ -24,12 +23,12 @@ public class ByteFragment {
     }
 
     public String asString() {
-        return new String(buf, start, len, StandardCharsets.UTF_8);
+        return new String(buf, start, len, CopypasteUtils.UTF_8);
     }
 
     public String asString(boolean unescape) {
         if(unescape) {
-            return new String(unescape(), StandardCharsets.UTF_8);
+            return new String(unescape(), CopypasteUtils.UTF_8);
         } else {
             return asString();
         }

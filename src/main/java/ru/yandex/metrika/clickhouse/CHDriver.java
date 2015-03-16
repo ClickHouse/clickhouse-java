@@ -2,7 +2,6 @@ package ru.yandex.metrika.clickhouse;
 
 import java.sql.*;
 import java.util.Properties;
-import java.util.logging.Logger;
 
 /**
  * Created by jkee on 14.03.15.
@@ -48,8 +47,4 @@ public class CHDriver implements Driver {
         return false;
     }
 
-    @Override
-    public Logger getParentLogger() throws SQLFeatureNotSupportedException {
-        return null;
-    }
 }
