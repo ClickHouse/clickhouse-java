@@ -1,12 +1,12 @@
 package ru.yandex.metrika.clickhouse;
 
-import ru.yandex.metrika.clickhouse.copypaste.*;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.util.EntityUtils;
+import ru.yandex.metrika.clickhouse.copypaste.*;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -30,6 +30,10 @@ public class CHStatement implements Statement {
         this.url = url;
     }
 
+    public static String clickhousifySql(String sql) {
+        return clickhousifySql(sql, "TabSeparatedWithNamesAndTypes");
+    }
+
     public static String clickhousifySql(String sql, String format) {
         sql = sql.trim();
         if (!sql.replace(";", "").trim().endsWith(" TabSeparatedWithNamesAndTypes")
@@ -43,11 +47,11 @@ public class CHStatement implements Statement {
 
     @Override
     public ResultSet executeQuery(String sql) throws SQLException {
-        String csql = clickhousifySql(sql, "TabSeparatedWithNamesAndTypes");
+        String csql = clickhousifySql(sql);
         CountingInputStream is = getInputStream(csql);
         try {
-            return new HttpResult(properties.isCompress()
-                    ? new ClickhouseLZ4Stream(is) : is, is, properties.getBufferSize());
+            return new CHResultSet(properties.isCompress()
+                    ? new ClickhouseLZ4Stream(is) : is, properties.getBufferSize());
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -81,19 +85,22 @@ public class CHStatement implements Statement {
             return new CountingInputStream(is);
         } catch (IOException e) {
             EntityUtils.consumeQuietly(entity);
-            try { if (is != null) is.close(); } catch (IOException ignored) { }
             throw new RuntimeException(e);
         }
     }
 
     @Override
     public int executeUpdate(String sql) throws SQLException {
-        return 0;
+        throw new UnsupportedOperationException();
     }
 
     @Override
     public void close() throws SQLException {
-
+        try {
+            client.close();
+        } catch (IOException e) {
+            throw new CHException("HTTP client close exception", e);
+        }
     }
 
     @Override
