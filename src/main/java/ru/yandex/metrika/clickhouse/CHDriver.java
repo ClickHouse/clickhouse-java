@@ -1,5 +1,7 @@
 package ru.yandex.metrika.clickhouse;
 
+import ru.yandex.metrika.clickhouse.util.Logger;
+
 import java.sql.*;
 import java.util.Properties;
 
@@ -8,6 +10,8 @@ import java.util.Properties;
  */
 public class CHDriver implements Driver {
 
+    private static final Logger logger = Logger.of(CHDriver.class);
+
     static {
         CHDriver driver = new CHDriver();
         try {
@@ -15,6 +19,7 @@ public class CHDriver implements Driver {
         } catch (SQLException e) {
             throw new RuntimeException(e);
         }
+        logger.info("Driver registered");
     }
 
     @Override
