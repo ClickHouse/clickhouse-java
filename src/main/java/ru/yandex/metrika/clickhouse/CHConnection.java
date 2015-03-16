@@ -2,7 +2,9 @@ package ru.yandex.metrika.clickhouse;
 
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
+import ru.yandex.metrika.clickhouse.config.ClickHouseSource;
 
+import java.net.URI;
 import java.sql.*;
 import java.util.Map;
 import java.util.Properties;
@@ -22,7 +24,14 @@ public class CHConnection implements Connection {
 
     @Override
     public Statement createStatement() throws SQLException {
-        return new CHStatement(httpclient, url);
+
+        URI uri = URI.create(url);
+        String host = uri.getHost();
+        int port = uri.getPort();
+
+        ClickHouseSource source = new ClickHouseSource(host, port);
+
+        return new CHStatement(httpclient, source);
     }
 
     @Override

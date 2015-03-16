@@ -1,5 +1,7 @@
 package ru.yandex.metrika.clickhouse.copypaste;
 
+import ru.yandex.metrika.clickhouse.util.CopypasteUtils;
+
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.Arrays;
