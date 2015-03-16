@@ -6,7 +6,6 @@ import org.apache.http.impl.client.HttpClients;
 import java.sql.*;
 import java.util.Map;
 import java.util.Properties;
-import java.util.concurrent.Executor;
 
 /**
  * Created by jkee on 14.03.15.
@@ -254,31 +253,6 @@ public class CHConnection implements Connection {
     @Override
     public Struct createStruct(String typeName, Object[] attributes) throws SQLException {
         return null;
-    }
-
-    @Override
-    public void setSchema(String schema) throws SQLException {
-
-    }
-
-    @Override
-    public String getSchema() throws SQLException {
-        return null;
-    }
-
-    @Override
-    public void abort(Executor executor) throws SQLException {
-
-    }
-
-    @Override
-    public void setNetworkTimeout(Executor executor, int milliseconds) throws SQLException {
-
-    }
-
-    @Override
-    public int getNetworkTimeout() throws SQLException {
-        return 0;
     }
 
     @Override

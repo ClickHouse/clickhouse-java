@@ -960,16 +960,6 @@ public abstract class AbstractResultSet implements ResultSet {
         throw new UnsupportedOperationException();
     }
 
-    @Override
-    public <T> T getObject(int columnIndex, Class<T> type) throws SQLException {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public <T> T getObject(String columnLabel, Class<T> type) throws SQLException {
-        throw new UnsupportedOperationException();
-    }
-
     /*default UnsignedInteger getUnsignedInteger(String columnLabel) throws SQLException {
         return UnsignedInteger.valueOf(getString(columnLabel));
     }

@@ -901,16 +901,6 @@ public class CHDatabaseMetadata implements DatabaseMetaData {
     }
 
     @Override
-    public ResultSet getPseudoColumns(String catalog, String schemaPattern, String tableNamePattern, String columnNamePattern) throws SQLException {
-        return null;
-    }
-
-    @Override
-    public boolean generatedKeyAlwaysReturned() throws SQLException {
-        return false;
-    }
-
-    @Override
     public <T> T unwrap(Class<T> iface) throws SQLException {
         return null;
     }
