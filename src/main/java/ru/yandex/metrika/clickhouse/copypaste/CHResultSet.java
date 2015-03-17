@@ -44,22 +44,32 @@ public class CHResultSet extends AbstractResultSet {
         if (headerFragment == null) {
             throw new IllegalArgumentException("clickhouse response without column names");
         }
-        String header = headerFragment.asString();
+        String header = headerFragment.asString(true);
         if (header.startsWith("Code: ") && !header.contains("\t")) {
             is.close();
             throw new IOException("Clickhouse error: " + header);
         }
-        columns = Patterns.TAB.split(header);
+        columns = toStringArray(headerFragment);
         ByteFragment typesFragment = bis.next();
         if (typesFragment == null) {
             throw new IllegalArgumentException("clickhouse response without column types");
         }
-        types = Patterns.TAB.split(typesFragment.asString());
+        types = toStringArray(typesFragment);
 
         for (int i = 0; i < columns.length; i++) {
             String s = columns[i];
             col.put(s, i + 1);
         }
+    }
+
+    private static String[] toStringArray(ByteFragment headerFragment) {
+        ByteFragment[] split = headerFragment.split((byte) 0x09);
+        String[] c = new String[split.length];
+        for (int i = 0; i < split.length; i++) {
+            String name = split[i].asString(true);
+            c[i] = name;
+        }
+        return c;
     }
 
     public boolean hasNext() throws SQLException {
