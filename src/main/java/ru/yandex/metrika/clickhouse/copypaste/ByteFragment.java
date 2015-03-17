@@ -4,6 +4,7 @@ import ru.yandex.metrika.clickhouse.util.CopypasteUtils;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.util.Arrays;
 
 /**
@@ -156,6 +157,28 @@ public class ByteFragment {
             }
         }
         return res;
+    }
+
+    final static byte[] reverse;
+    static {
+        reverse = new byte[convert.length];
+        for (int i = 0; i < convert.length; i++) {
+            reverse[i] = -1;
+            byte c = convert[i];
+            if (c != -1) reverse[c] = (byte) i;
+        }
+    }
+
+    public static void escape(byte[] bytes, OutputStream stream) throws IOException {
+        for (byte b : bytes) {
+            byte converted = reverse[b];
+            if (converted != -1) {
+                stream.write(92);
+                stream.write(converted);
+            } else {
+                stream.write(b);
+            }
+        }
     }
 
     private byte[] getBytesCopy() {

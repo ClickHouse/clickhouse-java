@@ -26,8 +26,7 @@ public abstract class AbstractResultSet implements ResultSet {
 
     @Override
     public boolean wasNull() throws SQLException {
-        // no nulls in clickhouse
-        return false;
+        throw new UnsupportedOperationException();
     }
 
     @Override

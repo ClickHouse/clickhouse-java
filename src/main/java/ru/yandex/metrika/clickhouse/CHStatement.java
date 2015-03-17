@@ -288,7 +288,7 @@ public class CHStatement implements Statement {
                                        boolean ignoreDatabase
     ) throws CHException {
         sql = clickhousifySql(sql);
-        log.debug(sql);
+        log.debug("Executing SQL: " + sql);
         URI uri = null;
         try {
             Map<String, String> params = getParams(false);

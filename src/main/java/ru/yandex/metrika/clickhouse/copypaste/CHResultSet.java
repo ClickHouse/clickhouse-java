@@ -15,11 +15,6 @@ import java.util.Map;
 /**
  * формат полей.
  * 0000-00-00 00:00:00 - timestamp
- * \0 - null?
- * <p/>
- * запросы, которые работают
- * select * from WatchLog_Chunk_2012071003020404100 limit 10
- * show tables
  *
  * @author orantius
  * @version $Id$
@@ -27,7 +22,6 @@ import java.util.Map;
  */
 public class CHResultSet extends AbstractResultSet {
 
-    private ByteFragment nextLine;
     private final StreamSplitter bis;
 
     private final Map<String, Integer> col = new HashMap<String, Integer>(); // column name -> 1-based index
@@ -36,7 +30,10 @@ public class CHResultSet extends AbstractResultSet {
 
     private static final SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss"); //
 
+    // current line
     private ByteFragment[] values;
+    // next line
+    private ByteFragment nextLine;
 
     public CHResultSet(InputStream is, int bufferSize) throws IOException {
         bis = new StreamSplitter(is, (byte) 0x0A, bufferSize);  ///   \n
@@ -128,7 +125,8 @@ public class CHResultSet extends AbstractResultSet {
 
     @Override
     public boolean wasNull() throws SQLException {
-        return super.wasNull();
+        // no nulls in clickhouse
+        return false;
     }
 
     @Override
