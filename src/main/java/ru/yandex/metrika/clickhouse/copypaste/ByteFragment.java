@@ -31,10 +31,16 @@ public class ByteFragment {
 
     public String asString(boolean unescape) {
         if(unescape) {
+            if (isNull()) return null;
             return new String(unescape(), CopypasteUtils.UTF_8);
         } else {
             return asString();
         }
+    }
+
+    public boolean isNull() {
+        // \N
+        return len == 2 && buf[start] == '\\' && buf[start + 1] == 'N';
     }
 
     @Override
@@ -95,6 +101,8 @@ public class ByteFragment {
     // "\b" =>  8
     // "\f" => 12
     // "\t" =>  9
+    //null
+    // "\N" =>  0
     private static final byte[] convert = {
             -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,      // 0.. 9
             -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,      //10..19
@@ -103,7 +111,7 @@ public class ByteFragment {
             -1,-1,-1,-1,-1,-1,-1,-1, 0,-1,      //40..49
             -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,      //50..59
             -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,      //60..69
-            -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,      //70..79
+            -1,-1,-1,-1,-1,-1,-1,-1, 0,-1,      //70..79
             -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,      //80..89
             -1,-1,92,-1,-1,-1,-1,-1, 8,-1,      //90..99
             -1,-1,12,-1,-1,-1,-1,-1,-1,-1,     //100..109

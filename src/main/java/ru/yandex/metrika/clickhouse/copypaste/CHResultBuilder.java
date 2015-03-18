@@ -85,7 +85,12 @@ public class CHResultBuilder {
     }
 
     private void appendObject(Object o, ByteArrayOutputStream baos) throws IOException {
-        ByteFragment.escape(o.toString().getBytes(), baos);
+        if (o == null) {
+            baos.write('\\');
+            baos.write('N');
+        } else {
+            ByteFragment.escape(o.toString().getBytes(), baos);
+        }
     }
 
 }

@@ -32,6 +32,9 @@ public class CHResultSet extends AbstractResultSet {
 
     // current line
     private ByteFragment[] values;
+    // 1-based
+    private int lastReadColumn;
+
     // next line
     private ByteFragment nextLine;
 
@@ -125,8 +128,8 @@ public class CHResultSet extends AbstractResultSet {
 
     @Override
     public boolean wasNull() throws SQLException {
-        // no nulls in clickhouse
-        return false;
+        if (lastReadColumn == 0) throw new IllegalStateException("You should get something before check nullability");
+        return values[lastReadColumn - 1].isNull();
     }
 
     @Override
@@ -212,6 +215,7 @@ public class CHResultSet extends AbstractResultSet {
 
     @Override
     public Timestamp getTimestamp(int columnIndex) throws SQLException {
+        if (values[columnIndex - 1].isNull()) return null;
         return new Timestamp(getTimestampAsLong(columnIndex));
     }
 
@@ -237,14 +241,17 @@ public class CHResultSet extends AbstractResultSet {
     }
 
     private static short toShort(ByteFragment value) {
+        if (value.isNull()) return 0;
         return Short.parseShort(value.asString());
     }
 
     private static boolean toBoolean(ByteFragment value) {
+        if (value.isNull()) return false;
         return "1".equals(value.asString());    //вроде бы там   1/0
     }
 
     private static byte[] toBytes(ByteFragment value) {
+        if (value.isNull()) return null;
         return value.unescape();
     }
 
@@ -253,6 +260,7 @@ public class CHResultSet extends AbstractResultSet {
     }
 
     private static long[] toLongArray(ByteFragment value) {
+        if (value.isNull()) return null;
         if (value.charAt(0) != '[' || value.charAt(value.length()-1) != ']') {
             throw new IllegalArgumentException("not an array: "+value);
         }
@@ -266,6 +274,7 @@ public class CHResultSet extends AbstractResultSet {
     }
 
     private static long toTimestamp(ByteFragment value) {
+        if (value.isNull()) return 0;
         try {
             return sdf.parse(value.asString()).getTime();
         } catch (ParseException e) {

@@ -12,6 +12,7 @@ public class CHResultBuilderTest {
                 .types("String", "UInt32")
                 .addRow("ololo", 1000)
                 .addRow("o\tlo\nlo", 1000)
+                .addRow(null, null)
                 .build();
 
         Assert.assertEquals("string", resultSet.getColumnNames()[0]);
@@ -27,6 +28,10 @@ public class CHResultBuilderTest {
         Assert.assertTrue(resultSet.next());
         Assert.assertEquals("o\tlo\nlo", resultSet.getString(1));
         Assert.assertEquals(1000, resultSet.getInt(2));
+
+        Assert.assertTrue(resultSet.next());
+        Assert.assertNull(resultSet.getString(1));
+        Assert.assertEquals(0, resultSet.getInt(2));
 
         Assert.assertFalse(resultSet.next());
 

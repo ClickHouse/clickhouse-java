@@ -15,6 +15,10 @@ public final class ByteFragmentUtils {
             throw new NumberFormatException("null");
         }
 
+        if (s.isNull()) {
+            return 0; //jdbc spec
+        }
+
         int result = 0;
         boolean negative = false;
         int i = 0, max = s.length();
@@ -72,6 +76,10 @@ public final class ByteFragmentUtils {
     public static long parseLong(ByteFragment s) throws NumberFormatException {
         if (s == null) {
             throw new NumberFormatException("null");
+        }
+
+        if (s.isNull()) {
+            return 0; //jdbc spec
         }
 
         long result = 0;
