@@ -2,10 +2,7 @@ package ru.yandex.metrika.clickhouse.copypaste;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.sql.ResultSetMetaData;
-import java.sql.SQLException;
-import java.sql.Timestamp;
-import java.sql.Types;
+import java.sql.*;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
@@ -29,6 +26,7 @@ public class CHResultSet extends AbstractResultSet {
     private final String[] types;
 
     private static final SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss"); //
+    private static final SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd"); //
 
     // current line
     private ByteFragment[] values;
@@ -37,6 +35,9 @@ public class CHResultSet extends AbstractResultSet {
 
     // next line
     private ByteFragment nextLine;
+
+    // row counter
+    private int rowNumber;
 
     public CHResultSet(InputStream is, int bufferSize) throws IOException {
         bis = new StreamSplitter(is, (byte) 0x0A, bufferSize);  ///   \n
@@ -90,6 +91,7 @@ public class CHResultSet extends AbstractResultSet {
         if (hasNext()) {
             values = nextLine.split((byte) 0x09);
             nextLine = null;
+            rowNumber += 1;
             return true;
         } else return false;
     }
@@ -129,7 +131,7 @@ public class CHResultSet extends AbstractResultSet {
     @Override
     public boolean wasNull() throws SQLException {
         if (lastReadColumn == 0) throw new IllegalStateException("You should get something before check nullability");
-        return values[lastReadColumn - 1].isNull();
+        return getValue(lastReadColumn).isNull();
     }
 
     @Override
@@ -182,57 +184,126 @@ public class CHResultSet extends AbstractResultSet {
     }
 
 
+    @Override
+    public double getDouble(String columnLabel) throws SQLException {
+        return getDouble(asColNum(columnLabel));
+    }
+
+    @Override
+    public float getFloat(String columnLabel) throws SQLException {
+        return getFloat(asColNum(columnLabel));
+    }
+
+    @Override
+    public Date getDate(String columnLabel) throws SQLException {
+        return getDate(asColNum(columnLabel));
+    }
+
+    @Override
+    public Time getTime(String columnLabel) throws SQLException {
+        return getTime(asColNum(columnLabel));
+    }
+
+    @Override
+    public Object getObject(String columnLabel) throws SQLException {
+        return getObject(asColNum(columnLabel));
+    }
+
     /////////////////////////////////////////////////////////
 
     @Override
     public String getString(int colNum) {
-        return toString(values[colNum - 1]);
+        return toString(getValue(colNum));
     }
+
 
     @Override
     public int getInt(int colNum) {
-        return ByteFragmentUtils.parseInt(values[colNum - 1]);
+        return ByteFragmentUtils.parseInt(getValue(colNum));
     }
 
     @Override
     public boolean getBoolean(int colNum) {
-        return toBoolean(values[colNum - 1]);
+        return toBoolean(getValue(colNum));
     }
 
     @Override
     public long getLong(int colNum) {
-        return ByteFragmentUtils.parseLong(values[colNum - 1]);
+        return ByteFragmentUtils.parseLong(getValue(colNum));
     }
 
     @Override
     public byte[] getBytes(int colNum) {
-        return toBytes(values[colNum - 1]);
+        return toBytes(getValue(colNum));
     }
 
     public long getTimestampAsLong(int colNum) {
-        return toTimestamp(values[colNum - 1]);
+        return toTimestamp(getValue(colNum));
     }
 
     @Override
     public Timestamp getTimestamp(int columnIndex) throws SQLException {
-        if (values[columnIndex - 1].isNull()) return null;
+        if (getValue(columnIndex).isNull()) return null;
         return new Timestamp(getTimestampAsLong(columnIndex));
     }
 
     @Override
     public short getShort(int colNum) {
-        return toShort(values[colNum - 1]);
+        return toShort(getValue(colNum));
     }
 
     @Override
     public byte getByte(int colNum) {
-        return toByte(values[colNum - 1]);
+        return toByte(getValue(colNum));
     }
 
     public long[] getLongArray(int colNum) {
-        return toLongArray(values[colNum - 1]);
+        return toLongArray(getValue(colNum));
     }
 
+    @Override
+    public float getFloat(int columnIndex) throws SQLException {
+        return (float) getDouble(columnIndex);
+    }
+
+    @Override
+    public double getDouble(int columnIndex) throws SQLException {
+        String string = getString(columnIndex);
+        if (string == null) return 0;
+        return Double.parseDouble(string);
+    }
+
+    @Override
+    public Date getDate(int columnIndex) throws SQLException {
+        // дата из кликхауса приходит в виде строки
+        ByteFragment value = getValue(columnIndex);
+        if (value.isNull()) return null;
+        try {
+            return new Date(dateFormat.parse(value.asString()).getTime());
+        } catch (ParseException e) {
+            return null;
+        }
+    }
+
+    @Override
+    public Time getTime(int columnIndex) throws SQLException {
+        return new Time(getTimestamp(columnIndex).getTime());
+    }
+
+    @Override
+    public Object getObject(int columnIndex) throws SQLException {
+        int type = toSqlType(types[columnIndex - 1]);
+        switch (type) {
+            case Types.BIGINT:      return getLong(columnIndex);
+            case Types.INTEGER:     return getInt(columnIndex);
+            case Types.VARCHAR:     return getString(columnIndex);
+            case Types.FLOAT:       return getFloat(columnIndex);
+            case Types.DATE:        return getDate(columnIndex);
+            case Types.TIMESTAMP:   return getTime(columnIndex);
+            case Types.BLOB:        return getString(columnIndex);
+        }
+        return getString(columnIndex);
+    }
 
     /////////////////////////////////////////////////////////
 
@@ -282,6 +353,20 @@ public class CHResultSet extends AbstractResultSet {
         }
     }
 
+    //////
+
+    @Override
+    public int getType() throws SQLException {
+        return TYPE_FORWARD_ONLY;
+    }
+
+    @Override
+    public int getRow() throws SQLException {
+        return rowNumber + 1;
+    }
+
+    /////
+
     // 1-based insex in column list
     private int asColNum(String column) {
         if (col.containsKey(column)) {
@@ -291,7 +376,12 @@ public class CHResultSet extends AbstractResultSet {
         }
     }
 
-    int toSqlType(String type) {
+    private ByteFragment getValue(int colNum) {
+        lastReadColumn = colNum;
+        return values[colNum - 1];
+    }
+
+    public static int toSqlType(String type) {
 
         if (type.startsWith("Int") || type.startsWith("UInt")) {
             if (type.endsWith("64")) return Types.BIGINT;
@@ -306,6 +396,13 @@ public class CHResultSet extends AbstractResultSet {
         // don't know what to return actually
         return Types.VARCHAR;
 
+    }
+
+    public static int[] supportedTypes() {
+        return new int[] {
+                Types.BIGINT, Types.INTEGER, Types.VARCHAR, Types.FLOAT,
+                Types.DATE, Types.TIMESTAMP, Types.BLOB
+        };
     }
 
 }

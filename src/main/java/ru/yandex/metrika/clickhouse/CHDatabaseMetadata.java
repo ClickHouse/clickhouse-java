@@ -1,6 +1,11 @@
 package ru.yandex.metrika.clickhouse;
 
+import ru.yandex.metrika.clickhouse.copypaste.CHResultBuilder;
+import ru.yandex.metrika.clickhouse.copypaste.CHResultSet;
+
 import java.sql.*;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Created by jkee on 14.03.15.
@@ -612,12 +617,42 @@ public class CHDatabaseMetadata implements DatabaseMetaData {
 
     @Override
     public ResultSet getProcedures(String catalog, String schemaPattern, String procedureNamePattern) throws SQLException {
-        return request("SELECT 'bullshit_procedure'");
+        CHResultBuilder builder = CHResultBuilder.builder(9);
+        builder.names(
+                "PROCEDURE_CAT",
+                "PROCEDURE_SCHEM",
+                "PROCEDURE_NAME",
+                "RES_1",
+                "RES_2",
+                "RES_3",
+                "REMARKS",
+                "PROCEDURE_TYPE",
+                "SPECIFIC_NAME"
+        );
+
+        builder.types(
+                "String",
+                "String",
+                "String",
+                "String",
+                "String",
+                "String",
+                "String",
+                "UInt8",
+                "String"
+        );
+
+        return builder.build();
     }
 
     @Override
     public ResultSet getProcedureColumns(String catalog, String schemaPattern, String procedureNamePattern, String columnNamePattern) throws SQLException {
-        return request("SELECT 'bullshit_procedure_columns'");
+        CHResultBuilder builder = CHResultBuilder.builder(20);
+        builder.names("1","2","3","4","5","6","7","8","9","10","11","12","13","14","15","16","17","18","19","20");
+
+        builder.types("UInt32","UInt32","UInt32","UInt32","UInt32","UInt32","UInt32","UInt32","UInt32","UInt32","UInt32","UInt32","UInt32","UInt32","UInt32","UInt32","UInt32","UInt32","UInt32","UInt32");
+
+        return builder.build();
     }
 
     @Override
@@ -638,16 +673,45 @@ public class CHDatabaseMetadata implements DatabaseMetaData {
             catalog = "default";
         }
         String sql = "select " +
-                "database, name, name, 'TABLE', '', '', '', '', '', '' " +
+                "database, name, name " +
                 "from system.tables " +
                 "where database = '" + catalog + "' " +
                 "order by name";
-        return request(sql);
+        ResultSet result = request(sql);
+
+        CHResultBuilder builder = CHResultBuilder.builder(10);
+        builder.names("TABLE_CAT", "TABLE_SCHEM", "TABLE_NAME", "TABLE_TYPE", "REMARKS", "TYPE_CAT", "TYPE_SCHEM", "TYPE_NAME", "SELF_REFERENCING_COL_NAME", "REF_GENERATION");
+        builder.types("String", "String", "String", "String", "String", "String", "String", "String", "String", "String");
+
+        while(result.next()) {
+            List<String> row = new ArrayList<String>();
+            row.add(result.getString(1));
+            row.add(result.getString(2));
+            row.add(result.getString(3));
+            row.add("TABLE"); // можно сделать точнее
+            for (int i = 4; i < 10; i++) {
+                row.add(null);
+            }
+            builder.addRow(row);
+        }
+        return builder.build();
     }
 
     @Override
     public ResultSet getSchemas() throws SQLException {
-        return request("select name, database from system.tables");
+        return getSchemas(null, null);
+    }
+
+    @Override
+    public ResultSet getSchemas(String catalog, String schemaPattern) throws SQLException {
+        String sql = "select name, database from system.tables";
+        if (catalog != null) sql += " where database = '" + catalog + '\'';
+        if (schemaPattern != null) {
+            if (catalog != null) sql += " and ";
+            else sql += " where ";
+            sql += "name = '" + schemaPattern + '\'';
+        }
+        return request(sql);
     }
 
     @Override
@@ -662,7 +726,107 @@ public class CHDatabaseMetadata implements DatabaseMetaData {
 
     @Override
     public ResultSet getColumns(String catalog, String schemaPattern, String tableNamePattern, String columnNamePattern) throws SQLException {
-        return request("desc table " + catalog + '.' + tableNamePattern);
+        CHResultBuilder builder = CHResultBuilder.builder(23);
+        builder.names(
+                "TABLE_CAT",
+                "TABLE_SCHEM",
+                "TABLE_NAME",
+                "COLUMN_NAME",
+                "DATA_TYPE",
+                "TYPE_NAME",
+                "COLUMN_SIZE",
+                "BUFFER_LENGTH",
+                "DECIMAL_DIGITS",
+                "NUM_PREC_RADIX",
+                "NULLABLE",
+                "REMARKS",
+                "COLUMN_DEF",
+                "SQL_DATA_TYPE",
+                "SQL_DATETIME_SUB",
+                "CHAR_OCTET_LENGTH",
+                "ORDINAL_POSITION",
+                "IS_NULLABLE",
+                "SCOPE_CATLOG",
+                "SCOPE_SCHEMA",
+                "SCOPE_TABLE",
+                "SOURCE_DATA_TYPE",
+                "IS_AUTOINCREMENT"
+        );
+        builder.types(
+                "String",
+                "String",
+                "String",
+                "String",
+                "Int32",
+                "String",
+                "Int32",
+                "Int32",
+                "Int32",
+                "Int32",
+                "Int32",
+                "String",
+                "String",
+                "Int32",
+                "Int32",
+                "Int32",
+                "Int32",
+                "String",
+                "String",
+                "String",
+                "String",
+                "Int32",
+                "String"
+        );
+        ResultSet descTable = request("desc table " + catalog + '.' + tableNamePattern);
+        int colNum = 1;
+        while (descTable.next()) {
+            List<String> row = new ArrayList<String>();
+            row.add(catalog);
+            row.add(tableNamePattern);
+            row.add(tableNamePattern);
+            row.add(descTable.getString(1));
+            String type = descTable.getString(2);
+            row.add(Integer.toString(CHResultSet.toSqlType(type)));
+            row.add(type);
+
+            // column size ?
+            row.add("0");
+            row.add("0");
+
+            // decimal digits
+            if (type.contains("Int")) {
+                String bits = type.substring(type.indexOf("Int") + "Int".length());
+                row.add(bits); //bullshit
+            }
+
+            // radix
+            row.add("10");
+            // nullable
+            row.add(String.valueOf(columnNoNulls));
+
+            row.add(null);
+            row.add(null);
+            row.add(null);
+            row.add(null);
+
+            // char octet length
+            row.add("0");
+            // ordinal
+            row.add(String.valueOf(colNum));
+            colNum += 1;
+            row.add("NO");
+
+            row.add(null);
+            row.add(null);
+            row.add(null);
+            row.add(null);
+            row.add(null);
+
+            builder.addRow(row);
+
+        }
+
+        return builder.build();
     }
 
     @Override
@@ -717,6 +881,10 @@ public class CHDatabaseMetadata implements DatabaseMetaData {
 
     @Override
     public boolean supportsResultSetType(int type) throws SQLException {
+        int[] types = CHResultSet.supportedTypes();
+        for (int i : types) {
+            if (i == type) return true;
+        }
         return false;
     }
 
@@ -727,32 +895,32 @@ public class CHDatabaseMetadata implements DatabaseMetaData {
 
     @Override
     public boolean ownUpdatesAreVisible(int type) throws SQLException {
-        return false;
+        return true;
     }
 
     @Override
     public boolean ownDeletesAreVisible(int type) throws SQLException {
-        return false;
+        return true;
     }
 
     @Override
     public boolean ownInsertsAreVisible(int type) throws SQLException {
-        return false;
+        return true;
     }
 
     @Override
     public boolean othersUpdatesAreVisible(int type) throws SQLException {
-        return false;
+        return true;
     }
 
     @Override
     public boolean othersDeletesAreVisible(int type) throws SQLException {
-        return false;
+        return true;
     }
 
     @Override
     public boolean othersInsertsAreVisible(int type) throws SQLException {
-        return false;
+        return true;
     }
 
     @Override
@@ -782,7 +950,7 @@ public class CHDatabaseMetadata implements DatabaseMetaData {
 
     @Override
     public Connection getConnection() throws SQLException {
-        return null;
+        return connection;
     }
 
     @Override
@@ -837,7 +1005,7 @@ public class CHDatabaseMetadata implements DatabaseMetaData {
 
     @Override
     public int getDatabaseMinorVersion() throws SQLException {
-        return 0;
+        return 1;
     }
 
     @Override
@@ -847,12 +1015,12 @@ public class CHDatabaseMetadata implements DatabaseMetaData {
 
     @Override
     public int getJDBCMinorVersion() throws SQLException {
-        return 0;
+        return 1;
     }
 
     @Override
     public int getSQLStateType() throws SQLException {
-        return 0;
+        return sqlStateSQL;
     }
 
     @Override
@@ -867,12 +1035,7 @@ public class CHDatabaseMetadata implements DatabaseMetaData {
 
     @Override
     public RowIdLifetime getRowIdLifetime() throws SQLException {
-        return null;
-    }
-
-    @Override
-    public ResultSet getSchemas(String catalog, String schemaPattern) throws SQLException {
-        return null;
+        return RowIdLifetime.ROWID_UNSUPPORTED;
     }
 
     @Override

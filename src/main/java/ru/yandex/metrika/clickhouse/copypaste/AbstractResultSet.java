@@ -285,11 +285,6 @@ public abstract class AbstractResultSet implements ResultSet {
     }
 
     @Override
-    public int getRow() throws SQLException {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
     public boolean absolute(int row) throws SQLException {
         throw new UnsupportedOperationException();
     }
