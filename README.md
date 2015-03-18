@@ -3,6 +3,14 @@ ClickHouse JDBC driver
 
 Пока что в состоянии "как-то работает".
 
+### URL
+
+Пока нет фейловера и лоадбаланса, урл простой.
+
+`jdbc:clickhouse:host:port`
+
+Например: `jdbc:clickhouse:localhost:8123`
+
 ### Сборка
 
 jar можно собрать через

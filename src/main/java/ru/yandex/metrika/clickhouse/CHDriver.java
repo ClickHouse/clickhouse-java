@@ -6,6 +6,15 @@ import java.sql.*;
 import java.util.Properties;
 
 /**
+ *
+ * URL Format
+ *
+ * пока что примитивный
+ *
+ * jdbc:clickhouse:host:port
+ *
+ * например, jdbc:clickhouse:localhost:8123
+ *
  * Created by jkee on 14.03.15.
  */
 public class CHDriver implements Driver {
@@ -29,7 +38,7 @@ public class CHDriver implements Driver {
 
     @Override
     public boolean acceptsURL(String url) throws SQLException {
-        return true;
+        return url.startsWith("jdbc:clickhouse:");
     }
 
     @Override

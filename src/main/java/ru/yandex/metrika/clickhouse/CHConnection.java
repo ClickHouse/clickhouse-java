@@ -4,7 +4,6 @@ import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import ru.yandex.metrika.clickhouse.config.ClickHouseSource;
 
-import java.net.URI;
 import java.sql.*;
 import java.util.Map;
 import java.util.Properties;
@@ -25,9 +24,9 @@ public class CHConnection implements Connection {
     @Override
     public Statement createStatement() throws SQLException {
 
-        URI uri = URI.create(url);
-        String host = uri.getHost();
-        int port = uri.getPort();
+        String hostPort = url.substring("jdbc:clickhouse:".length());
+        String host = hostPort.substring(0, hostPort.indexOf(':'));
+        String port = hostPort.substring(hostPort.indexOf(':') + 1);
 
         ClickHouseSource source = new ClickHouseSource(host, port);
 
