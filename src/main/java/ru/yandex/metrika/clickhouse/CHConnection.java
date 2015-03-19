@@ -1,9 +1,11 @@
 package ru.yandex.metrika.clickhouse;
 
 import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClients;
 import ru.yandex.metrika.clickhouse.config.ClickHouseSource;
+import ru.yandex.metrika.clickhouse.copypaste.HttpConnectionProperties;
+import ru.yandex.metrika.clickhouse.util.CHHttpClientBuilder;
 
+import java.io.IOException;
 import java.sql.*;
 import java.util.Map;
 import java.util.Properties;
@@ -13,12 +15,16 @@ import java.util.Properties;
  */
 public class CHConnection implements Connection {
 
-    private final CloseableHttpClient httpclient = HttpClients.createDefault();
+    private final CloseableHttpClient httpclient;
+
+    private final HttpConnectionProperties properties = new HttpConnectionProperties();
 
     private final String url;
 
     public CHConnection(String url) {
         this.url = url;
+        CHHttpClientBuilder clientBuilder = new CHHttpClientBuilder(properties);
+        httpclient = clientBuilder.buildClient();
     }
 
     @Override
@@ -27,10 +33,11 @@ public class CHConnection implements Connection {
         String hostPort = url.substring("jdbc:clickhouse:".length());
         String host = hostPort.substring(0, hostPort.indexOf(':'));
         String port = hostPort.substring(hostPort.indexOf(':') + 1);
+        int portNum = Integer.parseInt(port);
 
-        ClickHouseSource source = new ClickHouseSource(host, "default");
+        ClickHouseSource source = new ClickHouseSource(host, portNum, "default");
 
-        return new CHStatement(httpclient, source);
+        return new CHStatement(httpclient, source, properties);
     }
 
     @Override
@@ -70,7 +77,11 @@ public class CHConnection implements Connection {
 
     @Override
     public void close() throws SQLException {
-
+        try {
+            httpclient.close();
+        } catch (IOException e) {
+            throw new CHException("HTTP client close exception", e);
+        }
     }
 
     @Override

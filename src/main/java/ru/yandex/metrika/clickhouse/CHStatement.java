@@ -36,17 +36,25 @@ public class CHStatement implements Statement {
 
     private ClickHouseSource source;
 
-    public CHStatement(CloseableHttpClient client, ClickHouseSource source) {
+    private CHResultSet currentResult;
+
+    public CHStatement(CloseableHttpClient client, ClickHouseSource source,
+                       HttpConnectionProperties properties) {
         this.client = client;
         this.source = source;
+        this.properties = properties;
     }
 
     @Override
     public ResultSet executeQuery(String sql) throws SQLException {
         InputStream is = getInputStream(sql, null, false);
         try {
-            return new CHResultSet(properties.isCompress()
-                    ? new ClickhouseLZ4Stream(is) : is, properties.getBufferSize());
+            currentResult = new CHResultSet(properties.isCompress()
+                    ? new ClickhouseLZ4Stream(is) : is, properties.getBufferSize(),
+                    extractDBName(sql),
+                    extractTableName(sql)
+            );
+            return currentResult;
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -66,11 +74,7 @@ public class CHStatement implements Statement {
 
     @Override
     public void close() throws SQLException {
-        try {
-            client.close();
-        } catch (IOException e) {
-            throw new CHException("HTTP client close exception", e);
-        }
+        currentResult.close();
     }
 
     @Override
@@ -283,6 +287,43 @@ public class CHStatement implements Statement {
         return sql;
     }
 
+    private String extractTableName(String sql) {
+        String s = extractDBAndTableName(sql);
+        if (s.contains(".")) {
+            return s.substring(s.indexOf(".") + 1);
+        } else return s;
+    }
+
+    private String extractDBName(String sql) {
+        String s = extractDBAndTableName(sql);
+        if (s.contains(".")) {
+            return s.substring(0, s.indexOf("."));
+        } else {
+            return source.getDb();
+        }
+    }
+
+    private String extractDBAndTableName(String sql) {
+        // паршивый код, надо писать или найти нормальный парсер
+        if (CopypasteUtils.startsWithIgnoreCase(sql, "select")) {
+            String withoutStrings = CopypasteUtils.retainUnquoted(sql, '\'');
+            int fromIndex = withoutStrings.indexOf("from");
+            if (fromIndex == -1) fromIndex = withoutStrings.indexOf("FROM");
+            if (fromIndex != -1) {
+                String fromFrom = withoutStrings.substring(fromIndex);
+                String fromTable = fromFrom.substring("from".length()).trim();
+                return fromTable.split(" ")[0];
+            }
+        }
+        if (CopypasteUtils.startsWithIgnoreCase(sql, "desc")) {
+            return "system.columns"; // bullshit
+        }
+        if (CopypasteUtils.startsWithIgnoreCase(sql, "show")) {
+            return "system.tables"; // bullshit
+        }
+        return "system.unknown";
+    }
+
     private InputStream getInputStream(String sql,
                                        Map<String, String> additionalClickHouseDBParams,
                                        boolean ignoreDatabase
@@ -317,7 +358,11 @@ public class CHStatement implements Statement {
             if (response.getStatusLine().getStatusCode() != HttpURLConnection.HTTP_OK) {
                 String chMessage = null;
                 try {
-                    chMessage = EntityUtils.toString(response.getEntity());
+                    InputStream messageStream = entity.getContent();
+                    if (properties.isCompress()) {
+                        messageStream = new ClickhouseLZ4Stream(messageStream);
+                    }
+                    chMessage = CopypasteUtils.toString(messageStream);
                 } catch (IOException e) {
                     chMessage = "error while read response "+ e.getMessage();
                 }

@@ -70,7 +70,7 @@ public class CHResultBuilder {
             byte[] bytes = baos.toByteArray();
             ByteArrayInputStream inputStream = new ByteArrayInputStream(bytes);
 
-            return new CHResultSet(inputStream, 1024);
+            return new CHResultSet(inputStream, 1024, "system", "unknown");
         } catch (IOException e) {
             throw new RuntimeException("Never happens", e);
         }

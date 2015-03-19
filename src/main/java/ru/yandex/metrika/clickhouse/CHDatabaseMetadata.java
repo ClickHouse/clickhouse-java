@@ -729,6 +729,9 @@ public class CHDatabaseMetadata implements DatabaseMetaData {
 
     @Override
     public ResultSet getColumns(String catalog, String schemaPattern, String tableNamePattern, String columnNamePattern) throws SQLException {
+        // todo support patterns as it should be (how?!)
+        log.debug("getColumns: cat " + catalog + " sp " + schemaPattern +
+        " tnp " + tableNamePattern + " cnp " + columnNamePattern);
         CHResultBuilder builder = CHResultBuilder.builder(23);
         builder.names(
                 "TABLE_CAT",
@@ -780,9 +783,17 @@ public class CHDatabaseMetadata implements DatabaseMetaData {
                 "Int32",
                 "String"
         );
-        ResultSet descTable = request("desc table " + catalog + '.' + tableNamePattern);
+        String sql = "desc table ";
+        if (catalog != null) sql += catalog + '.';
+        sql += tableNamePattern;
+        ResultSet descTable = request(sql);
         int colNum = 1;
         while (descTable.next()) {
+            // column filter
+            if (columnNamePattern != null && !columnNamePattern.equals(descTable.getString(1))
+                    && !columnNamePattern.equals("%")) {
+                continue;
+            }
             List<String> row = new ArrayList<String>();
             row.add(catalog);
             row.add(tableNamePattern);

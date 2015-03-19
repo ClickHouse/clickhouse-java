@@ -1,5 +1,7 @@
 package ru.yandex.metrika.clickhouse.copypaste;
 
+import ru.yandex.metrika.clickhouse.util.Logger;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.sql.*;
@@ -19,7 +21,12 @@ import java.util.Map;
  */
 public class CHResultSet extends AbstractResultSet {
 
+    private static final Logger log = Logger.of(CHResultSet.class);
+
     private final StreamSplitter bis;
+
+    private final String db;
+    private final String table;
 
     private final Map<String, Integer> col = new HashMap<String, Integer>(); // column name -> 1-based index
     private final String[] columns;
@@ -39,7 +46,9 @@ public class CHResultSet extends AbstractResultSet {
     // row counter
     private int rowNumber;
 
-    public CHResultSet(InputStream is, int bufferSize) throws IOException {
+    public CHResultSet(InputStream is, int bufferSize, String db, String table) throws IOException {
+        this.db = db;
+        this.table = table;
         bis = new StreamSplitter(is, (byte) 0x0A, bufferSize);  ///   \n
         ByteFragment headerFragment = bis.next();
         if (headerFragment == null) {
@@ -363,6 +372,14 @@ public class CHResultSet extends AbstractResultSet {
     @Override
     public int getRow() throws SQLException {
         return rowNumber + 1;
+    }
+
+    public String getDb() {
+        return db;
+    }
+
+    public String getTable() {
+        return table;
     }
 
     /////

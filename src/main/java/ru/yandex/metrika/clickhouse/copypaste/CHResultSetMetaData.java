@@ -8,15 +8,15 @@ import java.sql.SQLException;
 */
 public class CHResultSetMetaData implements ResultSetMetaData {
 
-    private final CHResultSet CHResultSet;
+    private final CHResultSet resultSet;
 
-    public CHResultSetMetaData(CHResultSet CHResultSet) {
-        this.CHResultSet = CHResultSet;
+    public CHResultSetMetaData(CHResultSet resultSet) {
+        this.resultSet = resultSet;
     }
 
     @Override
     public int getColumnCount() throws SQLException {
-        return CHResultSet.getColumnNames().length;
+        return resultSet.getColumnNames().length;
     }
 
     @Override
@@ -46,7 +46,7 @@ public class CHResultSetMetaData implements ResultSetMetaData {
 
     @Override
     public boolean isSigned(int column) throws SQLException {
-        return !CHResultSet.getTypes()[column - 1].startsWith("U");
+        return !resultSet.getTypes()[column - 1].startsWith("U");
     }
 
     @Override
@@ -56,12 +56,12 @@ public class CHResultSetMetaData implements ResultSetMetaData {
 
     @Override
     public String getColumnLabel(int column) throws SQLException {
-        return CHResultSet.getColumnNames()[column - 1];
+        return resultSet.getColumnNames()[column - 1];
     }
 
     @Override
     public String getColumnName(int column) throws SQLException {
-        return CHResultSet.getColumnNames()[column - 1];
+        return resultSet.getColumnNames()[column - 1];
     }
 
     @Override
@@ -81,12 +81,12 @@ public class CHResultSetMetaData implements ResultSetMetaData {
 
     @Override
     public String getTableName(int column) throws SQLException {
-        throw new UnsupportedOperationException("table name unknown at this stage");
+        return resultSet.getTable();
     }
 
     @Override
     public String getCatalogName(int column) throws SQLException {
-        throw new UnsupportedOperationException("catalog name unknown at this stage");
+        return resultSet.getDb();
     }
 
     @Override
@@ -96,10 +96,10 @@ public class CHResultSetMetaData implements ResultSetMetaData {
 
     @Override
     public String getColumnTypeName(int column) throws SQLException {
-        if (CHResultSet.getTypes().length < column) {
-            throw new ArrayIndexOutOfBoundsException("Array length: " + CHResultSet.getTypes().length + " requested: " + (column - 1));
+        if (resultSet.getTypes().length < column) {
+            throw new ArrayIndexOutOfBoundsException("Array length: " + resultSet.getTypes().length + " requested: " + (column - 1));
         }
-        return CHResultSet.getTypes()[column - 1];
+        return resultSet.getTypes()[column - 1];
     }
 
     @Override
