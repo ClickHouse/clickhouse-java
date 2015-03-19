@@ -16,7 +16,7 @@ public class CHResultBuilder {
     private final int columnsNum;
     private List<String> names;
     private List<String> types;
-    private List<List<Object>> rows = new ArrayList<List<Object>>();
+    private List<List<?>> rows = new ArrayList<List<?>>();
 
     public static CHResultBuilder builder(int columnsNum) {
         return new CHResultBuilder(columnsNum);
@@ -39,19 +39,19 @@ public class CHResultBuilder {
     }
 
     public CHResultBuilder names(List<String> names) {
-        if (names.size() != columnsNum) throw new IllegalArgumentException("size mismatch");
+        if (names.size() != columnsNum) throw new IllegalArgumentException("size mismatch, req: " + columnsNum + " got: " + names.size());
         this.names = names;
         return this;
     }
 
     public CHResultBuilder types(List<String> types) {
-        if (types.size() != columnsNum) throw new IllegalArgumentException("size mismatch");
+        if (types.size() != columnsNum) throw new IllegalArgumentException("size mismatch, req: " + columnsNum + " got: " + types.size());
         this.types = types;
         return this;
     }
 
-    public CHResultBuilder addRow(List<Object> row) {
-        if (row.size() != columnsNum) throw new IllegalArgumentException("size mismatch");
+    public CHResultBuilder addRow(List<?> row) {
+        if (row.size() != columnsNum) throw new IllegalArgumentException("size mismatch, req: " + columnsNum + " got: " + row.size());
         rows.add(row);
         return this;
     }
@@ -63,7 +63,7 @@ public class CHResultBuilder {
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             appendRow(names, baos);
             appendRow(types, baos);
-            for (List<Object> row : rows) {
+            for (List<?> row : rows) {
                 appendRow(row, baos);
             }
 

@@ -43,7 +43,6 @@ public class CHStatement implements Statement {
 
     @Override
     public ResultSet executeQuery(String sql) throws SQLException {
-        log.debug("Ex: " + sql);
         InputStream is = getInputStream(sql, null, false);
         try {
             return new CHResultSet(properties.isCompress()

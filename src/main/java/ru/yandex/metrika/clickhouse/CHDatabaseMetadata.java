@@ -2,6 +2,7 @@ package ru.yandex.metrika.clickhouse;
 
 import ru.yandex.metrika.clickhouse.copypaste.CHResultBuilder;
 import ru.yandex.metrika.clickhouse.copypaste.CHResultSet;
+import ru.yandex.metrika.clickhouse.util.Logger;
 
 import java.sql.*;
 import java.util.ArrayList;
@@ -11,6 +12,8 @@ import java.util.List;
  * Created by jkee on 14.03.15.
  */
 public class CHDatabaseMetadata implements DatabaseMetaData {
+
+    private static final Logger log = Logger.of(CHDatabaseMetadata.class);
 
     private String url;
     private CHConnection connection;
@@ -797,6 +800,8 @@ public class CHDatabaseMetadata implements DatabaseMetaData {
             if (type.contains("Int")) {
                 String bits = type.substring(type.indexOf("Int") + "Int".length());
                 row.add(bits); //bullshit
+            } else {
+                row.add(null);
             }
 
             // radix
@@ -871,7 +876,124 @@ public class CHDatabaseMetadata implements DatabaseMetaData {
 
     @Override
     public ResultSet getTypeInfo() throws SQLException {
-        return null;
+        CHResultBuilder builder = CHResultBuilder.builder(18);
+        builder.names(
+                "TYPE_NAME",
+                "DATA_TYPE",
+                "PRECISION",
+                "LITERAL_PREFIX",
+                "LITERAL_SUFFIX",
+                "CREATE_PARAMS",
+                "NULLABLE",
+                "CASE_SENSITIVE",
+                "SEARCHABLE",
+                "UNSIGNED_ATTRIBUTE",
+                "FIXED_PREC_SCALE",
+                "AUTO_INCREMENT",
+                "LOCAL_TYPE_NAME",
+                "MINIMUM_SCALE",
+                "MAXIMUM_SCALE",
+                "SQL_DATA_TYPE",
+                "SQL_DATETIME_SUB",
+                "NUM_PREC_RADIX"
+        );
+        builder.types(
+                "String",
+                "Int32",
+                "Int32",
+                "String",
+                "String",
+                "String",
+                "Int32",
+                "Int8",
+                "Int32",
+                "Int8",
+                "Int8",
+                "Int8",
+                "String",
+                "Int32",
+                "Int32",
+                "Int32",
+                "Int32",
+                "Int32"
+        );
+        builder.addRow(
+                "String", Types.VARCHAR,
+                null, // precision - todo
+                '\'', '\'', null,
+                typeNoNulls, true, typeSearchable,
+                true, // unsigned
+                true, // fixed precision (money)
+                false, //auto-incr
+                null,
+                null, null, // scale - should be fixed
+                null, null,
+                10
+                );
+        int[] sizes = { 8, 16, 32, 64 };
+        boolean[] signed = { true, false };
+        for (int size : sizes) {
+            for (boolean b: signed) {
+                String name = (b ? "" : "U") + "Int" + size;
+                builder.addRow(
+                        name, (size <= 16 ? Types.INTEGER : Types.BIGINT),
+                        null, // precision - todo
+                        null, null, null,
+                        typeNoNulls, true, typePredBasic,
+                        !b, // unsigned
+                        true, // fixed precision (money)
+                        false, //auto-incr
+                        null,
+                        null, null, // scale - should be fixed
+                        null, null,
+                        10
+                );
+            }
+        }
+        int[] floatSizes = { 32, 64 };
+        for (int floatSize : floatSizes) {
+            String name = "Float" + floatSize;
+            builder.addRow(
+                    name, Types.FLOAT,
+                    null, // precision - todo
+                    null, null, null,
+                    typeNoNulls, true, typePredBasic,
+                    false, // unsigned
+                    true, // fixed precision (money)
+                    false, //auto-incr
+                    null,
+                    null, null, // scale - should be fixed
+                    null, null,
+                    10
+            );
+        }
+        builder.addRow(
+                "Date", Types.DATE,
+                null, // precision - todo
+                null, null, null,
+                typeNoNulls, true, typePredBasic,
+                false, // unsigned
+                true, // fixed precision (money)
+                false, //auto-incr
+                null,
+                null, null, // scale - should be fixed
+                null, null,
+                10
+        );
+        builder.addRow(
+                "DateTime", Types.TIMESTAMP,
+                null, // precision - todo
+                null, null, null,
+                typeNoNulls, true, typePredBasic,
+                false, // unsigned
+                true, // fixed precision (money)
+                false, //auto-incr
+                null,
+                null, null, // scale - should be fixed
+                null, null,
+                10
+        );
+        return builder.build();
     }
 
     @Override

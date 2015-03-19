@@ -28,7 +28,7 @@ public class CHConnection implements Connection {
         String host = hostPort.substring(0, hostPort.indexOf(':'));
         String port = hostPort.substring(hostPort.indexOf(':') + 1);
 
-        ClickHouseSource source = new ClickHouseSource(host, port);
+        ClickHouseSource source = new ClickHouseSource(host, "default");
 
         return new CHStatement(httpclient, source);
     }
