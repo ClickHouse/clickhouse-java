@@ -301,17 +301,21 @@ public class CHResultSet extends AbstractResultSet {
 
     @Override
     public Object getObject(int columnIndex) throws SQLException {
-        int type = toSqlType(types[columnIndex - 1]);
-        switch (type) {
-            case Types.BIGINT:      return getLong(columnIndex);
-            case Types.INTEGER:     return getInt(columnIndex);
-            case Types.VARCHAR:     return getString(columnIndex);
-            case Types.FLOAT:       return getFloat(columnIndex);
-            case Types.DATE:        return getDate(columnIndex);
-            case Types.TIMESTAMP:   return getTime(columnIndex);
-            case Types.BLOB:        return getString(columnIndex);
+        try {
+            int type = toSqlType(types[columnIndex - 1]);
+            switch (type) {
+                case Types.BIGINT:      return getLong(columnIndex);
+                case Types.INTEGER:     return getInt(columnIndex);
+                case Types.VARCHAR:     return getString(columnIndex);
+                case Types.FLOAT:       return getFloat(columnIndex);
+                case Types.DATE:        return getDate(columnIndex);
+                case Types.TIMESTAMP:   return getTime(columnIndex);
+                case Types.BLOB:        return getString(columnIndex);
+            }
+            return getString(columnIndex);
+        } catch (Exception e) {
+            throw new RuntimeException("Parse exception: " + values[columnIndex - 1].toString(), e);
         }
-        return getString(columnIndex);
     }
 
     /////////////////////////////////////////////////////////

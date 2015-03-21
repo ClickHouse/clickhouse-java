@@ -5,7 +5,6 @@ import ru.yandex.metrika.clickhouse.util.CopypasteUtils;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.OutputStream;
-import java.util.Arrays;
 
 /**
  * @author orantius
@@ -45,11 +44,20 @@ public class ByteFragment {
 
     @Override
     public String toString() {
-        return "ByteFragment{" +
-                "buf=" + Arrays.toString(buf) +
-                ", start=" + start +
+        StringBuilder b = new StringBuilder();
+        b.append("ByteFragment{[");
+        for (byte b1 : buf) {
+            if (b1 == '\t') {
+                b.append("<TAB>");
+            } else {
+                b.append((char) b1);
+            }
+        }
+        b.append(']');
+        b.append(", start=" + start +
                 ", len=" + len +
-                '}';
+                '}');
+        return b.toString();
     }
 
     public ByteFragment[] split(byte sep) {

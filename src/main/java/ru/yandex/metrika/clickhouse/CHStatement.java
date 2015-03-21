@@ -73,8 +73,18 @@ public class CHStatement implements Statement {
     }
 
     @Override
+    public boolean execute(String sql) throws SQLException {
+        executeQuery(sql);
+        return true;
+    }
+
+
+
+    @Override
     public void close() throws SQLException {
-        currentResult.close();
+        if (currentResult != null) {
+            currentResult.close();
+        }
     }
 
     @Override
@@ -133,13 +143,8 @@ public class CHStatement implements Statement {
     }
 
     @Override
-    public boolean execute(String sql) throws SQLException {
-        return false;
-    }
-
-    @Override
     public ResultSet getResultSet() throws SQLException {
-        return null;
+        return currentResult;
     }
 
     @Override

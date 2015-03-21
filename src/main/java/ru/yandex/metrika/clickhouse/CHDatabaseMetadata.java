@@ -800,7 +800,8 @@ public class CHDatabaseMetadata implements DatabaseMetaData {
             row.add(tableNamePattern);
             row.add(descTable.getString(1));
             String type = descTable.getString(2);
-            row.add(Integer.toString(CHResultSet.toSqlType(type)));
+            int sqlType = CHResultSet.toSqlType(type);
+            row.add(Integer.toString(sqlType));
             row.add(type);
 
             // column size ?
@@ -808,7 +809,7 @@ public class CHDatabaseMetadata implements DatabaseMetaData {
             row.add("0");
 
             // decimal digits
-            if (type.contains("Int")) {
+            if (sqlType == Types.INTEGER || sqlType == Types.BIGINT && type.contains("Int")) {
                 String bits = type.substring(type.indexOf("Int") + "Int".length());
                 row.add(bits); //bullshit
             } else {

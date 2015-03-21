@@ -4,6 +4,7 @@ import org.apache.http.impl.client.CloseableHttpClient;
 import ru.yandex.metrika.clickhouse.config.ClickHouseSource;
 import ru.yandex.metrika.clickhouse.copypaste.HttpConnectionProperties;
 import ru.yandex.metrika.clickhouse.util.CHHttpClientBuilder;
+import ru.yandex.metrika.clickhouse.util.LogProxy;
 
 import java.io.IOException;
 import java.sql.*;
@@ -37,7 +38,7 @@ public class CHConnection implements Connection {
 
         ClickHouseSource source = new ClickHouseSource(host, portNum, "default");
 
-        return new CHStatement(httpclient, source, properties);
+        return LogProxy.wrap(Statement.class, new CHStatement(httpclient, source, properties));
     }
 
     @Override
