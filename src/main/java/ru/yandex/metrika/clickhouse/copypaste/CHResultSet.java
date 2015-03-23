@@ -23,6 +23,9 @@ public class CHResultSet extends AbstractResultSet {
 
     private static final Logger log = Logger.of(CHResultSet.class);
 
+    private static final SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss"); //
+    private static final SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd"); //
+
     private final StreamSplitter bis;
 
     private final String db;
@@ -32,8 +35,7 @@ public class CHResultSet extends AbstractResultSet {
     private final String[] columns;
     private final String[] types;
 
-    private static final SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss"); //
-    private static final SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd"); //
+    private int maxRows;
 
     // current line
     private ByteFragment[] values;
@@ -86,7 +88,7 @@ public class CHResultSet extends AbstractResultSet {
         if (nextLine == null) {
             try {
                 nextLine = bis.next();
-                if (nextLine == null || nextLine.length() == 0) {
+                if (nextLine == null || nextLine.length() == 0 || (maxRows != 0 && rowNumber >= maxRows)) {
                     bis.close();
                 }
             } catch (IOException e) {
@@ -384,6 +386,10 @@ public class CHResultSet extends AbstractResultSet {
 
     public String getTable() {
         return table;
+    }
+
+    public void setMaxRows(int maxRows) {
+        this.maxRows = maxRows;
     }
 
     /////

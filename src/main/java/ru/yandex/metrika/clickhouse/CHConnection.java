@@ -42,6 +42,20 @@ public class CHConnection implements Connection {
     }
 
     @Override
+    public Statement createStatement(int resultSetType, int resultSetConcurrency) throws SQLException {
+        return createStatement(resultSetType, resultSetConcurrency, ResultSet.CLOSE_CURSORS_AT_COMMIT);
+    }
+
+    @Override
+    public Statement createStatement(int resultSetType, int resultSetConcurrency, int resultSetHoldability) throws SQLException {
+        if (resultSetType != ResultSet.TYPE_FORWARD_ONLY && resultSetConcurrency != ResultSet.CONCUR_READ_ONLY
+                && resultSetHoldability != ResultSet.CLOSE_CURSORS_AT_COMMIT) {
+            throw new SQLFeatureNotSupportedException();
+        }
+        return createStatement();
+    }
+
+    @Override
     public PreparedStatement prepareStatement(String sql) throws SQLException {
         return null;
     }
@@ -135,10 +149,6 @@ public class CHConnection implements Connection {
 
     }
 
-    @Override
-    public Statement createStatement(int resultSetType, int resultSetConcurrency) throws SQLException {
-        return null;
-    }
 
     @Override
     public PreparedStatement prepareStatement(String sql, int resultSetType, int resultSetConcurrency) throws SQLException {
@@ -188,11 +198,6 @@ public class CHConnection implements Connection {
     @Override
     public void releaseSavepoint(Savepoint savepoint) throws SQLException {
 
-    }
-
-    @Override
-    public Statement createStatement(int resultSetType, int resultSetConcurrency, int resultSetHoldability) throws SQLException {
-        return null;
     }
 
     @Override

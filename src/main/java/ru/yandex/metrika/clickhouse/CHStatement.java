@@ -38,6 +38,8 @@ public class CHStatement implements Statement {
 
     private CHResultSet currentResult;
 
+    private int maxRows;
+
     public CHStatement(CloseableHttpClient client, ClickHouseSource source,
                        HttpConnectionProperties properties) {
         this.client = client;
@@ -54,6 +56,7 @@ public class CHStatement implements Statement {
                     extractDBName(sql),
                     extractTableName(sql)
             );
+            currentResult.setMaxRows(maxRows);
             return currentResult;
         } catch (Exception e) {
             throw new RuntimeException(e);
@@ -99,12 +102,12 @@ public class CHStatement implements Statement {
 
     @Override
     public int getMaxRows() throws SQLException {
-        return 0;
+        return maxRows;
     }
 
     @Override
     public void setMaxRows(int max) throws SQLException {
-
+        maxRows = max;
     }
 
     @Override

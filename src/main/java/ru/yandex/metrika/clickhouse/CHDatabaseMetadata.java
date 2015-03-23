@@ -345,7 +345,7 @@ public class CHDatabaseMetadata implements DatabaseMetaData {
 
     @Override
     public String getCatalogSeparator() throws SQLException {
-        return ":";
+        return ".";
     }
 
     @Override
