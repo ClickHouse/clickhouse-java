@@ -21,4 +21,14 @@ jar можно собрать через
 
 Собираться будет только если стоит jdk 1.6 и если она прописана в $JAVA_HOME при сборке (или 1.6 это дефолт).
 
-Позже сделаю заливку последней версии куда-нибудь.
+[Автосборка](http://jenkins.qart.yandex.ru/view/Метрика%20Clickhouse/job/Metrika%20Core%20Clickhouse%20JDBC%20Driver%20Build/) (хранит последние 10 артефактов).
+
+Зависимость maven:
+```
+<dependency>
+    <groupId>ru.yandex.metrika.clickhouse</groupId>
+    <artifactId>jdbc</artifactId>
+    <version>1.0-SNAPSHOT</version>
+</dependency>
+```
+Репозиторий: `http://artifactory.yandex.net/artifactory/public`
