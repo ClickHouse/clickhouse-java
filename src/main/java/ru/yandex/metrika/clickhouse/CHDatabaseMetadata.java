@@ -715,10 +715,8 @@ public class CHDatabaseMetadata implements DatabaseMetaData {
 
     @Override
     public ResultSet getSchemas(String catalog, String schemaPattern) throws SQLException {
-        // это запрос к system.tables, который теоретически не нужен. Однако, system.databases отсутствует,
-        // а по show databases нельзя сделать LIKE.
-        String sql = "select distinct database as TABLE_SCHEM, '" +
-                DEFAULT_CAT + "' as TABLE_CATALOG from system.tables";
+        String sql = "select name as TABLE_SCHEM, '" +
+                DEFAULT_CAT + "' as TABLE_CATALOG from system.databases";
         if (catalog != null) sql += " where TABLE_CATALOG = '" + catalog + '\'';
         if (schemaPattern != null) {
             if (catalog != null) sql += " and ";
