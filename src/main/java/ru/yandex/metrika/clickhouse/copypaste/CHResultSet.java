@@ -90,12 +90,13 @@ public class CHResultSet extends AbstractResultSet {
                 nextLine = bis.next();
                 if (nextLine == null || nextLine.length() == 0 || (maxRows != 0 && rowNumber >= maxRows)) {
                     bis.close();
+                    nextLine = null;
                 }
             } catch (IOException e) {
                 throw new SQLException(e);
             }
         }
-        return nextLine != null && nextLine.length() > 0;
+        return nextLine != null;
     }
     @Override
     public boolean next() throws SQLException {

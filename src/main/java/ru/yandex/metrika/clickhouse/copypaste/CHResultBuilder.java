@@ -89,7 +89,17 @@ public class CHResultBuilder {
             baos.write('\\');
             baos.write('N');
         } else {
-            ByteFragment.escape(o.toString().getBytes(), baos);
+            String value;
+            if (o instanceof Boolean) {
+                if ((Boolean) o) {
+                    value = "1";
+                } else {
+                    value = "0";
+                }
+            } else {
+                value = o.toString();
+            }
+            ByteFragment.escape(value.getBytes(), baos);
         }
     }
 

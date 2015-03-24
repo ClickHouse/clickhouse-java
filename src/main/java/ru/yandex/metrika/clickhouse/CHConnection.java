@@ -106,7 +106,7 @@ public class CHConnection implements Connection {
 
     @Override
     public DatabaseMetaData getMetaData() throws SQLException {
-        return new CHDatabaseMetadata(url, this);
+        return LogProxy.wrap(DatabaseMetaData.class, new CHDatabaseMetadata(url, this));
     }
 
     @Override
@@ -247,7 +247,12 @@ public class CHConnection implements Connection {
 
     @Override
     public boolean isValid(int timeout) throws SQLException {
-        return false;
+        // todo timeout
+        Statement statement = createStatement();
+        statement.execute("SELECT 1");
+        statement.close();
+        // no exception - fine
+        return true;
     }
 
     @Override

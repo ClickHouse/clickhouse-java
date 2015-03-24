@@ -2,6 +2,7 @@ package ru.yandex.metrika.clickhouse;
 
 import ru.yandex.metrika.clickhouse.copypaste.CHResultBuilder;
 import ru.yandex.metrika.clickhouse.copypaste.CHResultSet;
+import ru.yandex.metrika.clickhouse.util.CopypasteUtils;
 import ru.yandex.metrika.clickhouse.util.Logger;
 
 import java.sql.*;
@@ -12,6 +13,8 @@ import java.util.List;
  * Created by jkee on 14.03.15.
  */
 public class CHDatabaseMetadata implements DatabaseMetaData {
+
+    private static final String DEFAULT_CAT = "default";
 
     private static final Logger log = Logger.of(CHDatabaseMetadata.class);
 
@@ -325,17 +328,17 @@ public class CHDatabaseMetadata implements DatabaseMetaData {
 
     @Override
     public String getSchemaTerm() throws SQLException {
-        return "schema";
+        return "database";
     }
 
     @Override
     public String getProcedureTerm() throws SQLException {
-        return "some bullshit";
+        return "procedure";
     }
 
     @Override
     public String getCatalogTerm() throws SQLException {
-        return "database";
+        return "catalog";
     }
 
     @Override
@@ -350,32 +353,32 @@ public class CHDatabaseMetadata implements DatabaseMetaData {
 
     @Override
     public boolean supportsSchemasInDataManipulation() throws SQLException {
-        return false;
+        return true;
     }
 
     @Override
     public boolean supportsSchemasInProcedureCalls() throws SQLException {
-        return false;
+        return true;
     }
 
     @Override
     public boolean supportsSchemasInTableDefinitions() throws SQLException {
-        return false;
+        return true;
     }
 
     @Override
     public boolean supportsSchemasInIndexDefinitions() throws SQLException {
-        return false;
+        return true;
     }
 
     @Override
     public boolean supportsSchemasInPrivilegeDefinitions() throws SQLException {
-        return false;
+        return true;
     }
 
     @Override
     public boolean supportsCatalogsInDataManipulation() throws SQLException {
-        return true;
+        return false;
     }
 
     @Override
@@ -385,12 +388,12 @@ public class CHDatabaseMetadata implements DatabaseMetaData {
 
     @Override
     public boolean supportsCatalogsInTableDefinitions() throws SQLException {
-        return true;
+        return false;
     }
 
     @Override
     public boolean supportsCatalogsInIndexDefinitions() throws SQLException {
-        return true;
+        return false;
     }
 
     @Override
@@ -672,14 +675,18 @@ public class CHDatabaseMetadata implements DatabaseMetaData {
          SELF_REFERENCING_COL_NAME String => name of the designated "identifier" column of a typed table (may be null)
          REF_GENERATION String => specifies how values in SELF_REFERENCING_COL_NAME are created. Values are "SYSTEM", "USER", "DERIVED". (may be null)
          */
-        if (catalog == null || catalog.isEmpty()) {
-            catalog = "default";
-        }
         String sql = "select " +
-                "database, name, name " +
-                "from system.tables " +
-                "where database = '" + catalog + "' " +
-                "order by name";
+                "database, name " +
+                "from system.tables";
+        if (schemaPattern != null) {
+            sql += " where database like '" + schemaPattern + "'";
+        }
+        if (tableNamePattern != null) {
+            if (schemaPattern != null) sql += " and";
+            else sql += " where";
+            sql += " name like '" + tableNamePattern + "'";
+        }
+        sql += " order by database, name";
         ResultSet result = request(sql);
 
         CHResultBuilder builder = CHResultBuilder.builder(10);
@@ -688,15 +695,16 @@ public class CHDatabaseMetadata implements DatabaseMetaData {
 
         while(result.next()) {
             List<String> row = new ArrayList<String>();
+            row.add(DEFAULT_CAT);
             row.add(result.getString(1));
             row.add(result.getString(2));
-            row.add(result.getString(3));
             row.add("TABLE"); // можно сделать точнее
-            for (int i = 4; i < 10; i++) {
+            for (int i = 3; i < 9; i++) {
                 row.add(null);
             }
             builder.addRow(row);
         }
+        result.close();
         return builder.build();
     }
 
@@ -707,19 +715,27 @@ public class CHDatabaseMetadata implements DatabaseMetaData {
 
     @Override
     public ResultSet getSchemas(String catalog, String schemaPattern) throws SQLException {
-        String sql = "select name, database from system.tables";
-        if (catalog != null) sql += " where database = '" + catalog + '\'';
+        // это запрос к system.tables, который теоретически не нужен. Однако, system.databases отсутствует,
+        // а по show databases нельзя сделать LIKE.
+        String sql = "select distinct database as TABLE_SCHEM, '" +
+                DEFAULT_CAT + "' as TABLE_CATALOG from system.tables";
+        if (catalog != null) sql += " where TABLE_CATALOG = '" + catalog + '\'';
         if (schemaPattern != null) {
             if (catalog != null) sql += " and ";
             else sql += " where ";
-            sql += "name = '" + schemaPattern + '\'';
+            sql += "name LIKE '" + schemaPattern + '\'';
         }
         return request(sql);
     }
 
     @Override
     public ResultSet getCatalogs() throws SQLException {
-        return request("show databases");
+        CHResultBuilder builder = CHResultBuilder.builder(1);
+        builder.names("TABLE_CAT");
+        builder.types("String");
+
+        builder.addRow(DEFAULT_CAT);
+        return builder.build();
     }
 
     @Override
@@ -783,9 +799,10 @@ public class CHDatabaseMetadata implements DatabaseMetaData {
                 "Int32",
                 "String"
         );
+        // todo это всё брехня, ждем https://st.yandex-team.ru/METR-15619
         String sql = "desc table ";
-        if (catalog != null) sql += catalog + '.';
-        sql += tableNamePattern;
+        if (schemaPattern != null) sql += CopypasteUtils.unEscapeString(schemaPattern) + '.';
+        sql += CopypasteUtils.unEscapeString(tableNamePattern);
         ResultSet descTable = request(sql);
         int colNum = 1;
         while (descTable.next()) {
@@ -795,8 +812,8 @@ public class CHDatabaseMetadata implements DatabaseMetaData {
                 continue;
             }
             List<String> row = new ArrayList<String>();
-            row.add(catalog);
-            row.add(tableNamePattern);
+            row.add(DEFAULT_CAT);
+            row.add(schemaPattern);
             row.add(tableNamePattern);
             row.add(descTable.getString(1));
             String type = descTable.getString(2);
@@ -842,48 +859,53 @@ public class CHDatabaseMetadata implements DatabaseMetaData {
             builder.addRow(row);
 
         }
+        descTable.close();
 
         return builder.build();
     }
 
+    private ResultSet getEmptyResultSet() {
+        return CHResultBuilder.builder(1).names("bullshit").types("String").build();
+    }
+
     @Override
     public ResultSet getColumnPrivileges(String catalog, String schema, String table, String columnNamePattern) throws SQLException {
-        return null;
+        return getEmptyResultSet();
     }
 
     @Override
     public ResultSet getTablePrivileges(String catalog, String schemaPattern, String tableNamePattern) throws SQLException {
-        return null;
+        return getEmptyResultSet();
     }
 
     @Override
     public ResultSet getBestRowIdentifier(String catalog, String schema, String table, int scope, boolean nullable) throws SQLException {
-        return null;
+        return getEmptyResultSet();
     }
 
     @Override
     public ResultSet getVersionColumns(String catalog, String schema, String table) throws SQLException {
-        return null;
+        return getEmptyResultSet();
     }
 
     @Override
     public ResultSet getPrimaryKeys(String catalog, String schema, String table) throws SQLException {
-        return null;
+        return getEmptyResultSet();
     }
 
     @Override
     public ResultSet getImportedKeys(String catalog, String schema, String table) throws SQLException {
-        return null;
+        return getEmptyResultSet();
     }
 
     @Override
     public ResultSet getExportedKeys(String catalog, String schema, String table) throws SQLException {
-        return null;
+        return getEmptyResultSet();
     }
 
     @Override
     public ResultSet getCrossReference(String parentCatalog, String parentSchema, String parentTable, String foreignCatalog, String foreignSchema, String foreignTable) throws SQLException {
-        return null;
+        return getEmptyResultSet();
     }
 
     @Override
@@ -1010,7 +1032,7 @@ public class CHDatabaseMetadata implements DatabaseMetaData {
 
     @Override
     public ResultSet getIndexInfo(String catalog, String schema, String table, boolean unique, boolean approximate) throws SQLException {
-        return null;
+        return getEmptyResultSet();
     }
 
     @Override
@@ -1079,7 +1101,7 @@ public class CHDatabaseMetadata implements DatabaseMetaData {
 
     @Override
     public ResultSet getUDTs(String catalog, String schemaPattern, String typeNamePattern, int[] types) throws SQLException {
-        return null;
+        return getEmptyResultSet();
     }
 
     @Override
@@ -1109,17 +1131,17 @@ public class CHDatabaseMetadata implements DatabaseMetaData {
 
     @Override
     public ResultSet getSuperTypes(String catalog, String schemaPattern, String typeNamePattern) throws SQLException {
-        return null;
+        return getEmptyResultSet();
     }
 
     @Override
     public ResultSet getSuperTables(String catalog, String schemaPattern, String tableNamePattern) throws SQLException {
-        return null;
+        return getEmptyResultSet();
     }
 
     @Override
     public ResultSet getAttributes(String catalog, String schemaPattern, String typeNamePattern, String attributeNamePattern) throws SQLException {
-        return null;
+        return getEmptyResultSet();
     }
 
     @Override
@@ -1184,17 +1206,17 @@ public class CHDatabaseMetadata implements DatabaseMetaData {
 
     @Override
     public ResultSet getClientInfoProperties() throws SQLException {
-        return null;
+        return getEmptyResultSet();
     }
 
     @Override
     public ResultSet getFunctions(String catalog, String schemaPattern, String functionNamePattern) throws SQLException {
-        return null;
+        return getEmptyResultSet();
     }
 
     @Override
     public ResultSet getFunctionColumns(String catalog, String schemaPattern, String functionNamePattern, String columnNamePattern) throws SQLException {
-        return null;
+        return getEmptyResultSet();
     }
 
     @Override

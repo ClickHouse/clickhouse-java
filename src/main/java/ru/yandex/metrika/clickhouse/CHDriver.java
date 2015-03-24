@@ -1,5 +1,6 @@
 package ru.yandex.metrika.clickhouse;
 
+import ru.yandex.metrika.clickhouse.util.LogProxy;
 import ru.yandex.metrika.clickhouse.util.Logger;
 
 import java.sql.*;
@@ -33,7 +34,8 @@ public class CHDriver implements Driver {
 
     @Override
     public Connection connect(String url, Properties info) throws SQLException {
-        return new CHConnection(url);
+        logger.info("Creating connection");
+        return LogProxy.wrap(Connection.class, new CHConnection(url));
     }
 
     @Override
