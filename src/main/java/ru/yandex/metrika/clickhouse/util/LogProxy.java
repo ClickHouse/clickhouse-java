@@ -29,8 +29,10 @@ public class LogProxy<T> implements InvocationHandler {
         this.object = object;
     }
 
+    @SuppressWarnings("unchecked")
     public T getProxy() {
-        //noinspection unchecked
+        //xnoinspection x
+        // unchecked
         return (T) Proxy.newProxyInstance(clazz.getClassLoader(), new Class<?>[]{clazz}, this);
     }
 
