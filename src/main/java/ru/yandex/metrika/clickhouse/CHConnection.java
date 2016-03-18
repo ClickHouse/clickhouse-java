@@ -1,44 +1,46 @@
 package ru.yandex.metrika.clickhouse;
 
 import org.apache.http.impl.client.CloseableHttpClient;
-import ru.yandex.metrika.clickhouse.config.ClickHouseSource;
 import ru.yandex.metrika.clickhouse.copypaste.HttpConnectionProperties;
 import ru.yandex.metrika.clickhouse.util.CHHttpClientBuilder;
 import ru.yandex.metrika.clickhouse.util.LogProxy;
+import ru.yandex.metrika.clickhouse.util.Logger;
 
 import java.io.IOException;
 import java.sql.*;
 import java.util.Map;
 import java.util.Properties;
+import java.util.concurrent.Executor;
 
 /**
  * Created by jkee on 14.03.15.
  */
 public class CHConnection implements Connection {
+    private static final Logger log = Logger.of(CHStatement.class);
+
 
     private final CloseableHttpClient httpclient;
 
     private final HttpConnectionProperties properties = new HttpConnectionProperties();
 
-    private final String url;
+    private CHDataSource dataSource;
+
+    private boolean closed = false;
 
     public CHConnection(String url) {
-        this.url = url;
+        this.dataSource = new CHDataSource(url);
         CHHttpClientBuilder clientBuilder = new CHHttpClientBuilder(properties);
+        log.debug("new connection");
         httpclient = clientBuilder.buildClient();
     }
 
     @Override
     public Statement createStatement() throws SQLException {
+        return LogProxy.wrap(Statement.class, new CHStatement(httpclient, dataSource, properties));
+    }
 
-        String hostPort = url.substring("jdbc:clickhouse:".length());
-        String host = hostPort.substring(0, hostPort.indexOf(':'));
-        String port = hostPort.substring(hostPort.indexOf(':') + 1);
-        int portNum = Integer.parseInt(port);
-
-        ClickHouseSource source = new ClickHouseSource(host, portNum, "default");
-
-        return LogProxy.wrap(Statement.class, new CHStatement(httpclient, source, properties));
+    public PreparedStatement createPreparedStatement(String sql) throws SQLException {
+        return LogProxy.wrap(PreparedStatement.class, new CHPreparedStatement(httpclient, dataSource, properties, sql));
     }
 
     @Override
@@ -57,17 +59,17 @@ public class CHConnection implements Connection {
 
     @Override
     public PreparedStatement prepareStatement(String sql) throws SQLException {
-        return null;
+        return createPreparedStatement(sql);
     }
 
     @Override
     public CallableStatement prepareCall(String sql) throws SQLException {
-        return null;
+        throw new SQLFeatureNotSupportedException();
     }
 
     @Override
     public String nativeSQL(String sql) throws SQLException {
-        return null;
+        throw new SQLFeatureNotSupportedException();
     }
 
     @Override
@@ -94,6 +96,7 @@ public class CHConnection implements Connection {
     public void close() throws SQLException {
         try {
             httpclient.close();
+            closed = true;
         } catch (IOException e) {
             throw new CHException("HTTP client close exception", e);
         }
@@ -101,12 +104,12 @@ public class CHConnection implements Connection {
 
     @Override
     public boolean isClosed() throws SQLException {
-        return false;
+        return closed;
     }
 
     @Override
     public DatabaseMetaData getMetaData() throws SQLException {
-        return LogProxy.wrap(DatabaseMetaData.class, new CHDatabaseMetadata(url, this));
+        return LogProxy.wrap(DatabaseMetaData.class, new CHDatabaseMetadata(dataSource.getUrl(), this));
     }
 
     @Override
@@ -152,12 +155,12 @@ public class CHConnection implements Connection {
 
     @Override
     public PreparedStatement prepareStatement(String sql, int resultSetType, int resultSetConcurrency) throws SQLException {
-        return null;
+        throw new SQLFeatureNotSupportedException();
     }
 
     @Override
     public CallableStatement prepareCall(String sql, int resultSetType, int resultSetConcurrency) throws SQLException {
-        return null;
+        throw new SQLFeatureNotSupportedException();
     }
 
     @Override
@@ -182,12 +185,12 @@ public class CHConnection implements Connection {
 
     @Override
     public Savepoint setSavepoint() throws SQLException {
-        return null;
+        throw new SQLFeatureNotSupportedException();
     }
 
     @Override
     public Savepoint setSavepoint(String name) throws SQLException {
-        return null;
+        throw new SQLFeatureNotSupportedException();
     }
 
     @Override
@@ -197,32 +200,32 @@ public class CHConnection implements Connection {
 
     @Override
     public void releaseSavepoint(Savepoint savepoint) throws SQLException {
-
+        throw new SQLFeatureNotSupportedException();
     }
 
     @Override
     public PreparedStatement prepareStatement(String sql, int resultSetType, int resultSetConcurrency, int resultSetHoldability) throws SQLException {
-        return null;
+        return createPreparedStatement(sql);
     }
 
     @Override
     public CallableStatement prepareCall(String sql, int resultSetType, int resultSetConcurrency, int resultSetHoldability) throws SQLException {
-        return null;
+        throw new SQLFeatureNotSupportedException();
     }
 
     @Override
     public PreparedStatement prepareStatement(String sql, int autoGeneratedKeys) throws SQLException {
-        return null;
+        throw new SQLFeatureNotSupportedException();
     }
 
     @Override
     public PreparedStatement prepareStatement(String sql, int[] columnIndexes) throws SQLException {
-        return null;
+        throw new SQLFeatureNotSupportedException();
     }
 
     @Override
     public PreparedStatement prepareStatement(String sql, String[] columnNames) throws SQLException {
-        return null;
+        throw new SQLFeatureNotSupportedException();
     }
 
     @Override
@@ -293,5 +296,30 @@ public class CHConnection implements Connection {
     @Override
     public boolean isWrapperFor(Class<?> iface) throws SQLException {
         return false;
+    }
+
+    @Override
+    public void setSchema(String schema) throws SQLException {
+
+    }
+
+    @Override
+    public String getSchema() throws SQLException {
+        return null;
+    }
+
+    @Override
+    public void abort(Executor executor) throws SQLException {
+        this.close();
+    }
+
+    @Override
+    public void setNetworkTimeout(Executor executor, int milliseconds) throws SQLException {
+
+    }
+
+    @Override
+    public int getNetworkTimeout() throws SQLException {
+        return 0;
     }
 }

@@ -1,6 +1,6 @@
 package ru.yandex.metrika.clickhouse.copypaste;
 
-import net.jpountz.lz4.LZ4Decompressor;
+import net.jpountz.lz4.LZ4FastDecompressor;
 import net.jpountz.lz4.LZ4Factory;
 
 import java.io.IOException;
@@ -100,7 +100,7 @@ public class ClickhouseLZ4Stream extends InputStream {
         dataWrapper.readFully(block);
 
         byte[] decompressed = new byte[uncompressedSize];
-        LZ4Decompressor decompressor = factory.decompressor();
+        LZ4FastDecompressor decompressor = factory.fastDecompressor();
         decompressor.decompress(block, 0, decompressed, 0, uncompressedSize);
 
         return decompressed;

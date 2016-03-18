@@ -6,7 +6,6 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.util.EntityUtils;
-import ru.yandex.metrika.clickhouse.config.ClickHouseSource;
 import ru.yandex.metrika.clickhouse.copypaste.*;
 import ru.yandex.metrika.clickhouse.except.ClickhouseExceptionSpecifier;
 import ru.yandex.metrika.clickhouse.util.CopypasteUtils;
@@ -34,13 +33,17 @@ public class CHStatement implements Statement {
 
     private HttpConnectionProperties properties = new HttpConnectionProperties();
 
-    private ClickHouseSource source;
+    private CHDataSource source;
 
     private CHResultSet currentResult;
 
+    private int queryTimeout;
+
     private int maxRows;
 
-    public CHStatement(CloseableHttpClient client, ClickHouseSource source,
+    private boolean closeOnCompletion;
+
+    public CHStatement(CloseableHttpClient client, CHDataSource source,
                        HttpConnectionProperties properties) {
         this.client = client;
         this.source = source;
@@ -117,12 +120,12 @@ public class CHStatement implements Statement {
 
     @Override
     public int getQueryTimeout() throws SQLException {
-        return 0;
+        return queryTimeout;
     }
 
     @Override
     public void setQueryTimeout(int seconds) throws SQLException {
-
+        queryTimeout = seconds;
     }
 
     @Override
@@ -307,7 +310,7 @@ public class CHStatement implements Statement {
         if (s.contains(".")) {
             return s.substring(0, s.indexOf("."));
         } else {
-            return source.getDb();
+            return source.getDatabase();
         }
     }
 
@@ -397,8 +400,8 @@ public class CHStatement implements Statement {
     public Map<String, String> getParams(boolean ignoreDatabase) {
         Map<String, String> params = new HashMap<String, String>();
         //в clickhouse бывают таблички без базы (т.е. в базе default)
-        if (!CopypasteUtils.isBlank(source.getDb()) && !ignoreDatabase) {
-            params.put("database", source.getDb());
+        if (!CopypasteUtils.isBlank(source.getDatabase()) && !ignoreDatabase) {
+            params.put("database", source.getDatabase());
         }
         if (properties.isCompress()) {
             params.put("compress", "1");
@@ -421,5 +424,15 @@ public class CHStatement implements Statement {
             params.put("user", properties.getUser());
         }
         return params;
+    }
+
+    @Override
+    public void closeOnCompletion() throws SQLException {
+        closeOnCompletion = true;
+    }
+
+    @Override
+    public boolean isCloseOnCompletion() throws SQLException {
+        return closeOnCompletion;
     }
 }
