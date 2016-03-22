@@ -61,7 +61,11 @@ public class CHStatementImpl implements CHStatement {
 
     @Override
     public ResultSet executeQuery(String sql) throws SQLException {
-        InputStream is = getInputStream(sql, null, false);
+        return executeQuery(sql, null);
+    }
+
+    public ResultSet executeQuery(String sql, Map<String, String> additionalDBParams) throws SQLException {
+        InputStream is = getInputStream(sql, additionalDBParams, false);
         try {
             currentResult = new CHResultSet(properties.isCompress()
                     ? new ClickhouseLZ4Stream(is) : is, properties.getBufferSize(),
@@ -76,7 +80,11 @@ public class CHStatementImpl implements CHStatement {
     }
 
     public ClickhouseResponse executeQueryClickhouseResponse(String sql) throws SQLException {
-        return executeQueryClickhouseResponse(sql, null, false);
+        return executeQueryClickhouseResponse(sql, null);
+    }
+
+    public ClickhouseResponse executeQueryClickhouseResponse(String sql, Map<String, String> additionalDBParams) throws SQLException {
+        return executeQueryClickhouseResponse(sql, additionalDBParams, false);
     }
 
     public ClickhouseResponse executeQueryClickhouseResponse(String sql, Map<String, String> additionalDBParams, boolean ignoreDatabase) throws SQLException {
