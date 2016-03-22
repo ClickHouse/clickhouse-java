@@ -15,18 +15,18 @@ public class CHPreparedStatementTest {
     public void testParseSql() throws Exception {
         assertEquals(new ArrayList<String>(){{
             add("SELECT * FROM tbl");
-        }}, CHPreparedStatement.parseSql("SELECT * FROM tbl"));
+        }}, CHPreparedStatementImpl.parseSql("SELECT * FROM tbl"));
 
         assertEquals(new ArrayList<String>(){{
             add("SELECT * FROM tbl WHERE t = ");
             add("");
-        }}, CHPreparedStatement.parseSql("SELECT * FROM tbl WHERE t = ?"));
+        }}, CHPreparedStatementImpl.parseSql("SELECT * FROM tbl WHERE t = ?"));
 
         assertEquals(new ArrayList<String>(){{
             add("SELECT 'a\\'\\\\sdfasdf?adsf\\\\' as `sadf\\`?` FROM tbl WHERE t = ");
             add(" AND r = ");
             add(" ORDER BY 1");
-        }}, CHPreparedStatement.parseSql("SELECT 'a\\'\\\\sdfasdf?adsf\\\\' as `sadf\\`?` FROM tbl WHERE t = ? AND r = ? ORDER BY 1"));
+        }}, CHPreparedStatementImpl.parseSql("SELECT 'a\\'\\\\sdfasdf?adsf\\\\' as `sadf\\`?` FROM tbl WHERE t = ? AND r = ? ORDER BY 1"));
 
     }
 }
