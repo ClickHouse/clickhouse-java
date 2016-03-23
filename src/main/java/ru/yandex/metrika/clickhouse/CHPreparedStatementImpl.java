@@ -11,8 +11,6 @@ import java.math.BigInteger;
 import java.net.URL;
 import java.sql.*;
 import java.text.SimpleDateFormat;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.List;
@@ -238,10 +236,6 @@ public class CHPreparedStatementImpl extends CHStatementImpl implements CHPrepar
                 setTime(parameterIndex, (Time) x);
             } else if (x instanceof Timestamp) {
                 setTimestamp(parameterIndex, (Timestamp) x);
-            } else if (x instanceof LocalDate) {
-                setDate(parameterIndex, Date.valueOf((LocalDate) x));
-            } else if (x instanceof LocalDateTime) {
-                setTimestamp(parameterIndex, Timestamp.valueOf((LocalDateTime) x));
             } else if (x instanceof Boolean) {
                 setBoolean(parameterIndex, ((Boolean) x).booleanValue());
             } else if (x instanceof InputStream) {
