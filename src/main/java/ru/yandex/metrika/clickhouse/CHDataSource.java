@@ -99,7 +99,6 @@ public class CHDataSource implements DataSource {
         return loginTimeout;
     }
 
-    @Override
     public Logger getParentLogger() throws SQLFeatureNotSupportedException {
         throw new SQLFeatureNotSupportedException();
     }

@@ -433,12 +433,10 @@ public class CHResultSet extends AbstractResultSet {
         };
     }
 
-    @Override
     public <T> T getObject(int columnIndex, Class<T> type) throws SQLException {
         throw new SQLException("Not implemented");
     }
 
-    @Override
     public <T> T getObject(String columnLabel, Class<T> type) throws SQLException {
         return getObject(asColNum(columnLabel), type);
     }
