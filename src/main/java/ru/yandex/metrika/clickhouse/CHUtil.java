@@ -1,8 +1,5 @@
 package ru.yandex.metrika.clickhouse;
 
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 
 /**
  * Created by zhur on 01/03/16.
@@ -66,18 +63,6 @@ public class CHUtil {
         quoteInternals(s, sb);
         sb.append('`');
         return sb.toString();
-    }
-
-    public static String quoteDate(LocalDate d) {
-        return "toDate(" + quote(d.format(DateTimeFormatter.ISO_LOCAL_DATE)) + ")";
-    }
-
-    public static String quoteDate(LocalDateTime d) {
-        return "toDate(" + quote(d.format(DateTimeFormatter.ISO_LOCAL_DATE)) + ")";
-    }
-
-    public static String quoteDateTime(LocalDateTime dt) {
-        return "toDateTime(" + quote(dt.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)) + ")";
     }
 
 }

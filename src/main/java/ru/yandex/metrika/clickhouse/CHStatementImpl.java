@@ -470,12 +470,10 @@ public class CHStatementImpl implements CHStatement {
         return params;
     }
 
-    @Override
     public void closeOnCompletion() throws SQLException {
         closeOnCompletion = true;
     }
 
-    @Override
     public boolean isCloseOnCompletion() throws SQLException {
         return closeOnCompletion;
     }

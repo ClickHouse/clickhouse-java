@@ -308,27 +308,22 @@ public class CHConnectionImpl implements CHConnection {
         return false;
     }
 
-    @Override
     public void setSchema(String schema) throws SQLException {
 
     }
 
-    @Override
     public String getSchema() throws SQLException {
         return null;
     }
 
-    @Override
     public void abort(Executor executor) throws SQLException {
         this.close();
     }
 
-    @Override
     public void setNetworkTimeout(Executor executor, int milliseconds) throws SQLException {
 
     }
 
-    @Override
     public int getNetworkTimeout() throws SQLException {
         return 0;
     }
