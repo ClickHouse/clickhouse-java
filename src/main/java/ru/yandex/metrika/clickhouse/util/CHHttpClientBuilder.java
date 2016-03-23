@@ -39,6 +39,7 @@ public class CHHttpClientBuilder {
                 .setKeepAliveStrategy(createKeepAliveStrategy())
                 .setDefaultConnectionConfig(getConnectionConfig())
                 .setDefaultRequestConfig(getRequestConfig())
+                .disableContentCompression() // gzip здесь ни к чему. Используется lz4 при compress=1
                 .build();
     }
 

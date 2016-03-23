@@ -33,9 +33,9 @@ public class CHDriver implements Driver {
     }
 
     @Override
-    public Connection connect(String url, Properties info) throws SQLException {
+    public CHConnection connect(String url, Properties info) throws SQLException {
         logger.info("Creating connection");
-        return LogProxy.wrap(Connection.class, new CHConnection(url));
+        return LogProxy.wrap(CHConnection.class, new CHConnectionImpl(url));
     }
 
     @Override
