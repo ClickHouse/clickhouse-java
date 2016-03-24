@@ -125,6 +125,10 @@ public class CopypasteUtils {
         return true;
     }
 
+    public static boolean isEmpty(String str) {
+        return str == null || str.isEmpty();
+    }
+
     public static String join(final Iterable<?> iterable, final char separator) {
 
         Iterator<?> iterator = iterable.iterator();

@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.methods.HttpPost;
+import org.apache.http.entity.InputStreamEntity;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.util.EntityUtils;
@@ -438,6 +439,35 @@ public class CHStatementImpl implements CHStatement {
             try { if (is != null) is.close(); } catch (IOException ignored) { }
             log.info("Error sql: " + sql);
             throw new CHException("Unknown IO exception", e);
+        }
+    }
+
+    public void sendStream(InputStream content, String table) throws CHException  {
+        // echo -ne '10\n11\n12\n' | POST 'http://localhost:8123/?query=INSERT INTO t FORMAT TabSeparated'
+        HttpEntity entity = null;
+        try {
+            URI uri = new URI("http", null, source.getHost(), source.getPort(),
+                    "/", (CopypasteUtils.isEmpty(source.getDatabase()) ? "" : "database=" + source.getDatabase() + '&')
+                    + "query=INSERT INTO " + table + " FORMAT TabSeparated", null);
+            HttpPost httpPost = new HttpPost(uri);
+            httpPost.setEntity(new InputStreamEntity(content, -1));
+            HttpResponse response = client.execute(httpPost);
+            entity = response.getEntity();
+            if (response.getStatusLine().getStatusCode() != HttpURLConnection.HTTP_OK) {
+                String chMessage;
+                try {
+                    chMessage = EntityUtils.toString(response.getEntity());
+                } catch (IOException e) {
+                    chMessage = "error while read response "+ e.getMessage();
+                }
+                throw ClickhouseExceptionSpecifier.specify(chMessage, source.getHost(), source.getPort());
+            }
+        } catch (CHException e) {
+            throw e;
+        } catch (Exception e) {
+            throw ClickhouseExceptionSpecifier.specify(e, source.getHost(), source.getPort());
+        } finally {
+            EntityUtils.consumeQuietly(entity);
         }
     }
 
