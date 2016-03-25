@@ -22,13 +22,22 @@ public class CHConnectionImpl implements CHConnection {
 
     private final CloseableHttpClient httpclient;
 
-    private final HttpConnectionProperties properties = new HttpConnectionProperties();
+    private final HttpConnectionProperties properties;
 
     private CHDataSource dataSource;
 
     private boolean closed = false;
 
-    public CHConnectionImpl(String url) {
+    public CHConnectionImpl(String url){
+        this(url, new HttpConnectionProperties());
+    }
+
+    public CHConnectionImpl(String url, Properties info){
+        this(url, new HttpConnectionProperties(info));
+    }
+
+    public CHConnectionImpl(String url, HttpConnectionProperties properties) {
+        this.properties = properties;
         this.dataSource = new CHDataSource(url);
         CHHttpClientBuilder clientBuilder = new CHHttpClientBuilder(properties);
         log.debug("new connection");

@@ -43,16 +43,16 @@ public class CHHttpClientBuilder {
                 .build();
     }
 
-    private static PoolingHttpClientConnectionManager getConnectionManager() {
+    private PoolingHttpClientConnectionManager getConnectionManager() {
         //noinspection resource
         PoolingHttpClientConnectionManager connectionManager = new PoolingHttpClientConnectionManager(
                 RegistryBuilder.<ConnectionSocketFactory>create()
                         .register("http", PlainConnectionSocketFactory.getSocketFactory())
                         .register("https", SSLConnectionSocketFactory.getSocketFactory())
                         .build(),
-                null, null, new IpVersionPriorityResolver(), 1, TimeUnit.MINUTES);
-        connectionManager.setDefaultMaxPerRoute(500);
-        connectionManager.setMaxTotal(1000);
+                null, null, new IpVersionPriorityResolver(), properties.getTimeToLiveMillis(), TimeUnit.MILLISECONDS);
+        connectionManager.setDefaultMaxPerRoute(properties.getDefaultMaxPerRoute());
+        connectionManager.setMaxTotal(properties.getMaxTotal());
         return connectionManager;
     }
 
