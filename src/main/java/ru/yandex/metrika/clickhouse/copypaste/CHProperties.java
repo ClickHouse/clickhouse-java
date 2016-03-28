@@ -1,5 +1,9 @@
 package ru.yandex.metrika.clickhouse.copypaste;
 
+import ru.yandex.metrika.clickhouse.util.CopypasteUtils;
+
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Properties;
 
 import static ru.yandex.metrika.clickhouse.copypaste.CHConnectionSettings.*;
@@ -9,72 +13,95 @@ import static ru.yandex.metrika.clickhouse.copypaste.CHQueryParam.*;
  * Date: 10/17/13
  * Time: 2:48 PM
  */
-public class HttpConnectionProperties {
+public class CHProperties {
 
-    // Настройки кликхауса
-
-    /**
-     * profile=web&sign_rewrite=0
-     * На стороне clickhouse сделаны ограничения на запросы.
-     * https://svn.yandex.ru/websvn/wsvn/conv/trunk/metrica/src/dbms/src/Server/config.conf
-     */
-    private String profile;
-    private boolean compress;
-    // asynchronous=0&max_threads=1
+    // постоянные настройки соединения
     private boolean async;
-    private Integer maxThreads;
-    private Integer maxBlockSize;
-
     private int bufferSize;
     private int apacheBufferSize;
-
-    //настройки для демонов
     private int socketTimeout;
     private int connectionTimeout;
-
-    //METR-9568: параметр user для определения профиля настроек(?).
-    private String user;
-
-    /*
-    * это таймаут на передачу данных.
-    * Число socketTimeout + dataTransferTimeout отправляется в clickhouse в параметре max_execution_time
-    * После чего кликхаус сам останавливает запрос если время его выполнения превышает max_execution_time
-    * */
     private int dataTransferTimeout;
     private int keepAliveTimeout;
-
-    /**
-     * Для ConnectionManager'а
-     */
     private int timeToLiveMillis;
     private int defaultMaxPerRoute;
     private int maxTotal;
 
-    public HttpConnectionProperties() {
+
+    // настройки в запросы
+    private Integer maxParallelReplicas;
+    private String totalsMode;
+    private String quotaKey;
+    private Integer priority;
+    private String database;
+    private boolean compress;
+    private boolean extremes;
+    private Integer maxThreads;
+    private Integer maxExecutionTime;
+    private Integer maxBlockSize;
+    private String profile;
+    private String user;
+
+
+    public CHProperties() {
         this(new Properties());
     }
 
-    public HttpConnectionProperties(Properties info) {
-        this.profile = getSetting(info, PROFILE);
-        this.compress = getSetting(info, COMPRESS);
+    public CHProperties(Properties info) {
         this.async = getSetting(info, ASYNC);
-        this.maxThreads = getSetting(info, MAX_THREADS);
-        this.maxBlockSize = getSetting(info, MAX_BLOCK_SIZE);
-
         this.bufferSize = getSetting(info, BUFFER_SIZE);
         this.apacheBufferSize = getSetting(info, APACHE_BUFFER_SIZE);
-
         this.socketTimeout = getSetting(info, SOCKET_TIMEOUT);
         this.connectionTimeout = getSetting(info, CONNECTION_TIMEOUT);
-
-        this.user = getSetting(info, USER);
-
         this.dataTransferTimeout = getSetting(info, DATA_TRANSFER_TIMEOUT);
         this.keepAliveTimeout = getSetting(info, KEEP_ALIVE_TIMEOUT);
-
         this.timeToLiveMillis = getSetting(info, TIME_TO_LIVE_MILLIS);
         this.defaultMaxPerRoute = getSetting(info, DEFAULT_MAX_PER_ROUTE);
         this.maxTotal = getSetting(info, MAX_TOTAL);
+
+        this.maxParallelReplicas = getSetting(info, MAX_PARALLEL_REPLICAS);
+        this.totalsMode = getSetting(info, TOTALS_MODE);
+        this.quotaKey = getSetting(info, QUOTA_KEY);
+        this.priority = getSetting(info, PRIORITY);
+        this.database = getSetting(info, DATABASE);
+        this.compress = getSetting(info, COMPRESS);
+        this.extremes = getSetting(info, EXTREMES);
+        this.maxThreads = getSetting(info, MAX_THREADS);
+        this.maxExecutionTime = getSetting(info, MAX_EXECUTION_TIME);
+        this.maxBlockSize = getSetting(info, MAX_BLOCK_SIZE);
+        this.profile = getSetting(info, PROFILE);
+        this.user = getSetting(info, USER);
+    }
+
+    public Map<CHQueryParam, String> buildParams(boolean ignoreDatabase){
+        Map<CHQueryParam, String> params = new HashMap<CHQueryParam, String>();
+
+        if (maxParallelReplicas != null) params.put(MAX_PARALLEL_REPLICAS, String.valueOf(maxParallelReplicas));
+        if (totalsMode != null) params.put(TOTALS_MODE, totalsMode);
+        if (quotaKey != null) params.put(QUOTA_KEY, quotaKey);
+        if (priority != null) params.put(PRIORITY, String.valueOf(priority));
+
+        if (!CopypasteUtils.isBlank(database) && !ignoreDatabase) params.put(DATABASE, getDatabase());
+
+        if (compress) params.put(COMPRESS, "1");
+
+        if (extremes) params.put(EXTREMES, "1");
+
+        if (CopypasteUtils.isBlank(profile)) {
+            if (getMaxThreads() != null)
+                params.put(MAX_THREADS, String.valueOf(maxThreads));
+            // да, там в секундах
+            params.put(MAX_EXECUTION_TIME, String.valueOf((maxExecutionTime != null? maxExecutionTime:(socketTimeout + dataTransferTimeout)) / 1000));
+            if (getMaxBlockSize() != null) {
+                params.put(MAX_BLOCK_SIZE, String.valueOf(getMaxBlockSize()));
+            }
+        } else {
+            params.put(PROFILE, profile);
+        }
+        //в кликхаус иногда бывает user
+        if (user != null) params.put(USER, user);
+
+        return params;
     }
 
 
@@ -224,4 +251,59 @@ public class HttpConnectionProperties {
         this.maxTotal = maxTotal;
     }
 
+    public Integer getMaxParallelReplicas() {
+        return maxParallelReplicas;
+    }
+
+    public void setMaxParallelReplicas(Integer maxParallelReplicas) {
+        this.maxParallelReplicas = maxParallelReplicas;
+    }
+
+    public String getTotalsMode() {
+        return totalsMode;
+    }
+
+    public void setTotalsMode(String totalsMode) {
+        this.totalsMode = totalsMode;
+    }
+
+    public String getQuotaKey() {
+        return quotaKey;
+    }
+
+    public void setQuotaKey(String quotaKey) {
+        this.quotaKey = quotaKey;
+    }
+
+    public Integer getPriority() {
+        return priority;
+    }
+
+    public void setPriority(Integer priority) {
+        this.priority = priority;
+    }
+
+    public String getDatabase() {
+        return database;
+    }
+
+    public void setDatabase(String database) {
+        this.database = database;
+    }
+
+    public boolean isExtremes() {
+        return extremes;
+    }
+
+    public void setExtremes(boolean extremes) {
+        this.extremes = extremes;
+    }
+
+    public Integer getMaxExecutionTime() {
+        return maxExecutionTime;
+    }
+
+    public void setMaxExecutionTime(Integer maxExecutionTime) {
+        this.maxExecutionTime = maxExecutionTime;
+    }
 }

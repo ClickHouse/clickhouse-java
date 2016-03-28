@@ -9,8 +9,6 @@ import org.apache.http.entity.InputStreamEntity;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.util.EntityUtils;
-
-
 import ru.yandex.metrika.clickhouse.copypaste.*;
 import ru.yandex.metrika.clickhouse.except.ClickhouseExceptionSpecifier;
 import ru.yandex.metrika.clickhouse.util.CopypasteUtils;
@@ -21,13 +19,13 @@ import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.sql.*;
+import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.SQLWarning;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
-import static ru.yandex.metrika.clickhouse.copypaste.CHQueryParam.*;
 /**
  * Created by jkee on 14.03.15.
  */
@@ -37,7 +35,7 @@ public class CHStatementImpl implements CHStatement {
 
     private final CloseableHttpClient client;
 
-    private HttpConnectionProperties properties = new HttpConnectionProperties();
+    private CHProperties properties = new CHProperties();
 
     private CHDataSource source;
 
@@ -52,7 +50,7 @@ public class CHStatementImpl implements CHStatement {
     private ObjectMapper objectMapper;
 
     public CHStatementImpl(CloseableHttpClient client, CHDataSource source,
-                           HttpConnectionProperties properties) {
+                           CHProperties properties) {
         this.client = client;
         this.source = source;
         this.properties = properties;
@@ -389,7 +387,7 @@ public class CHStatementImpl implements CHStatement {
         log.debug("Executing SQL: " + sql);
         URI uri = null;
         try {
-            Map<CHQueryParam, String> params = getParams(ignoreDatabase);
+            Map<CHQueryParam, String> params = properties.buildParams(ignoreDatabase);
             if (additionalClickHouseDBParams != null && !additionalClickHouseDBParams.isEmpty()) {
                 params.putAll(additionalClickHouseDBParams);
             }
@@ -472,34 +470,7 @@ public class CHStatementImpl implements CHStatement {
         }
     }
 
-    public Map<CHQueryParam, String> getParams(boolean ignoreDatabase) {
-        Map<CHQueryParam, String> params = new HashMap<CHQueryParam, String>();
-        //в clickhouse бывают таблички без базы (т.е. в базе default)
-        if (!CopypasteUtils.isBlank(source.getDatabase()) && !ignoreDatabase) {
-            params.put(DATABASE, source.getDatabase());
-        }
-        if (properties.isCompress()) {
-            params.put(COMPRESS, "1");
-        }
-        // нам всегда нужны min и max в ответе
-        params.put(EXTREMES, "1");
-        if (CopypasteUtils.isBlank(properties.getProfile())) {
-            if (properties.getMaxThreads() != null)
-                params.put(MAX_THREADS, String.valueOf(properties.getMaxThreads()));
-            // да, там в секундах
-            params.put(MAX_EXECUTION_TIME, String.valueOf((properties.getSocketTimeout() + properties.getDataTransferTimeout()) / 1000));
-            if (properties.getMaxBlockSize() != null) {
-                params.put(MAX_BLOCK_SIZE, String.valueOf(properties.getMaxBlockSize()));
-            }
-        } else {
-            params.put(PROFILE, properties.getProfile());
-        }
-        //в кликхаус иногда бывает user
-        if (properties.getUser() != null) {
-            params.put(USER, properties.getUser());
-        }
-        return params;
-    }
+
 
     public void closeOnCompletion() throws SQLException {
         closeOnCompletion = true;

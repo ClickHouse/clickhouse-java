@@ -16,7 +16,7 @@ import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 import org.apache.http.message.BasicHeaderElementIterator;
 import org.apache.http.protocol.HTTP;
 import org.apache.http.protocol.HttpContext;
-import ru.yandex.metrika.clickhouse.copypaste.HttpConnectionProperties;
+import ru.yandex.metrika.clickhouse.copypaste.CHProperties;
 import ru.yandex.metrika.clickhouse.copypaste.IpVersionPriorityResolver;
 
 import java.net.HttpURLConnection;
@@ -27,9 +27,9 @@ import java.util.concurrent.TimeUnit;
  */
 public class CHHttpClientBuilder {
 
-    private final HttpConnectionProperties properties;
+    private final CHProperties properties;
 
-    public CHHttpClientBuilder(HttpConnectionProperties properties) {
+    public CHHttpClientBuilder(CHProperties properties) {
         this.properties = properties;
     }
 

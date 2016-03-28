@@ -5,7 +5,7 @@ package ru.yandex.metrika.clickhouse.copypaste;
  * @since 25.03.16
  */
 public enum CHQueryParam {
-    MAX_PARALLEL_REPLICAS("max_parallel_replicas", null, String.class),
+    MAX_PARALLEL_REPLICAS("max_parallel_replicas", null, Integer.class),
     /**
      * Каким образом вычислять TOTALS при наличии HAVING, а также при наличии max_rows_to_group_by и group_by_overflow_mode = 'any'
      * https://clickhouse.yandex-team.ru/#%D0%9C%D0%BE%D0%B4%D0%B8%D1%84%D0%B8%D0%BA%D0%B0%D1%82%D0%BE%D1%80%20WITH%20TOTALS
@@ -36,7 +36,7 @@ public enum CHQueryParam {
      * Для этого, выставите настройку extremes в 1. Минимумы и максимумы считаются для числовых типов, дат, дат-с-временем.
      * Для остальных столбцов, будут выведены значения по умолчанию.
      */
-    EXTREMES("extremes", "0", String.class),
+    EXTREMES("extremes", false, String.class),
     /**
      * Максимальное количество потоков обработки запроса
      * https://clickhouse.yandex-team.ru/#max_threads
