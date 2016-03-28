@@ -1,5 +1,6 @@
 package ru.yandex.metrika.clickhouse;
 
+import ru.yandex.metrika.clickhouse.copypaste.CHQueryParam;
 import ru.yandex.metrika.clickhouse.copypaste.ClickhouseResponse;
 
 import java.io.InputStream;
@@ -14,8 +15,8 @@ import java.util.Map;
  */
 public interface CHStatement extends Statement {
     ClickhouseResponse executeQueryClickhouseResponse(String sql) throws SQLException;
-    ClickhouseResponse executeQueryClickhouseResponse(String sql, Map<String, String> additionalDBParams) throws SQLException;
-    ClickhouseResponse executeQueryClickhouseResponse(String sql, Map<String, String> additionalDBParams, boolean ignoreDatabase) throws SQLException;
-    ResultSet executeQuery(String sql, Map<String, String> additionalDBParams) throws SQLException;
+    ClickhouseResponse executeQueryClickhouseResponse(String sql, Map<CHQueryParam, String> additionalDBParams) throws SQLException;
+    ClickhouseResponse executeQueryClickhouseResponse(String sql, Map<CHQueryParam, String> additionalDBParams, boolean ignoreDatabase) throws SQLException;
+    ResultSet executeQuery(String sql, Map<CHQueryParam, String> additionalDBParams) throws SQLException;
     void sendStream(InputStream content, String table) throws SQLException;
 }

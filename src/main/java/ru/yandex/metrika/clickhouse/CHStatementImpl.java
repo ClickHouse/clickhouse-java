@@ -27,6 +27,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static ru.yandex.metrika.clickhouse.copypaste.CHQueryParam.*;
 /**
  * Created by jkee on 14.03.15.
  */
@@ -65,7 +66,7 @@ public class CHStatementImpl implements CHStatement {
         return executeQuery(sql, null);
     }
 
-    public ResultSet executeQuery(String sql, Map<String, String> additionalDBParams) throws SQLException {
+    public ResultSet executeQuery(String sql, Map<CHQueryParam, String> additionalDBParams) throws SQLException {
         InputStream is = getInputStream(sql, additionalDBParams, false);
         try {
             currentResult = new CHResultSet(properties.isCompress()
@@ -84,11 +85,11 @@ public class CHStatementImpl implements CHStatement {
         return executeQueryClickhouseResponse(sql, null);
     }
 
-    public ClickhouseResponse executeQueryClickhouseResponse(String sql, Map<String, String> additionalDBParams) throws SQLException {
+    public ClickhouseResponse executeQueryClickhouseResponse(String sql, Map<CHQueryParam, String> additionalDBParams) throws SQLException {
         return executeQueryClickhouseResponse(sql, additionalDBParams, false);
     }
 
-    public ClickhouseResponse executeQueryClickhouseResponse(String sql, Map<String, String> additionalDBParams, boolean ignoreDatabase) throws SQLException {
+    public ClickhouseResponse executeQueryClickhouseResponse(String sql, Map<CHQueryParam, String> additionalDBParams, boolean ignoreDatabase) throws SQLException {
         InputStream is = getInputStream(clickhousifySql(sql, "JSONCompact"), additionalDBParams, ignoreDatabase);
         try {
             byte[] bytes = null;
@@ -381,20 +382,20 @@ public class CHStatementImpl implements CHStatement {
     }
 
     private InputStream getInputStream(String sql,
-                                       Map<String, String> additionalClickHouseDBParams,
+                                       Map<CHQueryParam, String> additionalClickHouseDBParams,
                                        boolean ignoreDatabase
     ) throws CHException {
         sql = clickhousifySql(sql);
         log.debug("Executing SQL: " + sql);
         URI uri = null;
         try {
-            Map<String, String> params = getParams(ignoreDatabase);
+            Map<CHQueryParam, String> params = getParams(ignoreDatabase);
             if (additionalClickHouseDBParams != null && !additionalClickHouseDBParams.isEmpty()) {
                 params.putAll(additionalClickHouseDBParams);
             }
             List<String> paramPairs = new ArrayList<String>();
-            for (Map.Entry<String, String> entry : params.entrySet()) {
-                paramPairs.add(entry.getKey() + '=' + entry.getValue());
+            for (Map.Entry<CHQueryParam, String> entry : params.entrySet()) {
+                paramPairs.add(entry.getKey().toString() + '=' + entry.getValue());
             }
             String query = CopypasteUtils.join(paramPairs, '&');
             uri = new URI("http", null, source.getHost(), source.getPort(),
@@ -471,31 +472,31 @@ public class CHStatementImpl implements CHStatement {
         }
     }
 
-    public Map<String, String> getParams(boolean ignoreDatabase) {
-        Map<String, String> params = new HashMap<String, String>();
+    public Map<CHQueryParam, String> getParams(boolean ignoreDatabase) {
+        Map<CHQueryParam, String> params = new HashMap<CHQueryParam, String>();
         //в clickhouse бывают таблички без базы (т.е. в базе default)
         if (!CopypasteUtils.isBlank(source.getDatabase()) && !ignoreDatabase) {
-            params.put("database", source.getDatabase());
+            params.put(DATABASE, source.getDatabase());
         }
         if (properties.isCompress()) {
-            params.put("compress", "1");
+            params.put(COMPRESS, "1");
         }
         // нам всегда нужны min и max в ответе
-        params.put("extremes", "1");
+        params.put(EXTREMES, "1");
         if (CopypasteUtils.isBlank(properties.getProfile())) {
             if (properties.getMaxThreads() != null)
-                params.put("max_threads", String.valueOf(properties.getMaxThreads()));
+                params.put(MAX_THREADS, String.valueOf(properties.getMaxThreads()));
             // да, там в секундах
-            params.put("max_execution_time", String.valueOf((properties.getSocketTimeout() + properties.getDataTransferTimeout()) / 1000));
+            params.put(MAX_EXECUTION_TIME, String.valueOf((properties.getSocketTimeout() + properties.getDataTransferTimeout()) / 1000));
             if (properties.getMaxBlockSize() != null) {
-                params.put("max_block_size", String.valueOf(properties.getMaxBlockSize()));
+                params.put(MAX_BLOCK_SIZE, String.valueOf(properties.getMaxBlockSize()));
             }
         } else {
-            params.put("profile", properties.getProfile());
+            params.put(PROFILE, properties.getProfile());
         }
         //в кликхаус иногда бывает user
         if (properties.getUser() != null) {
-            params.put("user", properties.getUser());
+            params.put(USER, properties.getUser());
         }
         return params;
     }
