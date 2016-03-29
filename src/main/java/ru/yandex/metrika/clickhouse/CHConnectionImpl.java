@@ -2,6 +2,7 @@ package ru.yandex.metrika.clickhouse;
 
 import org.apache.http.impl.client.CloseableHttpClient;
 import ru.yandex.metrika.clickhouse.copypaste.CHProperties;
+import ru.yandex.metrika.clickhouse.except.ClickhouseUnhandledException;
 import ru.yandex.metrika.clickhouse.util.CHHttpClientBuilder;
 import ru.yandex.metrika.clickhouse.util.LogProxy;
 import ru.yandex.metrika.clickhouse.util.Logger;
@@ -117,7 +118,7 @@ public class CHConnectionImpl implements CHConnection {
             httpclient.close();
             closed = true;
         } catch (IOException e) {
-            throw new CHException("HTTP client close exception", e);
+            throw new ClickhouseUnhandledException("HTTP client close exception", e, dataSource.getHost(), dataSource.getPort());
         }
     }
 

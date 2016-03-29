@@ -74,8 +74,9 @@ public class CHStatementImpl implements CHStatement {
             );
             currentResult.setMaxRows(maxRows);
             return currentResult;
-        } catch (Exception e) {
-            throw new RuntimeException(e);
+        } catch (Exception e){
+            CopypasteUtils.close(is);
+            throw ClickhouseExceptionSpecifier.specify(e, source.getHost(), source.getPort());
         }
     }
 
@@ -105,7 +106,7 @@ public class CHStatementImpl implements CHStatement {
         } catch (IOException e) {
             throw new RuntimeException(e);
         } finally {
-            if (is != null) try {is.close();} catch (IOException ignored) { }
+            CopypasteUtils.close(is);
         }
     }
 
@@ -117,7 +118,7 @@ public class CHStatementImpl implements CHStatement {
             //noinspection StatementWithEmptyBody
             while (rs.next()) {}
         } finally {
-            try { if (rs != null) rs.close(); } catch (Exception ignored) {}
+            CopypasteUtils.close(rs);
         }
         return 1;
     }
@@ -419,7 +420,7 @@ public class CHStatementImpl implements CHStatement {
                     }
                     chMessage = CopypasteUtils.toString(messageStream);
                 } catch (IOException e) {
-                    chMessage = "error while read response "+ e.getMessage();
+                    chMessage = "error while read response " + e.getMessage();
                 }
                 EntityUtils.consumeQuietly(entity);
                 throw ClickhouseExceptionSpecifier.specify(chMessage, source.getHost(), source.getPort());
@@ -432,12 +433,14 @@ public class CHStatementImpl implements CHStatement {
                 is = baos.convertToInputStream();
             }
             return is;
-        } catch (IOException e) {
+        } catch (CHException e){
+            throw e;
+        } catch (Exception e) {
             log.info("Error during connection to " + source + ", reporting failure to data source, message: " + e.getMessage());
             EntityUtils.consumeQuietly(entity);
-            try { if (is != null) is.close(); } catch (IOException ignored) { }
+            CopypasteUtils.close(is);
             log.info("Error sql: " + sql);
-            throw new CHException("Unknown IO exception", e);
+            throw ClickhouseExceptionSpecifier.specify(e, source.getHost(), source.getPort());
         }
     }
 

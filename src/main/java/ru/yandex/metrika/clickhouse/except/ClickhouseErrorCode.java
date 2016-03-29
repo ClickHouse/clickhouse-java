@@ -29,7 +29,8 @@ public enum ClickhouseErrorCode {
     NETWORK_ERROR                           (210),
     EMPTY_QUERY                             (211),
     MEMORY_LIMIT_EXCEEDED                   (241),
-    POCO_EXCEPTION                          (1000);
+    POCO_EXCEPTION                          (1000),
+    UNKNOWN_EXCEPTION                       (1002);
 
     public final Integer code;
 
