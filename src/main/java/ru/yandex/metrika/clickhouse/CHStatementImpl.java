@@ -125,11 +125,14 @@ public class CHStatementImpl implements CHStatement {
 
     @Override
     public boolean execute(String sql) throws SQLException {
-        executeQuery(sql);
+        ResultSet rs = null;
+        try {
+            rs = executeQuery(sql);
+        } finally {
+            CopypasteUtils.close(rs);
+        }
         return true;
     }
-
-
 
     @Override
     public void close() throws SQLException {
