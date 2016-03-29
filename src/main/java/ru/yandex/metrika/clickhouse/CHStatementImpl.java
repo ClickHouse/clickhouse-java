@@ -66,7 +66,7 @@ public class CHStatementImpl implements CHStatement {
     }
 
     public ResultSet executeQuery(String sql, Map<CHQueryParam, String> additionalDBParams) throws SQLException {
-        InputStream is = getInputStream(sql, additionalDBParams, false);
+        InputStream is = getInputStream(sql, additionalDBParams);
         try {
             currentResult = new CHResultSet(properties.isCompress()
                     ? new CHLZ4Stream(is) : is, properties.getBufferSize(),
@@ -86,11 +86,7 @@ public class CHStatementImpl implements CHStatement {
     }
 
     public CHResponse executeQueryClickhouseResponse(String sql, Map<CHQueryParam, String> additionalDBParams) throws SQLException {
-        return executeQueryClickhouseResponse(sql, additionalDBParams, false);
-    }
-
-    public CHResponse executeQueryClickhouseResponse(String sql, Map<CHQueryParam, String> additionalDBParams, boolean ignoreDatabase) throws SQLException {
-        InputStream is = getInputStream(clickhousifySql(sql, "JSONCompact"), additionalDBParams, ignoreDatabase);
+        InputStream is = getInputStream(addFormatIfAbsent(sql, "JSONCompact"), additionalDBParams);
         try {
             byte[] bytes = null;
             try {
@@ -113,25 +109,19 @@ public class CHStatementImpl implements CHStatement {
 
     @Override
     public int executeUpdate(String sql) throws SQLException {
-        ResultSet rs = null;
+        InputStream is = null;
         try {
-            rs = executeQuery(sql);
+            is = getInputStream(sql, null);
             //noinspection StatementWithEmptyBody
-            while (rs.next()) {}
         } finally {
-            CopypasteUtils.close(rs);
+            CopypasteUtils.close(is);
         }
         return 1;
     }
 
     @Override
     public boolean execute(String sql) throws SQLException {
-        ResultSet rs = null;
-        try {
-            rs = executeQuery(sql);
-        } finally {
-            CopypasteUtils.close(rs);
-        }
+        executeUpdate(sql);
         return true;
     }
 
@@ -332,15 +322,22 @@ public class CHStatementImpl implements CHStatement {
         return false;
     }
 
-    public static String clickhousifySql(String sql) {
-        return clickhousifySql(sql, "TabSeparatedWithNamesAndTypes");
+    private static String clickhousifySql(String sql) {
+
+        return addFormatIfAbsent(sql, "TabSeparatedWithNamesAndTypes");
     }
 
-    public static String clickhousifySql(String sql, String format) {
+    /**
+     * Adding  FORMAT TabSeparatedWithNamesAndTypes if not added
+     * Правильно реагирует на точку с запятой и втыкает формат только в селекты
+     */
+    private static String addFormatIfAbsent(String sql, String format) {
         sql = sql.trim();
-        if (!sql.replace(";", "").trim().endsWith(" TabSeparatedWithNamesAndTypes")
-                && !sql.replace(";", "").trim().endsWith(" TabSeparated")
-                && !sql.replace(";", "").trim().endsWith(" JSONCompact")) {
+        String woSemicolon = Patterns.SEMICOLON.matcher(sql).replaceAll("").trim();
+        if ( (sql.toUpperCase().startsWith("SELECT")||sql.toUpperCase().startsWith("SHOW"))
+                && !woSemicolon.endsWith(" TabSeparatedWithNamesAndTypes")
+                && !woSemicolon.endsWith(" TabSeparated")
+                && !woSemicolon.endsWith(" JSONCompact")) {
             if (sql.endsWith(";")) sql = sql.substring(0, sql.length() - 1);
             sql += " FORMAT " + format + ';';
         }
@@ -385,14 +382,15 @@ public class CHStatementImpl implements CHStatement {
     }
 
     private InputStream getInputStream(String sql,
-                                       Map<CHQueryParam, String> additionalClickHouseDBParams,
-                                       boolean ignoreDatabase
+                                       Map<CHQueryParam, String> additionalClickHouseDBParams
     ) throws CHException {
         sql = clickhousifySql(sql);
         log.debug("Executing SQL: " + sql);
         URI uri = null;
         try {
+            boolean ignoreDatabase = sql.toUpperCase().startsWith("CREATE DATABASE");
             Map<CHQueryParam, String> params = properties.buildParams(ignoreDatabase);
+
             if (additionalClickHouseDBParams != null && !additionalClickHouseDBParams.isEmpty()) {
                 params.putAll(additionalClickHouseDBParams);
             }

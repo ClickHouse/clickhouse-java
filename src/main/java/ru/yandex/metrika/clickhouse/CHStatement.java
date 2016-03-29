@@ -16,7 +16,6 @@ import java.util.Map;
 public interface CHStatement extends Statement {
     CHResponse executeQueryClickhouseResponse(String sql) throws SQLException;
     CHResponse executeQueryClickhouseResponse(String sql, Map<CHQueryParam, String> additionalDBParams) throws SQLException;
-    CHResponse executeQueryClickhouseResponse(String sql, Map<CHQueryParam, String> additionalDBParams, boolean ignoreDatabase) throws SQLException;
     ResultSet executeQuery(String sql, Map<CHQueryParam, String> additionalDBParams) throws SQLException;
     void sendStream(InputStream content, String table) throws SQLException;
 }
