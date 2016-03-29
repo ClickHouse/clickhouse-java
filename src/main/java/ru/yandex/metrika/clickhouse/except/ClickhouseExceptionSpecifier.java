@@ -36,41 +36,6 @@ public final class ClickhouseExceptionSpecifier {
 
     private static final Logger log = Logger.of(ClickhouseExceptionSpecifier.class);
 
-    private static final Map<Integer, ClickhouseExceptionFactory> FACTORIES;
-
-    static {
-        Map<Integer, ClickhouseExceptionFactory> map = new HashMap<Integer, ClickhouseExceptionFactory>();
-        for (ClickhouseErrorCode errorCode : ClickhouseErrorCode.API)
-            map.put(errorCode.code, new ClickhouseExceptionFactory() {
-                @Override
-                public CHException create(Integer code, Throwable cause, String host, int port) {
-                    return new ClickhouseApiException(code, cause, host, port);
-                }
-            });
-        for (ClickhouseErrorCode errorCode : ClickhouseErrorCode.DB)
-            map.put(errorCode.code, new ClickhouseExceptionFactory() {
-                @Override
-                public CHException create(Integer code, Throwable cause, String host, int port) {
-                    return new ClickhouseDbException(code, cause, host, port);
-                }
-            });
-        for (ClickhouseErrorCode errorCode : ClickhouseErrorCode.QUERY)
-            map.put(errorCode.code, new ClickhouseExceptionFactory() {
-                @Override
-                public CHException create(Integer code, Throwable cause, String host, int port) {
-                    return new ClickhouseQueryException(code, cause, host, port);
-                }
-            });
-        FACTORIES = Collections.unmodifiableMap(map);
-    }
-
-    private static final ClickhouseExceptionFactory DEFAULT_FACTORY = new ClickhouseExceptionFactory() {
-        @Override
-        public CHException create(Integer code, Throwable cause, String host, int port) {
-            return new ClickhouseUnhandledException(code, cause, host, port);
-        }
-    };
-
     private ClickhouseExceptionSpecifier() {
     }
 
@@ -92,11 +57,11 @@ public final class ClickhouseExceptionSpecifier {
             if (cause instanceof SocketTimeoutException)
                 // если приехал STE, то скажем, что это запрос плохой, это не то же самое, что SOCKET_TIMEOUT от кликхауса
                 // хотя это также может значить падающий кликхаус, посмотрим что выглядит правдоподобнее
-                return new ClickhouseQueryException(ClickhouseErrorCode.TIMEOUT_EXCEEDED.code, cause, host, port);
+                return new CHException(ClickhouseErrorCode.TIMEOUT_EXCEEDED.code, cause, host, port);
             else if (cause instanceof ConnectTimeoutException || cause instanceof ConnectException)
                 // не смогли соединиться с кликхаусом за connectTimeout - в принципе, может быть никто не виноват
                 // среди наших сущностей (query/api/db), но обвинить кого-то надо, и это будет db
-                return new ClickhouseDbException(ClickhouseErrorCode.NETWORK_ERROR.code, cause, host, port);
+                return new CHException(ClickhouseErrorCode.NETWORK_ERROR.code, cause, host, port);
             else
                 return new ClickhouseUnhandledException(cause, host, port);
         }
@@ -110,11 +75,7 @@ public final class ClickhouseExceptionSpecifier {
             }
             // ошибку в изначальном виде все-таки укажем
             Throwable messageHolder = cause != null ? cause : new Throwable(clickhouseMessage);
-            if (FACTORIES.containsKey(code)) {
-                return FACTORIES.get(code).create(code, messageHolder, host, port);
-            } else {
-                return DEFAULT_FACTORY.create(code, messageHolder, host, port);
-            }
+            return new CHException(code, messageHolder, host, port);
         } catch (Exception e) {
             log.error("Unsupported clickhouse error format, please fix ClickhouseExceptionSpecifier, message: "
                             + clickhouseMessage + ", error: " + e.getMessage());
