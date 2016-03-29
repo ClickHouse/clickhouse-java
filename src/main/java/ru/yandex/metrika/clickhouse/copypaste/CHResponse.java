@@ -8,7 +8,7 @@ import java.util.List;
  * Мэп-объект для джексона для ответа кликхауса
  * @author jkee
  */
-public class ClickhouseResponse {
+public class CHResponse {
     private List<Meta> meta;
     @JsonDeserialize(contentUsing = ArrayToStringDeserializer.class)
     private List<List<String>> data;

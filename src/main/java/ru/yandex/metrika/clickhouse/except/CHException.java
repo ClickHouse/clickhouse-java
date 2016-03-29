@@ -1,4 +1,4 @@
-package ru.yandex.metrika.clickhouse;
+package ru.yandex.metrika.clickhouse.except;
 
 import java.sql.SQLException;
 

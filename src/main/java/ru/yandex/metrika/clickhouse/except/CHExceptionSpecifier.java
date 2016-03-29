@@ -1,15 +1,11 @@
 package ru.yandex.metrika.clickhouse.except;
 
 import org.apache.http.conn.ConnectTimeoutException;
-import ru.yandex.metrika.clickhouse.CHException;
 import ru.yandex.metrika.clickhouse.util.CopypasteUtils;
 import ru.yandex.metrika.clickhouse.util.Logger;
 
 import java.net.ConnectException;
 import java.net.SocketTimeoutException;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
 
 
 /**
@@ -32,11 +28,11 @@ import java.util.Map;
  * https://github.yandex-team.ru/Metrika/metrika-core/blob/master/metrica/src/dbms/include/DB/Core/ErrorCodes.h
  */
 
-public final class ClickhouseExceptionSpecifier {
+public final class CHExceptionSpecifier {
 
-    private static final Logger log = Logger.of(ClickhouseExceptionSpecifier.class);
+    private static final Logger log = Logger.of(CHExceptionSpecifier.class);
 
-    private ClickhouseExceptionSpecifier() {
+    private CHExceptionSpecifier() {
     }
 
     public static CHException specify(Throwable cause, String host, int port) {
@@ -57,13 +53,13 @@ public final class ClickhouseExceptionSpecifier {
             if (cause instanceof SocketTimeoutException)
                 // если приехал STE, то скажем, что это запрос плохой, это не то же самое, что SOCKET_TIMEOUT от кликхауса
                 // хотя это также может значить падающий кликхаус, посмотрим что выглядит правдоподобнее
-                return new CHException(ClickhouseErrorCode.TIMEOUT_EXCEEDED.code, cause, host, port);
+                return new CHException(CHErrorCode.TIMEOUT_EXCEEDED.code, cause, host, port);
             else if (cause instanceof ConnectTimeoutException || cause instanceof ConnectException)
                 // не смогли соединиться с кликхаусом за connectTimeout - в принципе, может быть никто не виноват
                 // среди наших сущностей (query/api/db), но обвинить кого-то надо, и это будет db
-                return new CHException(ClickhouseErrorCode.NETWORK_ERROR.code, cause, host, port);
+                return new CHException(CHErrorCode.NETWORK_ERROR.code, cause, host, port);
             else
-                return new ClickhouseUnhandledException(cause, host, port);
+                return new CHUnknownException(cause, host, port);
         }
         try {
             int code;
@@ -79,7 +75,7 @@ public final class ClickhouseExceptionSpecifier {
         } catch (Exception e) {
             log.error("Unsupported clickhouse error format, please fix ClickhouseExceptionSpecifier, message: "
                             + clickhouseMessage + ", error: " + e.getMessage());
-            return new ClickhouseUnhandledException(clickhouseMessage, cause, host, port);
+            return new CHUnknownException(clickhouseMessage, cause, host, port);
         }
     }
 

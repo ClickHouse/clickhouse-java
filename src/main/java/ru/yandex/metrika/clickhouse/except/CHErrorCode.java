@@ -6,7 +6,7 @@ import java.util.*;
 * @author lopashev
 * @since 18.02.15
 */
-public enum ClickhouseErrorCode {
+public enum CHErrorCode {
     OK                                      (0),
     NOT_FOUND_COLUMN_IN_BLOCK               (10),
     ATTEMPT_TO_READ_AFTER_EOF               (32),
@@ -38,20 +38,20 @@ public enum ClickhouseErrorCode {
 
     public final Integer code;
 
-    private static final Map<Integer, ClickhouseErrorCode> byCodes;
+    private static final Map<Integer, CHErrorCode> byCodes;
     static {
-        Map<Integer, ClickhouseErrorCode> map = new HashMap<Integer, ClickhouseErrorCode>();
-        for (ClickhouseErrorCode errorCode : values())
+        Map<Integer, CHErrorCode> map = new HashMap<Integer, CHErrorCode>();
+        for (CHErrorCode errorCode : values())
             map.put(errorCode.code, errorCode);
         byCodes = Collections.unmodifiableMap(map);
     }
 
-    ClickhouseErrorCode(Integer code) {
+    CHErrorCode(Integer code) {
         this.code = code;
     }
 
 
-    public static ClickhouseErrorCode fromCode(Integer code) {
+    public static CHErrorCode fromCode(Integer code) {
         return byCodes.get(code);
     }
 

@@ -10,7 +10,8 @@ import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.util.EntityUtils;
 import ru.yandex.metrika.clickhouse.copypaste.*;
-import ru.yandex.metrika.clickhouse.except.ClickhouseExceptionSpecifier;
+import ru.yandex.metrika.clickhouse.except.CHException;
+import ru.yandex.metrika.clickhouse.except.CHExceptionSpecifier;
 import ru.yandex.metrika.clickhouse.util.CopypasteUtils;
 import ru.yandex.metrika.clickhouse.util.Logger;
 
@@ -68,7 +69,7 @@ public class CHStatementImpl implements CHStatement {
         InputStream is = getInputStream(sql, additionalDBParams, false);
         try {
             currentResult = new CHResultSet(properties.isCompress()
-                    ? new ClickhouseLZ4Stream(is) : is, properties.getBufferSize(),
+                    ? new CHLZ4Stream(is) : is, properties.getBufferSize(),
                     extractDBName(sql),
                     extractTableName(sql)
             );
@@ -76,29 +77,29 @@ public class CHStatementImpl implements CHStatement {
             return currentResult;
         } catch (Exception e){
             CopypasteUtils.close(is);
-            throw ClickhouseExceptionSpecifier.specify(e, source.getHost(), source.getPort());
+            throw CHExceptionSpecifier.specify(e, source.getHost(), source.getPort());
         }
     }
 
-    public ClickhouseResponse executeQueryClickhouseResponse(String sql) throws SQLException {
+    public CHResponse executeQueryClickhouseResponse(String sql) throws SQLException {
         return executeQueryClickhouseResponse(sql, null);
     }
 
-    public ClickhouseResponse executeQueryClickhouseResponse(String sql, Map<CHQueryParam, String> additionalDBParams) throws SQLException {
+    public CHResponse executeQueryClickhouseResponse(String sql, Map<CHQueryParam, String> additionalDBParams) throws SQLException {
         return executeQueryClickhouseResponse(sql, additionalDBParams, false);
     }
 
-    public ClickhouseResponse executeQueryClickhouseResponse(String sql, Map<CHQueryParam, String> additionalDBParams, boolean ignoreDatabase) throws SQLException {
+    public CHResponse executeQueryClickhouseResponse(String sql, Map<CHQueryParam, String> additionalDBParams, boolean ignoreDatabase) throws SQLException {
         InputStream is = getInputStream(clickhousifySql(sql, "JSONCompact"), additionalDBParams, ignoreDatabase);
         try {
             byte[] bytes = null;
             try {
                 if (properties.isCompress()){
-                    bytes = CopypasteUtils.toByteArray(new ClickhouseLZ4Stream(is));
+                    bytes = CopypasteUtils.toByteArray(new CHLZ4Stream(is));
                 } else {
                     bytes = CopypasteUtils.toByteArray(is);
                 }
-                return objectMapper.readValue(bytes, ClickhouseResponse.class);
+                return objectMapper.readValue(bytes, CHResponse.class);
             } catch (IOException e) {
                 if (bytes != null) log.warn("Wrong json: "+new String(bytes));
                 throw e;
@@ -419,14 +420,14 @@ public class CHStatementImpl implements CHStatement {
                 try {
                     InputStream messageStream = entity.getContent();
                     if (properties.isCompress()) {
-                        messageStream = new ClickhouseLZ4Stream(messageStream);
+                        messageStream = new CHLZ4Stream(messageStream);
                     }
                     chMessage = CopypasteUtils.toString(messageStream);
                 } catch (IOException e) {
                     chMessage = "error while read response " + e.getMessage();
                 }
                 EntityUtils.consumeQuietly(entity);
-                throw ClickhouseExceptionSpecifier.specify(chMessage, source.getHost(), source.getPort());
+                throw CHExceptionSpecifier.specify(chMessage, source.getHost(), source.getPort());
             }
             if (entity.isStreaming()) {
                 is = entity.getContent();
@@ -443,7 +444,7 @@ public class CHStatementImpl implements CHStatement {
             EntityUtils.consumeQuietly(entity);
             CopypasteUtils.close(is);
             log.info("Error sql: " + sql);
-            throw ClickhouseExceptionSpecifier.specify(e, source.getHost(), source.getPort());
+            throw CHExceptionSpecifier.specify(e, source.getHost(), source.getPort());
         }
     }
 
@@ -465,12 +466,12 @@ public class CHStatementImpl implements CHStatement {
                 } catch (IOException e) {
                     chMessage = "error while read response "+ e.getMessage();
                 }
-                throw ClickhouseExceptionSpecifier.specify(chMessage, source.getHost(), source.getPort());
+                throw CHExceptionSpecifier.specify(chMessage, source.getHost(), source.getPort());
             }
         } catch (CHException e) {
             throw e;
         } catch (Exception e) {
-            throw ClickhouseExceptionSpecifier.specify(e, source.getHost(), source.getPort());
+            throw CHExceptionSpecifier.specify(e, source.getHost(), source.getPort());
         } finally {
             EntityUtils.consumeQuietly(entity);
         }
