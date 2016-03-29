@@ -48,24 +48,25 @@ public class CHProperties {
     }
 
     public CHProperties(Properties info) {
-        this.async = getSetting(info, ASYNC);
-        this.bufferSize = getSetting(info, BUFFER_SIZE);
-        this.apacheBufferSize = getSetting(info, APACHE_BUFFER_SIZE);
-        this.socketTimeout = getSetting(info, SOCKET_TIMEOUT);
-        this.connectionTimeout = getSetting(info, CONNECTION_TIMEOUT);
-        this.dataTransferTimeout = getSetting(info, DATA_TRANSFER_TIMEOUT);
-        this.keepAliveTimeout = getSetting(info, KEEP_ALIVE_TIMEOUT);
-        this.timeToLiveMillis = getSetting(info, TIME_TO_LIVE_MILLIS);
-        this.defaultMaxPerRoute = getSetting(info, DEFAULT_MAX_PER_ROUTE);
-        this.maxTotal = getSetting(info, MAX_TOTAL);
+        // касты нужны в java 6
+        this.async = (Boolean)getSetting(info, ASYNC);
+        this.bufferSize = (Integer)getSetting(info, BUFFER_SIZE);
+        this.apacheBufferSize = (Integer)getSetting(info, APACHE_BUFFER_SIZE);
+        this.socketTimeout = (Integer)getSetting(info, SOCKET_TIMEOUT);
+        this.connectionTimeout = (Integer)getSetting(info, CONNECTION_TIMEOUT);
+        this.dataTransferTimeout = (Integer)getSetting(info, DATA_TRANSFER_TIMEOUT);
+        this.keepAliveTimeout = (Integer)getSetting(info, KEEP_ALIVE_TIMEOUT);
+        this.timeToLiveMillis = (Integer)getSetting(info, TIME_TO_LIVE_MILLIS);
+        this.defaultMaxPerRoute = (Integer)getSetting(info, DEFAULT_MAX_PER_ROUTE);
+        this.maxTotal = (Integer)getSetting(info, MAX_TOTAL);
 
         this.maxParallelReplicas = getSetting(info, MAX_PARALLEL_REPLICAS);
         this.totalsMode = getSetting(info, TOTALS_MODE);
         this.quotaKey = getSetting(info, QUOTA_KEY);
         this.priority = getSetting(info, PRIORITY);
         this.database = getSetting(info, DATABASE);
-        this.compress = getSetting(info, COMPRESS);
-        this.extremes = getSetting(info, EXTREMES);
+        this.compress = (Boolean)getSetting(info, COMPRESS);
+        this.extremes = (Boolean)getSetting(info, EXTREMES);
         this.maxThreads = getSetting(info, MAX_THREADS);
         this.maxExecutionTime = getSetting(info, MAX_EXECUTION_TIME);
         this.maxBlockSize = getSetting(info, MAX_BLOCK_SIZE);
