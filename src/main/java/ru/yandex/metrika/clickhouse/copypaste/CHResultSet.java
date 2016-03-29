@@ -127,7 +127,7 @@ public class CHResultSet extends AbstractResultSet {
         return columns;
     }
 
-    Map<String, Integer> getCol() {
+    public Map<String, Integer> getCol() {
         return col;
     }
 
@@ -439,5 +439,9 @@ public class CHResultSet extends AbstractResultSet {
 
     public <T> T getObject(String columnLabel, Class<T> type) throws SQLException {
         return getObject(asColNum(columnLabel), type);
+    }
+
+    public ByteFragment[] getValues() {
+        return values;
     }
 }

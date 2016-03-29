@@ -1,5 +1,7 @@
 package ru.yandex.metrika.clickhouse;
 
+import ru.yandex.metrika.clickhouse.copypaste.CHProperties;
+
 import javax.sql.DataSource;
 import java.io.PrintWriter;
 import java.sql.Connection;
@@ -33,7 +35,17 @@ public class CHDataSource implements DataSource {
     PrintWriter printWriter;
     protected int loginTimeout = 0;
 
+    private CHProperties properties;
+
     public CHDataSource(String url) {
+        this(url, new CHProperties());
+    }
+
+    public CHDataSource(String url, Properties info) {
+        this(url, new CHProperties(info));
+    }
+
+    public CHDataSource(String url, CHProperties properties) {
         if (url == null) {
             throw new IllegalArgumentException("Incorrect clickhouse jdbc url: " + url);
         }
@@ -51,16 +63,18 @@ public class CHDataSource implements DataSource {
         } else {
             throw new IllegalArgumentException("Incorrect clickhouse jdbc url: " + url);
         }
+        this.properties = properties;
+        this.properties.setDatabase(database);
     }
 
     @Override
     public Connection getConnection() throws SQLException {
-        return driver.connect(url, new Properties());
+        return driver.connect(url, properties);
     }
 
     @Override
     public Connection getConnection(String username, String password) throws SQLException {
-        return driver.connect(url, new Properties());
+        return driver.connect(url, properties);
     }
 
     public String getHost() {

@@ -1,7 +1,7 @@
 package ru.yandex.metrika.clickhouse;
 
 import org.apache.http.impl.client.CloseableHttpClient;
-import ru.yandex.metrika.clickhouse.copypaste.HttpConnectionProperties;
+import ru.yandex.metrika.clickhouse.copypaste.CHProperties;
 import ru.yandex.metrika.clickhouse.util.Logger;
 
 import java.io.InputStream;
@@ -29,7 +29,7 @@ public class CHPreparedStatementImpl extends CHStatementImpl implements CHPrepar
     List<String> binds;
 
     public CHPreparedStatementImpl(CloseableHttpClient client, CHDataSource source,
-                                   HttpConnectionProperties properties, String sql) throws SQLException {
+                                   CHProperties properties, String sql) throws SQLException {
         super(client, source, properties);
         this.sql = sql;
         this.sqlParts = parseSql(sql);

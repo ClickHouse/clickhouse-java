@@ -16,7 +16,7 @@ import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 import org.apache.http.message.BasicHeaderElementIterator;
 import org.apache.http.protocol.HTTP;
 import org.apache.http.protocol.HttpContext;
-import ru.yandex.metrika.clickhouse.copypaste.HttpConnectionProperties;
+import ru.yandex.metrika.clickhouse.copypaste.CHProperties;
 import ru.yandex.metrika.clickhouse.copypaste.IpVersionPriorityResolver;
 
 import java.net.HttpURLConnection;
@@ -27,9 +27,9 @@ import java.util.concurrent.TimeUnit;
  */
 public class CHHttpClientBuilder {
 
-    private final HttpConnectionProperties properties;
+    private final CHProperties properties;
 
-    public CHHttpClientBuilder(HttpConnectionProperties properties) {
+    public CHHttpClientBuilder(CHProperties properties) {
         this.properties = properties;
     }
 
@@ -43,16 +43,16 @@ public class CHHttpClientBuilder {
                 .build();
     }
 
-    private static PoolingHttpClientConnectionManager getConnectionManager() {
+    private PoolingHttpClientConnectionManager getConnectionManager() {
         //noinspection resource
         PoolingHttpClientConnectionManager connectionManager = new PoolingHttpClientConnectionManager(
                 RegistryBuilder.<ConnectionSocketFactory>create()
                         .register("http", PlainConnectionSocketFactory.getSocketFactory())
                         .register("https", SSLConnectionSocketFactory.getSocketFactory())
                         .build(),
-                null, null, new IpVersionPriorityResolver(), 1, TimeUnit.MINUTES);
-        connectionManager.setDefaultMaxPerRoute(500);
-        connectionManager.setMaxTotal(1000);
+                null, null, new IpVersionPriorityResolver(), properties.getTimeToLiveMillis(), TimeUnit.MILLISECONDS);
+        connectionManager.setDefaultMaxPerRoute(properties.getDefaultMaxPerRoute());
+        connectionManager.setMaxTotal(properties.getMaxTotal());
         return connectionManager;
     }
 

@@ -12,7 +12,7 @@ import java.io.InputStream;
  * @author jkee
  */
 
-public class ClickhouseLZ4Stream extends InputStream {
+public class CHLZ4Stream extends InputStream {
 
     private static final LZ4Factory factory = LZ4Factory.safeInstance();
 
@@ -24,7 +24,7 @@ public class ClickhouseLZ4Stream extends InputStream {
     private byte[] currentBlock;
     private int pointer;
 
-    public ClickhouseLZ4Stream(InputStream stream) {
+    public CHLZ4Stream(InputStream stream) {
         this.stream = stream;
         dataWrapper = new LittleEndianDataInputStream(stream);
     }

@@ -1,7 +1,8 @@
 package ru.yandex.metrika.clickhouse;
 
 import org.apache.http.impl.client.CloseableHttpClient;
-import ru.yandex.metrika.clickhouse.copypaste.HttpConnectionProperties;
+import ru.yandex.metrika.clickhouse.copypaste.CHProperties;
+import ru.yandex.metrika.clickhouse.except.CHUnknownException;
 import ru.yandex.metrika.clickhouse.util.CHHttpClientBuilder;
 import ru.yandex.metrika.clickhouse.util.LogProxy;
 import ru.yandex.metrika.clickhouse.util.Logger;
@@ -22,13 +23,22 @@ public class CHConnectionImpl implements CHConnection {
 
     private final CloseableHttpClient httpclient;
 
-    private final HttpConnectionProperties properties = new HttpConnectionProperties();
+    private final CHProperties properties;
 
     private CHDataSource dataSource;
 
     private boolean closed = false;
 
-    public CHConnectionImpl(String url) {
+    public CHConnectionImpl(String url){
+        this(url, new CHProperties());
+    }
+
+    public CHConnectionImpl(String url, Properties info){
+        this(url, new CHProperties(info));
+    }
+
+    public CHConnectionImpl(String url, CHProperties properties) {
+        this.properties = properties;
         this.dataSource = new CHDataSource(url);
         CHHttpClientBuilder clientBuilder = new CHHttpClientBuilder(properties);
         log.debug("new connection");
@@ -108,7 +118,7 @@ public class CHConnectionImpl implements CHConnection {
             httpclient.close();
             closed = true;
         } catch (IOException e) {
-            throw new CHException("HTTP client close exception", e);
+            throw new CHUnknownException("HTTP client close exception", e, dataSource.getHost(), dataSource.getPort());
         }
     }
 

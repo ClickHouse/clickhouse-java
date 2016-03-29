@@ -1,10 +1,9 @@
 package ru.yandex.metrika.clickhouse.util;
 
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
+import java.io.*;
 import java.nio.charset.Charset;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -14,6 +13,7 @@ import java.util.List;
  */
 public class CopypasteUtils {
 
+    private static final Logger log = Logger.of(CopypasteUtils.class);
     public static final Charset UTF_8 = Charset.forName("UTF-8");
 
     /////// Metrika code //////
@@ -125,6 +125,10 @@ public class CopypasteUtils {
         return true;
     }
 
+    public static boolean isEmpty(String str) {
+        return str == null || str.isEmpty();
+    }
+
     public static String join(final Iterable<?> iterable, final char separator) {
 
         Iterator<?> iterator = iterable.iterator();
@@ -185,6 +189,24 @@ public class CopypasteUtils {
             total += r;
         }
         return total;
+    }
+
+    public static void close(Closeable closeable){
+        if (closeable == null) return;
+        try{
+            closeable.close();
+        } catch (IOException e){
+            log.error("can not close stream: " + e.getMessage());
+        }
+    }
+
+    public static void close(ResultSet rs){
+        if (rs == null) return;
+        try{
+            rs.close();
+        } catch (SQLException e){
+            log.error("can not close resultset: " + e.getMessage());
+        }
     }
 
 }
