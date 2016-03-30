@@ -26,7 +26,7 @@ public enum CHQueryParam {
     /**
      * БД по умолчанию.
      */
-    DATABASE("database", "default", String.class),
+    DATABASE("database", null, String.class),
     /**
      *  сервер будет сжимать отправляемые вам данные
      */
