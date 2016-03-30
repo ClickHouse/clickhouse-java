@@ -322,7 +322,7 @@ public class CHStatementImpl implements CHStatement {
         return false;
     }
 
-    private static String clickhousifySql(String sql) {
+    static String clickhousifySql(String sql) {
 
         return addFormatIfAbsent(sql, "TabSeparatedWithNamesAndTypes");
     }
