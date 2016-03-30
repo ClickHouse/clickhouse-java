@@ -121,7 +121,8 @@ public class CHStatementImpl implements CHStatement {
 
     @Override
     public boolean execute(String sql) throws SQLException {
-        executeUpdate(sql);
+        // здесь сохранится currentResult. он и InputStream будут закрыты на this.close()
+        executeQuery(sql);
         return true;
     }
 
@@ -396,7 +397,9 @@ public class CHStatementImpl implements CHStatement {
             }
             List<String> paramPairs = new ArrayList<String>();
             for (Map.Entry<CHQueryParam, String> entry : params.entrySet()) {
-                paramPairs.add(entry.getKey().toString() + '=' + entry.getValue());
+                if (!CopypasteUtils.isEmpty(entry.getValue())) {
+                    paramPairs.add(entry.getKey().toString() + '=' + entry.getValue());
+                }
             }
             String query = CopypasteUtils.join(paramPairs, '&');
             uri = new URI("http", null, source.getHost(), source.getPort(),
