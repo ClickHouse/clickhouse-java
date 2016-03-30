@@ -68,13 +68,18 @@ public class CHStatementImpl implements CHStatement {
     public ResultSet executeQuery(String sql, Map<CHQueryParam, String> additionalDBParams) throws SQLException {
         InputStream is = getInputStream(sql, additionalDBParams);
         try {
-            currentResult = new CHResultSet(properties.isCompress()
-                    ? new CHLZ4Stream(is) : is, properties.getBufferSize(),
-                    extractDBName(sql),
-                    extractTableName(sql)
-            );
-            currentResult.setMaxRows(maxRows);
-            return currentResult;
+            if (isSelect(sql)) {
+                currentResult = new CHResultSet(properties.isCompress()
+                        ? new CHLZ4Stream(is) : is, properties.getBufferSize(),
+                        extractDBName(sql),
+                        extractTableName(sql)
+                );
+                currentResult.setMaxRows(maxRows);
+                return currentResult;
+            } else {
+                CopypasteUtils.close(is);
+                return null;
+            }
         } catch (Exception e){
             CopypasteUtils.close(is);
             throw CHExceptionSpecifier.specify(e, source.getHost(), source.getPort());
@@ -335,7 +340,7 @@ public class CHStatementImpl implements CHStatement {
     private static String addFormatIfAbsent(String sql, String format) {
         sql = sql.trim();
         String woSemicolon = Patterns.SEMICOLON.matcher(sql).replaceAll("").trim();
-        if ( (sql.toUpperCase().startsWith("SELECT")||sql.toUpperCase().startsWith("SHOW"))
+        if ( isSelect(sql)
                 && !woSemicolon.endsWith(" TabSeparatedWithNamesAndTypes")
                 && !woSemicolon.endsWith(" TabSeparated")
                 && !woSemicolon.endsWith(" JSONCompact")) {
@@ -343,6 +348,10 @@ public class CHStatementImpl implements CHStatement {
             sql += " FORMAT " + format + ';';
         }
         return sql;
+    }
+
+    private static boolean isSelect(String sql) {
+        return sql.toUpperCase().startsWith("SELECT")||sql.toUpperCase().startsWith("SHOW");
     }
 
     private String extractTableName(String sql) {
