@@ -63,7 +63,7 @@ public class CHDataSource implements DataSource {
         } else {
             throw new IllegalArgumentException("Incorrect clickhouse jdbc url: " + url);
         }
-        this.properties = properties;
+        this.properties = new CHProperties(properties);
         this.properties.setDatabase(database);
     }
 

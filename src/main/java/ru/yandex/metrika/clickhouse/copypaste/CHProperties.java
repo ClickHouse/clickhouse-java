@@ -74,6 +74,31 @@ public class CHProperties {
         this.user = getSetting(info, USER);
     }
 
+    public CHProperties(CHProperties properties) {
+        setAsync(properties.async);
+        setBufferSize(properties.bufferSize);
+        setApacheBufferSize(properties.apacheBufferSize);
+        setSocketTimeout(properties.socketTimeout);
+        setConnectionTimeout(properties.connectionTimeout);
+        setDataTransferTimeout(properties.dataTransferTimeout);
+        setKeepAliveTimeout(properties.keepAliveTimeout);
+        setTimeToLiveMillis(properties.timeToLiveMillis);
+        setDefaultMaxPerRoute(properties.defaultMaxPerRoute);
+        setMaxTotal(properties.maxTotal);
+        setMaxParallelReplicas(properties.maxParallelReplicas);
+        setTotalsMode(properties.totalsMode);
+        setQuotaKey(properties.quotaKey);
+        setPriority(properties.priority);
+        setDatabase(properties.database);
+        setCompress(properties.compress);
+        setExtremes(properties.extremes);
+        setMaxThreads(properties.maxThreads);
+        setMaxExecutionTime(properties.maxExecutionTime);
+        setMaxBlockSize(properties.maxBlockSize);
+        setProfile(properties.profile);
+        setUser(properties.user);
+    }
+
     public Map<CHQueryParam, String> buildParams(boolean ignoreDatabase){
         Map<CHQueryParam, String> params = new HashMap<CHQueryParam, String>();
 
