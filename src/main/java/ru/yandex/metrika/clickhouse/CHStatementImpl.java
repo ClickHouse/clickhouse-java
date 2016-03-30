@@ -351,7 +351,8 @@ public class CHStatementImpl implements CHStatement {
     }
 
     private static boolean isSelect(String sql) {
-        return sql.toUpperCase().startsWith("SELECT")||sql.toUpperCase().startsWith("SHOW");
+        String upper = sql.toUpperCase();
+        return upper.startsWith("SELECT")||upper.startsWith("SHOW") || upper.startsWith("DESC") || upper.startsWith("EXISTS");
     }
 
     private String extractTableName(String sql) {
