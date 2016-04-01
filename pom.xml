@@ -3,11 +3,11 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>ru.yandex.metrika.clickhouse</groupId>
-    <artifactId>jdbc</artifactId>
+    <artifactId>clickhouse-jdbc</artifactId>
     <version>1.0.2</version>
     <packaging>jar</packaging>
 
-    <name>jdbc</name>
+    <name>clickhouse-jdbc</name>
     <url>http://maven.apache.org</url>
 
     <properties>
