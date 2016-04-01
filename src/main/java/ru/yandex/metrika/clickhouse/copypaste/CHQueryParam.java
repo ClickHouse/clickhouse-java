@@ -52,6 +52,12 @@ public enum CHQueryParam {
      * https://clickhouse.yandex-team.ru/#max_block_size
      */
     MAX_BLOCK_SIZE("max_block_size", null, Integer.class),
+
+    /**
+     * Максимальное количество уникальных ключей, получаемых в процессе агрегации. Позволяет ограничить потребление оперативки при агрегации.
+     */
+    MAX_ROWS_TO_GROUP_BY("max_rows_to_group_by", null, Integer.class),
+
     /**
      * Профили настроек - это множество настроек, сгруппированных под одним именем.
      * Для каждого пользователя ClickHouse указывается некоторый профиль.

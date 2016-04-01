@@ -39,6 +39,7 @@ public class CHProperties {
     private Integer maxThreads;
     private Integer maxExecutionTime;
     private Integer maxBlockSize;
+    private Integer maxRowsToGroupBy;
     private String profile;
     private String user;
 
@@ -70,6 +71,7 @@ public class CHProperties {
         this.maxThreads = getSetting(info, MAX_THREADS);
         this.maxExecutionTime = getSetting(info, MAX_EXECUTION_TIME);
         this.maxBlockSize = getSetting(info, MAX_BLOCK_SIZE);
+        this.maxRowsToGroupBy = getSetting(info, MAX_ROWS_TO_GROUP_BY);
         this.profile = getSetting(info, PROFILE);
         this.user = getSetting(info, USER);
     }
@@ -95,6 +97,7 @@ public class CHProperties {
         setMaxThreads(properties.maxThreads);
         setMaxExecutionTime(properties.maxExecutionTime);
         setMaxBlockSize(properties.maxBlockSize);
+        setMaxRowsToGroupBy(properties.maxRowsToGroupBy);
         setProfile(properties.profile);
         setUser(properties.user);
     }
@@ -103,6 +106,7 @@ public class CHProperties {
         Map<CHQueryParam, String> params = new HashMap<CHQueryParam, String>();
 
         if (maxParallelReplicas != null) params.put(MAX_PARALLEL_REPLICAS, String.valueOf(maxParallelReplicas));
+        if (maxRowsToGroupBy != null) params.put(MAX_ROWS_TO_GROUP_BY, String.valueOf(maxRowsToGroupBy));
         if (totalsMode != null) params.put(TOTALS_MODE, totalsMode);
         if (quotaKey != null) params.put(QUOTA_KEY, quotaKey);
         if (priority != null) params.put(PRIORITY, String.valueOf(priority));
@@ -331,5 +335,13 @@ public class CHProperties {
 
     public void setMaxExecutionTime(Integer maxExecutionTime) {
         this.maxExecutionTime = maxExecutionTime;
+    }
+
+    public Integer getMaxRowsToGroupBy() {
+        return maxRowsToGroupBy;
+    }
+
+    public void setMaxRowsToGroupBy(Integer maxRowsToGroupBy) {
+        this.maxRowsToGroupBy = maxRowsToGroupBy;
     }
 }
