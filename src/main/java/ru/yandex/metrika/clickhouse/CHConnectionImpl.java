@@ -12,6 +12,7 @@ import java.sql.*;
 import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 
 /**
  * @author jkee
@@ -336,5 +337,10 @@ public class CHConnectionImpl implements CHConnection {
 
     public int getNetworkTimeout() throws SQLException {
         return 0;
+    }
+
+    void cleanConnections(){
+        httpclient.getConnectionManager().closeExpiredConnections();
+        httpclient.getConnectionManager().closeIdleConnections(2*properties.getSocketTimeout(), TimeUnit.MILLISECONDS);
     }
 }

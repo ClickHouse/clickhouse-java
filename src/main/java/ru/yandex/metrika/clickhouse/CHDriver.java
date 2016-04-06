@@ -1,11 +1,20 @@
 package ru.yandex.metrika.clickhouse;
 
+import org.apache.http.annotation.GuardedBy;
 import ru.yandex.metrika.clickhouse.copypaste.CHProperties;
 import ru.yandex.metrika.clickhouse.util.LogProxy;
 import ru.yandex.metrika.clickhouse.util.Logger;
 
 import java.sql.*;
+import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
+import java.util.WeakHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  *
@@ -23,6 +32,23 @@ public class CHDriver implements Driver {
 
     private static final Logger logger = Logger.of(CHDriver.class);
 
+    @GuardedBy("this") // only for write operations
+    private Map<CHConnectionImpl, Boolean> connections = new WeakHashMap<CHConnectionImpl, Boolean>();
+
+    private ScheduledExecutorService connectionsCleaner = Executors.newSingleThreadScheduledExecutor();
+
+    CHDriver(){
+        // https://hc.apache.org/httpcomponents-client-4.5.x/tutorial/html/connmgmt.html#d5e418
+        connectionsCleaner.scheduleAtFixedRate(new Runnable() {
+            @Override
+            public void run() {
+                for (CHConnectionImpl connection : connections.keySet()) {
+                    connection.cleanConnections();
+                }
+            }
+        }, 0, 5, TimeUnit.SECONDS);
+    }
+
     static {
         CHDriver driver = new CHDriver();
         try {
@@ -36,12 +62,20 @@ public class CHDriver implements Driver {
     @Override
     public CHConnection connect(String url, Properties info) throws SQLException {
         logger.info("Creating connection");
-        return LogProxy.wrap(CHConnection.class, new CHConnectionImpl(url, info));
+        CHConnectionImpl connection = new CHConnectionImpl(url, info);
+        registerConnection(connection);
+        return LogProxy.wrap(CHConnection.class, connection);
     }
 
     public CHConnection connect(String url, CHProperties properties) throws SQLException {
         logger.info("Creating connection");
-        return LogProxy.wrap(CHConnection.class, new CHConnectionImpl(url, properties));
+        CHConnectionImpl connection = new CHConnectionImpl(url, properties);
+        registerConnection(connection);
+        return LogProxy.wrap(CHConnection.class, connection);
+    }
+
+    private synchronized void registerConnection(CHConnectionImpl connection) {
+        connections.put(connection, true);
     }
 
     @Override
