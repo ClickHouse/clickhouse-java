@@ -1,5 +1,6 @@
 package ru.yandex.metrika.clickhouse;
 
+import org.apache.http.annotation.GuardedBy;
 import ru.yandex.metrika.clickhouse.copypaste.CHProperties;
 import ru.yandex.metrika.clickhouse.util.LogProxy;
 import ru.yandex.metrika.clickhouse.util.Logger;
@@ -12,6 +13,8 @@ import java.util.WeakHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  *
@@ -29,6 +32,7 @@ public class CHDriver implements Driver {
 
     private static final Logger logger = Logger.of(CHDriver.class);
 
+    @GuardedBy("this") // only for write operations
     private Map<CHConnectionImpl, Boolean> connections = new WeakHashMap<CHConnectionImpl, Boolean>();
 
     private ScheduledExecutorService connectionsCleaner = Executors.newSingleThreadScheduledExecutor();
@@ -59,15 +63,19 @@ public class CHDriver implements Driver {
     public CHConnection connect(String url, Properties info) throws SQLException {
         logger.info("Creating connection");
         CHConnectionImpl connection = new CHConnectionImpl(url, info);
-        connections.put(connection, true);
+        registerConnection(connection);
         return LogProxy.wrap(CHConnection.class, connection);
     }
 
     public CHConnection connect(String url, CHProperties properties) throws SQLException {
         logger.info("Creating connection");
         CHConnectionImpl connection = new CHConnectionImpl(url, properties);
-        connections.put(connection, true);
+        registerConnection(connection);
         return LogProxy.wrap(CHConnection.class, connection);
+    }
+
+    private synchronized void registerConnection(CHConnectionImpl connection) {
+        connections.put(connection, true);
     }
 
     @Override
