@@ -8,13 +8,10 @@ import ru.yandex.metrika.clickhouse.util.Logger;
 import java.sql.*;
 import java.util.Map;
 import java.util.Properties;
-import java.util.Set;
 import java.util.WeakHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
 
 /**
  *
@@ -42,8 +39,12 @@ public class CHDriver implements Driver {
         connectionsCleaner.scheduleAtFixedRate(new Runnable() {
             @Override
             public void run() {
-                for (CHConnectionImpl connection : connections.keySet()) {
-                    connection.cleanConnections();
+                try {
+                    for (CHConnectionImpl connection : connections.keySet()) {
+                        connection.cleanConnections();
+                    }
+                } catch (Exception e){
+                    logger.error("error evicting connections: " + e);
                 }
             }
         }, 0, 5, TimeUnit.SECONDS);
