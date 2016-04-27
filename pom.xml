@@ -4,7 +4,7 @@
 
     <groupId>ru.yandex.metrika.clickhouse</groupId>
     <artifactId>clickhouse-jdbc</artifactId>
-    <version>1.0.6</version>
+    <version>1.0.7</version>
     <packaging>jar</packaging>
 
     <name>clickhouse-jdbc</name>

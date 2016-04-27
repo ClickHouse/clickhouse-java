@@ -20,7 +20,7 @@ public enum CHConnectionSettings {
     DATA_TRANSFER_TIMEOUT( "dataTransferTimeout", 10000),
 
 
-    KEEP_ALIVE_TIMEOUT("keepAliveTimeout", 30 * 100),
+    KEEP_ALIVE_TIMEOUT("keepAliveTimeout", 30 * 1000),
 
     /**
      * Для ConnectionManager'а
