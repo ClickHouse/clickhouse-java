@@ -1,5 +1,6 @@
 package ru.yandex.metrika.clickhouse.copypaste;
 
+import com.google.common.io.LittleEndianDataInputStream;
 import net.jpountz.lz4.LZ4FastDecompressor;
 import net.jpountz.lz4.LZ4Factory;
 
