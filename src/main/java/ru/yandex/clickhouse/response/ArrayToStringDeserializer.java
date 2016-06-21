@@ -1,4 +1,4 @@
-package ru.yandex.clickhouse.copypaste;
+package ru.yandex.clickhouse.response;
 
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonProcessingException;

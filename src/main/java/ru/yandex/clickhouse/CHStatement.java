@@ -1,7 +1,7 @@
 package ru.yandex.clickhouse;
 
-import ru.yandex.clickhouse.copypaste.CHQueryParam;
-import ru.yandex.clickhouse.copypaste.CHResponse;
+import ru.yandex.clickhouse.settings.CHQueryParam;
+import ru.yandex.clickhouse.response.CHResponse;
 
 import java.io.InputStream;
 import java.sql.ResultSet;

@@ -1,6 +1,6 @@
 package ru.yandex.clickhouse;
 
-import ru.yandex.clickhouse.copypaste.CHProperties;
+import ru.yandex.clickhouse.settings.CHProperties;
 
 import javax.sql.DataSource;
 import java.io.PrintWriter;

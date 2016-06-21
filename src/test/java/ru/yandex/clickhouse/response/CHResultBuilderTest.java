@@ -1,4 +1,4 @@
-package ru.yandex.clickhouse.copypaste;
+package ru.yandex.clickhouse.response;
 
 import org.junit.Assert;
 import org.junit.Test;

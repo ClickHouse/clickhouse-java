@@ -1,7 +1,7 @@
 package ru.yandex.clickhouse;
 
 import org.apache.http.impl.client.CloseableHttpClient;
-import ru.yandex.clickhouse.copypaste.CHProperties;
+import ru.yandex.clickhouse.settings.CHProperties;
 import ru.yandex.clickhouse.util.Logger;
 
 import java.io.InputStream;

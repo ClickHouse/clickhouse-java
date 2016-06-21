@@ -1,7 +1,7 @@
 package ru.yandex.clickhouse;
 
-import ru.yandex.clickhouse.copypaste.CHResultBuilder;
-import ru.yandex.clickhouse.copypaste.CHResultSet;
+import ru.yandex.clickhouse.response.CHResultBuilder;
+import ru.yandex.clickhouse.response.CHResultSet;
 import ru.yandex.clickhouse.util.CopypasteUtils;
 import ru.yandex.clickhouse.util.Logger;
 

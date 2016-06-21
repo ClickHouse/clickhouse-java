@@ -2,7 +2,7 @@ package ru.yandex.clickhouse;
 
 import org.apache.http.annotation.GuardedBy;
 import ru.yandex.clickhouse.util.LogProxy;
-import ru.yandex.clickhouse.copypaste.CHProperties;
+import ru.yandex.clickhouse.settings.CHProperties;
 import ru.yandex.clickhouse.util.Logger;
 
 import java.sql.*;

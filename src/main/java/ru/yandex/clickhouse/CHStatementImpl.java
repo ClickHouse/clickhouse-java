@@ -9,11 +9,14 @@ import org.apache.http.entity.InputStreamEntity;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.util.EntityUtils;
-import ru.yandex.clickhouse.copypaste.*;
+import ru.yandex.clickhouse.response.*;
 import ru.yandex.clickhouse.except.CHExceptionSpecifier;
+import ru.yandex.clickhouse.settings.CHProperties;
+import ru.yandex.clickhouse.settings.CHQueryParam;
 import ru.yandex.clickhouse.util.CopypasteUtils;
 import ru.yandex.clickhouse.except.CHException;
 import ru.yandex.clickhouse.util.Logger;
+import ru.yandex.clickhouse.util.Patterns;
 
 import java.io.IOException;
 import java.io.InputStream;

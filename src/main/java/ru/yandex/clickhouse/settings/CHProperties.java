@@ -1,4 +1,4 @@
-package ru.yandex.clickhouse.copypaste;
+package ru.yandex.clickhouse.settings;
 
 import ru.yandex.clickhouse.util.CopypasteUtils;
 

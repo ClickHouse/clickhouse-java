@@ -16,8 +16,7 @@ import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 import org.apache.http.message.BasicHeaderElementIterator;
 import org.apache.http.protocol.HTTP;
 import org.apache.http.protocol.HttpContext;
-import ru.yandex.clickhouse.copypaste.CHProperties;
-import ru.yandex.clickhouse.copypaste.IpVersionPriorityResolver;
+import ru.yandex.clickhouse.settings.CHProperties;
 
 import java.net.HttpURLConnection;
 import java.util.concurrent.TimeUnit;

@@ -1,4 +1,4 @@
-package ru.yandex.clickhouse.copypaste;
+package ru.yandex.clickhouse.response;
 
 import com.google.common.io.LittleEndianDataInputStream;
 import net.jpountz.lz4.LZ4FastDecompressor;

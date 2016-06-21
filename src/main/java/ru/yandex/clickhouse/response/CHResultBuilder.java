@@ -1,4 +1,4 @@
-package ru.yandex.clickhouse.copypaste;
+package ru.yandex.clickhouse.response;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;

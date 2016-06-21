@@ -3,7 +3,7 @@ package ru.yandex.clickhouse;
 import org.apache.http.impl.client.CloseableHttpClient;
 import ru.yandex.clickhouse.util.CHHttpClientBuilder;
 import ru.yandex.clickhouse.util.LogProxy;
-import ru.yandex.clickhouse.copypaste.CHProperties;
+import ru.yandex.clickhouse.settings.CHProperties;
 import ru.yandex.clickhouse.except.CHUnknownException;
 import ru.yandex.clickhouse.util.Logger;
 
