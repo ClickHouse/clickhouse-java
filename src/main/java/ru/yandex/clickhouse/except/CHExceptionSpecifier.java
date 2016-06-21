@@ -1,8 +1,8 @@
 package ru.yandex.clickhouse.except;
 
 import org.apache.http.conn.ConnectTimeoutException;
-import ru.yandex.clickhouse.util.CopypasteUtils;
 import ru.yandex.clickhouse.util.Logger;
+import ru.yandex.clickhouse.util.apache.StringUtils;
 
 import java.net.ConnectException;
 import java.net.SocketTimeoutException;
@@ -49,7 +49,7 @@ public final class CHExceptionSpecifier {
      * Очень надеемся, что кто-то будет в эти тесты смотреть и актуализировать парсинг.
      */
     public static CHException specify(String clickhouseMessage, Throwable cause, String host, int port) {
-        if (CopypasteUtils.isEmpty(clickhouseMessage) && cause != null) {
+        if (StringUtils.isEmpty(clickhouseMessage) && cause != null) {
             if (cause instanceof SocketTimeoutException)
                 // если приехал STE, то скажем, что это запрос плохой, это не то же самое, что SOCKET_TIMEOUT от кликхауса
                 // хотя это также может значить падающий кликхаус, посмотрим что выглядит правдоподобнее

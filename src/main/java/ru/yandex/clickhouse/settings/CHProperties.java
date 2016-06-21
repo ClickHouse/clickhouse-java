@@ -1,6 +1,6 @@
 package ru.yandex.clickhouse.settings;
 
-import ru.yandex.clickhouse.util.CopypasteUtils;
+import ru.yandex.clickhouse.util.apache.StringUtils;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -109,13 +109,13 @@ public class CHProperties {
         if (quotaKey != null) params.put(CHQueryParam.QUOTA_KEY, quotaKey);
         if (priority != null) params.put(CHQueryParam.PRIORITY, String.valueOf(priority));
 
-        if (!CopypasteUtils.isBlank(database) && !ignoreDatabase) params.put(CHQueryParam.DATABASE, getDatabase());
+        if (!StringUtils.isBlank(database) && !ignoreDatabase) params.put(CHQueryParam.DATABASE, getDatabase());
 
         if (compress) params.put(CHQueryParam.COMPRESS, "1");
 
         if (extremes) params.put(CHQueryParam.EXTREMES, "1");
 
-        if (CopypasteUtils.isBlank(profile)) {
+        if (StringUtils.isBlank(profile)) {
             if (getMaxThreads() != null)
                 params.put(CHQueryParam.MAX_THREADS, String.valueOf(maxThreads));
             // да, там в секундах

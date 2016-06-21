@@ -13,10 +13,12 @@ import ru.yandex.clickhouse.response.*;
 import ru.yandex.clickhouse.except.CHExceptionSpecifier;
 import ru.yandex.clickhouse.settings.CHProperties;
 import ru.yandex.clickhouse.settings.CHQueryParam;
-import ru.yandex.clickhouse.util.CopypasteUtils;
+import ru.yandex.clickhouse.util.Utils;
 import ru.yandex.clickhouse.except.CHException;
 import ru.yandex.clickhouse.util.Logger;
 import ru.yandex.clickhouse.util.Patterns;
+import ru.yandex.clickhouse.util.apache.StringUtils;
+import ru.yandex.clickhouse.util.guava.StreamUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -80,11 +82,11 @@ public class CHStatementImpl implements CHStatement {
                 currentResult.setMaxRows(maxRows);
                 return currentResult;
             } else {
-                CopypasteUtils.close(is);
+                StreamUtils.close(is);
                 return null;
             }
         } catch (Exception e){
-            CopypasteUtils.close(is);
+            StreamUtils.close(is);
             throw CHExceptionSpecifier.specify(e, source.getHost(), source.getPort());
         }
     }
@@ -99,9 +101,9 @@ public class CHStatementImpl implements CHStatement {
             byte[] bytes = null;
             try {
                 if (properties.isCompress()){
-                    bytes = CopypasteUtils.toByteArray(new CHLZ4Stream(is));
+                    bytes = StreamUtils.toByteArray(new CHLZ4Stream(is));
                 } else {
-                    bytes = CopypasteUtils.toByteArray(is);
+                    bytes = StreamUtils.toByteArray(is);
                 }
                 return objectMapper.readValue(bytes, CHResponse.class);
             } catch (IOException e) {
@@ -111,7 +113,7 @@ public class CHStatementImpl implements CHStatement {
         } catch (IOException e) {
             throw new RuntimeException(e);
         } finally {
-            CopypasteUtils.close(is);
+            StreamUtils.close(is);
         }
     }
 
@@ -122,7 +124,7 @@ public class CHStatementImpl implements CHStatement {
             is = getInputStream(sql, null);
             //noinspection StatementWithEmptyBody
         } finally {
-            CopypasteUtils.close(is);
+            StreamUtils.close(is);
         }
         return 1;
     }
@@ -376,8 +378,8 @@ public class CHStatementImpl implements CHStatement {
 
     private String extractDBAndTableName(String sql) {
         // паршивый код, надо писать или найти нормальный парсер
-        if (CopypasteUtils.startsWithIgnoreCase(sql, "select")) {
-            String withoutStrings = CopypasteUtils.retainUnquoted(sql, '\'');
+        if (Utils.startsWithIgnoreCase(sql, "select")) {
+            String withoutStrings = Utils.retainUnquoted(sql, '\'');
             int fromIndex = withoutStrings.indexOf("from");
             if (fromIndex == -1) fromIndex = withoutStrings.indexOf("FROM");
             if (fromIndex != -1) {
@@ -386,10 +388,10 @@ public class CHStatementImpl implements CHStatement {
                 return fromTable.split(" ")[0];
             }
         }
-        if (CopypasteUtils.startsWithIgnoreCase(sql, "desc")) {
+        if (Utils.startsWithIgnoreCase(sql, "desc")) {
             return "system.columns"; // bullshit
         }
-        if (CopypasteUtils.startsWithIgnoreCase(sql, "show")) {
+        if (Utils.startsWithIgnoreCase(sql, "show")) {
             return "system.tables"; // bullshit
         }
         return "system.unknown";
@@ -410,11 +412,11 @@ public class CHStatementImpl implements CHStatement {
             }
             List<String> paramPairs = new ArrayList<String>();
             for (Map.Entry<CHQueryParam, String> entry : params.entrySet()) {
-                if (!CopypasteUtils.isEmpty(entry.getValue())) {
+                if (!StringUtils.isEmpty(entry.getValue())) {
                     paramPairs.add(entry.getKey().toString() + '=' + entry.getValue());
                 }
             }
-            String query = CopypasteUtils.join(paramPairs, '&');
+            String query = StringUtils.join(paramPairs, '&');
             uri = new URI("http", null, source.getHost(), source.getPort(),
                     "/", query, null);
         } catch (URISyntaxException e) {
@@ -423,7 +425,7 @@ public class CHStatementImpl implements CHStatement {
         }
         log.debug("Request url: " + uri);
         HttpPost post = new HttpPost(uri);
-        post.setEntity(new StringEntity(sql, CopypasteUtils.UTF_8));
+        post.setEntity(new StringEntity(sql, StreamUtils.UTF_8));
         HttpEntity entity = null;
         InputStream is = null;
         try {
@@ -436,7 +438,7 @@ public class CHStatementImpl implements CHStatement {
                     if (properties.isCompress()) {
                         messageStream = new CHLZ4Stream(messageStream);
                     }
-                    chMessage = CopypasteUtils.toString(messageStream);
+                    chMessage = StreamUtils.toString(messageStream);
                 } catch (IOException e) {
                     chMessage = "error while read response " + e.getMessage();
                 }
@@ -456,7 +458,7 @@ public class CHStatementImpl implements CHStatement {
         } catch (Exception e) {
             log.info("Error during connection to " + source + ", reporting failure to data source, message: " + e.getMessage());
             EntityUtils.consumeQuietly(entity);
-            CopypasteUtils.close(is);
+            StreamUtils.close(is);
             log.info("Error sql: " + sql);
             throw CHExceptionSpecifier.specify(e, source.getHost(), source.getPort());
         }
@@ -467,7 +469,7 @@ public class CHStatementImpl implements CHStatement {
         HttpEntity entity = null;
         try {
             URI uri = new URI("http", null, source.getHost(), source.getPort(),
-                    "/", (CopypasteUtils.isEmpty(source.getDatabase()) ? "" : "database=" + source.getDatabase() + '&')
+                    "/", (StringUtils.isEmpty(source.getDatabase()) ? "" : "database=" + source.getDatabase() + '&')
                     + "query=INSERT INTO " + table + " FORMAT TabSeparated", null);
             HttpPost httpPost = new HttpPost(uri);
             httpPost.setEntity(new InputStreamEntity(content, -1));

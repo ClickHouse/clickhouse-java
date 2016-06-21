@@ -1,6 +1,6 @@
 package ru.yandex.clickhouse.response;
 
-import ru.yandex.clickhouse.util.CopypasteUtils;
+import ru.yandex.clickhouse.util.guava.StreamUtils;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -25,13 +25,13 @@ public class ByteFragment {
     }
 
     public String asString() {
-        return new String(buf, start, len, CopypasteUtils.UTF_8);
+        return new String(buf, start, len, StreamUtils.UTF_8);
     }
 
     public String asString(boolean unescape) {
         if(unescape) {
             if (isNull()) return null;
-            return new String(unescape(), CopypasteUtils.UTF_8);
+            return new String(unescape(), StreamUtils.UTF_8);
         } else {
             return asString();
         }

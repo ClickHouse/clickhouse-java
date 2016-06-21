@@ -2,7 +2,7 @@ package ru.yandex.clickhouse;
 
 import ru.yandex.clickhouse.response.CHResultBuilder;
 import ru.yandex.clickhouse.response.CHResultSet;
-import ru.yandex.clickhouse.util.CopypasteUtils;
+import ru.yandex.clickhouse.util.Utils;
 import ru.yandex.clickhouse.util.Logger;
 
 import java.sql.*;
@@ -799,8 +799,8 @@ public class CHDatabaseMetadata implements DatabaseMetaData {
         );
         // todo это всё брехня, ждем https://st.yandex-team.ru/METR-15619
         String sql = "desc table ";
-        if (schemaPattern != null) sql += CopypasteUtils.unEscapeString(schemaPattern) + '.';
-        sql += CopypasteUtils.unEscapeString(tableNamePattern);
+        if (schemaPattern != null) sql += Utils.unEscapeString(schemaPattern) + '.';
+        sql += Utils.unEscapeString(tableNamePattern);
         ResultSet descTable = request(sql);
         int colNum = 1;
         while (descTable.next()) {
