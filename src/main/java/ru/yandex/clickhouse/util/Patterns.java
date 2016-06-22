@@ -3,8 +3,7 @@ package ru.yandex.clickhouse.util;
 import java.util.regex.Pattern;
 
 /**
- * Достали регулярные выражения тут и там?
- * А давайте сделаем еще один утилитный класс, а?
+ * A collection of usable predefined regular expressions.
  *
  * @author lopashev
  * @since 18.07.14
@@ -34,12 +33,8 @@ public final class Patterns {
 
     public static final Pattern PIPE        = Pattern.compile("\\|");
 
-    public static final Pattern SMILE       = Pattern.compile("☺");
-
     public static final Pattern COMMA_SPACE = Pattern.compile(", ");
 
     public static final Pattern UNDERSCORE  = Pattern.compile("_");
-
-    public static final Pattern COLON_DSLASH_WWW = Pattern.compile("://www.");
 
 }

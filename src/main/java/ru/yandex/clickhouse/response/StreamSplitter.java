@@ -4,12 +4,9 @@ import java.io.IOException;
 import java.io.InputStream;
 
 /**
- * что мы тут делаем.
- * на вход приезжает поток байт и разделитель
- * на выходе выезжает некоторое количество байтовых массивов,
- * которые в оригинальном потоке были разделены разделителем
+ * We have a stream of bytes and a separator as an input.
+ * We split the stream by the separator and pass the byte arrays to output.
  *
- * делается это путем чтения из потока данных в буфер и выдачи их из буфера.
  * @author orantius
  * @version $Id$
  * @since 7/16/12
@@ -17,17 +14,16 @@ import java.io.InputStream;
 public class StreamSplitter {
     private static final int buflen = 65536;
 
-    // начальные параметры
+    // initial parameters
     private final InputStream delegate;
     private final byte sep;
 
     private byte[] buf;
-    // позиция, до которой buf заполнен прочтенным из delegate
+    // position until which the buf is filled with values read from delegate
     private int posRead;
-    // позиция, до которой из buf уже отдано наружу фрагментов через next()
+    // position until which the values from buf already passed out through next()
     private int posNext;
 
-    // флаг который символизирует, что из потока надо прочитать один раз всю длни буфера, и больше читать не надо.
     private boolean readOnce;
 
 
@@ -49,38 +45,33 @@ public class StreamSplitter {
     }
 
     public ByteFragment next() throws IOException {
-        // если заслали наружу все что прочитали из потока
+        // if sent out all that have read
         if (posNext >= posRead) {
-            // надо прочитать из потока еще
+            // need to read more from the stream
             int readBytes = readFromStream();
             if(readBytes <= 0) {
-                // если все отдали, и из потока больше не читается - то не отдаем ничего
+                // if everything was sent out and there is nothing left in the stream
                 return null;
             }
         }
-        // ищем в прочитанном разделитель
+        // looking for the separator
         int positionSep;
         while((positionSep = indexOf(buf, sep, posNext, posRead)) < posNext) {
-            // пока не нашли разделитель надо прочитать из потока еще
+            // read from stream till we find the separator
             int readBytes = readFromStream();
             if(readBytes <= 0) {
-                // если уже ничего не читается - отдаем весь хвост как результат.
+                // if there is nothing to read, return everything left as a result
                 positionSep = posRead;
                 break;
-                /*int fragmentStart = posNext;
-                posNext = positionSep+1;
-                System.out.println("return "+(positionSep-fragmentStart)+" bytes as next() ");
-                return new ByteFragment(buf, fragmentStart, positionSep-fragmentStart); */
             }
         }
-        // если нашли разделитель - отдаем кусок.
+        // if the separator is found, return the fragment
         int fragmentStart = posNext;
         posNext = positionSep+1;
-        // System.out.println("return "+(positionSep-fragmentStart)+" bytes as next() ");
         return new ByteFragment(buf, fragmentStart, positionSep-fragmentStart);
     }
 
-    // если в прочитанном но не отправленном куске данных нет разделителя - читаем из потока еще данных
+    // if there is no separator in read but not sent fragment - read more data
     protected int readFromStream() throws IOException {
         if (readOnce) {
             if (posRead >= buf.length) {
@@ -92,30 +83,27 @@ public class StreamSplitter {
                 return read;
             }
         } else {
-            if (posRead >= buf.length) { // буфер закончился
+            if (posRead >= buf.length) { // buffer is filled
                 shiftOrResize();
             }
-            // если буфер не заполнен до конца
             int read = delegate.read(buf, posRead, buf.length - posRead);
-            //System.out.println("read "+read+" bytes  from stream");
             if(read > 0)
                 posRead += read;
             return read;
         }
     }
 
-    // если поток дочитали до конца буфера - надо создать новый буфер и передвинуть данные на уже отправленную величину.
-    // если отправленных данных нет, а буфер все равно дочитан до конца - надо увеличить размер буфера.
+
+    // if we have read till the end of buffer, we have to create a new buffer and move data by posNext (already send data position)
+    // if there is no sent data and buffer is still full - expand the buffer
     private void shiftOrResize() {
         if(posNext > 0) {
-            // System.out.println("shift "+posNext+" bytes");
             byte[] oldBuf = buf;
             buf = new byte[buf.length];
             System.arraycopy(oldBuf, posNext, buf, 0, oldBuf.length-posNext);
             posRead -= posNext;
             posNext = 0;
         } else {
-            //System.out.println("double size");
             byte[] oldBuf = buf;
             buf = new byte[buf.length*2];
             System.arraycopy(oldBuf, 0, buf, 0, oldBuf.length);

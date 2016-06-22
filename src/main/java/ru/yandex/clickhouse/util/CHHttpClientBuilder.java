@@ -72,7 +72,7 @@ public class CHHttpClientBuilder {
         return new ConnectionKeepAliveStrategy() {
             @Override
             public long getKeepAliveDuration(HttpResponse httpResponse, HttpContext httpContext) {
-                // при ошибках keep-alive не всегда правильно работает, на всякий случай закроем коннекшн
+                // in case of errors keep-alive not always works. close connection just in case
                 if (httpResponse.getStatusLine().getStatusCode() != HttpURLConnection.HTTP_OK) {
                     return -1;
                 }

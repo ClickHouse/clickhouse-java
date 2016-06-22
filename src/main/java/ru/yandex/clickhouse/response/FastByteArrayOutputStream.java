@@ -8,7 +8,7 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 
 /**
- * Несинхронизированная быстрая версия {@link java.io.ByteArrayOutputStream}
+ * Not synchronized quick version of {@link java.io.ByteArrayOutputStream}
  * @author Artur
  * @version $Id: FastByteArrayOutputStream.java 5083 2009-11-11 12:46:49Z dedmajor $
  * @since 07.05.2008
@@ -93,7 +93,7 @@ public final class FastByteArrayOutputStream extends OutputStream {
 
 
     /**
-     * Возвращает напрямую внутренний массив
+     * returns inner array
      *
      * @return  the current contents of this output stream, as a byte array.
      */
@@ -130,10 +130,10 @@ public final class FastByteArrayOutputStream extends OutputStream {
     }
 
     /**
-     * Копирует данные из Input потока
-     * @param source Поток-источник данных
-     * @param offset Смещение от начала данных в источнике
-     * @param count Кол-во байт к копированию
+     * Copies data from input stream
+     * @param source source stream
+     * @param offset offset in the source
+     * @param count number of bytes to copy
      */
     public void copyFrom(FastByteArrayInputStream source, int offset, int count) {
         if (offset + count > source.getCount()) {
@@ -156,8 +156,7 @@ public final class FastByteArrayOutputStream extends OutputStream {
     }
 
     /**
-     * Создает InputStream на основе тех же данных, которые уже записаны в этот поток,
-     * без копирования данных в памяти.
+     * Creates InputStream using the same data that is written into this stream with no copying in memory
      */
     public FastByteArrayInputStream convertToInputStream() {
         return new FastByteArrayInputStream(buf, count); 

@@ -7,7 +7,7 @@ import java.util.Date;
 import java.util.logging.Level;
 
 /**
- * Тупой логгер. При желании можно перейти на что-то приличное, что умеет писать в PrintWriter и конфигуриться на лету.
+ * Simple logger.
  *
  * Created by jkee on 16.03.15.
  */

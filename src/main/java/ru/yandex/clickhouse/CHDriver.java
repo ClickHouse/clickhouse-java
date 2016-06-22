@@ -17,11 +17,11 @@ import java.util.concurrent.TimeUnit;
  *
  * URL Format
  *
- * пока что примитивный
+ * primitive for now
  *
  * jdbc:clickhouse:host:port
  *
- * например, jdbc:clickhouse:localhost:8123
+ * for example, jdbc:clickhouse:localhost:8123
  *
  * Created by jkee on 14.03.15.
  */

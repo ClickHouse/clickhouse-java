@@ -4,7 +4,7 @@ import java.io.IOException;
 import java.io.InputStream;
 
 /**
- * Несинхронизированная быстрая версия {@link java.io.ByteArrayInputStream}, с бриджем и поэтессами
+ * Not synchronized quick version of  {@link java.io.ByteArrayInputStream}
  * @author Artur
  * @version $Id: FastByteArrayInputStream.java 4065 2009-08-10 14:04:26Z artur $
  * @since 07.05.2008
@@ -23,9 +23,9 @@ public final class FastByteArrayInputStream extends InputStream {
     }
 
     /**
-     * Специальный конструктор для создания InputStream поверх не до конца заполненного массива
-     * @param buf Массив байт
-     * @param count Кол-во заполненных эл-тов массива
+     * Special constructor fo creating InputStream over not fully filled array
+     * @param buf byte array
+     * @param count number of filled elements
      */
     public FastByteArrayInputStream(byte[] buf, int count) {
         this.buf = buf;

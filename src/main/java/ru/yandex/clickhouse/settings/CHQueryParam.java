@@ -7,64 +7,59 @@ package ru.yandex.clickhouse.settings;
 public enum CHQueryParam {
     MAX_PARALLEL_REPLICAS("max_parallel_replicas", null, Integer.class),
     /**
-     * Каким образом вычислять TOTALS при наличии HAVING, а также при наличии max_rows_to_group_by и group_by_overflow_mode = 'any'
-     * https://clickhouse.yandex-team.ru/#%D0%9C%D0%BE%D0%B4%D0%B8%D1%84%D0%B8%D0%BA%D0%B0%D1%82%D0%BE%D1%80%20WITH%20TOTALS
+     * How to calculate TOTALS when HAVING is present, as well as when max_rows_to_group_by and group_by_overflow_mode = 'any' are present.
+     * https://clickhouse.yandex/reference_en.html#WITH TOTALS modifier
      */
     TOTALS_MODE("totals_mode", null, String.class),
     /**
-     * keyed - значит в параметре запроса передаётся "ключ" quota_key,
-     и квота считается по отдельности для каждого значения ключа.
-     Например, в качестве ключа может передаваться логин пользователя в Метрике,
-     и тогда квота будет считаться для каждого логина по отдельности.
-     Имеет смысл использовать только если quota_key передаётся не пользователем, а программой.
+     * quota is calculated for each quota_key value.
+     * For example here may be some user name.
      */
     QUOTA_KEY("quota_key", null, String.class),
     /**
-     * Меньше значение - больше приоритет
+     * The lower the value the bigger the priority.
      */
     PRIORITY("priority", null, Integer.class),
     /**
-     * БД по умолчанию.
+     * database name used by default
      */
     DATABASE("database", null, String.class),
     /**
-     *  сервер будет сжимать отправляемые вам данные
+     *  whether to compress transfered data or not
      */
     COMPRESS("compress", true, Boolean.class),
     /**
-     * Вы можете получить в дополнение к результату также минимальные и максимальные значения по столбцам результата.
-     * Для этого, выставите настройку extremes в 1. Минимумы и максимумы считаются для числовых типов, дат, дат-с-временем.
-     * Для остальных столбцов, будут выведены значения по умолчанию.
+     * Whether to include extreme values.
+     * https://clickhouse.yandex/reference_en.html#Extreme values
      */
     EXTREMES("extremes", false, String.class),
     /**
-     * Максимальное количество потоков обработки запроса
-     * https://clickhouse.yandex-team.ru/#max_threads
+     * The maximum number of query processing threads
+     * https://clickhouse.yandex/reference_en.html#max_threads
      */
     MAX_THREADS("max_threads", null, Integer.class),
     /**
-     * Максимальное время выполнения запроса в секундах.
-     * https://clickhouse.yandex-team.ru/#max_execution_time
+     * Maximum query execution time in seconds.
+     * https://clickhouse.yandex/reference_en.html#max_execution_time
      */
     MAX_EXECUTION_TIME("max_execution_time", null, Integer.class),
     /**
-     *  это рекомендация, какого размера блоки (в количестве строк) загружать из таблицы.
-     * https://clickhouse.yandex-team.ru/#max_block_size
+     * https://clickhouse.yandex/reference_en.html#max_block_size
      */
     MAX_BLOCK_SIZE("max_block_size", null, Integer.class),
 
     /**
-     * Максимальное количество уникальных ключей, получаемых в процессе агрегации. Позволяет ограничить потребление оперативки при агрегации.
+     * Maximum number of unique keys received from aggregation. This setting lets you limit memory consumption when aggregating.
+     * https://clickhouse.yandex/reference_en.html#max_rows_to_group_by
      */
     MAX_ROWS_TO_GROUP_BY("max_rows_to_group_by", null, Integer.class),
 
     /**
-     * Профили настроек - это множество настроек, сгруппированных под одним именем.
-     * Для каждого пользователя ClickHouse указывается некоторый профиль.
+     * https://clickhouse.yandex/reference_en.html#Settings profiles
      */
     PROFILE("profile", null, String.class),
     /**
-     *  имя пользователя, по умолчанию - default.
+     *  user name, by default - default
      */
     USER("user", null, String.class);
 

@@ -9,7 +9,7 @@ import java.io.InputStream;
 
 /**
  * CONV-8365
- * Читалка из кликхауса в lz4
+ * Reader from clickhouse in lz4
  * @author jkee
  */
 
@@ -58,7 +58,7 @@ public class CHLZ4Stream extends InputStream {
             targetPointer += toCopy;
             pointer += toCopy;
             copied += toCopy;
-            if (!checkNext()) { //закончили
+            if (!checkNext()) { //finished
                 return copied;
             }
         }
@@ -78,26 +78,26 @@ public class CHLZ4Stream extends InputStream {
         return currentBlock != null;
     }
 
-    //Каждый блок, это:
+    // every block is:
     private byte[] readNextBlock() throws IOException {
         int read = stream.read();
         if (read < 0) return null;
 
         byte[] checksum = new byte[16];
         checksum[0] = (byte)read;
-        // Чексумма - 16 байт.
+        // checksum - 16 bytes.
         dataWrapper.readFully(checksum, 1, 15);
-        // Заголовок:
-        // 1 байт - 0x82 (обозначает, что это LZ4)
+        // header:
+        // 1 byte - 0x82 (shows this is LZ4)
         int magic = dataWrapper.readUnsignedByte();
         if (magic != MAGIC) throw new IOException("Magic is not correct: " + magic);
-        // 4 байта - размер сжатых данных с учётом дополнительных 9 байт заголовка (compressed_size)
+        // 4 bytes - size of the compressed data including 9 bytes of the header
         int compressedSizeWithHeader = dataWrapper.readInt();
-        // 4 байта - размер несжатых данных
+        // 4 bytes - size of uncompressed data
         int uncompressedSize = dataWrapper.readInt();
         int compressedSize = compressedSizeWithHeader - 9; //header
         byte[] block = new byte[compressedSize];
-        // Сжатые данные: compressed_size - 9 байт.
+        // compressed data: compressed_size - 9 байт.
         dataWrapper.readFully(block);
 
         byte[] decompressed = new byte[uncompressedSize];

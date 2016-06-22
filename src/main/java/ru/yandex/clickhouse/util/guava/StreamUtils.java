@@ -40,10 +40,6 @@ import java.nio.charset.Charset;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
-/**
- * @author serebrserg
- * @since 21.06.16
- */
 public class StreamUtils {
     private static final Logger log = Logger.of(Utils.class);
 

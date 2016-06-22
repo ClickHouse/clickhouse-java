@@ -134,22 +134,4 @@ public final class ByteFragmentUtils {
             return -result;
         }
     }
-
-/*    //todo: может быть, это медленно, и надо сделать как выше
-    public static UnsignedLong parseUnsignedLong(ByteFragment s) throws NumberFormatException {
-        if (s == null) {
-            throw new NumberFormatException("null");
-        }
-        return UnsignedLong.valueOf(s.asString());
-    }
-
-    //todo: может быть, это медленно, и надо сделать как выше
-    public static UnsignedInteger parseUnsignedInteger(ByteFragment s) throws NumberFormatException {
-        if (s == null) {
-            throw new NumberFormatException("null");
-        }
-        return UnsignedInteger.valueOf(s.asString());
-    }*/
-
-
 }

@@ -83,7 +83,7 @@ public class CHDatabaseMetadata implements DatabaseMetaData {
 
     @Override
     public String getDriverName() throws SQLException {
-        return "ru.yandex.metrika.clickhouse-jdbc";
+        return "ru.yandex.clickhouse-jdbc";
     }
 
     @Override
@@ -698,7 +698,7 @@ public class CHDatabaseMetadata implements DatabaseMetaData {
             row.add(DEFAULT_CAT);
             row.add(result.getString(1));
             row.add(result.getString(2));
-            row.add("TABLE"); // можно сделать точнее
+            row.add("TABLE"); // may be done more precise
             for (int i = 3; i < 9; i++) {
                 row.add(null);
             }
@@ -797,7 +797,7 @@ public class CHDatabaseMetadata implements DatabaseMetaData {
                 "Int32",
                 "String"
         );
-        // todo это всё брехня, ждем https://st.yandex-team.ru/METR-15619
+        // todo use system.columns
         String sql = "desc table ";
         if (schemaPattern != null) sql += Utils.unEscapeString(schemaPattern) + '.';
         sql += Utils.unEscapeString(tableNamePattern);
@@ -826,7 +826,7 @@ public class CHDatabaseMetadata implements DatabaseMetaData {
             // decimal digits
             if (sqlType == Types.INTEGER || sqlType == Types.BIGINT && type.contains("Int")) {
                 String bits = type.substring(type.indexOf("Int") + "Int".length());
-                row.add(bits); //bullshit
+                row.add(bits);
             } else {
                 row.add(null);
             }
@@ -863,7 +863,7 @@ public class CHDatabaseMetadata implements DatabaseMetaData {
     }
 
     private ResultSet getEmptyResultSet() {
-        return CHResultBuilder.builder(1).names("bullshit").types("String").build();
+        return CHResultBuilder.builder(1).names("some").types("String").build();
     }
 
     @Override

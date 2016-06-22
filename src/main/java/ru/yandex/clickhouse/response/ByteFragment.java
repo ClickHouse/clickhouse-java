@@ -94,13 +94,6 @@ public class ByteFragment {
         return len;
     }
 
-
-                    //   2012.07.16 17:30:29 [spring-scheduler-3] DEBUG org.apache.http.wire - << "992541[0x9]1[0x9]0[0x9]8167885961324049050[0x9]5498583669064185695[0x9]1342427653[0x9]1342428010[0x9]4[0x9]http://e.mail.ru/cgi-bin/msglist[0x9]http://sewprice.ru/catg/gpg/otparivatel-dlja-odezhdy-Comfort-NV-338-gindex-881.html[0x9]http://sewprice.ru/content/akcii-cpg-113/[0x9]http://market.yandex.ru/grade-shop.xml?shop_id=4683&cmid=771006781&retpath1=http:%2F%2Fmarket.yandex.ru%2Fshop-opinions.xml%3Fshop_id%3D4683%26cmid%3D771006781[0x9]0[0x9]1[0x9]0[0x9][0x9]0[0x9]0[0x9][0x9][0xee][0xf6][0xb][0x1][0xd5][0xa4][0x8f][0x80][0x5]\0[0x9]2012-07-16 12:34:13[\n]" -- layer:5
-        // 5498583669064185695
-        // ��դ��\0  [0xee][0xf6][0xb][0x1][0xd5][0xa4][0x8f][0x80][0x5]\0
-        //
-        //int[]gg =  {0xee,0xf6,0x0b,0x01,0xd5,0xa4,0x8f,0x80,0x5,0x00};
-
     // "\0" =>  0
     // "\r" => 13
     // "\n" => 10
@@ -211,12 +204,7 @@ public class ByteFragment {
         return buf[start+i];
     }
 
-    /**
-     * подстрока. массив не копируем, джентельмены в общий массив не пишут.
-     * @param start
-     * @param len
-     * @return
-     */
+
     public ByteFragment subseq(int start, int len) {
         if(start < 0 || start + len > this.len) {
             throw new IllegalArgumentException("arg start,len="+(start+","+len)+" while this start,len="+(this.start+","+this.len));

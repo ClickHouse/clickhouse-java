@@ -5,7 +5,7 @@ import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import java.util.List;
 
 /**
- * Мэп-объект для джексона для ответа кликхауса
+ * Object for jackson for clickhouse response
  * @author jkee
  */
 public class CHResponse {
@@ -107,7 +107,7 @@ public class CHResponse {
         return rows_before_limit_at_least;
     }
 
-    public void setRows_before_limit_at_least(int rows_before_limit_at_least) { //TODO надо бы десериализацию подправить
+    public void setRows_before_limit_at_least(int rows_before_limit_at_least) {
         this.rows_before_limit_at_least = rows_before_limit_at_least;
     }
 

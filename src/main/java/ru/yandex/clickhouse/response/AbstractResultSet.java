@@ -958,18 +958,9 @@ public abstract class AbstractResultSet implements ResultSet {
         throw new UnsupportedOperationException();
     }
 
-    /*default UnsignedInteger getUnsignedInteger(String columnLabel) throws SQLException {
-        return UnsignedInteger.valueOf(getString(columnLabel));
-    }
-
-    public UnsignedLong getUnsignedLong(String columnLabel) throws SQLException {
-        return UnsignedLong.valueOf(getString(columnLabel));
-    }
-*/
-
     public long[] getLongArray(String column) throws SQLException {
         Array array = getArray(column);
-        return (long[])array.getArray(); // оптимистично
+        return (long[])array.getArray(); // optimistic
     }
 
 

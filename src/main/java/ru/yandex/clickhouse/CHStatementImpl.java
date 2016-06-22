@@ -131,7 +131,7 @@ public class CHStatementImpl implements CHStatement {
 
     @Override
     public boolean execute(String sql) throws SQLException {
-        // здесь сохранится currentResult. он и InputStream будут закрыты на this.close()
+        // currentResult is stored here. InputString and currentResult will be closed on this.close()
         executeQuery(sql);
         return true;
     }
@@ -340,7 +340,7 @@ public class CHStatementImpl implements CHStatement {
 
     /**
      * Adding  FORMAT TabSeparatedWithNamesAndTypes if not added
-     * Правильно реагирует на точку с запятой и втыкает формат только в селекты
+     * adds format only to select queries
      */
     private static String addFormatIfAbsent(String sql, String format) {
         sql = sql.trim();
@@ -377,7 +377,6 @@ public class CHStatementImpl implements CHStatement {
     }
 
     private String extractDBAndTableName(String sql) {
-        // паршивый код, надо писать или найти нормальный парсер
         if (Utils.startsWithIgnoreCase(sql, "select")) {
             String withoutStrings = Utils.retainUnquoted(sql, '\'');
             int fromIndex = withoutStrings.indexOf("from");
@@ -389,10 +388,10 @@ public class CHStatementImpl implements CHStatement {
             }
         }
         if (Utils.startsWithIgnoreCase(sql, "desc")) {
-            return "system.columns"; // bullshit
+            return "system.columns";
         }
         if (Utils.startsWithIgnoreCase(sql, "show")) {
-            return "system.tables"; // bullshit
+            return "system.tables";
         }
         return "system.unknown";
     }

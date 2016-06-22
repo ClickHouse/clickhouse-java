@@ -8,7 +8,7 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * Для ручного собирания CHResultSet
+ * For building CHResultSet by hands
  * Created by jkee on 17.03.15.
  */
 public class CHResultBuilder {

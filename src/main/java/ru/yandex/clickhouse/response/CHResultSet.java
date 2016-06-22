@@ -12,8 +12,6 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * формат полей.
- * 0000-00-00 00:00:00 - timestamp
  *
  * @author orantius
  * @version $Id$
@@ -287,7 +285,7 @@ public class CHResultSet extends AbstractResultSet {
 
     @Override
     public Date getDate(int columnIndex) throws SQLException {
-        // дата из кликхауса приходит в виде строки
+        // date is passed as a string from clickhouse
         ByteFragment value = getValue(columnIndex);
         if (value.isNull()) return null;
         try {
@@ -334,7 +332,7 @@ public class CHResultSet extends AbstractResultSet {
 
     private static boolean toBoolean(ByteFragment value) {
         if (value.isNull()) return false;
-        return "1".equals(value.asString());    //вроде бы там   1/0
+        return "1".equals(value.asString());    // 1 or 0 there
     }
 
     private static byte[] toBytes(ByteFragment value) {
@@ -395,7 +393,7 @@ public class CHResultSet extends AbstractResultSet {
 
     /////
 
-    // 1-based insex in column list
+    // 1-based index in column list
     private int asColNum(String column) {
         if (col.containsKey(column)) {
             return col.get(column);

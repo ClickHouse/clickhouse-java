@@ -14,13 +14,9 @@ public class Utils {
         return haystack.substring(0, pattern.length()).equalsIgnoreCase(pattern);
     }
 
-    /**
-     * Оставляет от haystack только все части не в кавычках
-     */
     public static String retainUnquoted(String haystack, char quoteChar) {
         StringBuilder sb = new StringBuilder();
         String[] split = splitWithoutEscaped(haystack, quoteChar, true);
-        // нечетные - наши пациенты
         for (int i = 0; i < split.length; i++) {
             String s = split[i];
             if ((i & 1) == 0) {
@@ -35,7 +31,7 @@ public class Utils {
     }
 
     /**
-     * Не учитывает эскейпленные сепараторы
+     * does not take into account escaped separators
      */
     public static String[] splitWithoutEscaped(String str, char separatorChar, boolean retainEmpty) {
         int len = str.length();
@@ -67,9 +63,6 @@ public class Utils {
         return list.toArray(new String[list.size()]);
     }
 
-    /**
-     * раскукоживатель
-     */
     public static String unEscapeString(String string) {
         if (StringUtils.isBlank(string)) return string;
 

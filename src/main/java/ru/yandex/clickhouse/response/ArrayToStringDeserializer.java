@@ -17,7 +17,6 @@ import java.util.List;
 import java.util.concurrent.ExecutionException;
 
 /**
- * И все массивы, прилетевшие из кликхауса, станут строками.
  *
  * @author lemmsh
  * @since 7/25/14

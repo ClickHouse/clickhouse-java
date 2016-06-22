@@ -13,9 +13,9 @@ public enum CHConnectionSettings {
     CONNECTION_TIMEOUT("connection_timeout", 50),
 
     /*
-    * это таймаут на передачу данных.
-    * Число socketTimeout + dataTransferTimeout отправляется в clickhouse в параметре max_execution_time
-    * После чего кликхаус сам останавливает запрос если время его выполнения превышает max_execution_time
+    * this is a timeout for data transfer
+    * socketTimeout + dataTransferTimeout is sent to clickhouse as max_execution_time
+    * clickhouse rejects request execution if its time exceeds max_execution_time
     * */
     DATA_TRANSFER_TIMEOUT( "dataTransferTimeout", 10000),
 
@@ -23,7 +23,7 @@ public enum CHConnectionSettings {
     KEEP_ALIVE_TIMEOUT("keepAliveTimeout", 30 * 1000),
 
     /**
-     * Для ConnectionManager'а
+     * for ConnectionManager
      */
     TIME_TO_LIVE_MILLIS("timeToLiveMillis", 60*1000),
     DEFAULT_MAX_PER_ROUTE("defaultMaxPerRoute", 500),

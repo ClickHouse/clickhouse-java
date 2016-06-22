@@ -13,7 +13,7 @@ import java.util.Properties;
  */
 public class CHProperties {
 
-    // постоянные настройки соединения
+    // connection settings
     private boolean async;
     private int bufferSize;
     private int apacheBufferSize;
@@ -26,7 +26,7 @@ public class CHProperties {
     private int maxTotal;
 
 
-    // настройки в запросы
+    // queries settings
     private Integer maxParallelReplicas;
     private String totalsMode;
     private String quotaKey;
@@ -47,7 +47,7 @@ public class CHProperties {
     }
 
     public CHProperties(Properties info) {
-        // касты нужны в java 6
+        // need casts for java 6
         this.async = (Boolean)getSetting(info, CHConnectionSettings.ASYNC);
         this.bufferSize = (Integer)getSetting(info, CHConnectionSettings.BUFFER_SIZE);
         this.apacheBufferSize = (Integer)getSetting(info, CHConnectionSettings.APACHE_BUFFER_SIZE);
@@ -118,7 +118,7 @@ public class CHProperties {
         if (StringUtils.isBlank(profile)) {
             if (getMaxThreads() != null)
                 params.put(CHQueryParam.MAX_THREADS, String.valueOf(maxThreads));
-            // да, там в секундах
+            // in seconds there
             params.put(CHQueryParam.MAX_EXECUTION_TIME, String.valueOf((maxExecutionTime != null? maxExecutionTime:(socketTimeout + dataTransferTimeout)) / 1000));
             if (getMaxBlockSize() != null) {
                 params.put(CHQueryParam.MAX_BLOCK_SIZE, String.valueOf(getMaxBlockSize()));
@@ -126,7 +126,7 @@ public class CHProperties {
         } else {
             params.put(CHQueryParam.PROFILE, profile);
         }
-        //в кликхаус иногда бывает user
+
         if (user != null) params.put(CHQueryParam.USER, user);
 
         return params;
