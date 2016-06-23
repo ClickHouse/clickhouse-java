@@ -34,7 +34,7 @@ public class CHDriver implements Driver {
 
     private ScheduledExecutorService connectionsCleaner = Executors.newSingleThreadScheduledExecutor();
 
-    CHDriver(){
+    public CHDriver(){
         // https://hc.apache.org/httpcomponents-client-4.5.x/tutorial/html/connmgmt.html#d5e418
         connectionsCleaner.scheduleAtFixedRate(new Runnable() {
             @Override
