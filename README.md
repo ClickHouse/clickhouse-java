@@ -1,30 +1,24 @@
 ClickHouse JDBC driver
 ===============
 
-Пока что в состоянии "как-то работает".
+This is a basic and restricted implementation of jdbc driver for ClickHouse.
+It has support of a minimal subset of features to be usable.
 
-### URL
-
-Пока нет фейловера и лоадбаланса, урл простой.
+### URL syntax
 
 `jdbc:clickhouse:host:port`
 
-Например: `jdbc:clickhouse:localhost:8123`
+For example:
+`jdbc:clickhouse:localhost:8123`
 
-### Сборка
-
-jar можно собрать через
+### Compiling with maven
 
 `mvn package assembly:single`
 
-И забрать в `target/jdbc-1.0-SNAPSHOT-jar-with-dependencies.jar`
+### Build requirements
+In order to build the jdbc client one need to have jdk 1.6.
 
-Собираться будет только если стоит jdk 1.6 и если она прописана в $JAVA_HOME при сборке (или 1.6 это дефолт).
-
-[Автосборка](https://jenkins.metriqa.yandex.ru/view/CH%20/job/metrika-core-clickhouse-jdbc-driver-build/) (хранит последние 10 артефактов).
-[Автовыкладка в artifactory](https://jenkins.metriqa.yandex.ru/view/CH%20/job/metrika-core-clickhouse-jdbc-driver-deploy/) 
-
-Зависимость maven:
+### Maven:
 ```
 <dependency>
     <groupId>ru.yandex.metrika.clickhouse</groupId>
@@ -32,4 +26,3 @@ jar можно собрать через
     <version>1.0-SNAPSHOT</version>
 </dependency>
 ```
-Репозиторий: `http://artifactory.yandex.net/artifactory/public`
