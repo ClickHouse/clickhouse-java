@@ -89,16 +89,4 @@
             </plugin>
         </plugins>
     </build>
-    <distributionManagement>
-        <repository>
-            <id>yandex_qa_releases</id>
-            <name>Releases</name>
-            <url>${releases-repo}</url>
-        </repository>
-        <snapshotRepository>
-            <id>yandex_qa_snapshots</id>
-            <name>Snapshots</name>
-            <url>${snapshots-repo}</url>
-        </snapshotRepository>
-    </distributionManagement>
 </project>
