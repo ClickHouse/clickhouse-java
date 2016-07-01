@@ -1,10 +1,11 @@
 package ru.yandex.clickhouse;
 
-import org.junit.Test;
+
+import org.testng.annotations.Test;
 
 import java.util.ArrayList;
 
-import static org.junit.Assert.*;
+import static org.testng.Assert.assertEquals;
 
 /**
  * Created by zhur on 14/03/16.
