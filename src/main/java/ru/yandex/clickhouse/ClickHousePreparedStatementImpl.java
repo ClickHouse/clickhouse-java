@@ -1,7 +1,7 @@
 package ru.yandex.clickhouse;
 
 import org.apache.http.impl.client.CloseableHttpClient;
-import ru.yandex.clickhouse.settings.CHProperties;
+import ru.yandex.clickhouse.settings.ClickHouseProperties;
 import ru.yandex.clickhouse.util.Logger;
 
 import java.io.InputStream;
@@ -18,8 +18,8 @@ import java.util.List;
 /**
  * Created by zhur on 14/03/16.
  */
-public class CHPreparedStatementImpl extends CHStatementImpl implements CHPreparedStatement {
-    private static final Logger log = Logger.of(CHStatementImpl.class);
+public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl implements ClickHousePreparedStatement {
+    private static final Logger log = Logger.of(ClickHouseStatementImpl.class);
 
     private final SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd");
     private final SimpleDateFormat dateTimeFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
@@ -28,8 +28,8 @@ public class CHPreparedStatementImpl extends CHStatementImpl implements CHPrepar
     final List<String> sqlParts;
     List<String> binds;
 
-    public CHPreparedStatementImpl(CloseableHttpClient client, CHDataSource source,
-                                   CHProperties properties, String sql) throws SQLException {
+    public ClickHousePreparedStatementImpl(CloseableHttpClient client, ClickHouseDataSource source,
+                                           ClickHouseProperties properties, String sql) throws SQLException {
         super(client, source, properties);
         this.sql = sql;
         this.sqlParts = parseSql(sql);
@@ -151,7 +151,7 @@ public class CHPreparedStatementImpl extends CHStatementImpl implements CHPrepar
 
     @Override
     public void setString(int parameterIndex, String x) throws SQLException {
-        setBind(parameterIndex, CHUtil.quote(x));
+        setBind(parameterIndex, ClickHouseUtil.quote(x));
     }
 
     @Override

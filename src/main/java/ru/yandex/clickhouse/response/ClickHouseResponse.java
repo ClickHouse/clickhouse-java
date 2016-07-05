@@ -8,7 +8,7 @@ import java.util.List;
  * Object for jackson for clickhouse response
  * @author jkee
  */
-public class CHResponse {
+public class ClickHouseResponse {
     private List<Meta> meta;
     @JsonDeserialize(contentUsing = ArrayToStringDeserializer.class)
     private List<List<String>> data;

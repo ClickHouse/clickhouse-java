@@ -11,7 +11,7 @@ import java.util.Properties;
  * Date: 10/17/13
  * Time: 2:48 PM
  */
-public class CHProperties {
+public class ClickHouseProperties {
 
     // connection settings
     private boolean async;
@@ -42,39 +42,39 @@ public class CHProperties {
     private String user;
 
 
-    public CHProperties() {
+    public ClickHouseProperties() {
         this(new Properties());
     }
 
-    public CHProperties(Properties info) {
+    public ClickHouseProperties(Properties info) {
         // need casts for java 6
-        this.async = (Boolean)getSetting(info, CHConnectionSettings.ASYNC);
-        this.bufferSize = (Integer)getSetting(info, CHConnectionSettings.BUFFER_SIZE);
-        this.apacheBufferSize = (Integer)getSetting(info, CHConnectionSettings.APACHE_BUFFER_SIZE);
-        this.socketTimeout = (Integer)getSetting(info, CHConnectionSettings.SOCKET_TIMEOUT);
-        this.connectionTimeout = (Integer)getSetting(info, CHConnectionSettings.CONNECTION_TIMEOUT);
-        this.dataTransferTimeout = (Integer)getSetting(info, CHConnectionSettings.DATA_TRANSFER_TIMEOUT);
-        this.keepAliveTimeout = (Integer)getSetting(info, CHConnectionSettings.KEEP_ALIVE_TIMEOUT);
-        this.timeToLiveMillis = (Integer)getSetting(info, CHConnectionSettings.TIME_TO_LIVE_MILLIS);
-        this.defaultMaxPerRoute = (Integer)getSetting(info, CHConnectionSettings.DEFAULT_MAX_PER_ROUTE);
-        this.maxTotal = (Integer)getSetting(info, CHConnectionSettings.MAX_TOTAL);
+        this.async = (Boolean)getSetting(info, ClickHouseConnectionSettings.ASYNC);
+        this.bufferSize = (Integer)getSetting(info, ClickHouseConnectionSettings.BUFFER_SIZE);
+        this.apacheBufferSize = (Integer)getSetting(info, ClickHouseConnectionSettings.APACHE_BUFFER_SIZE);
+        this.socketTimeout = (Integer)getSetting(info, ClickHouseConnectionSettings.SOCKET_TIMEOUT);
+        this.connectionTimeout = (Integer)getSetting(info, ClickHouseConnectionSettings.CONNECTION_TIMEOUT);
+        this.dataTransferTimeout = (Integer)getSetting(info, ClickHouseConnectionSettings.DATA_TRANSFER_TIMEOUT);
+        this.keepAliveTimeout = (Integer)getSetting(info, ClickHouseConnectionSettings.KEEP_ALIVE_TIMEOUT);
+        this.timeToLiveMillis = (Integer)getSetting(info, ClickHouseConnectionSettings.TIME_TO_LIVE_MILLIS);
+        this.defaultMaxPerRoute = (Integer)getSetting(info, ClickHouseConnectionSettings.DEFAULT_MAX_PER_ROUTE);
+        this.maxTotal = (Integer)getSetting(info, ClickHouseConnectionSettings.MAX_TOTAL);
 
-        this.maxParallelReplicas = getSetting(info, CHQueryParam.MAX_PARALLEL_REPLICAS);
-        this.totalsMode = getSetting(info, CHQueryParam.TOTALS_MODE);
-        this.quotaKey = getSetting(info, CHQueryParam.QUOTA_KEY);
-        this.priority = getSetting(info, CHQueryParam.PRIORITY);
-        this.database = getSetting(info, CHQueryParam.DATABASE);
-        this.compress = (Boolean)getSetting(info, CHQueryParam.COMPRESS);
-        this.extremes = (Boolean)getSetting(info, CHQueryParam.EXTREMES);
-        this.maxThreads = getSetting(info, CHQueryParam.MAX_THREADS);
-        this.maxExecutionTime = getSetting(info, CHQueryParam.MAX_EXECUTION_TIME);
-        this.maxBlockSize = getSetting(info, CHQueryParam.MAX_BLOCK_SIZE);
-        this.maxRowsToGroupBy = getSetting(info, CHQueryParam.MAX_ROWS_TO_GROUP_BY);
-        this.profile = getSetting(info, CHQueryParam.PROFILE);
-        this.user = getSetting(info, CHQueryParam.USER);
+        this.maxParallelReplicas = getSetting(info, ClickHouseQueryParam.MAX_PARALLEL_REPLICAS);
+        this.totalsMode = getSetting(info, ClickHouseQueryParam.TOTALS_MODE);
+        this.quotaKey = getSetting(info, ClickHouseQueryParam.QUOTA_KEY);
+        this.priority = getSetting(info, ClickHouseQueryParam.PRIORITY);
+        this.database = getSetting(info, ClickHouseQueryParam.DATABASE);
+        this.compress = (Boolean)getSetting(info, ClickHouseQueryParam.COMPRESS);
+        this.extremes = (Boolean)getSetting(info, ClickHouseQueryParam.EXTREMES);
+        this.maxThreads = getSetting(info, ClickHouseQueryParam.MAX_THREADS);
+        this.maxExecutionTime = getSetting(info, ClickHouseQueryParam.MAX_EXECUTION_TIME);
+        this.maxBlockSize = getSetting(info, ClickHouseQueryParam.MAX_BLOCK_SIZE);
+        this.maxRowsToGroupBy = getSetting(info, ClickHouseQueryParam.MAX_ROWS_TO_GROUP_BY);
+        this.profile = getSetting(info, ClickHouseQueryParam.PROFILE);
+        this.user = getSetting(info, ClickHouseQueryParam.USER);
     }
 
-    public CHProperties(CHProperties properties) {
+    public ClickHouseProperties(ClickHouseProperties properties) {
         setAsync(properties.async);
         setBufferSize(properties.bufferSize);
         setApacheBufferSize(properties.apacheBufferSize);
@@ -100,44 +100,44 @@ public class CHProperties {
         setUser(properties.user);
     }
 
-    public Map<CHQueryParam, String> buildParams(boolean ignoreDatabase){
-        Map<CHQueryParam, String> params = new HashMap<CHQueryParam, String>();
+    public Map<ClickHouseQueryParam, String> buildParams(boolean ignoreDatabase){
+        Map<ClickHouseQueryParam, String> params = new HashMap<ClickHouseQueryParam, String>();
 
-        if (maxParallelReplicas != null) params.put(CHQueryParam.MAX_PARALLEL_REPLICAS, String.valueOf(maxParallelReplicas));
-        if (maxRowsToGroupBy != null) params.put(CHQueryParam.MAX_ROWS_TO_GROUP_BY, String.valueOf(maxRowsToGroupBy));
-        if (totalsMode != null) params.put(CHQueryParam.TOTALS_MODE, totalsMode);
-        if (quotaKey != null) params.put(CHQueryParam.QUOTA_KEY, quotaKey);
-        if (priority != null) params.put(CHQueryParam.PRIORITY, String.valueOf(priority));
+        if (maxParallelReplicas != null) params.put(ClickHouseQueryParam.MAX_PARALLEL_REPLICAS, String.valueOf(maxParallelReplicas));
+        if (maxRowsToGroupBy != null) params.put(ClickHouseQueryParam.MAX_ROWS_TO_GROUP_BY, String.valueOf(maxRowsToGroupBy));
+        if (totalsMode != null) params.put(ClickHouseQueryParam.TOTALS_MODE, totalsMode);
+        if (quotaKey != null) params.put(ClickHouseQueryParam.QUOTA_KEY, quotaKey);
+        if (priority != null) params.put(ClickHouseQueryParam.PRIORITY, String.valueOf(priority));
 
-        if (!StringUtils.isBlank(database) && !ignoreDatabase) params.put(CHQueryParam.DATABASE, getDatabase());
+        if (!StringUtils.isBlank(database) && !ignoreDatabase) params.put(ClickHouseQueryParam.DATABASE, getDatabase());
 
-        if (compress) params.put(CHQueryParam.COMPRESS, "1");
+        if (compress) params.put(ClickHouseQueryParam.COMPRESS, "1");
 
-        if (extremes) params.put(CHQueryParam.EXTREMES, "1");
+        if (extremes) params.put(ClickHouseQueryParam.EXTREMES, "1");
 
         if (StringUtils.isBlank(profile)) {
             if (getMaxThreads() != null)
-                params.put(CHQueryParam.MAX_THREADS, String.valueOf(maxThreads));
+                params.put(ClickHouseQueryParam.MAX_THREADS, String.valueOf(maxThreads));
             // in seconds there
-            params.put(CHQueryParam.MAX_EXECUTION_TIME, String.valueOf((maxExecutionTime != null? maxExecutionTime:(socketTimeout + dataTransferTimeout)) / 1000));
+            params.put(ClickHouseQueryParam.MAX_EXECUTION_TIME, String.valueOf((maxExecutionTime != null? maxExecutionTime:(socketTimeout + dataTransferTimeout)) / 1000));
             if (getMaxBlockSize() != null) {
-                params.put(CHQueryParam.MAX_BLOCK_SIZE, String.valueOf(getMaxBlockSize()));
+                params.put(ClickHouseQueryParam.MAX_BLOCK_SIZE, String.valueOf(getMaxBlockSize()));
             }
         } else {
-            params.put(CHQueryParam.PROFILE, profile);
+            params.put(ClickHouseQueryParam.PROFILE, profile);
         }
 
-        if (user != null) params.put(CHQueryParam.USER, user);
+        if (user != null) params.put(ClickHouseQueryParam.USER, user);
 
         return params;
     }
 
 
-    private <T> T getSetting(Properties info, CHQueryParam param){
+    private <T> T getSetting(Properties info, ClickHouseQueryParam param){
         return getSetting(info, param.getKey(), param.getDefaultValue(), param.getClazz());
     }
 
-    private <T> T getSetting(Properties info, CHConnectionSettings settings){
+    private <T> T getSetting(Properties info, ClickHouseConnectionSettings settings){
         return getSetting(info, settings.getKey(), settings.getDefaultValue(), settings.getClazz());
     }
 

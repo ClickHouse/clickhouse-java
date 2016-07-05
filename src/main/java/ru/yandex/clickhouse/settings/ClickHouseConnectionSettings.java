@@ -4,7 +4,7 @@ package ru.yandex.clickhouse.settings;
  * @author serebrserg
  * @since 24.03.16
  */
-public enum CHConnectionSettings {
+public enum ClickHouseConnectionSettings {
 
     ASYNC("async", false),
     BUFFER_SIZE("buffer_size", 65536),
@@ -33,7 +33,7 @@ public enum CHConnectionSettings {
     private final Object defaultValue;
     private final Class clazz;
 
-    CHConnectionSettings(String key, Object defaultValue) {
+    ClickHouseConnectionSettings(String key, Object defaultValue) {
         this.key = key;
         this.defaultValue = defaultValue;
         this.clazz = defaultValue.getClass();

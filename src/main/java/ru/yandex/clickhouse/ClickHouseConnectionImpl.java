@@ -1,10 +1,10 @@
 package ru.yandex.clickhouse;
 
 import org.apache.http.impl.client.CloseableHttpClient;
-import ru.yandex.clickhouse.util.CHHttpClientBuilder;
+import ru.yandex.clickhouse.util.ClickHouseHttpClientBuilder;
 import ru.yandex.clickhouse.util.LogProxy;
-import ru.yandex.clickhouse.settings.CHProperties;
-import ru.yandex.clickhouse.except.CHUnknownException;
+import ru.yandex.clickhouse.settings.ClickHouseProperties;
+import ru.yandex.clickhouse.except.ClickHouseUnknownException;
 import ru.yandex.clickhouse.util.Logger;
 
 import java.io.IOException;
@@ -18,49 +18,49 @@ import java.util.concurrent.TimeUnit;
  * @author jkee
  * @since 14.03.15
  */
-public class CHConnectionImpl implements CHConnection {
-    private static final Logger log = Logger.of(CHStatementImpl.class);
+public class ClickHouseConnectionImpl implements ClickHouseConnection {
+    private static final Logger log = Logger.of(ClickHouseStatementImpl.class);
 
 
     private final CloseableHttpClient httpclient;
 
-    private final CHProperties properties;
+    private final ClickHouseProperties properties;
 
-    private CHDataSource dataSource;
+    private ClickHouseDataSource dataSource;
 
     private boolean closed = false;
 
-    public CHConnectionImpl(String url){
-        this(url, new CHProperties());
+    public ClickHouseConnectionImpl(String url){
+        this(url, new ClickHouseProperties());
     }
 
-    public CHConnectionImpl(String url, Properties info){
-        this(url, new CHProperties(info));
+    public ClickHouseConnectionImpl(String url, Properties info){
+        this(url, new ClickHouseProperties(info));
     }
 
-    public CHConnectionImpl(String url, CHProperties properties) {
+    public ClickHouseConnectionImpl(String url, ClickHouseProperties properties) {
         this.properties = properties;
-        this.dataSource = new CHDataSource(url);
-        CHHttpClientBuilder clientBuilder = new CHHttpClientBuilder(properties);
+        this.dataSource = new ClickHouseDataSource(url);
+        ClickHouseHttpClientBuilder clientBuilder = new ClickHouseHttpClientBuilder(properties);
         log.debug("new connection");
         httpclient = clientBuilder.buildClient();
     }
 
     @Override
     public Statement createStatement() throws SQLException {
-        return LogProxy.wrap(CHStatement.class, new CHStatementImpl(httpclient, dataSource, properties));
+        return LogProxy.wrap(ClickHouseStatement.class, new ClickHouseStatementImpl(httpclient, dataSource, properties));
     }
 
-    public CHStatement createCHStatement() throws SQLException {
-        return LogProxy.wrap(CHStatement.class, new CHStatementImpl(httpclient, dataSource, properties));
+    public ClickHouseStatement createClickHouseStatement() throws SQLException {
+        return LogProxy.wrap(ClickHouseStatement.class, new ClickHouseStatementImpl(httpclient, dataSource, properties));
     }
 
     public PreparedStatement createPreparedStatement(String sql) throws SQLException {
-        return LogProxy.wrap(PreparedStatement.class, new CHPreparedStatementImpl(httpclient, dataSource, properties, sql));
+        return LogProxy.wrap(PreparedStatement.class, new ClickHousePreparedStatementImpl(httpclient, dataSource, properties, sql));
     }
 
-    public CHPreparedStatement createCHPreparedStatement(String sql) throws SQLException {
-        return LogProxy.wrap(CHPreparedStatement.class, new CHPreparedStatementImpl(httpclient, dataSource, properties, sql));
+    public ClickHousePreparedStatement createClickHousePreparedStatement(String sql) throws SQLException {
+        return LogProxy.wrap(ClickHousePreparedStatement.class, new ClickHousePreparedStatementImpl(httpclient, dataSource, properties, sql));
     }
 
 
@@ -119,7 +119,7 @@ public class CHConnectionImpl implements CHConnection {
             httpclient.close();
             closed = true;
         } catch (IOException e) {
-            throw new CHUnknownException("HTTP client close exception", e, dataSource.getHost(), dataSource.getPort());
+            throw new ClickHouseUnknownException("HTTP client close exception", e, dataSource.getHost(), dataSource.getPort());
         }
     }
 
@@ -130,7 +130,7 @@ public class CHConnectionImpl implements CHConnection {
 
     @Override
     public DatabaseMetaData getMetaData() throws SQLException {
-        return LogProxy.wrap(DatabaseMetaData.class, new CHDatabaseMetadata(dataSource.getUrl(), this));
+        return LogProxy.wrap(DatabaseMetaData.class, new ClickHouseDatabaseMetadata(dataSource.getUrl(), this));
     }
 
     @Override

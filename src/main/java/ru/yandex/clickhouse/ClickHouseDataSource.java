@@ -1,6 +1,6 @@
 package ru.yandex.clickhouse;
 
-import ru.yandex.clickhouse.settings.CHProperties;
+import ru.yandex.clickhouse.settings.ClickHouseProperties;
 
 import javax.sql.DataSource;
 import java.io.PrintWriter;
@@ -15,7 +15,7 @@ import java.util.regex.Pattern;
 /**
  * Created by zhur on 19/02/16.
  */
-public class CHDataSource implements DataSource {
+public class ClickHouseDataSource implements DataSource {
 
     protected final static Pattern urlRegexp;
 
@@ -25,7 +25,7 @@ public class CHDataSource implements DataSource {
 
     protected final static String DEFAULT_DATABASE = "default";
 
-    protected final static CHDriver driver = new CHDriver();
+    protected final static ClickHouseDriver driver = new ClickHouseDriver();
 
     protected final String url;
     protected String host;
@@ -35,17 +35,17 @@ public class CHDataSource implements DataSource {
     PrintWriter printWriter;
     protected int loginTimeout = 0;
 
-    private CHProperties properties;
+    private ClickHouseProperties properties;
 
-    public CHDataSource(String url) {
-        this(url, new CHProperties());
+    public ClickHouseDataSource(String url) {
+        this(url, new ClickHouseProperties());
     }
 
-    public CHDataSource(String url, Properties info) {
-        this(url, new CHProperties(info));
+    public ClickHouseDataSource(String url, Properties info) {
+        this(url, new ClickHouseProperties(info));
     }
 
-    public CHDataSource(String url, CHProperties properties) {
+    public ClickHouseDataSource(String url, ClickHouseProperties properties) {
         if (url == null) {
             throw new IllegalArgumentException("Incorrect clickhouse jdbc url: " + url);
         }
@@ -63,7 +63,7 @@ public class CHDataSource implements DataSource {
         } else {
             throw new IllegalArgumentException("Incorrect clickhouse jdbc url: " + url);
         }
-        this.properties = new CHProperties(properties);
+        this.properties = new ClickHouseProperties(properties);
         this.properties.setDatabase(database);
     }
 

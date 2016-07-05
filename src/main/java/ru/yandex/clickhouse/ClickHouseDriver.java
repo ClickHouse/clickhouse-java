@@ -2,7 +2,7 @@ package ru.yandex.clickhouse;
 
 import org.apache.http.annotation.GuardedBy;
 import ru.yandex.clickhouse.util.LogProxy;
-import ru.yandex.clickhouse.settings.CHProperties;
+import ru.yandex.clickhouse.settings.ClickHouseProperties;
 import ru.yandex.clickhouse.util.Logger;
 
 import java.sql.*;
@@ -25,22 +25,22 @@ import java.util.concurrent.TimeUnit;
  *
  * Created by jkee on 14.03.15.
  */
-public class CHDriver implements Driver {
+public class ClickHouseDriver implements Driver {
 
-    private static final Logger logger = Logger.of(CHDriver.class);
+    private static final Logger logger = Logger.of(ClickHouseDriver.class);
 
     @GuardedBy("this") // only for write operations
-    private Map<CHConnectionImpl, Boolean> connections = new WeakHashMap<CHConnectionImpl, Boolean>();
+    private Map<ClickHouseConnectionImpl, Boolean> connections = new WeakHashMap<ClickHouseConnectionImpl, Boolean>();
 
     private ScheduledExecutorService connectionsCleaner = Executors.newSingleThreadScheduledExecutor();
 
-    public CHDriver(){
+    public ClickHouseDriver(){
         // https://hc.apache.org/httpcomponents-client-4.5.x/tutorial/html/connmgmt.html#d5e418
         connectionsCleaner.scheduleAtFixedRate(new Runnable() {
             @Override
             public void run() {
                 try {
-                    for (CHConnectionImpl connection : connections.keySet()) {
+                    for (ClickHouseConnectionImpl connection : connections.keySet()) {
                         connection.cleanConnections();
                     }
                 } catch (Exception e){
@@ -51,7 +51,7 @@ public class CHDriver implements Driver {
     }
 
     static {
-        CHDriver driver = new CHDriver();
+        ClickHouseDriver driver = new ClickHouseDriver();
         try {
             DriverManager.registerDriver(driver);
         } catch (SQLException e) {
@@ -61,21 +61,21 @@ public class CHDriver implements Driver {
     }
 
     @Override
-    public CHConnection connect(String url, Properties info) throws SQLException {
+    public ClickHouseConnection connect(String url, Properties info) throws SQLException {
         logger.info("Creating connection");
-        CHConnectionImpl connection = new CHConnectionImpl(url, info);
+        ClickHouseConnectionImpl connection = new ClickHouseConnectionImpl(url, info);
         registerConnection(connection);
-        return LogProxy.wrap(CHConnection.class, connection);
+        return LogProxy.wrap(ClickHouseConnection.class, connection);
     }
 
-    public CHConnection connect(String url, CHProperties properties) throws SQLException {
+    public ClickHouseConnection connect(String url, ClickHouseProperties properties) throws SQLException {
         logger.info("Creating connection");
-        CHConnectionImpl connection = new CHConnectionImpl(url, properties);
+        ClickHouseConnectionImpl connection = new ClickHouseConnectionImpl(url, properties);
         registerConnection(connection);
-        return LogProxy.wrap(CHConnection.class, connection);
+        return LogProxy.wrap(ClickHouseConnection.class, connection);
     }
 
-    private synchronized void registerConnection(CHConnectionImpl connection) {
+    private synchronized void registerConnection(ClickHouseConnectionImpl connection) {
         connections.put(connection, true);
     }
 

@@ -1,7 +1,7 @@
 package ru.yandex.clickhouse;
 
-import ru.yandex.clickhouse.response.CHResultBuilder;
-import ru.yandex.clickhouse.response.CHResultSet;
+import ru.yandex.clickhouse.response.ClickHouseResultBuilder;
+import ru.yandex.clickhouse.response.ClickHouseResultSet;
 import ru.yandex.clickhouse.util.Utils;
 import ru.yandex.clickhouse.util.Logger;
 
@@ -12,16 +12,16 @@ import java.util.List;
 /**
  * Created by jkee on 14.03.15.
  */
-public class CHDatabaseMetadata implements DatabaseMetaData {
+public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
 
     private static final String DEFAULT_CAT = "default";
 
-    private static final Logger log = Logger.of(CHDatabaseMetadata.class);
+    private static final Logger log = Logger.of(ClickHouseDatabaseMetadata.class);
 
     private String url;
-    private CHConnection connection;
+    private ClickHouseConnection connection;
 
-    public CHDatabaseMetadata(String url, CHConnection connection) {
+    public ClickHouseDatabaseMetadata(String url, ClickHouseConnection connection) {
         this.url = url;
         this.connection = connection;
     }
@@ -623,7 +623,7 @@ public class CHDatabaseMetadata implements DatabaseMetaData {
 
     @Override
     public ResultSet getProcedures(String catalog, String schemaPattern, String procedureNamePattern) throws SQLException {
-        CHResultBuilder builder = CHResultBuilder.builder(9);
+        ClickHouseResultBuilder builder = ClickHouseResultBuilder.builder(9);
         builder.names(
                 "PROCEDURE_CAT",
                 "PROCEDURE_SCHEM",
@@ -653,7 +653,7 @@ public class CHDatabaseMetadata implements DatabaseMetaData {
 
     @Override
     public ResultSet getProcedureColumns(String catalog, String schemaPattern, String procedureNamePattern, String columnNamePattern) throws SQLException {
-        CHResultBuilder builder = CHResultBuilder.builder(20);
+        ClickHouseResultBuilder builder = ClickHouseResultBuilder.builder(20);
         builder.names("1","2","3","4","5","6","7","8","9","10","11","12","13","14","15","16","17","18","19","20");
 
         builder.types("UInt32","UInt32","UInt32","UInt32","UInt32","UInt32","UInt32","UInt32","UInt32","UInt32","UInt32","UInt32","UInt32","UInt32","UInt32","UInt32","UInt32","UInt32","UInt32","UInt32");
@@ -689,7 +689,7 @@ public class CHDatabaseMetadata implements DatabaseMetaData {
         sql += " order by database, name";
         ResultSet result = request(sql);
 
-        CHResultBuilder builder = CHResultBuilder.builder(10);
+        ClickHouseResultBuilder builder = ClickHouseResultBuilder.builder(10);
         builder.names("TABLE_CAT", "TABLE_SCHEM", "TABLE_NAME", "TABLE_TYPE", "REMARKS", "TYPE_CAT", "TYPE_SCHEM", "TYPE_NAME", "SELF_REFERENCING_COL_NAME", "REF_GENERATION");
         builder.types("String", "String", "String", "String", "String", "String", "String", "String", "String", "String");
 
@@ -728,7 +728,7 @@ public class CHDatabaseMetadata implements DatabaseMetaData {
 
     @Override
     public ResultSet getCatalogs() throws SQLException {
-        CHResultBuilder builder = CHResultBuilder.builder(1);
+        ClickHouseResultBuilder builder = ClickHouseResultBuilder.builder(1);
         builder.names("TABLE_CAT");
         builder.types("String");
 
@@ -746,7 +746,7 @@ public class CHDatabaseMetadata implements DatabaseMetaData {
         // todo support patterns as it should be (how?!)
         log.debug("getColumns: cat " + catalog + " sp " + schemaPattern +
         " tnp " + tableNamePattern + " cnp " + columnNamePattern);
-        CHResultBuilder builder = CHResultBuilder.builder(23);
+        ClickHouseResultBuilder builder = ClickHouseResultBuilder.builder(23);
         builder.names(
                 "TABLE_CAT",
                 "TABLE_SCHEM",
@@ -815,7 +815,7 @@ public class CHDatabaseMetadata implements DatabaseMetaData {
             row.add(tableNamePattern);
             row.add(descTable.getString(1));
             String type = descTable.getString(2);
-            int sqlType = CHResultSet.toSqlType(type);
+            int sqlType = ClickHouseResultSet.toSqlType(type);
             row.add(Integer.toString(sqlType));
             row.add(type);
 
@@ -863,7 +863,7 @@ public class CHDatabaseMetadata implements DatabaseMetaData {
     }
 
     private ResultSet getEmptyResultSet() {
-        return CHResultBuilder.builder(1).names("some").types("String").build();
+        return ClickHouseResultBuilder.builder(1).names("some").types("String").build();
     }
 
     @Override
@@ -908,7 +908,7 @@ public class CHDatabaseMetadata implements DatabaseMetaData {
 
     @Override
     public ResultSet getTypeInfo() throws SQLException {
-        CHResultBuilder builder = CHResultBuilder.builder(18);
+        ClickHouseResultBuilder builder = ClickHouseResultBuilder.builder(18);
         builder.names(
                 "TYPE_NAME",
                 "DATA_TYPE",
@@ -1035,7 +1035,7 @@ public class CHDatabaseMetadata implements DatabaseMetaData {
 
     @Override
     public boolean supportsResultSetType(int type) throws SQLException {
-        int[] types = CHResultSet.supportedTypes();
+        int[] types = ClickHouseResultSet.supportedTypes();
         for (int i : types) {
             if (i == type) return true;
         }

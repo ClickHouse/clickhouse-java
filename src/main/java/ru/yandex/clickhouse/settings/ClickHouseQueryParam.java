@@ -4,7 +4,7 @@ package ru.yandex.clickhouse.settings;
  * @author serebrserg
  * @since 25.03.16
  */
-public enum CHQueryParam {
+public enum ClickHouseQueryParam {
     MAX_PARALLEL_REPLICAS("max_parallel_replicas", null, Integer.class),
     /**
      * How to calculate TOTALS when HAVING is present, as well as when max_rows_to_group_by and group_by_overflow_mode = 'any' are present.
@@ -67,7 +67,7 @@ public enum CHQueryParam {
     private final Object defaultValue;
     private final Class clazz;
 
-    CHQueryParam(String key, Object defaultValue, Class clazz) {
+    ClickHouseQueryParam(String key, Object defaultValue, Class clazz) {
         this.key = key;
         this.defaultValue = defaultValue;
         this.clazz = clazz;

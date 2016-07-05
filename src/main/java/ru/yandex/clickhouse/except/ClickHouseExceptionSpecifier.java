@@ -12,21 +12,21 @@ import java.net.SocketTimeoutException;
  * @author lemmsh
  * @since 7/17/14
  *
- * Specify clickhouse exception to CHException and fill it with a vendor code.
+ * Specify clickhouse exception to ClickHouseException and fill it with a vendor code.
  */
 
-public final class CHExceptionSpecifier {
+public final class ClickHouseExceptionSpecifier {
 
-    private static final Logger log = Logger.of(CHExceptionSpecifier.class);
+    private static final Logger log = Logger.of(ClickHouseExceptionSpecifier.class);
 
-    private CHExceptionSpecifier() {
+    private ClickHouseExceptionSpecifier() {
     }
 
-    public static CHException specify(Throwable cause, String host, int port) {
+    public static ClickHouseException specify(Throwable cause, String host, int port) {
         return specify(null, cause, host, port);
     }
 
-    public static CHException specify(String clickhouseMessage, String host, int port) {
+    public static ClickHouseException specify(String clickhouseMessage, String host, int port) {
         return specify(clickhouseMessage, null, host, port);
     }
 
@@ -34,17 +34,17 @@ public final class CHExceptionSpecifier {
      * Here we expect the clickhouse error message to be of the following format:
      * "Code: 10, e.displayText() = DB::Exception: ...".
      */
-    public static CHException specify(String clickhouseMessage, Throwable cause, String host, int port) {
+    public static ClickHouseException specify(String clickhouseMessage, Throwable cause, String host, int port) {
         if (StringUtils.isEmpty(clickhouseMessage) && cause != null) {
             if (cause instanceof SocketTimeoutException)
                 // if we've got SocketTimeoutException, we'll say that the query is not good. This is not the same as SOCKET_TIMEOUT of clickhouse
                 // but it actually could be a failing clickhouse
-                return new CHException(CHErrorCode.TIMEOUT_EXCEEDED.code, cause, host, port);
+                return new ClickHouseException(ClickHouseErrorCode.TIMEOUT_EXCEEDED.code, cause, host, port);
             else if (cause instanceof ConnectTimeoutException || cause instanceof ConnectException)
                 // couldn't connect to clickhouse during connectTimeout
-                return new CHException(CHErrorCode.NETWORK_ERROR.code, cause, host, port);
+                return new ClickHouseException(ClickHouseErrorCode.NETWORK_ERROR.code, cause, host, port);
             else
-                return new CHUnknownException(cause, host, port);
+                return new ClickHouseUnknownException(cause, host, port);
         }
         try {
             int code;
@@ -56,16 +56,16 @@ public final class CHExceptionSpecifier {
             }
             // ошибку в изначальном виде все-таки укажем
             Throwable messageHolder = cause != null ? cause : new Throwable(clickhouseMessage);
-            return new CHException(code, messageHolder, host, port);
+            return new ClickHouseException(code, messageHolder, host, port);
         } catch (Exception e) {
             log.error("Unsupported clickhouse error format, please fix ClickhouseExceptionSpecifier, message: "
                             + clickhouseMessage + ", error: " + e.getMessage());
-            return new CHUnknownException(clickhouseMessage, cause, host, port);
+            return new ClickHouseUnknownException(clickhouseMessage, cause, host, port);
         }
     }
 
     private interface ClickhouseExceptionFactory {
-        CHException create(Integer code, Throwable cause, String host, int port);
+        ClickHouseException create(Integer code, Throwable cause, String host, int port);
     }
 
 }

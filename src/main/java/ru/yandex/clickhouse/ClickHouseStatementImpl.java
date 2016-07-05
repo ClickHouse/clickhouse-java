@@ -10,11 +10,11 @@ import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.util.EntityUtils;
 import ru.yandex.clickhouse.response.*;
-import ru.yandex.clickhouse.except.CHExceptionSpecifier;
-import ru.yandex.clickhouse.settings.CHProperties;
-import ru.yandex.clickhouse.settings.CHQueryParam;
+import ru.yandex.clickhouse.except.ClickHouseExceptionSpecifier;
+import ru.yandex.clickhouse.settings.ClickHouseProperties;
+import ru.yandex.clickhouse.settings.ClickHouseQueryParam;
 import ru.yandex.clickhouse.util.Utils;
-import ru.yandex.clickhouse.except.CHException;
+import ru.yandex.clickhouse.except.ClickHouseException;
 import ru.yandex.clickhouse.util.Logger;
 import ru.yandex.clickhouse.util.Patterns;
 import ru.yandex.clickhouse.util.apache.StringUtils;
@@ -35,17 +35,17 @@ import java.util.Map;
 /**
  * Created by jkee on 14.03.15.
  */
-public class CHStatementImpl implements CHStatement {
+public class ClickHouseStatementImpl implements ClickHouseStatement {
 
-    private static final Logger log = Logger.of(CHStatementImpl.class);
+    private static final Logger log = Logger.of(ClickHouseStatementImpl.class);
 
     private final CloseableHttpClient client;
 
-    private CHProperties properties = new CHProperties();
+    private ClickHouseProperties properties = new ClickHouseProperties();
 
-    private CHDataSource source;
+    private ClickHouseDataSource source;
 
-    private CHResultSet currentResult;
+    private ClickHouseResultSet currentResult;
 
     private int queryTimeout;
 
@@ -55,8 +55,8 @@ public class CHStatementImpl implements CHStatement {
 
     private ObjectMapper objectMapper;
 
-    public CHStatementImpl(CloseableHttpClient client, CHDataSource source,
-                           CHProperties properties) {
+    public ClickHouseStatementImpl(CloseableHttpClient client, ClickHouseDataSource source,
+                                   ClickHouseProperties properties) {
         this.client = client;
         this.source = source;
         this.properties = properties;
@@ -70,12 +70,12 @@ public class CHStatementImpl implements CHStatement {
         return executeQuery(sql, null);
     }
 
-    public ResultSet executeQuery(String sql, Map<CHQueryParam, String> additionalDBParams) throws SQLException {
+    public ResultSet executeQuery(String sql, Map<ClickHouseQueryParam, String> additionalDBParams) throws SQLException {
         InputStream is = getInputStream(sql, additionalDBParams);
         try {
             if (isSelect(sql)) {
-                currentResult = new CHResultSet(properties.isCompress()
-                        ? new CHLZ4Stream(is) : is, properties.getBufferSize(),
+                currentResult = new ClickHouseResultSet(properties.isCompress()
+                        ? new ClickHouseLZ4Stream(is) : is, properties.getBufferSize(),
                         extractDBName(sql),
                         extractTableName(sql)
                 );
@@ -87,25 +87,25 @@ public class CHStatementImpl implements CHStatement {
             }
         } catch (Exception e){
             StreamUtils.close(is);
-            throw CHExceptionSpecifier.specify(e, source.getHost(), source.getPort());
+            throw ClickHouseExceptionSpecifier.specify(e, source.getHost(), source.getPort());
         }
     }
 
-    public CHResponse executeQueryClickhouseResponse(String sql) throws SQLException {
+    public ClickHouseResponse executeQueryClickhouseResponse(String sql) throws SQLException {
         return executeQueryClickhouseResponse(sql, null);
     }
 
-    public CHResponse executeQueryClickhouseResponse(String sql, Map<CHQueryParam, String> additionalDBParams) throws SQLException {
+    public ClickHouseResponse executeQueryClickhouseResponse(String sql, Map<ClickHouseQueryParam, String> additionalDBParams) throws SQLException {
         InputStream is = getInputStream(addFormatIfAbsent(sql, "JSONCompact"), additionalDBParams);
         try {
             byte[] bytes = null;
             try {
                 if (properties.isCompress()){
-                    bytes = StreamUtils.toByteArray(new CHLZ4Stream(is));
+                    bytes = StreamUtils.toByteArray(new ClickHouseLZ4Stream(is));
                 } else {
                     bytes = StreamUtils.toByteArray(is);
                 }
-                return objectMapper.readValue(bytes, CHResponse.class);
+                return objectMapper.readValue(bytes, ClickHouseResponse.class);
             } catch (IOException e) {
                 if (bytes != null) log.warn("Wrong json: "+new String(bytes));
                 throw e;
@@ -397,20 +397,20 @@ public class CHStatementImpl implements CHStatement {
     }
 
     private InputStream getInputStream(String sql,
-                                       Map<CHQueryParam, String> additionalClickHouseDBParams
-    ) throws CHException {
+                                       Map<ClickHouseQueryParam, String> additionalClickHouseDBParams
+    ) throws ClickHouseException {
         sql = clickhousifySql(sql);
         log.debug("Executing SQL: " + sql);
         URI uri = null;
         try {
             boolean ignoreDatabase = sql.toUpperCase().startsWith("CREATE DATABASE");
-            Map<CHQueryParam, String> params = properties.buildParams(ignoreDatabase);
+            Map<ClickHouseQueryParam, String> params = properties.buildParams(ignoreDatabase);
 
             if (additionalClickHouseDBParams != null && !additionalClickHouseDBParams.isEmpty()) {
                 params.putAll(additionalClickHouseDBParams);
             }
             List<String> paramPairs = new ArrayList<String>();
-            for (Map.Entry<CHQueryParam, String> entry : params.entrySet()) {
+            for (Map.Entry<ClickHouseQueryParam, String> entry : params.entrySet()) {
                 if (!StringUtils.isEmpty(entry.getValue())) {
                     paramPairs.add(entry.getKey().toString() + '=' + entry.getValue());
                 }
@@ -435,14 +435,14 @@ public class CHStatementImpl implements CHStatement {
                 try {
                     InputStream messageStream = entity.getContent();
                     if (properties.isCompress()) {
-                        messageStream = new CHLZ4Stream(messageStream);
+                        messageStream = new ClickHouseLZ4Stream(messageStream);
                     }
                     chMessage = StreamUtils.toString(messageStream);
                 } catch (IOException e) {
                     chMessage = "error while read response " + e.getMessage();
                 }
                 EntityUtils.consumeQuietly(entity);
-                throw CHExceptionSpecifier.specify(chMessage, source.getHost(), source.getPort());
+                throw ClickHouseExceptionSpecifier.specify(chMessage, source.getHost(), source.getPort());
             }
             if (entity.isStreaming()) {
                 is = entity.getContent();
@@ -452,18 +452,18 @@ public class CHStatementImpl implements CHStatement {
                 is = baos.convertToInputStream();
             }
             return is;
-        } catch (CHException e){
+        } catch (ClickHouseException e){
             throw e;
         } catch (Exception e) {
             log.info("Error during connection to " + source + ", reporting failure to data source, message: " + e.getMessage());
             EntityUtils.consumeQuietly(entity);
             StreamUtils.close(is);
             log.info("Error sql: " + sql);
-            throw CHExceptionSpecifier.specify(e, source.getHost(), source.getPort());
+            throw ClickHouseExceptionSpecifier.specify(e, source.getHost(), source.getPort());
         }
     }
 
-    public void sendStream(InputStream content, String table) throws CHException  {
+    public void sendStream(InputStream content, String table) throws ClickHouseException {
         // echo -ne '10\n11\n12\n' | POST 'http://localhost:8123/?query=INSERT INTO t FORMAT TabSeparated'
         HttpEntity entity = null;
         try {
@@ -481,12 +481,12 @@ public class CHStatementImpl implements CHStatement {
                 } catch (IOException e) {
                     chMessage = "error while read response "+ e.getMessage();
                 }
-                throw CHExceptionSpecifier.specify(chMessage, source.getHost(), source.getPort());
+                throw ClickHouseExceptionSpecifier.specify(chMessage, source.getHost(), source.getPort());
             }
-        } catch (CHException e) {
+        } catch (ClickHouseException e) {
             throw e;
         } catch (Exception e) {
-            throw CHExceptionSpecifier.specify(e, source.getHost(), source.getPort());
+            throw ClickHouseExceptionSpecifier.specify(e, source.getHost(), source.getPort());
         } finally {
             EntityUtils.consumeQuietly(entity);
         }

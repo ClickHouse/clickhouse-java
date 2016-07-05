@@ -16,7 +16,7 @@ import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 import org.apache.http.message.BasicHeaderElementIterator;
 import org.apache.http.protocol.HTTP;
 import org.apache.http.protocol.HttpContext;
-import ru.yandex.clickhouse.settings.CHProperties;
+import ru.yandex.clickhouse.settings.ClickHouseProperties;
 
 import java.net.HttpURLConnection;
 import java.util.concurrent.TimeUnit;
@@ -24,11 +24,11 @@ import java.util.concurrent.TimeUnit;
 /**
  * Created by jkee on 19.03.15.
  */
-public class CHHttpClientBuilder {
+public class ClickHouseHttpClientBuilder {
 
-    private final CHProperties properties;
+    private final ClickHouseProperties properties;
 
-    public CHHttpClientBuilder(CHProperties properties) {
+    public ClickHouseHttpClientBuilder(ClickHouseProperties properties) {
         this.properties = properties;
     }
 

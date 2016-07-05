@@ -6,7 +6,7 @@ import java.util.*;
 * @author lopashev
 * @since 18.02.15
 */
-public enum CHErrorCode {
+public enum ClickHouseErrorCode {
     OK(0),
     UNSUPPORTED_METHOD(1),
     UNSUPPORTED_PARAMETER(2),
@@ -344,20 +344,20 @@ public enum CHErrorCode {
 
     public final Integer code;
 
-    private static final Map<Integer, CHErrorCode> byCodes;
+    private static final Map<Integer, ClickHouseErrorCode> byCodes;
     static {
-        Map<Integer, CHErrorCode> map = new HashMap<Integer, CHErrorCode>();
-        for (CHErrorCode errorCode : values())
+        Map<Integer, ClickHouseErrorCode> map = new HashMap<Integer, ClickHouseErrorCode>();
+        for (ClickHouseErrorCode errorCode : values())
             map.put(errorCode.code, errorCode);
         byCodes = Collections.unmodifiableMap(map);
     }
 
-    CHErrorCode(Integer code) {
+    ClickHouseErrorCode(Integer code) {
         this.code = code;
     }
 
 
-    public static CHErrorCode fromCode(Integer code) {
+    public static ClickHouseErrorCode fromCode(Integer code) {
         return byCodes.get(code);
     }
 

@@ -6,11 +6,11 @@ import java.sql.SQLException;
 /**
 * Created by jkee on 16.03.15.
 */
-public class CHResultSetMetaData implements ResultSetMetaData {
+public class ClickHouseResultSetMetaData implements ResultSetMetaData {
 
-    private final CHResultSet resultSet;
+    private final ClickHouseResultSet resultSet;
 
-    public CHResultSetMetaData(CHResultSet resultSet) {
+    public ClickHouseResultSetMetaData(ClickHouseResultSet resultSet) {
         this.resultSet = resultSet;
     }
 
@@ -91,7 +91,7 @@ public class CHResultSetMetaData implements ResultSetMetaData {
 
     @Override
     public int getColumnType(int column) throws SQLException {
-        return CHResultSet.toSqlType(getColumnTypeName(column));
+        return ClickHouseResultSet.toSqlType(getColumnTypeName(column));
     }
 
     @Override

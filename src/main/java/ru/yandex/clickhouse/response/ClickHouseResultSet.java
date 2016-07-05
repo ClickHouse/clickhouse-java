@@ -17,9 +17,9 @@ import java.util.Map;
  * @version $Id$
  * @since 7/12/12
  */
-public class CHResultSet extends AbstractResultSet {
+public class ClickHouseResultSet extends AbstractResultSet {
 
-    private static final Logger log = Logger.of(CHResultSet.class);
+    private static final Logger log = Logger.of(ClickHouseResultSet.class);
 
     private static final SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss"); //
     private static final SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd"); //
@@ -46,7 +46,7 @@ public class CHResultSet extends AbstractResultSet {
     // row counter
     private int rowNumber;
 
-    public CHResultSet(InputStream is, int bufferSize, String db, String table) throws IOException {
+    public ClickHouseResultSet(InputStream is, int bufferSize, String db, String table) throws IOException {
         this.db = db;
         this.table = table;
         bis = new StreamSplitter(is, (byte) 0x0A, bufferSize);  ///   \n
@@ -131,7 +131,7 @@ public class CHResultSet extends AbstractResultSet {
 
     @Override
     public ResultSetMetaData getMetaData() throws SQLException {
-        return new CHResultSetMetaData(this);
+        return new ClickHouseResultSetMetaData(this);
     }
 
 

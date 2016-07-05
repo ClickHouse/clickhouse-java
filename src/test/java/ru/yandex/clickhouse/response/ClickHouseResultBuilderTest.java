@@ -4,11 +4,11 @@ package ru.yandex.clickhouse.response;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
-public class CHResultBuilderTest {
+public class ClickHouseResultBuilderTest {
 
     @Test
     public void testBuild() throws Exception {
-        CHResultSet resultSet = CHResultBuilder.builder(2)
+        ClickHouseResultSet resultSet = ClickHouseResultBuilder.builder(2)
                 .names("string", "int")
                 .types("String", "UInt32")
                 .addRow("ololo", 1000)
