@@ -11,12 +11,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- *
- * @author orantius
- * @version $Id$
- * @since 7/12/12
- */
+
 public class ClickHouseResultSet extends AbstractResultSet {
 
     private static final Logger log = Logger.of(ClickHouseResultSet.class);
@@ -52,17 +47,17 @@ public class ClickHouseResultSet extends AbstractResultSet {
         bis = new StreamSplitter(is, (byte) 0x0A, bufferSize);  ///   \n
         ByteFragment headerFragment = bis.next();
         if (headerFragment == null) {
-            throw new IllegalArgumentException("clickhouse response without column names");
+            throw new IllegalArgumentException("ClickHouse response without column names");
         }
         String header = headerFragment.asString(true);
         if (header.startsWith("Code: ") && !header.contains("\t")) {
             is.close();
-            throw new IOException("Clickhouse error: " + header);
+            throw new IOException("ClickHouse error: " + header);
         }
         columns = toStringArray(headerFragment);
         ByteFragment typesFragment = bis.next();
         if (typesFragment == null) {
-            throw new IllegalArgumentException("clickhouse response without column types");
+            throw new IllegalArgumentException("ClickHouse response without column types");
         }
         types = toStringArray(typesFragment);
 

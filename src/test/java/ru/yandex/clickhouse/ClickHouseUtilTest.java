@@ -6,9 +6,7 @@ import org.testng.annotations.Test;
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.fail;
 
-/**
- * Created by zhur on 01/03/16.
- */
+
 public class ClickHouseUtilTest {
 
     @Test

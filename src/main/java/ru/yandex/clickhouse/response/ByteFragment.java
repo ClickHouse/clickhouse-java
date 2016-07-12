@@ -6,11 +6,6 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 
-/**
- * @author orantius
- * @version $Id$
- * @since 7/16/12
- */
 public class ByteFragment {
 
     private byte[] buf;

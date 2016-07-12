@@ -5,8 +5,7 @@ import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import java.util.List;
 
 /**
- * Object for jackson for clickhouse response
- * @author jkee
+ * Object for jackson for ClickHouse response
  */
 public class ClickHouseResponse {
     private List<Meta> meta;
@@ -121,7 +120,7 @@ public class ClickHouseResponse {
 
     @Override
     public String toString() {
-        return "ClickhouseResponse{" +
+        return "ClickHouseResponse{" +
                 "meta=" + meta +
                 ", data=" + data +
                 ", rows=" + rows +

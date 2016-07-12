@@ -9,10 +9,8 @@ import java.util.Arrays;
 
 /**
  * Not synchronized quick version of {@link java.io.ByteArrayOutputStream}
- * @author Artur
- * @version $Id: FastByteArrayOutputStream.java 5083 2009-11-11 12:46:49Z dedmajor $
- * @since 07.05.2008
  */
+
 public final class FastByteArrayOutputStream extends OutputStream {
 
     /**

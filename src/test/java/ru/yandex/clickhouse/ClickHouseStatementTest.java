@@ -5,10 +5,7 @@ import org.testng.annotations.Test;
 
 import static org.testng.Assert.assertEquals;
 
-/**
- * @author serebrserg
- * @since 30.03.16
- */
+
 public class ClickHouseStatementTest {
     @Test
     public void testClickhousify() throws Exception {

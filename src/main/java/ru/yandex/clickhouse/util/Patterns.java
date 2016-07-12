@@ -4,9 +4,6 @@ import java.util.regex.Pattern;
 
 /**
  * A collection of usable predefined regular expressions.
- *
- * @author lopashev
- * @since 18.07.14
  */
 public final class Patterns {
 

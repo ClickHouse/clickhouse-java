@@ -1,9 +1,6 @@
 package ru.yandex.clickhouse;
 
 
-/**
- * Created by zhur on 01/03/16.
- */
 public class ClickHouseUtil {
     static void quoteInternals(String s, StringBuilder sb) {
         for(int i = 0; i < s.length(); i++) {

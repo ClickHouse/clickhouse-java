@@ -3,9 +3,7 @@ package ru.yandex.clickhouse.response;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 
-/**
-* Created by jkee on 16.03.15.
-*/
+
 public class ClickHouseResultSetMetaData implements ResultSetMetaData {
 
     private final ClickHouseResultSet resultSet;

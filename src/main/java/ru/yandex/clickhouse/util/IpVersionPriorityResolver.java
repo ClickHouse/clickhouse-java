@@ -10,9 +10,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 
-/**
- * @author jkee
- */
 
 public class IpVersionPriorityResolver implements DnsResolver {
 

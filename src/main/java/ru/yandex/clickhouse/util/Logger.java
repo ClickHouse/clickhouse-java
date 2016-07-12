@@ -8,8 +8,6 @@ import java.util.logging.Level;
 
 /**
  * Simple logger.
- *
- * Created by jkee on 16.03.15.
  */
 public class Logger {
 

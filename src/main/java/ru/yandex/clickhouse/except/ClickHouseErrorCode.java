@@ -2,10 +2,6 @@ package ru.yandex.clickhouse.except;
 
 import java.util.*;
 
-/**
-* @author lopashev
-* @since 18.02.15
-*/
 public enum ClickHouseErrorCode {
     OK(0),
     UNSUPPORTED_METHOD(1),

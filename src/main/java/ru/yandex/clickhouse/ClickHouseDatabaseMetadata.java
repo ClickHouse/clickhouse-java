@@ -9,9 +9,7 @@ import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * Created by jkee on 14.03.15.
- */
+
 public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
 
     private static final String DEFAULT_CAT = "default";

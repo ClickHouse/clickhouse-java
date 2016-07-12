@@ -1,10 +1,6 @@
 package ru.yandex.clickhouse.response;
 
-/**
- * @author orantius
- * @version $Id$
- * @since 8/1/13
- */
+
 public final class ByteFragmentUtils {
 
     private ByteFragmentUtils() {

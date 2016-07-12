@@ -1,9 +1,6 @@
 package ru.yandex.clickhouse.settings;
 
-/**
- * @author serebrserg
- * @since 25.03.16
- */
+
 public enum ClickHouseQueryParam {
     MAX_PARALLEL_REPLICAS("max_parallel_replicas", null, Integer.class),
     /**

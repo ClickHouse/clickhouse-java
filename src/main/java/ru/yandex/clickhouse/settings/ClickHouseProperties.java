@@ -6,11 +6,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
 
-/**
- * User: hamilkar
- * Date: 10/17/13
- * Time: 2:48 PM
- */
+
 public class ClickHouseProperties {
 
     // connection settings

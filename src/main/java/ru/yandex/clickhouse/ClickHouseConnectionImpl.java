@@ -14,10 +14,7 @@ import java.util.Properties;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 
-/**
- * @author jkee
- * @since 14.03.15
- */
+
 public class ClickHouseConnectionImpl implements ClickHouseConnection {
     private static final Logger log = Logger.of(ClickHouseStatementImpl.class);
 

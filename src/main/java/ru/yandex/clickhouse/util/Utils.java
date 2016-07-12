@@ -5,9 +5,7 @@ import ru.yandex.clickhouse.util.apache.StringUtils;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * Created by jkee on 16.03.15.
- */
+
 public class Utils {
 
     public static boolean startsWithIgnoreCase(String haystack, String pattern) {

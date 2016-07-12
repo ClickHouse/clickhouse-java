@@ -1,9 +1,6 @@
 package ru.yandex.clickhouse.settings;
 
-/**
- * @author serebrserg
- * @since 24.03.16
- */
+
 public enum ClickHouseConnectionSettings {
 
     ASYNC("async", false),
@@ -14,8 +11,8 @@ public enum ClickHouseConnectionSettings {
 
     /*
     * this is a timeout for data transfer
-    * socketTimeout + dataTransferTimeout is sent to clickhouse as max_execution_time
-    * clickhouse rejects request execution if its time exceeds max_execution_time
+    * socketTimeout + dataTransferTimeout is sent to ClickHouse as max_execution_time
+    * ClickHouse rejects request execution if its time exceeds max_execution_time
     * */
     DATA_TRANSFER_TIMEOUT( "dataTransferTimeout", 10000),
 

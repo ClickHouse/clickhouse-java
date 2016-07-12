@@ -9,10 +9,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Map;
 
-/**
- * @author serebrserg
- * @since 22.03.16
- */
+
 public interface ClickHouseStatement extends Statement {
     ClickHouseResponse executeQueryClickhouseResponse(String sql) throws SQLException;
     ClickHouseResponse executeQueryClickhouseResponse(String sql, Map<ClickHouseQueryParam, String> additionalDBParams) throws SQLException;

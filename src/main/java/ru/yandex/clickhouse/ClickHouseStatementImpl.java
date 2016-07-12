@@ -32,9 +32,8 @@ import java.sql.SQLWarning;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-/**
- * Created by jkee on 14.03.15.
- */
+
+
 public class ClickHouseStatementImpl implements ClickHouseStatement {
 
     private static final Logger log = Logger.of(ClickHouseStatementImpl.class);

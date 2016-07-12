@@ -2,9 +2,6 @@ package ru.yandex.clickhouse.except;
 
 import java.sql.SQLException;
 
-/**
- * Created by jkee on 16.03.15.
- */
 public class ClickHouseException extends SQLException {
 
     public ClickHouseException(int code, Throwable cause, String host, int port) {

@@ -6,9 +6,7 @@ import org.testng.annotations.Test;
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.fail;
 
-/**
- * Created by zhur on 14/03/16.
- */
+
 public class ClickHouseDataSourceTest {
     @Test
     public void testConstructor() throws Exception {

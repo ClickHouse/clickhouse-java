@@ -15,9 +15,7 @@ import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.List;
 
-/**
- * Created by zhur on 14/03/16.
- */
+
 public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl implements ClickHousePreparedStatement {
     private static final Logger log = Logger.of(ClickHouseStatementImpl.class);
 

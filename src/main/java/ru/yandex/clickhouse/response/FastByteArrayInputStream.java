@@ -5,9 +5,6 @@ import java.io.InputStream;
 
 /**
  * Not synchronized quick version of  {@link java.io.ByteArrayInputStream}
- * @author Artur
- * @version $Id: FastByteArrayInputStream.java 4065 2009-08-10 14:04:26Z artur $
- * @since 07.05.2008
  */
 public final class FastByteArrayInputStream extends InputStream {
     private final byte[] buf;

@@ -6,10 +6,6 @@ import java.io.InputStream;
 /**
  * We have a stream of bytes and a separator as an input.
  * We split the stream by the separator and pass the byte arrays to output.
- *
- * @author orantius
- * @version $Id$
- * @since 7/16/12
  */
 public class StreamSplitter {
     private static final int buflen = 65536;

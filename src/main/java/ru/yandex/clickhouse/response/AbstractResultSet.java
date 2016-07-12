@@ -8,10 +8,6 @@ import java.sql.*;
 import java.util.Calendar;
 import java.util.Map;
 
-/**
- * Unsupported chaos
- * @author jkee
- */
 
 public abstract class AbstractResultSet implements ResultSet {
     @Override

@@ -9,7 +9,6 @@ import java.util.List;
 
 /**
  * For building ClickHouseResultSet by hands
- * Created by jkee on 17.03.15.
  */
 public class ClickHouseResultBuilder {
 

@@ -23,7 +23,6 @@ import java.util.concurrent.TimeUnit;
  *
  * for example, jdbc:clickhouse:localhost:8123
  *
- * Created by jkee on 14.03.15.
  */
 public class ClickHouseDriver implements Driver {
 

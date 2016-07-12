@@ -21,9 +21,7 @@ import ru.yandex.clickhouse.settings.ClickHouseProperties;
 import java.net.HttpURLConnection;
 import java.util.concurrent.TimeUnit;
 
-/**
- * Created by jkee on 19.03.15.
- */
+
 public class ClickHouseHttpClientBuilder {
 
     private final ClickHouseProperties properties;

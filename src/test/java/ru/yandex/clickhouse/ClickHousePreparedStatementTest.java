@@ -7,9 +7,7 @@ import java.util.ArrayList;
 
 import static org.testng.Assert.assertEquals;
 
-/**
- * Created by zhur on 14/03/16.
- */
+
 public class ClickHousePreparedStatementTest {
 
     @Test

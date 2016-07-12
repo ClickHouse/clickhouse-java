@@ -6,9 +6,7 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.util.Arrays;
 
-/**
- * Created by jkee on 21.03.15.
- */
+
 public class LogProxy<T> implements InvocationHandler {
 
     private static final Logger log = Logger.of(LogProxy.class);

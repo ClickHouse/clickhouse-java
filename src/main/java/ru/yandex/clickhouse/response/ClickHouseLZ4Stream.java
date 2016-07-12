@@ -8,9 +8,7 @@ import java.io.IOException;
 import java.io.InputStream;
 
 /**
- * CONV-8365
  * Reader from clickhouse in lz4
- * @author jkee
  */
 
 public class ClickHouseLZ4Stream extends InputStream {

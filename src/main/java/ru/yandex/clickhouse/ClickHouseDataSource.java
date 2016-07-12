@@ -12,9 +12,7 @@ import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/**
- * Created by zhur on 19/02/16.
- */
+
 public class ClickHouseDataSource implements DataSource {
 
     protected final static Pattern urlRegexp;
@@ -47,7 +45,7 @@ public class ClickHouseDataSource implements DataSource {
 
     public ClickHouseDataSource(String url, ClickHouseProperties properties) {
         if (url == null) {
-            throw new IllegalArgumentException("Incorrect clickhouse jdbc url: " + url);
+            throw new IllegalArgumentException("Incorrect ClickHouse jdbc url: " + url);
         }
         this.url = url;
 
@@ -61,7 +59,7 @@ public class ClickHouseDataSource implements DataSource {
                 this.database = DEFAULT_DATABASE;
             }
         } else {
-            throw new IllegalArgumentException("Incorrect clickhouse jdbc url: " + url);
+            throw new IllegalArgumentException("Incorrect ClickHouse jdbc url: " + url);
         }
         this.properties = new ClickHouseProperties(properties);
         this.properties.setDatabase(database);

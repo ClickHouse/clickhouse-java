@@ -16,11 +16,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
-/**
- *
- * @author lemmsh
- * @since 7/25/14
- */
 
 class ArrayToStringDeserializer extends JsonDeserializer<List<String>> {
 
