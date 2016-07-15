@@ -17,12 +17,3 @@ For example:
 
 ### Build requirements
 In order to build the jdbc client one need to have jdk 1.6.
-
-### Maven:
-```
-<dependency>
-    <groupId>ru.yandex.clickhouse</groupId>
-    <artifactId>clickhouse-jdbc</artifactId>
-    <version>1.1.0</version>
-</dependency>
-```
