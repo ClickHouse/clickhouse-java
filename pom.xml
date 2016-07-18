@@ -4,11 +4,24 @@
 
     <groupId>ru.yandex.clickhouse</groupId>
     <artifactId>clickhouse-jdbc</artifactId>
-    <version>1.1.0</version>
+    <version>0.1-SNAPSHOT</version>
     <packaging>jar</packaging>
 
     <name>clickhouse-jdbc</name>
-    <url>http://maven.apache.org</url>
+    <description>JDBC driver for ClickHouse</description>
+    <url>https://github.com/yandex/clickhouse-jdbc</url>
+    <licenses>
+        <license>
+            <name>The Apache Software License, Version 2.0</name>
+            <url>http://www.apache.org/licenses/LICENSE-2.0</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
+    <scm>
+        <url>https://github.com/yandex/clickhouse-jdbc</url>
+        <connection>scm:git@github.com:yandex/clickhouse-jdbc.git</connection>
+        <developerConnection>scm:git@github.com:yandex/clickhouse-jdbc.git</developerConnection>
+    </scm>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
