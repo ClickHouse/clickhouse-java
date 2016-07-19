@@ -23,6 +23,24 @@
         <developerConnection>scm:git@github.com:yandex/clickhouse-jdbc.git</developerConnection>
     </scm>
 
+    <developers>
+        <developer>
+            <id>serebrserg</id>
+            <name>Sergey Serebryanik</name>
+            <email>serebrserg@yandex-team.ru</email>
+        </developer>
+        <developer>
+            <id>jkee</id>
+            <name>Viktor Tarnavsky</name>
+            <email>jkee@yandex-team.ru</email>
+        </developer>
+        <developer>
+            <id>orantius</id>
+            <name>Yuriy Galitskiy</name>
+            <email>orantius@yandex-team.ru</email>
+        </developer>
+    </developers>
+
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
