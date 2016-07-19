@@ -8,6 +8,7 @@ import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.util.Properties;
+import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -23,7 +24,7 @@ public class ClickHouseDataSource implements DataSource {
 
     protected final static String DEFAULT_DATABASE = "default";
 
-    protected final static ClickHouseDriver driver = new ClickHouseDriver();
+    protected final ClickHouseDriver driver = new ClickHouseDriver();
 
     protected final String url;
     protected String host;
@@ -123,5 +124,18 @@ public class ClickHouseDataSource implements DataSource {
     @Override
     public boolean isWrapperFor(Class<?> iface) throws SQLException {
         throw new SQLException("Not implemented");
+    }
+
+    /**
+     * Schedules connections cleaning at a rate. Turned off by default.
+     * See https://hc.apache.org/httpcomponents-client-4.5.x/tutorial/html/connmgmt.html#d5e418
+     *
+     * @param rate
+     * @param timeUnit
+     * @return this
+     */
+    public ClickHouseDataSource withConnectionsCleaning(int rate, TimeUnit timeUnit){
+        driver.scheduleConnectionsCleaning(rate, timeUnit);
+        return this;
     }
 }

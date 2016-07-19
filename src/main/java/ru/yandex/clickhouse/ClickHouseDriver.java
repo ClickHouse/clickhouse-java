@@ -1,14 +1,13 @@
 package ru.yandex.clickhouse;
 
-import org.apache.http.annotation.GuardedBy;
-import ru.yandex.clickhouse.util.LogProxy;
+import com.google.common.collect.MapMaker;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
+import ru.yandex.clickhouse.util.LogProxy;
 import ru.yandex.clickhouse.util.Logger;
 
 import java.sql.*;
-import java.util.Map;
 import java.util.Properties;
-import java.util.WeakHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -28,26 +27,10 @@ public class ClickHouseDriver implements Driver {
 
     private static final Logger logger = Logger.of(ClickHouseDriver.class);
 
-    @GuardedBy("this") // only for write operations
-    private Map<ClickHouseConnectionImpl, Boolean> connections = new WeakHashMap<ClickHouseConnectionImpl, Boolean>();
+
+    private final ConcurrentMap<ClickHouseConnectionImpl, Boolean> connections = new MapMaker().weakKeys().makeMap();
 
     private ScheduledExecutorService connectionsCleaner = Executors.newSingleThreadScheduledExecutor();
-
-    public ClickHouseDriver(){
-        // https://hc.apache.org/httpcomponents-client-4.5.x/tutorial/html/connmgmt.html#d5e418
-        connectionsCleaner.scheduleAtFixedRate(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    for (ClickHouseConnectionImpl connection : connections.keySet()) {
-                        connection.cleanConnections();
-                    }
-                } catch (Exception e){
-                    logger.error("error evicting connections: " + e);
-                }
-            }
-        }, 0, 5, TimeUnit.SECONDS);
-    }
 
     static {
         ClickHouseDriver driver = new ClickHouseDriver();
@@ -105,5 +88,27 @@ public class ClickHouseDriver implements Driver {
 
     public java.util.logging.Logger getParentLogger() throws SQLFeatureNotSupportedException {
         throw new SQLFeatureNotSupportedException();
+    }
+
+    /**
+     * Schedules connections cleaning at a rate. Turned off by default.
+     * See https://hc.apache.org/httpcomponents-client-4.5.x/tutorial/html/connmgmt.html#d5e418
+     * @param rate
+     * @param timeUnit
+     */
+    public void scheduleConnectionsCleaning(int rate, TimeUnit timeUnit){
+        ScheduledExecutorService connectionsCleaner = Executors.newSingleThreadScheduledExecutor();
+        connectionsCleaner.scheduleAtFixedRate(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    for (ClickHouseConnectionImpl connection : connections.keySet()) {
+                        connection.cleanConnections();
+                    }
+                } catch (Exception e){
+                    logger.error("error evicting connections: " + e);
+                }
+            }
+        }, 0, rate, timeUnit);
     }
 }
