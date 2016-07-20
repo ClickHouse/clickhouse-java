@@ -400,27 +400,8 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
     ) throws ClickHouseException {
         sql = clickhousifySql(sql);
         log.debug("Executing SQL: " + sql);
-        URI uri = null;
-        try {
-            boolean ignoreDatabase = sql.toUpperCase().startsWith("CREATE DATABASE");
-            Map<ClickHouseQueryParam, String> params = properties.buildParams(ignoreDatabase);
-
-            if (additionalClickHouseDBParams != null && !additionalClickHouseDBParams.isEmpty()) {
-                params.putAll(additionalClickHouseDBParams);
-            }
-            List<String> paramPairs = new ArrayList<String>();
-            for (Map.Entry<ClickHouseQueryParam, String> entry : params.entrySet()) {
-                if (!StringUtils.isEmpty(entry.getValue())) {
-                    paramPairs.add(entry.getKey().toString() + '=' + entry.getValue());
-                }
-            }
-            String query = StringUtils.join(paramPairs, '&');
-            uri = new URI("http", null, source.getHost(), source.getPort(),
-                    "/", query, null);
-        } catch (URISyntaxException e) {
-            log.error("Mailformed URL: " + e.getMessage());
-            throw new IllegalStateException("illegal configuration of db");
-        }
+        boolean ignoreDatabase = sql.toUpperCase().startsWith("CREATE DATABASE");
+        URI uri = buildRequestUri(ignoreDatabase, additionalClickHouseDBParams);
         log.debug("Request url: " + uri);
         HttpPost post = new HttpPost(uri);
         post.setEntity(new StringEntity(sql, StreamUtils.UTF_8));
@@ -459,6 +440,27 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
             StreamUtils.close(is);
             log.info("Error sql: " + sql);
             throw ClickHouseExceptionSpecifier.specify(e, source.getHost(), source.getPort());
+        }
+    }
+
+    URI buildRequestUri(boolean ignoreDatabase, Map<ClickHouseQueryParam, String> additionalClickHouseDBParams) {
+        try {
+            Map<ClickHouseQueryParam, String> params = properties.buildParams(ignoreDatabase);
+
+            if (additionalClickHouseDBParams != null && !additionalClickHouseDBParams.isEmpty()) {
+                params.putAll(additionalClickHouseDBParams);
+            }
+            List<String> paramPairs = new ArrayList<String>();
+            for (Map.Entry<ClickHouseQueryParam, String> entry : params.entrySet()) {
+                if (!StringUtils.isEmpty(entry.getValue())) {
+                    paramPairs.add(entry.getKey().toString() + '=' + entry.getValue());
+                }
+            }
+            String query = StringUtils.join(paramPairs, '&');
+            return new URI("http", null, source.getHost(), source.getPort(), "/", query, null);
+        } catch (URISyntaxException e) {
+            log.error("Mailformed URL: " + e.getMessage());
+            throw new IllegalStateException("illegal configuration of db");
         }
     }
 
