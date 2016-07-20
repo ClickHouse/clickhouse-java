@@ -58,7 +58,12 @@ public enum ClickHouseQueryParam {
     /**
      *  user name, by default - default
      */
-    USER("user", null, String.class);
+    USER("user", null, String.class),
+
+    /**
+     * user password, by default null
+     */
+    PASSWORD("password", null, String.class);
 
     private final String key;
     private final Object defaultValue;
