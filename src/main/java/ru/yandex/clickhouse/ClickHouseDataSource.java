@@ -73,7 +73,7 @@ public class ClickHouseDataSource implements DataSource {
 
     @Override
     public Connection getConnection(String username, String password) throws SQLException {
-        return driver.connect(url, properties);
+        return driver.connect(url, properties.withCredentials(username, password));
     }
 
     public String getHost() {

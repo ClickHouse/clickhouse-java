@@ -36,6 +36,7 @@ public class ClickHouseProperties {
     private Integer maxRowsToGroupBy;
     private String profile;
     private String user;
+    private String password;
 
 
     public ClickHouseProperties() {
@@ -68,6 +69,7 @@ public class ClickHouseProperties {
         this.maxRowsToGroupBy = getSetting(info, ClickHouseQueryParam.MAX_ROWS_TO_GROUP_BY);
         this.profile = getSetting(info, ClickHouseQueryParam.PROFILE);
         this.user = getSetting(info, ClickHouseQueryParam.USER);
+        this.password = getSetting(info, ClickHouseQueryParam.PASSWORD);
     }
 
     public ClickHouseProperties(ClickHouseProperties properties) {
@@ -94,6 +96,7 @@ public class ClickHouseProperties {
         setMaxRowsToGroupBy(properties.maxRowsToGroupBy);
         setProfile(properties.profile);
         setUser(properties.user);
+        setPassword(properties.password);
     }
 
     public Map<ClickHouseQueryParam, String> buildParams(boolean ignoreDatabase){
@@ -124,8 +127,16 @@ public class ClickHouseProperties {
         }
 
         if (user != null) params.put(ClickHouseQueryParam.USER, user);
+        if (password != null) params.put(ClickHouseQueryParam.PASSWORD, password);
 
         return params;
+    }
+
+    public ClickHouseProperties withCredentials(String user, String password){
+        ClickHouseProperties copy = new ClickHouseProperties(this);
+        copy.setUser(user);
+        copy.setPassword(password);
+        return copy;
     }
 
 
@@ -337,5 +348,13 @@ public class ClickHouseProperties {
 
     public void setMaxRowsToGroupBy(Integer maxRowsToGroupBy) {
         this.maxRowsToGroupBy = maxRowsToGroupBy;
+    }
+
+    public String getPassword() {
+        return password;
+    }
+
+    public void setPassword(String password) {
+        this.password = password;
     }
 }

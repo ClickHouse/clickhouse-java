@@ -1,9 +1,17 @@
 package ru.yandex.clickhouse;
 
 
+import org.apache.http.impl.client.HttpClientBuilder;
 import org.testng.annotations.Test;
+import ru.yandex.clickhouse.settings.ClickHouseProperties;
+
+import java.net.URI;
+import java.sql.SQLException;
+import java.util.Properties;
 
 import static org.testng.Assert.assertEquals;
+import static org.testng.Assert.assertNull;
+import static org.testng.Assert.assertTrue;
 
 
 public class ClickHouseStatementTest {
@@ -23,5 +31,27 @@ public class ClickHouseStatementTest {
 
         String sql5 = "SHOW ololo FROM ololoed;";
         assertEquals("SHOW ololo FROM ololoed FORMAT TabSeparatedWithNamesAndTypes;", ClickHouseStatementImpl.clickhousifySql(sql5));
+    }
+
+    @Test
+    public void testCredentials() throws SQLException {
+        ClickHouseProperties properties = new ClickHouseProperties(new Properties());
+        ClickHouseProperties withCredentials = properties.withCredentials("test_user", "test_password");
+        assertTrue(withCredentials != properties);
+        assertNull(properties.getUser());
+        assertNull(properties.getPassword());
+        assertEquals(withCredentials.getUser(), "test_user");
+        assertEquals(withCredentials.getPassword(), "test_password");
+
+        ClickHouseStatementImpl statement = new ClickHouseStatementImpl(
+                HttpClientBuilder.create().build(),
+                new ClickHouseDataSource("jdbc:clickhouse://localhost:1234/ppc"),
+                withCredentials
+                );
+
+        URI uri = statement.buildRequestUri(false, null);
+        String query = uri.getQuery();
+        assertTrue(query.contains("password=test_password"));
+        assertTrue(query.contains("user=test_user"));
     }
 }
