@@ -4,6 +4,7 @@ import ru.yandex.clickhouse.util.Logger;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.math.BigDecimal;
 import java.sql.*;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
@@ -436,5 +437,35 @@ public class ClickHouseResultSet extends AbstractResultSet {
 
     public ByteFragment[] getValues() {
         return values;
+    }
+
+    @Override
+    public BigDecimal getBigDecimal(String columnLabel)  {
+        return getBigDecimal(asColNum(columnLabel));
+    }
+
+    @Override
+    public BigDecimal getBigDecimal(int columnIndex)  {
+        String string = getString(columnIndex);
+        if (string == null) {
+            return null;
+        }
+        return new BigDecimal(string);
+    }
+
+
+    @Override
+    public BigDecimal getBigDecimal(String columnLabel, int scale)  {
+        return getBigDecimal(asColNum(columnLabel), scale);
+    }
+
+    @Override
+    public BigDecimal getBigDecimal(int columnIndex, int scale)  {
+        String string = getString(columnIndex);
+        if (string == null) {
+            return null;
+        }
+        BigDecimal result = new BigDecimal(string);
+        return result.setScale(scale, BigDecimal.ROUND_HALF_UP);
     }
 }
