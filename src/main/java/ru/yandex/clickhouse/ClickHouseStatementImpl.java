@@ -355,7 +355,7 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
     }
 
     private static boolean isSelect(String sql) {
-        String upper = sql.toUpperCase();
+        String upper = sql.toUpperCase().trim();
         return upper.startsWith("SELECT")||upper.startsWith("SHOW") || upper.startsWith("DESC") || upper.startsWith("EXISTS");
     }
 
