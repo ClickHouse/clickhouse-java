@@ -46,6 +46,7 @@ public class ClickHouseStatementTest {
         ClickHouseStatementImpl statement = new ClickHouseStatementImpl(
                 HttpClientBuilder.create().build(),
                 new ClickHouseDataSource("jdbc:clickhouse://localhost:1234/ppc"),
+                null,
                 withCredentials
                 );
 
