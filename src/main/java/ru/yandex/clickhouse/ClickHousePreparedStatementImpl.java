@@ -1,10 +1,13 @@
 package ru.yandex.clickhouse;
 
+import org.apache.http.entity.AbstractHttpEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
 import ru.yandex.clickhouse.util.Logger;
 
+import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.Reader;
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -12,6 +15,7 @@ import java.net.URL;
 import java.sql.*;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Calendar;
 import java.util.List;
 
@@ -22,20 +26,25 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
     private final SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd");
     private final SimpleDateFormat dateTimeFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
 
-    final String sql;
-    final List<String> sqlParts;
-    List<String> binds;
+    private final String sql;
+    private final List<String> sqlParts;
+    private List<String> binds;
+    private List<byte[]> batchRows = new ArrayList<byte[]>();
 
     public ClickHousePreparedStatementImpl(CloseableHttpClient client, ClickHouseDataSource source,
-                                           ClickHouseProperties properties, String sql) throws SQLException {
-        super(client, source, properties);
+                                           ClickHouseConnection connection, ClickHouseProperties properties,
+                                           String sql) throws SQLException {
+        super(client, source, connection, properties);
         this.sql = sql;
         this.sqlParts = parseSql(sql);
+        createBinds();
+    }
+
+    private void createBinds() {
         this.binds = new ArrayList<String>(this.sqlParts.size() - 1);
-        for (int i = 0; i < this.sqlParts.size()-1; i++) {
+        for (int i = 0; i < this.sqlParts.size() - 1; i++) {
             this.binds.add(null);
         }
-        clearParameters();
     }
 
     protected static List<String> parseSql(String sql) throws SQLException {
@@ -59,7 +68,7 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
                 inBackQuotes = !inBackQuotes;
             } else if (c == '?' && !inQuotes && !inBackQuotes) {
                 parts.add(sql.substring(partStart, i));
-                partStart = i+1;
+                partStart = i + 1;
             }
         }
         parts.add(sql.substring(partStart, sql.length()));
@@ -71,22 +80,47 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
         if (sqlParts.size() == 1) {
             return sqlParts.get(0);
         }
-
-        for(String b : binds) {
-            if (b == null) {
-                throw new SQLException("Not all parameters binded");
-            }
-        }
+        checkBinded(binds);
 
         StringBuilder sb = new StringBuilder(sqlParts.get(0));
         for (int i = 1; i < sqlParts.size(); i++) {
-            sb.append(binds.get(i-1));
+            sb.append(binds.get(i - 1));
             sb.append(sqlParts.get(i));
         }
         String sql = sb.toString();
 
         return sql;
     }
+
+    private static void checkBinded(List<String> binds) throws SQLException {
+        for (String b : binds) {
+            if (b == null) {
+                throw new SQLException("Not all parameters binded");
+            }
+        }
+    }
+
+    private byte[] buildBinds() throws SQLException {
+        checkBinded(binds);
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < binds.size(); i++) {
+            sb.append(unquoteIfNeeded(binds.get(i)));
+            sb.append(i < binds.size() - 1 ? '\t' : '\n');
+        }
+        return sb.toString().getBytes();
+    }
+
+    //TODO Think of more efficient solution
+    private String unquoteIfNeeded(String value) {
+        if (value.isEmpty()) {
+            return value;
+        }
+        if (value.charAt(0) == '\'' && value.charAt(value.length() - 1) == '\'') {
+            return value.substring(1, value.length() - 1);
+        }
+        return value;
+    }
+
 
     @Override
     public ResultSet executeQuery() throws SQLException {
@@ -99,7 +133,7 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
     }
 
     private void setBind(int parameterIndex, String bind) {
-        binds.set(parameterIndex-1, bind);
+        binds.set(parameterIndex - 1, bind);
     }
 
     @Override
@@ -194,7 +228,7 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
 
     @Override
     public void clearParameters() throws SQLException {
-        for (int i = 0; i < binds.size()-1; i++) {
+        for (int i = 0; i < binds.size() - 1; i++) {
             binds.set(i, null);
         }
     }
@@ -245,7 +279,7 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
             } else if (x instanceof BigInteger) {
                 setString(parameterIndex, x.toString());
             } else {
-                throw new SQLDataException("Can't bind object of class "+x.getClass().getCanonicalName());
+                throw new SQLDataException("Can't bind object of class " + x.getClass().getCanonicalName());
             }
         }
     }
@@ -257,8 +291,62 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
 
     @Override
     public void addBatch() throws SQLException {
-        throw new SQLFeatureNotSupportedException();
+        batchRows.add(buildBinds());
+        createBinds();
+    }
 
+    @Override
+    public int[] executeBatch() throws SQLException {
+        int valuePosition = sql.toUpperCase().indexOf("VALUES");
+        if (valuePosition == -1) {
+            throw new SQLSyntaxErrorException(
+                "Query must be like 'INSERT INTO [db.]table [(c1, c2, c3)] VALUES (?, ?, ?)'. " +
+                    "Got: " + sql
+            );
+        }
+        String insertSql = sql.substring(0, valuePosition);
+        BatchHttpEntity entity = new BatchHttpEntity(batchRows);
+        sendStream(entity, insertSql);
+
+        int[] result = new int[batchRows.size()];
+        Arrays.fill(result, 1);
+        batchRows = new ArrayList<byte[]>();
+        return result;
+    }
+
+    private static class BatchHttpEntity extends AbstractHttpEntity {
+        private final List<byte[]> rows;
+
+        public BatchHttpEntity(List<byte[]> rows) {
+            this.rows = rows;
+        }
+
+        @Override
+        public boolean isRepeatable() {
+            return true;
+        }
+
+        @Override
+        public long getContentLength() {
+            return -1;
+        }
+
+        @Override
+        public InputStream getContent() throws IOException, IllegalStateException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void writeTo(OutputStream outputStream) throws IOException {
+            for (byte[] row : rows) {
+                outputStream.write(row);
+            }
+        }
+
+        @Override
+        public boolean isStreaming() {
+            return false;
+        }
     }
 
     @Override

@@ -2,8 +2,8 @@ package ru.yandex.clickhouse;
 
 import ru.yandex.clickhouse.response.ClickHouseResultBuilder;
 import ru.yandex.clickhouse.response.ClickHouseResultSet;
-import ru.yandex.clickhouse.util.Utils;
 import ru.yandex.clickhouse.util.Logger;
+import ru.yandex.clickhouse.util.Utils;
 
 import java.sql.*;
 import java.util.ArrayList;
@@ -652,9 +652,9 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
     @Override
     public ResultSet getProcedureColumns(String catalog, String schemaPattern, String procedureNamePattern, String columnNamePattern) throws SQLException {
         ClickHouseResultBuilder builder = ClickHouseResultBuilder.builder(20);
-        builder.names("1","2","3","4","5","6","7","8","9","10","11","12","13","14","15","16","17","18","19","20");
+        builder.names("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20");
 
-        builder.types("UInt32","UInt32","UInt32","UInt32","UInt32","UInt32","UInt32","UInt32","UInt32","UInt32","UInt32","UInt32","UInt32","UInt32","UInt32","UInt32","UInt32","UInt32","UInt32","UInt32");
+        builder.types("UInt32", "UInt32", "UInt32", "UInt32", "UInt32", "UInt32", "UInt32", "UInt32", "UInt32", "UInt32", "UInt32", "UInt32", "UInt32", "UInt32", "UInt32", "UInt32", "UInt32", "UInt32", "UInt32", "UInt32");
 
         return builder.build();
     }
@@ -680,8 +680,11 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
             sql += " where database like '" + schemaPattern + "'";
         }
         if (tableNamePattern != null) {
-            if (schemaPattern != null) sql += " and";
-            else sql += " where";
+            if (schemaPattern != null) {
+                sql += " and";
+            } else {
+                sql += " where";
+            }
             sql += " name like '" + tableNamePattern + "'";
         }
         sql += " order by database, name";
@@ -691,7 +694,7 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
         builder.names("TABLE_CAT", "TABLE_SCHEM", "TABLE_NAME", "TABLE_TYPE", "REMARKS", "TYPE_CAT", "TYPE_SCHEM", "TYPE_NAME", "SELF_REFERENCING_COL_NAME", "REF_GENERATION");
         builder.types("String", "String", "String", "String", "String", "String", "String", "String", "String", "String");
 
-        while(result.next()) {
+        while (result.next()) {
             List<String> row = new ArrayList<String>();
             row.add(DEFAULT_CAT);
             row.add(result.getString(1));
@@ -715,10 +718,15 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
     public ResultSet getSchemas(String catalog, String schemaPattern) throws SQLException {
         String sql = "select name as TABLE_SCHEM, '" +
                 DEFAULT_CAT + "' as TABLE_CATALOG from system.databases";
-        if (catalog != null) sql += " where TABLE_CATALOG = '" + catalog + '\'';
+        if (catalog != null) {
+            sql += " where TABLE_CATALOG = '" + catalog + '\'';
+        }
         if (schemaPattern != null) {
-            if (catalog != null) sql += " and ";
-            else sql += " where ";
+            if (catalog != null) {
+                sql += " and ";
+            } else {
+                sql += " where ";
+            }
             sql += "name LIKE '" + schemaPattern + '\'';
         }
         return request(sql);
@@ -743,7 +751,7 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
     public ResultSet getColumns(String catalog, String schemaPattern, String tableNamePattern, String columnNamePattern) throws SQLException {
         // todo support patterns as it should be (how?!)
         log.debug("getColumns: cat " + catalog + " sp " + schemaPattern +
-        " tnp " + tableNamePattern + " cnp " + columnNamePattern);
+            " tnp " + tableNamePattern + " cnp " + columnNamePattern);
         ClickHouseResultBuilder builder = ClickHouseResultBuilder.builder(23);
         builder.names(
                 "TABLE_CAT",
@@ -1035,7 +1043,9 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
     public boolean supportsResultSetType(int type) throws SQLException {
         int[] types = ClickHouseResultSet.supportedTypes();
         for (int i : types) {
-            if (i == type) return true;
+            if (i == type) {
+                return true;
+            }
         }
         return false;
     }
@@ -1092,7 +1102,7 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
 
     @Override
     public boolean supportsBatchUpdates() throws SQLException {
-        return false;
+        return true;
     }
 
     @Override

@@ -1,10 +1,10 @@
 package ru.yandex.clickhouse;
 
 import org.apache.http.impl.client.CloseableHttpClient;
+import ru.yandex.clickhouse.except.ClickHouseUnknownException;
+import ru.yandex.clickhouse.settings.ClickHouseProperties;
 import ru.yandex.clickhouse.util.ClickHouseHttpClientBuilder;
 import ru.yandex.clickhouse.util.LogProxy;
-import ru.yandex.clickhouse.settings.ClickHouseProperties;
-import ru.yandex.clickhouse.except.ClickHouseUnknownException;
 import ru.yandex.clickhouse.util.Logger;
 
 import java.io.IOException;
@@ -27,11 +27,11 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
 
     private boolean closed = false;
 
-    public ClickHouseConnectionImpl(String url){
+    public ClickHouseConnectionImpl(String url) {
         this(url, new ClickHouseProperties());
     }
 
-    public ClickHouseConnectionImpl(String url, Properties info){
+    public ClickHouseConnectionImpl(String url, Properties info) {
         this(url, new ClickHouseProperties(info));
     }
 
@@ -45,19 +45,19 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
 
     @Override
     public Statement createStatement() throws SQLException {
-        return LogProxy.wrap(ClickHouseStatement.class, new ClickHouseStatementImpl(httpclient, dataSource, properties));
+        return LogProxy.wrap(ClickHouseStatement.class, new ClickHouseStatementImpl(httpclient, dataSource, this, properties));
     }
 
     public ClickHouseStatement createClickHouseStatement() throws SQLException {
-        return LogProxy.wrap(ClickHouseStatement.class, new ClickHouseStatementImpl(httpclient, dataSource, properties));
+        return LogProxy.wrap(ClickHouseStatement.class, new ClickHouseStatementImpl(httpclient, dataSource, this, properties));
     }
 
     public PreparedStatement createPreparedStatement(String sql) throws SQLException {
-        return LogProxy.wrap(PreparedStatement.class, new ClickHousePreparedStatementImpl(httpclient, dataSource, properties, sql));
+        return LogProxy.wrap(PreparedStatement.class, new ClickHousePreparedStatementImpl(httpclient, dataSource, this, properties, sql));
     }
 
     public ClickHousePreparedStatement createClickHousePreparedStatement(String sql) throws SQLException {
-        return LogProxy.wrap(ClickHousePreparedStatement.class, new ClickHousePreparedStatementImpl(httpclient, dataSource, properties, sql));
+        return LogProxy.wrap(ClickHousePreparedStatement.class, new ClickHousePreparedStatementImpl(httpclient, dataSource, this, properties, sql));
     }
 
 
@@ -336,8 +336,8 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
         return 0;
     }
 
-    void cleanConnections(){
+    void cleanConnections() {
         httpclient.getConnectionManager().closeExpiredConnections();
-        httpclient.getConnectionManager().closeIdleConnections(2*properties.getSocketTimeout(), TimeUnit.MILLISECONDS);
+        httpclient.getConnectionManager().closeIdleConnections(2 * properties.getSocketTimeout(), TimeUnit.MILLISECONDS);
     }
 }
