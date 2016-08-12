@@ -193,7 +193,7 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
 
     @Override
     public void setDate(int parameterIndex, Date x) throws SQLException {
-        setBind(parameterIndex, "toDate('" + dateFormat.format(x) + "')");
+        setBind(parameterIndex, "'" + dateFormat.format(x) + "'");
     }
 
     @Override
@@ -204,7 +204,7 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
 
     @Override
     public void setTimestamp(int parameterIndex, Timestamp x) throws SQLException {
-        setBind(parameterIndex, "toDateTime('" + dateTimeFormat.format(x) + "')");
+        setBind(parameterIndex, "'" + dateTimeFormat.format(x) + "'");
     }
 
     @Override
