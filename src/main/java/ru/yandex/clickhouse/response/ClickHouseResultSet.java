@@ -306,7 +306,7 @@ public class ClickHouseResultSet extends AbstractResultSet {
                 case Types.VARCHAR:     return getString(columnIndex);
                 case Types.FLOAT:       return getFloat(columnIndex);
                 case Types.DATE:        return getDate(columnIndex);
-                case Types.TIMESTAMP:   return getTime(columnIndex);
+                case Types.TIMESTAMP:   return getTimestamp(columnIndex);
                 case Types.BLOB:        return getString(columnIndex);
             }
             return getString(columnIndex);
