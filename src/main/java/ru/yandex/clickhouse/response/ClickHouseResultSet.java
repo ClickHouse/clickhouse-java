@@ -275,8 +275,17 @@ public class ClickHouseResultSet extends AbstractResultSet {
     @Override
     public double getDouble(int columnIndex) throws SQLException {
         String string = getString(columnIndex);
-        if (string == null) return 0;
-        return Double.parseDouble(string);
+        if (string == null){
+            return 0;
+        } else if (string.equals("nan")) {
+            return Double.NaN;
+        } else if (string.equals("+inf") || string.equals("inf")) {
+            return Double.POSITIVE_INFINITY;
+        } else if (string.equals("-inf")) {
+            return Double.NEGATIVE_INFINITY;
+        } else {
+            return Double.parseDouble(string);
+        }
     }
 
     @Override
