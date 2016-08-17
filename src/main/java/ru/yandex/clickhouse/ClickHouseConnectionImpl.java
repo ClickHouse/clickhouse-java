@@ -36,8 +36,8 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
     }
 
     public ClickHouseConnectionImpl(String url, ClickHouseProperties properties) {
-        this.properties = properties;
-        this.dataSource = new ClickHouseDataSource(url);
+        this.dataSource = new ClickHouseDataSource(url, properties);
+        this.properties = dataSource.getProperties();
         ClickHouseHttpClientBuilder clientBuilder = new ClickHouseHttpClientBuilder(properties);
         log.debug("new connection");
         httpclient = clientBuilder.buildClient();

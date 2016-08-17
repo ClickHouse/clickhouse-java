@@ -92,6 +92,10 @@ public class ClickHouseDataSource implements DataSource {
         return url;
     }
 
+    public ClickHouseProperties getProperties() {
+        return properties;
+    }
+
     @Override
     public PrintWriter getLogWriter() throws SQLException {
         return printWriter;
