@@ -477,4 +477,15 @@ public class ClickHouseResultSet extends AbstractResultSet {
         BigDecimal result = new BigDecimal(string);
         return result.setScale(scale, BigDecimal.ROUND_HALF_UP);
     }
+
+    @Override
+    public void setFetchDirection(int direction) throws SQLException {
+        // ignore perfomance hint
+    }
+
+    @Override
+    public void setFetchSize(int rows) throws SQLException {
+        // ignore perfomance hint
+    }
+
 }
