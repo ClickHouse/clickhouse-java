@@ -57,15 +57,13 @@ public class ClickHouseDataSource implements DataSource {
             if (m.group(3) != null) {
                 this.database = m.group(3);
             } else {
-                this.database = DEFAULT_DATABASE;
+                this.database = properties.getDatabase() == null ? DEFAULT_DATABASE : properties.getDatabase();
             }
         } else {
             throw new IllegalArgumentException("Incorrect ClickHouse jdbc url: " + url);
         }
         this.properties = new ClickHouseProperties(properties);
-        if (this.properties.getDatabase() == null) {
-            this.properties.setDatabase(database);
-        }
+        this.properties.setDatabase(database);
     }
 
     @Override
