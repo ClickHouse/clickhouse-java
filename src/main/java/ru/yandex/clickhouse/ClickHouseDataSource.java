@@ -63,7 +63,9 @@ public class ClickHouseDataSource implements DataSource {
             throw new IllegalArgumentException("Incorrect ClickHouse jdbc url: " + url);
         }
         this.properties = new ClickHouseProperties(properties);
-        this.properties.setDatabase(database);
+        if (this.properties.getDatabase() == null) {
+            this.properties.setDatabase(database);
+        }
     }
 
     @Override
