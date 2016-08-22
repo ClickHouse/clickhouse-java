@@ -115,10 +115,15 @@ public class ClickHouseProperties {
         if (extremes) params.put(ClickHouseQueryParam.EXTREMES, "1");
 
         if (StringUtils.isBlank(profile)) {
-            if (getMaxThreads() != null)
+            if (getMaxThreads() != null) {
                 params.put(ClickHouseQueryParam.MAX_THREADS, String.valueOf(maxThreads));
+            }
+
             // in seconds there
-            params.put(ClickHouseQueryParam.MAX_EXECUTION_TIME, String.valueOf((maxExecutionTime != null? maxExecutionTime:(socketTimeout + dataTransferTimeout)) / 1000));
+            if (getMaxExecutionTime() != null) {
+                params.put(ClickHouseQueryParam.MAX_EXECUTION_TIME, String.valueOf((maxExecutionTime)));
+            }
+
             if (getMaxBlockSize() != null) {
                 params.put(ClickHouseQueryParam.MAX_BLOCK_SIZE, String.valueOf(getMaxBlockSize()));
             }
