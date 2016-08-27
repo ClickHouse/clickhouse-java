@@ -1,7 +1,7 @@
 package ru.yandex.clickhouse.response;
 
-import ru.yandex.clickhouse.util.Logger;
-
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.io.InputStream;
 import java.math.BigDecimal;
@@ -15,7 +15,7 @@ import java.util.Map;
 
 public class ClickHouseResultSet extends AbstractResultSet {
 
-    private static final Logger log = Logger.of(ClickHouseResultSet.class);
+    private static final Logger log = LoggerFactory.getLogger(ClickHouseResultSet.class);
 
     private static final SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss"); //
     private static final SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd"); //

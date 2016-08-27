@@ -1,11 +1,12 @@
 package ru.yandex.clickhouse;
 
 import org.apache.http.impl.client.CloseableHttpClient;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import ru.yandex.clickhouse.except.ClickHouseUnknownException;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
 import ru.yandex.clickhouse.util.ClickHouseHttpClientBuilder;
 import ru.yandex.clickhouse.util.LogProxy;
-import ru.yandex.clickhouse.util.Logger;
 
 import java.io.IOException;
 import java.sql.*;
@@ -16,8 +17,7 @@ import java.util.concurrent.TimeUnit;
 
 
 public class ClickHouseConnectionImpl implements ClickHouseConnection {
-    private static final Logger log = Logger.of(ClickHouseStatementImpl.class);
-
+    private static final Logger log = LoggerFactory.getLogger(ClickHouseConnectionImpl.class);
 
     private final CloseableHttpClient httpclient;
 
@@ -69,7 +69,7 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
     @Override
     public Statement createStatement(int resultSetType, int resultSetConcurrency, int resultSetHoldability) throws SQLException {
         if (resultSetType != ResultSet.TYPE_FORWARD_ONLY && resultSetConcurrency != ResultSet.CONCUR_READ_ONLY
-                && resultSetHoldability != ResultSet.CLOSE_CURSORS_AT_COMMIT) {
+            && resultSetHoldability != ResultSet.CLOSE_CURSORS_AT_COMMIT) {
             throw new SQLFeatureNotSupportedException();
         }
         return createStatement();
