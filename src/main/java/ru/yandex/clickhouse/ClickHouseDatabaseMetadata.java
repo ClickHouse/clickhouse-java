@@ -1,8 +1,9 @@
 package ru.yandex.clickhouse;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import ru.yandex.clickhouse.response.ClickHouseResultBuilder;
 import ru.yandex.clickhouse.response.ClickHouseResultSet;
-import ru.yandex.clickhouse.util.Logger;
 import ru.yandex.clickhouse.util.Utils;
 
 import java.sql.*;
@@ -14,7 +15,7 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
 
     private static final String DEFAULT_CAT = "default";
 
-    private static final Logger log = Logger.of(ClickHouseDatabaseMetadata.class);
+    private static final Logger log = LoggerFactory.getLogger(ClickHouseDatabaseMetadata.class);
 
     private String url;
     private ClickHouseConnection connection;
@@ -805,7 +806,9 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
         );
         // todo use system.columns
         String sql = "desc table ";
-        if (schemaPattern != null) sql += Utils.unEscapeString(schemaPattern) + '.';
+        if (schemaPattern != null) {
+            sql += Utils.unEscapeString(schemaPattern) + '.';
+        }
         sql += Utils.unEscapeString(tableNamePattern);
         ResultSet descTable = request(sql);
         int colNum = 1;
