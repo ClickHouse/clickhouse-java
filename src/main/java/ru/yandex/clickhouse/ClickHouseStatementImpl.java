@@ -9,6 +9,8 @@ import org.apache.http.entity.InputStreamEntity;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.util.EntityUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import ru.yandex.clickhouse.except.ClickHouseException;
 import ru.yandex.clickhouse.except.ClickHouseExceptionSpecifier;
 import ru.yandex.clickhouse.response.ClickHouseLZ4Stream;
@@ -17,7 +19,6 @@ import ru.yandex.clickhouse.response.ClickHouseResultSet;
 import ru.yandex.clickhouse.response.FastByteArrayOutputStream;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
 import ru.yandex.clickhouse.settings.ClickHouseQueryParam;
-import ru.yandex.clickhouse.util.Logger;
 import ru.yandex.clickhouse.util.Patterns;
 import ru.yandex.clickhouse.util.Utils;
 import ru.yandex.clickhouse.util.apache.StringUtils;
@@ -39,7 +40,7 @@ import java.util.Map;
 
 public class ClickHouseStatementImpl implements ClickHouseStatement {
 
-    private static final Logger log = Logger.of(ClickHouseStatementImpl.class);
+    private static final Logger log = LoggerFactory.getLogger(ClickHouseStatementImpl.class);
 
     private final CloseableHttpClient client;
 

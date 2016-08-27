@@ -1,9 +1,10 @@
 package ru.yandex.clickhouse;
 
 import com.google.common.collect.MapMaker;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
 import ru.yandex.clickhouse.util.LogProxy;
-import ru.yandex.clickhouse.util.Logger;
 
 import java.sql.*;
 import java.util.Properties;
@@ -25,7 +26,7 @@ import java.util.concurrent.TimeUnit;
  */
 public class ClickHouseDriver implements Driver {
 
-    private static final Logger logger = Logger.of(ClickHouseDriver.class);
+    private static final Logger logger = LoggerFactory.getLogger(ClickHouseDriver.class);
 
 
     private final ConcurrentMap<ClickHouseConnectionImpl, Boolean> connections = new MapMaker().weakKeys().makeMap();

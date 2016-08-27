@@ -1,7 +1,8 @@
 package ru.yandex.clickhouse.except;
 
 import org.apache.http.conn.ConnectTimeoutException;
-import ru.yandex.clickhouse.util.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import ru.yandex.clickhouse.util.apache.StringUtils;
 
 import java.net.ConnectException;
@@ -14,7 +15,7 @@ import java.net.SocketTimeoutException;
 
 public final class ClickHouseExceptionSpecifier {
 
-    private static final Logger log = Logger.of(ClickHouseExceptionSpecifier.class);
+    private static final Logger log = LoggerFactory.getLogger(ClickHouseExceptionSpecifier.class);
 
     private ClickHouseExceptionSpecifier() {
     }
