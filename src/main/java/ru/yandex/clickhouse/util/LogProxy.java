@@ -42,8 +42,9 @@ public class LogProxy<T> implements InvocationHandler {
 
     @Override
     public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
-        log.trace("Call class: " + clazz.getName() + " Method: " + method.getName() +
-            " Args: " + Arrays.toString(args));
+        log.trace(
+            "Call class: " + clazz.getName() + " Method: " + method.getName() + " Args: " + Arrays.toString(args)
+        );
         try {
             return method.invoke(object, args);
         } catch (InvocationTargetException e) {
