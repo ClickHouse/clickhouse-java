@@ -1,54 +1,29 @@
 package ru.yandex.clickhouse;
 
 
+import com.google.common.escape.Escaper;
+import com.google.common.escape.Escapers;
+
 public class ClickHouseUtil {
-    static void quoteInternals(String s, StringBuilder sb) {
-        for(int i = 0; i < s.length(); i++) {
-            char c = s.charAt(i);
-            switch (c) {
-                case '\\':
-                    sb.append("\\\\");
-                    break;
-                case '\n':
-                    sb.append("\\n");
-                    break;
-                case '\t':
-                    sb.append("\\t");
-                    break;
-                case '\b':
-                    sb.append("\\b");
-                    break;
-                case '\f':
-                    sb.append("\\f");
-                    break;
-                case '\r':
-                    sb.append("\\r");
-                    break;
-                case '\0':
-                    sb.append("\\0");
-                    break;
-                case '\'':
-                    sb.append("\\'");
-                    break;
-                case '`':
-                    sb.append("\\`");
-                    break;
-                default:
-                    sb.append(c);
-            }
-        }
-    }
 
 
-    public static String quote(String s) {
+    private final static Escaper CLICKHOUSE_ESCAPER = Escapers.builder()
+        .addEscape('\\', "\\\\")
+        .addEscape('\n', "\\n")
+        .addEscape('\t', "\\t")
+        .addEscape('\b', "\\b")
+        .addEscape('\f', "\\f")
+        .addEscape('\r', "\\r")
+        .addEscape('\0', "\\0")
+        .addEscape('\'', "\\'")
+        .addEscape('`', "\\`")
+        .build();
+
+    public static String escape(String s) {
         if (s == null) {
             return "NULL";
         }
-        StringBuilder sb = new StringBuilder(s.length() + 2);
-        sb.append('\'');
-        quoteInternals(s, sb);
-        sb.append('\'');
-        return sb.toString();
+        return CLICKHOUSE_ESCAPER.escape(s);
     }
 
     public static String quoteIdentifier(String s) {
@@ -57,7 +32,7 @@ public class ClickHouseUtil {
         }
         StringBuilder sb = new StringBuilder(s.length() + 2);
         sb.append('`');
-        quoteInternals(s, sb);
+        sb.append(CLICKHOUSE_ESCAPER.escape(s));
         sb.append('`');
         return sb.toString();
     }

@@ -29,7 +29,8 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
 
     private final String sql;
     private final List<String> sqlParts;
-    private List<String> binds;
+    private String[] binds;
+    private boolean[] valuesQuote;
     private List<byte[]> batchRows = new ArrayList<byte[]>();
 
     public ClickHousePreparedStatementImpl(CloseableHttpClient client, ClickHouseDataSource source,
@@ -42,10 +43,15 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
     }
 
     private void createBinds() {
-        this.binds = new ArrayList<String>(this.sqlParts.size() - 1);
-        for (int i = 0; i < this.sqlParts.size() - 1; i++) {
-            this.binds.add(null);
-        }
+        this.binds = new String[this.sqlParts.size() - 1];
+        this.valuesQuote = new boolean[this.sqlParts.size() - 1];
+        clearParameters();
+    }
+
+    @Override
+    public void clearParameters() {
+        Arrays.fill(binds, null);
+        Arrays.fill(valuesQuote, false);
     }
 
     protected static List<String> parseSql(String sql) throws SQLException {
@@ -85,7 +91,7 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
 
         StringBuilder sb = new StringBuilder(sqlParts.get(0));
         for (int i = 1; i < sqlParts.size(); i++) {
-            sb.append(binds.get(i - 1));
+            appendBoundValue(sb, i - 1);
             sb.append(sqlParts.get(i));
         }
         String sql = sb.toString();
@@ -93,7 +99,17 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
         return sql;
     }
 
-    private static void checkBinded(List<String> binds) throws SQLException {
+    private void appendBoundValue(StringBuilder sb, int num) {
+        if (valuesQuote[num]) {
+            sb.append("'");
+        }
+        sb.append(binds[num]);
+        if (valuesQuote[num]) {
+            sb.append("'");
+        }
+    }
+
+    private static void checkBinded(String[] binds) throws SQLException {
         for (String b : binds) {
             if (b == null) {
                 throw new SQLException("Not all parameters binded");
@@ -104,24 +120,12 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
     private byte[] buildBinds() throws SQLException {
         checkBinded(binds);
         StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < binds.size(); i++) {
-            sb.append(unquoteIfNeeded(binds.get(i)));
-            sb.append(i < binds.size() - 1 ? '\t' : '\n');
+        for (int i = 0; i < binds.length; i++) {
+            sb.append(binds[i]);
+            sb.append(i < binds.length - 1 ? '\t' : '\n');
         }
         return sb.toString().getBytes();
     }
-
-    //TODO Think of more efficient solution
-    private String unquoteIfNeeded(String value) {
-        if (value.isEmpty()) {
-            return value;
-        }
-        if (value.charAt(0) == '\'' && value.charAt(value.length() - 1) == '\'') {
-            return value.substring(1, value.length() - 1);
-        }
-        return value;
-    }
-
 
     @Override
     public ResultSet executeQuery() throws SQLException {
@@ -134,8 +138,14 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
     }
 
     private void setBind(int parameterIndex, String bind) {
-        binds.set(parameterIndex - 1, bind);
+        setBind(parameterIndex, bind, false);
     }
+
+    private void setBind(int parameterIndex, String bind, boolean quote) {
+        binds[parameterIndex - 1] = bind;
+        valuesQuote[parameterIndex - 1] = quote;
+    }
+
 
     @Override
     public void setNull(int parameterIndex, int sqlType) throws SQLException {
@@ -184,7 +194,7 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
 
     @Override
     public void setString(int parameterIndex, String x) throws SQLException {
-        setBind(parameterIndex, ClickHouseUtil.quote(x));
+        setBind(parameterIndex, ClickHouseUtil.escape(x), true);
     }
 
     @Override
@@ -194,7 +204,7 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
 
     @Override
     public void setDate(int parameterIndex, Date x) throws SQLException {
-        setBind(parameterIndex, "'" + dateFormat.format(x) + "'");
+        setBind(parameterIndex, dateFormat.format(x), true);
     }
 
     @Override
@@ -205,7 +215,7 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
 
     @Override
     public void setTimestamp(int parameterIndex, Timestamp x) throws SQLException {
-        setBind(parameterIndex, "'" + dateTimeFormat.format(x) + "'");
+        setBind(parameterIndex, dateTimeFormat.format(x), true);
     }
 
     @Override
@@ -227,12 +237,6 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
 
     }
 
-    @Override
-    public void clearParameters() throws SQLException {
-        for (int i = 0; i < binds.size() - 1; i++) {
-            binds.set(i, null);
-        }
-    }
 
     @Override
     public void setObject(int parameterIndex, Object x, int targetSqlType) throws SQLException {
