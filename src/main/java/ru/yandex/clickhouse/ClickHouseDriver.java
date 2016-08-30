@@ -101,7 +101,6 @@ public class ClickHouseDriver implements Driver {
      * @param timeUnit
      */
     public void scheduleConnectionsCleaning(int rate, TimeUnit timeUnit){
-        ScheduledExecutorService connectionsCleaner = Executors.newSingleThreadScheduledExecutor();
         connectionsCleaner.scheduleAtFixedRate(new Runnable() {
             @Override
             public void run() {
