@@ -31,7 +31,7 @@ public class ClickHouseDriver implements Driver {
 
     private final ConcurrentMap<ClickHouseConnectionImpl, Boolean> connections = new MapMaker().weakKeys().makeMap();
 
-    private ScheduledExecutorService connectionsCleaner = Executors.newSingleThreadScheduledExecutor();
+    private final ScheduledExecutorService connectionsCleaner = Executors.newSingleThreadScheduledExecutor();
 
     static {
         ClickHouseDriver driver = new ClickHouseDriver();
