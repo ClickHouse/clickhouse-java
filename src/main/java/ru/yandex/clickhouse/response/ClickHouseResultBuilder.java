@@ -69,7 +69,7 @@ public class ClickHouseResultBuilder {
             byte[] bytes = baos.toByteArray();
             ByteArrayInputStream inputStream = new ByteArrayInputStream(bytes);
 
-            return new ClickHouseResultSet(inputStream, 1024, "system", "unknown");
+            return new ClickHouseResultSet(inputStream, 1024, "system", "unknown", null);
         } catch (IOException e) {
             throw new RuntimeException("Never happens", e);
         }

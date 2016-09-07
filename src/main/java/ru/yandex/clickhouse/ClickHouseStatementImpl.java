@@ -1,5 +1,18 @@
 package ru.yandex.clickhouse;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.SQLWarning;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.http.HttpEntity;
@@ -23,19 +36,6 @@ import ru.yandex.clickhouse.util.Patterns;
 import ru.yandex.clickhouse.util.Utils;
 import ru.yandex.clickhouse.util.apache.StringUtils;
 import ru.yandex.clickhouse.util.guava.StreamUtils;
-
-import java.io.IOException;
-import java.io.InputStream;
-import java.net.HttpURLConnection;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.sql.Connection;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.SQLWarning;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
 
 
 public class ClickHouseStatementImpl implements ClickHouseStatement {
@@ -83,7 +83,8 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
                 currentResult = new ClickHouseResultSet(properties.isCompress()
                         ? new ClickHouseLZ4Stream(is) : is, properties.getBufferSize(),
                         extractDBName(sql),
-                        extractTableName(sql)
+                        extractTableName(sql),
+                        this
                 );
                 currentResult.setMaxRows(maxRows);
                 return currentResult;
