@@ -1,7 +1,5 @@
 package ru.yandex.clickhouse.response;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.io.InputStream;
 import java.math.BigDecimal;
@@ -11,6 +9,9 @@ import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 
 public class ClickHouseResultSet extends AbstractResultSet {
@@ -42,9 +43,13 @@ public class ClickHouseResultSet extends AbstractResultSet {
     // row counter
     private int rowNumber;
 
-    public ClickHouseResultSet(InputStream is, int bufferSize, String db, String table) throws IOException {
+    // statement result set belongs to
+    private Statement statement;
+
+    public ClickHouseResultSet(InputStream is, int bufferSize, String db, String table, Statement statement) throws IOException {
         this.db = db;
         this.table = table;
+        this.statement = statement;
         bis = new StreamSplitter(is, (byte) 0x0A, bufferSize);  ///   \n
         ByteFragment headerFragment = bis.next();
         if (headerFragment == null) {
@@ -288,6 +293,11 @@ public class ClickHouseResultSet extends AbstractResultSet {
         }
     }
 
+    @Override
+    public Statement getStatement() {
+        return statement;
+    }
+    
     @Override
     public Date getDate(int columnIndex) throws SQLException {
         // date is passed as a string from clickhouse
