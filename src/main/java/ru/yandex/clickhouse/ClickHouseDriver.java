@@ -44,13 +44,16 @@ public class ClickHouseDriver implements Driver {
 
     @Override
     public ClickHouseConnection connect(String url, Properties info) throws SQLException {
-        logger.info("Creating connection");
-        ClickHouseConnectionImpl connection = new ClickHouseConnectionImpl(url, info);
-        registerConnection(connection);
-        return LogProxy.wrap(ClickHouseConnection.class, connection);
+        if (!acceptsURL(url)) {
+            return null;
+        }
+        return connect(url, new ClickHouseProperties(info));
     }
 
     public ClickHouseConnection connect(String url, ClickHouseProperties properties) throws SQLException {
+        if (!acceptsURL(url)) {
+            return null;
+        }
         logger.info("Creating connection");
         ClickHouseConnectionImpl connection = new ClickHouseConnectionImpl(url, properties);
         registerConnection(connection);
