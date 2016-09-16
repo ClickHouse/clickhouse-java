@@ -142,7 +142,7 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
     public boolean execute(String sql) throws SQLException {
         // currentResult is stored here. InputString and currentResult will be closed on this.close()
         executeQuery(sql);
-        return true;
+        return isSelect( sql );
     }
 
     @Override
