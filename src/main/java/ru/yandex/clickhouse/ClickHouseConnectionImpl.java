@@ -298,7 +298,7 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
 
     @Override
     public Array createArrayOf(String typeName, Object[] elements) throws SQLException {
-        return null;
+        return new ClickHouseArray(elements);
     }
 
     @Override

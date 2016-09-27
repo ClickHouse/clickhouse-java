@@ -5,6 +5,7 @@ import org.apache.http.impl.client.CloseableHttpClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
+import ru.yandex.clickhouse.util.ClickHouseArrayUtil;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -14,11 +15,9 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.URL;
 import java.sql.*;
+import java.sql.Date;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Calendar;
-import java.util.List;
+import java.util.*;
 
 
 public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl implements ClickHousePreparedStatement {
@@ -237,11 +236,19 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
 
     }
 
-
     @Override
     public void setObject(int parameterIndex, Object x, int targetSqlType) throws SQLException {
         setObject(parameterIndex, x);
+    }
 
+    @Override
+    public void setArray(int parameterIndex, Collection collection) throws SQLException {
+        setBind(parameterIndex, ClickHouseArrayUtil.toString(collection));
+    }
+
+    @Override
+    public void setArray(int parameterIndex, Object[] array) throws SQLException {
+        setBind(parameterIndex, ClickHouseArrayUtil.toString(array));
     }
 
     @Override
@@ -283,11 +290,16 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
                 setClob(parameterIndex, (Clob) x);
             } else if (x instanceof BigInteger) {
                 setString(parameterIndex, x.toString());
+            } else if (x instanceof Collection) {
+                setBind(parameterIndex, ClickHouseArrayUtil.toString((Collection) x));
+            } else if (x.getClass().isArray()) {
+                setBind(parameterIndex, ClickHouseArrayUtil.arrayToString(x));
             } else {
                 throw new SQLDataException("Can't bind object of class " + x.getClass().getCanonicalName());
             }
         }
     }
+
 
     @Override
     public boolean execute() throws SQLException {
@@ -380,8 +392,7 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
 
     @Override
     public void setArray(int parameterIndex, Array x) throws SQLException {
-        throw new SQLFeatureNotSupportedException();
-
+        setBind(parameterIndex, ClickHouseArrayUtil.arrayToString(x));
     }
 
     @Override
