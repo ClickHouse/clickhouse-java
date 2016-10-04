@@ -1,7 +1,8 @@
 package ru.yandex.clickhouse.response;
 
-import java.sql.ResultSetMetaData;
-import java.sql.SQLException;
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.sql.*;
 
 
 public class ClickHouseResultSetMetaData implements ResultSetMetaData {
@@ -117,16 +118,52 @@ public class ClickHouseResultSetMetaData implements ResultSetMetaData {
 
     @Override
     public String getColumnClassName(int column) throws SQLException {
-        throw new UnsupportedOperationException("no classes for now");
+        int sqlType = getColumnType(column);
+        switch (sqlType) {
+            case Types.BIT:
+            case Types.BOOLEAN:
+                return Boolean.class.getName();
+            case Types.TINYINT:
+            case Types.SMALLINT:
+            case Types.INTEGER:
+                return Integer.class.getName();
+            case Types.BIGINT:
+                return BigInteger.class.getName();
+            case Types.FLOAT:
+            case Types.DOUBLE:
+                return Double.class.getName();
+            case Types.NUMERIC:
+            case Types.DECIMAL:
+                return BigDecimal.class.getName();
+            case Types.CHAR:
+            case Types.VARCHAR:
+            case Types.LONGVARCHAR:
+            case Types.BLOB:
+                return String.class.getName();
+            case Types.REAL:
+                return Float.class.getName();
+            case Types.DATE:
+                return java.sql.Date.class.getName();
+            case Types.TIMESTAMP:
+                return Timestamp.class.getName();
+            case Types.TIME:
+                return Time.class.getName();
+            default:
+                throw new UnsupportedOperationException("no classes for now");
+        }
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public <T> T unwrap(Class<T> iface) throws SQLException {
-        return null;
+        if (isWrapperFor(iface)) {
+            return (T) this;
+        }
+        throw new SQLException("Unable to unwrap to " + iface.toString());
     }
 
     @Override
     public boolean isWrapperFor(Class<?> iface) throws SQLException {
-        return false;
+        return iface != null && iface.isAssignableFrom(getClass());
     }
 }
