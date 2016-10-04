@@ -128,8 +128,7 @@ public class ClickHouseResultSetMetaData implements ResultSetMetaData {
             case Types.INTEGER:
                 return Integer.class.getName();
             case Types.BIGINT:
-                return BigInteger.class.getName();
-            case Types.FLOAT:
+                return Long.class.getName();
             case Types.DOUBLE:
                 return Double.class.getName();
             case Types.NUMERIC:
@@ -140,6 +139,7 @@ public class ClickHouseResultSetMetaData implements ResultSetMetaData {
             case Types.LONGVARCHAR:
             case Types.BLOB:
                 return String.class.getName();
+            case Types.FLOAT:
             case Types.REAL:
                 return Float.class.getName();
             case Types.DATE:
