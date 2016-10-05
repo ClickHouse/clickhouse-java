@@ -846,7 +846,12 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
             row.add(String.valueOf(columnNoNulls));
 
             row.add(null);
-            row.add(null);
+            // COLUMN_DEF
+            if ( descTable.getString( 3 ).equals( "DEFAULT" ) ) {
+                row.add( descTable.getString( 4 ) );
+            } else {
+                row.add( null );
+            }
             row.add(null);
             row.add(null);
 
