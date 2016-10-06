@@ -21,7 +21,7 @@ public final class ClickHouseExceptionSpecifier {
     }
 
     public static ClickHouseException specify(Throwable cause, String host, int port) {
-        return specify(null, cause, host, port);
+        return specify(cause!=null?cause.getMessage():null, cause, host, port);
     }
 
     public static ClickHouseException specify(String clickHouseMessage, String host, int port) {
