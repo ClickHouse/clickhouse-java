@@ -18,8 +18,8 @@ public class ClickHouseResultSet extends AbstractResultSet {
 
     private static final Logger log = LoggerFactory.getLogger(ClickHouseResultSet.class);
 
-    private static final SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss"); //
-    private static final SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd"); //
+    private final SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss"); //
+    private final SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd"); //
 
     private final StreamSplitter bis;
 
@@ -373,7 +373,7 @@ public class ClickHouseResultSet extends AbstractResultSet {
         return result;
     }
 
-    private static long toTimestamp(ByteFragment value) {
+    private long toTimestamp(ByteFragment value) {
         if (value.isNull()) return 0;
         try {
             return sdf.parse(value.asString()).getTime();
