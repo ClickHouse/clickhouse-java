@@ -392,7 +392,7 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
 
     @Override
     public void setArray(int parameterIndex, Array x) throws SQLException {
-        setBind(parameterIndex, ClickHouseArrayUtil.arrayToString(x));
+        setBind(parameterIndex, ClickHouseArrayUtil.arrayToString(x.getArray()));
     }
 
     @Override
