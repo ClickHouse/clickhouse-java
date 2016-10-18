@@ -16,11 +16,7 @@ import java.util.regex.Pattern;
 
 public class ClickHouseDataSource implements DataSource {
 
-    protected final static Pattern urlRegexp;
-
-    static {
-        urlRegexp = Pattern.compile("^jdbc:clickhouse://([a-zA-Z0-9.-]+|\\[[:.a-fA-F0-9]+\\]):([0-9]+)(?:|/|/([a-zA-Z0-9_]+))$");
-    }
+    protected final static Pattern urlRegexp = Pattern.compile("^jdbc:clickhouse://([a-zA-Z0-9.-]+|\\[[:.a-fA-F0-9]+\\]):([0-9]+)(?:|/|/([a-zA-Z0-9_]+))$");
 
     protected final static String DEFAULT_DATABASE = "default";
 

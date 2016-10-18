@@ -1,12 +1,6 @@
 package ru.yandex.clickhouse;
 
-import java.io.IOException;
-import java.sql.*;
-import java.util.Map;
-import java.util.Properties;
-import java.util.concurrent.Executor;
-import java.util.concurrent.TimeUnit;
-
+import org.apache.http.conn.ConnectTimeoutException;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -14,6 +8,13 @@ import ru.yandex.clickhouse.except.ClickHouseUnknownException;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
 import ru.yandex.clickhouse.util.ClickHouseHttpClientBuilder;
 import ru.yandex.clickhouse.util.LogProxy;
+
+import java.io.IOException;
+import java.sql.*;
+import java.util.Map;
+import java.util.Properties;
+import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 
 
 public class ClickHouseConnectionImpl implements ClickHouseConnection {
@@ -48,8 +49,13 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
         return LogProxy.wrap(ClickHouseStatement.class, new ClickHouseStatementImpl(httpclient, dataSource, this, properties));
     }
 
+    @Override
     public ClickHouseStatement createClickHouseStatement() throws SQLException {
         return LogProxy.wrap(ClickHouseStatement.class, new ClickHouseStatementImpl(httpclient, dataSource, this, properties));
+    }
+
+    private ClickHouseStatement createClickHouseStatement(CloseableHttpClient httpClient) throws SQLException {
+        return LogProxy.wrap(ClickHouseStatement.class, new ClickHouseStatementImpl(httpClient, dataSource, this, properties));
     }
 
     public PreparedStatement createPreparedStatement(String sql) throws SQLException {
@@ -157,7 +163,7 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
 
     @Override
     public int getTransactionIsolation() throws SQLException {
-        return 0;
+        return Connection.TRANSACTION_NONE;
     }
 
     @Override
@@ -268,12 +274,22 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
 
     @Override
     public boolean isValid(int timeout) throws SQLException {
-        // todo timeout
-        Statement statement = createStatement();
-        statement.execute("SELECT 1");
-        statement.close();
-        // no exception - fine
-        return true;
+        if (isClosed()) {
+            return false;
+        }
+
+        try {
+            ClickHouseProperties properties = this.properties.clone();
+            properties.setConnectionTimeout(timeout * 1000);
+            CloseableHttpClient client = new ClickHouseHttpClientBuilder(properties).buildClient();
+            Statement statement = createClickHouseStatement(client);
+            statement.execute("SELECT 1");
+            statement.close();
+            return true;
+        } catch (Exception e) {
+            Throwable cause = e.getCause();
+            return cause == null || !(cause instanceof ConnectTimeoutException);
+        }
     }
 
     @Override

@@ -1,18 +1,5 @@
 package ru.yandex.clickhouse;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.net.HttpURLConnection;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.sql.Connection;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.SQLWarning;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.http.HttpEntity;
@@ -36,6 +23,19 @@ import ru.yandex.clickhouse.util.Patterns;
 import ru.yandex.clickhouse.util.Utils;
 import ru.yandex.clickhouse.util.apache.StringUtils;
 import ru.yandex.clickhouse.util.guava.StreamUtils;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.SQLWarning;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 
 
 public class ClickHouseStatementImpl implements ClickHouseStatement {
@@ -422,7 +422,6 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
         HttpPost post = new HttpPost(uri);
         post.setEntity(new StringEntity(sql, StreamUtils.UTF_8));
         HttpEntity entity = null;
-        InputStream is = null;
         try {
             HttpResponse response = client.execute(post);
             entity = response.getEntity();
@@ -440,6 +439,8 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
                 EntityUtils.consumeQuietly(entity);
                 throw ClickHouseExceptionSpecifier.specify(chMessage, source.getHost(), source.getPort());
             }
+
+            InputStream is;
             if (entity.isStreaming()) {
                 is = entity.getContent();
             } else {
@@ -453,7 +454,6 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
         } catch (Exception e) {
             log.info("Error during connection to " + source + ", reporting failure to data source, message: " + e.getMessage());
             EntityUtils.consumeQuietly(entity);
-            StreamUtils.close(is);
             log.info("Error sql: " + sql);
             throw ClickHouseExceptionSpecifier.specify(e, source.getHost(), source.getPort());
         }
