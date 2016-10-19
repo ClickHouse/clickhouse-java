@@ -7,7 +7,7 @@ import java.util.Map;
 import java.util.Properties;
 
 
-public class ClickHouseProperties implements Cloneable {
+public class ClickHouseProperties {
 
     // connection settings
     private boolean async;
@@ -361,11 +361,5 @@ public class ClickHouseProperties implements Cloneable {
 
     public void setPassword(String password) {
         this.password = password;
-    }
-
-
-    @Override
-    public ClickHouseProperties clone() throws CloneNotSupportedException {
-        return (ClickHouseProperties) super.clone();
     }
 }

@@ -75,7 +75,7 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
     @Override
     public Statement createStatement(int resultSetType, int resultSetConcurrency, int resultSetHoldability) throws SQLException {
         if (resultSetType != ResultSet.TYPE_FORWARD_ONLY && resultSetConcurrency != ResultSet.CONCUR_READ_ONLY
-            && resultSetHoldability != ResultSet.CLOSE_CURSORS_AT_COMMIT) {
+                && resultSetHoldability != ResultSet.CLOSE_CURSORS_AT_COMMIT) {
             throw new SQLFeatureNotSupportedException();
         }
         return createStatement();
@@ -279,8 +279,8 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
         }
 
         try {
-            ClickHouseProperties properties = this.properties.clone();
-            properties.setConnectionTimeout(timeout * 1000);
+            ClickHouseProperties properties = new ClickHouseProperties(this.properties);
+            properties.setConnectionTimeout((int) TimeUnit.SECONDS.toMillis(timeout));
             CloseableHttpClient client = new ClickHouseHttpClientBuilder(properties).buildClient();
             Statement statement = createClickHouseStatement(client);
             statement.execute("SELECT 1");
