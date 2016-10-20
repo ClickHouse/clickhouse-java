@@ -287,8 +287,12 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
             statement.close();
             return true;
         } catch (Exception e) {
-            Throwable cause = e.getCause();
-            return cause == null || !(cause instanceof ConnectTimeoutException);
+            boolean isFailOnConnectionTimeout = e.getCause() instanceof ConnectTimeoutException;
+            if(!isFailOnConnectionTimeout){
+                log.warn("Something had happened while validating a connection", e);
+            }
+
+            return false;
         }
     }
 
