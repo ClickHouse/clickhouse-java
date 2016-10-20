@@ -44,7 +44,6 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
     private void createBinds() {
         this.binds = new String[this.sqlParts.size() - 1];
         this.valuesQuote = new boolean[this.sqlParts.size() - 1];
-        clearParameters();
     }
 
     @Override
