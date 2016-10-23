@@ -87,7 +87,7 @@ public class ClickHouseResultSet extends AbstractResultSet {
         if (nextLine == null) {
             try {
                 nextLine = bis.next();
-                if (nextLine == null || nextLine.length() == 0 || (maxRows != 0 && rowNumber >= maxRows)) {
+                if (nextLine == null || (maxRows != 0 && rowNumber >= maxRows)) {
                     bis.close();
                     nextLine = null;
                 }

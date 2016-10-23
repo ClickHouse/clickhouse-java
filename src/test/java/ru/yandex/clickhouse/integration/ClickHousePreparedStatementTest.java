@@ -10,6 +10,7 @@ import ru.yandex.clickhouse.settings.ClickHouseProperties;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.SQLException;
 
 public class ClickHousePreparedStatementTest {
     private ClickHouseDataSource dataSource;
@@ -48,5 +49,20 @@ public class ClickHousePreparedStatementTest {
         Assert.assertEquals(rs.getInt("cnt"), 2);
         Assert.assertFalse(rs.next());
 
+    }
+
+    @Test(enabled = false)
+    public void testSingleColumnResultSet() throws SQLException {
+        ResultSet rs = connection.createStatement().executeQuery("select c from (\n" +
+                "    select 'a' as c, 1 as rn\n" +
+                "    UNION ALL select 'b' as c, 2 as rn\n" +
+                "    UNION ALL select '' as c, 3 as rn\n" +
+                "    UNION ALL select 'd' as c, 4 as rn\n" +
+                " ) order by rn");
+        StringBuffer sb = new StringBuffer();
+        while(rs.next()){
+            sb.append(rs.getString("c")).append("\n");
+        }
+        Assert.assertEquals(sb.toString(), "a\nb\n\nd\n");
     }
 }
