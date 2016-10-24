@@ -29,9 +29,7 @@ public class ClickHouseDriver implements Driver {
     private static final Logger logger = LoggerFactory.getLogger(ClickHouseDriver.class);
 
 
-    private final ConcurrentMap<ClickHouseConnectionImpl, Boolean> connections = new MapMaker().weakKeys().makeMap();
-
-    private final ScheduledExecutorService connectionsCleaner = Executors.newSingleThreadScheduledExecutor();
+    private static final ConcurrentMap<ClickHouseConnectionImpl, Boolean> connections = new MapMaker().weakKeys().makeMap();
 
     static {
         ClickHouseDriver driver = new ClickHouseDriver();
@@ -104,7 +102,7 @@ public class ClickHouseDriver implements Driver {
      * @param timeUnit
      */
     public void scheduleConnectionsCleaning(int rate, TimeUnit timeUnit){
-        connectionsCleaner.scheduleAtFixedRate(new Runnable() {
+        ScheduledConnectionCleaner.INSTANCE.scheduleAtFixedRate(new Runnable() {
             @Override
             public void run() {
                 try {
@@ -116,5 +114,9 @@ public class ClickHouseDriver implements Driver {
                 }
             }
         }, 0, rate, timeUnit);
+    }
+
+    private static class ScheduledConnectionCleaner {
+        private static final ScheduledExecutorService INSTANCE = Executors.newSingleThreadScheduledExecutor();
     }
 }
