@@ -24,7 +24,7 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
 
     private final ClickHouseProperties properties;
 
-    private ClickHouseDataSource dataSource;
+    private final ClickHouseDataSource dataSource;
 
     private boolean closed = false;
 
