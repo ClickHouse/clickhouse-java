@@ -3,7 +3,7 @@ package ru.yandex.clickhouse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.yandex.clickhouse.response.ClickHouseResultBuilder;
-import ru.yandex.clickhouse.response.ClickHouseResultSet;
+import ru.yandex.clickhouse.util.TypeUtils;
 import ru.yandex.clickhouse.util.Utils;
 
 import java.sql.*;
@@ -824,7 +824,7 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
             row.add(tableNamePattern);
             row.add(descTable.getString(1));
             String type = descTable.getString(2);
-            int sqlType = ClickHouseResultSet.toSqlType(type);
+            int sqlType = TypeUtils.toSqlType(type);
             row.add(Integer.toString(sqlType));
             row.add(type);
 
@@ -1049,7 +1049,7 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
 
     @Override
     public boolean supportsResultSetType(int type) throws SQLException {
-        int[] types = ClickHouseResultSet.supportedTypes();
+        int[] types = TypeUtils.supportedTypes();
         for (int i : types) {
             if (i == type) {
                 return true;

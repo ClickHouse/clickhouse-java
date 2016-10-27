@@ -1,5 +1,7 @@
 package ru.yandex.clickhouse;
 
+import ru.yandex.clickhouse.util.TypeUtils;
+
 import java.sql.Array;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -10,26 +12,28 @@ import java.util.Map;
  * @author Dmitry Andreev <a href="mailto:AndreevDm@yandex-team.ru"></a>
  */
 public class ClickHouseArray implements Array {
+    private int elementType;
     private Object array;
 
-    public ClickHouseArray(Object array) {
+    public ClickHouseArray(int elementType, Object array) {
         if (array == null) {
             throw new IllegalArgumentException("array cannon be null");
         }
         if (!array.getClass().isArray()) {
             throw new IllegalArgumentException("not array");
         }
+        this.elementType = elementType;
         this.array = array;
     }
 
     @Override
     public String getBaseTypeName() throws SQLException {
-        throw new SQLFeatureNotSupportedException();
+        return TypeUtils.toClass(elementType).getName();
     }
 
     @Override
     public int getBaseType() throws SQLException {
-        throw new SQLFeatureNotSupportedException();
+        return elementType;
     }
 
     @Override
