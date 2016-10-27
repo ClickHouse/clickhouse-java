@@ -8,6 +8,7 @@ import ru.yandex.clickhouse.except.ClickHouseUnknownException;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
 import ru.yandex.clickhouse.util.ClickHouseHttpClientBuilder;
 import ru.yandex.clickhouse.util.LogProxy;
+import ru.yandex.clickhouse.util.TypeUtils;
 
 import java.io.IOException;
 import java.sql.*;
@@ -318,7 +319,7 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
 
     @Override
     public Array createArrayOf(String typeName, Object[] elements) throws SQLException {
-        return new ClickHouseArray(elements);
+        return new ClickHouseArray(TypeUtils.toSqlType(typeName), elements);
     }
 
     @Override

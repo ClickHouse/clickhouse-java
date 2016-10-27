@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.math.BigDecimal;
 import java.sql.*;
+import java.sql.Array;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
@@ -12,6 +13,8 @@ import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import ru.yandex.clickhouse.ClickHouseArray;
+import ru.yandex.clickhouse.util.TypeUtils;
 
 
 public class ClickHouseResultSet extends AbstractResultSet {
@@ -194,6 +197,23 @@ public class ClickHouseResultSet extends AbstractResultSet {
         return getLongArray(asColNum(column));
     }
 
+    @Override
+    public Array getArray(int columnIndex) throws SQLException {
+        if (TypeUtils.toSqlType(types[columnIndex - 1]) != Types.ARRAY) {
+            throw new SQLException("Not an array");
+        }
+
+        int elementType = TypeUtils.getArrayElementType(types[columnIndex - 1]);
+
+        Object array = ByteFragmentUtils.parseArray(getValue(columnIndex), TypeUtils.toClass(elementType));
+
+        return new ClickHouseArray(elementType, array);
+    }
+
+    @Override
+    public Array getArray(String column) throws SQLException {
+        return getArray(asColNum(column));
+    }
 
     @Override
     public double getDouble(String columnLabel) throws SQLException {
@@ -297,7 +317,7 @@ public class ClickHouseResultSet extends AbstractResultSet {
     public Statement getStatement() {
         return statement;
     }
-    
+
     @Override
     public Date getDate(int columnIndex) throws SQLException {
         // date is passed as a string from clickhouse
@@ -318,7 +338,7 @@ public class ClickHouseResultSet extends AbstractResultSet {
     @Override
     public Object getObject(int columnIndex) throws SQLException {
         try {
-            int type = toSqlType(types[columnIndex - 1]);
+            int type = TypeUtils.toSqlType(types[columnIndex - 1]);
             switch (type) {
                 case Types.BIGINT:      return getLong(columnIndex);
                 case Types.INTEGER:     return getInt(columnIndex);
@@ -327,6 +347,7 @@ public class ClickHouseResultSet extends AbstractResultSet {
                 case Types.DATE:        return getDate(columnIndex);
                 case Types.TIMESTAMP:   return getTimestamp(columnIndex);
                 case Types.BLOB:        return getString(columnIndex);
+                case Types.ARRAY:       return getArray(columnIndex).getArray();
             }
             return getString(columnIndex);
         } catch (Exception e) {
@@ -420,30 +441,6 @@ public class ClickHouseResultSet extends AbstractResultSet {
     private ByteFragment getValue(int colNum) {
         lastReadColumn = colNum;
         return values[colNum - 1];
-    }
-
-    public static int toSqlType(String type) {
-
-        if (type.startsWith("Int") || type.startsWith("UInt")) {
-            if (type.endsWith("64")) return Types.BIGINT;
-            else return Types.INTEGER;
-        }
-        if ("String".equals(type)) return Types.VARCHAR;
-        if (type.startsWith("Float")) return Types.FLOAT;
-        if ("Date".equals(type)) return Types.DATE;
-        if ("DateTime".equals(type)) return Types.TIMESTAMP;
-        if ("FixedString".equals(type)) return Types.BLOB;
-
-        // don't know what to return actually
-        return Types.VARCHAR;
-
-    }
-
-    public static int[] supportedTypes() {
-        return new int[] {
-                Types.BIGINT, Types.INTEGER, Types.VARCHAR, Types.FLOAT,
-                Types.DATE, Types.TIMESTAMP, Types.BLOB
-        };
     }
 
     public <T> T getObject(int columnIndex, Class<T> type) throws SQLException {

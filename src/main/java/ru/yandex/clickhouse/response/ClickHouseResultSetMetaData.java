@@ -1,7 +1,7 @@
 package ru.yandex.clickhouse.response;
 
-import java.math.BigDecimal;
-import java.math.BigInteger;
+import ru.yandex.clickhouse.util.TypeUtils;
+
 import java.sql.*;
 
 
@@ -90,7 +90,7 @@ public class ClickHouseResultSetMetaData implements ResultSetMetaData {
 
     @Override
     public int getColumnType(int column) throws SQLException {
-        return ClickHouseResultSet.toSqlType(getColumnTypeName(column));
+        return TypeUtils.toSqlType(getColumnTypeName(column));
     }
 
     @Override
@@ -119,38 +119,10 @@ public class ClickHouseResultSetMetaData implements ResultSetMetaData {
     @Override
     public String getColumnClassName(int column) throws SQLException {
         int sqlType = getColumnType(column);
-        switch (sqlType) {
-            case Types.BIT:
-            case Types.BOOLEAN:
-                return Boolean.class.getName();
-            case Types.TINYINT:
-            case Types.SMALLINT:
-            case Types.INTEGER:
-                return Integer.class.getName();
-            case Types.BIGINT:
-                return Long.class.getName();
-            case Types.DOUBLE:
-                return Double.class.getName();
-            case Types.NUMERIC:
-            case Types.DECIMAL:
-                return BigDecimal.class.getName();
-            case Types.CHAR:
-            case Types.VARCHAR:
-            case Types.LONGVARCHAR:
-            case Types.BLOB:
-                return String.class.getName();
-            case Types.FLOAT:
-            case Types.REAL:
-                return Float.class.getName();
-            case Types.DATE:
-                return java.sql.Date.class.getName();
-            case Types.TIMESTAMP:
-                return Timestamp.class.getName();
-            case Types.TIME:
-                return Time.class.getName();
-            default:
-                throw new UnsupportedOperationException("no classes for now");
-        }
+        int elementSqlType = sqlType == Types.ARRAY ?
+                TypeUtils.getArrayElementType(getColumnTypeName(column))
+                : -1;
+        return TypeUtils.toClass(sqlType, elementSqlType).getName();
     }
 
     @Override

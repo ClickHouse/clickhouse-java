@@ -5,12 +5,17 @@ ClickHouse JDBC driver
 This is a basic and restricted implementation of jdbc driver for ClickHouse.
 It has support of a minimal subset of features to be usable.
 
-### URL syntax
+### Usage
+```
+<dependency>
+    <groupId>ru.yandex.clickhouse</groupId>
+    <artifactId>clickhouse-jdbc</artifactId>
+    <version>0.1.12</version>
+</dependency>
+```
 
-`jdbc:clickhouse://host:port`
-
-For example:
-`jdbc:clickhouse://localhost:8123`
+URL syntax: 
+`jdbc:clickhouse://<host>:<port>[/<database>]`, e.g. `jdbc:clickhouse://localhost:8123/test`
 
 ### Compiling with maven
 The driver is built with maven.
