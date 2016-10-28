@@ -8,7 +8,7 @@ import java.sql.Timestamp;
 import java.sql.Types;
 
 /**
- * @author Aleksandr Kormushin <kormushin@yandex-team.ru>
+ * @author Aleksandr Kormushin {@literal (<kormushin@yandex-team.ru>)}
  */
 public class TypeUtils {
 
