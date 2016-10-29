@@ -3,12 +3,15 @@ package ru.yandex.clickhouse;
 import com.google.common.collect.MapMaker;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import ru.yandex.clickhouse.settings.ClickHouseProperties;
-import ru.yandex.clickhouse.util.LogProxy;
 
-import java.net.MalformedURLException;
-import java.net.URL;
+import ru.yandex.clickhouse.settings.ClickHouseConnectionSettings;
+import ru.yandex.clickhouse.settings.ClickHouseProperties;
+import ru.yandex.clickhouse.settings.ClickHouseQueryParam;
+import ru.yandex.clickhouse.settings.DriverPropertyInfoAware;
+import ru.yandex.clickhouse.util.LogProxy;
 import java.sql.*;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executors;
@@ -70,12 +73,32 @@ public class ClickHouseDriver implements Driver {
 
     @Override
     public boolean acceptsURL(String url) throws SQLException {
-        return url.startsWith("jdbc:clickhouse:");
+        return url.startsWith(ClickhouseJdbcUrlParser.JDBC_CLICKHOUSE_PREFIX);
     }
 
     @Override
     public DriverPropertyInfo[] getPropertyInfo(String url, Properties info) throws SQLException {
-        return new DriverPropertyInfo[0];
+        Properties copy = new Properties(info);
+        Properties properties;
+        try {
+            properties = ClickhouseJdbcUrlParser.parse(url, copy).asProperties();
+        } catch (Exception ex) {
+            properties = copy;
+            logger.error("could not parse url {}", url, ex);
+        }
+        List<DriverPropertyInfo> result = new ArrayList<DriverPropertyInfo>(ClickHouseQueryParam.values().length
+                + ClickHouseConnectionSettings.values().length);
+        result.addAll(dumpProperties(ClickHouseQueryParam.values(), properties));
+        result.addAll(dumpProperties(ClickHouseConnectionSettings.values(), properties));
+        return result.toArray(new DriverPropertyInfo[result.size()]);
+    }
+
+    private List<DriverPropertyInfo> dumpProperties(DriverPropertyInfoAware infoAware[], Properties info) {
+        List<DriverPropertyInfo> result = new ArrayList<DriverPropertyInfo>(infoAware.length);
+        for (int i = 0; i < infoAware.length; ++i) {
+            result.add(infoAware[i].toDriverPropertyInfo(info));
+        }
+        return result;
     }
 
     @Override

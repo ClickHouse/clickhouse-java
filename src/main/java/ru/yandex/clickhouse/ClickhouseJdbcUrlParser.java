@@ -75,10 +75,4 @@ public class ClickhouseJdbcUrlParser {
         }
         return urlProps;
     }
-
-    public static void main(String[] args) throws URISyntaxException {
-        ClickHouseProperties props = ClickhouseJdbcUrlParser.parse("jdbc:clickhouse://localhost:wer", new Properties());
-        System.err.println(props.getDatabase());
-        System.err.println(props.getPort());
-    }
 }

@@ -1,7 +1,10 @@
 package ru.yandex.clickhouse.settings;
 
 
-public enum ClickHouseQueryParam {
+import java.sql.DriverPropertyInfo;
+import java.util.Properties;
+
+public enum ClickHouseQueryParam implements DriverPropertyInfoAware{
     MAX_PARALLEL_REPLICAS("max_parallel_replicas", null, Integer.class, "FIXME"),
     /**
      * https://clickhouse.yandex/reference_en.html#WITH TOTALS modifier
@@ -72,5 +75,13 @@ public enum ClickHouseQueryParam {
     @Override
     public String toString() {
         return name().toLowerCase();
+    }
+
+    public DriverPropertyInfo toDriverPropertyInfo(Properties properties) {
+        DriverPropertyInfo propertyInfo = new DriverPropertyInfo(key, properties.getProperty(key));
+        propertyInfo.required = false;
+        propertyInfo.description = description;
+        propertyInfo.choices = null;
+        return propertyInfo;
     }
 }
