@@ -6,6 +6,8 @@ import org.slf4j.LoggerFactory;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
 import ru.yandex.clickhouse.util.LogProxy;
 
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.sql.*;
 import java.util.Properties;
 import java.util.concurrent.ConcurrentMap;
@@ -19,9 +21,9 @@ import java.util.concurrent.TimeUnit;
  *
  * primitive for now
  *
- * jdbc:clickhouse:host:port
+ * jdbc:clickhouse://host:port
  *
- * for example, jdbc:clickhouse:localhost:8123
+ * for example, jdbc:clickhouse://localhost:8123
  *
  */
 public class ClickHouseDriver implements Driver {

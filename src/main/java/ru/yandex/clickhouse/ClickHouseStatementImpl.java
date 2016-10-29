@@ -46,8 +46,6 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
 
     private ClickHouseProperties properties = new ClickHouseProperties();
 
-    private ClickHouseDataSource source;
-
     private ClickHouseConnection connection;
 
     private ClickHouseResultSet currentResult;
@@ -60,10 +58,9 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
 
     private ObjectMapper objectMapper;
 
-    public ClickHouseStatementImpl(CloseableHttpClient client, ClickHouseDataSource source,
-                                   ClickHouseConnection connection, ClickHouseProperties properties) {
+    public ClickHouseStatementImpl(CloseableHttpClient client, ClickHouseConnection connection,
+            ClickHouseProperties properties) {
         this.client = client;
-        this.source = source;
         this.connection = connection;
         this.properties = properties;
 
@@ -94,7 +91,7 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
             }
         } catch (Exception e) {
             StreamUtils.close(is);
-            throw ClickHouseExceptionSpecifier.specify(e, source.getHost(), source.getPort());
+            throw ClickHouseExceptionSpecifier.specify(e, properties.getHost(), properties.getPort());
         }
     }
 
@@ -385,7 +382,7 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
         if (s.contains(".")) {
             return s.substring(0, s.indexOf("."));
         } else {
-            return source.getDatabase();
+            return properties.getDatabase();
         }
     }
 
@@ -437,7 +434,7 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
                     chMessage = "error while read response " + e.getMessage();
                 }
                 EntityUtils.consumeQuietly(entity);
-                throw ClickHouseExceptionSpecifier.specify(chMessage, source.getHost(), source.getPort());
+                throw ClickHouseExceptionSpecifier.specify(chMessage, properties.getHost(), properties.getPort());
             }
 
             InputStream is;
@@ -452,17 +449,17 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
         } catch (ClickHouseException e) {
             throw e;
         } catch (Exception e) {
-            log.info("Error during connection to " + source + ", reporting failure to data source, message: " + e.getMessage());
+            log.info("Error during connection to " + properties + ", reporting failure to data source, message: " + e.getMessage());
             EntityUtils.consumeQuietly(entity);
             log.info("Error sql: " + sql);
-            throw ClickHouseExceptionSpecifier.specify(e, source.getHost(), source.getPort());
+            throw ClickHouseExceptionSpecifier.specify(e, properties.getHost(), properties.getPort());
         }
     }
 
     URI buildRequestUri(boolean ignoreDatabase, Map<ClickHouseQueryParam, String> additionalClickHouseDBParams) {
         try {
             String query = buildUrlQuery(ignoreDatabase, additionalClickHouseDBParams);
-            return new URI("http", null, source.getHost(), source.getPort(), "/", query, null);
+            return new URI("http", null, properties.getHost(), properties.getPort(), "/", query, null);
         } catch (URISyntaxException e) {
             log.error("Mailformed URL: " + e.getMessage());
             throw new IllegalStateException("illegal configuration of db");
@@ -470,7 +467,7 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
     }
 
     private String buildUrlQuery(boolean ignoreDatabase, Map<ClickHouseQueryParam, String> additionalClickHouseDBParams) {
-        Map<ClickHouseQueryParam, String> params = properties.buildParams(ignoreDatabase);
+        Map<ClickHouseQueryParam, String> params = properties.buildQueryParams(ignoreDatabase);
 
         if (additionalClickHouseDBParams != null && !additionalClickHouseDBParams.isEmpty()) {
             params.putAll(additionalClickHouseDBParams);
@@ -496,7 +493,7 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
             String query = buildUrlQuery(false, null);
             query += "&query=" + sql + " FORMAT TabSeparated";
 
-            URI uri = new URI("http", null, source.getHost(), source.getPort(), "/", query, null);
+            URI uri = new URI("http", null, properties.getHost(), properties.getPort(), "/", query, null);
             HttpPost httpPost = new HttpPost(uri);
             httpPost.setEntity(content);
             HttpResponse response = client.execute(httpPost);
@@ -508,12 +505,12 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
                 } catch (IOException e) {
                     chMessage = "error while read response " + e.getMessage();
                 }
-                throw ClickHouseExceptionSpecifier.specify(chMessage, source.getHost(), source.getPort());
+                throw ClickHouseExceptionSpecifier.specify(chMessage, properties.getHost(), properties.getPort());
             }
         } catch (ClickHouseException e) {
             throw e;
         } catch (Exception e) {
-            throw ClickHouseExceptionSpecifier.specify(e, source.getHost(), source.getPort());
+            throw ClickHouseExceptionSpecifier.specify(e, properties.getHost(), properties.getPort());
         } finally {
             EntityUtils.consumeQuietly(entity);
         }

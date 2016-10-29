@@ -25,7 +25,7 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
 
     private final ClickHouseProperties properties;
 
-    private final ClickHouseDataSource dataSource;
+    private final String url;
 
     private boolean closed = false;
 
@@ -38,8 +38,8 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
     }
 
     public ClickHouseConnectionImpl(String url, ClickHouseProperties properties) {
-        this.dataSource = new ClickHouseDataSource(url, properties);
-        this.properties = dataSource.getProperties();
+        this.url = url;
+        this.properties = properties;
         ClickHouseHttpClientBuilder clientBuilder = new ClickHouseHttpClientBuilder(properties);
         log.debug("new connection");
         httpclient = clientBuilder.buildClient();
@@ -47,24 +47,24 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
 
     @Override
     public Statement createStatement() throws SQLException {
-        return LogProxy.wrap(ClickHouseStatement.class, new ClickHouseStatementImpl(httpclient, dataSource, this, properties));
+        return LogProxy.wrap(ClickHouseStatement.class, new ClickHouseStatementImpl(httpclient, this, properties));
     }
 
     @Override
     public ClickHouseStatement createClickHouseStatement() throws SQLException {
-        return LogProxy.wrap(ClickHouseStatement.class, new ClickHouseStatementImpl(httpclient, dataSource, this, properties));
+        return LogProxy.wrap(ClickHouseStatement.class, new ClickHouseStatementImpl(httpclient, this, properties));
     }
 
     private ClickHouseStatement createClickHouseStatement(CloseableHttpClient httpClient) throws SQLException {
-        return LogProxy.wrap(ClickHouseStatement.class, new ClickHouseStatementImpl(httpClient, dataSource, this, properties));
+        return LogProxy.wrap(ClickHouseStatement.class, new ClickHouseStatementImpl(httpClient, this, properties));
     }
 
     public PreparedStatement createPreparedStatement(String sql) throws SQLException {
-        return LogProxy.wrap(PreparedStatement.class, new ClickHousePreparedStatementImpl(httpclient, dataSource, this, properties, sql));
+        return LogProxy.wrap(PreparedStatement.class, new ClickHousePreparedStatementImpl(httpclient, this, properties, sql));
     }
 
     public ClickHousePreparedStatement createClickHousePreparedStatement(String sql) throws SQLException {
-        return LogProxy.wrap(ClickHousePreparedStatement.class, new ClickHousePreparedStatementImpl(httpclient, dataSource, this, properties, sql));
+        return LogProxy.wrap(ClickHousePreparedStatement.class, new ClickHousePreparedStatementImpl(httpclient, this, properties, sql));
     }
 
 
@@ -123,7 +123,7 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
             httpclient.close();
             closed = true;
         } catch (IOException e) {
-            throw new ClickHouseUnknownException("HTTP client close exception", e, dataSource.getHost(), dataSource.getPort());
+            throw new ClickHouseUnknownException("HTTP client close exception", e, properties.getHost(), properties.getPort());
         }
     }
 
@@ -134,7 +134,7 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
 
     @Override
     public DatabaseMetaData getMetaData() throws SQLException {
-        return LogProxy.wrap(DatabaseMetaData.class, new ClickHouseDatabaseMetadata(dataSource.getUrl(), this));
+        return LogProxy.wrap(DatabaseMetaData.class, new ClickHouseDatabaseMetadata(url, this));
     }
 
     @Override
