@@ -44,7 +44,6 @@ public class ClickHouseStatementTest {
         assertEquals(withCredentials.getUser(), "test_user");
         assertEquals(withCredentials.getPassword(), "test_password");
 
-        ClickHouseProperties props = ClickhouseJdbcUrlParser.parse("jdbc:clickhouse://localhost:1234/ppc", new Properties());
         ClickHouseStatementImpl statement = new ClickHouseStatementImpl(
                 HttpClientBuilder.create().build(),null, withCredentials
                 );

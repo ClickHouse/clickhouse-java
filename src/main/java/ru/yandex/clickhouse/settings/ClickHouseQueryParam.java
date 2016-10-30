@@ -81,7 +81,11 @@ public enum ClickHouseQueryParam implements DriverPropertyInfoAware{
         DriverPropertyInfo propertyInfo = new DriverPropertyInfo(key, properties.getProperty(key));
         propertyInfo.required = false;
         propertyInfo.description = description;
-        propertyInfo.choices = null;
+        propertyInfo.choices = driverPropertyInfoChoices();
         return propertyInfo;
+    }
+
+    private String[] driverPropertyInfoChoices() {
+        return clazz == Boolean.class || clazz == Boolean.TYPE ? new String[]{"true", "false"} : null;
     }
 }

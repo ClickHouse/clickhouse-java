@@ -11,6 +11,7 @@ import ru.yandex.clickhouse.util.LogProxy;
 import ru.yandex.clickhouse.util.TypeUtils;
 
 import java.io.IOException;
+import java.net.URISyntaxException;
 import java.sql.*;
 import java.util.Map;
 import java.util.Properties;
@@ -39,7 +40,11 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
 
     public ClickHouseConnectionImpl(String url, ClickHouseProperties properties) {
         this.url = url;
-        this.properties = properties;
+        try {
+            this.properties = ClickhouseJdbcUrlParser.parse(url, properties.asProperties());
+        } catch (URISyntaxException e) {
+            throw new IllegalArgumentException(e);
+        }
         ClickHouseHttpClientBuilder clientBuilder = new ClickHouseHttpClientBuilder(properties);
         log.debug("new connection");
         httpclient = clientBuilder.buildClient();
@@ -329,12 +334,15 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
 
     @Override
     public <T> T unwrap(Class<T> iface) throws SQLException {
-        return null;
+        if (iface.isAssignableFrom(getClass())) {
+            return iface.cast(this);
+        }
+        throw new SQLException("Cannot unwrap to " + iface.getName());
     }
 
     @Override
     public boolean isWrapperFor(Class<?> iface) throws SQLException {
-        return false;
+        return iface.isAssignableFrom(getClass());
     }
 
     public void setSchema(String schema) throws SQLException {
