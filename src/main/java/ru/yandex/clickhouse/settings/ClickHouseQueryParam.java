@@ -5,7 +5,8 @@ import java.sql.DriverPropertyInfo;
 import java.util.Properties;
 
 public enum ClickHouseQueryParam implements DriverPropertyInfoAware{
-    MAX_PARALLEL_REPLICAS("max_parallel_replicas", null, Integer.class, "FIXME"),
+    //dbms/include/DB/Interpreters/Settings.h
+    MAX_PARALLEL_REPLICAS("max_parallel_replicas", null, Integer.class, "max shard replica count "),
     /**
      * https://clickhouse.yandex/reference_en.html#WITH TOTALS modifier
      */
@@ -29,7 +30,7 @@ public enum ClickHouseQueryParam implements DriverPropertyInfoAware{
     /**
      * https://clickhouse.yandex/reference_en.html#max_block_size
      */
-    MAX_BLOCK_SIZE("max_block_size", null, Integer.class, "FIXME"),
+    MAX_BLOCK_SIZE("max_block_size", null, Integer.class, "Recommendation for what size of block (in number of rows) to load from tables"),
 
     /**
      * https://clickhouse.yandex/reference_en.html#max_rows_to_group_by
@@ -40,7 +41,7 @@ public enum ClickHouseQueryParam implements DriverPropertyInfoAware{
     /**
      * https://clickhouse.yandex/reference_en.html#Settings profiles
      */
-    PROFILE("profile", null, String.class, "FIXME"),
+    PROFILE("profile", null, String.class, "Settings profile: a collection of settings grouped under the same name"),
     USER("user", null, String.class, "user name, by default - default"),
     PASSWORD("password", null, String.class, "user password, by default null");
 
@@ -78,7 +79,7 @@ public enum ClickHouseQueryParam implements DriverPropertyInfoAware{
     }
 
     public DriverPropertyInfo toDriverPropertyInfo(Properties properties) {
-        DriverPropertyInfo propertyInfo = new DriverPropertyInfo(key, properties.getProperty(key));
+        DriverPropertyInfo propertyInfo = new DriverPropertyInfo(key, driverPropertyValue(properties));
         propertyInfo.required = false;
         propertyInfo.description = description;
         propertyInfo.choices = driverPropertyInfoChoices();
@@ -87,5 +88,13 @@ public enum ClickHouseQueryParam implements DriverPropertyInfoAware{
 
     private String[] driverPropertyInfoChoices() {
         return clazz == Boolean.class || clazz == Boolean.TYPE ? new String[]{"true", "false"} : null;
+    }
+
+    private String driverPropertyValue(Properties properties) {
+        String value = properties.getProperty(key);
+        if (value == null) {
+            value = defaultValue == null ? null : defaultValue.toString();
+        }
+        return value;
     }
 }

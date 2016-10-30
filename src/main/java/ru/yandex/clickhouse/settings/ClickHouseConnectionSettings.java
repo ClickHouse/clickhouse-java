@@ -6,28 +6,28 @@ import java.util.Properties;
 
 public enum ClickHouseConnectionSettings implements DriverPropertyInfoAware {
 
-    ASYNC("async", false, "FIXME"),
-    BUFFER_SIZE("buffer_size", 65536, "FIXME"),
-    APACHE_BUFFER_SIZE("apache_buffer_size", 65536, "FIXME"),
-    SOCKET_TIMEOUT("socket_timeout", 30000, "FIXME"),
-    CONNECTION_TIMEOUT("connection_timeout", 50, "FIXME"),
+    ASYNC("async", false, ""),
+    BUFFER_SIZE("buffer_size", 65536, ""),
+    APACHE_BUFFER_SIZE("apache_buffer_size", 65536, ""),
+    SOCKET_TIMEOUT("socket_timeout", 30000, ""),
+    CONNECTION_TIMEOUT("connection_timeout", 50, ""),
 
     /*
-    * this is a timeout for data transfer
-    * socketTimeout + dataTransferTimeout is sent to ClickHouse as max_execution_time
-    * ClickHouse rejects request execution if its time exceeds max_execution_time
+    *
     * */
-    DATA_TRANSFER_TIMEOUT( "dataTransferTimeout", 10000, "FIXME"),
+    DATA_TRANSFER_TIMEOUT( "dataTransferTimeout", 10000, "Timeout for data transfer. "
+            + " socketTimeout + dataTransferTimeout is sent to ClickHouse as max_execution_time. "
+            + " ClickHouse rejects request execution if its time exceeds max_execution_time"),
 
 
-    KEEP_ALIVE_TIMEOUT("keepAliveTimeout", 30 * 1000, "FIXME"),
+    KEEP_ALIVE_TIMEOUT("keepAliveTimeout", 30 * 1000, ""),
 
     /**
      * for ConnectionManager
      */
-    TIME_TO_LIVE_MILLIS("timeToLiveMillis", 60*1000, "FIXME"),
-    DEFAULT_MAX_PER_ROUTE("defaultMaxPerRoute", 500, "FIXME"),
-    MAX_TOTAL("maxTotal", 10000, "FIXME");
+    TIME_TO_LIVE_MILLIS("timeToLiveMillis", 60 * 1000, ""),
+    DEFAULT_MAX_PER_ROUTE("defaultMaxPerRoute", 500, ""),
+    MAX_TOTAL("maxTotal", 10000, "");
 
     private final String key;
     private final Object defaultValue;
@@ -58,10 +58,22 @@ public enum ClickHouseConnectionSettings implements DriverPropertyInfoAware {
     }
 
     public DriverPropertyInfo toDriverPropertyInfo(Properties properties) {
-        DriverPropertyInfo propertyInfo = new DriverPropertyInfo(key, properties.getProperty(key));
+        DriverPropertyInfo propertyInfo = new DriverPropertyInfo(key, driverPropertyValue(properties));
         propertyInfo.required = false;
         propertyInfo.description = description;
-        propertyInfo.choices = null;
+        propertyInfo.choices = driverPropertyInfoChoices();
         return propertyInfo;
+    }
+
+    private String[] driverPropertyInfoChoices() {
+        return clazz == Boolean.class || clazz == Boolean.TYPE ? new String[]{"true", "false"} : null;
+    }
+
+    private String driverPropertyValue(Properties properties) {
+        String value = properties.getProperty(key);
+        if (value == null) {
+            value = defaultValue == null ? null : defaultValue.toString();
+        }
+        return value;
     }
 }

@@ -14,8 +14,7 @@ public class TypeUtils {
 
     public static int toSqlType(String clickshouseType) {
         if (clickshouseType.startsWith("Int") || clickshouseType.startsWith("UInt")) {
-            if (clickshouseType.endsWith("64")) return Types.BIGINT;
-            else return Types.INTEGER;
+            return (clickshouseType.endsWith("64")) ? Types.BIGINT : Types.INTEGER;
         }
         if ("String".equals(clickshouseType)) return Types.VARCHAR;
         if (clickshouseType.startsWith("Float")) return Types.FLOAT;

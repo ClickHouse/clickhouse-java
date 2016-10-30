@@ -116,6 +116,7 @@ public class ClickHouseProperties {
         setTimeToLiveMillis(properties.timeToLiveMillis);
         setDefaultMaxPerRoute(properties.defaultMaxPerRoute);
         setMaxTotal(properties.maxTotal);
+
         setMaxParallelReplicas(properties.maxParallelReplicas);
         setTotalsMode(properties.totalsMode);
         setQuotaKey(properties.quotaKey);
