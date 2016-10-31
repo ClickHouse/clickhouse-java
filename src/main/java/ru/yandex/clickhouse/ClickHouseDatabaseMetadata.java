@@ -837,7 +837,7 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
             //IS_NULLABLE
             row.add("NO");
 
-            //"SCOPE_CATLOG",
+            //"SCOPE_CATALOG",
             row.add(null);
             //"SCOPE_SCHEMA",
             row.add(null);
@@ -875,7 +875,7 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
                 "CHAR_OCTET_LENGTH",
                 "ORDINAL_POSITION",
                 "IS_NULLABLE",
-                "SCOPE_CATLOG",
+                "SCOPE_CATALOG",
                 "SCOPE_SCHEMA",
                 "SCOPE_TABLE",
                 "SOURCE_DATA_TYPE",
