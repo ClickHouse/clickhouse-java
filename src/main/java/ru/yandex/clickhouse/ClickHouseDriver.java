@@ -28,7 +28,6 @@ public class ClickHouseDriver implements Driver {
 
     private static final Logger logger = LoggerFactory.getLogger(ClickHouseDriver.class);
 
-
     private static final ConcurrentMap<ClickHouseConnectionImpl, Boolean> connections = new MapMaker().weakKeys().makeMap();
 
     static {
@@ -43,13 +42,7 @@ public class ClickHouseDriver implements Driver {
 
     @Override
     public ClickHouseConnection connect(String url, Properties info) throws SQLException {
-        if (!acceptsURL(url)) {
-            return null;
-        }
-        logger.info("Creating connection");
-        ClickHouseConnectionImpl connection = new ClickHouseConnectionImpl(url, info);
-        registerConnection(connection);
-        return LogProxy.wrap(ClickHouseConnection.class, connection);
+        return connect(url, new ClickHouseProperties(info));
     }
 
     public ClickHouseConnection connect(String url, ClickHouseProperties properties) throws SQLException {
@@ -62,7 +55,7 @@ public class ClickHouseDriver implements Driver {
         return LogProxy.wrap(ClickHouseConnection.class, connection);
     }
 
-    private synchronized void registerConnection(ClickHouseConnectionImpl connection) {
+    private void registerConnection(ClickHouseConnectionImpl connection) {
         connections.put(connection, true);
     }
 

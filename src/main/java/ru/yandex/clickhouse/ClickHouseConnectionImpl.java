@@ -33,10 +33,6 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
         this(url, new ClickHouseProperties());
     }
 
-    public ClickHouseConnectionImpl(String url, Properties info) {
-        this(url, new ClickHouseProperties(info));
-    }
-
     public ClickHouseConnectionImpl(String url, ClickHouseProperties properties) {
         this.dataSource = new ClickHouseDataSource(url, properties);
         this.properties = dataSource.getProperties();
