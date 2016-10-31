@@ -1,6 +1,7 @@
 package ru.yandex.clickhouse.integration;
 
 import org.testng.Assert;
+import org.testng.annotations.AfterTest;
 import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
 import ru.yandex.clickhouse.ClickHouseArray;
@@ -23,6 +24,13 @@ public class ClickHousePreparedStatementTest {
         dataSource = new ClickHouseDataSource("jdbc:clickhouse://localhost:8123", properties);
         connection = dataSource.getConnection();
         connection.createStatement().execute("CREATE DATABASE IF NOT EXISTS test");
+    }
+
+    @AfterTest
+    public void tearDown() throws Exception {
+        if (connection != null) {
+            connection.close();
+        }
     }
 
     @Test(enabled = false)

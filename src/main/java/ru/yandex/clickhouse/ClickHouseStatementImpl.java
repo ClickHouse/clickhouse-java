@@ -211,7 +211,7 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
 
     @Override
     public int getUpdateCount() throws SQLException {
-        return 0;
+        return currentResult == null ? 0 : -1;
     }
 
     @Override
