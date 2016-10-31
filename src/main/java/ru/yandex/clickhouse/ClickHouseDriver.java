@@ -7,7 +7,7 @@ import org.slf4j.LoggerFactory;
 import ru.yandex.clickhouse.settings.ClickHouseConnectionSettings;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
 import ru.yandex.clickhouse.settings.ClickHouseQueryParam;
-import ru.yandex.clickhouse.settings.DriverPropertyInfoAware;
+import ru.yandex.clickhouse.settings.DriverPropertyCreator;
 import ru.yandex.clickhouse.util.LogProxy;
 import java.sql.*;
 import java.util.ArrayList;
@@ -93,10 +93,10 @@ public class ClickHouseDriver implements Driver {
         return result.toArray(new DriverPropertyInfo[result.size()]);
     }
 
-    private List<DriverPropertyInfo> dumpProperties(DriverPropertyInfoAware infoAware[], Properties info) {
-        List<DriverPropertyInfo> result = new ArrayList<DriverPropertyInfo>(infoAware.length);
-        for (int i = 0; i < infoAware.length; ++i) {
-            result.add(infoAware[i].toDriverPropertyInfo(info));
+    private List<DriverPropertyInfo> dumpProperties(DriverPropertyCreator creators[], Properties info) {
+        List<DriverPropertyInfo> result = new ArrayList<DriverPropertyInfo>(creators.length);
+        for (int i = 0; i < creators.length; ++i) {
+            result.add(creators[i].createDriverPropertyInfo(info));
         }
         return result;
     }

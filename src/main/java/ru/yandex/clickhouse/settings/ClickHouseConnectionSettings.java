@@ -4,7 +4,7 @@ package ru.yandex.clickhouse.settings;
 import java.sql.DriverPropertyInfo;
 import java.util.Properties;
 
-public enum ClickHouseConnectionSettings implements DriverPropertyInfoAware {
+public enum ClickHouseConnectionSettings implements DriverPropertyCreator {
 
     ASYNC("async", false, ""),
     BUFFER_SIZE("buffer_size", 65536, ""),
@@ -57,7 +57,7 @@ public enum ClickHouseConnectionSettings implements DriverPropertyInfoAware {
         return description;
     }
 
-    public DriverPropertyInfo toDriverPropertyInfo(Properties properties) {
+    public DriverPropertyInfo createDriverPropertyInfo(Properties properties) {
         DriverPropertyInfo propertyInfo = new DriverPropertyInfo(key, driverPropertyValue(properties));
         propertyInfo.required = false;
         propertyInfo.description = description;

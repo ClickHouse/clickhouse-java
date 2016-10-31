@@ -4,7 +4,7 @@ package ru.yandex.clickhouse.settings;
 import java.sql.DriverPropertyInfo;
 import java.util.Properties;
 
-public enum ClickHouseQueryParam implements DriverPropertyInfoAware{
+public enum ClickHouseQueryParam implements DriverPropertyCreator {
     //dbms/include/DB/Interpreters/Settings.h
     MAX_PARALLEL_REPLICAS("max_parallel_replicas", null, Integer.class, "max shard replica count "),
     /**
@@ -78,7 +78,7 @@ public enum ClickHouseQueryParam implements DriverPropertyInfoAware{
         return name().toLowerCase();
     }
 
-    public DriverPropertyInfo toDriverPropertyInfo(Properties properties) {
+    public DriverPropertyInfo createDriverPropertyInfo(Properties properties) {
         DriverPropertyInfo propertyInfo = new DriverPropertyInfo(key, driverPropertyValue(properties));
         propertyInfo.required = false;
         propertyInfo.description = description;
