@@ -6,7 +6,7 @@ This is a basic and restricted implementation of jdbc driver for ClickHouse.
 It has support of a minimal subset of features to be usable.
 
 ### Usage
-```
+```xml
 <dependency>
     <groupId>ru.yandex.clickhouse</groupId>
     <artifactId>clickhouse-jdbc</artifactId>

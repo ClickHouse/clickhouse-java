@@ -28,6 +28,10 @@ public final class ClickHouseExceptionSpecifier {
         return specify(clickHouseMessage, null, host, port);
     }
 
+    public static ClickHouseException specify(String clickHouseMessage) {
+        return specify(clickHouseMessage, "unknown", -1);
+    }
+
     /**
      * Here we expect the ClickHouse error message to be of the following format:
      * "Code: 10, e.displayText() = DB::Exception: ...".
