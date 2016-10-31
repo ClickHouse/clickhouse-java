@@ -28,7 +28,7 @@ public class ClickHouseDriver implements Driver {
 
     private static final Logger logger = LoggerFactory.getLogger(ClickHouseDriver.class);
 
-    private static final ConcurrentMap<ClickHouseConnectionImpl, Boolean> CONNECTIONS = new MapMaker().weakKeys().makeMap();
+    private static final ConcurrentMap<ClickHouseConnectionImpl, Boolean> connections = new MapMaker().weakKeys().makeMap();
 
     static {
         ClickHouseDriver driver = new ClickHouseDriver();
@@ -56,7 +56,7 @@ public class ClickHouseDriver implements Driver {
     }
 
     private void registerConnection(ClickHouseConnectionImpl connection) {
-        CONNECTIONS.put(connection, true);
+        connections.put(connection, true);
     }
 
     @Override
@@ -99,7 +99,7 @@ public class ClickHouseDriver implements Driver {
             @Override
             public void run() {
                 try {
-                    for (ClickHouseConnectionImpl connection : CONNECTIONS.keySet()) {
+                    for (ClickHouseConnectionImpl connection : connections.keySet()) {
                         connection.cleanConnections();
                     }
                 } catch (Exception e){
