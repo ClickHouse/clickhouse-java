@@ -20,7 +20,7 @@ public class BatchInserts {
         connection.createStatement().execute("CREATE DATABASE IF NOT EXISTS test");
     }
 
-    @Test(enabled = false)
+    @Test
     public void batchInsert() throws Exception {
 
         connection.createStatement().execute("DROP TABLE IF EXISTS test.batch_insert");
@@ -49,7 +49,7 @@ public class BatchInserts {
 
     }
 
-    @Test(enabled = false)
+    @Test
     public void batchInsert2() throws Exception {
         connection.createStatement().execute("DROP TABLE IF EXISTS test.batch_insert2");
         connection.createStatement().execute(
@@ -92,7 +92,7 @@ public class BatchInserts {
         Assert.assertFalse(rs.next());
     }
 
-    @Test(enabled =  false)
+    @Test
     public void testSimpleInsert() throws Exception{
         connection.createStatement().execute("DROP TABLE IF EXISTS test.insert");
         connection.createStatement().execute(
