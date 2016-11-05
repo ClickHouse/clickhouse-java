@@ -4,10 +4,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.yandex.clickhouse.response.ClickHouseResultBuilder;
 import ru.yandex.clickhouse.util.TypeUtils;
-import ru.yandex.clickhouse.util.Utils;
 
 import java.sql.*;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 
 
@@ -17,8 +17,8 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
 
     private static final Logger log = LoggerFactory.getLogger(ClickHouseDatabaseMetadata.class);
 
-    private String url;
-    private ClickHouseConnection connection;
+    private final String url;
+    private final ClickHouseConnection connection;
 
     public ClickHouseDatabaseMetadata(String url, ClickHouseConnection connection) {
         this.url = url;
@@ -748,11 +748,113 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
         return request("select 'TABLE', 'LOCAL TEMPORARY'");
     }
 
+    private static void buildAndCondition(StringBuilder dest, List<String> conditions) {
+        Iterator<String> iter = conditions.iterator();
+        if (iter.hasNext()) {
+            String entry = iter.next();
+            dest.append(entry);
+        }
+        while (iter.hasNext()) {
+            String entry = iter.next();
+            dest.append(" AND ").append(entry);
+        }
+    }
+
     @Override
     public ResultSet getColumns(String catalog, String schemaPattern, String tableNamePattern, String columnNamePattern) throws SQLException {
-        // todo support patterns as it should be (how?!)
-        log.debug("getColumns: cat " + catalog + " sp " + schemaPattern +
-            " tnp " + tableNamePattern + " cnp " + columnNamePattern);
+        StringBuilder query = new StringBuilder("SELECT database, table, name, type, default_type, default_expression ");
+        query.append("FROM system.columns ");
+        List<String> predicates = new ArrayList<String>();
+        if (schemaPattern != null) {
+            predicates.add("database LIKE '" + schemaPattern + "' ");
+        }
+        if (tableNamePattern != null) {
+            predicates.add("table LIKE '" + tableNamePattern + "' ");
+        }
+        if (columnNamePattern != null) {
+            predicates.add("name LIKE '" + columnNamePattern + "' ");
+        }
+        if (!predicates.isEmpty()) {
+            query.append(" WHERE ");
+            buildAndCondition(query, predicates);
+        }
+        ClickHouseResultBuilder builder = getClickHouseResultBuilderForGetColumns();
+        ResultSet descTable = request(query.toString());
+        int colNum = 1;
+        while (descTable.next()) {
+            List<String> row = new ArrayList<String>();
+            //catalog name
+            row.add(DEFAULT_CAT);
+            //database name
+            row.add(descTable.getString(1));
+            //table name
+            row.add(descTable.getString(2));
+            //column name
+            row.add(descTable.getString(3));
+            String type = descTable.getString(4);
+            int sqlType = TypeUtils.toSqlType(type);
+            //data type
+            row.add(Integer.toString(sqlType));
+            //type name
+            row.add(type);
+            // column size ?
+            row.add("0");
+            //buffer length
+            row.add("0");
+
+            // decimal digits
+            if (sqlType == Types.INTEGER || sqlType == Types.BIGINT && type.contains("Int")) {
+                String bits = type.substring(type.indexOf("Int") + "Int".length());
+                row.add(bits);
+            } else {
+                row.add(null);
+            }
+
+            // radix
+            row.add("10");
+            // nullable
+            row.add(String.valueOf(columnNoNulls));
+            //remarks
+            row.add(null);
+
+            // COLUMN_DEF
+            if ( descTable.getString( 3 ).equals( "DEFAULT" ) ) {
+                row.add( descTable.getString( 4 ) );
+            } else {
+                row.add( null );
+            }
+
+            //"SQL_DATA_TYPE", unused per JavaDoc
+            row.add(null);
+            //"SQL_DATETIME_SUB", unused per JavaDoc
+            row.add(null);
+
+            // char octet length
+            row.add("0");
+            // ordinal
+            row.add(String.valueOf(colNum));
+            colNum += 1;
+            //IS_NULLABLE
+            row.add("NO");
+
+            //"SCOPE_CATALOG",
+            row.add(null);
+            //"SCOPE_SCHEMA",
+            row.add(null);
+            //"SCOPE_TABLE",
+            row.add(null);
+            //"SOURCE_DATA_TYPE",
+            row.add(null);
+            //"IS_AUTOINCREMENT"
+            row.add(null);
+
+            builder.addRow(row);
+        }
+        descTable.close();
+        return builder.build();
+    }
+
+    private ClickHouseResultBuilder getClickHouseResultBuilderForGetColumns() {
         ClickHouseResultBuilder builder = ClickHouseResultBuilder.builder(23);
         builder.names(
                 "TABLE_CAT",
@@ -773,7 +875,7 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
                 "CHAR_OCTET_LENGTH",
                 "ORDINAL_POSITION",
                 "IS_NULLABLE",
-                "SCOPE_CATLOG",
+                "SCOPE_CATALOG",
                 "SCOPE_SCHEMA",
                 "SCOPE_TABLE",
                 "SOURCE_DATA_TYPE",
@@ -804,76 +906,7 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
                 "Int32",
                 "String"
         );
-        // todo use system.columns
-        String sql = "desc table ";
-        if (schemaPattern != null) {
-            sql += Utils.unEscapeString(schemaPattern) + '.';
-        }
-        sql += Utils.unEscapeString(tableNamePattern);
-        ResultSet descTable = request(sql);
-        int colNum = 1;
-        while (descTable.next()) {
-            // column filter
-            if (columnNamePattern != null && !columnNamePattern.equals(descTable.getString(1))
-                    && !columnNamePattern.equals("%")) {
-                continue;
-            }
-            List<String> row = new ArrayList<String>();
-            row.add(DEFAULT_CAT);
-            row.add(schemaPattern);
-            row.add(tableNamePattern);
-            row.add(descTable.getString(1));
-            String type = descTable.getString(2);
-            int sqlType = TypeUtils.toSqlType(type);
-            row.add(Integer.toString(sqlType));
-            row.add(type);
-
-            // column size ?
-            row.add("0");
-            row.add("0");
-
-            // decimal digits
-            if (sqlType == Types.INTEGER || sqlType == Types.BIGINT && type.contains("Int")) {
-                String bits = type.substring(type.indexOf("Int") + "Int".length());
-                row.add(bits);
-            } else {
-                row.add(null);
-            }
-
-            // radix
-            row.add("10");
-            // nullable
-            row.add(String.valueOf(columnNoNulls));
-
-            row.add(null);
-            // COLUMN_DEF
-            if ( descTable.getString( 3 ).equals( "DEFAULT" ) ) {
-                row.add( descTable.getString( 4 ) );
-            } else {
-                row.add( null );
-            }
-            row.add(null);
-            row.add(null);
-
-            // char octet length
-            row.add("0");
-            // ordinal
-            row.add(String.valueOf(colNum));
-            colNum += 1;
-            row.add("NO");
-
-            row.add(null);
-            row.add(null);
-            row.add(null);
-            row.add(null);
-            row.add(null);
-
-            builder.addRow(row);
-
-        }
-        descTable.close();
-
-        return builder.build();
+        return builder;
     }
 
     private ResultSet getEmptyResultSet() {
@@ -1235,12 +1268,15 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
 
     @Override
     public <T> T unwrap(Class<T> iface) throws SQLException {
-        return null;
+        if (iface.isAssignableFrom(getClass())) {
+            return iface.cast(this);
+        }
+        throw new SQLException("Cannot unwrap to " + iface.getName());
     }
 
     @Override
     public boolean isWrapperFor(Class<?> iface) throws SQLException {
-        return false;
+        return iface.isAssignableFrom(getClass());
     }
 
     public ResultSet getPseudoColumns(String catalog, String schemaPattern, String tableNamePattern, String columnNamePattern) throws SQLException {

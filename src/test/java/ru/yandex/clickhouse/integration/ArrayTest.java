@@ -31,7 +31,6 @@ public class ArrayTest {
     @BeforeTest
     public void setUp() throws Exception {
         ClickHouseProperties properties = new ClickHouseProperties();
-//        dataSource = new ClickHouseDataSource("jdbc:clickhouse://health-house-testing.market.yandex.net:8123/market", properties);
         dataSource = new ClickHouseDataSource("jdbc:clickhouse://localhost:8123", properties);
         connection = dataSource.getConnection();
     }

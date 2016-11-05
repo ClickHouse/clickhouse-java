@@ -32,10 +32,9 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
     private boolean[] valuesQuote;
     private List<byte[]> batchRows = new ArrayList<byte[]>();
 
-    public ClickHousePreparedStatementImpl(CloseableHttpClient client, ClickHouseDataSource source,
-                                           ClickHouseConnection connection, ClickHouseProperties properties,
-                                           String sql) throws SQLException {
-        super(client, source, connection, properties);
+    public ClickHousePreparedStatementImpl(CloseableHttpClient client, ClickHouseConnection connection,
+             ClickHouseProperties properties, String sql) throws SQLException {
+        super(client, connection, properties);
         this.sql = sql;
         this.sqlParts = parseSql(sql);
         createBinds();

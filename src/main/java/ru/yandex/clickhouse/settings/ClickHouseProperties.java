@@ -20,6 +20,8 @@ public class ClickHouseProperties {
     private int timeToLiveMillis;
     private int defaultMaxPerRoute;
     private int maxTotal;
+    private String host;
+    private int port;
 
 
     // queries settings
@@ -71,8 +73,39 @@ public class ClickHouseProperties {
         this.user = getSetting(info, ClickHouseQueryParam.USER);
         this.password = getSetting(info, ClickHouseQueryParam.PASSWORD);
     }
+    public Properties asProperties() {
+        PropertiesBuilder ret = new PropertiesBuilder();
+        ret.put(ClickHouseConnectionSettings.ASYNC.getKey(), async);
+        ret.put(ClickHouseConnectionSettings.BUFFER_SIZE.getKey(), bufferSize);
+        ret.put(ClickHouseConnectionSettings.APACHE_BUFFER_SIZE.getKey(), apacheBufferSize);
+        ret.put(ClickHouseConnectionSettings.SOCKET_TIMEOUT.getKey(), socketTimeout);
+        ret.put(ClickHouseConnectionSettings.CONNECTION_TIMEOUT.getKey(), connectionTimeout);
+        ret.put(ClickHouseConnectionSettings.DATA_TRANSFER_TIMEOUT.getKey(), dataTransferTimeout);
+        ret.put(ClickHouseConnectionSettings.KEEP_ALIVE_TIMEOUT.getKey(), keepAliveTimeout);
+        ret.put(ClickHouseConnectionSettings.TIME_TO_LIVE_MILLIS.getKey(), timeToLiveMillis);
+        ret.put(ClickHouseConnectionSettings.DEFAULT_MAX_PER_ROUTE.getKey(), defaultMaxPerRoute);
+        ret.put(ClickHouseConnectionSettings.MAX_TOTAL.getKey(), maxTotal);
+
+        ret.put(ClickHouseQueryParam.MAX_PARALLEL_REPLICAS.getKey(), maxParallelReplicas);
+        ret.put(ClickHouseQueryParam.TOTALS_MODE.getKey(), totalsMode);
+        ret.put(ClickHouseQueryParam.QUOTA_KEY.getKey(), quotaKey);
+        ret.put(ClickHouseQueryParam.PRIORITY.getKey(), priority);
+        ret.put(ClickHouseQueryParam.DATABASE.getKey(), database);
+        ret.put(ClickHouseQueryParam.COMPRESS.getKey(), compress);
+        ret.put(ClickHouseQueryParam.EXTREMES.getKey(), extremes);
+        ret.put(ClickHouseQueryParam.MAX_THREADS.getKey(), maxThreads);
+        ret.put(ClickHouseQueryParam.MAX_EXECUTION_TIME.getKey(), maxExecutionTime);
+        ret.put(ClickHouseQueryParam.MAX_BLOCK_SIZE.getKey(), maxBlockSize);
+        ret.put(ClickHouseQueryParam.MAX_ROWS_TO_GROUP_BY.getKey(), maxRowsToGroupBy);
+        ret.put(ClickHouseQueryParam.PROFILE.getKey(), profile);
+        ret.put(ClickHouseQueryParam.USER.getKey(), user);
+        ret.put(ClickHouseQueryParam.PASSWORD.getKey(), password);
+        return ret.getProperties();
+    }
 
     public ClickHouseProperties(ClickHouseProperties properties) {
+        setHost(properties.host);
+        setPort(properties.port);
         setAsync(properties.async);
         setBufferSize(properties.bufferSize);
         setApacheBufferSize(properties.apacheBufferSize);
@@ -83,6 +116,7 @@ public class ClickHouseProperties {
         setTimeToLiveMillis(properties.timeToLiveMillis);
         setDefaultMaxPerRoute(properties.defaultMaxPerRoute);
         setMaxTotal(properties.maxTotal);
+
         setMaxParallelReplicas(properties.maxParallelReplicas);
         setTotalsMode(properties.totalsMode);
         setQuotaKey(properties.quotaKey);
@@ -99,7 +133,7 @@ public class ClickHouseProperties {
         setPassword(properties.password);
     }
 
-    public Map<ClickHouseQueryParam, String> buildParams(boolean ignoreDatabase){
+    public Map<ClickHouseQueryParam, String> buildQueryParams(boolean ignoreDatabase){
         Map<ClickHouseQueryParam, String> params = new HashMap<ClickHouseQueryParam, String>();
 
         if (maxParallelReplicas != null) params.put(ClickHouseQueryParam.MAX_PARALLEL_REPLICAS, String.valueOf(maxParallelReplicas));
@@ -361,5 +395,52 @@ public class ClickHouseProperties {
 
     public void setPassword(String password) {
         this.password = password;
+    }
+
+    public String getHost() {
+        return host;
+    }
+
+    public void setHost(String host) {
+        this.host = host;
+    }
+
+    public int getPort() {
+        return port;
+    }
+
+    public void setPort(int port) {
+        this.port = port;
+    }
+
+    private static class PropertiesBuilder {
+        private final Properties properties;
+        public PropertiesBuilder() {
+            properties = new Properties();
+        }
+
+        public void put(String key, int value) {
+            properties.put(key, value);
+        }
+
+        public void put(String key, Integer value) {
+            if (value != null) {
+                properties.put(key, value.toString());
+            }
+        }
+
+        public void put(String key, boolean value) {
+            properties.put(key, String.valueOf(value));
+        }
+
+        public void put(String key, String value) {
+            if (value != null) {
+                properties.put(key, value);
+            }
+        }
+
+        public Properties getProperties() {
+            return properties;
+        }
     }
 }

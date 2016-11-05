@@ -6,6 +6,7 @@ import org.testng.annotations.Test;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
 
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.sql.SQLException;
 import java.util.Properties;
 
@@ -34,7 +35,7 @@ public class ClickHouseStatementTest {
     }
 
     @Test
-    public void testCredentials() throws SQLException {
+    public void testCredentials() throws SQLException, URISyntaxException {
         ClickHouseProperties properties = new ClickHouseProperties(new Properties());
         ClickHouseProperties withCredentials = properties.withCredentials("test_user", "test_password");
         assertTrue(withCredentials != properties);
@@ -44,10 +45,7 @@ public class ClickHouseStatementTest {
         assertEquals(withCredentials.getPassword(), "test_password");
 
         ClickHouseStatementImpl statement = new ClickHouseStatementImpl(
-                HttpClientBuilder.create().build(),
-                new ClickHouseDataSource("jdbc:clickhouse://localhost:1234/ppc"),
-                null,
-                withCredentials
+                HttpClientBuilder.create().build(),null, withCredentials
                 );
 
         URI uri = statement.buildRequestUri(false, null);
