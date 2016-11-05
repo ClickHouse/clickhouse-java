@@ -1,0 +1,57 @@
+0.1.13
+  * Lazy init on cleaner executor
+  * Auto-load meta-file
+  * Implemented getArray()
+  * Fix exception specifier
+  * JDBC compliance improvements
+
+0.1.12
+  * Fix setArray
+  * Improve isValid
+  * Fix single column result set
+
+0.1.11
+  * Fix exception specifier
+  * Fix SimpleDateFormat usage
+
+0.1.10
+  * Support ipv6 jdbc url
+  * Return correct default value for COLUMN_DEF
+  * getColumnClassName
+
+0.1.9
+  * Skip jdbc url to another DB
+  * Statement to ResultSet
+  * Correct return value for execute(sql)
+  * Arrays support
+
+0.1.8
+  * Improved performance of batch operations
+  * Don't create cleaner executer for every connection
+
+0.1.7
+  * Don't set implicit max_execution_time
+  * LogProxy only for trace
+
+0.1.6
+  * Don't fail on fetchSize hint
+
+0.1.5
+  * Nan and inf values support for double
+  * Fix ClickHouseException
+  * Database from properties priority over url
+
+0.1.4
+  * Fix batch support
+  * Fix timestamp mapping
+
+0.1.3
+  * Batch support
+
+0.1.2
+  * BigDecimal support
+  * Assembly plugin
+  * Fix isSelect
+
+0.1.1
+  * Initial release
