@@ -1,6 +1,6 @@
 sudo: required
 language: java
-install: mvn install --DskipTests=true -Dgpg.skip=true
+install: mvn install -DskipTests=true -Dgpg.skip=true
 jdk:
   - openjdk6
   - oraclejdk8
