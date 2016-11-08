@@ -30,7 +30,7 @@ public class ClickHouseStatementImplTest {
         }
     }
 
-    @Test(enabled = false)
+    @Test
     public void testUpdateCountForSelect() throws Exception {
         Statement stmt = connection.createStatement();
         ResultSet rs = stmt.executeQuery("SELECT dummy FROM system.one");

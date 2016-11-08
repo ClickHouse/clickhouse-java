@@ -33,7 +33,7 @@ public class ClickHousePreparedStatementTest {
         }
     }
 
-    @Test(enabled = false)
+    @Test
     public void testArrayTest() throws Exception {
 
         connection.createStatement().execute("DROP TABLE IF EXISTS test.array_test");
@@ -60,7 +60,7 @@ public class ClickHousePreparedStatementTest {
 
     }
 
-    @Test(enabled = false)
+    @Test
     public void testSingleColumnResultSet() throws SQLException {
         ResultSet rs = connection.createStatement().executeQuery("select c from (\n" +
                 "    select 'a' as c, 1 as rn\n" +
