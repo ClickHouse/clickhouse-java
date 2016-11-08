@@ -35,7 +35,7 @@ public class ArrayTest {
         connection = dataSource.getConnection();
     }
 
-    @Test(enabled = false)
+    @Test
     public void testStringArray() throws SQLException {
         String[] array = {"a'','sadf',aa", "", ",", "юникод,'юникод'", ",2134,saldfk"};
         String arrayString = array.length == 0 ? "" : "'" + Joiner.on("','").join(Iterables.transform(Arrays.asList(array), new Function<String, String>() {
@@ -58,7 +58,7 @@ public class ArrayTest {
         statement.close();
     }
 
-    @Test(enabled = false)
+    @Test
     public void testLongArray() throws SQLException {
         Long[] array = {-12345678987654321L, 23325235235L, -12321342L};
         String arrayString = array.length == 0 ? "" : "toInt64(" + Joiner.on("),toInt64(").join(array) + ")";
