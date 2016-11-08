@@ -2,6 +2,7 @@ package ru.yandex.clickhouse.util;
 
 import java.lang.reflect.Array;
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.sql.SQLException;
 import java.sql.Time;
 import java.sql.Timestamp;
@@ -27,6 +28,10 @@ public class TypeUtils {
         return Types.VARCHAR;
     }
 
+    public static boolean isUnsigned(String clickhouseType){
+        return clickhouseType.startsWith("UInt");
+    }
+
     public static int[] supportedTypes() {
         return new int[]{
                 Types.BIGINT, Types.INTEGER, Types.VARCHAR, Types.FLOAT,
@@ -34,12 +39,12 @@ public class TypeUtils {
         };
     }
 
-    public static int getArrayElementType(String clickhouseType) {
+    public static String getArrayElementTypeName(String clickhouseType) {
         if (!isArray(clickhouseType)) {
             throw new IllegalArgumentException("not an array");
         }
 
-        return toSqlType(clickhouseType.substring("Array(".length(), clickhouseType.length() - 1));
+        return clickhouseType.substring("Array(".length(), clickhouseType.length() - 1);
     }
 
     private static boolean isArray(String clickhouseType) {
@@ -47,11 +52,11 @@ public class TypeUtils {
                 && clickhouseType.endsWith(")");
     }
 
-    public static Class toClass(int sqlType) throws SQLException {
-        return toClass(sqlType, -1);
+    public static Class toClass(int sqlType, boolean isUnsigned) throws SQLException {
+        return toClass(sqlType, -1, isUnsigned);
     }
 
-    public static Class toClass(int sqlType, int elementSqltype) throws SQLException {
+    public static Class toClass(int sqlType, int elementSqltype, boolean isUnsigned) throws SQLException {
         switch (sqlType) {
             case Types.BIT:
             case Types.BOOLEAN:
@@ -59,8 +64,10 @@ public class TypeUtils {
             case Types.TINYINT:
             case Types.SMALLINT:
             case Types.INTEGER:
+                if (isUnsigned) return Long.class;
                 return Integer.class;
             case Types.BIGINT:
+                if (isUnsigned) return BigInteger.class;
                 return Long.class;
             case Types.DOUBLE:
                 return Double.class;
@@ -82,7 +89,7 @@ public class TypeUtils {
             case Types.TIME:
                 return Time.class;
             case Types.ARRAY:
-                Class elementType = toClass(elementSqltype, -1);
+                Class elementType = toClass(elementSqltype, isUnsigned);
                 return Array.newInstance(elementType, 0).getClass();
             default:
                 throw new UnsupportedOperationException("Sql type " + sqlType + "is not supported");
