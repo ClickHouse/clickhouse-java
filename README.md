@@ -1,4 +1,4 @@
-[![clickhouse-jdbc](https://maven-badges.herokuapp.com/maven-central/ru.yandex.clickhouse/clickhouse-jdbc/badge.svg)](https://maven-badges.herokuapp.com/maven-central/ru.yandex.clickhouse/clickhouse-jdbc)
+[![clickhouse-jdbc](https://maven-badges.herokuapp.com/maven-central/ru.yandex.clickhouse/clickhouse-jdbc/badge.svg)](https://maven-badges.herokuapp.com/maven-central/ru.yandex.clickhouse/clickhouse-jdbc) [![Build Status](https://travis-ci.org/yandex/clickhouse-jdbc.svg?branch=master)](https://travis-ci.org/yandex/clickhouse-jdbc)
 ClickHouse JDBC driver
 ===============
 
