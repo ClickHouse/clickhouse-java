@@ -1,18 +1,17 @@
 package ru.yandex.clickhouse.integration;
 
+import org.testng.Assert;
+import org.testng.annotations.AfterTest;
+import org.testng.annotations.BeforeTest;
+import org.testng.annotations.Test;
+import ru.yandex.clickhouse.ClickHouseDataSource;
+import ru.yandex.clickhouse.settings.ClickHouseProperties;
+
 import java.math.BigInteger;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
-
-import org.testng.Assert;
-import org.testng.annotations.AfterTest;
-import org.testng.annotations.BeforeTest;
-import org.testng.annotations.Test;
-
-import ru.yandex.clickhouse.ClickHouseDataSource;
-import ru.yandex.clickhouse.settings.ClickHouseProperties;
 
 public class ClickHouseStatementImplTest {
     private ClickHouseDataSource dataSource;
@@ -41,6 +40,21 @@ public class ClickHouseStatementImplTest {
         Assert.assertEquals(stmt.getUpdateCount(), -1);
         rs.close();
         stmt.close();
+    }
+
+    @Test
+    public void testSingleColumnResultSet() throws SQLException {
+        ResultSet rs = connection.createStatement().executeQuery("select c from (\n" +
+                "    select 'a' as c, 1 as rn\n" +
+                "    UNION ALL select 'b' as c, 2 as rn\n" +
+                "    UNION ALL select '' as c, 3 as rn\n" +
+                "    UNION ALL select 'd' as c, 4 as rn\n" +
+                " ) order by rn");
+        StringBuffer sb = new StringBuffer();
+        while (rs.next()) {
+            sb.append(rs.getString("c")).append("\n");
+        }
+        Assert.assertEquals(sb.toString(), "a\nb\n\nd\n");
     }
 
     @Test
