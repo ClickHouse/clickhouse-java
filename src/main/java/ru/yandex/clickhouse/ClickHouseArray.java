@@ -13,9 +13,14 @@ import java.util.Map;
  */
 public class ClickHouseArray implements Array {
     private int elementType;
+    private boolean isUnsigned;
     private Object array;
 
-    public ClickHouseArray(int elementType, Object array) {
+    public ClickHouseArray(int elementType, Object array){
+        this(elementType, false, array);
+    }
+
+    public ClickHouseArray(int elementType, boolean isUnsigned, Object array) {
         if (array == null) {
             throw new IllegalArgumentException("array cannon be null");
         }
@@ -24,11 +29,12 @@ public class ClickHouseArray implements Array {
         }
         this.elementType = elementType;
         this.array = array;
+        this.isUnsigned = isUnsigned;
     }
 
     @Override
     public String getBaseTypeName() throws SQLException {
-        return TypeUtils.toClass(elementType).getName();
+        return TypeUtils.toClass(elementType, isUnsigned).getName();
     }
 
     @Override

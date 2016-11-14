@@ -3,6 +3,7 @@ package ru.yandex.clickhouse.response;
 import java.io.IOException;
 import java.io.InputStream;
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.sql.*;
 import java.sql.Array;
 import java.text.ParseException;
@@ -203,11 +204,13 @@ public class ClickHouseResultSet extends AbstractResultSet {
             throw new SQLException("Not an array");
         }
 
-        int elementType = TypeUtils.getArrayElementType(types[columnIndex - 1]);
+        String elementTypeName = TypeUtils.getArrayElementTypeName(types[columnIndex - 1]);
+        int elementType = TypeUtils.toSqlType(elementTypeName);
+        boolean isUnsigned = TypeUtils.isUnsigned(elementTypeName);
 
-        Object array = ByteFragmentUtils.parseArray(getValue(columnIndex), TypeUtils.toClass(elementType));
+        Object array = ByteFragmentUtils.parseArray(getValue(columnIndex), TypeUtils.toClass(elementType, isUnsigned));
 
-        return new ClickHouseArray(elementType, array);
+        return new ClickHouseArray(elementType, isUnsigned, array);
     }
 
     @Override
@@ -338,10 +341,20 @@ public class ClickHouseResultSet extends AbstractResultSet {
     @Override
     public Object getObject(int columnIndex) throws SQLException {
         try {
-            int type = TypeUtils.toSqlType(types[columnIndex - 1]);
+            String typeName = types[columnIndex - 1];
+            int type = TypeUtils.toSqlType(typeName);
             switch (type) {
-                case Types.BIGINT:      return getLong(columnIndex);
-                case Types.INTEGER:     return getInt(columnIndex);
+                case Types.BIGINT:
+                    if (TypeUtils.isUnsigned(typeName)){
+                        String stringVal = getString(columnIndex);
+                        return new BigInteger(stringVal);
+                    }
+                    return getLong(columnIndex);
+                case Types.INTEGER:
+                    if (TypeUtils.isUnsigned(typeName)){
+                        return getLong(columnIndex);
+                    }
+                    return getInt(columnIndex);
                 case Types.VARCHAR:     return getString(columnIndex);
                 case Types.FLOAT:       return getFloat(columnIndex);
                 case Types.DATE:        return getDate(columnIndex);

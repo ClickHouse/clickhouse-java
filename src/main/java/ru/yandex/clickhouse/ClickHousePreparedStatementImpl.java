@@ -287,7 +287,7 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
             } else if (x instanceof Clob) {
                 setClob(parameterIndex, (Clob) x);
             } else if (x instanceof BigInteger) {
-                setString(parameterIndex, x.toString());
+                setBind(parameterIndex, x.toString());
             } else if (x instanceof Collection) {
                 setBind(parameterIndex, ClickHouseArrayUtil.toString((Collection) x));
             } else if (x.getClass().isArray()) {

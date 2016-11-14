@@ -8,11 +8,8 @@ import ru.yandex.clickhouse.ClickHouseArray;
 import ru.yandex.clickhouse.ClickHouseDataSource;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
 
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Types;
+import java.math.BigInteger;
+import java.sql.*;
 
 public class ClickHousePreparedStatementTest {
     private ClickHouseDataSource dataSource;
@@ -57,21 +54,26 @@ public class ClickHousePreparedStatementTest {
 
         Assert.assertEquals(rs.getInt("cnt"), 2);
         Assert.assertFalse(rs.next());
-
     }
 
     @Test
-    public void testSingleColumnResultSet() throws SQLException {
-        ResultSet rs = connection.createStatement().executeQuery("select c from (\n" +
-                "    select 'a' as c, 1 as rn\n" +
-                "    UNION ALL select 'b' as c, 2 as rn\n" +
-                "    UNION ALL select '' as c, 3 as rn\n" +
-                "    UNION ALL select 'd' as c, 4 as rn\n" +
-                " ) order by rn");
-        StringBuffer sb = new StringBuffer();
-        while (rs.next()) {
-            sb.append(rs.getString("c")).append("\n");
-        }
-        Assert.assertEquals(sb.toString(), "a\nb\n\nd\n");
+    public void testInsertUInt() throws SQLException {
+        connection.createStatement().execute("DROP TABLE IF EXISTS test.unsigned_insert");
+        connection.createStatement().execute(
+                "CREATE TABLE IF NOT EXISTS test.unsigned_insert (ui32 UInt32, ui64 UInt64) ENGINE = TinyLog"
+        );
+        PreparedStatement stmt = connection.prepareStatement("insert into test.unsigned_insert (ui32, ui64) values (?, ?)");
+        stmt.setObject(1, 4294967286L);
+        stmt.setObject(2, new BigInteger("18446744073709551606"));
+        stmt.execute();
+        Statement select = connection.createStatement();
+        ResultSet rs = select.executeQuery("select ui32, ui64 from test.unsigned_insert");
+        rs.next();
+        Object bigUInt32 = rs.getObject(1);
+        Assert.assertTrue(bigUInt32 instanceof Long);
+        Assert.assertEquals(((Long)bigUInt32).longValue(), 4294967286L);
+        Object bigUInt64 = rs.getObject(2);
+        Assert.assertTrue(bigUInt64 instanceof BigInteger);
+        Assert.assertEquals(bigUInt64, new BigInteger("18446744073709551606"));
     }
 }

@@ -118,11 +118,13 @@ public class ClickHouseResultSetMetaData implements ResultSetMetaData {
 
     @Override
     public String getColumnClassName(int column) throws SQLException {
-        int sqlType = getColumnType(column);
-        int elementSqlType = sqlType == Types.ARRAY ?
-                TypeUtils.getArrayElementType(getColumnTypeName(column))
-                : -1;
-        return TypeUtils.toClass(sqlType, elementSqlType).getName();
+        String columnTypeName = getColumnTypeName(column);
+        int sqlType = TypeUtils.toSqlType(columnTypeName);
+        if (sqlType == Types.ARRAY){
+            String elementTypeName = TypeUtils.getArrayElementTypeName(columnTypeName);
+            return TypeUtils.toClass(sqlType, TypeUtils.toSqlType(elementTypeName), TypeUtils.isUnsigned(elementTypeName)).getName();
+        }
+        return TypeUtils.toClass(sqlType, -1, TypeUtils.isUnsigned(columnTypeName)).getName();
     }
 
     @Override
