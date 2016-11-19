@@ -43,7 +43,10 @@ public enum ClickHouseQueryParam implements DriverPropertyCreator {
      */
     PROFILE("profile", null, String.class, "Settings profile: a collection of settings grouped under the same name"),
     USER("user", null, String.class, "user name, by default - default"),
-    PASSWORD("password", null, String.class, "user password, by default null");
+    PASSWORD("password", null, String.class, "user password, by default null"),
+
+    MAX_RESULT_ROWS("max_result_rows", null, Integer.class, "Limit on the number of rows in the result. Also checked for subqueries, and on remote servers when running parts of a distributed query."),
+    RESULT_OVERFLOW_MODE("result_overflow_mode", null, String.class, "What to do if the volume of the result exceeds one of the limits: 'throw' or 'break'. By default, throw. Using 'break' is similar to using LIMIT.");
 
     private final String key;
     private final Object defaultValue;
