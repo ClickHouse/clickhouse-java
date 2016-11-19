@@ -166,6 +166,9 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
 
     @Override
     public void setMaxRows(int max) throws SQLException {
+        if (max < 0){
+            throw new SQLException(String.format("Illegal maxRows value: %d", max));
+        }
         maxRows = max;
     }
 
@@ -475,6 +478,8 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
         if (additionalClickHouseDBParams != null && !additionalClickHouseDBParams.isEmpty()) {
             params.putAll(additionalClickHouseDBParams);
         }
+
+        setStatementPropertiesToParams(params);
         List<String> paramPairs = new ArrayList<String>();
         for (Map.Entry<ClickHouseQueryParam, String> entry : params.entrySet()) {
             if (!StringUtils.isEmpty(entry.getValue())) {
@@ -482,6 +487,13 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
             }
         }
         return StringUtils.join(paramPairs, '&');
+    }
+
+    private void setStatementPropertiesToParams(Map<ClickHouseQueryParam, String> params) {
+        if (maxRows > 0) {
+            params.put(ClickHouseQueryParam.MAX_RESULT_ROWS, String.valueOf(maxRows));
+            params.put(ClickHouseQueryParam.RESULT_OVERFLOW_MODE, "break");
+        }
     }
 
     public void sendStream(InputStream content, String table) throws ClickHouseException {
