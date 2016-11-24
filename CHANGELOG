@@ -1,3 +1,9 @@
+0.1.14
+  * Testing with travis
+  * Unsigned types support
+  * Improvement on setMaxRows
+  * Configuration options for external sort and aggregation
+
 0.1.13
   * Lazy init on cleaner executor
   * Auto-load meta-file
