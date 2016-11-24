@@ -39,7 +39,9 @@ public class ClickHouseProperties {
     private String profile;
     private String user;
     private String password;
-
+    private boolean distributedAggregationMemoryEfficient;
+    private Long maxBytesBeforeExternalGroupBy;
+    private Long maxBytesBeforeExternalSort;
 
     public ClickHouseProperties() {
         this(new Properties());
@@ -72,6 +74,9 @@ public class ClickHouseProperties {
         this.profile = getSetting(info, ClickHouseQueryParam.PROFILE);
         this.user = getSetting(info, ClickHouseQueryParam.USER);
         this.password = getSetting(info, ClickHouseQueryParam.PASSWORD);
+        this.distributedAggregationMemoryEfficient = (Boolean)getSetting(info, ClickHouseQueryParam.DISTRIBUTED_AGGREGATION_MEMORY_EFFICIENT);
+        this.maxBytesBeforeExternalGroupBy = (Long)getSetting(info, ClickHouseQueryParam.MAX_BYTES_BEFORE_EXTERNAL_GROUP_BY);
+        this.maxBytesBeforeExternalSort = (Long)getSetting(info, ClickHouseQueryParam.MAX_BYTES_BEFORE_EXTERNAL_SORT);
     }
     public Properties asProperties() {
         PropertiesBuilder ret = new PropertiesBuilder();
@@ -131,6 +136,9 @@ public class ClickHouseProperties {
         setProfile(properties.profile);
         setUser(properties.user);
         setPassword(properties.password);
+        setDistributedAggregationMemoryEfficient(properties.distributedAggregationMemoryEfficient);
+        setMaxBytesBeforeExternalGroupBy(properties.maxBytesBeforeExternalGroupBy);
+        setMaxBytesBeforeExternalSort(properties.maxBytesBeforeExternalSort);
     }
 
     public Map<ClickHouseQueryParam, String> buildQueryParams(boolean ignoreDatabase){
@@ -167,6 +175,11 @@ public class ClickHouseProperties {
 
         if (user != null) params.put(ClickHouseQueryParam.USER, user);
         if (password != null) params.put(ClickHouseQueryParam.PASSWORD, password);
+
+        if (distributedAggregationMemoryEfficient) params.put(ClickHouseQueryParam.DISTRIBUTED_AGGREGATION_MEMORY_EFFICIENT, "1");
+
+        if (maxBytesBeforeExternalGroupBy != null) params.put(ClickHouseQueryParam.MAX_BYTES_BEFORE_EXTERNAL_GROUP_BY, String.valueOf(maxBytesBeforeExternalGroupBy));
+        if (maxBytesBeforeExternalSort != null) params.put(ClickHouseQueryParam.MAX_BYTES_BEFORE_EXTERNAL_SORT, String.valueOf(maxBytesBeforeExternalSort));
 
         return params;
     }
@@ -413,6 +426,30 @@ public class ClickHouseProperties {
         this.port = port;
     }
 
+    public boolean isDistributedAggregationMemoryEfficient() {
+        return distributedAggregationMemoryEfficient;
+    }
+
+    public void setDistributedAggregationMemoryEfficient(boolean distributedAggregationMemoryEfficient) {
+        this.distributedAggregationMemoryEfficient = distributedAggregationMemoryEfficient;
+    }
+
+    public Long getMaxBytesBeforeExternalGroupBy() {
+        return maxBytesBeforeExternalGroupBy;
+    }
+
+    public void setMaxBytesBeforeExternalGroupBy(Long maxBytesBeforeExternalGroupBy) {
+        this.maxBytesBeforeExternalGroupBy = maxBytesBeforeExternalGroupBy;
+    }
+
+    public Long getMaxBytesBeforeExternalSort() {
+        return maxBytesBeforeExternalSort;
+    }
+
+    public void setMaxBytesBeforeExternalSort(Long maxBytesBeforeExternalSort) {
+        this.maxBytesBeforeExternalSort = maxBytesBeforeExternalSort;
+    }
+
     private static class PropertiesBuilder {
         private final Properties properties;
         public PropertiesBuilder() {
@@ -443,4 +480,5 @@ public class ClickHouseProperties {
             return properties;
         }
     }
+
 }
