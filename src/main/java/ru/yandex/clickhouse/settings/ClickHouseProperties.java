@@ -105,6 +105,9 @@ public class ClickHouseProperties {
         ret.put(ClickHouseQueryParam.PROFILE.getKey(), profile);
         ret.put(ClickHouseQueryParam.USER.getKey(), user);
         ret.put(ClickHouseQueryParam.PASSWORD.getKey(), password);
+        ret.put(ClickHouseQueryParam.DISTRIBUTED_AGGREGATION_MEMORY_EFFICIENT.getKey(), distributedAggregationMemoryEfficient);
+        ret.put(ClickHouseQueryParam.MAX_BYTES_BEFORE_EXTERNAL_GROUP_BY.getKey(), maxBytesBeforeExternalGroupBy);
+        ret.put(ClickHouseQueryParam.MAX_BYTES_BEFORE_EXTERNAL_SORT.getKey(), maxBytesBeforeExternalSort);
         return ret.getProperties();
     }
 
@@ -461,6 +464,12 @@ public class ClickHouseProperties {
         }
 
         public void put(String key, Integer value) {
+            if (value != null) {
+                properties.put(key, value.toString());
+            }
+        }
+
+        public void put(String key, Long value) {
             if (value != null) {
                 properties.put(key, value.toString());
             }
