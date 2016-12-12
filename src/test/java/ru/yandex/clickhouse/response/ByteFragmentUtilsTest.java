@@ -6,10 +6,13 @@ import com.google.common.collect.Iterables;
 import com.google.common.primitives.Longs;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
+import ru.yandex.clickhouse.util.guava.StreamUtils;
 
+import java.nio.charset.Charset;
 import java.util.Arrays;
 
 import static org.testng.Assert.assertEquals;
+import static org.testng.Assert.assertNotNull;
 
 /**
  * @author Aleksandr Kormushin <kormushin@yandex-team.ru>
@@ -45,10 +48,11 @@ public class ByteFragmentUtilsTest {
             }
         })) + "']";
 
-        byte[] bytes = sourceString.getBytes();
+        byte[] bytes = sourceString.getBytes(StreamUtils.UTF_8);
         ByteFragment fragment = new ByteFragment(bytes, 0, bytes.length);
         String[] parsedArray = (String[]) ByteFragmentUtils.parseArray(fragment, String.class);
 
+        assertNotNull(parsedArray);
         assertEquals(parsedArray.length, array.length);
         for (int i = 0; i < parsedArray.length; i++) {
             assertEquals(parsedArray[i], array[i]);
@@ -64,7 +68,7 @@ public class ByteFragmentUtilsTest {
             }
         })) + "]";
 
-        byte[] bytes = sourceString.getBytes();
+        byte[] bytes = sourceString.getBytes(StreamUtils.UTF_8);
         ByteFragment fragment = new ByteFragment(bytes, 0, bytes.length);
         long[] parsedArray = (long[]) ByteFragmentUtils.parseArray(fragment, Long.class);
 

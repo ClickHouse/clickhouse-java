@@ -61,7 +61,7 @@ public class ClickHouseDriver implements Driver {
     }
 
     private void registerConnection(ClickHouseConnectionImpl connection) {
-        connections.put(connection, true);
+        connections.put(connection, Boolean.TRUE);
     }
 
     @Override

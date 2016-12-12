@@ -20,8 +20,6 @@ import ru.yandex.clickhouse.util.TypeUtils;
 
 public class ClickHouseResultSet extends AbstractResultSet {
 
-    private static final Logger log = LoggerFactory.getLogger(ClickHouseResultSet.class);
-
     private final SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss"); //
     private final SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd"); //
 
@@ -48,7 +46,7 @@ public class ClickHouseResultSet extends AbstractResultSet {
     private int rowNumber;
 
     // statement result set belongs to
-    private Statement statement;
+    private final Statement statement;
 
     public ClickHouseResultSet(InputStream is, int bufferSize, String db, String table, Statement statement) throws IOException {
         this.db = db;

@@ -112,7 +112,7 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
                 return objectMapper.readValue(bytes, ClickHouseResponse.class);
             } catch (IOException e) {
                 if (bytes != null) {
-                    log.warn("Wrong json: " + new String(bytes));
+                    log.warn("Wrong json: " + new String(bytes, StreamUtils.UTF_8));
                 }
                 throw e;
             }
