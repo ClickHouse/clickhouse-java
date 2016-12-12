@@ -132,27 +132,27 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
 
     @Override
     public boolean supportsMixedCaseQuotedIdentifiers() throws SQLException {
-        return true;
+        return false;
     }
 
     @Override
     public boolean storesUpperCaseQuotedIdentifiers() throws SQLException {
-        return true;
+        return false;
     }
 
     @Override
     public boolean storesLowerCaseQuotedIdentifiers() throws SQLException {
-        return true;
+        return false;
     }
 
     @Override
     public boolean storesMixedCaseQuotedIdentifiers() throws SQLException {
-        return true;
+        return false;
     }
 
     @Override
     public String getIdentifierQuoteString() throws SQLException {
-        return "`";
+        return " ";
     }
 
     @Override
@@ -312,7 +312,7 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
 
     @Override
     public boolean supportsOuterJoins() throws SQLException {
-        return true;
+        return false;
     }
 
     @Override
@@ -322,7 +322,7 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
 
     @Override
     public boolean supportsLimitedOuterJoins() throws SQLException {
-        return true;
+        return false;
     }
 
     @Override

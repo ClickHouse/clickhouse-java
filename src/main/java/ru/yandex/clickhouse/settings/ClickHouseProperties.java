@@ -23,6 +23,9 @@ public class ClickHouseProperties {
     private String host;
     private int port;
 
+    //additional
+    private int maxCompressBufferSize;
+
 
     // queries settings
     private Integer maxParallelReplicas;
@@ -31,6 +34,7 @@ public class ClickHouseProperties {
     private Integer priority;
     private String database;
     private boolean compress;
+    private boolean decompress;
     private boolean extremes;
     private Integer maxThreads;
     private Integer maxExecutionTime;
@@ -59,6 +63,7 @@ public class ClickHouseProperties {
         this.timeToLiveMillis = (Integer)getSetting(info, ClickHouseConnectionSettings.TIME_TO_LIVE_MILLIS);
         this.defaultMaxPerRoute = (Integer)getSetting(info, ClickHouseConnectionSettings.DEFAULT_MAX_PER_ROUTE);
         this.maxTotal = (Integer)getSetting(info, ClickHouseConnectionSettings.MAX_TOTAL);
+        this.maxCompressBufferSize = (Integer) getSetting(info, ClickHouseConnectionSettings.MAX_COMPRESS_BUFFER_SIZE);
 
         this.maxParallelReplicas = getSetting(info, ClickHouseQueryParam.MAX_PARALLEL_REPLICAS);
         this.totalsMode = getSetting(info, ClickHouseQueryParam.TOTALS_MODE);
@@ -66,6 +71,7 @@ public class ClickHouseProperties {
         this.priority = getSetting(info, ClickHouseQueryParam.PRIORITY);
         this.database = getSetting(info, ClickHouseQueryParam.DATABASE);
         this.compress = (Boolean)getSetting(info, ClickHouseQueryParam.COMPRESS);
+        this.decompress = (Boolean)getSetting(info, ClickHouseQueryParam.DECOMPRESS);
         this.extremes = (Boolean)getSetting(info, ClickHouseQueryParam.EXTREMES);
         this.maxThreads = getSetting(info, ClickHouseQueryParam.MAX_THREADS);
         this.maxExecutionTime = getSetting(info, ClickHouseQueryParam.MAX_EXECUTION_TIME);
@@ -90,6 +96,7 @@ public class ClickHouseProperties {
         ret.put(ClickHouseConnectionSettings.TIME_TO_LIVE_MILLIS.getKey(), timeToLiveMillis);
         ret.put(ClickHouseConnectionSettings.DEFAULT_MAX_PER_ROUTE.getKey(), defaultMaxPerRoute);
         ret.put(ClickHouseConnectionSettings.MAX_TOTAL.getKey(), maxTotal);
+        ret.put(ClickHouseConnectionSettings.MAX_COMPRESS_BUFFER_SIZE.getKey(), maxCompressBufferSize);
 
         ret.put(ClickHouseQueryParam.MAX_PARALLEL_REPLICAS.getKey(), maxParallelReplicas);
         ret.put(ClickHouseQueryParam.TOTALS_MODE.getKey(), totalsMode);
@@ -97,6 +104,7 @@ public class ClickHouseProperties {
         ret.put(ClickHouseQueryParam.PRIORITY.getKey(), priority);
         ret.put(ClickHouseQueryParam.DATABASE.getKey(), database);
         ret.put(ClickHouseQueryParam.COMPRESS.getKey(), compress);
+        ret.put(ClickHouseQueryParam.DECOMPRESS.getKey(), decompress);
         ret.put(ClickHouseQueryParam.EXTREMES.getKey(), extremes);
         ret.put(ClickHouseQueryParam.MAX_THREADS.getKey(), maxThreads);
         ret.put(ClickHouseQueryParam.MAX_EXECUTION_TIME.getKey(), maxExecutionTime);
@@ -121,6 +129,7 @@ public class ClickHouseProperties {
         setTimeToLiveMillis(properties.timeToLiveMillis);
         setDefaultMaxPerRoute(properties.defaultMaxPerRoute);
         setMaxTotal(properties.maxTotal);
+        setMaxCompressBufferSize(properties.maxCompressBufferSize);
 
         setMaxParallelReplicas(properties.maxParallelReplicas);
         setTotalsMode(properties.totalsMode);
@@ -128,6 +137,7 @@ public class ClickHouseProperties {
         setPriority(properties.priority);
         setDatabase(properties.database);
         setCompress(properties.compress);
+        setDecompress(properties.decompress);
         setExtremes(properties.extremes);
         setMaxThreads(properties.maxThreads);
         setMaxExecutionTime(properties.maxExecutionTime);
@@ -153,6 +163,10 @@ public class ClickHouseProperties {
         if (!StringUtils.isBlank(database) && !ignoreDatabase) params.put(ClickHouseQueryParam.DATABASE, getDatabase());
 
         if (compress) params.put(ClickHouseQueryParam.COMPRESS, "1");
+        if (decompress){
+            params.put(ClickHouseQueryParam.DECOMPRESS, "1");
+            params.put(ClickHouseQueryParam.HTTP_NATIVE_COMPRESSION_DISABLE_CHECKSUMMING_ON_DECOMPRESS, "1"); // because we do not calculate checksum now
+        }
 
         if (extremes) params.put(ClickHouseQueryParam.EXTREMES, "1");
 
@@ -232,6 +246,14 @@ public class ClickHouseProperties {
 
     public void setCompress(boolean compress) {
         this.compress = compress;
+    }
+
+    public boolean isDecompress() {
+        return decompress;
+    }
+
+    public void setDecompress(boolean decompress) {
+        this.decompress = decompress;
     }
 
     public boolean isAsync() {
@@ -336,6 +358,14 @@ public class ClickHouseProperties {
 
     public void setMaxTotal(int maxTotal) {
         this.maxTotal = maxTotal;
+    }
+
+    public int getMaxCompressBufferSize() {
+        return maxCompressBufferSize;
+    }
+
+    public void setMaxCompressBufferSize(int maxCompressBufferSize) {
+        this.maxCompressBufferSize = maxCompressBufferSize;
     }
 
     public Integer getMaxParallelReplicas() {

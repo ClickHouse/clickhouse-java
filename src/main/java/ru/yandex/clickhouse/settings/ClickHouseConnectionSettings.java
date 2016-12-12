@@ -27,7 +27,13 @@ public enum ClickHouseConnectionSettings implements DriverPropertyCreator {
      */
     TIME_TO_LIVE_MILLIS("timeToLiveMillis", 60 * 1000, ""),
     DEFAULT_MAX_PER_ROUTE("defaultMaxPerRoute", 500, ""),
-    MAX_TOTAL("maxTotal", 10000, "");
+    MAX_TOTAL("maxTotal", 10000, ""),
+
+    /**
+     * additional
+     */
+    MAX_COMPRESS_BUFFER_SIZE("maxCompressBufferSize", 1024*1024, "")
+    ;
 
     private final String key;
     private final Object defaultValue;

@@ -15,7 +15,7 @@ public class ClickHouseLZ4Stream extends InputStream {
 
     private static final LZ4Factory factory = LZ4Factory.safeInstance();
 
-    private static final int MAGIC = 0x82;
+    public static final int MAGIC = 0x82;
 
     private final InputStream stream;
     private final LittleEndianDataInputStream dataWrapper;
