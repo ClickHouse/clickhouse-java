@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.math.RoundingMode;
 import java.sql.*;
 import java.sql.Array;
 import java.text.ParseException;
@@ -46,7 +47,7 @@ public class ClickHouseResultSet extends AbstractResultSet {
     private int rowNumber;
 
     // statement result set belongs to
-    private final Statement statement;
+    private Statement statement;
 
     public ClickHouseResultSet(InputStream is, int bufferSize, String db, String table, Statement statement) throws IOException {
         this.db = db;
@@ -493,7 +494,7 @@ public class ClickHouseResultSet extends AbstractResultSet {
             return null;
         }
         BigDecimal result = new BigDecimal(string);
-        return result.setScale(scale, BigDecimal.ROUND_HALF_UP);
+        return result.setScale(scale, RoundingMode.HALF_UP);
     }
 
     @Override
