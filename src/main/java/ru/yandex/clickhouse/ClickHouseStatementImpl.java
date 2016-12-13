@@ -423,7 +423,11 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
         URI uri = buildRequestUri(ignoreDatabase, additionalClickHouseDBParams);
         log.debug("Request url: " + uri);
         HttpPost post = new HttpPost(uri);
-        post.setEntity(new StringEntity(sql, StreamUtils.UTF_8));
+        if (properties.isDecompress()){
+            post.setEntity(new LZ4EntityWrapper(new StringEntity(sql, StreamUtils.UTF_8), properties.getMaxCompressBufferSize()));
+        } else {
+            post.setEntity(new StringEntity(sql, StreamUtils.UTF_8));
+        }
         HttpEntity entity = null;
         try {
             HttpResponse response = client.execute(post);
@@ -510,7 +514,11 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
 
             URI uri = new URI("http", null, properties.getHost(), properties.getPort(), "/", query, null);
             HttpPost httpPost = new HttpPost(uri);
-            httpPost.setEntity(content);
+            if (properties.isDecompress()){
+                httpPost.setEntity(new LZ4EntityWrapper(content, properties.getMaxCompressBufferSize()));
+            } else {
+                httpPost.setEntity(content);
+            }
             HttpResponse response = client.execute(httpPost);
             entity = response.getEntity();
             if (response.getStatusLine().getStatusCode() != HttpURLConnection.HTTP_OK) {

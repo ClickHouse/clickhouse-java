@@ -15,6 +15,7 @@ public enum ClickHouseQueryParam implements DriverPropertyCreator {
     PRIORITY("priority", null, Integer.class, "The lower the value the bigger the priority."),
     DATABASE("database", null, String.class, "database name used by default"),
     COMPRESS("compress", true, Boolean.class, "whether to compress transferred data or not"),
+    DECOMPRESS("decompress", false, Boolean.class, "whether to decompress transferred data or not"),
     /**
      * https://clickhouse.yandex/reference_en.html#Extreme values
      */
@@ -50,7 +51,8 @@ public enum ClickHouseQueryParam implements DriverPropertyCreator {
 
     DISTRIBUTED_AGGREGATION_MEMORY_EFFICIENT("distributed_aggregation_memory_efficient", false, Boolean.class, "Whether to optimize memory consumption for external aggregation"),
     MAX_BYTES_BEFORE_EXTERNAL_GROUP_BY("max_bytes_before_external_group_by", null, Long.class, "Threshold to use external group by"),
-    MAX_BYTES_BEFORE_EXTERNAL_SORT("max_bytes_before_external_sort", null, Long.class, "Threshold to use external sort");
+    MAX_BYTES_BEFORE_EXTERNAL_SORT("max_bytes_before_external_sort", null, Long.class, "Threshold to use external sort"),
+    HTTP_NATIVE_COMPRESSION_DISABLE_CHECKSUMMING_ON_DECOMPRESS("http_native_compression_disable_checksumming_on_decompress", null, Boolean.class, "Whether to disable checksum check on decompress");
 
     private final String key;
     private final Object defaultValue;
