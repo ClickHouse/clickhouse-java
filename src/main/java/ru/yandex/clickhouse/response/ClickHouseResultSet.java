@@ -16,6 +16,7 @@ import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.yandex.clickhouse.ClickHouseArray;
+import ru.yandex.clickhouse.except.ClickHouseExceptionSpecifier;
 import ru.yandex.clickhouse.util.TypeUtils;
 
 
@@ -104,10 +105,17 @@ public class ClickHouseResultSet extends AbstractResultSet {
     public boolean next() throws SQLException {
         if (hasNext()) {
             values = nextLine.split((byte) 0x09);
+            checkValues(columns, values, nextLine);
             nextLine = null;
             rowNumber += 1;
             return true;
         } else return false;
+    }
+
+    private void checkValues(String[] columns, ByteFragment[] values, ByteFragment fragment) throws SQLException {
+        if (columns.length != values.length) {
+            throw ClickHouseExceptionSpecifier.specify(fragment.asString());
+        }
     }
 
     @Override

@@ -8,9 +8,9 @@ import java.io.OutputStream;
 
 public class ByteFragment {
 
-    private byte[] buf;
-    private int start;
-    private int len;
+    private final byte[] buf;
+    private final int start;
+    private final int len;
     private static final ByteFragment EMPTY = new ByteFragment(new byte[0], 0, 0);
 
     public ByteFragment(byte[] buf, int start, int len) {
