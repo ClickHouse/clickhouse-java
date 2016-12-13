@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.math.RoundingMode;
 import java.sql.*;
 import java.sql.Array;
 import java.text.ParseException;
@@ -19,8 +20,6 @@ import ru.yandex.clickhouse.util.TypeUtils;
 
 
 public class ClickHouseResultSet extends AbstractResultSet {
-
-    private static final Logger log = LoggerFactory.getLogger(ClickHouseResultSet.class);
 
     private final SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss"); //
     private final SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd"); //
@@ -495,7 +494,7 @@ public class ClickHouseResultSet extends AbstractResultSet {
             return null;
         }
         BigDecimal result = new BigDecimal(string);
-        return result.setScale(scale, BigDecimal.ROUND_HALF_UP);
+        return result.setScale(scale, RoundingMode.HALF_UP);
     }
 
     @Override

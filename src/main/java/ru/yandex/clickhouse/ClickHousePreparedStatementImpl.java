@@ -6,6 +6,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
 import ru.yandex.clickhouse.util.ClickHouseArrayUtil;
+import ru.yandex.clickhouse.util.guava.StreamUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -121,7 +122,7 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
             sb.append(binds[i]);
             sb.append(i < binds.length - 1 ? '\t' : '\n');
         }
-        return sb.toString().getBytes();
+        return sb.toString().getBytes(StreamUtils.UTF_8);
     }
 
     @Override
@@ -196,7 +197,7 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
 
     @Override
     public void setBytes(int parameterIndex, byte[] x) throws SQLException {
-        setBind(parameterIndex, new String(x));
+        setBind(parameterIndex, new String(x, StreamUtils.UTF_8));
     }
 
     @Override

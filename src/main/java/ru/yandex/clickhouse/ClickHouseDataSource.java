@@ -11,8 +11,6 @@ import java.sql.SQLFeatureNotSupportedException;
 import java.util.Properties;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 
 public class ClickHouseDataSource implements DataSource {
@@ -32,7 +30,7 @@ public class ClickHouseDataSource implements DataSource {
 
     public ClickHouseDataSource(String url, ClickHouseProperties properties) {
         if (url == null) {
-            throw new IllegalArgumentException("Incorrect ClickHouse jdbc url: " + url);
+            throw new IllegalArgumentException("Incorrect ClickHouse jdbc url. It must be not null");
         }
         this.url = url;
         try {

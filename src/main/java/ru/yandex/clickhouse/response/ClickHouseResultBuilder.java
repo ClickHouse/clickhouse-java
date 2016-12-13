@@ -1,5 +1,7 @@
 package ru.yandex.clickhouse.response;
 
+import ru.yandex.clickhouse.util.guava.StreamUtils;
+
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -98,7 +100,7 @@ public class ClickHouseResultBuilder {
             } else {
                 value = o.toString();
             }
-            ByteFragment.escape(value.getBytes(), baos);
+            ByteFragment.escape(value.getBytes(StreamUtils.UTF_8), baos);
         }
     }
 
