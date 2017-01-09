@@ -48,7 +48,7 @@ public class ClickHouseStatementTest {
                 HttpClientBuilder.create().build(),null, withCredentials
                 );
 
-        URI uri = statement.buildRequestUri(false, null);
+        URI uri = statement.buildRequestUri(null, null, null, false);
         String query = uri.getQuery();
         assertTrue(query.contains("password=test_password"));
         assertTrue(query.contains("user=test_user"));

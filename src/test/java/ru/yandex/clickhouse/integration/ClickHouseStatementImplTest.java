@@ -4,24 +4,29 @@ import org.testng.Assert;
 import org.testng.annotations.AfterTest;
 import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
+import ru.yandex.clickhouse.ClickHouseConnection;
 import ru.yandex.clickhouse.ClickHouseDataSource;
+import ru.yandex.clickhouse.ClickHouseExternalData;
+import ru.yandex.clickhouse.ClickHouseStatement;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
 
+import java.io.ByteArrayInputStream;
+import java.io.UnsupportedEncodingException;
 import java.math.BigInteger;
-import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.Collections;
 
 public class ClickHouseStatementImplTest {
     private ClickHouseDataSource dataSource;
-    private Connection connection;
+    private ClickHouseConnection connection;
 
     @BeforeTest
     public void setUp() throws Exception {
         ClickHouseProperties properties = new ClickHouseProperties();
         dataSource = new ClickHouseDataSource("jdbc:clickhouse://localhost:8123", properties);
-        connection = dataSource.getConnection();
+        connection = (ClickHouseConnection) dataSource.getConnection();
     }
 
     @AfterTest
@@ -81,5 +86,28 @@ public class ClickHouseStatementImplTest {
         Object bigUInt64 = rs.getObject(2);
         Assert.assertTrue(bigUInt64 instanceof BigInteger);
         Assert.assertEquals(bigUInt64, new BigInteger("18446744073709551606"));
+    }
+
+    @Test
+    public void testExternalData() throws SQLException, UnsupportedEncodingException {
+        ClickHouseStatement stmt = connection.createClickHouseStatement();
+        ResultSet rs = stmt.executeQuery(
+                "select UserName, GroupName " +
+                        "from (select 'User' as UserName, 1 as GroupId) " +
+                        "any left join groups using GroupId",
+                null,
+                Collections.singletonList(new ClickHouseExternalData(
+                        "groups",
+                        new ByteArrayInputStream("1\tGroup".getBytes())
+                ).withStructure("GroupId UInt8, GroupName String"))
+        );
+
+        rs.next();
+
+        String userName = rs.getString("UserName");
+        String groupName = rs.getString("GroupName");
+
+        Assert.assertEquals(userName, "User");
+        Assert.assertEquals(groupName, "Group");
     }
 }
