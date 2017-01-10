@@ -34,6 +34,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.SQLWarning;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -74,6 +75,14 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
     }
 
     public ResultSet executeQuery(String sql, Map<ClickHouseQueryParam, String> additionalDBParams) throws SQLException {
+        // forcibly disable extremes for ResultSet queries
+        if (additionalDBParams == null) {
+            additionalDBParams = new HashMap<ClickHouseQueryParam, String>();
+        } else {
+            additionalDBParams = new HashMap<ClickHouseQueryParam, String>(additionalDBParams);
+        }
+        additionalDBParams.put(ClickHouseQueryParam.EXTREMES, "false");
+
         InputStream is = getInputStream(sql, additionalDBParams);
         try {
             if (isSelect(sql)) {
