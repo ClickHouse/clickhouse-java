@@ -82,4 +82,25 @@ public class ClickHouseStatementImplTest {
         Assert.assertTrue(bigUInt64 instanceof BigInteger);
         Assert.assertEquals(bigUInt64, new BigInteger("18446744073709551606"));
     }
+
+    @Test
+    public void testResultSetWithExtremes() throws SQLException {
+        ClickHouseProperties properties = new ClickHouseProperties();
+        properties.setExtremes(true);
+        ClickHouseDataSource dataSource = new ClickHouseDataSource("jdbc:clickhouse://localhost:8123", properties);
+        Connection connection = dataSource.getConnection();
+
+        try {
+            Statement stmt = connection.createStatement();
+            ResultSet rs = stmt.executeQuery("select 1");
+            StringBuilder sb = new StringBuilder();
+            while (rs.next()) {
+                sb.append(rs.getString(1)).append("\n");
+            }
+
+            Assert.assertEquals(sb.toString(), "1\n");
+        } finally {
+            connection.close();
+        }
+    }
 }
