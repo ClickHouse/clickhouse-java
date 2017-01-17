@@ -85,7 +85,16 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
                                   Map<ClickHouseQueryParam, String> additionalDBParams,
                                   List<ClickHouseExternalData> externalData) throws SQLException {
 
+        // forcibly disable extremes for ResultSet queries
+        if (additionalDBParams == null) {
+            additionalDBParams = new HashMap<ClickHouseQueryParam, String>();
+        } else {
+            additionalDBParams = new HashMap<ClickHouseQueryParam, String>(additionalDBParams);
+        }
+        additionalDBParams.put(ClickHouseQueryParam.EXTREMES, "false");
+
         InputStream is = getInputStream(sql, additionalDBParams, externalData);
+
         try {
             if (isSelect(sql)) {
                 currentResult = new ClickHouseResultSet(properties.isCompress()
