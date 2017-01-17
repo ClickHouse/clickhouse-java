@@ -13,6 +13,7 @@ import ru.yandex.clickhouse.settings.ClickHouseProperties;
 import java.io.ByteArrayInputStream;
 import java.io.UnsupportedEncodingException;
 import java.math.BigInteger;
+import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
