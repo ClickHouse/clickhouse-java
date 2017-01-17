@@ -10,7 +10,7 @@ It has support of a minimal subset of features to be usable.
 <dependency>
     <groupId>ru.yandex.clickhouse</groupId>
     <artifactId>clickhouse-jdbc</artifactId>
-    <version>0.1.14</version>
+    <version>0.1.15</version>
 </dependency>
 ```
 

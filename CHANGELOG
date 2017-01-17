@@ -1,3 +1,10 @@
+0.1.15
+  * lz4 support
+  * External data support
+  * Disable extremes for ResultSet query methods
+  * Consistent charsets and rounding
+  * Fix for configuration options
+
 0.1.14
   * Testing with travis
   * Unsigned types support
