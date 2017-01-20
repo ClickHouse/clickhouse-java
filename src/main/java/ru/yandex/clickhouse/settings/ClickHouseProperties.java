@@ -219,16 +219,16 @@ public class ClickHouseProperties {
 
     @SuppressWarnings("unchecked")
     private <T> T getSetting(Properties info, String key, Object defaultValue, Class clazz){
-        Object val = info.get(key);
+        Object val = info.getProperty(key);
         if (val == null)
             return (T)defaultValue;
-        if ((clazz == int.class || clazz == Integer.class) && val instanceof String) {
+        if (clazz == int.class || clazz == Integer.class) {
             return (T) clazz.cast(Integer.valueOf((String) val));
         }
-        if ((clazz == long.class || clazz == Long.class) && val instanceof String) {
+        if (clazz == long.class || clazz == Long.class) {
             return (T) clazz.cast(Long.valueOf((String) val));
         }
-        if ((clazz == boolean.class || clazz == Boolean.class) && val instanceof String) {
+        if (clazz == boolean.class || clazz == Boolean.class) {
             return (T) clazz.cast(Boolean.valueOf((String) val));
         }
         return (T) clazz.cast(val);
