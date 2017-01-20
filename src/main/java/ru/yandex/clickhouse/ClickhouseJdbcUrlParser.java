@@ -44,7 +44,7 @@ public class ClickhouseJdbcUrlParser {
         props.setPort(port);
         String database = uri.getPath();
         if (database == null || database.isEmpty()) {
-            String defaultsDb = (String)defaults.get(ClickHouseQueryParam.DATABASE.getKey());
+            String defaultsDb = defaults.getProperty(ClickHouseQueryParam.DATABASE.getKey());
             database = defaultsDb == null ? DEFAULT_DATABASE : defaultsDb;
         } else {
             Matcher m = DB_PATH_PATTERN.matcher(database);
