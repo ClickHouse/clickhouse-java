@@ -1,3 +1,7 @@
+0.1.16
+  * fix use Property class for configuration
+  * Add settings to ClickHouseQueryParam
+
 0.1.15
   * lz4 support
   * External data support
