@@ -202,6 +202,8 @@ public enum ClickHouseQueryParam implements DriverPropertyCreator {
      */
     TOTALS_MODE("totals_mode", null, String.class, "How to calculate TOTALS when HAVING is present, as well as when max_rows_to_group_by and group_by_overflow_mode = 'any' are present."),
 
+    QUERY_ID("query_id", null, String.class, ""),
+
     QUEUE_MAX_WAIT_MS("queue_max_wait_ms", null, Integer.class, ""),
 
     QUOTA_KEY("quota_key", null, String.class, "quota is calculated for each quota_key value. For example here may be some user name."),
