@@ -77,7 +77,7 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
     }
 
     public ResultSet executeQuery(String sql, Map<ClickHouseQueryParam, String> additionalDBParams) throws SQLException {
-        return executeQuery(sql, null, null);
+        return executeQuery(sql, additionalDBParams, null);
     }
 
     @Override
