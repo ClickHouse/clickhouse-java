@@ -5,6 +5,7 @@ import org.apache.http.impl.client.CloseableHttpClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
+import ru.yandex.clickhouse.settings.ClickHouseQueryParam;
 import ru.yandex.clickhouse.util.ClickHouseArrayUtil;
 import ru.yandex.clickhouse.util.guava.StreamUtils;
 
@@ -128,6 +129,16 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
     @Override
     public ResultSet executeQuery() throws SQLException {
         return super.executeQuery(buildSql());
+    }
+
+    @Override
+    public ResultSet executeQuery(Map<ClickHouseQueryParam, String> additionalDBParams) throws SQLException {
+        return super.executeQuery(buildSql(), additionalDBParams);
+    }
+
+    @Override
+    public ResultSet executeQuery(Map<ClickHouseQueryParam, String> additionalDBParams, List<ClickHouseExternalData> externalData) throws SQLException {
+        return super.executeQuery(buildSql(), additionalDBParams, externalData);
     }
 
     @Override
