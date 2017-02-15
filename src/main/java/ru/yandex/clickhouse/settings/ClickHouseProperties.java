@@ -84,28 +84,29 @@ public class ClickHouseProperties {
         this.maxBytesBeforeExternalGroupBy = (Long)getSetting(info, ClickHouseQueryParam.MAX_BYTES_BEFORE_EXTERNAL_GROUP_BY);
         this.maxBytesBeforeExternalSort = (Long)getSetting(info, ClickHouseQueryParam.MAX_BYTES_BEFORE_EXTERNAL_SORT);
     }
+
     public Properties asProperties() {
         PropertiesBuilder ret = new PropertiesBuilder();
-        ret.put(ClickHouseConnectionSettings.ASYNC.getKey(), async);
-        ret.put(ClickHouseConnectionSettings.BUFFER_SIZE.getKey(), bufferSize);
-        ret.put(ClickHouseConnectionSettings.APACHE_BUFFER_SIZE.getKey(), apacheBufferSize);
-        ret.put(ClickHouseConnectionSettings.SOCKET_TIMEOUT.getKey(), socketTimeout);
-        ret.put(ClickHouseConnectionSettings.CONNECTION_TIMEOUT.getKey(), connectionTimeout);
-        ret.put(ClickHouseConnectionSettings.DATA_TRANSFER_TIMEOUT.getKey(), dataTransferTimeout);
-        ret.put(ClickHouseConnectionSettings.KEEP_ALIVE_TIMEOUT.getKey(), keepAliveTimeout);
-        ret.put(ClickHouseConnectionSettings.TIME_TO_LIVE_MILLIS.getKey(), timeToLiveMillis);
-        ret.put(ClickHouseConnectionSettings.DEFAULT_MAX_PER_ROUTE.getKey(), defaultMaxPerRoute);
-        ret.put(ClickHouseConnectionSettings.MAX_TOTAL.getKey(), maxTotal);
-        ret.put(ClickHouseConnectionSettings.MAX_COMPRESS_BUFFER_SIZE.getKey(), maxCompressBufferSize);
+        ret.put(ClickHouseConnectionSettings.ASYNC.getKey(), String.valueOf(async));
+        ret.put(ClickHouseConnectionSettings.BUFFER_SIZE.getKey(), String.valueOf(bufferSize));
+        ret.put(ClickHouseConnectionSettings.APACHE_BUFFER_SIZE.getKey(), String.valueOf(apacheBufferSize));
+        ret.put(ClickHouseConnectionSettings.SOCKET_TIMEOUT.getKey(), String.valueOf(socketTimeout));
+        ret.put(ClickHouseConnectionSettings.CONNECTION_TIMEOUT.getKey(), String.valueOf(connectionTimeout));
+        ret.put(ClickHouseConnectionSettings.DATA_TRANSFER_TIMEOUT.getKey(), String.valueOf(dataTransferTimeout));
+        ret.put(ClickHouseConnectionSettings.KEEP_ALIVE_TIMEOUT.getKey(), String.valueOf(keepAliveTimeout));
+        ret.put(ClickHouseConnectionSettings.TIME_TO_LIVE_MILLIS.getKey(), String.valueOf(timeToLiveMillis));
+        ret.put(ClickHouseConnectionSettings.DEFAULT_MAX_PER_ROUTE.getKey(), String.valueOf(defaultMaxPerRoute));
+        ret.put(ClickHouseConnectionSettings.MAX_TOTAL.getKey(), String.valueOf(maxTotal));
+        ret.put(ClickHouseConnectionSettings.MAX_COMPRESS_BUFFER_SIZE.getKey(), String.valueOf(maxCompressBufferSize));
 
         ret.put(ClickHouseQueryParam.MAX_PARALLEL_REPLICAS.getKey(), maxParallelReplicas);
         ret.put(ClickHouseQueryParam.TOTALS_MODE.getKey(), totalsMode);
         ret.put(ClickHouseQueryParam.QUOTA_KEY.getKey(), quotaKey);
         ret.put(ClickHouseQueryParam.PRIORITY.getKey(), priority);
         ret.put(ClickHouseQueryParam.DATABASE.getKey(), database);
-        ret.put(ClickHouseQueryParam.COMPRESS.getKey(), compress);
-        ret.put(ClickHouseQueryParam.DECOMPRESS.getKey(), decompress);
-        ret.put(ClickHouseQueryParam.EXTREMES.getKey(), extremes);
+        ret.put(ClickHouseQueryParam.COMPRESS.getKey(), String.valueOf(compress));
+        ret.put(ClickHouseQueryParam.DECOMPRESS.getKey(), String.valueOf(decompress));
+        ret.put(ClickHouseQueryParam.EXTREMES.getKey(), String.valueOf(extremes));
         ret.put(ClickHouseQueryParam.MAX_THREADS.getKey(), maxThreads);
         ret.put(ClickHouseQueryParam.MAX_EXECUTION_TIME.getKey(), maxExecutionTime);
         ret.put(ClickHouseQueryParam.MAX_BLOCK_SIZE.getKey(), maxBlockSize);
@@ -113,7 +114,7 @@ public class ClickHouseProperties {
         ret.put(ClickHouseQueryParam.PROFILE.getKey(), profile);
         ret.put(ClickHouseQueryParam.USER.getKey(), user);
         ret.put(ClickHouseQueryParam.PASSWORD.getKey(), password);
-        ret.put(ClickHouseQueryParam.DISTRIBUTED_AGGREGATION_MEMORY_EFFICIENT.getKey(), distributedAggregationMemoryEfficient);
+        ret.put(ClickHouseQueryParam.DISTRIBUTED_AGGREGATION_MEMORY_EFFICIENT.getKey(), String.valueOf(distributedAggregationMemoryEfficient));
         ret.put(ClickHouseQueryParam.MAX_BYTES_BEFORE_EXTERNAL_GROUP_BY.getKey(), maxBytesBeforeExternalGroupBy);
         ret.put(ClickHouseQueryParam.MAX_BYTES_BEFORE_EXTERNAL_SORT.getKey(), maxBytesBeforeExternalSort);
         return ret.getProperties();

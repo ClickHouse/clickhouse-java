@@ -5,6 +5,7 @@ import java.util.Properties;
 
 import org.testng.Assert;
 import org.testng.annotations.Test;
+import ru.yandex.clickhouse.ClickHouseDataSource;
 
 public class ClickHousePropertiesTest {
 
@@ -24,4 +25,36 @@ public class ClickHousePropertiesTest {
         Assert.assertEquals(clickHouseProperties.getUser(), expectedUsername);
     }
 
+    @Test
+    public void constructorShouldNotIgnoreClickHouseProperties() {
+        int expectedConnectionTimeout = 1000;
+        boolean isCompress = false;
+        Integer maxParallelReplicas = 3;
+
+        ClickHouseProperties properties = new ClickHouseProperties();
+        properties.setConnectionTimeout( expectedConnectionTimeout );
+        properties.setMaxParallelReplicas( maxParallelReplicas );
+        properties.setCompress( isCompress );
+
+        ClickHouseDataSource clickHouseDataSource = new ClickHouseDataSource(
+                "jdbc:clickhouse://localhost:8123/test",
+                properties
+        );
+        Assert.assertEquals(
+                clickHouseDataSource.getProperties().getConnectionTimeout(),
+                expectedConnectionTimeout
+        );
+        Assert.assertEquals(
+                clickHouseDataSource.getProperties().isCompress(),
+                isCompress
+        );
+        Assert.assertEquals(
+                clickHouseDataSource.getProperties().getMaxParallelReplicas(),
+                maxParallelReplicas
+        );
+        Assert.assertEquals(
+                clickHouseDataSource.getProperties().getTotalsMode(),
+                ClickHouseQueryParam.TOTALS_MODE.getDefaultValue()
+        );
+    }
 }
