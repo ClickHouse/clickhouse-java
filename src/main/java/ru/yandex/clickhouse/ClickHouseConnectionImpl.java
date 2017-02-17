@@ -41,7 +41,7 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
         } catch (URISyntaxException e) {
             throw new IllegalArgumentException(e);
         }
-        ClickHouseHttpClientBuilder clientBuilder = new ClickHouseHttpClientBuilder(properties);
+        ClickHouseHttpClientBuilder clientBuilder = new ClickHouseHttpClientBuilder(this.properties);
         log.debug("new connection");
         httpclient = clientBuilder.buildClient();
     }
