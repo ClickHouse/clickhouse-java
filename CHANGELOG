@@ -1,3 +1,10 @@
+0.1.17
+  * fix passing additionalDBParams
+  * add query_id param
+  * add CH params to executeQuery in preparedStatement
+  * fix setting properties
+  * propagate parameters from jdbc url
+
 0.1.16
   * fix use Property class for configuration
   * Add settings to ClickHouseQueryParam
