@@ -175,12 +175,16 @@ public class ByteFragment {
 
     public static void escape(byte[] bytes, OutputStream stream) throws IOException {
         for (byte b : bytes) {
-            byte converted = reverse[b];
-            if (converted != -1) {
-                stream.write(92);
-                stream.write(converted);
-            } else {
+            if(b < 0 || b >= reverse.length) {
                 stream.write(b);
+            } else {
+                byte converted = reverse[b];
+                if (converted != -1) {
+                    stream.write(92);
+                    stream.write(converted);
+                } else {
+                    stream.write(b);
+                }
             }
         }
     }
