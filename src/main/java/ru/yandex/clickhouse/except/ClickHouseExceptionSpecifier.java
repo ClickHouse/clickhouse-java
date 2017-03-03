@@ -65,7 +65,7 @@ public final class ClickHouseExceptionSpecifier {
 
     private static int getErrorCode(String errorMessage) {
         int startIndex = errorMessage.indexOf(' ');
-        int endIndex = startIndex == -1 ? -1 : errorMessage.indexOf(startIndex, ',');
+        int endIndex = startIndex == -1 ? -1 : errorMessage.indexOf(',', startIndex);
 
         if (startIndex == -1 || endIndex == -1) {
             return -1;
