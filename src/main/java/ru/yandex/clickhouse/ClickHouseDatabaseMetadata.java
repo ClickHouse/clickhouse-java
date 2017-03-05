@@ -847,6 +847,8 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
             row.add(null);
             //"IS_AUTOINCREMENT"
             row.add(null);
+            //"IS_GENERATEDCOLUMN"
+            row.add(null);
 
             builder.addRow(row);
         }
@@ -879,7 +881,8 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
                 "SCOPE_SCHEMA",
                 "SCOPE_TABLE",
                 "SOURCE_DATA_TYPE",
-                "IS_AUTOINCREMENT"
+                "IS_AUTOINCREMENT",
+                "IS_GENERATEDCOLUMN"
         );
         builder.types(
                 "String",
@@ -904,6 +907,7 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
                 "String",
                 "String",
                 "Int32",
+                "String",
                 "String"
         );
         return builder;
