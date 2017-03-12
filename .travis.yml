@@ -8,4 +8,4 @@ services:
   - docker
 before_script:
   - docker pull yandex/clickhouse-server
-  - docker run -d -p 127.0.0.1:8123:8123 --name some-clickhouse-server --ulimit nofile=262144:262144 yandex/clickhouse-server
+  - docker run -d --name some-clickhouse-server --ulimit nofile=262144:262144 yandex/clickhouse-server
