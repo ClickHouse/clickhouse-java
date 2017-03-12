@@ -5,16 +5,20 @@ import org.apache.http.impl.client.CloseableHttpClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.yandex.clickhouse.except.ClickHouseUnknownException;
+import ru.yandex.clickhouse.settings.ClickHouseConnectionSettings;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
 import ru.yandex.clickhouse.util.ClickHouseHttpClientBuilder;
 import ru.yandex.clickhouse.util.LogProxy;
 import ru.yandex.clickhouse.util.TypeUtils;
+import ru.yandex.clickhouse.util.apache.StringUtils;
+import ru.yandex.clickhouse.util.guava.StreamUtils;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.sql.*;
 import java.util.Map;
 import java.util.Properties;
+import java.util.TimeZone;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 
@@ -30,6 +34,8 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
 
     private boolean closed = false;
 
+    private TimeZone timezone;
+
     public ClickHouseConnectionImpl(String url) {
         this(url, new ClickHouseProperties());
     }
@@ -44,6 +50,29 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
         ClickHouseHttpClientBuilder clientBuilder = new ClickHouseHttpClientBuilder(this.properties);
         log.debug("new connection");
         httpclient = clientBuilder.buildClient();
+         initTimeZone(properties);
+    }
+
+    private void initTimeZone(ClickHouseProperties properties) {
+        if (properties.isUseServerTimeZone() && !StringUtils.isEmpty(properties.getUseTimeZone())){
+            throw new IllegalArgumentException(String.format("only one of %s or %s must be enabled", ClickHouseConnectionSettings.USE_SERVER_TIME_ZONE.getKey(), ClickHouseConnectionSettings.USE_TIME_ZONE.getKey()));
+        }
+        if (properties.isUseServerTimeZone()) {
+            ResultSet rs = null;
+            try {
+                timezone = TimeZone.getTimeZone("UTC"); // just for next query
+                rs = createStatement().executeQuery("select timezone()");
+                rs.next();
+                String timeZoneName = rs.getString(1);
+                timezone = TimeZone.getTimeZone(timeZoneName);
+            } catch (SQLException e) {
+                throw new RuntimeException(e);
+            } finally {
+                StreamUtils.close(rs);
+            }
+        } else if (!StringUtils.isEmpty(properties.getUseTimeZone())) {
+            timezone = TimeZone.getTimeZone(properties.getUseTimeZone());
+        }
     }
 
     @Override
@@ -56,16 +85,21 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
         return LogProxy.wrap(ClickHouseStatement.class, new ClickHouseStatementImpl(httpclient, this, properties));
     }
 
+    @Override
+    public TimeZone getTimeZone() {
+        return timezone;
+    }
+
     private ClickHouseStatement createClickHouseStatement(CloseableHttpClient httpClient) throws SQLException {
         return LogProxy.wrap(ClickHouseStatement.class, new ClickHouseStatementImpl(httpClient, this, properties));
     }
 
     public PreparedStatement createPreparedStatement(String sql) throws SQLException {
-        return LogProxy.wrap(PreparedStatement.class, new ClickHousePreparedStatementImpl(httpclient, this, properties, sql));
+        return LogProxy.wrap(PreparedStatement.class, new ClickHousePreparedStatementImpl(httpclient, this, properties, sql, getTimeZone()));
     }
 
     public ClickHousePreparedStatement createClickHousePreparedStatement(String sql) throws SQLException {
-        return LogProxy.wrap(ClickHousePreparedStatement.class, new ClickHousePreparedStatementImpl(httpclient, this, properties, sql));
+        return LogProxy.wrap(ClickHousePreparedStatement.class, new ClickHousePreparedStatementImpl(httpclient, this, properties, sql, getTimeZone()));
     }
 
 

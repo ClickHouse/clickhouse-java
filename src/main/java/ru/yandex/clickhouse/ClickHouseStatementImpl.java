@@ -101,7 +101,8 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
                         ? new ClickHouseLZ4Stream(is) : is, properties.getBufferSize(),
                         extractDBName(sql),
                         extractTableName(sql),
-                        this
+                        this,
+                        ((ClickHouseConnection)getConnection()).getTimeZone()
                 );
                 currentResult.setMaxRows(maxRows);
                 return currentResult;

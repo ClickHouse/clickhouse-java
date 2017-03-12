@@ -1,7 +1,7 @@
 package ru.yandex.clickhouse;
 
-import ru.yandex.clickhouse.settings.ClickHouseQueryParam;
 import ru.yandex.clickhouse.response.ClickHouseResponse;
+import ru.yandex.clickhouse.settings.ClickHouseQueryParam;
 
 import java.io.InputStream;
 import java.sql.ResultSet;

@@ -1,23 +1,22 @@
 package ru.yandex.clickhouse.response;
 
+import ru.yandex.clickhouse.ClickHouseArray;
+import ru.yandex.clickhouse.ClickHouseStatement;
+import ru.yandex.clickhouse.except.ClickHouseExceptionSpecifier;
+import ru.yandex.clickhouse.util.TypeUtils;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.math.RoundingMode;
 import java.sql.*;
-import java.sql.Array;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import ru.yandex.clickhouse.ClickHouseArray;
-import ru.yandex.clickhouse.except.ClickHouseExceptionSpecifier;
-import ru.yandex.clickhouse.util.TypeUtils;
+import java.util.TimeZone;
 
 
 public class ClickHouseResultSet extends AbstractResultSet {
@@ -50,10 +49,11 @@ public class ClickHouseResultSet extends AbstractResultSet {
     // statement result set belongs to
     private Statement statement;
 
-    public ClickHouseResultSet(InputStream is, int bufferSize, String db, String table, Statement statement) throws IOException {
+    public ClickHouseResultSet(InputStream is, int bufferSize, String db, String table, ClickHouseStatement statement, TimeZone timezone) throws IOException {
         this.db = db;
         this.table = table;
         this.statement = statement;
+        initTimeZone(timezone);
         bis = new StreamSplitter(is, (byte) 0x0A, bufferSize);  ///   \n
         ByteFragment headerFragment = bis.next();
         if (headerFragment == null) {
@@ -75,6 +75,11 @@ public class ClickHouseResultSet extends AbstractResultSet {
             String s = columns[i];
             col.put(s, i + 1);
         }
+    }
+
+    private void initTimeZone(TimeZone timeZone) {
+        sdf.setTimeZone(timeZone);
+        dateFormat.setTimeZone(timeZone);
     }
 
     private static String[] toStringArray(ByteFragment headerFragment) {

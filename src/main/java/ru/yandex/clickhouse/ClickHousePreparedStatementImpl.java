@@ -35,16 +35,22 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
     private List<byte[]> batchRows = new ArrayList<byte[]>();
 
     public ClickHousePreparedStatementImpl(CloseableHttpClient client, ClickHouseConnection connection,
-             ClickHouseProperties properties, String sql) throws SQLException {
+             ClickHouseProperties properties, String sql, TimeZone timezone) throws SQLException {
         super(client, connection, properties);
         this.sql = sql;
         this.sqlParts = parseSql(sql);
         createBinds();
+        initTimeZone(timezone);
     }
 
     private void createBinds() {
         this.binds = new String[this.sqlParts.size() - 1];
         this.valuesQuote = new boolean[this.sqlParts.size() - 1];
+    }
+
+    private void initTimeZone(TimeZone timeZone) {
+        dateTimeFormat.setTimeZone(timeZone);
+        dateFormat.setTimeZone(timeZone);
     }
 
     @Override
