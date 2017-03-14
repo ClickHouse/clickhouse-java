@@ -8,5 +8,5 @@ jdk:
 before_script:
   - echo "deb http://repo.yandex.ru/clickhouse/trusty stable main" | sudo tee -a /etc/apt/sources.list
   - sudo apt-get update -qq
-  - apt-get install clickhouse-server-common -y
+  - sudo apt-get install clickhouse-server-common -y
   - sudo service clickhouse-server start
