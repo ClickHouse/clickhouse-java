@@ -1,11 +1,12 @@
+dist: trusty
 sudo: required
 language: java
 install: mvn install -DskipTests=true -Dgpg.skip=true
 jdk:
   - openjdk6
   - oraclejdk8
-services:
-  - docker
 before_script:
-  - docker pull yandex/clickhouse-server
-  - docker run -d --name some-clickhouse-server --ulimit nofile=262144:262144 yandex/clickhouse-server
+  - echo "deb http://repo.yandex.ru/clickhouse/trusty stable main" | sudo tee -a /etc/apt/sources.list
+  - sudo apt-get update -qq
+  - apt-get install clickhouse-server-common -y
+  - sudo service clickhouse-server start
