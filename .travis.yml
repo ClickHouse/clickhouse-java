@@ -6,6 +6,8 @@ jdk:
   - openjdk6
   - oraclejdk8
 before_script:
+  - sudo mkdir -p /home/jdbctest
+  - export HOME="/home/jdbctest"
   - echo "deb http://repo.yandex.ru/clickhouse/trusty stable main" | sudo tee -a /etc/apt/sources.list
   - sudo apt-get update -qq
   - sudo apt-get install --allow-unauthenticated -y clickhouse-server-common
