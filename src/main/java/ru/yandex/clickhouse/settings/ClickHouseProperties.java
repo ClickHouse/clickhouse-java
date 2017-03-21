@@ -26,6 +26,9 @@ public class ClickHouseProperties {
     //additional
     private int maxCompressBufferSize;
 
+    private boolean useServerTimeZone;
+    private String useTimeZone;
+
 
     // queries settings
     private Integer maxParallelReplicas;
@@ -64,6 +67,8 @@ public class ClickHouseProperties {
         this.defaultMaxPerRoute = (Integer)getSetting(info, ClickHouseConnectionSettings.DEFAULT_MAX_PER_ROUTE);
         this.maxTotal = (Integer)getSetting(info, ClickHouseConnectionSettings.MAX_TOTAL);
         this.maxCompressBufferSize = (Integer) getSetting(info, ClickHouseConnectionSettings.MAX_COMPRESS_BUFFER_SIZE);
+        this.useServerTimeZone = (Boolean)getSetting(info, ClickHouseConnectionSettings.USE_SERVER_TIME_ZONE);
+        this.useTimeZone = (String)getSetting(info, ClickHouseConnectionSettings.USE_TIME_ZONE);
 
         this.maxParallelReplicas = getSetting(info, ClickHouseQueryParam.MAX_PARALLEL_REPLICAS);
         this.totalsMode = getSetting(info, ClickHouseQueryParam.TOTALS_MODE);
@@ -98,6 +103,8 @@ public class ClickHouseProperties {
         ret.put(ClickHouseConnectionSettings.DEFAULT_MAX_PER_ROUTE.getKey(), String.valueOf(defaultMaxPerRoute));
         ret.put(ClickHouseConnectionSettings.MAX_TOTAL.getKey(), String.valueOf(maxTotal));
         ret.put(ClickHouseConnectionSettings.MAX_COMPRESS_BUFFER_SIZE.getKey(), String.valueOf(maxCompressBufferSize));
+        ret.put(ClickHouseConnectionSettings.USE_SERVER_TIME_ZONE.getKey(), String.valueOf(useServerTimeZone));
+        ret.put(ClickHouseConnectionSettings.USE_TIME_ZONE.getKey(), String.valueOf(useTimeZone));
 
         ret.put(ClickHouseQueryParam.MAX_PARALLEL_REPLICAS.getKey(), maxParallelReplicas);
         ret.put(ClickHouseQueryParam.TOTALS_MODE.getKey(), totalsMode);
@@ -134,6 +141,8 @@ public class ClickHouseProperties {
         setDefaultMaxPerRoute(properties.defaultMaxPerRoute);
         setMaxTotal(properties.maxTotal);
         setMaxCompressBufferSize(properties.maxCompressBufferSize);
+        setUseServerTimeZone(properties.useServerTimeZone);
+        setUseTimeZone(properties.useTimeZone);
 
         setMaxParallelReplicas(properties.maxParallelReplicas);
         setTotalsMode(properties.totalsMode);
@@ -370,6 +379,22 @@ public class ClickHouseProperties {
 
     public void setMaxCompressBufferSize(int maxCompressBufferSize) {
         this.maxCompressBufferSize = maxCompressBufferSize;
+    }
+
+    public boolean isUseServerTimeZone() {
+        return useServerTimeZone;
+    }
+
+    public void setUseServerTimeZone(boolean useServerTimeZone) {
+        this.useServerTimeZone = useServerTimeZone;
+    }
+
+    public String getUseTimeZone() {
+        return useTimeZone;
+    }
+
+    public void setUseTimeZone(String useTimeZone) {
+        this.useTimeZone = useTimeZone;
     }
 
     public Integer getMaxParallelReplicas() {

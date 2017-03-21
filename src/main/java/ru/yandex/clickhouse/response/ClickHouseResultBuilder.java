@@ -8,6 +8,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.TimeZone;
 
 /**
  * For building ClickHouseResultSet by hands
@@ -18,6 +19,7 @@ public class ClickHouseResultBuilder {
     private List<String> names;
     private List<String> types;
     private List<List<?>> rows = new ArrayList<List<?>>();
+    private TimeZone timezone = TimeZone.getTimeZone("UTC");
 
     public static ClickHouseResultBuilder builder(int columnsNum) {
         return new ClickHouseResultBuilder(columnsNum);
@@ -57,6 +59,11 @@ public class ClickHouseResultBuilder {
         return this;
     }
 
+    public ClickHouseResultBuilder timeZone(TimeZone timezone) {
+        this.timezone = timezone;
+        return this;
+    }
+
     public ClickHouseResultSet build() {
         try {
             if (names == null) throw new IllegalStateException("names == null");
@@ -71,7 +78,7 @@ public class ClickHouseResultBuilder {
             byte[] bytes = baos.toByteArray();
             ByteArrayInputStream inputStream = new ByteArrayInputStream(bytes);
 
-            return new ClickHouseResultSet(inputStream, 1024, "system", "unknown", null);
+            return new ClickHouseResultSet(inputStream, 1024, "system", "unknown", null, timezone);
         } catch (IOException e) {
             throw new RuntimeException("Never happens", e);
         }
