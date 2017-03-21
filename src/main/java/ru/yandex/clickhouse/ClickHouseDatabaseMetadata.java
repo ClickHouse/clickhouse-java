@@ -857,7 +857,7 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
     }
 
     private ClickHouseResultBuilder getClickHouseResultBuilderForGetColumns() {
-        ClickHouseResultBuilder builder = ClickHouseResultBuilder.builder(23);
+        ClickHouseResultBuilder builder = ClickHouseResultBuilder.builder(24);
         builder.names(
                 "TABLE_CAT",
                 "TABLE_SCHEM",
