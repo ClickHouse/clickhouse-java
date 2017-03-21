@@ -1,3 +1,6 @@
+0.1.19
+  * fix getColumns
+
 0.1.18
   NOTE: starting from this release server timezone is used by default.
   This will work with server version >= 1.1.54159.
