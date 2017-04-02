@@ -176,10 +176,8 @@ public class ClickHouseProperties {
         if (!StringUtils.isBlank(database) && !ignoreDatabase) params.put(ClickHouseQueryParam.DATABASE, getDatabase());
 
         if (compress) params.put(ClickHouseQueryParam.COMPRESS, "1");
-        if (decompress){
-            params.put(ClickHouseQueryParam.DECOMPRESS, "1");
-            params.put(ClickHouseQueryParam.HTTP_NATIVE_COMPRESSION_DISABLE_CHECKSUMMING_ON_DECOMPRESS, "1"); // because we do not calculate checksum now
-        }
+        if (decompress) params.put(ClickHouseQueryParam.DECOMPRESS, "1");
+
 
         if (extremes) params.put(ClickHouseQueryParam.EXTREMES, "1");
 

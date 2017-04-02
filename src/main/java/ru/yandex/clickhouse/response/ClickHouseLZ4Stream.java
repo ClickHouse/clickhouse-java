@@ -1,8 +1,9 @@
 package ru.yandex.clickhouse.response;
 
 import com.google.common.io.LittleEndianDataInputStream;
-import net.jpountz.lz4.LZ4FastDecompressor;
 import net.jpountz.lz4.LZ4Factory;
+import net.jpountz.lz4.LZ4FastDecompressor;
+import ru.yandex.clickhouse.util.ClickHouseCityHash128;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -85,6 +86,7 @@ public class ClickHouseLZ4Stream extends InputStream {
         checksum[0] = (byte)read;
         // checksum - 16 bytes.
         dataWrapper.readFully(checksum, 1, 15);
+        ClickHouseCityHash128 expected = ClickHouseCityHash128.fromBytes(checksum);
         // header:
         // 1 byte - 0x82 (shows this is LZ4)
         int magic = dataWrapper.readUnsignedByte();
@@ -98,10 +100,14 @@ public class ClickHouseLZ4Stream extends InputStream {
         // compressed data: compressed_size - 9 байт.
         dataWrapper.readFully(block);
 
+        ClickHouseCityHash128 real = ClickHouseCityHash128.calculateForBlock((byte)magic, compressedSizeWithHeader, uncompressedSize, block, compressedSize);
+        if (!real.equals(expected)) {
+            throw new IllegalArgumentException("Checksum doesn't match: corrupted data.");
+        }
+
         byte[] decompressed = new byte[uncompressedSize];
         LZ4FastDecompressor decompressor = factory.fastDecompressor();
         decompressor.decompress(block, 0, decompressed, 0, uncompressedSize);
-
         return decompressed;
     }
 
