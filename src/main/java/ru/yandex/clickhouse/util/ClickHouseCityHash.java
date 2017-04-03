@@ -42,7 +42,7 @@ package ru.yandex.clickhouse.util;
 /**
  * NOTE: The code is modified to be compatible with CityHash128 used in ClickHouse
  */
-public class CityHash {
+public class ClickHouseCityHash {
 
     private static final long k0 = 0xc3a5c85c97cb3127L;
     private static final long k1 = 0xb492b66fbe98f273L;

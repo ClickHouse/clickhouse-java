@@ -3,22 +3,22 @@ package ru.yandex.clickhouse.util;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
-public class ClickHouseCityHash128 {
+public class ClickHouseBlockChecksum {
     private final long first;
     private final long second;
 
-    public ClickHouseCityHash128(long first, long second) {
+    public ClickHouseBlockChecksum(long first, long second) {
         this.first = first;
         this.second = second;
     }
 
-    public static ClickHouseCityHash128 fromBytes(byte[] checksum) {
+    public static ClickHouseBlockChecksum fromBytes(byte[] checksum) {
         ByteBuffer buffer = ByteBuffer.allocate(16).order(ByteOrder.LITTLE_ENDIAN).put(checksum);
         buffer.flip();
-        return new ClickHouseCityHash128(buffer.getLong(), buffer.getLong());
+        return new ClickHouseBlockChecksum(buffer.getLong(), buffer.getLong());
     }
 
-    public static ClickHouseCityHash128 calculateForBlock(byte magic, int compressedSizeWithHeader, int uncompressedSize, byte[] data, int length) {
+    public static ClickHouseBlockChecksum calculateForBlock(byte magic, int compressedSizeWithHeader, int uncompressedSize, byte[] data, int length) {
         ByteBuffer buffer = ByteBuffer.allocate(compressedSizeWithHeader).order(ByteOrder.LITTLE_ENDIAN).put((byte)magic).putInt(compressedSizeWithHeader)
                 .putInt(uncompressedSize).put(data, 0, length);
         buffer.flip();
@@ -31,9 +31,9 @@ public class ClickHouseCityHash128 {
         return buffer.array();
     }
 
-    private static ClickHouseCityHash128 calculate(byte[] data) {
-        long[] sum = CityHash.cityHash128(data, 0, data.length);
-        return new ClickHouseCityHash128(sum[0], sum[1]);
+    private static ClickHouseBlockChecksum calculate(byte[] data) {
+        long[] sum = ClickHouseCityHash.cityHash128(data, 0, data.length);
+        return new ClickHouseBlockChecksum(sum[0], sum[1]);
     }
 
     @Override
@@ -41,7 +41,7 @@ public class ClickHouseCityHash128 {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
-        ClickHouseCityHash128 that = (ClickHouseCityHash128) o;
+        ClickHouseBlockChecksum that = (ClickHouseBlockChecksum) o;
 
         if (first != that.first) return false;
         return second == that.second;
