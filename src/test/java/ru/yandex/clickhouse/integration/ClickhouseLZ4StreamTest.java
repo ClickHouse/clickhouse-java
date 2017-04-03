@@ -33,20 +33,18 @@ public class ClickhouseLZ4StreamTest {
 
         PreparedStatement statement = connection.prepareStatement("INSERT INTO test.big_batch_insert (s, i) VALUES (?, ?)");
 
-        for (int i = 0; i < 1000000; i++) {
+        int cnt = 1000000;
+        for (int i = 0; i < cnt; i++) {
             statement.setString(1, "string" + i);
             statement.setInt(2, i);
             statement.addBatch();
         }
 
-
         statement.executeBatch();
 
         ResultSet rs = connection.createStatement().executeQuery("SELECT count() as cnt from test.big_batch_insert");
         rs.next();
-
-        Assert.assertEquals(rs.getInt("cnt"), 1000000);
-
+        Assert.assertEquals(rs.getInt("cnt"), cnt);
         Assert.assertFalse(rs.next());
     }
 }

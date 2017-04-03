@@ -132,4 +132,18 @@ public class ClickHouseStatementImplTest {
             connection.close();
         }
     }
+
+    @Test
+    public void testSelectManyRows() throws SQLException {
+        Statement stmt = connection.createStatement();
+        int limit = 10000;
+        ResultSet rs = stmt.executeQuery("select concat('test', toString(number)) as str from system.numbers limit " + limit);
+        int i = 0;
+        while (rs.next()) {
+            String s = rs.getString("str");
+            Assert.assertEquals(s, "test" + i);
+            i++;
+        }
+        Assert.assertEquals(i, limit);
+    }
 }
