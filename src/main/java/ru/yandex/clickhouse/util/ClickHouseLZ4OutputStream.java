@@ -5,11 +5,8 @@ import net.jpountz.lz4.LZ4Compressor;
 import net.jpountz.lz4.LZ4Factory;
 import ru.yandex.clickhouse.response.ClickHouseLZ4Stream;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
-import java.nio.ByteBuffer;
 
 public class ClickHouseLZ4OutputStream extends OutputStream {
     private static final LZ4Factory factory = LZ4Factory.safeInstance();
@@ -47,7 +44,7 @@ public class ClickHouseLZ4OutputStream extends OutputStream {
 
     private void writeBlock() throws IOException {
         int compressed = compressor.compress(currentBlock, 0, pointer, compressedBlock, 0);
-        ClickHouseCityHash128 checksum = ClickHouseCityHash128.calculateForBlock((byte)ClickHouseLZ4Stream.MAGIC,
+        ClickHouseBlockChecksum checksum = ClickHouseBlockChecksum.calculateForBlock((byte)ClickHouseLZ4Stream.MAGIC,
                 compressed + 9, pointer, compressedBlock, compressed);
         dataWrapper.write(checksum.asBytes());
         dataWrapper.writeByte(ClickHouseLZ4Stream.MAGIC);
