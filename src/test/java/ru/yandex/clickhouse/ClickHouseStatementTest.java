@@ -53,4 +53,16 @@ public class ClickHouseStatementTest {
         assertTrue(query.contains("password=test_password"));
         assertTrue(query.contains("user=test_user"));
     }
+
+    @Test
+    public void testMaxMemoryUsage() throws Exception {
+        ClickHouseProperties properties = new ClickHouseProperties();
+        properties.setMaxMemoryUsage(41L);
+        ClickHouseStatementImpl statement = new ClickHouseStatementImpl(HttpClientBuilder.create().build(), null,
+                properties);
+
+        URI uri = statement.buildRequestUri(null, null, null, false);
+        String query = uri.getQuery();
+        assertTrue(query.contains("max_memory_usage=41"), "max_memory_usage param is missing in URL");
+    }
 }

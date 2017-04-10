@@ -1,11 +1,11 @@
 package ru.yandex.clickhouse.settings;
 
-import java.net.URI;
-import java.util.Properties;
-
 import org.testng.Assert;
 import org.testng.annotations.Test;
 import ru.yandex.clickhouse.ClickHouseDataSource;
+
+import java.net.URI;
+import java.util.Properties;
 
 public class ClickHousePropertiesTest {
 
@@ -56,5 +56,21 @@ public class ClickHousePropertiesTest {
                 clickHouseDataSource.getProperties().getTotalsMode(),
                 ClickHouseQueryParam.TOTALS_MODE.getDefaultValue()
         );
+    }
+
+    @Test
+    public void clickHouseQueryParamContainsMaxMemoryUsage() throws Exception {
+        final ClickHouseProperties clickHouseProperties = new ClickHouseProperties();
+        clickHouseProperties.setMaxMemoryUsage(43L);
+        Assert.assertEquals(clickHouseProperties.asProperties().getProperty("max_memory_usage"), "43");
+    }
+
+    @Test
+    public void maxMemoryUsageParamShouldBeParsed() throws Exception {
+        final Properties driverProperties = new Properties();
+        driverProperties.setProperty("max_memory_usage", "42");
+
+        ClickHouseDataSource ds = new ClickHouseDataSource("jdbc:clickhouse://localhost:8123/test", driverProperties);
+        Assert.assertEquals(ds.getProperties().getMaxMemoryUsage(), Long.valueOf(42L), "max_memory_usage is missing");
     }
 }
