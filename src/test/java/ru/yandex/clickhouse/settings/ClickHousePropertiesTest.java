@@ -1,11 +1,11 @@
 package ru.yandex.clickhouse.settings;
 
-import java.net.URI;
-import java.util.Properties;
-
 import org.testng.Assert;
 import org.testng.annotations.Test;
 import ru.yandex.clickhouse.ClickHouseDataSource;
+
+import java.net.URI;
+import java.util.Properties;
 
 public class ClickHousePropertiesTest {
 
@@ -56,5 +56,12 @@ public class ClickHousePropertiesTest {
                 clickHouseDataSource.getProperties().getTotalsMode(),
                 ClickHouseQueryParam.TOTALS_MODE.getDefaultValue()
         );
+    }
+
+    @Test
+    public void booleanParamCanBeParsedAsZeroAndOne() throws Exception {
+        Assert.assertTrue(new ClickHouseProperties().isCompress());
+        Assert.assertFalse(new ClickHouseProperties(new Properties(){{setProperty("compress", "0");}}).isCompress());
+        Assert.assertTrue(new ClickHouseProperties(new Properties(){{setProperty("compress", "1");}}).isCompress());
     }
 }
