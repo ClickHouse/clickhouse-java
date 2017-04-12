@@ -59,6 +59,13 @@ public class ClickHousePropertiesTest {
     }
 
     @Test
+    public void booleanParamCanBeParsedAsZeroAndOne() throws Exception {
+        Assert.assertTrue(new ClickHouseProperties().isCompress());
+        Assert.assertFalse(new ClickHouseProperties(new Properties(){{setProperty("compress", "0");}}).isCompress());
+        Assert.assertTrue(new ClickHouseProperties(new Properties(){{setProperty("compress", "1");}}).isCompress());
+    }
+    
+    @Test
     public void clickHouseQueryParamContainsMaxMemoryUsage() throws Exception {
         final ClickHouseProperties clickHouseProperties = new ClickHouseProperties();
         clickHouseProperties.setMaxMemoryUsage(43L);
