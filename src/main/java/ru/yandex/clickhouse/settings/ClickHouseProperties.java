@@ -49,6 +49,7 @@ public class ClickHouseProperties {
     private boolean distributedAggregationMemoryEfficient;
     private Long maxBytesBeforeExternalGroupBy;
     private Long maxBytesBeforeExternalSort;
+    private Long maxMemoryUsage;
 
     public ClickHouseProperties() {
         this(new Properties());
@@ -88,6 +89,7 @@ public class ClickHouseProperties {
         this.distributedAggregationMemoryEfficient = (Boolean)getSetting(info, ClickHouseQueryParam.DISTRIBUTED_AGGREGATION_MEMORY_EFFICIENT);
         this.maxBytesBeforeExternalGroupBy = (Long)getSetting(info, ClickHouseQueryParam.MAX_BYTES_BEFORE_EXTERNAL_GROUP_BY);
         this.maxBytesBeforeExternalSort = (Long)getSetting(info, ClickHouseQueryParam.MAX_BYTES_BEFORE_EXTERNAL_SORT);
+        this.maxMemoryUsage = getSetting(info, ClickHouseQueryParam.MAX_MEMORY_USAGE);
     }
 
     public Properties asProperties() {
@@ -124,6 +126,7 @@ public class ClickHouseProperties {
         ret.put(ClickHouseQueryParam.DISTRIBUTED_AGGREGATION_MEMORY_EFFICIENT.getKey(), String.valueOf(distributedAggregationMemoryEfficient));
         ret.put(ClickHouseQueryParam.MAX_BYTES_BEFORE_EXTERNAL_GROUP_BY.getKey(), maxBytesBeforeExternalGroupBy);
         ret.put(ClickHouseQueryParam.MAX_BYTES_BEFORE_EXTERNAL_SORT.getKey(), maxBytesBeforeExternalSort);
+        ret.put(ClickHouseQueryParam.MAX_MEMORY_USAGE.getKey(), maxMemoryUsage);
         return ret.getProperties();
     }
 
@@ -162,6 +165,7 @@ public class ClickHouseProperties {
         setDistributedAggregationMemoryEfficient(properties.distributedAggregationMemoryEfficient);
         setMaxBytesBeforeExternalGroupBy(properties.maxBytesBeforeExternalGroupBy);
         setMaxBytesBeforeExternalSort(properties.maxBytesBeforeExternalSort);
+        setMaxMemoryUsage(properties.maxMemoryUsage);
     }
 
     public Map<ClickHouseQueryParam, String> buildQueryParams(boolean ignoreDatabase){
@@ -205,6 +209,9 @@ public class ClickHouseProperties {
 
         if (maxBytesBeforeExternalGroupBy != null) params.put(ClickHouseQueryParam.MAX_BYTES_BEFORE_EXTERNAL_GROUP_BY, String.valueOf(maxBytesBeforeExternalGroupBy));
         if (maxBytesBeforeExternalSort != null) params.put(ClickHouseQueryParam.MAX_BYTES_BEFORE_EXTERNAL_SORT, String.valueOf(maxBytesBeforeExternalSort));
+        if (maxMemoryUsage != null) {
+            params.put(ClickHouseQueryParam.MAX_MEMORY_USAGE, String.valueOf(maxMemoryUsage));
+        }
 
         return params;
     }
@@ -505,6 +512,14 @@ public class ClickHouseProperties {
 
     public void setMaxBytesBeforeExternalSort(Long maxBytesBeforeExternalSort) {
         this.maxBytesBeforeExternalSort = maxBytesBeforeExternalSort;
+    }
+
+    public Long getMaxMemoryUsage() {
+        return maxMemoryUsage;
+    }
+
+    public void setMaxMemoryUsage(Long maxMemoryUsage) {
+        this.maxMemoryUsage = maxMemoryUsage;
     }
 
     private static class PropertiesBuilder {
