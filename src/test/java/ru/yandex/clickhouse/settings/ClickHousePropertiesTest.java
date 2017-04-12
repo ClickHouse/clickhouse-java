@@ -63,5 +63,20 @@ public class ClickHousePropertiesTest {
         Assert.assertTrue(new ClickHouseProperties().isCompress());
         Assert.assertFalse(new ClickHouseProperties(new Properties(){{setProperty("compress", "0");}}).isCompress());
         Assert.assertTrue(new ClickHouseProperties(new Properties(){{setProperty("compress", "1");}}).isCompress());
+
+    @Test
+    public void clickHouseQueryParamContainsMaxMemoryUsage() throws Exception {
+        final ClickHouseProperties clickHouseProperties = new ClickHouseProperties();
+        clickHouseProperties.setMaxMemoryUsage(43L);
+        Assert.assertEquals(clickHouseProperties.asProperties().getProperty("max_memory_usage"), "43");
+    }
+
+    @Test
+    public void maxMemoryUsageParamShouldBeParsed() throws Exception {
+        final Properties driverProperties = new Properties();
+        driverProperties.setProperty("max_memory_usage", "42");
+
+        ClickHouseDataSource ds = new ClickHouseDataSource("jdbc:clickhouse://localhost:8123/test", driverProperties);
+        Assert.assertEquals(ds.getProperties().getMaxMemoryUsage(), Long.valueOf(42L), "max_memory_usage is missing");
     }
 }

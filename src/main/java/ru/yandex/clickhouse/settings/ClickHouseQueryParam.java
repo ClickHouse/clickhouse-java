@@ -98,6 +98,12 @@ public enum ClickHouseQueryParam implements DriverPropertyCreator {
     MAX_EXECUTION_TIME("max_execution_time", null, Integer.class, "Maximum query execution time in seconds."),
 
     MAX_INSERT_BLOCK_SIZE("max_insert_block_size", null, Long.class, ""),
+
+    /**
+     * @see <a href="https://clickhouse.yandex/reference_en.html#max_memory_usage">max_memory_usage</a>
+     */
+    MAX_MEMORY_USAGE("max_memory_usage", null, Long.class, "The maximum amount of memory consumption when running a query on a single server."),
+
     //dbms/include/DB/Interpreters/Settings.h
     MAX_PARALLEL_REPLICAS("max_parallel_replicas", null, Integer.class, "Max shard replica count."),
 
