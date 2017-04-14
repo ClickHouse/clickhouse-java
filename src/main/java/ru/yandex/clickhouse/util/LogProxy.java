@@ -42,13 +42,22 @@ public class LogProxy<T> implements InvocationHandler {
 
     @Override
     public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
-        log.trace(
-            "Call class: " + clazz.getName() + " Method: " + method.getName() + " Args: " + Arrays.toString(args)
-        );
+        String msg =
+            "Call class: " + object.getClass().getName() +
+            "\nMethod: " + method.getName() +
+            "\nObject: " + object +
+            "\nArgs: " + Arrays.toString(args) +
+            "\nInvoke result: ";
         try {
-            return method.invoke(object, args);
+            final Object invokeResult = method.invoke(object, args);
+            msg +=  invokeResult;
+            return invokeResult;
         } catch (InvocationTargetException e) {
+            msg += e.getMessage();
             throw e.getTargetException();
+        } finally {
+            msg = "==== ClickHouse JDBC trace begin ====\n" + msg + "\n==== ClickHouse JDBC trace end ====";
+            log.trace(msg);
         }
     }
 }

@@ -745,7 +745,13 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
 
     @Override
     public ResultSet getTableTypes() throws SQLException {
-        return request("select 'TABLE', 'LOCAL TEMPORARY'");
+        ClickHouseResultBuilder builder = ClickHouseResultBuilder.builder(1);
+        builder.names("TABLE_TYPE");
+        builder.types("String");
+
+        builder.addRow("TABLE");
+        builder.addRow("LOCAL TEMPORARY");
+        return builder.build();
     }
 
     private static void buildAndCondition(StringBuilder dest, List<String> conditions) {

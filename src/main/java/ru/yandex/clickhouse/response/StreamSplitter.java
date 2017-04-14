@@ -118,4 +118,16 @@ public class StreamSplitter {
     public void close() throws IOException {
         delegate.close();
     }
+
+    @Override
+    public String toString() {
+        return "StreamSplitter{" +
+            "delegate=" + delegate +
+            ", sep=" + sep +
+            ", buf=" + new String(buf).trim() +
+            ", posRead=" + posRead +
+            ", posNext=" + posNext +
+            ", readOnce=" + readOnce +
+            '}';
+    }
 }
