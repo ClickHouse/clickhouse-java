@@ -520,4 +520,24 @@ public class ClickHouseResultSet extends AbstractResultSet {
         // ignore perfomance hint
     }
 
+
+    @Override
+    public String toString() {
+        return "ClickHouseResultSet{" +
+            "sdf=" + sdf +
+            ", dateFormat=" + dateFormat +
+            ", bis=" + bis +
+            ", db='" + db + '\'' +
+            ", table='" + table + '\'' +
+            ", col=" + col +
+            ", columns=" + Arrays.toString(columns) +
+            ", types=" + Arrays.toString(types) +
+            ", maxRows=" + maxRows +
+            ", values=" + Arrays.toString(values) +
+            ", lastReadColumn=" + lastReadColumn +
+            ", nextLine=" + nextLine +
+            ", rowNumber=" + rowNumber +
+            ", statement=" + statement +
+            '}';
+    }
 }
