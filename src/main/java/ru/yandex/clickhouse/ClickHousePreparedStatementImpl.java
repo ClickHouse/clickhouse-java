@@ -164,7 +164,7 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
 
     @Override
     public void setNull(int parameterIndex, int sqlType) throws SQLException {
-        setBind(parameterIndex, "NULL");
+        setBind(parameterIndex, "\N");
     }
 
     @Override
