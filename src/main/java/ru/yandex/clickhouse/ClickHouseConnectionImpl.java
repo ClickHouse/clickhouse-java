@@ -189,7 +189,7 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
 
     @Override
     public String getCatalog() throws SQLException {
-        return null;
+        return ClickHouseDatabaseMetadata.DEFAULT_CAT;
     }
 
     @Override
@@ -376,11 +376,11 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
     }
 
     public void setSchema(String schema) throws SQLException {
-
+        properties.setDatabase(schema);
     }
 
     public String getSchema() throws SQLException {
-        return null;
+        return properties.getDatabase();
     }
 
     public void abort(Executor executor) throws SQLException {

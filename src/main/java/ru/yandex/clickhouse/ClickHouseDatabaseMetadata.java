@@ -13,7 +13,7 @@ import java.util.List;
 
 public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
 
-    private static final String DEFAULT_CAT = "default";
+    static final String DEFAULT_CAT = "default";
 
     private static final Logger log = LoggerFactory.getLogger(ClickHouseDatabaseMetadata.class);
 
