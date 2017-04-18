@@ -168,7 +168,9 @@ public class BatchInserts {
         Assert.assertNull(rs.getTimestamp("date_time"));
         Assert.assertNull(rs.getString("string"));
         Assert.assertEquals(rs.getInt("int32"), 0);
+        Assert.assertNull(rs.getObject("int32"));
         Assert.assertEquals(rs.getDouble("float64"), 0.0);
+        Assert.assertNull(rs.getObject("float64"));
 
         Assert.assertFalse(rs.next());
         connection.createStatement().execute("DROP TABLE test.batch_insert_nulls");
