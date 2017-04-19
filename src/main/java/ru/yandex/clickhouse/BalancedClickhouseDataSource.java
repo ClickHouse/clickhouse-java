@@ -206,7 +206,6 @@ public class BalancedClickhouseDataSource implements DataSource {
         return loginTimeout;
     }
 
-    @Override
     public Logger getParentLogger() throws SQLFeatureNotSupportedException {
         throw new SQLFeatureNotSupportedException();
     }
