@@ -692,7 +692,7 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
         builder.names("TABLE_CAT", "TABLE_SCHEM", "TABLE_NAME", "TABLE_TYPE", "REMARKS", "TYPE_CAT", "TYPE_SCHEM", "TYPE_NAME", "SELF_REFERENCING_COL_NAME", "REF_GENERATION");
         builder.types("String", "String", "String", "String", "String", "String", "String", "String", "String", "String");
 
-        List typeList = Arrays.asList(types);
+        List typeList = types != null ? Arrays.asList(types) : null;
         while (result.next()) {
             List<String> row = new ArrayList<String>();
             row.add(DEFAULT_CAT);
@@ -710,7 +710,7 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
             for (int i = 3; i < 9; i++) {
                 row.add(null);
             }
-            if (types == null || typeList.contains(type)) {
+            if (typeList == null || typeList.contains(type)) {
                 builder.addRow(row);
             }
         }
