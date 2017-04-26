@@ -159,7 +159,7 @@ public class BalancedClickhouseDataSource implements DataSource {
         if (sources.isEmpty()) {
             throw new RuntimeException("Unable to get connection: there is no enabled urls");
         }
-        final int idx = rnd.nextInt() % sources.size();
+        final int idx = rnd.nextInt(sources.size());
         return sources.get(idx);
     }
 
