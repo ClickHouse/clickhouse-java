@@ -1,9 +1,9 @@
 package ru.yandex.clickhouse.except;
 
+import com.google.common.base.Strings;
 import org.apache.http.conn.ConnectTimeoutException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import ru.yandex.clickhouse.util.apache.StringUtils;
 
 import java.net.ConnectException;
 import java.net.SocketTimeoutException;
@@ -37,7 +37,7 @@ public final class ClickHouseExceptionSpecifier {
      * "Code: 10, e.displayText() = DB::Exception: ...".
      */
     private static ClickHouseException specify(String clickHouseMessage, Throwable cause, String host, int port) {
-        if (StringUtils.isEmpty(clickHouseMessage) && cause != null) {
+        if (Strings.isNullOrEmpty(clickHouseMessage) && cause != null) {
             return getException(cause, host, port);
         }
 
@@ -58,7 +58,7 @@ public final class ClickHouseExceptionSpecifier {
             return new ClickHouseException(code, messageHolder, host, port);
         } catch (Exception e) {
             log.error("Unsupported ClickHouse error format, please fix ClickHouseExceptionSpecifier, message: "
-                    + clickHouseMessage + ", error: " + e.getMessage());
+                + clickHouseMessage + ", error: " + e.getMessage());
             return new ClickHouseUnknownException(clickHouseMessage, cause, host, port);
         }
     }
@@ -76,14 +76,17 @@ public final class ClickHouseExceptionSpecifier {
 
     private static ClickHouseException getException(Throwable cause, String host, int port) {
         if (cause instanceof SocketTimeoutException)
-            // if we've got SocketTimeoutException, we'll say that the query is not good. This is not the same as SOCKET_TIMEOUT of clickhouse
-            // but it actually could be a failing ClickHouse
+        // if we've got SocketTimeoutException, we'll say that the query is not good. This is not the same as SOCKET_TIMEOUT of clickhouse
+        // but it actually could be a failing ClickHouse
+        {
             return new ClickHouseException(ClickHouseErrorCode.TIMEOUT_EXCEEDED.code, cause, host, port);
-        else if (cause instanceof ConnectTimeoutException || cause instanceof ConnectException)
-            // couldn't connect to ClickHouse during connectTimeout
+        } else if (cause instanceof ConnectTimeoutException || cause instanceof ConnectException)
+        // couldn't connect to ClickHouse during connectTimeout
+        {
             return new ClickHouseException(ClickHouseErrorCode.NETWORK_ERROR.code, cause, host, port);
-        else
+        } else {
             return new ClickHouseUnknownException(cause, host, port);
+        }
     }
 
     private interface ClickHouseExceptionFactory {

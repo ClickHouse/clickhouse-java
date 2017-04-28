@@ -1,5 +1,6 @@
 package ru.yandex.clickhouse;
 
+import com.google.common.base.Strings;
 import org.apache.http.conn.ConnectTimeoutException;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.slf4j.Logger;
@@ -10,12 +11,27 @@ import ru.yandex.clickhouse.settings.ClickHouseProperties;
 import ru.yandex.clickhouse.util.ClickHouseHttpClientBuilder;
 import ru.yandex.clickhouse.util.LogProxy;
 import ru.yandex.clickhouse.util.TypeUtils;
-import ru.yandex.clickhouse.util.apache.StringUtils;
 import ru.yandex.clickhouse.util.guava.StreamUtils;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
-import java.sql.*;
+import java.sql.Array;
+import java.sql.Blob;
+import java.sql.CallableStatement;
+import java.sql.Clob;
+import java.sql.Connection;
+import java.sql.DatabaseMetaData;
+import java.sql.NClob;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLClientInfoException;
+import java.sql.SQLException;
+import java.sql.SQLFeatureNotSupportedException;
+import java.sql.SQLWarning;
+import java.sql.SQLXML;
+import java.sql.Savepoint;
+import java.sql.Statement;
+import java.sql.Struct;
 import java.util.Map;
 import java.util.Properties;
 import java.util.TimeZone;
@@ -50,11 +66,11 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
         ClickHouseHttpClientBuilder clientBuilder = new ClickHouseHttpClientBuilder(this.properties);
         log.debug("new connection");
         httpclient = clientBuilder.buildClient();
-         initTimeZone(properties);
+        initTimeZone(properties);
     }
 
     private void initTimeZone(ClickHouseProperties properties) {
-        if (properties.isUseServerTimeZone() && !StringUtils.isEmpty(properties.getUseTimeZone())){
+        if (properties.isUseServerTimeZone() && !Strings.isNullOrEmpty(properties.getUseTimeZone())) {
             throw new IllegalArgumentException(String.format("only one of %s or %s must be enabled", ClickHouseConnectionSettings.USE_SERVER_TIME_ZONE.getKey(), ClickHouseConnectionSettings.USE_TIME_ZONE.getKey()));
         }
         if (properties.isUseServerTimeZone()) {
@@ -70,7 +86,7 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
             } finally {
                 StreamUtils.close(rs);
             }
-        } else if (!StringUtils.isEmpty(properties.getUseTimeZone())) {
+        } else if (!Strings.isNullOrEmpty(properties.getUseTimeZone())) {
             timezone = TimeZone.getTimeZone(properties.getUseTimeZone());
         }
     }
@@ -111,7 +127,7 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
     @Override
     public Statement createStatement(int resultSetType, int resultSetConcurrency, int resultSetHoldability) throws SQLException {
         if (resultSetType != ResultSet.TYPE_FORWARD_ONLY && resultSetConcurrency != ResultSet.CONCUR_READ_ONLY
-                && resultSetHoldability != ResultSet.CLOSE_CURSORS_AT_COMMIT) {
+            && resultSetHoldability != ResultSet.CLOSE_CURSORS_AT_COMMIT) {
             throw new SQLFeatureNotSupportedException();
         }
         return createStatement();
@@ -324,7 +340,7 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
             return true;
         } catch (Exception e) {
             boolean isFailOnConnectionTimeout = e.getCause() instanceof ConnectTimeoutException;
-            if(!isFailOnConnectionTimeout){
+            if (!isFailOnConnectionTimeout) {
                 log.warn("Something had happened while validating a connection", e);
             }
 
