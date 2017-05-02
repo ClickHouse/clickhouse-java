@@ -1,6 +1,5 @@
 package ru.yandex.clickhouse;
 
-import com.google.common.collect.Lists;
 import org.slf4j.LoggerFactory;
 import ru.yandex.clickhouse.settings.ConnectionPoolSourceProperties;
 
@@ -10,60 +9,58 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
 public class ConnectionPool {
     private final static int DEFAULT_NUMBER_OF_CONNECTIONS = 100;
     private static final org.slf4j.Logger log = LoggerFactory.getLogger(ConnectionPool.class);
 
-    Random rnd = new Random();
     private final List<ConnectionPoolSourceProperties> configs;
-    private List<Connection> connections;
-    private int index = 0;
-
-    private List<Connection> fillConnections(final List<ConnectionPoolSourceProperties> configs) {
-        List<Connection> res = new ArrayList<Connection>();
-        for (final ConnectionPoolSourceProperties conf : configs) {
-            try {
-                for (int i = 0; i < conf.getNumberOfConnections(); ++i) {
-                    res.add(conf.getDataSource().getConnection());
-                }
-            } catch (Exception e) {
-                log.warn("Unable to create connection from data source: {}", conf);
-            }
-        }
-
-        Collections.shuffle(res, rnd);
-
-        return res;
-    }
+    private volatile List<Connection> connections;
+    private volatile int index = 0;
 
     public ConnectionPool(final List<ConnectionPoolSourceProperties> configs) {
         this.configs = configs;
-        connections = fillConnections(configs);
+        this.connections = fillConnections();
     }
 
     public ConnectionPool(final List<DataSource> sources, final int numberOfConnections) {
-        final List<ConnectionPoolSourceProperties> tmp_conf = new ArrayList<ConnectionPoolSourceProperties>(sources.size());
-        for (final DataSource source: sources) {
-            tmp_conf.add(new ConnectionPoolSourceProperties(source, numberOfConnections));
+        final List<ConnectionPoolSourceProperties> localConfig = new ArrayList<ConnectionPoolSourceProperties>(sources.size());
+        for (final DataSource source : sources) {
+            localConfig.add(new ConnectionPoolSourceProperties(source, numberOfConnections));
         }
-        configs = tmp_conf;
-        connections = fillConnections(configs);
+
+        this.configs = localConfig;
+        this.connections = fillConnections();
     }
 
     public ConnectionPool(DataSource source, final int numberOfConnections) {
-        this(Lists.newArrayList(new ConnectionPoolSourceProperties(source, numberOfConnections)));
+        this(Collections.singletonList(new ConnectionPoolSourceProperties(source, numberOfConnections)));
     }
 
     public ConnectionPool(DataSource source) {
         this(source, DEFAULT_NUMBER_OF_CONNECTIONS);
     }
 
-    public void actualize() {
+    private List<Connection> fillConnections() {
+        List<Connection> connectionList = new ArrayList<Connection>();
+        for (final ConnectionPoolSourceProperties conf : configs) {
+            try {
+                for (int i = 0; i < conf.getNumberOfConnections(); ++i) {
+                    connectionList.add(conf.getDataSource().getConnection());
+                }
+            } catch (Exception e) {
+                log.warn("Unable to create connection from data source: {}", conf);
+            }
+        }
+
+        return connectionList;
+    }
+
+    void actualize() {
         List<Connection> aliveConnections = new ArrayList<Connection>();
-        for (final Connection conn: connections) {
+        List<Connection> localConnectionList = connections;
+        for (final Connection conn : localConnectionList) {
             try {
                 conn.createStatement().execute("SELECT 1");
                 aliveConnections.add(conn);
@@ -71,51 +68,47 @@ public class ConnectionPool {
                 log.info("Found dead connection: ", e);
             }
         }
-        connections = aliveConnections;
+
+        this.connections = aliveConnections;
     }
 
-    public void refresh() {
-        connections = fillConnections(configs);
+    void refresh() {
+        this.connections = fillConnections();
         actualize();
     }
 
     Connection getConnection() {
-        if (connections.size() <= 0) {
+        List<Connection> localConnectionList = connections;
+        if (localConnectionList.isEmpty()) {
             // ClickHouseException?
-            throw new RuntimeException("There is no connections in connection pool");
+            throw new RuntimeException("There are no connections in connection pool");
         }
-        Connection res;
-        synchronized(this) {
-            if (index >= connections.size()) {
-                index = 0;
-            }
-            res = connections.get(index);
-            index = (index + 1) % connections.size();
-        }
-        return res;
+
+        index = (++index) % localConnectionList.size();
+        return localConnectionList.get(index);
     }
 
-    public void scheduleActualization(int rate, TimeUnit timeUnit){
+    public void scheduleActualization(int rate, TimeUnit timeUnit) {
         ClickHouseDriver.ScheduledConnectionCleaner.INSTANCE.scheduleAtFixedRate(new Runnable() {
             @Override
             public void run() {
                 try {
                     actualize();
-                } catch (Exception e){
-                    log.error("Unable to actualize urls: " + e);
+                } catch (Exception e) {
+                    log.error("Unable to actualize urls", e);
                 }
             }
         }, 0, rate, timeUnit);
     }
 
-    public void scheduleRefresh(int rate, TimeUnit timeUnit){
+    public void scheduleRefresh(int rate, TimeUnit timeUnit) {
         ClickHouseDriver.ScheduledConnectionCleaner.INSTANCE.scheduleAtFixedRate(new Runnable() {
             @Override
             public void run() {
                 try {
                     refresh();
-                } catch (Exception e){
-                    log.error("Unable to actualize urls: " + e);
+                } catch (Exception e) {
+                    log.error("Unable to actualize urls", e);
                 }
             }
         }, 0, rate, timeUnit);

@@ -10,9 +10,6 @@ import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
 import java.util.regex.Matcher;
@@ -24,33 +21,15 @@ public class BalancedClickhouseDataSource implements DataSource {
     private static final org.slf4j.Logger log = LoggerFactory.getLogger(BalancedClickhouseDataSource.class);
     private static final Pattern URL_TEMPLATE = Pattern.compile(JDBC_CLICKHOUSE_PREFIX + "//([a-zA-Z0-9_:,.]+)(/[a-zA-Z0-9_]+)?");
 
-    protected PrintWriter printWriter;
-    protected int loginTimeoutSeconds = 0;
-    protected final ClickHouseDriver driver = new ClickHouseDriver();
+    private PrintWriter printWriter;
+    private int loginTimeoutSeconds = 0;
 
-    private final Random rnd = new Random();
-    private final Set<String> disabledUrls = Collections.newSetFromMap(new ConcurrentHashMap<String, Boolean>());
-    private final Set<String> urls = Collections.newSetFromMap(new ConcurrentHashMap<String, Boolean>());
+    private volatile int currentIndex = 0;
+    private volatile List<String> disabledUrls = new ArrayList<String>();
+    private volatile List<String> enabledUrls = new ArrayList<String>();
 
-    private ClickHouseProperties properties;
-
-    public static List<String> splitUrl(final String url) {
-        Matcher m = URL_TEMPLATE.matcher(url);
-        if (!m.matches()) {
-            throw new IllegalArgumentException("Incorrect url");
-        }
-        String host = m.group(1);
-        String database = m.group(2);
-        if (database == null) {
-            database = "";
-        }
-        String[] hosts = host.split(",");
-        final List<String> res = new ArrayList<String>(hosts.length);
-        for (final String h : hosts) {
-            res.add(JDBC_CLICKHOUSE_PREFIX + "//" + h + database);
-        }
-        return res;
-    }
+    private final ClickHouseProperties properties;
+    private final ClickHouseDriver driver = new ClickHouseDriver();
 
 
     public BalancedClickhouseDataSource(final String url) {
@@ -79,37 +58,53 @@ public class BalancedClickhouseDataSource implements DataSource {
         }
 
         try {
-            this.properties = ClickhouseJdbcUrlParser.parse(urls.get(0), properties.asProperties());
-            properties.setHost(null);
-            properties.setPort(-1);
+            ClickHouseProperties localProperties = ClickhouseJdbcUrlParser.parse(urls.get(0), properties.asProperties());
+            localProperties.setHost(null);
+            localProperties.setPort(-1);
+
+            this.properties = localProperties;
         } catch (URISyntaxException e) {
             throw new IllegalArgumentException(e);
         }
 
+
+        List<String> enabledUrlList = new ArrayList<String>(urls.size());
         for (final String url : urls) {
-            addUrl(url);
+            try {
+                if (driver.acceptsURL(url)) {
+                    enabledUrlList.add(url);
+                } else {
+                    log.error("that url is has not correct format: {}", url);
+                }
+            } catch (SQLException e) {
+                throw new IllegalArgumentException("error while checking url: " + url, e);
+            }
         }
+
+        if (enabledUrlList.isEmpty()) {
+            throw new IllegalArgumentException("there are no correct urls");
+        }
+
+        this.enabledUrls = enabledUrlList;
     }
 
-    private void disableUrl(final String url) {
-        urls.remove(url);
-        disabledUrls.add(url);
+    static List<String> splitUrl(final String url) {
+        Matcher m = URL_TEMPLATE.matcher(url);
+        if (!m.matches()) {
+            throw new IllegalArgumentException("Incorrect url");
+        }
+        String database = m.group(2);
+        if (database == null) {
+            database = "";
+        }
+        String[] hosts = m.group(1).split(",");
+        final List<String> result = new ArrayList<String>(hosts.length);
+        for (final String host : hosts) {
+            result.add(JDBC_CLICKHOUSE_PREFIX + "//" + host + database);
+        }
+        return result;
     }
 
-    private void removeUrl(final String url) {
-        urls.remove(url);
-        disabledUrls.remove(url);
-    }
-
-    private void addUrl(final String url) {
-        if (url == null) {
-            throw new IllegalArgumentException("Incorrect ClickHouse jdbc url. It must be not null");
-        }
-        synchronized (urls) {
-            urls.add(url);
-            disabledUrls.remove(url);
-        }
-    }
 
     private boolean ping(final String url) {
         try {
@@ -123,41 +118,39 @@ public class BalancedClickhouseDataSource implements DataSource {
     /**
      * Checks if clickhouse on url is alive, if it isn't, disable url, else enable
      */
-    public void actualize() {
-       final List<String> urlsToEnable = new ArrayList<String>();
-       final List<String> urlsToDisable = new ArrayList<String>();
-       for (final String url : disabledUrls) {
-           log.debug("Pinging disabled url: " + url);
-           if (ping(url)) {
-               log.debug("Url is alive now: " + url);
-               urlsToEnable.add(url);
-           }
-       }
-        for (final String url : urls) {
-            log.debug("Pinging enabled url: " + url);
-            if (!ping(url)) {
-                log.debug("Url is dead now: " + url);
-                urlsToDisable.add(url);
+    void actualize() {
+        int countOfUrls = enabledUrls.size() + disabledUrls.size();
+        List<String> urls = new ArrayList<String>(countOfUrls);
+        urls.addAll(enabledUrls);
+        urls.addAll(disabledUrls);
+
+        List<String> enabledUrlList = new ArrayList<String>(countOfUrls);
+        List<String> disabledUrlList = new ArrayList<String>(countOfUrls);
+
+        for (String url : urls) {
+            log.debug("Pinging disabled url: {}", url);
+            if (ping(url)) {
+                log.debug("Url is alive now: {}", url);
+                enabledUrlList.add(url);
+            } else {
+                log.debug("Url is dead now: {}", url);
+                disabledUrlList.add(url);
             }
         }
 
-        for (final String url: urlsToEnable) {
-            addUrl(url);
-        }
-
-        for (final String url: urlsToDisable) {
-            disableUrl(url);
-        }
+        this.enabledUrls = enabledUrlList;
+        this.disabledUrls = disabledUrlList;
     }
 
 
     private String getAnyUrl() {
-        final List<String> sources = new ArrayList<String>(urls);
-        if (sources.isEmpty()) {
+        List<String> localEnabledUrls = enabledUrls;
+        if (localEnabledUrls.isEmpty()) {
             throw new RuntimeException("Unable to get connection: there is no enabled urls");
         }
-        final int idx = rnd.nextInt(sources.size());
-        return sources.get(idx);
+
+        currentIndex = (++currentIndex) % localEnabledUrls.size();
+        return localEnabledUrls.get(currentIndex);
     }
 
     @Override
@@ -195,6 +188,7 @@ public class BalancedClickhouseDataSource implements DataSource {
 
     @Override
     public void setLoginTimeout(int seconds) throws SQLException {
+//        throw new SQLFeatureNotSupportedException();
         loginTimeoutSeconds = seconds;
     }
 
@@ -212,14 +206,14 @@ public class BalancedClickhouseDataSource implements DataSource {
         return this;
     }
 
-    public void scheduleActualization(int rate, TimeUnit timeUnit){
+    public void scheduleActualization(int rate, TimeUnit timeUnit) {
         ClickHouseDriver.ScheduledConnectionCleaner.INSTANCE.scheduleAtFixedRate(new Runnable() {
             @Override
             public void run() {
                 try {
                     actualize();
-                } catch (Exception e){
-                    log.error("Unable to actualize urls: " + e);
+                } catch (Exception e) {
+                    log.error("Unable to actualize urls", e);
                 }
             }
         }, 0, rate, timeUnit);
