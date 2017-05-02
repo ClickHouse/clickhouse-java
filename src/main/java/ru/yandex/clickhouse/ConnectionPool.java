@@ -2,25 +2,29 @@ package ru.yandex.clickhouse;
 
 import com.google.common.collect.Lists;
 import org.slf4j.LoggerFactory;
+import ru.yandex.clickhouse.settings.ConnectionPoolSourceProperties;
 
 import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
 public class ConnectionPool {
     private final static int DEFAULT_NUMBER_OF_CONNECTIONS = 100;
     private static final org.slf4j.Logger log = LoggerFactory.getLogger(ConnectionPool.class);
 
-    private final List<ConnectionPoolSourceConfig> configs;
+    Random rnd = new Random();
+    private final List<ConnectionPoolSourceProperties> configs;
     private List<Connection> connections;
     private int index = 0;
 
-    private List<Connection> fillConnections(final List<ConnectionPoolSourceConfig> configs) {
+    private List<Connection> fillConnections(final List<ConnectionPoolSourceProperties> configs) {
         List<Connection> res = new ArrayList<Connection>();
-        for (final ConnectionPoolSourceConfig conf : configs) {
+        for (final ConnectionPoolSourceProperties conf : configs) {
             try {
                 for (int i = 0; i < conf.getNumberOfConnections(); ++i) {
                     res.add(conf.getDataSource().getConnection());
@@ -29,25 +33,28 @@ public class ConnectionPool {
                 log.warn("Unable to create connection from data source: {}", conf);
             }
         }
+
+        Collections.shuffle(res, rnd);
+
         return res;
     }
 
-    public ConnectionPool(final List<ConnectionPoolSourceConfig> configs) {
+    public ConnectionPool(final List<ConnectionPoolSourceProperties> configs) {
         this.configs = configs;
         connections = fillConnections(configs);
     }
 
     public ConnectionPool(final List<DataSource> sources, final int numberOfConnections) {
-        final List<ConnectionPoolSourceConfig> tmp_conf = new ArrayList<ConnectionPoolSourceConfig>(sources.size());
+        final List<ConnectionPoolSourceProperties> tmp_conf = new ArrayList<ConnectionPoolSourceProperties>(sources.size());
         for (final DataSource source: sources) {
-            tmp_conf.add(new ConnectionPoolSourceConfig(source, numberOfConnections));
+            tmp_conf.add(new ConnectionPoolSourceProperties(source, numberOfConnections));
         }
         configs = tmp_conf;
         connections = fillConnections(configs);
     }
 
     public ConnectionPool(DataSource source, final int numberOfConnections) {
-        this(Lists.newArrayList(new ConnectionPoolSourceConfig(source, numberOfConnections)));
+        this(Lists.newArrayList(new ConnectionPoolSourceProperties(source, numberOfConnections)));
     }
 
     public ConnectionPool(DataSource source) {
