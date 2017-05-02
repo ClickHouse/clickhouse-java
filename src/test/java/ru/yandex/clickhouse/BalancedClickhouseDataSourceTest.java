@@ -122,7 +122,6 @@ public class BalancedClickhouseDataSourceTest {
     }
 
 
-
     @Test
     public void testWorkWithEnabledUrl() throws Exception {
         BalancedClickhouseDataSource halfDatasource = new BalancedClickhouseDataSource("jdbc:clickhouse://not.existed.url:8123,localhost:8123", new ClickHouseProperties());

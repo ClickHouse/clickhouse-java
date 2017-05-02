@@ -10,6 +10,7 @@ import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -24,12 +25,12 @@ public class BalancedClickhouseDataSource implements DataSource {
     private static final Pattern URL_TEMPLATE = Pattern.compile(JDBC_CLICKHOUSE_PREFIX + "//([a-zA-Z0-9_:,.]+)(/[a-zA-Z0-9_]+)?");
 
     protected PrintWriter printWriter;
-    protected int loginTimeout = 0;
+    protected int loginTimeoutSeconds = 0;
     protected final ClickHouseDriver driver = new ClickHouseDriver();
 
-    private Random rnd = new Random();
-    private Set<String> disabledUrls = new HashSet<String>();
-    private Set<String> urls = new HashSet<String>();
+    private final Random rnd = new Random();
+    private final Set<String> disabledUrls = Collections.newSetFromMap(new ConcurrentHashMap<String, Boolean>());
+    private final Set<String> urls = Collections.newSetFromMap(new ConcurrentHashMap<String, Boolean>());
 
     private ClickHouseProperties properties;
 
@@ -91,17 +92,13 @@ public class BalancedClickhouseDataSource implements DataSource {
     }
 
     private void disableUrl(final String url) {
-        synchronized (urls) {
-            urls.remove(url);
-            disabledUrls.add(url);
-        }
+        urls.remove(url);
+        disabledUrls.add(url);
     }
 
     private void removeUrl(final String url) {
-        synchronized (urls) {
-            urls.remove(url);
-            disabledUrls.remove(url);
-        }
+        urls.remove(url);
+        disabledUrls.remove(url);
     }
 
     private void addUrl(final String url) {
@@ -198,12 +195,12 @@ public class BalancedClickhouseDataSource implements DataSource {
 
     @Override
     public void setLoginTimeout(int seconds) throws SQLException {
-        loginTimeout = seconds;
+        loginTimeoutSeconds = seconds;
     }
 
     @Override
     public int getLoginTimeout() throws SQLException {
-        return loginTimeout;
+        return loginTimeoutSeconds;
     }
 
     public Logger getParentLogger() throws SQLFeatureNotSupportedException {
@@ -216,7 +213,7 @@ public class BalancedClickhouseDataSource implements DataSource {
     }
 
     public void scheduleActualization(int rate, TimeUnit timeUnit){
-        BalancedClickhouseDataSource.ScheduledActualizer.INSTANCE.scheduleAtFixedRate(new Runnable() {
+        ClickHouseDriver.ScheduledConnectionCleaner.INSTANCE.scheduleAtFixedRate(new Runnable() {
             @Override
             public void run() {
                 try {
@@ -226,9 +223,5 @@ public class BalancedClickhouseDataSource implements DataSource {
                 }
             }
         }, 0, rate, timeUnit);
-    }
-
-    private static class ScheduledActualizer {
-        private static final ScheduledExecutorService INSTANCE = Executors.newSingleThreadScheduledExecutor();
     }
 }
