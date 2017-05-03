@@ -24,7 +24,7 @@ public class BalancedClickhouseDataSource implements DataSource {
     private PrintWriter printWriter;
     private int loginTimeoutSeconds = 0;
 
-    private volatile int currentIndex = 0;
+    private final Random random = new Random(System.currentTimeMillis());
     private volatile List<String> disabledUrls = new ArrayList<String>();
     private volatile List<String> enabledUrls = new ArrayList<String>();
 
@@ -149,8 +149,7 @@ public class BalancedClickhouseDataSource implements DataSource {
             throw new RuntimeException("Unable to get connection: there is no enabled urls");
         }
 
-        currentIndex++;
-        int index = currentIndex % localEnabledUrls.size();
+        int index = random.nextInt(localEnabledUrls.size());
         return localEnabledUrls.get(index);
     }
 

@@ -83,7 +83,7 @@ public class ConnectionPool {
             // ClickHouseException?
             throw new RuntimeException("There are no connections in connection pool");
         }
-        currentIndex++;
+        currentIndex = Math.abs(currentIndex++);
         int index = currentIndex % localConnectionList.size();
         return localConnectionList.get(index);
     }
