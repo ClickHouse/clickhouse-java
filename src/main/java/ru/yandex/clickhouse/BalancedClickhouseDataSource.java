@@ -149,8 +149,9 @@ public class BalancedClickhouseDataSource implements DataSource {
             throw new RuntimeException("Unable to get connection: there is no enabled urls");
         }
 
-        currentIndex = (++currentIndex) % localEnabledUrls.size();
-        return localEnabledUrls.get(currentIndex);
+        currentIndex++;
+        int index = currentIndex % localEnabledUrls.size();
+        return localEnabledUrls.get(index);
     }
 
     @Override

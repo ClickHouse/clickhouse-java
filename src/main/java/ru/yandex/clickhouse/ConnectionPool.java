@@ -17,7 +17,7 @@ public class ConnectionPool {
 
     private final List<ConnectionPoolSourceProperties> configs;
     private volatile List<Connection> connections;
-    private volatile int index = 0;
+    private volatile int currentIndex = 0;
 
     public ConnectionPool(final List<ConnectionPoolSourceProperties> configs) {
         this.configs = configs;
@@ -83,8 +83,8 @@ public class ConnectionPool {
             // ClickHouseException?
             throw new RuntimeException("There are no connections in connection pool");
         }
-
-        index = (++index) % localConnectionList.size();
+        currentIndex++;
+        int index = currentIndex % localConnectionList.size();
         return localConnectionList.get(index);
     }
 
