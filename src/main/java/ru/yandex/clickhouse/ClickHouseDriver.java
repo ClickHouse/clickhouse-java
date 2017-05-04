@@ -134,7 +134,7 @@ public class ClickHouseDriver implements Driver {
         }, 0, rate, timeUnit);
     }
 
-    public static class ScheduledConnectionCleaner {
-        public static final ScheduledExecutorService INSTANCE = Executors.newSingleThreadScheduledExecutor();
+    static class ScheduledConnectionCleaner {
+        static final ScheduledExecutorService INSTANCE = Executors.newSingleThreadScheduledExecutor();
     }
 }
