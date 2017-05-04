@@ -1,5 +1,29 @@
 package ru.yandex.clickhouse;
 
+import java.io.IOException;
+import java.net.URISyntaxException;
+import java.sql.Array;
+import java.sql.Blob;
+import java.sql.CallableStatement;
+import java.sql.Clob;
+import java.sql.Connection;
+import java.sql.DatabaseMetaData;
+import java.sql.NClob;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLClientInfoException;
+import java.sql.SQLException;
+import java.sql.SQLFeatureNotSupportedException;
+import java.sql.SQLWarning;
+import java.sql.SQLXML;
+import java.sql.Savepoint;
+import java.sql.Statement;
+import java.sql.Struct;
+import java.util.Map;
+import java.util.Properties;
+import java.util.TimeZone;
+import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 import org.apache.http.conn.ConnectTimeoutException;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.slf4j.Logger;
@@ -12,15 +36,6 @@ import ru.yandex.clickhouse.util.LogProxy;
 import ru.yandex.clickhouse.util.TypeUtils;
 import ru.yandex.clickhouse.util.apache.StringUtils;
 import ru.yandex.clickhouse.util.guava.StreamUtils;
-
-import java.io.IOException;
-import java.net.URISyntaxException;
-import java.sql.*;
-import java.util.Map;
-import java.util.Properties;
-import java.util.TimeZone;
-import java.util.concurrent.Executor;
-import java.util.concurrent.TimeUnit;
 
 
 public class ClickHouseConnectionImpl implements ClickHouseConnection {
@@ -49,8 +64,12 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
         }
         ClickHouseHttpClientBuilder clientBuilder = new ClickHouseHttpClientBuilder(this.properties);
         log.debug("new connection");
-        httpclient = clientBuilder.buildClient();
-         initTimeZone(properties);
+        try {
+            httpclient = clientBuilder.buildClient();
+        }catch (Exception e) {
+            throw  new IllegalStateException("cannot initialize http client", e);
+        }
+        initTimeZone(properties);
     }
 
     private void initTimeZone(ClickHouseProperties properties) {
