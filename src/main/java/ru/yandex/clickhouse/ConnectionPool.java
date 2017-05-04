@@ -83,9 +83,13 @@ public class ConnectionPool {
             // ClickHouseException?
             throw new RuntimeException("There are no connections in connection pool");
         }
-        currentIndex = Math.abs(currentIndex++);
-        int index = currentIndex % localConnectionList.size();
-        return localConnectionList.get(index);
+        //data race is here, but it is normal
+        int localIndex = currentIndex + 1;
+        localIndex = localIndex < 0 ? 0 : localIndex;
+        currentIndex = localIndex;
+
+        localIndex = localIndex % localConnectionList.size();
+        return localConnectionList.get(localIndex);
     }
 
     public void scheduleActualization(int rate, TimeUnit timeUnit) {
