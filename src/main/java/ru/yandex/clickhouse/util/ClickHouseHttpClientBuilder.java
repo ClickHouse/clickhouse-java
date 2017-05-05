@@ -159,7 +159,7 @@ public class ClickHouseHttpClientBuilder {
           if(caInputStream == null) {
               throw new IOException(
                   "Could not open SSL/TLS root certificate file '" + properties
-                      .getSslRootCertificate() + "'");
+                      .getSslRootCertificate() + "'", ex);
           }
       }
       CertificateFactory cf = CertificateFactory.getInstance("X.509");
