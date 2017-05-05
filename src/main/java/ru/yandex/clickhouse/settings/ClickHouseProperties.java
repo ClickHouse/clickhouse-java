@@ -1,9 +1,11 @@
 package ru.yandex.clickhouse.settings;
 
+import ru.yandex.clickhouse.util.apache.StringUtils;
+
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
-import ru.yandex.clickhouse.util.apache.StringUtils;
+
 
 
 public class ClickHouseProperties {
