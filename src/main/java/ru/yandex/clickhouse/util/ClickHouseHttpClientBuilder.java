@@ -154,8 +154,13 @@ public class ClickHouseHttpClientBuilder {
       try {
         caInputStream = new FileInputStream(properties.getSslRootCertificate());
       } catch (FileNotFoundException ex) {
-        throw new IOException(
-            "Could not open SSL/TLS root certificate file '" + properties.getSslRootCertificate() + "'");
+          ClassLoader cl = Thread.currentThread().getContextClassLoader();
+          caInputStream = cl.getResourceAsStream(properties.getSslRootCertificate());
+          if(caInputStream == null) {
+              throw new IOException(
+                  "Could not open SSL/TLS root certificate file '" + properties
+                      .getSslRootCertificate() + "'");
+          }
       }
       CertificateFactory cf = CertificateFactory.getInstance("X.509");
       Iterator<? extends Certificate> caIt = cf.generateCertificates(caInputStream).iterator();
