@@ -1,5 +1,6 @@
 package ru.yandex.clickhouse;
 
+
 import org.apache.http.conn.ConnectTimeoutException;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.slf4j.Logger;
@@ -21,6 +22,7 @@ import java.util.Properties;
 import java.util.TimeZone;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
+
 
 
 public class ClickHouseConnectionImpl implements ClickHouseConnection {
@@ -49,8 +51,12 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
         }
         ClickHouseHttpClientBuilder clientBuilder = new ClickHouseHttpClientBuilder(this.properties);
         log.debug("new connection");
-        httpclient = clientBuilder.buildClient();
-         initTimeZone(properties);
+        try {
+            httpclient = clientBuilder.buildClient();
+        }catch (Exception e) {
+            throw  new IllegalStateException("cannot initialize http client", e);
+        }
+        initTimeZone(properties);
     }
 
     private void initTimeZone(ClickHouseProperties properties) {

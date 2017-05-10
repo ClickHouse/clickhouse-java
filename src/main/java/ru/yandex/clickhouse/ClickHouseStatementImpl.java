@@ -41,6 +41,7 @@ import java.sql.SQLWarning;
 import java.util.*;
 
 
+
 public class ClickHouseStatementImpl implements ClickHouseStatement {
 
     private static final Logger log = LoggerFactory.getLogger(ClickHouseStatementImpl.class);
@@ -541,7 +542,7 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
             );
 
             return new URIBuilder()
-                    .setScheme("http")
+                    .setScheme(properties.getSsl() ? "https" : "http")
                     .setHost(properties.getHost())
                     .setPort(properties.getPort())
                     .setPath("/")

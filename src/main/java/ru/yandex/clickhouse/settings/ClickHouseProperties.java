@@ -7,6 +7,7 @@ import java.util.Map;
 import java.util.Properties;
 
 
+
 public class ClickHouseProperties {
 
     // connection settings
@@ -22,6 +23,9 @@ public class ClickHouseProperties {
     private int maxTotal;
     private String host;
     private int port;
+    private boolean ssl;
+    private String sslRootCertificate;
+    private String sslMode;
 
     //additional
     private int maxCompressBufferSize;
@@ -68,6 +72,9 @@ public class ClickHouseProperties {
         this.defaultMaxPerRoute = (Integer)getSetting(info, ClickHouseConnectionSettings.DEFAULT_MAX_PER_ROUTE);
         this.maxTotal = (Integer)getSetting(info, ClickHouseConnectionSettings.MAX_TOTAL);
         this.maxCompressBufferSize = (Integer) getSetting(info, ClickHouseConnectionSettings.MAX_COMPRESS_BUFFER_SIZE);
+        this.ssl = (Boolean) getSetting(info, ClickHouseConnectionSettings.SSL);
+        this.sslRootCertificate = (String) getSetting(info, ClickHouseConnectionSettings.SSL_ROOT_CERTIFICATE);
+        this.sslMode = (String) getSetting(info, ClickHouseConnectionSettings.SSL_MODE);
         this.useServerTimeZone = (Boolean)getSetting(info, ClickHouseConnectionSettings.USE_SERVER_TIME_ZONE);
         this.useTimeZone = (String)getSetting(info, ClickHouseConnectionSettings.USE_TIME_ZONE);
 
@@ -105,6 +112,9 @@ public class ClickHouseProperties {
         ret.put(ClickHouseConnectionSettings.DEFAULT_MAX_PER_ROUTE.getKey(), String.valueOf(defaultMaxPerRoute));
         ret.put(ClickHouseConnectionSettings.MAX_TOTAL.getKey(), String.valueOf(maxTotal));
         ret.put(ClickHouseConnectionSettings.MAX_COMPRESS_BUFFER_SIZE.getKey(), String.valueOf(maxCompressBufferSize));
+        ret.put(ClickHouseConnectionSettings.SSL.getKey(), String.valueOf(ssl));
+        ret.put(ClickHouseConnectionSettings.SSL_ROOT_CERTIFICATE.getKey(), String.valueOf(sslRootCertificate));
+        ret.put(ClickHouseConnectionSettings.SSL_MODE.getKey(), String.valueOf(sslMode));
         ret.put(ClickHouseConnectionSettings.USE_SERVER_TIME_ZONE.getKey(), String.valueOf(useServerTimeZone));
         ret.put(ClickHouseConnectionSettings.USE_TIME_ZONE.getKey(), String.valueOf(useTimeZone));
 
@@ -144,6 +154,9 @@ public class ClickHouseProperties {
         setDefaultMaxPerRoute(properties.defaultMaxPerRoute);
         setMaxTotal(properties.maxTotal);
         setMaxCompressBufferSize(properties.maxCompressBufferSize);
+        setSsl(properties.ssl);
+        setSslRootCertificate(properties.sslRootCertificate);
+        setSslMode(properties.sslMode);
         setUseServerTimeZone(properties.useServerTimeZone);
         setUseTimeZone(properties.useTimeZone);
 
@@ -390,6 +403,30 @@ public class ClickHouseProperties {
 
     public void setMaxCompressBufferSize(int maxCompressBufferSize) {
         this.maxCompressBufferSize = maxCompressBufferSize;
+    }
+
+    public boolean getSsl() {
+        return ssl;
+    }
+
+    public void setSsl(boolean ssl) {
+        this.ssl = ssl;
+    }
+
+    public String getSslRootCertificate() {
+        return sslRootCertificate;
+    }
+
+    public void setSslRootCertificate(String sslRootCertificate) {
+        this.sslRootCertificate = sslRootCertificate;
+    }
+
+    public String getSslMode() {
+        return sslMode;
+    }
+
+    public void setSslMode(String sslMode) {
+        this.sslMode = sslMode;
     }
 
     public boolean isUseServerTimeZone() {
