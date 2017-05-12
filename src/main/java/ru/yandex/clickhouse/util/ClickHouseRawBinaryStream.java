@@ -16,7 +16,6 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * @author Dmitry Andreev <a href="mailto:AndreevDm@yandex-team.ru"></a>
- * @date 28/04/2017
  */
 public class ClickHouseRawBinaryStream {
     private final LittleEndianDataOutputStream out;

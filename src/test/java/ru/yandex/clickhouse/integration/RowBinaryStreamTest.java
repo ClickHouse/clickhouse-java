@@ -20,7 +20,6 @@ import java.util.Date;
 
 /**
  * @author Dmitry Andreev <a href="mailto:AndreevDm@yandex-team.ru"></a>
- * @date 11/05/2017
  */
 public class RowBinaryStreamTest {
 

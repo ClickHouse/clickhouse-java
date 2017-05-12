@@ -10,7 +10,6 @@ import java.util.TimeZone;
 
 /**
  * @author Dmitry Andreev <a href="mailto:AndreevDm@yandex-team.ru"></a>
- * @date 28/04/2017
  */
 public class ClickHouseRawBinaryStreamTest {
 
