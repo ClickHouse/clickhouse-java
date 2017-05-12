@@ -41,12 +41,12 @@ public class ClickHouseDataSource implements DataSource {
     }
 
     @Override
-    public Connection getConnection() throws SQLException {
+    public ClickHouseConnection getConnection() throws SQLException {
         return driver.connect(url, properties);
     }
 
     @Override
-    public Connection getConnection(String username, String password) throws SQLException {
+    public ClickHouseConnection getConnection(String username, String password) throws SQLException {
         return driver.connect(url, properties.withCredentials(username, password));
     }
 

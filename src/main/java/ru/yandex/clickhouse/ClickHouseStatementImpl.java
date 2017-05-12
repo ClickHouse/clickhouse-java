@@ -25,6 +25,9 @@ import ru.yandex.clickhouse.response.ClickHouseResultSet;
 import ru.yandex.clickhouse.response.FastByteArrayOutputStream;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
 import ru.yandex.clickhouse.settings.ClickHouseQueryParam;
+import ru.yandex.clickhouse.util.ClickHouseFormat;
+import ru.yandex.clickhouse.util.ClickHouseStreamCallback;
+import ru.yandex.clickhouse.util.ClickHouseStreamHttpEntity;
 import ru.yandex.clickhouse.util.Patterns;
 import ru.yandex.clickhouse.util.Utils;
 import ru.yandex.clickhouse.util.guava.StreamUtils;
@@ -34,7 +37,6 @@ import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.SQLWarning;
@@ -292,7 +294,7 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
     }
 
     @Override
-    public Connection getConnection() throws SQLException {
+    public ClickHouseConnection getConnection() throws ClickHouseException {
         return connection;
     }
 
@@ -611,16 +613,28 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
         }
     }
 
+
+    @Override
+    public void sendRowBinaryStream(String sql, ClickHouseStreamCallback callback) throws SQLException {
+        sendStream(
+            new ClickHouseStreamHttpEntity(callback, getConnection().getTimeZone()), sql, ClickHouseFormat.RowBinary
+        );
+    }
+
     public void sendStream(InputStream content, String table) throws ClickHouseException {
         String query = "INSERT INTO " + table;
         sendStream(new InputStreamEntity(content, -1), query);
     }
 
     public void sendStream(HttpEntity content, String sql) throws ClickHouseException {
+        sendStream(content, sql, ClickHouseFormat.TabSeparated);
+    }
+
+    private void sendStream(HttpEntity content, String sql, ClickHouseFormat format) throws ClickHouseException {
         // echo -ne '10\n11\n12\n' | POST 'http://localhost:8123/?query=INSERT INTO t FORMAT TabSeparated'
         HttpEntity entity = null;
         try {
-            URI uri = buildRequestUri(sql + " FORMAT TabSeparated", null, null, false);
+            URI uri = buildRequestUri(sql + " FORMAT " + format.name(), null, null, false);
 
             HttpPost httpPost = new HttpPost(uri);
             if (properties.isDecompress()) {

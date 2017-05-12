@@ -92,13 +92,14 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
     }
 
     @Override
-    public Statement createStatement() throws SQLException {
+    public ClickHouseStatement createStatement() throws SQLException {
         return LogProxy.wrap(ClickHouseStatement.class, new ClickHouseStatementImpl(httpclient, this, properties));
     }
 
+    @Deprecated
     @Override
     public ClickHouseStatement createClickHouseStatement() throws SQLException {
-        return LogProxy.wrap(ClickHouseStatement.class, new ClickHouseStatementImpl(httpclient, this, properties));
+        return createStatement();
     }
 
     @Override
@@ -120,12 +121,13 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
 
 
     @Override
-    public Statement createStatement(int resultSetType, int resultSetConcurrency) throws SQLException {
+    public ClickHouseStatement createStatement(int resultSetType, int resultSetConcurrency) throws SQLException {
         return createStatement(resultSetType, resultSetConcurrency, ResultSet.CLOSE_CURSORS_AT_COMMIT);
     }
 
     @Override
-    public Statement createStatement(int resultSetType, int resultSetConcurrency, int resultSetHoldability) throws SQLException {
+    public ClickHouseStatement createStatement(int resultSetType, int resultSetConcurrency,
+                                               int resultSetHoldability) throws SQLException {
         if (resultSetType != ResultSet.TYPE_FORWARD_ONLY && resultSetConcurrency != ResultSet.CONCUR_READ_ONLY
             && resultSetHoldability != ResultSet.CLOSE_CURSORS_AT_COMMIT) {
             throw new SQLFeatureNotSupportedException();

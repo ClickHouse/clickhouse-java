@@ -91,7 +91,7 @@ public class ClickHouseStatementImplTest {
 
     @Test
     public void testExternalData() throws SQLException, UnsupportedEncodingException {
-        ClickHouseStatement stmt = connection.createClickHouseStatement();
+        ClickHouseStatement stmt = connection.createStatement();
         ResultSet rs = stmt.executeQuery(
                 "select UserName, GroupName " +
                         "from (select 'User' as UserName, 1 as GroupId) " +
