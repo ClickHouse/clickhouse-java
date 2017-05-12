@@ -39,7 +39,7 @@ public class ClickHouseStreamHttpEntity extends AbstractHttpEntity {
 
     @Override
     public void writeTo(OutputStream out) throws IOException {
-        ClickHouseRawBinaryStream stream = new ClickHouseRawBinaryStream(out, timeZone);
+        ClickHouseRowBinaryStream stream = new ClickHouseRowBinaryStream(out, timeZone);
         callback.writeTo(stream);
     }
 

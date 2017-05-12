@@ -9,8 +9,7 @@ import ru.yandex.clickhouse.ClickHouseConnection;
 import ru.yandex.clickhouse.ClickHouseDataSource;
 import ru.yandex.clickhouse.ClickHouseStatement;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
-import ru.yandex.clickhouse.util.ClickHouseFormat;
-import ru.yandex.clickhouse.util.ClickHouseRawBinaryStream;
+import ru.yandex.clickhouse.util.ClickHouseRowBinaryStream;
 import ru.yandex.clickhouse.util.ClickHouseStreamCallback;
 
 import java.io.IOException;
@@ -56,7 +55,7 @@ public class RowBinaryStreamTest {
     }
 
     @Test
-    public void testRawBinaryStream() throws Exception {
+    public void testRowBinaryStream() throws Exception {
         createTable("test.raw_binary");
         ClickHouseStatement statement = connection.createStatement();
         final Date date1 = new Date(1483230102000L); //2017-01-01 03:21:42
@@ -67,7 +66,7 @@ public class RowBinaryStreamTest {
                 "(date, dateTime, string, int8, uInt8, int16, uInt16, int32, uInt32, int64, uInt64, float32, float64)",
             new ClickHouseStreamCallback() {
                 @Override
-                public void writeTo(ClickHouseRawBinaryStream stream) throws IOException {
+                public void writeTo(ClickHouseRowBinaryStream stream) throws IOException {
 
                     stream.writeDate(date1);
                     stream.writeDateTime(date1);

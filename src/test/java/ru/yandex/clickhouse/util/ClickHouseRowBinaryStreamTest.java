@@ -11,14 +11,14 @@ import java.util.TimeZone;
 /**
  * @author Dmitry Andreev <a href="mailto:AndreevDm@yandex-team.ru"></a>
  */
-public class ClickHouseRawBinaryStreamTest {
+public class ClickHouseRowBinaryStreamTest {
 
     @Test
     public void testUInt8() throws Exception {
         check(
             new StreamWriter() {
                 @Override
-                public void write(ClickHouseRawBinaryStream stream) throws Exception {
+                public void write(ClickHouseRowBinaryStream stream) throws Exception {
                     stream.writeUInt8(true);
                     stream.writeUInt8(false);
                     stream.writeUInt8(1);
@@ -36,7 +36,7 @@ public class ClickHouseRawBinaryStreamTest {
         check(
             new StreamWriter() {
                 @Override
-                public void write(ClickHouseRawBinaryStream stream) throws Exception {
+                public void write(ClickHouseRowBinaryStream stream) throws Exception {
                     stream.writeUInt16(0);
                     stream.writeUInt16(65535);
                     stream.writeUInt16(32768);
@@ -51,7 +51,7 @@ public class ClickHouseRawBinaryStreamTest {
         check(
             new StreamWriter() {
                 @Override
-                public void write(ClickHouseRawBinaryStream stream) throws Exception {
+                public void write(ClickHouseRowBinaryStream stream) throws Exception {
                     stream.writeUInt64(0);
                     stream.writeUInt64(UnsignedLong.valueOf("18446744073709551615"));
                 }
@@ -66,7 +66,7 @@ public class ClickHouseRawBinaryStreamTest {
         check(
             new StreamWriter() {
                 @Override
-                public void write(ClickHouseRawBinaryStream stream) throws Exception {
+                public void write(ClickHouseRowBinaryStream stream) throws Exception {
                     stream.writeString("a.b.c");
                     stream.writeFloat64(42.21);
                     stream.writeUInt32(1492342562);
@@ -83,13 +83,13 @@ public class ClickHouseRawBinaryStreamTest {
 
     private void check(StreamWriter streamWriter, byte[] expected) throws Exception {
         ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
-        ClickHouseRawBinaryStream stream = new ClickHouseRawBinaryStream(byteArrayOutputStream, TimeZone.getTimeZone("ETC"));
+        ClickHouseRowBinaryStream stream = new ClickHouseRowBinaryStream(byteArrayOutputStream, TimeZone.getTimeZone("ETC"));
         streamWriter.write(stream);
         Assert.assertEquals(byteArrayOutputStream.toByteArray(), expected);
     }
 
     private interface StreamWriter {
-        void write(ClickHouseRawBinaryStream stream) throws Exception;
+        void write(ClickHouseRowBinaryStream stream) throws Exception;
     }
 
 

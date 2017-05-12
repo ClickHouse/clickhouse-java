@@ -17,7 +17,7 @@ import java.util.concurrent.TimeUnit;
 /**
  * @author Dmitry Andreev <a href="mailto:AndreevDm@yandex-team.ru"></a>
  */
-public class ClickHouseRawBinaryStream {
+public class ClickHouseRowBinaryStream {
     private final LittleEndianDataOutputStream out;
     private final DateTimeZone dateTimeZone;
 
@@ -27,7 +27,7 @@ public class ClickHouseRawBinaryStream {
     private static final DateTime EPOCH_DATE_TIME = new DateTime(0);
     private static final LocalDate EPOCH_DATE = new LocalDate(0);
 
-    public ClickHouseRawBinaryStream(OutputStream outputStream, TimeZone timeZone) {
+    public ClickHouseRowBinaryStream(OutputStream outputStream, TimeZone timeZone) {
         this.out = new LittleEndianDataOutputStream(outputStream);
         this.dateTimeZone = DateTimeZone.forTimeZone(timeZone);
     }
