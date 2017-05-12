@@ -186,13 +186,14 @@ public class ClickHouseResultSet extends AbstractResultSet {
         return getBytes(asColNum(column));
     }
 
-    public long getTimestampAsLong(String column) {
+    public Long getTimestampAsLong(String column) {
         return getTimestampAsLong(asColNum(column));
     }
 
     @Override
     public Timestamp getTimestamp(String column) throws SQLException {
-        return new Timestamp(getTimestampAsLong(column));
+        Long value = getTimestampAsLong(column);
+        return value == null ? null : new Timestamp(value);
     }
 
     @Override
@@ -283,14 +284,14 @@ public class ClickHouseResultSet extends AbstractResultSet {
         return toBytes(getValue(colNum));
     }
 
-    public long getTimestampAsLong(int colNum) {
+    public Long getTimestampAsLong(int colNum) {
         return toTimestamp(getValue(colNum));
     }
 
     @Override
     public Timestamp getTimestamp(int columnIndex) throws SQLException {
-        if (getValue(columnIndex).isNull()) return null;
-        return new Timestamp(getTimestampAsLong(columnIndex));
+        Long value = getTimestampAsLong(columnIndex);
+        return value == null ? null : new Timestamp(value);
     }
 
     @Override
@@ -419,12 +420,12 @@ public class ClickHouseResultSet extends AbstractResultSet {
         return result;
     }
 
-    private long toTimestamp(ByteFragment value) {
-        if (value.isNull()) return 0;
+    private Long toTimestamp(ByteFragment value) {
+        if (value.isNull()) return null;
         try {
             return sdf.parse(value.asString()).getTime();
         } catch (ParseException e) {
-            return 0;
+            throw new RuntimeException(e);
         }
     }
 

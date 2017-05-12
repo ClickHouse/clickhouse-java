@@ -9,11 +9,12 @@ import java.sql.*;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Arrays;
 
 
 public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
 
-    private static final String DEFAULT_CAT = "default";
+    static final String DEFAULT_CAT = "default";
 
     private static final Logger log = LoggerFactory.getLogger(ClickHouseDatabaseMetadata.class);
 
@@ -662,7 +663,7 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
 
     @Override
     public ResultSet getTables(String catalog, String schemaPattern, String tableNamePattern, String[] types) throws SQLException {
-        /**
+        /*
          TABLE_CAT String => table catalog (may be null)
          TABLE_SCHEM String => table schema (may be null)
          TABLE_NAME String => table name
@@ -675,18 +676,14 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
          REF_GENERATION String => specifies how values in SELF_REFERENCING_COL_NAME are created. Values are "SYSTEM", "USER", "DERIVED". (may be null)
          */
         String sql = "select " +
-                "database, name " +
-                "from system.tables";
+                "database, name, engine " +
+                "from system.tables " +
+                "where name not like '.inner.%'";
         if (schemaPattern != null) {
-            sql += " where database like '" + schemaPattern + "'";
+            sql += " and database like '" + schemaPattern + "'";
         }
         if (tableNamePattern != null) {
-            if (schemaPattern != null) {
-                sql += " and";
-            } else {
-                sql += " where";
-            }
-            sql += " name like '" + tableNamePattern + "'";
+            sql += " and name like '" + tableNamePattern + "'";
         }
         sql += " order by database, name";
         ResultSet result = request(sql);
@@ -695,16 +692,27 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
         builder.names("TABLE_CAT", "TABLE_SCHEM", "TABLE_NAME", "TABLE_TYPE", "REMARKS", "TYPE_CAT", "TYPE_SCHEM", "TYPE_NAME", "SELF_REFERENCING_COL_NAME", "REF_GENERATION");
         builder.types("String", "String", "String", "String", "String", "String", "String", "String", "String", "String");
 
+        List typeList = types != null ? Arrays.asList(types) : null;
         while (result.next()) {
             List<String> row = new ArrayList<String>();
             row.add(DEFAULT_CAT);
             row.add(result.getString(1));
             row.add(result.getString(2));
-            row.add("TABLE"); // may be done more precise
+            String type, e = result.getString(3).intern();
+            if (e == "View" || e == "MaterializedView" || e == "Merge" || e == "Distributed" || e == "Null") {
+                type = "VIEW"; // some kind of view
+            } else if (e == "Memory" || e == "Set" || e == "Join" || e == "Buffer") {
+                type = "OTHER"; // not a real table
+            } else {
+                type = "TABLE";
+            }
+            row.add(type);
             for (int i = 3; i < 9; i++) {
                 row.add(null);
             }
-            builder.addRow(row);
+            if (typeList == null || typeList.contains(type)) {
+                builder.addRow(row);
+            }
         }
         result.close();
         return builder.build();
@@ -750,7 +758,8 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
         builder.types("String");
 
         builder.addRow("TABLE");
-        builder.addRow("LOCAL TEMPORARY");
+        builder.addRow("VIEW");
+        builder.addRow("OTHER");
         return builder.build();
     }
 
