@@ -21,13 +21,13 @@ public class ClickhouseLZ4StreamTest {
         }
         outputStream.flush();
         byte[] result = baos.toByteArray();
-        System.out.println(result.length);
+        // System.out.println(result.length);
         Assert.assertTrue(result.length < sb.length()/2);
         ByteArrayInputStream bais = new ByteArrayInputStream(result);
         ClickHouseLZ4Stream is = new ClickHouseLZ4Stream(bais);
         byte[] buf = new byte[20000000];
         int read = is.read(buf);
-        System.out.println(read);
+        // System.out.println(read);
         Assert.assertEquals(new String(buf, 0, read), sb.toString());
     }
 }

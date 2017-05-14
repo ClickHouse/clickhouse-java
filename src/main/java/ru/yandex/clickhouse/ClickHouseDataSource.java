@@ -17,7 +17,7 @@ public class ClickHouseDataSource implements DataSource {
     protected final ClickHouseDriver driver = new ClickHouseDriver();
     protected final String url;
     protected PrintWriter printWriter;
-    protected int loginTimeout = 0;
+    protected int loginTimeoutSeconds = 0;
     private ClickHouseProperties properties;
 
     public ClickHouseDataSource(String url) {
@@ -82,12 +82,12 @@ public class ClickHouseDataSource implements DataSource {
 
     @Override
     public void setLoginTimeout(int seconds) throws SQLException {
-        loginTimeout = seconds;
+        loginTimeoutSeconds = seconds;
     }
 
     @Override
     public int getLoginTimeout() throws SQLException {
-        return loginTimeout;
+        return loginTimeoutSeconds;
     }
 
     public Logger getParentLogger() throws SQLFeatureNotSupportedException {
