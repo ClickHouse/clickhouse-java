@@ -2,7 +2,6 @@ package ru.yandex.clickhouse;
 
 import ru.yandex.clickhouse.response.ClickHouseResponse;
 import ru.yandex.clickhouse.settings.ClickHouseQueryParam;
-import ru.yandex.clickhouse.util.ClickHouseFormat;
 import ru.yandex.clickhouse.util.ClickHouseStreamCallback;
 
 import java.io.InputStream;

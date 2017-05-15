@@ -49,7 +49,7 @@ public class ClickHouseRowBinaryStream {
     }
 
     private void validateInt(int value, int minValue, int maxValue, String dataType) {
-        if (value < minValue && value > maxValue) {
+        if (value < minValue || value > maxValue) {
             throw new IllegalStateException("Not a " + dataType + " value: " + value);
         }
     }
@@ -93,7 +93,7 @@ public class ClickHouseRowBinaryStream {
     }
 
     public void writeUInt32(long value) throws IOException {
-        if (value < 0 && value > U_INT32_MAX) {
+        if (value < 0 || value > U_INT32_MAX) {
             throw new IllegalStateException("Not a UInt32 value: " + value);
         }
         int unsigned = (int) (value & 0xffffffffL);
