@@ -17,6 +17,8 @@ It has support of a minimal subset of features to be usable.
 URL syntax: 
 `jdbc:clickhouse://<host>:<port>[/<database>]`, e.g. `jdbc:clickhouse://localhost:8123/test`
 
+additionally, if you have a few instances, you can use `BalancedClickhouseDataSource`.
+
 ### Compiling with maven
 The driver is built with maven.
 `mvn package -DskipTests=true`

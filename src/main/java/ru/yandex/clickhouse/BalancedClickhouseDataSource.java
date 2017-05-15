@@ -17,6 +17,16 @@ import java.util.regex.Pattern;
 
 import static ru.yandex.clickhouse.ClickhouseJdbcUrlParser.JDBC_CLICKHOUSE_PREFIX;
 
+/**
+ * <p> Database for clickhouse jdbc connections.
+ * <p> It has list of database urls.
+ * For every {@link #getConnection() getConnection} invocation, it returns connection to random host from the list.
+ * Furthermore, this class has method {@link #scheduleActualization(int, TimeUnit) scheduleActualization}
+ * which test hosts for availability. By default, this option is turned off.
+ * <p>
+ * The instances of {@code BalancedClickhouseDataSource} don't identify the master and replicas.
+ * You should use it if you only read from database and don't have write operations.
+ */
 public class BalancedClickhouseDataSource implements DataSource {
     private static final org.slf4j.Logger log = LoggerFactory.getLogger(BalancedClickhouseDataSource.class);
     private static final Pattern URL_TEMPLATE = Pattern.compile(JDBC_CLICKHOUSE_PREFIX + "//([a-zA-Z0-9_:,.]+)(/[a-zA-Z0-9_]+)?");
@@ -31,15 +41,36 @@ public class BalancedClickhouseDataSource implements DataSource {
     private final ClickHouseProperties properties;
     private final ClickHouseDriver driver = new ClickHouseDriver();
 
-
+    /**
+     * create Datasource for clickhouse JDBC connections
+     *
+     * @param url address for connection to the database
+     *            must have the next format {@code jdbc:clickhouse://<first-host>:<port>,<second-host>:<port>/<database> }
+     *            for example, {@code jdbc:clickhouse://localhost:8123,localhost:8123/database }
+     * @throws IllegalArgumentException if param have not correct format, or error happens when checking host availability
+     */
     public BalancedClickhouseDataSource(final String url) {
         this(splitUrl(url), new ClickHouseProperties());
     }
 
-    public BalancedClickhouseDataSource(final String url, Properties info) {
-        this(splitUrl(url), new ClickHouseProperties(info));
+    /**
+     * create Datasource for clickhouse JDBC connections
+     *
+     * @param url        address for connection to the database
+     * @param properties database properties
+     * @see #BalancedClickhouseDataSource(String)
+     */
+    public BalancedClickhouseDataSource(final String url, Properties properties) {
+        this(splitUrl(url), new ClickHouseProperties(properties));
     }
 
+    /**
+     * create Datasource for clickhouse JDBC connections
+     *
+     * @param url        address for connection to the database
+     * @param properties database properties
+     * @see #BalancedClickhouseDataSource(String)
+     */
     public BalancedClickhouseDataSource(final String url, ClickHouseProperties properties) {
         this(splitUrl(url), properties);
     }
@@ -116,7 +147,8 @@ public class BalancedClickhouseDataSource implements DataSource {
     }
 
     /**
-     * Checks if clickhouse on url is alive, if it isn't, disable url, else enable
+     * Checks if clickhouse on url is alive, if it isn't, disable url, else enable.
+     * This method is not {@code thread-safe}, but it is invoked from single thread and all are ok.
      */
     void actualize() {
         int countOfUrls = enabledUrls.size() + disabledUrls.size();
@@ -143,26 +175,35 @@ public class BalancedClickhouseDataSource implements DataSource {
     }
 
 
-    private String getAnyUrl() {
+    private String getAnyUrl() throws SQLException{
         List<String> localEnabledUrls = enabledUrls;
         if (localEnabledUrls.isEmpty()) {
-            throw new RuntimeException("Unable to get connection: there is no enabled urls");
+            throw new SQLException("Unable to get connection: there are no enabled urls");
         }
 
         int index = random.nextInt(localEnabledUrls.size());
         return localEnabledUrls.get(index);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public Connection getConnection() throws SQLException {
         return driver.connect(getAnyUrl(), properties);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public Connection getConnection(String username, String password) throws SQLException {
         return driver.connect(getAnyUrl(), properties.withCredentials(username, password));
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public <T> T unwrap(Class<T> iface) throws SQLException {
         if (iface.isAssignableFrom(getClass())) {
@@ -171,42 +212,75 @@ public class BalancedClickhouseDataSource implements DataSource {
         throw new SQLException("Cannot unwrap to " + iface.getName());
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public boolean isWrapperFor(Class<?> iface) throws SQLException {
         return iface.isAssignableFrom(getClass());
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public PrintWriter getLogWriter() throws SQLException {
         return printWriter;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void setLogWriter(PrintWriter printWriter) throws SQLException {
         this.printWriter = printWriter;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void setLoginTimeout(int seconds) throws SQLException {
 //        throw new SQLFeatureNotSupportedException();
         loginTimeoutSeconds = seconds;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public int getLoginTimeout() throws SQLException {
         return loginTimeoutSeconds;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public Logger getParentLogger() throws SQLFeatureNotSupportedException {
         throw new SQLFeatureNotSupportedException();
     }
 
+    /**
+     * set time period of removing connections
+     *
+     * @param rate     value for time unit
+     * @param timeUnit time unit for checking
+     * @return this datasource with changed settings
+     * @see ClickHouseDriver#scheduleConnectionsCleaning
+     */
     public BalancedClickhouseDataSource withConnectionsCleaning(int rate, TimeUnit timeUnit) {
         driver.scheduleConnectionsCleaning(rate, timeUnit);
         return this;
     }
 
-    public void scheduleActualization(int rate, TimeUnit timeUnit) {
+    /**
+     * set time period for checking availability connections
+     *
+     * @param rate     value for time unit
+     * @param timeUnit time unit for checking
+     * @return this datasource with changed settings
+     */
+    public BalancedClickhouseDataSource scheduleActualization(int rate, TimeUnit timeUnit) {
         ClickHouseDriver.ScheduledConnectionCleaner.INSTANCE.scheduleAtFixedRate(new Runnable() {
             @Override
             public void run() {
@@ -217,5 +291,7 @@ public class BalancedClickhouseDataSource implements DataSource {
                 }
             }
         }, 0, rate, timeUnit);
+
+        return this;
     }
 }
