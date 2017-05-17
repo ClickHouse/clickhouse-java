@@ -5,7 +5,6 @@ import org.testng.annotations.Test;
 
 /**
  * @author Dmitry Andreev <a href="mailto:AndreevDm@yandex-team.ru"></a>
- * @date 24/09/16
  */
 public class ClickHouseArrayUtilTest {
     @Test

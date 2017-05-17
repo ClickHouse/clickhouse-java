@@ -33,9 +33,6 @@
 
 package ru.yandex.clickhouse.util.apache;
 
-import java.util.Iterator;
-
-
 public class StringUtils {
     public static boolean isBlank(final CharSequence cs) {
         int strLen;
@@ -48,42 +45,5 @@ public class StringUtils {
             }
         }
         return true;
-    }
-
-    public static boolean isEmpty(String str) {
-        return str == null || str.isEmpty();
-    }
-
-    public static String join(final Iterable<?> iterable, final char separator) {
-
-        Iterator<?> iterator = iterable.iterator();
-
-        // handle null, zero and one elements before building a buffer
-        if (iterator == null) {
-            return null;
-        }
-        if (!iterator.hasNext()) {
-            return "";
-        }
-        final Object first = iterator.next();
-        if (!iterator.hasNext()) {
-            return first == null ? "" : first.toString();
-        }
-
-        // two or more elements
-        final StringBuilder buf = new StringBuilder(256); // Java default is 16, probably too small
-        if (first != null) {
-            buf.append(first);
-        }
-
-        while (iterator.hasNext()) {
-            buf.append(separator);
-            final Object obj = iterator.next();
-            if (obj != null) {
-                buf.append(obj);
-            }
-        }
-
-        return buf.toString();
     }
 }
