@@ -1,3 +1,10 @@
+0.1.21
+  * getSchema/setSchema
+  * table types in database metadata
+  * BalancedDataSource
+  * ssl/tls support
+  * RowBinary format for inserts
+
 0.1.20
   * checksum validation when using compress/decompress
   * max_memory_usage param
