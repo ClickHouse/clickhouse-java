@@ -220,7 +220,7 @@ public enum ClickHouseQueryParam implements DriverPropertyCreator {
 
     USER("user", null, String.class, "user name, by default - default"),
 
-    PREFERRED_BLOCK_SIZE_BYTES("preferred_block_size_bytes", null, Long.class, "");
+    PREFERRED_BLOCK_SIZE_BYTES("preferred_block_size_bytes", null, Long.class, ""),;
 
     private final String key;
     private final Object defaultValue;
