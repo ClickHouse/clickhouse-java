@@ -54,6 +54,7 @@ public class ClickHouseProperties {
     private Long maxBytesBeforeExternalGroupBy;
     private Long maxBytesBeforeExternalSort;
     private Long maxMemoryUsage;
+    private Long preferredBlockSizeBytes;
 
     public ClickHouseProperties() {
         this(new Properties());
@@ -97,6 +98,7 @@ public class ClickHouseProperties {
         this.maxBytesBeforeExternalGroupBy = (Long)getSetting(info, ClickHouseQueryParam.MAX_BYTES_BEFORE_EXTERNAL_GROUP_BY);
         this.maxBytesBeforeExternalSort = (Long)getSetting(info, ClickHouseQueryParam.MAX_BYTES_BEFORE_EXTERNAL_SORT);
         this.maxMemoryUsage = getSetting(info, ClickHouseQueryParam.MAX_MEMORY_USAGE);
+        this.preferredBlockSizeBytes = getSetting(info, ClickHouseQueryParam.PREFERRED_BLOCK_SIZE_BYTES);
     }
 
     public Properties asProperties() {
@@ -137,6 +139,7 @@ public class ClickHouseProperties {
         ret.put(ClickHouseQueryParam.MAX_BYTES_BEFORE_EXTERNAL_GROUP_BY.getKey(), maxBytesBeforeExternalGroupBy);
         ret.put(ClickHouseQueryParam.MAX_BYTES_BEFORE_EXTERNAL_SORT.getKey(), maxBytesBeforeExternalSort);
         ret.put(ClickHouseQueryParam.MAX_MEMORY_USAGE.getKey(), maxMemoryUsage);
+        ret.put(ClickHouseQueryParam.PREFERRED_BLOCK_SIZE_BYTES.getKey(), preferredBlockSizeBytes);
         return ret.getProperties();
     }
 
@@ -224,6 +227,9 @@ public class ClickHouseProperties {
         if (maxBytesBeforeExternalSort != null) params.put(ClickHouseQueryParam.MAX_BYTES_BEFORE_EXTERNAL_SORT, String.valueOf(maxBytesBeforeExternalSort));
         if (maxMemoryUsage != null) {
             params.put(ClickHouseQueryParam.MAX_MEMORY_USAGE, String.valueOf(maxMemoryUsage));
+        }
+        if (preferredBlockSizeBytes != null) {
+            params.put(ClickHouseQueryParam.PREFERRED_BLOCK_SIZE_BYTES, String.valueOf(preferredBlockSizeBytes));
         }
 
         return params;
@@ -563,6 +569,14 @@ public class ClickHouseProperties {
 
     public void setMaxMemoryUsage(Long maxMemoryUsage) {
         this.maxMemoryUsage = maxMemoryUsage;
+    }
+
+    public Long getPreferredBlockSizeBytes() {
+        return preferredBlockSizeBytes;
+    }
+
+    public void setPreferredBlockSizeBytes(Long preferredBlockSizeBytes) {
+        this.preferredBlockSizeBytes = preferredBlockSizeBytes;
     }
 
     private static class PropertiesBuilder {
