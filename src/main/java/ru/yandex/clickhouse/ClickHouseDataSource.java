@@ -4,36 +4,20 @@ import ru.yandex.clickhouse.settings.ClickHouseProperties;
 
 import javax.sql.DataSource;
 import java.io.PrintWriter;
+import java.net.URISyntaxException;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.util.Properties;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 
 public class ClickHouseDataSource implements DataSource {
-
-    protected final static Pattern urlRegexp;
-
-    static {
-        urlRegexp = Pattern.compile("^jdbc:clickhouse://([a-zA-Z0-9.-]+):([0-9]+)(?:|/|/([a-zA-Z0-9_]+))$");
-    }
-
-    protected final static String DEFAULT_DATABASE = "default";
-
     protected final ClickHouseDriver driver = new ClickHouseDriver();
-
     protected final String url;
-    protected String host;
-    protected int port;
-    protected String database;
-
-    PrintWriter printWriter;
-    protected int loginTimeout = 0;
-
+    protected PrintWriter printWriter;
+    protected int loginTimeoutSeconds = 0;
     private ClickHouseProperties properties;
 
     public ClickHouseDataSource(String url) {
@@ -46,46 +30,36 @@ public class ClickHouseDataSource implements DataSource {
 
     public ClickHouseDataSource(String url, ClickHouseProperties properties) {
         if (url == null) {
-            throw new IllegalArgumentException("Incorrect ClickHouse jdbc url: " + url);
+            throw new IllegalArgumentException("Incorrect ClickHouse jdbc url. It must be not null");
         }
         this.url = url;
-
-        Matcher m = urlRegexp.matcher(url);
-        if (m.find()) {
-            this.host = m.group(1);
-            this.port = Integer.parseInt(m.group(2));
-            if (m.group(3) != null) {
-                this.database = m.group(3);
-            } else {
-                this.database = properties.getDatabase() == null ? DEFAULT_DATABASE : properties.getDatabase();
-            }
-        } else {
-            throw new IllegalArgumentException("Incorrect ClickHouse jdbc url: " + url);
+        try {
+            this.properties =  ClickhouseJdbcUrlParser.parse(url, properties.asProperties());
+        } catch (URISyntaxException e) {
+            throw new IllegalArgumentException(e);
         }
-        this.properties = new ClickHouseProperties(properties);
-        this.properties.setDatabase(database);
     }
 
     @Override
-    public Connection getConnection() throws SQLException {
+    public ClickHouseConnection getConnection() throws SQLException {
         return driver.connect(url, properties);
     }
 
     @Override
-    public Connection getConnection(String username, String password) throws SQLException {
+    public ClickHouseConnection getConnection(String username, String password) throws SQLException {
         return driver.connect(url, properties.withCredentials(username, password));
     }
 
     public String getHost() {
-        return host;
+        return properties.getHost();
     }
 
     public int getPort() {
-        return port;
+        return properties.getPort();
     }
 
     public String getDatabase() {
-        return database;
+        return properties.getDatabase();
     }
 
     public String getUrl() {
@@ -108,12 +82,12 @@ public class ClickHouseDataSource implements DataSource {
 
     @Override
     public void setLoginTimeout(int seconds) throws SQLException {
-        loginTimeout = seconds;
+        loginTimeoutSeconds = seconds;
     }
 
     @Override
     public int getLoginTimeout() throws SQLException {
-        return loginTimeout;
+        return loginTimeoutSeconds;
     }
 
     public Logger getParentLogger() throws SQLFeatureNotSupportedException {
@@ -122,12 +96,15 @@ public class ClickHouseDataSource implements DataSource {
 
     @Override
     public <T> T unwrap(Class<T> iface) throws SQLException {
-        return null;
+        if (iface.isAssignableFrom(getClass())) {
+            return iface.cast(this);
+        }
+        throw new SQLException("Cannot unwrap to " + iface.getName());
     }
 
     @Override
     public boolean isWrapperFor(Class<?> iface) throws SQLException {
-        throw new SQLException("Not implemented");
+        return iface.isAssignableFrom(getClass());
     }
 
     /**

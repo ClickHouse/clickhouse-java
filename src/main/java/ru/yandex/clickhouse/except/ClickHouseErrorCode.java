@@ -336,7 +336,7 @@ public enum ClickHouseErrorCode {
     KEEPER_EXCEPTION(999),
     POCO_EXCEPTION(1000),
     STD_EXCEPTION(1001),
-    UNKNOWN_EXCEPTION(1002);;
+    UNKNOWN_EXCEPTION(1002);
 
     public final Integer code;
 

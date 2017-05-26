@@ -1,0 +1,103 @@
+package ru.yandex.clickhouse.integration;
+
+import com.google.common.base.Function;
+import com.google.common.base.Joiner;
+import com.google.common.collect.Iterables;
+import org.testng.Assert;
+import org.testng.annotations.BeforeTest;
+import org.testng.annotations.Test;
+import ru.yandex.clickhouse.ClickHouseArray;
+import ru.yandex.clickhouse.ClickHouseDataSource;
+import ru.yandex.clickhouse.settings.ClickHouseProperties;
+
+import java.math.BigInteger;
+import java.sql.*;
+import java.util.Arrays;
+
+import static org.testng.Assert.assertEquals;
+
+/**
+ * Here it is assumed the connection to a ClickHouse instance with flights example data it available at localhost:8123
+ * For ClickHouse quickstart and example dataset see <a href="https://clickhouse.yandex/tutorial.html">https://clickhouse.yandex/tutorial.html</a>
+ */
+public class ArrayTest {
+
+    private ClickHouseDataSource dataSource;
+    private Connection connection;
+
+    @BeforeTest
+    public void setUp() throws Exception {
+        ClickHouseProperties properties = new ClickHouseProperties();
+        dataSource = new ClickHouseDataSource("jdbc:clickhouse://localhost:8123", properties);
+        connection = dataSource.getConnection();
+    }
+
+    @Test
+    public void testStringArray() throws SQLException {
+        String[] array = {"a'','sadf',aa", "", ",", "юникод,'юникод'", ",2134,saldfk"};
+        String arrayString = array.length == 0 ? "" : "'" + Joiner.on("','").join(Iterables.transform(Arrays.asList(array), new Function<String, String>() {
+            @Override
+            public String apply(String s) {
+                return s.replace("'", "\\'");
+            }
+        })) + "'";
+
+        Statement statement = connection.createStatement();
+        ResultSet rs = statement.executeQuery("select array(" + arrayString + ")");
+        while (rs.next()) {
+            assertEquals(rs.getArray(1).getBaseType(), Types.VARCHAR);
+                    String[] stringArray = (String[]) rs.getArray(1).getArray();
+                    assertEquals(stringArray.length, array.length);
+                    for (int i = 0; i < stringArray.length; i++) {
+                        assertEquals(stringArray[i], array[i]);
+                    }
+        }
+        statement.close();
+    }
+
+    @Test
+    public void testLongArray() throws SQLException {
+        Long[] array = {-12345678987654321L, 23325235235L, -12321342L};
+        String arrayString = array.length == 0 ? "" : "toInt64(" + Joiner.on("),toInt64(").join(array) + ")";
+
+        Statement statement = connection.createStatement();
+        ResultSet rs = statement.executeQuery("select array(" + arrayString + ")");
+        while (rs.next()) {
+            assertEquals(rs.getArray(1).getBaseType(), Types.BIGINT);
+            long[] longArray = (long[]) rs.getArray(1).getArray();
+            assertEquals(longArray.length, array.length);
+            for (int i = 0; i < longArray.length; i++) {
+                assertEquals(longArray[i], array[i].longValue());
+            }
+        }
+        statement.close();
+    }
+
+    @Test
+    public void testInsertUIntArray() throws SQLException {
+        connection.createStatement().execute("DROP TABLE IF EXISTS test.unsigned_array");
+        connection.createStatement().execute(
+                "CREATE TABLE IF NOT EXISTS test.unsigned_array (ua32 Array(UInt32), ua64 Array(UInt64)) ENGINE = TinyLog"
+        );
+
+        PreparedStatement statement = connection.prepareStatement("INSERT INTO test.unsigned_array (ua32, ua64) VALUES (?, ?)");
+
+        statement.setArray(1, new ClickHouseArray(Types.INTEGER, new long[]{4294967286L, 4294967287L}));
+        statement.setArray(2, new ClickHouseArray(Types.BIGINT, new BigInteger[]{new BigInteger("18446744073709551606"), new BigInteger("18446744073709551607")}));
+        statement.execute();
+
+        Statement select = connection.createStatement();
+        ResultSet rs = select.executeQuery("select ua32, ua64 from test.unsigned_array");
+        rs.next();
+        Array bigUInt32 = rs.getArray(1);
+        Assert.assertEquals(bigUInt32.getBaseType(), Types.INTEGER);
+        Assert.assertEquals(bigUInt32.getArray().getClass(), long[].class);
+        Assert.assertEquals(((long[])bigUInt32.getArray())[0], 4294967286L);
+        Assert.assertEquals(((long[])bigUInt32.getArray())[1], 4294967287L);
+        Array bigUInt64 = rs.getArray(2);
+        Assert.assertEquals(bigUInt64.getBaseType(), Types.BIGINT);
+        Assert.assertEquals(bigUInt64.getArray().getClass(), BigInteger[].class);
+        Assert.assertEquals(((BigInteger[])bigUInt64.getArray())[0], new BigInteger("18446744073709551606"));
+        Assert.assertEquals(((BigInteger[])bigUInt64.getArray())[1], new BigInteger("18446744073709551607"));
+    }
+}

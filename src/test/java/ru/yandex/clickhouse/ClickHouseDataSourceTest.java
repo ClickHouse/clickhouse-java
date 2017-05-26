@@ -42,4 +42,17 @@ public class ClickHouseDataSourceTest {
         }
     }
 
+    @Test
+    public void testIPv6Constructor() throws Exception {
+        ClickHouseDataSource ds = new ClickHouseDataSource("jdbc:clickhouse://[::1]:5324");
+        assertEquals(ds.getHost(), "[::1]");
+        assertEquals(ds.getPort(), 5324);
+        assertEquals(ds.getDatabase(), "default");
+
+        ClickHouseDataSource ds2 = new ClickHouseDataSource("jdbc:clickhouse://[::FFFF:129.144.52.38]:5324");
+        assertEquals(ds2.getHost(), "[::FFFF:129.144.52.38]");
+        assertEquals(ds2.getPort(), 5324);
+        assertEquals(ds2.getDatabase(), "default");
+    }
+
 }

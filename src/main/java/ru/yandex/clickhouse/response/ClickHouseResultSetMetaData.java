@@ -1,7 +1,8 @@
 package ru.yandex.clickhouse.response;
 
-import java.sql.ResultSetMetaData;
-import java.sql.SQLException;
+import ru.yandex.clickhouse.util.TypeUtils;
+
+import java.sql.*;
 
 
 public class ClickHouseResultSetMetaData implements ResultSetMetaData {
@@ -89,7 +90,7 @@ public class ClickHouseResultSetMetaData implements ResultSetMetaData {
 
     @Override
     public int getColumnType(int column) throws SQLException {
-        return ClickHouseResultSet.toSqlType(getColumnTypeName(column));
+        return TypeUtils.toSqlType(getColumnTypeName(column));
     }
 
     @Override
@@ -117,16 +118,26 @@ public class ClickHouseResultSetMetaData implements ResultSetMetaData {
 
     @Override
     public String getColumnClassName(int column) throws SQLException {
-        throw new UnsupportedOperationException("no classes for now");
+        String columnTypeName = getColumnTypeName(column);
+        int sqlType = TypeUtils.toSqlType(columnTypeName);
+        if (sqlType == Types.ARRAY){
+            String elementTypeName = TypeUtils.getArrayElementTypeName(columnTypeName);
+            return TypeUtils.toClass(sqlType, TypeUtils.toSqlType(elementTypeName), TypeUtils.isUnsigned(elementTypeName)).getName();
+        }
+        return TypeUtils.toClass(sqlType, -1, TypeUtils.isUnsigned(columnTypeName)).getName();
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public <T> T unwrap(Class<T> iface) throws SQLException {
-        return null;
+        if (isWrapperFor(iface)) {
+            return (T) this;
+        }
+        throw new SQLException("Unable to unwrap to " + iface.toString());
     }
 
     @Override
     public boolean isWrapperFor(Class<?> iface) throws SQLException {
-        return false;
+        return iface != null && iface.isAssignableFrom(getClass());
     }
 }

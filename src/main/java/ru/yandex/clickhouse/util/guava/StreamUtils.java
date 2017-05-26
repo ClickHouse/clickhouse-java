@@ -32,8 +32,9 @@
 
 package ru.yandex.clickhouse.util.guava;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import ru.yandex.clickhouse.util.Utils;
-import ru.yandex.clickhouse.util.Logger;
 
 import java.io.*;
 import java.nio.charset.Charset;
@@ -41,7 +42,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 
 public class StreamUtils {
-    private static final Logger log = Logger.of(Utils.class);
+    private static final Logger log = LoggerFactory.getLogger(Utils.class);
 
     private static final int BUF_SIZE = 0x1000; // 4K
     public static final Charset UTF_8 = Charset.forName("UTF-8");
@@ -56,8 +57,7 @@ public class StreamUtils {
         return out.toByteArray();
     }
 
-    public static long copy(InputStream from, OutputStream to)
-            throws IOException {
+    public static long copy(InputStream from, OutputStream to) throws IOException {
         byte[] buf = new byte[BUF_SIZE];
         long total = 0;
         while (true) {
@@ -71,20 +71,24 @@ public class StreamUtils {
         return total;
     }
 
-    public static void close(Closeable closeable){
-        if (closeable == null) return;
-        try{
+    public static void close(Closeable closeable) {
+        if (closeable == null) {
+            return;
+        }
+        try {
             closeable.close();
-        } catch (IOException e){
+        } catch (IOException e) {
             log.error("can not close stream: " + e.getMessage());
         }
     }
 
-    public static void close(ResultSet rs){
-        if (rs == null) return;
-        try{
+    public static void close(ResultSet rs) {
+        if (rs == null) {
+            return;
+        }
+        try {
             rs.close();
-        } catch (SQLException e){
+        } catch (SQLException e) {
             log.error("can not close resultset: " + e.getMessage());
         }
     }

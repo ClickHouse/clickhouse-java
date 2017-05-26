@@ -8,9 +8,9 @@ import java.io.OutputStream;
 
 public class ByteFragment {
 
-    private byte[] buf;
-    private int start;
-    private int len;
+    private final byte[] buf;
+    private final int start;
+    private final int len;
     private static final ByteFragment EMPTY = new ByteFragment(new byte[0], 0, 0);
 
     public ByteFragment(byte[] buf, int start, int len) {
@@ -175,12 +175,16 @@ public class ByteFragment {
 
     public static void escape(byte[] bytes, OutputStream stream) throws IOException {
         for (byte b : bytes) {
-            byte converted = reverse[b];
-            if (converted != -1) {
-                stream.write(92);
-                stream.write(converted);
-            } else {
+            if(b < 0 || b >= reverse.length) {
                 stream.write(b);
+            } else {
+                byte converted = reverse[b];
+                if (converted != -1) {
+                    stream.write(92);
+                    stream.write(converted);
+                } else {
+                    stream.write(b);
+                }
             }
         }
     }

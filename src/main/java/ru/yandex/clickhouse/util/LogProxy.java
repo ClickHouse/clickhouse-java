@@ -1,5 +1,8 @@
 package ru.yandex.clickhouse.util;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -9,14 +12,17 @@ import java.util.Arrays;
 
 public class LogProxy<T> implements InvocationHandler {
 
-    private static final Logger log = Logger.of(LogProxy.class);
+    private static final Logger log = LoggerFactory.getLogger(LogProxy.class);
 
     private final T object;
     private final Class<T> clazz;
 
     public static <T> T wrap(Class<T> interfaceClass, T object) {
-        LogProxy<T> proxy = new LogProxy<T>(interfaceClass, object);
-        return proxy.getProxy();
+        if (log.isTraceEnabled()) {
+            LogProxy<T> proxy = new LogProxy<T>(interfaceClass, object);
+            return proxy.getProxy();
+        }
+        return object;
     }
 
     private LogProxy(Class<T> interfaceClass, T object) {
@@ -36,12 +42,22 @@ public class LogProxy<T> implements InvocationHandler {
 
     @Override
     public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
-        log.info("Call class: " + clazz.getName() + " Method: " + method.getName() +
-        " Args: " + Arrays.toString(args));
+        String msg =
+            "Call class: " + object.getClass().getName() +
+            "\nMethod: " + method.getName() +
+            "\nObject: " + object +
+            "\nArgs: " + Arrays.toString(args) +
+            "\nInvoke result: ";
         try {
-            return method.invoke(object, args);
+            final Object invokeResult = method.invoke(object, args);
+            msg +=  invokeResult;
+            return invokeResult;
         } catch (InvocationTargetException e) {
+            msg += e.getMessage();
             throw e.getTargetException();
+        } finally {
+            msg = "==== ClickHouse JDBC trace begin ====\n" + msg + "\n==== ClickHouse JDBC trace end ====";
+            log.trace(msg);
         }
     }
 }

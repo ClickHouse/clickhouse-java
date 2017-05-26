@@ -1,0 +1,111 @@
+0.1.22
+  * preferred_block_size_bytes property
+
+0.1.21
+  * getSchema/setSchema
+  * table types in database metadata
+  * BalancedDataSource
+  * ssl/tls support
+  * RowBinary format for inserts
+
+0.1.20
+  * checksum validation when using compress/decompress
+  * max_memory_usage param
+  * set boolean params as 0/1
+  * fix getTableTypes
+  * extra trace logging
+  * null values support
+
+0.1.19
+  * fix getColumns
+
+0.1.18
+  NOTE: starting from this release server timezone is used by default.
+  This will work with server version >= 1.1.54159.
+  Set use_server_time_zone = false and use_time_zone to desired timezone name for using with earlier server versions.
+  * use server timezone
+  * is_generatedcolumn support
+  * fix error parsing
+  * escaping of non IOS-8859-1 characters
+
+0.1.17
+  * fix passing additionalDBParams
+  * add query_id param
+  * add CH params to executeQuery in preparedStatement
+  * fix setting properties
+  * propagate parameters from jdbc url
+
+0.1.16
+  * fix use Property class for configuration
+  * Add settings to ClickHouseQueryParam
+
+0.1.15
+  * lz4 support
+  * External data support
+  * Disable extremes for ResultSet query methods
+  * Consistent charsets and rounding
+  * Fix for configuration options
+
+0.1.14
+  * Testing with travis
+  * Unsigned types support
+  * Improvement on setMaxRows
+  * Configuration options for external sort and aggregation
+
+0.1.13
+  * Lazy init on cleaner executor
+  * Auto-load meta-file
+  * Implemented getArray()
+  * Fix exception specifier
+  * JDBC compliance improvements
+
+0.1.12
+  * Fix setArray
+  * Improve isValid
+  * Fix single column result set
+
+0.1.11
+  * Fix exception specifier
+  * Fix SimpleDateFormat usage
+
+0.1.10
+  * Support ipv6 jdbc url
+  * Return correct default value for COLUMN_DEF
+  * getColumnClassName
+
+0.1.9
+  * Skip jdbc url to another DB
+  * Statement to ResultSet
+  * Correct return value for execute(sql)
+  * Arrays support
+
+0.1.8
+  * Improved performance of batch operations
+  * Don't create cleaner executer for every connection
+
+0.1.7
+  * Don't set implicit max_execution_time
+  * LogProxy only for trace
+
+0.1.6
+  * Don't fail on fetchSize hint
+
+0.1.5
+  * Nan and inf values support for double
+  * Fix ClickHouseException
+  * Database from properties priority over url
+
+0.1.4
+  * Fix batch support
+  * Fix timestamp mapping
+
+0.1.3
+  * Batch support
+
+0.1.2
+  * BigDecimal support
+  * Assembly plugin
+  * Fix isSelect
+
+0.1.1
+  * Initial release
