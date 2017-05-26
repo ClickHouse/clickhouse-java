@@ -118,12 +118,12 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
 
     @Override
     public boolean storesUpperCaseIdentifiers() throws SQLException {
-        return true;
+        return false;
     }
 
     @Override
     public boolean storesLowerCaseIdentifiers() throws SQLException {
-        return true;
+        return false;
     }
 
     @Override
@@ -138,12 +138,12 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
 
     @Override
     public boolean storesUpperCaseQuotedIdentifiers() throws SQLException {
-        return true;
+        return false;
     }
 
     @Override
     public boolean storesLowerCaseQuotedIdentifiers() throws SQLException {
-        return true;
+        return false;
     }
 
     @Override
