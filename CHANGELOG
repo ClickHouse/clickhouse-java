@@ -1,3 +1,12 @@
+0.1.23
+  NOTE: default connection timeout had changed to conform with ClickHouse core and support IDEs in default settings.
+  The setting may be overridden by passing ClickHouseProperties or Properties on connection init.
+  * default connection timeout 50ms -> 10s
+  * fixed metadata on mixed-case identifiers
+
+0.1.22
+  * preferred_block_size_bytes property
+
 0.1.21
   * getSchema/setSchema
   * table types in database metadata

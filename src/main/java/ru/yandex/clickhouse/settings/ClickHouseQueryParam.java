@@ -218,7 +218,9 @@ public enum ClickHouseQueryParam implements DriverPropertyCreator {
 
     USE_UNCOMPRESSED_CACHE("use_uncompressed_cache", true, Boolean.class, "Use client timezone for interpreting DateTime string values, instead of adopting server timezone."),
 
-    USER("user", null, String.class, "user name, by default - default"),;
+    USER("user", null, String.class, "user name, by default - default"),
+
+    PREFERRED_BLOCK_SIZE_BYTES("preferred_block_size_bytes", null, Long.class, "Adaptively estimates number of required rows in a block."),;
 
     private final String key;
     private final Object defaultValue;

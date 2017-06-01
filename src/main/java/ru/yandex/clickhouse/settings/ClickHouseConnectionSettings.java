@@ -10,7 +10,7 @@ public enum ClickHouseConnectionSettings implements DriverPropertyCreator {
     BUFFER_SIZE("buffer_size", 65536, ""),
     APACHE_BUFFER_SIZE("apache_buffer_size", 65536, ""),
     SOCKET_TIMEOUT("socket_timeout", 30000, ""),
-    CONNECTION_TIMEOUT("connection_timeout", 50, ""),
+    CONNECTION_TIMEOUT("connection_timeout", 10 * 1000, "connection timeout in milliseconds"),
     SSL("ssl", false, "enable SSL/TLS for the connection"),
     SSL_ROOT_CERTIFICATE("sslrootcert", "", "SSL/TLS root certificate"),
     SSL_MODE("sslmode", "strict", "verify or not certificate: none (don't verify), strict (verify)"),
