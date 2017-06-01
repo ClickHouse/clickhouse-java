@@ -55,6 +55,7 @@ public class ClickHouseProperties {
     private Long maxBytesBeforeExternalSort;
     private Long maxMemoryUsage;
     private Long preferredBlockSizeBytes;
+    private Long maxQuerySize;
 
     public ClickHouseProperties() {
         this(new Properties());
@@ -99,6 +100,7 @@ public class ClickHouseProperties {
         this.maxBytesBeforeExternalSort = (Long)getSetting(info, ClickHouseQueryParam.MAX_BYTES_BEFORE_EXTERNAL_SORT);
         this.maxMemoryUsage = getSetting(info, ClickHouseQueryParam.MAX_MEMORY_USAGE);
         this.preferredBlockSizeBytes = getSetting(info, ClickHouseQueryParam.PREFERRED_BLOCK_SIZE_BYTES);
+        this.maxQuerySize = getSetting(info, ClickHouseQueryParam.MAX_QUERY_SIZE);
     }
 
     public Properties asProperties() {
@@ -140,6 +142,7 @@ public class ClickHouseProperties {
         ret.put(ClickHouseQueryParam.MAX_BYTES_BEFORE_EXTERNAL_SORT.getKey(), maxBytesBeforeExternalSort);
         ret.put(ClickHouseQueryParam.MAX_MEMORY_USAGE.getKey(), maxMemoryUsage);
         ret.put(ClickHouseQueryParam.PREFERRED_BLOCK_SIZE_BYTES.getKey(), preferredBlockSizeBytes);
+        ret.put(ClickHouseQueryParam.MAX_QUERY_SIZE.getKey(), maxQuerySize);
         return ret.getProperties();
     }
 
@@ -230,6 +233,9 @@ public class ClickHouseProperties {
         }
         if (preferredBlockSizeBytes != null) {
             params.put(ClickHouseQueryParam.PREFERRED_BLOCK_SIZE_BYTES, String.valueOf(preferredBlockSizeBytes));
+        }
+        if (maxQuerySize != null) {
+            params.put(ClickHouseQueryParam.MAX_QUERY_SIZE, String.valueOf(maxQuerySize));
         }
 
         return params;
@@ -577,6 +583,14 @@ public class ClickHouseProperties {
 
     public void setPreferredBlockSizeBytes(Long preferredBlockSizeBytes) {
         this.preferredBlockSizeBytes = preferredBlockSizeBytes;
+    }
+
+    public Long getMaxQuerySize() {
+        return maxQuerySize;
+    }
+
+    public void setMaxQuerySize(Long maxQuerySize) {
+        this.maxQuerySize = maxQuerySize;
     }
 
     private static class PropertiesBuilder {
