@@ -122,7 +122,7 @@ public enum ClickHouseQueryParam implements DriverPropertyCreator {
      */
     MAX_THREADS("max_threads", null, Integer.class, "The maximum number of query processing threads"),
 
-    MAX_QUERY_SIZE("max_query_size", null, Long.class, ""),
+    MAX_QUERY_SIZE("max_query_size", null, Long.class, "Maximum size of query"),
 
     MEMORY_TRACKER_FAULT_PROBABILITY("memory_tracker_fault_probability", null, Double.class, ""),
 
