@@ -33,6 +33,7 @@ public class ClickHouseRowBinaryStream {
     }
 
     public void writeUnsignedLeb128(int value) throws IOException {
+        Preconditions.checkArgument(value >= 0);
         int remaining = value >>> 7;
         while (remaining != 0) {
             out.write((byte) ((value & 0x7f) | 0x80));
@@ -44,8 +45,9 @@ public class ClickHouseRowBinaryStream {
 
     public void writeString(String string) throws IOException {
         Preconditions.checkNotNull(string);
-        writeUnsignedLeb128(string.length());
-        out.write(string.getBytes());
+        byte[] bytes = string.getBytes();
+        writeUnsignedLeb128(bytes.length);
+        out.write(bytes);
     }
 
     private void validateInt(int value, int minValue, int maxValue, String dataType) {
