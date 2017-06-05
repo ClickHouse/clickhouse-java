@@ -16,6 +16,7 @@ import java.io.IOException;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.Date;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * @author Dmitry Andreev <a href="mailto:AndreevDm@yandex-team.ru"></a>
@@ -53,6 +54,39 @@ public class RowBinaryStreamTest {
                 ") ENGINE = MergeTree(date, (date), 8192)"
         );
     }
+
+    @Test
+    public void multiRowTest() throws SQLException {
+        connection.createStatement().execute("DROP TABLE IF EXISTS test.big_data");
+        connection.createStatement().execute(
+            "CREATE TABLE test.big_data (" +
+                "value Int32" +
+                ") ENGINE = TinyLog()"
+        );
+
+        final int count = 1000000;
+        final AtomicLong sum = new AtomicLong();
+
+        connection.createStatement().sendRowBinaryStream(
+            "INSERT INTO test.big_data (value)",
+            new ClickHouseStreamCallback() {
+                @Override
+                public void writeTo(ClickHouseRowBinaryStream stream) throws IOException {
+                    for (int i = 0; i < count; i++) {
+                        stream.writeInt32(i);
+                        sum.addAndGet(i);
+                    }
+                }
+            }
+        );
+
+        ResultSet rs = connection.createStatement().executeQuery("SELECT count() as cnt, sum(value) as sum FROM test.big_data");
+
+        Assert.assertTrue(rs.next());
+        Assert.assertEquals(rs.getInt("cnt"), count);
+        Assert.assertEquals(rs.getLong("sum"), sum.get());
+    }
+
 
     @Test
     public void testRowBinaryStream() throws Exception {
