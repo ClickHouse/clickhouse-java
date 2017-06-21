@@ -4,11 +4,23 @@ package ru.yandex.clickhouse.response;
 import com.google.common.primitives.Primitives;
 
 import java.math.BigInteger;
+import java.sql.Date;
+import java.sql.Timestamp;
+import java.text.DateFormat;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.TimeZone;
 
 public final class ByteFragmentUtils {
 
     public static final char ARRAY_ELEMENTS_SEPARATOR = ',';
     public static final char STRING_QUOTATION = '\'';
+    public static final DateFormat DATE_FORMAT = new SimpleDateFormat("yyyy-MM-dd");
+    public static final DateFormat DATE_TIME_FORMAT = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+    static {
+        DATE_FORMAT.setTimeZone(TimeZone.getTimeZone("UTC"));
+        DATE_TIME_FORMAT.setTimeZone(TimeZone.getTimeZone("UTC"));
+    }
 
     private ByteFragmentUtils() {
     }
@@ -181,7 +193,29 @@ public final class ByteFragmentUtils {
                 } else if (elementClass == BigInteger.class){
                     BigInteger bigIntegerValue = new BigInteger(fragment.asString(true));
                     java.lang.reflect.Array.set(array, index++, bigIntegerValue);
-                } else {
+                } else if (elementClass == Float.class) {
+                    Float floatValue = Float.parseFloat(fragment.asString());
+                    java.lang.reflect.Array.set(array, index++, floatValue);
+                } else if (elementClass == Double.class) {
+                    Double doubleValue = Double.parseDouble(fragment.asString());
+                    java.lang.reflect.Array.set(array, index++, doubleValue);
+                } else if (elementClass == Date.class) {
+                    Date dateValue;
+                    try {
+                        dateValue = new Date(DATE_FORMAT.parse(fragment.asString()).getTime());
+                    } catch (ParseException e) {
+                        throw new IllegalArgumentException(e);
+                    }
+                    java.lang.reflect.Array.set(array, index++, dateValue);
+                } else  if (elementClass == Timestamp.class) {
+                    Timestamp dateTimeValue;
+                    try {
+                        dateTimeValue = new Timestamp(DATE_TIME_FORMAT.parse(fragment.asString()).getTime());
+                    } catch (ParseException e) {
+                        throw new IllegalArgumentException(e);
+                    }
+                    java.lang.reflect.Array.set(array, index++, dateTimeValue);
+                } else  {
                     throw new IllegalStateException();
                 }
 
