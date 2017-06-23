@@ -167,4 +167,35 @@ public class RowBinaryStreamTest {
 
         Assert.assertFalse(rs.next());
     }
+
+
+    @Test
+    public void testTimeZone() throws Exception{
+        final ClickHouseStatement statement = connection.createStatement();
+        connection.createStatement().execute("DROP TABLE IF EXISTS test.binary_tz");
+        connection.createStatement().execute(
+            "CREATE TABLE test.binary_tz (date Date, dateTime DateTime) ENGINE = MergeTree(date, (date), 8192)"
+        );
+
+        final Date date1 = new Date(1497474018000L);
+
+        statement.sendRowBinaryStream(
+            "INSERT INTO test.binary_tz (date, dateTime)",
+            new ClickHouseStreamCallback() {
+                @Override
+                public void writeTo(ClickHouseRowBinaryStream stream) throws IOException {
+                    stream.writeDate(date1);
+                    stream.writeDateTime(date1);
+                }
+            }
+        );
+
+        ResultSet rs = connection.createStatement().executeQuery(
+            "SELECT countIf(date != toDate(dateTime)) as cnt from test.binary_tz"
+        );
+
+        Assert.assertTrue(rs.next());
+        Assert.assertEquals(rs.getInt("cnt"), 0);
+    }
+
 }

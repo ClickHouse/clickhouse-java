@@ -178,8 +178,6 @@ public class ClickHouseRowBinaryStreamTest {
             }
             //clickhouse-client -q "SELECT 'aaaa~����%20�&zzzzz' Format RowBinary"  | od -vAn -td1
         );
-
-
     }
 
     private void check(StreamWriter streamWriter, byte[] expected) throws Exception {

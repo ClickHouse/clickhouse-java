@@ -3,7 +3,6 @@ package ru.yandex.clickhouse.util;
 import com.google.common.base.Preconditions;
 import com.google.common.io.LittleEndianDataOutputStream;
 import com.google.common.primitives.UnsignedLong;
-import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.Days;
 import org.joda.time.LocalDate;
@@ -18,18 +17,19 @@ import java.util.concurrent.TimeUnit;
  * @author Dmitry Andreev <a href="mailto:AndreevDm@yandex-team.ru"></a>
  */
 public class ClickHouseRowBinaryStream {
-    private final LittleEndianDataOutputStream out;
-    private final DateTimeZone dateTimeZone;
 
     private static final int U_INT8_MAX = (1 << 8) - 1;
     private static final int U_INT16_MAX = (1 << 16) - 1;
     private static final long U_INT32_MAX = (1L << 32) - 1;
-    private static final DateTime EPOCH_DATE_TIME = new DateTime(0);
-    private static final LocalDate EPOCH_DATE = new LocalDate(0);
+
+    private final LittleEndianDataOutputStream out;
+    private final DateTimeZone dateTimeZone;
+    private final LocalDate epochDate;
 
     public ClickHouseRowBinaryStream(OutputStream outputStream, TimeZone timeZone) {
         this.out = new LittleEndianDataOutputStream(outputStream);
         this.dateTimeZone = DateTimeZone.forTimeZone(timeZone);
+        this.epochDate = new LocalDate(0, dateTimeZone);
     }
 
     public void writeUnsignedLeb128(int value) throws IOException {
@@ -124,14 +124,14 @@ public class ClickHouseRowBinaryStream {
 
     public void writeDate(LocalDate date) throws IOException {
         Preconditions.checkNotNull(date);
-        int daysSinceEpoch = Days.daysBetween(EPOCH_DATE, date).getDays();
+        int daysSinceEpoch = Days.daysBetween(epochDate, date).getDays();
         writeUInt16(daysSinceEpoch);
     }
 
     public void writeDate(Date date) throws IOException {
         Preconditions.checkNotNull(date);
-        DateTime dateTime = new DateTime(date.getTime(), dateTimeZone);
-        int daysSinceEpoch = Days.daysBetween(EPOCH_DATE_TIME, dateTime).getDays();
+        LocalDate localDate = new LocalDate(date.getTime(), dateTimeZone);
+        int daysSinceEpoch = Days.daysBetween(epochDate, localDate).getDays();
         writeUInt16(daysSinceEpoch);
     }
 
