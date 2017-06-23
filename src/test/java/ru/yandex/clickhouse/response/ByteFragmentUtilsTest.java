@@ -11,7 +11,9 @@ import org.testng.annotations.Test;
 import ru.yandex.clickhouse.util.guava.StreamUtils;
 
 import java.sql.Date;
+import java.text.SimpleDateFormat;
 import java.util.Arrays;
+import java.util.TimeZone;
 
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertNotNull;
@@ -147,16 +149,18 @@ public class ByteFragmentUtilsTest {
 
     @Test(dataProvider = "dateArray")
     public void testParseArray(Date[] array) throws Exception {
+        final SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd");
+        dateFormat.setTimeZone(TimeZone.getTimeZone("UTC"));
         String sourceString = "[" + Joiner.on(",").join(Iterables.transform(Arrays.asList(array), new Function<Date, String>() {
             @Override
             public String apply(Date s) {
-                return ByteFragmentUtils.DATE_FORMAT.format(s);
+                return dateFormat.format(s);
             }
         })) + "]";
 
         byte[] bytes = sourceString.getBytes(StreamUtils.UTF_8);
         ByteFragment fragment = new ByteFragment(bytes, 0, bytes.length);
-        Date[] parsedArray = (Date[]) ByteFragmentUtils.parseArray(fragment, Date.class);
+        Date[] parsedArray = (Date[]) ByteFragmentUtils.parseArray(fragment, Date.class, dateFormat);
 
         assertEquals(parsedArray.length, array.length);
         for (int i = 0; i < parsedArray.length; i++) {

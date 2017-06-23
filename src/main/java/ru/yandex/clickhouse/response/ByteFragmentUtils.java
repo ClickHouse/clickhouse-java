@@ -15,12 +15,6 @@ public final class ByteFragmentUtils {
 
     public static final char ARRAY_ELEMENTS_SEPARATOR = ',';
     public static final char STRING_QUOTATION = '\'';
-    public static final DateFormat DATE_FORMAT = new SimpleDateFormat("yyyy-MM-dd");
-    public static final DateFormat DATE_TIME_FORMAT = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-    static {
-        DATE_FORMAT.setTimeZone(TimeZone.getTimeZone("UTC"));
-        DATE_TIME_FORMAT.setTimeZone(TimeZone.getTimeZone("UTC"));
-    }
 
     private ByteFragmentUtils() {
     }
@@ -151,12 +145,20 @@ public final class ByteFragmentUtils {
     }
 
     public static Object parseArray(ByteFragment value, Class elementClass) {
+        return parseArray(value, elementClass, null);
+    }
+
+    public static Object parseArray(ByteFragment value, Class elementClass, SimpleDateFormat dateFormat) {
         if (value.isNull()) {
             return null;
         }
 
         if (value.charAt(0) != '[' || value.charAt(value.length() - 1) != ']') {
             throw new IllegalArgumentException("not an array: " + value);
+        }
+
+        if ((elementClass == Date.class || elementClass == Timestamp.class) && dateFormat == null) {
+            throw new IllegalArgumentException("DateFormat must be provided for date/dateTime array");
         }
 
         ByteFragment trim = value.subseq(1, value.length() - 2);
@@ -202,7 +204,7 @@ public final class ByteFragmentUtils {
                 } else if (elementClass == Date.class) {
                     Date dateValue;
                     try {
-                        dateValue = new Date(DATE_FORMAT.parse(fragment.asString()).getTime());
+                        dateValue = new Date(dateFormat.parse(fragment.asString()).getTime());
                     } catch (ParseException e) {
                         throw new IllegalArgumentException(e);
                     }
@@ -210,7 +212,7 @@ public final class ByteFragmentUtils {
                 } else  if (elementClass == Timestamp.class) {
                     Timestamp dateTimeValue;
                     try {
-                        dateTimeValue = new Timestamp(DATE_TIME_FORMAT.parse(fragment.asString()).getTime());
+                        dateTimeValue = new Timestamp(dateFormat.parse(fragment.asString()).getTime());
                     } catch (ParseException e) {
                         throw new IllegalArgumentException(e);
                     }
