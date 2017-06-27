@@ -4,12 +4,6 @@ package ru.yandex.clickhouse.response;
 import com.google.common.primitives.Primitives;
 
 import java.math.BigInteger;
-import java.sql.Date;
-import java.sql.Timestamp;
-import java.text.DateFormat;
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
-import java.util.TimeZone;
 
 public final class ByteFragmentUtils {
 
@@ -145,20 +139,12 @@ public final class ByteFragmentUtils {
     }
 
     public static Object parseArray(ByteFragment value, Class elementClass) {
-        return parseArray(value, elementClass, null);
-    }
-
-    public static Object parseArray(ByteFragment value, Class elementClass, SimpleDateFormat dateFormat) {
         if (value.isNull()) {
             return null;
         }
 
         if (value.charAt(0) != '[' || value.charAt(value.length() - 1) != ']') {
             throw new IllegalArgumentException("not an array: " + value);
-        }
-
-        if ((elementClass == Date.class || elementClass == Timestamp.class) && dateFormat == null) {
-            throw new IllegalArgumentException("DateFormat must be provided for date/dateTime array");
         }
 
         ByteFragment trim = value.subseq(1, value.length() - 2);
@@ -195,29 +181,7 @@ public final class ByteFragmentUtils {
                 } else if (elementClass == BigInteger.class){
                     BigInteger bigIntegerValue = new BigInteger(fragment.asString(true));
                     java.lang.reflect.Array.set(array, index++, bigIntegerValue);
-                } else if (elementClass == Float.class) {
-                    Float floatValue = Float.parseFloat(fragment.asString());
-                    java.lang.reflect.Array.set(array, index++, floatValue);
-                } else if (elementClass == Double.class) {
-                    Double doubleValue = Double.parseDouble(fragment.asString());
-                    java.lang.reflect.Array.set(array, index++, doubleValue);
-                } else if (elementClass == Date.class) {
-                    Date dateValue;
-                    try {
-                        dateValue = new Date(dateFormat.parse(fragment.asString()).getTime());
-                    } catch (ParseException e) {
-                        throw new IllegalArgumentException(e);
-                    }
-                    java.lang.reflect.Array.set(array, index++, dateValue);
-                } else  if (elementClass == Timestamp.class) {
-                    Timestamp dateTimeValue;
-                    try {
-                        dateTimeValue = new Timestamp(dateFormat.parse(fragment.asString()).getTime());
-                    } catch (ParseException e) {
-                        throw new IllegalArgumentException(e);
-                    }
-                    java.lang.reflect.Array.set(array, index++, dateTimeValue);
-                } else  {
+                } else {
                     throw new IllegalStateException();
                 }
 

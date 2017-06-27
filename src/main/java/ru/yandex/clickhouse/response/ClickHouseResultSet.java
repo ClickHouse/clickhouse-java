@@ -221,16 +221,7 @@ public class ClickHouseResultSet extends AbstractResultSet {
         int elementType = TypeUtils.toSqlType(elementTypeName);
         boolean isUnsigned = TypeUtils.isUnsigned(elementTypeName);
 
-        final Object array;
-        if (elementType == Types.DATE) {
-            array = ByteFragmentUtils.parseArray(getValue(columnIndex), TypeUtils.toClass(elementType, isUnsigned),
-                    dateFormat);
-        } else if (elementType == Types.TIMESTAMP) {
-            array = ByteFragmentUtils.parseArray(getValue(columnIndex), TypeUtils.toClass(elementType, isUnsigned),
-                    sdf);
-        } else {
-            array = ByteFragmentUtils.parseArray(getValue(columnIndex), TypeUtils.toClass(elementType, isUnsigned));
-        }
+        Object array = ByteFragmentUtils.parseArray(getValue(columnIndex), TypeUtils.toClass(elementType, isUnsigned));
 
         return new ClickHouseArray(elementType, isUnsigned, array);
     }
