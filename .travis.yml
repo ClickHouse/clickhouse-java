@@ -1,5 +1,8 @@
 sudo: required
 language: java
+before_install:
+  - sudo apt-get install -y maven=3.0.5-1
+  - mvn -v
 install: mvn install -DskipTests=true -Dgpg.skip=true
 jdk:
   - openjdk6
