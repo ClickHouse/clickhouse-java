@@ -96,7 +96,7 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
         } else {
             additionalDBParams = new HashMap<ClickHouseQueryParam, String>(additionalDBParams);
         }
-        additionalDBParams.put(ClickHouseQueryParam.EXTREMES, "false");
+        additionalDBParams.put(ClickHouseQueryParam.EXTREMES, "0");
 
         InputStream is = getInputStream(sql, additionalDBParams, externalData);
 
