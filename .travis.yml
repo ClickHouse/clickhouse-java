@@ -8,4 +8,5 @@ jdk:
 services:
   - docker
 before_script:
+  - export TZ=Europe/Moscow
   - docker run -d -p 127.0.0.1:8123:8123 --name some-clickhouse-server --ulimit nofile=262144:262144 yandex/clickhouse-server:1.1.54159
