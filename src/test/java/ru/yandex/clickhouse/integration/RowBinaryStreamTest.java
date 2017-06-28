@@ -2,8 +2,8 @@ package ru.yandex.clickhouse.integration;
 
 import com.google.common.primitives.UnsignedLong;
 import com.google.common.primitives.UnsignedLongs;
+import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
-import org.joda.time.LocalDateTime;
 import org.testng.Assert;
 import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
@@ -109,7 +109,6 @@ public class RowBinaryStreamTest {
     public void testRowBinaryStream() throws Exception {
         createTable("test.raw_binary");
         ClickHouseStatement statement = connection.createStatement();
-        System.out.println(connection.getTimeZone().getID());
         final Date date1 = new Date(1483230102000L); //2017-01-01 03:21:42
         final Date date2 = new Date(1494321702000L); //2017-05-09 12:21:42
         final Date[] dates1 = {new Date(1263945600000L)};
@@ -211,7 +210,10 @@ public class RowBinaryStreamTest {
         Assert.assertEquals(dateArray.length, dates1.length);
         for (int i = 0; i < dateArray.length; i++) {
             // expected is Date at start of the day in server timezone
-            Date expected = new Date(new LocalDateTime(dates1[i].getTime(), DateTimeZone.forTimeZone(connection.getTimeZone())).toLocalDate().toDate().getTime());
+            DateTime dt = new DateTime(dates1[i].getTime())
+                    .withZone(DateTimeZone.forTimeZone(connection.getTimeZone()))
+                    .withTimeAtStartOfDay();
+            Date expected = new Date(dt.toDate().getTime());
             Assert.assertEquals(dateArray[i], expected);
         }
         final Timestamp[] dateTimeArray = (Timestamp[]) rs.getArray("dateTimeArray").getArray();
