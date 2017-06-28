@@ -7,8 +7,5 @@ jdk:
   - oraclejdk8
 services:
   - docker
-before_install:
-  - export TZ=Europe/Moscow
-  - date
 before_script:
-  - docker run -d -p 127.0.0.1:8123:8123 --name some-clickhouse-server --ulimit nofile=262144:262144 yandex/clickhouse-server:1.1.54159
+  - docker run -e TZ=Europe/Moscow -d -p 127.0.0.1:8123:8123 --name some-clickhouse-server --ulimit nofile=262144:262144 yandex/clickhouse-server:1.1.54159
