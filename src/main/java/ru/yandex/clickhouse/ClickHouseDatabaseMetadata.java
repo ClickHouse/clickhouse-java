@@ -777,7 +777,12 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
 
     @Override
     public ResultSet getColumns(String catalog, String schemaPattern, String tableNamePattern, String columnNamePattern) throws SQLException {
-        StringBuilder query = new StringBuilder("SELECT database, table, name, type, default_type, default_expression ");
+        StringBuilder query;
+        if (connection.getServerVersion().compareTo("1.1.54237") > 0) {
+            query = new StringBuilder("SELECT database, table, name, type, default_kind, default_expression ");
+        } else {
+            query = new StringBuilder("SELECT database, table, name, type, default_type, default_expression ");
+        }
         query.append("FROM system.columns ");
         List<String> predicates = new ArrayList<String>();
         if (schemaPattern != null) {
@@ -833,8 +838,8 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
             row.add(null);
 
             // COLUMN_DEF
-            if ( descTable.getString( 3 ).equals( "DEFAULT" ) ) {
-                row.add( descTable.getString( 4 ) );
+            if ( descTable.getString( 5 ).equals( "DEFAULT" ) ) {
+                row.add( descTable.getString( 6 ) );
             } else {
                 row.add( null );
             }

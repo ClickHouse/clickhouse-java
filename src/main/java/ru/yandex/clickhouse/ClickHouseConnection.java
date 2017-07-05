@@ -17,4 +17,6 @@ public interface ClickHouseConnection extends Connection {
 
     @Override
     ClickHouseStatement createStatement(int resultSetType, int resultSetConcurrency) throws SQLException;
+
+    String getServerVersion() throws SQLException;
 }
