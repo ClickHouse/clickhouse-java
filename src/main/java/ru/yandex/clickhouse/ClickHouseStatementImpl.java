@@ -372,8 +372,12 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
     }
 
     static String clickhousifySql(String sql) {
-
+        sql = translateDoubleQuotesToBackQuotes(sql);
         return addFormatIfAbsent(sql, "TabSeparatedWithNamesAndTypes");
+    }
+
+    static String translateDoubleQuotesToBackQuotes(String sql) {
+        return sql.replaceAll("\"([\\w\\s-]+)\"", "`$1`");
     }
 
     /**
