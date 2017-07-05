@@ -107,7 +107,8 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
                     extractDBName(sql),
                     extractTableName(sql),
                     this,
-                    ((ClickHouseConnection) getConnection()).getTimeZone()
+                    ((ClickHouseConnection) getConnection()).getTimeZone(),
+                    properties
                 );
                 currentResult.setMaxRows(maxRows);
                 return currentResult;

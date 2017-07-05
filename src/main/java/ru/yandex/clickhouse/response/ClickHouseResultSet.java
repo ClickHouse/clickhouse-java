@@ -3,6 +3,7 @@ package ru.yandex.clickhouse.response;
 import ru.yandex.clickhouse.ClickHouseArray;
 import ru.yandex.clickhouse.ClickHouseStatement;
 import ru.yandex.clickhouse.except.ClickHouseExceptionSpecifier;
+import ru.yandex.clickhouse.settings.ClickHouseProperties;
 import ru.yandex.clickhouse.util.TypeUtils;
 
 import java.io.IOException;
@@ -47,12 +48,15 @@ public class ClickHouseResultSet extends AbstractResultSet {
     private int rowNumber;
 
     // statement result set belongs to
-    private Statement statement;
+    private ClickHouseStatement statement;
 
-    public ClickHouseResultSet(InputStream is, int bufferSize, String db, String table, ClickHouseStatement statement, TimeZone timezone) throws IOException {
+    private final ClickHouseProperties properties;
+
+    public ClickHouseResultSet(InputStream is, int bufferSize, String db, String table, ClickHouseStatement statement, TimeZone timezone, ClickHouseProperties properties) throws IOException {
         this.db = db;
         this.table = table;
         this.statement = statement;
+        this.properties = properties;
         initTimeZone(timezone);
         bis = new StreamSplitter(is, (byte) 0x0A, bufferSize);  ///   \n
         ByteFragment headerFragment = bis.next();
@@ -79,6 +83,9 @@ public class ClickHouseResultSet extends AbstractResultSet {
 
     private void initTimeZone(TimeZone timeZone) {
         sdf.setTimeZone(timeZone);
+        if (properties.isUseServerTimeZoneForDates()) {
+            dateFormat.setTimeZone(timeZone);
+        }
     }
 
     private static String[] toStringArray(ByteFragment headerFragment) {

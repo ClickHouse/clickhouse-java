@@ -32,7 +32,7 @@ public class ClickHouseProperties {
 
     private boolean useServerTimeZone;
     private String useTimeZone;
-
+    private boolean useServerTimeZoneForDates;
 
     // queries settings
     private Integer maxParallelReplicas;
@@ -79,6 +79,7 @@ public class ClickHouseProperties {
         this.sslMode = (String) getSetting(info, ClickHouseConnectionSettings.SSL_MODE);
         this.useServerTimeZone = (Boolean)getSetting(info, ClickHouseConnectionSettings.USE_SERVER_TIME_ZONE);
         this.useTimeZone = (String)getSetting(info, ClickHouseConnectionSettings.USE_TIME_ZONE);
+        this.useServerTimeZoneForDates = (Boolean)getSetting(info, ClickHouseConnectionSettings.USE_SERVER_TIME_ZONE_FOR_DATES);
 
         this.maxParallelReplicas = getSetting(info, ClickHouseQueryParam.MAX_PARALLEL_REPLICAS);
         this.totalsMode = getSetting(info, ClickHouseQueryParam.TOTALS_MODE);
@@ -121,6 +122,7 @@ public class ClickHouseProperties {
         ret.put(ClickHouseConnectionSettings.SSL_MODE.getKey(), String.valueOf(sslMode));
         ret.put(ClickHouseConnectionSettings.USE_SERVER_TIME_ZONE.getKey(), String.valueOf(useServerTimeZone));
         ret.put(ClickHouseConnectionSettings.USE_TIME_ZONE.getKey(), String.valueOf(useTimeZone));
+        ret.put(ClickHouseConnectionSettings.USE_SERVER_TIME_ZONE_FOR_DATES.getKey(), String.valueOf(useServerTimeZoneForDates));
 
         ret.put(ClickHouseQueryParam.MAX_PARALLEL_REPLICAS.getKey(), maxParallelReplicas);
         ret.put(ClickHouseQueryParam.TOTALS_MODE.getKey(), totalsMode);
@@ -165,6 +167,7 @@ public class ClickHouseProperties {
         setSslMode(properties.sslMode);
         setUseServerTimeZone(properties.useServerTimeZone);
         setUseTimeZone(properties.useTimeZone);
+        setUseServerTimeZoneForDates(properties.useServerTimeZoneForDates);
 
         setMaxParallelReplicas(properties.maxParallelReplicas);
         setTotalsMode(properties.totalsMode);
@@ -455,6 +458,14 @@ public class ClickHouseProperties {
 
     public void setUseTimeZone(String useTimeZone) {
         this.useTimeZone = useTimeZone;
+    }
+
+    public boolean isUseServerTimeZoneForDates() {
+        return useServerTimeZoneForDates;
+    }
+
+    public void setUseServerTimeZoneForDates(boolean useServerTimeZoneForDates) {
+        this.useServerTimeZoneForDates = useServerTimeZoneForDates;
     }
 
     public Integer getMaxParallelReplicas() {

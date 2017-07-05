@@ -1,5 +1,6 @@
 package ru.yandex.clickhouse.response;
 
+import ru.yandex.clickhouse.settings.ClickHouseProperties;
 import ru.yandex.clickhouse.util.guava.StreamUtils;
 
 import java.io.ByteArrayInputStream;
@@ -20,6 +21,7 @@ public class ClickHouseResultBuilder {
     private List<String> types;
     private List<List<?>> rows = new ArrayList<List<?>>();
     private TimeZone timezone = TimeZone.getTimeZone("UTC");
+    private ClickHouseProperties properties = new ClickHouseProperties();
 
     public static ClickHouseResultBuilder builder(int columnsNum) {
         return new ClickHouseResultBuilder(columnsNum);
@@ -64,6 +66,11 @@ public class ClickHouseResultBuilder {
         return this;
     }
 
+    public ClickHouseResultBuilder properties(ClickHouseProperties properties) {
+        this.properties = properties;
+        return this;
+    }
+
     public ClickHouseResultSet build() {
         try {
             if (names == null) throw new IllegalStateException("names == null");
@@ -78,7 +85,7 @@ public class ClickHouseResultBuilder {
             byte[] bytes = baos.toByteArray();
             ByteArrayInputStream inputStream = new ByteArrayInputStream(bytes);
 
-            return new ClickHouseResultSet(inputStream, 1024, "system", "unknown", null, timezone);
+            return new ClickHouseResultSet(inputStream, 1024, "system", "unknown", null, timezone, properties);
         } catch (IOException e) {
             throw new RuntimeException("Never happens", e);
         }
