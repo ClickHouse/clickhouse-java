@@ -79,7 +79,6 @@ public class ClickHouseResultSet extends AbstractResultSet {
 
     private void initTimeZone(TimeZone timeZone) {
         sdf.setTimeZone(timeZone);
-        dateFormat.setTimeZone(timeZone);
     }
 
     private static String[] toStringArray(ByteFragment headerFragment) {

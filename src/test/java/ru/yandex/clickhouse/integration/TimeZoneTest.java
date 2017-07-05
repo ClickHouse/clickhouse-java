@@ -67,4 +67,18 @@ public class TimeZoneTest {
         rsMan.next();
         Assert.assertEquals(rsMan.getTime(2).getTime(), currentTime);
     }
+
+    @Test
+    public void dateTest() throws SQLException {
+        ResultSet rsMan = connectionManualTz.createStatement().executeQuery("select toDate('2017-07-05')");
+        ResultSet rsSrv = connectionServerTz.createStatement().executeQuery("select toDate('2017-07-05')");
+        rsMan.next();
+        rsSrv.next();
+        // check it doesn't depend on server timezone
+        Assert.assertEquals(rsMan.getDate(1), rsSrv.getDate(1));
+
+        // check it is start of correct day in client timezone
+        Assert.assertEquals(rsMan.getDate(1), new Date(117, 6, 5));
+
+    }
 }
