@@ -51,6 +51,7 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
     private boolean closed = false;
 
     private TimeZone timezone;
+    private volatile String serverVersion;
 
     public ClickHouseConnectionImpl(String url) {
         this(url, new ClickHouseProperties());
@@ -127,6 +128,21 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
     @Override
     public ClickHouseStatement createStatement(int resultSetType, int resultSetConcurrency) throws SQLException {
         return createStatement(resultSetType, resultSetConcurrency, ResultSet.CLOSE_CURSORS_AT_COMMIT);
+    }
+
+    /**
+     * lazily calculates and returns server version
+     * @return server version string
+     * @throws SQLException if something has gone wrong
+     */
+    @Override
+    public String getServerVersion() throws SQLException {
+        if (serverVersion == null) {
+            ResultSet rs = createStatement().executeQuery("select version()");
+            rs.next();
+            serverVersion = rs.getString(1);
+        }
+        return serverVersion;
     }
 
     @Override
