@@ -50,7 +50,9 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
 
     private void initTimeZone(TimeZone timeZone) {
         dateTimeFormat.setTimeZone(timeZone);
-        dateFormat.setTimeZone(timeZone);
+        if (properties.isUseServerTimeZoneForDates()) {
+            dateFormat.setTimeZone(timeZone);
+        }
     }
 
     @Override

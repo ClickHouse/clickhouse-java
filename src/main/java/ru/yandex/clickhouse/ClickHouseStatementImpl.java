@@ -52,7 +52,7 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
 
     private final CloseableHttpClient client;
 
-    private ClickHouseProperties properties = new ClickHouseProperties();
+    protected ClickHouseProperties properties = new ClickHouseProperties();
 
     private ClickHouseConnection connection;
 
