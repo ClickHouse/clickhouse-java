@@ -618,7 +618,7 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
     @Override
     public void sendRowBinaryStream(String sql, ClickHouseStreamCallback callback) throws SQLException {
         sendStream(
-            new ClickHouseStreamHttpEntity(callback), sql, ClickHouseFormat.RowBinary
+            new ClickHouseStreamHttpEntity(callback, getConnection().getTimeZone(), properties), sql, ClickHouseFormat.RowBinary
         );
     }
 

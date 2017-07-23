@@ -3,12 +3,15 @@ package ru.yandex.clickhouse.util;
 import com.google.common.base.Preconditions;
 import com.google.common.io.LittleEndianDataOutputStream;
 import com.google.common.primitives.UnsignedLong;
+import org.joda.time.DateTimeZone;
 import org.joda.time.Days;
 import org.joda.time.LocalDate;
+import ru.yandex.clickhouse.settings.ClickHouseProperties;
 
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.Date;
+import java.util.TimeZone;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -21,11 +24,17 @@ public class ClickHouseRowBinaryStream {
     private static final long U_INT32_MAX = (1L << 32) - 1;
 
     private final LittleEndianDataOutputStream out;
+    private final DateTimeZone dateTimeZone;
     private final LocalDate epochDate;
 
-    public ClickHouseRowBinaryStream(OutputStream outputStream) {
+    public ClickHouseRowBinaryStream(OutputStream outputStream, TimeZone timeZone, ClickHouseProperties properties) {
         this.out = new LittleEndianDataOutputStream(outputStream);
-        this.epochDate = new LocalDate(0);
+        if (properties.isUseServerTimeZoneForDates()) {
+            this.dateTimeZone = DateTimeZone.forTimeZone(timeZone);
+        } else {
+            this.dateTimeZone = DateTimeZone.getDefault();
+        }
+        this.epochDate = new LocalDate(0, dateTimeZone);
     }
 
     public void writeUnsignedLeb128(int value) throws IOException {
@@ -126,7 +135,7 @@ public class ClickHouseRowBinaryStream {
 
     public void writeDate(Date date) throws IOException {
         Preconditions.checkNotNull(date);
-        LocalDate localDate = new LocalDate(date.getTime());
+        LocalDate localDate = new LocalDate(date.getTime(), dateTimeZone);
         int daysSinceEpoch = Days.daysBetween(epochDate, localDate).getDays();
         writeUInt16(daysSinceEpoch);
     }
