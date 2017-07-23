@@ -6,7 +6,6 @@ import org.testng.Assert;
 import org.testng.annotations.Test;
 
 import java.io.ByteArrayOutputStream;
-import java.util.TimeZone;
 
 /**
  * @author Dmitry Andreev <a href="mailto:AndreevDm@yandex-team.ru"></a>
@@ -182,7 +181,7 @@ public class ClickHouseRowBinaryStreamTest {
 
     private void check(StreamWriter streamWriter, byte[] expected) throws Exception {
         ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
-        ClickHouseRowBinaryStream stream = new ClickHouseRowBinaryStream(byteArrayOutputStream, TimeZone.getTimeZone("ETC"));
+        ClickHouseRowBinaryStream stream = new ClickHouseRowBinaryStream(byteArrayOutputStream);
         streamWriter.write(stream);
         Assert.assertEquals(byteArrayOutputStream.toByteArray(), expected);
     }

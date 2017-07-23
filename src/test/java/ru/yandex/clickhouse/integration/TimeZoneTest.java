@@ -1,19 +1,23 @@
 package ru.yandex.clickhouse.integration;
 
+import org.joda.time.LocalDate;
 import org.testng.Assert;
 import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
 import ru.yandex.clickhouse.ClickHouseConnection;
 import ru.yandex.clickhouse.ClickHouseDataSource;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
+import ru.yandex.clickhouse.util.ClickHouseRowBinaryStream;
+import ru.yandex.clickhouse.util.ClickHouseStreamCallback;
 
+import java.io.IOException;
 import java.sql.*;
 import java.util.TimeZone;
 import java.util.concurrent.TimeUnit;
 
 public class TimeZoneTest {
-    private Connection connectionServerTz;
-    private Connection connectionManualTz;
+    private ClickHouseConnection connectionServerTz;
+    private ClickHouseConnection connectionManualTz;
     private long currentTime = 1000 * (System.currentTimeMillis() / 1000);
 
     @BeforeTest
@@ -79,6 +83,56 @@ public class TimeZoneTest {
 
         // check it is start of correct day in client timezone
         Assert.assertEquals(rsMan.getDate(1), new Date(117, 6, 5));
+    }
 
+    @Test
+    public void dateInsertTest() throws SQLException {
+        connectionServerTz.createStatement().execute("DROP TABLE IF EXISTS test.date_insert");
+        connectionServerTz.createStatement().execute(
+                "CREATE TABLE test.date_insert (" +
+                        "i UInt8," +
+                        "d Date" +
+                        ") ENGINE = TinyLog"
+        );
+
+
+        final Date date = new Date(currentTime);
+        Date localStartOfDay = new Date(new LocalDate(currentTime).toDateTimeAtStartOfDay().getMillis());
+
+        connectionServerTz.createStatement().sendRowBinaryStream(
+                "INSERT INTO test.date_insert (i, d)",
+                new ClickHouseStreamCallback() {
+                    @Override
+                    public void writeTo(ClickHouseRowBinaryStream stream) throws IOException {
+                            stream.writeUInt8(1);
+                            stream.writeDate(date);
+                    }
+                }
+        );
+
+        connectionManualTz.createStatement().sendRowBinaryStream(
+                "INSERT INTO test.date_insert (i, d)",
+                new ClickHouseStreamCallback() {
+                    @Override
+                    public void writeTo(ClickHouseRowBinaryStream stream) throws IOException {
+                        stream.writeUInt8(2);
+                        stream.writeDate(date);
+                    }
+                }
+        );
+
+        ResultSet rsMan = connectionManualTz.createStatement().executeQuery("select d from test.date_insert order by i");
+        ResultSet rsSrv = connectionServerTz.createStatement().executeQuery("select d from test.date_insert order by i");
+        rsMan.next();
+        rsSrv.next();
+        // inserted in server timezone
+        Assert.assertEquals(rsMan.getDate(1), localStartOfDay);
+        Assert.assertEquals(rsSrv.getDate(1), localStartOfDay);
+
+        rsMan.next();
+        rsSrv.next();
+        // inserted in manual timezone
+        Assert.assertEquals(rsMan.getDate(1), localStartOfDay);
+        Assert.assertEquals(rsSrv.getDate(1), localStartOfDay);
     }
 }

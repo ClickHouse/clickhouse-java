@@ -6,7 +6,6 @@ import org.apache.http.entity.AbstractHttpEntity;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.util.TimeZone;
 
 /**
  * @author Dmitry Andreev <a href="mailto:AndreevDm@yandex-team.ru"></a>
@@ -14,11 +13,9 @@ import java.util.TimeZone;
 public class ClickHouseStreamHttpEntity extends AbstractHttpEntity {
 
     private final ClickHouseStreamCallback callback;
-    private final TimeZone timeZone;
 
-    public ClickHouseStreamHttpEntity(ClickHouseStreamCallback callback, TimeZone timeZone) {
+    public ClickHouseStreamHttpEntity(ClickHouseStreamCallback callback) {
         Preconditions.checkNotNull(callback);
-        this.timeZone = timeZone;
         this.callback = callback;
     }
 
@@ -39,7 +36,7 @@ public class ClickHouseStreamHttpEntity extends AbstractHttpEntity {
 
     @Override
     public void writeTo(OutputStream out) throws IOException {
-        ClickHouseRowBinaryStream stream = new ClickHouseRowBinaryStream(out, timeZone);
+        ClickHouseRowBinaryStream stream = new ClickHouseRowBinaryStream(out);
         callback.writeTo(stream);
     }
 
