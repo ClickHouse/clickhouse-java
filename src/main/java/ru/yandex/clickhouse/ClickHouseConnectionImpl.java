@@ -71,7 +71,7 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
         }catch (Exception e) {
             throw  new IllegalStateException("cannot initialize http client", e);
         }
-        initTimeZone(properties);
+        initTimeZone(this.properties);
     }
 
     private void initTimeZone(ClickHouseProperties properties) {
