@@ -1,3 +1,12 @@
+0.1.26
+  NOTE: starting from this release local application timezone is used by default for Date conversions.
+  Time, Timestamp are converted using server timezone as starting from release 0.1.18.
+  Set use_server_time_zone_for_dates = true to use server timezone for Date conversions as before.
+  * use local timezone for Date conversions
+  * more arrays support
+  * fix metadata request from system.columns
+  * pass correct properties to initTimeZone
+
 0.1.25
   * binary format fixes
   * extremes fix
