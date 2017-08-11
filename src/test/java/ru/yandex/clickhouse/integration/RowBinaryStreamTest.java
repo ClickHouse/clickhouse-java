@@ -209,9 +209,8 @@ public class RowBinaryStreamTest {
         final Date[] dateArray = (Date[]) rs.getArray("dateArray").getArray();
         Assert.assertEquals(dateArray.length, dates1.length);
         for (int i = 0; i < dateArray.length; i++) {
-            // expected is Date at start of the day in server timezone
+            // expected is Date at start of the day in local timezone
             DateTime dt = new DateTime(dates1[i].getTime())
-                    .withZone(DateTimeZone.forTimeZone(connection.getTimeZone()))
                     .withTimeAtStartOfDay();
             Date expected = new Date(dt.toDate().getTime());
             Assert.assertEquals(dateArray[i], expected);
