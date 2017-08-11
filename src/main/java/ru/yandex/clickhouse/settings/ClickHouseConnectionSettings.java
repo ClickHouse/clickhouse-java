@@ -38,7 +38,11 @@ public enum ClickHouseConnectionSettings implements DriverPropertyCreator {
     MAX_COMPRESS_BUFFER_SIZE("maxCompressBufferSize", 1024*1024, ""),
 
     USE_SERVER_TIME_ZONE("use_server_time_zone", true, "Whether to use timezone from server. On connection init select timezone() will be executed"),
-    USE_TIME_ZONE("use_time_zone", "", "Which time zone to use")
+    USE_TIME_ZONE("use_time_zone", "", "Which time zone to use"),
+    USE_SERVER_TIME_ZONE_FOR_DATES("use_server_time_zone_for_dates", false,
+            "Whether to use timezone from server on Date parsing in getDate(). " +
+                    "If false, Date returned is a wrapper of a timestamp at start of the day in client timezone. " +
+                    "If true - at start of the day in server or use_timezone timezone.")
     ;
 
     private final String key;

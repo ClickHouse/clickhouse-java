@@ -52,7 +52,7 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
 
     private final CloseableHttpClient client;
 
-    private ClickHouseProperties properties = new ClickHouseProperties();
+    protected ClickHouseProperties properties = new ClickHouseProperties();
 
     private ClickHouseConnection connection;
 
@@ -107,7 +107,8 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
                     extractDBName(sql),
                     extractTableName(sql),
                     this,
-                    ((ClickHouseConnection) getConnection()).getTimeZone()
+                    ((ClickHouseConnection) getConnection()).getTimeZone(),
+                    properties
                 );
                 currentResult.setMaxRows(maxRows);
                 return currentResult;
@@ -617,7 +618,7 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
     @Override
     public void sendRowBinaryStream(String sql, ClickHouseStreamCallback callback) throws SQLException {
         sendStream(
-            new ClickHouseStreamHttpEntity(callback, getConnection().getTimeZone()), sql, ClickHouseFormat.RowBinary
+            new ClickHouseStreamHttpEntity(callback, getConnection().getTimeZone(), properties), sql, ClickHouseFormat.RowBinary
         );
     }
 
