@@ -16,10 +16,7 @@ import ru.yandex.clickhouse.util.ClickHouseStreamCallback;
 
 import java.io.IOException;
 import java.math.BigInteger;
-import java.sql.Date;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Timestamp;
+import java.sql.*;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -317,11 +314,15 @@ public class RowBinaryStreamTest {
         );
 
         ResultSet rs = connection.createStatement().executeQuery(
-            "SELECT countIf(date != toDate(dateTime)) as cnt from test.binary_tz"
+            "SELECT date, dateTime from test.binary_tz"
         );
 
         Assert.assertTrue(rs.next());
-        Assert.assertEquals(rs.getInt("cnt"), 0);
+        Assert.assertEquals(rs.getTime("dateTime"), new Time(date1.getTime()));
+        DateTime dt = new DateTime(date1.getTime())
+                .withTimeAtStartOfDay();
+        Date expectedDate = new Date(dt.toDate().getTime()); // expected start of the day in local timezone
+        Assert.assertEquals(rs.getDate("date"), expectedDate);
     }
 
 }
