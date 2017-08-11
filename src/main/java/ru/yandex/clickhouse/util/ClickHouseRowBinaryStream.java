@@ -6,6 +6,7 @@ import com.google.common.primitives.UnsignedLong;
 import org.joda.time.DateTimeZone;
 import org.joda.time.Days;
 import org.joda.time.LocalDate;
+import ru.yandex.clickhouse.settings.ClickHouseProperties;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -26,9 +27,13 @@ public class ClickHouseRowBinaryStream {
     private final DateTimeZone dateTimeZone;
     private final LocalDate epochDate;
 
-    public ClickHouseRowBinaryStream(OutputStream outputStream, TimeZone timeZone) {
+    public ClickHouseRowBinaryStream(OutputStream outputStream, TimeZone timeZone, ClickHouseProperties properties) {
         this.out = new LittleEndianDataOutputStream(outputStream);
-        this.dateTimeZone = DateTimeZone.forTimeZone(timeZone);
+        if (properties.isUseServerTimeZoneForDates()) {
+            this.dateTimeZone = DateTimeZone.forTimeZone(timeZone);
+        } else {
+            this.dateTimeZone = DateTimeZone.getDefault();
+        }
         this.epochDate = new LocalDate(0, dateTimeZone);
     }
 

@@ -4,6 +4,7 @@ import com.google.common.primitives.UnsignedLong;
 import org.joda.time.LocalDate;
 import org.testng.Assert;
 import org.testng.annotations.Test;
+import ru.yandex.clickhouse.settings.ClickHouseProperties;
 
 import java.io.ByteArrayOutputStream;
 import java.util.TimeZone;
@@ -182,7 +183,7 @@ public class ClickHouseRowBinaryStreamTest {
 
     private void check(StreamWriter streamWriter, byte[] expected) throws Exception {
         ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
-        ClickHouseRowBinaryStream stream = new ClickHouseRowBinaryStream(byteArrayOutputStream, TimeZone.getTimeZone("ETC"));
+        ClickHouseRowBinaryStream stream = new ClickHouseRowBinaryStream(byteArrayOutputStream, TimeZone.getTimeZone("ETC"), new ClickHouseProperties());
         streamWriter.write(stream);
         Assert.assertEquals(byteArrayOutputStream.toByteArray(), expected);
     }
