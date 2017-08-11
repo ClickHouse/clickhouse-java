@@ -149,4 +149,114 @@ public class ClickHouseRowBinaryStream {
     }
 
 
+    public void writeDateArray(Date[] dates) throws IOException {
+        Preconditions.checkNotNull(dates);
+        writeUnsignedLeb128(dates.length);
+        for (Date date: dates) {
+            writeDate(date);
+        }
+    }
+
+    public void writeDateTimeArray(Date[] dates) throws IOException {
+        Preconditions.checkNotNull(dates);
+        writeUnsignedLeb128(dates.length);
+        for (Date date: dates) {
+            writeDateTime(date);
+        }
+    }
+
+    public void writeStringArray(String[] strings) throws IOException {
+        Preconditions.checkNotNull(strings);
+        writeUnsignedLeb128(strings.length);
+        for (String el : strings) {
+            writeString(el);
+        }
+    }
+
+    public void writeInt8Array(byte[] bytes) throws IOException {
+        Preconditions.checkNotNull(bytes);
+        writeUnsignedLeb128(bytes.length);
+        for (byte b: bytes) {
+            writeInt8(b);
+        }
+    }
+    public void writeInt8Array(int[] ints) throws IOException {
+        Preconditions.checkNotNull(ints);
+        writeUnsignedLeb128(ints.length);
+        for (int i: ints) {
+            writeInt8(i);
+        }
+    }
+
+    public void writeUInt8Array(int[] ints) throws IOException {
+        Preconditions.checkNotNull(ints);
+        writeUnsignedLeb128(ints.length);
+        for (int i: ints) {
+            writeUInt8(i);
+        }
+    }
+
+    public void writeInt16Array(short[] shorts) throws IOException {
+        Preconditions.checkNotNull(shorts);
+        writeUnsignedLeb128(shorts.length);
+        for (short s: shorts) {
+            writeInt16(s);
+        }
+    }
+
+    public void writeUInt16Array(int[] ints) throws IOException {
+        Preconditions.checkNotNull(ints);
+        writeUnsignedLeb128(ints.length);
+        for (int i: ints) {
+            writeUInt16(i);
+        }
+    }
+
+    public void writeInt32Array(int[] ints) throws IOException {
+        Preconditions.checkNotNull(ints);
+        writeUnsignedLeb128(ints.length);
+        for (int i: ints) {
+            writeInt32(i);
+        }
+    }
+
+    public void writeUInt32Array(long[] longs) throws IOException {
+        Preconditions.checkNotNull(longs);
+        writeUnsignedLeb128(longs.length);
+        for (long l: longs) {
+            writeUInt32(l);
+        }
+    }
+
+    public void writeInt64Array(long[] longs) throws IOException {
+        Preconditions.checkNotNull(longs);
+        writeUnsignedLeb128(longs.length);
+        for (long l: longs) {
+            writeInt64(l);
+        }
+    }
+
+    public void writeUInt64Array(long[] longs) throws IOException {
+        Preconditions.checkNotNull(longs);
+        writeUnsignedLeb128(longs.length);
+        for (long l: longs) {
+            writeUInt64(l);
+        }
+    }
+
+    public void writeFloat32Array(float[] floats) throws IOException {
+        Preconditions.checkNotNull(floats);
+        writeUnsignedLeb128(floats.length);
+        for (float f: floats) {
+            writeFloat32(f);
+        }
+    }
+
+    public void writeFloat64Array(double[] doubles) throws IOException {
+        Preconditions.checkNotNull(doubles);
+        writeUnsignedLeb128(doubles.length);
+        for (double d: doubles) {
+            writeFloat64(d);
+        }
+    }
 }

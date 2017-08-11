@@ -18,7 +18,8 @@ public class TypeUtils {
             return clickshouseType.endsWith("64") ? Types.BIGINT : Types.INTEGER;
         }
         if ("String".equals(clickshouseType)) return Types.VARCHAR;
-        if (clickshouseType.startsWith("Float")) return Types.FLOAT;
+        if (clickshouseType.startsWith("Float32")) return Types.FLOAT;
+        if (clickshouseType.startsWith("Float64")) return Types.DOUBLE;
         if ("Date".equals(clickshouseType)) return Types.DATE;
         if ("DateTime".equals(clickshouseType)) return Types.TIMESTAMP;
         if ("FixedString".equals(clickshouseType)) return Types.BLOB;
