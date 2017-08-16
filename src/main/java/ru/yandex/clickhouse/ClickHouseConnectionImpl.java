@@ -14,6 +14,7 @@ import ru.yandex.clickhouse.util.TypeUtils;
 import ru.yandex.clickhouse.util.guava.StreamUtils;
 
 import java.io.IOException;
+import java.net.URI;
 import java.net.URISyntaxException;
 import java.sql.Array;
 import java.sql.Blob;
@@ -46,7 +47,7 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
 
     private final ClickHouseProperties properties;
 
-    private final String url;
+    private String url;
 
     private boolean closed = false;
 
@@ -222,12 +223,20 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
 
     @Override
     public void setCatalog(String catalog) throws SQLException {
-
+        properties.setDatabase(catalog);
+        URI old = URI.create(url.substring(ClickhouseJdbcUrlParser.JDBC_PREFIX.length()));
+        try {
+            url = ClickhouseJdbcUrlParser.JDBC_PREFIX +
+                    new URI(old.getScheme(), old.getUserInfo(), old.getHost(), old.getPort(),
+                            "/" + catalog, old.getQuery(), old.getFragment());
+        } catch (URISyntaxException e) {
+            throw new IllegalStateException(e);
+        }
     }
 
     @Override
     public String getCatalog() throws SQLException {
-        return ClickHouseDatabaseMetadata.DEFAULT_CAT;
+        return properties.getDatabase();
     }
 
     @Override
@@ -436,5 +445,13 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
     void cleanConnections() {
         httpclient.getConnectionManager().closeExpiredConnections();
         httpclient.getConnectionManager().closeIdleConnections(2 * properties.getSocketTimeout(), TimeUnit.MILLISECONDS);
+    }
+
+    String getUrl() {
+        return url;
+    }
+
+    ClickHouseProperties getProperties() {
+        return properties;
     }
 }
