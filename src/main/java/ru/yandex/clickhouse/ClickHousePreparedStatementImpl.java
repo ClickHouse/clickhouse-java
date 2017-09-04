@@ -309,9 +309,9 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
             } else if (x instanceof BigInteger) {
                 setBind(parameterIndex, x.toString());
             } else if (x instanceof Collection) {
-                setBind(parameterIndex, ClickHouseArrayUtil.toString((Collection) x));
+                setArray(parameterIndex, (Collection) x);
             } else if (x.getClass().isArray()) {
-                setBind(parameterIndex, ClickHouseArrayUtil.arrayToString(x));
+                setArray(parameterIndex, (Object[]) x);
             } else {
                 throw new SQLDataException("Can't bind object of class " + x.getClass().getCanonicalName());
             }
