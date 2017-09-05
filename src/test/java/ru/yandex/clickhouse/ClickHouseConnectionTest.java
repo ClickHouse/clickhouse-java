@@ -1,8 +1,10 @@
 package ru.yandex.clickhouse;
 
 import java.sql.Connection;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 
 import org.testng.annotations.Test;
 
@@ -43,5 +45,47 @@ public class ClickHouseConnectionTest {
                 connection.createStatement().executeUpdate("DROP DATABASE IF EXISTS " + db);
             }
         }
+    }
+
+    @Test
+    public void testSetCatalogAndStatements() throws SQLException {
+        ClickHouseDataSource dataSource = new ClickHouseDataSource(
+                "jdbc:clickhouse://localhost:8123/default?option1=one%20two&option2=y");
+        ClickHouseConnectionImpl connection = (ClickHouseConnectionImpl) dataSource.getConnection();
+        final String sql = "SELECT currentDatabase()";
+
+        connection.setCatalog("system");
+        Statement statement = connection.createStatement();
+        connection.setCatalog("default");
+        ResultSet resultSet = statement.executeQuery(sql);
+        resultSet.next();
+        assertEquals(resultSet.getString(1), "system");
+
+        statement = connection.createStatement();
+        resultSet = statement.executeQuery(sql);
+        resultSet.next();
+        assertEquals(resultSet.getString(1), "default");
+    }
+
+    @Test
+    public void testSetCatalogAndPreparedStatements() throws SQLException {
+        ClickHouseDataSource dataSource = new ClickHouseDataSource(
+                "jdbc:clickhouse://localhost:8123/default?option1=one%20two&option2=y");
+        ClickHouseConnectionImpl connection = (ClickHouseConnectionImpl) dataSource.getConnection();
+        final String sql = "SELECT currentDatabase() FROM system.tables WHERE name = ? LIMIT 1";
+
+        connection.setCatalog("system");
+        PreparedStatement statement = connection.prepareStatement(sql);
+        statement.setString(1, "tables");
+        connection.setCatalog("default");
+        ResultSet resultSet = statement.executeQuery();
+        resultSet.next();
+        assertEquals(resultSet.getString(1), "system");
+
+        statement = connection.prepareStatement(sql);
+        statement.setString(1, "tables");
+        resultSet = statement.executeQuery();
+        resultSet.next();
+        assertEquals(resultSet.getString(1), "default");
     }
 }
