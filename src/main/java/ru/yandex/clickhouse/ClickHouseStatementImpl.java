@@ -66,11 +66,19 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
 
     private ObjectMapper objectMapper;
 
+    /**
+     * Current database name may be changed by {@link java.sql.Connection#setCatalog(String)}
+     * between creation of this object and query execution, but javadoc does not allow
+     * {@code setCatalog} influence on already created statements.
+     */
+    private final String initialDatabase;
+
     public ClickHouseStatementImpl(CloseableHttpClient client, ClickHouseConnection connection,
                                    ClickHouseProperties properties) {
         this.client = client;
         this.connection = connection;
         this.properties = properties;
+        this.initialDatabase = properties.getDatabase();
 
         objectMapper = new ObjectMapper();
         objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
@@ -590,7 +598,10 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
             }
         }
 
-        Map<ClickHouseQueryParam, String> params = properties.buildQueryParams(ignoreDatabase);
+        Map<ClickHouseQueryParam, String> params = properties.buildQueryParams(true);
+        if (!ignoreDatabase) {
+            params.put(ClickHouseQueryParam.DATABASE, initialDatabase);
+        }
 
         if (additionalClickHouseDBParams != null && !additionalClickHouseDBParams.isEmpty()) {
             params.putAll(additionalClickHouseDBParams);
