@@ -1,3 +1,7 @@
+0.1.27
+  * setCatalog/getCatalog
+  * fix `ClickHousePreparedStatement.setObject(int, List<?>)` for Number
+
 0.1.26
   NOTE: starting from this release local application timezone is used by default for Date conversions.
   Time, Timestamp are converted using server timezone as starting from release 0.1.18.
