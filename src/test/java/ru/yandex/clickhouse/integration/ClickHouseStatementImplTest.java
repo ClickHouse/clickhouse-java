@@ -146,4 +146,30 @@ public class ClickHouseStatementImplTest {
         }
         Assert.assertEquals(i, limit);
     }
+
+    @Test
+    public void testMoreResultsWithResultSet() throws SQLException {
+        Statement stmt = connection.createStatement();
+
+        Assert.assertTrue(stmt.execute("select 1"));
+        Assert.assertNotNull(stmt.getResultSet());
+        Assert.assertEquals(stmt.getUpdateCount(), -1);
+
+        Assert.assertFalse(stmt.getMoreResults());
+        Assert.assertNull(stmt.getResultSet());
+        Assert.assertEquals(stmt.getUpdateCount(), -1);
+    }
+
+    @Test
+    public void testMoreResultsWithUpdateCount() throws SQLException {
+        Statement stmt = connection.createStatement();
+
+        Assert.assertFalse(stmt.execute("create database if not exists default"));
+        Assert.assertNull(stmt.getResultSet());
+        Assert.assertEquals(stmt.getUpdateCount(), 0);
+
+        Assert.assertFalse(stmt.getMoreResults());
+        Assert.assertNull(stmt.getResultSet());
+        Assert.assertEquals(stmt.getUpdateCount(), -1);
+    }
 }
