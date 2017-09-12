@@ -108,11 +108,11 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
 
     private void appendBoundValue(StringBuilder sb, int num) {
         if (valuesQuote[num]) {
-            sb.append("'");
-        }
-        sb.append(binds[num]);
-        if (valuesQuote[num]) {
-            sb.append("'");
+            sb.append("'").append(binds[num]).append("'");
+        } else if (binds[num].equals("\\N")) {
+            sb.append("null");
+        } else {
+            sb.append(binds[num]);
         }
     }
 
@@ -211,7 +211,7 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
 
     @Override
     public void setString(int parameterIndex, String x) throws SQLException {
-        setBind(parameterIndex, ClickHouseUtil.escape(x), true);
+        setBind(parameterIndex, ClickHouseUtil.escape(x), x != null);
     }
 
     @Override

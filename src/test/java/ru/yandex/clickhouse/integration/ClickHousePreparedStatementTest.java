@@ -76,4 +76,38 @@ public class ClickHousePreparedStatementTest {
         Assert.assertTrue(bigUInt64 instanceof BigInteger);
         Assert.assertEquals(bigUInt64, new BigInteger("18446744073709551606"));
     }
+
+    @Test
+    public void testInsertNullString() throws SQLException {
+        connection.createStatement().execute("DROP TABLE IF EXISTS test.null_insert");
+        connection.createStatement().execute(
+                "CREATE TABLE IF NOT EXISTS test.null_insert (val Nullable(String)) ENGINE = TinyLog"
+        );
+
+        PreparedStatement stmt = connection.prepareStatement("insert into test.null_insert (val) values (?)");
+        stmt.setNull(1, Types.VARCHAR);
+        stmt.execute();
+        stmt.setNull(1, Types.VARCHAR);
+        stmt.addBatch();
+        stmt.executeBatch();
+
+        stmt.setString(1, null);
+        stmt.execute();
+        stmt.setString(1, null);
+        stmt.addBatch();
+        stmt.executeBatch();
+
+        stmt.setObject(1, null);
+        stmt.execute();
+        stmt.setObject(1, null);
+        stmt.addBatch();
+        stmt.executeBatch();
+
+        Statement select = connection.createStatement();
+        ResultSet rs = select.executeQuery("select count(*), val from test.null_insert group by val");
+        rs.next();
+        Assert.assertEquals(rs.getInt(1), 6);
+        Assert.assertNull(rs.getString(2));
+        Assert.assertFalse(rs.next());
+    }
 }
