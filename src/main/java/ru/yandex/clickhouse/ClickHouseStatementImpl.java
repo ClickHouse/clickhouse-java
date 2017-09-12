@@ -58,6 +58,8 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
 
     private ClickHouseResultSet currentResult;
 
+    private int currentUpdateCount = -1;
+
     private int queryTimeout;
 
     private int maxRows;
@@ -110,6 +112,7 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
 
         try {
             if (isSelect(sql)) {
+                currentUpdateCount = -1;
                 currentResult = new ClickHouseResultSet(properties.isCompress()
                     ? new ClickHouseLZ4Stream(is) : is, properties.getBufferSize(),
                     extractDBName(sql),
@@ -121,6 +124,7 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
                 currentResult.setMaxRows(maxRows);
                 return currentResult;
             } else {
+                currentUpdateCount = 0;
                 StreamUtils.close(is);
                 return null;
             }
@@ -249,11 +253,16 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
 
     @Override
     public int getUpdateCount() throws SQLException {
-        return currentResult == null ? 0 : -1;
+        return currentUpdateCount;
     }
 
     @Override
     public boolean getMoreResults() throws SQLException {
+        if (currentResult != null) {
+            currentResult.close();
+            currentResult = null;
+        }
+        currentUpdateCount = -1;
         return false;
     }
 
