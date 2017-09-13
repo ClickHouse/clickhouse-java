@@ -11,7 +11,7 @@ public class ClickHouseUtilTest {
 
     @Test
     public void testQuote() throws Exception {
-        assertEquals("NULL", ClickHouseUtil.escape(null));
+        assertEquals("\\N", ClickHouseUtil.escape(null));
         assertEquals("test", ClickHouseUtil.escape("test"));
         assertEquals("t\\n\\0\\r\\test\\'", ClickHouseUtil.escape("t\n\0\r\test'"));
     }

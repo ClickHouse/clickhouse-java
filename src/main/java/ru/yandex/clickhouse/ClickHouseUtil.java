@@ -21,7 +21,7 @@ public class ClickHouseUtil {
 
     public static String escape(String s) {
         if (s == null) {
-            return "NULL";
+            return "\\N";
         }
         return CLICKHOUSE_ESCAPER.escape(s);
     }
