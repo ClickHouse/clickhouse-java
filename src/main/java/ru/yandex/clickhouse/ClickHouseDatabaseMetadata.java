@@ -678,7 +678,7 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
         String sql = "select " +
                 "database, name, engine " +
                 "from system.tables " +
-                "where name not like '.inner.%'";
+                "where 1 = 1";
         if (schemaPattern != null) {
             sql += " and database like '" + schemaPattern + "'";
         }
