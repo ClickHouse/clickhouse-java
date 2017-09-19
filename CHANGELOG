@@ -1,3 +1,8 @@
+0.1.28
+  * fix getUpdateCount
+  * handle null string values correctly
+  * inner tables in metadata
+
 0.1.27
   * setCatalog/getCatalog
   * fix `ClickHousePreparedStatement.setObject(int, List<?>)` for Number
