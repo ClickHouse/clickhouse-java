@@ -6,20 +6,18 @@ import com.google.common.primitives.Primitives;
 import java.math.BigInteger;
 import java.sql.Date;
 import java.sql.Timestamp;
-import java.text.DateFormat;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
-import java.util.TimeZone;
 
-public final class ByteFragmentUtils {
+final class ByteFragmentUtils {
 
-    public static final char ARRAY_ELEMENTS_SEPARATOR = ',';
-    public static final char STRING_QUOTATION = '\'';
+    private static final char ARRAY_ELEMENTS_SEPARATOR = ',';
+    private static final char STRING_QUOTATION = '\'';
 
     private ByteFragmentUtils() {
     }
 
-    public static int parseInt(ByteFragment s) throws NumberFormatException {
+    static int parseInt(ByteFragment s) throws NumberFormatException {
         if (s == null) {
             throw new NumberFormatException("null");
         }
@@ -82,7 +80,7 @@ public final class ByteFragmentUtils {
     }
 
 
-    public static long parseLong(ByteFragment s) throws NumberFormatException {
+    static long parseLong(ByteFragment s) throws NumberFormatException {
         if (s == null) {
             throw new NumberFormatException("null");
         }
@@ -144,11 +142,11 @@ public final class ByteFragmentUtils {
         }
     }
 
-    public static Object parseArray(ByteFragment value, Class elementClass) {
+    static Object parseArray(ByteFragment value, Class elementClass) {
         return parseArray(value, elementClass, null);
     }
 
-    public static Object parseArray(ByteFragment value, Class elementClass, SimpleDateFormat dateFormat) {
+    static Object parseArray(ByteFragment value, Class elementClass, SimpleDateFormat dateFormat) {
         if (value.isNull()) {
             return null;
         }
