@@ -21,6 +21,7 @@ import java.util.TimeZone;
 
 
 public class ClickHouseResultSet extends AbstractResultSet {
+    private final static long[] EMPTY_LONG_ARRAY = new long[]{};
 
     private final SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss"); //
     private final SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd"); //
@@ -421,11 +422,12 @@ public class ClickHouseResultSet extends AbstractResultSet {
         return value.asString(true);
     }
 
-    private static long[] toLongArray(ByteFragment value) {
+    static long[] toLongArray(ByteFragment value) {
         if (value.isNull()) return null;
         if (value.charAt(0) != '[' || value.charAt(value.length()-1) != ']') {
             throw new IllegalArgumentException("not an array: "+value);
         }
+        if (value.length() == 2) return EMPTY_LONG_ARRAY;
         ByteFragment trim = value.subseq(1, value.length() - 2);
         ByteFragment[] values = trim.split((byte) ',');
         long[] result = new long[values.length];

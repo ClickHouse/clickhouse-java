@@ -19,6 +19,11 @@ public class ByteFragment {
         this.len = len;
     }
 
+    public static ByteFragment fromString(String str) {
+        byte[] bytes = str.getBytes(StreamUtils.UTF_8);
+        return new ByteFragment(bytes, 0, bytes.length);
+    }
+
     public String asString() {
         return new String(buf, start, len, StreamUtils.UTF_8);
     }
