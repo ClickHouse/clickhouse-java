@@ -143,10 +143,18 @@ final class ByteFragmentUtils {
     }
 
     static Object parseArray(ByteFragment value, Class elementClass) {
-        return parseArray(value, elementClass, null);
+        return parseArray(value, elementClass, false, null);
     }
 
     static Object parseArray(ByteFragment value, Class elementClass, SimpleDateFormat dateFormat) {
+        return parseArray(value, elementClass, false, dateFormat);
+    }
+
+    static Object parseArray(ByteFragment value, Class elementClass, boolean useObjects) {
+        return parseArray(value, elementClass, useObjects, null);
+    }
+
+    static Object parseArray(ByteFragment value, Class elementClass, boolean useObjects, SimpleDateFormat dateFormat) {
         if (value.isNull()) {
             return null;
         }
@@ -162,7 +170,10 @@ final class ByteFragmentUtils {
         ByteFragment trim = value.subseq(1, value.length() - 2);
 
         int index = 0;
-        Object array = java.lang.reflect.Array.newInstance(Primitives.unwrap(elementClass), getArrayLength(trim));
+        Object array = java.lang.reflect.Array.newInstance(
+            useObjects ? elementClass : Primitives.unwrap(elementClass),
+            getArrayLength(trim)
+        );
         int fieldStart = 0;
         boolean inQuotation = false;
         for (int chIdx = 0; chIdx < trim.length(); chIdx++) {
