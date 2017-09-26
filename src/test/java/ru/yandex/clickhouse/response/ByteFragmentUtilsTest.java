@@ -34,6 +34,15 @@ public class ByteFragmentUtilsTest {
         };
     }
 
+    @DataProvider(name = "intBoxedArray")
+    public Object[][] intBoxedArray() {
+        return new Object[][]{
+                {new Integer[]{1, 23, -123}},
+                {new Integer[]{-87654321, 233252355, -12321342}},
+                {new Integer[]{}}
+        };
+    }
+
     @DataProvider(name = "longArray")
     public Object[][] longArray() {
         return new Object[][]{
@@ -84,6 +93,25 @@ public class ByteFragmentUtilsTest {
         String[] parsedArray = (String[]) ByteFragmentUtils.parseArray(fragment, String.class);
 
         assertNotNull(parsedArray);
+        assertEquals(parsedArray.length, array.length);
+        for (int i = 0; i < parsedArray.length; i++) {
+            assertEquals(parsedArray[i], array[i]);
+        }
+    }
+
+    @Test(dataProvider = "intBoxedArray")
+    public void testParseBoxedArray(Integer[] array) throws Exception {
+        String sourceString = "[" + Joiner.on(",").join(Iterables.transform(Arrays.asList(array), new Function<Integer, String>() {
+            @Override
+            public String apply(Integer s) {
+                return s.toString();
+            }
+        })) + "]";
+
+        byte[] bytes = sourceString.getBytes(StreamUtils.UTF_8);
+        ByteFragment fragment = new ByteFragment(bytes, 0, bytes.length);
+        Integer[] parsedArray = (Integer[]) ByteFragmentUtils.parseArray(fragment, Integer.class, true);
+
         assertEquals(parsedArray.length, array.length);
         for (int i = 0; i < parsedArray.length; i++) {
             assertEquals(parsedArray[i], array[i]);

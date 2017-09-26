@@ -19,6 +19,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.TimeZone;
 
+import static ru.yandex.clickhouse.response.ByteFragmentUtils.parseArray;
+
 
 public class ClickHouseResultSet extends AbstractResultSet {
     private final static long[] EMPTY_LONG_ARRAY = new long[]{};
@@ -230,13 +232,25 @@ public class ClickHouseResultSet extends AbstractResultSet {
 
         final Object array;
         if (elementType == Types.DATE) {
-            array = ByteFragmentUtils.parseArray(getValue(columnIndex), TypeUtils.toClass(elementType, isUnsigned),
-                    dateFormat);
+            array = parseArray(
+                    getValue(columnIndex),
+                    TypeUtils.toClass(elementType, isUnsigned),
+                    properties.isUseObjectsInArrays(),
+                    dateFormat
+            );
         } else if (elementType == Types.TIMESTAMP) {
-            array = ByteFragmentUtils.parseArray(getValue(columnIndex), TypeUtils.toClass(elementType, isUnsigned),
-                    sdf);
+            array = parseArray(
+                    getValue(columnIndex),
+                    TypeUtils.toClass(elementType, isUnsigned),
+                    properties.isUseObjectsInArrays(),
+                    sdf
+            );
         } else {
-            array = ByteFragmentUtils.parseArray(getValue(columnIndex), TypeUtils.toClass(elementType, isUnsigned));
+            array = parseArray(
+                    getValue(columnIndex),
+                    TypeUtils.toClass(elementType, isUnsigned),
+                    properties.isUseObjectsInArrays()
+            );
         }
 
         return new ClickHouseArray(elementType, isUnsigned, array);

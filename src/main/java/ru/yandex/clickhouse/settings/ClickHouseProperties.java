@@ -33,6 +33,7 @@ public class ClickHouseProperties {
     private boolean useServerTimeZone;
     private String useTimeZone;
     private boolean useServerTimeZoneForDates;
+    private boolean useObjectsInArrays;
 
     // queries settings
     private Integer maxParallelReplicas;
@@ -80,6 +81,7 @@ public class ClickHouseProperties {
         this.useServerTimeZone = (Boolean)getSetting(info, ClickHouseConnectionSettings.USE_SERVER_TIME_ZONE);
         this.useTimeZone = (String)getSetting(info, ClickHouseConnectionSettings.USE_TIME_ZONE);
         this.useServerTimeZoneForDates = (Boolean)getSetting(info, ClickHouseConnectionSettings.USE_SERVER_TIME_ZONE_FOR_DATES);
+        this.useObjectsInArrays = (Boolean)getSetting(info, ClickHouseConnectionSettings.USE_OBJECTS_IN_ARRAYS);
 
         this.maxParallelReplicas = getSetting(info, ClickHouseQueryParam.MAX_PARALLEL_REPLICAS);
         this.totalsMode = getSetting(info, ClickHouseQueryParam.TOTALS_MODE);
@@ -123,6 +125,7 @@ public class ClickHouseProperties {
         ret.put(ClickHouseConnectionSettings.USE_SERVER_TIME_ZONE.getKey(), String.valueOf(useServerTimeZone));
         ret.put(ClickHouseConnectionSettings.USE_TIME_ZONE.getKey(), String.valueOf(useTimeZone));
         ret.put(ClickHouseConnectionSettings.USE_SERVER_TIME_ZONE_FOR_DATES.getKey(), String.valueOf(useServerTimeZoneForDates));
+        ret.put(ClickHouseConnectionSettings.USE_OBJECTS_IN_ARRAYS.getKey(), String.valueOf(useObjectsInArrays));
 
         ret.put(ClickHouseQueryParam.MAX_PARALLEL_REPLICAS.getKey(), maxParallelReplicas);
         ret.put(ClickHouseQueryParam.TOTALS_MODE.getKey(), totalsMode);
@@ -168,6 +171,7 @@ public class ClickHouseProperties {
         setUseServerTimeZone(properties.useServerTimeZone);
         setUseTimeZone(properties.useTimeZone);
         setUseServerTimeZoneForDates(properties.useServerTimeZoneForDates);
+        setUseObjectsInArrays(properties.useObjectsInArrays);
 
         setMaxParallelReplicas(properties.maxParallelReplicas);
         setTotalsMode(properties.totalsMode);
@@ -458,6 +462,14 @@ public class ClickHouseProperties {
 
     public void setUseTimeZone(String useTimeZone) {
         this.useTimeZone = useTimeZone;
+    }
+
+    public boolean isUseObjectsInArrays() {
+        return useObjectsInArrays;
+    }
+
+    public void setUseObjectsInArrays(boolean useObjectsInArrays) {
+        this.useObjectsInArrays = useObjectsInArrays;
     }
 
     public boolean isUseServerTimeZoneForDates() {
