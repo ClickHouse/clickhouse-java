@@ -117,9 +117,11 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
     }
 
     private static void checkBinded(String[] binds) throws SQLException {
+        int i = 0;
         for (String b : binds) {
+            ++i;
             if (b == null) {
-                throw new SQLException("Not all parameters binded");
+                throw new SQLException("Not all parameters binded (placeholder " + i + " is undefined)");
             }
         }
     }
