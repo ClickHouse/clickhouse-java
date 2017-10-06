@@ -14,6 +14,9 @@ import java.sql.Types;
 public class TypeUtils {
 
     public static int toSqlType(String clickshouseType) {
+        if (isNullable(clickshouseType)) {
+            clickshouseType = unwrapNullable(clickshouseType);
+        }
         if (clickshouseType.startsWith("Int") || clickshouseType.startsWith("UInt")) {
             return clickshouseType.endsWith("64") ? Types.BIGINT : Types.INTEGER;
         }
@@ -27,6 +30,14 @@ public class TypeUtils {
 
         // don't know what to return actually
         return Types.VARCHAR;
+    }
+
+    private static String unwrapNullable(String clickshouseType) {
+        return clickshouseType.substring("Nullable(".length(), clickshouseType.length() - 1);
+    }
+
+    private static boolean isNullable(String clickshouseType) {
+        return clickshouseType.startsWith("Nullable(") && clickshouseType.endsWith(")");
     }
 
     public static boolean isUnsigned(String clickhouseType){
