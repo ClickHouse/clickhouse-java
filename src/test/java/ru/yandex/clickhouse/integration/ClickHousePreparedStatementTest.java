@@ -110,4 +110,37 @@ public class ClickHousePreparedStatementTest {
         Assert.assertNull(rs.getString(2));
         Assert.assertFalse(rs.next());
     }
+
+    @Test
+    public void testSelectNullableTypes() throws SQLException {
+        connection.createStatement().execute("DROP TABLE IF EXISTS test.select_nullable");
+        connection.createStatement().execute(
+                "CREATE TABLE IF NOT EXISTS test.select_nullable (i Nullable(Int32), ui Nullable(UInt64), f Nullable(Float), s Nullable(String)) ENGINE = TinyLog"
+        );
+
+        PreparedStatement stmt = connection.prepareStatement("insert into test.select_nullable (i, ui, f, s) values (?, ?, ?, ?)");
+        stmt.setObject(1, null);
+        stmt.setObject(2, null);
+        stmt.setObject(3, null);
+        stmt.setString(4, null);
+        stmt.execute();
+
+        Statement select = connection.createStatement();
+        ResultSet rs = select.executeQuery("select i, ui, f, s from test.select_nullable");
+        rs.next();
+        Assert.assertEquals(rs.getMetaData().getColumnType(1), Types.INTEGER);
+        Assert.assertEquals(rs.getMetaData().getColumnType(2), Types.BIGINT);
+        Assert.assertEquals(rs.getMetaData().getColumnType(3), Types.FLOAT);
+        Assert.assertEquals(rs.getMetaData().getColumnType(4), Types.VARCHAR);
+
+        Assert.assertNull(rs.getObject(1));
+        Assert.assertNull(rs.getObject(2));
+        Assert.assertNull(rs.getObject(3));
+        Assert.assertNull(rs.getObject(4));
+
+        Assert.assertEquals(rs.getInt(1), 0);
+        Assert.assertEquals(rs.getInt(1), 0);
+        Assert.assertEquals(rs.getFloat(1), 0.0f);
+        Assert.assertEquals(rs.getString(1), null);
+    }
 }

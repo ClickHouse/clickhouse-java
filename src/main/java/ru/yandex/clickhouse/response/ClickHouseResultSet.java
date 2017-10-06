@@ -384,6 +384,10 @@ public class ClickHouseResultSet extends AbstractResultSet {
     @Override
     public Object getObject(int columnIndex) throws SQLException {
         try {
+            if (getValue(columnIndex).isNull()) {
+                return null;
+            }
+
             String typeName = types[columnIndex - 1];
             int type = TypeUtils.toSqlType(typeName);
             switch (type) {
