@@ -41,6 +41,9 @@ public class TypeUtils {
     }
 
     public static boolean isUnsigned(String clickhouseType){
+        if (isNullable(clickhouseType)) {
+            clickhouseType = unwrapNullable(clickhouseType);
+        }
         return clickhouseType.startsWith("UInt");
     }
 

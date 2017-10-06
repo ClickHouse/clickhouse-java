@@ -115,18 +115,26 @@ public class ClickHousePreparedStatementTest {
     public void testSelectNullableTypes() throws SQLException {
         connection.createStatement().execute("DROP TABLE IF EXISTS test.select_nullable");
         connection.createStatement().execute(
-                "CREATE TABLE IF NOT EXISTS test.select_nullable (i Nullable(Int32), ui Nullable(UInt64), f Nullable(Float32), s Nullable(String)) ENGINE = TinyLog"
+                "CREATE TABLE IF NOT EXISTS test.select_nullable (idx Int32, i Nullable(Int32), ui Nullable(UInt64), f Nullable(Float32), s Nullable(String)) ENGINE = TinyLog"
         );
 
-        PreparedStatement stmt = connection.prepareStatement("insert into test.select_nullable (i, ui, f, s) values (?, ?, ?, ?)");
-        stmt.setObject(1, null);
+        PreparedStatement stmt = connection.prepareStatement("insert into test.select_nullable (idx, i, ui, f, s) values (?, ?, ?, ?, ?)");
+        stmt.setInt(1, 1);
         stmt.setObject(2, null);
         stmt.setObject(3, null);
-        stmt.setString(4, null);
-        stmt.execute();
+        stmt.setObject(4, null);
+        stmt.setString(5, null);
+        stmt.addBatch();
+        stmt.setInt(1, 2);
+        stmt.setInt(2, 1);
+        stmt.setInt(3, 1);
+        stmt.setFloat(4, 1.0f);
+        stmt.setString(5, "aaa");
+        stmt.addBatch();
+        stmt.executeBatch();
 
         Statement select = connection.createStatement();
-        ResultSet rs = select.executeQuery("select i, ui, f, s from test.select_nullable");
+        ResultSet rs = select.executeQuery("select i, ui, f, s from test.select_nullable order by idx");
         rs.next();
         Assert.assertEquals(rs.getMetaData().getColumnType(1), Types.INTEGER);
         Assert.assertEquals(rs.getMetaData().getColumnType(2), Types.BIGINT);
@@ -142,5 +150,17 @@ public class ClickHousePreparedStatementTest {
         Assert.assertEquals(rs.getInt(1), 0);
         Assert.assertEquals(rs.getFloat(1), 0.0f);
         Assert.assertEquals(rs.getString(1), null);
+
+        rs.next();
+        Assert.assertEquals(rs.getObject(1).getClass(), Integer.class);
+        Assert.assertEquals(rs.getObject(2).getClass(), BigInteger.class);
+        Assert.assertEquals(rs.getObject(3).getClass(), Float.class);
+        Assert.assertEquals(rs.getObject(4).getClass(), String.class);
+
+        Assert.assertEquals(rs.getObject(1), 1);
+        Assert.assertEquals(rs.getObject(2), BigInteger.ONE);
+        Assert.assertEquals(rs.getObject(3), 1.0f);
+        Assert.assertEquals(rs.getObject(4), "aaa");
+
     }
 }
