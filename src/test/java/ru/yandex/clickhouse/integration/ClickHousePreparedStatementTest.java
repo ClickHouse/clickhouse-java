@@ -115,7 +115,7 @@ public class ClickHousePreparedStatementTest {
     public void testSelectNullableTypes() throws SQLException {
         connection.createStatement().execute("DROP TABLE IF EXISTS test.select_nullable");
         connection.createStatement().execute(
-                "CREATE TABLE IF NOT EXISTS test.select_nullable (i Nullable(Int32), ui Nullable(UInt64), f Nullable(Float), s Nullable(String)) ENGINE = TinyLog"
+                "CREATE TABLE IF NOT EXISTS test.select_nullable (i Nullable(Int32), ui Nullable(UInt64), f Nullable(Float32), s Nullable(String)) ENGINE = TinyLog"
         );
 
         PreparedStatement stmt = connection.prepareStatement("insert into test.select_nullable (i, ui, f, s) values (?, ?, ?, ?)");
