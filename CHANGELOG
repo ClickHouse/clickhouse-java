@@ -1,3 +1,9 @@
+0.1.29
+  * fix for empty long arrays
+  * use_objects_in_arrays option
+  * position of missing placeholder in error
+  * fix selectObject and types for nullable columns
+
 0.1.28
   * fix getUpdateCount
   * handle null string values correctly
