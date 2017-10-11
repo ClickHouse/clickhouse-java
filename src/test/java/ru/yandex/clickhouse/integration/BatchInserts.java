@@ -175,4 +175,19 @@ public class BatchInserts {
         Assert.assertFalse(rs.next());
         connection.createStatement().execute("DROP TABLE test.batch_insert_nulls");
     }
+
+    @Test
+    public void testBatchValuesColumn() throws SQLException {
+        connection.createStatement().execute("DROP TABLE IF EXISTS test.batch_single_test");
+        connection.createStatement().execute(
+                "CREATE TABLE test.batch_single_test(date Date, values String) ENGINE = StripeLog"
+        );
+
+        PreparedStatement st = connection.prepareStatement("INSERT INTO test.batch_single_test (date, values) VALUES (?, ?)");
+        st.setDate(1, new Date(System.currentTimeMillis()));
+        st.setString(2, "test");
+
+        st.addBatch();
+        st.executeBatch();
+    }
 }

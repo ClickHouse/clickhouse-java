@@ -20,10 +20,13 @@ import java.sql.*;
 import java.sql.Date;
 import java.text.SimpleDateFormat;
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 
 public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl implements ClickHousePreparedStatement {
     private static final Logger log = LoggerFactory.getLogger(ClickHouseStatementImpl.class);
+    private static final Pattern VALUES = Pattern.compile("VALUES[\\s]*\\(");
 
     private final SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd");
     private final SimpleDateFormat dateTimeFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
@@ -334,13 +337,15 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
 
     @Override
     public int[] executeBatch() throws SQLException {
-        int valuePosition = sql.toUpperCase().indexOf("VALUES");
-        if (valuePosition == -1) {
+        Matcher matcher = VALUES.matcher(sql.toUpperCase());
+        if (!matcher.find()) {
             throw new SQLSyntaxErrorException(
-                "Query must be like 'INSERT INTO [db.]table [(c1, c2, c3)] VALUES (?, ?, ?)'. " +
-                    "Got: " + sql
+                    "Query must be like 'INSERT INTO [db.]table [(c1, c2, c3)] VALUES (?, ?, ?)'. " +
+                            "Got: " + sql
             );
         }
+        int valuePosition = matcher.start();
+
         String insertSql = sql.substring(0, valuePosition);
         BatchHttpEntity entity = new BatchHttpEntity(batchRows);
         sendStream(entity, insertSql);
