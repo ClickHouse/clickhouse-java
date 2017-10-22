@@ -32,6 +32,7 @@ import ru.yandex.clickhouse.util.Patterns;
 import ru.yandex.clickhouse.util.Utils;
 import ru.yandex.clickhouse.util.guava.StreamUtils;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
@@ -516,17 +517,19 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
             HttpResponse response = client.execute(post);
             entity = response.getEntity();
             if (response.getStatusLine().getStatusCode() != HttpURLConnection.HTTP_OK) {
-                String chMessage;
-                try {
-                    InputStream messageStream = entity.getContent();
-                    if (properties.isCompress()) {
-                        messageStream = new ClickHouseLZ4Stream(messageStream);
+                InputStream messageStream = entity.getContent();
+                byte[] bytes = StreamUtils.toByteArray(messageStream);
+                if (properties.isCompress()) {
+                    try {
+                        messageStream = new ClickHouseLZ4Stream(new ByteArrayInputStream(bytes));
+                        bytes = StreamUtils.toByteArray(messageStream);
+                    } catch (IOException e) {
+                        log.warn("error while read compressed stream" + e.getMessage());
                     }
-                    chMessage = StreamUtils.toString(messageStream);
-                } catch (IOException e) {
-                    chMessage = "error while read response " + e.getMessage();
+
                 }
                 EntityUtils.consumeQuietly(entity);
+                String chMessage = new String(bytes, StreamUtils.UTF_8);
                 throw ClickHouseExceptionSpecifier.specify(chMessage, properties.getHost(), properties.getPort());
             }
 
