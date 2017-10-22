@@ -163,4 +163,14 @@ public class ClickHousePreparedStatementTest {
         Assert.assertEquals(rs.getObject(4), "aaa");
 
     }
+
+    @Test
+    public void testSelectDouble() throws SQLException {
+        Statement select = connection.createStatement();
+        ResultSet rs = select.executeQuery("select toFloat64(0.1) ");
+        rs.next();
+        Assert.assertEquals(rs.getMetaData().getColumnType(1), Types.DOUBLE);
+        Assert.assertEquals(rs.getObject(1).getClass(), Double.class);
+        Assert.assertEquals(rs.getDouble(1), 0.1);
+    }
 }

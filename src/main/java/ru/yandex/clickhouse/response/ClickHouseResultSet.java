@@ -404,6 +404,7 @@ public class ClickHouseResultSet extends AbstractResultSet {
                     return getInt(columnIndex);
                 case Types.VARCHAR:     return getString(columnIndex);
                 case Types.FLOAT:       return getFloat(columnIndex);
+                case Types.DOUBLE:      return getDouble(columnIndex);
                 case Types.DATE:        return getDate(columnIndex);
                 case Types.TIMESTAMP:   return getTimestamp(columnIndex);
                 case Types.BLOB:        return getString(columnIndex);
