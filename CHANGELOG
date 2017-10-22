@@ -1,3 +1,6 @@
+0.1.30
+  * fix batch insert with 'values' column
+
 0.1.29
   * fix for empty long arrays
   * use_objects_in_arrays option
