@@ -67,8 +67,6 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
 
     private boolean closeOnCompletion;
 
-    private ObjectMapper objectMapper;
-
     /**
      * Current database name may be changed by {@link java.sql.Connection#setCatalog(String)}
      * between creation of this object and query execution, but javadoc does not allow
@@ -82,9 +80,6 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
         this.connection = connection;
         this.properties = properties;
         this.initialDatabase = properties.getDatabase();
-
-        objectMapper = new ObjectMapper();
-        objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     }
 
     @Override
@@ -142,20 +137,10 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
     public ClickHouseResponse executeQueryClickhouseResponse(String sql, Map<ClickHouseQueryParam, String> additionalDBParams) throws SQLException {
         InputStream is = getInputStream(addFormatIfAbsent(sql, "JSONCompact"), additionalDBParams, null);
         try {
-            byte[] bytes = null;
-            try {
-                if (properties.isCompress()) {
-                    bytes = StreamUtils.toByteArray(new ClickHouseLZ4Stream(is));
-                } else {
-                    bytes = StreamUtils.toByteArray(is);
-                }
-                return objectMapper.readValue(bytes, ClickHouseResponse.class);
-            } catch (IOException e) {
-                if (bytes != null) {
-                    log.warn("Wrong json: " + new String(bytes, StreamUtils.UTF_8));
-                }
-                throw e;
+            if (properties.isCompress()) {
+                is = new ClickHouseLZ4Stream(is);
             }
+            return Jackson.getObjectMapper().readValue(is, ClickHouseResponse.class);
         } catch (IOException e) {
             throw new RuntimeException(e);
         } finally {
