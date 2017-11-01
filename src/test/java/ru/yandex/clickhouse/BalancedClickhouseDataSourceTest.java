@@ -32,6 +32,22 @@ public class BalancedClickhouseDataSourceTest {
     }
 
 
+    @Test
+    public void testUrlSplitValidHostName() throws Exception {
+        assertEquals(Arrays.asList("jdbc:clickhouse://localhost:1234", "jdbc:clickhouse://_0another-host.com:4321"),
+                BalancedClickhouseDataSource.splitUrl("jdbc:clickhouse://localhost:1234,_0another-host.com:4321"));
+
+    }
+
+
+    @Test(expectedExceptions = IllegalArgumentException.class)
+    public void testUrlSplitInvalidHostName() throws Exception {
+        assertEquals(Arrays.asList("jdbc:clickhouse://localhost:1234", "jdbc:clickhouse://_0ano^ther-host.com:4321"),
+                BalancedClickhouseDataSource.splitUrl("jdbc:clickhouse://localhost:1234,_0another-host.com:4321"));
+
+    }
+
+
     @BeforeTest
     public void setUp() throws Exception {
         ClickHouseProperties properties = new ClickHouseProperties();
