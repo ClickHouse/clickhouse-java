@@ -23,9 +23,6 @@ import static ru.yandex.clickhouse.ClickhouseJdbcUrlParser.JDBC_CLICKHOUSE_PREFI
  * For every {@link #getConnection() getConnection} invocation, it returns connection to random host from the list.
  * Furthermore, this class has method {@link #scheduleActualization(int, TimeUnit) scheduleActualization}
  * which test hosts for availability. By default, this option is turned off.
- * <p>
- * The instances of {@code BalancedClickhouseDataSource} don't identify the master and replicas.
- * You should use it if you only read from database and don't have write operations.
  */
 public class BalancedClickhouseDataSource implements DataSource {
     private static final org.slf4j.Logger log = LoggerFactory.getLogger(BalancedClickhouseDataSource.class);
