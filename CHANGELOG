@@ -1,3 +1,7 @@
+0.1.33
+  * json parse optitimzation
+  * BalancedClickHouseDataSource url pattern fix
+
 0.1.32
   * fix getObject() for DOUBLE
 
