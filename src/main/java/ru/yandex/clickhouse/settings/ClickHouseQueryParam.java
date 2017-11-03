@@ -196,6 +196,12 @@ public enum ClickHouseQueryParam implements DriverPropertyCreator {
 
     SEND_TIMEOUT("send_timeout", null, Integer.class, ""),
 
+    SESSION_CHECK("session_check", false, Boolean.class, ""),
+
+    SESSION_ID("session_id", null, String.class, ""),
+
+    SESSION_TIMEOUT("session_timeout", null, Long.class, ""),
+
     SKIP_UNAVAILABLE_SHARDS("skip_unavailable_shards", false, Boolean.class, ""),
 
     STRICT_INSERT_DEFAULTS("strict_insert_defaults", false, Boolean.class, ""),
