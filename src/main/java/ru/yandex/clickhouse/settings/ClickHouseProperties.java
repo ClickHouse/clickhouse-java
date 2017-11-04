@@ -57,6 +57,9 @@ public class ClickHouseProperties {
     private Long maxMemoryUsage;
     private Long preferredBlockSizeBytes;
     private Long maxQuerySize;
+    private boolean sessionCheck;
+    private String sessionId;
+    private Long sessionTimeout;
 
     public ClickHouseProperties() {
         this(new Properties());
@@ -104,6 +107,9 @@ public class ClickHouseProperties {
         this.maxMemoryUsage = getSetting(info, ClickHouseQueryParam.MAX_MEMORY_USAGE);
         this.preferredBlockSizeBytes = getSetting(info, ClickHouseQueryParam.PREFERRED_BLOCK_SIZE_BYTES);
         this.maxQuerySize = getSetting(info, ClickHouseQueryParam.MAX_QUERY_SIZE);
+        this.sessionCheck = (Boolean) getSetting(info, ClickHouseQueryParam.SESSION_CHECK);
+        this.sessionId = getSetting(info, ClickHouseQueryParam.SESSION_ID);
+        this.sessionTimeout = getSetting(info, ClickHouseQueryParam.SESSION_TIMEOUT);
     }
 
     public Properties asProperties() {
@@ -148,6 +154,9 @@ public class ClickHouseProperties {
         ret.put(ClickHouseQueryParam.MAX_MEMORY_USAGE.getKey(), maxMemoryUsage);
         ret.put(ClickHouseQueryParam.PREFERRED_BLOCK_SIZE_BYTES.getKey(), preferredBlockSizeBytes);
         ret.put(ClickHouseQueryParam.MAX_QUERY_SIZE.getKey(), maxQuerySize);
+        ret.put(ClickHouseQueryParam.SESSION_CHECK.getKey(), String.valueOf(sessionCheck));
+        ret.put(ClickHouseQueryParam.SESSION_ID.getKey(), sessionId);
+        ret.put(ClickHouseQueryParam.SESSION_TIMEOUT.getKey(), sessionTimeout);
         return ret.getProperties();
     }
 
@@ -172,7 +181,6 @@ public class ClickHouseProperties {
         setUseTimeZone(properties.useTimeZone);
         setUseServerTimeZoneForDates(properties.useServerTimeZoneForDates);
         setUseObjectsInArrays(properties.useObjectsInArrays);
-
         setMaxParallelReplicas(properties.maxParallelReplicas);
         setTotalsMode(properties.totalsMode);
         setQuotaKey(properties.quotaKey);
@@ -192,6 +200,9 @@ public class ClickHouseProperties {
         setMaxBytesBeforeExternalGroupBy(properties.maxBytesBeforeExternalGroupBy);
         setMaxBytesBeforeExternalSort(properties.maxBytesBeforeExternalSort);
         setMaxMemoryUsage(properties.maxMemoryUsage);
+        setSessionCheck(properties.sessionCheck);
+        setSessionId(properties.sessionId);
+        setSessionTimeout(properties.sessionTimeout);
     }
 
     public Map<ClickHouseQueryParam, String> buildQueryParams(boolean ignoreDatabase){
@@ -245,6 +256,17 @@ public class ClickHouseProperties {
             params.put(ClickHouseQueryParam.MAX_QUERY_SIZE, String.valueOf(maxQuerySize));
         }
 
+        if (sessionCheck) {
+            params.put(ClickHouseQueryParam.SESSION_CHECK, "1");
+        }
+
+        if (sessionId != null) {
+            params.put(ClickHouseQueryParam.SESSION_ID, String.valueOf(sessionId));
+        }
+
+        if (sessionTimeout != null) {
+            params.put(ClickHouseQueryParam.SESSION_TIMEOUT, String.valueOf(sessionTimeout));
+        }
         return params;
     }
 
@@ -615,6 +637,18 @@ public class ClickHouseProperties {
     public void setMaxQuerySize(Long maxQuerySize) {
         this.maxQuerySize = maxQuerySize;
     }
+
+    public boolean isSessionCheck() { return sessionCheck; }
+
+    public void setSessionCheck(boolean sessionCheck) { this.sessionCheck = sessionCheck; }
+
+    public String getSessionId() { return sessionId; }
+
+    public void setSessionId(String sessionId) { this.sessionId = sessionId; }
+
+    public Long getSessionTimeout() { return sessionTimeout; }
+
+    public void setSessionTimeout(Long sessionTimeout) { this.sessionTimeout = sessionTimeout; }
 
     private static class PropertiesBuilder {
         private final Properties properties;
