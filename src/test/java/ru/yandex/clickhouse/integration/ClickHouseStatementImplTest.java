@@ -172,4 +172,17 @@ public class ClickHouseStatementImplTest {
         Assert.assertNull(stmt.getResultSet());
         Assert.assertEquals(stmt.getUpdateCount(), -1);
     }
+
+    @Test
+    public void testSelectQueryStartingWithWith() throws SQLException {
+        Statement stmt = connection.createStatement();
+        ResultSet rs = stmt.executeQuery("WITH 2 AS two SELECT two * two;");
+
+        Assert.assertNotNull(rs);
+        Assert.assertTrue(rs.next());
+        Assert.assertEquals(rs.getInt(1), 4);
+
+        rs.close();
+        stmt.close();
+    }
 }
