@@ -1,5 +1,7 @@
 0.1.34
   * support for select queries starting with "WITH ... SELECT"
+  * add executeQueryClickhouseResponse
+  * add session query parameters
 
 0.1.33
   * json parse optitimzation
