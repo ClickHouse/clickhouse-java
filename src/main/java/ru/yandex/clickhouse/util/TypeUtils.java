@@ -13,6 +13,9 @@ import java.sql.Types;
  */
 public class TypeUtils {
 
+    public static final String NULLABLE_YES = "YES";
+    public static final String NULLABLE_NO = "NO";
+
     public static int toSqlType(String clickshouseType) {
         if (isNullable(clickshouseType)) {
             clickshouseType = unwrapNullable(clickshouseType);
@@ -111,4 +114,11 @@ public class TypeUtils {
         }
     }
 
+    public static String isTypeNull(String clickshouseType) {
+        if(isNullable(clickshouseType)){
+            return NULLABLE_YES;
+        }else{
+            return NULLABLE_NO;
+        }
+    }
 }
