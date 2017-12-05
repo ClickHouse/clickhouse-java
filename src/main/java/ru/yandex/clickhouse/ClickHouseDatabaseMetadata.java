@@ -855,7 +855,7 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
             row.add(String.valueOf(colNum));
             colNum += 1;
             //IS_NULLABLE
-            row.add("NO");
+            row.add(TypeUtils.isTypeNull(type));
 
             //"SCOPE_CATALOG",
             row.add(null);
