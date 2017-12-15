@@ -186,7 +186,7 @@ public class BalancedClickhouseDataSource implements DataSource {
      * {@inheritDoc}
      */
     @Override
-    public Connection getConnection() throws SQLException {
+    public ClickHouseConnection getConnection() throws SQLException {
         return driver.connect(getAnyUrl(), properties);
     }
 
@@ -194,7 +194,7 @@ public class BalancedClickhouseDataSource implements DataSource {
      * {@inheritDoc}
      */
     @Override
-    public Connection getConnection(String username, String password) throws SQLException {
+    public ClickHouseConnection getConnection(String username, String password) throws SQLException {
         return driver.connect(getAnyUrl(), properties.withCredentials(username, password));
     }
 
