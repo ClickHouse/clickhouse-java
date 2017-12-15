@@ -6,7 +6,6 @@ import ru.yandex.clickhouse.settings.ClickHouseProperties;
 import javax.sql.DataSource;
 import java.io.PrintWriter;
 import java.net.URISyntaxException;
-import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.util.*;
