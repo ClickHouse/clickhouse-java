@@ -6,7 +6,6 @@ import ru.yandex.clickhouse.settings.ClickHouseProperties;
 import javax.sql.DataSource;
 import java.io.PrintWriter;
 import java.net.URISyntaxException;
-import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.util.*;
@@ -186,7 +185,7 @@ public class BalancedClickhouseDataSource implements DataSource {
      * {@inheritDoc}
      */
     @Override
-    public Connection getConnection() throws SQLException {
+    public ClickHouseConnection getConnection() throws SQLException {
         return driver.connect(getAnyUrl(), properties);
     }
 
@@ -194,7 +193,7 @@ public class BalancedClickhouseDataSource implements DataSource {
      * {@inheritDoc}
      */
     @Override
-    public Connection getConnection(String username, String password) throws SQLException {
+    public ClickHouseConnection getConnection(String username, String password) throws SQLException {
         return driver.connect(getAnyUrl(), properties.withCredentials(username, password));
     }
 
