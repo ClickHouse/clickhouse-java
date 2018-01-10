@@ -20,6 +20,9 @@ public class StreamSplitter {
     // position until which the values from buf already passed out through next()
     private int posNext;
 
+    private int markedRead;
+    private int markedNext;
+
     private boolean readOnce;
 
 
@@ -130,4 +133,14 @@ public class StreamSplitter {
             ", readOnce=" + readOnce +
             '}';
     }
+
+  public void mark() {
+        markedRead = posRead;
+        markedNext = posNext;
+  }
+
+  public void reset() {
+        posRead = markedRead;
+        posNext = markedNext;
+  }
 }
