@@ -113,6 +113,7 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
                     ? new ClickHouseLZ4Stream(is) : is, properties.getBufferSize(),
                     extractDBName(sql),
                     extractTableName(sql),
+                    extractWithTotals(sql),
                     this,
                     ((ClickHouseConnection) getConnection()).getTimeZone(),
                     properties
@@ -443,6 +444,14 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
             return "system.tables";
         }
         return "system.unknown";
+    }
+
+    private boolean extractWithTotals(String sql) {
+        if (Utils.startsWithIgnoreCase(sql, "select")) {
+            String withoutStrings = Utils.retainUnquoted(sql, '\'');
+            return withoutStrings.toLowerCase().contains(" with totals");
+        }
+        return false;
     }
 
     private InputStream getInputStream(

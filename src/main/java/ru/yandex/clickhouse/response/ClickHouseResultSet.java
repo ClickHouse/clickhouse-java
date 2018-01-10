@@ -47,6 +47,9 @@ public class ClickHouseResultSet extends AbstractResultSet {
     // next line
     private ByteFragment nextLine;
 
+    // total lines
+    private ByteFragment totalLine;
+
     // row counter
     private int rowNumber;
 
@@ -55,11 +58,14 @@ public class ClickHouseResultSet extends AbstractResultSet {
 
     private final ClickHouseProperties properties;
 
-    public ClickHouseResultSet(InputStream is, int bufferSize, String db, String table, ClickHouseStatement statement, TimeZone timezone, ClickHouseProperties properties) throws IOException {
+    private boolean usesWithTotals;
+
+    public ClickHouseResultSet(InputStream is, int bufferSize, String db, String table, boolean usesWithTotals, ClickHouseStatement statement, TimeZone timezone, ClickHouseProperties properties) throws IOException {
         this.db = db;
         this.table = table;
         this.statement = statement;
         this.properties = properties;
+        this.usesWithTotals = usesWithTotals;
         initTimeZone(timezone);
         bis = new StreamSplitter(is, (byte) 0x0A, bufferSize);  ///   \n
         ByteFragment headerFragment = bis.next();
@@ -105,9 +111,18 @@ public class ClickHouseResultSet extends AbstractResultSet {
         if (nextLine == null) {
             try {
                 nextLine = bis.next();
-                if (nextLine == null || (maxRows != 0 && rowNumber >= maxRows)) {
-                    bis.close();
-                    nextLine = null;
+
+                if (nextLine == null || (maxRows != 0 && rowNumber >= maxRows) || (usesWithTotals && nextLine.length() == 0)) {
+                    if (usesWithTotals) {
+                        if(onTheSeparatorRow()) {
+                            totalLine = bis.next();
+                            bis.close();
+                            nextLine = null;
+                        } // otherwise do not close the stream, it is single column or invalid result set case
+                    } else {
+                        bis.close();
+                        nextLine = null;
+                    }
                 }
             } catch (IOException e) {
                 throw new SQLException(e);
@@ -126,6 +141,15 @@ public class ClickHouseResultSet extends AbstractResultSet {
         } else return false;
     }
 
+    private boolean onTheSeparatorRow() throws IOException {
+        // test bis vs "\n???\nEOF" pattern if not then rest to current position
+        bis.mark();
+        boolean onSeparatorRow = bis.next() !=null && bis.next() == null;
+        bis.reset();
+
+        return onSeparatorRow;
+    }
+
     private void checkValues(String[] columns, ByteFragment[] values, ByteFragment fragment) throws SQLException {
         if (columns.length != values.length) {
             throw ClickHouseExceptionSpecifier.specify(fragment.asString());
@@ -139,6 +163,15 @@ public class ClickHouseResultSet extends AbstractResultSet {
         } catch (IOException e) {
             throw new SQLException(e);
         }
+    }
+
+    public void getTotals() throws SQLException {
+        if (!usesWithTotals)
+            throw new IllegalStateException("Cannot get totals when totals are not being used.");
+
+        nextLine = totalLine;
+
+        this.next();
     }
 
     /////////////////////////////////////////////////////////

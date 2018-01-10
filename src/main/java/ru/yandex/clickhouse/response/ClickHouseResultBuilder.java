@@ -21,6 +21,7 @@ public class ClickHouseResultBuilder {
     private List<String> types;
     private List<List<?>> rows = new ArrayList<List<?>>();
     private TimeZone timezone = TimeZone.getTimeZone("UTC");
+    private boolean usesWithTotals;
     private ClickHouseProperties properties = new ClickHouseProperties();
 
     public static ClickHouseResultBuilder builder(int columnsNum) {
@@ -41,6 +42,11 @@ public class ClickHouseResultBuilder {
 
     public ClickHouseResultBuilder addRow(Object... row) {
         return addRow(Arrays.asList(row));
+    }
+
+    public ClickHouseResultBuilder withTotals(boolean usesWithTotals) {
+        this.usesWithTotals = usesWithTotals;
+        return this;
     }
 
     public ClickHouseResultBuilder names(List<String> names) {
@@ -85,7 +91,7 @@ public class ClickHouseResultBuilder {
             byte[] bytes = baos.toByteArray();
             ByteArrayInputStream inputStream = new ByteArrayInputStream(bytes);
 
-            return new ClickHouseResultSet(inputStream, 1024, "system", "unknown", null, timezone, properties);
+            return new ClickHouseResultSet(inputStream, 1024, "system", "unknown", usesWithTotals, null, timezone, properties);
         } catch (IOException e) {
             throw new RuntimeException("Never happens", e);
         }
