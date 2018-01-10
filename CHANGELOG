@@ -1,3 +1,8 @@
+0.1.35
+  * with totals support
+  * nullable metadata fixes
+  * specialize on connection type in balanced data source
+
 0.1.34
   * support for select queries starting with "WITH ... SELECT"
   * add executeQueryClickhouseResponse
