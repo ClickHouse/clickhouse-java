@@ -1,7 +1,5 @@
 package ru.yandex.clickhouse;
 
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Strings;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
@@ -403,7 +401,7 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
     private static boolean isSelect(String sql) {
         String upper = sql.toUpperCase().trim();
         return upper.startsWith("SELECT") || upper.startsWith("WITH") || upper.startsWith("SHOW") ||
-                upper.startsWith("DESC") || upper.startsWith("EXISTS");
+            upper.startsWith("DESC") || upper.startsWith("EXISTS");
     }
 
     private String extractTableName(String sql) {
@@ -637,6 +635,13 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
     public void sendRowBinaryStream(String sql, ClickHouseStreamCallback callback) throws SQLException {
         sendStream(
             new ClickHouseStreamHttpEntity(callback, getConnection().getTimeZone(), properties), sql, ClickHouseFormat.RowBinary
+        );
+    }
+
+    @Override
+    public void sendNativeStream(String sql, ClickHouseStreamCallback callback) throws SQLException {
+        sendStream(
+            new ClickHouseStreamHttpEntity(callback, getConnection().getTimeZone(), properties), sql, ClickHouseFormat.Native
         );
     }
 

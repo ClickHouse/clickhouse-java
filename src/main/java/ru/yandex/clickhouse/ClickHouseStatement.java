@@ -24,4 +24,6 @@ public interface ClickHouseStatement extends Statement {
     void sendStream(InputStream content, String table) throws SQLException;
 
     void sendRowBinaryStream(String sql, ClickHouseStreamCallback callback) throws SQLException;
+
+    void sendNativeStream(String sql, ClickHouseStreamCallback callback) throws SQLException;
 }
