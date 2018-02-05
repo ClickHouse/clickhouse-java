@@ -114,6 +114,20 @@ public class TypeUtils {
         }
     }
 
+    public static int getDecimalDigits(String type) {
+        if (isNullable(type)) {
+            type = unwrapNullable(type);
+        }
+
+        if (type.equals("Float32")) {
+            return 8;
+        } else if (type.equals("Float64")) {
+            return 17;
+        }
+        // no other types support decimal digits
+        return 0;
+    }
+
     public static String isTypeNull(String clickshouseType) {
         if(isNullable(clickshouseType)){
             return NULLABLE_YES;

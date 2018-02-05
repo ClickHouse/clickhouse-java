@@ -821,15 +821,8 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
             row.add("0");
             //buffer length
             row.add("0");
-
             // decimal digits
-            if (sqlType == Types.INTEGER || sqlType == Types.BIGINT && type.contains("Int")) {
-                String bits = type.substring(type.indexOf("Int") + "Int".length());
-                row.add(bits);
-            } else {
-                row.add(null);
-            }
-
+            row.add(Integer.toString(TypeUtils.getDecimalDigits(type)));
             // radix
             row.add("10");
             // nullable
