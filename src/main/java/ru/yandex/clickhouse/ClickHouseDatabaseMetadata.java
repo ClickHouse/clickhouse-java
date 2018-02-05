@@ -817,8 +817,8 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
             row.add(Integer.toString(sqlType));
             //type name
             row.add(type);
-            // column size ?
-            row.add("0");
+            // column size / precision
+            row.add(Integer.toString(TypeUtils.getColumnSize(type)));
             //buffer length
             row.add("0");
             // decimal digits

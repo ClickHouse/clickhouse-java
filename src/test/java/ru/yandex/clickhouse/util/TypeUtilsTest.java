@@ -31,4 +31,20 @@ public class TypeUtilsTest {
       assertEquals(TypeUtils.getDecimalDigits("Nullable(Float32)"), 8);
   }
 
+  @Test
+  public void testGetColumnSize() throws Exception {
+      assertEquals(TypeUtils.getColumnSize("DateTime"), 19);
+      assertEquals(TypeUtils.getColumnSize("Date"), 10);
+      assertEquals(TypeUtils.getColumnSize("UInt8"), 3);
+      assertEquals(TypeUtils.getColumnSize("Int32"), 11);
+      assertEquals(TypeUtils.getColumnSize("Float32"), 8);
+      assertEquals(TypeUtils.getColumnSize("String"), 0);
+      assertEquals(TypeUtils.getColumnSize("FixedString(12)"), 12);
+      assertEquals(TypeUtils.getColumnSize("Enum8"), 0);
+      assertEquals(TypeUtils.getColumnSize("Array(String)"), 0);
+
+      assertEquals(TypeUtils.getColumnSize("Nullable(Int32)"), 11);
+      assertEquals(TypeUtils.getColumnSize("Nullable(DateTime)"), 19);
+      assertEquals(TypeUtils.getColumnSize("Nullable(FixedString(4))"), 4);
+  }
 }
