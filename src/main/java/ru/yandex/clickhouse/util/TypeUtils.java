@@ -114,6 +114,60 @@ public class TypeUtils {
         }
     }
 
+    public static int getColumnSize(String type) {
+        if (isNullable(type)) {
+            type = unwrapNullable(type);
+        }
+
+        if (type.equals("Float32")) {
+            return 8;
+        } else if (type.equals("Float64")) {
+            return 17;
+        } else if (type.equals("Int8")) {
+            return 4;
+        } else if (type.equals("Int16")) {
+            return 6;
+        } else if (type.equals("Int32")) {
+            return 11;
+        } else if (type.equals("Int64")) {
+            return 20;
+        } else if (type.equals("UInt8")) {
+            return 3;
+        } else if (type.equals("UInt16")) {
+            return 5;
+        } else if (type.equals("UInt32")) {
+            return 10;
+        } else if (type.equals("UInt64")) {
+            return 19;
+        } else if (type.equals("Date")) {
+            // number of chars in '2018-01-01'
+            return 10;
+        } else if (type.equals("DateTime")) {
+            // number of chars in '2018-01-01 01:02:35'
+            return 19;
+        } else if (type.startsWith("FixedString(")) {
+            String numBytes = type.substring("FixedString(".length(), type.length() - 1);
+            return Integer.parseInt(numBytes);
+        } else {
+            // size unknown
+            return 0;
+        }
+    }
+
+    public static int getDecimalDigits(String type) {
+        if (isNullable(type)) {
+            type = unwrapNullable(type);
+        }
+
+        if (type.equals("Float32")) {
+            return 8;
+        } else if (type.equals("Float64")) {
+            return 17;
+        }
+        // no other types support decimal digits
+        return 0;
+    }
+
     public static String isTypeNull(String clickshouseType) {
         if(isNullable(clickshouseType)){
             return NULLABLE_YES;
