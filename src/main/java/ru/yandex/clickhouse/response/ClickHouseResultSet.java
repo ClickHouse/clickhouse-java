@@ -401,7 +401,7 @@ public class ClickHouseResultSet extends AbstractResultSet {
     public Date getDate(int columnIndex) throws SQLException {
         // date is passed as a string from clickhouse
         ByteFragment value = getValue(columnIndex);
-        if (value.isNull()) return null;
+        if (value.isNull() || value.asString().equals("0000-00-00")) return null;
         try {
             return new Date(dateFormat.parse(value.asString()).getTime());
         } catch (ParseException e) {
@@ -490,7 +490,7 @@ public class ClickHouseResultSet extends AbstractResultSet {
     }
 
     private Long toTimestamp(ByteFragment value) {
-        if (value.isNull()) return null;
+        if (value.isNull() || value.asString().equals("0000-00-00 00:00:00")) return null;
         try {
             return sdf.parse(value.asString()).getTime();
         } catch (ParseException e) {
