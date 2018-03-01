@@ -60,6 +60,8 @@ public class ClickHouseResultSet extends AbstractResultSet {
 
     private boolean usesWithTotals;
 
+    private boolean lastReached = false;
+
     public ClickHouseResultSet(InputStream is, int bufferSize, String db, String table, boolean usesWithTotals, ClickHouseStatement statement, TimeZone timezone, ClickHouseProperties properties) throws IOException {
         this.db = db;
         this.table = table;
@@ -108,19 +110,21 @@ public class ClickHouseResultSet extends AbstractResultSet {
     }
 
     public boolean hasNext() throws SQLException {
-        if (nextLine == null) {
+        if (nextLine == null && !lastReached) {
             try {
                 nextLine = bis.next();
 
                 if (nextLine == null || (maxRows != 0 && rowNumber >= maxRows) || (usesWithTotals && nextLine.length() == 0)) {
                     if (usesWithTotals) {
-                        if(onTheSeparatorRow()) {
+                        if (onTheSeparatorRow()) {
                             totalLine = bis.next();
                             bis.close();
+                            lastReached = true;
                             nextLine = null;
                         } // otherwise do not close the stream, it is single column or invalid result set case
                     } else {
                         bis.close();
+                        lastReached = true;
                         nextLine = null;
                     }
                 }
