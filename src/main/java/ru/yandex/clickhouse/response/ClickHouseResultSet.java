@@ -60,6 +60,9 @@ public class ClickHouseResultSet extends AbstractResultSet {
 
     private boolean usesWithTotals;
 
+    // NOTE this can't be used for `isLast` impl because
+    // it does not do prefetch. It is effectively a witness
+    // to the fact that rs.next() returned false.
     private boolean lastReached = false;
 
     public ClickHouseResultSet(InputStream is, int bufferSize, String db, String table, boolean usesWithTotals, ClickHouseStatement statement, TimeZone timezone, ClickHouseProperties properties) throws IOException {
