@@ -121,14 +121,10 @@ public class ClickHouseResultSet extends AbstractResultSet {
                     if (usesWithTotals) {
                         if (onTheSeparatorRow()) {
                             totalLine = bis.next();
-                            bis.close();
-                            lastReached = true;
-                            nextLine = null;
+                            endOfStream();
                         } // otherwise do not close the stream, it is single column or invalid result set case
                     } else {
-                        bis.close();
-                        lastReached = true;
-                        nextLine = null;
+                        endOfStream();
                     }
                 }
             } catch (IOException e) {
@@ -137,6 +133,13 @@ public class ClickHouseResultSet extends AbstractResultSet {
         }
         return nextLine != null;
     }
+
+    private void endOfStream() throws IOException {
+        bis.close();
+        lastReached = true;
+        nextLine = null;
+    }
+
     @Override
     public boolean next() throws SQLException {
         if (hasNext()) {
