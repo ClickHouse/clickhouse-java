@@ -64,6 +64,24 @@ public class ClickHouseStatementImplTest {
     }
 
     @Test
+    public void readsPastLastAreSafe() throws SQLException {
+        ResultSet rs = connection.createStatement().executeQuery("select c from (\n" +
+                "    select 'a' as c, 1 as rn\n" +
+                "    UNION ALL select 'b' as c, 2 as rn\n" +
+                "    UNION ALL select '' as c, 3 as rn\n" +
+                "    UNION ALL select 'd' as c, 4 as rn\n" +
+                " ) order by rn");
+        StringBuffer sb = new StringBuffer();
+        while (rs.next()) {
+            sb.append(rs.getString("c")).append("\n");
+        }
+        Assert.assertFalse(rs.next());
+        Assert.assertFalse(rs.next());
+        Assert.assertFalse(rs.next());
+        Assert.assertEquals(sb.toString(), "a\nb\n\nd\n");
+    }
+
+    @Test
     public void testSelectUInt32() throws SQLException {
         Statement stmt = connection.createStatement();
         ResultSet rs = stmt.executeQuery("select toUInt32(10), toUInt32(-10)");
