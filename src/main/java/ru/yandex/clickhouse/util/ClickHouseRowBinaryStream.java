@@ -48,6 +48,26 @@ public class ClickHouseRowBinaryStream {
         out.write((byte) (value & 0x7f));
     }
 
+    /**
+     * Dangerous. Can only be used for rare optimizations, for example when the string is written in parts
+     * without prior concatenation. The size of the string in bytes must be passed through writeUnsignedLeb128.
+     * @param bytes
+     * @throws IOException
+     */
+    public void writeBytes(byte[] bytes) throws IOException {
+        out.write(bytes);
+    }
+
+    /**
+     * Dangerous. Can only be used for rare optimizations, for example when the string is written in parts
+     * without prior concatenation. The size of the string in bytes must be passed through writeUnsignedLeb128.
+     * @param b
+     * @throws IOException
+     */
+    public void writeByte(byte b) throws IOException {
+        out.write(b);
+    }
+
     public void writeString(String string) throws IOException {
         Preconditions.checkNotNull(string);
         byte[] bytes = string.getBytes();
