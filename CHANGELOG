@@ -1,3 +1,9 @@
+0.1.37
+  * writeBytes for binary
+  * fix for read after last
+  * zero-valued dates are returned as nul
+  * column size metadata fixes
+
 0.1.36
   * allow send stream in native format
 
