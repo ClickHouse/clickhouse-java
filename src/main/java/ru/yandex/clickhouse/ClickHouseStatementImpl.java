@@ -509,22 +509,7 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
         try {
             HttpResponse response = client.execute(post);
             entity = response.getEntity();
-            if (response.getStatusLine().getStatusCode() != HttpURLConnection.HTTP_OK) {
-                InputStream messageStream = entity.getContent();
-                byte[] bytes = StreamUtils.toByteArray(messageStream);
-                if (properties.isCompress()) {
-                    try {
-                        messageStream = new ClickHouseLZ4Stream(new ByteArrayInputStream(bytes));
-                        bytes = StreamUtils.toByteArray(messageStream);
-                    } catch (IOException e) {
-                        log.warn("error while read compressed stream" + e.getMessage());
-                    }
-
-                }
-                EntityUtils.consumeQuietly(entity);
-                String chMessage = new String(bytes, StreamUtils.UTF_8);
-                throw ClickHouseExceptionSpecifier.specify(chMessage, properties.getHost(), properties.getPort());
-            }
+            checkForErrorAndThrow(entity, response);
 
             InputStream is;
             if (entity.isStreaming()) {
@@ -668,21 +653,31 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
             }
             HttpResponse response = client.execute(httpPost);
             entity = response.getEntity();
-            if (response.getStatusLine().getStatusCode() != HttpURLConnection.HTTP_OK) {
-                String chMessage;
-                try {
-                    chMessage = EntityUtils.toString(response.getEntity());
-                } catch (IOException e) {
-                    chMessage = "error while read response " + e.getMessage();
-                }
-                throw ClickHouseExceptionSpecifier.specify(chMessage, properties.getHost(), properties.getPort());
-            }
+            checkForErrorAndThrow(entity, response);
         } catch (ClickHouseException e) {
             throw e;
         } catch (Exception e) {
             throw ClickHouseExceptionSpecifier.specify(e, properties.getHost(), properties.getPort());
         } finally {
             EntityUtils.consumeQuietly(entity);
+        }
+    }
+
+    private void checkForErrorAndThrow(HttpEntity entity, HttpResponse response) throws IOException, ClickHouseException {
+        if (response.getStatusLine().getStatusCode() != HttpURLConnection.HTTP_OK) {
+            InputStream messageStream = entity.getContent();
+            byte[] bytes = StreamUtils.toByteArray(messageStream);
+            if (properties.isCompress()) {
+                try {
+                    messageStream = new ClickHouseLZ4Stream(new ByteArrayInputStream(bytes));
+                    bytes = StreamUtils.toByteArray(messageStream);
+                } catch (IOException e) {
+                    log.warn("error while read compressed stream" + e.getMessage());
+                }
+            }
+            EntityUtils.consumeQuietly(entity);
+            String chMessage = new String(bytes, StreamUtils.UTF_8);
+            throw ClickHouseExceptionSpecifier.specify(chMessage, properties.getHost(), properties.getPort());
         }
     }
 
