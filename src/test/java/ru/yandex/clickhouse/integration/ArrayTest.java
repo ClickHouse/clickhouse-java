@@ -125,7 +125,7 @@ public class ArrayTest {
             Assert.assertEquals(float64.getBaseType(), Types.DOUBLE);
             Assert.assertEquals(float64.getArray().getClass(), double[].class);
             Assert.assertEquals(((double[]) float64.getArray())[0], 1.23);
-            Assert.assertEquals(((double[]) float64.getArray())[1], 4.56);
+            Assert.assertEquals(((double[]) float64.getArray())[1], 4.56, 0.0000001);
         }
     }
 }
