@@ -84,10 +84,21 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
         List<String> parts = new ArrayList<String>();
 
         boolean afterBackSlash = false, inQuotes = false, inBackQuotes = false;
+        boolean inSingleLineComment = false;
+        boolean inMultiLineComment = false;
         int partStart = 0;
         for (int i = 0; i < sql.length(); i++) {
             char c = sql.charAt(i);
-            if (afterBackSlash) {
+            if (inSingleLineComment) {
+                if (c == '\n') {
+                    inSingleLineComment = false;
+                }
+            } else if (inMultiLineComment) {
+                if (c == '*' && sql.length() > i + 1 && sql.charAt(i + 1) == '/') {
+                    inMultiLineComment = false;
+                    i++;
+                }
+            } else if (afterBackSlash) {
                 afterBackSlash = false;
             } else if (c == '\\') {
                 afterBackSlash = true;
@@ -95,9 +106,17 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
                 inQuotes = !inQuotes;
             } else if (c == '`') {
                 inBackQuotes = !inBackQuotes;
-            } else if (c == '?' && !inQuotes && !inBackQuotes) {
-                parts.add(sql.substring(partStart, i));
-                partStart = i + 1;
+            } else if (!inQuotes && !inBackQuotes) {
+                if (c == '?') {
+                    parts.add(sql.substring(partStart, i));
+                    partStart = i + 1;
+                } else if (c == '-' && sql.length() > i + 1 && sql.charAt(i + 1) == '-') {
+                    inSingleLineComment = true;
+                    i++;
+                } else if (c == '/' && sql.length() > i + 1 && sql.charAt(i + 1) == '*') {
+                    inMultiLineComment = true;
+                    i++;
+                }
             }
         }
         parts.add(sql.substring(partStart, sql.length()));
