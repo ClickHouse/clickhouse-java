@@ -11,6 +11,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Arrays;
 
+import static ru.yandex.clickhouse.util.TypeUtils.NULLABLE_YES;
+
 
 public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
 
@@ -812,6 +814,9 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
             //column name
             row.add(descTable.getString(3));
             String type = descTable.getString(4);
+
+            String isNullableType = TypeUtils.isTypeNull(type);
+
             int sqlType = TypeUtils.toSqlType(type);
             //data type
             row.add(Integer.toString(sqlType));
@@ -826,7 +831,7 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
             // radix
             row.add("10");
             // nullable
-            row.add(String.valueOf(columnNoNulls));
+            row.add(String.valueOf(isNullableType == NULLABLE_YES ? columnNullable : columnNoNulls));
             //remarks
             row.add(null);
 
@@ -847,9 +852,9 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
             // ordinal
             row.add(String.valueOf(colNum));
             colNum += 1;
-            //IS_NULLABLE
-            row.add(TypeUtils.isTypeNull(type));
 
+            //IS_NULLABLE
+            row.add(isNullableType);
             //"SCOPE_CATALOG",
             row.add(null);
             //"SCOPE_SCHEMA",
