@@ -106,8 +106,12 @@ public class ClickHouseArrayUtil {
             // quote is false to avoid escaping inner '['
             ArrayBuilder builder = new ArrayBuilder(false);
             for (Object value : values) {
-                Object[] objects = ((Collection) value).toArray();
-                builder.append(toString(objects));
+                if (value instanceof Collection) {
+                    Object[] objects = ((Collection) value).toArray();
+                    builder.append(toString(objects));
+                } else {
+                    builder.append(arrayToString(value));
+                }
             }
             return builder.build();
         }
