@@ -1,3 +1,7 @@
+0.1.39
+  * fix nullable metadata
+  * fix nested arrays insert
+
 0.1.38
   * decompress errors on inserts
   * handle comments in bind variables parsing
