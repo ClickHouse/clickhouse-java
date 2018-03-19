@@ -32,7 +32,7 @@ public class ByteFragmentTest {
     public void testUnescape(String str, String escapedStr) throws IOException {
         byte[] bytes = escapedStr.getBytes("UTF-8");
         ByteFragment byteFragment = new ByteFragment(bytes,0, bytes.length);
-        assertEquals(new String(byteFragment.unescape()), str);
+        assertEquals(new String(byteFragment.unescape(), "UTF-8"), str);
     }
 
 }

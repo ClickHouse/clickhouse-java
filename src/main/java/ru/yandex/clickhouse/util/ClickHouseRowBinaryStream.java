@@ -70,7 +70,7 @@ public class ClickHouseRowBinaryStream {
 
     public void writeString(String string) throws IOException {
         Preconditions.checkNotNull(string);
-        byte[] bytes = string.getBytes();
+        byte[] bytes = string.getBytes("UTF-8");
         writeUnsignedLeb128(bytes.length);
         out.write(bytes);
     }

@@ -2,6 +2,7 @@ package ru.yandex.clickhouse.response;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UnsupportedEncodingException;
 
 /**
  * We have a stream of bytes and a separator as an input.
@@ -124,10 +125,18 @@ public class StreamSplitter {
 
     @Override
     public String toString() {
+        String bufStr;
+        try {
+            bufStr = new String(buf, "UTF-8").trim();
+        } catch (UnsupportedEncodingException e){
+            //we won't never be here
+            throw new RuntimeException(e);
+        }
+
         return "StreamSplitter{" +
             "delegate=" + delegate +
             ", sep=" + sep +
-            ", buf=" + new String(buf).trim() +
+            ", buf=" + bufStr +
             ", posRead=" + posRead +
             ", posNext=" + posNext +
             ", readOnce=" + readOnce +
