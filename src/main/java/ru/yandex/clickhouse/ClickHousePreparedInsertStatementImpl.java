@@ -34,6 +34,12 @@ public class ClickHousePreparedInsertStatementImpl extends ClickHousePreparedAbs
     }
 
     @Override
+    protected void setParameter(int index, String value, boolean isQuote) {
+        parameters[index - 1] = value;
+        isHasQuote.set(index - 1, isQuote);
+    }
+
+    @Override
     protected String getSqlQuery() throws SQLException {
         if (parameters.length == 0)
             return queryWrapper.sqlQuery;
@@ -125,7 +131,6 @@ public class ClickHousePreparedInsertStatementImpl extends ClickHousePreparedAbs
                     sb.append(',');
             }
 
-
             return sb.toString();
         }
 
@@ -146,7 +151,6 @@ public class ClickHousePreparedInsertStatementImpl extends ClickHousePreparedAbs
                     sb.append(j < args.length - 1 ? '\t' : '\n');
                 }
             }
-
 
             return sb
                     .toString()
@@ -196,10 +200,5 @@ public class ClickHousePreparedInsertStatementImpl extends ClickHousePreparedAbs
         private String[] getParametersArray() {
             return new String[countOfArguments];
         }
-    }
-
-    protected void setParameter(int index, String value, boolean isQuote) {
-        parameters[index - 1] = value;
-        isHasQuote.set(index - 1, isQuote);
     }
 }

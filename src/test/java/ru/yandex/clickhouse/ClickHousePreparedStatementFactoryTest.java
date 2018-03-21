@@ -30,6 +30,6 @@ public class ClickHousePreparedStatementFactoryTest {
 
     @Test(dataProvider = "queries-data-provider")
     public void test(String expectedQuery, String queryWithComments) {
-        Assert.assertEquals(expectedQuery, ClickHousePreparedStatementFactory.removeComments(queryWithComments));
+        Assert.assertEquals(expectedQuery, ClickHousePreparedStatementFactory.removeCommentsFrom(queryWithComments));
     }
 }

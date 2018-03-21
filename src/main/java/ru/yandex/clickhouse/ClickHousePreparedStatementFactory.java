@@ -16,7 +16,7 @@ final class ClickHousePreparedStatementFactory {
                                                 ClickHouseProperties properties,
                                                 TimeZone timeZone) throws SQLException {
 
-        String queryWithoutComments = removeComments(query);
+        String queryWithoutComments = removeCommentsFrom(query);
         if (queryWithoutComments.regionMatches(true, 0, INSERT, 0, INSERT.length()))
             return new ClickHousePreparedInsertStatementImpl(httpClient, connection, properties, queryWithoutComments, timeZone);
         else
@@ -24,7 +24,7 @@ final class ClickHousePreparedStatementFactory {
 
     }
 
-    static String removeComments(String str) {
+    static String removeCommentsFrom(String str) {
         StringBuilder query = new StringBuilder(str.length());
         boolean isMultilineComment = false;
         boolean isSingleLineComment = false;
