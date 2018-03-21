@@ -458,7 +458,7 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
         List<ClickHouseExternalData> externalData
     ) throws ClickHouseException {
         sql = clickhousifySql(sql);
-        log.debug("Executing SQL: " + sql);
+        log.debug("Executing SQL: {}", sql);
 
         boolean ignoreDatabase = sql.toUpperCase().startsWith("CREATE DATABASE");
         URI uri;
@@ -470,7 +470,7 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
             // TODO move sql to request body when it is supported in clickhouse
             uri = buildRequestUri(sql, externalData, additionalClickHouseDBParams, ignoreDatabase);
         }
-        log.debug("Request url: " + uri);
+        log.debug("Request url: {}", uri);
 
         HttpPost post = new HttpPost(uri);
 
@@ -523,9 +523,9 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
         } catch (ClickHouseException e) {
             throw e;
         } catch (Exception e) {
-            log.info("Error during connection to " + properties + ", reporting failure to data source, message: " + e.getMessage());
+            log.info("Error during connection to {}, reporting failure to data source, message: ",properties, e.getMessage());
             EntityUtils.consumeQuietly(entity);
-            log.info("Error sql: " + sql);
+            log.info("Error sql: {}", sql);
             throw ClickHouseExceptionSpecifier.specify(e, properties.getHost(), properties.getPort());
         }
     }
@@ -672,7 +672,7 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
                     messageStream = new ClickHouseLZ4Stream(new ByteArrayInputStream(bytes));
                     bytes = StreamUtils.toByteArray(messageStream);
                 } catch (IOException e) {
-                    log.warn("error while read compressed stream" + e.getMessage());
+                    log.warn("error while read compressed stream {}", e.getMessage());
                 }
             }
             EntityUtils.consumeQuietly(entity);

@@ -118,11 +118,11 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
     }
 
     public PreparedStatement createPreparedStatement(String sql) throws SQLException {
-        return LogProxy.wrap(PreparedStatement.class, new ClickHousePreparedStatementImpl(httpclient, this, properties, sql, getTimeZone()));
+        return LogProxy.wrap(PreparedStatement.class, ClickHousePreparedStatementFactory.getQuery(sql, httpclient, this, properties, timezone));
     }
 
     public ClickHousePreparedStatement createClickHousePreparedStatement(String sql) throws SQLException {
-        return LogProxy.wrap(ClickHousePreparedStatement.class, new ClickHousePreparedStatementImpl(httpclient, this, properties, sql, getTimeZone()));
+        return LogProxy.wrap(ClickHousePreparedStatement.class, ClickHousePreparedStatementFactory.getQuery(sql, httpclient, this, properties, timezone));
     }
 
 
@@ -150,7 +150,7 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
     public ClickHouseStatement createStatement(int resultSetType, int resultSetConcurrency,
                                                int resultSetHoldability) throws SQLException {
         if (resultSetType != ResultSet.TYPE_FORWARD_ONLY && resultSetConcurrency != ResultSet.CONCUR_READ_ONLY
-            && resultSetHoldability != ResultSet.CLOSE_CURSORS_AT_COMMIT) {
+                && resultSetHoldability != ResultSet.CLOSE_CURSORS_AT_COMMIT) {
             throw new SQLFeatureNotSupportedException();
         }
         return createStatement();

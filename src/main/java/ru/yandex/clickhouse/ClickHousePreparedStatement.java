@@ -16,7 +16,7 @@ public interface ClickHousePreparedStatement extends PreparedStatement, ClickHou
 
     ClickHouseResponse executeQueryClickhouseResponse(Map<ClickHouseQueryParam, String> additionalDBParams) throws SQLException;
 
-    void setArray(int parameterIndex, Collection collection) throws SQLException;
+    void setArray(int parameterIndex, Collection<?> collection) throws SQLException;
 
     void setArray(int parameterIndex, Object[] array) throws SQLException;
 

@@ -122,7 +122,7 @@ public class ClickHouseArrayUtil {
         return builder.build();
     }
 
-    public static String toString(Collection collection) {
+    public static String toString(Collection<?> collection) {
         return toString(collection.toArray());
     }
 
