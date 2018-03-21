@@ -11,9 +11,9 @@ import java.util.*;
 
 public class ClickHousePreparedStatementImpl extends ClickHousePreparedAbstractStatementImpl implements ClickHousePreparedStatement {
     private final List<String> sqlParts;
-    private String[] binds;
-    private boolean[] valuesQuote;
-    private List<byte[]> batchRows = new ArrayList<byte[]>();
+    private final BitSet valuesQuote;
+    private final String[] binds;
+    private final List<byte[]> batchRows = new ArrayList<byte[]>();
 
     public ClickHousePreparedStatementImpl(CloseableHttpClient client,
                                            ClickHouseConnection connection,
@@ -23,25 +23,20 @@ public class ClickHousePreparedStatementImpl extends ClickHousePreparedAbstractS
         super(client, connection, properties, timezone);
 
         this.sqlParts = parseSql(sql);
-        createBinds();
-    }
-
-    private void createBinds() {
         this.binds = new String[this.sqlParts.size() - 1];
-        this.valuesQuote = new boolean[this.sqlParts.size() - 1];
+        this.valuesQuote = new BitSet(sqlParts.size() - 1);
     }
-
 
     @Override
     protected void setParameter(int index, String value, boolean isQuote) {
         binds[index - 1] = value;
-        valuesQuote[index - 1] = isQuote;
+        valuesQuote.set(index - 1, isQuote);
     }
 
     @Override
     public void clearParameters() {
         Arrays.fill(binds, null);
-        Arrays.fill(valuesQuote, false);
+        valuesQuote.clear();
     }
 
     static List<String> parseSql(String sql) throws SQLException {
@@ -109,7 +104,7 @@ public class ClickHousePreparedStatementImpl extends ClickHousePreparedAbstractS
     }
 
     private void appendBoundValue(StringBuilder sb, int num) {
-        if (valuesQuote[num]) {
+        if (valuesQuote.get(num)) {
             sb.append("'").append(binds[num]).append("'");
         } else if (binds[num].equals("\\N")) {
             sb.append("null");
@@ -132,7 +127,7 @@ public class ClickHousePreparedStatementImpl extends ClickHousePreparedAbstractS
     @Override
     public void addBatch() throws SQLException {
         batchRows.add(buildBinds());
-        createBinds();
+        clearParameters();
     }
 
     @Override
