@@ -176,6 +176,50 @@
                     </descriptorRefs>
                 </configuration>
             </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-shade-plugin</artifactId>
+                <version>3.1.0</version>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>shade</goal>
+                        </goals>
+                        <configuration>
+                            <artifactSet>
+                                <includes>
+                                    <include>com.google.guava:*</include>
+                                    <include>com.fasterxml.jackson.core:*</include>
+                                    <include>org.apache.httpcomponents:*</include>
+                                    <include>commons-logging:*</include>
+                                    <include>commons-codec:*</include>
+                                    <include>joda-time:*</include>
+                                </includes>
+                            </artifactSet>
+                            <relocations>
+                                <relocation>
+                                    <pattern>com</pattern>
+                                    <shadedPattern>ru.yandex.repackaged.com</shadedPattern>
+                                    <includes>
+                                        <include>com.google.**</include>
+                                        <include>com.fasterxml.**</include>
+                                    </includes>
+                                </relocation>
+                                <relocation>
+                                    <pattern>org</pattern>
+                                    <shadedPattern>ru.yandex.repackaged.org</shadedPattern>
+                                    <includes>
+                                        <include>org.apache.**</include>
+                                        <include>org.joda.**</include>
+                                    </includes>
+                                </relocation>
+                            </relocations>
+                            <shadedArtifactAttached>true</shadedArtifactAttached>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
         </plugins>
     </build>
 </project>
