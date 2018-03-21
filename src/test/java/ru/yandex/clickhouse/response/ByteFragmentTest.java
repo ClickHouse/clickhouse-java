@@ -7,6 +7,7 @@ import java.io.IOException;
 
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
+import ru.yandex.clickhouse.util.guava.StreamUtils;
 
 
 public class ByteFragmentTest {
@@ -24,15 +25,15 @@ public class ByteFragmentTest {
     @Test(dataProvider = "stringEscape")
     public void testEscape(String str, String escapedStr) throws IOException {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
-        ByteFragment.escape(str.getBytes("UTF-8"), out);
-        assertEquals(out.toString("UTF-8"), escapedStr);
+        ByteFragment.escape(str.getBytes(StreamUtils.UTF_8), out);
+        assertEquals(out.toString(StreamUtils.UTF_8.name()), escapedStr);
     }
 
     @Test(dataProvider = "stringEscape")
     public void testUnescape(String str, String escapedStr) throws IOException {
-        byte[] bytes = escapedStr.getBytes("UTF-8");
-        ByteFragment byteFragment = new ByteFragment(bytes,0, bytes.length);
-        assertEquals(new String(byteFragment.unescape(), "UTF-8"), str);
+        byte[] bytes = escapedStr.getBytes(StreamUtils.UTF_8);
+        ByteFragment byteFragment = new ByteFragment(bytes, 0, bytes.length);
+        assertEquals(new String(byteFragment.unescape(), StreamUtils.UTF_8.name()), str);
     }
 
 }
