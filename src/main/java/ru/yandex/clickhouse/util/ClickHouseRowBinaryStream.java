@@ -7,6 +7,7 @@ import org.joda.time.DateTimeZone;
 import org.joda.time.Days;
 import org.joda.time.LocalDate;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
+import ru.yandex.clickhouse.util.guava.StreamUtils;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -70,7 +71,7 @@ public class ClickHouseRowBinaryStream {
 
     public void writeString(String string) throws IOException {
         Preconditions.checkNotNull(string);
-        byte[] bytes = string.getBytes();
+        byte[] bytes = string.getBytes(StreamUtils.UTF_8);
         writeUnsignedLeb128(bytes.length);
         out.write(bytes);
     }

@@ -1,5 +1,7 @@
 package ru.yandex.clickhouse.response;
 
+import ru.yandex.clickhouse.util.guava.StreamUtils;
+
 import java.io.IOException;
 import java.io.InputStream;
 
@@ -124,10 +126,12 @@ public class StreamSplitter {
 
     @Override
     public String toString() {
+        String bufStr = new String(buf, StreamUtils.UTF_8).trim();
+
         return "StreamSplitter{" +
             "delegate=" + delegate +
             ", sep=" + sep +
-            ", buf=" + new String(buf).trim() +
+            ", buf=" + bufStr +
             ", posRead=" + posRead +
             ", posNext=" + posNext +
             ", readOnce=" + readOnce +
