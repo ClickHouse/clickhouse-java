@@ -138,6 +138,31 @@ public class BatchInserts {
     }
 
     @Test
+    public void batchInsert5() throws Exception {
+        connection.createStatement().execute("DROP TABLE IF EXISTS test.batch_insert5");
+        connection.createStatement().execute(
+                "CREATE TABLE IF NOT EXISTS test.batch_insert5 (i Int32, s String) ENGINE = TinyLog"
+        );
+
+        PreparedStatement statement = connection.prepareStatement("INSERT INTO test.batch_insert5 (i, s) VALUES (?, 'hello'), (?, ?)");
+        statement.setInt(1, 42);
+        statement.setInt(2, 43);
+        statement.setString(3, "first_param");
+        statement.addBatch();
+        statement.setInt(1, 44);
+        statement.setInt(2, 45);
+        statement.setString(3, "second_param");
+        statement.addBatch();
+        statement.executeBatch();
+
+        ResultSet rs = connection.createStatement().executeQuery("SELECT count() as cnt from test.batch_insert5");
+        rs.next();
+
+        Assert.assertEquals(rs.getInt("cnt"), 4);
+        Assert.assertFalse(rs.next());
+    }
+
+    @Test
     public void testSimpleInsert() throws Exception {
         connection.createStatement().execute("DROP TABLE IF EXISTS test.insert");
         connection.createStatement().execute(
