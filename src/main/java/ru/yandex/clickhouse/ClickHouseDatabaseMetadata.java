@@ -694,16 +694,16 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
         builder.names("TABLE_CAT", "TABLE_SCHEM", "TABLE_NAME", "TABLE_TYPE", "REMARKS", "TYPE_CAT", "TYPE_SCHEM", "TYPE_NAME", "SELF_REFERENCING_COL_NAME", "REF_GENERATION");
         builder.types("String", "String", "String", "String", "String", "String", "String", "String", "String", "String");
 
-        List typeList = types != null ? Arrays.asList(types) : null;
+        List<String> typeList = types != null ? Arrays.asList(types) : null;
         while (result.next()) {
             List<String> row = new ArrayList<String>();
             row.add(DEFAULT_CAT);
             row.add(result.getString(1));
             row.add(result.getString(2));
-            String type, e = result.getString(3).intern();
-            if (e == "View" || e == "MaterializedView" || e == "Merge" || e == "Distributed" || e == "Null") {
+            String type, e = result.getString(3);
+            if ("View".equals(e) || "MaterializedView".equals(e) || "Merge".equals(e) || "Distributed".equals(e) || "Null".equals(e)) {
                 type = "VIEW"; // some kind of view
-            } else if (e == "Memory" || e == "Set" || e == "Join" || e == "Buffer") {
+            } else if ("Memory".equals(e) || "Set".equals(e) || "Join".equals(e) || "Buffer".equals(e)) {
                 type = "OTHER"; // not a real table
             } else {
                 type = "TABLE";

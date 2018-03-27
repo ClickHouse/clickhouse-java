@@ -51,9 +51,9 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
 
     private final CloseableHttpClient client;
 
-    protected ClickHouseProperties properties = new ClickHouseProperties();
+    protected final ClickHouseProperties properties;
 
-    private ClickHouseConnection connection;
+    private final ClickHouseConnection connection;
 
     private ClickHouseResultSet currentResult;
 
@@ -109,9 +109,7 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
                 currentUpdateCount = -1;
                 currentResult = new ClickHouseResultSet(properties.isCompress()
                     ? new ClickHouseLZ4Stream(is) : is, properties.getBufferSize(),
-                    extractDBName(sql),
-                    extractTableName(sql),
-                    extractWithTotals(sql),
+                   sql,
                     this,
                     ((ClickHouseConnection) getConnection()).getTimeZone(),
                     properties
@@ -399,57 +397,9 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
     }
 
     private static boolean isSelect(String sql) {
-        String upper = sql.toUpperCase().trim();
-        return upper.startsWith("SELECT") || upper.startsWith("WITH") || upper.startsWith("SHOW") ||
-            upper.startsWith("DESC") || upper.startsWith("EXISTS");
-    }
-
-    private String extractTableName(String sql) {
-        String s = extractDBAndTableName(sql);
-        if (s.contains(".")) {
-            return s.substring(s.indexOf(".") + 1);
-        } else {
-            return s;
-        }
-    }
-
-    private String extractDBName(String sql) {
-        String s = extractDBAndTableName(sql);
-        if (s.contains(".")) {
-            return s.substring(0, s.indexOf("."));
-        } else {
-            return properties.getDatabase();
-        }
-    }
-
-    private String extractDBAndTableName(String sql) {
-        if (Utils.startsWithIgnoreCase(sql, "select")) {
-            String withoutStrings = Utils.retainUnquoted(sql, '\'');
-            int fromIndex = withoutStrings.indexOf("from");
-            if (fromIndex == -1) {
-                fromIndex = withoutStrings.indexOf("FROM");
-            }
-            if (fromIndex != -1) {
-                String fromFrom = withoutStrings.substring(fromIndex);
-                String fromTable = fromFrom.substring("from".length()).trim();
-                return fromTable.split(" ")[0];
-            }
-        }
-        if (Utils.startsWithIgnoreCase(sql, "desc")) {
-            return "system.columns";
-        }
-        if (Utils.startsWithIgnoreCase(sql, "show")) {
-            return "system.tables";
-        }
-        return "system.unknown";
-    }
-
-    private boolean extractWithTotals(String sql) {
-        if (Utils.startsWithIgnoreCase(sql, "select")) {
-            String withoutStrings = Utils.retainUnquoted(sql, '\'');
-            return withoutStrings.toLowerCase().contains(" with totals");
-        }
-        return false;
+       return Utils.startsWithIgnoreCase(sql,"SELECT")|| Utils.startsWithIgnoreCase(sql,"WITH") ||
+               Utils.startsWithIgnoreCase(sql,"SHOW") || Utils.startsWithIgnoreCase(sql,"DESC") ||
+               Utils.startsWithIgnoreCase(sql,"EXISTS");
     }
 
     private InputStream getInputStream(
@@ -460,7 +410,7 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
         sql = clickhousifySql(sql);
         log.debug("Executing SQL: " + sql);
 
-        boolean ignoreDatabase = sql.toUpperCase().startsWith("CREATE DATABASE");
+        boolean ignoreDatabase = Utils.startsWithIgnoreCase(sql,"CREATE DATABASE");
         URI uri;
         if (externalData == null || externalData.isEmpty()) {
             uri = buildRequestUri(null, null, additionalClickHouseDBParams, ignoreDatabase);

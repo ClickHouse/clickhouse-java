@@ -84,12 +84,12 @@ public class ClickHouseResultSetMetaData implements ResultSetMetaData {
 
     @Override
     public String getTableName(int column) throws SQLException {
-        return resultSet.getTable();
+        return resultSet.getTableName(column);
     }
 
     @Override
     public String getCatalogName(int column) throws SQLException {
-        return resultSet.getDb();
+        return resultSet.getDatabaseName(column);
     }
 
     @Override

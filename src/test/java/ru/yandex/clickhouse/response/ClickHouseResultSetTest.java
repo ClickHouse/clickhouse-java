@@ -7,6 +7,7 @@ import ru.yandex.clickhouse.settings.ClickHouseProperties;
 
 import java.io.ByteArrayInputStream;
 import java.sql.ResultSet;
+import java.util.Map;
 import java.util.TimeZone;
 
 import static org.testng.Assert.*;
@@ -255,5 +256,78 @@ public class ClickHouseResultSetTest {
 
         rs.getTotals();
         assertNull(rs.getString(1));
+    }
+
+    @Test
+    public void testExtractTablesNamesForSimpleQuery() {
+        String query =
+                ("SELECT " +
+                        "c1 as col1, " +
+                        "c2, " +
+                        "n3 " +
+                        "FROM test.metadata_test_2").toLowerCase();
+
+        Map<String, String> columns = ClickHouseResultSet.getTableNames(query, new String[]{"c1"});
+        Assert.assertEquals("test.metadata_test_2", columns.get("col1"));
+    }
+
+    @Test
+    public void testExtractTablesNamesForQueryWithJoinStatement() {
+        String query = ("SELECT " +
+                "c2, " +
+                "n3 " +
+                "FROM (" +
+                "    SELECT " +
+                "       i as commonColumn, " +
+                "       s as c2, " +
+                "       col1 " +
+                "    FROM test.metadata_test_1 " +
+                ") ANY LEFT JOIN (" +
+                "SELECT " +
+                "        i as commonColumn, " +
+                "        s, " +
+                "        col1 as n2, " +
+                "        col2 AS n3 " +
+                "FROM metadata_test_2)" +
+                "USING commonColumn ").toLowerCase();
+
+        Map<String, String> columns = ClickHouseResultSet.getTableNames(query, new String[]{"c2", "n3"});
+        Assert.assertEquals("test.metadata_test_1", columns.get("c2"));
+        Assert.assertEquals("metadata_test_2", columns.get("n3"));
+    }
+
+    @Test
+    public void testExtractTablesNamesForJoinQueryWithStar() {
+        String query = (
+                "SELECT " +
+                        " * " +
+                        "FROM (" +
+                        "    SELECT " +
+                        "       i as commonColumn, " +
+                        "       s as c2, " +
+                        "       col1 " +
+                        "    FROM test.metadata_test_1 " +
+                        ") ANY LEFT JOIN (" +
+                        "SELECT " +
+                        "        i as commonColumn, " +
+                        "        s, " +
+                        "        col1 as n2, " +
+                        "        col2 AS n3 " +
+                        "FROM test.metadata_test_2)" +
+                        "USING commonColumn ").toLowerCase();
+
+        Map<String, String> columns = ClickHouseResultSet.getTableNames(query, new String[]{"c2", "n3"});
+        Assert.assertEquals("test.metadata_test_1", columns.get("c2"));
+        Assert.assertEquals("test.metadata_test_1", columns.get("n3"));
+    }
+
+    @Test
+    public void testExtractTablesNamesForSimpleQueryWithStar() {
+        String query = "SELECT * FROM test.metadata_test_2".toLowerCase();
+
+        Map<String, String> columns = ClickHouseResultSet.getTableNames(query, new String[]{"c2", "n3"});
+        Assert.assertEquals(2, columns.size());
+        Assert.assertEquals("test.metadata_test_2", columns.get("c2"));
+        Assert.assertEquals("test.metadata_test_2", columns.get("n3"));
     }
 }

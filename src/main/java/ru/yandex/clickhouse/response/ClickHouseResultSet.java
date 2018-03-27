@@ -5,6 +5,7 @@ import ru.yandex.clickhouse.ClickHouseStatement;
 import ru.yandex.clickhouse.except.ClickHouseExceptionSpecifier;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
 import ru.yandex.clickhouse.util.TypeUtils;
+import ru.yandex.clickhouse.util.Utils;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -12,17 +13,18 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.math.RoundingMode;
 import java.sql.*;
+import java.sql.Date;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.TimeZone;
+import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static ru.yandex.clickhouse.response.ByteFragmentUtils.parseArray;
 
 
 public class ClickHouseResultSet extends AbstractResultSet {
+    private final static Pattern pattern = Pattern.compile("(select(.*?))?from\\s+(.*)");
     private final static long[] EMPTY_LONG_ARRAY = new long[]{};
 
     private final SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss"); //
@@ -30,12 +32,11 @@ public class ClickHouseResultSet extends AbstractResultSet {
 
     private final StreamSplitter bis;
 
-    private final String db;
-    private final String table;
-
-    private final Map<String, Integer> col = new HashMap<String, Integer>(); // column name -> 1-based index
-    private final String[] columns;
+    private final String[] columnNames;
     private final String[] types;
+    private Map<String, String> tableNames;      // column name -> table name
+    private Map<String, Integer> columnIndexes;  // column name -> 1-based index
+    private boolean usesWithTotals;
 
     private int maxRows;
 
@@ -54,25 +55,27 @@ public class ClickHouseResultSet extends AbstractResultSet {
     private int rowNumber;
 
     // statement result set belongs to
-    private ClickHouseStatement statement;
-
+    private final ClickHouseStatement statement;
     private final ClickHouseProperties properties;
 
-    private boolean usesWithTotals;
 
     // NOTE this can't be used for `isLast` impl because
     // it does not do prefetch. It is effectively a witness
     // to the fact that rs.next() returned false.
     private boolean lastReached = false;
 
-    public ClickHouseResultSet(InputStream is, int bufferSize, String db, String table, boolean usesWithTotals, ClickHouseStatement statement, TimeZone timezone, ClickHouseProperties properties) throws IOException {
-        this.db = db;
-        this.table = table;
+    private ClickHouseResultSet(InputStream is,
+                                int bufferSize,
+                                ClickHouseStatement statement,
+                                TimeZone timezone,
+                                ClickHouseProperties properties) throws IOException {
+
         this.statement = statement;
         this.properties = properties;
-        this.usesWithTotals = usesWithTotals;
+
         initTimeZone(timezone);
-        bis = new StreamSplitter(is, (byte) 0x0A, bufferSize);  ///   \n
+
+        this.bis = new StreamSplitter(is, (byte) 0x0A, bufferSize);  ///   \n
         ByteFragment headerFragment = bis.next();
         if (headerFragment == null) {
             throw new IllegalArgumentException("ClickHouse response without column names");
@@ -82,16 +85,52 @@ public class ClickHouseResultSet extends AbstractResultSet {
             is.close();
             throw new IOException("ClickHouse error: " + header);
         }
-        columns = toStringArray(headerFragment);
+
+        this.columnNames = toStringArray(headerFragment);
+        this.columnIndexes = new HashMap<String, Integer>(columnNames.length);
+        for (int i = 0; i < columnNames.length; i++) {
+            String s = columnNames[i];
+            columnIndexes.put(s, i + 1);
+        }
+
         ByteFragment typesFragment = bis.next();
         if (typesFragment == null) {
             throw new IllegalArgumentException("ClickHouse response without column types");
         }
-        types = toStringArray(typesFragment);
+        this.types = toStringArray(typesFragment);
+    }
 
-        for (int i = 0; i < columns.length; i++) {
-            String s = columns[i];
-            col.put(s, i + 1);
+    public ClickHouseResultSet(InputStream is,
+                               int bufferSize,
+                               String sqlQuery,
+                               ClickHouseStatement statement,
+                               TimeZone timezone,
+                               ClickHouseProperties properties) throws IOException {
+
+        this(is, bufferSize, statement, timezone, properties);
+
+        String preparedSqlQuery = Utils.retainUnquoted(sqlQuery.trim(), '\'').toLowerCase();
+        this.usesWithTotals = isWithTotals(preparedSqlQuery);
+        this.tableNames = getTableNames(preparedSqlQuery, columnNames);
+    }
+
+
+    ClickHouseResultSet(InputStream is,
+                        int bufferSize,
+                        String database,
+                        String table,
+                        boolean usesWithTotals,
+                        ClickHouseStatement statement,
+                        TimeZone timezone, ClickHouseProperties properties) throws IOException {
+
+        this(is, bufferSize, statement, timezone, properties);
+        this.usesWithTotals = usesWithTotals;
+
+        this.tableNames = new HashMap<String, String>(columnNames.length);
+        String catalog = database + "." + table;
+        for (int i = 0; i < columnNames.length; i++) {
+            String s = columnNames[i];
+            tableNames.put(s, catalog);
         }
     }
 
@@ -144,7 +183,7 @@ public class ClickHouseResultSet extends AbstractResultSet {
     public boolean next() throws SQLException {
         if (hasNext()) {
             values = nextLine.split((byte) 0x09);
-            checkValues(columns, values, nextLine);
+            checkValues(columnNames, values, nextLine);
             nextLine = null;
             rowNumber += 1;
             return true;
@@ -154,7 +193,7 @@ public class ClickHouseResultSet extends AbstractResultSet {
     private boolean onTheSeparatorRow() throws IOException {
         // test bis vs "\n???\nEOF" pattern if not then rest to current position
         bis.mark();
-        boolean onSeparatorRow = bis.next() !=null && bis.next() == null;
+        boolean onSeparatorRow = bis.next() != null && bis.next() == null;
         bis.reset();
 
         return onSeparatorRow;
@@ -191,11 +230,7 @@ public class ClickHouseResultSet extends AbstractResultSet {
     }
 
     public String[] getColumnNames() {
-        return columns;
-    }
-
-    public Map<String, Integer> getCol() {
-        return col;
+        return columnNames;
     }
 
     @Override
@@ -215,31 +250,31 @@ public class ClickHouseResultSet extends AbstractResultSet {
 
     @Override
     public int getInt(String column) {
-        return getInt(asColNum(column));
+        return getInt(getColumnIndex(column));
     }
 
     @Override
     public boolean getBoolean(String column) {
-        return getBoolean(asColNum(column));
+        return getBoolean(getColumnIndex(column));
     }
 
     @Override
     public long getLong(String column) {
-        return getLong(asColNum(column));
+        return getLong(getColumnIndex(column));
     }
 
     @Override
     public String getString(String column) {
-        return getString(asColNum(column));
+        return getString(getColumnIndex(column));
     }
 
     @Override
     public byte[] getBytes(String column) {
-        return getBytes(asColNum(column));
+        return getBytes(getColumnIndex(column));
     }
 
     public Long getTimestampAsLong(String column) {
-        return getTimestampAsLong(asColNum(column));
+        return getTimestampAsLong(getColumnIndex(column));
     }
 
     @Override
@@ -250,17 +285,17 @@ public class ClickHouseResultSet extends AbstractResultSet {
 
     @Override
     public short getShort(String column) {
-        return getShort(asColNum(column));
+        return getShort(getColumnIndex(column));
     }
 
     @Override
     public byte getByte(String column) {
-        return getByte(asColNum(column));
+        return getByte(getColumnIndex(column));
     }
 
     @Override
     public long[] getLongArray(String column) {
-        return getLongArray(asColNum(column));
+        return getLongArray(getColumnIndex(column));
     }
 
     @Override
@@ -301,32 +336,32 @@ public class ClickHouseResultSet extends AbstractResultSet {
 
     @Override
     public Array getArray(String column) throws SQLException {
-        return getArray(asColNum(column));
+        return getArray(getColumnIndex(column));
     }
 
     @Override
     public double getDouble(String columnLabel) throws SQLException {
-        return getDouble(asColNum(columnLabel));
+        return getDouble(getColumnIndex(columnLabel));
     }
 
     @Override
     public float getFloat(String columnLabel) throws SQLException {
-        return getFloat(asColNum(columnLabel));
+        return getFloat(getColumnIndex(columnLabel));
     }
 
     @Override
     public Date getDate(String columnLabel) throws SQLException {
-        return getDate(asColNum(columnLabel));
+        return getDate(getColumnIndex(columnLabel));
     }
 
     @Override
     public Time getTime(String columnLabel) throws SQLException {
-        return getTime(asColNum(columnLabel));
+        return getTime(getColumnIndex(columnLabel));
     }
 
     @Override
     public Object getObject(String columnLabel) throws SQLException {
-        return getObject(asColNum(columnLabel));
+        return getObject(getColumnIndex(columnLabel));
     }
 
     /////////////////////////////////////////////////////////
@@ -389,7 +424,7 @@ public class ClickHouseResultSet extends AbstractResultSet {
     @Override
     public double getDouble(int columnIndex) throws SQLException {
         String string = getString(columnIndex);
-        if (string == null){
+        if (string == null) {
             return 0;
         } else if (string.equals("nan")) {
             return Double.NaN;
@@ -435,7 +470,7 @@ public class ClickHouseResultSet extends AbstractResultSet {
             int type = TypeUtils.toSqlType(typeName);
             switch (type) {
                 case Types.BIGINT:
-                    if (TypeUtils.isUnsigned(typeName)){
+                    if (TypeUtils.isUnsigned(typeName)) {
                         String stringVal = getString(columnIndex);
                         return new BigInteger(stringVal);
                     }
@@ -486,8 +521,8 @@ public class ClickHouseResultSet extends AbstractResultSet {
 
     static long[] toLongArray(ByteFragment value) {
         if (value.isNull()) return null;
-        if (value.charAt(0) != '[' || value.charAt(value.length()-1) != ']') {
-            throw new IllegalArgumentException("not an array: "+value);
+        if (value.charAt(0) != '[' || value.charAt(value.length() - 1) != ']') {
+            throw new IllegalArgumentException("not an array: " + value);
         }
         if (value.length() == 2) return EMPTY_LONG_ARRAY;
         ByteFragment trim = value.subseq(1, value.length() - 2);
@@ -500,15 +535,14 @@ public class ClickHouseResultSet extends AbstractResultSet {
     }
 
     private Long toTimestamp(ByteFragment value) {
-        if (value.isNull() || value.asString().equals("0000-00-00 00:00:00")) return null;
+        String str = value.isNull() ? null : value.asString();
+        if (value.isNull() || "0000-00-00 00:00:00".equals(str)) return null;
         try {
             return sdf.parse(value.asString()).getTime();
         } catch (ParseException e) {
             throw new RuntimeException(e);
         }
     }
-
-    //////
 
     @Override
     public int getType() throws SQLException {
@@ -520,26 +554,46 @@ public class ClickHouseResultSet extends AbstractResultSet {
         return rowNumber + 1;
     }
 
-    public String getDb() {
-        return db;
+    public String getDatabaseName(int columnIndex) {
+        if (columnNames.length <= columnIndex - 1)
+            return "";
+
+        String catalog = getCatalogByIndex(columnIndex);
+        int index = catalog.indexOf('.');
+        if (index == -1)
+            return properties.getDatabase();
+        else
+            return catalog.substring(0, index).trim();
     }
 
-    public String getTable() {
-        return table;
+    public String getTableName(int columnIndex) {
+        if (columnNames.length <= columnIndex - 1)
+            return "";
+
+        String table = getCatalogByIndex(columnIndex);
+        int index = table.indexOf('.');
+        if (index == -1)
+            return table;
+        else
+            return table.substring(index + 1).trim();
+    }
+
+    private String getCatalogByIndex(int columnIndex) {
+        String columnName = columnNames[columnIndex - 1].toLowerCase();
+        return tableNames.get(columnName);
     }
 
     public void setMaxRows(int maxRows) {
         this.maxRows = maxRows;
     }
 
-    /////
 
-    // 1-based index in column list
-    private int asColNum(String column) {
-        if (col.containsKey(column)) {
-            return col.get(column);
+    private int getColumnIndex(String column) {
+        Integer index = columnIndexes.get(column);
+        if (index == null) {
+            throw new RuntimeException("no column " + column + " in columnNames list " + Arrays.toString(getColumnNames()));
         } else {
-            throw new RuntimeException("no column " + column + " in columns list " + Arrays.toString(getColumnNames()));
+            return index;
         }
     }
 
@@ -553,7 +607,7 @@ public class ClickHouseResultSet extends AbstractResultSet {
     }
 
     public <T> T getObject(String columnLabel, Class<T> type) throws SQLException {
-        return getObject(asColNum(columnLabel), type);
+        return getObject(getColumnIndex(columnLabel), type);
     }
 
     public ByteFragment[] getValues() {
@@ -561,12 +615,12 @@ public class ClickHouseResultSet extends AbstractResultSet {
     }
 
     @Override
-    public BigDecimal getBigDecimal(String columnLabel)  {
-        return getBigDecimal(asColNum(columnLabel));
+    public BigDecimal getBigDecimal(String columnLabel) {
+        return getBigDecimal(getColumnIndex(columnLabel));
     }
 
     @Override
-    public BigDecimal getBigDecimal(int columnIndex)  {
+    public BigDecimal getBigDecimal(int columnIndex) {
         String string = getString(columnIndex);
         if (string == null) {
             return null;
@@ -576,12 +630,12 @@ public class ClickHouseResultSet extends AbstractResultSet {
 
 
     @Override
-    public BigDecimal getBigDecimal(String columnLabel, int scale)  {
-        return getBigDecimal(asColNum(columnLabel), scale);
+    public BigDecimal getBigDecimal(String columnLabel, int scale) {
+        return getBigDecimal(getColumnIndex(columnLabel), scale);
     }
 
     @Override
-    public BigDecimal getBigDecimal(int columnIndex, int scale)  {
+    public BigDecimal getBigDecimal(int columnIndex, int scale) {
         String string = getString(columnIndex);
         if (string == null) {
             return null;
@@ -592,32 +646,113 @@ public class ClickHouseResultSet extends AbstractResultSet {
 
     @Override
     public void setFetchDirection(int direction) throws SQLException {
-        // ignore perfomance hint
+        // ignore performance hint
     }
 
     @Override
     public void setFetchSize(int rows) throws SQLException {
-        // ignore perfomance hint
+        // ignore performance hint
+    }
+
+    static Map<String, String> getTableNames(String query, String[] columnNames) {
+        Map<String, String> tableNames = new HashMap<String, String>(columnNames.length);
+        Matcher matcher = pattern.matcher(query);
+        if (matcher.find()) {
+            String params = matcher.group(2);
+            if (params != null) {
+                String[] param = params.split(",");
+                if (param.length == 1 && "*".equals(param[0].trim())) {
+                    String tableName = getTableName(query);
+                    for (String column : columnNames)
+                        tableNames.put(column.toLowerCase(), tableName);
+
+                } else
+                    return getTableNames(query, tableNames);
+            }
+        }
+        return tableNames;
+    }
+
+    private static String getTableName(String query) {
+        Matcher matcher = pattern.matcher(query);
+        if (matcher.find()) {
+            String anotherPart = matcher.group(3);
+            if (anotherPart != null) {
+                String candidate = extractCatalog(anotherPart);
+                if (candidate == null)
+                    return getTableName(anotherPart);
+                else
+                    return candidate;
+            }
+        }
+        return null;
+    }
+
+    private static Map<String, String> getTableNames(String query, Map<String, String> tableNames) {
+        Matcher matcher = pattern.matcher(query);
+        while (matcher.find()) {
+
+            String tableName = null;
+            String anotherPart = matcher.group(3);
+            if (anotherPart != null) {
+                tableName = extractCatalog(anotherPart);
+                getTableNames(query.substring(matcher.start(3) + 4), tableNames);
+            }
+
+            String params = matcher.group(2);
+            if (params != null) {
+                for (String param : params.split(",")) {
+                    String paramName = getParamName(param);
+                    if (!tableNames.containsKey(paramName))
+                        tableNames.put(paramName, tableName);
+                }
+            }
+        }
+        return tableNames;
+    }
+
+    private static String getParamName(String str) {
+        int index = str.indexOf("as");
+        if (index == -1)
+            return str.trim();
+        else
+            return str.substring(index + 2).trim();
+    }
+
+    private static String extractCatalog(String query) {
+        int index = 0;
+        int start = 0;
+        for (int i = 0; i < query.length(); i++) {
+            char symbol = query.charAt(i);
+            if (Character.isLetterOrDigit(symbol) || symbol == '.' || symbol == '_')
+                index++;
+            else
+                break;
+        }
+        if (index == start)
+            return null;
+        else
+            return query.substring(start, index);
     }
 
 
+    private static boolean isWithTotals(String sql) {
+        return sql.startsWith("select") && sql.contains(" with totals ");
+    }
+
     @Override
     public String toString() {
-        return "ClickHouseResultSet{" +
-            "sdf=" + sdf +
-            ", dateFormat=" + dateFormat +
-            ", bis=" + bis +
-            ", db='" + db + '\'' +
-            ", table='" + table + '\'' +
-            ", col=" + col +
-            ", columns=" + Arrays.toString(columns) +
-            ", types=" + Arrays.toString(types) +
-            ", maxRows=" + maxRows +
-            ", values=" + Arrays.toString(values) +
-            ", lastReadColumn=" + lastReadColumn +
-            ", nextLine=" + nextLine +
-            ", rowNumber=" + rowNumber +
-            ", statement=" + statement +
-            '}';
+       return new StringBuilder("ClickHouseResultSet{")
+        .append("dateFormat=").append(dateFormat)
+        .append(", columnNames=").append(Arrays.toString(columnNames))
+        .append(", types=").append(Arrays.toString(types))
+        .append(", maxRows=").append(maxRows)
+        .append(", values=").append(Arrays.toString(values))
+        .append(", lastReadColumn=").append(lastReadColumn)
+        .append(", totalLine=").append(totalLine)
+        .append(", rowNumber=").append(rowNumber)
+        .append(", lastReached=").append(lastReached)
+        .append(", statement=").append(statement)
+        .append('}').toString();
     }
 }
