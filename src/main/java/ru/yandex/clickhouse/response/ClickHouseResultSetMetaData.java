@@ -41,7 +41,7 @@ public class ClickHouseResultSetMetaData implements ResultSetMetaData {
     @Override
     public int isNullable(int column) throws SQLException {
         String type = resultSet.getTypes()[column - 1];
-        if (type.matches("Nullable\\(.*?\\)"))
+        if(type.startsWith("Nullable(") && type.endsWith(")"))
             return columnNullable;
         else
             return columnNoNulls;
