@@ -40,7 +40,11 @@ public class ClickHouseResultSetMetaData implements ResultSetMetaData {
 
     @Override
     public int isNullable(int column) throws SQLException {
-        return columnNoNulls;
+        String type = resultSet.getTypes()[column - 1];
+        if (type.matches("Nullable\\(.*?\\)"))
+            return columnNullable;
+        else
+            return columnNoNulls;
     }
 
     @Override
@@ -120,7 +124,7 @@ public class ClickHouseResultSetMetaData implements ResultSetMetaData {
     public String getColumnClassName(int column) throws SQLException {
         String columnTypeName = getColumnTypeName(column);
         int sqlType = TypeUtils.toSqlType(columnTypeName);
-        if (sqlType == Types.ARRAY){
+        if (sqlType == Types.ARRAY) {
             String elementTypeName = TypeUtils.getArrayElementTypeName(columnTypeName);
             return TypeUtils.toClass(sqlType, TypeUtils.toSqlType(elementTypeName), TypeUtils.isUnsigned(elementTypeName)).getName();
         }
