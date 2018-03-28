@@ -69,8 +69,8 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
         log.debug("new connection");
         try {
             httpclient = clientBuilder.buildClient();
-        }catch (Exception e) {
-            throw  new IllegalStateException("cannot initialize http client", e);
+        } catch (Exception e) {
+            throw new IllegalStateException("cannot initialize http client", e);
         }
         initTimeZone(this.properties);
     }
@@ -133,6 +133,7 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
 
     /**
      * lazily calculates and returns server version
+     *
      * @return server version string
      * @throws SQLException if something has gone wrong
      */
@@ -227,8 +228,8 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
         URI old = URI.create(url.substring(ClickhouseJdbcUrlParser.JDBC_PREFIX.length()));
         try {
             url = ClickhouseJdbcUrlParser.JDBC_PREFIX +
-                    new URI(old.getScheme(), old.getUserInfo(), old.getHost(), old.getPort(),
-                            "/" + catalog, old.getQuery(), old.getFragment());
+                new URI(old.getScheme(), old.getUserInfo(), old.getHost(), old.getPort(),
+                    "/" + catalog, old.getQuery(), old.getFragment());
         } catch (URISyntaxException e) {
             throw new IllegalStateException(e);
         }

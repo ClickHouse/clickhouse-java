@@ -1,6 +1,8 @@
 package ru.yandex.clickhouse.except;
 
-import java.util.*;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 public enum ClickHouseErrorCode {
     OK(0),
@@ -338,14 +340,16 @@ public enum ClickHouseErrorCode {
     STD_EXCEPTION(1001),
     UNKNOWN_EXCEPTION(1002);
 
-    public final Integer code;
+    private final int code;
 
-    private static final Map<Integer, ClickHouseErrorCode> byCodes;
+    private static final Map<Integer, ClickHouseErrorCode> BY_CODES;
+
     static {
         Map<Integer, ClickHouseErrorCode> map = new HashMap<Integer, ClickHouseErrorCode>();
-        for (ClickHouseErrorCode errorCode : values())
+        for (ClickHouseErrorCode errorCode : values()) {
             map.put(errorCode.code, errorCode);
-        byCodes = Collections.unmodifiableMap(map);
+        }
+        BY_CODES = Collections.unmodifiableMap(map);
     }
 
     ClickHouseErrorCode(Integer code) {
@@ -354,7 +358,11 @@ public enum ClickHouseErrorCode {
 
 
     public static ClickHouseErrorCode fromCode(Integer code) {
-        return byCodes.get(code);
+        return BY_CODES.get(code);
+    }
+
+    public int getCode() {
+        return code;
     }
 
     @Override
