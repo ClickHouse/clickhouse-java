@@ -1,6 +1,7 @@
 package ru.yandex.clickhouse.response;
 
 
+import com.google.common.primitives.Doubles;
 import com.google.common.primitives.Primitives;
 
 import java.math.BigInteger;
@@ -205,10 +206,20 @@ final class ByteFragmentUtils {
                     BigInteger bigIntegerValue = new BigInteger(fragment.asString(true));
                     java.lang.reflect.Array.set(array, index++, bigIntegerValue);
                 } else if (elementClass == Float.class) {
-                    Float floatValue = Float.parseFloat(fragment.asString());
+                    Float floatValue;
+                    if (fragment.length() == 3 && fragment.charAt(0) == 'n' && fragment.charAt(1) == 'a' && fragment.charAt(2) == 'n') {
+                        floatValue = Float.NaN;
+                    } else {
+                        floatValue = Float.parseFloat(fragment.asString());
+                    }
                     java.lang.reflect.Array.set(array, index++, floatValue);
                 } else if (elementClass == Double.class) {
-                    Double doubleValue = Double.parseDouble(fragment.asString());
+                    Double doubleValue;
+                    if (fragment.length() == 3 && fragment.charAt(0) == 'n' && fragment.charAt(1) == 'a' && fragment.charAt(2) == 'n') {
+                        doubleValue = Double.NaN;
+                    } else {
+                        doubleValue = Double.parseDouble(fragment.asString());
+                    }
                     java.lang.reflect.Array.set(array, index++, doubleValue);
                 } else if (elementClass == Date.class) {
                     Date dateValue;
