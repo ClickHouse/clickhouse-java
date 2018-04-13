@@ -98,6 +98,14 @@
             <artifactId>joda-time</artifactId>
             <version>2.9.9</version>
         </dependency>
+
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-all</artifactId>
+            <version>1.10.19</version>
+            <scope>test</scope>
+        </dependency>
+
     </dependencies>
 
     <distributionManagement>
