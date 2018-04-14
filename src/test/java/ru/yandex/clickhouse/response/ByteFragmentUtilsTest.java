@@ -79,6 +79,52 @@ public class ByteFragmentUtilsTest {
         };
     }
 
+    @DataProvider(name = "doubleArrayWithNan")
+    public Object[][] doubleArrayWithNan() {
+        return new Object[][]{
+                { new String[]{ "nan", "23.45" }, new double[]{Double.NaN, 23.45}},
+                { new String[]{}, new double[]{}}
+        };
+    }
+
+    @DataProvider(name = "floatArrayWithNan")
+    public Object[][] floatArrayWithNan() {
+        return new Object[][]{
+                { new String[]{ "nan", "23.45" }, new float[]{Float.NaN, 23.45F}},
+                { new String[]{}, new float[]{}}
+        };
+    }
+
+    @Test(dataProvider = "doubleArrayWithNan")
+    public void testDoubleNan(String[] source, double[] expected) throws Exception
+    {
+        String sourceString = source.length == 0 ? "[]" : "['" + Joiner.on("','").join(Iterables.transform(Arrays.asList(source), new Function<String, String>() {
+            @Override
+            public String apply(String s) {
+                return s.replace("'", "\\'");
+            }
+        })) + "']";
+        byte[] bytes = sourceString.getBytes(StreamUtils.UTF_8);
+        ByteFragment fragment = new ByteFragment(bytes, 0, bytes.length);
+        double[] arr= (double[]) ByteFragmentUtils.parseArray(fragment, Double.class);
+        assertEquals(arr, expected);
+    }
+
+    @Test(dataProvider = "floatArrayWithNan")
+    public void testFloatNan(String[] source, float[] expected) throws Exception
+    {
+        String sourceString = source.length == 0 ? "[]" : "['" + Joiner.on("','").join(Iterables.transform(Arrays.asList(source), new Function<String, String>() {
+            @Override
+            public String apply(String s) {
+                return s.replace("'", "\\'");
+            }
+        })) + "']";
+        byte[] bytes = sourceString.getBytes(StreamUtils.UTF_8);
+        ByteFragment fragment = new ByteFragment(bytes, 0, bytes.length);
+        float[] arr= (float[]) ByteFragmentUtils.parseArray(fragment, Float.class);
+        assertEquals(arr, expected);
+    }
+
     @Test(dataProvider = "stringArray")
     public void testParseArray(String[] array) throws Exception {
         String sourceString = array.length == 0 ? "[]" : "['" + Joiner.on("','").join(Iterables.transform(Arrays.asList(array), new Function<String, String>() {
