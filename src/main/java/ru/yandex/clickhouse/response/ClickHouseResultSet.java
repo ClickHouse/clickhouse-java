@@ -175,6 +175,15 @@ public class ClickHouseResultSet extends AbstractResultSet {
         }
     }
 
+    @Override
+    public boolean isClosed() throws SQLException {
+        try {
+            return bis.isClosed();
+        } catch (IOException e) {
+            throw new SQLException(e);
+        }
+    }
+
     public void getTotals() throws SQLException {
         if (!usesWithTotals)
             throw new IllegalStateException("Cannot get totals when totals are not being used.");
