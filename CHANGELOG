@@ -1,3 +1,9 @@
+0.1.40
+  * fix encoding
+  * insert array of nullables
+  * NaN support
+  * fix checksum calculation
+
 0.1.39
   * fix nullable metadata
   * fix nested arrays insert
