@@ -90,9 +90,15 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
     }
 
     @Override
+    public ResultSet executeQuery(String sql, Map<ClickHouseQueryParam, String> additionalDBParams, List<ClickHouseExternalData> externalData) throws SQLException {
+        return null;
+    }
+
+    @Override
     public ResultSet executeQuery(String sql,
                                   Map<ClickHouseQueryParam, String> additionalDBParams,
-                                  List<ClickHouseExternalData> externalData) throws SQLException {
+                                  List<ClickHouseExternalData> externalData,
+                                  Map<String, String> additionalRequestParams) throws SQLException {
 
         // forcibly disable extremes for ResultSet queries
         if (additionalDBParams == null) {
@@ -102,7 +108,7 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
         }
         additionalDBParams.put(ClickHouseQueryParam.EXTREMES, "0");
 
-        InputStream is = getInputStream(sql, additionalDBParams, externalData);
+        InputStream is = getInputStream(sql, additionalDBParams, externalData, additionalRequestParams);
 
         try {
             if (isSelect(sql)) {
@@ -133,8 +139,20 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
         return executeQueryClickhouseResponse(sql, null);
     }
 
+    @Override
     public ClickHouseResponse executeQueryClickhouseResponse(String sql, Map<ClickHouseQueryParam, String> additionalDBParams) throws SQLException {
-        InputStream is = getInputStream(addFormatIfAbsent(sql, "JSONCompact"), additionalDBParams, null);
+        return executeQueryClickhouseResponse(sql, additionalDBParams, null);
+    }
+
+    public ClickHouseResponse executeQueryClickhouseResponse(String sql,
+                                                             Map<ClickHouseQueryParam, String> additionalDBParams,
+                                                             Map<String, String> additionalRequestParams) throws SQLException {
+        InputStream is = getInputStream(
+                addFormatIfAbsent(sql, "JSONCompact"),
+                additionalDBParams,
+                null,
+                additionalRequestParams
+        );
         try {
             if (properties.isCompress()) {
                 is = new ClickHouseLZ4Stream(is);
@@ -151,7 +169,7 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
     public int executeUpdate(String sql) throws SQLException {
         InputStream is = null;
         try {
-            is = getInputStream(sql, null, null);
+            is = getInputStream(sql, null, null, null);
             //noinspection StatementWithEmptyBody
         } finally {
             StreamUtils.close(is);
@@ -455,7 +473,8 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
     private InputStream getInputStream(
         String sql,
         Map<ClickHouseQueryParam, String> additionalClickHouseDBParams,
-        List<ClickHouseExternalData> externalData
+        List<ClickHouseExternalData> externalData,
+        Map<String, String> additionalRequestParams
     ) throws ClickHouseException {
         sql = clickhousifySql(sql);
         log.debug("Executing SQL: " + sql);
@@ -463,12 +482,24 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
         boolean ignoreDatabase = sql.toUpperCase().startsWith("CREATE DATABASE");
         URI uri;
         if (externalData == null || externalData.isEmpty()) {
-            uri = buildRequestUri(null, null, additionalClickHouseDBParams, ignoreDatabase);
+            uri = buildRequestUri(
+                    null,
+                    null,
+                    additionalClickHouseDBParams,
+                    additionalRequestParams,
+                    ignoreDatabase
+            );
         } else {
             // write sql in query params when there is external data
             // as it is impossible to pass both external data and sql in body
             // TODO move sql to request body when it is supported in clickhouse
-            uri = buildRequestUri(sql, externalData, additionalClickHouseDBParams, ignoreDatabase);
+            uri = buildRequestUri(
+                    sql,
+                    externalData,
+                    additionalClickHouseDBParams,
+                    additionalRequestParams,
+                    ignoreDatabase
+            );
         }
         log.debug("Request url: " + uri);
 
@@ -534,6 +565,7 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
         String sql,
         List<ClickHouseExternalData> externalData,
         Map<ClickHouseQueryParam, String> additionalClickHouseDBParams,
+        Map<String, String> additionalRequestParams,
         boolean ignoreDatabase
     ) {
         try {
@@ -541,6 +573,7 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
                 sql,
                 externalData,
                 additionalClickHouseDBParams,
+                additionalRequestParams,
                 ignoreDatabase
             );
 
@@ -561,6 +594,7 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
         String sql,
         List<ClickHouseExternalData> externalData,
         Map<ClickHouseQueryParam, String> additionalClickHouseDBParams,
+        Map<String, String> additionalRequestParams,
         boolean ignoreDatabase
     ) {
         List<NameValuePair> result = new ArrayList<NameValuePair>();
@@ -605,6 +639,15 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
             }
         }
 
+        if (additionalRequestParams != null) {
+            for (Map.Entry<String, String> entry : additionalRequestParams.entrySet()) {
+                if (!Strings.isNullOrEmpty(entry.getValue())) {
+                    result.add(new BasicNameValuePair(entry.getKey(), entry.getValue()));
+                }
+            }
+        }
+
+
         return result;
     }
 
@@ -643,7 +686,7 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
         // echo -ne '10\n11\n12\n' | POST 'http://localhost:8123/?query=INSERT INTO t FORMAT TabSeparated'
         HttpEntity entity = null;
         try {
-            URI uri = buildRequestUri(sql + " FORMAT " + format.name(), null, null, false);
+            URI uri = buildRequestUri(sql + " FORMAT " + format.name(), null, null, null, false);
 
             HttpPost httpPost = new HttpPost(uri);
             if (properties.isDecompress()) {
