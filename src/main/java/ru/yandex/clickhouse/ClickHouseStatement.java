@@ -17,9 +17,18 @@ public interface ClickHouseStatement extends Statement {
 
     ClickHouseResponse executeQueryClickhouseResponse(String sql, Map<ClickHouseQueryParam, String> additionalDBParams) throws SQLException;
 
+    ClickHouseResponse executeQueryClickhouseResponse(String sql,
+                                                      Map<ClickHouseQueryParam, String> additionalDBParams,
+                                                      Map<String, String> additionalRequestParams) throws SQLException;
+
     ResultSet executeQuery(String sql, Map<ClickHouseQueryParam, String> additionalDBParams) throws SQLException;
 
     ResultSet executeQuery(String sql, Map<ClickHouseQueryParam, String> additionalDBParams, List<ClickHouseExternalData> externalData) throws SQLException;
+
+    ResultSet executeQuery(String sql,
+                           Map<ClickHouseQueryParam, String> additionalDBParams,
+                           List<ClickHouseExternalData> externalData,
+                           Map<String, String> additionalRequestParams) throws SQLException;
 
     void sendStream(InputStream content, String table) throws SQLException;
 

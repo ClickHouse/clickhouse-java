@@ -1,6 +1,7 @@
 package ru.yandex.clickhouse;
 
 
+import com.google.common.collect.ImmutableMap;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.testng.annotations.Test;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
@@ -48,7 +49,7 @@ public class ClickHouseStatementTest {
                 HttpClientBuilder.create().build(),null, withCredentials
                 );
 
-        URI uri = statement.buildRequestUri(null, null, null, false);
+        URI uri = statement.buildRequestUri(null, null, null, null, false);
         String query = uri.getQuery();
         assertTrue(query.contains("password=test_password"));
         assertTrue(query.contains("user=test_user"));
@@ -61,8 +62,28 @@ public class ClickHouseStatementTest {
         ClickHouseStatementImpl statement = new ClickHouseStatementImpl(HttpClientBuilder.create().build(), null,
                 properties);
 
-        URI uri = statement.buildRequestUri(null, null, null, false);
+        URI uri = statement.buildRequestUri(null, null, null, null, false);
         String query = uri.getQuery();
         assertTrue(query.contains("max_memory_usage=41"), "max_memory_usage param is missing in URL");
+    }
+
+    @Test
+    public void testAdditionalRequestParams() throws Exception {
+        ClickHouseProperties properties = new ClickHouseProperties();
+        ClickHouseStatementImpl statement = new ClickHouseStatementImpl(
+                HttpClientBuilder.create().build(),
+                null,
+                properties
+        );
+
+        URI uri = statement.buildRequestUri(
+                null,
+                null,
+                null,
+                ImmutableMap.of("cache_namespace", "aaaa"),
+                false
+        );
+        String query = uri.getQuery();
+        assertTrue(query.contains("cache_namespace=aaaa"), "cache_namespace param is missing in URL");
     }
 }
