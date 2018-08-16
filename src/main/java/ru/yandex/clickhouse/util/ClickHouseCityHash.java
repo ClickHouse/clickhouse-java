@@ -71,6 +71,10 @@ public class ClickHouseCityHash {
         return toIntLE(s, pos);
     }
 
+    private static int staticCastToInt(byte b) {
+        return b & 0xFF;
+    }
+
     private static long rotate(long val, int shift) {
         return shift == 0 ? val : (val >>> shift) | (val << (64 - shift));
     }
@@ -111,8 +115,8 @@ public class ClickHouseCityHash {
             byte a = s[pos + 0];
             byte b = s[pos + (len >>> 1)];
             byte c = s[pos + len - 1];
-            int y = (int)a + (((int)b) << 8);
-            int z = len + (((int)c) << 2);
+            int y = staticCastToInt(a) + (staticCastToInt(b) << 8);
+            int z = len + (staticCastToInt(c) << 2);
             return shiftMix(y * k2 ^ z * k3) * k2;
         }
         return k2;
