@@ -1,3 +1,7 @@
+0.1.41
+  * arbitrary query params
+  * checksum fix
+
 0.1.40
   * fix encoding
   * insert array of nullables
