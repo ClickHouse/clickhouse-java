@@ -686,14 +686,14 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
         // echo -ne '10\n11\n12\n' | POST 'http://localhost:8123/?query=INSERT INTO t FORMAT TabSeparated'
         HttpEntity entity = null;
         try {
-            URI uri = buildRequestUri(sql + " FORMAT " + format.name(), null, null, null, false);
+            URI uri = buildRequestUri(null , null, null, null, false);
+            HttpEntity requestEntity = new BodyEntityWrapper(sql + " FORMAT " + format.name(), content);
 
             HttpPost httpPost = new HttpPost(uri);
             if (properties.isDecompress()) {
-                httpPost.setEntity(new LZ4EntityWrapper(content, properties.getMaxCompressBufferSize()));
-            } else {
-                httpPost.setEntity(content);
+                requestEntity = new LZ4EntityWrapper(requestEntity, properties.getMaxCompressBufferSize());
             }
+            httpPost.setEntity(requestEntity);
             HttpResponse response = client.execute(httpPost);
             entity = response.getEntity();
             checkForErrorAndThrow(entity, response);
