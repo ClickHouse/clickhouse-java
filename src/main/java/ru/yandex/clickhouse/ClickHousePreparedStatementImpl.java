@@ -28,7 +28,7 @@ import java.util.regex.Pattern;
 
 public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl implements ClickHousePreparedStatement {
     private static final Logger log = LoggerFactory.getLogger(ClickHouseStatementImpl.class);
-    private static final Pattern VALUES = Pattern.compile("VALUES[\\s]*\\(");
+    private static final Pattern VALUES = Pattern.compile("(?i)VALUES[\\s]*\\(");
 
     private final SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd");
     private final SimpleDateFormat dateTimeFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
@@ -370,7 +370,7 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
 
     @Override
     public int[] executeBatch() throws SQLException {
-        Matcher matcher = VALUES.matcher(sql.toUpperCase());
+        Matcher matcher = VALUES.matcher(sql);
         if (!matcher.find()) {
             throw new SQLSyntaxErrorException(
                     "Query must be like 'INSERT INTO [db.]table [(c1, c2, c3)] VALUES (?, ?, ?)'. " +
