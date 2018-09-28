@@ -72,6 +72,9 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
      */
     private final String initialDatabase;
 
+    private static final String[] selectKeywords = new String[]{"SELECT", "WITH", "SHOW", "DESC", "EXISTS"};
+    private static final String databaseKeyword = "CREATE DATABASE";
+
     public ClickHouseStatementImpl(CloseableHttpClient client, ClickHouseConnection connection,
                                    ClickHouseProperties properties) {
         this.client = client;
@@ -417,9 +420,14 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
     }
 
     private static boolean isSelect(String sql) {
-        String upper = sql.toUpperCase().trim();
-        return upper.startsWith("SELECT") || upper.startsWith("WITH") || upper.startsWith("SHOW") ||
-            upper.startsWith("DESC") || upper.startsWith("EXISTS");
+        String trimmed = sql.trim();
+        for (String keyword : selectKeywords){
+            // Case-insensitive matching of the beginning of the query
+            if (trimmed.regionMatches(true, 0, keyword, 0, keyword.length())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private String extractTableName(String sql) {
@@ -479,7 +487,7 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
         sql = clickhousifySql(sql);
         log.debug("Executing SQL: " + sql);
 
-        boolean ignoreDatabase = sql.toUpperCase().startsWith("CREATE DATABASE");
+        boolean ignoreDatabase = sql.trim().regionMatches(true, 0, databaseKeyword, 0, databaseKeyword.length());
         URI uri;
         if (externalData == null || externalData.isEmpty()) {
             uri = buildRequestUri(
