@@ -461,9 +461,12 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
         // We haven't executed it yet.
 
         // FIXME: We've got to go to the backend for more info. We send the full query, but just don't execute it.
-        execute();
+        long before = System.nanoTime();
 
+        execute();
         resultSet = getResultSet();
+
+        log.debug(String.format("%f [ms]", (System.nanoTime() - before) / 1000.0 / 1000.0));
       }
       return resultSet.getMetaData();
     }
