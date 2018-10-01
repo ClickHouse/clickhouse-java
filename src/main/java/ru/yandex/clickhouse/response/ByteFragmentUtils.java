@@ -200,8 +200,8 @@ final class ByteFragmentUtils {
                     long longValue = parseLong(fragment);
                     java.lang.reflect.Array.set(array, index++, longValue);
                 } else if (elementClass == Integer.class) {
-                    int longValue = parseInt(fragment);
-                    java.lang.reflect.Array.set(array, index++, longValue);
+                    int intValue = parseInt(fragment);
+                    java.lang.reflect.Array.set(array, index++, intValue);
                 } else if (elementClass == BigInteger.class){
                     BigInteger bigIntegerValue = new BigInteger(fragment.asString(true));
                     java.lang.reflect.Array.set(array, index++, bigIntegerValue);
