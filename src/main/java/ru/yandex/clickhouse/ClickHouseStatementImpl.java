@@ -670,31 +670,36 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
     @Override
     public void sendRowBinaryStream(String sql, ClickHouseStreamCallback callback) throws SQLException {
         sendStream(
-            new ClickHouseStreamHttpEntity(callback, getConnection().getTimeZone(), properties), sql, ClickHouseFormat.RowBinary
+            new ClickHouseStreamHttpEntity(callback, getConnection().getTimeZone(), properties), sql, ClickHouseFormat.RowBinary, null
         );
     }
 
     @Override
     public void sendNativeStream(String sql, ClickHouseStreamCallback callback) throws SQLException {
         sendStream(
-            new ClickHouseStreamHttpEntity(callback, getConnection().getTimeZone(), properties), sql, ClickHouseFormat.Native
+            new ClickHouseStreamHttpEntity(callback, getConnection().getTimeZone(), properties), sql, ClickHouseFormat.Native, null
         );
     }
 
     public void sendStream(InputStream content, String table) throws ClickHouseException {
         String query = "INSERT INTO " + table;
-        sendStream(new InputStreamEntity(content, -1), query);
+        sendStream(new InputStreamEntity(content, -1), query, null, null);
     }
 
     public void sendStream(HttpEntity content, String sql) throws ClickHouseException {
-        sendStream(content, sql, ClickHouseFormat.TabSeparated);
+        sendStream(content, sql, ClickHouseFormat.TabSeparated, null);
     }
 
-    private void sendStream(HttpEntity content, String sql, ClickHouseFormat format) throws ClickHouseException {
+    public void sendStream(HttpEntity content, String sql, Map<ClickHouseQueryParam, String> additionalDBParams) throws ClickHouseException {
+        sendStream(content, sql, ClickHouseFormat.TabSeparated, additionalDBParams);
+    }
+
+    private void sendStream(HttpEntity content, String sql, ClickHouseFormat format,
+                            Map<ClickHouseQueryParam, String> additionalDBParams) throws ClickHouseException {
         // echo -ne '10\n11\n12\n' | POST 'http://localhost:8123/?query=INSERT INTO t FORMAT TabSeparated'
         HttpEntity entity = null;
         try {
-            URI uri = buildRequestUri(null , null, null, null, false);
+            URI uri = buildRequestUri(null, null, additionalDBParams, null, false);
             HttpEntity requestEntity = new BodyEntityWrapper(sql + " FORMAT " + format.name(), content);
 
             HttpPost httpPost = new HttpPost(uri);

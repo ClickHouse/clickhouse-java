@@ -370,6 +370,11 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
 
     @Override
     public int[] executeBatch() throws SQLException {
+        return executeBatch(null);
+    }
+
+    @Override
+    public int[] executeBatch(Map<ClickHouseQueryParam, String> additionalDBParams) throws SQLException {
         Matcher matcher = VALUES.matcher(sql);
         if (!matcher.find()) {
             throw new SQLSyntaxErrorException(
@@ -381,7 +386,7 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
 
         String insertSql = sql.substring(0, valuePosition);
         BatchHttpEntity entity = new BatchHttpEntity(batchRows);
-        sendStream(entity, insertSql);
+        sendStream(entity, insertSql, additionalDBParams);
 
         int[] result = new int[batchRows.size()];
         Arrays.fill(result, 1);
