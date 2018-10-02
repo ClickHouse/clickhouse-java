@@ -4,9 +4,12 @@ import org.testng.Assert;
 import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
 import ru.yandex.clickhouse.ClickHouseDataSource;
+import ru.yandex.clickhouse.ClickHousePreparedStatement;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
+import ru.yandex.clickhouse.settings.ClickHouseQueryParam;
 
 import java.sql.*;
+import java.util.Collections;
 
 public class BatchInserts {
     private ClickHouseDataSource dataSource;
@@ -148,7 +151,7 @@ public class BatchInserts {
                                         ") ENGINE = MergeTree(date, (date), 8192)"
                         );
 
-        PreparedStatement statement = connection.prepareStatement(
+        ClickHousePreparedStatement statement = (ClickHousePreparedStatement) connection.prepareStatement(
                 "INSERT INTO test.batch_insert_nulls (date, date_time, string, int32, float64) VALUES (?, ?, ?, ?, ?)"
                 );
 
@@ -159,7 +162,7 @@ public class BatchInserts {
         statement.setObject(4, null, Types.INTEGER);
         statement.setObject(5, null, Types.DOUBLE);
         statement.addBatch();
-        statement.executeBatch();
+        statement.executeBatch(Collections.singletonMap(ClickHouseQueryParam.CONNECT_TIMEOUT, "1000"));
 
         ResultSet rs = connection.createStatement().executeQuery("SELECT date, date_time, string, int32, float64 from test.batch_insert_nulls");
         Assert.assertTrue(rs.next());
