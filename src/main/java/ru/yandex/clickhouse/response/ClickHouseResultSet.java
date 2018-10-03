@@ -588,6 +588,11 @@ public class ClickHouseResultSet extends AbstractResultSet {
     }
 
     @Override
+    public boolean isLast() throws SQLException {
+        return !hasNext();
+    }
+
+    @Override
     public BigDecimal getBigDecimal(int columnIndex, int scale)  {
         String string = getString(columnIndex);
         if (string == null) {
