@@ -11,8 +11,11 @@ import ru.yandex.clickhouse.util.guava.StreamUtils;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.Date;
 import java.util.TimeZone;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -280,4 +283,14 @@ public class ClickHouseRowBinaryStream {
             writeFloat64(d);
         }
     }
+
+    public void writeUUID(UUID uuid) throws IOException {
+        Preconditions.checkNotNull(uuid);
+        ByteBuffer bb = ByteBuffer.wrap(new byte[16]).order(ByteOrder.LITTLE_ENDIAN);
+        bb.putLong(uuid.getMostSignificantBits());
+        bb.putLong(uuid.getLeastSignificantBits());
+        byte[] array = bb.array();
+        this.writeBytes(array);
+    }
+
 }
