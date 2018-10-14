@@ -122,7 +122,7 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
                     extractTableName(sql),
                     extractWithTotals(sql),
                     this,
-                    ((ClickHouseConnection) getConnection()).getTimeZone(),
+                    getConnection().getTimeZone(),
                     properties
                 );
                 currentResult.setMaxRows(maxRows);
