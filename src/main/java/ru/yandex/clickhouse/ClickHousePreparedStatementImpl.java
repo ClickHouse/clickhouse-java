@@ -119,7 +119,7 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
                 }
             }
         }
-        parts.add(sql.substring(partStart, sql.length()));
+        parts.add(sql.substring(partStart));
 
         return parts;
     }
