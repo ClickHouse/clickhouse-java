@@ -208,7 +208,7 @@ public class RowBinaryStreamTest {
         Assert.assertEquals(rs.getLong("uInt64"), 0);
         Assert.assertEquals(rs.getDouble("float32"), 123.456);
         Assert.assertEquals(rs.getDouble("float64"), 42.21);
-        Assert.assertEquals(rs.getObject("uuid"), "123e4567-e89b-12d3-a456-426655440000");
+        Assert.assertEquals(rs.getObject("uuid").toString(), "123e4567-e89b-12d3-a456-426655440000");
 
         final Date[] dateArray = (Date[]) rs.getArray("dateArray").getArray();
         Assert.assertEquals(dateArray.length, dates1.length);
