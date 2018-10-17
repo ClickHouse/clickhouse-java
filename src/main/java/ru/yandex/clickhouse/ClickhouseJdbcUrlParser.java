@@ -16,7 +16,7 @@ public class ClickhouseJdbcUrlParser {
     private static final Logger logger = LoggerFactory.getLogger(ClickhouseJdbcUrlParser.class);
     public static final String JDBC_PREFIX = "jdbc:";
     public static final String JDBC_CLICKHOUSE_PREFIX = JDBC_PREFIX + "clickhouse:";
-    public static final Pattern DB_PATH_PATTERN = Pattern.compile("/([a-zA-Z0-9_]+)");
+    public static final Pattern DB_PATH_PATTERN = Pattern.compile("/([a-zA-Z0-9_-]+)");
     protected final static String DEFAULT_DATABASE = "default";
 
     private ClickhouseJdbcUrlParser(){
