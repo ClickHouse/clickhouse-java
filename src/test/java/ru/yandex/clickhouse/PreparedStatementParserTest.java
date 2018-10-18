@@ -244,13 +244,8 @@ public class PreparedStatementParserTest {
 
     private static void assertMatchParts(String[] expected, PreparedStatementParser stmt) {
         List<String> parts = stmt.getParts();
-        if (expected.length != parts.size()) {
-            Assert.fail("expected: " + String.join(", ", expected) + " actual: " + String.join(", ", parts));
-        }
+        Assert.assertEquals(expected.length, parts.size());
         for (int i = 0; i < expected.length; i++) {
-            if (parts.size() <= i) {
-                Assert.fail("expected: " + expected[i] + " actual: NULL");
-            }
             Assert.assertEquals(expected[i], parts.get(i));
         }
     }
