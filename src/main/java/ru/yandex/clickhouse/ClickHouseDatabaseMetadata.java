@@ -703,7 +703,7 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
             String type, e = result.getString(3).intern();
             if (e == "View" || e == "MaterializedView" || e == "Merge" || e == "Distributed" || e == "Null") {
                 type = "VIEW"; // some kind of view
-            } else if (e == "Memory" || e == "Set" || e == "Join" || e == "Buffer") {
+            } else if (e == "Set" || e == "Join" || e == "Buffer") {
                 type = "OTHER"; // not a real table
             } else {
                 type = "TABLE";
