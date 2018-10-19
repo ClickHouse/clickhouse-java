@@ -16,7 +16,7 @@ public class ClickhouseJdbcUrlParser {
     private static final Logger logger = LoggerFactory.getLogger(ClickhouseJdbcUrlParser.class);
     public static final String JDBC_PREFIX = "jdbc:";
     public static final String JDBC_CLICKHOUSE_PREFIX = JDBC_PREFIX + "clickhouse:";
-    public static final Pattern DB_PATH_PATTERN = Pattern.compile("/([a-zA-Z0-9_]+)");
+    public static final Pattern DB_PATH_PATTERN = Pattern.compile("^[A-Za-z0-9_-]+$");
     protected final static String DEFAULT_DATABASE = "default";
 
     private ClickhouseJdbcUrlParser(){
@@ -42,15 +42,14 @@ public class ClickhouseJdbcUrlParser {
             throw new IllegalArgumentException("port is missed or wrong");
         }
         props.setPort(port);
-        String database = uri.getPath();
-        if (database == null || database.isEmpty()) {
+        String path = uri.getPath();
+        String database;
+        if (path == null || path.isEmpty() || path.equals("/")) {
             String defaultsDb = defaults.getProperty(ClickHouseQueryParam.DATABASE.getKey());
             database = defaultsDb == null ? DEFAULT_DATABASE : defaultsDb;
         } else {
-            Matcher m = DB_PATH_PATTERN.matcher(database);
-            if (m.matches()) {
-                database = m.group(1);
-            } else {
+            database = path.substring(1);
+            if (!DB_PATH_PATTERN.matcher(database).matches()) {
                 throw new URISyntaxException("wrong database name path: '" + database + "'", uriString);
             }
         }
