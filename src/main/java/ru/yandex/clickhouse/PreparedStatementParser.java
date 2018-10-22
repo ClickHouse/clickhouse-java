@@ -114,7 +114,7 @@ final class PreparedStatementParser  {
                     i++;
                 } else if (c == ',') {
                     if (valuesMode && currentParamToken != null) {
-                        currentParamList.add(currentParamToken);
+                        currentParamList.add(typeTransformParameterValue(currentParamToken));
                         parts.add(sql.substring(partStart, sql.indexOf(currentParamToken, partStart)));
                         partStart = i ;
                         currentParamToken = null;
@@ -125,7 +125,7 @@ final class PreparedStatementParser  {
                    currentParensLevel--;
                    if (valuesMode && currentParensLevel == 0) {
                        if (currentParamToken != null) {
-                           currentParamList.add(currentParamToken);
+                           currentParamList.add(typeTransformParameterValue(currentParamToken));
                            parts.add(sql.substring(partStart, sql.indexOf(currentParamToken, partStart)));
                            partStart = i;
                            currentParamToken = null;
@@ -158,6 +158,17 @@ final class PreparedStatementParser  {
         }
     }
 
-
+    private static String typeTransformParameterValue(String paramValue) {
+        if (paramValue == null) {
+            return null;
+        }
+        if (Boolean.TRUE.toString().equalsIgnoreCase(paramValue)) {
+            return "1";
+        }
+        if (Boolean.FALSE.toString().equalsIgnoreCase(paramValue)) {
+            return "0";
+        }
+        return paramValue;
+    }
 
 }

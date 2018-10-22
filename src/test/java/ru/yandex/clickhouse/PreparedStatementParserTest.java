@@ -141,6 +141,20 @@ public class PreparedStatementParserTest {
     }
 
     @Test
+    public void testInsertNumbers() {
+        PreparedStatementParser s = PreparedStatementParser.parse(
+            "INSERT INTO t (foo, bar, baz) VALUES (42, 23, '42')");
+        assertMatchParams(new String[][] {{"42", "23", "'42'"}}, s);
+    }
+
+    @Test
+    public void testInsertBoolean() {
+        PreparedStatementParser s = PreparedStatementParser.parse(
+            "INSERT INTO t (foo, bar) VALUES (TRUE, false)");
+        assertMatchParams(new String[][] {{"1", "0"}}, s);
+    }
+
+    @Test
     public void testMultiParams() {
         PreparedStatementParser s = PreparedStatementParser.parse(
             "INSERT INTO t (a, b) VALUES (?, ?), (?, ?)");
