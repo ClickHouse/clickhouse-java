@@ -123,7 +123,7 @@ public class BatchInsertsTest {
         statement.setInt(4, 2);
         statement.addBatch();
         int[] result = statement.executeBatch();
-        Assert.assertEquals(new int[]{1, 1}, result);
+        Assert.assertEquals(result, new int[]{1, 1});
 
         ResultSet rs = connection.createStatement().executeQuery("SELECT count() as cnt from test.batch_insert3");
         rs.next();

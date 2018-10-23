@@ -115,8 +115,8 @@ public class PreparedStatementParserTest {
         PreparedStatementParser s = PreparedStatementParser.parse(
             "INSERT INTO t (a, b) VALUES (foo ? bar ?)");
         List<List<String>> matrix = s.getParameters();
-        Assert.assertEquals(1, matrix.size());
-        Assert.assertEquals(1, matrix.get(0).size());
+        Assert.assertEquals(matrix.size(), 1);
+        Assert.assertEquals(matrix.get(0).size(), 1);
     }
 
     @Test
@@ -182,7 +182,7 @@ public class PreparedStatementParserTest {
     public void testParseInsertSelect() {
         PreparedStatementParser s = PreparedStatementParser.parse(
             "INSERT INTO t (a, b) SELECT x, y");
-        Assert.assertEquals("INSERT INTO t (a, b) SELECT x, y", s.getParts().get(0));
+        Assert.assertEquals(s.getParts().get(0), "INSERT INTO t (a, b) SELECT x, y");
         Assert.assertTrue(s.getParameters().isEmpty());
     }
 
@@ -190,8 +190,8 @@ public class PreparedStatementParserTest {
     public void testParseInsertSelectParams() {
         PreparedStatementParser s = PreparedStatementParser.parse(
             "INSERT INTO t (a, b) SELECT x FROM u WHERE y = ? AND z = ?");
-        Assert.assertEquals("INSERT INTO t (a, b) SELECT x FROM u WHERE y = ",
-            s.getParts().get(0));
+        Assert.assertEquals(s.getParts().get(0),
+            "INSERT INTO t (a, b) SELECT x FROM u WHERE y = ");
         Assert.assertEquals(" AND z = ", s.getParts().get(1));
         assertMatchParams(new String[][] {{"?",  "?"}}, s);
     }
@@ -202,9 +202,9 @@ public class PreparedStatementParserTest {
             "SELECT SUM(x) FROM t WHERE y = ? GROUP BY ? HAVING COUNT(z) > ? ORDER BY z DESC");
         Assert.assertEquals("SELECT SUM(x) FROM t WHERE y = ",
             s.getParts().get(0));
-        Assert.assertEquals(" GROUP BY ", s.getParts().get(1));
-        Assert.assertEquals(" HAVING COUNT(z) > ",  s.getParts().get(2));
-        Assert.assertEquals(" ORDER BY z DESC", s.getParts().get(3));
+        Assert.assertEquals(s.getParts().get(1), " GROUP BY ");
+        Assert.assertEquals(s.getParts().get(2), " HAVING COUNT(z) > ");
+        Assert.assertEquals(s.getParts().get(3), " ORDER BY z DESC");
         assertMatchParams(new String[][] {{"?", "?", "?"}}, s);
     }
 
@@ -212,8 +212,8 @@ public class PreparedStatementParserTest {
     public void testParseWithComment1() {
         PreparedStatementParser s = PreparedStatementParser.parse(
             "select a --what is it?\nfrom t where a = ? and b = 1");
-        Assert.assertEquals("select a --what is it?\nfrom t where a = ", s.getParts().get(0));
-        Assert.assertEquals(" and b = 1", s.getParts().get(1));
+        Assert.assertEquals( s.getParts().get(0), "select a --what is it?\nfrom t where a = ");
+        Assert.assertEquals(s.getParts().get(1), " and b = 1");
         assertMatchParams(new String[][] {{"?"}}, s);
     }
 
@@ -258,16 +258,16 @@ public class PreparedStatementParserTest {
 
     private static void assertMatchParts(String[] expected, PreparedStatementParser stmt) {
         List<String> parts = stmt.getParts();
-        Assert.assertEquals(expected.length, parts.size());
+        Assert.assertEquals( parts.size(), expected.length);
         for (int i = 0; i < expected.length; i++) {
-            Assert.assertEquals(expected[i], parts.get(i));
+            Assert.assertEquals(parts.get(i), expected[i]);
         }
     }
 
     private static void assertMatchParams(String[][] expected, PreparedStatementParser stmt) {
         List<List<String>> actual = stmt.getParameters();
         if (expected.length != actual.size()) {
-            Assert.assertEquals(formatParams(expected), formatParamsList(actual));
+            Assert.assertEquals(formatParamsList(actual), formatParams(expected));
         }
         if (expected.length == 0 && actual.isEmpty()) {
             return;
@@ -275,9 +275,9 @@ public class PreparedStatementParserTest {
         for (int i = 0; i < expected.length; i++) {
             String[] expRow = expected[i];
             String[] actRow = actual.get(i).toArray(new String[actual.get(i).size()]);
-            Assert.assertEquals(expRow.length, actRow.length);
+            Assert.assertEquals(actRow.length, expRow.length);
             for (int j = 0; j < expRow.length; j++) {
-                Assert.assertEquals(expRow[j], actRow[j]);
+                Assert.assertEquals(actRow[j], expRow[j]);
             }
         }
     }
