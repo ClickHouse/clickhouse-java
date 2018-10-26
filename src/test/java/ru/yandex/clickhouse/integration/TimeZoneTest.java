@@ -1,6 +1,5 @@
 package ru.yandex.clickhouse.integration;
 
-import org.joda.time.LocalDate;
 import org.testng.Assert;
 import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
@@ -12,6 +11,7 @@ import ru.yandex.clickhouse.util.ClickHouseStreamCallback;
 
 import java.io.IOException;
 import java.sql.*;
+import java.util.Calendar;
 import java.util.TimeZone;
 import java.util.concurrent.TimeUnit;
 
@@ -97,7 +97,7 @@ public class TimeZoneTest {
 
 
         final Date date = new Date(currentTime);
-        Date localStartOfDay = new Date(new LocalDate(currentTime).toDateTimeAtStartOfDay().getMillis());
+        Date localStartOfDay = withTimeAtStartOfDay(date);
 
         connectionServerTz.createStatement().sendRowBinaryStream(
                 "INSERT INTO test.date_insert (i, d)",
@@ -134,5 +134,15 @@ public class TimeZoneTest {
         // inserted in manual timezone
         Assert.assertEquals(rsMan.getDate(1), localStartOfDay);
         Assert.assertEquals(rsSrv.getDate(1), localStartOfDay);
+    }
+
+    private static Date withTimeAtStartOfDay(Date date) {
+        Calendar cal = Calendar.getInstance();
+        cal.setTime(date);
+        cal.set(Calendar.HOUR_OF_DAY, 0);
+        cal.set(Calendar.MINUTE, 0);
+        cal.set(Calendar.SECOND, 0);
+        cal.set(Calendar.MILLISECOND, 0);
+        return new Date(cal.getTimeInMillis());
     }
 }

@@ -1,12 +1,12 @@
 package ru.yandex.clickhouse.util;
 
 import com.google.common.primitives.UnsignedLong;
-import org.joda.time.LocalDate;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
 
 import java.io.ByteArrayOutputStream;
+import java.util.Date;
 import java.util.TimeZone;
 
 /**
@@ -85,7 +85,7 @@ public class ClickHouseRowBinaryStreamTest {
                     stream.writeString("a.b.c");
                     stream.writeFloat64(42.21);
                     stream.writeUInt32(1492342562);
-                    stream.writeDate(new LocalDate(2017, 4, 16));
+                    stream.writeDate(new Date(117, 3, 16));
                     stream.writeUInt32(1492350000);
                 }
             },
