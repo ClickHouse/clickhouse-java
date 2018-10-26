@@ -72,6 +72,9 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
      */
     private final String initialDatabase;
 
+    private static final String[] selectKeywords = new String[]{"SELECT", "WITH", "SHOW", "DESC", "EXISTS"};
+    private static final String databaseKeyword = "CREATE DATABASE";
+
     public ClickHouseStatementImpl(CloseableHttpClient client, ClickHouseConnection connection,
                                    ClickHouseProperties properties) {
         this.client = client;
@@ -417,9 +420,14 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
     }
 
     private static boolean isSelect(String sql) {
-        String upper = sql.toUpperCase().trim();
-        return upper.startsWith("SELECT") || upper.startsWith("WITH") || upper.startsWith("SHOW") ||
-            upper.startsWith("DESC") || upper.startsWith("EXISTS");
+        String trimmed = sql.trim();
+        for (String keyword : selectKeywords){
+            // Case-insensitive matching of the beginning of the query
+            if (trimmed.regionMatches(true, 0, keyword, 0, keyword.length())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private String extractTableName(String sql) {
@@ -479,7 +487,7 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
         sql = clickhousifySql(sql);
         log.debug("Executing SQL: " + sql);
 
-        boolean ignoreDatabase = sql.toUpperCase().startsWith("CREATE DATABASE");
+        boolean ignoreDatabase = sql.trim().regionMatches(true, 0, databaseKeyword, 0, databaseKeyword.length());
         URI uri;
         if (externalData == null || externalData.isEmpty()) {
             uri = buildRequestUri(
@@ -662,38 +670,43 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
     @Override
     public void sendRowBinaryStream(String sql, ClickHouseStreamCallback callback) throws SQLException {
         sendStream(
-            new ClickHouseStreamHttpEntity(callback, getConnection().getTimeZone(), properties), sql, ClickHouseFormat.RowBinary
+            new ClickHouseStreamHttpEntity(callback, getConnection().getTimeZone(), properties), sql, ClickHouseFormat.RowBinary, null
         );
     }
 
     @Override
     public void sendNativeStream(String sql, ClickHouseStreamCallback callback) throws SQLException {
         sendStream(
-            new ClickHouseStreamHttpEntity(callback, getConnection().getTimeZone(), properties), sql, ClickHouseFormat.Native
+            new ClickHouseStreamHttpEntity(callback, getConnection().getTimeZone(), properties), sql, ClickHouseFormat.Native, null
         );
     }
 
     public void sendStream(InputStream content, String table) throws ClickHouseException {
         String query = "INSERT INTO " + table;
-        sendStream(new InputStreamEntity(content, -1), query);
+        sendStream(new InputStreamEntity(content, -1), query, null, null);
     }
 
     public void sendStream(HttpEntity content, String sql) throws ClickHouseException {
-        sendStream(content, sql, ClickHouseFormat.TabSeparated);
+        sendStream(content, sql, ClickHouseFormat.TabSeparated, null);
     }
 
-    private void sendStream(HttpEntity content, String sql, ClickHouseFormat format) throws ClickHouseException {
+    public void sendStream(HttpEntity content, String sql, Map<ClickHouseQueryParam, String> additionalDBParams) throws ClickHouseException {
+        sendStream(content, sql, ClickHouseFormat.TabSeparated, additionalDBParams);
+    }
+
+    private void sendStream(HttpEntity content, String sql, ClickHouseFormat format,
+                            Map<ClickHouseQueryParam, String> additionalDBParams) throws ClickHouseException {
         // echo -ne '10\n11\n12\n' | POST 'http://localhost:8123/?query=INSERT INTO t FORMAT TabSeparated'
         HttpEntity entity = null;
         try {
-            URI uri = buildRequestUri(sql + " FORMAT " + format.name(), null, null, null, false);
+            URI uri = buildRequestUri(null, null, additionalDBParams, null, false);
+            HttpEntity requestEntity = new BodyEntityWrapper(sql + " FORMAT " + format.name(), content);
 
             HttpPost httpPost = new HttpPost(uri);
             if (properties.isDecompress()) {
-                httpPost.setEntity(new LZ4EntityWrapper(content, properties.getMaxCompressBufferSize()));
-            } else {
-                httpPost.setEntity(content);
+                requestEntity = new LZ4EntityWrapper(requestEntity, properties.getMaxCompressBufferSize());
             }
+            httpPost.setEntity(requestEntity);
             HttpResponse response = client.execute(httpPost);
             entity = response.getEntity();
             checkForErrorAndThrow(entity, response);

@@ -30,6 +30,7 @@ public class TypeUtils {
         if ("DateTime".equals(clickshouseType)) return Types.TIMESTAMP;
         if ("FixedString".equals(clickshouseType)) return Types.BLOB;
         if (isArray(clickshouseType)) return Types.ARRAY;
+        if ("UUID".equals(clickshouseType)) return Types.OTHER;
 
         // don't know what to return actually
         return Types.VARCHAR;

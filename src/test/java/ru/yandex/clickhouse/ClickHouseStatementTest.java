@@ -33,6 +33,9 @@ public class ClickHouseStatementTest {
 
         String sql5 = "SHOW ololo FROM ololoed;";
         assertEquals("SHOW ololo FROM ololoed FORMAT TabSeparatedWithNamesAndTypes;", ClickHouseStatementImpl.clickhousifySql(sql5));
+
+        String sql6 = " show ololo FROM ololoed;";
+        assertEquals("show ololo FROM ololoed FORMAT TabSeparatedWithNamesAndTypes;", ClickHouseStatementImpl.clickhousifySql(sql6));
     }
 
     @Test

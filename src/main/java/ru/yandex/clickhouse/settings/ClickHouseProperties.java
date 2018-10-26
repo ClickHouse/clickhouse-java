@@ -203,6 +203,8 @@ public class ClickHouseProperties {
         setSessionCheck(properties.sessionCheck);
         setSessionId(properties.sessionId);
         setSessionTimeout(properties.sessionTimeout);
+        setPreferredBlockSizeBytes(properties.preferredBlockSizeBytes);
+        setMaxQuerySize(properties.maxQuerySize);
     }
 
     public Map<ClickHouseQueryParam, String> buildQueryParams(boolean ignoreDatabase){

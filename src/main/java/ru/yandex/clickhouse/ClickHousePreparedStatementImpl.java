@@ -28,7 +28,7 @@ import java.util.regex.Pattern;
 
 public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl implements ClickHousePreparedStatement {
     private static final Logger log = LoggerFactory.getLogger(ClickHouseStatementImpl.class);
-    private static final Pattern VALUES = Pattern.compile("VALUES[\\s]*\\(");
+    private static final Pattern VALUES = Pattern.compile("(?i)VALUES[\\s]*\\(");
 
     private final SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd");
     private final SimpleDateFormat dateTimeFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
@@ -344,6 +344,8 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
                 setClob(parameterIndex, (Clob) x);
             } else if (x instanceof BigInteger) {
                 setBind(parameterIndex, x.toString());
+            } else if (x instanceof UUID) {
+                setString(parameterIndex, x.toString());
             } else if (x instanceof Collection) {
                 setArray(parameterIndex, (Collection) x);
             } else if (x.getClass().isArray()) {
@@ -368,7 +370,12 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
 
     @Override
     public int[] executeBatch() throws SQLException {
-        Matcher matcher = VALUES.matcher(sql.toUpperCase());
+        return executeBatch(null);
+    }
+
+    @Override
+    public int[] executeBatch(Map<ClickHouseQueryParam, String> additionalDBParams) throws SQLException {
+        Matcher matcher = VALUES.matcher(sql);
         if (!matcher.find()) {
             throw new SQLSyntaxErrorException(
                     "Query must be like 'INSERT INTO [db.]table [(c1, c2, c3)] VALUES (?, ?, ?)'. " +
@@ -379,7 +386,7 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
 
         String insertSql = sql.substring(0, valuePosition);
         BatchHttpEntity entity = new BatchHttpEntity(batchRows);
-        sendStream(entity, insertSql);
+        sendStream(entity, insertSql, additionalDBParams);
 
         int[] result = new int[batchRows.size()];
         Arrays.fill(result, 1);

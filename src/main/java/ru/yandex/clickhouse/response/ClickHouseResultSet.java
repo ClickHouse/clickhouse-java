@@ -12,12 +12,10 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.math.RoundingMode;
 import java.sql.*;
+import java.sql.Date;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.TimeZone;
+import java.util.*;
 
 import static ru.yandex.clickhouse.response.ByteFragmentUtils.parseArray;
 
@@ -170,6 +168,15 @@ public class ClickHouseResultSet extends AbstractResultSet {
     public void close() throws SQLException {
         try {
             bis.close();
+        } catch (IOException e) {
+            throw new SQLException(e);
+        }
+    }
+
+    @Override
+    public boolean isClosed() throws SQLException {
+        try {
+            return bis.isClosed();
         } catch (IOException e) {
             throw new SQLException(e);
         }
@@ -453,6 +460,11 @@ public class ClickHouseResultSet extends AbstractResultSet {
                 case Types.BLOB:        return getString(columnIndex);
                 case Types.ARRAY:       return getArray(columnIndex).getArray();
             }
+
+            if(type == Types.OTHER && typeName.equals("UUID")) {
+                return getObject(columnIndex, UUID.class);
+            }
+
             return getString(columnIndex);
         } catch (Exception e) {
             throw new RuntimeException("Parse exception: " + values[columnIndex - 1].toString(), e);
@@ -549,7 +561,11 @@ public class ClickHouseResultSet extends AbstractResultSet {
     }
 
     public <T> T getObject(int columnIndex, Class<T> type) throws SQLException {
-        throw new SQLException("Not implemented");
+        if(type.equals(UUID.class)) {
+            return (T) UUID.fromString(getString(columnIndex));
+        } else {
+            throw new SQLException("Not implemented for type=" + type.toString());
+        }
     }
 
     public <T> T getObject(String columnLabel, Class<T> type) throws SQLException {
@@ -578,6 +594,11 @@ public class ClickHouseResultSet extends AbstractResultSet {
     @Override
     public BigDecimal getBigDecimal(String columnLabel, int scale)  {
         return getBigDecimal(asColNum(columnLabel), scale);
+    }
+
+    @Override
+    public boolean isLast() throws SQLException {
+        return !hasNext();
     }
 
     @Override

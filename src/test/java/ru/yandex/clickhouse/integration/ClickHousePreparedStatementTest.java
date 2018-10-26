@@ -13,6 +13,7 @@ import ru.yandex.clickhouse.settings.ClickHouseProperties;
 
 import java.math.BigInteger;
 import java.sql.*;
+import java.util.UUID;
 
 import static java.util.Collections.singletonList;
 
@@ -80,6 +81,28 @@ public class ClickHousePreparedStatementTest {
         Object bigUInt64 = rs.getObject(2);
         Assert.assertTrue(bigUInt64 instanceof BigInteger);
         Assert.assertEquals(bigUInt64, new BigInteger("18446744073709551606"));
+    }
+
+
+    @Test
+    public void testInsertUUID() throws SQLException {
+        connection.createStatement().execute("DROP TABLE IF EXISTS test.uuid_insert");
+        connection.createStatement().execute(
+                "CREATE TABLE IF NOT EXISTS test.uuid_insert (ui32 UInt32, uuid UUID) ENGINE = TinyLog"
+        );
+        PreparedStatement stmt = connection.prepareStatement("insert into test.uuid_insert (ui32, uuid) values (?, ?)");
+        stmt.setObject(1, 4294967286L);
+        stmt.setObject(2, UUID.fromString("bef35f40-3b03-45b0-b1bd-8ec6593dcaaa"));
+        stmt.execute();
+        Statement select = connection.createStatement();
+        ResultSet rs = select.executeQuery("select ui32, uuid from test.uuid_insert");
+        rs.next();
+        Object bigUInt32 = rs.getObject(1);
+        Assert.assertTrue(bigUInt32 instanceof Long);
+        Assert.assertEquals(((Long)bigUInt32).longValue(), 4294967286L);
+        Object uuid = rs.getObject(2);
+        Assert.assertTrue(uuid instanceof UUID);
+        Assert.assertEquals(uuid, UUID.fromString("bef35f40-3b03-45b0-b1bd-8ec6593dcaaa"));
     }
 
     @Test
