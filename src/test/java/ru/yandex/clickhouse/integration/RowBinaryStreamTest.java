@@ -2,8 +2,6 @@ package ru.yandex.clickhouse.integration;
 
 import com.google.common.primitives.UnsignedLong;
 import com.google.common.primitives.UnsignedLongs;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 import org.testng.Assert;
 import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
@@ -17,6 +15,7 @@ import ru.yandex.clickhouse.util.ClickHouseStreamCallback;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.sql.*;
+import java.util.Calendar;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -207,9 +206,7 @@ public class RowBinaryStreamTest {
         Assert.assertEquals(dateArray.length, dates1.length);
         for (int i = 0; i < dateArray.length; i++) {
             // expected is Date at start of the day in local timezone
-            DateTime dt = new DateTime(dates1[i].getTime())
-                    .withTimeAtStartOfDay();
-            Date expected = new Date(dt.toDate().getTime());
+            Date expected = withTimeAtStartOfDay(dates1[i]);
             Assert.assertEquals(dateArray[i], expected);
         }
         final Timestamp[] dateTimeArray = (Timestamp[]) rs.getArray("dateTimeArray").getArray();
@@ -319,10 +316,17 @@ public class RowBinaryStreamTest {
 
         Assert.assertTrue(rs.next());
         Assert.assertEquals(rs.getTime("dateTime"), new Time(date1.getTime()));
-        DateTime dt = new DateTime(date1.getTime())
-                .withTimeAtStartOfDay();
-        Date expectedDate = new Date(dt.toDate().getTime()); // expected start of the day in local timezone
+        Date expectedDate = withTimeAtStartOfDay(date1); // expected start of the day in local timezone
         Assert.assertEquals(rs.getDate("date"), expectedDate);
     }
 
+    private static Date withTimeAtStartOfDay(Date date) {
+        Calendar cal = Calendar.getInstance();
+        cal.setTime(date);
+        cal.set(Calendar.HOUR_OF_DAY, 0);
+        cal.set(Calendar.MINUTE, 0);
+        cal.set(Calendar.SECOND, 0);
+        cal.set(Calendar.MILLISECOND, 0);
+        return new Date(cal.getTimeInMillis());
+    }
 }

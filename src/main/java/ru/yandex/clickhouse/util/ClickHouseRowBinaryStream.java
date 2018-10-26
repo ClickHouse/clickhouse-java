@@ -20,17 +20,17 @@ public class ClickHouseRowBinaryStream {
     private static final int U_INT8_MAX = (1 << 8) - 1;
     private static final int U_INT16_MAX = (1 << 16) - 1;
     private static final long U_INT32_MAX = (1L << 32) - 1;
-	private static final long MILLIS_IN_DAY = TimeUnit.DAYS.toMillis(1);
+    private static final long MILLIS_IN_DAY = TimeUnit.DAYS.toMillis(1);
 
     private final LittleEndianDataOutputStream out;
-	private final TimeZone timeZone;
+    private final TimeZone timeZone;
 
     public ClickHouseRowBinaryStream(OutputStream outputStream, TimeZone timeZone, ClickHouseProperties properties) {
         this.out = new LittleEndianDataOutputStream(outputStream);
         if (properties.isUseServerTimeZoneForDates()) {
-	        this.timeZone = timeZone;
+            this.timeZone = timeZone;
         } else {
-	        this.timeZone = TimeZone.getDefault();
+            this.timeZone = TimeZone.getDefault();
         }
     }
 
@@ -146,8 +146,8 @@ public class ClickHouseRowBinaryStream {
 
     public void writeDate(Date date) throws IOException {
         Preconditions.checkNotNull(date);
-	    long localMillis = date.getTime() + timeZone.getOffset(date.getTime());
-	    int daysSinceEpoch = (int) (localMillis / MILLIS_IN_DAY);
+        long localMillis = date.getTime() + timeZone.getOffset(date.getTime());
+        int daysSinceEpoch = (int) (localMillis / MILLIS_IN_DAY);
         writeUInt16(daysSinceEpoch);
     }
 
