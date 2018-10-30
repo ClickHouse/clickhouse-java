@@ -1,16 +1,5 @@
 package ru.yandex.clickhouse;
 
-import org.apache.http.entity.AbstractHttpEntity;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import ru.yandex.clickhouse.response.ClickHouseResponse;
-import ru.yandex.clickhouse.settings.ClickHouseProperties;
-import ru.yandex.clickhouse.settings.ClickHouseQueryParam;
-import ru.yandex.clickhouse.util.ClickHouseArrayUtil;
-import ru.yandex.clickhouse.util.guava.StreamUtils;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -18,16 +7,50 @@ import java.io.Reader;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.URL;
-import java.sql.*;
+import java.sql.Array;
+import java.sql.Blob;
+import java.sql.Clob;
 import java.sql.Date;
+import java.sql.NClob;
+import java.sql.ParameterMetaData;
+import java.sql.Ref;
+import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
+import java.sql.RowId;
+import java.sql.SQLDataException;
+import java.sql.SQLException;
+import java.sql.SQLFeatureNotSupportedException;
+import java.sql.SQLSyntaxErrorException;
+import java.sql.SQLXML;
+import java.sql.Time;
+import java.sql.Timestamp;
+import java.sql.Types;
 import java.text.SimpleDateFormat;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Calendar;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+import java.util.TimeZone;
+import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import org.apache.http.entity.AbstractHttpEntity;
+import org.apache.http.impl.client.CloseableHttpClient;
+
+import ru.yandex.clickhouse.response.ClickHouseResponse;
+import ru.yandex.clickhouse.settings.ClickHouseProperties;
+import ru.yandex.clickhouse.settings.ClickHouseQueryParam;
+import ru.yandex.clickhouse.util.ClickHouseArrayUtil;
+import ru.yandex.clickhouse.util.guava.StreamUtils;
+
 
 public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl implements ClickHousePreparedStatement {
-    private static final Logger log = LoggerFactory.getLogger(ClickHouseStatementImpl.class);
+
+    static final String PARAM_MARKER = "?";
+
     private static final Pattern VALUES = Pattern.compile("(?i)VALUES[\\s]*\\(");
 
     private final SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd");
@@ -35,22 +58,25 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
 
     private final String sql;
     private final List<String> sqlParts;
-    private String[] binds;
-    private boolean[] valuesQuote;
+    private final String[] binds;
+    private final List<List<String>> parameterList;
+    private final boolean insertBatchMode;
+    private final boolean[] valuesQuote;
     private List<byte[]> batchRows = new ArrayList<byte[]>();
+
 
     public ClickHousePreparedStatementImpl(CloseableHttpClient client, ClickHouseConnection connection,
              ClickHouseProperties properties, String sql, TimeZone timezone) throws SQLException {
         super(client, connection, properties);
         this.sql = sql;
-        this.sqlParts = parseSql(sql);
-        createBinds();
+        PreparedStatementParser parser = PreparedStatementParser.parse(sql);
+        this.parameterList = parser.getParameters();
+        this.insertBatchMode = parser.isValuesMode();
+        this.sqlParts = parser.getParts();
+        int numParams = countNonConstantParams();
+        this.binds = new String[numParams];
+        this.valuesQuote = new boolean[numParams];
         initTimeZone(timezone);
-    }
-
-    private void createBinds() {
-        this.binds = new String[this.sqlParts.size() - 1];
-        this.valuesQuote = new boolean[this.sqlParts.size() - 1];
     }
 
     private void initTimeZone(TimeZone timeZone) {
@@ -76,68 +102,24 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
         return super.executeQueryClickhouseResponse(buildSql(), additionalDBParams);
     }
 
-    protected static List<String> parseSql(String sql) throws SQLException {
-        if (sql == null) {
-            throw new SQLException("sql statement can't be null");
-        }
-
-        List<String> parts = new ArrayList<String>();
-
-        boolean afterBackSlash = false, inQuotes = false, inBackQuotes = false;
-        boolean inSingleLineComment = false;
-        boolean inMultiLineComment = false;
-        int partStart = 0;
-        for (int i = 0; i < sql.length(); i++) {
-            char c = sql.charAt(i);
-            if (inSingleLineComment) {
-                if (c == '\n') {
-                    inSingleLineComment = false;
-                }
-            } else if (inMultiLineComment) {
-                if (c == '*' && sql.length() > i + 1 && sql.charAt(i + 1) == '/') {
-                    inMultiLineComment = false;
-                    i++;
-                }
-            } else if (afterBackSlash) {
-                afterBackSlash = false;
-            } else if (c == '\\') {
-                afterBackSlash = true;
-            } else if (c == '\'') {
-                inQuotes = !inQuotes;
-            } else if (c == '`') {
-                inBackQuotes = !inBackQuotes;
-            } else if (!inQuotes && !inBackQuotes) {
-                if (c == '?') {
-                    parts.add(sql.substring(partStart, i));
-                    partStart = i + 1;
-                } else if (c == '-' && sql.length() > i + 1 && sql.charAt(i + 1) == '-') {
-                    inSingleLineComment = true;
-                    i++;
-                } else if (c == '/' && sql.length() > i + 1 && sql.charAt(i + 1) == '*') {
-                    inMultiLineComment = true;
-                    i++;
-                }
-            }
-        }
-        parts.add(sql.substring(partStart, sql.length()));
-
-        return parts;
-    }
-
-    protected String buildSql() throws SQLException {
+    private String buildSql() throws SQLException {
         if (sqlParts.size() == 1) {
             return sqlParts.get(0);
         }
-        checkBinded(binds);
 
+        checkBinded();
         StringBuilder sb = new StringBuilder(sqlParts.get(0));
-        for (int i = 1; i < sqlParts.size(); i++) {
-            appendBoundValue(sb, i - 1);
+        for (int i = 1, p = 0; i < sqlParts.size(); i++) {
+            String pValue = getParameter(i - 1);
+            if (PARAM_MARKER.equals(pValue)) {
+                appendBoundValue(sb, p++);
+            } else {
+                sb.append(pValue);
+            }
             sb.append(sqlParts.get(i));
         }
-        String sql = sb.toString();
-
-        return sql;
+        String mySql = sb.toString();
+        return mySql;
     }
 
     private void appendBoundValue(StringBuilder sb, int num) {
@@ -150,7 +132,7 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
         }
     }
 
-    private static void checkBinded(String[] binds) throws SQLException {
+    private void checkBinded() throws SQLException {
         int i = 0;
         for (String b : binds) {
             ++i;
@@ -160,14 +142,9 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
         }
     }
 
-    private byte[] buildBinds() throws SQLException {
-        checkBinded(binds);
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < binds.length; i++) {
-            sb.append(binds[i]);
-            sb.append(i < binds.length - 1 ? '\t' : '\n');
-        }
-        return sb.toString().getBytes(StreamUtils.UTF_8);
+    @Override
+    public boolean execute() throws SQLException {
+        return super.execute(buildSql());
     }
 
     @Override
@@ -356,16 +333,34 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
         }
     }
 
-
-    @Override
-    public boolean execute() throws SQLException {
-        return super.execute(buildSql());
-    }
-
     @Override
     public void addBatch() throws SQLException {
-        batchRows.add(buildBinds());
-        createBinds();
+        batchRows.addAll(buildBatch());
+    }
+
+    private List<byte[]> buildBatch() throws SQLException {
+        checkBinded();
+        List<byte[]> newBatches = new ArrayList<byte[]>(parameterList.size());
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0, p = 0; i < parameterList.size(); i++) {
+            List<String> pList = parameterList.get(i);
+            for (int j = 0; j < pList.size(); j++) {
+                String pValue = pList.get(j);
+                if (PARAM_MARKER.equals(pValue)) {
+                    if (insertBatchMode) {
+                        sb.append(binds[p++]);
+                    } else {
+                        appendBoundValue(sb, p++);
+                    }
+                } else {
+                    sb.append(pValue);
+                }
+                sb.append(j < pList.size() - 1 ? "\t" : "\n");
+            }
+            newBatches.add(sb.toString().getBytes(StreamUtils.UTF_8));
+            sb = new StringBuilder();
+        }
+        return newBatches;
     }
 
     @Override
@@ -590,4 +585,29 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
     public void setNClob(int parameterIndex, Reader reader) throws SQLException {
         throw new SQLFeatureNotSupportedException();
     }
+
+    private int countNonConstantParams() {
+        int count = 0;
+        for (int i = 0; i < parameterList.size(); i++) {
+            List<String> pList = parameterList.get(i);
+            for (int j = 0; j < pList.size(); j++) {
+                if (PARAM_MARKER.equals(pList.get(j))) {
+                    count += 1;
+                }
+            }
+        }
+        return count;
+    }
+
+    private String getParameter(int paramIndex) {
+        for (int i = 0, count = paramIndex; i < parameterList.size(); i++) {
+            List<String> pList = parameterList.get(i);
+            count -= pList.size();
+            if (count < 0) {
+                return pList.get(pList.size() + count);
+            }
+        }
+        return null;
+    }
+
 }
