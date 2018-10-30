@@ -13,6 +13,7 @@ import java.util.Collections;
 import java.util.TimeZone;
 
 import org.testng.Assert;
+import org.testng.annotations.AfterTest;
 import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
 
@@ -35,6 +36,11 @@ public class BatchInsertsTest {
         connection.createStatement().execute("CREATE DATABASE IF NOT EXISTS test");
         dateFormat = new SimpleDateFormat("yyyy-MM-dd");
         dateFormat.setTimeZone(TimeZone.getDefault());
+    }
+
+    @AfterTest
+    public void tearDown() throws Exception {
+        connection.createStatement().execute("DROP DATABASE test");
     }
 
     @Test

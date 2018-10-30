@@ -59,7 +59,6 @@ final class PreparedStatementParser  {
     private void parseSQL(String sql) {
         reset();
         List<String> currentParamList = new ArrayList<String>();
-        String currentParamToken = null;
         boolean afterBackSlash = false;
         boolean inQuotes = false;
         boolean inBackQuotes = false;
@@ -73,7 +72,7 @@ final class PreparedStatementParser  {
         int currentParensLevel = 0;
         int quotedStart = 0;
         int partStart = 0;
-        for (int i = valuesMode ? matcher.end() - 1 : 0 ; i < sql.length(); i++) {
+        for (int i = valuesMode ? matcher.end() - 1 : 0, idxStart = i, idxEnd = i ; i < sql.length(); i++) {
             char c = sql.charAt(i);
             if (inSingleLineComment) {
                 if (c == '\n') {
@@ -93,14 +92,16 @@ final class PreparedStatementParser  {
                 if (inQuotes) {
                     quotedStart = i;
                 } else if (!afterBackSlash) {
-                    currentParamToken = sql.substring(quotedStart, i + 1);
+                    idxStart = quotedStart;
+                    idxEnd = i + 1;
                 }
             } else if (c == '`') {
                 inBackQuotes = !inBackQuotes;
             } else if (!inQuotes && !inBackQuotes) {
                 if (c == '?') {
                     if (currentParensLevel > 0) {
-                        currentParamToken = ClickHousePreparedStatementImpl.PARAM_MARKER;
+                        idxStart = i;
+                        idxEnd = i + 1;
                     } else if (!valuesMode) {
                         parts.add(sql.substring(partStart, i));
                         partStart = i + 1;
@@ -113,22 +114,24 @@ final class PreparedStatementParser  {
                     inMultiLineComment = true;
                     i++;
                 } else if (c == ',') {
-                    if (valuesMode && currentParamToken != null) {
-                        currentParamList.add(typeTransformParameterValue(currentParamToken));
-                        parts.add(sql.substring(partStart, sql.indexOf(currentParamToken, partStart)));
-                        partStart = i ;
-                        currentParamToken = null;
+                    if (valuesMode && idxEnd > idxStart) {
+                        currentParamList.add(typeTransformParameterValue(sql.substring(idxStart, idxEnd)));
+                        parts.add(sql.substring(partStart, idxStart));
+                        partStart = idxStart = idxEnd = i;
                     }
+                    idxStart++;
+                    idxEnd++;
                 } else if (c == '(') {
                     currentParensLevel++;
+                    idxStart++;
+                    idxEnd++;
                 } else if (c == ')') {
                    currentParensLevel--;
                    if (valuesMode && currentParensLevel == 0) {
-                       if (currentParamToken != null) {
-                           currentParamList.add(typeTransformParameterValue(currentParamToken));
-                           parts.add(sql.substring(partStart, sql.indexOf(currentParamToken, partStart)));
-                           partStart = i;
-                           currentParamToken = null;
+                       if (idxEnd > idxStart) {
+                           currentParamList.add(typeTransformParameterValue(sql.substring(idxStart, idxEnd)));
+                           parts.add(sql.substring(partStart, idxStart));
+                           partStart = idxStart = idxEnd = i;
                        }
                        if (!currentParamList.isEmpty()) {
                            parameters.add(currentParamList);
@@ -139,11 +142,10 @@ final class PreparedStatementParser  {
                     whiteSpace = true;
                 } else if (currentParensLevel > 0) {
                     if (whiteSpace) {
-                       currentParamToken = String.valueOf(c);
+                        idxStart = i;
+                        idxEnd = i + 1;
                     } else {
-                        currentParamToken = currentParamToken != null
-                            ? currentParamToken + c
-                            : String.valueOf(c);
+                        idxEnd++;
                     }
                     whiteSpace = false;
                 }
