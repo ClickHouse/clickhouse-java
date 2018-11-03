@@ -256,6 +256,56 @@ public class PreparedStatementParserTest {
         assertMatchParams(new String[][] {{"?", "?"}}, s);
     }
 
+    @Test
+    public void testRegularParam() throws Exception {
+        // Test inspired by MetaBase test cases
+        PreparedStatementParser s = PreparedStatementParser.parse(
+            "SELECT count(*) AS `count` FROM `foo`.`bar` "
+          + "WHERE (`foo`.`bar`.`id` <= 32 "
+          + "AND (`foo`.`bar`.`name` like ?))");
+        assertMatchParams(new String[][] {{"?"}}, s);
+        Assert.assertEquals(
+            s.getParts().get(0),
+            "SELECT count(*) AS `count` FROM `foo`.`bar` "
+          + "WHERE (`foo`.`bar`.`id` <= 32 "
+          + "AND (`foo`.`bar`.`name` like ");
+        Assert.assertEquals(
+            s.getParts().get(1),
+            "))");
+    }
+
+    @Test
+    public void testRegularParamWhitespace() throws Exception {
+        PreparedStatementParser s = PreparedStatementParser.parse(
+            "SELECT count(*) AS `count` FROM `foo`.`bar` "
+          + "WHERE (`foo`.`bar`.`id` <= 32 "
+          + "AND (`foo`.`bar`.`name` like ?   ))");
+        assertMatchParams(new String[][] {{"?"}}, s);
+        Assert.assertEquals(
+            s.getParts().get(0),
+            "SELECT count(*) AS `count` FROM `foo`.`bar` "
+          + "WHERE (`foo`.`bar`.`id` <= 32 "
+          + "AND (`foo`.`bar`.`name` like ");
+        Assert.assertEquals(
+            s.getParts().get(1),
+            "   ))");
+    }
+
+    @Test
+    public void testRegularParamInFunction() throws Exception {
+        PreparedStatementParser s = PreparedStatementParser.parse(
+            "SELECT count(*) AS `count` FROM `foo`.`bar` "
+          + "WHERE toMonday(`foo`.`bar`.`date`) = toMonday(?)");
+        assertMatchParams(new String[][] {{"?"}}, s);
+        Assert.assertEquals(
+            s.getParts().get(0),
+            "SELECT count(*) AS `count` FROM `foo`.`bar` "
+          + "WHERE toMonday(`foo`.`bar`.`date`) = toMonday(");
+        Assert.assertEquals(
+            s.getParts().get(1),
+            ")");
+    }
+
     private static void assertMatchParts(String[] expected, PreparedStatementParser stmt) {
         List<String> parts = stmt.getParts();
         Assert.assertEquals( parts.size(), expected.length);
