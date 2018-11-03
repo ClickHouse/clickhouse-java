@@ -102,7 +102,8 @@ final class PreparedStatementParser  {
                     if (currentParensLevel > 0) {
                         idxStart = i;
                         idxEnd = i + 1;
-                    } else if (!valuesMode) {
+                    }
+                    if (!valuesMode) {
                         parts.add(sql.substring(partStart, i));
                         partStart = i + 1;
                         currentParamList.add(ClickHousePreparedStatementImpl.PARAM_MARKER);
