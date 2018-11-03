@@ -431,7 +431,7 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
                 i = Math.max(i, sql.indexOf("\n", i));
             } else if ("/*".equals(nextTwo)) {
                 i = Math.max(i, sql.indexOf("*/", i));
-            } else if (Character.isAlphabetic(sql.charAt(i))) {
+            } else if (Character.isLetter(sql.charAt(i))) {
                 String trimmed = sql.substring(i, Math.min(sql.length(), Math.max(i, sql.indexOf(" ", i))));
                 for (String keyword : selectKeywords){
                     if (trimmed.regionMatches(true, 0, keyword, 0, keyword.length())) {
@@ -752,13 +752,10 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
         }
     }
 
-
-    @Override
     public void closeOnCompletion() throws SQLException {
         closeOnCompletion = true;
     }
 
-    @Override
     public boolean isCloseOnCompletion() throws SQLException {
         return closeOnCompletion;
     }
