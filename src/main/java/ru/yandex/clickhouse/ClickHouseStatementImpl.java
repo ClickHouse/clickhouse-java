@@ -1,6 +1,19 @@
 package ru.yandex.clickhouse;
 
-import com.google.common.base.Strings;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.SQLWarning;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.NameValuePair;
@@ -15,6 +28,9 @@ import org.apache.http.message.BasicNameValuePair;
 import org.apache.http.util.EntityUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.google.common.base.Strings;
+
 import ru.yandex.clickhouse.except.ClickHouseException;
 import ru.yandex.clickhouse.except.ClickHouseExceptionSpecifier;
 import ru.yandex.clickhouse.response.ClickHouseLZ4Stream;
@@ -29,20 +45,6 @@ import ru.yandex.clickhouse.util.ClickHouseStreamHttpEntity;
 import ru.yandex.clickhouse.util.Patterns;
 import ru.yandex.clickhouse.util.Utils;
 import ru.yandex.clickhouse.util.guava.StreamUtils;
-
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.net.HttpURLConnection;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.SQLWarning;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 
 
 public class ClickHouseStatementImpl implements ClickHouseStatement {
@@ -88,6 +90,7 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
         return executeQuery(sql, null);
     }
 
+    @Override
     public ResultSet executeQuery(String sql, Map<ClickHouseQueryParam, String> additionalDBParams) throws SQLException {
         return executeQuery(sql, additionalDBParams, null);
     }
@@ -122,7 +125,7 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
                     extractTableName(sql),
                     extractWithTotals(sql),
                     this,
-                    ((ClickHouseConnection) getConnection()).getTimeZone(),
+                    getConnection().getTimeZone(),
                     properties
                 );
                 currentResult.setMaxRows(maxRows);
@@ -138,6 +141,7 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
         }
     }
 
+    @Override
     public ClickHouseResponse executeQueryClickhouseResponse(String sql) throws SQLException {
         return executeQueryClickhouseResponse(sql, null);
     }
@@ -147,6 +151,7 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
         return executeQueryClickhouseResponse(sql, additionalDBParams, null);
     }
 
+    @Override
     public ClickHouseResponse executeQueryClickhouseResponse(String sql,
                                                              Map<ClickHouseQueryParam, String> additionalDBParams,
                                                              Map<String, String> additionalRequestParams) throws SQLException {
@@ -419,12 +424,21 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
         return sql;
     }
 
-    private static boolean isSelect(String sql) {
-        String trimmed = sql.trim();
-        for (String keyword : selectKeywords){
-            // Case-insensitive matching of the beginning of the query
-            if (trimmed.regionMatches(true, 0, keyword, 0, keyword.length())) {
-                return true;
+    static boolean isSelect(String sql) {
+        for (int i = 0; i < sql.length(); i++) {
+            String nextTwo = sql.substring(i, Math.min(i + 2, sql.length()));
+            if ("--".equals(nextTwo)) {
+                i = Math.max(i, sql.indexOf("\n", i));
+            } else if ("/*".equals(nextTwo)) {
+                i = Math.max(i, sql.indexOf("*/", i));
+            } else if (Character.isAlphabetic(sql.charAt(i))) {
+                String trimmed = sql.substring(i, Math.min(sql.length(), Math.max(i, sql.indexOf(" ", i))));
+                for (String keyword : selectKeywords){
+                    if (trimmed.regionMatches(true, 0, keyword, 0, keyword.length())) {
+                        return true;
+                    }
+                }
+                return false;
             }
         }
         return false;
@@ -681,6 +695,7 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
         );
     }
 
+    @Override
     public void sendStream(InputStream content, String table) throws ClickHouseException {
         String query = "INSERT INTO " + table;
         sendStream(new InputStreamEntity(content, -1), query, null, null);
@@ -738,10 +753,12 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
     }
 
 
+    @Override
     public void closeOnCompletion() throws SQLException {
         closeOnCompletion = true;
     }
 
+    @Override
     public boolean isCloseOnCompletion() throws SQLException {
         return closeOnCompletion;
     }

@@ -1,20 +1,22 @@
 package ru.yandex.clickhouse;
 
 
-import com.google.common.collect.ImmutableMap;
-import org.apache.http.impl.client.HttpClientBuilder;
-import org.testng.annotations.Test;
-import ru.yandex.clickhouse.settings.ClickHouseProperties;
-
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.sql.SQLException;
 import java.util.Properties;
 
+import org.apache.http.impl.client.HttpClientBuilder;
+import org.testng.annotations.Test;
+
+import com.google.common.collect.ImmutableMap;
+
+import ru.yandex.clickhouse.settings.ClickHouseProperties;
+
 import static org.testng.Assert.assertEquals;
+import static org.testng.Assert.assertFalse;
 import static org.testng.Assert.assertNull;
 import static org.testng.Assert.assertTrue;
-
 
 public class ClickHouseStatementTest {
     @Test
@@ -89,4 +91,29 @@ public class ClickHouseStatementTest {
         String query = uri.getQuery();
         assertTrue(query.contains("cache_namespace=aaaa"), "cache_namespace param is missing in URL");
     }
+
+    @Test
+    public void testIsSelect() {
+        assertTrue(ClickHouseStatementImpl.isSelect("SELECT 42"));
+        assertTrue(ClickHouseStatementImpl.isSelect("select 42"));
+        assertFalse(ClickHouseStatementImpl.isSelect("selectfoo"));
+        assertTrue(ClickHouseStatementImpl.isSelect("  SELECT foo"));
+        assertTrue(ClickHouseStatementImpl.isSelect("WITH foo"));
+        assertTrue(ClickHouseStatementImpl.isSelect("DESC foo"));
+        assertTrue(ClickHouseStatementImpl.isSelect("EXISTS foo"));
+        assertTrue(ClickHouseStatementImpl.isSelect("SHOW foo"));
+        assertTrue(ClickHouseStatementImpl.isSelect("-- foo\n SELECT 42"));
+        assertTrue(ClickHouseStatementImpl.isSelect("--foo\n SELECT 42"));
+        assertFalse(ClickHouseStatementImpl.isSelect("- foo\n SELECT 42"));
+        assertTrue(ClickHouseStatementImpl.isSelect("/* foo */ SELECT 42"));
+        assertTrue(ClickHouseStatementImpl.isSelect("/*\n * foo\n*/\n SELECT 42"));
+        assertFalse(ClickHouseStatementImpl.isSelect("/ foo */ SELECT 42"));
+        assertFalse(ClickHouseStatementImpl.isSelect("-- SELECT baz\n UPDATE foo"));
+        assertFalse(ClickHouseStatementImpl.isSelect("/* SELECT baz */\n UPDATE foo"));
+        assertFalse(ClickHouseStatementImpl.isSelect("/*\n UPDATE foo"));
+        assertFalse(ClickHouseStatementImpl.isSelect("/*"));
+        assertFalse(ClickHouseStatementImpl.isSelect("/**/"));
+        assertFalse(ClickHouseStatementImpl.isSelect(" --"));
+    }
+
 }

@@ -1,5 +1,14 @@
 package ru.yandex.clickhouse.integration;
 
+import java.math.BigInteger;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.sql.Types;
+import java.util.UUID;
+
 import org.testng.Assert;
 import org.testng.annotations.AfterTest;
 import org.testng.annotations.BeforeTest;
@@ -10,10 +19,6 @@ import ru.yandex.clickhouse.ClickHouseDataSource;
 import ru.yandex.clickhouse.ClickHousePreparedStatement;
 import ru.yandex.clickhouse.response.ClickHouseResponse;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
-
-import java.math.BigInteger;
-import java.sql.*;
-import java.util.UUID;
 
 import static java.util.Collections.singletonList;
 
@@ -209,4 +214,17 @@ public class ClickHousePreparedStatementTest {
         ClickHouseResponse resp = sth.executeQueryClickhouseResponse();
         Assert.assertEquals(resp.getData(), singletonList(singletonList("314")));
     }
+
+    @Test
+    public void clickhouseJdbcFailsBecauseOfCommentInStart() throws Exception {
+        String sqlStatement = "/*comment*/ select * from system.numbers limit 3";
+        Statement stmt = connection.createStatement();
+        ResultSet rs = stmt.executeQuery(sqlStatement);
+        Assert.assertNotNull(rs);
+        for (int i = 0; i < 3; i++) {
+            rs.next();
+            Assert.assertEquals(rs.getInt(1), i);
+        }
+    }
+
 }
