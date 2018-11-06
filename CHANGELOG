@@ -1,3 +1,17 @@
+0.1.43
+  * fix determining statement type in presence of comments
+  * improved support for prepared statements, including batch inserts
+  * fix parameters copy
+  * support for writing UUIDs in binary stream
+  * removed joda-time dependency
+    migration node for users of ClickHouseRowBinaryStream:
+        manually calculate daysSinceEpoch and use method writeUInt16():
+            for joda-time: Days.daysBetween(LocalDate.parse("1970-01-01"), date).getDays()
+            for java 8: LocalDate.toEpochDay())
+        or use conversion to Date:
+            for joda-time: localDate.toDate()
+            for java 8: java.sql.Date.valueOf(LocalDate date)
+
 0.1.42
   * additional query params for executeBatch
   * query preprocessing optimization
