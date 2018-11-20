@@ -352,7 +352,7 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
                     } else {
                         appendBoundValue(sb, p++);
                     }
-                } else if (!"\\N".equals(pValue)) {
+                } else {
                     sb.append(pValue);
                 }
                 sb.append(j < pList.size() - 1 ? "\t" : "\n");
