@@ -240,7 +240,7 @@ public class PreparedStatementParserTest {
     public void testParseSelectStarParam() {
         PreparedStatementParser s = PreparedStatementParser.parse(
             "SELECT * FROM tbl WHERE t = ?");
-        assertMatchParts(new String[] {"SELECT * FROM tbl WHERE t = "}, s);
+        assertMatchParts(new String[] {"SELECT * FROM tbl WHERE t = ", ""}, s);
         assertMatchParams(new String[][] {{"?"}}, s);
     }
 
@@ -304,6 +304,24 @@ public class PreparedStatementParserTest {
         Assert.assertEquals(
             s.getParts().get(1),
             ")");
+    }
+
+    @Test
+    public void testParamLastCharacter() throws Exception {
+        PreparedStatementParser s = PreparedStatementParser.parse(
+            "SELECT * FROM decisions "
+          + "PREWHERE userID = ? "
+          + "AND eventDate >= toDate(?) "
+          + "AND eventDate <= toDate(?) "
+          + "ORDER BY time DESC LIMIT ?, ?");
+        assertMatchParams(new String[][] {{"?", "?", "?", "?", "?"}}, s);
+        Assert.assertEquals(s.getParts().size(), 6);
+        Assert.assertEquals(s.getParts().get(0), "SELECT * FROM decisions PREWHERE userID = ");
+        Assert.assertEquals(s.getParts().get(1), " AND eventDate >= toDate(");
+        Assert.assertEquals(s.getParts().get(2), ") AND eventDate <= toDate(");
+        Assert.assertEquals(s.getParts().get(3), ") ORDER BY time DESC LIMIT ");
+        Assert.assertEquals(s.getParts().get(4), ", ");
+        Assert.assertEquals(s.getParts().get(5), "");
     }
 
     private static void assertMatchParts(String[] expected, PreparedStatementParser stmt) {

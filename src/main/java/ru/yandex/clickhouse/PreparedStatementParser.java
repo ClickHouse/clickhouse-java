@@ -156,9 +156,7 @@ final class PreparedStatementParser  {
             parameters.add(currentParamList);
         }
         String lastPart = sql.substring(partStart, sql.length());
-        if (!StringUtils.isBlank(lastPart)) {
-            parts.add(lastPart);
-        }
+        parts.add(lastPart);
     }
 
     private static String typeTransformParameterValue(String paramValue) {
