@@ -352,7 +352,7 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
                     } else {
                         appendBoundValue(sb, p++);
                     }
-                } else {
+                } else if (!"\\N".equals(pValue)) {
                     sb.append(pValue);
                 }
                 sb.append(j < pList.size() - 1 ? "\t" : "\n");
@@ -378,11 +378,9 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
             );
         }
         int valuePosition = matcher.start();
-
         String insertSql = sql.substring(0, valuePosition);
         BatchHttpEntity entity = new BatchHttpEntity(batchRows);
         sendStream(entity, insertSql, additionalDBParams);
-
         int[] result = new int[batchRows.size()];
         Arrays.fill(result, 1);
         batchRows = new ArrayList<byte[]>();

@@ -198,6 +198,26 @@ public class ClickHousePreparedStatementTest {
     }
 
     @Test
+    public void testInsertBatchNullValues() throws Exception {
+        connection.createStatement().execute(
+            "DROP TABLE IF EXISTS test.prep_nullable_value");
+        connection.createStatement().execute(
+            "CREATE TABLE IF NOT EXISTS test.prep_nullable_value "
+          + "(s Nullable(String), i Nullable(Int32), f Nullable(Float32)) "
+          + "ENGINE = TinyLog"
+        );
+        PreparedStatement stmt = connection.prepareStatement(
+            "INSERT INTO test.prep_nullable_value (s, i, f) VALUES "
+          + "(?, NULL, ?), (NULL, NULL, ?)");
+        stmt.setString(1, "foo");
+        stmt.setFloat(2, 42.0F);
+        stmt.setInt(3, 42);
+        stmt.addBatch();
+        int[] updateCount = stmt.executeBatch();
+        Assert.assertEquals(updateCount.length, 2);
+    }
+
+    @Test
     public void testSelectDouble() throws SQLException {
         Statement select = connection.createStatement();
         ResultSet rs = select.executeQuery("select toFloat64(0.1) ");

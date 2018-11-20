@@ -169,6 +169,9 @@ final class PreparedStatementParser  {
         if (Boolean.FALSE.toString().equalsIgnoreCase(paramValue)) {
             return "0";
         }
+        if ("NULL".equalsIgnoreCase(paramValue)) {
+            return "\\N";
+        }
         return paramValue;
     }
 
