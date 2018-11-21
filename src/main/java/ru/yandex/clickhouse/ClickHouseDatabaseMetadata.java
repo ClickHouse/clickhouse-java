@@ -1308,12 +1308,10 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
         return iface.isAssignableFrom(getClass());
     }
 
-    @Override
     public ResultSet getPseudoColumns(String catalog, String schemaPattern, String tableNamePattern, String columnNamePattern) throws SQLException {
         return null;
     }
 
-    @Override
     public boolean generatedKeyAlwaysReturned() throws SQLException {
         return false;
     }
