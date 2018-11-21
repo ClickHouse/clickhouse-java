@@ -47,7 +47,7 @@ public class ClickHouseResultSetMetaData implements ResultSetMetaData {
 
     @Override
     public boolean isSigned(int column) throws SQLException {
-        return !columnTypeAt(column).startsWith("U");
+        return !TypeUtils.isUnsigned(columnTypeAt(column));
     }
 
     @Override

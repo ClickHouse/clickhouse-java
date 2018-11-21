@@ -36,4 +36,19 @@ public class ClickHouseResultSetMetaDataTest {
         Assert.assertEquals(resultSetMetaData.getColumnTypeName(1), "Float64");
     }
 
+    @Test
+    public void testIsNullableSigned() throws SQLException {
+        ClickHouseResultSet resultSet = mock(ClickHouseResultSet.class);
+        String[] types = new String[]{
+            "Nullable(Float64)",
+            "Nullable(UInt64)",
+            "Nullable(UFantasy)"};
+        when(resultSet.getTypes()).thenReturn(types);
+        ClickHouseResultSetMetaData resultSetMetaData = new ClickHouseResultSetMetaData(
+            resultSet);
+        Assert.assertTrue(resultSetMetaData.isSigned(1));
+        Assert.assertFalse(resultSetMetaData.isSigned(2));
+        Assert.assertTrue(resultSetMetaData.isSigned(3));
+    }
+
 }

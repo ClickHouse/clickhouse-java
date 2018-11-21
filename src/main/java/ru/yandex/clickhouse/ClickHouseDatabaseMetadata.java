@@ -1,15 +1,22 @@
 package ru.yandex.clickhouse;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import ru.yandex.clickhouse.response.ClickHouseResultBuilder;
-import ru.yandex.clickhouse.util.TypeUtils;
-
-import java.sql.*;
+import java.sql.Connection;
+import java.sql.DatabaseMetaData;
+import java.sql.ResultSet;
+import java.sql.RowIdLifetime;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.sql.Types;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Arrays;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import ru.yandex.clickhouse.response.ClickHouseResultBuilder;
+import ru.yandex.clickhouse.util.TypeUtils;
 
 import static ru.yandex.clickhouse.util.TypeUtils.NULLABLE_YES;
 
@@ -821,7 +828,7 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
             //data type
             row.add(Integer.toString(sqlType));
             //type name
-            row.add(type);
+            row.add(TypeUtils.unwrapNullableIfApplicable(type));
             // column size / precision
             row.add(Integer.toString(TypeUtils.getColumnSize(type)));
             //buffer length
@@ -1301,10 +1308,12 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
         return iface.isAssignableFrom(getClass());
     }
 
+    @Override
     public ResultSet getPseudoColumns(String catalog, String schemaPattern, String tableNamePattern, String columnNamePattern) throws SQLException {
         return null;
     }
 
+    @Override
     public boolean generatedKeyAlwaysReturned() throws SQLException {
         return false;
     }
