@@ -1,7 +1,9 @@
 package ru.yandex.clickhouse.util;
 
+import org.apache.http.Header;
 import org.apache.http.HeaderElement;
 import org.apache.http.HeaderElementIterator;
+import org.apache.http.HttpHeaders;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.config.ConnectionConfig;
@@ -13,12 +15,17 @@ import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
+import org.apache.http.message.BasicHeader;
 import org.apache.http.message.BasicHeaderElementIterator;
 import org.apache.http.protocol.HTTP;
 import org.apache.http.protocol.HttpContext;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
 import ru.yandex.clickhouse.util.ssl.NonValidatingTrustManager;
 
+import javax.net.ssl.KeyManager;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.TrustManagerFactory;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -32,12 +39,11 @@ import java.security.SecureRandom;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Iterator;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
-import javax.net.ssl.KeyManager;
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.TrustManager;
-import javax.net.ssl.TrustManagerFactory;
 
 
 
@@ -55,6 +61,7 @@ public class ClickHouseHttpClientBuilder {
                 .setKeepAliveStrategy(createKeepAliveStrategy())
                 .setDefaultConnectionConfig(getConnectionConfig())
                 .setDefaultRequestConfig(getRequestConfig())
+                .setDefaultHeaders(getDefaultHeaders())
                 .disableContentCompression() // gzip здесь ни к чему. Используется lz4 при compress=1
                 .build();
     }
@@ -95,6 +102,14 @@ public class ClickHouseHttpClientBuilder {
                 .setSocketTimeout(properties.getSocketTimeout())
                 .setConnectTimeout(properties.getConnectionTimeout())
                 .build();
+    }
+
+    private Collection<Header> getDefaultHeaders() {
+        List<Header> headers = new ArrayList<Header>();
+        if (properties.getHttpAuthorization() != null) {
+            headers.add(new BasicHeader(HttpHeaders.AUTHORIZATION, properties.getHttpAuthorization()));
+        }
+        return headers;
     }
 
     private ConnectionKeepAliveStrategy createKeepAliveStrategy() {

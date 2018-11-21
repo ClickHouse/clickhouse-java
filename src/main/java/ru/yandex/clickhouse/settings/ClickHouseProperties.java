@@ -37,10 +37,10 @@ public class ClickHouseProperties {
 
     // queries settings
     private Integer maxParallelReplicas;
-    private String totalsMode;
-    private String quotaKey;
+    private String  totalsMode;
+    private String  quotaKey;
     private Integer priority;
-    private String database;
+    private String  database;
     private boolean compress;
     private boolean decompress;
     private boolean extremes;
@@ -48,18 +48,19 @@ public class ClickHouseProperties {
     private Integer maxExecutionTime;
     private Integer maxBlockSize;
     private Integer maxRowsToGroupBy;
-    private String profile;
-    private String user;
-    private String password;
+    private String  profile;
+    private String  user;
+    private String  password;
+    private String  httpAuthorization;
     private boolean distributedAggregationMemoryEfficient;
-    private Long maxBytesBeforeExternalGroupBy;
-    private Long maxBytesBeforeExternalSort;
-    private Long maxMemoryUsage;
-    private Long preferredBlockSizeBytes;
-    private Long maxQuerySize;
+    private Long    maxBytesBeforeExternalGroupBy;
+    private Long    maxBytesBeforeExternalSort;
+    private Long    maxMemoryUsage;
+    private Long    preferredBlockSizeBytes;
+    private Long    maxQuerySize;
     private boolean sessionCheck;
-    private String sessionId;
-    private Long sessionTimeout;
+    private String  sessionId;
+    private Long    sessionTimeout;
 
     public ClickHouseProperties() {
         this(new Properties());
@@ -101,6 +102,7 @@ public class ClickHouseProperties {
         this.profile = getSetting(info, ClickHouseQueryParam.PROFILE);
         this.user = getSetting(info, ClickHouseQueryParam.USER);
         this.password = getSetting(info, ClickHouseQueryParam.PASSWORD);
+        this.httpAuthorization = getSetting(info, ClickHouseQueryParam.AUTHORIZATION);
         this.distributedAggregationMemoryEfficient = (Boolean)getSetting(info, ClickHouseQueryParam.DISTRIBUTED_AGGREGATION_MEMORY_EFFICIENT);
         this.maxBytesBeforeExternalGroupBy = (Long)getSetting(info, ClickHouseQueryParam.MAX_BYTES_BEFORE_EXTERNAL_GROUP_BY);
         this.maxBytesBeforeExternalSort = (Long)getSetting(info, ClickHouseQueryParam.MAX_BYTES_BEFORE_EXTERNAL_SORT);
@@ -148,6 +150,7 @@ public class ClickHouseProperties {
         ret.put(ClickHouseQueryParam.PROFILE.getKey(), profile);
         ret.put(ClickHouseQueryParam.USER.getKey(), user);
         ret.put(ClickHouseQueryParam.PASSWORD.getKey(), password);
+        ret.put(ClickHouseQueryParam.AUTHORIZATION.getKey(), httpAuthorization);
         ret.put(ClickHouseQueryParam.DISTRIBUTED_AGGREGATION_MEMORY_EFFICIENT.getKey(), String.valueOf(distributedAggregationMemoryEfficient));
         ret.put(ClickHouseQueryParam.MAX_BYTES_BEFORE_EXTERNAL_GROUP_BY.getKey(), maxBytesBeforeExternalGroupBy);
         ret.put(ClickHouseQueryParam.MAX_BYTES_BEFORE_EXTERNAL_SORT.getKey(), maxBytesBeforeExternalSort);
@@ -196,6 +199,7 @@ public class ClickHouseProperties {
         setProfile(properties.profile);
         setUser(properties.user);
         setPassword(properties.password);
+        setHttpAuthorization(properties.httpAuthorization);
         setDistributedAggregationMemoryEfficient(properties.distributedAggregationMemoryEfficient);
         setMaxBytesBeforeExternalGroupBy(properties.maxBytesBeforeExternalGroupBy);
         setMaxBytesBeforeExternalSort(properties.maxBytesBeforeExternalSort);
@@ -574,6 +578,14 @@ public class ClickHouseProperties {
 
     public void setPassword(String password) {
         this.password = password;
+    }
+
+    public String getHttpAuthorization() {
+        return httpAuthorization;
+    }
+
+    public void setHttpAuthorization(String httpAuthorization) {
+        this.httpAuthorization = httpAuthorization;
     }
 
     public String getHost() {
