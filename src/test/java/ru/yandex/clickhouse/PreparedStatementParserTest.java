@@ -307,6 +307,27 @@ public class PreparedStatementParserTest {
     }
 
     @Test
+    public void testNullValuesSelect() throws Exception {
+        PreparedStatementParser s = PreparedStatementParser.parse(
+            "SELECT 1 FROM foo WHERE bar IN (?, NULL)");
+        List<List<String>> params = s.getParameters();
+        Assert.assertEquals(params.size(), 1);
+        Assert.assertEquals(params.get(0).size(), 1);
+        Assert.assertEquals(params.get(0).get(0), "?");
+    }
+
+    @Test
+    public void testNullValuesInsert() throws Exception {
+        PreparedStatementParser s = PreparedStatementParser.parse(
+            "INSERT INTO test.prep_nullable_value (s, i, f) VALUES "
+          + "(?, NULL, ?), (NULL, null , ?)");
+        assertMatchParams(new String[][] {
+            {"?", "\\N", "?"},
+            {"\\N", "\\N", "?"}},
+            s);
+    }
+
+    @Test
     public void testParamLastCharacter() throws Exception {
         PreparedStatementParser s = PreparedStatementParser.parse(
             "SELECT * FROM decisions "

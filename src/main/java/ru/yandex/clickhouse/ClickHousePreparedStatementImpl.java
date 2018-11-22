@@ -378,11 +378,9 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
             );
         }
         int valuePosition = matcher.start();
-
         String insertSql = sql.substring(0, valuePosition);
         BatchHttpEntity entity = new BatchHttpEntity(batchRows);
         sendStream(entity, insertSql, additionalDBParams);
-
         int[] result = new int[batchRows.size()];
         Arrays.fill(result, 1);
         batchRows = new ArrayList<byte[]>();

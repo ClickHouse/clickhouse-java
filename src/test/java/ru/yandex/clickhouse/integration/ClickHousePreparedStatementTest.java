@@ -198,6 +198,38 @@ public class ClickHousePreparedStatementTest {
     }
 
     @Test
+    public void testInsertBatchNullValues() throws Exception {
+        connection.createStatement().execute(
+            "DROP TABLE IF EXISTS test.prep_nullable_value");
+        connection.createStatement().execute(
+            "CREATE TABLE IF NOT EXISTS test.prep_nullable_value "
+          + "(idx Int32, s Nullable(String), i Nullable(Int32), f Nullable(Float32)) "
+          + "ENGINE = TinyLog"
+        );
+        PreparedStatement stmt = connection.prepareStatement(
+            "INSERT INTO test.prep_nullable_value (idx, s, i, f) VALUES "
+          + "(1, ?, ?, NULL), (2, NULL, NULL, ?)");
+        stmt.setString(1, "foo");
+        stmt.setInt(2, 42);
+        stmt.setFloat(3, 42.0F);
+        stmt.addBatch();
+        int[] updateCount = stmt.executeBatch();
+        Assert.assertEquals(updateCount.length, 2);
+
+        ResultSet rs = connection.createStatement().executeQuery(
+            "SELECT s, i, f FROM test.prep_nullable_value "
+          + "ORDER BY idx ASC");
+        rs.next();
+        Assert.assertEquals(rs.getString(1), "foo");
+        Assert.assertEquals(rs.getInt(2), 42);
+        Assert.assertNull(rs.getObject(3));
+        rs.next();
+        Assert.assertNull(rs.getObject(1));
+        Assert.assertNull(rs.getObject(2));
+        Assert.assertEquals(rs.getFloat(3), 42.0f);
+    }
+
+    @Test
     public void testSelectDouble() throws SQLException {
         Statement select = connection.createStatement();
         ResultSet rs = select.executeQuery("select toFloat64(0.1) ");
