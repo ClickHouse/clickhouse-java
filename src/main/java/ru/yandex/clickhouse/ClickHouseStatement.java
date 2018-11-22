@@ -30,9 +30,15 @@ public interface ClickHouseStatement extends Statement {
                            List<ClickHouseExternalData> externalData,
                            Map<String, String> additionalRequestParams) throws SQLException;
 
+    void sendStream(InputStream content, String table, Map<ClickHouseQueryParam, String> additionalDBParams) throws SQLException;
+
     void sendStream(InputStream content, String table) throws SQLException;
+
+    void sendRowBinaryStream(String sql, Map<ClickHouseQueryParam, String> additionalDBParams, ClickHouseStreamCallback callback) throws SQLException;
 
     void sendRowBinaryStream(String sql, ClickHouseStreamCallback callback) throws SQLException;
 
+    void sendNativeStream(String sql, Map<ClickHouseQueryParam, String> additionalDBParams, ClickHouseStreamCallback callback) throws SQLException;
+    
     void sendNativeStream(String sql, ClickHouseStreamCallback callback) throws SQLException;
 }

@@ -683,22 +683,37 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
 
     @Override
     public void sendRowBinaryStream(String sql, ClickHouseStreamCallback callback) throws SQLException {
+        sendRowBinaryStream(sql, null, callback);
+    }
+
+    @Override
+    public void sendRowBinaryStream(String sql, Map<ClickHouseQueryParam, String> additionalDBParams, ClickHouseStreamCallback callback) throws SQLException {
         sendStream(
-            new ClickHouseStreamHttpEntity(callback, getConnection().getTimeZone(), properties), sql, ClickHouseFormat.RowBinary, null
+                new ClickHouseStreamHttpEntity(callback, getConnection().getTimeZone(), properties), sql, ClickHouseFormat.RowBinary, additionalDBParams
         );
     }
 
     @Override
     public void sendNativeStream(String sql, ClickHouseStreamCallback callback) throws SQLException {
+        sendNativeStream(sql, null, callback);
+    }
+
+    @Override
+    public void sendNativeStream(String sql, Map<ClickHouseQueryParam, String> additionalDBParams, ClickHouseStreamCallback callback) throws SQLException {
         sendStream(
-            new ClickHouseStreamHttpEntity(callback, getConnection().getTimeZone(), properties), sql, ClickHouseFormat.Native, null
+                new ClickHouseStreamHttpEntity(callback, getConnection().getTimeZone(), properties), sql, ClickHouseFormat.Native, additionalDBParams
         );
     }
 
     @Override
     public void sendStream(InputStream content, String table) throws ClickHouseException {
+        sendStream(content, table, null);
+    }
+
+    @Override
+    public void sendStream(InputStream content, String table, Map<ClickHouseQueryParam, String> additionalDBParams) throws ClickHouseException {
         String query = "INSERT INTO " + table;
-        sendStream(new InputStreamEntity(content, -1), query, null, null);
+        sendStream(new InputStreamEntity(content, -1), query, null, additionalDBParams);
     }
 
     public void sendStream(HttpEntity content, String sql) throws ClickHouseException {
