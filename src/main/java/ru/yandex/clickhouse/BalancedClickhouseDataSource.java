@@ -8,7 +8,11 @@ import java.io.PrintWriter;
 import java.net.URISyntaxException;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Properties;
+import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
 import java.util.regex.Matcher;
@@ -31,8 +35,8 @@ public class BalancedClickhouseDataSource implements DataSource {
     private int loginTimeoutSeconds = 0;
 
     private final Random random = new Random(System.currentTimeMillis());
-    private volatile List<String> disabledUrls = new ArrayList<String>();
-    private volatile List<String> enabledUrls = new ArrayList<String>();
+    private final List<String> allUrls;
+    private volatile List<String> enabledUrls;
 
     private final ClickHouseProperties properties;
     private final ClickHouseDriver driver = new ClickHouseDriver();
@@ -95,11 +99,11 @@ public class BalancedClickhouseDataSource implements DataSource {
         }
 
 
-        List<String> enabledUrlList = new ArrayList<String>(urls.size());
+        List<String> allUrls = new ArrayList<String>(urls.size());
         for (final String url : urls) {
             try {
                 if (driver.acceptsURL(url)) {
-                    enabledUrlList.add(url);
+                    allUrls.add(url);
                 } else {
                     log.error("that url is has not correct format: {}", url);
                 }
@@ -108,11 +112,12 @@ public class BalancedClickhouseDataSource implements DataSource {
             }
         }
 
-        if (enabledUrlList.isEmpty()) {
+        if (allUrls.isEmpty()) {
             throw new IllegalArgumentException("there are no correct urls");
         }
 
-        this.enabledUrls = enabledUrlList;
+        this.allUrls = Collections.unmodifiableList(allUrls);
+        this.enabledUrls = this.allUrls;
     }
 
     static List<String> splitUrl(final String url) {
@@ -144,34 +149,28 @@ public class BalancedClickhouseDataSource implements DataSource {
 
     /**
      * Checks if clickhouse on url is alive, if it isn't, disable url, else enable.
-     * This method is not {@code thread-safe}, but it is invoked from single thread and all are ok.
+     *
+     * @return number of avaliable clickhouse urls
      */
-    void actualize() {
-        int countOfUrls = enabledUrls.size() + disabledUrls.size();
-        List<String> urls = new ArrayList<String>(countOfUrls);
-        urls.addAll(enabledUrls);
-        urls.addAll(disabledUrls);
+    public synchronized int actualize() {
+        List<String> enabledUrls = new ArrayList<String>(allUrls.size());
 
-        List<String> enabledUrlList = new ArrayList<String>(countOfUrls);
-        List<String> disabledUrlList = new ArrayList<String>(countOfUrls);
-
-        for (String url : urls) {
+        for (String url : allUrls) {
             log.debug("Pinging disabled url: {}", url);
             if (ping(url)) {
                 log.debug("Url is alive now: {}", url);
-                enabledUrlList.add(url);
+                enabledUrls.add(url);
             } else {
                 log.debug("Url is dead now: {}", url);
-                disabledUrlList.add(url);
             }
         }
 
-        this.enabledUrls = enabledUrlList;
-        this.disabledUrls = disabledUrlList;
+        this.enabledUrls = Collections.unmodifiableList(enabledUrls);
+        return enabledUrls.size();
     }
 
 
-    private String getAnyUrl() throws SQLException{
+    private String getAnyUrl() throws SQLException {
         List<String> localEnabledUrls = enabledUrls;
         if (localEnabledUrls.isEmpty()) {
             throw new SQLException("Unable to get connection: there are no enabled urls");
@@ -272,12 +271,12 @@ public class BalancedClickhouseDataSource implements DataSource {
     /**
      * set time period for checking availability connections
      *
-     * @param rate     value for time unit
+     * @param delay    value for time unit
      * @param timeUnit time unit for checking
      * @return this datasource with changed settings
      */
-    public BalancedClickhouseDataSource scheduleActualization(int rate, TimeUnit timeUnit) {
-        ClickHouseDriver.ScheduledConnectionCleaner.INSTANCE.scheduleAtFixedRate(new Runnable() {
+    public BalancedClickhouseDataSource scheduleActualization(int delay, TimeUnit timeUnit) {
+        ClickHouseDriver.ScheduledConnectionCleaner.INSTANCE.scheduleWithFixedDelay(new Runnable() {
             @Override
             public void run() {
                 try {
@@ -286,8 +285,30 @@ public class BalancedClickhouseDataSource implements DataSource {
                     log.error("Unable to actualize urls", e);
                 }
             }
-        }, 0, rate, timeUnit);
+        }, 0, delay, timeUnit);
 
         return this;
+    }
+
+    public List<String> getAllClickhouseUrls() {
+        return allUrls;
+    }
+
+    public List<String> getEnabledClickHouseUrls() {
+        return enabledUrls;
+    }
+
+    public List<String> getDisabledUrls() {
+        List<String> enabledUrls = this.enabledUrls;
+        if (!hasDisabledUrls()) {
+            return Collections.emptyList();
+        }
+        List<String> disabledUrls = new ArrayList<String>(allUrls);
+        disabledUrls.removeAll(enabledUrls);
+        return disabledUrls;
+    }
+
+    public boolean hasDisabledUrls() {
+        return allUrls.size() != enabledUrls.size();
     }
 }
