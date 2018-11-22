@@ -299,11 +299,15 @@ public class BalancedClickhouseDataSource implements DataSource {
 
     public List<String> getDisabledUrls() {
         List<String> enabledUrls = this.enabledUrls;
-        if (allUrls.size() == enabledUrls.size()) {
+        if (!hasDisabledUrls()) {
             return Collections.emptyList();
         }
         List<String> disabledUrls = new ArrayList<String>(allUrls);
         disabledUrls.removeAll(enabledUrls);
         return disabledUrls;
+    }
+
+    public boolean hasDisabledUrls() {
+        return allUrls.size() != enabledUrls.size();
     }
 }
