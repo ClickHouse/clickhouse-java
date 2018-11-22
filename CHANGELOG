@@ -1,3 +1,10 @@
+0.1.44
+  * add public methods to BalancedClickhouseDataSource
+  * TYPE_NAME without Nullable
+  * sendRowBinaryStream with additional parameters
+  * support constant NULL values in prepared statements
+  * fix parsing parameter at last position of statement
+
 0.1.43
   * fix determining statement type in presence of comments
   * improved support for prepared statements, including batch inserts
