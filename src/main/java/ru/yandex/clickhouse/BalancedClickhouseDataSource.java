@@ -117,6 +117,7 @@ public class BalancedClickhouseDataSource implements DataSource {
         }
 
         this.allUrls = Collections.unmodifiableList(allUrls);
+        this.enabledUrls = this.allUrls;
     }
 
     static List<String> splitUrl(final String url) {
