@@ -137,22 +137,30 @@ public class ClickHouseHttpClientBuilder {
 
   private SSLContext getSSLContext()
       throws CertificateException, NoSuchAlgorithmException, KeyStoreException, IOException, KeyManagementException {
-      TrustManager[] tms;
+      SSLContext ctx = SSLContext.getInstance("TLS");
+      TrustManager[] tms = null;
+      KeyManager[] kms = null;
+      SecureRandom sr = null;
+
       if(properties.getSslMode().equals("none")) {
           tms = new TrustManager[]{new NonValidatingTrustManager()};
-      } else if (properties.getSslMode().equals("strict")){
-        TrustManagerFactory tmf = TrustManagerFactory
-            .getInstance(TrustManagerFactory.getDefaultAlgorithm());
+          kms = new KeyManager[]{};
+          sr = new SecureRandom();
+      } else if (properties.getSslMode().equals("strict")) {
+          if (!properties.getSslRootCertificate().isEmpty()) {
+              TrustManagerFactory tmf = TrustManagerFactory
+                  .getInstance(TrustManagerFactory.getDefaultAlgorithm());
 
-        tmf.init(getKeyStore());
-        tms = tmf.getTrustManagers();
+              tmf.init(getKeyStore());
+              tms = tmf.getTrustManagers();
+              kms = new KeyManager[]{};
+              sr = new SecureRandom();
+          }
       } else {
           throw new IllegalArgumentException("unknown ssl mode '"+ properties.getSslMode() +"'");
       }
 
-      SSLContext ctx = SSLContext.getInstance("TLS");
-      ctx.init(new KeyManager[]{}, tms, new SecureRandom());
-
+      ctx.init(kms, tms, sr);
       return ctx;
   }
 
