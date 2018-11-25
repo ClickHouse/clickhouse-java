@@ -239,8 +239,7 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
 
     @Override
     public void setTime(int parameterIndex, Time x) throws SQLException {
-        throw new SQLFeatureNotSupportedException();
-        //        setBind(parameterIndex, "toDateTime('" + dateTimeFormat.format(x) + "')");
+        setBind(parameterIndex, dateTimeFormat.format(x), true);
     }
 
     @Override

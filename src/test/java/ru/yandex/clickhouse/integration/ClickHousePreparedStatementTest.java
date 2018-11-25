@@ -6,6 +6,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.sql.Time;
 import java.sql.Types;
 import java.util.UUID;
 
@@ -268,6 +269,16 @@ public class ClickHousePreparedStatementTest {
         stmt.setInt(1, 42);
         stmt.setInt(2, 23);
         ResultSet rs = stmt.executeQuery();
+    }
+
+    @Test
+    public void testSetTime() throws Exception {
+        ClickHousePreparedStatement stmt = (ClickHousePreparedStatement)
+            connection.prepareStatement("SELECT toDateTime(?)");
+        stmt.setTime(1, Time.valueOf("13:37:42"));
+        ResultSet rs = stmt.executeQuery();
+        rs.next();
+        Assert.assertEquals(rs.getTime(1), Time.valueOf("13:37:42"));
     }
 
 }
