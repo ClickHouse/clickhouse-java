@@ -1,3 +1,8 @@
+0.1.45
+  * added shaded version of the jar
+  * http authorization header
+  * setTime implementation
+
 0.1.44
   * add public methods to BalancedClickhouseDataSource
   * TYPE_NAME without Nullable
