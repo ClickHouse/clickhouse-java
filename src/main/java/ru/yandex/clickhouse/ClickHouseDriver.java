@@ -54,7 +54,7 @@ public class ClickHouseDriver implements Driver {
         if (!acceptsURL(url)) {
             return null;
         }
-        logger.info("Creating connection");
+        logger.debug("Creating connection");
         ClickHouseConnectionImpl connection = new ClickHouseConnectionImpl(url, properties);
         registerConnection(connection);
         return LogProxy.wrap(ClickHouseConnection.class, connection);

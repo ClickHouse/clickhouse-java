@@ -1,5 +1,15 @@
 package ru.yandex.clickhouse.integration;
 
+import java.math.BigInteger;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.sql.Time;
+import java.sql.Types;
+import java.util.UUID;
+
 import org.testng.Assert;
 import org.testng.annotations.AfterTest;
 import org.testng.annotations.BeforeTest;
@@ -10,9 +20,6 @@ import ru.yandex.clickhouse.ClickHouseDataSource;
 import ru.yandex.clickhouse.ClickHousePreparedStatement;
 import ru.yandex.clickhouse.response.ClickHouseResponse;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
-
-import java.math.BigInteger;
-import java.sql.*;
 
 import static java.util.Collections.singletonList;
 
@@ -80,6 +87,28 @@ public class ClickHousePreparedStatementTest {
         Object bigUInt64 = rs.getObject(2);
         Assert.assertTrue(bigUInt64 instanceof BigInteger);
         Assert.assertEquals(bigUInt64, new BigInteger("18446744073709551606"));
+    }
+
+
+    @Test
+    public void testInsertUUID() throws SQLException {
+        connection.createStatement().execute("DROP TABLE IF EXISTS test.uuid_insert");
+        connection.createStatement().execute(
+                "CREATE TABLE IF NOT EXISTS test.uuid_insert (ui32 UInt32, uuid UUID) ENGINE = TinyLog"
+        );
+        PreparedStatement stmt = connection.prepareStatement("insert into test.uuid_insert (ui32, uuid) values (?, ?)");
+        stmt.setObject(1, 4294967286L);
+        stmt.setObject(2, UUID.fromString("bef35f40-3b03-45b0-b1bd-8ec6593dcaaa"));
+        stmt.execute();
+        Statement select = connection.createStatement();
+        ResultSet rs = select.executeQuery("select ui32, uuid from test.uuid_insert");
+        rs.next();
+        Object bigUInt32 = rs.getObject(1);
+        Assert.assertTrue(bigUInt32 instanceof Long);
+        Assert.assertEquals(((Long)bigUInt32).longValue(), 4294967286L);
+        Object uuid = rs.getObject(2);
+        Assert.assertTrue(uuid instanceof UUID);
+        Assert.assertEquals(uuid, UUID.fromString("bef35f40-3b03-45b0-b1bd-8ec6593dcaaa"));
     }
 
     @Test
@@ -170,6 +199,38 @@ public class ClickHousePreparedStatementTest {
     }
 
     @Test
+    public void testInsertBatchNullValues() throws Exception {
+        connection.createStatement().execute(
+            "DROP TABLE IF EXISTS test.prep_nullable_value");
+        connection.createStatement().execute(
+            "CREATE TABLE IF NOT EXISTS test.prep_nullable_value "
+          + "(idx Int32, s Nullable(String), i Nullable(Int32), f Nullable(Float32)) "
+          + "ENGINE = TinyLog"
+        );
+        PreparedStatement stmt = connection.prepareStatement(
+            "INSERT INTO test.prep_nullable_value (idx, s, i, f) VALUES "
+          + "(1, ?, ?, NULL), (2, NULL, NULL, ?)");
+        stmt.setString(1, "foo");
+        stmt.setInt(2, 42);
+        stmt.setFloat(3, 42.0F);
+        stmt.addBatch();
+        int[] updateCount = stmt.executeBatch();
+        Assert.assertEquals(updateCount.length, 2);
+
+        ResultSet rs = connection.createStatement().executeQuery(
+            "SELECT s, i, f FROM test.prep_nullable_value "
+          + "ORDER BY idx ASC");
+        rs.next();
+        Assert.assertEquals(rs.getString(1), "foo");
+        Assert.assertEquals(rs.getInt(2), 42);
+        Assert.assertNull(rs.getObject(3));
+        rs.next();
+        Assert.assertNull(rs.getObject(1));
+        Assert.assertNull(rs.getObject(2));
+        Assert.assertEquals(rs.getFloat(3), 42.0f);
+    }
+
+    @Test
     public void testSelectDouble() throws SQLException {
         Statement select = connection.createStatement();
         ResultSet rs = select.executeQuery("select toFloat64(0.1) ");
@@ -186,4 +247,38 @@ public class ClickHousePreparedStatementTest {
         ClickHouseResponse resp = sth.executeQueryClickhouseResponse();
         Assert.assertEquals(resp.getData(), singletonList(singletonList("314")));
     }
+
+    @Test
+    public void clickhouseJdbcFailsBecauseOfCommentInStart() throws Exception {
+        String sqlStatement = "/*comment*/ select * from system.numbers limit 3";
+        Statement stmt = connection.createStatement();
+        ResultSet rs = stmt.executeQuery(sqlStatement);
+        Assert.assertNotNull(rs);
+        for (int i = 0; i < 3; i++) {
+            rs.next();
+            Assert.assertEquals(rs.getInt(1), i);
+        }
+    }
+
+    @Test
+    public void testTrailingParameter() throws Exception {
+        String sqlStatement =
+            "SELECT 42 AS foo, 23 AS bar "
+          + "ORDER BY foo DESC LIMIT ?, ?";
+        PreparedStatement stmt = connection.prepareStatement(sqlStatement);
+        stmt.setInt(1, 42);
+        stmt.setInt(2, 23);
+        ResultSet rs = stmt.executeQuery();
+    }
+
+    @Test
+    public void testSetTime() throws Exception {
+        ClickHousePreparedStatement stmt = (ClickHousePreparedStatement)
+            connection.prepareStatement("SELECT toDateTime(?)");
+        stmt.setTime(1, Time.valueOf("13:37:42"));
+        ResultSet rs = stmt.executeQuery();
+        rs.next();
+        Assert.assertEquals(rs.getTime(1), Time.valueOf("13:37:42"));
+    }
+
 }

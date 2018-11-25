@@ -23,16 +23,39 @@ public class TypeUtils {
         if (clickshouseType.startsWith("Int") || clickshouseType.startsWith("UInt")) {
             return clickshouseType.endsWith("64") ? Types.BIGINT : Types.INTEGER;
         }
-        if ("String".equals(clickshouseType)) return Types.VARCHAR;
-        if (clickshouseType.startsWith("Float32")) return Types.FLOAT;
-        if (clickshouseType.startsWith("Float64")) return Types.DOUBLE;
-        if ("Date".equals(clickshouseType)) return Types.DATE;
-        if ("DateTime".equals(clickshouseType)) return Types.TIMESTAMP;
-        if ("FixedString".equals(clickshouseType)) return Types.BLOB;
-        if (isArray(clickshouseType)) return Types.ARRAY;
+        if ("String".equals(clickshouseType)) {
+            return Types.VARCHAR;
+        }
+        if (clickshouseType.startsWith("Float32")) {
+            return Types.FLOAT;
+        }
+        if (clickshouseType.startsWith("Float64")) {
+            return Types.DOUBLE;
+        }
+        if ("Date".equals(clickshouseType)) {
+            return Types.DATE;
+        }
+        if ("DateTime".equals(clickshouseType)) {
+            return Types.TIMESTAMP;
+        }
+        if ("FixedString".equals(clickshouseType)) {
+            return Types.BLOB;
+        }
+        if (isArray(clickshouseType)) {
+            return Types.ARRAY;
+        }
+        if ("UUID".equals(clickshouseType)) {
+            return Types.OTHER;
+        }
 
         // don't know what to return actually
         return Types.VARCHAR;
+    }
+
+    public static String unwrapNullableIfApplicable(String clickhouseType) {
+        return isNullable(clickhouseType)
+            ? unwrapNullable(clickhouseType)
+            : clickhouseType;
     }
 
     private static String unwrapNullable(String clickshouseType) {
@@ -82,10 +105,14 @@ public class TypeUtils {
             case Types.TINYINT:
             case Types.SMALLINT:
             case Types.INTEGER:
-                if (isUnsigned) return Long.class;
+                if (isUnsigned) {
+                    return Long.class;
+                }
                 return Integer.class;
             case Types.BIGINT:
-                if (isUnsigned) return BigInteger.class;
+                if (isUnsigned) {
+                    return BigInteger.class;
+                }
                 return Long.class;
             case Types.DOUBLE:
                 return Double.class;

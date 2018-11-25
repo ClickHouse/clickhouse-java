@@ -2,8 +2,6 @@ package ru.yandex.clickhouse.integration;
 
 import com.google.common.primitives.UnsignedLong;
 import com.google.common.primitives.UnsignedLongs;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 import org.testng.Assert;
 import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
@@ -17,6 +15,8 @@ import ru.yandex.clickhouse.util.ClickHouseStreamCallback;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.sql.*;
+import java.util.UUID;
+import java.util.Calendar;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -64,7 +64,8 @@ public class RowBinaryStreamTest {
                         "int64Array Array(Int64), " +
                         "uInt64Array Array(UInt64), " +
                         "float32Array Array(Float32), " +
-                        "float64Array Array(Float64) " +
+                        "float64Array Array(Float64), " +
+                        "uuid UUID" +
                         ") ENGINE = MergeTree(date, (date), 8192)"
         );
     }
@@ -121,10 +122,12 @@ public class RowBinaryStreamTest {
         final long[] uint64s1 = {0};
         final float[] float32s1 = {Float.MIN_VALUE};
         final double[] float64s1 = {Double.MIN_VALUE};
+        final UUID uuid1 = UUID.fromString("123e4567-e89b-12d3-a456-426655440000");
+        final UUID uuid2 = UUID.fromString("789e0123-e89b-12d3-a456-426655444444");
 
         statement.sendRowBinaryStream(
                 "INSERT INTO test.raw_binary " +
-                        "(date, dateTime, string, int8, uInt8, int16, uInt16, int32, uInt32, int64, uInt64, float32, float64, dateArray, dateTimeArray, stringArray, int8Array, uInt8Array, int16Array, uInt16Array, int32Array, uInt32Array, int64Array, uInt64Array, float32Array, float64Array)",
+                        "(date, dateTime, string, int8, uInt8, int16, uInt16, int32, uInt32, int64, uInt64, float32, float64, dateArray, dateTimeArray, stringArray, int8Array, uInt8Array, int16Array, uInt16Array, int32Array, uInt32Array, int64Array, uInt64Array, float32Array, float64Array, uuid)",
                 new ClickHouseStreamCallback() {
                     @Override
                     public void writeTo(ClickHouseRowBinaryStream stream) throws IOException {
@@ -155,6 +158,7 @@ public class RowBinaryStreamTest {
                         stream.writeUInt64Array(uint64s1);
                         stream.writeFloat32Array(float32s1);
                         stream.writeFloat64Array(float64s1);
+                        stream.writeUUID(uuid1);
 
                         stream.writeDate(date2);
                         stream.writeDateTime(date2);
@@ -182,6 +186,7 @@ public class RowBinaryStreamTest {
                         stream.writeUInt64Array(new long[]{});
                         stream.writeFloat32Array(new float[]{});
                         stream.writeFloat64Array(new double[]{});
+                        stream.writeUUID(uuid2);
                     }
                 }
         );
@@ -202,14 +207,13 @@ public class RowBinaryStreamTest {
         Assert.assertEquals(rs.getLong("uInt64"), 0);
         Assert.assertEquals(rs.getDouble("float32"), 123.456);
         Assert.assertEquals(rs.getDouble("float64"), 42.21);
+        Assert.assertEquals(rs.getObject("uuid").toString(), "123e4567-e89b-12d3-a456-426655440000");
 
         final Date[] dateArray = (Date[]) rs.getArray("dateArray").getArray();
         Assert.assertEquals(dateArray.length, dates1.length);
         for (int i = 0; i < dateArray.length; i++) {
             // expected is Date at start of the day in local timezone
-            DateTime dt = new DateTime(dates1[i].getTime())
-                    .withTimeAtStartOfDay();
-            Date expected = new Date(dt.toDate().getTime());
+            Date expected = withTimeAtStartOfDay(dates1[i]);
             Assert.assertEquals(dateArray[i], expected);
         }
         final Timestamp[] dateTimeArray = (Timestamp[]) rs.getArray("dateTimeArray").getArray();
@@ -287,6 +291,7 @@ public class RowBinaryStreamTest {
         Assert.assertEquals(rs.getString("uInt64"), "18446744073709551615");
         Assert.assertEquals(rs.getDouble("float32"), 21.21);
         Assert.assertEquals(rs.getDouble("float64"), 77.77);
+        Assert.assertEquals(rs.getString("uuid"), "789e0123-e89b-12d3-a456-426655444444");
 
         Assert.assertFalse(rs.next());
     }
@@ -319,10 +324,17 @@ public class RowBinaryStreamTest {
 
         Assert.assertTrue(rs.next());
         Assert.assertEquals(rs.getTime("dateTime"), new Time(date1.getTime()));
-        DateTime dt = new DateTime(date1.getTime())
-                .withTimeAtStartOfDay();
-        Date expectedDate = new Date(dt.toDate().getTime()); // expected start of the day in local timezone
+        Date expectedDate = withTimeAtStartOfDay(date1); // expected start of the day in local timezone
         Assert.assertEquals(rs.getDate("date"), expectedDate);
     }
 
+    private static Date withTimeAtStartOfDay(Date date) {
+        Calendar cal = Calendar.getInstance();
+        cal.setTime(date);
+        cal.set(Calendar.HOUR_OF_DAY, 0);
+        cal.set(Calendar.MINUTE, 0);
+        cal.set(Calendar.SECOND, 0);
+        cal.set(Calendar.MILLISECOND, 0);
+        return new Date(cal.getTimeInMillis());
+    }
 }

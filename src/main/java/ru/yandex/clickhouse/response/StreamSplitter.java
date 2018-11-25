@@ -27,6 +27,8 @@ public class StreamSplitter {
 
     private boolean readOnce;
 
+    private boolean closed;
+
 
     public StreamSplitter(ByteFragment bf, byte sep) {
         this.delegate = bf.asStream();
@@ -121,7 +123,12 @@ public class StreamSplitter {
      }
 
     public void close() throws IOException {
+        closed = true;
         delegate.close();
+    }
+
+    public boolean isClosed() throws IOException {
+        return closed;
     }
 
     @Override

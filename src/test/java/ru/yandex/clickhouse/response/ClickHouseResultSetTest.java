@@ -256,4 +256,23 @@ public class ClickHouseResultSetTest {
         rs.getTotals();
         assertNull(rs.getString(1));
     }
+
+    @Test
+    public void testIsLast() throws Exception {
+        String response =
+                "SiteName\tcount()\n" +
+                        "String\tUInt64\n" +
+                        "hello.com\t21209048\n" +
+                        "there.com\t49302091\n";
+
+        ByteArrayInputStream is = new ByteArrayInputStream(response.getBytes("UTF-8"));
+
+        ResultSet rs = new ClickHouseResultSet(is, 1024, "db", "table", false, null, null, props);
+        
+        rs.next();
+        assertFalse(rs.isLast());
+        rs.next();
+        assertTrue(rs.isLast());
+        assertFalse(rs.next());
+    }
 }

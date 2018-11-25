@@ -102,7 +102,7 @@ public class ClickHouseArrayUtil {
 
 
     public static String toString(Object[] values) {
-        if (values.length > 0 && (values[0].getClass().isArray() || values[0] instanceof Collection)) {
+        if (values.length > 0 && values[0] != null && (values[0].getClass().isArray() || values[0] instanceof Collection)) {
             // quote is false to avoid escaping inner '['
             ArrayBuilder builder = new ArrayBuilder(false);
             for (Object value : values) {
@@ -127,7 +127,14 @@ public class ClickHouseArrayUtil {
     }
 
     private static boolean needQuote(Object[] objects) {
-        return objects.length == 0 || !(objects[0] instanceof Number);
+        Object o = null;
+            for (Object u : objects) {
+                if (u != null) {
+                    o = u;
+                    break;
+                }
+            }
+        return objects.length == 0 || !(o instanceof Number);
     }
 
     private static class ArrayBuilder {
@@ -142,22 +149,26 @@ public class ClickHouseArrayUtil {
         }
 
         private ArrayBuilder append(Object value) {
-            String serializedValue = value.toString();
-            if (quote) {
+            String serializedValue = null;
+            boolean nullValue = true;
+            if (value != null) {
+                serializedValue = value.toString();
+                nullValue = false;
+            }
+            if (quote || nullValue) {
                 serializedValue = ClickHouseUtil.escape(serializedValue);
             }
-
             if (built) {
                 throw new IllegalStateException("Already built");
             }
             if (size > 0) {
                 builder.append(',');
             }
-            if (quote) {
+            if (quote && !nullValue) {
                 builder.append('\'');
             }
             builder.append(serializedValue);
-            if (quote) {
+            if (quote  && !nullValue) {
                 builder.append('\'');
             }
             size++;

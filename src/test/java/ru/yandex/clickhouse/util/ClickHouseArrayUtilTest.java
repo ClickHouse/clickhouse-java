@@ -137,5 +137,41 @@ public class ClickHouseArrayUtilTest {
             ClickHouseArrayUtil.toString(arrayOfArrays),
             "[['a','b'],['c','d']]"
         );
+
+        Assert.assertEquals(
+            ClickHouseArrayUtil.toString(new ArrayList<Object>(Arrays.asList(21, null))),
+            "[21,\\N]"
+        );
+
+        Assert.assertEquals(
+            ClickHouseArrayUtil.toString(new ArrayList<Object>(Arrays.asList(null, 42))),
+            "[\\N,42]"
+        );
+
+        Assert.assertEquals(
+            ClickHouseArrayUtil.toString(new ArrayList<Object>(Arrays.asList("a", null))),
+            "['a',\\N]"
+        );
+
+        Assert.assertEquals(
+            ClickHouseArrayUtil.toString(new ArrayList<Object>(Arrays.asList(null, "b"))),
+            "[\\N,'b']"
+        );
+
+        arrayOfArrays = new ArrayList<Object>();
+        arrayOfArrays.add(new ArrayList<Object>(Arrays.asList(null, 'b')));
+        arrayOfArrays.add(new ArrayList<Object>(Arrays.asList('c', 'd')));
+        Assert.assertEquals(
+            ClickHouseArrayUtil.toString(arrayOfArrays),
+            "[[\\N,'b'],['c','d']]"
+        );
+
+        arrayOfArrays = new ArrayList<Object>();
+        arrayOfArrays.add(new ArrayList<Object>(Arrays.asList(null, 'b')));
+        arrayOfArrays.add(new ArrayList<Object>(Arrays.asList('c', null)));
+        Assert.assertEquals(
+            ClickHouseArrayUtil.toString(arrayOfArrays),
+            "[[\\N,'b'],['c',\\N]]"
+        );
     }
 }

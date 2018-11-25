@@ -12,6 +12,8 @@ public enum ClickHouseQueryParam implements DriverPropertyCreator {
 
     BACKGROUND_POOL_SIZE("background_pool_size", null, Long.class, ""),
 
+    AUTHORIZATION("authorization", null, String.class, "Authorization header content for HTTP transport"),
+
     COMPILE("compile", false, Boolean.class, ""),
 
     COMPRESS("compress", true, Boolean.class, "whether to compress transferred data or not"),

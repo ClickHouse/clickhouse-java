@@ -1,8 +1,10 @@
 package ru.yandex.clickhouse.response;
 
-import ru.yandex.clickhouse.util.TypeUtils;
+import java.sql.ResultSetMetaData;
+import java.sql.SQLException;
+import java.sql.Types;
 
-import java.sql.*;
+import ru.yandex.clickhouse.util.TypeUtils;
 
 
 public class ClickHouseResultSetMetaData implements ResultSetMetaData {
@@ -40,12 +42,12 @@ public class ClickHouseResultSetMetaData implements ResultSetMetaData {
 
     @Override
     public int isNullable(int column) throws SQLException {
-        return columnNoNulls;
+        return columnTypeAt(column).startsWith("Nullable(") ? columnNullable : columnNoNulls;
     }
 
     @Override
     public boolean isSigned(int column) throws SQLException {
-        return !resultSet.getTypes()[column - 1].startsWith("U");
+        return !TypeUtils.isUnsigned(columnTypeAt(column));
     }
 
     @Override
@@ -90,7 +92,7 @@ public class ClickHouseResultSetMetaData implements ResultSetMetaData {
 
     @Override
     public int getColumnType(int column) throws SQLException {
-        return TypeUtils.toSqlType(getColumnTypeName(column));
+        return TypeUtils.toSqlType(columnTypeAt(column));
     }
 
     @Override
@@ -98,7 +100,7 @@ public class ClickHouseResultSetMetaData implements ResultSetMetaData {
         if (resultSet.getTypes().length < column) {
             throw new ArrayIndexOutOfBoundsException("Array length: " + resultSet.getTypes().length + " requested: " + (column - 1));
         }
-        return resultSet.getTypes()[column - 1];
+        return TypeUtils.unwrapNullableIfApplicable(columnTypeAt(column));
     }
 
     @Override
@@ -139,5 +141,9 @@ public class ClickHouseResultSetMetaData implements ResultSetMetaData {
     @Override
     public boolean isWrapperFor(Class<?> iface) throws SQLException {
         return iface != null && iface.isAssignableFrom(getClass());
+    }
+
+    private String columnTypeAt(int column) {
+        return resultSet.getTypes()[column - 1];
     }
 }

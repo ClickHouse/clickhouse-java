@@ -3,7 +3,7 @@ package ru.yandex.clickhouse.util;
 import org.testng.annotations.Test;
 
 import static org.testng.Assert.assertEquals;
-import static org.testng.Assert.assertNull;
+
 import static ru.yandex.clickhouse.util.TypeUtils.NULLABLE_NO;
 import static ru.yandex.clickhouse.util.TypeUtils.NULLABLE_YES;
 
@@ -46,5 +46,13 @@ public class TypeUtilsTest {
       assertEquals(TypeUtils.getColumnSize("Nullable(Int32)"), 11);
       assertEquals(TypeUtils.getColumnSize("Nullable(DateTime)"), 19);
       assertEquals(TypeUtils.getColumnSize("Nullable(FixedString(4))"), 4);
+  }
+
+  @Test
+  public void testUnwrapNullableIfApplicable() throws Exception {
+      assertEquals(TypeUtils.unwrapNullableIfApplicable("UInt32"), "UInt32");
+      assertEquals(TypeUtils.unwrapNullableIfApplicable("Nullable(UInt32)"), "UInt32");
+      assertEquals(TypeUtils.unwrapNullableIfApplicable("Nullable(foo)"), "foo");
+      assertEquals(TypeUtils.unwrapNullableIfApplicable("Nullable(UInt32"), "Nullable(UInt32");
   }
 }

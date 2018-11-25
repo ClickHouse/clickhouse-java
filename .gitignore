@@ -11,6 +11,8 @@
 .project
 .settings/
 
+# Eclipse TestNG plugin
+test-output/
 
 # Intellij
 .idea/
