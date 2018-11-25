@@ -196,7 +196,6 @@
                                     <include>org.apache.httpcomponents:*</include>
                                     <include>commons-logging:*</include>
                                     <include>commons-codec:*</include>
-                                    <include>joda-time:*</include>
                                 </includes>
                             </artifactSet>
                             <relocations>
@@ -213,7 +212,6 @@
                                     <shadedPattern>ru.yandex.repackaged.org</shadedPattern>
                                     <includes>
                                         <include>org.apache.**</include>
-                                        <include>org.joda.**</include>
                                     </includes>
                                 </relocation>
                             </relocations>
