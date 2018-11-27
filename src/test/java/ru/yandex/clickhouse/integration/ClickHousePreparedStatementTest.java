@@ -69,6 +69,48 @@ public class ClickHousePreparedStatementTest {
     }
 
     @Test
+    public void testArrayOfNullableIntsTest() throws Exception {
+        connection.createStatement().execute("DROP TABLE IF EXISTS test.array_of_null_ints_test");
+        connection.createStatement().execute(
+                "CREATE TABLE IF NOT EXISTS test.array_of_null_ints_test (i Int32, a Array(Nullable(Int32))) ENGINE = TinyLog"
+        );
+
+        PreparedStatement statement = connection.prepareStatement("INSERT INTO test.array_of_null_ints_test (i, a) VALUES (?, ?)");
+
+        statement.setInt(1, 1);
+        statement.setArray(2, new ClickHouseArray(Types.INTEGER, new Integer[]{1, 2, null, 4}));
+        statement.addBatch();
+        statement.executeBatch();
+
+        ResultSet rs = connection.createStatement().executeQuery("SELECT count() as cnt from test.array_of_null_ints_test");
+        rs.next();
+
+        Assert.assertEquals(rs.getInt("cnt"), 1);
+        Assert.assertFalse(rs.next());
+    }
+
+    @Test
+    public void testArrayOfNullableStringsTest() throws Exception {
+        connection.createStatement().execute("DROP TABLE IF EXISTS test.array_of_null_strings_test");
+        connection.createStatement().execute(
+                "CREATE TABLE IF NOT EXISTS test.array_of_null_strings_test (i Int32, a Array(Nullable(String))) ENGINE = TinyLog"
+        );
+
+        PreparedStatement statement = connection.prepareStatement("INSERT INTO test.array_of_null_strings_test (i, a) VALUES (?, ?)");
+
+        statement.setInt(1, 1);
+        statement.setObject(2, new String[]{"a", "b", null, "d"});
+        statement.addBatch();
+        statement.executeBatch();
+
+        ResultSet rs = connection.createStatement().executeQuery("SELECT count() as cnt from test.array_of_null_strings_test");
+        rs.next();
+
+        Assert.assertEquals(rs.getInt("cnt"), 1);
+        Assert.assertFalse(rs.next());
+    }
+
+    @Test
     public void testInsertUInt() throws SQLException {
         connection.createStatement().execute("DROP TABLE IF EXISTS test.unsigned_insert");
         connection.createStatement().execute(
