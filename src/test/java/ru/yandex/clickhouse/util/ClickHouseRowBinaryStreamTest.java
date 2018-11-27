@@ -203,7 +203,7 @@ public class ClickHouseRowBinaryStreamTest {
             new StreamWriter() {
                 @Override
                 public void write(ClickHouseRowBinaryStream stream) throws Exception {
-                    stream.writeNullable(false);
+                    stream.markNextNullable(false);
                     stream.writeInt32(1);
                 }
             },
@@ -220,7 +220,7 @@ public class ClickHouseRowBinaryStreamTest {
             new StreamWriter() {
                 @Override
                 public void write(ClickHouseRowBinaryStream stream) throws Exception {
-                    stream.writeNullable(true);
+                    stream.markNextNullable(true);
                 }
             },
             new byte[]{
