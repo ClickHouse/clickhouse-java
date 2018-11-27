@@ -1,7 +1,6 @@
 package ru.yandex.clickhouse.response;
 
 
-import com.google.common.primitives.Doubles;
 import com.google.common.primitives.Primitives;
 
 import java.math.BigInteger;
@@ -191,23 +190,40 @@ final class ByteFragmentUtils {
                     fieldStart++;
                     fieldEnd--;
                 }
-                ByteFragment fragment = trim.subseq(fieldStart, fieldEnd - fieldStart);
+                ArrayByteFragment fragment = ArrayByteFragment.wrap(trim.subseq(fieldStart, fieldEnd - fieldStart));
 
                 if (elementClass == String.class) {
                     String stringValue = fragment.asString(true);
                     java.lang.reflect.Array.set(array, index++, stringValue);
                 } else if (elementClass == Long.class) {
-                    long longValue = parseLong(fragment);
+                    Long longValue;
+                    if (fragment.isNull()) {
+                        longValue = useObjects ? null : 0L;
+                    } else {
+                        longValue = parseLong(fragment);
+                    }
                     java.lang.reflect.Array.set(array, index++, longValue);
                 } else if (elementClass == Integer.class) {
-                    int intValue = parseInt(fragment);
+                    Integer intValue;
+                    if (fragment.isNull()) {
+                        intValue = useObjects ? null : 0;
+                    } else {
+                        intValue = parseInt(fragment);
+                    }
                     java.lang.reflect.Array.set(array, index++, intValue);
-                } else if (elementClass == BigInteger.class){
-                    BigInteger bigIntegerValue = new BigInteger(fragment.asString(true));
+                } else if (elementClass == BigInteger.class) {
+                    BigInteger bigIntegerValue;
+                    if (fragment.isNull()) {
+                        bigIntegerValue = null;
+                    } else {
+                        bigIntegerValue = new BigInteger(fragment.asString(true));
+                    }
                     java.lang.reflect.Array.set(array, index++, bigIntegerValue);
                 } else if (elementClass == Float.class) {
                     Float floatValue;
-                    if (fragment.length() == 3 && fragment.charAt(0) == 'n' && fragment.charAt(1) == 'a' && fragment.charAt(2) == 'n') {
+                    if (fragment.isNull()) {
+                        floatValue = useObjects ? null : 0.0F;
+                    } else if (fragment.isNaN()) {
                         floatValue = Float.NaN;
                     } else {
                         floatValue = Float.parseFloat(fragment.asString());
@@ -215,7 +231,9 @@ final class ByteFragmentUtils {
                     java.lang.reflect.Array.set(array, index++, floatValue);
                 } else if (elementClass == Double.class) {
                     Double doubleValue;
-                    if (fragment.length() == 3 && fragment.charAt(0) == 'n' && fragment.charAt(1) == 'a' && fragment.charAt(2) == 'n') {
+                    if (fragment.isNull()) {
+                        doubleValue = useObjects ? null : 0.0;
+                    } else if (fragment.isNaN()) {
                         doubleValue = Double.NaN;
                     } else {
                         doubleValue = Double.parseDouble(fragment.asString());
@@ -223,18 +241,26 @@ final class ByteFragmentUtils {
                     java.lang.reflect.Array.set(array, index++, doubleValue);
                 } else if (elementClass == Date.class) {
                     Date dateValue;
-                    try {
-                        dateValue = new Date(dateFormat.parse(fragment.asString()).getTime());
-                    } catch (ParseException e) {
-                        throw new IllegalArgumentException(e);
+                    if (fragment.isNull()) {
+                        dateValue = null;
+                    } else {
+                        try {
+                            dateValue = new Date(dateFormat.parse(fragment.asString()).getTime());
+                        } catch (ParseException e) {
+                            throw new IllegalArgumentException(e);
+                        }
                     }
                     java.lang.reflect.Array.set(array, index++, dateValue);
                 } else  if (elementClass == Timestamp.class) {
                     Timestamp dateTimeValue;
-                    try {
-                        dateTimeValue = new Timestamp(dateFormat.parse(fragment.asString()).getTime());
-                    } catch (ParseException e) {
-                        throw new IllegalArgumentException(e);
+                    if (fragment.isNull()) {
+                        dateTimeValue = null;
+                    } else {
+                        try {
+                            dateTimeValue = new Timestamp(dateFormat.parse(fragment.asString()).getTime());
+                        } catch (ParseException e) {
+                            throw new IllegalArgumentException(e);
+                        }
                     }
                     java.lang.reflect.Array.set(array, index++, dateTimeValue);
                 } else  {

@@ -16,6 +16,7 @@ import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
 
 import ru.yandex.clickhouse.ClickHouseArray;
+import ru.yandex.clickhouse.ClickHouseConnection;
 import ru.yandex.clickhouse.ClickHouseDataSource;
 import ru.yandex.clickhouse.ClickHousePreparedStatement;
 import ru.yandex.clickhouse.response.ClickHouseResponse;
@@ -66,6 +67,52 @@ public class ClickHousePreparedStatementTest {
 
         Assert.assertEquals(rs.getInt("cnt"), 2);
         Assert.assertFalse(rs.next());
+    }
+
+    @Test
+    public void testArrayOfNullable() throws Exception {
+        connection.createStatement().execute("DROP TABLE IF EXISTS test.array_of_nullable");
+        connection.createStatement().execute(
+                "CREATE TABLE IF NOT EXISTS test.array_of_nullable (" +
+                        "str Nullable(String), " +
+                        "int Nullable(Int32), " +
+                        "strs Array(Nullable(String)), " +
+                        "ints Array(Nullable(Int32))) ENGINE = TinyLog"
+        );
+
+        PreparedStatement statement = connection.prepareStatement(
+                "INSERT INTO test.array_of_nullable (str, int, strs, ints) VALUES (?, ?, ?, ?)"
+        );
+
+        statement.setObject(1, null);
+        statement.setObject(2, null);
+        statement.setObject(3, new String[]{"a", null, "c"});
+        statement.setArray(4, new ClickHouseArray(Types.INTEGER, new Integer[]{1, null, 3}));
+        statement.addBatch();
+        statement.executeBatch();
+
+        ResultSet rs = connection.createStatement().executeQuery("SELECT * FROM test.array_of_nullable");
+
+        Assert.assertTrue(rs.next());
+        Assert.assertNull(rs.getObject("str"));
+        Assert.assertNull(rs.getObject("int"));
+        Assert.assertEquals(rs.getArray("strs").getArray(), new String[]{"a", null, "c"});
+        Assert.assertEquals(rs.getArray("ints").getArray(), new int[]{1, 0, 3});
+        Assert.assertFalse(rs.next());
+
+        ClickHouseProperties properties = new ClickHouseProperties();
+        properties.setUseObjectsInArrays(true);
+        ClickHouseDataSource configuredDataSource = new ClickHouseDataSource(dataSource.getUrl(), properties);
+        ClickHouseConnection configuredConnection = configuredDataSource.getConnection();
+
+        try {
+            rs = configuredConnection.createStatement().executeQuery("SELECT * FROM test.array_of_nullable");
+            rs.next();
+
+            Assert.assertEquals(rs.getArray("ints").getArray(), new Integer[]{1, null, 3});
+        } finally {
+            configuredConnection.close();
+        }
     }
 
     @Test
