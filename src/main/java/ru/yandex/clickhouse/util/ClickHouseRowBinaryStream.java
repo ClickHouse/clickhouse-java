@@ -274,6 +274,10 @@ public class ClickHouseRowBinaryStream {
         }
     }
 
+    public void writeNullable(boolean value) throws IOException {
+        writeByte(value ? (byte) 1 : (byte) 0);
+    }
+
     public void writeUUID(UUID uuid) throws IOException {
         Preconditions.checkNotNull(uuid);
         ByteBuffer bb = ByteBuffer.wrap(new byte[16]).order(ByteOrder.LITTLE_ENDIAN);
