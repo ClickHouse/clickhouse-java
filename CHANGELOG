@@ -1,3 +1,8 @@
+0.1.46
+  * nullable in RowBinaryStream
+  * fix null in arrays
+  * database regex (asterisks and dashes allowed)
+
 0.1.45
   * added shaded version of the jar
   * http authorization header
