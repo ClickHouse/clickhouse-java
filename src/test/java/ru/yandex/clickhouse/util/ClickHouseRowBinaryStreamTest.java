@@ -197,6 +197,39 @@ public class ClickHouseRowBinaryStreamTest {
         );
     }
 
+    @Test
+    public void testWriteNullableInt32() throws Exception {
+        check(
+            new StreamWriter() {
+                @Override
+                public void write(ClickHouseRowBinaryStream stream) throws Exception {
+                    stream.markNextNullable(false);
+                    stream.writeInt32(1);
+                }
+            },
+            new byte[]{
+                    0, 1, 0, 0, 0
+            }
+        );
+        // clickhouse-client -q "SELECT CAST(1 AS Nullable(Int32)) Format RowBinary"  | od -vAn -td1
+    }
+
+    @Test
+    public void testWriteNull() throws Exception {
+        check(
+            new StreamWriter() {
+                @Override
+                public void write(ClickHouseRowBinaryStream stream) throws Exception {
+                    stream.markNextNullable(true);
+                }
+            },
+            new byte[]{
+                    1
+            }
+        );
+        // clickhouse-client -q "SELECT CAST(Null AS Nullable(Int32)) Format RowBinary"  | od -vAn -td1
+    }
+
     private void check(StreamWriter streamWriter, byte[] expected) throws Exception {
         ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
         ClickHouseRowBinaryStream stream = new ClickHouseRowBinaryStream(byteArrayOutputStream, TimeZone.getTimeZone("ETC"), new ClickHouseProperties());

@@ -274,6 +274,25 @@ public class ClickHouseRowBinaryStream {
         }
     }
 
+    /** Write a marker indicating if value is nullable or not.
+     *
+     * E.g., to write Nullable(Int32):
+     *
+     * {{{
+     *     void writeNullableInt32(Integer value) {
+     *         if (value == null) {
+     *             markNextNullable(true);
+     *         } else {
+     *             markNextNullable(false);
+     *             writeInt32(value);
+     *         }
+     *     }
+     * }}}
+     */
+    public void markNextNullable(boolean isNullable) throws IOException {
+        writeByte(isNullable ? (byte) 1 : (byte) 0);
+    }
+
     public void writeUUID(UUID uuid) throws IOException {
         Preconditions.checkNotNull(uuid);
         ByteBuffer bb = ByteBuffer.wrap(new byte[16]).order(ByteOrder.LITTLE_ENDIAN);
