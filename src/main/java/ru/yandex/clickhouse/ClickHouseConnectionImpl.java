@@ -149,8 +149,8 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
     @Override
     public ClickHouseStatement createStatement(int resultSetType, int resultSetConcurrency,
                                                int resultSetHoldability) throws SQLException {
-        if (resultSetType != ResultSet.TYPE_FORWARD_ONLY && resultSetConcurrency != ResultSet.CONCUR_READ_ONLY
-            && resultSetHoldability != ResultSet.CLOSE_CURSORS_AT_COMMIT) {
+        if (resultSetType == ResultSet.TYPE_SCROLL_SENSITIVE || resultSetConcurrency != ResultSet.CONCUR_READ_ONLY
+            || resultSetHoldability != ResultSet.CLOSE_CURSORS_AT_COMMIT) {
             throw new SQLFeatureNotSupportedException();
         }
         return createStatement();
