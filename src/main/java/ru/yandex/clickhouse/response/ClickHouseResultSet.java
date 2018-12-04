@@ -36,22 +36,20 @@ public class ClickHouseResultSet extends AbstractResultSet {
     private final String[] types;
 
     private int maxRows;
-    
-    private List<ByteFragment[]> lines;
 
     // current line
-    private ByteFragment[] values;
+    protected ByteFragment[] values;
     // 1-based
     private int lastReadColumn;
 
     // next line
-    private ByteFragment nextLine;
+    protected ByteFragment nextLine;
 
     // total lines
     private ByteFragment totalLine;
 
     // row counter
-    private int rowNumber;
+    protected int rowNumber;
 
     // statement result set belongs to
     private ClickHouseStatement statement;
@@ -93,7 +91,6 @@ public class ClickHouseResultSet extends AbstractResultSet {
             String s = columns[i];
             col.put(s, i + 1);
         }
-        lines = new ArrayList<ByteFragment[]>();
     }
 
     private void initTimeZone(TimeZone timeZone) {
@@ -114,9 +111,6 @@ public class ClickHouseResultSet extends AbstractResultSet {
     }
 
     public boolean hasNext() throws SQLException {
-    	if(rowNumber < lines.size()) {
-    		return true;
-    	}
         if (nextLine == null && !lastReached) {
             try {
                 nextLine = bis.next();
@@ -146,25 +140,13 @@ public class ClickHouseResultSet extends AbstractResultSet {
 
     @Override
     public boolean next() throws SQLException {
-    	if(rowNumber < lines.size()) {
-    		values = lines.get(rowNumber);
-    		nextLine = null;
-            rowNumber += 1;
-    		return true;
-    	}
         if (hasNext()) {
             values = nextLine.split((byte) 0x09);
             checkValues(columns, values, nextLine);
             nextLine = null;
-            lines.add(values);
             rowNumber += 1;
             return true;
-        } else {
-        	rowNumber += 1;
-        	values = null;
-        	nextLine = null;
-        	return false;
-        }
+        } else return false;
     }
 
     private boolean onTheSeparatorRow() throws IOException {
@@ -211,7 +193,7 @@ public class ClickHouseResultSet extends AbstractResultSet {
 
     /////////////////////////////////////////////////////////
 
-    String[] getTypes() {
+    public String[] getTypes() {
         return types;
     }
 
@@ -542,7 +524,7 @@ public class ClickHouseResultSet extends AbstractResultSet {
 
     @Override
     public int getType() throws SQLException {
-        return TYPE_SCROLL_INSENSITIVE;
+        return TYPE_FORWARD_ONLY;
     }
 
     @Override
@@ -659,85 +641,4 @@ public class ClickHouseResultSet extends AbstractResultSet {
             ", statement=" + statement +
             '}';
     }
-
-
-	@Override
-	public boolean isBeforeFirst() throws SQLException {
-		return getRow() == 0;
-	}
-
-	@Override
-	public boolean isAfterLast() throws SQLException {
-		return getRow() > lines.size();
-	}
-
-	@Override
-	public boolean isFirst() throws SQLException {
-		return getRow() == 1;
-	}
-
-	@Override
-	public void beforeFirst() throws SQLException {
-		absolute(0);
-	}
-
-	@Override
-	public void afterLast() throws SQLException {
-		absolute(-1);
-		next();
-	}
-
-	@Override
-	public boolean first() throws SQLException {
-		return absolute(1);
-	}
-
-
-	@Override
-	public boolean last() throws SQLException {
-		return absolute(-1);
-	}
-
-	@Override
-	public boolean absolute(int row) throws SQLException {
-		if(row == 0) {
-			rowNumber = 0;
-			values = null;
-			return true;
-		} else if(row > 0) {
-			if(row <= lines.size()) {
-				rowNumber = row;
-				values = lines.get(row-1);
-				return true;
-			}
-			absolute(lines.size());
-			while(getRow() < row && hasNext()) {
-				next();
-			}
-			return row == getRow();
-		} else {
-			int current = rowNumber;
-			// We have to check the number of total rows
-			while(hasNext()) {
-				next();
-			}
-			if(-row > lines.size()) {
-				// there is not so many rows
-				// Put back the cursor where it was.
-				absolute(current);
-				return false;
-			}
-			return absolute(lines.size()+1+row);
-		}
-	}
-
-	@Override
-	public boolean relative(int rows) throws SQLException {
-		return absolute(getRow()+rows);
-	}
-
-	@Override
-	public boolean previous() throws SQLException {
-		return relative(-1);
-	}
 }

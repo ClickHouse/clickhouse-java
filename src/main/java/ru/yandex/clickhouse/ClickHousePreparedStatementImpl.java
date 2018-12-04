@@ -66,8 +66,8 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
 
 
     public ClickHousePreparedStatementImpl(CloseableHttpClient client, ClickHouseConnection connection,
-             ClickHouseProperties properties, String sql, TimeZone timezone) throws SQLException {
-        super(client, connection, properties);
+             ClickHouseProperties properties, String sql, TimeZone timezone, int resultSetType) throws SQLException {
+        super(client, connection, properties, resultSetType);
         this.sql = sql;
         PreparedStatementParser parser = PreparedStatementParser.parse(sql);
         this.parameterList = parser.getParameters();
