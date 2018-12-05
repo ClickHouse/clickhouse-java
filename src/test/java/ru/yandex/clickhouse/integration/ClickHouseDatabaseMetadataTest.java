@@ -65,7 +65,7 @@ public class ClickHouseDatabaseMetadataTest {
             "DROP TABLE IF EXISTS test.testMetadata");
         connection.createStatement().executeQuery(
             "CREATE TABLE test.testMetadata("
-          + "foo Decimal(12,3)) ENGINE = TinyLog");
+          + "foo Float32) ENGINE = TinyLog");
         ResultSet columns = connection.getMetaData().getColumns(
             null, "test", "testMetadata", null);
         columns.next();
@@ -73,11 +73,11 @@ public class ClickHouseDatabaseMetadataTest {
         Assert.assertEquals(columns.getString("TABLE_SCHEM"), "test");
         Assert.assertEquals(columns.getString("TABLE_NAME"), "testMetadata");
         Assert.assertEquals(columns.getString("COLUMN_NAME"), "foo");
-        Assert.assertEquals(columns.getInt("DATA_TYPE"), Types.DECIMAL);
-        Assert.assertEquals(columns.getString("TYPE_NAME"), "Decimal(12, 3)");
-        Assert.assertEquals(columns.getInt("COLUMN_SIZE"), 0);
+        Assert.assertEquals(columns.getInt("DATA_TYPE"), Types.FLOAT);
+        Assert.assertEquals(columns.getString("TYPE_NAME"), "Float32");
+        Assert.assertEquals(columns.getInt("COLUMN_SIZE"), 8);
         Assert.assertEquals(columns.getInt("BUFFER_LENGTH"), 0);
-        Assert.assertEquals(columns.getInt("DECIMAL_DIGITS"), 3);
+        Assert.assertEquals(columns.getInt("DECIMAL_DIGITS"), 8);
         Assert.assertEquals(columns.getInt("NUM_PREC_RADIX"), 10);
         Assert.assertEquals(columns.getInt("NULLABLE"), DatabaseMetaData.columnNoNulls);
         Assert.assertNull(columns.getObject("REMARKS"));
@@ -109,7 +109,7 @@ public class ClickHouseDatabaseMetadataTest {
         String dbVersion = connection.getMetaData().getDatabaseProductVersion();
         Assert.assertFalse(dbVersion == null || dbVersion.isEmpty());
         int dbMajor = Integer.parseInt(dbVersion.substring(0, dbVersion.indexOf(".")));
-        Assert.assertTrue(dbMajor > 13);
+        Assert.assertTrue(dbMajor > 0);
         Assert.assertEquals(connection.getMetaData().getDatabaseMajorVersion(), dbMajor);
         int majorIdx = dbVersion.indexOf(".") + 1;
         int dbMinor = Integer.parseInt(dbVersion.substring(majorIdx, dbVersion.indexOf(".", majorIdx)));
@@ -122,7 +122,7 @@ public class ClickHouseDatabaseMetadataTest {
             "DROP TABLE IF EXISTS test.testMetadata");
         connection.createStatement().executeQuery(
             "CREATE TABLE test.testMetadata("
-          + "foo String) ENGINE = "
+          + "foo Date) ENGINE = "
           + engine);
         ResultSet tableMeta = connection.getMetaData().getTables(null, "test", "testMetadata", null);
         tableMeta.next();
@@ -147,7 +147,7 @@ public class ClickHouseDatabaseMetadataTest {
             new String[] {"TinyLog"},
             new String[] {"Log"},
             new String[] {"Memory"},
-            new String[] {"MergeTree ORDER BY foo"}
+            new String[] {"MergeTree(foo, (foo), 8192)"}
         };
         // unfortunately this is hard to test
         // new String[] {"Dictionary(myDict)"},
