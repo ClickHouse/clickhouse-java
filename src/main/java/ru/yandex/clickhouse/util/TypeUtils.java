@@ -7,6 +7,8 @@ import java.sql.SQLException;
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.sql.Types;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * @author Aleksandr Kormushin {@literal (<kormushin@yandex-team.ru>)}
@@ -16,36 +18,42 @@ public class TypeUtils {
     public static final String NULLABLE_YES = "YES";
     public static final String NULLABLE_NO = "NO";
 
-    public static int toSqlType(String clickshouseType) {
-        if (isNullable(clickshouseType)) {
-            clickshouseType = unwrapNullable(clickshouseType);
+    private static final Pattern DECIMAL_PATTERN = Pattern.compile(
+        "Decimal\\(\\s*(\\d+)\\s*,\\s*(\\d+)\\s*\\)");
+
+    public static int toSqlType(String clickhouseType) {
+        if (isNullable(clickhouseType)) {
+            clickhouseType = unwrapNullable(clickhouseType);
         }
-        if (clickshouseType.startsWith("Int") || clickshouseType.startsWith("UInt")) {
-            return clickshouseType.endsWith("64") ? Types.BIGINT : Types.INTEGER;
+        if (clickhouseType.startsWith("Int") || clickhouseType.startsWith("UInt")) {
+            return clickhouseType.endsWith("64") ? Types.BIGINT : Types.INTEGER;
         }
-        if ("String".equals(clickshouseType)) {
+        if ("String".equals(clickhouseType)) {
             return Types.VARCHAR;
         }
-        if (clickshouseType.startsWith("Float32")) {
+        if (clickhouseType.startsWith("Float32")) {
             return Types.FLOAT;
         }
-        if (clickshouseType.startsWith("Float64")) {
+        if (clickhouseType.startsWith("Float64")) {
             return Types.DOUBLE;
         }
-        if ("Date".equals(clickshouseType)) {
+        if ("Date".equals(clickhouseType)) {
             return Types.DATE;
         }
-        if ("DateTime".equals(clickshouseType)) {
+        if ("DateTime".equals(clickhouseType)) {
             return Types.TIMESTAMP;
         }
-        if ("FixedString".equals(clickshouseType)) {
+        if ("FixedString".equals(clickhouseType)) {
             return Types.BLOB;
         }
-        if (isArray(clickshouseType)) {
+        if (isArray(clickhouseType)) {
             return Types.ARRAY;
         }
-        if ("UUID".equals(clickshouseType)) {
+        if ("UUID".equals(clickhouseType)) {
             return Types.OTHER;
+        }
+        if (clickhouseType.startsWith("Decimal")) {
+            return Types.DECIMAL;
         }
 
         // don't know what to return actually
@@ -190,6 +198,10 @@ public class TypeUtils {
             return 8;
         } else if (type.equals("Float64")) {
             return 17;
+        }
+        Matcher m = DECIMAL_PATTERN.matcher(type);
+        if (m.matches()) {
+            return Integer.parseInt(m.group(2));
         }
         // no other types support decimal digits
         return 0;
