@@ -11,6 +11,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,6 +28,8 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
     static final String DEFAULT_CAT = "default";
 
     private static final Logger log = LoggerFactory.getLogger(ClickHouseDatabaseMetadata.class);
+    private static final Pattern VERSION_NUMBER_PATTERN =
+        Pattern.compile("^(\\d+)\\.(\\d+).*");
 
     private final String url;
     private final ClickHouseConnection connection;
@@ -87,7 +91,7 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
 
     @Override
     public String getDatabaseProductVersion() throws SQLException {
-        return "0.42";
+        return connection.getServerVersion();
     }
 
     @Override
@@ -97,17 +101,34 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
 
     @Override
     public String getDriverVersion() throws SQLException {
-        return "0.1";
+        String driverVersion = getClass().getPackage().getImplementationVersion();
+        return driverVersion != null ? driverVersion : "0.1";
     }
 
     @Override
     public int getDriverMajorVersion() {
-        return 0;
+        String v;
+        try {
+            v = getDriverVersion();
+        } catch (SQLException sqle) {
+            log.warn("Error determining driver major version", sqle);
+            return 0;
+        }
+        Matcher m = VERSION_NUMBER_PATTERN.matcher(v);
+        return m.matches() ? Integer.parseInt(m.group(1)) : 0;
     }
 
     @Override
     public int getDriverMinorVersion() {
-        return 1;
+        String v;
+        try {
+            v = getDriverVersion();
+        } catch (SQLException sqle) {
+            log.warn("Error determining driver minor version", sqle);
+            return 0;
+        }
+        Matcher m = VERSION_NUMBER_PATTERN.matcher(v);
+        return m.matches() ? Integer.parseInt(m.group(2)) : 0;
     }
 
     @Override
@@ -710,7 +731,7 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
             String type, e = result.getString(3).intern();
             if (e == "View" || e == "MaterializedView" || e == "Merge" || e == "Distributed" || e == "Null") {
                 type = "VIEW"; // some kind of view
-            } else if (e == "Memory" || e == "Set" || e == "Join" || e == "Buffer") {
+            } else if (e == "Set" || e == "Join" || e == "Buffer") {
                 type = "OTHER"; // not a real table
             } else {
                 type = "TABLE";
@@ -871,9 +892,9 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
             //"SOURCE_DATA_TYPE",
             row.add(null);
             //"IS_AUTOINCREMENT"
-            row.add(null);
+            row.add("NO");
             //"IS_GENERATEDCOLUMN"
-            row.add(null);
+            row.add("NO");
 
             builder.addRow(row);
         }
@@ -1232,12 +1253,14 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
 
     @Override
     public int getDatabaseMajorVersion() throws SQLException {
-        return 0;
+        Matcher m = VERSION_NUMBER_PATTERN.matcher(connection.getServerVersion());
+        return m.matches() ? Integer.parseInt(m.group(1)) : 0;
     }
 
     @Override
     public int getDatabaseMinorVersion() throws SQLException {
-        return 1;
+        Matcher m = VERSION_NUMBER_PATTERN.matcher(connection.getServerVersion());
+        return m.matches() ? Integer.parseInt(m.group(2)) : 0;
     }
 
     @Override
@@ -1315,4 +1338,5 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
     public boolean generatedKeyAlwaysReturned() throws SQLException {
         return false;
     }
+
 }
