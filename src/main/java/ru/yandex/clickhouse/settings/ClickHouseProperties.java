@@ -61,6 +61,9 @@ public class ClickHouseProperties {
     private boolean sessionCheck;
     private String  sessionId;
     private Long    sessionTimeout;
+    private Long    insertQuorum;
+    private Long    insertQuorumTimeout;
+
 
     public ClickHouseProperties() {
         this(new Properties());
@@ -112,6 +115,8 @@ public class ClickHouseProperties {
         this.sessionCheck = (Boolean) getSetting(info, ClickHouseQueryParam.SESSION_CHECK);
         this.sessionId = getSetting(info, ClickHouseQueryParam.SESSION_ID);
         this.sessionTimeout = getSetting(info, ClickHouseQueryParam.SESSION_TIMEOUT);
+        this.insertQuorum = (Long)getSetting(info, ClickHouseQueryParam.INSERT_QUORUM);
+        this.insertQuorumTimeout = (Long)getSetting(info, ClickHouseQueryParam.INSERT_QUORUM_TIMEOUT);
     }
 
     public Properties asProperties() {
@@ -160,6 +165,9 @@ public class ClickHouseProperties {
         ret.put(ClickHouseQueryParam.SESSION_CHECK.getKey(), String.valueOf(sessionCheck));
         ret.put(ClickHouseQueryParam.SESSION_ID.getKey(), sessionId);
         ret.put(ClickHouseQueryParam.SESSION_TIMEOUT.getKey(), sessionTimeout);
+        ret.put(ClickHouseQueryParam.INSERT_QUORUM.getKey(), insertQuorum);
+        ret.put(ClickHouseQueryParam.INSERT_QUORUM_TIMEOUT.getKey(), insertQuorumTimeout);
+
         return ret.getProperties();
     }
 
@@ -207,6 +215,8 @@ public class ClickHouseProperties {
         setSessionCheck(properties.sessionCheck);
         setSessionId(properties.sessionId);
         setSessionTimeout(properties.sessionTimeout);
+        setInsertQuorum(properties.insertQuorum);
+        setInsertQuorumTimeout(properties.insertQuorumTimeout);
         setPreferredBlockSizeBytes(properties.preferredBlockSizeBytes);
         setMaxQuerySize(properties.maxQuerySize);
     }
@@ -273,7 +283,17 @@ public class ClickHouseProperties {
         if (sessionTimeout != null) {
             params.put(ClickHouseQueryParam.SESSION_TIMEOUT, String.valueOf(sessionTimeout));
         }
+
+        addQueryParam(insertQuorum, ClickHouseQueryParam.INSERT_QUORUM, params);
+        addQueryParam(insertQuorumTimeout, ClickHouseQueryParam.INSERT_QUORUM_TIMEOUT, params);
+
         return params;
+    }
+
+    private void addQueryParam(Object param, ClickHouseQueryParam definition, Map<ClickHouseQueryParam, String> params) {
+        if (param != null) {
+            params.put(definition, String.valueOf(param));
+        }
     }
 
     public ClickHouseProperties withCredentials(String user, String password){
@@ -663,6 +683,22 @@ public class ClickHouseProperties {
     public Long getSessionTimeout() { return sessionTimeout; }
 
     public void setSessionTimeout(Long sessionTimeout) { this.sessionTimeout = sessionTimeout; }
+
+    public Long getInsertQuorum() {
+        return insertQuorum;
+    }
+
+    public void setInsertQuorum(Long insertQuorum) {
+        this.insertQuorum = insertQuorum;
+    }
+
+    public Long getInsertQuorumTimeout() {
+        return insertQuorumTimeout;
+    }
+
+    public void setInsertQuorumTimeout(Long insertQuorumTimeout) {
+        this.insertQuorumTimeout = insertQuorumTimeout;
+    }
 
     private static class PropertiesBuilder {
         private final Properties properties;

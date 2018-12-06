@@ -5,6 +5,7 @@ import org.testng.annotations.Test;
 import ru.yandex.clickhouse.ClickHouseDataSource;
 
 import java.net.URI;
+import java.util.Map;
 import java.util.Properties;
 
 public class ClickHousePropertiesTest {
@@ -79,5 +80,16 @@ public class ClickHousePropertiesTest {
 
         ClickHouseDataSource ds = new ClickHouseDataSource("jdbc:clickhouse://localhost:8123/test", driverProperties);
         Assert.assertEquals(ds.getProperties().getMaxMemoryUsage(), Long.valueOf(42L), "max_memory_usage is missing");
+    }
+
+    @Test
+    public void buildQueryParamsTest() {
+        ClickHouseProperties clickHouseProperties = new ClickHouseProperties();
+        clickHouseProperties.setInsertQuorumTimeout(1000L);
+        clickHouseProperties.setInsertQuorum(3L);
+
+        Map<ClickHouseQueryParam, String> clickHouseQueryParams = clickHouseProperties.buildQueryParams(true);
+        Assert.assertEquals("3", clickHouseQueryParams.get(ClickHouseQueryParam.INSERT_QUORUM));
+        Assert.assertEquals("1000", clickHouseQueryParams.get(ClickHouseQueryParam.INSERT_QUORUM_TIMEOUT));
     }
 }
