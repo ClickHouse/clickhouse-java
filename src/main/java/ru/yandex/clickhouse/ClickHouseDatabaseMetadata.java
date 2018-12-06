@@ -11,13 +11,12 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import ru.yandex.clickhouse.response.ClickHouseResultBuilder;
+import ru.yandex.clickhouse.util.ClickHouseVersionNumberUtil;
 import ru.yandex.clickhouse.util.TypeUtils;
 
 import static ru.yandex.clickhouse.util.TypeUtils.NULLABLE_YES;
@@ -28,8 +27,6 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
     static final String DEFAULT_CAT = "default";
 
     private static final Logger log = LoggerFactory.getLogger(ClickHouseDatabaseMetadata.class);
-    private static final Pattern VERSION_NUMBER_PATTERN =
-        Pattern.compile("^(\\d+)\\.(\\d+).*");
 
     private final String url;
     private final ClickHouseConnection connection;
@@ -114,8 +111,7 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
             log.warn("Error determining driver major version", sqle);
             return 0;
         }
-        Matcher m = VERSION_NUMBER_PATTERN.matcher(v);
-        return m.matches() ? Integer.parseInt(m.group(1)) : 0;
+        return ClickHouseVersionNumberUtil.getMajorVersion(v);
     }
 
     @Override
@@ -127,8 +123,7 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
             log.warn("Error determining driver minor version", sqle);
             return 0;
         }
-        Matcher m = VERSION_NUMBER_PATTERN.matcher(v);
-        return m.matches() ? Integer.parseInt(m.group(2)) : 0;
+        return ClickHouseVersionNumberUtil.getMinorVersion(v);
     }
 
     @Override
@@ -1253,14 +1248,14 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
 
     @Override
     public int getDatabaseMajorVersion() throws SQLException {
-        Matcher m = VERSION_NUMBER_PATTERN.matcher(connection.getServerVersion());
-        return m.matches() ? Integer.parseInt(m.group(1)) : 0;
+        return ClickHouseVersionNumberUtil.getMajorVersion(
+            connection.getServerVersion());
     }
 
     @Override
     public int getDatabaseMinorVersion() throws SQLException {
-        Matcher m = VERSION_NUMBER_PATTERN.matcher(connection.getServerVersion());
-        return m.matches() ? Integer.parseInt(m.group(2)) : 0;
+        return ClickHouseVersionNumberUtil.getMinorVersion(
+            connection.getServerVersion());
     }
 
     @Override
