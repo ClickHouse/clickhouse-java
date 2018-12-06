@@ -1,3 +1,7 @@
+0.1.47
+  * connection cleaner in daemon mode
+  * insert-quorum params
+
 0.1.46
   * nullable in RowBinaryStream
   * fix null in arrays
