@@ -99,7 +99,7 @@ public class ClickHouseScrollableResultSet extends ClickHouseResultSet {
 		if(row == 0) {
 			rowNumber = 0;
 			values = null;
-			return true;
+			return false;
 		} else if(row > 0) {
 			if(row <= lines.size()) {
 				rowNumber = row;
@@ -110,18 +110,21 @@ public class ClickHouseScrollableResultSet extends ClickHouseResultSet {
 			while(getRow() < row && hasNext()) {
 				next();
 			}
-			return row == getRow();
+			if(row == getRow()) {
+				return true;
+			} else {
+				next();
+				return false;
+			}
 		} else {
-			int current = rowNumber;
 			// We have to check the number of total rows
 			while(hasNext()) {
 				next();
 			}
 			if(-row > lines.size()) {
 				// there is not so many rows
-				// Put back the cursor where it was.
-				absolute(current);
-				return false;
+				// Put the cursor before the first row
+				return absolute(0);
 			}
 			return absolute(lines.size()+1+row);
 		}
@@ -129,7 +132,11 @@ public class ClickHouseScrollableResultSet extends ClickHouseResultSet {
 
 	@Override
 	public boolean relative(int rows) throws SQLException {
-		return absolute(getRow()+rows);
+		int r = getRow()+rows;
+		if(r < 0) {
+			r = 0;
+		}
+		return absolute(r);
 	}
 
 	@Override

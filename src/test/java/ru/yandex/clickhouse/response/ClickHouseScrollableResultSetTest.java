@@ -356,6 +356,13 @@ public class ClickHouseScrollableResultSetTest {
       assertTrue(rs.isLast());
       
       assertFalse(rs.absolute(3));
+      assertTrue(rs.isAfterLast());
+      
+      assertFalse(rs.absolute(-3));
+      assertTrue(rs.isBeforeFirst());
+      
+      assertFalse(rs.absolute(0));
+      assertTrue(rs.isBeforeFirst());
       
       rs.getTotals();
       assertEquals("", rs.getString(1));
