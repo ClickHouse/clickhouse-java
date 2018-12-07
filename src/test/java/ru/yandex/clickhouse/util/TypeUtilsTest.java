@@ -29,6 +29,12 @@ public class TypeUtilsTest {
       assertEquals(TypeUtils.getDecimalDigits("Nullable(Float64)"), 17);
       assertEquals(TypeUtils.getDecimalDigits("Float32"), 8);
       assertEquals(TypeUtils.getDecimalDigits("Nullable(Float32)"), 8);
+
+      assertEquals(TypeUtils.getDecimalDigits("Decimal(12, 3)"), 3);
+      assertEquals(TypeUtils.getDecimalDigits("Decimal(12,3)"), 3);
+      assertEquals(TypeUtils.getDecimalDigits("Nullable(Decimal(12,42))"), 42);
+      assertEquals(TypeUtils.getDecimalDigits("Decimal(12,"), 0);
+      assertEquals(TypeUtils.getDecimalDigits("Decimal(12, 0)"), 0);
   }
 
   @Test
