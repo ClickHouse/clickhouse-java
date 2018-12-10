@@ -9,9 +9,11 @@ import ru.yandex.clickhouse.ClickHouseConnection;
 import ru.yandex.clickhouse.ClickHouseDataSource;
 import ru.yandex.clickhouse.ClickHouseStatement;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
+import ru.yandex.clickhouse.util.ClickHouseRowBinaryInputStream;
 import ru.yandex.clickhouse.util.ClickHouseRowBinaryStream;
 import ru.yandex.clickhouse.util.ClickHouseStreamCallback;
 
+import java.io.EOFException;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.sql.*;
@@ -105,6 +107,15 @@ public class RowBinaryStreamTest {
 
     @Test
     public void testRowBinaryStream() throws Exception {
+        testRowBinaryStream(false);
+    }
+
+    @Test
+    public void testRowBinaryInputStream() throws Exception {
+        testRowBinaryStream(true);
+    }
+
+    private void testRowBinaryStream(boolean rowBinaryResult) throws Exception {
         createTable("test.raw_binary");
         ClickHouseStatement statement = connection.createStatement();
         final Date date1 = new Date(1483230102000L); //2017-01-01 03:21:42
@@ -191,109 +202,150 @@ public class RowBinaryStreamTest {
                 }
         );
 
-        ResultSet rs = connection.createStatement().executeQuery("SELECT * FROM test.raw_binary ORDER BY date");
+        if (!rowBinaryResult) {
+            ResultSet rs = connection.createStatement().executeQuery("SELECT * FROM test.raw_binary ORDER BY date");
 
-        Assert.assertTrue(rs.next());
-        Assert.assertEquals(rs.getString("date"), "2017-01-01");
-        Assert.assertEquals(rs.getTimestamp("dateTime").getTime(), date1.getTime());
-        Assert.assertEquals(rs.getString("string"), "string\n1");
-        Assert.assertEquals(rs.getInt("int8"), Byte.MIN_VALUE);
-        Assert.assertEquals(rs.getInt("uInt8"), 0);
-        Assert.assertEquals(rs.getInt("int16"), Short.MIN_VALUE);
-        Assert.assertEquals(rs.getInt("uInt16"), 0);
-        Assert.assertEquals(rs.getInt("int32"), Integer.MIN_VALUE);
-        Assert.assertEquals(rs.getInt("uInt32"), 0);
-        Assert.assertEquals(rs.getLong("int64"), Long.MIN_VALUE);
-        Assert.assertEquals(rs.getLong("uInt64"), 0);
-        Assert.assertEquals(rs.getDouble("float32"), 123.456);
-        Assert.assertEquals(rs.getDouble("float64"), 42.21);
-        Assert.assertEquals(rs.getObject("uuid").toString(), "123e4567-e89b-12d3-a456-426655440000");
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getString("date"), "2017-01-01");
+            Assert.assertEquals(rs.getTimestamp("dateTime").getTime(), date1.getTime());
+            Assert.assertEquals(rs.getString("string"), "string\n1");
+            Assert.assertEquals(rs.getInt("int8"), Byte.MIN_VALUE);
+            Assert.assertEquals(rs.getInt("uInt8"), 0);
+            Assert.assertEquals(rs.getInt("int16"), Short.MIN_VALUE);
+            Assert.assertEquals(rs.getInt("uInt16"), 0);
+            Assert.assertEquals(rs.getInt("int32"), Integer.MIN_VALUE);
+            Assert.assertEquals(rs.getInt("uInt32"), 0);
+            Assert.assertEquals(rs.getLong("int64"), Long.MIN_VALUE);
+            Assert.assertEquals(rs.getLong("uInt64"), 0);
+            Assert.assertEquals(rs.getDouble("float32"), 123.456);
+            Assert.assertEquals(rs.getDouble("float64"), 42.21);
+            Assert.assertEquals(rs.getObject("uuid").toString(), "123e4567-e89b-12d3-a456-426655440000");
 
-        final Date[] dateArray = (Date[]) rs.getArray("dateArray").getArray();
-        Assert.assertEquals(dateArray.length, dates1.length);
-        for (int i = 0; i < dateArray.length; i++) {
-            // expected is Date at start of the day in local timezone
-            Date expected = withTimeAtStartOfDay(dates1[i]);
-            Assert.assertEquals(dateArray[i], expected);
-        }
-        final Timestamp[] dateTimeArray = (Timestamp[]) rs.getArray("dateTimeArray").getArray();
-        Assert.assertEquals(dateTimeArray.length, dateTimes1.length);
-        for (int i = 0; i < dateTimeArray.length; i++) {
-            Assert.assertEquals(dateTimeArray[i], dateTimes1[i]);
-        }
-        final String[] stringArray = (String[]) rs.getArray("stringArray").getArray();
-        Assert.assertEquals(stringArray.length, strings1.length);
-        for (int i = 0; i < stringArray.length; i++) {
-            Assert.assertEquals(stringArray[i], strings1[i]);
-        }
-        final int[] int8Array = (int[]) rs.getArray("int8Array").getArray();
-        Assert.assertEquals(int8Array.length, int8s1.length);
-        for (int i = 0; i < int8Array.length; i++) {
-            Assert.assertEquals(int8Array[i], int8s1[i]);
-        }
-        final long[] uInt8Array = (long[]) rs.getArray("uInt8Array").getArray();
-        Assert.assertEquals(uInt8Array.length, uint8s1.length);
-        for (int i = 0; i < uInt8Array.length; i++) {
-            Assert.assertEquals(uInt8Array[i], uint8s1[i]);
-        }
-        final int[] int16Array = (int[]) rs.getArray("int16Array").getArray();
-        Assert.assertEquals(int16Array.length, int16s1.length);
-        for (int i = 0; i < int16Array.length; i++) {
-            Assert.assertEquals(int16Array[i], int16s1[i]);
-        }
-        final long[] uInt16Array = (long[]) rs.getArray("uInt16Array").getArray();
-        Assert.assertEquals(uInt16Array.length, uint16s1.length);
-        for (int i = 0; i < uInt16Array.length; i++) {
-            Assert.assertEquals(uInt16Array[i], uint16s1[i]);
-        }
-        final int[] int32Array = (int[]) rs.getArray("int32Array").getArray();
-        Assert.assertEquals(int32Array.length, int32s1.length);
-        for (int i = 0; i < int32Array.length; i++) {
-            Assert.assertEquals(int32Array[i], int32s1[i]);
-        }
-        final long[] uInt32Array = (long[]) rs.getArray("uInt32Array").getArray();
-        Assert.assertEquals(uInt32Array.length, uint32s1.length);
-        for (int i = 0; i < uInt32Array.length; i++) {
-            Assert.assertEquals(uInt32Array[i], uint32s1[i]);
-        }
-        final long[] int64Array = (long[]) rs.getArray("int64Array").getArray();
-        Assert.assertEquals(int64Array.length, int64s1.length);
-        for (int i = 0; i < int64Array.length; i++) {
-            Assert.assertEquals(int64Array[i], int64s1[i]);
-        }
-        final BigInteger[] uInt64Array = (BigInteger[]) rs.getArray("uInt64Array").getArray();
-        Assert.assertEquals(uInt64Array.length, uint64s1.length);
-        for (int i = 0; i < uInt64Array.length; i++) {
-            Assert.assertEquals(uInt64Array[i], BigInteger.valueOf(uint64s1[i]));
-        }
-        final float[] float32Array = (float[]) rs.getArray("float32Array").getArray();
-        Assert.assertEquals(float32Array.length, float32s1.length);
-        for (int i = 0; i < float32Array.length; i++) {
-            Assert.assertEquals(float32Array[i], float32s1[i]);
-        }
-        final double[] float64Array = (double[]) rs.getArray("float64Array").getArray();
-        Assert.assertEquals(float64Array.length, float64s1.length);
-        for (int i = 0; i < float64Array.length; i++) {
-            Assert.assertEquals(float64Array[i], float64s1[i]);
-        }
+            Date[] expectedDates1 = new Date[dates1.length];
+            for (int i = 0; i < dates1.length; i++)
+                // expected is Date at start of the day in local timezone
+                expectedDates1[i] = withTimeAtStartOfDay(dates1[i]);
 
-        Assert.assertTrue(rs.next());
-        Assert.assertEquals(rs.getString("date"), "2017-05-09");
-        Assert.assertEquals(rs.getTimestamp("dateTime").getTime(), date2.getTime());
-        Assert.assertEquals(rs.getString("string"), "a\tbdasd''a");
-        Assert.assertEquals(rs.getInt("int8"), Byte.MAX_VALUE);
-        Assert.assertEquals(rs.getInt("uInt8"), 255);
-        Assert.assertEquals(rs.getInt("int16"), Short.MAX_VALUE);
-        Assert.assertEquals(rs.getInt("uInt16"), 42000);
-        Assert.assertEquals(rs.getInt("int32"), Integer.MAX_VALUE);
-        Assert.assertEquals(rs.getLong("uInt32"), 2147483747L);
-        Assert.assertEquals(rs.getLong("int64"), Long.MAX_VALUE);
-        Assert.assertEquals(rs.getString("uInt64"), "18446744073709551615");
-        Assert.assertEquals(rs.getDouble("float32"), 21.21);
-        Assert.assertEquals(rs.getDouble("float64"), 77.77);
-        Assert.assertEquals(rs.getString("uuid"), "789e0123-e89b-12d3-a456-426655444444");
+            Assert.assertEquals(rs.getArray("dateArray").getArray(), expectedDates1);
+            Assert.assertEquals(rs.getArray("dateTimeArray").getArray(), dateTimes1);
 
-        Assert.assertFalse(rs.next());
+            Assert.assertEquals(rs.getArray("stringArray").getArray(), strings1);
+
+            assertArrayEquals((int[]) rs.getArray("int8Array").getArray(), int8s1);
+            assertArrayEquals((long[]) rs.getArray("uInt8Array").getArray(), uint8s1);
+
+            assertArrayEquals((int[]) rs.getArray("int16Array").getArray(), int16s1);
+            assertArrayEquals((long[]) rs.getArray("uInt16Array").getArray(), uint16s1);
+
+            Assert.assertEquals(rs.getArray("int32Array").getArray(), int32s1);
+            Assert.assertEquals(rs.getArray("uInt32Array").getArray(), uint32s1);
+
+            Assert.assertEquals(rs.getArray("int64Array").getArray(), int64s1);
+            assertArrayEquals((BigInteger[]) rs.getArray("uInt64Array").getArray(), uint64s1);
+
+            Assert.assertEquals(rs.getArray("float32Array").getArray(), float32s1);
+            Assert.assertEquals(rs.getArray("float64Array").getArray(), float64s1);
+
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getString("date"), "2017-05-09");
+            Assert.assertEquals(rs.getTimestamp("dateTime").getTime(), date2.getTime());
+            Assert.assertEquals(rs.getString("string"), "a\tbdasd''a");
+            Assert.assertEquals(rs.getInt("int8"), Byte.MAX_VALUE);
+            Assert.assertEquals(rs.getInt("uInt8"), 255);
+            Assert.assertEquals(rs.getInt("int16"), Short.MAX_VALUE);
+            Assert.assertEquals(rs.getInt("uInt16"), 42000);
+            Assert.assertEquals(rs.getInt("int32"), Integer.MAX_VALUE);
+            Assert.assertEquals(rs.getLong("uInt32"), 2147483747L);
+            Assert.assertEquals(rs.getLong("int64"), Long.MAX_VALUE);
+            Assert.assertEquals(rs.getString("uInt64"), "18446744073709551615");
+            Assert.assertEquals(rs.getDouble("float32"), 21.21);
+            Assert.assertEquals(rs.getDouble("float64"), 77.77);
+            Assert.assertEquals(rs.getString("uuid"), "789e0123-e89b-12d3-a456-426655444444");
+
+            Assert.assertFalse(rs.next());
+        } else {
+            ClickHouseRowBinaryInputStream is = connection.createStatement().executeQueryClickhouseRowBinaryStream("SELECT * FROM test.raw_binary ORDER BY date");
+
+            Assert.assertEquals(is.readDate(), withTimeAtStartOfDay(date1));
+            Assert.assertEquals(is.readDateTime(), date1);
+            Assert.assertEquals(is.readString(), "string\n1");
+            Assert.assertEquals(is.readInt8(), Byte.MIN_VALUE);
+            Assert.assertEquals(is.readUInt8(), (short) 0);
+            Assert.assertEquals(is.readInt16(), Short.MIN_VALUE);
+            Assert.assertEquals(is.readUInt16(), 0);
+            Assert.assertEquals(is.readInt32(), Integer.MIN_VALUE);
+            Assert.assertEquals(is.readUInt32(), (long) 0);
+            Assert.assertEquals(is.readInt64(), Long.MIN_VALUE);
+            Assert.assertEquals(is.readUInt64(), BigInteger.valueOf(0));
+            Assert.assertEquals(is.readFloat32(), (float) 123.456);
+            Assert.assertEquals(is.readFloat64(), 42.21);
+
+            Date[] expectedDates1 = new Date[dates1.length];
+            for (int i = 0; i < dates1.length; i++)
+                // expected is Date at start of the day in local timezone
+                expectedDates1[i] = withTimeAtStartOfDay(dates1[i]);
+
+            Assert.assertEquals(is.readDateArray(), expectedDates1);
+            Assert.assertEquals(is.readDateTimeArray(), dateTimes1);
+
+            Assert.assertEquals(is.readStringArray(), strings1);
+
+            Assert.assertEquals(is.readInt8Array(), int8s1);
+            assertArrayEquals(is.readUInt8Array(), uint8s1);
+
+            Assert.assertEquals(is.readInt16Array(), int16s1);
+            Assert.assertEquals(is.readUInt16Array(), uint16s1);
+
+            Assert.assertEquals(is.readInt32Array(), int32s1);
+            Assert.assertEquals(is.readUInt32Array(), uint32s1);
+
+            Assert.assertEquals(is.readInt64Array(), int64s1);
+            assertArrayEquals(is.readUInt64Array(), uint64s1);
+
+            Assert.assertEquals(is.readFloat32Array(), float32s1);
+            Assert.assertEquals(is.readFloat64Array(), float64s1);
+
+            Assert.assertEquals(is.readUUID(), uuid1);
+
+            Assert.assertEquals(is.readDate(), withTimeAtStartOfDay(date2));
+            Assert.assertEquals(is.readDateTime().getTime(), date2.getTime());
+            Assert.assertEquals(is.readString(), "a\tbdasd''a");
+            Assert.assertEquals(is.readInt8(), Byte.MAX_VALUE);
+            Assert.assertEquals(is.readUInt8(), (short) 255);
+            Assert.assertEquals(is.readInt16(), Short.MAX_VALUE);
+            Assert.assertEquals(is.readUInt16(), 42000);
+            Assert.assertEquals(is.readInt32(), Integer.MAX_VALUE);
+            Assert.assertEquals(is.readUInt32(), ((long) Integer.MAX_VALUE) + 100L);
+            Assert.assertEquals(is.readInt64(), Long.MAX_VALUE);
+            Assert.assertEquals(is.readUInt64AsUnsignedLong(), UnsignedLong.fromLongBits(UnsignedLongs.MAX_VALUE));
+            Assert.assertEquals(is.readFloat32(), (float) 21.21);
+            Assert.assertEquals(is.readFloat64(), 77.77);
+
+            // skip arrays
+            is.readDateArray();
+            is.readDateTimeArray();
+            is.readStringArray();
+            is.readInt8Array();
+            is.readUInt8Array();
+            is.readInt16Array();
+            is.readUInt16Array();
+            is.readInt32Array();
+            is.readUInt32Array();
+            is.readInt64Array();
+            is.readUInt64Array();
+            is.readFloat32Array();
+            is.readFloat64Array();
+
+            Assert.assertEquals(is.readUUID(), uuid2);
+
+            // check EOF
+            try {
+                is.readInt8();
+                Assert.fail();
+            } catch (EOFException e) {
+                // expected
+            }
+        }
     }
 
 
@@ -336,5 +388,50 @@ public class RowBinaryStreamTest {
         cal.set(Calendar.SECOND, 0);
         cal.set(Calendar.MILLISECOND, 0);
         return new Date(cal.getTimeInMillis());
+    }
+
+    private static void assertArrayEquals(int[] actual, byte[] expected) {
+        int[] expectedInts = new int[expected.length];
+        for (int i = 0; i < expected.length; i++)
+            expectedInts[i] = expected[i];
+
+        Assert.assertEquals(actual, expectedInts);
+
+    }
+
+    private static void assertArrayEquals(int[] actual, short[] expected) {
+        int[] expectedInts = new int[expected.length];
+        for (int i = 0; i < expected.length; i++)
+            expectedInts[i] = expected[i];
+
+        Assert.assertEquals(actual, expectedInts);
+
+    }
+
+    private static void assertArrayEquals(short[] actual, int[] expected) {
+        int[] actualInts = new int[actual.length];
+        for (int i = 0; i < actual.length; i++)
+            actualInts[i] = actual[i];
+
+        Assert.assertEquals(actualInts, expected);
+
+    }
+
+    private static void assertArrayEquals(long[] actual, int[] expected) {
+        long[] expectedLongs = new long[expected.length];
+        for (int i = 0; i < expected.length; i++)
+            expectedLongs[i] = expected[i];
+
+        Assert.assertEquals(actual, expectedLongs);
+
+    }
+
+    private static void assertArrayEquals(BigInteger[] actual, long[] expected) {
+        BigInteger[] expectedBigs = new BigInteger[expected.length];
+        for (int i = 0; i < expected.length; i++)
+            expectedBigs[i] = BigInteger.valueOf(expected[i]);
+
+        Assert.assertEquals(actual, expectedBigs);
+
     }
 }
