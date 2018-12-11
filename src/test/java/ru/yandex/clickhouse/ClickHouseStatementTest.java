@@ -3,6 +3,7 @@ package ru.yandex.clickhouse;
 
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.Properties;
 
@@ -51,7 +52,7 @@ public class ClickHouseStatementTest {
         assertEquals(withCredentials.getPassword(), "test_password");
 
         ClickHouseStatementImpl statement = new ClickHouseStatementImpl(
-                HttpClientBuilder.create().build(),null, withCredentials
+                HttpClientBuilder.create().build(),null, withCredentials, ResultSet.TYPE_FORWARD_ONLY
                 );
 
         URI uri = statement.buildRequestUri(null, null, null, null, false);
@@ -65,7 +66,7 @@ public class ClickHouseStatementTest {
         ClickHouseProperties properties = new ClickHouseProperties();
         properties.setMaxMemoryUsage(41L);
         ClickHouseStatementImpl statement = new ClickHouseStatementImpl(HttpClientBuilder.create().build(), null,
-                properties);
+                properties, ResultSet.TYPE_FORWARD_ONLY);
 
         URI uri = statement.buildRequestUri(null, null, null, null, false);
         String query = uri.getQuery();
@@ -78,7 +79,8 @@ public class ClickHouseStatementTest {
         ClickHouseStatementImpl statement = new ClickHouseStatementImpl(
                 HttpClientBuilder.create().build(),
                 null,
-                properties
+                properties,
+                ResultSet.TYPE_FORWARD_ONLY
         );
 
         URI uri = statement.buildRequestUri(

@@ -3,9 +3,13 @@ package ru.yandex.clickhouse.response;
 import org.testng.Assert;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
+
+import ru.yandex.clickhouse.ClickHouseStatement;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
 
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.sql.ResultSet;
 import java.util.TimeZone;
 
@@ -43,7 +47,7 @@ public class ClickHouseResultSetTest {
 
         ByteArrayInputStream is = new ByteArrayInputStream(response.getBytes("UTF-8"));
 
-        ResultSet rs = new ClickHouseResultSet(is, 1024, "db", "table", false, null, null, props);
+        ResultSet rs = buildResultSet(is, 1024, "db", "table", false, null, null, props);
 
         rs.next();
         assertEquals("hello.com", rs.getString(1));
@@ -68,7 +72,7 @@ public class ClickHouseResultSetTest {
 
         ByteArrayInputStream is = new ByteArrayInputStream(response.getBytes("UTF-8"));
 
-        ClickHouseResultSet rs = new ClickHouseResultSet(is, 1024, "db", "table", false, null, null, props);
+        ClickHouseResultSet rs = buildResultSet(is, 1024, "db", "table", false, null, null, props);
 
         rs.next();
         assertEquals("hello.com", rs.getString(1));
@@ -103,7 +107,7 @@ public class ClickHouseResultSetTest {
 
         ByteArrayInputStream is = new ByteArrayInputStream(response.getBytes("UTF-8"));
 
-        ClickHouseResultSet rs = new ClickHouseResultSet(is, 1024, "db", "table", true, null, null, props);
+        ClickHouseResultSet rs = buildResultSet(is, 1024, "db", "table", true, null, null, props);
 
         rs.next();
         assertEquals("hello.com", rs.getString(1));
@@ -132,7 +136,7 @@ public class ClickHouseResultSetTest {
 
         ByteArrayInputStream is = new ByteArrayInputStream(response.getBytes("UTF-8"));
 
-        ClickHouseResultSet rs = new ClickHouseResultSet(is, 1024, "db", "table", true, null, null, props);
+        ClickHouseResultSet rs = buildResultSet(is, 1024, "db", "table", true, null, null, props);
 
         rs.next();
         assertEquals("hello.com", rs.getString(1));
@@ -172,7 +176,7 @@ public class ClickHouseResultSetTest {
 
         ByteArrayInputStream is = new ByteArrayInputStream(response.getBytes("UTF-8"));
 
-        ResultSet rs = new ClickHouseResultSet(is, 1024, "db", "table", true, null, null, props);
+        ResultSet rs = buildResultSet(is, 1024, "db", "table", true, null, null, props);
 
         rs.next();
         assertEquals("hello.com", rs.getString(1));
@@ -202,7 +206,7 @@ public class ClickHouseResultSetTest {
 
         ByteArrayInputStream is = new ByteArrayInputStream(response.getBytes("UTF-8"));
 
-        ClickHouseResultSet rs = new ClickHouseResultSet(is, 1024, "db", "table", true, null, null, props);
+        ClickHouseResultSet rs = buildResultSet(is, 1024, "db", "table", true, null, null, props);
 
         rs.next();
         assertEquals(1L, rs.getLong(1));
@@ -234,7 +238,7 @@ public class ClickHouseResultSetTest {
 
         ByteArrayInputStream is = new ByteArrayInputStream(response.getBytes("UTF-8"));
 
-        ClickHouseResultSet rs = new ClickHouseResultSet(is, 1024, "db", "table", true, null, null, props);
+        ClickHouseResultSet rs = buildResultSet(is, 1024, "db", "table", true, null, null, props);
 
         rs.next();
         assertEquals("hello.com", rs.getString(1));
@@ -267,12 +271,16 @@ public class ClickHouseResultSetTest {
 
         ByteArrayInputStream is = new ByteArrayInputStream(response.getBytes("UTF-8"));
 
-        ResultSet rs = new ClickHouseResultSet(is, 1024, "db", "table", false, null, null, props);
+        ResultSet rs = buildResultSet(is, 1024, "db", "table", false, null, null, props);
         
         rs.next();
         assertFalse(rs.isLast());
         rs.next();
         assertTrue(rs.isLast());
         assertFalse(rs.next());
+    }
+    
+    protected ClickHouseResultSet buildResultSet(InputStream is, int bufferSize, String db, String table, boolean usesWithTotals, ClickHouseStatement statement, TimeZone timezone, ClickHouseProperties properties) throws IOException {
+    	return new ClickHouseResultSet(is, bufferSize, db, table, usesWithTotals, statement, timezone, properties);
     }
 }

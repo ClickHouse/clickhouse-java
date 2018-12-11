@@ -13,6 +13,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TimeZone;
 
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
@@ -36,6 +37,7 @@ import ru.yandex.clickhouse.except.ClickHouseExceptionSpecifier;
 import ru.yandex.clickhouse.response.ClickHouseLZ4Stream;
 import ru.yandex.clickhouse.response.ClickHouseResponse;
 import ru.yandex.clickhouse.response.ClickHouseResultSet;
+import ru.yandex.clickhouse.response.ClickHouseScrollableResultSet;
 import ru.yandex.clickhouse.response.FastByteArrayOutputStream;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
 import ru.yandex.clickhouse.settings.ClickHouseQueryParam;
@@ -66,6 +68,8 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
     private int maxRows;
 
     private boolean closeOnCompletion;
+    
+    private final boolean isResultSetScrollable;
 
     /**
      * Current database name may be changed by {@link java.sql.Connection#setCatalog(String)}
@@ -78,11 +82,12 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
     private static final String databaseKeyword = "CREATE DATABASE";
 
     public ClickHouseStatementImpl(CloseableHttpClient client, ClickHouseConnection connection,
-                                   ClickHouseProperties properties) {
+                                   ClickHouseProperties properties, int resultSetType) {
         this.client = client;
         this.connection = connection;
         this.properties = properties;
         this.initialDatabase = properties.getDatabase();
+        this.isResultSetScrollable = (resultSetType != ResultSet.TYPE_FORWARD_ONLY);
     }
 
     @Override
@@ -119,7 +124,7 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
         try {
             if (isSelect(sql)) {
                 currentUpdateCount = -1;
-                currentResult = new ClickHouseResultSet(properties.isCompress()
+                currentResult = createResultSet(properties.isCompress()
                     ? new ClickHouseLZ4Stream(is) : is, properties.getBufferSize(),
                     extractDBName(sql),
                     extractTableName(sql),
@@ -773,5 +778,14 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
 
     public boolean isCloseOnCompletion() throws SQLException {
         return closeOnCompletion;
+    }
+    
+    private ClickHouseResultSet createResultSet(InputStream is, int bufferSize, String db, String table, boolean usesWithTotals, 
+    		ClickHouseStatement statement, TimeZone timezone, ClickHouseProperties properties) throws IOException {
+    	if(isResultSetScrollable) {
+    		return new ClickHouseScrollableResultSet(is, bufferSize, db, table, usesWithTotals, statement, timezone, properties);
+    	} else {
+    		return new ClickHouseResultSet(is, bufferSize, db, table, usesWithTotals, statement, timezone, properties);
+    	}
     }
 }

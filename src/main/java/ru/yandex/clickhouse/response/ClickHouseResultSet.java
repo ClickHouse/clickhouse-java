@@ -38,18 +38,18 @@ public class ClickHouseResultSet extends AbstractResultSet {
     private int maxRows;
 
     // current line
-    private ByteFragment[] values;
+    protected ByteFragment[] values;
     // 1-based
     private int lastReadColumn;
 
     // next line
-    private ByteFragment nextLine;
+    protected ByteFragment nextLine;
 
     // total lines
     private ByteFragment totalLine;
 
     // row counter
-    private int rowNumber;
+    protected int rowNumber;
 
     // statement result set belongs to
     private ClickHouseStatement statement;
@@ -193,7 +193,7 @@ public class ClickHouseResultSet extends AbstractResultSet {
 
     /////////////////////////////////////////////////////////
 
-    String[] getTypes() {
+    public String[] getTypes() {
         return types;
     }
 
@@ -529,7 +529,7 @@ public class ClickHouseResultSet extends AbstractResultSet {
 
     @Override
     public int getRow() throws SQLException {
-        return rowNumber + 1;
+        return rowNumber;
     }
 
     public String getDb() {
