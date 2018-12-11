@@ -1,3 +1,9 @@
+0.1.48
+  * SELECT_SEQUENTIAL_CONSISTENCY param
+  * scrollable ResultSet
+  * metadata updates
+  * Decimal type
+
 0.1.47
   * connection cleaner in daemon mode
   * insert-quorum params
