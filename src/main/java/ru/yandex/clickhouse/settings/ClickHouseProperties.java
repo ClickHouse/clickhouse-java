@@ -63,6 +63,7 @@ public class ClickHouseProperties {
     private Long    sessionTimeout;
     private Long    insertQuorum;
     private Long    insertQuorumTimeout;
+    private Long    selectSequentialConsistency;
 
 
     public ClickHouseProperties() {
@@ -117,6 +118,7 @@ public class ClickHouseProperties {
         this.sessionTimeout = getSetting(info, ClickHouseQueryParam.SESSION_TIMEOUT);
         this.insertQuorum = (Long)getSetting(info, ClickHouseQueryParam.INSERT_QUORUM);
         this.insertQuorumTimeout = (Long)getSetting(info, ClickHouseQueryParam.INSERT_QUORUM_TIMEOUT);
+        this.selectSequentialConsistency = (Long)getSetting(info, ClickHouseQueryParam.SELECT_SEQUENTIAL_CONSISTENCY);
     }
 
     public Properties asProperties() {
@@ -167,6 +169,7 @@ public class ClickHouseProperties {
         ret.put(ClickHouseQueryParam.SESSION_TIMEOUT.getKey(), sessionTimeout);
         ret.put(ClickHouseQueryParam.INSERT_QUORUM.getKey(), insertQuorum);
         ret.put(ClickHouseQueryParam.INSERT_QUORUM_TIMEOUT.getKey(), insertQuorumTimeout);
+        ret.put(ClickHouseQueryParam.SELECT_SEQUENTIAL_CONSISTENCY.getKey(), selectSequentialConsistency);
 
         return ret.getProperties();
     }
@@ -217,6 +220,7 @@ public class ClickHouseProperties {
         setSessionTimeout(properties.sessionTimeout);
         setInsertQuorum(properties.insertQuorum);
         setInsertQuorumTimeout(properties.insertQuorumTimeout);
+        setSelectSequentialConsistency(properties.selectSequentialConsistency);
         setPreferredBlockSizeBytes(properties.preferredBlockSizeBytes);
         setMaxQuerySize(properties.maxQuerySize);
     }
@@ -286,6 +290,7 @@ public class ClickHouseProperties {
 
         addQueryParam(insertQuorum, ClickHouseQueryParam.INSERT_QUORUM, params);
         addQueryParam(insertQuorumTimeout, ClickHouseQueryParam.INSERT_QUORUM_TIMEOUT, params);
+        addQueryParam(selectSequentialConsistency, ClickHouseQueryParam.SELECT_SEQUENTIAL_CONSISTENCY, params);
 
         return params;
     }
@@ -698,6 +703,14 @@ public class ClickHouseProperties {
 
     public void setInsertQuorumTimeout(Long insertQuorumTimeout) {
         this.insertQuorumTimeout = insertQuorumTimeout;
+    }
+
+    public Long getSelectSequentialConsistency() {
+        return selectSequentialConsistency;
+    }
+
+    public void setSelectSequentialConsistency(Long selectSequentialConsistency) {
+        this.selectSequentialConsistency = selectSequentialConsistency;
     }
 
     private static class PropertiesBuilder {
