@@ -1,6 +1,7 @@
 package ru.yandex.clickhouse.integration;
 
 import java.math.BigInteger;
+import java.nio.ByteBuffer;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -9,6 +10,8 @@ import java.sql.Statement;
 import java.sql.Time;
 import java.sql.Types;
 import java.util.UUID;
+
+import com.google.common.io.BaseEncoding;
 
 import org.testng.Assert;
 import org.testng.annotations.AfterTest;
@@ -27,6 +30,15 @@ import static java.util.Collections.singletonList;
 public class ClickHousePreparedStatementTest {
     private ClickHouseDataSource dataSource;
     private Connection connection;
+
+    private String randomEncodedUUID() {
+        final UUID uuid = UUID.randomUUID();
+        final byte[] bts = ByteBuffer.allocate(16)
+                .putLong(uuid.getMostSignificantBits())
+                .putLong(uuid.getLeastSignificantBits())
+                .array();
+        return "\\x" + BaseEncoding.base16().withSeparator("\\x", 2).encode(bts);
+    }
 
     @BeforeTest
     public void setUp() throws Exception {
@@ -113,6 +125,31 @@ public class ClickHousePreparedStatementTest {
         } finally {
             configuredConnection.close();
         }
+    }
+
+    @Test
+    public void testArrayFixedStringTest() throws Exception {
+        connection.createStatement().execute("DROP TABLE IF EXISTS test.array_fixed_string_test");
+        connection.createStatement().execute(
+                "CREATE TABLE IF NOT EXISTS test.array_fixed_string_test (i Int32, a Array(FixedString(16))) ENGINE = TinyLog"
+        );
+
+        PreparedStatement statement = connection.prepareStatement("INSERT INTO test.array_fixed_string_test (i, a) VALUES (?, ?)");
+
+        statement.setInt(1, 1);
+        statement.setArray(2, new ClickHouseArray(Types.BINARY, new String[]{randomEncodedUUID(), randomEncodedUUID()}));
+        statement.addBatch();
+
+        statement.setInt(1, 2);
+        statement.setArray(2, new ClickHouseArray(Types.BINARY, new String[]{randomEncodedUUID(), randomEncodedUUID()}));
+        statement.addBatch();
+        statement.executeBatch();
+
+        ResultSet rs = connection.createStatement().executeQuery("SELECT count() as cnt from test.array_fixed_string_test");
+        rs.next();
+
+        Assert.assertEquals(rs.getInt("cnt"), 2);
+        Assert.assertFalse(rs.next());
     }
 
     @Test
