@@ -329,16 +329,17 @@ public class ClickHousePreparedStatementTest {
     }
 
     @Test
-    public void testToString() throws Exception {
+    public void testAsSql() throws Exception {
         String unbindedStatement = "SELECT test.example WHERE id IN (?, ?)";
-        PreparedStatement statement = connection.prepareStatement(unbindedStatement);
-        Assert.assertEquals(statement.toString(), unbindedStatement);
+        ClickHousePreparedStatement statement = (ClickHousePreparedStatement)
+            connection.prepareStatement(unbindedStatement);
+        Assert.assertEquals(statement.asSql(), unbindedStatement);
 
         statement.setInt(1, 123);
-        Assert.assertEquals(statement.toString(), unbindedStatement);
+        Assert.assertEquals(statement.asSql(), unbindedStatement);
 
         statement.setInt(2, 456);
-        Assert.assertEquals(statement.toString(), "SELECT test.example WHERE id IN (123, 456)");
+        Assert.assertEquals(statement.asSql(), "SELECT test.example WHERE id IN (123, 456)");
     }
 
 }

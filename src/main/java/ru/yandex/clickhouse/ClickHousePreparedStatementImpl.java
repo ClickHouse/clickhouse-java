@@ -608,7 +608,7 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
     }
 
     @Override
-    public String toString () {
+    public String asSql() {
         try {
             return buildSql();
         } catch (SQLException e) {
