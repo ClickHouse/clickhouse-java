@@ -607,4 +607,12 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
         return null;
     }
 
+    @Override
+    public String asSql() {
+        try {
+            return buildSql();
+        } catch (SQLException e) {
+            return sql;
+        }
+    }
 }

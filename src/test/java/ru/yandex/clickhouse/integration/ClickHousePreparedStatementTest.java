@@ -328,4 +328,18 @@ public class ClickHousePreparedStatementTest {
         Assert.assertEquals(rs.getTime(1), Time.valueOf("13:37:42"));
     }
 
+    @Test
+    public void testAsSql() throws Exception {
+        String unbindedStatement = "SELECT test.example WHERE id IN (?, ?)";
+        ClickHousePreparedStatement statement = (ClickHousePreparedStatement)
+            connection.prepareStatement(unbindedStatement);
+        Assert.assertEquals(statement.asSql(), unbindedStatement);
+
+        statement.setInt(1, 123);
+        Assert.assertEquals(statement.asSql(), unbindedStatement);
+
+        statement.setInt(2, 456);
+        Assert.assertEquals(statement.asSql(), "SELECT test.example WHERE id IN (123, 456)");
+    }
+
 }

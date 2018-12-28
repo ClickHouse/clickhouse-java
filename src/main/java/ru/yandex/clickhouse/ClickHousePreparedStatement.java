@@ -25,4 +25,6 @@ public interface ClickHousePreparedStatement extends PreparedStatement, ClickHou
     ResultSet executeQuery(Map<ClickHouseQueryParam, String> additionalDBParams, List<ClickHouseExternalData> externalData) throws SQLException;
 
     int[] executeBatch(Map<ClickHouseQueryParam, String> additionalDBParams) throws SQLException;
+
+    String asSql();
 }
