@@ -65,7 +65,7 @@ public class ClickHouseRowBinaryInputStream implements Closeable {
 		return in.read();
 	}
 
-	public boolean isNull() throws IOException {
+	public boolean readIsNull() throws IOException {
 		int value = readByte();
 		if (value == -1)
 			throw new EOFException();
