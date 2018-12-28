@@ -41,6 +41,9 @@ import java.util.concurrent.TimeUnit;
 
 
 public class ClickHouseConnectionImpl implements ClickHouseConnection {
+	
+	private static final int DEFAULT_RESULTSET_TYPE = ResultSet.TYPE_FORWARD_ONLY;
+	
     private static final Logger log = LoggerFactory.getLogger(ClickHouseConnectionImpl.class);
 
     private final CloseableHttpClient httpclient;
@@ -99,7 +102,11 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
 
     @Override
     public ClickHouseStatement createStatement() throws SQLException {
-        return LogProxy.wrap(ClickHouseStatement.class, new ClickHouseStatementImpl(httpclient, this, properties));
+        return createStatement(DEFAULT_RESULTSET_TYPE);
+    }
+    
+    public ClickHouseStatement createStatement(int resultSetType) throws SQLException {
+        return LogProxy.wrap(ClickHouseStatement.class, new ClickHouseStatementImpl(httpclient, this, properties, resultSetType));
     }
 
     @Deprecated
@@ -114,15 +121,15 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
     }
 
     private ClickHouseStatement createClickHouseStatement(CloseableHttpClient httpClient) throws SQLException {
-        return LogProxy.wrap(ClickHouseStatement.class, new ClickHouseStatementImpl(httpClient, this, properties));
+        return LogProxy.wrap(ClickHouseStatement.class, new ClickHouseStatementImpl(httpClient, this, properties, DEFAULT_RESULTSET_TYPE));
     }
 
-    public PreparedStatement createPreparedStatement(String sql) throws SQLException {
-        return LogProxy.wrap(PreparedStatement.class, new ClickHousePreparedStatementImpl(httpclient, this, properties, sql, getTimeZone()));
+    public PreparedStatement createPreparedStatement(String sql, int resultSetType) throws SQLException {
+        return LogProxy.wrap(PreparedStatement.class, new ClickHousePreparedStatementImpl(httpclient, this, properties, sql, getTimeZone(), resultSetType));
     }
 
-    public ClickHousePreparedStatement createClickHousePreparedStatement(String sql) throws SQLException {
-        return LogProxy.wrap(ClickHousePreparedStatement.class, new ClickHousePreparedStatementImpl(httpclient, this, properties, sql, getTimeZone()));
+    public ClickHousePreparedStatement createClickHousePreparedStatement(String sql, int resultSetType) throws SQLException {
+        return LogProxy.wrap(ClickHousePreparedStatement.class, new ClickHousePreparedStatementImpl(httpclient, this, properties, sql, getTimeZone(), resultSetType));
     }
 
 
@@ -149,16 +156,16 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
     @Override
     public ClickHouseStatement createStatement(int resultSetType, int resultSetConcurrency,
                                                int resultSetHoldability) throws SQLException {
-        if (resultSetType != ResultSet.TYPE_FORWARD_ONLY && resultSetConcurrency != ResultSet.CONCUR_READ_ONLY
-            && resultSetHoldability != ResultSet.CLOSE_CURSORS_AT_COMMIT) {
+        if (resultSetType == ResultSet.TYPE_SCROLL_SENSITIVE || resultSetConcurrency != ResultSet.CONCUR_READ_ONLY
+            || resultSetHoldability != ResultSet.CLOSE_CURSORS_AT_COMMIT) {
             throw new SQLFeatureNotSupportedException();
         }
-        return createStatement();
+        return createStatement(resultSetType);
     }
 
     @Override
     public PreparedStatement prepareStatement(String sql) throws SQLException {
-        return createPreparedStatement(sql);
+        return createPreparedStatement(sql, DEFAULT_RESULTSET_TYPE);
     }
 
     @Override
@@ -262,7 +269,7 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
 
     @Override
     public PreparedStatement prepareStatement(String sql, int resultSetType, int resultSetConcurrency) throws SQLException {
-        return createPreparedStatement(sql);
+        return createPreparedStatement(sql, resultSetType);
     }
 
     @Override
@@ -312,7 +319,7 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
 
     @Override
     public PreparedStatement prepareStatement(String sql, int resultSetType, int resultSetConcurrency, int resultSetHoldability) throws SQLException {
-        return createPreparedStatement(sql);
+        return createPreparedStatement(sql, resultSetType);
     }
 
     @Override

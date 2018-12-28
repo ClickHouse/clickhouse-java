@@ -5,6 +5,7 @@ import org.testng.annotations.Test;
 import ru.yandex.clickhouse.ClickHouseDataSource;
 
 import java.net.URI;
+import java.util.Map;
 import java.util.Properties;
 
 public class ClickHousePropertiesTest {
@@ -64,7 +65,7 @@ public class ClickHousePropertiesTest {
         Assert.assertFalse(new ClickHouseProperties(new Properties(){{setProperty("compress", "0");}}).isCompress());
         Assert.assertTrue(new ClickHouseProperties(new Properties(){{setProperty("compress", "1");}}).isCompress());
     }
-    
+
     @Test
     public void clickHouseQueryParamContainsMaxMemoryUsage() throws Exception {
         final ClickHouseProperties clickHouseProperties = new ClickHouseProperties();
@@ -79,5 +80,18 @@ public class ClickHousePropertiesTest {
 
         ClickHouseDataSource ds = new ClickHouseDataSource("jdbc:clickhouse://localhost:8123/test", driverProperties);
         Assert.assertEquals(ds.getProperties().getMaxMemoryUsage(), Long.valueOf(42L), "max_memory_usage is missing");
+    }
+
+    @Test
+    public void buildQueryParamsTest() {
+        ClickHouseProperties clickHouseProperties = new ClickHouseProperties();
+        clickHouseProperties.setInsertQuorumTimeout(1000L);
+        clickHouseProperties.setInsertQuorum(3L);
+        clickHouseProperties.setSelectSequentialConsistency(1L);
+
+        Map<ClickHouseQueryParam, String> clickHouseQueryParams = clickHouseProperties.buildQueryParams(true);
+        Assert.assertEquals(clickHouseQueryParams.get(ClickHouseQueryParam.INSERT_QUORUM), "3");
+        Assert.assertEquals(clickHouseQueryParams.get(ClickHouseQueryParam.INSERT_QUORUM_TIMEOUT), "1000");
+        Assert.assertEquals(clickHouseQueryParams.get(ClickHouseQueryParam.SELECT_SEQUENTIAL_CONSISTENCY), "1");
     }
 }

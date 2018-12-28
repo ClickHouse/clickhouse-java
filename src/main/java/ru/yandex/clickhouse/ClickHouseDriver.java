@@ -13,10 +13,7 @@ import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
-import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 
 /**
  *
@@ -135,6 +132,15 @@ public class ClickHouseDriver implements Driver {
     }
 
     static class ScheduledConnectionCleaner {
-        static final ScheduledExecutorService INSTANCE = Executors.newSingleThreadScheduledExecutor();
+        static final ScheduledExecutorService INSTANCE = Executors.newSingleThreadScheduledExecutor(new DaemonThreadFactory());
+
+        static class DaemonThreadFactory implements ThreadFactory {
+            @Override
+            public Thread newThread(Runnable r) {
+                Thread thread = Executors.defaultThreadFactory().newThread(r);
+                thread.setDaemon(true);
+                return thread;
+            }
+        }
     }
 }

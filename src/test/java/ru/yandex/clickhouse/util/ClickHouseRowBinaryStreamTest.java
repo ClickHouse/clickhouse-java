@@ -1,13 +1,14 @@
 package ru.yandex.clickhouse.util;
 
 import com.google.common.primitives.UnsignedLong;
-import org.joda.time.LocalDate;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
 
 import java.io.ByteArrayOutputStream;
+import java.util.Date;
 import java.util.TimeZone;
+import java.util.UUID;
 
 /**
  * @author Dmitry Andreev <a href="mailto:AndreevDm@yandex-team.ru"></a>
@@ -85,7 +86,7 @@ public class ClickHouseRowBinaryStreamTest {
                     stream.writeString("a.b.c");
                     stream.writeFloat64(42.21);
                     stream.writeUInt32(1492342562);
-                    stream.writeDate(new LocalDate(2017, 4, 16));
+                    stream.writeDate(new Date(117, 3, 16));
                     stream.writeUInt32(1492350000);
                 }
             },
@@ -179,6 +180,54 @@ public class ClickHouseRowBinaryStreamTest {
             }
             //clickhouse-client -q "SELECT 'aaaa~����%20�&zzzzz' Format RowBinary"  | od -vAn -td1
         );
+    }
+
+    @Test
+    public void testUUID() throws Exception {
+        check(
+                new StreamWriter() {
+                    @Override
+                    public void write(ClickHouseRowBinaryStream stream) throws Exception {
+                        stream.writeUUID(UUID.fromString("123e4567-e89b-12d3-a456-426655440000"));
+                    }
+                },
+                new byte[]{
+                        -45, 18, -101, -24, 103, 69, 62, 18, 0, 0, 68, 85, 102, 66,  86, -92
+                }
+        );
+    }
+
+    @Test
+    public void testWriteNullableInt32() throws Exception {
+        check(
+            new StreamWriter() {
+                @Override
+                public void write(ClickHouseRowBinaryStream stream) throws Exception {
+                    stream.markNextNullable(false);
+                    stream.writeInt32(1);
+                }
+            },
+            new byte[]{
+                    0, 1, 0, 0, 0
+            }
+        );
+        // clickhouse-client -q "SELECT CAST(1 AS Nullable(Int32)) Format RowBinary"  | od -vAn -td1
+    }
+
+    @Test
+    public void testWriteNull() throws Exception {
+        check(
+            new StreamWriter() {
+                @Override
+                public void write(ClickHouseRowBinaryStream stream) throws Exception {
+                    stream.markNextNullable(true);
+                }
+            },
+            new byte[]{
+                    1
+            }
+        );
+        // clickhouse-client -q "SELECT CAST(Null AS Nullable(Int32)) Format RowBinary"  | od -vAn -td1
     }
 
     private void check(StreamWriter streamWriter, byte[] expected) throws Exception {

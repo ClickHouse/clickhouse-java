@@ -3,16 +3,16 @@ package ru.yandex.clickhouse.util;
 import com.google.common.base.Preconditions;
 import com.google.common.io.LittleEndianDataOutputStream;
 import com.google.common.primitives.UnsignedLong;
-import org.joda.time.DateTimeZone;
-import org.joda.time.Days;
-import org.joda.time.LocalDate;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
 import ru.yandex.clickhouse.util.guava.StreamUtils;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.Date;
 import java.util.TimeZone;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -23,19 +23,18 @@ public class ClickHouseRowBinaryStream {
     private static final int U_INT8_MAX = (1 << 8) - 1;
     private static final int U_INT16_MAX = (1 << 16) - 1;
     private static final long U_INT32_MAX = (1L << 32) - 1;
+    private static final long MILLIS_IN_DAY = TimeUnit.DAYS.toMillis(1);
 
     private final LittleEndianDataOutputStream out;
-    private final DateTimeZone dateTimeZone;
-    private final LocalDate epochDate;
+    private final TimeZone timeZone;
 
     public ClickHouseRowBinaryStream(OutputStream outputStream, TimeZone timeZone, ClickHouseProperties properties) {
         this.out = new LittleEndianDataOutputStream(outputStream);
         if (properties.isUseServerTimeZoneForDates()) {
-            this.dateTimeZone = DateTimeZone.forTimeZone(timeZone);
+            this.timeZone = timeZone;
         } else {
-            this.dateTimeZone = DateTimeZone.getDefault();
+            this.timeZone = TimeZone.getDefault();
         }
-        this.epochDate = new LocalDate(0, dateTimeZone);
     }
 
     public void writeUnsignedLeb128(int value) throws IOException {
@@ -148,16 +147,10 @@ public class ClickHouseRowBinaryStream {
         writeUInt32(TimeUnit.MILLISECONDS.toSeconds(date.getTime()));
     }
 
-    public void writeDate(LocalDate date) throws IOException {
-        Preconditions.checkNotNull(date);
-        int daysSinceEpoch = Days.daysBetween(epochDate, date).getDays();
-        writeUInt16(daysSinceEpoch);
-    }
-
     public void writeDate(Date date) throws IOException {
         Preconditions.checkNotNull(date);
-        LocalDate localDate = new LocalDate(date.getTime(), dateTimeZone);
-        int daysSinceEpoch = Days.daysBetween(epochDate, localDate).getDays();
+        long localMillis = date.getTime() + timeZone.getOffset(date.getTime());
+        int daysSinceEpoch = (int) (localMillis / MILLIS_IN_DAY);
         writeUInt16(daysSinceEpoch);
     }
 
@@ -280,4 +273,33 @@ public class ClickHouseRowBinaryStream {
             writeFloat64(d);
         }
     }
+
+    /** Write a marker indicating if value is nullable or not.
+     *
+     * E.g., to write Nullable(Int32):
+     *
+     * {{{
+     *     void writeNullableInt32(Integer value) {
+     *         if (value == null) {
+     *             markNextNullable(true);
+     *         } else {
+     *             markNextNullable(false);
+     *             writeInt32(value);
+     *         }
+     *     }
+     * }}}
+     */
+    public void markNextNullable(boolean isNullable) throws IOException {
+        writeByte(isNullable ? (byte) 1 : (byte) 0);
+    }
+
+    public void writeUUID(UUID uuid) throws IOException {
+        Preconditions.checkNotNull(uuid);
+        ByteBuffer bb = ByteBuffer.wrap(new byte[16]).order(ByteOrder.LITTLE_ENDIAN);
+        bb.putLong(uuid.getMostSignificantBits());
+        bb.putLong(uuid.getLeastSignificantBits());
+        byte[] array = bb.array();
+        this.writeBytes(array);
+    }
+
 }

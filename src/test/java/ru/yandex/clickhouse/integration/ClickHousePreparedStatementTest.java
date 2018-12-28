@@ -1,19 +1,26 @@
 package ru.yandex.clickhouse.integration;
 
+import java.math.BigInteger;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.sql.Time;
+import java.sql.Types;
+import java.util.UUID;
+
 import org.testng.Assert;
 import org.testng.annotations.AfterTest;
 import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
 
 import ru.yandex.clickhouse.ClickHouseArray;
+import ru.yandex.clickhouse.ClickHouseConnection;
 import ru.yandex.clickhouse.ClickHouseDataSource;
 import ru.yandex.clickhouse.ClickHousePreparedStatement;
 import ru.yandex.clickhouse.response.ClickHouseResponse;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
-
-import java.math.BigInteger;
-import java.sql.*;
-import java.util.UUID;
 
 import static java.util.Collections.singletonList;
 
@@ -60,6 +67,52 @@ public class ClickHousePreparedStatementTest {
 
         Assert.assertEquals(rs.getInt("cnt"), 2);
         Assert.assertFalse(rs.next());
+    }
+
+    @Test
+    public void testArrayOfNullable() throws Exception {
+        connection.createStatement().execute("DROP TABLE IF EXISTS test.array_of_nullable");
+        connection.createStatement().execute(
+                "CREATE TABLE IF NOT EXISTS test.array_of_nullable (" +
+                        "str Nullable(String), " +
+                        "int Nullable(Int32), " +
+                        "strs Array(Nullable(String)), " +
+                        "ints Array(Nullable(Int32))) ENGINE = TinyLog"
+        );
+
+        PreparedStatement statement = connection.prepareStatement(
+                "INSERT INTO test.array_of_nullable (str, int, strs, ints) VALUES (?, ?, ?, ?)"
+        );
+
+        statement.setObject(1, null);
+        statement.setObject(2, null);
+        statement.setObject(3, new String[]{"a", null, "c"});
+        statement.setArray(4, new ClickHouseArray(Types.INTEGER, new Integer[]{1, null, 3}));
+        statement.addBatch();
+        statement.executeBatch();
+
+        ResultSet rs = connection.createStatement().executeQuery("SELECT * FROM test.array_of_nullable");
+
+        Assert.assertTrue(rs.next());
+        Assert.assertNull(rs.getObject("str"));
+        Assert.assertNull(rs.getObject("int"));
+        Assert.assertEquals(rs.getArray("strs").getArray(), new String[]{"a", null, "c"});
+        Assert.assertEquals(rs.getArray("ints").getArray(), new int[]{1, 0, 3});
+        Assert.assertFalse(rs.next());
+
+        ClickHouseProperties properties = new ClickHouseProperties();
+        properties.setUseObjectsInArrays(true);
+        ClickHouseDataSource configuredDataSource = new ClickHouseDataSource(dataSource.getUrl(), properties);
+        ClickHouseConnection configuredConnection = configuredDataSource.getConnection();
+
+        try {
+            rs = configuredConnection.createStatement().executeQuery("SELECT * FROM test.array_of_nullable");
+            rs.next();
+
+            Assert.assertEquals(rs.getArray("ints").getArray(), new Integer[]{1, null, 3});
+        } finally {
+            configuredConnection.close();
+        }
     }
 
     @Test
@@ -193,6 +246,38 @@ public class ClickHousePreparedStatementTest {
     }
 
     @Test
+    public void testInsertBatchNullValues() throws Exception {
+        connection.createStatement().execute(
+            "DROP TABLE IF EXISTS test.prep_nullable_value");
+        connection.createStatement().execute(
+            "CREATE TABLE IF NOT EXISTS test.prep_nullable_value "
+          + "(idx Int32, s Nullable(String), i Nullable(Int32), f Nullable(Float32)) "
+          + "ENGINE = TinyLog"
+        );
+        PreparedStatement stmt = connection.prepareStatement(
+            "INSERT INTO test.prep_nullable_value (idx, s, i, f) VALUES "
+          + "(1, ?, ?, NULL), (2, NULL, NULL, ?)");
+        stmt.setString(1, "foo");
+        stmt.setInt(2, 42);
+        stmt.setFloat(3, 42.0F);
+        stmt.addBatch();
+        int[] updateCount = stmt.executeBatch();
+        Assert.assertEquals(updateCount.length, 2);
+
+        ResultSet rs = connection.createStatement().executeQuery(
+            "SELECT s, i, f FROM test.prep_nullable_value "
+          + "ORDER BY idx ASC");
+        rs.next();
+        Assert.assertEquals(rs.getString(1), "foo");
+        Assert.assertEquals(rs.getInt(2), 42);
+        Assert.assertNull(rs.getObject(3));
+        rs.next();
+        Assert.assertNull(rs.getObject(1));
+        Assert.assertNull(rs.getObject(2));
+        Assert.assertEquals(rs.getFloat(3), 42.0f);
+    }
+
+    @Test
     public void testSelectDouble() throws SQLException {
         Statement select = connection.createStatement();
         ResultSet rs = select.executeQuery("select toFloat64(0.1) ");
@@ -209,4 +294,52 @@ public class ClickHousePreparedStatementTest {
         ClickHouseResponse resp = sth.executeQueryClickhouseResponse();
         Assert.assertEquals(resp.getData(), singletonList(singletonList("314")));
     }
+
+    @Test
+    public void clickhouseJdbcFailsBecauseOfCommentInStart() throws Exception {
+        String sqlStatement = "/*comment*/ select * from system.numbers limit 3";
+        Statement stmt = connection.createStatement();
+        ResultSet rs = stmt.executeQuery(sqlStatement);
+        Assert.assertNotNull(rs);
+        for (int i = 0; i < 3; i++) {
+            rs.next();
+            Assert.assertEquals(rs.getInt(1), i);
+        }
+    }
+
+    @Test
+    public void testTrailingParameter() throws Exception {
+        String sqlStatement =
+            "SELECT 42 AS foo, 23 AS bar "
+          + "ORDER BY foo DESC LIMIT ?, ?";
+        PreparedStatement stmt = connection.prepareStatement(sqlStatement);
+        stmt.setInt(1, 42);
+        stmt.setInt(2, 23);
+        ResultSet rs = stmt.executeQuery();
+    }
+
+    @Test
+    public void testSetTime() throws Exception {
+        ClickHousePreparedStatement stmt = (ClickHousePreparedStatement)
+            connection.prepareStatement("SELECT toDateTime(?)");
+        stmt.setTime(1, Time.valueOf("13:37:42"));
+        ResultSet rs = stmt.executeQuery();
+        rs.next();
+        Assert.assertEquals(rs.getTime(1), Time.valueOf("13:37:42"));
+    }
+
+    @Test
+    public void testAsSql() throws Exception {
+        String unbindedStatement = "SELECT test.example WHERE id IN (?, ?)";
+        ClickHousePreparedStatement statement = (ClickHousePreparedStatement)
+            connection.prepareStatement(unbindedStatement);
+        Assert.assertEquals(statement.asSql(), unbindedStatement);
+
+        statement.setInt(1, 123);
+        Assert.assertEquals(statement.asSql(), unbindedStatement);
+
+        statement.setInt(2, 456);
+        Assert.assertEquals(statement.asSql(), "SELECT test.example WHERE id IN (123, 456)");
+    }
+
 }

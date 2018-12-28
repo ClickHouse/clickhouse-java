@@ -149,27 +149,23 @@ public class ClickHouseArrayUtil {
         }
 
         private ArrayBuilder append(Object value) {
-            String serializedValue = null;
-            boolean nullValue = true;
-            if (value != null) {
-                serializedValue = value.toString();
-                nullValue = false;
-            }
-            if (quote || nullValue) {
-                serializedValue = ClickHouseUtil.escape(serializedValue);
-            }
             if (built) {
                 throw new IllegalStateException("Already built");
             }
             if (size > 0) {
                 builder.append(',');
             }
-            if (quote && !nullValue) {
-                builder.append('\'');
-            }
-            builder.append(serializedValue);
-            if (quote  && !nullValue) {
-                builder.append('\'');
+            if (value != null) {
+                String serializedValue = value.toString();
+                if (quote) {
+                    builder.append('\'');
+                    builder.append(ClickHouseUtil.escape(serializedValue));
+                    builder.append('\'');
+                } else {
+                    builder.append(serializedValue);
+                }
+            } else {
+                builder.append("NULL");
             }
             size++;
             return this;

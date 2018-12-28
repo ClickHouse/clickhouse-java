@@ -1,3 +1,44 @@
+0.1.48
+  * SELECT_SEQUENTIAL_CONSISTENCY param
+  * scrollable ResultSet
+  * metadata updates
+  * Decimal type
+
+0.1.47
+  * connection cleaner in daemon mode
+  * insert-quorum params
+
+0.1.46
+  * nullable in RowBinaryStream
+  * fix null in arrays
+  * database regex (asterisks and dashes allowed)
+
+0.1.45
+  * added shaded version of the jar
+  * http authorization header
+  * setTime implementation
+
+0.1.44
+  * add public methods to BalancedClickhouseDataSource
+  * TYPE_NAME without Nullable
+  * sendRowBinaryStream with additional parameters
+  * support constant NULL values in prepared statements
+  * fix parsing parameter at last position of statement
+
+0.1.43
+  * fix determining statement type in presence of comments
+  * improved support for prepared statements, including batch inserts
+  * fix parameters copy
+  * support for writing UUIDs in binary stream
+  * removed joda-time dependency
+    migration node for users of ClickHouseRowBinaryStream:
+        manually calculate daysSinceEpoch and use method writeUInt16():
+            for joda-time: Days.daysBetween(LocalDate.parse("1970-01-01"), date).getDays()
+            for java 8: LocalDate.toEpochDay())
+        or use conversion to Date:
+            for joda-time: localDate.toDate()
+            for java 8: java.sql.Date.valueOf(LocalDate date)
+
 0.1.42
   * additional query params for executeBatch
   * query preprocessing optimization

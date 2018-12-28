@@ -88,4 +88,56 @@ public class ClickHouseConnectionTest {
         resultSet.next();
         assertEquals(resultSet.getString(1), "default");
     }
+    
+    @Test
+    public void testScrollableResultSetOnPreparedStatements() throws SQLException {
+        ClickHouseDataSource dataSource = new ClickHouseDataSource(
+                "jdbc:clickhouse://localhost:8123/default?option1=one%20two&option2=y");
+        ClickHouseConnectionImpl connection = (ClickHouseConnectionImpl) dataSource.getConnection();
+        final String sql = "SELECT currentDatabase() FROM system.tables WHERE name = ? LIMIT 1";
+
+        connection.setCatalog("system");
+        PreparedStatement statement = connection.prepareStatement(sql,ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
+        statement.setString(1, "tables");
+        connection.setCatalog("default");
+        ResultSet resultSet = statement.executeQuery();
+        resultSet.next();
+        assertEquals(resultSet.getString(1), "system");
+        assertEquals(resultSet.getType(), ResultSet.TYPE_FORWARD_ONLY);
+
+        statement = connection.prepareStatement(sql,ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_READ_ONLY);
+        statement.setString(1, "tables");
+        resultSet = statement.executeQuery();
+        resultSet.next();
+        assertEquals(resultSet.getString(1), "default");
+        assertEquals(resultSet.getType(), ResultSet.TYPE_SCROLL_INSENSITIVE);
+        resultSet.beforeFirst();
+        resultSet.next();
+        assertEquals(resultSet.getString(1), "default");
+    }
+    
+    @Test
+    public void testScrollableResultSetOnStatements() throws SQLException {
+        ClickHouseDataSource dataSource = new ClickHouseDataSource(
+                "jdbc:clickhouse://localhost:8123/default?option1=one%20two&option2=y");
+        ClickHouseConnectionImpl connection = (ClickHouseConnectionImpl) dataSource.getConnection();
+        final String sql = "SELECT currentDatabase()";
+
+        connection.setCatalog("system");
+        Statement statement = connection.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
+        connection.setCatalog("default");
+        ResultSet resultSet = statement.executeQuery(sql);
+        resultSet.next();
+        assertEquals(resultSet.getString(1), "system");
+        assertEquals(resultSet.getType(), ResultSet.TYPE_FORWARD_ONLY);
+
+        statement = connection.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_READ_ONLY);
+        resultSet = statement.executeQuery(sql);
+        resultSet.next();
+        assertEquals(resultSet.getString(1), "default");
+        assertEquals(resultSet.getType(), ResultSet.TYPE_SCROLL_INSENSITIVE);
+        resultSet.beforeFirst();
+        resultSet.next();
+        assertEquals(resultSet.getString(1), "default");
+    }
 }

@@ -1,15 +1,23 @@
 package ru.yandex.clickhouse;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import ru.yandex.clickhouse.response.ClickHouseResultBuilder;
-import ru.yandex.clickhouse.util.TypeUtils;
-
-import java.sql.*;
+import java.sql.Connection;
+import java.sql.DatabaseMetaData;
+import java.sql.ResultSet;
+import java.sql.RowIdLifetime;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.sql.Types;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Arrays;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import ru.yandex.clickhouse.response.ClickHouseResultBuilder;
+import ru.yandex.clickhouse.util.ClickHouseVersionNumberUtil;
+import ru.yandex.clickhouse.util.TypeUtils;
 
 import static ru.yandex.clickhouse.util.TypeUtils.NULLABLE_YES;
 
@@ -80,7 +88,7 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
 
     @Override
     public String getDatabaseProductVersion() throws SQLException {
-        return "0.42";
+        return connection.getServerVersion();
     }
 
     @Override
@@ -90,17 +98,32 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
 
     @Override
     public String getDriverVersion() throws SQLException {
-        return "0.1";
+        String driverVersion = getClass().getPackage().getImplementationVersion();
+        return driverVersion != null ? driverVersion : "0.1";
     }
 
     @Override
     public int getDriverMajorVersion() {
-        return 0;
+        String v;
+        try {
+            v = getDriverVersion();
+        } catch (SQLException sqle) {
+            log.warn("Error determining driver major version", sqle);
+            return 0;
+        }
+        return ClickHouseVersionNumberUtil.getMajorVersion(v);
     }
 
     @Override
     public int getDriverMinorVersion() {
-        return 1;
+        String v;
+        try {
+            v = getDriverVersion();
+        } catch (SQLException sqle) {
+            log.warn("Error determining driver minor version", sqle);
+            return 0;
+        }
+        return ClickHouseVersionNumberUtil.getMinorVersion(v);
     }
 
     @Override
@@ -821,7 +844,7 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
             //data type
             row.add(Integer.toString(sqlType));
             //type name
-            row.add(type);
+            row.add(TypeUtils.unwrapNullableIfApplicable(type));
             // column size / precision
             row.add(Integer.toString(TypeUtils.getColumnSize(type)));
             //buffer length
@@ -864,9 +887,9 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
             //"SOURCE_DATA_TYPE",
             row.add(null);
             //"IS_AUTOINCREMENT"
-            row.add(null);
+            row.add("NO");
             //"IS_GENERATEDCOLUMN"
-            row.add(null);
+            row.add("NO");
 
             builder.addRow(row);
         }
@@ -1225,12 +1248,14 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
 
     @Override
     public int getDatabaseMajorVersion() throws SQLException {
-        return 0;
+        return ClickHouseVersionNumberUtil.getMajorVersion(
+            connection.getServerVersion());
     }
 
     @Override
     public int getDatabaseMinorVersion() throws SQLException {
-        return 1;
+        return ClickHouseVersionNumberUtil.getMinorVersion(
+            connection.getServerVersion());
     }
 
     @Override
@@ -1308,4 +1333,5 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
     public boolean generatedKeyAlwaysReturned() throws SQLException {
         return false;
     }
+
 }
