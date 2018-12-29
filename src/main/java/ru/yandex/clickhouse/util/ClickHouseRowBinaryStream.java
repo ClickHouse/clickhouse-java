@@ -23,7 +23,7 @@ public class ClickHouseRowBinaryStream {
     private static final int U_INT8_MAX = (1 << 8) - 1;
     private static final int U_INT16_MAX = (1 << 16) - 1;
     private static final long U_INT32_MAX = (1L << 32) - 1;
-    private static final long MILLIS_IN_DAY = TimeUnit.DAYS.toMillis(1);
+    protected static final long MILLIS_IN_DAY = TimeUnit.DAYS.toMillis(1);
 
     private final LittleEndianDataOutputStream out;
     private final TimeZone timeZone;

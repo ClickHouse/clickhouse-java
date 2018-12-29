@@ -42,6 +42,7 @@ import ru.yandex.clickhouse.response.FastByteArrayOutputStream;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
 import ru.yandex.clickhouse.settings.ClickHouseQueryParam;
 import ru.yandex.clickhouse.util.ClickHouseFormat;
+import ru.yandex.clickhouse.util.ClickHouseRowBinaryInputStream;
 import ru.yandex.clickhouse.util.ClickHouseStreamCallback;
 import ru.yandex.clickhouse.util.ClickHouseStreamHttpEntity;
 import ru.yandex.clickhouse.util.Patterns;
@@ -60,6 +61,8 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
     private ClickHouseConnection connection;
 
     private ClickHouseResultSet currentResult;
+
+    private ClickHouseRowBinaryInputStream currentRowBinaryResult;
 
     private int currentUpdateCount = -1;
 
@@ -179,6 +182,41 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
     }
 
     @Override
+    public ClickHouseRowBinaryInputStream executeQueryClickhouseRowBinaryStream(String sql) throws SQLException {
+        return executeQueryClickhouseRowBinaryStream(sql, null);
+    }
+
+    @Override
+    public ClickHouseRowBinaryInputStream executeQueryClickhouseRowBinaryStream(String sql, Map<ClickHouseQueryParam, String> additionalDBParams) throws SQLException {
+        return executeQueryClickhouseRowBinaryStream(sql, additionalDBParams, null);
+    }
+
+    @Override
+    public ClickHouseRowBinaryInputStream executeQueryClickhouseRowBinaryStream(String sql, Map<ClickHouseQueryParam, String> additionalDBParams, Map<String, String> additionalRequestParams) throws SQLException {
+        InputStream is = getInputStream(
+                addFormatIfAbsent(sql, "RowBinary"),
+                additionalDBParams,
+                null,
+                additionalRequestParams
+        );
+        try {
+            if (isSelect(sql)) {
+                currentUpdateCount = -1;
+                currentRowBinaryResult = new ClickHouseRowBinaryInputStream(properties.isCompress()
+                        ? new ClickHouseLZ4Stream(is) : is, getConnection().getTimeZone(), properties);
+                return currentRowBinaryResult;
+            } else {
+                currentUpdateCount = 0;
+                StreamUtils.close(is);
+                return null;
+            }
+        } catch (Exception e) {
+            StreamUtils.close(is);
+            throw ClickHouseExceptionSpecifier.specify(e, properties.getHost(), properties.getPort());
+        }
+    }
+
+    @Override
     public int executeUpdate(String sql) throws SQLException {
         InputStream is = null;
         try {
@@ -201,6 +239,10 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
     public void close() throws SQLException {
         if (currentResult != null) {
             currentResult.close();
+        }
+
+        if (currentRowBinaryResult != null) {
+            StreamUtils.close(currentRowBinaryResult);
         }
     }
 
@@ -420,7 +462,8 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
         if (isSelect(sql)
             && !woSemicolon.endsWith(" TabSeparatedWithNamesAndTypes")
             && !woSemicolon.endsWith(" TabSeparated")
-            && !woSemicolon.endsWith(" JSONCompact")) {
+            && !woSemicolon.endsWith(" JSONCompact")
+            && !woSemicolon.endsWith(" RowBinary")) {
             if (sql.endsWith(";")) {
                 sql = sql.substring(0, sql.length() - 1);
             }

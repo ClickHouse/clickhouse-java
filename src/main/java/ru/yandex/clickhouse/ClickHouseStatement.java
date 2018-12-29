@@ -2,6 +2,7 @@ package ru.yandex.clickhouse;
 
 import ru.yandex.clickhouse.response.ClickHouseResponse;
 import ru.yandex.clickhouse.settings.ClickHouseQueryParam;
+import ru.yandex.clickhouse.util.ClickHouseRowBinaryInputStream;
 import ru.yandex.clickhouse.util.ClickHouseStreamCallback;
 
 import java.io.InputStream;
@@ -20,6 +21,15 @@ public interface ClickHouseStatement extends Statement {
     ClickHouseResponse executeQueryClickhouseResponse(String sql,
                                                       Map<ClickHouseQueryParam, String> additionalDBParams,
                                                       Map<String, String> additionalRequestParams) throws SQLException;
+
+    ClickHouseRowBinaryInputStream executeQueryClickhouseRowBinaryStream(String sql) throws SQLException;
+
+    ClickHouseRowBinaryInputStream executeQueryClickhouseRowBinaryStream(String sql,
+                                                                         Map<ClickHouseQueryParam, String> additionalDBParams) throws SQLException;
+
+    ClickHouseRowBinaryInputStream executeQueryClickhouseRowBinaryStream(String sql,
+                                                                         Map<ClickHouseQueryParam, String> additionalDBParams,
+                                                                         Map<String, String> additionalRequestParams) throws SQLException;
 
     ResultSet executeQuery(String sql, Map<ClickHouseQueryParam, String> additionalDBParams) throws SQLException;
 
