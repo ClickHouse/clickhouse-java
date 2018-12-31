@@ -726,6 +726,9 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
             params.put(ClickHouseQueryParam.MAX_RESULT_ROWS, String.valueOf(maxRows));
             params.put(ClickHouseQueryParam.RESULT_OVERFLOW_MODE, "break");
         }
+        if(queryTimeout > 0) {
+            params.put(ClickHouseQueryParam.MAX_EXECUTION_TIME, String.valueOf(queryTimeout));
+        }
     }
 
 
