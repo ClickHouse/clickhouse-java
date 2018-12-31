@@ -67,6 +67,8 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
     private int currentUpdateCount = -1;
 
     private int queryTimeout;
+    
+    private boolean isQueryTimeoutSet = false;
 
     private int maxRows;
 
@@ -282,6 +284,7 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
     @Override
     public void setQueryTimeout(int seconds) throws SQLException {
         queryTimeout = seconds;
+        isQueryTimeoutSet = true;
     }
 
     @Override
@@ -726,7 +729,7 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
             params.put(ClickHouseQueryParam.MAX_RESULT_ROWS, String.valueOf(maxRows));
             params.put(ClickHouseQueryParam.RESULT_OVERFLOW_MODE, "break");
         }
-        if(queryTimeout > 0) {
+        if(isQueryTimeoutSet) {
             params.put(ClickHouseQueryParam.MAX_EXECUTION_TIME, String.valueOf(queryTimeout));
         }
     }
