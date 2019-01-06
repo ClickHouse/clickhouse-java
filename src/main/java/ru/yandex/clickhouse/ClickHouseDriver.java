@@ -80,13 +80,13 @@ public class ClickHouseDriver implements Driver {
                 + ClickHouseConnectionSettings.values().length);
         result.addAll(dumpProperties(ClickHouseQueryParam.values(), properties));
         result.addAll(dumpProperties(ClickHouseConnectionSettings.values(), properties));
-        return result.toArray(new DriverPropertyInfo[result.size()]);
+        return result.toArray(new DriverPropertyInfo[0]);
     }
 
-    private List<DriverPropertyInfo> dumpProperties(DriverPropertyCreator creators[], Properties info) {
+    private List<DriverPropertyInfo> dumpProperties(DriverPropertyCreator[] creators, Properties info) {
         List<DriverPropertyInfo> result = new ArrayList<DriverPropertyInfo>(creators.length);
-        for (int i = 0; i < creators.length; ++i) {
-            result.add(creators[i].createDriverPropertyInfo(info));
+        for (DriverPropertyCreator creator : creators) {
+            result.add(creator.createDriverPropertyInfo(info));
         }
         return result;
     }
