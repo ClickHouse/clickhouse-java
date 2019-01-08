@@ -30,6 +30,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.TimeZone;
@@ -452,7 +453,16 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
 
     @Override
     public ResultSetMetaData getMetaData() throws SQLException {
-        throw new SQLFeatureNotSupportedException();
+        ResultSet currentResult = getResultSet();
+        if (currentResult != null) {
+            return currentResult.getMetaData();
+        }
+        if (!isSelect(sql)) {
+            return null;
+        }
+        ResultSet myRs = executeQuery(Collections.singletonMap(
+            ClickHouseQueryParam.MAX_RESULT_ROWS, "0"));
+        return myRs != null ? myRs.getMetaData() : null;
     }
 
     @Override
