@@ -89,8 +89,4 @@ public final class ClickHouseExceptionSpecifier {
         }
     }
 
-    private interface ClickHouseExceptionFactory {
-        ClickHouseException create(Integer code, Throwable cause, String host, int port);
-    }
-
 }
