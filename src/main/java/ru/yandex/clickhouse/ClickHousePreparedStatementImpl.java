@@ -153,6 +153,11 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
     }
 
     @Override
+    public void clearBatch() throws SQLException {
+        batchRows.clear();
+    }
+
+    @Override
     public ResultSet executeQuery(Map<ClickHouseQueryParam, String> additionalDBParams) throws SQLException {
         return super.executeQuery(buildSql(), additionalDBParams);
     }
