@@ -4,6 +4,7 @@ import java.math.BigInteger;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Time;
@@ -341,5 +342,107 @@ public class ClickHousePreparedStatementTest {
         statement.setInt(2, 456);
         Assert.assertEquals(statement.asSql(), "SELECT test.example WHERE id IN (123, 456)");
     }
+
+    @Test
+    public void testMetadataOnlySelect() throws Exception {
+        connection.createStatement().execute(
+            "DROP TABLE IF EXISTS test.mymetadata");
+        connection.createStatement().execute(
+            "CREATE TABLE IF NOT EXISTS test.mymetadata "
+          + "(idx Int32, s String) "
+          + "ENGINE = TinyLog"
+        );
+        PreparedStatement insertStmt = connection.prepareStatement(
+            "INSERT INTO test.mymetadata (idx, s) VALUES (?, ?)");
+        insertStmt.setInt(1, 42);
+        insertStmt.setString(2, "foo");
+        insertStmt.executeUpdate();
+        PreparedStatement metaStmt = connection.prepareStatement(
+            "SELECT idx, s FROM test.mymetadata WHERE idx = ?");
+        metaStmt.setInt(1, 42);
+        ResultSetMetaData metadata = metaStmt.getMetaData();
+        Assert.assertEquals(metadata.getColumnCount(), 2);
+        Assert.assertEquals(metadata.getColumnName(1), "idx");
+        Assert.assertEquals(metadata.getColumnName(2), "s");
+    }
+
+    @Test
+    public void testMetadataOnlySelectAfterExecution() throws Exception {
+        connection.createStatement().execute(
+            "DROP TABLE IF EXISTS test.mymetadata");
+        connection.createStatement().execute(
+            "CREATE TABLE IF NOT EXISTS test.mymetadata "
+          + "(idx Int32, s String) "
+          + "ENGINE = TinyLog"
+        );
+        PreparedStatement insertStmt = connection.prepareStatement(
+            "INSERT INTO test.mymetadata (idx, s) VALUES (?, ?)");
+        insertStmt.setInt(1, 42);
+        insertStmt.setString(2, "foo");
+        insertStmt.executeUpdate();
+        PreparedStatement metaStmt = connection.prepareStatement(
+            "SELECT idx, s FROM test.mymetadata WHERE idx = ?");
+        metaStmt.setInt(1, 42);
+        metaStmt.executeQuery();
+        ResultSetMetaData metadata = metaStmt.getMetaData();
+        Assert.assertEquals(metadata.getColumnCount(), 2);
+        Assert.assertEquals(metadata.getColumnName(1), "idx");
+        Assert.assertEquals(metadata.getColumnName(2), "s");
+    }
+
+    @Test
+    public void testMetadataExecutionAfterMeta() throws Exception {
+        connection.createStatement().execute(
+            "DROP TABLE IF EXISTS test.mymetadata");
+        connection.createStatement().execute(
+            "CREATE TABLE IF NOT EXISTS test.mymetadata "
+          + "(idx Int32, s String) "
+          + "ENGINE = TinyLog"
+        );
+        PreparedStatement insertStmt = connection.prepareStatement(
+            "INSERT INTO test.mymetadata (idx, s) VALUES (?, ?)");
+        insertStmt.setInt(1, 42);
+        insertStmt.setString(2, "foo");
+        insertStmt.executeUpdate();
+        PreparedStatement metaStmt = connection.prepareStatement(
+            "SELECT idx, s FROM test.mymetadata WHERE idx = ?");
+        metaStmt.setInt(1, 42);
+        ResultSetMetaData metadata = metaStmt.getMetaData();
+        Assert.assertEquals(metadata.getColumnCount(), 2);
+        Assert.assertEquals(metadata.getColumnName(1), "idx");
+        Assert.assertEquals(metadata.getColumnName(2), "s");
+
+        ResultSet rs = metaStmt.executeQuery();
+        Assert.assertTrue(rs.next());
+        Assert.assertEquals(rs.getInt(1), 42);
+        Assert.assertEquals(rs.getString(2), "foo");
+        metadata = metaStmt.getMetaData();
+        Assert.assertEquals(metadata.getColumnCount(), 2);
+        Assert.assertEquals(metadata.getColumnName(1), "idx");
+        Assert.assertEquals(metadata.getColumnName(2), "s");
+    }
+
+    @Test
+    public void testMetadataOnlyUpdate() throws Exception {
+        connection.createStatement().execute(
+            "DROP TABLE IF EXISTS test.mymetadata");
+        connection.createStatement().execute(
+            "CREATE TABLE IF NOT EXISTS test.mymetadata "
+          + "(idx Int32, s String) "
+          + "ENGINE = TinyLog"
+        );
+        PreparedStatement insertStmt = connection.prepareStatement(
+            "INSERT INTO test.mymetadata (idx, s) VALUES (?, ?)");
+        insertStmt.setInt(1, 42);
+        insertStmt.setString(2, "foo");
+        insertStmt.executeUpdate();
+        PreparedStatement metaStmt = connection.prepareStatement(
+            "UPDATE test.mymetadata SET s = ? WHERE idx = ?");
+        metaStmt.setString(1, "foo");
+        metaStmt.setInt(2, 42);
+        ResultSetMetaData metadata = metaStmt.getMetaData();
+        Assert.assertNull(metadata);
+    }
+
 
 }
