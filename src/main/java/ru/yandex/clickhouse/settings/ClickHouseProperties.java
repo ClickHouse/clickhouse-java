@@ -64,6 +64,7 @@ public class ClickHouseProperties {
     private Long    insertQuorum;
     private Long    insertQuorumTimeout;
     private Long    selectSequentialConsistency;
+    private Boolean enableOptimizePredicateExpression;
 
 
     public ClickHouseProperties() {
@@ -119,6 +120,7 @@ public class ClickHouseProperties {
         this.insertQuorum = (Long)getSetting(info, ClickHouseQueryParam.INSERT_QUORUM);
         this.insertQuorumTimeout = (Long)getSetting(info, ClickHouseQueryParam.INSERT_QUORUM_TIMEOUT);
         this.selectSequentialConsistency = (Long)getSetting(info, ClickHouseQueryParam.SELECT_SEQUENTIAL_CONSISTENCY);
+        this.enableOptimizePredicateExpression = getSetting(info, ClickHouseQueryParam.ENABLE_OPTIMIZE_PREDICATE_EXPRESSION);
     }
 
     public Properties asProperties() {
@@ -170,6 +172,7 @@ public class ClickHouseProperties {
         ret.put(ClickHouseQueryParam.INSERT_QUORUM.getKey(), insertQuorum);
         ret.put(ClickHouseQueryParam.INSERT_QUORUM_TIMEOUT.getKey(), insertQuorumTimeout);
         ret.put(ClickHouseQueryParam.SELECT_SEQUENTIAL_CONSISTENCY.getKey(), selectSequentialConsistency);
+        ret.put(ClickHouseQueryParam.ENABLE_OPTIMIZE_PREDICATE_EXPRESSION.getKey(), enableOptimizePredicateExpression);
 
         return ret.getProperties();
     }
@@ -223,6 +226,7 @@ public class ClickHouseProperties {
         setSelectSequentialConsistency(properties.selectSequentialConsistency);
         setPreferredBlockSizeBytes(properties.preferredBlockSizeBytes);
         setMaxQuerySize(properties.maxQuerySize);
+        setEnableOptimizePredicateExpression(properties.enableOptimizePredicateExpression);
     }
 
     public Map<ClickHouseQueryParam, String> buildQueryParams(boolean ignoreDatabase){
@@ -291,6 +295,10 @@ public class ClickHouseProperties {
         addQueryParam(insertQuorum, ClickHouseQueryParam.INSERT_QUORUM, params);
         addQueryParam(insertQuorumTimeout, ClickHouseQueryParam.INSERT_QUORUM_TIMEOUT, params);
         addQueryParam(selectSequentialConsistency, ClickHouseQueryParam.SELECT_SEQUENTIAL_CONSISTENCY, params);
+
+        if (enableOptimizePredicateExpression != null) {
+            params.put(ClickHouseQueryParam.ENABLE_OPTIMIZE_PREDICATE_EXPRESSION, enableOptimizePredicateExpression ? "1" : "0");
+        }
 
         return params;
     }
@@ -713,6 +721,14 @@ public class ClickHouseProperties {
         this.selectSequentialConsistency = selectSequentialConsistency;
     }
 
+    public Boolean getEnableOptimizePredicateExpression() {
+        return enableOptimizePredicateExpression;
+    }
+
+    public void setEnableOptimizePredicateExpression(Boolean enableOptimizePredicateExpression) {
+        this.enableOptimizePredicateExpression = enableOptimizePredicateExpression;
+    }
+
     private static class PropertiesBuilder {
         private final Properties properties;
         public PropertiesBuilder() {
@@ -735,8 +751,10 @@ public class ClickHouseProperties {
             }
         }
 
-        public void put(String key, boolean value) {
-            properties.put(key, String.valueOf(value));
+        public void put(String key, Boolean value) {
+            if (value != null) {
+                properties.put(key, value.toString());
+            }
         }
 
         public void put(String key, String value) {
