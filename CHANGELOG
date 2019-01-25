@@ -1,4 +1,4 @@
-0.1.49
+0.1.50
   * Array(FixedString(N)) insert support
   * ENABLE_OPTIMIZE_PREDICATE_EXPRESSION query param
   * clearBatch implementation
@@ -6,6 +6,8 @@
   * setQueryTimeout implementation
   * RowBinaryInputStream to support nullability
   * test plugins settings updated
+
+0.1.49 skipped
 
 0.1.48
   * SELECT_SEQUENTIAL_CONSISTENCY param
