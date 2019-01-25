@@ -1,3 +1,12 @@
+0.1.49
+  * Array(FixedString(N)) insert support
+  * ENABLE_OPTIMIZE_PREDICATE_EXPRESSION query param
+  * clearBatch implementation
+  * getMetadata implementation if query was not executed yet
+  * setQueryTimeout implementation
+  * RowBinaryInputStream to support nullability
+  * test plugins settings updated
+
 0.1.48
   * SELECT_SEQUENTIAL_CONSISTENCY param
   * scrollable ResultSet
