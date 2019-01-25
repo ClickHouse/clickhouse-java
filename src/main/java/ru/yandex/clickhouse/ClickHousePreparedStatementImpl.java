@@ -1,5 +1,13 @@
 package ru.yandex.clickhouse;
 
+import org.apache.http.entity.AbstractHttpEntity;
+import org.apache.http.impl.client.CloseableHttpClient;
+import ru.yandex.clickhouse.response.ClickHouseResponse;
+import ru.yandex.clickhouse.settings.ClickHouseProperties;
+import ru.yandex.clickhouse.settings.ClickHouseQueryParam;
+import ru.yandex.clickhouse.util.ClickHouseArrayUtil;
+import ru.yandex.clickhouse.util.guava.StreamUtils;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -7,45 +15,12 @@ import java.io.Reader;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.URL;
-import java.sql.Array;
-import java.sql.Blob;
-import java.sql.Clob;
 import java.sql.Date;
-import java.sql.NClob;
-import java.sql.ParameterMetaData;
-import java.sql.Ref;
-import java.sql.ResultSet;
-import java.sql.ResultSetMetaData;
-import java.sql.RowId;
-import java.sql.SQLDataException;
-import java.sql.SQLException;
-import java.sql.SQLFeatureNotSupportedException;
-import java.sql.SQLSyntaxErrorException;
-import java.sql.SQLXML;
-import java.sql.Time;
-import java.sql.Timestamp;
-import java.sql.Types;
+import java.sql.*;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Calendar;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.TimeZone;
-import java.util.UUID;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
-import org.apache.http.entity.AbstractHttpEntity;
-import org.apache.http.impl.client.CloseableHttpClient;
-
-import ru.yandex.clickhouse.response.ClickHouseResponse;
-import ru.yandex.clickhouse.settings.ClickHouseProperties;
-import ru.yandex.clickhouse.settings.ClickHouseQueryParam;
-import ru.yandex.clickhouse.util.ClickHouseArrayUtil;
-import ru.yandex.clickhouse.util.guava.StreamUtils;
 
 
 public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl implements ClickHousePreparedStatement {
@@ -67,7 +42,7 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
 
 
     public ClickHousePreparedStatementImpl(CloseableHttpClient client, ClickHouseConnection connection,
-             ClickHouseProperties properties, String sql, TimeZone timezone, int resultSetType) throws SQLException {
+                                           ClickHouseProperties properties, String sql, TimeZone timezone, int resultSetType) throws SQLException {
         super(client, connection, properties, resultSetType);
         this.sql = sql;
         PreparedStatementParser parser = PreparedStatementParser.parse(sql);
@@ -453,7 +428,7 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
 
     @Override
     public void setArray(int parameterIndex, Array x) throws SQLException {
-        setBind(parameterIndex, ClickHouseArrayUtil.arrayToString(x.getArray()));
+        setBind(parameterIndex, ClickHouseArrayUtil.arrayToString(x.getArray(), x.getBaseType() != Types.BINARY));
     }
 
     @Override

@@ -1,5 +1,6 @@
 package ru.yandex.clickhouse.util;
 
+import java.nio.Buffer;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
@@ -14,20 +15,20 @@ public class ClickHouseBlockChecksum {
 
     public static ClickHouseBlockChecksum fromBytes(byte[] checksum) {
         ByteBuffer buffer = ByteBuffer.allocate(16).order(ByteOrder.LITTLE_ENDIAN).put(checksum);
-        buffer.flip();
+        ((Buffer) buffer).flip();
         return new ClickHouseBlockChecksum(buffer.getLong(), buffer.getLong());
     }
 
     public static ClickHouseBlockChecksum calculateForBlock(byte magic, int compressedSizeWithHeader, int uncompressedSize, byte[] data, int length) {
         ByteBuffer buffer = ByteBuffer.allocate(compressedSizeWithHeader).order(ByteOrder.LITTLE_ENDIAN).put((byte)magic).putInt(compressedSizeWithHeader)
                 .putInt(uncompressedSize).put(data, 0, length);
-        buffer.flip();
+        ((Buffer) buffer).flip();
         return calculate(buffer.array());
     }
 
     public byte[] asBytes(){
         ByteBuffer buffer = ByteBuffer.allocate(16).order(ByteOrder.LITTLE_ENDIAN).putLong(first).putLong(second);
-        buffer.flip();
+        ((Buffer) buffer).flip();
         return buffer.array();
     }
 

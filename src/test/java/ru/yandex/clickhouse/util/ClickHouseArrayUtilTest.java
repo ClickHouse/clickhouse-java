@@ -22,6 +22,16 @@ public class ClickHouseArrayUtilTest {
             "['a','\\'b\\t']"
         );
 
+        // https://github.com/yandex/clickhouse-jdbc/issues/283
+        Assert.assertEquals(
+                ClickHouseArrayUtil.arrayToString(new String[]{"\\xEF\\xBC", "\\x3C\\x22"}), // quote == true
+                "['\\\\xEF\\\\xBC','\\\\x3C\\\\x22']"
+        );
+        Assert.assertEquals(
+                ClickHouseArrayUtil.arrayToString(new String[]{"\\xEF\\xBC", "\\x3C\\x22"}, false),
+                "['\\xEF\\xBC','\\x3C\\x22']"
+        );
+
         Assert.assertEquals(
             ClickHouseArrayUtil.arrayToString(new Integer[]{21, 42}),
             "[21,42]"
@@ -84,6 +94,16 @@ public class ClickHouseArrayUtilTest {
         Assert.assertEquals(
                 ClickHouseArrayUtil.toString(new ArrayList<Object>(Arrays.asList("a", "'b\t"))),
                 "['a','\\'b\\t']"
+        );
+
+        // https://github.com/yandex/clickhouse-jdbc/issues/283
+        Assert.assertEquals(
+                ClickHouseArrayUtil.toString(new ArrayList<Object>(Arrays.asList("\\xEF\\xBC", "\\x3C\\x22"))), // quote == true
+                "['\\\\xEF\\\\xBC','\\\\x3C\\\\x22']"
+        );
+        Assert.assertEquals(
+                ClickHouseArrayUtil.toString(new ArrayList<Object>(Arrays.asList("\\xEF\\xBC", "\\x3C\\x22")), false),
+                "['\\xEF\\xBC','\\x3C\\x22']"
         );
 
         Assert.assertEquals(
