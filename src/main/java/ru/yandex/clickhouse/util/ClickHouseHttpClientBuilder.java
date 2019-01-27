@@ -11,6 +11,7 @@ import org.apache.http.config.RegistryBuilder;
 import org.apache.http.conn.ConnectionKeepAliveStrategy;
 import org.apache.http.conn.socket.ConnectionSocketFactory;
 import org.apache.http.conn.socket.PlainConnectionSocketFactory;
+import org.apache.http.conn.ssl.NoopHostnameVerifier;
 import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
@@ -22,6 +23,7 @@ import org.apache.http.protocol.HttpContext;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
 import ru.yandex.clickhouse.util.ssl.NonValidatingTrustManager;
 
+import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.KeyManager;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManager;
@@ -45,6 +47,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
+import static javax.net.ssl.HttpsURLConnection.getDefaultHostnameVerifier;
 
 
 public class ClickHouseHttpClientBuilder {
@@ -72,7 +75,8 @@ public class ClickHouseHttpClientBuilder {
           .register("http", PlainConnectionSocketFactory.getSocketFactory());
 
         if (properties.getSsl()) {
-            registry.register("https", new SSLConnectionSocketFactory(getSSLContext()));
+            HostnameVerifier verifier = "strict".equals(properties.getSslMode()) ? getDefaultHostnameVerifier() : NoopHostnameVerifier.INSTANCE;
+            registry.register("https", new SSLConnectionSocketFactory(getSSLContext(), verifier));
         }
 
         //noinspection resource
