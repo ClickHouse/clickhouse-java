@@ -17,7 +17,7 @@ import ru.yandex.clickhouse.util.apache.StringUtils;
 final class PreparedStatementParser  {
 
     private static final Pattern VALUES = Pattern.compile(
-        "(?i)INSERT\\s+INTO\\s+[^\'\"]+VALUES\\s*\\(");
+        "(?i)INSERT\\s+INTO\\s+.+VALUES\\s*\\(");
 
     private List<List<String>> parameters;
     private List<String> parts;

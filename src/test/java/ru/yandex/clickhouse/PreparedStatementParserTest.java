@@ -179,6 +179,38 @@ public class PreparedStatementParserTest {
     }
 
     @Test
+    public void testValuesModeDoubleQuotes() {
+        PreparedStatementParser s = PreparedStatementParser.parse(
+            "INSERT INTO t (\"foo.bar\") VALUES (?)");
+        assertMatchParams(new String[][] {{"?"}}, s);
+        Assert.assertEquals(s.getParts().get(0), "INSERT INTO t (\"foo.bar\") VALUES (");
+    }
+
+    @Test
+    public void testValuesModeDoubleQuotesValues() {
+        PreparedStatementParser s = PreparedStatementParser.parse(
+            "INSERT INTO t (\"foo.bar\") VALUES (\"baz\")");
+        assertMatchParams(new String[][] {{"\"baz\""}}, s);
+        Assert.assertEquals(s.getParts().get(0), "INSERT INTO t (\"foo.bar\") VALUES (");
+    }
+
+    @Test
+    public void testValuesModeSingleQuotes() {
+        PreparedStatementParser s = PreparedStatementParser.parse(
+            "INSERT INTO t ('foo.bar') VALUES (?)");
+        assertMatchParams(new String[][] {{"?"}}, s);
+        Assert.assertEquals(s.getParts().get(0), "INSERT INTO t ('foo.bar') VALUES (");
+    }
+
+    @Test
+    public void testValuesModeSingleQuotesValues() {
+        PreparedStatementParser s = PreparedStatementParser.parse(
+            "INSERT INTO t ('foo.bar') VALUES ('baz')");
+        assertMatchParams(new String[][] {{"'baz'"}}, s);
+        Assert.assertEquals(s.getParts().get(0), "INSERT INTO t ('foo.bar') VALUES (");
+    }
+
+    @Test
     public void testParseInsertSelect() {
         PreparedStatementParser s = PreparedStatementParser.parse(
             "INSERT INTO t (a, b) SELECT x, y");
