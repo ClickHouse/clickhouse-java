@@ -183,6 +183,9 @@ public class TypeUtils {
         } else if (type.startsWith("FixedString(")) {
             String numBytes = type.substring("FixedString(".length(), type.length() - 1);
             return Integer.parseInt(numBytes);
+        } else if (type.startsWith("Decimal(")) {
+            Matcher m = DECIMAL_PATTERN.matcher(type);
+            return m.matches() ? Integer.parseInt(m.group(1)) : 0;
         } else {
             // size unknown
             return 0;
@@ -193,7 +196,6 @@ public class TypeUtils {
         if (isNullable(type)) {
             type = unwrapNullable(type);
         }
-
         if (type.equals("Float32")) {
             return 8;
         } else if (type.equals("Float64")) {
@@ -207,11 +209,7 @@ public class TypeUtils {
         return 0;
     }
 
-    public static String isTypeNull(String clickshouseType) {
-        if(isNullable(clickshouseType)){
-            return NULLABLE_YES;
-        }else{
-            return NULLABLE_NO;
-        }
+    public static String isTypeNull(String clickHouseType) {
+        return isNullable(clickHouseType) ? NULLABLE_YES : NULLABLE_NO;
     }
 }
