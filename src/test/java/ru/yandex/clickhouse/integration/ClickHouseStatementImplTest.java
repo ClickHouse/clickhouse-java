@@ -212,23 +212,25 @@ public class ClickHouseStatementImplTest {
     public void cancelTest() throws Exception {
         final ClickHouseStatement firstStatement = dataSource.getConnection().createStatement();
 
-        new Thread() {
+        Thread thread = new Thread() {
             @Override
             public void run() {
                 try {
                     firstStatement.executeQuery("SELECT count() FROM system.numbers");
                 } catch (SQLException e) {
-                    e.printStackTrace();
+                    assertTrue("It must not happen", false);
                 }
             }
-        }.start();
+        };
+        thread.setDaemon(true);
+        thread.start();
 
         String queryId = Whitebox.getInternalState(firstStatement, "queryId").toString();
 
         ClickHouseStatement statement = dataSource.getConnection().createStatement();
         statement.execute(String.format("SELECT * FROM system.processes where query_id='%s'", queryId));
         ResultSet resultSet = statement.getResultSet();
-        assertTrue("The query aren't executing. It seems very strange", resultSet.next());
+        assertTrue("The query isn't executing. It seems very strange", resultSet.next());
         statement.close();
 
         firstStatement.cancel();
@@ -237,9 +239,10 @@ public class ClickHouseStatementImplTest {
         statement.execute(String.format("SELECT * FROM system.processes where query_id='%s'", queryId));
 
         resultSet = statement.getResultSet();
-        assertFalse("The query are still executing", resultSet.next());
+        assertFalse("The query is still executing", resultSet.next());
 
         statement.close();
         firstStatement.close();
+        thread.interrupt();
     }
 }
