@@ -1,5 +1,6 @@
 package ru.yandex.clickhouse.integration;
 
+import org.mockito.internal.util.reflection.Whitebox;
 import org.testng.Assert;
 import org.testng.annotations.AfterTest;
 import org.testng.annotations.BeforeTest;
@@ -18,6 +19,9 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Collections;
+
+import static org.testng.AssertJUnit.assertFalse;
+import static org.testng.AssertJUnit.assertTrue;
 
 public class ClickHouseStatementImplTest {
     private ClickHouseDataSource dataSource;
@@ -202,5 +206,40 @@ public class ClickHouseStatementImplTest {
 
         rs.close();
         stmt.close();
+    }
+
+    @Test
+    public void cancelTest() throws Exception {
+        final ClickHouseStatement firstStatement = dataSource.getConnection().createStatement();
+
+        new Thread() {
+            @Override
+            public void run() {
+                try {
+                    firstStatement.executeQuery("SELECT count() FROM system.numbers");
+                } catch (SQLException e) {
+                    e.printStackTrace();
+                }
+            }
+        }.start();
+
+        String queryId = Whitebox.getInternalState(firstStatement, "queryId").toString();
+
+        ClickHouseStatement statement = dataSource.getConnection().createStatement();
+        statement.execute(String.format("SELECT * FROM system.processes where query_id='%s'", queryId));
+        ResultSet resultSet = statement.getResultSet();
+        assertTrue("The query aren't executing. It seems very strange", resultSet.next());
+        statement.close();
+
+        firstStatement.cancel();
+
+        statement = dataSource.getConnection().createStatement();
+        statement.execute(String.format("SELECT * FROM system.processes where query_id='%s'", queryId));
+
+        resultSet = statement.getResultSet();
+        assertFalse("The query are still executing", resultSet.next());
+
+        statement.close();
+        firstStatement.close();
     }
 }
