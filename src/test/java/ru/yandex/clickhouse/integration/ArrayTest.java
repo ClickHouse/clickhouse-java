@@ -1,5 +1,15 @@
 package ru.yandex.clickhouse.integration;
 
+import com.google.common.base.Function;
+import com.google.common.base.Joiner;
+import com.google.common.collect.Iterables;
+import org.testng.Assert;
+import org.testng.annotations.BeforeTest;
+import org.testng.annotations.Test;
+import ru.yandex.clickhouse.ClickHouseArray;
+import ru.yandex.clickhouse.ClickHouseDataSource;
+import ru.yandex.clickhouse.settings.ClickHouseProperties;
+
 import java.math.BigInteger;
 import java.sql.Array;
 import java.sql.Connection;
@@ -8,19 +18,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Types;
-import java.util.ArrayList;
 import java.util.Arrays;
-
-import com.google.common.base.Function;
-import com.google.common.base.Joiner;
-import com.google.common.collect.Iterables;
-import org.testng.Assert;
-import org.testng.annotations.BeforeTest;
-import org.testng.annotations.Test;
-
-import ru.yandex.clickhouse.ClickHouseArray;
-import ru.yandex.clickhouse.ClickHouseDataSource;
-import ru.yandex.clickhouse.settings.ClickHouseProperties;
 
 import static org.testng.Assert.assertEquals;
 
@@ -100,11 +98,11 @@ public class ArrayTest {
 
         statement = connection.prepareStatement(insertSql);
 
-        statement.setObject(1, new ArrayList<Object>(Arrays.asList(4294967286L, 4294967287L)));
-        statement.setObject(2, new ArrayList<Object>(Arrays.asList(
+        statement.setObject(1, new Long[] {4294967286L, 4294967287L});
+        statement.setObject(2, new BigInteger[] {
                 new BigInteger("18446744073709551606"),
-                new BigInteger("18446744073709551607"))));
-        statement.setObject(3, new ArrayList<Object>(Arrays.asList(1.23, 4.56)));
+                new BigInteger("18446744073709551607")});
+        statement.setObject(3, new Double[] {1.23, 4.56});
         statement.execute();
 
         Statement select = connection.createStatement();

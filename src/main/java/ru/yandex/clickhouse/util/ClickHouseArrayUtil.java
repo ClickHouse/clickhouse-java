@@ -134,18 +134,17 @@ public class ClickHouseArrayUtil {
         return builder.build();
     }
 
-    public static String toString(Collection collection) {
-        return toString(collection, true);
-    }
-
     /**
      * Convert collection to its ClickHouse-string representation.
      *
      * @param collection the collection to transform
-     * @param escape     enable or disable escaping of the collection elements
      */
-    public static String toString(Collection collection, boolean escape) {
-        return toString(collection.toArray(), escape);
+    public static String toString(Collection collection) {
+        ArrayBuilder builder = new ArrayBuilder(needQuote(collection.toArray()), false, false);
+        for (Object value : collection) {
+            builder.append(value);
+        }
+        return builder.build();
     }
 
     private static boolean needQuote(Object[] objects) {
@@ -163,13 +162,21 @@ public class ClickHouseArrayUtil {
         private final StringBuilder builder = new StringBuilder();
         private final boolean quote;
         private final boolean explicitEscape;
+        private final boolean wrapAsArray;
         private int size = 0;
         private boolean built = false;
 
         private ArrayBuilder(boolean quote, boolean explicitEscape) {
+            this(quote, explicitEscape, true);
+        }
+
+        private ArrayBuilder(boolean quote, boolean explicitEscape, boolean wrapAsArray) {
             this.quote = quote;
             this.explicitEscape = explicitEscape;
-            builder.append('[');
+            this.wrapAsArray = wrapAsArray;
+            if (wrapAsArray) {
+                builder.append('[');
+            }
         }
 
         private ArrayBuilder append(Object value) {
@@ -198,7 +205,9 @@ public class ClickHouseArrayUtil {
 
         private String build() {
             if (!built) {
-                builder.append(']');
+                if (wrapAsArray) {
+                    builder.append(']');
+                }
                 built = false;
             }
             return builder.toString();

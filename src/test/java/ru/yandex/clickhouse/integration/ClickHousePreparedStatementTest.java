@@ -10,6 +10,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Time;
 import java.sql.Types;
+import java.util.Arrays;
 import java.util.UUID;
 
 import com.google.common.io.BaseEncoding;
@@ -378,6 +379,17 @@ public class ClickHousePreparedStatementTest {
 
         statement.setInt(2, 456);
         Assert.assertEquals(statement.asSql(), "SELECT test.example WHERE id IN (123, 456)");
+    }
+
+    @Test
+    public void testInClause() throws Exception {
+        String unbindedStatement = "SELECT test.example WHERE id IN (?)";
+        ClickHousePreparedStatement statement = (ClickHousePreparedStatement)
+                connection.prepareStatement(unbindedStatement);
+        Assert.assertEquals(statement.asSql(), unbindedStatement);
+
+        statement.setObject(1, Arrays.asList(123, 456));
+        Assert.assertEquals(statement.asSql(), "SELECT test.example WHERE id IN (123,456)");
     }
 
     @Test
