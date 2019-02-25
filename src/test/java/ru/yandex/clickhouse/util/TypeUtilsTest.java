@@ -49,7 +49,7 @@ public class TypeUtilsTest {
       assertEquals(TypeUtils.getColumnSize("Enum8"), 0);
       assertEquals(TypeUtils.getColumnSize("Array(String)"), 0);
       assertEquals(TypeUtils.getColumnSize("Decimal(42,23)"), 42);
-      assertEquals(TypeUtils.getColumnSize("Decimal(23)"), 0);
+      assertEquals(TypeUtils.getColumnSize("Decimal(23)"), 0); // illegal decimal def
       assertEquals(TypeUtils.getColumnSize("Nullable(Int32)"), 11);
       assertEquals(TypeUtils.getColumnSize("Nullable(DateTime)"), 19);
       assertEquals(TypeUtils.getColumnSize("Nullable(FixedString(4))"), 4);

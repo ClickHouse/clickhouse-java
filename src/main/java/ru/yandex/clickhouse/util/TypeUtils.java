@@ -194,7 +194,7 @@ public class TypeUtils {
 
     public static int getDecimalDigits(String type) {
         if (isNullable(type)) {
-            type = unwrapNullable(type);
+            return getDecimalDigits(unwrapNullable(type));
         }
         if (type.equals("Float32")) {
             return 8;
