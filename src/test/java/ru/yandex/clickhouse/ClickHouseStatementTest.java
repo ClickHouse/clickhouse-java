@@ -39,6 +39,12 @@ public class ClickHouseStatementTest {
 
         String sql6 = " show ololo FROM ololoed;";
         assertEquals("show ololo FROM ololoed FORMAT TabSeparatedWithNamesAndTypes;", ClickHouseStatementImpl.clickhousifySql(sql6));
+
+        String sql7 = " show ololo FROM ololoed FORMAT CSVWithNames;";
+        assertEquals("show ololo FROM ololoed FORMAT CSVWithNames;", ClickHouseStatementImpl.clickhousifySql(sql7));
+
+        String sql8 = " show ololo FROM ololoed FORMAT CSVWithNames";
+        assertEquals("show ololo FROM ololoed FORMAT CSVWithNames", ClickHouseStatementImpl.clickhousifySql(sql8));
     }
 
     @Test
