@@ -90,6 +90,19 @@ public class ClickHouseRowBinaryInputStreamTest {
 		assertEquals(input.readUInt32(), 1492350000L);
 	}
 
+	@Test
+	public void testUnsignedLeb128() throws Exception {
+
+		ClickHouseRowBinaryInputStream input = prepareStream(new byte[]{0});
+		assertEquals(input.readUnsignedLeb128(), 0);
+
+		input = prepareStream(new byte[]{-27, -114, 38});
+		assertEquals(input.readUnsignedLeb128(), 624485);
+
+		input = prepareStream(new byte[]{-128, -62, -41, 47});
+		assertEquals(input.readUnsignedLeb128(), 100000000);
+	}
+
 	private ClickHouseRowBinaryInputStream prepareStream(byte[] input) {
 		return new ClickHouseRowBinaryInputStream(new ByteArrayInputStream(input), TimeZone.getTimeZone("ETC"), new ClickHouseProperties());
 	}
