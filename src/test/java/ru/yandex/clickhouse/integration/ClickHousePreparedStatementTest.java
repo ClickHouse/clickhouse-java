@@ -486,47 +486,47 @@ public class ClickHousePreparedStatementTest {
     @Test
     public void testInsertWithFunctions() throws Exception {
         connection.createStatement().execute(
-            "DROP TABLE IF EXISTS test.ipaddresses");
+            "DROP TABLE IF EXISTS test.insertfunctions");
         connection.createStatement().execute(
-            "CREATE TABLE IF NOT EXISTS test.ipaddresses "
-          + "(id UInt32, src FixedString(16), dst FixedString(16)) "
+            "CREATE TABLE IF NOT EXISTS test.insertfunctions "
+          + "(id UInt32, foo String, bar String) "
           + "ENGINE = TinyLog");
         PreparedStatement stmt = connection.prepareStatement(
-            "INSERT INTO test.ipaddresses(id, src, dst) VALUES "
-          + "(?, IPv4ToIPv6(toIPv4(?)), IPv4ToIPv6(toIPv4(?)))");
+            "INSERT INTO test.insertfunctions(id, foo, bar) VALUES "
+          + "(?, lower(reverse(?)), upper(reverse(?)))");
         stmt.setInt(1, 42);
-        stmt.setString(2, "127.0.0.1");
-        stmt.setString(3, "192.168.0.1");
+        stmt.setString(2, "Foo");
+        stmt.setString(3, "Bar");
         String sql = stmt.unwrap(ClickHousePreparedStatementImpl.class).asSql();
         Assert.assertEquals(
             sql,
-            "INSERT INTO test.ipaddresses(id, src, dst) VALUES "
-          + "(42, IPv4ToIPv6(toIPv4('127.0.0.1')), IPv4ToIPv6(toIPv4('192.168.0.1')))");
+            "INSERT INTO test.insertfunctions(id, foo, bar) VALUES "
+          + "(42, lower(reverse('Foo')), upper(reverse('Bar')))");
         // make sure that there is no exception
         stmt.execute();
         ResultSet rs = connection.createStatement().executeQuery(
-            "SELECT id, IPv6NumToString(src), IPv6NumToString(dst) FROM test.ipaddresses");
+            "SELECT id, foo, bar FROM test.insertfunctions");
         rs.next();
         Assert.assertEquals(rs.getInt(1), 42);
-        Assert.assertEquals(rs.getString(2), "::ffff:127.0.0.1");
-        Assert.assertEquals(rs.getString(3), "::ffff:192.168.0.1");
+        Assert.assertEquals(rs.getString(2), "oof");
+        Assert.assertEquals(rs.getString(3), "RAB");
         rs.close();
     }
 
     @Test
     public void testInsertWithFunctionsAddBatch() throws Exception {
         connection.createStatement().execute(
-            "DROP TABLE IF EXISTS test.ipaddresses");
+            "DROP TABLE IF EXISTS test.insertfunctions");
         connection.createStatement().execute(
-            "CREATE TABLE IF NOT EXISTS test.ipaddresses "
-          + "(id UInt32, src FixedString(16), dst FixedString(16)) "
+            "CREATE TABLE IF NOT EXISTS test.insertfunctions "
+          + "(id UInt32, foo String, bar String) "
           + "ENGINE = TinyLog");
         PreparedStatement stmt = connection.prepareStatement(
-            "INSERT INTO test.ipaddresses(id, src, dst) VALUES "
-          + "(?,IPv4ToIPv6(toIPv4(?)),IPv4ToIPv6(toIPv4(?)))");
+            "INSERT INTO test.insertfunctions(id, foo, bar) VALUES "
+          + "(?, lower(reverse(?)), upper(reverse(?)))");
         stmt.setInt(1, 42);
-        stmt.setString(2, "127.0.0.1");
-        stmt.setString(3, "192.168.0.1");
+        stmt.setString(2, "Foo");
+        stmt.setString(3, "Bar");
         stmt.addBatch();
         stmt.executeBatch();
         // this will _not_ perform the functions, but instead send the parameters
