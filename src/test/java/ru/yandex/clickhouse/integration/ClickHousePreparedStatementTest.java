@@ -12,17 +12,18 @@ import java.sql.Time;
 import java.sql.Types;
 import java.util.UUID;
 
-import com.google.common.io.BaseEncoding;
-
 import org.testng.Assert;
 import org.testng.annotations.AfterTest;
 import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
 
+import com.google.common.io.BaseEncoding;
+
 import ru.yandex.clickhouse.ClickHouseArray;
 import ru.yandex.clickhouse.ClickHouseConnection;
 import ru.yandex.clickhouse.ClickHouseDataSource;
 import ru.yandex.clickhouse.ClickHousePreparedStatement;
+import ru.yandex.clickhouse.ClickHousePreparedStatementImpl;
 import ru.yandex.clickhouse.response.ClickHouseResponse;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
 
@@ -479,7 +480,57 @@ public class ClickHousePreparedStatementTest {
         metaStmt.setInt(2, 42);
         ResultSetMetaData metadata = metaStmt.getMetaData();
         Assert.assertNull(metadata);
+        metaStmt.close();
     }
 
+    @Test
+    public void testInsertWithFunctions() throws Exception {
+        connection.createStatement().execute(
+            "DROP TABLE IF EXISTS test.ipaddresses");
+        connection.createStatement().execute(
+            "CREATE TABLE IF NOT EXISTS test.ipaddresses "
+          + "(id UInt32, src FixedString(16), dst FixedString(16)) "
+          + "ENGINE = TinyLog");
+        PreparedStatement stmt = connection.prepareStatement(
+            "INSERT INTO test.ipaddresses(id, src, dst) VALUES "
+          + "(?, IPv4ToIPv6(toIPv4(?)), IPv4ToIPv6(toIPv4(?)))");
+        stmt.setInt(1, 42);
+        stmt.setString(2, "127.0.0.1");
+        stmt.setString(3, "192.168.0.1");
+        String sql = stmt.unwrap(ClickHousePreparedStatementImpl.class).asSql();
+        Assert.assertEquals(
+            sql,
+            "INSERT INTO test.ipaddresses(id, src, dst) VALUES "
+          + "(42, IPv4ToIPv6(toIPv4('127.0.0.1')), IPv4ToIPv6(toIPv4('192.168.0.1')))");
+        // make sure that there is no exception
+        stmt.execute();
+        ResultSet rs = connection.createStatement().executeQuery(
+            "SELECT id, IPv6NumToString(src), IPv6NumToString(dst) FROM test.ipaddresses");
+        rs.next();
+        Assert.assertEquals(rs.getInt(1), 42);
+        Assert.assertEquals(rs.getString(2), "::ffff:127.0.0.1");
+        Assert.assertEquals(rs.getString(3), "::ffff:192.168.0.1");
+        rs.close();
+    }
+
+    @Test
+    public void testInsertWithFunctionsAddBatch() throws Exception {
+        connection.createStatement().execute(
+            "DROP TABLE IF EXISTS test.ipaddresses");
+        connection.createStatement().execute(
+            "CREATE TABLE IF NOT EXISTS test.ipaddresses "
+          + "(id UInt32, src FixedString(16), dst FixedString(16)) "
+          + "ENGINE = TinyLog");
+        PreparedStatement stmt = connection.prepareStatement(
+            "INSERT INTO test.ipaddresses(id, src, dst) VALUES "
+          + "(?,IPv4ToIPv6(toIPv4(?)),IPv4ToIPv6(toIPv4(?)))");
+        stmt.setInt(1, 42);
+        stmt.setString(2, "127.0.0.1");
+        stmt.setString(3, "192.168.0.1");
+        stmt.addBatch();
+        stmt.executeBatch();
+        // this will _not_ perform the functions, but instead send the parameters
+        // as is to the clickhouse server
+    }
 
 }
