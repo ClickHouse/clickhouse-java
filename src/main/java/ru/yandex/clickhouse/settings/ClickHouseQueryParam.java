@@ -224,7 +224,8 @@ public enum ClickHouseQueryParam implements DriverPropertyCreator {
 
     use_client_time_zone("use_client_time_zone", false, Boolean.class, ""),
 
-    USE_UNCOMPRESSED_CACHE("use_uncompressed_cache", true, Boolean.class, "Use client timezone for interpreting DateTime string values, instead of adopting server timezone."),
+
+    USE_UNCOMPRESSED_CACHE("use_uncompressed_cache", true, Boolean.class, "Whether to use the cache of uncompressed blocks."),
 
     USER("user", null, String.class, "user name, by default - default"),
 
@@ -266,6 +267,7 @@ public enum ClickHouseQueryParam implements DriverPropertyCreator {
         return name().toLowerCase();
     }
 
+    @Override
     public DriverPropertyInfo createDriverPropertyInfo(Properties properties) {
         DriverPropertyInfo propertyInfo = new DriverPropertyInfo(key, driverPropertyValue(properties));
         propertyInfo.required = false;
