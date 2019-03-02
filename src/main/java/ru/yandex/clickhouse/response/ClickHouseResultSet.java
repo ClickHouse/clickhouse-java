@@ -1,21 +1,31 @@
 package ru.yandex.clickhouse.response;
 
-import ru.yandex.clickhouse.ClickHouseArray;
-import ru.yandex.clickhouse.ClickHouseStatement;
-import ru.yandex.clickhouse.except.ClickHouseExceptionSpecifier;
-import ru.yandex.clickhouse.settings.ClickHouseProperties;
-import ru.yandex.clickhouse.util.TypeUtils;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.math.RoundingMode;
-import java.sql.*;
+import java.sql.Array;
 import java.sql.Date;
+import java.sql.ResultSetMetaData;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.sql.Time;
+import java.sql.Timestamp;
+import java.sql.Types;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
-import java.util.*;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.TimeZone;
+import java.util.UUID;
+
+import ru.yandex.clickhouse.ClickHouseArray;
+import ru.yandex.clickhouse.ClickHouseStatement;
+import ru.yandex.clickhouse.except.ClickHouseExceptionSpecifier;
+import ru.yandex.clickhouse.settings.ClickHouseProperties;
+import ru.yandex.clickhouse.util.TypeUtils;
 
 import static ru.yandex.clickhouse.response.ByteFragmentUtils.parseArray;
 
@@ -146,7 +156,8 @@ public class ClickHouseResultSet extends AbstractResultSet {
             nextLine = null;
             rowNumber += 1;
             return true;
-        } else return false;
+        }
+        return false;
     }
 
     private boolean onTheSeparatorRow() throws IOException {
@@ -183,8 +194,9 @@ public class ClickHouseResultSet extends AbstractResultSet {
     }
 
     public void getTotals() throws SQLException {
-        if (!usesWithTotals)
+        if (!usesWithTotals) {
             throw new IllegalStateException("Cannot get totals when totals are not being used.");
+        }
 
         nextLine = totalLine;
 
@@ -216,7 +228,9 @@ public class ClickHouseResultSet extends AbstractResultSet {
 
     @Override
     public boolean wasNull() throws SQLException {
-        if (lastReadColumn == 0) throw new IllegalStateException("You should get something before check nullability");
+        if (lastReadColumn == 0) {
+            throw new IllegalStateException("You should get something before check nullability");
+        }
         return getValue(lastReadColumn).isNull();
     }
 
@@ -418,7 +432,9 @@ public class ClickHouseResultSet extends AbstractResultSet {
     public Date getDate(int columnIndex) throws SQLException {
         // date is passed as a string from clickhouse
         ByteFragment value = getValue(columnIndex);
-        if (value.isNull() || value.asString().equals("0000-00-00")) return null;
+        if (value.isNull() || value.asString().equals("0000-00-00")) {
+            return null;
+        }
         try {
             return new Date(dateFormat.parse(value.asString()).getTime());
         } catch (ParseException e) {
@@ -459,6 +475,7 @@ public class ClickHouseResultSet extends AbstractResultSet {
                 case Types.TIMESTAMP:   return getTimestamp(columnIndex);
                 case Types.BLOB:        return getString(columnIndex);
                 case Types.ARRAY:       return getArray(columnIndex).getArray();
+                case Types.DECIMAL:     return getBigDecimal(columnIndex);
             }
 
             if(type == Types.OTHER && typeName.equals("UUID")) {
@@ -478,17 +495,23 @@ public class ClickHouseResultSet extends AbstractResultSet {
     }
 
     private static short toShort(ByteFragment value) {
-        if (value.isNull()) return 0;
+        if (value.isNull()) {
+            return 0;
+        }
         return Short.parseShort(value.asString());
     }
 
     private static boolean toBoolean(ByteFragment value) {
-        if (value.isNull()) return false;
+        if (value.isNull()) {
+            return false;
+        }
         return "1".equals(value.asString());    // 1 or 0 there
     }
 
     private static byte[] toBytes(ByteFragment value) {
-        if (value.isNull()) return null;
+        if (value.isNull()) {
+            return null;
+        }
         return value.unescape();
     }
 
@@ -497,11 +520,15 @@ public class ClickHouseResultSet extends AbstractResultSet {
     }
 
     static long[] toLongArray(ByteFragment value) {
-        if (value.isNull()) return null;
+        if (value.isNull()) {
+            return null;
+        }
         if (value.charAt(0) != '[' || value.charAt(value.length()-1) != ']') {
             throw new IllegalArgumentException("not an array: "+value);
         }
-        if (value.length() == 2) return EMPTY_LONG_ARRAY;
+        if (value.length() == 2) {
+            return EMPTY_LONG_ARRAY;
+        }
         ByteFragment trim = value.subseq(1, value.length() - 2);
         ByteFragment[] values = trim.split((byte) ',');
         long[] result = new long[values.length];
@@ -512,7 +539,9 @@ public class ClickHouseResultSet extends AbstractResultSet {
     }
 
     private Long toTimestamp(ByteFragment value) {
-        if (value.isNull() || value.asString().equals("0000-00-00 00:00:00")) return null;
+        if (value.isNull() || value.asString().equals("0000-00-00 00:00:00")) {
+            return null;
+        }
         try {
             return sdf.parse(value.asString()).getTime();
         } catch (ParseException e) {

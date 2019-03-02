@@ -72,12 +72,12 @@ public class ClickHouseResultSetMetaData implements ResultSetMetaData {
 
     @Override
     public int getPrecision(int column) throws SQLException {
-        return 0;
+        return TypeUtils.getColumnSize(getColumnTypeName(column));
     }
 
     @Override
     public int getScale(int column) throws SQLException {
-        return 0;
+        return TypeUtils.getDecimalDigits(getColumnTypeName(column));
     }
 
     @Override

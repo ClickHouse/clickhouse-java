@@ -1,5 +1,13 @@
 package ru.yandex.clickhouse.response;
 
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.math.BigDecimal;
+import java.sql.ResultSet;
+import java.sql.Types;
+import java.util.TimeZone;
+
 import org.testng.Assert;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
@@ -7,13 +15,10 @@ import org.testng.annotations.Test;
 import ru.yandex.clickhouse.ClickHouseStatement;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
 
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.sql.ResultSet;
-import java.util.TimeZone;
-
-import static org.testng.Assert.*;
+import static org.testng.Assert.assertFalse;
+import static org.testng.Assert.assertNull;
+import static org.testng.Assert.assertTrue;
+import static org.testng.Assert.fail;
 import static org.testng.AssertJUnit.assertEquals;
 
 public class ClickHouseResultSetTest {
@@ -272,14 +277,31 @@ public class ClickHouseResultSetTest {
         ByteArrayInputStream is = new ByteArrayInputStream(response.getBytes("UTF-8"));
 
         ResultSet rs = buildResultSet(is, 1024, "db", "table", false, null, null, props);
-        
+
         rs.next();
         assertFalse(rs.isLast());
         rs.next();
         assertTrue(rs.isLast());
         assertFalse(rs.next());
     }
-    
+
+    @Test
+    public void testDecimalMetadata() throws Exception {
+        String response =
+            "sum(myMoney)\n" +
+            "Decimal(38, 3)\n" +
+            "12955152630.539";
+        ByteArrayInputStream is = new ByteArrayInputStream(response.getBytes("UTF-8"));
+        ResultSet rs = buildResultSet(is, 1024, "db", "table", false, null, null, props);
+        rs.next();
+        assertEquals(rs.getMetaData().getColumnType(1), Types.DECIMAL);
+        assertEquals(rs.getMetaData().getColumnTypeName(1), "Decimal(38, 3)");
+        assertEquals(rs.getMetaData().getColumnClassName(1), BigDecimal.class.getCanonicalName());
+        assertEquals(rs.getObject(1), new BigDecimal("12955152630.539"));
+        assertEquals(rs.getMetaData().getScale(1), 3);
+        assertEquals(rs.getMetaData().getPrecision(1), 38);
+    }
+
     protected ClickHouseResultSet buildResultSet(InputStream is, int bufferSize, String db, String table, boolean usesWithTotals, ClickHouseStatement statement, TimeZone timezone, ClickHouseProperties properties) throws IOException {
     	return new ClickHouseResultSet(is, bufferSize, db, table, usesWithTotals, statement, timezone, properties);
     }
