@@ -11,15 +11,17 @@ import java.sql.Types;
 import java.util.ArrayList;
 import java.util.Arrays;
 
-import com.google.common.base.Function;
-import com.google.common.base.Joiner;
-import com.google.common.collect.Iterables;
 import org.testng.Assert;
 import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
 
+import com.google.common.base.Function;
+import com.google.common.base.Joiner;
+import com.google.common.collect.Iterables;
+
 import ru.yandex.clickhouse.ClickHouseArray;
 import ru.yandex.clickhouse.ClickHouseDataSource;
+import ru.yandex.clickhouse.ClickHousePreparedStatement;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
 
 import static org.testng.Assert.assertEquals;
@@ -127,5 +129,46 @@ public class ArrayTest {
             Assert.assertEquals(((double[]) float64.getArray())[0], 1.23, 0.0000001);
             Assert.assertEquals(((double[]) float64.getArray())[1], 4.56, 0.0000001);
         }
+    }
+
+    @Test
+    public void testInsertStringArray() throws Exception {
+        connection.createStatement().execute("DROP TABLE IF EXISTS test.string_array");
+        connection.createStatement().execute(
+            "CREATE TABLE IF NOT EXISTS test.string_array (foo Array(String)) ENGINE = TinyLog");
+
+        String insertSQL = "INSERT INTO test.string_array (foo) VALUES (?)";
+        PreparedStatement statement = connection.prepareStatement(insertSQL);
+        statement.setArray(1, connection.createArrayOf(
+            String.class.getCanonicalName(),
+            new String[]{"23", "42"}));
+        statement.executeUpdate();
+
+        ResultSet r = connection.createStatement().executeQuery(
+            "SELECT foo FROM test.string_array");
+        r.next();
+        String[] s = (String[]) r.getArray(1).getArray();
+        Assert.assertEquals(s[0], "23");
+        Assert.assertEquals(s[1], "42");
+    }
+
+    @Test
+    public void testInsertStringArrayViaUnwrap() throws Exception {
+        connection.createStatement().execute("DROP TABLE IF EXISTS test.string_array");
+        connection.createStatement().execute(
+            "CREATE TABLE IF NOT EXISTS test.string_array (foo Array(String)) ENGINE = TinyLog");
+
+        String insertSQL = "INSERT INTO test.string_array (foo) VALUES (?)";
+        ClickHousePreparedStatement statement = connection.prepareStatement(insertSQL)
+            .unwrap(ClickHousePreparedStatement.class);
+        statement.setArray(1, new String[] {"23", "42"});
+        statement.executeUpdate();
+
+        ResultSet r = connection.createStatement().executeQuery(
+            "SELECT foo FROM test.string_array");
+        r.next();
+        String[] s = (String[]) r.getArray(1).getArray();
+        Assert.assertEquals(s[0], "23");
+        Assert.assertEquals(s[1], "42");
     }
 }
