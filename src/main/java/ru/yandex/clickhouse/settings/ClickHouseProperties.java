@@ -768,4 +768,12 @@ public class ClickHouseProperties {
         }
     }
 
+    public ClickHouseProperties merge(ClickHouseProperties second){
+        Properties properties = this.asProperties();
+        for (Map.Entry<Object, Object> entry : second.asProperties().entrySet())
+            properties.put(entry.getKey(), entry.getValue());
+
+        return new ClickHouseProperties(properties);
+    }
+
 }

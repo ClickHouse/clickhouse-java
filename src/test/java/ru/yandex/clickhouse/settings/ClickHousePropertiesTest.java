@@ -2,11 +2,15 @@ package ru.yandex.clickhouse.settings;
 
 import org.testng.Assert;
 import org.testng.annotations.Test;
+import ru.yandex.clickhouse.BalancedClickhouseDataSource;
 import ru.yandex.clickhouse.ClickHouseDataSource;
 
 import java.net.URI;
 import java.util.Map;
 import java.util.Properties;
+
+import static org.testng.AssertJUnit.assertEquals;
+import static org.testng.AssertJUnit.assertTrue;
 
 public class ClickHousePropertiesTest {
 
@@ -57,6 +61,24 @@ public class ClickHousePropertiesTest {
                 clickHouseDataSource.getProperties().getTotalsMode(),
                 ClickHouseQueryParam.TOTALS_MODE.getDefaultValue()
         );
+    }
+
+    @Test
+    public void additionalParametersTest_clickhouse_datasource() {
+        ClickHouseDataSource clickHouseDataSource = new ClickHouseDataSource("jdbc:clickhouse://localhost:1234/ppc?compress=1&decompress=1&user=root");
+
+        assertTrue(clickHouseDataSource.getProperties().isCompress());
+        assertTrue(clickHouseDataSource.getProperties().isDecompress());
+        assertEquals("root", clickHouseDataSource.getProperties().getUser());
+    }
+
+    @Test
+    public void additionalParametersTest_balanced_clickhouse_datasource() {
+        BalancedClickhouseDataSource clickHouseDataSource = new BalancedClickhouseDataSource("jdbc:clickhouse://localhost:1234,another.host.com:4321/ppc?compress=1&decompress=1&user=root");
+
+        assertTrue(clickHouseDataSource.getProperties().isCompress());
+        assertTrue(clickHouseDataSource.getProperties().isDecompress());
+        assertEquals("root", clickHouseDataSource.getProperties().getUser());
     }
 
     @Test

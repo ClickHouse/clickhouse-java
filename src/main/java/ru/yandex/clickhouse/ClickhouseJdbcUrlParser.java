@@ -34,7 +34,7 @@ public class ClickhouseJdbcUrlParser {
             throws URISyntaxException
     {
         URI uri = new URI(uriString);
-        Properties urlProperties = parseUriQueryPart(uri, defaults);
+        Properties urlProperties = parseUriQueryPart(uri.getQuery(), defaults);
         ClickHouseProperties props = new ClickHouseProperties(urlProperties);
         props.setHost(uri.getHost());
         int port = uri.getPort();
@@ -59,14 +59,13 @@ public class ClickhouseJdbcUrlParser {
         return props;
     }
 
-    private static Properties parseUriQueryPart(URI uri, Properties defaults) {
-        String query = uri.getQuery();
+    static Properties parseUriQueryPart(String query, Properties defaults) {
         if (query == null) {
             return defaults;
         }
         Properties urlProps = new Properties(defaults);
-        String queryKeyVaues[] = query.split("&");
-        for (String keyValue : queryKeyVaues) {
+        String queryKeyValues[] = query.split("&");
+        for (String keyValue : queryKeyValues) {
             String keyValueTokens[] = keyValue.split("=");
             if (keyValueTokens.length == 2) {
                 urlProps.put(keyValueTokens[0], keyValueTokens[1]);
