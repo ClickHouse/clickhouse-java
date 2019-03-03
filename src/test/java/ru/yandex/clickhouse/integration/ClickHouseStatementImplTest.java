@@ -25,6 +25,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.testng.AssertJUnit.*;
 
@@ -217,6 +218,7 @@ public class ClickHouseStatementImplTest {
     public void cancelTest_queryId_is_not_set() throws Exception {
         final ClickHouseStatement firstStatement = dataSource.getConnection().createStatement();
 
+        final AtomicReference<Exception> exceptionAtomicReference = new AtomicReference<Exception>();
         Thread thread = new Thread() {
             @Override
             public void run() {
@@ -224,8 +226,8 @@ public class ClickHouseStatementImplTest {
                     Map<ClickHouseQueryParam, String> params = new EnumMap<ClickHouseQueryParam, String>(ClickHouseQueryParam.class);
                     params.put(ClickHouseQueryParam.CONNECT_TIMEOUT, Long.toString(TimeUnit.MINUTES.toMillis(1)));
                     firstStatement.executeQuery("SELECT count() FROM system.numbers", params);
-                } catch (SQLException e) {
-                    e.printStackTrace();
+                } catch (Exception e) {
+                    exceptionAtomicReference.set(e);
                 }
             }
         };
@@ -236,7 +238,7 @@ public class ClickHouseStatementImplTest {
         final long timeout = 10;
         String queryId = (String) readField(firstStatement, "queryId", timeout);
         assertNotNull(String.format("it's actually very strange. It seems the query hasn't been executed in %s seconds", timeout), queryId);
-
+        assertNull("An exception happened while the query was being executed", exceptionAtomicReference.get());
 
         ClickHouseStatement statement = dataSource.getConnection().createStatement();
         statement.execute(String.format("SELECT * FROM system.processes where query_id='%s'", queryId));
@@ -264,6 +266,7 @@ public class ClickHouseStatementImplTest {
         final ClickHouseStatement firstStatement = dataSource.getConnection().createStatement();
 
         final CountDownLatch countDownLatch = new CountDownLatch(1);
+        final AtomicReference<Exception> exceptionAtomicReference = new AtomicReference<Exception>();
         Thread thread = new Thread() {
             @Override
             public void run() {
@@ -273,8 +276,8 @@ public class ClickHouseStatementImplTest {
                     params.put(ClickHouseQueryParam.QUERY_ID, queryId);
                     countDownLatch.countDown();
                     firstStatement.executeQuery("SELECT count() FROM system.numbers", params);
-                } catch (SQLException e) {
-                    e.printStackTrace();
+                } catch (Exception e) {
+                    exceptionAtomicReference.set(e);
                 }
             }
         };
@@ -282,6 +285,7 @@ public class ClickHouseStatementImplTest {
         thread.start();
         final long timeout = 10;
         assertTrue(String.format("it's actually very strange. It seems the query hasn't been executed in %s seconds", timeout), countDownLatch.await(timeout, TimeUnit.SECONDS));
+        assertNull("An exception happened while the query was being executed", exceptionAtomicReference.get());
 
         ClickHouseStatement statement = dataSource.getConnection().createStatement();
         statement.execute(String.format("SELECT * FROM system.processes where query_id='%s'", queryId));
