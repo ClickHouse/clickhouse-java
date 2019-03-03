@@ -222,12 +222,10 @@ public class ClickHouseStatementImplTest {
             public void run() {
                 try {
                     Map<ClickHouseQueryParam, String> params = new EnumMap<ClickHouseQueryParam, String>(ClickHouseQueryParam.class);
-                    params.put(ClickHouseQueryParam.RECEIVE_TIMEOUT, Long.toString(TimeUnit.SECONDS.toMillis(30)));
-                    params.put(ClickHouseQueryParam.CONNECT_TIMEOUT, Long.toString(TimeUnit.SECONDS.toMillis(30)));
+                    params.put(ClickHouseQueryParam.CONNECT_TIMEOUT, Long.toString(TimeUnit.MINUTES.toMillis(1)));
                     firstStatement.executeQuery("SELECT count() FROM system.numbers", params);
                 } catch (SQLException e) {
                     e.printStackTrace();
-                    fail("It must not happen");
                 }
             }
         };
@@ -271,14 +269,12 @@ public class ClickHouseStatementImplTest {
             public void run() {
                 try {
                     Map<ClickHouseQueryParam, String> params = new EnumMap<ClickHouseQueryParam, String>(ClickHouseQueryParam.class);
-                    params.put(ClickHouseQueryParam.RECEIVE_TIMEOUT, Long.toString(TimeUnit.SECONDS.toMillis(30)));
-                    params.put(ClickHouseQueryParam.CONNECT_TIMEOUT, Long.toString(TimeUnit.SECONDS.toMillis(30)));
+                    params.put(ClickHouseQueryParam.CONNECT_TIMEOUT, Long.toString(TimeUnit.MINUTES.toMillis(1)));
                     params.put(ClickHouseQueryParam.QUERY_ID, queryId);
                     countDownLatch.countDown();
                     firstStatement.executeQuery("SELECT count() FROM system.numbers", params);
                 } catch (SQLException e) {
                     e.printStackTrace();
-                    fail("It must not happen");
                 }
             }
         };
