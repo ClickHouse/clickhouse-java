@@ -292,12 +292,10 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
 
     @Override
     public void cancel() throws SQLException {
-        if (isClosed())
+        if (this.queryId == null || isClosed())
             return;
 
-        Map<ClickHouseQueryParam, String> additionalDBParams = new EnumMap<ClickHouseQueryParam, String>(ClickHouseQueryParam.class);
-        additionalDBParams.put(ClickHouseQueryParam.QUERY_ID, UUID.randomUUID().toString());
-        executeQuery(String.format("KILL QUERY WHERE query_id='%s'", queryId), additionalDBParams);
+        executeQuery(String.format("KILL QUERY WHERE query_id='%s'", queryId));
     }
 
     @Override
