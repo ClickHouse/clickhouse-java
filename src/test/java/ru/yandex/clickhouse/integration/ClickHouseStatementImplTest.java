@@ -240,21 +240,11 @@ public class ClickHouseStatementImplTest {
         assertNotNull(String.format("it's actually very strange. It seems the query hasn't been executed in %s seconds", timeout), queryId);
         assertNull("An exception happened while the query was being executed", exceptionAtomicReference.get());
 
-        ClickHouseStatement statement = dataSource.getConnection().createStatement();
-        statement.execute(String.format("SELECT * FROM system.processes where query_id='%s'", queryId));
-        ResultSet resultSet = statement.getResultSet();
-        assertTrue("The query isn't executing. It seems very strange", resultSet.next());
-        statement.close();
 
+        assertTrue("The query isn't being executed. It seems very strange", checkQuery(queryId, true,10));
         firstStatement.cancel();
+        assertTrue("The query is still being executed", checkQuery(queryId, false, 10));
 
-        statement = dataSource.getConnection().createStatement();
-        statement.execute(String.format("SELECT * FROM system.processes where query_id='%s'", queryId));
-
-        resultSet = statement.getResultSet();
-        assertFalse("The query is still executing", resultSet.next());
-
-        statement.close();
         firstStatement.close();
         thread.interrupt();
     }
@@ -287,21 +277,10 @@ public class ClickHouseStatementImplTest {
         assertTrue(String.format("it's actually very strange. It seems the query hasn't been executed in %s seconds", timeout), countDownLatch.await(timeout, TimeUnit.SECONDS));
         assertNull("An exception happened while the query was being executed", exceptionAtomicReference.get());
 
-        ClickHouseStatement statement = dataSource.getConnection().createStatement();
-        statement.execute(String.format("SELECT * FROM system.processes where query_id='%s'", queryId));
-        ResultSet resultSet = statement.getResultSet();
-        assertTrue("The query isn't executing. It seems very strange", resultSet.next());
-        statement.close();
-
+        assertTrue("The query isn't being executed. It seems very strange", checkQuery(queryId, true,10));
         firstStatement.cancel();
+        assertTrue("The query is still being executed", checkQuery(queryId, false, 10));
 
-        statement = dataSource.getConnection().createStatement();
-        statement.execute(String.format("SELECT * FROM system.processes where query_id='%s'", queryId));
-
-        resultSet = statement.getResultSet();
-        assertFalse("The query is still executing", resultSet.next());
-
-        statement.close();
         firstStatement.close();
         thread.interrupt();
     }
@@ -314,5 +293,26 @@ public class ClickHouseStatementImplTest {
         } while (value == null && TimeUnit.MILLISECONDS.toSeconds(System.currentTimeMillis() - start) < timeoutSecs);
 
         return value;
+    }
+
+    private boolean checkQuery(String queryId, boolean isRunning, long timeoutSecs) throws Exception {
+        long start = System.currentTimeMillis();
+
+        do {
+            ClickHouseStatement statement = null;
+            try {
+                statement = connection.createStatement();
+                statement.execute(String.format("SELECT * FROM system.processes where query_id='%s'", queryId));
+                ResultSet resultSet = statement.getResultSet();
+                if (resultSet.next() == isRunning)
+                    return true;
+            } finally {
+                if (statement != null)
+                    statement.close();
+            }
+
+        } while (TimeUnit.MILLISECONDS.toSeconds(System.currentTimeMillis() - start) < timeoutSecs);
+
+        return false;
     }
 }
