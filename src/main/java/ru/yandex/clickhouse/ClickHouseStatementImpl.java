@@ -77,7 +77,7 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
 
     private final boolean isResultSetScrollable;
 
-    private final String queryId;
+    private volatile String queryId;
 
     /**
      * Current database name may be changed by {@link java.sql.Connection#setCatalog(String)}
@@ -96,7 +96,6 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
         this.properties = properties == null ? new ClickHouseProperties() : properties;
         this.initialDatabase = properties.getDatabase();
         this.isResultSetScrollable = (resultSetType != ResultSet.TYPE_FORWARD_ONLY);
-        this.queryId = UUID.randomUUID().toString();
     }
 
     @Override
@@ -853,10 +852,15 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
     }
 
     private Map<ClickHouseQueryParam, String> addQueryIdTo(Map<ClickHouseQueryParam, String> parameters) {
-        if (parameters.containsKey(ClickHouseQueryParam.QUERY_ID))
+        if (this.queryId != null)
             return parameters;
 
-        parameters.put(ClickHouseQueryParam.QUERY_ID, queryId);
+        String queryId = parameters.get(ClickHouseQueryParam.QUERY_ID);
+        if (queryId == null) {
+            this.queryId = UUID.randomUUID().toString();
+            parameters.put(ClickHouseQueryParam.QUERY_ID, this.queryId);
+        } else
+            this.queryId = queryId;
 
         return parameters;
     }
