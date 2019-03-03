@@ -7,6 +7,7 @@ import java.sql.SQLException;
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.sql.Types;
+import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -90,7 +91,7 @@ public class TypeUtils {
 
     public static String getArrayElementTypeName(String clickhouseType) {
         if (!isArray(clickhouseType)) {
-            throw new IllegalArgumentException("not an array");
+            throw new IllegalArgumentException("not an array " + clickhouseType);
         }
 
         return clickhouseType.substring("Array(".length(), clickhouseType.length() - 1);
@@ -144,8 +145,10 @@ public class TypeUtils {
             case Types.ARRAY:
                 Class elementType = toClass(elementSqltype, isUnsigned);
                 return Array.newInstance(elementType, 0).getClass();
+            case Types.OTHER:
+                return UUID.class;
             default:
-                throw new UnsupportedOperationException("Sql type " + sqlType + "is not supported");
+                throw new UnsupportedOperationException("Sql type " + sqlType + " is not supported");
         }
     }
 
