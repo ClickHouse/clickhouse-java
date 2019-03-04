@@ -10,8 +10,9 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.SQLWarning;
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.EnumMap;
 import java.util.List;
+import java.util.UUID;
 import java.util.Map;
 import java.util.TimeZone;
 
@@ -56,7 +57,7 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
 
     private final CloseableHttpClient client;
 
-    protected ClickHouseProperties properties = new ClickHouseProperties();
+    protected ClickHouseProperties properties;
 
     private ClickHouseConnection connection;
 
@@ -67,14 +68,16 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
     private int currentUpdateCount = -1;
 
     private int queryTimeout;
-    
+
     private boolean isQueryTimeoutSet = false;
 
     private int maxRows;
 
     private boolean closeOnCompletion;
-    
+
     private final boolean isResultSetScrollable;
+
+    private volatile String queryId;
 
     /**
      * Current database name may be changed by {@link java.sql.Connection#setCatalog(String)}
@@ -90,7 +93,7 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
                                    ClickHouseProperties properties, int resultSetType) {
         this.client = client;
         this.connection = connection;
-        this.properties = properties;
+        this.properties = properties == null ? new ClickHouseProperties() : properties;
         this.initialDatabase = properties.getDatabase();
         this.isResultSetScrollable = (resultSetType != ResultSet.TYPE_FORWARD_ONLY);
     }
@@ -118,9 +121,9 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
 
         // forcibly disable extremes for ResultSet queries
         if (additionalDBParams == null) {
-            additionalDBParams = new HashMap<ClickHouseQueryParam, String>();
+            additionalDBParams = new EnumMap<ClickHouseQueryParam, String>(ClickHouseQueryParam.class);
         } else {
-            additionalDBParams = new HashMap<ClickHouseQueryParam, String>(additionalDBParams);
+            additionalDBParams = new EnumMap<ClickHouseQueryParam, String>(additionalDBParams);
         }
         additionalDBParams.put(ClickHouseQueryParam.EXTREMES, "0");
 
@@ -289,7 +292,10 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
 
     @Override
     public void cancel() throws SQLException {
+        if (this.queryId == null || isClosed())
+            return;
 
+        executeQuery(String.format("KILL QUERY WHERE query_id='%s'", queryId));
     }
 
     @Override
@@ -551,6 +557,11 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
     ) throws ClickHouseException {
         sql = clickhousifySql(sql);
         log.debug("Executing SQL: " + sql);
+
+        additionalClickHouseDBParams = addQueryIdTo(
+                additionalClickHouseDBParams == null
+                        ? new EnumMap<ClickHouseQueryParam, String>(ClickHouseQueryParam.class)
+                        : additionalClickHouseDBParams);
 
         boolean ignoreDatabase = sql.trim().regionMatches(true, 0, databaseKeyword, 0, databaseKeyword.length());
         URI uri;
@@ -828,13 +839,27 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
     public boolean isCloseOnCompletion() throws SQLException {
         return closeOnCompletion;
     }
-    
-    private ClickHouseResultSet createResultSet(InputStream is, int bufferSize, String db, String table, boolean usesWithTotals, 
+
+    private ClickHouseResultSet createResultSet(InputStream is, int bufferSize, String db, String table, boolean usesWithTotals,
     		ClickHouseStatement statement, TimeZone timezone, ClickHouseProperties properties) throws IOException {
     	if(isResultSetScrollable) {
     		return new ClickHouseScrollableResultSet(is, bufferSize, db, table, usesWithTotals, statement, timezone, properties);
     	} else {
     		return new ClickHouseResultSet(is, bufferSize, db, table, usesWithTotals, statement, timezone, properties);
     	}
+    }
+
+    private Map<ClickHouseQueryParam, String> addQueryIdTo(Map<ClickHouseQueryParam, String> parameters) {
+        if (this.queryId != null)
+            return parameters;
+
+        String queryId = parameters.get(ClickHouseQueryParam.QUERY_ID);
+        if (queryId == null) {
+            this.queryId = UUID.randomUUID().toString();
+            parameters.put(ClickHouseQueryParam.QUERY_ID, this.queryId);
+        } else
+            this.queryId = queryId;
+
+        return parameters;
     }
 }

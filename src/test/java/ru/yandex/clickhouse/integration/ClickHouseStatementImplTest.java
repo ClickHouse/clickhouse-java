@@ -1,5 +1,6 @@
 package ru.yandex.clickhouse.integration;
 
+import org.mockito.internal.util.reflection.Whitebox;
 import org.testng.Assert;
 import org.testng.annotations.AfterTest;
 import org.testng.annotations.BeforeTest;
@@ -9,6 +10,7 @@ import ru.yandex.clickhouse.ClickHouseDataSource;
 import ru.yandex.clickhouse.ClickHouseExternalData;
 import ru.yandex.clickhouse.ClickHouseStatement;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
+import ru.yandex.clickhouse.settings.ClickHouseQueryParam;
 
 import java.io.ByteArrayInputStream;
 import java.io.UnsupportedEncodingException;
@@ -18,6 +20,14 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Collections;
+import java.util.EnumMap;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
+
+import static org.testng.AssertJUnit.*;
 
 public class ClickHouseStatementImplTest {
     private ClickHouseDataSource dataSource;
@@ -27,7 +37,7 @@ public class ClickHouseStatementImplTest {
     public void setUp() throws Exception {
         ClickHouseProperties properties = new ClickHouseProperties();
         dataSource = new ClickHouseDataSource("jdbc:clickhouse://localhost:8123", properties);
-        connection = (ClickHouseConnection) dataSource.getConnection();
+        connection = dataSource.getConnection();
     }
 
     @AfterTest
@@ -202,5 +212,107 @@ public class ClickHouseStatementImplTest {
 
         rs.close();
         stmt.close();
+    }
+
+    @Test
+    public void cancelTest_queryId_is_not_set() throws Exception {
+        final ClickHouseStatement firstStatement = dataSource.getConnection().createStatement();
+
+        final AtomicReference<Exception> exceptionAtomicReference = new AtomicReference<Exception>();
+        Thread thread = new Thread() {
+            @Override
+            public void run() {
+                try {
+                    Map<ClickHouseQueryParam, String> params = new EnumMap<ClickHouseQueryParam, String>(ClickHouseQueryParam.class);
+                    params.put(ClickHouseQueryParam.CONNECT_TIMEOUT, Long.toString(TimeUnit.MINUTES.toMillis(1)));
+                    firstStatement.executeQuery("SELECT count() FROM system.numbers", params);
+                } catch (Exception e) {
+                    exceptionAtomicReference.set(e);
+                }
+            }
+        };
+        thread.setDaemon(true);
+        thread.start();
+
+
+        final long timeout = 10;
+        String queryId = (String) readField(firstStatement, "queryId", timeout);
+        assertNotNull(String.format("it's actually very strange. It seems the query hasn't been executed in %s seconds", timeout), queryId);
+        assertNull("An exception happened while the query was being executed", exceptionAtomicReference.get());
+
+
+        assertTrue("The query isn't being executed. It seems very strange", checkQuery(queryId, true,10));
+        firstStatement.cancel();
+        assertTrue("The query is still being executed", checkQuery(queryId, false, 10));
+
+        firstStatement.close();
+        thread.interrupt();
+    }
+
+
+    @Test
+    public void cancelTest_queryId_is_set() throws Exception {
+        final String queryId = UUID.randomUUID().toString();
+        final ClickHouseStatement firstStatement = dataSource.getConnection().createStatement();
+
+        final CountDownLatch countDownLatch = new CountDownLatch(1);
+        final AtomicReference<Exception> exceptionAtomicReference = new AtomicReference<Exception>();
+        Thread thread = new Thread() {
+            @Override
+            public void run() {
+                try {
+                    Map<ClickHouseQueryParam, String> params = new EnumMap<ClickHouseQueryParam, String>(ClickHouseQueryParam.class);
+                    params.put(ClickHouseQueryParam.CONNECT_TIMEOUT, Long.toString(TimeUnit.MINUTES.toMillis(1)));
+                    params.put(ClickHouseQueryParam.QUERY_ID, queryId);
+                    countDownLatch.countDown();
+                    firstStatement.executeQuery("SELECT count() FROM system.numbers", params);
+                } catch (Exception e) {
+                    exceptionAtomicReference.set(e);
+                }
+            }
+        };
+        thread.setDaemon(true);
+        thread.start();
+        final long timeout = 10;
+        assertTrue(String.format("it's actually very strange. It seems the query hasn't been executed in %s seconds", timeout), countDownLatch.await(timeout, TimeUnit.SECONDS));
+        assertNull("An exception happened while the query was being executed", exceptionAtomicReference.get());
+
+        assertTrue("The query isn't being executed. It seems very strange", checkQuery(queryId, true,10));
+        firstStatement.cancel();
+        assertTrue("The query is still being executed", checkQuery(queryId, false, 10));
+
+        firstStatement.close();
+        thread.interrupt();
+    }
+
+    private static Object readField(Object object, String fieldName, long timeoutSecs) {
+        long start = System.currentTimeMillis();
+        Object value;
+        do {
+            value = Whitebox.getInternalState(object, fieldName);
+        } while (value == null && TimeUnit.MILLISECONDS.toSeconds(System.currentTimeMillis() - start) < timeoutSecs);
+
+        return value;
+    }
+
+    private boolean checkQuery(String queryId, boolean isRunning, long timeoutSecs) throws Exception {
+        long start = System.currentTimeMillis();
+
+        do {
+            ClickHouseStatement statement = null;
+            try {
+                statement = connection.createStatement();
+                statement.execute(String.format("SELECT * FROM system.processes where query_id='%s'", queryId));
+                ResultSet resultSet = statement.getResultSet();
+                if (resultSet.next() == isRunning)
+                    return true;
+            } finally {
+                if (statement != null)
+                    statement.close();
+            }
+
+        } while (TimeUnit.MILLISECONDS.toSeconds(System.currentTimeMillis() - start) < timeoutSecs);
+
+        return false;
     }
 }
