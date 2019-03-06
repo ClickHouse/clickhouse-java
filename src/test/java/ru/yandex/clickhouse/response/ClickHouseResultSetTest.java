@@ -305,7 +305,7 @@ public class ClickHouseResultSetTest {
     }
 
     @Test
-    public void testArray() throws Exception {
+    public void testArrayString() throws Exception {
         String response =
             "FOO\n"
           + "Array(String)\n"

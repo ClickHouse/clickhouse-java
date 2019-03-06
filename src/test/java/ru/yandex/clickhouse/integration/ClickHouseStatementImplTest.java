@@ -289,6 +289,21 @@ public class ClickHouseStatementImplTest {
         thread.interrupt();
     }
 
+    @Test
+    public void testArrayMetaActualExecutiom() throws SQLException {
+        Statement stmt = connection.createStatement();
+        ResultSet rs = stmt.executeQuery("SELECT array(42, 23)");
+        rs.next();
+        Assert.assertEquals(rs.getMetaData().getColumnType(1), Types.ARRAY);
+        Assert.assertEquals(rs.getMetaData().getColumnTypeName(1), "Array(UInt8)");
+        Assert.assertEquals(rs.getMetaData().getColumnClassName(1),
+            Array.class.getCanonicalName());
+        Array arr = (Array) rs.getObject(1);
+        Assert.assertEquals(((long[]) arr.getArray())[0], 42L);
+        Assert.assertEquals(((long[]) arr.getArray())[1], 23L);
+
+    }
+
     private static Object readField(Object object, String fieldName, long timeoutSecs) {
         long start = System.currentTimeMillis();
         Object value;
@@ -322,15 +337,5 @@ public class ClickHouseStatementImplTest {
         return false;
     }
 
-    @Test
-    public void testArrayMeta() throws SQLException {
-        Statement stmt = connection.createStatement();
-        ResultSet rs = stmt.executeQuery("SELECT array(42, 23)");
-        rs.next();
-        Assert.assertEquals(rs.getMetaData().getColumnType(1), Types.ARRAY);
-        Assert.assertEquals(rs.getMetaData().getColumnTypeName(1), "Array(UInt8)");
-        Assert.assertEquals(rs.getMetaData().getColumnClassName(1),
-            Array.class.getCanonicalName());
-    }
 
 }

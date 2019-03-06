@@ -589,7 +589,6 @@ public class ClickHouseResultSet extends AbstractResultSet {
         return values[colNum - 1];
     }
 
-    @Override
     public <T> T getObject(int columnIndex, Class<T> type) throws SQLException {
         if(type.equals(UUID.class)) {
             return (T) UUID.fromString(getString(columnIndex));
@@ -598,7 +597,6 @@ public class ClickHouseResultSet extends AbstractResultSet {
         }
     }
 
-    @Override
     public <T> T getObject(String columnLabel, Class<T> type) throws SQLException {
         return getObject(asColNum(columnLabel), type);
     }
