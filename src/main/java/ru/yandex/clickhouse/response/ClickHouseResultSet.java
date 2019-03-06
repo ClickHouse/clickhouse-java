@@ -474,7 +474,7 @@ public class ClickHouseResultSet extends AbstractResultSet {
                 case Types.DATE:        return getDate(columnIndex);
                 case Types.TIMESTAMP:   return getTimestamp(columnIndex);
                 case Types.BLOB:        return getString(columnIndex);
-                case Types.ARRAY:       return getArray(columnIndex).getArray();
+                case Types.ARRAY:       return getArray(columnIndex);
                 case Types.DECIMAL:     return getBigDecimal(columnIndex);
             }
 
@@ -589,6 +589,7 @@ public class ClickHouseResultSet extends AbstractResultSet {
         return values[colNum - 1];
     }
 
+    @Override
     public <T> T getObject(int columnIndex, Class<T> type) throws SQLException {
         if(type.equals(UUID.class)) {
             return (T) UUID.fromString(getString(columnIndex));
@@ -597,6 +598,7 @@ public class ClickHouseResultSet extends AbstractResultSet {
         }
     }
 
+    @Override
     public <T> T getObject(String columnLabel, Class<T> type) throws SQLException {
         return getObject(asColNum(columnLabel), type);
     }
