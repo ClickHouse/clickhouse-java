@@ -1,3 +1,11 @@
+0.1.51
+  * fixed sendStream
+  * fixed LEB128 encoding
+  * cancel by query_id implementation
+  * improved ResultSetMetadata for Decimal data types
+  * PreparedStatement single and double quotes support
+  * NoopHostnameVerifier for sslMode none
+
 0.1.50
   * Array(FixedString(N)) insert support
   * ENABLE_OPTIMIZE_PREDICATE_EXPRESSION query param
