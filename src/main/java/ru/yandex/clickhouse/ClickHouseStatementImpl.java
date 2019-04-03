@@ -104,7 +104,7 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
                                   Map<String, String> additionalRequestParams) throws SQLException {
 
         // forcibly disable extremes for ResultSet queries
-        if (additionalDBParams == null) {
+        if (additionalDBParams == null || additionalDBParams.isEmpty()) {
             additionalDBParams = new EnumMap<ClickHouseQueryParam, String>(ClickHouseQueryParam.class);
         } else {
             additionalDBParams = new EnumMap<ClickHouseQueryParam, String>(additionalDBParams);
