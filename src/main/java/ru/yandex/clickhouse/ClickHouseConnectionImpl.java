@@ -82,6 +82,9 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
         if (properties.isUseServerTimeZone() && !Strings.isNullOrEmpty(properties.getUseTimeZone())) {
             throw new IllegalArgumentException(String.format("only one of %s or %s must be enabled", ClickHouseConnectionSettings.USE_SERVER_TIME_ZONE.getKey(), ClickHouseConnectionSettings.USE_TIME_ZONE.getKey()));
         }
+        if (!properties.isUseServerTimeZone() && Strings.isNullOrEmpty(properties.getUseTimeZone())) {
+            throw new IllegalArgumentException(String.format("one of %s or %s must be enabled", ClickHouseConnectionSettings.USE_SERVER_TIME_ZONE.getKey(), ClickHouseConnectionSettings.USE_TIME_ZONE.getKey()));
+        }
         if (properties.isUseServerTimeZone()) {
             ResultSet rs = null;
             try {
