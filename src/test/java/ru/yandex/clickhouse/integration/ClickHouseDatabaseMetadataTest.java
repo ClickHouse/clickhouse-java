@@ -156,8 +156,12 @@ public class ClickHouseDatabaseMetadataTest {
             "SELECT toDateTime(foo) FROM test.testDateTimeTZ");
         ResultSetMetaData meta = rs.getMetaData();
         Assert.assertEquals(meta.getColumnClassName(1), Timestamp.class.getCanonicalName());
+<<<<<<< Upstream, based on master
         TimeZone timezone = ((ClickHouseConnection) connection).getTimeZone();
         Assert.assertEquals(meta.getColumnTypeName(1), "DateTime('" + timezone.getID() + "')");
+=======
+        Assert.assertEquals(meta.getColumnTypeName(1), "DateTime('UTC')");
+>>>>>>> 084f814 Improve Detection of DateTime Columns
         Assert.assertEquals(meta.getColumnType(1), Types.TIMESTAMP);
     }
 
