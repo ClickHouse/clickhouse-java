@@ -3,6 +3,8 @@ package ru.yandex.clickhouse.integration;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
+import java.sql.Timestamp;
 import java.sql.Types;
 
 import org.mockito.Mockito;
@@ -139,6 +141,22 @@ public class ClickHouseDatabaseMetadataTest {
             null, "test", "testMetadataView", null);
         tableMeta.next();
         Assert.assertEquals("VIEW", tableMeta.getString("TABLE_TYPE"));
+    }
+
+    @Test
+    public void testToDateTimeTZ() throws Exception {
+        connection.createStatement().executeQuery(
+            "DROP TABLE IF EXISTS test.testDateTimeTZ");
+        connection.createStatement().executeQuery(
+            "CREATE TABLE test.testDateTimeTZ (foo DateTime) Engine = Memory");
+        connection.createStatement().execute(
+            "INSERT INTO test.testDateTimeTZ (foo) VALUES('2019-04-12 13:37:00')");
+        ResultSet rs = connection.createStatement().executeQuery(
+            "SELECT toDateTime(foo) FROM test.testDateTimeTZ");
+        ResultSetMetaData meta = rs.getMetaData();
+        Assert.assertEquals(meta.getColumnClassName(1), Timestamp.class.getCanonicalName());
+        Assert.assertEquals(meta.getColumnTypeName(1), "DateTime('UTC')");
+        Assert.assertEquals(meta.getColumnType(1), Types.TIMESTAMP);
     }
 
     @DataProvider(name = "tableEngines")

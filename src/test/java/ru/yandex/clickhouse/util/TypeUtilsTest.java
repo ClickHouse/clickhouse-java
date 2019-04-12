@@ -1,5 +1,7 @@
 package ru.yandex.clickhouse.util;
 
+import java.sql.Types;
+
 import org.testng.annotations.Test;
 
 import static org.testng.Assert.assertEquals;
@@ -62,4 +64,12 @@ public class TypeUtilsTest {
       assertEquals(TypeUtils.unwrapNullableIfApplicable("Nullable(foo)"), "foo");
       assertEquals(TypeUtils.unwrapNullableIfApplicable("Nullable(UInt32"), "Nullable(UInt32");
   }
+
+  @Test
+  public void testDateTimeWithTimezone() {
+      assertEquals(TypeUtils.toSqlType("DateTime"), Types.TIMESTAMP);
+      assertEquals(TypeUtils.toSqlType("DateTime(UTC)"), Types.TIMESTAMP);
+      assertEquals(TypeUtils.toSqlType("DateTime('UTC')"), Types.TIMESTAMP);
+  }
+
 }

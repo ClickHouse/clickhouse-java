@@ -40,7 +40,7 @@ public class TypeUtils {
         if ("Date".equals(clickhouseType)) {
             return Types.DATE;
         }
-        if ("DateTime".equals(clickhouseType)) {
+        if (clickhouseType.startsWith("DateTime")) {
             return Types.TIMESTAMP;
         }
         if ("FixedString".equals(clickhouseType)) {
