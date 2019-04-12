@@ -6,6 +6,7 @@ import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.Timestamp;
 import java.sql.Types;
+import java.util.TimeZone;
 
 import org.mockito.Mockito;
 import org.testng.Assert;
@@ -155,7 +156,8 @@ public class ClickHouseDatabaseMetadataTest {
             "SELECT toDateTime(foo) FROM test.testDateTimeTZ");
         ResultSetMetaData meta = rs.getMetaData();
         Assert.assertEquals(meta.getColumnClassName(1), Timestamp.class.getCanonicalName());
-        Assert.assertEquals(meta.getColumnTypeName(1), "DateTime('UTC')");
+        TimeZone timezone = ((ClickHouseConnection) connection).getTimeZone();
+        Assert.assertEquals(meta.getColumnTypeName(1), "DateTime('" + timezone.getID() + "')");
         Assert.assertEquals(meta.getColumnType(1), Types.TIMESTAMP);
     }
 
