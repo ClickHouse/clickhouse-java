@@ -177,7 +177,7 @@ public class TypeUtils {
         } else if (type.equals("Date")) {
             // number of chars in '2018-01-01'
             return 10;
-        } else if (type.equals("DateTime")) {
+        } else if (type.startsWith("DateTime")) {
             // number of chars in '2018-01-01 01:02:35'
             return 19;
         } else if (type.startsWith("FixedString(")) {

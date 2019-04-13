@@ -42,6 +42,7 @@ public class TypeUtilsTest {
   @Test
   public void testGetColumnSize() throws Exception {
       assertEquals(TypeUtils.getColumnSize("DateTime"), 19);
+      assertEquals(TypeUtils.getColumnSize("DateTime('W-SU')"), 19);
       assertEquals(TypeUtils.getColumnSize("Date"), 10);
       assertEquals(TypeUtils.getColumnSize("UInt8"), 3);
       assertEquals(TypeUtils.getColumnSize("Int32"), 11);
