@@ -1,7 +1,11 @@
 package ru.yandex.clickhouse.settings;
 
 
+import org.apache.http.HttpRequestInterceptor;
+import org.apache.http.HttpResponseInterceptor;
+
 import java.sql.DriverPropertyInfo;
+import java.util.ArrayList;
 import java.util.Properties;
 
 public enum ClickHouseConnectionSettings implements DriverPropertyCreator {
@@ -43,8 +47,12 @@ public enum ClickHouseConnectionSettings implements DriverPropertyCreator {
     USE_SERVER_TIME_ZONE_FOR_DATES("use_server_time_zone_for_dates", false,
             "Whether to use timezone from server on Date parsing in getDate(). " +
                     "If false, Date returned is a wrapper of a timestamp at start of the day in client timezone. " +
-                    "If true - at start of the day in server or use_timezone timezone.")
-    ;
+                    "If true - at start of the day in server or use_timezone timezone."),
+
+
+    REQUEST_INTERCEPTORS("request_interceptors", new ArrayList<HttpRequestInterceptor>(), "Provide a way to add custom logic to your request handling"),
+
+    RESPONSE_INTERCEPTORS("response_interceptors", new ArrayList<HttpResponseInterceptor>(), "Provide a way to add custom logic to your response handling");
 
     private final String key;
     private final Object defaultValue;

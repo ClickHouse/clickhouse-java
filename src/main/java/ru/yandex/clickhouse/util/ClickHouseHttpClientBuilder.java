@@ -4,7 +4,9 @@ import org.apache.http.Header;
 import org.apache.http.HeaderElement;
 import org.apache.http.HeaderElementIterator;
 import org.apache.http.HttpHeaders;
+import org.apache.http.HttpRequestInterceptor;
 import org.apache.http.HttpResponse;
+import org.apache.http.HttpResponseInterceptor;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.config.ConnectionConfig;
 import org.apache.http.config.RegistryBuilder;
@@ -59,14 +61,20 @@ public class ClickHouseHttpClientBuilder {
     }
 
     public CloseableHttpClient buildClient() throws Exception {
-        return HttpClientBuilder.create()
+        HttpClientBuilder httpClientBuilder = HttpClientBuilder.create()
                 .setConnectionManager(getConnectionManager())
                 .setKeepAliveStrategy(createKeepAliveStrategy())
                 .setDefaultConnectionConfig(getConnectionConfig())
                 .setDefaultRequestConfig(getRequestConfig())
                 .setDefaultHeaders(getDefaultHeaders())
-                .disableContentCompression() // gzip здесь ни к чему. Используется lz4 при compress=1
-                .build();
+                .disableContentCompression(); // gzip здесь ни к чему. Используется lz4 при compress=1
+        for (HttpRequestInterceptor interceptor : properties.getRequestInterceptors()) {
+            httpClientBuilder.addInterceptorLast(interceptor);
+        }
+        for (HttpResponseInterceptor interceptor : properties.getResponseInterceptors()) {
+            httpClientBuilder.addInterceptorLast(interceptor);
+        }
+        return httpClientBuilder.build();
     }
 
     private PoolingHttpClientConnectionManager getConnectionManager()

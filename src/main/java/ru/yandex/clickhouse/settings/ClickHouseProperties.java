@@ -1,8 +1,11 @@
 package ru.yandex.clickhouse.settings;
 
+import org.apache.http.HttpRequestInterceptor;
+import org.apache.http.HttpResponseInterceptor;
 import ru.yandex.clickhouse.util.apache.StringUtils;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 
@@ -67,6 +70,8 @@ public class ClickHouseProperties {
     private Long    insertQuorumTimeout;
     private Long    selectSequentialConsistency;
     private Boolean enableOptimizePredicateExpression;
+    private List<HttpRequestInterceptor> requestInterceptors;
+    private List<HttpResponseInterceptor> responseInterceptors;
 
 
     public ClickHouseProperties() {
@@ -125,6 +130,8 @@ public class ClickHouseProperties {
         this.insertQuorumTimeout = (Long)getSetting(info, ClickHouseQueryParam.INSERT_QUORUM_TIMEOUT);
         this.selectSequentialConsistency = (Long)getSetting(info, ClickHouseQueryParam.SELECT_SEQUENTIAL_CONSISTENCY);
         this.enableOptimizePredicateExpression = getSetting(info, ClickHouseQueryParam.ENABLE_OPTIMIZE_PREDICATE_EXPRESSION);
+        this.requestInterceptors = getSettingObject(info, ClickHouseConnectionSettings.REQUEST_INTERCEPTORS);
+        this.responseInterceptors = getSettingObject(info, ClickHouseConnectionSettings.RESPONSE_INTERCEPTORS);
     }
 
     public Properties asProperties() {
@@ -147,6 +154,8 @@ public class ClickHouseProperties {
         ret.put(ClickHouseConnectionSettings.USE_TIME_ZONE.getKey(), String.valueOf(useTimeZone));
         ret.put(ClickHouseConnectionSettings.USE_SERVER_TIME_ZONE_FOR_DATES.getKey(), String.valueOf(useServerTimeZoneForDates));
         ret.put(ClickHouseConnectionSettings.USE_OBJECTS_IN_ARRAYS.getKey(), String.valueOf(useObjectsInArrays));
+        ret.put(ClickHouseConnectionSettings.REQUEST_INTERCEPTORS.getKey(), requestInterceptors);
+        ret.put(ClickHouseConnectionSettings.RESPONSE_INTERCEPTORS.getKey(), responseInterceptors);
 
         ret.put(ClickHouseQueryParam.MAX_PARALLEL_REPLICAS.getKey(), maxParallelReplicas);
         ret.put(ClickHouseQueryParam.TOTALS_MODE.getKey(), totalsMode);
@@ -235,6 +244,8 @@ public class ClickHouseProperties {
         setPreferredBlockSizeBytes(properties.preferredBlockSizeBytes);
         setMaxQuerySize(properties.maxQuerySize);
         setEnableOptimizePredicateExpression(properties.enableOptimizePredicateExpression);
+        setRequestInterceptors(properties.getRequestInterceptors());
+        setResponseInterceptors(properties.getResponseInterceptors());
     }
 
     public Map<ClickHouseQueryParam, String> buildQueryParams(boolean ignoreDatabase){
@@ -337,6 +348,15 @@ public class ClickHouseProperties {
 
     private <T> T getSetting(Properties info, ClickHouseConnectionSettings settings){
         return getSetting(info, settings.getKey(), settings.getDefaultValue(), settings.getClazz());
+    }
+
+    @SuppressWarnings("unchecked")
+    private <T> T getSettingObject(Properties info, ClickHouseConnectionSettings settings) {
+        Object val = info.get(settings.getKey());
+        if (val == null) {
+            return (T) settings.getDefaultValue();
+        }
+        return (T) val;
     }
 
     @SuppressWarnings("unchecked")
@@ -759,8 +779,25 @@ public class ClickHouseProperties {
         this.enableOptimizePredicateExpression = enableOptimizePredicateExpression;
     }
 
+    public List<HttpRequestInterceptor> getRequestInterceptors() {
+        return requestInterceptors;
+    }
+
+    public void setRequestInterceptors(List<HttpRequestInterceptor> requestInterceptors) {
+        this.requestInterceptors = requestInterceptors;
+    }
+
+    public List<HttpResponseInterceptor> getResponseInterceptors() {
+        return responseInterceptors;
+    }
+
+    public void setResponseInterceptors(List<HttpResponseInterceptor> responseInterceptors) {
+        this.responseInterceptors = responseInterceptors;
+    }
+
     private static class PropertiesBuilder {
         private final Properties properties;
+
         public PropertiesBuilder() {
             properties = new Properties();
         }
@@ -795,6 +832,12 @@ public class ClickHouseProperties {
 
         public Properties getProperties() {
             return properties;
+        }
+
+        public void put(String key, Object obj) {
+            if (obj != null) {
+                properties.put(key, obj);
+            }
         }
     }
 

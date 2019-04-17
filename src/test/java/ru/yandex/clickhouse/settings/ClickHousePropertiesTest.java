@@ -1,11 +1,16 @@
 package ru.yandex.clickhouse.settings;
 
+import org.apache.http.HttpRequest;
+import org.apache.http.HttpRequestInterceptor;
+import org.apache.http.protocol.HttpContext;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 import ru.yandex.clickhouse.BalancedClickhouseDataSource;
 import ru.yandex.clickhouse.ClickHouseDataSource;
 
 import java.net.URI;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 
@@ -115,5 +120,22 @@ public class ClickHousePropertiesTest {
         Assert.assertEquals(clickHouseQueryParams.get(ClickHouseQueryParam.INSERT_QUORUM), "3");
         Assert.assertEquals(clickHouseQueryParams.get(ClickHouseQueryParam.INSERT_QUORUM_TIMEOUT), "1000");
         Assert.assertEquals(clickHouseQueryParams.get(ClickHouseQueryParam.SELECT_SEQUENTIAL_CONSISTENCY), "1");
+    }
+
+    @Test
+    public void addInterceptorTest() {
+        ClickHouseProperties clickHouseProperties = new ClickHouseProperties();
+        List<HttpRequestInterceptor> requestInterceptors = new ArrayList<HttpRequestInterceptor>();
+        requestInterceptors.add(new HttpRequestInterceptor() {
+            @Override
+            public void process(HttpRequest httpRequest, HttpContext httpContext) {
+                System.out.println("Processing");
+            }
+        });
+        clickHouseProperties.setRequestInterceptors(requestInterceptors);
+        ClickHouseDataSource ds = new ClickHouseDataSource("jdbc:clickhouse://localhost:8123/test", clickHouseProperties);
+        /*Interceptors actually has no equals method, so i just check list size*/
+        Assert.assertEquals(ds.getProperties().getRequestInterceptors().size(), requestInterceptors.size(), "request interceptors is missing");
+        Assert.assertEquals(ds.getProperties().getResponseInterceptors().size(), 0, "response interceptors is missing");
     }
 }
