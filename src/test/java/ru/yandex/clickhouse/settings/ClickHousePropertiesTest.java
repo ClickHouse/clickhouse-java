@@ -116,4 +116,38 @@ public class ClickHousePropertiesTest {
         Assert.assertEquals(clickHouseQueryParams.get(ClickHouseQueryParam.INSERT_QUORUM_TIMEOUT), "1000");
         Assert.assertEquals(clickHouseQueryParams.get(ClickHouseQueryParam.SELECT_SEQUENTIAL_CONSISTENCY), "1");
     }
+
+    @Test
+    public void mergeClickHousePropertiesTest() {
+        ClickHouseProperties clickHouseProperties1 = new ClickHouseProperties();
+        ClickHouseProperties clickHouseProperties2 = new ClickHouseProperties();
+        clickHouseProperties1.setDatabase("click");
+        clickHouseProperties1.setConnectionTimeout(13000);
+        clickHouseProperties2.setSocketTimeout(15000);
+        clickHouseProperties2.setUser("readonly");
+        final ClickHouseProperties merged = clickHouseProperties1.merge(clickHouseProperties2);
+        // merge equals: clickHouseProperties1 overwrite with clickHouseProperties2's value or default not null value
+        Assert.assertEquals(merged.getDatabase(),"click"); // using properties1, because properties1 not setting and
+        // default value is null
+        Assert.assertEquals(merged.getConnectionTimeout(),ClickHouseConnectionSettings.CONNECTION_TIMEOUT.getDefaultValue());// overwrite with properties2's default value
+        Assert.assertEquals(merged.getSocketTimeout(),15000);// using properties2
+        Assert.assertEquals(merged.getUser(),"readonly"); // using properties2
+    }
+
+    @Test
+    public void mergePropertiesTest() {
+        ClickHouseProperties clickHouseProperties1 = new ClickHouseProperties();
+        Properties properties2 = new Properties();
+        clickHouseProperties1.setDatabase("click");
+        clickHouseProperties1.setMaxThreads(8);
+        clickHouseProperties1.setConnectionTimeout(13000);
+        properties2.put(ClickHouseConnectionSettings.SOCKET_TIMEOUT.getKey(), "15000");
+        properties2.put(ClickHouseQueryParam.DATABASE.getKey(), "house");
+        final ClickHouseProperties merged = clickHouseProperties1.merge(properties2);
+        // merge equals: clickHouseProperties1 overwrite with properties in properties2 not including default value
+        Assert.assertEquals( merged.getDatabase(),"house");// overwrite with properties2
+        Assert.assertEquals(merged.getMaxThreads().intValue(),8);// using properties1
+        Assert.assertEquals(merged.getConnectionTimeout(),13000);// using properties1
+        Assert.assertEquals(merged.getSocketTimeout(),15000);// using properties2
+    }
 }

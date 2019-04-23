@@ -806,4 +806,12 @@ public class ClickHouseProperties {
         return new ClickHouseProperties(properties);
     }
 
+    public ClickHouseProperties merge(Properties other){
+        Properties properties = this.asProperties();
+        for (Map.Entry<Object, Object> entry : other.entrySet())
+            properties.put(entry.getKey(), entry.getValue());
+
+        return new ClickHouseProperties(properties);
+    }
+
 }
