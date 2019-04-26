@@ -383,7 +383,7 @@ public class PreparedStatementParserTest {
             "INSERT INTO table1\n"
           + "\t(foo, bar)\r\n"
           + "\t\tVALUES\n"
-          + "(?, ?) , \n\r"
+          + "(?, ?) , \r\n"
           + "\t(?,?),(?,?)\n");
         Assert.assertTrue(s.isValuesMode());
         assertMatchParams(new String[][] {{"?", "?"}, {"?", "?"}, {"?", "?"}}, s);
@@ -393,14 +393,19 @@ public class PreparedStatementParserTest {
           + "\t\tVALUES\n"
           + "(");
         Assert.assertEquals(7, s.getParts().size());
-        Assert.assertEquals(s.getParts().get(1), ",");
+        Assert.assertEquals(s.getParts().get(0),
+            "INSERT INTO table1\n"
+          + "\t(foo, bar)\r\n"
+          + "\t\tVALUES\n"
+          + "(");
+        Assert.assertEquals(s.getParts().get(1), ", ");
         Assert.assertEquals(s.getParts().get(2),
             ") , \r\n"
           + "\t(");
         Assert.assertEquals(s.getParts().get(3), ",");
         Assert.assertEquals(s.getParts().get(4), "),(");
         Assert.assertEquals(s.getParts().get(5), ",");
-        Assert.assertEquals(s.getParts().get(6), ")");
+        Assert.assertEquals(s.getParts().get(6), ")\n");
     }
 
     private static void assertMatchParts(String[] expected, PreparedStatementParser stmt) {
