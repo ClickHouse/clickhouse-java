@@ -1,8 +1,21 @@
 package ru.yandex.clickhouse;
 
-import static ru.yandex.clickhouse.util.ClickHouseFormat.*;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.SQLWarning;
+import java.util.ArrayList;
+import java.util.EnumMap;
+import java.util.List;
+import java.util.Map;
+import java.util.TimeZone;
+import java.util.UUID;
 
-import com.google.common.base.Strings;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.NameValuePair;
@@ -18,24 +31,24 @@ import org.apache.http.message.BasicNameValuePair;
 import org.apache.http.util.EntityUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.google.common.base.Strings;
+
+import ru.yandex.clickhouse.domain.ClickHouseFormat;
 import ru.yandex.clickhouse.except.ClickHouseException;
 import ru.yandex.clickhouse.except.ClickHouseExceptionSpecifier;
-import ru.yandex.clickhouse.response.*;
+import ru.yandex.clickhouse.response.ClickHouseLZ4Stream;
+import ru.yandex.clickhouse.response.ClickHouseResponse;
+import ru.yandex.clickhouse.response.ClickHouseResultSet;
+import ru.yandex.clickhouse.response.ClickHouseScrollableResultSet;
+import ru.yandex.clickhouse.response.FastByteArrayOutputStream;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
 import ru.yandex.clickhouse.settings.ClickHouseQueryParam;
-import ru.yandex.clickhouse.util.*;
+import ru.yandex.clickhouse.util.ClickHouseRowBinaryInputStream;
+import ru.yandex.clickhouse.util.ClickHouseStreamCallback;
+import ru.yandex.clickhouse.util.ClickHouseStreamHttpEntity;
+import ru.yandex.clickhouse.util.Utils;
 import ru.yandex.clickhouse.util.guava.StreamUtils;
-
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.net.HttpURLConnection;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.SQLWarning;
-import java.util.*;
 
 
 public class ClickHouseStatementImpl implements ClickHouseStatement {
@@ -279,8 +292,9 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
 
     @Override
     public void cancel() throws SQLException {
-        if (this.queryId == null || isClosed())
+        if (this.queryId == null || isClosed()) {
             return;
+        }
 
        executeQuery(String.format("KILL QUERY WHERE query_id='%s'", queryId));
     }
@@ -444,7 +458,6 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
     }
 
     static String clickhousifySql(String sql) {
-
         return addFormatIfAbsent(sql, ClickHouseFormat.TabSeparatedWithNamesAndTypes);
     }
 
@@ -452,20 +465,23 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
      * Adding  FORMAT TabSeparatedWithNamesAndTypes if not added
      * adds format only to select queries
      */
-    private static String addFormatIfAbsent(String sql, ClickHouseFormat format) {
-        sql = sql.trim();
-        String woSemicolon = Patterns.SEMICOLON.matcher(sql).replaceAll("").trim();
-        if (isSelect(sql)
-            && !woSemicolon.endsWith(" " + TabSeparatedWithNamesAndTypes)
-            && !woSemicolon.endsWith(" " + TabSeparated)
-            && !woSemicolon.endsWith(" " + JSONCompact)
-            && !woSemicolon.endsWith(" " + RowBinary)) {
-            if (sql.endsWith(";")) {
-                sql = sql.substring(0, sql.length() - 1);
-            }
-            sql += " FORMAT " + format + ';';
+    private static String addFormatIfAbsent(final String sql, ClickHouseFormat format) {
+        String cleanSQL = sql.trim();
+        if (!isSelect(cleanSQL)) {
+            return cleanSQL;
         }
-        return sql;
+        if (ClickHouseFormat.containsFormat(cleanSQL)) {
+            return cleanSQL;
+        }
+        StringBuilder sb = new StringBuilder();
+        int idx = cleanSQL.endsWith(";")
+            ? cleanSQL.length() - 1
+            : cleanSQL.length();
+        sb.append(cleanSQL.substring(0, idx))
+          .append(" FORMAT ")
+          .append(format.name())
+          .append(';');
+        return sb.toString();
     }
 
     static boolean isSelect(String sql) {
@@ -784,15 +800,15 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
     @Override
     public void sendStream(InputStream content, String table, Map<ClickHouseQueryParam, String> additionalDBParams) throws ClickHouseException {
         String query = "INSERT INTO " + table;
-        sendStream(new InputStreamEntity(content, -1), query, TabSeparated, additionalDBParams);
+        sendStream(new InputStreamEntity(content, -1), query, ClickHouseFormat.TabSeparated, additionalDBParams);
     }
 
     public void sendStream(HttpEntity content, String sql) throws ClickHouseException {
-        sendStream(content, sql, TabSeparated, null);
+        sendStream(content, sql, ClickHouseFormat.TabSeparated, null);
     }
 
     public void sendStream(HttpEntity content, String sql, Map<ClickHouseQueryParam, String> additionalDBParams) throws ClickHouseException {
-        sendStream(content, sql, TabSeparated, additionalDBParams);
+        sendStream(content, sql, ClickHouseFormat.TabSeparated, additionalDBParams);
     }
 
     private void sendStream(HttpEntity content, String sql, ClickHouseFormat format,
@@ -839,10 +855,12 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
         }
     }
 
+    @Override
     public void closeOnCompletion() throws SQLException {
         closeOnCompletion = true;
     }
 
+    @Override
     public boolean isCloseOnCompletion() throws SQLException {
         return closeOnCompletion;
     }
@@ -857,15 +875,17 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
     }
 
     private Map<ClickHouseQueryParam, String> addQueryIdTo(Map<ClickHouseQueryParam, String> parameters) {
-        if (this.queryId != null)
+        if (this.queryId != null) {
             return parameters;
+        }
 
         String queryId = parameters.get(ClickHouseQueryParam.QUERY_ID);
         if (queryId == null) {
             this.queryId = UUID.randomUUID().toString();
             parameters.put(ClickHouseQueryParam.QUERY_ID, this.queryId);
-        } else
+        } else {
             this.queryId = queryId;
+        }
 
         return parameters;
     }

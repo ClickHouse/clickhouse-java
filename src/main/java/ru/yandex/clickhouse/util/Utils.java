@@ -29,7 +29,7 @@ public class Utils {
      * @param retainEmpty if it is true, result can contain empty strings
      * @return string array
      */
-    public static String[] splitWithoutEscaped(String str, char separatorChar, boolean retainEmpty) {
+    private static String[] splitWithoutEscaped(String str, char separatorChar, boolean retainEmpty) {
         int len = str.length();
         if (len == 0) {
             return new String[0];

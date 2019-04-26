@@ -299,8 +299,8 @@ public class ClickHouseStatementImplTest {
         Assert.assertEquals(rs.getMetaData().getColumnClassName(1),
             Array.class.getCanonicalName());
         Array arr = (Array) rs.getObject(1);
-        Assert.assertEquals(((long[]) arr.getArray())[0], 42L);
-        Assert.assertEquals(((long[]) arr.getArray())[1], 23L);
+        Assert.assertEquals(((int[]) arr.getArray())[0], 42);
+        Assert.assertEquals(((int[]) arr.getArray())[1], 23);
 
     }
 
