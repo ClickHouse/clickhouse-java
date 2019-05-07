@@ -1,3 +1,7 @@
+0.1.53
+  * fixed timezone initialization
+  * added max_memory_usage_for_user and max_memory_usage_for_all_queries
+
 0.1.52
   * fixed executeQuery additionalParams copy
 
