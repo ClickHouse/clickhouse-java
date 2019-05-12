@@ -1,16 +1,15 @@
 package ru.yandex.clickhouse.response;
 
+import org.testng.annotations.DataProvider;
+import org.testng.annotations.Test;
+import ru.yandex.clickhouse.ClickHouseStatement;
+import ru.yandex.clickhouse.settings.ClickHouseProperties;
+
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.sql.ResultSet;
 import java.util.TimeZone;
-
-import org.testng.annotations.DataProvider;
-import org.testng.annotations.Test;
-
-import ru.yandex.clickhouse.ClickHouseStatement;
-import ru.yandex.clickhouse.settings.ClickHouseProperties;
 
 import static org.testng.Assert.assertFalse;
 import static org.testng.Assert.assertTrue;
@@ -206,7 +205,8 @@ public class ClickHouseScrollableResultSetTest extends ClickHouseResultSetTest {
 
     }
 
-    private ClickHouseResultSet buildResultSet(InputStream is, int bufferSize, String db, String table, boolean usesWithTotals, ClickHouseStatement statement, TimeZone timezone, ClickHouseProperties properties) throws IOException {
+    @Override
+    protected ClickHouseResultSet buildResultSet(InputStream is, int bufferSize, String db, String table, boolean usesWithTotals, ClickHouseStatement statement, TimeZone timezone, ClickHouseProperties properties) throws IOException {
     	return new ClickHouseScrollableResultSet(is, bufferSize, db, table, usesWithTotals, statement, timezone, properties);
     }
 }
