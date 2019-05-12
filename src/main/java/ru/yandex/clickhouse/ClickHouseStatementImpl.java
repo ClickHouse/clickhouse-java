@@ -1,21 +1,6 @@
 package ru.yandex.clickhouse;
 
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.net.HttpURLConnection;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.SQLWarning;
-import java.util.ArrayList;
-import java.util.EnumMap;
-import java.util.List;
-import java.util.UUID;
-import java.util.Map;
-import java.util.TimeZone;
-
+import com.google.common.base.Strings;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.NameValuePair;
@@ -30,25 +15,24 @@ import org.apache.http.message.BasicNameValuePair;
 import org.apache.http.util.EntityUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import com.google.common.base.Strings;
-
 import ru.yandex.clickhouse.except.ClickHouseException;
 import ru.yandex.clickhouse.except.ClickHouseExceptionSpecifier;
-import ru.yandex.clickhouse.response.ClickHouseLZ4Stream;
-import ru.yandex.clickhouse.response.ClickHouseResponse;
-import ru.yandex.clickhouse.response.ClickHouseResultSet;
-import ru.yandex.clickhouse.response.ClickHouseScrollableResultSet;
-import ru.yandex.clickhouse.response.FastByteArrayOutputStream;
+import ru.yandex.clickhouse.response.*;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
 import ru.yandex.clickhouse.settings.ClickHouseQueryParam;
-import ru.yandex.clickhouse.util.ClickHouseFormat;
-import ru.yandex.clickhouse.util.ClickHouseRowBinaryInputStream;
-import ru.yandex.clickhouse.util.ClickHouseStreamCallback;
-import ru.yandex.clickhouse.util.ClickHouseStreamHttpEntity;
-import ru.yandex.clickhouse.util.Patterns;
-import ru.yandex.clickhouse.util.Utils;
+import ru.yandex.clickhouse.util.*;
 import ru.yandex.clickhouse.util.guava.StreamUtils;
+
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.SQLWarning;
+import java.util.*;
 
 
 public class ClickHouseStatementImpl implements ClickHouseStatement {
@@ -120,7 +104,7 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
                                   Map<String, String> additionalRequestParams) throws SQLException {
 
         // forcibly disable extremes for ResultSet queries
-        if (additionalDBParams == null) {
+        if (additionalDBParams == null || additionalDBParams.isEmpty()) {
             additionalDBParams = new EnumMap<ClickHouseQueryParam, String>(ClickHouseQueryParam.class);
         } else {
             additionalDBParams = new EnumMap<ClickHouseQueryParam, String>(additionalDBParams);
@@ -778,7 +762,7 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
     @Override
     public void sendStream(InputStream content, String table, Map<ClickHouseQueryParam, String> additionalDBParams) throws ClickHouseException {
         String query = "INSERT INTO " + table;
-        sendStream(new InputStreamEntity(content, -1), query, null, additionalDBParams);
+        sendStream(new InputStreamEntity(content, -1), query, ClickHouseFormat.TabSeparated, additionalDBParams);
     }
 
     public void sendStream(HttpEntity content, String sql) throws ClickHouseException {

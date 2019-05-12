@@ -56,6 +56,8 @@ public class ClickHouseProperties {
     private Long    maxBytesBeforeExternalGroupBy;
     private Long    maxBytesBeforeExternalSort;
     private Long    maxMemoryUsage;
+    private Long    maxMemoryUsageForUser;
+    private Long    maxMemoryUsageForAllQueries;
     private Long    preferredBlockSizeBytes;
     private Long    maxQuerySize;
     private boolean sessionCheck;
@@ -112,6 +114,8 @@ public class ClickHouseProperties {
         this.maxBytesBeforeExternalGroupBy = (Long)getSetting(info, ClickHouseQueryParam.MAX_BYTES_BEFORE_EXTERNAL_GROUP_BY);
         this.maxBytesBeforeExternalSort = (Long)getSetting(info, ClickHouseQueryParam.MAX_BYTES_BEFORE_EXTERNAL_SORT);
         this.maxMemoryUsage = getSetting(info, ClickHouseQueryParam.MAX_MEMORY_USAGE);
+        this.maxMemoryUsageForUser = getSetting(info, ClickHouseQueryParam.MAX_MEMORY_USAGE_FOR_USER);
+        this.maxMemoryUsageForAllQueries = getSetting(info, ClickHouseQueryParam.MAX_MEMORY_USAGE_FOR_ALL_QUERIES);
         this.preferredBlockSizeBytes = getSetting(info, ClickHouseQueryParam.PREFERRED_BLOCK_SIZE_BYTES);
         this.maxQuerySize = getSetting(info, ClickHouseQueryParam.MAX_QUERY_SIZE);
         this.sessionCheck = (Boolean) getSetting(info, ClickHouseQueryParam.SESSION_CHECK);
@@ -164,6 +168,8 @@ public class ClickHouseProperties {
         ret.put(ClickHouseQueryParam.MAX_BYTES_BEFORE_EXTERNAL_GROUP_BY.getKey(), maxBytesBeforeExternalGroupBy);
         ret.put(ClickHouseQueryParam.MAX_BYTES_BEFORE_EXTERNAL_SORT.getKey(), maxBytesBeforeExternalSort);
         ret.put(ClickHouseQueryParam.MAX_MEMORY_USAGE.getKey(), maxMemoryUsage);
+        ret.put(ClickHouseQueryParam.MAX_MEMORY_USAGE_FOR_USER.getKey(), maxMemoryUsageForUser);
+        ret.put(ClickHouseQueryParam.MAX_MEMORY_USAGE_FOR_ALL_QUERIES.getKey(), maxMemoryUsageForAllQueries);
         ret.put(ClickHouseQueryParam.PREFERRED_BLOCK_SIZE_BYTES.getKey(), preferredBlockSizeBytes);
         ret.put(ClickHouseQueryParam.MAX_QUERY_SIZE.getKey(), maxQuerySize);
         ret.put(ClickHouseQueryParam.SESSION_CHECK.getKey(), String.valueOf(sessionCheck));
@@ -218,6 +224,8 @@ public class ClickHouseProperties {
         setMaxBytesBeforeExternalGroupBy(properties.maxBytesBeforeExternalGroupBy);
         setMaxBytesBeforeExternalSort(properties.maxBytesBeforeExternalSort);
         setMaxMemoryUsage(properties.maxMemoryUsage);
+        setMaxMemoryUsageForUser(properties.maxMemoryUsageForUser);
+        setMaxMemoryUsageForAllQueries(properties.maxMemoryUsageForAllQueries);
         setSessionCheck(properties.sessionCheck);
         setSessionId(properties.sessionId);
         setSessionTimeout(properties.sessionTimeout);
@@ -272,6 +280,12 @@ public class ClickHouseProperties {
         if (maxBytesBeforeExternalSort != null) params.put(ClickHouseQueryParam.MAX_BYTES_BEFORE_EXTERNAL_SORT, String.valueOf(maxBytesBeforeExternalSort));
         if (maxMemoryUsage != null) {
             params.put(ClickHouseQueryParam.MAX_MEMORY_USAGE, String.valueOf(maxMemoryUsage));
+        }
+        if (maxMemoryUsageForUser != null) {
+            params.put(ClickHouseQueryParam.MAX_MEMORY_USAGE_FOR_USER, String.valueOf(maxMemoryUsageForUser));
+        }
+        if (maxMemoryUsageForAllQueries != null) {
+            params.put(ClickHouseQueryParam.MAX_MEMORY_USAGE_FOR_ALL_QUERIES, String.valueOf(maxMemoryUsageForAllQueries));
         }
         if (preferredBlockSizeBytes != null) {
             params.put(ClickHouseQueryParam.PREFERRED_BLOCK_SIZE_BYTES, String.valueOf(preferredBlockSizeBytes));
@@ -667,6 +681,22 @@ public class ClickHouseProperties {
 
     public void setMaxMemoryUsage(Long maxMemoryUsage) {
         this.maxMemoryUsage = maxMemoryUsage;
+    }
+
+    public Long getMaxMemoryUsageForUser() {
+        return maxMemoryUsageForUser;
+    }
+
+    public void setMaxMemoryUsageForUser(Long maxMemoryUsageForUser) {
+        this.maxMemoryUsageForUser = maxMemoryUsageForUser;
+    }
+
+    public Long getMaxMemoryUsageForAllQueries() {
+        return maxMemoryUsageForAllQueries;
+    }
+
+    public void setMaxMemoryUsageForAllQueries(Long maxMemoryUsageForAllQueries) {
+        this.maxMemoryUsageForAllQueries = maxMemoryUsageForAllQueries;
     }
 
     public Long getPreferredBlockSizeBytes() {
