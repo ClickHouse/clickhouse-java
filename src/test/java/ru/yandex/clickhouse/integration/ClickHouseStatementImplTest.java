@@ -1,24 +1,13 @@
 package ru.yandex.clickhouse.integration;
-
-import org.mockito.internal.util.reflection.Whitebox;
-import org.testng.Assert;
-import org.testng.annotations.AfterTest;
-import org.testng.annotations.BeforeTest;
-import org.testng.annotations.Test;
-import ru.yandex.clickhouse.ClickHouseConnection;
-import ru.yandex.clickhouse.ClickHouseDataSource;
-import ru.yandex.clickhouse.ClickHouseExternalData;
-import ru.yandex.clickhouse.ClickHouseStatement;
-import ru.yandex.clickhouse.settings.ClickHouseProperties;
-import ru.yandex.clickhouse.settings.ClickHouseQueryParam;
-
 import java.io.ByteArrayInputStream;
 import java.io.UnsupportedEncodingException;
 import java.math.BigInteger;
+import java.sql.Array;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.sql.Types;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.Map;
@@ -27,7 +16,22 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.testng.AssertJUnit.*;
+import org.mockito.internal.util.reflection.Whitebox;
+import org.testng.Assert;
+import org.testng.annotations.AfterTest;
+import org.testng.annotations.BeforeTest;
+import org.testng.annotations.Test;
+
+import ru.yandex.clickhouse.ClickHouseConnection;
+import ru.yandex.clickhouse.ClickHouseDataSource;
+import ru.yandex.clickhouse.ClickHouseExternalData;
+import ru.yandex.clickhouse.ClickHouseStatement;
+import ru.yandex.clickhouse.settings.ClickHouseProperties;
+import ru.yandex.clickhouse.settings.ClickHouseQueryParam;
+
+import static org.testng.AssertJUnit.assertNotNull;
+import static org.testng.AssertJUnit.assertNull;
+import static org.testng.AssertJUnit.assertTrue;
 
 public class ClickHouseStatementImplTest {
     private ClickHouseDataSource dataSource;
@@ -285,6 +289,21 @@ public class ClickHouseStatementImplTest {
         thread.interrupt();
     }
 
+    @Test
+    public void testArrayMetaActualExecutiom() throws SQLException {
+        Statement stmt = connection.createStatement();
+        ResultSet rs = stmt.executeQuery("SELECT array(42, 23)");
+        rs.next();
+        Assert.assertEquals(rs.getMetaData().getColumnType(1), Types.ARRAY);
+        Assert.assertEquals(rs.getMetaData().getColumnTypeName(1), "Array(UInt8)");
+        Assert.assertEquals(rs.getMetaData().getColumnClassName(1),
+            Array.class.getCanonicalName());
+        Array arr = (Array) rs.getObject(1);
+        Assert.assertEquals(((long[]) arr.getArray())[0], 42L);
+        Assert.assertEquals(((long[]) arr.getArray())[1], 23L);
+
+    }
+
     private static Object readField(Object object, String fieldName, long timeoutSecs) {
         long start = System.currentTimeMillis();
         Object value;
@@ -304,15 +323,19 @@ public class ClickHouseStatementImplTest {
                 statement = connection.createStatement();
                 statement.execute(String.format("SELECT * FROM system.processes where query_id='%s'", queryId));
                 ResultSet resultSet = statement.getResultSet();
-                if (resultSet.next() == isRunning)
+                if (resultSet.next() == isRunning) {
                     return true;
+                }
             } finally {
-                if (statement != null)
+                if (statement != null) {
                     statement.close();
+                }
             }
 
         } while (TimeUnit.MILLISECONDS.toSeconds(System.currentTimeMillis() - start) < timeoutSecs);
 
         return false;
     }
+
+
 }
