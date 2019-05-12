@@ -25,6 +25,7 @@ import ru.yandex.clickhouse.ClickHouseArray;
 import ru.yandex.clickhouse.ClickHouseConnection;
 import ru.yandex.clickhouse.ClickHouseDataSource;
 import ru.yandex.clickhouse.ClickHousePreparedStatement;
+import ru.yandex.clickhouse.ClickHousePreparedStatementImpl;
 import ru.yandex.clickhouse.response.ClickHouseResponse;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
 
@@ -481,6 +482,57 @@ public class ClickHousePreparedStatementTest {
         metaStmt.setInt(2, 42);
         ResultSetMetaData metadata = metaStmt.getMetaData();
         Assert.assertNull(metadata);
+        metaStmt.close();
+    }
+
+    @Test
+    public void testInsertWithFunctions() throws Exception {
+        connection.createStatement().execute(
+            "DROP TABLE IF EXISTS test.insertfunctions");
+        connection.createStatement().execute(
+            "CREATE TABLE IF NOT EXISTS test.insertfunctions "
+          + "(id UInt32, foo String, bar String) "
+          + "ENGINE = TinyLog");
+        PreparedStatement stmt = connection.prepareStatement(
+            "INSERT INTO test.insertfunctions(id, foo, bar) VALUES "
+          + "(?, lower(reverse(?)), upper(reverse(?)))");
+        stmt.setInt(1, 42);
+        stmt.setString(2, "Foo");
+        stmt.setString(3, "Bar");
+        String sql = stmt.unwrap(ClickHousePreparedStatementImpl.class).asSql();
+        Assert.assertEquals(
+            sql,
+            "INSERT INTO test.insertfunctions(id, foo, bar) VALUES "
+          + "(42, lower(reverse('Foo')), upper(reverse('Bar')))");
+        // make sure that there is no exception
+        stmt.execute();
+        ResultSet rs = connection.createStatement().executeQuery(
+            "SELECT id, foo, bar FROM test.insertfunctions");
+        rs.next();
+        Assert.assertEquals(rs.getInt(1), 42);
+        Assert.assertEquals(rs.getString(2), "oof");
+        Assert.assertEquals(rs.getString(3), "RAB");
+        rs.close();
+    }
+
+    @Test
+    public void testInsertWithFunctionsAddBatch() throws Exception {
+        connection.createStatement().execute(
+            "DROP TABLE IF EXISTS test.insertfunctions");
+        connection.createStatement().execute(
+            "CREATE TABLE IF NOT EXISTS test.insertfunctions "
+          + "(id UInt32, foo String, bar String) "
+          + "ENGINE = TinyLog");
+        PreparedStatement stmt = connection.prepareStatement(
+            "INSERT INTO test.insertfunctions(id, foo, bar) VALUES "
+          + "(?, lower(reverse(?)), upper(reverse(?)))");
+        stmt.setInt(1, 42);
+        stmt.setString(2, "Foo");
+        stmt.setString(3, "Bar");
+        stmt.addBatch();
+        stmt.executeBatch();
+        // this will _not_ perform the functions, but instead send the parameters
+        // as is to the clickhouse server
     }
 
     @SuppressWarnings("boxing")

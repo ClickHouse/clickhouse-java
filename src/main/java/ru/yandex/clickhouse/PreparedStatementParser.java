@@ -119,7 +119,8 @@ final class PreparedStatementParser  {
                     if (valuesMode && idxEnd > idxStart) {
                         currentParamList.add(typeTransformParameterValue(sql.substring(idxStart, idxEnd)));
                         parts.add(sql.substring(partStart, idxStart));
-                        partStart = idxStart = idxEnd = i;
+                        partStart = idxEnd;
+                        idxStart = idxEnd = i;
                     }
                     idxStart++;
                     idxEnd++;
@@ -133,7 +134,8 @@ final class PreparedStatementParser  {
                        if (idxEnd > idxStart) {
                            currentParamList.add(typeTransformParameterValue(sql.substring(idxStart, idxEnd)));
                            parts.add(sql.substring(partStart, idxStart));
-                           partStart = idxStart = idxEnd = i;
+                           partStart = idxEnd;
+                           idxStart = idxEnd = i;
                        }
                        if (!currentParamList.isEmpty()) {
                            parameters.add(currentParamList);

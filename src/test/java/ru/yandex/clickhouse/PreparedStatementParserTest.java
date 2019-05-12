@@ -97,7 +97,7 @@ public class PreparedStatementParserTest {
     }
 
     @Test
-    public void testParseQuestionMarAndMoreInQuotes() {
+    public void testParseQuestionMarkAndMoreInQuotes() {
         PreparedStatementParser s = PreparedStatementParser.parse(
             "INSERT INTO t (a, b) VALUES ('? foo ?', 'bar')");
         assertMatchParams(new String[][] {{"'? foo ?'", "'bar'"}}, s);
@@ -375,6 +375,19 @@ public class PreparedStatementParserTest {
         Assert.assertEquals(s.getParts().get(3), ") ORDER BY time DESC LIMIT ");
         Assert.assertEquals(s.getParts().get(4), ", ");
         Assert.assertEquals(s.getParts().get(5), "");
+    }
+
+    @Test
+    public void testInsertValuesFunctions() throws Exception {
+        PreparedStatementParser s = PreparedStatementParser.parse(
+            "INSERT INTO foo(id, src, dst) "
+          + "VALUES (?, IPv4ToIPv6(toIPv4(?)), IPv4ToIPv6(toIPv4(?)))");
+        assertMatchParams(new String[][] {{ "?", "?", "?" }}, s);
+        assertMatchParts(new String[] {
+            "INSERT INTO foo(id, src, dst) VALUES (",
+            ", IPv4ToIPv6(toIPv4(",
+            ")), IPv4ToIPv6(toIPv4(",
+            ")))"}, s);
     }
 
     @Test
