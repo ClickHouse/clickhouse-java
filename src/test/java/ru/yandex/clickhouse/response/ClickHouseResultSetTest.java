@@ -4,6 +4,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.math.BigDecimal;
+import java.sql.Array;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.Types;
@@ -306,6 +307,24 @@ public class ClickHouseResultSetTest {
     }
 
     @Test
+    public void testArrayString() throws Exception {
+        String response =
+            "FOO\n"
+          + "Array(String)\n"
+          + "[foo,bar]\n";
+        ByteArrayInputStream is = new ByteArrayInputStream(response.getBytes("UTF-8"));
+        ResultSet rs = buildResultSet(is, 1024, "db", "table", false, null, null, props);
+        ResultSetMetaData meta = rs.getMetaData();
+        assertEquals("java.sql.Array", meta.getColumnClassName(1));
+        rs.next();
+        Object o = rs.getObject(1);
+        assertTrue(Array.class.isAssignableFrom(o.getClass()),
+            o.getClass().getCanonicalName());
+        String[] s = (String[]) ((Array) o).getArray();
+        assertEquals("foo", s[0]);
+        assertEquals("bar", s[1]);
+    }
+
     public void testClassNamesObjects() throws Exception {
         String testData = ClickHouseTypesTestData.buildTestString();
         ByteArrayInputStream is = new ByteArrayInputStream(testData.getBytes("UTF-8"));
@@ -339,7 +358,7 @@ public class ClickHouseResultSetTest {
         }
     }
 
-    private ClickHouseResultSet buildResultSet(InputStream is, int bufferSize, String db, String table, boolean usesWithTotals, ClickHouseStatement statement, TimeZone timezone, ClickHouseProperties properties) throws IOException {
+    protected ClickHouseResultSet buildResultSet(InputStream is, int bufferSize, String db, String table, boolean usesWithTotals, ClickHouseStatement statement, TimeZone timezone, ClickHouseProperties properties) throws IOException {
     	return new ClickHouseResultSet(is, bufferSize, db, table, usesWithTotals, statement, timezone, properties);
     }
 

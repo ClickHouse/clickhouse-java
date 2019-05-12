@@ -123,8 +123,7 @@ public class ClickHouseResultSetMetaData implements ResultSetMetaData {
         String columnTypeName = getColumnTypeName(column);
         int sqlType = TypeUtils.toSqlType(columnTypeName);
         if (sqlType == Types.ARRAY){
-            String elementTypeName = TypeUtils.getArrayElementTypeName(columnTypeName);
-            return TypeUtils.toClass(sqlType, TypeUtils.toSqlType(elementTypeName), TypeUtils.isUnsigned(elementTypeName)).getName();
+            return "java.sql.Array";
         }
         return TypeUtils.toClass(sqlType, -1, TypeUtils.isUnsigned(columnTypeName)).getName();
     }

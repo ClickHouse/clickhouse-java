@@ -474,7 +474,7 @@ public class ClickHouseResultSet extends AbstractResultSet {
                 case Types.DATE:        return getDate(columnIndex);
                 case Types.TIMESTAMP:   return getTimestamp(columnIndex);
                 case Types.BLOB:        return getString(columnIndex);
-                case Types.ARRAY:       return getArray(columnIndex).getArray();
+                case Types.ARRAY:       return getArray(columnIndex);
                 case Types.DECIMAL:     return getBigDecimal(columnIndex);
             }
 
