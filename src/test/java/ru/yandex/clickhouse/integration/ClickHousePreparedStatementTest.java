@@ -10,6 +10,8 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Time;
 import java.sql.Types;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
 
 import org.testng.Assert;
@@ -533,4 +535,45 @@ public class ClickHousePreparedStatementTest {
         // as is to the clickhouse server
     }
 
+    @SuppressWarnings("boxing")
+    @Test
+    public void testMultiLineValues() throws Exception {
+
+        connection.createStatement().execute(
+            "DROP TABLE IF EXISTS test.multiline");
+        connection.createStatement().execute(
+            "CREATE TABLE IF NOT EXISTS test.multiline"
+          + "(foo Int32, bar String) "
+          + "ENGINE = TinyLog"
+        );
+        PreparedStatement insertStmt = connection.prepareStatement(
+            "INSERT INTO test.multiline\n"
+          + "\t(foo, bar)\r\n"
+          + "\t\tVALUES\n"
+          + "(?, ?) , \n\r"
+          + "\t(?,?),(?,?)\n");
+        Map<Integer, String> testData = new HashMap<Integer, String>();
+        testData.put(23, "baz");
+        testData.put(42, "bar");
+        testData.put(1337, "oof");
+        int i = 0;
+        for (Integer k : testData.keySet()) {
+            insertStmt.setInt(++i, k.intValue());
+            insertStmt.setString(++i, testData.get(k));
+        }
+        insertStmt.executeUpdate();
+
+        ResultSet rs = connection.createStatement().executeQuery(
+            "SELECT * FROM test.multiline ORDER BY foo");
+        rs.next();
+        Assert.assertEquals(rs.getInt(1), 23);
+        Assert.assertEquals(rs.getString(2), "baz");
+        rs.next();
+        Assert.assertEquals(rs.getInt(1), 42);
+        Assert.assertEquals(rs.getString(2), "bar");
+        rs.next();
+        Assert.assertEquals(rs.getInt(1), 1337);
+        Assert.assertEquals(rs.getString(2), "oof");
+        Assert.assertFalse(rs.next());
+    }
 }

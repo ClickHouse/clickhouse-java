@@ -36,14 +36,16 @@ public class ClickHouseRowBinaryInputStream implements Closeable {
 	public int readUnsignedLeb128() throws IOException {
 		int value = 0;
 		int read;
+		int count = 0;
 		do {
-			read = in.read();
-			if (read == -1)
-				throw new EOFException();
+			read = in.readByte() & 0xff;
+			value |= (read & 0x7f) << (count * 7);
+			count++;
+		} while (((read & 0x80) == 0x80) && count < 5);
 
-			value = (value << 7) | (read & 0x7f);
-		} while ((read & 0x80) != 0);
-
+		if ((read & 0x80) == 0x80) {
+			throw new IOException("invalid LEB128 sequence");
+		}
 		return value;
 	}
 

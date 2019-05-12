@@ -1,5 +1,15 @@
 package ru.yandex.clickhouse.response;
 
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.math.BigDecimal;
+import java.sql.Array;
+import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
+import java.sql.Types;
+import java.util.TimeZone;
+
 import org.testng.Assert;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
@@ -7,16 +17,15 @@ import org.testng.annotations.Test;
 import ru.yandex.clickhouse.ClickHouseStatement;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
 
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.sql.ResultSet;
-import java.util.TimeZone;
-
-import static org.testng.Assert.*;
+import static org.testng.Assert.assertFalse;
+import static org.testng.Assert.assertNotNull;
+import static org.testng.Assert.assertNull;
+import static org.testng.Assert.assertTrue;
+import static org.testng.Assert.fail;
 import static org.testng.AssertJUnit.assertEquals;
 
 public class ClickHouseResultSetTest {
+
     @DataProvider(name = "longArrays")
     public Object[][] longArrays() {
         return new Object[][]{
@@ -272,15 +281,182 @@ public class ClickHouseResultSetTest {
         ByteArrayInputStream is = new ByteArrayInputStream(response.getBytes("UTF-8"));
 
         ResultSet rs = buildResultSet(is, 1024, "db", "table", false, null, null, props);
-        
+
         rs.next();
         assertFalse(rs.isLast());
         rs.next();
         assertTrue(rs.isLast());
         assertFalse(rs.next());
     }
-    
+
+    @Test
+    public void testDecimalMetadata() throws Exception {
+        String response =
+            "sum(myMoney)\n" +
+            "Decimal(38, 3)\n" +
+            "12955152630.539";
+        ByteArrayInputStream is = new ByteArrayInputStream(response.getBytes("UTF-8"));
+        ResultSet rs = buildResultSet(is, 1024, "db", "table", false, null, null, props);
+        rs.next();
+        assertEquals(rs.getMetaData().getColumnType(1), Types.DECIMAL);
+        assertEquals(rs.getMetaData().getColumnTypeName(1), "Decimal(38, 3)");
+        assertEquals(rs.getMetaData().getColumnClassName(1), BigDecimal.class.getCanonicalName());
+        assertEquals(rs.getObject(1), new BigDecimal("12955152630.539"));
+        assertEquals(rs.getMetaData().getScale(1), 3);
+        assertEquals(rs.getMetaData().getPrecision(1), 38);
+    }
+
+    @Test
+    public void testArrayString() throws Exception {
+        String response =
+            "FOO\n"
+          + "Array(String)\n"
+          + "[foo,bar]\n";
+        ByteArrayInputStream is = new ByteArrayInputStream(response.getBytes("UTF-8"));
+        ResultSet rs = buildResultSet(is, 1024, "db", "table", false, null, null, props);
+        ResultSetMetaData meta = rs.getMetaData();
+        assertEquals("java.sql.Array", meta.getColumnClassName(1));
+        rs.next();
+        Object o = rs.getObject(1);
+        assertTrue(Array.class.isAssignableFrom(o.getClass()),
+            o.getClass().getCanonicalName());
+        String[] s = (String[]) ((Array) o).getArray();
+        assertEquals("foo", s[0]);
+        assertEquals("bar", s[1]);
+    }
+
+    public void testClassNamesObjects() throws Exception {
+        String testData = ClickHouseTypesTestData.buildTestString();
+        ByteArrayInputStream is = new ByteArrayInputStream(testData.getBytes("UTF-8"));
+        ResultSet rs = buildResultSet(is, testData.length(), "db", "table", false, null,
+            TimeZone.getTimeZone("UTC"), props);
+        rs.next();
+        ResultSetMetaData meta = rs.getMetaData();
+        for (int i = 1; i <= meta.getColumnCount(); i++) {
+            String typeName = meta.getColumnTypeName(i);
+            String className = null;
+            try {
+                className = meta.getColumnClassName(i);
+            } catch (Exception e) {
+                fail("Unable to determine class name for " + typeName, e);
+            }
+            Class<?> clazz = Class.forName(className);
+            assertNotNull(
+                clazz,
+                "Class not available. class name: " + className + ", type name: " + typeName);
+            Object o = rs.getObject(i);
+            if (o == null && meta.isNullable(i) > 0) {
+                continue;
+            }
+            assertNotNull(
+                o,
+                "Object null. class name: " + className + ", type name: " + typeName);
+            assertTrue(
+                clazz.isAssignableFrom(rs.getObject(i).getClass()),
+                "Class mismatch. class name: " + className + ", type name: " + typeName +
+                    " object class: " + o.getClass().getCanonicalName());
+        }
+    }
+
     protected ClickHouseResultSet buildResultSet(InputStream is, int bufferSize, String db, String table, boolean usesWithTotals, ClickHouseStatement statement, TimeZone timezone, ClickHouseProperties properties) throws IOException {
     	return new ClickHouseResultSet(is, bufferSize, db, table, usesWithTotals, statement, timezone, properties);
+    }
+
+    private static enum ClickHouseTypesTestData {
+
+        // SELECT name FROM system.data_type_families WHERE alias_to <> '' ORDER BY name ASC
+
+        // AggregateFunction
+        Array("Array(String)", "[foo, bar]", false, false),
+        Date("Date", "2019-03-03", false, true),
+        DateTime("DateTime", "2019-03-03 13:37:42", false, true),
+        Decimal("Decimal(12,2)", "42.23", false, true),
+        // Decimal128
+        // Decimal32
+        // Decimal64
+        Enum16("Enum16('foo'=0,'bar'=1)", "FOO", false, true),
+        Enum8("Enum8('foo'=0,'bar'=1)", "BAR", false, true),
+        FixedString("FixedString(3)", "BAZ", false, true),
+        Float32("Float32", "42.23", false, true),
+        Float64("Float64", "42.23", false, true),
+        IPv4("IPv4", "127.0.0.1", false, true),
+        IPv6("IPv6", "::1", false, true),
+        Int16("Int16", "1337", false, true),
+        Int32("Int32", "1337", false, true),
+        Int64("Int64", "1337", false, true),
+        Int8("Int8", "42", false, true),
+        // IntervalDay
+        // IntervalHour
+        // IntervalMinute
+        // IntervalMonth
+        // IntervalQuarter
+        // IntervalSecond
+        // IntervalWeek
+        // IntervalYear
+        // LowCardinality
+        // Nested
+        // Nothing
+        // Nullable
+        String("String", "foo", true, true),
+        Tuple("Tuple(UInt8, String)", "(42, 'foo')", false, true),
+        UInt16("UInt16", "42", false, true),
+        UInt32("UInt32", "23", false, true),
+        UInt64("UInt64", "1337", false, true),
+        UInt8("UInt8", "1", false, true),
+        UUID("UUID", "61f0c404-5cb3-11e7-907b-a6006ad3dba0", true, true);
+
+        private final String typeName;
+        private final String serializedValue;
+        private final boolean lowCardinalityCandidate;
+        private final boolean nullableCandidate;
+
+        ClickHouseTypesTestData(String typeName, String serializedValue,
+            boolean lowCardinalityCandidate, boolean nullableCandidate)
+        {
+            this.typeName = typeName;
+            this.serializedValue = serializedValue;
+            this.lowCardinalityCandidate = lowCardinalityCandidate;
+            this.nullableCandidate = nullableCandidate;
+        }
+
+        private static String buildTestString() {
+            StringBuilder sb = new StringBuilder();
+            // row 1: column names
+            for (ClickHouseTypesTestData t : values()) {
+                sb.append(t.typeName)
+                  .append("\t");
+                if (t.nullableCandidate) {
+                    sb.append("Nullable(")
+                      .append(t.typeName)
+                      .append(')')
+                      .append("\t");
+                }
+                if (t.lowCardinalityCandidate) {
+                    sb.append("LowCardinality(")
+                      .append(t.typeName)
+                      .append(')')
+                      .append("\t");
+                }
+            }
+            sb.replace(sb.length(), sb.length(), "\n");
+
+            // row 2: type names
+            sb.append(sb.substring(0, sb.length()));
+
+            // row 3 : example data
+            for (ClickHouseTypesTestData t : values()) {
+                sb.append(t.serializedValue)
+                  .append("\t");
+                if (t.nullableCandidate) {
+                    sb.append("\\N\t");
+                }
+                if (t.lowCardinalityCandidate) {
+                    sb.append(t.serializedValue)
+                      .append("\t");
+                }
+            }
+            sb.replace(sb.length(), sb.length(), "\n");
+            return sb.toString();
+        }
     }
 }

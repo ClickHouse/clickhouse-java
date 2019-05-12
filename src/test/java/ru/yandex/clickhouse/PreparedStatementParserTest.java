@@ -179,6 +179,38 @@ public class PreparedStatementParserTest {
     }
 
     @Test
+    public void testValuesModeDoubleQuotes() {
+        PreparedStatementParser s = PreparedStatementParser.parse(
+            "INSERT INTO t (\"foo.bar\") VALUES (?)");
+        assertMatchParams(new String[][] {{"?"}}, s);
+        Assert.assertEquals(s.getParts().get(0), "INSERT INTO t (\"foo.bar\") VALUES (");
+    }
+
+    @Test
+    public void testValuesModeDoubleQuotesValues() {
+        PreparedStatementParser s = PreparedStatementParser.parse(
+            "INSERT INTO t (\"foo.bar\") VALUES (\"baz\")");
+        assertMatchParams(new String[][] {{"\"baz\""}}, s);
+        Assert.assertEquals(s.getParts().get(0), "INSERT INTO t (\"foo.bar\") VALUES (");
+    }
+
+    @Test
+    public void testValuesModeSingleQuotes() {
+        PreparedStatementParser s = PreparedStatementParser.parse(
+            "INSERT INTO t ('foo.bar') VALUES (?)");
+        assertMatchParams(new String[][] {{"?"}}, s);
+        Assert.assertEquals(s.getParts().get(0), "INSERT INTO t ('foo.bar') VALUES (");
+    }
+
+    @Test
+    public void testValuesModeSingleQuotesValues() {
+        PreparedStatementParser s = PreparedStatementParser.parse(
+            "INSERT INTO t ('foo.bar') VALUES ('baz')");
+        assertMatchParams(new String[][] {{"'baz'"}}, s);
+        Assert.assertEquals(s.getParts().get(0), "INSERT INTO t ('foo.bar') VALUES (");
+    }
+
+    @Test
     public void testParseInsertSelect() {
         PreparedStatementParser s = PreparedStatementParser.parse(
             "INSERT INTO t (a, b) SELECT x, y");
@@ -356,6 +388,37 @@ public class PreparedStatementParserTest {
             ", IPv4ToIPv6(toIPv4(",
             ")), IPv4ToIPv6(toIPv4(",
             ")))"}, s);
+    }
+
+    @Test
+    public void testMultiLineValues() {
+        PreparedStatementParser s = PreparedStatementParser.parse(
+            "INSERT INTO table1\n"
+          + "\t(foo, bar)\r\n"
+          + "\t\tVALUES\n"
+          + "(?, ?) , \r\n"
+          + "\t(?,?),(?,?)\n");
+        Assert.assertTrue(s.isValuesMode());
+        assertMatchParams(new String[][] {{"?", "?"}, {"?", "?"}, {"?", "?"}}, s);
+        Assert.assertEquals(s.getParts().get(0),
+            "INSERT INTO table1\n"
+          + "\t(foo, bar)\r\n"
+          + "\t\tVALUES\n"
+          + "(");
+        Assert.assertEquals(7, s.getParts().size());
+        Assert.assertEquals(s.getParts().get(0),
+            "INSERT INTO table1\n"
+          + "\t(foo, bar)\r\n"
+          + "\t\tVALUES\n"
+          + "(");
+        Assert.assertEquals(s.getParts().get(1), ", ");
+        Assert.assertEquals(s.getParts().get(2),
+            ") , \r\n"
+          + "\t(");
+        Assert.assertEquals(s.getParts().get(3), ",");
+        Assert.assertEquals(s.getParts().get(4), "),(");
+        Assert.assertEquals(s.getParts().get(5), ",");
+        Assert.assertEquals(s.getParts().get(6), ")\n");
     }
 
     private static void assertMatchParts(String[] expected, PreparedStatementParser stmt) {

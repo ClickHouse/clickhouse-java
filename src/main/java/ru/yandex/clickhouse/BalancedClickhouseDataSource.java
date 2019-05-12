@@ -2,6 +2,7 @@ package ru.yandex.clickhouse;
 
 import org.slf4j.LoggerFactory;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
+import ru.yandex.clickhouse.util.apache.StringUtils;
 
 import javax.sql.DataSource;
 import java.io.PrintWriter;
@@ -29,12 +30,16 @@ import static ru.yandex.clickhouse.ClickhouseJdbcUrlParser.JDBC_CLICKHOUSE_PREFI
  */
 public class BalancedClickhouseDataSource implements DataSource {
     private static final org.slf4j.Logger log = LoggerFactory.getLogger(BalancedClickhouseDataSource.class);
-    private static final Pattern URL_TEMPLATE = Pattern.compile(JDBC_CLICKHOUSE_PREFIX + "//([a-zA-Z0-9_:,.-]+)(/[a-zA-Z0-9_]+)?");
+    private static final Pattern URL_TEMPLATE = Pattern.compile(JDBC_CLICKHOUSE_PREFIX + "" +
+            "//([a-zA-Z0-9_:,.-]+)" +
+            "(/[a-zA-Z0-9_]+" +
+            "([?][a-zA-Z0-9_]+[=][a-zA-Z0-9_]([&][a-zA-Z0-9_]+[=][a-zA-Z0-9_]+)*)?" +
+            ")?");
 
     private PrintWriter printWriter;
     private int loginTimeoutSeconds = 0;
 
-    private final Random random = new Random(System.currentTimeMillis());
+    private final ThreadLocal<Random> randomThreadLocal = new ThreadLocal<Random>();
     private final List<String> allUrls;
     private volatile List<String> enabledUrls;
 
@@ -45,12 +50,12 @@ public class BalancedClickhouseDataSource implements DataSource {
      * create Datasource for clickhouse JDBC connections
      *
      * @param url address for connection to the database
-     *            must have the next format {@code jdbc:clickhouse://<first-host>:<port>,<second-host>:<port>/<database> }
-     *            for example, {@code jdbc:clickhouse://localhost:8123,localhost:8123/database }
+     *            must have the next format {@code jdbc:clickhouse://<first-host>:<port>,<second-host>:<port>/<database>?param1=value1&param2=value2 }
+     *            for example, {@code jdbc:clickhouse://localhost:8123,localhost:8123/database?compress=1&decompress=2 }
      * @throws IllegalArgumentException if param have not correct format, or error happens when checking host availability
      */
     public BalancedClickhouseDataSource(final String url) {
-        this(splitUrl(url), new ClickHouseProperties());
+        this(splitUrl(url), getFromUrl(url));
     }
 
     /**
@@ -72,7 +77,7 @@ public class BalancedClickhouseDataSource implements DataSource {
      * @see #BalancedClickhouseDataSource(String)
      */
     public BalancedClickhouseDataSource(final String url, ClickHouseProperties properties) {
-        this(splitUrl(url), properties);
+        this(splitUrl(url), properties.merge(getFromUrl(url)));
     }
 
     private BalancedClickhouseDataSource(final List<String> urls) {
@@ -174,6 +179,11 @@ public class BalancedClickhouseDataSource implements DataSource {
         List<String> localEnabledUrls = enabledUrls;
         if (localEnabledUrls.isEmpty()) {
             throw new SQLException("Unable to get connection: there are no enabled urls");
+        }
+        Random random = this.randomThreadLocal.get();
+        if (random == null) {
+            this.randomThreadLocal.set(new Random(System.currentTimeMillis()));
+            random = this.randomThreadLocal.get();
         }
 
         int index = random.nextInt(localEnabledUrls.size());
@@ -310,5 +320,20 @@ public class BalancedClickhouseDataSource implements DataSource {
 
     public boolean hasDisabledUrls() {
         return allUrls.size() != enabledUrls.size();
+    }
+
+    public ClickHouseProperties getProperties() {
+        return properties;
+    }
+
+    private static ClickHouseProperties getFromUrl(String url) {
+        if (StringUtils.isBlank(url))
+            return new ClickHouseProperties();
+
+        int index = url.indexOf("?");
+        if (index == -1)
+            return new ClickHouseProperties();
+
+        return new ClickHouseProperties(ClickhouseJdbcUrlParser.parseUriQueryPart(url.substring(index + 1), new Properties()));
     }
 }

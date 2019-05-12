@@ -72,12 +72,12 @@ public class ClickHouseResultSetMetaData implements ResultSetMetaData {
 
     @Override
     public int getPrecision(int column) throws SQLException {
-        return 0;
+        return TypeUtils.getColumnSize(getColumnTypeName(column));
     }
 
     @Override
     public int getScale(int column) throws SQLException {
-        return 0;
+        return TypeUtils.getDecimalDigits(getColumnTypeName(column));
     }
 
     @Override
@@ -123,8 +123,7 @@ public class ClickHouseResultSetMetaData implements ResultSetMetaData {
         String columnTypeName = getColumnTypeName(column);
         int sqlType = TypeUtils.toSqlType(columnTypeName);
         if (sqlType == Types.ARRAY){
-            String elementTypeName = TypeUtils.getArrayElementTypeName(columnTypeName);
-            return TypeUtils.toClass(sqlType, TypeUtils.toSqlType(elementTypeName), TypeUtils.isUnsigned(elementTypeName)).getName();
+            return "java.sql.Array";
         }
         return TypeUtils.toClass(sqlType, -1, TypeUtils.isUnsigned(columnTypeName)).getName();
     }

@@ -106,6 +106,16 @@ public enum ClickHouseQueryParam implements DriverPropertyCreator {
      */
     MAX_MEMORY_USAGE("max_memory_usage", null, Long.class, "The maximum amount of memory consumption when running a query on a single server."),
 
+    /**
+     * @see <a href="https://clickhouse.yandex/docs/en/operations/settings/query_complexity/#max-memory-usage-for-user">max_memory_usage_for_user</a>
+     */
+    MAX_MEMORY_USAGE_FOR_USER("max_memory_usage_for_user", null, Long.class, "The maximum amount of RAM to use for running a user's queries on a single server."),
+
+    /**
+     * @see <a href="https://clickhouse.yandex/docs/en/operations/settings/query_complexity/#max-memory-usage-for-all-queries">max_memory_usage_for_all_queries</a>
+     */
+    MAX_MEMORY_USAGE_FOR_ALL_QUERIES("max_memory_usage_for_all_queries", null, Long.class, "The maximum amount of RAM to use for running all queries on a single server."),
+
     //dbms/include/DB/Interpreters/Settings.h
     MAX_PARALLEL_REPLICAS("max_parallel_replicas", null, Integer.class, "Max shard replica count."),
 
@@ -224,7 +234,8 @@ public enum ClickHouseQueryParam implements DriverPropertyCreator {
 
     use_client_time_zone("use_client_time_zone", false, Boolean.class, ""),
 
-    USE_UNCOMPRESSED_CACHE("use_uncompressed_cache", true, Boolean.class, "Use client timezone for interpreting DateTime string values, instead of adopting server timezone."),
+
+    USE_UNCOMPRESSED_CACHE("use_uncompressed_cache", true, Boolean.class, "Whether to use the cache of uncompressed blocks."),
 
     USER("user", null, String.class, "user name, by default - default"),
 
@@ -266,6 +277,7 @@ public enum ClickHouseQueryParam implements DriverPropertyCreator {
         return name().toLowerCase();
     }
 
+    @Override
     public DriverPropertyInfo createDriverPropertyInfo(Properties properties) {
         DriverPropertyInfo propertyInfo = new DriverPropertyInfo(key, driverPropertyValue(properties));
         propertyInfo.required = false;

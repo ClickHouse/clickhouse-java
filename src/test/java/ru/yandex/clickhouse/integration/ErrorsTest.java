@@ -53,7 +53,7 @@ public class ErrorsTest {
         try {
             statement.executeBatch();
         } catch (Exception e) {
-            Assert.assertEquals(getClickhouseException(e).getMessage(), "ClickHouse exception, code: 60, host: localhost, port: 8123; Code: 60, e.displayText() = DB::Exception: Table test.table_not_exists doesn't exist., e.what() = DB::Exception\n");
+            Assert.assertTrue(getClickhouseException(e).getMessage().startsWith("ClickHouse exception, code: 60, host: localhost, port: 8123; Code: 60, e.displayText() = DB::Exception: Table test.table_not_exists doesn't exist."));
             return;
         }
         Assert.assertTrue(false, "didn' find correct error");

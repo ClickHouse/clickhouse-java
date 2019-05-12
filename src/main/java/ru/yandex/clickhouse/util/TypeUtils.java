@@ -7,6 +7,7 @@ import java.sql.SQLException;
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.sql.Types;
+import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -90,7 +91,7 @@ public class TypeUtils {
 
     public static String getArrayElementTypeName(String clickhouseType) {
         if (!isArray(clickhouseType)) {
-            throw new IllegalArgumentException("not an array");
+            throw new IllegalArgumentException("not an array " + clickhouseType);
         }
 
         return clickhouseType.substring("Array(".length(), clickhouseType.length() - 1);
@@ -144,8 +145,10 @@ public class TypeUtils {
             case Types.ARRAY:
                 Class elementType = toClass(elementSqltype, isUnsigned);
                 return Array.newInstance(elementType, 0).getClass();
+            case Types.OTHER:
+                return UUID.class;
             default:
-                throw new UnsupportedOperationException("Sql type " + sqlType + "is not supported");
+                throw new UnsupportedOperationException("Sql type " + sqlType + " is not supported");
         }
     }
 
@@ -183,6 +186,9 @@ public class TypeUtils {
         } else if (type.startsWith("FixedString(")) {
             String numBytes = type.substring("FixedString(".length(), type.length() - 1);
             return Integer.parseInt(numBytes);
+        } else if (type.startsWith("Decimal(")) {
+            Matcher m = DECIMAL_PATTERN.matcher(type);
+            return m.matches() ? Integer.parseInt(m.group(1)) : 0;
         } else {
             // size unknown
             return 0;
@@ -191,9 +197,8 @@ public class TypeUtils {
 
     public static int getDecimalDigits(String type) {
         if (isNullable(type)) {
-            type = unwrapNullable(type);
+            return getDecimalDigits(unwrapNullable(type));
         }
-
         if (type.equals("Float32")) {
             return 8;
         } else if (type.equals("Float64")) {
@@ -207,11 +212,7 @@ public class TypeUtils {
         return 0;
     }
 
-    public static String isTypeNull(String clickshouseType) {
-        if(isNullable(clickshouseType)){
-            return NULLABLE_YES;
-        }else{
-            return NULLABLE_NO;
-        }
+    public static String isTypeNull(String clickHouseType) {
+        return isNullable(clickHouseType) ? NULLABLE_YES : NULLABLE_NO;
     }
 }
