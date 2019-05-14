@@ -97,7 +97,7 @@ public class TypeUtils {
         return clickhouseType.substring("Array(".length(), clickhouseType.length() - 1);
     }
 
-    private static boolean isArray(String clickhouseType) {
+    public static boolean isArray(String clickhouseType) {
         return clickhouseType.startsWith("Array(")
                 && clickhouseType.endsWith(")");
     }

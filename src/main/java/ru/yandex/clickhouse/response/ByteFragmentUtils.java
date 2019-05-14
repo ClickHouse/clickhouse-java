@@ -2,12 +2,15 @@ package ru.yandex.clickhouse.response;
 
 
 import com.google.common.primitives.Primitives;
+import ru.yandex.clickhouse.ClickHouseArray;
 
 import java.math.BigInteger;
 import java.sql.Date;
 import java.sql.Timestamp;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.List;
 
 final class ByteFragmentUtils {
 
@@ -295,5 +298,72 @@ final class ByteFragmentUtils {
             }
         }
         return length;
+    }
+
+    static Object parseArrayOfArrays(ByteFragment value, Class elementClass, boolean useObjects,
+                                     int elementType, boolean isUnsigned, SimpleDateFormat dateFormat) {
+        value = value.subseq(1, value.length() - 2);
+        List<ByteFragment> byteFragments = nestedByteFragments(value);
+
+        Object array = java.lang.reflect.Array.newInstance(ClickHouseArray.class, byteFragments.size());
+
+        int index = 0;
+
+        for (ByteFragment byteFragment : byteFragments) {
+            Object parsedArray = parseArray(byteFragment, elementClass, useObjects, dateFormat);
+            ClickHouseArray clickHouseArray = new ClickHouseArray(elementType, isUnsigned, parsedArray);
+            java.lang.reflect.Array.set(array, index, clickHouseArray);
+            index++;
+        }
+        return array;
+    }
+
+    private static List<ByteFragment> nestedByteFragments(ByteFragment value) {
+
+        List<ByteFragment> result = new ArrayList<ByteFragment>();
+        List<Integer> indices = getArrayByteFragmentsIndices(value);
+        for (int i = 0; i < indices.size() - 1; i ++) {
+            int start = indices.get(i) + 2;
+            int length = indices.get(i + 1) - indices.get(i) - 1;
+            result.add(value.subseq(start, length));
+        }
+        return result;
+    }
+
+    private static List<Integer> getArrayByteFragmentsIndices(ByteFragment value) {
+        int index = -2;
+
+        List<Integer> resultList = new ArrayList<Integer>();
+
+        while(index != -1) {
+            resultList.add(index);
+            index = getNextIndex(index + 2, value);
+        }
+
+        return  resultList;
+    }
+
+    private static int getNextIndex(int startValue, ByteFragment value) {
+        if (startValue > value.getLen()) {
+            return -1;
+        }
+        int chInd = 0;
+        int nestedLevel = 1;
+        boolean inQuotation = false;
+        while (nestedLevel != 0) {
+            int ch = value.charAt(chInd + startValue + 1);
+            inQuotation = ch == STRING_QUOTATION ^ inQuotation;
+            if (!inQuotation ) {
+                if (ch == '[') {
+                    nestedLevel++;
+                } else if (ch == ']') {
+                    nestedLevel--;
+                }
+            } else if (ch == '\\') {
+                chInd++;
+            }
+            chInd++;
+        }
+        return chInd + startValue;
     }
 }

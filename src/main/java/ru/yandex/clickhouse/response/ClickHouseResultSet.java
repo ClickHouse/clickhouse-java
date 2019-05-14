@@ -28,6 +28,7 @@ import ru.yandex.clickhouse.settings.ClickHouseProperties;
 import ru.yandex.clickhouse.util.TypeUtils;
 
 import static ru.yandex.clickhouse.response.ByteFragmentUtils.parseArray;
+import static ru.yandex.clickhouse.response.ByteFragmentUtils.parseArrayOfArrays;
 
 
 public class ClickHouseResultSet extends AbstractResultSet {
@@ -310,11 +311,27 @@ public class ClickHouseResultSet extends AbstractResultSet {
                     sdf
             );
         } else {
-            array = parseArray(
-                    getValue(columnIndex),
-                    TypeUtils.toClass(elementType, isUnsigned),
-                    properties.isUseObjectsInArrays()
-            );
+            if (TypeUtils.isArray(elementTypeName)) {
+                String arrayElementTypeName = TypeUtils.getArrayElementTypeName(elementTypeName);
+                int sqlType = TypeUtils.toSqlType(arrayElementTypeName);
+
+                Class elementClass = TypeUtils.toClass(sqlType, TypeUtils.isUnsigned(arrayElementTypeName));
+
+                array = parseArrayOfArrays(
+                        getValue(columnIndex),
+                        elementClass,
+                        properties.isUseObjectsInArrays(),
+                        sqlType,
+                        isUnsigned,
+                        null
+                );
+            } else {
+                array = parseArray(
+                        getValue(columnIndex),
+                        TypeUtils.toClass(elementType, isUnsigned),
+                        properties.isUseObjectsInArrays()
+                );
+            }
         }
 
         return new ClickHouseArray(elementType, isUnsigned, array);
