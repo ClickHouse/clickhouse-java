@@ -35,10 +35,12 @@ public class ClickHousePropertiesTest {
         int expectedConnectionTimeout = 1000;
         boolean isCompress = false;
         Integer maxParallelReplicas = 3;
+        Integer maxPartitionsPerInsertBlock = 200;
 
         ClickHouseProperties properties = new ClickHouseProperties();
         properties.setConnectionTimeout( expectedConnectionTimeout );
         properties.setMaxParallelReplicas( maxParallelReplicas );
+        properties.setMaxPartitionsPerInsertBlock( maxPartitionsPerInsertBlock );
         properties.setCompress( isCompress );
 
         ClickHouseDataSource clickHouseDataSource = new ClickHouseDataSource(
@@ -56,6 +58,10 @@ public class ClickHousePropertiesTest {
         Assert.assertEquals(
                 clickHouseDataSource.getProperties().getMaxParallelReplicas(),
                 maxParallelReplicas
+        );
+        Assert.assertEquals(
+                clickHouseDataSource.getProperties().getMaxPartitionsPerInsertBlock(),
+                maxPartitionsPerInsertBlock
         );
         Assert.assertEquals(
                 clickHouseDataSource.getProperties().getTotalsMode(),

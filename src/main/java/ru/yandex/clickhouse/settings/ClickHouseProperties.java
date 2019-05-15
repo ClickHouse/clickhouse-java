@@ -37,6 +37,7 @@ public class ClickHouseProperties {
 
     // queries settings
     private Integer maxParallelReplicas;
+    private Integer maxPartitionsPerInsertBlock;
     private String  totalsMode;
     private String  quotaKey;
     private Integer priority;
@@ -95,6 +96,7 @@ public class ClickHouseProperties {
         this.useObjectsInArrays = (Boolean)getSetting(info, ClickHouseConnectionSettings.USE_OBJECTS_IN_ARRAYS);
 
         this.maxParallelReplicas = getSetting(info, ClickHouseQueryParam.MAX_PARALLEL_REPLICAS);
+        this.maxPartitionsPerInsertBlock = getSetting(info, ClickHouseQueryParam.MAX_PARTITIONS_PER_INSERT_BLOCK);
         this.totalsMode = getSetting(info, ClickHouseQueryParam.TOTALS_MODE);
         this.quotaKey = getSetting(info, ClickHouseQueryParam.QUOTA_KEY);
         this.priority = getSetting(info, ClickHouseQueryParam.PRIORITY);
@@ -149,6 +151,7 @@ public class ClickHouseProperties {
         ret.put(ClickHouseConnectionSettings.USE_OBJECTS_IN_ARRAYS.getKey(), String.valueOf(useObjectsInArrays));
 
         ret.put(ClickHouseQueryParam.MAX_PARALLEL_REPLICAS.getKey(), maxParallelReplicas);
+        ret.put(ClickHouseQueryParam.MAX_PARTITIONS_PER_INSERT_BLOCK.getKey(), maxPartitionsPerInsertBlock);
         ret.put(ClickHouseQueryParam.TOTALS_MODE.getKey(), totalsMode);
         ret.put(ClickHouseQueryParam.QUOTA_KEY.getKey(), quotaKey);
         ret.put(ClickHouseQueryParam.PRIORITY.getKey(), priority);
@@ -205,6 +208,7 @@ public class ClickHouseProperties {
         setUseServerTimeZoneForDates(properties.useServerTimeZoneForDates);
         setUseObjectsInArrays(properties.useObjectsInArrays);
         setMaxParallelReplicas(properties.maxParallelReplicas);
+        setMaxPartitionsPerInsertBlock(properties.maxPartitionsPerInsertBlock);
         setTotalsMode(properties.totalsMode);
         setQuotaKey(properties.quotaKey);
         setPriority(properties.priority);
@@ -241,6 +245,7 @@ public class ClickHouseProperties {
         Map<ClickHouseQueryParam, String> params = new HashMap<ClickHouseQueryParam, String>();
 
         if (maxParallelReplicas != null) params.put(ClickHouseQueryParam.MAX_PARALLEL_REPLICAS, String.valueOf(maxParallelReplicas));
+        if (maxPartitionsPerInsertBlock != null) params.put(ClickHouseQueryParam.MAX_PARTITIONS_PER_INSERT_BLOCK, String.valueOf(maxPartitionsPerInsertBlock));
         if (maxRowsToGroupBy != null) params.put(ClickHouseQueryParam.MAX_ROWS_TO_GROUP_BY, String.valueOf(maxRowsToGroupBy));
         if (totalsMode != null) params.put(ClickHouseQueryParam.TOTALS_MODE, totalsMode);
         if (quotaKey != null) params.put(ClickHouseQueryParam.QUOTA_KEY, quotaKey);
@@ -561,6 +566,14 @@ public class ClickHouseProperties {
 
     public void setMaxParallelReplicas(Integer maxParallelReplicas) {
         this.maxParallelReplicas = maxParallelReplicas;
+    }
+
+    public Integer getMaxPartitionsPerInsertBlock() {
+        return maxPartitionsPerInsertBlock;
+    }
+
+    public void setMaxPartitionsPerInsertBlock(Integer maxPartitionsPerInsertBlock) {
+        this.maxPartitionsPerInsertBlock = maxPartitionsPerInsertBlock;
     }
 
     public String getTotalsMode() {
