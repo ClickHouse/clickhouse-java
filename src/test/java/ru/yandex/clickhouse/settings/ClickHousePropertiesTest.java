@@ -35,11 +35,17 @@ public class ClickHousePropertiesTest {
         int expectedConnectionTimeout = 1000;
         boolean isCompress = false;
         Integer maxParallelReplicas = 3;
+        Long maxInsertBlockSize = 142L;
+        Boolean insertDeduplicate = true;
+        Boolean insertDistributedSync = true;
 
         ClickHouseProperties properties = new ClickHouseProperties();
         properties.setConnectionTimeout( expectedConnectionTimeout );
         properties.setMaxParallelReplicas( maxParallelReplicas );
         properties.setCompress( isCompress );
+        properties.setMaxInsertBlockSize(maxInsertBlockSize);
+        properties.setInsertDeduplicate(insertDeduplicate);
+        properties.setInsertDistributedSync(insertDistributedSync);
 
         ClickHouseDataSource clickHouseDataSource = new ClickHouseDataSource(
                 "jdbc:clickhouse://localhost:8123/test",
@@ -60,6 +66,18 @@ public class ClickHousePropertiesTest {
         Assert.assertEquals(
                 clickHouseDataSource.getProperties().getTotalsMode(),
                 ClickHouseQueryParam.TOTALS_MODE.getDefaultValue()
+        );
+        Assert.assertEquals(
+            clickHouseDataSource.getProperties().getMaxInsertBlockSize(),
+            maxInsertBlockSize
+        );
+        Assert.assertEquals(
+            clickHouseDataSource.getProperties().getInsertDeduplicate(),
+            insertDeduplicate
+        );
+        Assert.assertEquals(
+            clickHouseDataSource.getProperties().getInsertDistributedSync(),
+            insertDistributedSync
         );
     }
 
@@ -110,10 +128,16 @@ public class ClickHousePropertiesTest {
         clickHouseProperties.setInsertQuorumTimeout(1000L);
         clickHouseProperties.setInsertQuorum(3L);
         clickHouseProperties.setSelectSequentialConsistency(1L);
+        clickHouseProperties.setMaxInsertBlockSize(42L);
+        clickHouseProperties.setInsertDeduplicate(true);
+        clickHouseProperties.setInsertDistributedSync(true);
 
         Map<ClickHouseQueryParam, String> clickHouseQueryParams = clickHouseProperties.buildQueryParams(true);
         Assert.assertEquals(clickHouseQueryParams.get(ClickHouseQueryParam.INSERT_QUORUM), "3");
         Assert.assertEquals(clickHouseQueryParams.get(ClickHouseQueryParam.INSERT_QUORUM_TIMEOUT), "1000");
         Assert.assertEquals(clickHouseQueryParams.get(ClickHouseQueryParam.SELECT_SEQUENTIAL_CONSISTENCY), "1");
+        Assert.assertEquals(clickHouseQueryParams.get(ClickHouseQueryParam.MAX_INSERT_BLOCK_SIZE), "42");
+        Assert.assertEquals(clickHouseQueryParams.get(ClickHouseQueryParam.INSERT_DEDUPLICATE), "1");
+        Assert.assertEquals(clickHouseQueryParams.get(ClickHouseQueryParam.INSERT_DISTRIBUTED_SYNC), "1");
     }
 }
