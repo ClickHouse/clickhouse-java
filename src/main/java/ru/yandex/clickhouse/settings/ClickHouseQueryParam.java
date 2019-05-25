@@ -65,6 +65,10 @@ public enum ClickHouseQueryParam implements DriverPropertyCreator {
     INPUT_FORMAT_VALUES_INTERPRET_EXPRESSIONS("input_format_values_interpret_expressions", true, Boolean.class,
             "For Values format: if field could not be parsed by streaming parser, run SQL parser and try to interpret it as SQL expression."),
 
+    INSERT_DEDUPLICATE("insert_deduplicate", null, Boolean.class, "For INSERT queries in the replicated table, specifies that deduplication of insertings blocks should be preformed"),
+
+    INSERT_DISTRIBUTED_SYNC("insert_distributed_sync", null, Boolean.class, "If setting is enabled, insert query into distributed waits until data will be sent to all nodes in cluster."),
+
     INSERT_QUORUM("insert_quorum", null, Long.class, ""),
 
     INSERT_QUORUM_TIMEOUT("insert_quorum_timeout", null, Long.class, ""),
