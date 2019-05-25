@@ -1,3 +1,13 @@
+0.1.54
+  * added error codes
+  * multi-line statement parsing fixed
+  * correct class names for arrays
+  * prepared statements with functions fixed
+  * max_partitions_per_insert_block, max_insert_block_size, insert_deduplicate, insert_distributed_sync added
+  * BalancedClickHouseDatasource parameters handling fixed
+  * DateTime with timezone type support. NOTE: zones in values parsing are not handled
+  * prepared statements with back quotes fixed
+
 0.1.53
   * fixed timezone initialization
   * added max_memory_usage_for_user and max_memory_usage_for_all_queries
