@@ -376,6 +376,15 @@ public class PreparedStatementParserTest {
         Assert.assertEquals(s.getParts().get(4), ", ");
         Assert.assertEquals(s.getParts().get(5), "");
     }
+    
+    @Test
+    public void testSingleAndBackMixedQuotes() {
+        PreparedStatementParser s = PreparedStatementParser.parse(
+            "SELECT '`' as `'` WHERE 0 = ?");
+        assertMatchParams(new String[][] {{"?"}}, s);
+        Assert.assertEquals(s.getParts().get(0), "SELECT '`' as `'` WHERE 0 = ");
+    }
+
 
     @Test
     public void testInsertValuesFunctions() throws Exception {

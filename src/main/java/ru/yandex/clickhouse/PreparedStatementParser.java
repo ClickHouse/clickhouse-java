@@ -88,7 +88,7 @@ final class PreparedStatementParser  {
                 afterBackSlash = false;
             } else if (c == '\\') {
                 afterBackSlash = true;
-            } else if (c == '\'') {
+            } else if (c == '\'' && !inBackQuotes) {
                 inQuotes = !inQuotes;
                 if (inQuotes) {
                     quotedStart = i;
@@ -96,7 +96,7 @@ final class PreparedStatementParser  {
                     idxStart = quotedStart;
                     idxEnd = i + 1;
                 }
-            } else if (c == '`') {
+            } else if (c == '`' && !inQuotes) {
                 inBackQuotes = !inBackQuotes;
             } else if (!inQuotes && !inBackQuotes) {
                 if (c == '?') {
