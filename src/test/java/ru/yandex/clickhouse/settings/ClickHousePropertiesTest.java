@@ -35,6 +35,7 @@ public class ClickHousePropertiesTest {
         int expectedConnectionTimeout = 1000;
         boolean isCompress = false;
         Integer maxParallelReplicas = 3;
+        Integer maxPartitionsPerInsertBlock = 200;
         Long maxInsertBlockSize = 142L;
         Boolean insertDeduplicate = true;
         Boolean insertDistributedSync = true;
@@ -42,6 +43,7 @@ public class ClickHousePropertiesTest {
         ClickHouseProperties properties = new ClickHouseProperties();
         properties.setConnectionTimeout( expectedConnectionTimeout );
         properties.setMaxParallelReplicas( maxParallelReplicas );
+        properties.setMaxPartitionsPerInsertBlock( maxPartitionsPerInsertBlock );
         properties.setCompress( isCompress );
         properties.setMaxInsertBlockSize(maxInsertBlockSize);
         properties.setInsertDeduplicate(insertDeduplicate);
@@ -62,6 +64,10 @@ public class ClickHousePropertiesTest {
         Assert.assertEquals(
                 clickHouseDataSource.getProperties().getMaxParallelReplicas(),
                 maxParallelReplicas
+        );
+        Assert.assertEquals(
+                clickHouseDataSource.getProperties().getMaxPartitionsPerInsertBlock(),
+                maxPartitionsPerInsertBlock
         );
         Assert.assertEquals(
                 clickHouseDataSource.getProperties().getTotalsMode(),

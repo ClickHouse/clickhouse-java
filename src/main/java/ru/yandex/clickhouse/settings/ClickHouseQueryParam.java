@@ -123,6 +123,8 @@ public enum ClickHouseQueryParam implements DriverPropertyCreator {
     //dbms/include/DB/Interpreters/Settings.h
     MAX_PARALLEL_REPLICAS("max_parallel_replicas", null, Integer.class, "Max shard replica count."),
 
+    MAX_PARTITIONS_PER_INSERT_BLOCK("max_partitions_per_insert_block", null, Integer.class, "If inserted block contains larger number of partitions, an exception is thrown. Set it to 0 if you want to remove the limit (not recommended)."),
+
     MAX_READ_BUFFER_SIZE("max_read_buffer_size", null, Long.class, ""),
 
     MAX_RESULT_ROWS("max_result_rows", null, Integer.class, "Limit on the number of rows in the result. Also checked for subqueries, and on remote servers when running parts of a distributed query."),
