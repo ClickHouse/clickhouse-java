@@ -67,6 +67,9 @@ public class ClickHouseProperties {
     private Long    insertQuorumTimeout;
     private Long    selectSequentialConsistency;
     private Boolean enableOptimizePredicateExpression;
+    private Long    maxInsertBlockSize;
+    private Boolean insertDeduplicate;
+    private Boolean insertDistributedSync;
 
 
     public ClickHouseProperties() {
@@ -125,6 +128,9 @@ public class ClickHouseProperties {
         this.insertQuorumTimeout = (Long)getSetting(info, ClickHouseQueryParam.INSERT_QUORUM_TIMEOUT);
         this.selectSequentialConsistency = (Long)getSetting(info, ClickHouseQueryParam.SELECT_SEQUENTIAL_CONSISTENCY);
         this.enableOptimizePredicateExpression = getSetting(info, ClickHouseQueryParam.ENABLE_OPTIMIZE_PREDICATE_EXPRESSION);
+        this.maxInsertBlockSize = getSetting(info, ClickHouseQueryParam.MAX_INSERT_BLOCK_SIZE);
+        this.insertDeduplicate = getSetting(info, ClickHouseQueryParam.INSERT_DEDUPLICATE);
+        this.insertDistributedSync = getSetting(info, ClickHouseQueryParam.INSERT_DISTRIBUTED_SYNC);
     }
 
     public Properties asProperties() {
@@ -179,6 +185,9 @@ public class ClickHouseProperties {
         ret.put(ClickHouseQueryParam.INSERT_QUORUM_TIMEOUT.getKey(), insertQuorumTimeout);
         ret.put(ClickHouseQueryParam.SELECT_SEQUENTIAL_CONSISTENCY.getKey(), selectSequentialConsistency);
         ret.put(ClickHouseQueryParam.ENABLE_OPTIMIZE_PREDICATE_EXPRESSION.getKey(), enableOptimizePredicateExpression);
+        ret.put(ClickHouseQueryParam.MAX_INSERT_BLOCK_SIZE.getKey(), maxInsertBlockSize);
+        ret.put(ClickHouseQueryParam.INSERT_DEDUPLICATE.getKey(), insertDeduplicate);
+        ret.put(ClickHouseQueryParam.INSERT_DISTRIBUTED_SYNC.getKey(), insertDistributedSync);
 
         return ret.getProperties();
     }
@@ -235,6 +244,9 @@ public class ClickHouseProperties {
         setPreferredBlockSizeBytes(properties.preferredBlockSizeBytes);
         setMaxQuerySize(properties.maxQuerySize);
         setEnableOptimizePredicateExpression(properties.enableOptimizePredicateExpression);
+        setMaxInsertBlockSize(properties.maxInsertBlockSize);
+        setInsertDeduplicate(properties.insertDeduplicate);
+        setInsertDistributedSync(properties.insertDistributedSync);
     }
 
     public Map<ClickHouseQueryParam, String> buildQueryParams(boolean ignoreDatabase){
@@ -309,6 +321,9 @@ public class ClickHouseProperties {
         addQueryParam(insertQuorum, ClickHouseQueryParam.INSERT_QUORUM, params);
         addQueryParam(insertQuorumTimeout, ClickHouseQueryParam.INSERT_QUORUM_TIMEOUT, params);
         addQueryParam(selectSequentialConsistency, ClickHouseQueryParam.SELECT_SEQUENTIAL_CONSISTENCY, params);
+        addQueryParam(maxInsertBlockSize, ClickHouseQueryParam.MAX_INSERT_BLOCK_SIZE, params);
+        addQueryParam(insertDeduplicate, ClickHouseQueryParam.INSERT_DEDUPLICATE, params);
+        addQueryParam(insertDistributedSync, ClickHouseQueryParam.INSERT_DISTRIBUTED_SYNC, params);
 
         if (enableOptimizePredicateExpression != null) {
             params.put(ClickHouseQueryParam.ENABLE_OPTIMIZE_PREDICATE_EXPRESSION, enableOptimizePredicateExpression ? "1" : "0");
@@ -319,7 +334,11 @@ public class ClickHouseProperties {
 
     private void addQueryParam(Object param, ClickHouseQueryParam definition, Map<ClickHouseQueryParam, String> params) {
         if (param != null) {
-            params.put(definition, String.valueOf(param));
+            if (definition.getClazz() == Boolean.class || definition.getClazz() == boolean.class) {
+                params.put(definition, ((Boolean) param) ? "1" : "0");
+            } else {
+                params.put(definition, String.valueOf(param));
+            }
         }
     }
 
@@ -757,6 +776,30 @@ public class ClickHouseProperties {
 
     public void setEnableOptimizePredicateExpression(Boolean enableOptimizePredicateExpression) {
         this.enableOptimizePredicateExpression = enableOptimizePredicateExpression;
+    }
+
+    public Long getMaxInsertBlockSize() {
+        return maxInsertBlockSize;
+    }
+
+    public void setMaxInsertBlockSize(Long maxInsertBlockSize) {
+        this.maxInsertBlockSize = maxInsertBlockSize;
+    }
+
+    public Boolean getInsertDeduplicate() {
+        return insertDeduplicate;
+    }
+
+    public void setInsertDeduplicate(Boolean insertDeduplicate) {
+        this.insertDeduplicate = insertDeduplicate;
+    }
+
+    public Boolean getInsertDistributedSync() {
+        return insertDistributedSync;
+    }
+
+    public void setInsertDistributedSync(Boolean insertDistributedSync) {
+        this.insertDistributedSync = insertDistributedSync;
     }
 
     private static class PropertiesBuilder {
