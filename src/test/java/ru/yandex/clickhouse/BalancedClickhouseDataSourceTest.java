@@ -178,4 +178,37 @@ public class BalancedClickhouseDataSourceTest {
         assertEquals(42, rs.getInt("i"));
     }
 
+    @Test
+    public void testConstructWithClickHouseProperties() {
+        final ClickHouseProperties properties = new ClickHouseProperties();
+        properties.setMaxThreads(3);
+        properties.setSocketTimeout(67890);
+        properties.setPassword("888888");
+        //without connection parameters
+        BalancedClickhouseDataSource dataSource = new BalancedClickhouseDataSource(
+                "jdbc:clickhouse://localhost:8123,127.0.0.1:8123/click", properties);
+        ClickHouseProperties dataSourceProperties = dataSource.getProperties();
+        assertEquals(dataSourceProperties.getMaxThreads().intValue(), 3);
+        assertEquals(dataSourceProperties.getSocketTimeout(), 67890);
+        assertEquals(dataSourceProperties.getPassword(), "888888");
+        assertEquals(dataSourceProperties.getDatabase(), "click");
+        assertEquals(2, dataSource.getAllClickhouseUrls().size());
+        assertEquals(dataSource.getAllClickhouseUrls().get(0), "jdbc:clickhouse://localhost:8123/click");
+        assertEquals(dataSource.getAllClickhouseUrls().get(1), "jdbc:clickhouse://127.0.0.1:8123/click");
+        // with connection parameters
+        dataSource = new BalancedClickhouseDataSource(
+                "jdbc:clickhouse://localhost:8123,127.0.0.1:8123/click?socket_timeout=12345&user=readonly", properties);
+        dataSourceProperties = dataSource.getProperties();
+        assertEquals(dataSourceProperties.getMaxThreads().intValue(), 3);
+        assertEquals(dataSourceProperties.getSocketTimeout(), 12345);
+        assertEquals(dataSourceProperties.getUser(), "readonly");
+        assertEquals(dataSourceProperties.getPassword(), "888888");
+        assertEquals(dataSourceProperties.getDatabase(), "click");
+        assertEquals(2, dataSource.getAllClickhouseUrls().size());
+        assertEquals(dataSource.getAllClickhouseUrls().get(0), "jdbc:clickhouse://localhost:8123/click?socket_timeout" +
+                "=12345&user=readonly");
+        assertEquals(dataSource.getAllClickhouseUrls().get(1), "jdbc:clickhouse://127.0.0" +
+                ".1:8123/click?socket_timeout=12345&user=readonly");
+    }
+
 }

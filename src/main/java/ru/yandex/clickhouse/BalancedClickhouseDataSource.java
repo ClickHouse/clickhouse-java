@@ -9,11 +9,7 @@ import java.io.PrintWriter;
 import java.net.URISyntaxException;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Properties;
-import java.util.Random;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
 import java.util.regex.Matcher;
@@ -33,7 +29,7 @@ public class BalancedClickhouseDataSource implements DataSource {
     private static final Pattern URL_TEMPLATE = Pattern.compile(JDBC_CLICKHOUSE_PREFIX + "" +
             "//([a-zA-Z0-9_:,.-]+)" +
             "(/[a-zA-Z0-9_]+" +
-            "([?][a-zA-Z0-9_]+[=][a-zA-Z0-9_]([&][a-zA-Z0-9_]+[=][a-zA-Z0-9_]+)*)?" +
+            "([?][a-zA-Z0-9_]+[=][a-zA-Z0-9_]+([&][a-zA-Z0-9_]+[=][a-zA-Z0-9_]+)*)?" +
             ")?");
 
     private PrintWriter printWriter;
@@ -77,7 +73,7 @@ public class BalancedClickhouseDataSource implements DataSource {
      * @see #BalancedClickhouseDataSource(String)
      */
     public BalancedClickhouseDataSource(final String url, ClickHouseProperties properties) {
-        this(splitUrl(url), properties.merge(getFromUrl(url)));
+        this(splitUrl(url), properties.merge(getFromUrlWithoutDefault(url)));
     }
 
     private BalancedClickhouseDataSource(final List<String> urls) {
@@ -327,13 +323,17 @@ public class BalancedClickhouseDataSource implements DataSource {
     }
 
     private static ClickHouseProperties getFromUrl(String url) {
+        return new ClickHouseProperties(getFromUrlWithoutDefault(url));
+    }
+
+    private static Properties getFromUrlWithoutDefault(String url) {
         if (StringUtils.isBlank(url))
-            return new ClickHouseProperties();
+            return new Properties();
 
         int index = url.indexOf("?");
         if (index == -1)
-            return new ClickHouseProperties();
+            return new Properties();
 
-        return new ClickHouseProperties(ClickhouseJdbcUrlParser.parseUriQueryPart(url.substring(index + 1), new Properties()));
+        return ClickhouseJdbcUrlParser.parseUriQueryPart(url.substring(index + 1), new Properties());
     }
 }
