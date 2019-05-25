@@ -1,5 +1,7 @@
 package ru.yandex.clickhouse.util;
 
+import java.sql.Types;
+
 import org.testng.annotations.Test;
 
 import static org.testng.Assert.assertEquals;
@@ -40,6 +42,7 @@ public class TypeUtilsTest {
   @Test
   public void testGetColumnSize() throws Exception {
       assertEquals(TypeUtils.getColumnSize("DateTime"), 19);
+      assertEquals(TypeUtils.getColumnSize("DateTime('W-SU')"), 19);
       assertEquals(TypeUtils.getColumnSize("Date"), 10);
       assertEquals(TypeUtils.getColumnSize("UInt8"), 3);
       assertEquals(TypeUtils.getColumnSize("Int32"), 11);
@@ -62,4 +65,12 @@ public class TypeUtilsTest {
       assertEquals(TypeUtils.unwrapNullableIfApplicable("Nullable(foo)"), "foo");
       assertEquals(TypeUtils.unwrapNullableIfApplicable("Nullable(UInt32"), "Nullable(UInt32");
   }
+
+  @Test
+  public void testDateTimeWithTimezone() {
+      assertEquals(TypeUtils.toSqlType("DateTime"), Types.TIMESTAMP);
+      assertEquals(TypeUtils.toSqlType("DateTime(UTC)"), Types.TIMESTAMP);
+      assertEquals(TypeUtils.toSqlType("DateTime('UTC')"), Types.TIMESTAMP);
+  }
+
 }

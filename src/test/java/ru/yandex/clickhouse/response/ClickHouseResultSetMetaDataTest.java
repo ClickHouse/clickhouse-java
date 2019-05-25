@@ -2,6 +2,7 @@ package ru.yandex.clickhouse.response;
 
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
+import java.sql.Types;
 
 import org.testng.Assert;
 import org.testng.annotations.Test;
@@ -49,6 +50,17 @@ public class ClickHouseResultSetMetaDataTest {
         Assert.assertTrue(resultSetMetaData.isSigned(1));
         Assert.assertFalse(resultSetMetaData.isSigned(2));
         Assert.assertTrue(resultSetMetaData.isSigned(3));
+    }
+
+    @Test
+    public void testDateTimeWithTimeZone() throws SQLException {
+        ClickHouseResultSet resultSet = mock(ClickHouseResultSet.class);
+        String[] types = new String[]{"DateTime('W-SU')"};
+        when(resultSet.getTypes()).thenReturn(types);
+        ClickHouseResultSetMetaData resultSetMetaData = new ClickHouseResultSetMetaData(
+            resultSet);
+        Assert.assertEquals(resultSetMetaData.getColumnTypeName(1), "DateTime('W-SU')");
+        Assert.assertEquals(resultSetMetaData.getColumnType(1), Types.TIMESTAMP);
     }
 
 }
