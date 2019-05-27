@@ -25,7 +25,7 @@ public final class FastByteArrayOutputStream extends OutputStream {
 
     /**
      * Creates a new byte array output stream. The buffer capacity is
-     * initially 32 bytes, though its size increases if necessary.
+     * initially 1024 bytes, though its size increases if necessary.
      */
     public FastByteArrayOutputStream() {
 	this(1024);
