@@ -71,7 +71,11 @@ public final class ClickHouseExceptionSpecifier {
             return -1;
         }
 
-        return Integer.parseInt(errorMessage.substring(startIndex + 1, endIndex));
+        try {
+        	return Integer.parseInt(errorMessage.substring(startIndex + 1, endIndex));
+        } catch(NumberFormatException e) {
+        	return -1;
+        }
     }
 
     private static ClickHouseException getException(Throwable cause, String host, int port) {
