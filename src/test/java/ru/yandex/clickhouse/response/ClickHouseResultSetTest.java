@@ -359,6 +359,60 @@ public class ClickHouseResultSetTest {
         }
     }
 
+    /**
+     * By jdbc specification
+     *
+     * If the value is SQL <code>NULL</code>, the value returned is <code>0</code>
+     *
+     * {@link java.sql.ResultSet#getByte(int)}
+     * {@link java.sql.ResultSet#getShort(int)}
+     * {@link java.sql.ResultSet#getInt(int)}
+     * {@link java.sql.ResultSet#getLong(int)}
+     * {@link java.sql.ResultSet#getFloat(int)}
+     * {@link java.sql.ResultSet#getDouble(int)}
+     *
+     * If the value is SQL <code>NULL</code>, the value returned is <code>null</code>
+     *
+     * {@link java.sql.ResultSet#getBigDecimal(int)}
+     * {@link java.sql.ResultSet#getTime(int)}
+     * {@link java.sql.ResultSet#getDate(int)}
+     * {@link java.sql.ResultSet#getTimestamp(int)}
+     * {@link java.sql.ResultSet#getURL(int)} unsupported now
+     * {@link java.sql.ResultSet#getAsciiStream(int)} unsupported now
+     */
+    @Test
+    public void testNulls() throws Exception {
+        String response =
+                "Type\n" +
+                        "Nullable(Int8)\n" +
+                        "\\N\n";
+
+        ByteArrayInputStream is = new ByteArrayInputStream(response.getBytes("UTF-8"));
+
+        ResultSet rs = buildResultSet(is, 1024, "db", "table", false, null, null, props);
+
+        rs.next();
+        //0
+        assertEquals(0, rs.getByte(1));
+        assertEquals(0, rs.getShort(1));
+        assertEquals(0, rs.getInt(1));
+        assertEquals(0, rs.getLong(1));
+        assertEquals((float) 0, rs.getFloat(1));
+        assertEquals((double)0, rs.getDouble(1));
+
+        //null
+        assertNull(rs.getBigDecimal(1));
+        assertNull(rs.getTime(1));
+        assertNull(rs.getDate(1));
+        assertNull(rs.getTimestamp(1));
+
+        //unsupported now
+        //assertNull(rs.getURL(1));
+        //assertNull(rs.getAsciiStream(1));
+
+        assertFalse(rs.next());
+    }
+
     protected ClickHouseResultSet buildResultSet(InputStream is, int bufferSize, String db, String table, boolean usesWithTotals, ClickHouseStatement statement, TimeZone timezone, ClickHouseProperties properties) throws IOException {
     	return new ClickHouseResultSet(is, bufferSize, db, table, usesWithTotals, statement, timezone, properties);
     }
