@@ -325,6 +325,7 @@ public class ClickHouseResultSetTest {
         assertEquals("bar", s[1]);
     }
 
+    @Test
     public void testClassNamesObjects() throws Exception {
         String testData = ClickHouseTypesTestData.buildTestString();
         ByteArrayInputStream is = new ByteArrayInputStream(testData.getBytes("UTF-8"));
