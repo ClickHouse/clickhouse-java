@@ -158,7 +158,6 @@ public class ClickHouseDatabaseMetadataTest {
         Assert.assertEquals(meta.getColumnClassName(1), Timestamp.class.getCanonicalName());
         TimeZone timezone = ((ClickHouseConnection) connection).getTimeZone();
         Assert.assertEquals(meta.getColumnTypeName(1), "DateTime('" + timezone.getID() + "')");
-        Assert.assertEquals(meta.getColumnTypeName(1), "DateTime('UTC')");
         Assert.assertEquals(meta.getColumnType(1), Types.TIMESTAMP);
     }
 

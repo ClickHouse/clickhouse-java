@@ -855,12 +855,10 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
         }
     }
 
-    @Override
     public void closeOnCompletion() throws SQLException {
         closeOnCompletion = true;
     }
 
-    @Override
     public boolean isCloseOnCompletion() throws SQLException {
         return closeOnCompletion;
     }

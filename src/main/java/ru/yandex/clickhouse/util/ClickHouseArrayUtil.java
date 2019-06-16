@@ -53,7 +53,6 @@ public class ClickHouseArrayUtil {
         }
         ArrayBuilder builder = new ArrayBuilder(needQuote(values), dateTimeZone, dateTimeTimeZone);
         for (Object value : values) {
-            System.out.println(value);
             builder.append(value);
         }
         return builder.build();
