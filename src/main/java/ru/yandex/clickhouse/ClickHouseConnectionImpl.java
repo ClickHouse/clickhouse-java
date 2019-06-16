@@ -460,27 +460,22 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
         return iface.isAssignableFrom(getClass());
     }
 
-    @Override
     public void setSchema(String schema) throws SQLException {
         properties.setDatabase(schema);
     }
 
-    @Override
     public String getSchema() throws SQLException {
         return properties.getDatabase();
     }
 
-    @Override
     public void abort(Executor executor) throws SQLException {
         this.close();
     }
 
-    @Override
     public void setNetworkTimeout(Executor executor, int milliseconds) throws SQLException {
 
     }
 
-    @Override
     public int getNetworkTimeout() throws SQLException {
         return 0;
     }
