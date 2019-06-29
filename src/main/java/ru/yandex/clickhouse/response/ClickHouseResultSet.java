@@ -16,6 +16,7 @@ import java.sql.Types;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
+import java.util.Calendar;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.TimeZone;
@@ -270,6 +271,18 @@ public class ClickHouseResultSet extends AbstractResultSet {
     }
 
     @Override
+    public Timestamp getTimestamp(String column, Calendar cal) throws SQLException {
+        Long value = getTimestampAsLong(asColNum(column), cal.getTimeZone());
+        return value == null ? null : new Timestamp(value);
+    }
+
+    @Override
+    public Timestamp getTimestamp(int columnIndex, Calendar cal) throws SQLException {
+        Long value = getTimestampAsLong(columnIndex, cal.getTimeZone());
+        return value == null ? null : new Timestamp(value);
+    }
+
+    @Override
     public short getShort(String column) {
         return getShort(asColNum(column));
     }
@@ -380,6 +393,10 @@ public class ClickHouseResultSet extends AbstractResultSet {
 
     public Long getTimestampAsLong(int colNum) {
         return toTimestamp(getValue(colNum));
+    }
+
+    public Long getTimestampAsLong(int colNum, TimeZone tz) {
+        return toTimestamp(getValue(colNum), tz);
     }
 
     @Override
@@ -543,6 +560,18 @@ public class ClickHouseResultSet extends AbstractResultSet {
             return null;
         }
         try {
+            return sdf.parse(value.asString()).getTime();
+        } catch (ParseException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private Long toTimestamp(ByteFragment value, TimeZone tz) {
+        if (value.isNull() || value.asString().equals("0000-00-00 00:00:00")) {
+            return null;
+        }
+        try {
+            sdf.setTimeZone(tz);
             return sdf.parse(value.asString()).getTime();
         } catch (ParseException e) {
             throw new RuntimeException(e);
