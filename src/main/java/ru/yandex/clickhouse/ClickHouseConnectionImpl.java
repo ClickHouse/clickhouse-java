@@ -69,7 +69,7 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
             throw new IllegalArgumentException(e);
         }
         ClickHouseHttpClientBuilder clientBuilder = new ClickHouseHttpClientBuilder(this.properties);
-        log.debug("new connection");
+        log.debug("Create a new connection to {}", url);
         try {
             httpclient = clientBuilder.buildClient();
         }catch (Exception e) {

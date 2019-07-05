@@ -540,7 +540,7 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
         Map<String, String> additionalRequestParams
     ) throws ClickHouseException {
         sql = clickhousifySql(sql);
-        log.debug("Executing SQL: " + sql);
+        log.debug("Executing SQL: {}", sql);
 
         additionalClickHouseDBParams = addQueryIdTo(
                 additionalClickHouseDBParams == null
@@ -569,7 +569,7 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
                     ignoreDatabase
             );
         }
-        log.debug("Request url: " + uri);
+        log.debug("Request url: {}", uri);
 
         HttpPost post = new HttpPost(uri);
 
@@ -622,9 +622,9 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
         } catch (ClickHouseException e) {
             throw e;
         } catch (Exception e) {
-            log.info("Error during connection to " + properties + ", reporting failure to data source, message: " + e.getMessage());
+            log.info("Error during connection to {}, reporting failure to data source, message: {}", properties, e.getMessage());
             EntityUtils.consumeQuietly(entity);
-            log.info("Error sql: " + sql);
+            log.info("Error sql: {}", sql);
             throw ClickHouseExceptionSpecifier.specify(e, properties.getHost(), properties.getPort());
         }
     }
@@ -653,7 +653,7 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
                 .setParameters(queryParams)
                 .build();
         } catch (URISyntaxException e) {
-            log.error("Mailformed URL: " + e.getMessage());
+            log.error("Mailformed URL: {}", e.getMessage());
             throw new IllegalStateException("illegal configuration of db");
         }
     }
@@ -807,7 +807,7 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
                     messageStream = new ClickHouseLZ4Stream(new ByteArrayInputStream(bytes));
                     bytes = StreamUtils.toByteArray(messageStream);
                 } catch (IOException e) {
-                    log.warn("error while read compressed stream" + e.getMessage());
+                    log.warn("error while read compressed stream {}", e.getMessage());
                 }
             }
             EntityUtils.consumeQuietly(entity);
