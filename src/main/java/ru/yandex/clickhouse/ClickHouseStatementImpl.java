@@ -78,7 +78,7 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
         this.client = client;
         this.connection = connection;
         this.properties = properties == null ? new ClickHouseProperties() : properties;
-        this.initialDatabase = properties.getDatabase();
+        this.initialDatabase = this.properties.getDatabase();
         this.isResultSetScrollable = (resultSetType != ResultSet.TYPE_FORWARD_ONLY);
     }
 
