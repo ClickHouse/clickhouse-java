@@ -21,6 +21,7 @@ import org.apache.http.message.BasicHeaderElementIterator;
 import org.apache.http.protocol.HTTP;
 import org.apache.http.protocol.HttpContext;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
+import ru.yandex.clickhouse.util.guava.StreamUtils;
 import ru.yandex.clickhouse.util.ssl.NonValidatingTrustManager;
 
 import javax.net.ssl.HostnameVerifier;
@@ -192,6 +193,7 @@ public class ClickHouseHttpClientBuilder {
       }
       CertificateFactory cf = CertificateFactory.getInstance("X.509");
       Iterator<? extends Certificate> caIt = cf.generateCertificates(caInputStream).iterator();
+      StreamUtils.close(caInputStream);
       for (int i = 0; caIt.hasNext(); i++) {
         ks.setCertificateEntry("cert" + i, caIt.next());
       }

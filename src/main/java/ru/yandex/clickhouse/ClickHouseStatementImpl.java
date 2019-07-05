@@ -279,7 +279,7 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
         if (this.queryId == null || isClosed())
             return;
 
-        executeQuery(String.format("KILL QUERY WHERE query_id='%s'", queryId));
+       executeQuery(String.format("KILL QUERY WHERE query_id='%s'", queryId)).close();
     }
 
     @Override

@@ -152,6 +152,7 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
             ResultSet rs = createStatement().executeQuery("select version()");
             rs.next();
             serverVersion = rs.getString(1);
+            rs.close();
         }
         return serverVersion;
     }

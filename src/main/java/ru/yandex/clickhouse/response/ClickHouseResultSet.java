@@ -31,7 +31,7 @@ import static ru.yandex.clickhouse.response.ByteFragmentUtils.parseArray;
 
 
 public class ClickHouseResultSet extends AbstractResultSet {
-    private final static long[] EMPTY_LONG_ARRAY = new long[]{};
+    private final static long[] EMPTY_LONG_ARRAY = new long[0];
 
     private final SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss"); //
     private final SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd"); //
@@ -62,7 +62,7 @@ public class ClickHouseResultSet extends AbstractResultSet {
     protected int rowNumber;
 
     // statement result set belongs to
-    private ClickHouseStatement statement;
+    private final ClickHouseStatement statement;
 
     private final ClickHouseProperties properties;
 

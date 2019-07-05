@@ -94,8 +94,7 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
             }
             sb.append(sqlParts.get(i));
         }
-        String mySql = sb.toString();
-        return mySql;
+        return sb.toString();
     }
 
     private void appendBoundValue(StringBuilder sb, int num) {
