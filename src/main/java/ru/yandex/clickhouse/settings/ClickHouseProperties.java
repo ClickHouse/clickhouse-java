@@ -61,6 +61,7 @@ public class ClickHouseProperties {
     private Long    maxMemoryUsageForAllQueries;
     private Long    preferredBlockSizeBytes;
     private Long    maxQuerySize;
+    private Long    maxAstElements;
     private boolean sessionCheck;
     private String  sessionId;
     private Long    sessionTimeout;
@@ -123,6 +124,7 @@ public class ClickHouseProperties {
         this.maxMemoryUsageForAllQueries = getSetting(info, ClickHouseQueryParam.MAX_MEMORY_USAGE_FOR_ALL_QUERIES);
         this.preferredBlockSizeBytes = getSetting(info, ClickHouseQueryParam.PREFERRED_BLOCK_SIZE_BYTES);
         this.maxQuerySize = getSetting(info, ClickHouseQueryParam.MAX_QUERY_SIZE);
+        this.maxAstElements = getSetting(info, ClickHouseQueryParam.MAX_AST_ELEMENTS);
         this.sessionCheck = (Boolean) getSetting(info, ClickHouseQueryParam.SESSION_CHECK);
         this.sessionId = getSetting(info, ClickHouseQueryParam.SESSION_ID);
         this.sessionTimeout = getSetting(info, ClickHouseQueryParam.SESSION_TIMEOUT);
@@ -181,6 +183,7 @@ public class ClickHouseProperties {
         ret.put(ClickHouseQueryParam.MAX_MEMORY_USAGE_FOR_ALL_QUERIES.getKey(), maxMemoryUsageForAllQueries);
         ret.put(ClickHouseQueryParam.PREFERRED_BLOCK_SIZE_BYTES.getKey(), preferredBlockSizeBytes);
         ret.put(ClickHouseQueryParam.MAX_QUERY_SIZE.getKey(), maxQuerySize);
+        ret.put(ClickHouseQueryParam.MAX_AST_ELEMENTS.getKey(), maxAstElements);
         ret.put(ClickHouseQueryParam.SESSION_CHECK.getKey(), String.valueOf(sessionCheck));
         ret.put(ClickHouseQueryParam.SESSION_ID.getKey(), sessionId);
         ret.put(ClickHouseQueryParam.SESSION_TIMEOUT.getKey(), sessionTimeout);
@@ -247,6 +250,7 @@ public class ClickHouseProperties {
         setSelectSequentialConsistency(properties.selectSequentialConsistency);
         setPreferredBlockSizeBytes(properties.preferredBlockSizeBytes);
         setMaxQuerySize(properties.maxQuerySize);
+        setMaxAstElements(properties.maxAstElements);
         setEnableOptimizePredicateExpression(properties.enableOptimizePredicateExpression);
         setMaxInsertBlockSize(properties.maxInsertBlockSize);
         setInsertDeduplicate(properties.insertDeduplicate);
@@ -309,6 +313,9 @@ public class ClickHouseProperties {
         }
         if (maxQuerySize != null) {
             params.put(ClickHouseQueryParam.MAX_QUERY_SIZE, String.valueOf(maxQuerySize));
+        }
+        if (maxAstElements != null) {
+            params.put(ClickHouseQueryParam.MAX_AST_ELEMENTS, String.valueOf(maxAstElements));
         }
 
         if (sessionCheck) {
@@ -745,6 +752,14 @@ public class ClickHouseProperties {
 
     public void setMaxQuerySize(Long maxQuerySize) {
         this.maxQuerySize = maxQuerySize;
+    }
+
+    public void setMaxAstElements(Long maxAstElements) {
+        this.maxAstElements = maxAstElements;
+    }
+
+    public Long getMaxAstElements() {
+        return this.maxAstElements;
     }
 
     public boolean isSessionCheck() { return sessionCheck; }
