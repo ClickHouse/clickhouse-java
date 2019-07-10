@@ -186,6 +186,9 @@ public class TypeUtils {
         } else if (type.startsWith("FixedString(")) {
             String numBytes = type.substring("FixedString(".length(), type.length() - 1);
             return Integer.parseInt(numBytes);
+        } else if (type.startsWith("LowCardinality(FixedString(")) {
+            String numBytes = type.substring("LowCardinality(FixedString(".length(), type.length() - 2);
+            return Integer.parseInt(numBytes);
         } else if (type.startsWith("Decimal(")) {
             Matcher m = DECIMAL_PATTERN.matcher(type);
             return m.matches() ? Integer.parseInt(m.group(1)) : 0;
