@@ -72,6 +72,8 @@ public class ClickHouseResultSet extends AbstractResultSet {
     // it does not do prefetch. It is effectively a witness
     // to the fact that rs.next() returned false.
     private boolean lastReached = false;
+    
+    private boolean isAfterLastReached = false;
 
     public ClickHouseResultSet(InputStream is, int bufferSize, String db, String table, boolean usesWithTotals, ClickHouseStatement statement, TimeZone timezone, ClickHouseProperties properties) throws IOException {
         this.db = db;
@@ -142,6 +144,28 @@ public class ClickHouseResultSet extends AbstractResultSet {
         return nextLine != null;
     }
 
+    @Override 
+    public boolean isBeforeFirst() throws SQLException {
+        return rowNumber == 0 && hasNext();
+    }
+
+    @Override 
+    public boolean isAfterLast() throws SQLException {
+        return isAfterLastReached;
+    }
+
+    @Override
+    public boolean isFirst() throws SQLException {
+        return rowNumber == 1;
+    }
+
+    @Override
+    public boolean isLast() throws SQLException {
+        return !hasNext(); 
+     // && !isAfterLastReached should be probably added, 
+     // but it may brake compatibility with the previous implementation
+    }
+
     private void endOfStream() throws IOException {
         bis.close();
         lastReached = true;
@@ -157,6 +181,7 @@ public class ClickHouseResultSet extends AbstractResultSet {
             rowNumber += 1;
             return true;
         }
+        isAfterLastReached = true;
         return false;
     }
 
@@ -623,11 +648,6 @@ public class ClickHouseResultSet extends AbstractResultSet {
     @Override
     public BigDecimal getBigDecimal(String columnLabel, int scale)  {
         return getBigDecimal(asColNum(columnLabel), scale);
-    }
-
-    @Override
-    public boolean isLast() throws SQLException {
-        return !hasNext();
     }
 
     @Override

@@ -282,11 +282,70 @@ public class ClickHouseResultSetTest {
 
         ResultSet rs = buildResultSet(is, 1024, "db", "table", false, null, null, props);
 
-        rs.next();
         assertFalse(rs.isLast());
-        rs.next();
+        assertTrue(rs.next());
+        assertFalse(rs.isLast());
+        assertTrue(rs.next());
         assertTrue(rs.isLast());
         assertFalse(rs.next());
+    }
+
+    @Test
+    public void testIsFirst() throws Exception {
+        String response =
+                "SiteName\tcount()\n" +
+                        "String\tUInt64\n" +
+                        "hello.com\t21209048\n" +
+                        "there.com\t49302091\n";
+
+        ByteArrayInputStream is = new ByteArrayInputStream(response.getBytes("UTF-8"));
+
+        ResultSet rs = buildResultSet(is, 1024, "db", "table", false, null, null, props);
+
+        assertFalse(rs.isFirst());
+        assertTrue(rs.next());
+        assertTrue(rs.isFirst());
+        assertTrue(rs.next());
+        assertFalse(rs.isFirst());
+    }
+    
+    @Test
+    public void testBeforeFirst() throws Exception {
+        String response =
+                "SiteName\tcount()\n" +
+                        "String\tUInt64\n" +
+                        "hello.com\t21209048\n" +
+                        "there.com\t49302091\n";
+
+        ByteArrayInputStream is = new ByteArrayInputStream(response.getBytes("UTF-8"));
+
+        ResultSet rs = buildResultSet(is, 1024, "db", "table", false, null, null, props);
+
+        assertTrue(rs.isBeforeFirst());
+        assertTrue(rs.next());
+        assertFalse(rs.isBeforeFirst());
+        is.close();
+    }
+    
+    @Test
+    public void testIsAfterLast() throws Exception {
+        String response =
+                "SiteName\tcount()\n" +
+                        "String\tUInt64\n" +
+                        "hello.com\t21209048\n" +
+                        "there.com\t49302091\n";
+
+        ByteArrayInputStream is = new ByteArrayInputStream(response.getBytes("UTF-8"));
+
+        ResultSet rs = buildResultSet(is, 1024, "db", "table", false, null, null, props);
+
+        assertFalse(rs.isAfterLast());
+        assertTrue(rs.next());
+        assertFalse(rs.isAfterLast());
+        assertTrue(rs.next());
+        assertFalse(rs.isAfterLast());
+        assertFalse(rs.next());
+        assertTrue(rs.isAfterLast());
     }
 
     @Test
