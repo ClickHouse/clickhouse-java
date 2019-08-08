@@ -755,12 +755,24 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
     }
 
     @Override
+    public void sendCSVStream(InputStream content, String table, Map<ClickHouseQueryParam, String> additionalDBParams) throws ClickHouseException {
+        String query = "INSERT INTO " + table;
+        sendStream(new InputStreamEntity(content, -1), query, ClickHouseFormat.CSV, additionalDBParams);
+    }
+
+    @Override
+    public void sendCSVStream(InputStream content, String table) throws ClickHouseException {
+        sendCSVStream(content, table, null);
+    }
+
+    @Override
     public void sendStream(InputStream content, String table) throws ClickHouseException {
         sendStream(content, table, null);
     }
 
     @Override
-    public void sendStream(InputStream content, String table, Map<ClickHouseQueryParam, String> additionalDBParams) throws ClickHouseException {
+    public void sendStream(InputStream content, String table,
+                           Map<ClickHouseQueryParam, String> additionalDBParams) throws ClickHouseException {
         String query = "INSERT INTO " + table;
         sendStream(new InputStreamEntity(content, -1), query, ClickHouseFormat.TabSeparated, additionalDBParams);
     }
@@ -769,17 +781,34 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
         sendStream(content, sql, ClickHouseFormat.TabSeparated, null);
     }
 
-    public void sendStream(HttpEntity content, String sql, Map<ClickHouseQueryParam, String> additionalDBParams) throws ClickHouseException {
+    public void sendStream(HttpEntity content, String sql,
+                           Map<ClickHouseQueryParam, String> additionalDBParams) throws ClickHouseException {
         sendStream(content, sql, ClickHouseFormat.TabSeparated, additionalDBParams);
     }
 
     private void sendStream(HttpEntity content, String sql, ClickHouseFormat format,
                             Map<ClickHouseQueryParam, String> additionalDBParams) throws ClickHouseException {
+        sendStreamSQL(content, sql + " FORMAT " + format.name(), additionalDBParams);
+    }
+
+    @Override
+    public void sendStreamSQL(InputStream content, String sql,
+                              Map<ClickHouseQueryParam, String> additionalDBParams) throws ClickHouseException {
+        sendStreamSQL(new InputStreamEntity(content, -1), sql, additionalDBParams);
+    }
+
+    @Override
+    public void sendStreamSQL(InputStream content, String sql) throws ClickHouseException {
+        sendStreamSQL(new InputStreamEntity(content, -1), sql, null);
+    }
+
+    private void sendStreamSQL(HttpEntity content, String sql,
+                            Map<ClickHouseQueryParam, String> additionalDBParams) throws ClickHouseException {
         // echo -ne '10\n11\n12\n' | POST 'http://localhost:8123/?query=INSERT INTO t FORMAT TabSeparated'
         HttpEntity entity = null;
         try {
             URI uri = buildRequestUri(null, null, additionalDBParams, null, false);
-            HttpEntity requestEntity = new BodyEntityWrapper(sql + " FORMAT " + format.name(), content);
+            HttpEntity requestEntity = new BodyEntityWrapper(sql, content);
 
             HttpPost httpPost = new HttpPost(uri);
             if (properties.isDecompress()) {

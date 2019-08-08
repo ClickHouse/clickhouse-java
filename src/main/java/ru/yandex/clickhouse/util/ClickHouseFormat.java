@@ -6,5 +6,6 @@ package ru.yandex.clickhouse.util;
 public enum ClickHouseFormat {
     TabSeparated,
     RowBinary,
-    Native
+    Native,
+    CSV
 }
