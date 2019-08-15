@@ -47,9 +47,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-import static javax.net.ssl.HttpsURLConnection.getDefaultHostnameVerifier;
-
-
 public class ClickHouseHttpClientBuilder {
 
     private final ClickHouseProperties properties;
@@ -75,7 +72,7 @@ public class ClickHouseHttpClientBuilder {
           .register("http", PlainConnectionSocketFactory.getSocketFactory());
 
         if (properties.getSsl()) {
-            HostnameVerifier verifier = "strict".equals(properties.getSslMode()) ? getDefaultHostnameVerifier() : NoopHostnameVerifier.INSTANCE;
+            HostnameVerifier verifier = "strict".equals(properties.getSslMode()) ? SSLConnectionSocketFactory.getDefaultHostnameVerifier() : NoopHostnameVerifier.INSTANCE;
             registry.register("https", new SSLConnectionSocketFactory(getSSLContext(), verifier));
         }
 
