@@ -57,8 +57,7 @@ public final class ClickHouseExceptionSpecifier {
 
             return new ClickHouseException(code, messageHolder, host, port);
         } catch (Exception e) {
-            log.error("Unsupported ClickHouse error format, please fix ClickHouseExceptionSpecifier, message: "
-                + clickHouseMessage + ", error: " + e.getMessage());
+            log.error("Unsupported ClickHouse error format, please fix ClickHouseExceptionSpecifier, message: {}, error: {}", clickHouseMessage, e.getMessage());
             return new ClickHouseUnknownException(clickHouseMessage, cause, host, port);
         }
     }
