@@ -3,6 +3,7 @@ package ru.yandex.clickhouse.response;
 
 import com.google.common.primitives.Primitives;
 
+import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.sql.Date;
 import java.sql.Timestamp;
@@ -219,6 +220,14 @@ final class ByteFragmentUtils {
                         bigIntegerValue = new BigInteger(fragment.asString(true));
                     }
                     java.lang.reflect.Array.set(array, index++, bigIntegerValue);
+                } else if (elementClass == BigDecimal.class) {
+                    BigDecimal bigDecimalValue;
+                    if (fragment.isNull()) {
+                        bigDecimalValue = null;
+                    } else {
+                        bigDecimalValue = new BigDecimal(fragment.asString(true));
+                    }
+                    java.lang.reflect.Array.set(array, index++, bigDecimalValue);
                 } else if (elementClass == Float.class) {
                     Float floatValue;
                     if (fragment.isNull()) {
