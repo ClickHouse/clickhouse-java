@@ -461,7 +461,11 @@ public class ClickHouseResultSet extends AbstractResultSet {
 
     @Override
     public Time getTime(int columnIndex) throws SQLException {
-        return new Time(getTimestamp(columnIndex).getTime());
+        Timestamp ts = getTimestamp(columnIndex);
+        if (ts == null)
+            return null;
+
+        return new Time(ts.getTime());
     }
 
     @Override
@@ -508,6 +512,9 @@ public class ClickHouseResultSet extends AbstractResultSet {
     /////////////////////////////////////////////////////////
 
     private static byte toByte(ByteFragment value) {
+        if (value.isNull()) {
+            return 0;
+        }
         return Byte.parseByte(value.asString());
     }
 
