@@ -18,6 +18,7 @@ public class ClickHouseArrayUtil {
     /**
      * @param object         the object to convert to ClickHouse-string representation
      * @param explicitEscape enable or disable elements escaping (works only for non-primitive values)
+     * @return string representation of an object
      */
     public static String arrayToString(Object object, Boolean explicitEscape) {
         if (!object.getClass().isArray()) {
@@ -143,6 +144,7 @@ public class ClickHouseArrayUtil {
      *
      * @param collection the collection to transform
      * @param escape     enable or disable escaping of the collection elements
+     * @return string representation of a collection
      */
     public static String toString(Collection collection, boolean escape) {
         return toString(collection.toArray(), escape);

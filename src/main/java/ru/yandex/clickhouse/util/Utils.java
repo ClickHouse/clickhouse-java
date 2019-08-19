@@ -22,7 +22,12 @@ public class Utils {
     }
 
     /**
-     * does not take into account escaped separators
+     * Does not take into account escaped separators
+     *
+     * @param str  the String to parse, may be null
+     * @param separatorChar  the character used as the delimiter
+     * @param retainEmpty if it is true, result can contain empty strings
+     * @return string array
      */
     public static String[] splitWithoutEscaped(String str, char separatorChar, boolean retainEmpty) {
         int len = str.length();
