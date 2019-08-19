@@ -21,6 +21,7 @@ import org.apache.http.message.BasicHeaderElementIterator;
 import org.apache.http.protocol.HTTP;
 import org.apache.http.protocol.HttpContext;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
+import ru.yandex.clickhouse.util.guava.StreamUtils;
 import ru.yandex.clickhouse.util.ssl.NonValidatingTrustManager;
 
 import javax.net.ssl.HostnameVerifier;
@@ -47,9 +48,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-import static javax.net.ssl.HttpsURLConnection.getDefaultHostnameVerifier;
-
-
 public class ClickHouseHttpClientBuilder {
 
     private final ClickHouseProperties properties;
@@ -75,7 +73,7 @@ public class ClickHouseHttpClientBuilder {
           .register("http", PlainConnectionSocketFactory.getSocketFactory());
 
         if (properties.getSsl()) {
-            HostnameVerifier verifier = "strict".equals(properties.getSslMode()) ? getDefaultHostnameVerifier() : NoopHostnameVerifier.INSTANCE;
+            HostnameVerifier verifier = "strict".equals(properties.getSslMode()) ? SSLConnectionSocketFactory.getDefaultHostnameVerifier() : NoopHostnameVerifier.INSTANCE;
             registry.register("https", new SSLConnectionSocketFactory(getSSLContext(), verifier));
         }
 
@@ -192,6 +190,7 @@ public class ClickHouseHttpClientBuilder {
       }
       CertificateFactory cf = CertificateFactory.getInstance("X.509");
       Iterator<? extends Certificate> caIt = cf.generateCertificates(caInputStream).iterator();
+      StreamUtils.close(caInputStream);
       for (int i = 0; caIt.hasNext(); i++) {
         ks.setCertificateEntry("cert" + i, caIt.next());
       }

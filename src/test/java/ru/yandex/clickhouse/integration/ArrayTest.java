@@ -1,5 +1,6 @@
 package ru.yandex.clickhouse.integration;
 
+import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.sql.Array;
 import java.sql.Connection;
@@ -78,6 +79,24 @@ public class ArrayTest {
             assertEquals(longArray.length, array.length);
             for (int i = 0; i < longArray.length; i++) {
                 assertEquals(longArray[i], array[i].longValue());
+            }
+        }
+        statement.close();
+    }
+
+    @Test
+    public void testDecimalArray() throws SQLException {
+        BigDecimal[] array = {BigDecimal.valueOf(-12.345678987654321), BigDecimal.valueOf(23.325235235), BigDecimal.valueOf(-12.321342)};
+        String arrayString = array.length == 0 ? "" : "toDecimal64(" + Joiner.on(", 15),toDecimal64(").join(array) + ", 15)";
+
+        Statement statement = connection.createStatement();
+        ResultSet rs = statement.executeQuery("select array(" + arrayString + ")");
+        while (rs.next()) {
+            assertEquals(rs.getArray(1).getBaseType(), Types.DECIMAL);
+            BigDecimal[] deciamlArray = (BigDecimal[]) rs.getArray(1).getArray();
+            assertEquals(deciamlArray.length, array.length);
+            for (int i = 0; i < deciamlArray.length; i++) {
+                assertEquals(0, deciamlArray[i].compareTo(array[i]));
             }
         }
         statement.close();
