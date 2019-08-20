@@ -4,6 +4,7 @@ import com.google.common.base.Strings;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.NameValuePair;
+import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.entity.ContentType;
@@ -571,7 +572,6 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
         }
         log.debug("Request url: {}", uri);
 
-        HttpPost post = new HttpPost(uri);
 
         HttpEntity requestEntity;
         if (externalData == null || externalData.isEmpty()) {
@@ -602,10 +602,12 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
             requestEntity = new LZ4EntityWrapper(requestEntity, properties.getMaxCompressBufferSize());
         }
 
-        post.setEntity(requestEntity);
-
         HttpEntity entity = null;
         try {
+            uri = followRedirects(uri);
+            HttpPost post = new HttpPost(uri);
+            post.setEntity(requestEntity);
+
             HttpResponse response = client.execute(post);
             entity = response.getEntity();
             checkForErrorAndThrow(entity, response);
@@ -719,6 +721,24 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
         return result;
     }
 
+    private URI followRedirects(URI uri) throws IOException, URISyntaxException {
+        if (properties.isCheckForRedirects()) {
+            int redirects = 0;
+            while (redirects < properties.getMaxRedirects()) {
+                HttpGet httpGet = new HttpGet(uri);
+                HttpResponse response = client.execute(httpGet);
+                if (response.getStatusLine().getStatusCode() == 307) {
+                    uri = new URI(response.getHeaders("Location")[0].getValue());
+                    redirects++;
+                    log.info("Redirected to " + uri.getHost());
+                } else {
+                    break;
+                }
+            }
+        }
+        return uri;
+    }
+
     private void setStatementPropertiesToParams(Map<ClickHouseQueryParam, String> params) {
         if (maxRows > 0) {
             params.put(ClickHouseQueryParam.MAX_RESULT_ROWS, String.valueOf(maxRows));
@@ -779,6 +799,7 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
         HttpEntity entity = null;
         try {
             URI uri = buildRequestUri(null, null, additionalDBParams, null, false);
+            uri = followRedirects(uri);
             HttpEntity requestEntity = new BodyEntityWrapper(sql + " FORMAT " + format.name(), content);
 
             HttpPost httpPost = new HttpPost(uri);

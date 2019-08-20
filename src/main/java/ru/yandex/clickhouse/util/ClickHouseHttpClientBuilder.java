@@ -64,6 +64,7 @@ public class ClickHouseHttpClientBuilder {
                 .setDefaultRequestConfig(getRequestConfig())
                 .setDefaultHeaders(getDefaultHeaders())
                 .disableContentCompression() // gzip здесь ни к чему. Используется lz4 при compress=1
+                .disableRedirectHandling()
                 .build();
     }
 
