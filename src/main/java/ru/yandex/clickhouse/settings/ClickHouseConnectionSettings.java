@@ -14,6 +14,8 @@ public enum ClickHouseConnectionSettings implements DriverPropertyCreator {
     SSL("ssl", false, "enable SSL/TLS for the connection"),
     SSL_ROOT_CERTIFICATE("sslrootcert", "", "SSL/TLS root certificate"),
     SSL_MODE("sslmode", "strict", "verify or not certificate: none (don't verify), strict (verify)"),
+    USE_PATH_AS_DB("use_path_as_db", true, "whether URL path should be treated as database name"),
+    PATH("path", "/", "URL path"),
 
     /*
     *
