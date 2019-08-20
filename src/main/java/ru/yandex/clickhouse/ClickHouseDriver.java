@@ -113,8 +113,9 @@ public class ClickHouseDriver implements Driver {
     /**
      * Schedules connections cleaning at a rate. Turned off by default.
      * See https://hc.apache.org/httpcomponents-client-4.5.x/tutorial/html/connmgmt.html#d5e418
-     * @param rate
-     * @param timeUnit
+     *
+     * @param rate period when checking would be performed
+     * @param timeUnit time unit of rate
      */
     public void scheduleConnectionsCleaning(int rate, TimeUnit timeUnit){
         ScheduledConnectionCleaner.INSTANCE.scheduleAtFixedRate(new Runnable() {

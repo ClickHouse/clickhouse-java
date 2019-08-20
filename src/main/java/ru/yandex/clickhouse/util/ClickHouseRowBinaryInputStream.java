@@ -102,8 +102,9 @@ public class ClickHouseRowBinaryInputStream implements Closeable {
 
 	/**
 	 * Warning: the result is negative in Java if UInt8 &gt; 0x7f
+     *
 	 * @return next UInt8 value as a byte
-	 * @throws IOException
+	 * @throws IOException in case if an I/O error occurs
 	 */
 	public byte readUInt8AsByte() throws IOException {
 		return in.readByte();
@@ -120,7 +121,7 @@ public class ClickHouseRowBinaryInputStream implements Closeable {
 	/**
 	 * Warning: the result is negative in Java if UInt16 &gt; 0x7fff
 	 * @return next UInt16 value as a short
-	 * @throws IOException
+	 * @throws IOException in case if an I/O error occurs
 	 */
 	public short readUInt16AsShort() throws IOException {
 		return in.readShort();
@@ -137,7 +138,7 @@ public class ClickHouseRowBinaryInputStream implements Closeable {
 	/**
 	 * Warning: the result is negative in Java if UInt32 &gt; 0x7fffffff
 	 * @return next UInt32 value as an int
-	 * @throws IOException
+	 * @throws IOException in case if an I/O error occurs
 	 */
 	public int readUInt32AsInt() throws IOException {
 		return in.readInt();
@@ -150,7 +151,7 @@ public class ClickHouseRowBinaryInputStream implements Closeable {
 	/**
 	 * Warning: the result is negative in Java if UInt64 &gt; 0x7fffffffffffffff
 	 * @return next UInt64 value as a long
-	 * @throws IOException
+	 * @throws IOException in case if an I/O error occurs
 	 */
 	public long readUInt64AsLong() throws IOException {
 		return in.readLong();
