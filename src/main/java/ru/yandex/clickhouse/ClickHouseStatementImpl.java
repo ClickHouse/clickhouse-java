@@ -1,5 +1,7 @@
 package ru.yandex.clickhouse;
 
+import static ru.yandex.clickhouse.util.ClickHouseFormat.*;
+
 import com.google.common.base.Strings;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
@@ -154,7 +156,7 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
                                                              Map<ClickHouseQueryParam, String> additionalDBParams,
                                                              Map<String, String> additionalRequestParams) throws SQLException {
         InputStream is = getInputStream(
-                addFormatIfAbsent(sql, "JSONCompact"),
+                addFormatIfAbsent(sql, ClickHouseFormat.JSONCompact),
                 additionalDBParams,
                 null,
                 additionalRequestParams
@@ -184,7 +186,7 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
     @Override
     public ClickHouseRowBinaryInputStream executeQueryClickhouseRowBinaryStream(String sql, Map<ClickHouseQueryParam, String> additionalDBParams, Map<String, String> additionalRequestParams) throws SQLException {
         InputStream is = getInputStream(
-                addFormatIfAbsent(sql, "RowBinary"),
+                addFormatIfAbsent(sql, ClickHouseFormat.RowBinary),
                 additionalDBParams,
                 null,
                 additionalRequestParams
@@ -443,21 +445,21 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
 
     static String clickhousifySql(String sql) {
 
-        return addFormatIfAbsent(sql, "TabSeparatedWithNamesAndTypes");
+        return addFormatIfAbsent(sql, ClickHouseFormat.TabSeparatedWithNamesAndTypes);
     }
 
     /**
      * Adding  FORMAT TabSeparatedWithNamesAndTypes if not added
      * adds format only to select queries
      */
-    private static String addFormatIfAbsent(String sql, String format) {
+    private static String addFormatIfAbsent(String sql, ClickHouseFormat format) {
         sql = sql.trim();
         String woSemicolon = Patterns.SEMICOLON.matcher(sql).replaceAll("").trim();
         if (isSelect(sql)
-            && !woSemicolon.endsWith(" TabSeparatedWithNamesAndTypes")
-            && !woSemicolon.endsWith(" TabSeparated")
-            && !woSemicolon.endsWith(" JSONCompact")
-            && !woSemicolon.endsWith(" RowBinary")) {
+            && !woSemicolon.endsWith(" " + TabSeparatedWithNamesAndTypes)
+            && !woSemicolon.endsWith(" " + TabSeparated)
+            && !woSemicolon.endsWith(" " + JSONCompact)
+            && !woSemicolon.endsWith(" " + RowBinary)) {
             if (sql.endsWith(";")) {
                 sql = sql.substring(0, sql.length() - 1);
             }
@@ -782,15 +784,15 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
     @Override
     public void sendStream(InputStream content, String table, Map<ClickHouseQueryParam, String> additionalDBParams) throws ClickHouseException {
         String query = "INSERT INTO " + table;
-        sendStream(new InputStreamEntity(content, -1), query, ClickHouseFormat.TabSeparated, additionalDBParams);
+        sendStream(new InputStreamEntity(content, -1), query, TabSeparated, additionalDBParams);
     }
 
     public void sendStream(HttpEntity content, String sql) throws ClickHouseException {
-        sendStream(content, sql, ClickHouseFormat.TabSeparated, null);
+        sendStream(content, sql, TabSeparated, null);
     }
 
     public void sendStream(HttpEntity content, String sql, Map<ClickHouseQueryParam, String> additionalDBParams) throws ClickHouseException {
-        sendStream(content, sql, ClickHouseFormat.TabSeparated, additionalDBParams);
+        sendStream(content, sql, TabSeparated, additionalDBParams);
     }
 
     private void sendStream(HttpEntity content, String sql, ClickHouseFormat format,
