@@ -27,6 +27,24 @@ public class ClickHouseProperties {
     private String sslRootCertificate;
     private String sslMode;
 
+    /**
+     * Maximum number of allowed redirects. Active only when {@link ClickHouseProperties#checkForRedirects}
+     * is <code>true</code>
+     */
+    private int maxRedirects;
+
+    /**
+     * If set to <code>true</code>, driver will first try to connect to the server using GET request. If the response is 307,
+     * it will use URI given in the response's Location header instead of the original one.
+     * <p>
+     * Those queries will be repeated until response is anything other than 307, or until
+     * {@link ClickHouseProperties#maxRedirects maxRedirects} is hit.
+     * <p>
+     * This is a workaround to issues with properly following HTTP POST redirects.
+     * Namely, Apache HTTP client's inability to process early responses, and difficulties with resending non-repeatable
+     * {@link org.apache.http.entity.InputStreamEntity InputStreamEntity}
+     */
+    private boolean checkForRedirects;
     //additional
     private int maxCompressBufferSize;
 
@@ -94,6 +112,8 @@ public class ClickHouseProperties {
         this.ssl = (Boolean) getSetting(info, ClickHouseConnectionSettings.SSL);
         this.sslRootCertificate = (String) getSetting(info, ClickHouseConnectionSettings.SSL_ROOT_CERTIFICATE);
         this.sslMode = (String) getSetting(info, ClickHouseConnectionSettings.SSL_MODE);
+        this.maxRedirects = (Integer) getSetting(info, ClickHouseConnectionSettings.MAX_REDIRECTS);
+        this.checkForRedirects = (Boolean) getSetting(info, ClickHouseConnectionSettings.CHECK_FOR_REDIRECTS);
         this.useServerTimeZone = (Boolean)getSetting(info, ClickHouseConnectionSettings.USE_SERVER_TIME_ZONE);
         this.useTimeZone = (String)getSetting(info, ClickHouseConnectionSettings.USE_TIME_ZONE);
         this.useServerTimeZoneForDates = (Boolean)getSetting(info, ClickHouseConnectionSettings.USE_SERVER_TIME_ZONE_FOR_DATES);
@@ -153,6 +173,8 @@ public class ClickHouseProperties {
         ret.put(ClickHouseConnectionSettings.SSL.getKey(), String.valueOf(ssl));
         ret.put(ClickHouseConnectionSettings.SSL_ROOT_CERTIFICATE.getKey(), String.valueOf(sslRootCertificate));
         ret.put(ClickHouseConnectionSettings.SSL_MODE.getKey(), String.valueOf(sslMode));
+        ret.put(ClickHouseConnectionSettings.MAX_REDIRECTS.getKey(), String.valueOf(maxRedirects));
+        ret.put(ClickHouseConnectionSettings.CHECK_FOR_REDIRECTS.getKey(), String.valueOf(checkForRedirects));
         ret.put(ClickHouseConnectionSettings.USE_SERVER_TIME_ZONE.getKey(), String.valueOf(useServerTimeZone));
         ret.put(ClickHouseConnectionSettings.USE_TIME_ZONE.getKey(), String.valueOf(useTimeZone));
         ret.put(ClickHouseConnectionSettings.USE_SERVER_TIME_ZONE_FOR_DATES.getKey(), String.valueOf(useServerTimeZoneForDates));
@@ -215,6 +237,8 @@ public class ClickHouseProperties {
         setSsl(properties.ssl);
         setSslRootCertificate(properties.sslRootCertificate);
         setSslMode(properties.sslMode);
+        setMaxRedirects(properties.maxRedirects);
+        setCheckForRedirects(properties.checkForRedirects);
         setUseServerTimeZone(properties.useServerTimeZone);
         setUseTimeZone(properties.useTimeZone);
         setUseServerTimeZoneForDates(properties.useServerTimeZoneForDates);
@@ -554,6 +578,21 @@ public class ClickHouseProperties {
         this.sslMode = sslMode;
     }
 
+    public int getMaxRedirects() {
+        return maxRedirects;
+    }
+
+    public void setMaxRedirects(int maxRedirects) {
+        this.maxRedirects = maxRedirects;
+    }
+
+    public boolean isCheckForRedirects() {
+        return checkForRedirects;
+    }
+
+    public void setCheckForRedirects(boolean checkForRedirects) {
+        this.checkForRedirects = checkForRedirects;
+    }
     public boolean isUseServerTimeZone() {
         return useServerTimeZone;
     }
