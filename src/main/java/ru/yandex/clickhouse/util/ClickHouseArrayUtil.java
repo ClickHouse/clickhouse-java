@@ -17,11 +17,10 @@ public class ClickHouseArrayUtil {
     /**
      * @param object
      *            the object to convert to ClickHouse-string representation
-     * @param explicitEscape
-     *            enable or disable elements escaping (works only for
-     *            non-primitive values)
      * @param dateTimeZone
-     *            TimeZone to use when formatting date time values
+     *            TimeZone to use when formatting date values
+     * @param dateTimeTimeZone
+     *            TimeZone to use when formatting datetime values
      * @return string representation of an object
      */
     public static String arrayToString(Object object, TimeZone dateTimeZone,
