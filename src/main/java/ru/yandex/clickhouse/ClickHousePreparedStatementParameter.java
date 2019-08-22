@@ -6,6 +6,9 @@ import ru.yandex.clickhouse.util.ClickHouseValueFormatter;
 
 public final class ClickHousePreparedStatementParameter {
 
+    private static final ClickHousePreparedStatementParameter NULL_PARAM =
+        new ClickHousePreparedStatementParameter(null, false);
+
     private final String stringValue;
     private final boolean quoteNeeded;
 
@@ -13,11 +16,15 @@ public final class ClickHousePreparedStatementParameter {
         TimeZone dateTimeZone, TimeZone dateTimeTimeZone)
     {
         if (x == null) {
-            return new ClickHousePreparedStatementParameter(null, false);
+            return NULL_PARAM;
         }
         return new ClickHousePreparedStatementParameter(
             ClickHouseValueFormatter.formatObject(x, dateTimeZone, dateTimeTimeZone),
             ClickHouseValueFormatter.needsQuoting(x));
+    }
+
+    public static ClickHousePreparedStatementParameter nullParameter() {
+        return NULL_PARAM;
     }
 
     public ClickHousePreparedStatementParameter(String stringValue,

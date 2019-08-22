@@ -27,15 +27,15 @@ public final class ClickHouseColumnInfo {
         while (typeInfo.startsWith(KEYWORD_ARRAY, currIdx)) {
             column.arrayLevel++;
             column.clickHouseDataType = ClickHouseDataType.Array;
-            currIdx += 6;
+            currIdx += KEYWORD_ARRAY.length() + 1; // opening parenthesis
         }
         if (typeInfo.startsWith(KEYWORD_LOW_CARDINALITY, currIdx)) {
             column.lowCardinality = true;
-            currIdx += 15;
+            currIdx += KEYWORD_LOW_CARDINALITY.length() + 1;
         }
         if (typeInfo.startsWith(KEYWORD_NULLABLE, currIdx)) {
             column.nullable = true;
-            currIdx += 9;
+            currIdx += KEYWORD_NULLABLE.length() + 1;
         }
         int endIdx = typeInfo.indexOf("(", currIdx) < 0
             ? typeInfo.indexOf(")", currIdx)
@@ -132,13 +132,13 @@ public final class ClickHouseColumnInfo {
             int start = originalTypeName.indexOf(KEYWORD_LOW_CARDINALITY);
             sb.append(originalTypeName.substring(idx, start));
             numParens++;
-            idx = start + 15;
+            idx = start + KEYWORD_LOW_CARDINALITY.length() + 1;
         }
         if (nullable) {
             int start = originalTypeName.indexOf(KEYWORD_NULLABLE, idx);
             sb.append(originalTypeName.substring(idx, start));
             numParens++;
-            idx = start + 9;
+            idx = start + KEYWORD_NULLABLE.length() + 1;
         }
         sb.append(originalTypeName.substring(idx, originalTypeName.length() - numParens));
         return sb.toString();

@@ -802,9 +802,11 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
     public ResultSet getColumns(String catalog, String schemaPattern, String tableNamePattern, String columnNamePattern) throws SQLException {
         StringBuilder query;
         if (connection.getServerVersion().compareTo("1.1.54237") > 0) {
-            query = new StringBuilder("SELECT database, table, name, type, default_kind, default_expression ");
+            query = new StringBuilder(
+                "SELECT database, table, name, type, default_kind as default_type, default_expression ");
         } else {
-            query = new StringBuilder("SELECT database, table, name, type, default_type, default_expression ");
+            query = new StringBuilder(
+                "SELECT database, table, name, type, default_type, default_expression ");
         }
         query.append("FROM system.columns ");
         List<String> predicates = new ArrayList<String>();
@@ -829,13 +831,13 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
             //catalog name
             row.add(DEFAULT_CAT);
             //database name
-            row.add(descTable.getString(1));
+            row.add(descTable.getString("database"));
             //table name
-            row.add(descTable.getString(2));
+            row.add(descTable.getString("table"));
             //column name
             ClickHouseColumnInfo columnInfo = ClickHouseColumnInfo.parse(
-                descTable.getString(4),
-                descTable.getString(3));
+                descTable.getString("type"),
+                descTable.getString("name"));
             row.add(columnInfo.getColumnName());
             //data type
             row.add(String.valueOf(columnInfo.getClickHouseDataType().getSqlType()));
@@ -857,10 +859,10 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
             row.add(null);
 
             // COLUMN_DEF
-            if ( descTable.getString( 5 ).equals( "DEFAULT" ) ) {
-                row.add( descTable.getString( 6 ) );
+            if ("DEFAULT".equals(descTable.getString("default_type"))) {
+                row.add(descTable.getString("default_expresseion"));
             } else {
-                row.add( null );
+                row.add(null);
             }
 
             //"SQL_DATA_TYPE", unused per JavaDoc
@@ -1320,10 +1322,12 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
         return iface.isAssignableFrom(getClass());
     }
 
+    @Override
     public ResultSet getPseudoColumns(String catalog, String schemaPattern, String tableNamePattern, String columnNamePattern) throws SQLException {
         return null;
     }
 
+    @Override
     public boolean generatedKeyAlwaysReturned() throws SQLException {
         return false;
     }

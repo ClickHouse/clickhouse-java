@@ -161,7 +161,7 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
     }
 
     private void setNull(int parameterIndex) {
-        setBind(parameterIndex, new ClickHousePreparedStatementParameter(null, false));
+        setBind(parameterIndex, ClickHousePreparedStatementParameter.nullParameter());
     }
 
     @Override

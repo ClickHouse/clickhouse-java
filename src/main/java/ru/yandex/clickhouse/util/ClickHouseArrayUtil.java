@@ -225,7 +225,7 @@ public class ClickHouseArrayUtil {
         private String build() {
             if (!built) {
                 builder.append(']');
-                built = false;
+                built = true;
             }
             return builder.toString();
         }

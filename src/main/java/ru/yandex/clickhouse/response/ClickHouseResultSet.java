@@ -36,12 +36,12 @@ public class ClickHouseResultSet extends AbstractResultSet {
 
     private final static long[] EMPTY_LONG_ARRAY = new long[0];
     private static final String DATE_TIME_PATTERN = "yyyy-MM-dd HH:mm:ss";
-    private static final String DATE_PATTERN      = "yyyy-MM-dd";
+    private static final String DATE_PATTERN = "yyyy-MM-dd";
 
     private final TimeZone dateTimeTimeZone;
     private final TimeZone dateTimeZone;
-    private final SimpleDateFormat dateTimeFormat;
-    private final SimpleDateFormat dateFormat;
+    private final SimpleDateFormat dateTimeFormat = new SimpleDateFormat(DATE_TIME_PATTERN);
+    private final SimpleDateFormat dateFormat = new SimpleDateFormat(DATE_PATTERN);
 
     private final StreamSplitter bis;
 
@@ -91,9 +91,7 @@ public class ClickHouseResultSet extends AbstractResultSet {
         this.dateTimeZone = properties.isUseServerTimeZoneForDates()
             ? timeZone
             : TimeZone.getDefault();
-        dateTimeFormat = new SimpleDateFormat(DATE_TIME_PATTERN);
         dateTimeFormat.setTimeZone(dateTimeTimeZone);
-        dateFormat = new SimpleDateFormat(DATE_PATTERN);
         dateFormat.setTimeZone(dateTimeZone);
         bis = new StreamSplitter(is, (byte) 0x0A, bufferSize);  ///   \n
         ByteFragment headerFragment = bis.next();
@@ -622,7 +620,8 @@ public class ClickHouseResultSet extends AbstractResultSet {
         lastReadColumn = colNum;
         return values[colNum - 1];
     }
-    
+
+    @Override
     public <T> T getObject(int columnIndex, Class<T> type) throws SQLException {
         if(type.equals(UUID.class)) {
             return (T) UUID.fromString(getString(columnIndex));
@@ -631,6 +630,7 @@ public class ClickHouseResultSet extends AbstractResultSet {
         }
     }
 
+    @Override
     public <T> T getObject(String columnLabel, Class<T> type) throws SQLException {
         return getObject(asColNum(columnLabel), type);
     }
