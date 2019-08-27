@@ -51,8 +51,8 @@ public class ClickHouseRowBinaryStream {
     /**
      * Dangerous. Can only be used for rare optimizations, for example when the string is written in parts
      * without prior concatenation. The size of the string in bytes must be passed through writeUnsignedLeb128.
-     * @param bytes
-     * @throws IOException
+     * @param bytes byte array will be written into stream
+     * @throws IOException in case if an I/O error occurs
      */
     public void writeBytes(byte[] bytes) throws IOException {
         out.write(bytes);
@@ -61,8 +61,9 @@ public class ClickHouseRowBinaryStream {
     /**
      * Dangerous. Can only be used for rare optimizations, for example when the string is written in parts
      * without prior concatenation. The size of the string in bytes must be passed through writeUnsignedLeb128.
-     * @param b
-     * @throws IOException
+     *
+     * @param b byte value
+     * @throws IOException in case if an I/O error occurs
      */
     public void writeByte(byte b) throws IOException {
         out.write(b);
@@ -278,7 +279,7 @@ public class ClickHouseRowBinaryStream {
      *
      * E.g., to write Nullable(Int32):
      *
-     * {{{
+     * <pre>
      *     void writeNullableInt32(Integer value) {
      *         if (value == null) {
      *             markNextNullable(true);
@@ -287,7 +288,10 @@ public class ClickHouseRowBinaryStream {
      *             writeInt32(value);
      *         }
      *     }
-     * }}}
+     * </pre>
+     *
+     * @param isNullable if it's true, 1 will be written otherwise 0
+     * @throws IOException in case if an I/O error occurs
      */
     public void markNextNullable(boolean isNullable) throws IOException {
         writeByte(isNullable ? (byte) 1 : (byte) 0);

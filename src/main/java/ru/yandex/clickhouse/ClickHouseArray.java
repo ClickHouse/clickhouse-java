@@ -1,45 +1,40 @@
 package ru.yandex.clickhouse;
 
-import ru.yandex.clickhouse.util.TypeUtils;
-
 import java.sql.Array;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.util.Map;
 
+import ru.yandex.clickhouse.domain.ClickHouseDataType;
+
 /**
  * @author Dmitry Andreev <a href="mailto:AndreevDm@yandex-team.ru"></a>
  */
 public class ClickHouseArray implements Array {
-    private int elementType;
-    private boolean isUnsigned;
+
+    private ClickHouseDataType elementType;
     private Object array;
 
-    public ClickHouseArray(int elementType, Object array){
-        this(elementType, false, array);
-    }
-
-    public ClickHouseArray(int elementType, boolean isUnsigned, Object array) {
+    public ClickHouseArray(ClickHouseDataType elementType, Object array) {
         if (array == null) {
-            throw new IllegalArgumentException("array cannon be null");
+            throw new IllegalArgumentException("array cannot be null");
         }
         if (!array.getClass().isArray()) {
             throw new IllegalArgumentException("not array");
         }
         this.elementType = elementType;
         this.array = array;
-        this.isUnsigned = isUnsigned;
     }
 
     @Override
     public String getBaseTypeName() throws SQLException {
-        return TypeUtils.toClass(elementType, isUnsigned).getName();
+        return elementType.name();
     }
 
     @Override
     public int getBaseType() throws SQLException {
-        return elementType;
+        return elementType.getSqlType();
     }
 
     @Override

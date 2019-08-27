@@ -10,6 +10,7 @@ import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 import ru.yandex.clickhouse.util.guava.StreamUtils;
 
+import java.math.BigDecimal;
 import java.sql.Date;
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
@@ -49,6 +50,15 @@ public class ByteFragmentUtilsTest {
                 {new long[]{1L, 23L, -123L}},
                 {new long[]{-12345678987654321L, 23325235235L, -12321342L}},
                 {new long[]{}}
+        };
+    }
+
+    @DataProvider(name = "decimalArray")
+    public Object[][] decimalArray() {
+        return new Object[][]{
+                {new BigDecimal[]{BigDecimal.ONE, BigDecimal.valueOf(23L), BigDecimal.valueOf(-123L)}},
+                {new BigDecimal[]{BigDecimal.valueOf(-12345678987654321L), BigDecimal.valueOf(23325235235L), BigDecimal.valueOf(-12321342L)}},
+                {new BigDecimal[]{}}
         };
     }
 
@@ -235,6 +245,26 @@ public class ByteFragmentUtilsTest {
         byte[] bytes = sourceString.getBytes(StreamUtils.UTF_8);
         ByteFragment fragment = new ByteFragment(bytes, 0, bytes.length);
         Date[] parsedArray = (Date[]) ByteFragmentUtils.parseArray(fragment, Date.class, dateFormat);
+
+        assertEquals(parsedArray.length, array.length);
+        for (int i = 0; i < parsedArray.length; i++) {
+            assertEquals(parsedArray[i], array[i]);
+        }
+    }
+
+    @Test(dataProvider = "decimalArray")
+    public void testParseArray(BigDecimal[] array) throws Exception {
+        String sourceString = "[" + Joiner.on(",").join(Iterables.transform(Arrays.asList(array), new Function<BigDecimal, String>() {
+
+            @Override
+            public String apply(BigDecimal s) {
+                return s.toPlainString();
+            }
+        })) + "]";
+
+        byte[] bytes = sourceString.getBytes(StreamUtils.UTF_8);
+        ByteFragment fragment = new ByteFragment(bytes, 0, bytes.length);
+        BigDecimal[] parsedArray = (BigDecimal[]) ByteFragmentUtils.parseArray(fragment, BigDecimal.class);
 
         assertEquals(parsedArray.length, array.length);
         for (int i = 0; i < parsedArray.length; i++) {
