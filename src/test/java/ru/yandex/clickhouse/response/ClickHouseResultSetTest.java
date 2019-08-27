@@ -8,6 +8,7 @@ import java.sql.Array;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.Types;
+import java.util.Collection;
 import java.util.TimeZone;
 
 import org.testng.Assert;
@@ -15,6 +16,7 @@ import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 import ru.yandex.clickhouse.ClickHouseStatement;
+import ru.yandex.clickhouse.domain.ClickHouseDataTypeTestDataProvider.ClickHouseDataTypeTestData;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
 
 import static org.testng.Assert.assertFalse;
@@ -359,6 +361,7 @@ public class ClickHouseResultSetTest {
         }
     }
 
+
     /**
      * By jdbc specification
      *
@@ -413,7 +416,7 @@ public class ClickHouseResultSetTest {
         assertFalse(rs.next());
     }
 
-    protected ClickHouseResultSet buildResultSet(InputStream is, int bufferSize, String db, String table, boolean usesWithTotals, ClickHouseStatement statement, TimeZone timezone, ClickHouseProperties properties) throws IOException {
+    private static ClickHouseResultSet buildResultSet(InputStream is, int bufferSize, String db, String table, boolean usesWithTotals, ClickHouseStatement statement, TimeZone timezone, ClickHouseProperties properties) throws IOException {
     	return new ClickHouseResultSet(is, bufferSize, db, table, usesWithTotals, statement, timezone, properties);
     }
 
@@ -513,5 +516,45 @@ public class ClickHouseResultSetTest {
             sb.replace(sb.length(), sb.length(), "\n");
             return sb.toString();
         }
+    }
+
+    private static String buildTestString(Collection<ClickHouseDataTypeTestData> testDataTypes) {
+        StringBuilder sb = new StringBuilder();
+        // row 1: column names
+        for (ClickHouseDataTypeTestData t : testDataTypes) {
+            sb.append(t.getTypeName())
+              .append("\t");
+            if (t.isNullableCandidate()) {
+                sb.append("Nullable(")
+                  .append(t.getTypeName())
+                  .append(')')
+                  .append("\t");
+            }
+            if (t.isLowCardinalityCandidate()) {
+                sb.append("LowCardinality(")
+                  .append(t.getTypeName())
+                  .append(')')
+                  .append("\t");
+            }
+        }
+        sb.replace(sb.length(), sb.length(), "\n");
+
+        // row 2: type names
+        sb.append(sb.substring(0, sb.length()));
+
+        // row 3 : example data
+        for (ClickHouseDataTypeTestData t : testDataTypes) {
+            sb.append(t.getTestValue())
+              .append("\t");
+            if (t.isNullableCandidate()) {
+                sb.append("\\N\t");
+            }
+            if (t.isLowCardinalityCandidate()) {
+                sb.append(t.getTestValue())
+                  .append("\t");
+            }
+        }
+        sb.replace(sb.length(), sb.length(), "\n");
+        return sb.toString();
     }
 }

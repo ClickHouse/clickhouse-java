@@ -6,7 +6,6 @@ import com.google.common.escape.Escapers;
 
 public class ClickHouseUtil {
 
-
     private final static Escaper CLICKHOUSE_ESCAPER = Escapers.builder()
         .addEscape('\\', "\\\\")
         .addEscape('\n', "\\n")

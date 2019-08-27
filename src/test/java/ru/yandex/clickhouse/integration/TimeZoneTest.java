@@ -1,19 +1,24 @@
 package ru.yandex.clickhouse.integration;
 
+import java.io.IOException;
+import java.sql.Date;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Timestamp;
+import java.util.Calendar;
+import java.util.TimeZone;
+import java.util.concurrent.TimeUnit;
+
 import org.testng.Assert;
 import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
+
 import ru.yandex.clickhouse.ClickHouseConnection;
 import ru.yandex.clickhouse.ClickHouseDataSource;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
 import ru.yandex.clickhouse.util.ClickHouseRowBinaryStream;
 import ru.yandex.clickhouse.util.ClickHouseStreamCallback;
-
-import java.io.IOException;
-import java.sql.*;
-import java.util.Calendar;
-import java.util.TimeZone;
-import java.util.concurrent.TimeUnit;
 
 public class TimeZoneTest {
     private ClickHouseConnection connectionServerTz;
@@ -24,7 +29,7 @@ public class TimeZoneTest {
     public void setUp() throws Exception {
         ClickHouseDataSource datasourceServerTz = new ClickHouseDataSource("jdbc:clickhouse://localhost:8123", new ClickHouseProperties());
         connectionServerTz = datasourceServerTz.getConnection();
-        TimeZone serverTimeZone = ((ClickHouseConnection)connectionServerTz).getTimeZone();
+        TimeZone serverTimeZone = connectionServerTz.getTimeZone();
         ClickHouseProperties properties = new ClickHouseProperties();
         properties.setUseServerTimeZone(false);
         int serverTimeZoneOffsetHours = (int) TimeUnit.MILLISECONDS.toHours(serverTimeZone.getOffset(currentTime));
@@ -134,6 +139,68 @@ public class TimeZoneTest {
         // inserted in manual timezone
         Assert.assertEquals(rsMan.getDate(1), localStartOfDay);
         Assert.assertEquals(rsSrv.getDate(1), localStartOfDay);
+    }
+
+    @Test
+    public void testParseColumnsWithDifferentTimeZones() throws Exception {
+        connectionServerTz.createStatement().execute("DROP TABLE IF EXISTS test.fun_with_timezones");
+        connectionServerTz.createStatement().execute(
+            "CREATE TABLE test.fun_with_timezones (" +
+                "i         UInt8," +
+                "dt_server DateTime," +
+                "dt_berlin DateTime('Europe/Berlin')," +
+                "dt_lax    DateTime('America/Los_Angeles')" +
+            ") ENGINE = TinyLog"
+        );
+        connectionServerTz.createStatement().execute(
+            "INSERT INTO test.fun_with_timezones (i, dt_server, dt_berlin, dt_lax) " +
+            "VALUES (42, 1557136800, 1557136800, 1557136800)");
+        ResultSet rs_timestamps = connectionServerTz.createStatement().executeQuery(
+            "SELECT i, toUnixTimestamp(dt_server), toUnixTimestamp(dt_berlin), toUnixTimestamp(dt_lax) " +
+            "FROM test.fun_with_timezones");
+        rs_timestamps.next();
+        Assert.assertEquals(rs_timestamps.getLong(2), 1557136800);
+        Assert.assertEquals(rs_timestamps.getLong(3), 1557136800);
+        Assert.assertEquals(rs_timestamps.getLong(4), 1557136800);
+
+        ResultSet rs_datetimes = connectionServerTz.createStatement().executeQuery(
+            "SELECT i, dt_server, dt_berlin, dt_lax " +
+            "FROM test.fun_with_timezones");
+        rs_datetimes.next();
+        Assert.assertEquals(rs_datetimes.getTimestamp(2).getTime(), 1557136800000L);
+        Assert.assertEquals(rs_datetimes.getTimestamp(3).getTime(), 1557136800000L);
+        Assert.assertEquals(rs_datetimes.getTimestamp(4).getTime(), 1557136800000L);
+    }
+
+    @Test
+    public void testParseColumnsWithDifferentTimeZonesArray() throws Exception {
+        connectionServerTz.createStatement().execute("DROP TABLE IF EXISTS test.fun_with_timezones_array");
+        connectionServerTz.createStatement().execute(
+            "CREATE TABLE test.fun_with_timezones_array (" +
+                "i         UInt8," +
+                "dt_server Array(DateTime)," +
+                "dt_berlin Array(DateTime('Europe/Berlin'))," +
+                "dt_lax    Array(DateTime('America/Los_Angeles'))" +
+            ") ENGINE = TinyLog"
+        );
+        connectionServerTz.createStatement().execute(
+            "INSERT INTO test.fun_with_timezones_array (i, dt_server, dt_berlin, dt_lax) " +
+            "VALUES (42, [1557136800], [1557136800], [1557136800])");
+        ResultSet rs_timestamps = connectionServerTz.createStatement().executeQuery(
+            "SELECT i, array(toUnixTimestamp(dt_server[1])), array(toUnixTimestamp(dt_berlin[1])), array(toUnixTimestamp(dt_lax[1])) " +
+            "FROM test.fun_with_timezones_array");
+        rs_timestamps.next();
+        Assert.assertEquals(((long[]) rs_timestamps.getArray(2).getArray())[0], 1557136800);
+        Assert.assertEquals(((long[]) rs_timestamps.getArray(3).getArray())[0], 1557136800);
+        Assert.assertEquals(((long[]) rs_timestamps.getArray(4).getArray())[0], 1557136800);
+
+        ResultSet rs_datetimes = connectionServerTz.createStatement().executeQuery(
+            "SELECT i, dt_server, dt_berlin, dt_lax " +
+            "FROM test.fun_with_timezones_array");
+        rs_datetimes.next();
+        Assert.assertEquals(((Timestamp[]) rs_datetimes.getArray(2).getArray())[0].getTime(), 1557136800000L);
+        Assert.assertEquals(((Timestamp[]) rs_datetimes.getArray(3).getArray())[0].getTime(), 1557136800000L);
+        Assert.assertEquals(((Timestamp[]) rs_datetimes.getArray(4).getArray())[0].getTime(), 1557136800000L);
     }
 
     private static Date withTimeAtStartOfDay(Date date) {

@@ -1,18 +1,5 @@
 package ru.yandex.clickhouse;
 
-import com.google.common.base.Strings;
-import org.apache.http.conn.ConnectTimeoutException;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import ru.yandex.clickhouse.except.ClickHouseUnknownException;
-import ru.yandex.clickhouse.settings.ClickHouseConnectionSettings;
-import ru.yandex.clickhouse.settings.ClickHouseProperties;
-import ru.yandex.clickhouse.util.ClickHouseHttpClientBuilder;
-import ru.yandex.clickhouse.util.LogProxy;
-import ru.yandex.clickhouse.util.TypeUtils;
-import ru.yandex.clickhouse.util.guava.StreamUtils;
-
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -39,11 +26,26 @@ import java.util.TimeZone;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 
+import org.apache.http.conn.ConnectTimeoutException;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.google.common.base.Strings;
+
+import ru.yandex.clickhouse.domain.ClickHouseDataType;
+import ru.yandex.clickhouse.except.ClickHouseUnknownException;
+import ru.yandex.clickhouse.settings.ClickHouseConnectionSettings;
+import ru.yandex.clickhouse.settings.ClickHouseProperties;
+import ru.yandex.clickhouse.util.ClickHouseHttpClientBuilder;
+import ru.yandex.clickhouse.util.LogProxy;
+import ru.yandex.clickhouse.util.guava.StreamUtils;
+
 
 public class ClickHouseConnectionImpl implements ClickHouseConnection {
-	
+
 	private static final int DEFAULT_RESULTSET_TYPE = ResultSet.TYPE_FORWARD_ONLY;
-	
+
     private static final Logger log = LoggerFactory.getLogger(ClickHouseConnectionImpl.class);
 
     private final CloseableHttpClient httpclient;
@@ -107,7 +109,7 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
     public ClickHouseStatement createStatement() throws SQLException {
         return createStatement(DEFAULT_RESULTSET_TYPE);
     }
-    
+
     public ClickHouseStatement createStatement(int resultSetType) throws SQLException {
         return LogProxy.wrap(ClickHouseStatement.class, new ClickHouseStatementImpl(httpclient, this, properties, resultSetType));
     }
@@ -435,7 +437,9 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
 
     @Override
     public Array createArrayOf(String typeName, Object[] elements) throws SQLException {
-        return new ClickHouseArray(TypeUtils.toSqlType(typeName), TypeUtils.isUnsigned(typeName), elements);
+        return new ClickHouseArray(
+            ClickHouseDataType.resolveDefaultArrayDataType(typeName),
+            elements);
     }
 
     @Override

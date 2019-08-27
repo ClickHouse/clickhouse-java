@@ -1,5 +1,6 @@
 package ru.yandex.clickhouse;
 
+import java.sql.Array;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -7,6 +8,8 @@ import java.sql.SQLException;
 import java.sql.Statement;
 
 import org.testng.annotations.Test;
+
+import ru.yandex.clickhouse.domain.ClickHouseDataType;
 
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertTrue;
@@ -88,7 +91,7 @@ public class ClickHouseConnectionTest {
         resultSet.next();
         assertEquals(resultSet.getString(1), "default");
     }
-    
+
     @Test
     public void testScrollableResultSetOnPreparedStatements() throws SQLException {
         ClickHouseDataSource dataSource = new ClickHouseDataSource(
@@ -115,7 +118,7 @@ public class ClickHouseConnectionTest {
         resultSet.next();
         assertEquals(resultSet.getString(1), "default");
     }
-    
+
     @Test
     public void testScrollableResultSetOnStatements() throws SQLException {
         ClickHouseDataSource dataSource = new ClickHouseDataSource(
@@ -139,5 +142,21 @@ public class ClickHouseConnectionTest {
         resultSet.beforeFirst();
         resultSet.next();
         assertEquals(resultSet.getString(1), "default");
+    }
+
+    @Test
+    public void testCreateArrayOf() throws Exception {
+        // TODO: more
+        ClickHouseDataSource dataSource = new ClickHouseDataSource(
+            "jdbc:clickhouse://localhost:8123/default");
+        ClickHouseConnectionImpl connection = (ClickHouseConnectionImpl) dataSource.getConnection();
+        for (ClickHouseDataType dataType : ClickHouseDataType.values()) {
+            if (dataType == ClickHouseDataType.Array) {
+                continue;
+            }
+            Array a = connection.createArrayOf(dataType.name(), new Object[0]);
+            assertEquals(a.getBaseType(), dataType.getSqlType());
+            assertEquals(a.getBaseTypeName(), dataType.name());
+        }
     }
 }

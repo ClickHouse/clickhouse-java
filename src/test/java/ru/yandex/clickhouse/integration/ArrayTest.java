@@ -23,6 +23,7 @@ import com.google.common.collect.Iterables;
 import ru.yandex.clickhouse.ClickHouseArray;
 import ru.yandex.clickhouse.ClickHouseDataSource;
 import ru.yandex.clickhouse.ClickHousePreparedStatement;
+import ru.yandex.clickhouse.domain.ClickHouseDataType;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
 
 import static org.testng.Assert.assertEquals;
@@ -114,9 +115,9 @@ public class ArrayTest {
 
         PreparedStatement statement = connection.prepareStatement(insertSql);
 
-        statement.setArray(1, new ClickHouseArray(Types.INTEGER, new long[]{4294967286L, 4294967287L}));
-        statement.setArray(2, new ClickHouseArray(Types.BIGINT, new BigInteger[]{new BigInteger("18446744073709551606"), new BigInteger("18446744073709551607")}));
-        statement.setArray(3, new ClickHouseArray(Types.DOUBLE, new double[]{1.23, 4.56}));
+        statement.setArray(1, new ClickHouseArray(ClickHouseDataType.UInt64, new long[]{4294967286L, 4294967287L}));
+        statement.setArray(2, new ClickHouseArray(ClickHouseDataType.UInt64, new BigInteger[]{new BigInteger("18446744073709551606"), new BigInteger("18446744073709551607")}));
+        statement.setArray(3, new ClickHouseArray(ClickHouseDataType.Float64, new double[]{1.23, 4.56}));
         statement.execute();
 
         statement = connection.prepareStatement(insertSql);
