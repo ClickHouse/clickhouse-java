@@ -3,18 +3,14 @@ package ru.yandex.clickhouse;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.SQLWarning;
-import java.util.ArrayList;
-import java.util.EnumMap;
-import java.util.List;
-import java.util.Map;
-import java.util.TimeZone;
-import java.util.UUID;
+import java.util.*;
 
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
@@ -22,6 +18,7 @@ import org.apache.http.NameValuePair;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.utils.URIBuilder;
+import org.apache.http.entity.AbstractHttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.InputStreamEntity;
 import org.apache.http.entity.StringEntity;
@@ -78,6 +75,8 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
     private final boolean isResultSetScrollable;
 
     private volatile String queryId;
+
+    private List<String> batchQueries;
 
     /**
      * Current database name may be changed by {@link java.sql.Connection#setCatalog(String)}
@@ -366,18 +365,68 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
 
     @Override
     public void addBatch(String sql) throws SQLException {
-
+        if (batchQueries == null) {
+            this.batchQueries = new ArrayList<String>();
+        }
+        this.batchQueries.add(sql);
     }
 
     @Override
     public void clearBatch() throws SQLException {
-
+        this.batchQueries = null;
     }
 
     @Override
     public int[] executeBatch() throws SQLException {
-        return new int[0];
+        if (batchQueries == null) {
+            throw new SQLException("The batch is empty");
+        }
+        BatchHttpEntity entity = new BatchHttpEntity(batchQueries);
+        Map<ClickHouseQueryParam, String> dbParams = new HashMap<ClickHouseQueryParam, String>();
+        dbParams.put(ClickHouseQueryParam.MULTIQUERY, "true");
+        sendStreamSQL(entity, "", dbParams);
+        int[] result = new int[batchQueries.size()];
+        Arrays.fill(result, 1);
+        batchQueries = null;
+        return result;
     }
+
+    private static class BatchHttpEntity extends AbstractHttpEntity {
+        private final List<String> rows;
+
+        public BatchHttpEntity(List<String> rows) {
+            this.rows = rows;
+        }
+
+        @Override
+        public boolean isRepeatable() {
+            return true;
+        }
+
+        @Override
+        public long getContentLength() {
+            return -1;
+        }
+
+        @Override
+        public InputStream getContent() throws IOException, IllegalStateException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void writeTo(OutputStream outputStream) throws IOException {
+            for (String row : rows) {
+                StringEntity st = new StringEntity( row + ";", StreamUtils.UTF_8);
+                st.writeTo(outputStream);
+            }
+        }
+
+        @Override
+        public boolean isStreaming() {
+            return false;
+        }
+    }
+
 
     @Override
     public ClickHouseConnection getConnection() throws ClickHouseException {

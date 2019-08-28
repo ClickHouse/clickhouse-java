@@ -166,6 +166,8 @@ public enum ClickHouseQueryParam implements DriverPropertyCreator {
 
     MIN_INSERT_BLOCK_SIZE_ROWS("min_insert_block_size_rows", null, Long.class, "Squash blocks passed to INSERT query to specified size in rows, if blocks are not big enough."),
 
+    MULTIQUERY("multiquery", null, Boolean.class, "Enables sending multiple queries in one request."),
+
     NETWORK_COMPRESSION_METHOD("network_compression_method", null, String.class, ""),
 
     OPTIMIZE_MIN_EQUALITY_DISJUNCTION_CHAIN_LENGTH("optimize_min_equality_disjunction_chain_length", null, Long.class, ""),
