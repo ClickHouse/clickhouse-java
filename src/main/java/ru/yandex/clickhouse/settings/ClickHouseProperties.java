@@ -23,6 +23,8 @@ public class ClickHouseProperties {
     private int maxTotal;
     private String host;
     private int port;
+    private boolean usePathAsDb;
+    private String path;
     private boolean ssl;
     private String sslRootCertificate;
     private String sslMode;
@@ -112,6 +114,8 @@ public class ClickHouseProperties {
         this.ssl = (Boolean) getSetting(info, ClickHouseConnectionSettings.SSL);
         this.sslRootCertificate = (String) getSetting(info, ClickHouseConnectionSettings.SSL_ROOT_CERTIFICATE);
         this.sslMode = (String) getSetting(info, ClickHouseConnectionSettings.SSL_MODE);
+        this.usePathAsDb = (Boolean) getSetting(info, ClickHouseConnectionSettings.USE_PATH_AS_DB);
+        this.path = (String) getSetting(info, ClickHouseConnectionSettings.PATH);
         this.maxRedirects = (Integer) getSetting(info, ClickHouseConnectionSettings.MAX_REDIRECTS);
         this.checkForRedirects = (Boolean) getSetting(info, ClickHouseConnectionSettings.CHECK_FOR_REDIRECTS);
         this.useServerTimeZone = (Boolean)getSetting(info, ClickHouseConnectionSettings.USE_SERVER_TIME_ZONE);
@@ -173,6 +177,8 @@ public class ClickHouseProperties {
         ret.put(ClickHouseConnectionSettings.SSL.getKey(), String.valueOf(ssl));
         ret.put(ClickHouseConnectionSettings.SSL_ROOT_CERTIFICATE.getKey(), String.valueOf(sslRootCertificate));
         ret.put(ClickHouseConnectionSettings.SSL_MODE.getKey(), String.valueOf(sslMode));
+        ret.put(ClickHouseConnectionSettings.USE_PATH_AS_DB.getKey(), String.valueOf(usePathAsDb));
+        ret.put(ClickHouseConnectionSettings.PATH.getKey(), String.valueOf(path));
         ret.put(ClickHouseConnectionSettings.MAX_REDIRECTS.getKey(), String.valueOf(maxRedirects));
         ret.put(ClickHouseConnectionSettings.CHECK_FOR_REDIRECTS.getKey(), String.valueOf(checkForRedirects));
         ret.put(ClickHouseConnectionSettings.USE_SERVER_TIME_ZONE.getKey(), String.valueOf(useServerTimeZone));
@@ -237,6 +243,8 @@ public class ClickHouseProperties {
         setSsl(properties.ssl);
         setSslRootCertificate(properties.sslRootCertificate);
         setSslMode(properties.sslMode);
+        setUsePathAsDb(properties.usePathAsDb);
+        setPath(properties.path);
         setMaxRedirects(properties.maxRedirects);
         setCheckForRedirects(properties.checkForRedirects);
         setUseServerTimeZone(properties.useServerTimeZone);
@@ -727,6 +735,22 @@ public class ClickHouseProperties {
 
     public void setPort(int port) {
         this.port = port;
+    }
+
+    public boolean isUsePathAsDb() {
+        return usePathAsDb;
+    }
+
+    public void setUsePathAsDb(boolean usePathAsDb) {
+        this.usePathAsDb = usePathAsDb;
+    }
+
+    public String getPath() {
+        return path;
+    }
+
+    public void setPath(String path) {
+        this.path = path;
     }
 
     public boolean isDistributedAggregationMemoryEfficient() {

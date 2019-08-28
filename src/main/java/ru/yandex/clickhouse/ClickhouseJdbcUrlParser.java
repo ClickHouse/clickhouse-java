@@ -44,18 +44,29 @@ public class ClickhouseJdbcUrlParser {
         props.setPort(port);
         String path = uri.getPath();
         String database;
-        if (path == null || path.isEmpty() || path.equals("/")) {
-            String defaultsDb = defaults.getProperty(ClickHouseQueryParam.DATABASE.getKey());
-            database = defaultsDb == null ? DEFAULT_DATABASE : defaultsDb;
-        } else {
-            Matcher m = DB_PATH_PATTERN.matcher(path);
-            if (m.matches()) {
-                database = m.group(1);
+        if (props.isUsePathAsDb()) {
+            if (path == null || path.isEmpty() || path.equals("/")) {
+                String defaultsDb = defaults.getProperty(ClickHouseQueryParam.DATABASE.getKey());
+                database = defaultsDb == null ? DEFAULT_DATABASE : defaultsDb;
             } else {
-                throw new URISyntaxException("wrong database name path: '" + path + "'", uriString);
+                Matcher m = DB_PATH_PATTERN.matcher(path);
+                if (m.matches()) {
+                    database = m.group(1);
+                } else {
+                    throw new URISyntaxException("wrong database name path: '" + path + "'", uriString);
+                }
+            }
+            props.setDatabase(database);
+        } else {
+            if (props.getDatabase() == null || props.getDatabase().isEmpty()) {
+                props.setDatabase(DEFAULT_DATABASE);
+            }
+            if (path == null || path.isEmpty()) {
+                props.setPath("/");
+            } else {
+                props.setPath(path);
             }
         }
-        props.setDatabase(database);
         return props;
     }
 

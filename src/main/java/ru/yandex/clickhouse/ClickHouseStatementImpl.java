@@ -669,7 +669,7 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
                 .setScheme(properties.getSsl() ? "https" : "http")
                 .setHost(properties.getHost())
                 .setPort(properties.getPort())
-                .setPath("/")
+                .setPath((properties.getPath() == null || properties.getPath().isEmpty() ? "/" : properties.getPath()))
                 .setParameters(queryParams)
                 .build();
         } catch (URISyntaxException e) {
