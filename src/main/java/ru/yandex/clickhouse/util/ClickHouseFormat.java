@@ -8,5 +8,6 @@ public enum ClickHouseFormat {
     TabSeparatedWithNamesAndTypes,
     JSONCompact,
     RowBinary,
-    Native
+    Native,
+    CSV
 }

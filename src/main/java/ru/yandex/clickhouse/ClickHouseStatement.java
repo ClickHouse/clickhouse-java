@@ -51,4 +51,13 @@ public interface ClickHouseStatement extends Statement {
     void sendNativeStream(String sql, Map<ClickHouseQueryParam, String> additionalDBParams, ClickHouseStreamCallback callback) throws SQLException;
     
     void sendNativeStream(String sql, ClickHouseStreamCallback callback) throws SQLException;
+
+    void sendCSVStream(InputStream content, String table, Map<ClickHouseQueryParam, String> additionalDBParams) throws SQLException;
+
+    void sendCSVStream(InputStream content, String table) throws SQLException;
+
+    void sendStreamSQL(InputStream content, String sql, Map<ClickHouseQueryParam, String> additionalDBParams) throws SQLException;
+
+    void sendStreamSQL(InputStream content, String sql) throws SQLException;
+
 }
