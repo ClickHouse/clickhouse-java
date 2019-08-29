@@ -2,10 +2,12 @@ group: deprecated-2017Q2
 sudo: required
 language: java
 install: mvn install -DskipTests=true -Dgpg.skip=true
+env:
+  - CLICKHOUSE_VERSION=19.13.3.26
 jdk:
   - openjdk6
   - oraclejdk8
 services:
   - docker
 before_script:
-  - docker run -e TZ=Europe/Moscow -d -p 127.0.0.1:8123:8123 --name some-clickhouse-server --ulimit nofile=262144:262144 yandex/clickhouse-server:latest
+  - docker run -e TZ=Europe/Moscow -d -p 127.0.0.1:8123:8123 --name some-clickhouse-server --ulimit nofile=262144:262144 yandex/clickhouse-server:$CLICKHOUSE_VERSION
