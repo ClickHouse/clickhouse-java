@@ -860,7 +860,7 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
 
             // COLUMN_DEF
             if ("DEFAULT".equals(descTable.getString("default_type"))) {
-                row.add(descTable.getString("default_expresseion"));
+                row.add(descTable.getString("default_expression"));
             } else {
                 row.add(null);
             }
