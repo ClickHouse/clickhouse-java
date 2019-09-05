@@ -1,10 +1,8 @@
 package ru.yandex.clickhouse;
 
 import ru.yandex.clickhouse.domain.ClickHouseFormat;
-import ru.yandex.clickhouse.util.ClickHouseRowBinaryStream;
 import ru.yandex.clickhouse.util.ClickHouseStreamCallback;
 
-import java.io.IOException;
 import java.io.InputStream;
 import java.sql.SQLException;
 
@@ -83,12 +81,24 @@ class Writer extends ConfigurableApi<Writer> {
      * Allows to send stream of data to ClickHouse
      *
      * @param sql    in a form of "INSERT INTO table_name (X,Y,Z) VALUES "
-     * @param data where to read data from
+     * @param data   where to read data from
      * @param format format of data in InputStream
      * @throws SQLException
      */
     public void send(String sql, InputStream data, ClickHouseFormat format) throws SQLException {
         format(format).data(data).sql(sql).send();
+    }
+
+    /**
+     * Convenient method for importing the data into table
+     *
+     * @param table  table name
+     * @param data   source data
+     * @param format format of data in InputStream
+     * @throws SQLException
+     */
+    public void sendToTable(String table, InputStream data, ClickHouseFormat format) throws SQLException {
+        format(format).table(table).data(data).send();
     }
 
     /**
@@ -99,25 +109,7 @@ class Writer extends ConfigurableApi<Writer> {
             throw new IllegalArgumentException("Sending data via stream callback is only available for RowBinary and Native formats");
         }
 
-        send("", new ClickHouseStreamCallback() {
-            @Override
-            public void writeTo(ClickHouseRowBinaryStream stream) throws IOException {
-
-            }
-        }, RowBinary);
         format(format).sql(sql).send();
-    }
-
-    /**
-     * Convenient method for importing the data into table
-     *
-     * @param table  table name
-     * @param data source data
-     * @param format format of data in InputStream
-     * @throws SQLException
-     */
-    public void sendToTable(String table, InputStream data, ClickHouseFormat format) throws SQLException {
-        format(format).table(table).data(data).send();
     }
 
     private String buildSQL() {
