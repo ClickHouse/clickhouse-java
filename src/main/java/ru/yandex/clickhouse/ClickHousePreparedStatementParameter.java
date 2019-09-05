@@ -1,13 +1,19 @@
 package ru.yandex.clickhouse;
 
-import java.util.TimeZone;
-
 import ru.yandex.clickhouse.util.ClickHouseValueFormatter;
+
+import java.util.TimeZone;
 
 public final class ClickHousePreparedStatementParameter {
 
     private static final ClickHousePreparedStatementParameter NULL_PARAM =
         new ClickHousePreparedStatementParameter(null, false);
+
+    private static final ClickHousePreparedStatementParameter TRUE_PARAM =
+            new ClickHousePreparedStatementParameter("1", false);
+
+    private static final ClickHousePreparedStatementParameter FALSE_PARAM =
+            new ClickHousePreparedStatementParameter("0", false);
 
     private final String stringValue;
     private final boolean quoteNeeded;
@@ -25,6 +31,10 @@ public final class ClickHousePreparedStatementParameter {
 
     public static ClickHousePreparedStatementParameter nullParameter() {
         return NULL_PARAM;
+    }
+
+    public static ClickHousePreparedStatementParameter boolParameter(boolean value) {
+        return value ? TRUE_PARAM : FALSE_PARAM;
     }
 
     public ClickHousePreparedStatementParameter(String stringValue,
@@ -47,6 +57,7 @@ public final class ClickHousePreparedStatementParameter {
     String getBatchValue() {
         return stringValue;
     }
+
 
     @Override
     public String toString() {

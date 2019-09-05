@@ -1,5 +1,8 @@
 package ru.yandex.clickhouse.util;
 
+import ru.yandex.clickhouse.ClickHouseArray;
+import ru.yandex.clickhouse.ClickHouseUtil;
+
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.sql.Date;
@@ -9,9 +12,6 @@ import java.text.SimpleDateFormat;
 import java.util.Collection;
 import java.util.TimeZone;
 import java.util.UUID;
-
-import ru.yandex.clickhouse.ClickHouseArray;
-import ru.yandex.clickhouse.ClickHouseUtil;
 
 public final class ClickHouseValueFormatter {
 
