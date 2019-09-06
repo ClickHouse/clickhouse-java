@@ -1,20 +1,26 @@
 package ru.yandex.clickhouse;
 
+import org.apache.http.HttpEntity;
+import org.apache.http.entity.InputStreamEntity;
 import ru.yandex.clickhouse.domain.ClickHouseFormat;
 import ru.yandex.clickhouse.util.ClickHouseStreamCallback;
+import ru.yandex.clickhouse.util.ClickHouseStreamHttpEntity;
 
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.sql.SQLException;
 
 import static ru.yandex.clickhouse.domain.ClickHouseFormat.*;
 
-class Writer extends ConfigurableApi<Writer> {
+public class Writer extends ConfigurableApi<Writer> {
 
     private ClickHouseFormat format = TabSeparated;
 
     private String table = null;
     private String sql = null;
-    private InputStream stream = null;
+    private InputStreamProvider streamProvider = null;
 
     Writer(ClickHouseStatementImpl statement) {
         super(statement);
@@ -59,7 +65,15 @@ class Writer extends ConfigurableApi<Writer> {
      * Specifies data input stream
      */
     public Writer data(InputStream stream) {
-        this.stream = stream;
+        streamProvider = new HoldingInputProvider(stream);
+        return this;
+    }
+
+    /**
+     * Shortcut method for specifying a file as an input
+     */
+    public Writer data(File input) {
+        streamProvider = new FileInputProvider(input);
         return this;
     }
 
@@ -67,14 +81,21 @@ class Writer extends ConfigurableApi<Writer> {
      * Method to call, when Writer is fully configured
      */
     public void send() throws SQLException {
+        HttpEntity entity;
         try {
-            String sql = buildSQL();
-            if (null == stream) {
-                throw new IllegalArgumentException("No input data specified");
+            InputStream stream;
+            if (null == streamProvider || null == (stream = streamProvider.get())) {
+                throw new IOException("No input data specified");
             }
-        } catch (IllegalArgumentException err) {
+            entity = new InputStreamEntity(stream);
+        } catch (IOException err) {
             throw new SQLException(err);
         }
+        send(entity);
+    }
+
+    private void send(HttpEntity entity) throws SQLException {
+        statement.sendStream(this, entity);
     }
 
     /**
@@ -86,7 +107,7 @@ class Writer extends ConfigurableApi<Writer> {
      * @throws SQLException
      */
     public void send(String sql, InputStream data, ClickHouseFormat format) throws SQLException {
-        format(format).data(data).sql(sql).send();
+        sql(sql).data(data).format(format).send();
     }
 
     /**
@@ -98,27 +119,61 @@ class Writer extends ConfigurableApi<Writer> {
      * @throws SQLException
      */
     public void sendToTable(String table, InputStream data, ClickHouseFormat format) throws SQLException {
-        format(format).table(table).data(data).send();
+        table(table).data(data).format(format).send();
     }
 
     /**
-     * Allows to send binary data via invocation of stream callback
+     * Sends the data in RowBinary or in Native formats
      */
     public void send(String sql, ClickHouseStreamCallback callback, ClickHouseFormat format) throws SQLException {
         if (!(RowBinary.equals(format) || Native.equals(format))) {
-            throw new IllegalArgumentException("Sending data via stream callback is only available for RowBinary and Native formats");
+            throw new SQLException("Wrong binary format - only RowBinary and Native are supported");
         }
 
-        format(format).sql(sql).send();
+        format(format).sql(sql).send(new ClickHouseStreamHttpEntity(callback, statement.getConnection().getTimeZone(), statement.properties));
     }
 
-    private String buildSQL() {
+    String getSql() {
         if (null != table) {
-            return "INSERT INTO " + table;
+            return "INSERT INTO " + table + " FORMAT " + format;
         } else if (null != sql) {
-            return sql;
+            String result = sql;
+            if (!ClickHouseFormat.containsFormat(result)) {
+                result += " FORMAT " + format;
+            }
+            return result;
         } else {
             throw new IllegalArgumentException("Neither table nor SQL clause are specified");
+        }
+    }
+
+    private interface InputStreamProvider {
+        InputStream get() throws IOException;
+    }
+
+    private static final class FileInputProvider implements InputStreamProvider {
+        private final File file;
+
+        private FileInputProvider(File file) {
+            this.file = file;
+        }
+
+        @Override
+        public InputStream get() throws IOException {
+            return new FileInputStream(file);
+        }
+    }
+
+    private static final class HoldingInputProvider implements InputStreamProvider {
+        private final InputStream stream;
+
+        private HoldingInputProvider(InputStream stream) {
+            this.stream = stream;
+        }
+
+        @Override
+        public InputStream get() throws IOException {
+            return stream;
         }
     }
 }

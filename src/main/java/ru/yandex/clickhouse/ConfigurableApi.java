@@ -9,20 +9,18 @@ class ConfigurableApi<T> {
 
     protected final ClickHouseStatementImpl statement;
     private Map<ClickHouseQueryParam, String> additionalDBParams = new HashMap<ClickHouseQueryParam, String>();
-    private List<ClickHouseExternalData> externalData = new ArrayList<ClickHouseExternalData>();
+    private Map<String, String> additionalRequestParams = new HashMap<String, String>();
 
     ConfigurableApi(ClickHouseStatementImpl statement) {
         this.statement = statement;
     }
 
-    public T withDbParams(Map<ClickHouseQueryParam, String> dbParams) {
-        this.additionalDBParams = null == dbParams ? new HashMap<ClickHouseQueryParam, String>() : dbParams;
-        return (T) this;
+    Map<String, String> getRequestParams() {
+        return additionalRequestParams;
     }
 
-    public T withExternalData(List<ClickHouseExternalData> data) {
-        this.externalData = null == data ? new ArrayList<ClickHouseExternalData>() : data;
-        return (T) this;
+    Map<ClickHouseQueryParam, String> getAdditionalDBParams() {
+        return additionalDBParams;
     }
 
     public T addDbParam(ClickHouseQueryParam param, String value) {
@@ -30,8 +28,25 @@ class ConfigurableApi<T> {
         return (T) this;
     }
 
-    public T addExternalData(ClickHouseExternalData data) {
-        externalData.add(data);
+    public T withDbParams(Map<ClickHouseQueryParam, String> dbParams) {
+        this.additionalDBParams = new HashMap<ClickHouseQueryParam, String>();
+        if (null != dbParams) {
+            additionalDBParams.putAll(dbParams);
+        }
         return (T) this;
     }
+
+    public T options(Map<String, String> params) {
+        additionalRequestParams = new HashMap<String, String>();
+        if (null != params) {
+            additionalRequestParams.putAll(params);
+        }
+        return (T) this;
+    }
+
+    public T option(String key, String value) {
+        additionalRequestParams.put(key, value);
+        return (T) this;
+    }
+
 }

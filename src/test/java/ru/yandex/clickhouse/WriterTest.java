@@ -4,6 +4,7 @@ import org.mockito.Mockito;
 import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
 import ru.yandex.clickhouse.domain.ClickHouseFormat;
+import ru.yandex.clickhouse.util.ClickHouseStreamCallback;
 
 import java.io.ByteArrayInputStream;
 import java.sql.SQLException;
@@ -18,7 +19,7 @@ public class WriterTest {
         Mockito.when(statement.write()).thenReturn(new Writer(statement));
     }
 
-    @Test(expectedExceptions = SQLException.class, expectedExceptionsMessageRegExp = ".*Neither table nor SQL.*")
+    @Test(expectedExceptions = SQLException.class, expectedExceptionsMessageRegExp = ".*No input data.*")
     public void testNonConfigured() throws SQLException {
         statement.write().send();
     }
@@ -26,6 +27,11 @@ public class WriterTest {
     @Test(expectedExceptions = NullPointerException.class, expectedExceptionsMessageRegExp = "Format can not be null")
     public void testNullFormatGiven() {
         statement.write().format(null);
+    }
+
+    @Test(expectedExceptions = SQLException.class, expectedExceptionsMessageRegExp = "Wrong binary format.*")
+    public void testWrongBinaryFormat() throws SQLException {
+        statement.write().send("INSERT", (ClickHouseStreamCallback)null, ClickHouseFormat.CSV);
     }
 
     @Test

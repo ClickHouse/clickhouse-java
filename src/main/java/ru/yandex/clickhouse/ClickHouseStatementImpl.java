@@ -605,9 +605,7 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
             requestEntity = entityBuilder.build();
         }
 
-        if (properties.isDecompress()) {
-            requestEntity = new LZ4EntityWrapper(requestEntity, properties.getMaxCompressBufferSize());
-        }
+        requestEntity = applyRequestBodyCompression(requestEntity);
 
         HttpEntity entity = null;
         try {
@@ -838,11 +836,32 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
             uri = followRedirects(uri);
             HttpEntity requestEntity = new BodyEntityWrapper(sql, content);
 
+            requestEntity = applyRequestBodyCompression(requestEntity);
             HttpPost httpPost = new HttpPost(uri);
-            if (properties.isDecompress()) {
-                requestEntity = new LZ4EntityWrapper(requestEntity, properties.getMaxCompressBufferSize());
-            }
             httpPost.setEntity(requestEntity);
+            HttpResponse response = client.execute(httpPost);
+            entity = response.getEntity();
+            checkForErrorAndThrow(entity, response);
+        } catch (ClickHouseException e) {
+            throw e;
+        } catch (Exception e) {
+            throw ClickHouseExceptionSpecifier.specify(e, properties.getHost(), properties.getPort());
+        } finally {
+            EntityUtils.consumeQuietly(entity);
+        }
+    }
+
+    void sendStream(Writer writer, HttpEntity content) throws ClickHouseException {
+        HttpEntity entity = null;
+        try {
+
+            URI uri = buildRequestUri(writer.getSql(), null, writer.getAdditionalDBParams(), writer.getRequestParams(), false);
+            uri = followRedirects(uri);
+
+            content = applyRequestBodyCompression(content);
+
+            HttpPost httpPost = new HttpPost(uri);
+            httpPost.setEntity(content);
             HttpResponse response = client.execute(httpPost);
             entity = response.getEntity();
             checkForErrorAndThrow(entity, response);
@@ -881,6 +900,13 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
         return closeOnCompletion;
     }
 
+    private HttpEntity applyRequestBodyCompression(final HttpEntity entity) {
+        if (properties.isDecompress()) {
+            return new LZ4EntityWrapper(entity, properties.getMaxCompressBufferSize());
+        }
+        return entity;
+    }
+
     private ClickHouseResultSet createResultSet(InputStream is, int bufferSize, String db, String table, boolean usesWithTotals,
     		ClickHouseStatement statement, TimeZone timezone, ClickHouseProperties properties) throws IOException {
     	if(isResultSetScrollable) {
@@ -909,5 +935,10 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
     @Override
     public Writer write() {
         return new Writer(this);
+    }
+
+    @Override
+    public Reader read() {
+        return new Reader(this);
     }
 }
