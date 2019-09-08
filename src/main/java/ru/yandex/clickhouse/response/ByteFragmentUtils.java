@@ -14,6 +14,7 @@ final class ByteFragmentUtils {
 
     private static final char ARRAY_ELEMENTS_SEPARATOR = ',';
     private static final char STRING_QUOTATION = '\'';
+    private static final int MAX_ARRAY_DEPTH = 32;
 
     private ByteFragmentUtils() {
     }
@@ -143,19 +144,23 @@ final class ByteFragmentUtils {
         }
     }
 
-    static Object parseArray(ByteFragment value, Class elementClass) {
-        return parseArray(value, elementClass, false, null);
+    static Object parseArray(ByteFragment value, Class elementClass, int arrayLevel) {
+        return parseArray(value, elementClass, false, null, arrayLevel);
     }
 
-    static Object parseArray(ByteFragment value, Class elementClass, SimpleDateFormat dateFormat) {
-        return parseArray(value, elementClass, false, dateFormat);
+    static Object parseArray(ByteFragment value, Class elementClass, SimpleDateFormat dateFormat, int arrayLevel) {
+        return parseArray(value, elementClass, false, dateFormat, arrayLevel);
     }
 
-    static Object parseArray(ByteFragment value, Class elementClass, boolean useObjects) {
-        return parseArray(value, elementClass, useObjects, null);
+    static Object parseArray(ByteFragment value, Class elementClass, boolean useObjects, int arrayLevel) {
+        return parseArray(value, elementClass, useObjects, null, arrayLevel);
     }
 
-    static Object parseArray(ByteFragment value, Class elementClass, boolean useObjects, SimpleDateFormat dateFormat) {
+    static Object parseArray(ByteFragment value, Class elementClass, boolean useObjects, SimpleDateFormat dateFormat, int arrayLevel) {
+        if (arrayLevel > MAX_ARRAY_DEPTH) {
+            throw new IllegalArgumentException("Maximum parse depth exceeded");
+        }
+
         if (value.isNull()) {
             return null;
         }
@@ -171,11 +176,22 @@ final class ByteFragmentUtils {
         ByteFragment trim = value.subseq(1, value.length() - 2);
 
         int index = 0;
-        Object array = java.lang.reflect.Array.newInstance(
-            useObjects ? elementClass : Primitives.unwrap(elementClass),
-            getArrayLength(trim)
-        );
+        Object array;
+        if (arrayLevel > 1) {
+            int[] dimensions = new int[arrayLevel];
+            dimensions[0] = getArrayLength(trim);
+            array = java.lang.reflect.Array.newInstance(
+                useObjects ? elementClass : Primitives.unwrap(elementClass),
+                dimensions
+            );
+        } else {
+            array = java.lang.reflect.Array.newInstance(
+                useObjects ? elementClass : Primitives.unwrap(elementClass),
+                getArrayLength(trim)
+            );
+        }
         int fieldStart = 0;
+        int currentLevel = 0;
         boolean inQuotation = false;
         for (int chIdx = 0; chIdx < trim.length(); chIdx++) {
             int ch = trim.charAt(chIdx);
@@ -184,16 +200,25 @@ final class ByteFragmentUtils {
                 chIdx++;
             }
             inQuotation = ch == STRING_QUOTATION ^ inQuotation;
+            if (!inQuotation) {
+                if (ch == '[') {
+                    currentLevel++;
+                } else if (ch == ']') {
+                    currentLevel--;
+                }
+            }
 
-            if (!inQuotation && ch == ARRAY_ELEMENTS_SEPARATOR || chIdx == trim.length() - 1) {
+            if (!inQuotation && ch == ARRAY_ELEMENTS_SEPARATOR && currentLevel == 0 || chIdx == trim.length() - 1) {
                 int fieldEnd = chIdx == trim.length() - 1 ? chIdx + 1 : chIdx;
                 if (trim.charAt(fieldStart) == '\'') {
                     fieldStart++;
                     fieldEnd--;
                 }
                 ArrayByteFragment fragment = ArrayByteFragment.wrap(trim.subseq(fieldStart, fieldEnd - fieldStart));
-
-                if (elementClass == String.class) {
+                if (arrayLevel > 1) {
+                    Object arrayValue = parseArray(fragment, elementClass, useObjects, dateFormat, arrayLevel - 1);
+                    java.lang.reflect.Array.set(array, index++, arrayValue);
+                } else if (elementClass == String.class) {
                     String stringValue = fragment.asString(true);
                     java.lang.reflect.Array.set(array, index++, stringValue);
                 } else if (elementClass == Long.class) {
@@ -290,6 +315,7 @@ final class ByteFragmentUtils {
 
         int length = 1;
         boolean inQuotation = false;
+        int arrayLevel = 0;
         for (int i = 0; i < value.length(); i++) {
             int ch = value.charAt(i);
 
@@ -298,9 +324,14 @@ final class ByteFragmentUtils {
             }
 
             inQuotation = ch == STRING_QUOTATION ^ inQuotation;
-
-            if (!inQuotation && ch == ARRAY_ELEMENTS_SEPARATOR) {
-                length++;
+            if (!inQuotation) {
+                if (ch == '[') {
+                    ++arrayLevel;
+                } else if (ch == ']') {
+                    --arrayLevel;
+                } else if (ch == ARRAY_ELEMENTS_SEPARATOR && arrayLevel == 0) {
+                    ++length;
+                }
             }
         }
         return length;
