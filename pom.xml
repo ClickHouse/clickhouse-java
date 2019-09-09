@@ -4,7 +4,7 @@
 
     <groupId>ru.yandex.clickhouse</groupId>
     <artifactId>clickhouse-jdbc</artifactId>
-    <version>0.1-SNAPSHOT</version>
+    <version>${project.version}</version>
     <packaging>jar</packaging>
 
     <name>clickhouse-jdbc</name>
@@ -39,10 +39,16 @@
             <name>Yuriy Galitskiy</name>
             <email>orantius@yandex-team.ru</email>
         </developer>
+        <developer>
+            <id>krash</id>
+            <name>Alexandr Krasheninnikov</name>
+            <email>krash3@gmail.com</email>
+        </developer>
     </developers>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <project.version>0.1.55</project.version>
     </properties>
 
     <dependencies>

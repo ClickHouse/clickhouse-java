@@ -26,6 +26,7 @@ public enum ClickHouseFormat {
     JSONCompact,
     JSONEachRow,
     TSKV,
+    TSV,
     Pretty,
     PrettyCompact,
     PrettyCompactMonoBlock,

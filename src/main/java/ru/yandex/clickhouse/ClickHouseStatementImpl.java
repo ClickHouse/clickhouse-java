@@ -1,5 +1,31 @@
 package ru.yandex.clickhouse;
 
+import com.google.common.base.Strings;
+import org.apache.http.HttpEntity;
+import org.apache.http.HttpResponse;
+import org.apache.http.NameValuePair;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.client.utils.URIBuilder;
+import org.apache.http.entity.ContentType;
+import org.apache.http.entity.StringEntity;
+import org.apache.http.entity.mime.MultipartEntityBuilder;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.message.BasicNameValuePair;
+import org.apache.http.util.EntityUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import ru.yandex.clickhouse.domain.ClickHouseFormat;
+import ru.yandex.clickhouse.except.ClickHouseException;
+import ru.yandex.clickhouse.except.ClickHouseExceptionSpecifier;
+import ru.yandex.clickhouse.response.*;
+import ru.yandex.clickhouse.settings.ClickHouseProperties;
+import ru.yandex.clickhouse.settings.ClickHouseQueryParam;
+import ru.yandex.clickhouse.util.ClickHouseRowBinaryInputStream;
+import ru.yandex.clickhouse.util.ClickHouseStreamCallback;
+import ru.yandex.clickhouse.util.Utils;
+import ru.yandex.clickhouse.util.guava.StreamUtils;
+
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -9,46 +35,7 @@ import java.net.URISyntaxException;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.SQLWarning;
-import java.util.ArrayList;
-import java.util.EnumMap;
-import java.util.List;
-import java.util.Map;
-import java.util.TimeZone;
-import java.util.UUID;
-
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpResponse;
-import org.apache.http.NameValuePair;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.client.utils.URIBuilder;
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.InputStreamEntity;
-import org.apache.http.entity.StringEntity;
-import org.apache.http.entity.mime.MultipartEntityBuilder;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.message.BasicNameValuePair;
-import org.apache.http.util.EntityUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import com.google.common.base.Strings;
-
-import ru.yandex.clickhouse.domain.ClickHouseFormat;
-import ru.yandex.clickhouse.except.ClickHouseException;
-import ru.yandex.clickhouse.except.ClickHouseExceptionSpecifier;
-import ru.yandex.clickhouse.response.ClickHouseLZ4Stream;
-import ru.yandex.clickhouse.response.ClickHouseResponse;
-import ru.yandex.clickhouse.response.ClickHouseResultSet;
-import ru.yandex.clickhouse.response.ClickHouseScrollableResultSet;
-import ru.yandex.clickhouse.response.FastByteArrayOutputStream;
-import ru.yandex.clickhouse.settings.ClickHouseProperties;
-import ru.yandex.clickhouse.settings.ClickHouseQueryParam;
-import ru.yandex.clickhouse.util.ClickHouseRowBinaryInputStream;
-import ru.yandex.clickhouse.util.ClickHouseStreamCallback;
-import ru.yandex.clickhouse.util.ClickHouseStreamHttpEntity;
-import ru.yandex.clickhouse.util.Utils;
-import ru.yandex.clickhouse.util.guava.StreamUtils;
+import java.util.*;
 
 
 public class ClickHouseStatementImpl implements ClickHouseStatement {
@@ -616,9 +603,7 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
             requestEntity = entityBuilder.build();
         }
 
-        if (properties.isDecompress()) {
-            requestEntity = new LZ4EntityWrapper(requestEntity, properties.getMaxCompressBufferSize());
-        }
+        requestEntity = applyRequestBodyCompression(requestEntity);
 
         HttpEntity entity = null;
         try {
@@ -775,9 +760,8 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
 
     @Override
     public void sendRowBinaryStream(String sql, Map<ClickHouseQueryParam, String> additionalDBParams, ClickHouseStreamCallback callback) throws SQLException {
-        sendStream(
-                new ClickHouseStreamHttpEntity(callback, getConnection().getTimeZone(), properties), sql, ClickHouseFormat.RowBinary, additionalDBParams
-        );
+        write().withDbParams(additionalDBParams)
+                .send(sql, callback, ClickHouseFormat.RowBinary);
     }
 
     @Override
@@ -787,38 +771,47 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
 
     @Override
     public void sendNativeStream(String sql, Map<ClickHouseQueryParam, String> additionalDBParams, ClickHouseStreamCallback callback) throws SQLException {
-        sendStream(
-                new ClickHouseStreamHttpEntity(callback, getConnection().getTimeZone(), properties), sql, ClickHouseFormat.Native, additionalDBParams
-        );
+        write().withDbParams(additionalDBParams)
+                .send(sql, callback, ClickHouseFormat.Native);
     }
 
     @Override
-    public void sendCSVStream(InputStream content, String table, Map<ClickHouseQueryParam, String> additionalDBParams) throws ClickHouseException {
-        String query = "INSERT INTO " + table;
-        sendStream(new InputStreamEntity(content, -1), query, ClickHouseFormat.CSV, additionalDBParams);
+    public void sendCSVStream(InputStream content, String table, Map<ClickHouseQueryParam, String> additionalDBParams) throws SQLException {
+        write()
+                .table(table)
+                .withDbParams(additionalDBParams)
+                .data(content)
+                .format(ClickHouseFormat.CSV)
+                .send();
     }
 
     @Override
-    public void sendCSVStream(InputStream content, String table) throws ClickHouseException {
+    public void sendCSVStream(InputStream content, String table) throws SQLException {
         sendCSVStream(content, table, null);
     }
 
     @Override
-    public void sendStream(InputStream content, String table) throws ClickHouseException {
+    public void sendStream(InputStream content, String table) throws SQLException {
         sendStream(content, table, null);
     }
 
     @Override
     public void sendStream(InputStream content, String table,
-                           Map<ClickHouseQueryParam, String> additionalDBParams) throws ClickHouseException {
-        String query = "INSERT INTO " + table;
-        sendStream(new InputStreamEntity(content, -1), query, ClickHouseFormat.TabSeparated, additionalDBParams);
+                           Map<ClickHouseQueryParam, String> additionalDBParams) throws SQLException {
+        write()
+                .table(table)
+                .data(content)
+                .withDbParams(additionalDBParams)
+                .format(ClickHouseFormat.TabSeparated)
+                .send();
     }
 
+    @Deprecated
     public void sendStream(HttpEntity content, String sql) throws ClickHouseException {
         sendStream(content, sql, ClickHouseFormat.TabSeparated, null);
     }
 
+    @Deprecated
     public void sendStream(HttpEntity content, String sql,
                            Map<ClickHouseQueryParam, String> additionalDBParams) throws ClickHouseException {
         sendStream(content, sql, ClickHouseFormat.TabSeparated, additionalDBParams);
@@ -826,34 +819,33 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
 
     private void sendStream(HttpEntity content, String sql, ClickHouseFormat format,
                             Map<ClickHouseQueryParam, String> additionalDBParams) throws ClickHouseException {
-        sendStreamSQL(content, sql + " FORMAT " + format.name(), additionalDBParams);
+
+        Writer writer = write().format(format).withDbParams(additionalDBParams).sql(sql);
+        sendStream(writer, content);
     }
 
     @Override
     public void sendStreamSQL(InputStream content, String sql,
-                              Map<ClickHouseQueryParam, String> additionalDBParams) throws ClickHouseException {
-        sendStreamSQL(new InputStreamEntity(content, -1), sql, additionalDBParams);
+                              Map<ClickHouseQueryParam, String> additionalDBParams) throws SQLException {
+        write().data(content).sql(sql).withDbParams(additionalDBParams).send();
     }
 
     @Override
-    public void sendStreamSQL(InputStream content, String sql) throws ClickHouseException {
-        sendStreamSQL(new InputStreamEntity(content, -1), sql, null);
+    public void sendStreamSQL(InputStream content, String sql) throws SQLException {
+        write().sql(sql).data(content).send();
     }
 
-    private void sendStreamSQL(HttpEntity content, String sql,
-                            Map<ClickHouseQueryParam, String> additionalDBParams) throws ClickHouseException {
-        // echo -ne '10\n11\n12\n' | POST 'http://localhost:8123/?query=INSERT INTO t FORMAT TabSeparated'
+    void sendStream(Writer writer, HttpEntity content) throws ClickHouseException {
         HttpEntity entity = null;
         try {
-            URI uri = buildRequestUri(null, null, additionalDBParams, null, false);
+
+            URI uri = buildRequestUri(writer.getSql(), null, writer.getAdditionalDBParams(), writer.getRequestParams(), false);
             uri = followRedirects(uri);
-            HttpEntity requestEntity = new BodyEntityWrapper(sql, content);
+
+            content = applyRequestBodyCompression(content);
 
             HttpPost httpPost = new HttpPost(uri);
-            if (properties.isDecompress()) {
-                requestEntity = new LZ4EntityWrapper(requestEntity, properties.getMaxCompressBufferSize());
-            }
-            httpPost.setEntity(requestEntity);
+            httpPost.setEntity(content);
             HttpResponse response = client.execute(httpPost);
             entity = response.getEntity();
             checkForErrorAndThrow(entity, response);
@@ -892,6 +884,13 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
         return closeOnCompletion;
     }
 
+    private HttpEntity applyRequestBodyCompression(final HttpEntity entity) {
+        if (properties.isDecompress()) {
+            return new LZ4EntityWrapper(entity, properties.getMaxCompressBufferSize());
+        }
+        return entity;
+    }
+
     private ClickHouseResultSet createResultSet(InputStream is, int bufferSize, String db, String table, boolean usesWithTotals,
     		ClickHouseStatement statement, TimeZone timezone, ClickHouseProperties properties) throws IOException {
     	if(isResultSetScrollable) {
@@ -915,5 +914,10 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
         }
 
         return parameters;
+    }
+
+    @Override
+    public Writer write() {
+        return new Writer(this);
     }
 }

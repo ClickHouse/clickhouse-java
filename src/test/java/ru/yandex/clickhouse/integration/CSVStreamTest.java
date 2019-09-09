@@ -9,6 +9,7 @@ import ru.yandex.clickhouse.settings.ClickHouseProperties;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
+import java.io.StringBufferInputStream;
 import java.nio.charset.Charset;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -34,6 +35,7 @@ public class CSVStreamTest {
 
         String string = "5,6\n1,6";
         InputStream inputStream = new ByteArrayInputStream(string.getBytes(Charset.forName("UTF-8")));
+        inputStream = new StringBufferInputStream(string);
 
         connection.createStatement().sendCSVStream(inputStream, "test.csv_stream");
 
