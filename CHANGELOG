@@ -1,3 +1,6 @@
+0.2
+  * new API for writing streams of data
+  * deprecation of send* methods in ClickHouseStatement interface
 0.1.55
 NOTE: behavior for byte[] parameters changed. See https://github.com/yandex/clickhouse-jdbc/pull/352
   * support for sending stream of CSV data
