@@ -69,12 +69,20 @@ public class Writer extends ConfigurableApi<Writer> {
         return this;
     }
 
+    public Writer data(InputStream stream, ClickHouseFormat format) {
+        return format(format).data(stream);
+    }
+
     /**
      * Shortcut method for specifying a file as an input
      */
     public Writer data(File input) {
         streamProvider = new FileInputProvider(input);
         return this;
+    }
+
+    public Writer data(File input, ClickHouseFormat format) {
+        return format(format).data(input);
     }
 
     /**
