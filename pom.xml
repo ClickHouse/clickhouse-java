@@ -4,7 +4,7 @@
 
     <groupId>ru.yandex.clickhouse</groupId>
     <artifactId>clickhouse-jdbc</artifactId>
-    <version>${project.version}</version>
+    <version>0.1.55</version>
     <packaging>jar</packaging>
 
     <name>clickhouse-jdbc</name>
@@ -48,7 +48,6 @@
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <project.version>0.1.55</project.version>
     </properties>
 
     <dependencies>
