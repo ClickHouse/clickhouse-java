@@ -15,22 +15,10 @@ import java.util.Map;
 
 public interface ClickHouseStatement extends Statement {
 
-    /**
-     * @see #read()
-     */
-    @Deprecated
     ClickHouseResponse executeQueryClickhouseResponse(String sql) throws SQLException;
 
-    /**
-     * @see #read()
-     */
-    @Deprecated
     ClickHouseResponse executeQueryClickhouseResponse(String sql, Map<ClickHouseQueryParam, String> additionalDBParams) throws SQLException;
 
-    /**
-     * @see #read()
-     */
-    @Deprecated
     ClickHouseResponse executeQueryClickhouseResponse(String sql,
                                                       Map<ClickHouseQueryParam, String> additionalDBParams,
                                                       Map<String, String> additionalRequestParams) throws SQLException;
@@ -117,9 +105,4 @@ public interface ClickHouseStatement extends Statement {
      * Returns extended write-API
      */
     Writer write();
-
-    /**
-     * Returns extended read-API
-     */
-    Reader read();
 }
