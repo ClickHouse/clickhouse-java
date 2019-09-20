@@ -44,7 +44,7 @@ import ru.yandex.clickhouse.ClickHouseStatement;
 ClickHouseStatement sth = connection.createStatement();
 sth
     .write()
-    .sql("INSERT INTO default.my_table (a,b,c) VALUES")
+    .sql("INSERT INTO default.my_table (a,b,c)")
     .data(new MyCustomInputStream(), ClickHouseFormat.JSONEachRow)
     .addDbParam(ClickHouseQueryParam.MAX_PARALLEL_REPLICAS, 2)
     .send();
