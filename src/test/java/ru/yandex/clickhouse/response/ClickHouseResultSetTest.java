@@ -328,6 +328,34 @@ public class ClickHouseResultSetTest {
     }
 
     @Test
+    public void test3dArrayString() throws Exception {
+        String response =
+            "FOO\n"
+          + "Array(Array(Array(String)))\n"
+          + "[[[a,b],[c,d]],[[e,f],[g,h]]]";
+        ByteArrayInputStream is = new ByteArrayInputStream(response.getBytes("UTF-8"));
+        ResultSet rs = buildResultSet(is, 1024, "db", "table", false, null, null, props);
+        ResultSetMetaData meta = rs.getMetaData();
+        assertEquals("java.sql.Array", meta.getColumnClassName(1));
+        rs.next();
+
+        Object o = rs.getObject(1);
+        assertTrue(Array.class.isAssignableFrom(o.getClass()), o.getClass().getCanonicalName());
+        String[][][] actual = (String[][][]) ((Array) o).getArray();
+        String[][][] expected = {{{"a", "b"}, {"c","d"}}, {{"e", "f"}, {"g", "h"}}};
+        assertEquals(expected.length, actual.length);
+        for (int i = 0; i < expected.length; ++i) {
+            assertEquals(expected[i].length, actual[i].length);
+            for (int j = 0; j < expected[i].length; ++j) {
+                assertEquals(expected[i][j].length, actual[i][j].length);
+                for (int k = 0; k < expected[i][j].length; ++k) {
+                    assertEquals(expected[i][j][k], actual[i][j][k]);
+                }
+            }
+        }
+    }
+
+    @Test
     public void testClassNamesObjects() throws Exception {
         String testData = ClickHouseTypesTestData.buildTestString();
         ByteArrayInputStream is = new ByteArrayInputStream(testData.getBytes("UTF-8"));

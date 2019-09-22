@@ -307,7 +307,8 @@ public class ClickHouseResultSet extends AbstractResultSet {
                     getValue(columnIndex),
                     colInfo.getArrayBaseType().getJavaClass(),
                     properties.isUseObjectsInArrays(),
-                    dateFormat
+                    dateFormat,
+                    colInfo.getArrayLevel()
                 );
                 break;
             case DateTime :
@@ -319,14 +320,16 @@ public class ClickHouseResultSet extends AbstractResultSet {
                     getValue(columnIndex),
                     colInfo.getArrayBaseType().getJavaClass(),
                     properties.isUseObjectsInArrays(),
-                    dateTimeFormat
+                    dateTimeFormat,
+                    colInfo.getArrayLevel()
                 );
                 break;
             default :
                 array = parseArray(
                     getValue(columnIndex),
                     colInfo.getArrayBaseType().getJavaClass(),
-                    properties.isUseObjectsInArrays()
+                    properties.isUseObjectsInArrays(),
+                    colInfo.getArrayLevel()
                 );
                 break;
         }
