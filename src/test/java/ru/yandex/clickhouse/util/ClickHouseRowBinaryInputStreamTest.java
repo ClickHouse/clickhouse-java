@@ -5,6 +5,8 @@ import org.testng.annotations.Test;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
 
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.nio.charset.Charset;
 import java.util.Date;
 import java.util.TimeZone;
 
@@ -78,6 +80,12 @@ public class ClickHouseRowBinaryInputStreamTest {
 		assertEquals(input.readUInt64AsLong(), UnsignedLong.valueOf("18446744073709551615").longValue());
 	}
 
+	@Test
+	public void testFixedString() throws Exception {
+		ClickHouseRowBinaryInputStream input = prepareStream(new byte[]{48, 49, 48, 49, 55, 49, 50, 50, 48, 48});
+
+		assertEquals(input.readFixedString(10), "0101712200");
+	}
 
 	@Test
 	public void testOne() throws Exception {
