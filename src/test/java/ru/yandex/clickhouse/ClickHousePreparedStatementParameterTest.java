@@ -20,4 +20,14 @@ public class ClickHousePreparedStatementParameterTest {
         assertSame(p1, p0);
     }
 
+    @Test
+    public void testArrayAndCollectionParam() {
+        ClickHousePreparedStatementParameter p0 =
+                ClickHousePreparedStatementParameter.fromObject(Arrays.asList("A", "B", "C"), TimeZone.getDefault(), TimeZone.getDefault());
+        ClickHousePreparedStatementParameter p1 =
+                ClickHousePreparedStatementParameter.fromObject(new String[]{"A", "B", "C"}, TimeZone.getDefault(), TimeZone.getDefault());
+        assertEquals(p0.getRegularValue(), p1.getRegularValue());
+        assertEquals(p0.getBatchValue(), p1.getBatchValue());
+    }
+
 }
