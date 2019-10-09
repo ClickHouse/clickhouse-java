@@ -1,10 +1,11 @@
+dist: trusty
 group: deprecated-2017Q2
 sudo: required
 language: java
 install: mvn install -DskipTests=true -Dgpg.skip=true
 jdk:
   - openjdk6
-  - oraclejdk8
+  - openjdk8
 services:
   - docker
 before_script:
