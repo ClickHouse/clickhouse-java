@@ -1,5 +1,6 @@
 package ru.yandex.clickhouse.integration;
 
+import org.testng.Assert;
 import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
 import ru.yandex.clickhouse.ClickHouseConnection;
@@ -11,6 +12,9 @@ import ru.yandex.clickhouse.util.ClickHouseStreamCallback;
 
 import java.io.IOException;
 import java.sql.Date;
+import java.sql.ResultSet;
+
+import static org.testng.Assert.assertEquals;
 
 public class NativeStreamTest {
 
@@ -48,7 +52,7 @@ public class NativeStreamTest {
                     stream.writeDate(date1);  // value
 
                     stream.writeString("lowCardinality"); // Column name
-                    stream.writeString("LowCardinality(String)");  // Column type
+                    stream.writeString("String");  // Column type
                     stream.writeString("string");  // value
 
                     stream.writeString("string"); // Column name
@@ -57,5 +61,11 @@ public class NativeStreamTest {
                 }
             }
         );
+
+        ResultSet rs = connection.createStatement().executeQuery("SELECT * FROM test.low_cardinality");
+
+        Assert.assertTrue(rs.next());
+        assertEquals(rs.getString("lowCardinality"), "string");
+        assertEquals(rs.getString("string"), "string");
     }
 }
