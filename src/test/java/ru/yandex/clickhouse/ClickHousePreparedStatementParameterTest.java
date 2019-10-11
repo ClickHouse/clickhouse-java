@@ -2,6 +2,9 @@ package ru.yandex.clickhouse;
 
 import org.testng.annotations.Test;
 
+import java.util.Arrays;
+import java.util.TimeZone;
+
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertSame;
 
