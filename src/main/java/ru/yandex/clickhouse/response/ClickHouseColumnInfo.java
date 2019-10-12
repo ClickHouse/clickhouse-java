@@ -1,14 +1,19 @@
 package ru.yandex.clickhouse.response;
 
+import java.lang.reflect.Array;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.TimeZone;
 
 import ru.yandex.clickhouse.domain.ClickHouseDataType;
+import ru.yandex.clickhouse.response.ClickHouseColumnInfo;
 
 public final class ClickHouseColumnInfo {
 
     private static final String KEYWORD_NULLABLE = "Nullable";
     private static final String KEYWORD_LOW_CARDINALITY = "LowCardinality";
     private static final String KEYWORD_ARRAY = "Array";
+    private static final String KEYWORD_TUPLE = "Tuple";
 
     private ClickHouseDataType clickHouseDataType;
     private final String originalTypeName;
@@ -20,31 +25,48 @@ public final class ClickHouseColumnInfo {
     private TimeZone timeZone;
     private int precision;
     private int scale;
+    private List<ClickHouseColumnInfo> tupleElementTypes;
 
     public static ClickHouseColumnInfo parse(String typeInfo, String columnName) {
+        return parse(typeInfo, columnName, new int[]{0});
+    }
+
+    public static ClickHouseColumnInfo parse(String typeInfo, String columnName, int[] currIdx) {
         ClickHouseColumnInfo column = new ClickHouseColumnInfo(typeInfo, columnName);
-        int currIdx = 0;
-        while (typeInfo.startsWith(KEYWORD_ARRAY, currIdx)) {
+        if (typeInfo.startsWith(KEYWORD_TUPLE, currIdx[0])) {
+            column.clickHouseDataType = ClickHouseDataType.Tuple;
+            column.tupleElementTypes = new ArrayList<>();
+            currIdx[0] += KEYWORD_TUPLE.length() + 1; // 1 for '('
+            while(true) {
+                ClickHouseColumnInfo chci = parse(typeInfo, null, currIdx);
+                column.tupleElementTypes.add(chci);
+                if (typeInfo.charAt(currIdx[0]) == ')') {
+                    currIdx[0] += 1; // 1 for ')'
+                    return column;
+                } else {
+                    currIdx[0] += 2; //2 for ", " separator
+                }
+            }
+        }
+        while (typeInfo.startsWith(KEYWORD_ARRAY, currIdx[0])) {
             column.arrayLevel++;
             column.clickHouseDataType = ClickHouseDataType.Array;
-            currIdx += KEYWORD_ARRAY.length() + 1; // opening parenthesis
+            currIdx[0] += KEYWORD_ARRAY.length() + 1; // opening parenthesis
         }
-        if (typeInfo.startsWith(KEYWORD_LOW_CARDINALITY, currIdx)) {
+        if (typeInfo.startsWith(KEYWORD_LOW_CARDINALITY, currIdx[0])) {
             column.lowCardinality = true;
-            currIdx += KEYWORD_LOW_CARDINALITY.length() + 1;
+            currIdx[0] += KEYWORD_LOW_CARDINALITY.length() + 1;
         }
-        if (typeInfo.startsWith(KEYWORD_NULLABLE, currIdx)) {
+        if (typeInfo.startsWith(KEYWORD_NULLABLE, currIdx[0])) {
             column.nullable = true;
-            currIdx += KEYWORD_NULLABLE.length() + 1;
+            currIdx[0] += KEYWORD_NULLABLE.length() + 1;
         }
-        int endIdx = typeInfo.indexOf("(", currIdx) < 0
-            ? typeInfo.indexOf(")", currIdx)
-            : typeInfo.indexOf("(", currIdx);
+        int endIdx = findFirstChar(typeInfo, currIdx[0], '(', ')', ',');
         if (endIdx < 0) {
             endIdx = typeInfo.length();
         }
         ClickHouseDataType dataType = ClickHouseDataType.fromTypeString(
-            typeInfo.substring(currIdx, endIdx));
+            typeInfo.substring(currIdx[0], endIdx));
         if (column.arrayLevel > 0) {
             column.arrayBaseType = dataType;
         } else {
@@ -52,9 +74,9 @@ public final class ClickHouseColumnInfo {
         }
         column.precision = dataType.getDefaultPrecision();
         column.scale = dataType.getDefaultScale();
-        currIdx = endIdx;
+        currIdx[0] = endIdx;
         if (endIdx == typeInfo.length()
-            || !typeInfo.startsWith("(", currIdx))
+            || !typeInfo.startsWith("(", currIdx[0]))
         {
             return column;
         }
@@ -93,15 +115,30 @@ public final class ClickHouseColumnInfo {
         return column;
     }
 
-    private static String[] splitArgs(String args, int currIdx) {
+    private static int findFirstChar(String str, int startIdx, char... ch) {
+        for (int i = startIdx; i<str.length(); i++) {
+            char strCh = str.charAt(i);
+            for (int j = 0; j<ch.length; j++) {
+                if (strCh == ch[j]) {
+                    return i;
+                }
+            }
+        }
+        return -1;
+    }
+
+    private static String[] splitArgs(String args, int[] currIdx) {
         // There can be arguments containing a closing parentheses
         // e.g. Enum8(\'f(o)o\' = 42), but we currently do not try
         // to parse any of those
-        return args
+        int endIdx = args.indexOf(")", currIdx[0]);
+        String[] result = args
             .substring(
-                args.indexOf("(", currIdx) + 1,
-                args.indexOf(")", currIdx))
+                args.indexOf("(", currIdx[0]) + 1,
+                endIdx)
             .split("\\s*,\\s*");
+        currIdx[0] = endIdx + 1;
+        return result;
     }
 
     private ClickHouseColumnInfo(String originalTypeName, String columnName) {
