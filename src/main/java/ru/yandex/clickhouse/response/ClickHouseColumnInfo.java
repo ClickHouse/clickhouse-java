@@ -35,7 +35,7 @@ public final class ClickHouseColumnInfo {
         ClickHouseColumnInfo column = new ClickHouseColumnInfo(typeInfo, columnName);
         if (typeInfo.startsWith(KEYWORD_TUPLE, currIdx[0])) {
             column.clickHouseDataType = ClickHouseDataType.Tuple;
-            column.tupleElementTypes = new ArrayList<>();
+            column.tupleElementTypes = new ArrayList<ClickHouseColumnInfo>();
             currIdx[0] += KEYWORD_TUPLE.length() + 1; // 1 for '('
             while(true) {
                 ClickHouseColumnInfo chci = parse(typeInfo, null, currIdx);
