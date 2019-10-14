@@ -174,6 +174,9 @@ public final class ClickHouseValueFormatter {
         if (o instanceof ClickHouseArray) {
             return false;
         }
+        if (o instanceof Collection) {
+            return false;
+        }
         return true;
     }
 
