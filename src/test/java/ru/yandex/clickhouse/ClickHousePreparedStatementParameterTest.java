@@ -1,5 +1,8 @@
 package ru.yandex.clickhouse;
 
+import java.util.Arrays;
+import java.util.TimeZone;
+
 import org.testng.annotations.Test;
 
 import static org.testng.Assert.assertEquals;
