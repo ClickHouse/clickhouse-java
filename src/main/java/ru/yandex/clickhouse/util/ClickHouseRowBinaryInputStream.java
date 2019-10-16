@@ -84,6 +84,13 @@ public class ClickHouseRowBinaryInputStream implements Closeable {
 		return new String(bytes, StreamUtils.UTF_8);
 	}
 
+	public String readFixedString(int length) throws IOException {
+		byte[] bytes = new byte[length];
+		readBytes(bytes);
+
+		return new String(bytes, StreamUtils.UTF_8);
+	}
+
 	private void validateInt(int value, int minValue, int maxValue, String dataType) {
 		if (value < minValue || value > maxValue) {
 			throw new IllegalStateException("Not a " + dataType + " value: " + value);
