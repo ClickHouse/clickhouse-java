@@ -75,7 +75,8 @@ public class RowBinaryStreamTest {
                         "uInt64Array Array(UInt64), " +
                         "float32Array Array(Float32), " +
                         "float64Array Array(Float64), " +
-                        "uuid UUID" +
+                        "uuid UUID," +
+                        "lowCardinality LowCardinality(String)" +
                         ") ENGINE = MergeTree(date, (date), 8192)"
         );
     }
@@ -146,7 +147,7 @@ public class RowBinaryStreamTest {
 
         statement.sendRowBinaryStream(
                 "INSERT INTO test.raw_binary " +
-                        "(date, dateTime, string, int8, uInt8, int16, uInt16, int32, uInt32, int64, uInt64, float32, float64, dateArray, dateTimeArray, stringArray, int8Array, uInt8Array, int16Array, uInt16Array, int32Array, uInt32Array, int64Array, uInt64Array, float32Array, float64Array, uuid)",
+                        "(date, dateTime, string, int8, uInt8, int16, uInt16, int32, uInt32, int64, uInt64, float32, float64, dateArray, dateTimeArray, stringArray, int8Array, uInt8Array, int16Array, uInt16Array, int32Array, uInt32Array, int64Array, uInt64Array, float32Array, float64Array, uuid, lowCardinality)",
                 new ClickHouseStreamCallback() {
                     @Override
                     public void writeTo(ClickHouseRowBinaryStream stream) throws IOException {
@@ -178,6 +179,7 @@ public class RowBinaryStreamTest {
                         stream.writeFloat32Array(float32s1);
                         stream.writeFloat64Array(float64s1);
                         stream.writeUUID(uuid1);
+                        stream.writeString("lowCardinality\n1");
 
                         stream.writeDate(date2);
                         stream.writeDateTime(date2);
@@ -206,6 +208,7 @@ public class RowBinaryStreamTest {
                         stream.writeFloat32Array(new float[]{});
                         stream.writeFloat64Array(new double[]{});
                         stream.writeUUID(uuid2);
+                        stream.writeString("lowCardinality\n2");
                     }
                 }
         );
@@ -228,6 +231,7 @@ public class RowBinaryStreamTest {
             assertEquals(rs.getDouble("float32"), 123.456);
             assertEquals(rs.getDouble("float64"), 42.21);
             assertEquals(rs.getObject("uuid").toString(), "123e4567-e89b-12d3-a456-426655440000");
+            assertEquals(rs.getString("lowCardinality"), "lowCardinality\n1");
 
             Date[] expectedDates1 = new Date[dates1.length];
             for (int i = 0; i < dates1.length; i++) {
@@ -270,6 +274,7 @@ public class RowBinaryStreamTest {
             assertEquals(rs.getDouble("float32"), 21.21);
             assertEquals(rs.getDouble("float64"), 77.77);
             assertEquals(rs.getString("uuid"), "789e0123-e89b-12d3-a456-426655444444");
+            assertEquals(rs.getString("lowCardinality"), "lowCardinality\n2");
 
             Assert.assertFalse(rs.next());
         } else {
@@ -316,6 +321,7 @@ public class RowBinaryStreamTest {
             assertEquals(is.readFloat64Array(), float64s1);
 
             assertEquals(is.readUUID(), uuid1);
+            assertEquals(is.readString(), "lowCardinality\n1");
 
             assertEquals(is.readDate(), withTimeAtStartOfDay(date2));
             assertEquals(is.readDateTime().getTime(), date2.getTime());
@@ -347,6 +353,7 @@ public class RowBinaryStreamTest {
             is.readFloat64Array();
 
             assertEquals(is.readUUID(), uuid2);
+            assertEquals(is.readString(), "lowCardinality\n2");
 
             // check EOF
             try {
