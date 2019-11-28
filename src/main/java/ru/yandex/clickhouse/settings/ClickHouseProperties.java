@@ -92,6 +92,7 @@ public class ClickHouseProperties {
     private Long    maxInsertBlockSize;
     private Boolean insertDeduplicate;
     private Boolean insertDistributedSync;
+    private Boolean anyJoinDistinctRightTableKeys;
 
 
     public ClickHouseProperties() {
@@ -159,6 +160,7 @@ public class ClickHouseProperties {
         this.maxInsertBlockSize = getSetting(info, ClickHouseQueryParam.MAX_INSERT_BLOCK_SIZE);
         this.insertDeduplicate = getSetting(info, ClickHouseQueryParam.INSERT_DEDUPLICATE);
         this.insertDistributedSync = getSetting(info, ClickHouseQueryParam.INSERT_DISTRIBUTED_SYNC);
+        this.anyJoinDistinctRightTableKeys = getSetting(info, ClickHouseQueryParam.ANY_JOIN_DISTINCT_RIGHT_TABLE_KEYS);
     }
 
     public Properties asProperties() {
@@ -222,6 +224,7 @@ public class ClickHouseProperties {
         ret.put(ClickHouseQueryParam.MAX_INSERT_BLOCK_SIZE.getKey(), maxInsertBlockSize);
         ret.put(ClickHouseQueryParam.INSERT_DEDUPLICATE.getKey(), insertDeduplicate);
         ret.put(ClickHouseQueryParam.INSERT_DISTRIBUTED_SYNC.getKey(), insertDistributedSync);
+        ret.put(ClickHouseQueryParam.ANY_JOIN_DISTINCT_RIGHT_TABLE_KEYS.getKey(), anyJoinDistinctRightTableKeys);
 
         return ret.getProperties();
     }
@@ -287,6 +290,7 @@ public class ClickHouseProperties {
         setMaxInsertBlockSize(properties.maxInsertBlockSize);
         setInsertDeduplicate(properties.insertDeduplicate);
         setInsertDistributedSync(properties.insertDistributedSync);
+        setAnyJoinDistinctRightTableKeys(properties.anyJoinDistinctRightTableKeys);
     }
 
     public Map<ClickHouseQueryParam, String> buildQueryParams(boolean ignoreDatabase){
@@ -368,6 +372,7 @@ public class ClickHouseProperties {
         addQueryParam(maxInsertBlockSize, ClickHouseQueryParam.MAX_INSERT_BLOCK_SIZE, params);
         addQueryParam(insertDeduplicate, ClickHouseQueryParam.INSERT_DEDUPLICATE, params);
         addQueryParam(insertDistributedSync, ClickHouseQueryParam.INSERT_DISTRIBUTED_SYNC, params);
+        addQueryParam(anyJoinDistinctRightTableKeys, ClickHouseQueryParam.ANY_JOIN_DISTINCT_RIGHT_TABLE_KEYS, params);
 
         if (enableOptimizePredicateExpression != null) {
             params.put(ClickHouseQueryParam.ENABLE_OPTIMIZE_PREDICATE_EXPRESSION, enableOptimizePredicateExpression ? "1" : "0");
@@ -891,6 +896,14 @@ public class ClickHouseProperties {
 
     public void setInsertDistributedSync(Boolean insertDistributedSync) {
         this.insertDistributedSync = insertDistributedSync;
+    }
+
+    public void setAnyJoinDistinctRightTableKeys(Boolean anyJoinDistinctRightTableKeys) {
+        this.anyJoinDistinctRightTableKeys = anyJoinDistinctRightTableKeys;
+    }
+
+    public Boolean getAnyJoinDistinctRightTableKeys() {
+        return anyJoinDistinctRightTableKeys;
     }
 
     private static class PropertiesBuilder {
