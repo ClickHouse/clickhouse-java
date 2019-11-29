@@ -39,6 +39,7 @@ public class ClickHousePropertiesTest {
         Long maxInsertBlockSize = 142L;
         Boolean insertDeduplicate = true;
         Boolean insertDistributedSync = true;
+        Boolean anyJoinDistinctRightTableKeys = true;
 
         ClickHouseProperties properties = new ClickHouseProperties();
         properties.setConnectionTimeout( expectedConnectionTimeout );
@@ -48,6 +49,7 @@ public class ClickHousePropertiesTest {
         properties.setMaxInsertBlockSize(maxInsertBlockSize);
         properties.setInsertDeduplicate(insertDeduplicate);
         properties.setInsertDistributedSync(insertDistributedSync);
+        properties.setAnyJoinDistinctRightTableKeys(anyJoinDistinctRightTableKeys);
 
         ClickHouseDataSource clickHouseDataSource = new ClickHouseDataSource(
                 "jdbc:clickhouse://localhost:8123/test",
@@ -84,6 +86,10 @@ public class ClickHousePropertiesTest {
         Assert.assertEquals(
             clickHouseDataSource.getProperties().getInsertDistributedSync(),
             insertDistributedSync
+        );
+        Assert.assertEquals(
+            clickHouseDataSource.getProperties().getAnyJoinDistinctRightTableKeys(),
+            anyJoinDistinctRightTableKeys
         );
     }
 
