@@ -76,20 +76,20 @@ public class ClickHousePropertiesTest {
                 ClickHouseQueryParam.TOTALS_MODE.getDefaultValue()
         );
         Assert.assertEquals(
-                clickHouseDataSource.getProperties().getMaxInsertBlockSize(),
-                maxInsertBlockSize
+            clickHouseDataSource.getProperties().getMaxInsertBlockSize(),
+            maxInsertBlockSize
         );
         Assert.assertEquals(
-                clickHouseDataSource.getProperties().getInsertDeduplicate(),
-                insertDeduplicate
+            clickHouseDataSource.getProperties().getInsertDeduplicate(),
+            insertDeduplicate
         );
         Assert.assertEquals(
-                clickHouseDataSource.getProperties().getInsertDistributedSync(),
-                insertDistributedSync
+            clickHouseDataSource.getProperties().getInsertDistributedSync(),
+            insertDistributedSync
         );
         Assert.assertEquals(
-                clickHouseDataSource.getProperties().getAnyJoinDistinctRightTableKeys(),
-                anyJoinDistinctRightTableKeys
+            clickHouseDataSource.getProperties().getAnyJoinDistinctRightTableKeys(),
+            anyJoinDistinctRightTableKeys
         );
     }
 
