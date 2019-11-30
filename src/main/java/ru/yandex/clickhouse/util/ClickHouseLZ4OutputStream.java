@@ -9,7 +9,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 
 public class ClickHouseLZ4OutputStream extends OutputStream {
-    private static final LZ4Factory factory = LZ4Factory.safeInstance();
+    private static final LZ4Factory factory = LZ4Factory.fastestInstance();
     private final LittleEndianDataOutputStream dataWrapper;
 
     private byte[] currentBlock;

@@ -14,7 +14,7 @@ import java.io.InputStream;
 
 public class ClickHouseLZ4Stream extends InputStream {
 
-    private static final LZ4Factory factory = LZ4Factory.safeInstance();
+    private static final LZ4Factory factory = LZ4Factory.fastestInstance();
 
     public static final int MAGIC = 0x82;
 
