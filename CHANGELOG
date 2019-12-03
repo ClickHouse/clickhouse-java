@@ -1,3 +1,7 @@
+0.2.1
+  * implement some ResultSet metadata methods
+  * added support for "any_join_distinct_right_table_keys" setting
+  * nested array support
 0.2
   * new API for writing streams of data
   * deprecation of send* methods in ClickHouseStatement interface
