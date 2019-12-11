@@ -110,9 +110,9 @@ public class ClickHouseDataSource implements DataSource {
      * Schedules connections cleaning at a rate. Turned off by default.
      * See https://hc.apache.org/httpcomponents-client-4.5.x/tutorial/html/connmgmt.html#d5e418
      *
-     * @param rate
-     * @param timeUnit
-     * @return this
+     * @param rate period when checking would be performed
+     * @param timeUnit time unit of rate
+     * @return current modified object
      */
     public ClickHouseDataSource withConnectionsCleaning(int rate, TimeUnit timeUnit){
         driver.scheduleConnectionsCleaning(rate, timeUnit);

@@ -178,7 +178,7 @@ public class BalancedClickhouseDataSource implements DataSource {
         }
         Random random = this.randomThreadLocal.get();
         if (random == null) {
-            this.randomThreadLocal.set(new Random(System.currentTimeMillis()));
+            this.randomThreadLocal.set(new Random());
             random = this.randomThreadLocal.get();
         }
 

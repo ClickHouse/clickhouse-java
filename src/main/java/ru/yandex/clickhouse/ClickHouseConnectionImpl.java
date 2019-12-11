@@ -1,18 +1,5 @@
 package ru.yandex.clickhouse;
 
-import com.google.common.base.Strings;
-import org.apache.http.conn.ConnectTimeoutException;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import ru.yandex.clickhouse.except.ClickHouseUnknownException;
-import ru.yandex.clickhouse.settings.ClickHouseConnectionSettings;
-import ru.yandex.clickhouse.settings.ClickHouseProperties;
-import ru.yandex.clickhouse.util.ClickHouseHttpClientBuilder;
-import ru.yandex.clickhouse.util.LogProxy;
-import ru.yandex.clickhouse.util.TypeUtils;
-import ru.yandex.clickhouse.util.guava.StreamUtils;
-
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -39,11 +26,26 @@ import java.util.TimeZone;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 
+import org.apache.http.conn.ConnectTimeoutException;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.google.common.base.Strings;
+
+import ru.yandex.clickhouse.domain.ClickHouseDataType;
+import ru.yandex.clickhouse.except.ClickHouseUnknownException;
+import ru.yandex.clickhouse.settings.ClickHouseConnectionSettings;
+import ru.yandex.clickhouse.settings.ClickHouseProperties;
+import ru.yandex.clickhouse.util.ClickHouseHttpClientBuilder;
+import ru.yandex.clickhouse.util.LogProxy;
+import ru.yandex.clickhouse.util.guava.StreamUtils;
+
 
 public class ClickHouseConnectionImpl implements ClickHouseConnection {
-	
+
 	private static final int DEFAULT_RESULTSET_TYPE = ResultSet.TYPE_FORWARD_ONLY;
-	
+
     private static final Logger log = LoggerFactory.getLogger(ClickHouseConnectionImpl.class);
 
     private final CloseableHttpClient httpclient;
@@ -69,7 +71,7 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
             throw new IllegalArgumentException(e);
         }
         ClickHouseHttpClientBuilder clientBuilder = new ClickHouseHttpClientBuilder(this.properties);
-        log.debug("new connection");
+        log.debug("Create a new connection to {}", url);
         try {
             httpclient = clientBuilder.buildClient();
         }catch (Exception e) {
@@ -107,7 +109,7 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
     public ClickHouseStatement createStatement() throws SQLException {
         return createStatement(DEFAULT_RESULTSET_TYPE);
     }
-    
+
     public ClickHouseStatement createStatement(int resultSetType) throws SQLException {
         return LogProxy.wrap(ClickHouseStatement.class, new ClickHouseStatementImpl(httpclient, this, properties, resultSetType));
     }
@@ -152,6 +154,7 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
             ResultSet rs = createStatement().executeQuery("select version()");
             rs.next();
             serverVersion = rs.getString(1);
+            rs.close();
         }
         return serverVersion;
     }
@@ -367,25 +370,48 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
 
     @Override
     public boolean isValid(int timeout) throws SQLException {
+        if (timeout < 0) {
+            throw new SQLException("Timeout value mustn't be less 0");
+        }
+
         if (isClosed()) {
             return false;
         }
 
+        boolean isAnotherHttpClient = false;
+        CloseableHttpClient closeableHttpClient = null;
         try {
-            ClickHouseProperties properties = new ClickHouseProperties(this.properties);
-            properties.setConnectionTimeout((int) TimeUnit.SECONDS.toMillis(timeout));
-            CloseableHttpClient client = new ClickHouseHttpClientBuilder(properties).buildClient();
-            Statement statement = createClickHouseStatement(client);
+            if (timeout == 0) {
+                closeableHttpClient = this.httpclient;
+            } else {
+                ClickHouseProperties properties = new ClickHouseProperties(this.properties);
+                properties.setConnectionTimeout((int) TimeUnit.SECONDS.toMillis(timeout));
+                properties.setMaxExecutionTime(timeout);
+                closeableHttpClient = new ClickHouseHttpClientBuilder(properties).buildClient();
+                isAnotherHttpClient = true;
+            }
+
+            Statement statement = createClickHouseStatement(closeableHttpClient);
             statement.execute("SELECT 1");
             statement.close();
             return true;
         } catch (Exception e) {
-            boolean isFailOnConnectionTimeout = e.getCause() instanceof ConnectTimeoutException;
+            boolean isFailOnConnectionTimeout =
+                    e instanceof ConnectTimeoutException
+                            || e.getCause() instanceof ConnectTimeoutException;
+
             if (!isFailOnConnectionTimeout) {
                 log.warn("Something had happened while validating a connection", e);
             }
 
             return false;
+        } finally {
+            if (isAnotherHttpClient)
+                try {
+                    closeableHttpClient.close();
+                } catch (IOException e) {
+                    log.warn("Can't close a http client", e);
+                }
         }
     }
 
@@ -411,7 +437,9 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
 
     @Override
     public Array createArrayOf(String typeName, Object[] elements) throws SQLException {
-        return new ClickHouseArray(TypeUtils.toSqlType(typeName), TypeUtils.isUnsigned(typeName), elements);
+        return new ClickHouseArray(
+            ClickHouseDataType.resolveDefaultArrayDataType(typeName),
+            elements);
     }
 
     @Override

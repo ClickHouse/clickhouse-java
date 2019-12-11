@@ -78,7 +78,7 @@ public class StreamUtils {
         try {
             closeable.close();
         } catch (IOException e) {
-            log.error("can not close stream: " + e.getMessage());
+            log.error("can not close stream: {}", e.getMessage());
         }
     }
 
@@ -89,7 +89,7 @@ public class StreamUtils {
         try {
             rs.close();
         } catch (SQLException e) {
-            log.error("can not close resultset: " + e.getMessage());
+            log.error("can not close resultset: {}", e.getMessage());
         }
     }
 }

@@ -1,3 +1,18 @@
+0.2.1
+  * implement some ResultSet metadata methods
+  * added support for "any_join_distinct_right_table_keys" setting
+  * nested array support
+0.2
+  * new API for writing streams of data
+  * deprecation of send* methods in ClickHouseStatement interface
+0.1.55
+NOTE: behavior for byte[] parameters changed. See https://github.com/yandex/clickhouse-jdbc/pull/352
+  * support for sending stream of CSV data
+  * support for 307 redirects and paths in url (when ClickHouse is behind balancer)
+  * query parameters and types handling improved
+  * strict ssl fixed
+  * support for array of decimals
+
 0.1.54
   * added error codes
   * multi-line statement parsing fixed

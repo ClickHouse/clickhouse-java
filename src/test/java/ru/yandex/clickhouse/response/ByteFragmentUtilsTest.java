@@ -10,6 +10,7 @@ import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 import ru.yandex.clickhouse.util.guava.StreamUtils;
 
+import java.math.BigDecimal;
 import java.sql.Date;
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
@@ -17,6 +18,7 @@ import java.util.TimeZone;
 
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertNotNull;
+import static org.testng.Assert.assertNull;
 
 /**
  * @author Aleksandr Kormushin <kormushin@yandex-team.ru>
@@ -49,6 +51,15 @@ public class ByteFragmentUtilsTest {
                 {new long[]{1L, 23L, -123L}},
                 {new long[]{-12345678987654321L, 23325235235L, -12321342L}},
                 {new long[]{}}
+        };
+    }
+
+    @DataProvider(name = "decimalArray")
+    public Object[][] decimalArray() {
+        return new Object[][]{
+                {new BigDecimal[]{BigDecimal.ONE, BigDecimal.valueOf(23L), BigDecimal.valueOf(-123L)}},
+                {new BigDecimal[]{BigDecimal.valueOf(-12345678987654321L), BigDecimal.valueOf(23325235235L), BigDecimal.valueOf(-12321342L)}},
+                {new BigDecimal[]{}}
         };
     }
 
@@ -106,7 +117,7 @@ public class ByteFragmentUtilsTest {
         })) + "']";
         byte[] bytes = sourceString.getBytes(StreamUtils.UTF_8);
         ByteFragment fragment = new ByteFragment(bytes, 0, bytes.length);
-        double[] arr= (double[]) ByteFragmentUtils.parseArray(fragment, Double.class);
+        double[] arr= (double[]) ByteFragmentUtils.parseArray(fragment, Double.class, 1);
         assertEquals(arr, expected);
     }
 
@@ -121,7 +132,7 @@ public class ByteFragmentUtilsTest {
         })) + "']";
         byte[] bytes = sourceString.getBytes(StreamUtils.UTF_8);
         ByteFragment fragment = new ByteFragment(bytes, 0, bytes.length);
-        float[] arr= (float[]) ByteFragmentUtils.parseArray(fragment, Float.class);
+        float[] arr= (float[]) ByteFragmentUtils.parseArray(fragment, Float.class, 1);
         assertEquals(arr, expected);
     }
 
@@ -136,7 +147,7 @@ public class ByteFragmentUtilsTest {
 
         byte[] bytes = sourceString.getBytes(StreamUtils.UTF_8);
         ByteFragment fragment = new ByteFragment(bytes, 0, bytes.length);
-        String[] parsedArray = (String[]) ByteFragmentUtils.parseArray(fragment, String.class);
+        String[] parsedArray = (String[]) ByteFragmentUtils.parseArray(fragment, String.class, 1);
 
         assertNotNull(parsedArray);
         assertEquals(parsedArray.length, array.length);
@@ -156,7 +167,7 @@ public class ByteFragmentUtilsTest {
 
         byte[] bytes = sourceString.getBytes(StreamUtils.UTF_8);
         ByteFragment fragment = new ByteFragment(bytes, 0, bytes.length);
-        Integer[] parsedArray = (Integer[]) ByteFragmentUtils.parseArray(fragment, Integer.class, true);
+        Integer[] parsedArray = (Integer[]) ByteFragmentUtils.parseArray(fragment, Integer.class, true, 1);
 
         assertEquals(parsedArray.length, array.length);
         for (int i = 0; i < parsedArray.length; i++) {
@@ -175,7 +186,7 @@ public class ByteFragmentUtilsTest {
 
         byte[] bytes = sourceString.getBytes(StreamUtils.UTF_8);
         ByteFragment fragment = new ByteFragment(bytes, 0, bytes.length);
-        long[] parsedArray = (long[]) ByteFragmentUtils.parseArray(fragment, Long.class);
+        long[] parsedArray = (long[]) ByteFragmentUtils.parseArray(fragment, Long.class, 1);
 
         assertEquals(parsedArray.length, array.length);
         for (int i = 0; i < parsedArray.length; i++) {
@@ -194,7 +205,7 @@ public class ByteFragmentUtilsTest {
 
         byte[] bytes = sourceString.getBytes(StreamUtils.UTF_8);
         ByteFragment fragment = new ByteFragment(bytes, 0, bytes.length);
-        float[] parsedArray = (float[]) ByteFragmentUtils.parseArray(fragment, Float.class);
+        float[] parsedArray = (float[]) ByteFragmentUtils.parseArray(fragment, Float.class, 1);
 
         assertEquals(parsedArray.length, array.length);
         for (int i = 0; i < parsedArray.length; i++) {
@@ -213,7 +224,7 @@ public class ByteFragmentUtilsTest {
 
         byte[] bytes = sourceString.getBytes(StreamUtils.UTF_8);
         ByteFragment fragment = new ByteFragment(bytes, 0, bytes.length);
-        double[] parsedArray = (double[]) ByteFragmentUtils.parseArray(fragment, Double.class);
+        double[] parsedArray = (double[]) ByteFragmentUtils.parseArray(fragment, Double.class, 1);
 
         assertEquals(parsedArray.length, array.length);
         for (int i = 0; i < parsedArray.length; i++) {
@@ -234,11 +245,107 @@ public class ByteFragmentUtilsTest {
 
         byte[] bytes = sourceString.getBytes(StreamUtils.UTF_8);
         ByteFragment fragment = new ByteFragment(bytes, 0, bytes.length);
-        Date[] parsedArray = (Date[]) ByteFragmentUtils.parseArray(fragment, Date.class, dateFormat);
+        Date[] parsedArray = (Date[]) ByteFragmentUtils.parseArray(fragment, Date.class, dateFormat, 1);
 
         assertEquals(parsedArray.length, array.length);
         for (int i = 0; i < parsedArray.length; i++) {
             assertEquals(parsedArray[i], array[i]);
         }
+    }
+
+    @Test(dataProvider = "decimalArray")
+    public void testParseArray(BigDecimal[] array) throws Exception {
+        String sourceString = "[" + Joiner.on(",").join(Iterables.transform(Arrays.asList(array), new Function<BigDecimal, String>() {
+
+            @Override
+            public String apply(BigDecimal s) {
+                return s.toPlainString();
+            }
+        })) + "]";
+
+        byte[] bytes = sourceString.getBytes(StreamUtils.UTF_8);
+        ByteFragment fragment = new ByteFragment(bytes, 0, bytes.length);
+        BigDecimal[] parsedArray = (BigDecimal[]) ByteFragmentUtils.parseArray(fragment, BigDecimal.class, 1);
+
+        assertEquals(parsedArray.length, array.length);
+        for (int i = 0; i < parsedArray.length; i++) {
+            assertEquals(parsedArray[i], array[i]);
+        }
+    }
+
+    @Test
+    public void testParseArrayThreeLevels() {
+        int[][][] expected  =  {{{10,11,12},{13,14,15}},{{20,21,22},{23,24,25}},{{30,31,32},{33,34,35}}};
+        String sourceString = "[[[10,11,12],[13,14,15]],[[20,21,22],[23,24,25]],[[30,31,32],[33,34,35]]]";
+        byte[] bytes = sourceString.getBytes(StreamUtils.UTF_8);
+        ByteFragment fragment = new ByteFragment(bytes, 0, bytes.length);
+        int[][][] actual = (int[][][]) ByteFragmentUtils.parseArray(fragment, Integer.class, 3);
+        assertEquals(expected, actual);
+    }
+
+    @Test
+    public void testParseArrayTwoLevelsEmpty() {
+        String sourceString = "[[]]";
+        byte[] bytes = sourceString.getBytes(StreamUtils.UTF_8);
+        ByteFragment fragment = new ByteFragment(bytes, 0, bytes.length);
+        String[][] actual = (String[][]) ByteFragmentUtils.parseArray(fragment, String.class, 2);
+        assertEquals(1, actual.length);
+        assertEquals(0, actual[0].length);
+    }
+
+    @Test
+    public void testParseSparseArray() {
+        String sourceString = "[[],[NULL],['a','b',NULL]]";
+        byte[] bytes = sourceString.getBytes(StreamUtils.UTF_8);
+        ByteFragment fragment = new ByteFragment(bytes, 0, bytes.length);
+        String[][] actual = (String[][]) ByteFragmentUtils.parseArray(fragment, String.class, 2);
+        assertEquals(3, actual.length);
+        assertEquals(0, actual[0].length);
+        assertEquals(1, actual[1].length);
+        assertEquals(3, actual[2].length);
+        assertNull(actual[1][0]);
+        assertEquals("a", actual[2][0]);
+        assertEquals("b", actual[2][1]);
+        assertNull(actual[2][2]);
+    }
+
+    @Test
+    public void testParseArrayOf32Levels() {
+        String sourceString = "[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[32]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]";
+        byte[] bytes = sourceString.getBytes(StreamUtils.UTF_8);
+        ByteFragment fragment = new ByteFragment(bytes, 0, bytes.length);
+        int[][][][][][][][][][][][][][][][][][][][][][][][][][][][][][][][] actual =
+                (int[][][][][][][][][][][][][][][][][][][][][][][][][][][][][][][][])
+                        ByteFragmentUtils.parseArray(fragment, Integer.class, 32);
+        assertEquals(32, actual[0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0]);
+    }
+
+    @Test(expectedExceptions = IllegalArgumentException.class, expectedExceptionsMessageRegExp = "Maximum parse depth exceeded")
+    public void testParseArrayMaximumDepthExceeded() {
+        String sourceString = "[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[33]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]";
+        byte[] bytes = sourceString.getBytes(StreamUtils.UTF_8);
+        ByteFragment fragment = new ByteFragment(bytes, 0, bytes.length);
+        ByteFragmentUtils.parseArray(fragment, Integer.class, 33);
+    }
+
+    @DataProvider(name = "invalidArray")
+    public Object[][] invalidArray() {
+        return new Object[][] {
+                {"['a']", 2}, // wrong level
+                {"[", 1},
+                {"[]]", 2},
+                {"[['a'],'b']", 2} // arrays of different levels
+        };
+    }
+
+    @Test(
+            dataProvider = "invalidArray",
+            expectedExceptions = IllegalArgumentException.class,
+            expectedExceptionsMessageRegExp = "not an array.*"
+    )
+    public void testParseInvalidArray(String sourceString, int arrayLevel) {
+        byte[] bytes = sourceString.getBytes(StreamUtils.UTF_8);
+        ByteFragment fragment = new ByteFragment(bytes, 0, bytes.length);
+        ByteFragmentUtils.parseArray(fragment, String.class, arrayLevel);
     }
 }

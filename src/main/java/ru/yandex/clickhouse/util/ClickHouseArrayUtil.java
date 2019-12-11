@@ -1,35 +1,94 @@
 package ru.yandex.clickhouse.util;
 
-import ru.yandex.clickhouse.ClickHouseUtil;
-
 import java.util.Collection;
+import java.util.TimeZone;
+
+import ru.yandex.clickhouse.ClickHouseUtil;
 
 /**
  * @author Dmitry Andreev <a href="mailto:AndreevDm@yandex-team.ru"></a>
  */
 public class ClickHouseArrayUtil {
-    private ClickHouseArrayUtil() {
-    }
 
-    public static String arrayToString(Object object) {
-        return arrayToString(object, true);
+    private ClickHouseArrayUtil() {
+        // NOP
     }
 
     /**
-     * @param object         the object to convert to ClickHouse-string representation
-     * @param explicitEscape enable or disable elements escaping (works only for non-primitive values)
+     * @param object
+     *            the object to convert to ClickHouse-string representation
+     * @param dateTimeZone
+     *            TimeZone to use when formatting date values
+     * @param dateTimeTimeZone
+     *            TimeZone to use when formatting datetime values
+     * @return string representation of an object
      */
-    public static String arrayToString(Object object, Boolean explicitEscape) {
+    public static String arrayToString(Object object, TimeZone dateTimeZone,
+        TimeZone dateTimeTimeZone)
+    {
         if (!object.getClass().isArray()) {
             throw new IllegalArgumentException("Object must be array");
         }
         if (object.getClass().getComponentType().isPrimitive()) {
             return primitiveArrayToString(object);
-        } else {
-            return toString((Object[]) object, explicitEscape);
         }
+        return toString((Object[]) object, dateTimeZone, dateTimeTimeZone);
     }
 
+
+    public static String toString(Object[] values, TimeZone dateTimeZone, TimeZone dateTimeTimeZone) {
+        if (values.length > 0 && values[0] != null && (values[0].getClass().isArray() || values[0] instanceof Collection)) {
+            // quote is false to avoid escaping inner '['
+            ArrayBuilder builder = new ArrayBuilder(false, dateTimeZone, dateTimeTimeZone);
+            for (Object value : values) {
+                if (value instanceof Collection) {
+                    Object[] objects = ((Collection<?>) value).toArray();
+                    builder.append(toString(objects, dateTimeZone, dateTimeTimeZone));
+                } else {
+                    builder.append(arrayToString(value, dateTimeZone, dateTimeTimeZone));
+                }
+            }
+            return builder.build();
+        }
+        ArrayBuilder builder = new ArrayBuilder(needQuote(values), dateTimeZone, dateTimeTimeZone);
+        for (Object value : values) {
+            builder.append(value);
+        }
+        return builder.build();
+    }
+
+    public static String toString(Collection<?> collection, TimeZone dateTimeZone,
+        TimeZone dateTimeTimeZone)
+    {
+        return toString(collection.toArray(), dateTimeZone, dateTimeTimeZone);
+    }
+
+    /**
+     * @deprecated convenience for unit tests
+     */
+    @Deprecated
+    static String toString(Collection<?> collection) {
+        TimeZone tz = TimeZone.getDefault();
+        return toString(collection, tz, tz);
+    }
+
+    /**
+     * @deprecated convenience for unit tests
+     */
+    @Deprecated
+    static String toString(Object[] values) {
+        TimeZone tz = TimeZone.getDefault();
+        return toString(values, tz, tz);
+    }
+
+    /**
+     * @deprecated convenience for unit tests
+     */
+    @Deprecated
+    static String arrayToString(Object object) {
+        TimeZone tz = TimeZone.getDefault();
+        return arrayToString(object, tz, tz);
+    }
 
     private static String primitiveArrayToString(Object array) {
         if (array instanceof int[]) {
@@ -51,101 +110,56 @@ public class ClickHouseArrayUtil {
         }
     }
 
-    public static String toString(int[] values) {
-        ArrayBuilder builder = new ArrayBuilder(false, true);
+    private static String toString(int[] values) {
+        ArrayBuilder builder = new ArrayBuilder(false);
         for (int value : values) {
             builder.append(value);
         }
         return builder.build();
     }
 
-    public static String toString(long[] values) {
-        ArrayBuilder builder = new ArrayBuilder(false, true);
+    private static String toString(long[] values) {
+        ArrayBuilder builder = new ArrayBuilder(false);
         for (long value : values) {
             builder.append(value);
         }
         return builder.build();
     }
 
-    public static String toString(float[] values) {
-        ArrayBuilder builder = new ArrayBuilder(false, true);
+    private static String toString(float[] values) {
+        ArrayBuilder builder = new ArrayBuilder(false);
         for (float value : values) {
             builder.append(value);
         }
         return builder.build();
     }
 
-    public static String toString(double[] values) {
-        ArrayBuilder builder = new ArrayBuilder(false, true);
+    private static String toString(double[] values) {
+        ArrayBuilder builder = new ArrayBuilder(false);
         for (double value : values) {
             builder.append(value);
         }
         return builder.build();
     }
 
-    public static String toString(byte[] values) {
-        ArrayBuilder builder = new ArrayBuilder(false, true);
-        for (byte value : values) {
-            builder.append(value);
-        }
-        return builder.build();
+    private static String toString(byte[] values) {
+        return "'" + ClickHouseValueFormatter.formatBytes(values) + "'";
     }
 
-    public static String toString(short[] values) {
-        ArrayBuilder builder = new ArrayBuilder(false, true);
+    private static String toString(short[] values) {
+        ArrayBuilder builder = new ArrayBuilder(false);
         for (short value : values) {
             builder.append(value);
         }
         return builder.build();
     }
 
-
-    public static String toString(char[] values) {
-        ArrayBuilder builder = new ArrayBuilder(true, true);
+    private static String toString(char[] values) {
+        ArrayBuilder builder = new ArrayBuilder(true);
         for (char value : values) {
             builder.append(value);
         }
         return builder.build();
-    }
-
-
-    public static String toString(Object[] values) {
-        return toString(values, true);
-    }
-
-    public static String toString(Object[] values, Boolean explicitEscape) {
-        if (values.length > 0 && values[0] != null && (values[0].getClass().isArray() || values[0] instanceof Collection)) {
-            // quote is false to avoid escaping inner '['
-            ArrayBuilder builder = new ArrayBuilder(false, true);
-            for (Object value : values) {
-                if (value instanceof Collection) {
-                    Object[] objects = ((Collection) value).toArray();
-                    builder.append(toString(objects, explicitEscape));
-                } else {
-                    builder.append(arrayToString(value, explicitEscape));
-                }
-            }
-            return builder.build();
-        }
-        ArrayBuilder builder = new ArrayBuilder(needQuote(values), explicitEscape);
-        for (Object value : values) {
-            builder.append(value);
-        }
-        return builder.build();
-    }
-
-    public static String toString(Collection collection) {
-        return toString(collection, true);
-    }
-
-    /**
-     * Convert collection to its ClickHouse-string representation.
-     *
-     * @param collection the collection to transform
-     * @param escape     enable or disable escaping of the collection elements
-     */
-    public static String toString(Collection collection, boolean escape) {
-        return toString(collection.toArray(), escape);
     }
 
     private static boolean needQuote(Object[] objects) {
@@ -156,20 +170,29 @@ public class ClickHouseArrayUtil {
                 break;
             }
         }
-        return objects.length == 0 || !(o instanceof Number);
+        return objects.length == 0 || ClickHouseValueFormatter.needsQuoting(o);
     }
 
     private static class ArrayBuilder {
-        private final StringBuilder builder = new StringBuilder();
+
+        private final StringBuilder builder;
         private final boolean quote;
-        private final boolean explicitEscape;
+        private final TimeZone dateTimeZone;
+        private final TimeZone dateTimeTimeZone;
         private int size = 0;
         private boolean built = false;
 
-        private ArrayBuilder(boolean quote, boolean explicitEscape) {
+        private ArrayBuilder(boolean quote) {
+            this(quote, TimeZone.getDefault(), TimeZone.getDefault());
+        }
+
+        private ArrayBuilder(boolean quote, TimeZone dateTimeZone,
+            TimeZone dateTimeTimeZone)
+        {
             this.quote = quote;
-            this.explicitEscape = explicitEscape;
-            builder.append('[');
+            this.builder = new StringBuilder("[");
+            this.dateTimeZone = dateTimeZone;
+            this.dateTimeTimeZone = dateTimeTimeZone;
         }
 
         private ArrayBuilder append(Object value) {
@@ -180,14 +203,17 @@ public class ClickHouseArrayUtil {
                 builder.append(',');
             }
             if (value != null) {
-                String serializedValue = value.toString();
-                String escapedValue = explicitEscape ? ClickHouseUtil.escape(serializedValue) : serializedValue;
                 if (quote) {
                     builder.append('\'');
-                    builder.append(escapedValue);
-                    builder.append('\'');
+                }
+                if (value instanceof String) {
+                    builder.append(quote ? ClickHouseUtil.escape((String) value) : value);
                 } else {
-                    builder.append(serializedValue);
+                    builder.append(ClickHouseValueFormatter.formatObject(
+                        value, dateTimeZone, dateTimeTimeZone));
+                }
+                if (quote) {
+                    builder.append('\'');
                 }
             } else {
                 builder.append("NULL");
@@ -199,7 +225,7 @@ public class ClickHouseArrayUtil {
         private String build() {
             if (!built) {
                 builder.append(']');
-                built = false;
+                built = true;
             }
             return builder.toString();
         }

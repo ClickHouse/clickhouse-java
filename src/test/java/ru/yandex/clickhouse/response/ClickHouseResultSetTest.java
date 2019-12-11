@@ -8,6 +8,7 @@ import java.sql.Array;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.Types;
+import java.util.Collection;
 import java.util.TimeZone;
 
 import org.testng.Assert;
@@ -15,6 +16,7 @@ import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 import ru.yandex.clickhouse.ClickHouseStatement;
+import ru.yandex.clickhouse.domain.ClickHouseDataTypeTestDataProvider.ClickHouseDataTypeTestData;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
 
 import static org.testng.Assert.assertFalse;
@@ -282,11 +284,70 @@ public class ClickHouseResultSetTest {
 
         ResultSet rs = buildResultSet(is, 1024, "db", "table", false, null, null, props);
 
-        rs.next();
         assertFalse(rs.isLast());
-        rs.next();
+        assertTrue(rs.next());
+        assertFalse(rs.isLast());
+        assertTrue(rs.next());
         assertTrue(rs.isLast());
         assertFalse(rs.next());
+    }
+
+    @Test
+    public void testIsFirst() throws Exception {
+        String response =
+                "SiteName\tcount()\n" +
+                        "String\tUInt64\n" +
+                        "hello.com\t21209048\n" +
+                        "there.com\t49302091\n";
+
+        ByteArrayInputStream is = new ByteArrayInputStream(response.getBytes("UTF-8"));
+
+        ResultSet rs = buildResultSet(is, 1024, "db", "table", false, null, null, props);
+
+        assertFalse(rs.isFirst());
+        assertTrue(rs.next());
+        assertTrue(rs.isFirst());
+        assertTrue(rs.next());
+        assertFalse(rs.isFirst());
+    }
+    
+    @Test
+    public void testBeforeFirst() throws Exception {
+        String response =
+                "SiteName\tcount()\n" +
+                        "String\tUInt64\n" +
+                        "hello.com\t21209048\n" +
+                        "there.com\t49302091\n";
+
+        ByteArrayInputStream is = new ByteArrayInputStream(response.getBytes("UTF-8"));
+
+        ResultSet rs = buildResultSet(is, 1024, "db", "table", false, null, null, props);
+
+        assertTrue(rs.isBeforeFirst());
+        assertTrue(rs.next());
+        assertFalse(rs.isBeforeFirst());
+        is.close();
+    }
+    
+    @Test
+    public void testIsAfterLast() throws Exception {
+        String response =
+                "SiteName\tcount()\n" +
+                        "String\tUInt64\n" +
+                        "hello.com\t21209048\n" +
+                        "there.com\t49302091\n";
+
+        ByteArrayInputStream is = new ByteArrayInputStream(response.getBytes("UTF-8"));
+
+        ResultSet rs = buildResultSet(is, 1024, "db", "table", false, null, null, props);
+
+        assertFalse(rs.isAfterLast());
+        assertTrue(rs.next());
+        assertFalse(rs.isAfterLast());
+        assertTrue(rs.next());
+        assertFalse(rs.isAfterLast());
+        assertFalse(rs.next());
+        assertTrue(rs.isAfterLast());
     }
 
     @Test
@@ -325,6 +386,35 @@ public class ClickHouseResultSetTest {
         assertEquals("bar", s[1]);
     }
 
+    @Test
+    public void test3dArrayString() throws Exception {
+        String response =
+            "FOO\n"
+          + "Array(Array(Array(String)))\n"
+          + "[[[a,b],[c,d]],[[e,f],[g,h]]]";
+        ByteArrayInputStream is = new ByteArrayInputStream(response.getBytes("UTF-8"));
+        ResultSet rs = buildResultSet(is, 1024, "db", "table", false, null, null, props);
+        ResultSetMetaData meta = rs.getMetaData();
+        assertEquals("java.sql.Array", meta.getColumnClassName(1));
+        rs.next();
+
+        Object o = rs.getObject(1);
+        assertTrue(Array.class.isAssignableFrom(o.getClass()), o.getClass().getCanonicalName());
+        String[][][] actual = (String[][][]) ((Array) o).getArray();
+        String[][][] expected = {{{"a", "b"}, {"c","d"}}, {{"e", "f"}, {"g", "h"}}};
+        assertEquals(expected.length, actual.length);
+        for (int i = 0; i < expected.length; ++i) {
+            assertEquals(expected[i].length, actual[i].length);
+            for (int j = 0; j < expected[i].length; ++j) {
+                assertEquals(expected[i][j].length, actual[i][j].length);
+                for (int k = 0; k < expected[i][j].length; ++k) {
+                    assertEquals(expected[i][j][k], actual[i][j][k]);
+                }
+            }
+        }
+    }
+
+    @Test
     public void testClassNamesObjects() throws Exception {
         String testData = ClickHouseTypesTestData.buildTestString();
         ByteArrayInputStream is = new ByteArrayInputStream(testData.getBytes("UTF-8"));
@@ -358,7 +448,62 @@ public class ClickHouseResultSetTest {
         }
     }
 
-    protected ClickHouseResultSet buildResultSet(InputStream is, int bufferSize, String db, String table, boolean usesWithTotals, ClickHouseStatement statement, TimeZone timezone, ClickHouseProperties properties) throws IOException {
+
+    /**
+     * By jdbc specification
+     *
+     * If the value is SQL <code>NULL</code>, the value returned is <code>0</code>
+     *
+     * {@link java.sql.ResultSet#getByte(int)}
+     * {@link java.sql.ResultSet#getShort(int)}
+     * {@link java.sql.ResultSet#getInt(int)}
+     * {@link java.sql.ResultSet#getLong(int)}
+     * {@link java.sql.ResultSet#getFloat(int)}
+     * {@link java.sql.ResultSet#getDouble(int)}
+     *
+     * If the value is SQL <code>NULL</code>, the value returned is <code>null</code>
+     *
+     * {@link java.sql.ResultSet#getBigDecimal(int)}
+     * {@link java.sql.ResultSet#getTime(int)}
+     * {@link java.sql.ResultSet#getDate(int)}
+     * {@link java.sql.ResultSet#getTimestamp(int)}
+     * {@link java.sql.ResultSet#getURL(int)} unsupported now
+     * {@link java.sql.ResultSet#getAsciiStream(int)} unsupported now
+     */
+    @Test
+    public void testNulls() throws Exception {
+        String response =
+                "Type\n" +
+                        "Nullable(Int8)\n" +
+                        "\\N\n";
+
+        ByteArrayInputStream is = new ByteArrayInputStream(response.getBytes("UTF-8"));
+
+        ResultSet rs = buildResultSet(is, 1024, "db", "table", false, null, null, props);
+
+        rs.next();
+        //0
+        assertEquals(0, rs.getByte(1));
+        assertEquals(0, rs.getShort(1));
+        assertEquals(0, rs.getInt(1));
+        assertEquals(0, rs.getLong(1));
+        assertEquals((float) 0, rs.getFloat(1));
+        assertEquals((double)0, rs.getDouble(1));
+
+        //null
+        assertNull(rs.getBigDecimal(1));
+        assertNull(rs.getTime(1));
+        assertNull(rs.getDate(1));
+        assertNull(rs.getTimestamp(1));
+
+        //unsupported now
+        //assertNull(rs.getURL(1));
+        //assertNull(rs.getAsciiStream(1));
+
+        assertFalse(rs.next());
+    }
+
+    private static ClickHouseResultSet buildResultSet(InputStream is, int bufferSize, String db, String table, boolean usesWithTotals, ClickHouseStatement statement, TimeZone timezone, ClickHouseProperties properties) throws IOException {
     	return new ClickHouseResultSet(is, bufferSize, db, table, usesWithTotals, statement, timezone, properties);
     }
 
@@ -458,5 +603,45 @@ public class ClickHouseResultSetTest {
             sb.replace(sb.length(), sb.length(), "\n");
             return sb.toString();
         }
+    }
+
+    private static String buildTestString(Collection<ClickHouseDataTypeTestData> testDataTypes) {
+        StringBuilder sb = new StringBuilder();
+        // row 1: column names
+        for (ClickHouseDataTypeTestData t : testDataTypes) {
+            sb.append(t.getTypeName())
+              .append("\t");
+            if (t.isNullableCandidate()) {
+                sb.append("Nullable(")
+                  .append(t.getTypeName())
+                  .append(')')
+                  .append("\t");
+            }
+            if (t.isLowCardinalityCandidate()) {
+                sb.append("LowCardinality(")
+                  .append(t.getTypeName())
+                  .append(')')
+                  .append("\t");
+            }
+        }
+        sb.replace(sb.length(), sb.length(), "\n");
+
+        // row 2: type names
+        sb.append(sb.substring(0, sb.length()));
+
+        // row 3 : example data
+        for (ClickHouseDataTypeTestData t : testDataTypes) {
+            sb.append(t.getTestValue())
+              .append("\t");
+            if (t.isNullableCandidate()) {
+                sb.append("\\N\t");
+            }
+            if (t.isLowCardinalityCandidate()) {
+                sb.append(t.getTestValue())
+                  .append("\t");
+            }
+        }
+        sb.replace(sb.length(), sb.length(), "\n");
+        return sb.toString();
     }
 }

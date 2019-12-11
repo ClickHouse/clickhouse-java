@@ -120,8 +120,6 @@ public final class FastByteArrayOutputStream extends OutputStream {
      * Closing a <tt>ByteArrayOutputStream</tt> has no effect. The methods in
      * this class can be called after the stream has been closed without
      * generating an <tt>IOException</tt>.
-     * <p>
-     *
      */
     @Override
     public void close() throws IOException {
@@ -155,6 +153,7 @@ public final class FastByteArrayOutputStream extends OutputStream {
 
     /**
      * Creates InputStream using the same data that is written into this stream with no copying in memory
+     * @return a input stream contained all bytes recorded in a current stream
      */
     public FastByteArrayInputStream convertToInputStream() {
         return new FastByteArrayInputStream(buf, count); 

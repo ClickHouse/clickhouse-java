@@ -15,11 +15,9 @@ import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import ru.yandex.clickhouse.response.ClickHouseColumnInfo;
 import ru.yandex.clickhouse.response.ClickHouseResultBuilder;
 import ru.yandex.clickhouse.util.ClickHouseVersionNumberUtil;
-import ru.yandex.clickhouse.util.TypeUtils;
-
-import static ru.yandex.clickhouse.util.TypeUtils.NULLABLE_YES;
 
 
 public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
@@ -804,9 +802,11 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
     public ResultSet getColumns(String catalog, String schemaPattern, String tableNamePattern, String columnNamePattern) throws SQLException {
         StringBuilder query;
         if (connection.getServerVersion().compareTo("1.1.54237") > 0) {
-            query = new StringBuilder("SELECT database, table, name, type, default_kind, default_expression ");
+            query = new StringBuilder(
+                "SELECT database, table, name, type, default_kind as default_type, default_expression ");
         } else {
-            query = new StringBuilder("SELECT database, table, name, type, default_type, default_expression ");
+            query = new StringBuilder(
+                "SELECT database, table, name, type, default_type, default_expression ");
         }
         query.append("FROM system.columns ");
         List<String> predicates = new ArrayList<String>();
@@ -831,38 +831,38 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
             //catalog name
             row.add(DEFAULT_CAT);
             //database name
-            row.add(descTable.getString(1));
+            row.add(descTable.getString("database"));
             //table name
-            row.add(descTable.getString(2));
+            row.add(descTable.getString("table"));
             //column name
-            row.add(descTable.getString(3));
-            String type = descTable.getString(4);
-
-            String isNullableType = TypeUtils.isTypeNull(type);
-
-            int sqlType = TypeUtils.toSqlType(type);
+            ClickHouseColumnInfo columnInfo = ClickHouseColumnInfo.parse(
+                descTable.getString("type"),
+                descTable.getString("name"));
+            row.add(columnInfo.getColumnName());
             //data type
-            row.add(Integer.toString(sqlType));
+            row.add(String.valueOf(columnInfo.getClickHouseDataType().getSqlType()));
             //type name
-            row.add(TypeUtils.unwrapNullableIfApplicable(type));
+            row.add(columnInfo.getCleanTypeName());
             // column size / precision
-            row.add(Integer.toString(TypeUtils.getColumnSize(type)));
+            row.add(String.valueOf(columnInfo.getPrecision()));
             //buffer length
             row.add("0");
             // decimal digits
-            row.add(Integer.toString(TypeUtils.getDecimalDigits(type)));
+            row.add(String.valueOf(columnInfo.getScale()));
             // radix
             row.add("10");
             // nullable
-            row.add(String.valueOf(isNullableType == NULLABLE_YES ? columnNullable : columnNoNulls));
+            row.add(columnInfo.isNullable()
+                ? String.valueOf(columnNullable)
+                : String.valueOf(columnNoNulls));
             //remarks
             row.add(null);
 
             // COLUMN_DEF
-            if ( descTable.getString( 5 ).equals( "DEFAULT" ) ) {
-                row.add( descTable.getString( 6 ) );
+            if ("DEFAULT".equals(descTable.getString("default_type"))) {
+                row.add(descTable.getString("default_expression"));
             } else {
-                row.add( null );
+                row.add(null);
             }
 
             //"SQL_DATA_TYPE", unused per JavaDoc
@@ -877,7 +877,9 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
             colNum += 1;
 
             //IS_NULLABLE
-            row.add(isNullableType);
+            row.add(columnInfo.isNullable()
+                ? "YES"
+                : "NO");
             //"SCOPE_CATALOG",
             row.add(null);
             //"SCOPE_SCHEMA",
@@ -1127,13 +1129,7 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
 
     @Override
     public boolean supportsResultSetType(int type) throws SQLException {
-        int[] types = TypeUtils.supportedTypes();
-        for (int i : types) {
-            if (i == type) {
-                return true;
-            }
-        }
-        return false;
+        return ResultSet.TYPE_FORWARD_ONLY == type;
     }
 
     @Override

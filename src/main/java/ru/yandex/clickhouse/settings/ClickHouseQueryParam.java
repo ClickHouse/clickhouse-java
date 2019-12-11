@@ -69,6 +69,8 @@ public enum ClickHouseQueryParam implements DriverPropertyCreator {
 
     INSERT_DISTRIBUTED_SYNC("insert_distributed_sync", null, Boolean.class, "If setting is enabled, insert query into distributed waits until data will be sent to all nodes in cluster."),
 
+    ANY_JOIN_DISTINCT_RIGHT_TABLE_KEYS("any_join_distinct_right_table_keys", null, Boolean.class, "Setting enables old behaviour of ANY INNER|RIGHT|FULL JOIN which are disabled by default from version 19.14.3.3"),
+
     INSERT_QUORUM("insert_quorum", null, Long.class, ""),
 
     INSERT_QUORUM_TIMEOUT("insert_quorum_timeout", null, Long.class, ""),
@@ -141,6 +143,8 @@ public enum ClickHouseQueryParam implements DriverPropertyCreator {
     MAX_THREADS("max_threads", null, Integer.class, "The maximum number of query processing threads"),
 
     MAX_QUERY_SIZE("max_query_size", null, Long.class, "Maximum size of query"),
+
+    MAX_AST_ELEMENTS("max_ast_elements", null, Long.class, "Maximum number of elements in a query syntactic tree"),
 
     MEMORY_TRACKER_FAULT_PROBABILITY("memory_tracker_fault_probability", null, Double.class, ""),
 

@@ -1,10 +1,24 @@
 package ru.yandex.clickhouse.integration;
 
-import com.google.common.primitives.UnsignedLong;
-import com.google.common.primitives.UnsignedLongs;
+import java.io.EOFException;
+import java.io.IOException;
+import java.math.BigInteger;
+import java.sql.Date;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Time;
+import java.sql.Timestamp;
+import java.util.Calendar;
+import java.util.UUID;
+import java.util.concurrent.atomic.AtomicLong;
+
 import org.testng.Assert;
 import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
+
+import com.google.common.primitives.UnsignedLong;
+import com.google.common.primitives.UnsignedLongs;
+
 import ru.yandex.clickhouse.ClickHouseConnection;
 import ru.yandex.clickhouse.ClickHouseDataSource;
 import ru.yandex.clickhouse.ClickHouseStatement;
@@ -13,13 +27,7 @@ import ru.yandex.clickhouse.util.ClickHouseRowBinaryInputStream;
 import ru.yandex.clickhouse.util.ClickHouseRowBinaryStream;
 import ru.yandex.clickhouse.util.ClickHouseStreamCallback;
 
-import java.io.EOFException;
-import java.io.IOException;
-import java.math.BigInteger;
-import java.sql.*;
-import java.util.UUID;
-import java.util.Calendar;
-import java.util.concurrent.atomic.AtomicLong;
+import static org.testng.Assert.assertEquals;
 
 /**
  * @author Dmitry Andreev <a href="mailto:AndreevDm@yandex-team.ru"></a>
@@ -67,7 +75,8 @@ public class RowBinaryStreamTest {
                         "uInt64Array Array(UInt64), " +
                         "float32Array Array(Float32), " +
                         "float64Array Array(Float64), " +
-                        "uuid UUID" +
+                        "uuid UUID," +
+                        "lowCardinality LowCardinality(String)" +
                         ") ENGINE = MergeTree(date, (date), 8192)"
         );
     }
@@ -100,8 +109,8 @@ public class RowBinaryStreamTest {
         ResultSet rs = connection.createStatement().executeQuery("SELECT count() AS cnt, sum(value) AS sum FROM test.big_data");
 
         Assert.assertTrue(rs.next());
-        Assert.assertEquals(rs.getInt("cnt"), count);
-        Assert.assertEquals(rs.getLong("sum"), sum.get());
+        assertEquals(rs.getInt("cnt"), count);
+        assertEquals(rs.getLong("sum"), sum.get());
     }
 
 
@@ -138,7 +147,7 @@ public class RowBinaryStreamTest {
 
         statement.sendRowBinaryStream(
                 "INSERT INTO test.raw_binary " +
-                        "(date, dateTime, string, int8, uInt8, int16, uInt16, int32, uInt32, int64, uInt64, float32, float64, dateArray, dateTimeArray, stringArray, int8Array, uInt8Array, int16Array, uInt16Array, int32Array, uInt32Array, int64Array, uInt64Array, float32Array, float64Array, uuid)",
+                        "(date, dateTime, string, int8, uInt8, int16, uInt16, int32, uInt32, int64, uInt64, float32, float64, dateArray, dateTimeArray, stringArray, int8Array, uInt8Array, int16Array, uInt16Array, int32Array, uInt32Array, int64Array, uInt64Array, float32Array, float64Array, uuid, lowCardinality)",
                 new ClickHouseStreamCallback() {
                     @Override
                     public void writeTo(ClickHouseRowBinaryStream stream) throws IOException {
@@ -170,6 +179,7 @@ public class RowBinaryStreamTest {
                         stream.writeFloat32Array(float32s1);
                         stream.writeFloat64Array(float64s1);
                         stream.writeUUID(uuid1);
+                        stream.writeString("lowCardinality\n1");
 
                         stream.writeDate(date2);
                         stream.writeDateTime(date2);
@@ -198,6 +208,7 @@ public class RowBinaryStreamTest {
                         stream.writeFloat32Array(new float[]{});
                         stream.writeFloat64Array(new double[]{});
                         stream.writeUUID(uuid2);
+                        stream.writeString("lowCardinality\n2");
                     }
                 }
         );
@@ -206,120 +217,125 @@ public class RowBinaryStreamTest {
             ResultSet rs = connection.createStatement().executeQuery("SELECT * FROM test.raw_binary ORDER BY date");
 
             Assert.assertTrue(rs.next());
-            Assert.assertEquals(rs.getString("date"), "2017-01-01");
-            Assert.assertEquals(rs.getTimestamp("dateTime").getTime(), date1.getTime());
-            Assert.assertEquals(rs.getString("string"), "string\n1");
-            Assert.assertEquals(rs.getInt("int8"), Byte.MIN_VALUE);
-            Assert.assertEquals(rs.getInt("uInt8"), 0);
-            Assert.assertEquals(rs.getInt("int16"), Short.MIN_VALUE);
-            Assert.assertEquals(rs.getInt("uInt16"), 0);
-            Assert.assertEquals(rs.getInt("int32"), Integer.MIN_VALUE);
-            Assert.assertEquals(rs.getInt("uInt32"), 0);
-            Assert.assertEquals(rs.getLong("int64"), Long.MIN_VALUE);
-            Assert.assertEquals(rs.getLong("uInt64"), 0);
-            Assert.assertEquals(rs.getDouble("float32"), 123.456);
-            Assert.assertEquals(rs.getDouble("float64"), 42.21);
-            Assert.assertEquals(rs.getObject("uuid").toString(), "123e4567-e89b-12d3-a456-426655440000");
+            assertEquals(rs.getString("date"), "2017-01-01");
+            assertEquals(rs.getTimestamp("dateTime").getTime(), date1.getTime());
+            assertEquals(rs.getString("string"), "string\n1");
+            assertEquals(rs.getInt("int8"), Byte.MIN_VALUE);
+            assertEquals(rs.getInt("uInt8"), 0);
+            assertEquals(rs.getInt("int16"), Short.MIN_VALUE);
+            assertEquals(rs.getInt("uInt16"), 0);
+            assertEquals(rs.getInt("int32"), Integer.MIN_VALUE);
+            assertEquals(rs.getInt("uInt32"), 0);
+            assertEquals(rs.getLong("int64"), Long.MIN_VALUE);
+            assertEquals(rs.getLong("uInt64"), 0);
+            assertEquals(rs.getDouble("float32"), 123.456);
+            assertEquals(rs.getDouble("float64"), 42.21);
+            assertEquals(rs.getObject("uuid").toString(), "123e4567-e89b-12d3-a456-426655440000");
+            assertEquals(rs.getString("lowCardinality"), "lowCardinality\n1");
 
             Date[] expectedDates1 = new Date[dates1.length];
-            for (int i = 0; i < dates1.length; i++)
+            for (int i = 0; i < dates1.length; i++) {
                 // expected is Date at start of the day in local timezone
                 expectedDates1[i] = withTimeAtStartOfDay(dates1[i]);
+            }
 
-            Assert.assertEquals(rs.getArray("dateArray").getArray(), expectedDates1);
-            Assert.assertEquals(rs.getArray("dateTimeArray").getArray(), dateTimes1);
+            assertEquals(rs.getArray("dateArray").getArray(), expectedDates1);
+            assertEquals(rs.getArray("dateTimeArray").getArray(), dateTimes1);
 
-            Assert.assertEquals(rs.getArray("stringArray").getArray(), strings1);
+            assertEquals(rs.getArray("stringArray").getArray(), strings1);
 
             assertArrayEquals((int[]) rs.getArray("int8Array").getArray(), int8s1);
-            assertArrayEquals((long[]) rs.getArray("uInt8Array").getArray(), uint8s1);
+            assertEquals(rs.getArray("uInt8Array").getArray(), uint8s1);
 
             assertArrayEquals((int[]) rs.getArray("int16Array").getArray(), int16s1);
-            assertArrayEquals((long[]) rs.getArray("uInt16Array").getArray(), uint16s1);
+            assertEquals(rs.getArray("uInt16Array").getArray(), uint16s1);
 
-            Assert.assertEquals(rs.getArray("int32Array").getArray(), int32s1);
-            Assert.assertEquals(rs.getArray("uInt32Array").getArray(), uint32s1);
+            assertEquals(rs.getArray("int32Array").getArray(), int32s1);
+            assertEquals(rs.getArray("uInt32Array").getArray(), uint32s1);
 
-            Assert.assertEquals(rs.getArray("int64Array").getArray(), int64s1);
+            assertEquals(rs.getArray("int64Array").getArray(), int64s1);
             assertArrayEquals((BigInteger[]) rs.getArray("uInt64Array").getArray(), uint64s1);
 
-            Assert.assertEquals(rs.getArray("float32Array").getArray(), float32s1);
-            Assert.assertEquals(rs.getArray("float64Array").getArray(), float64s1);
+            assertEquals(rs.getArray("float32Array").getArray(), float32s1);
+            assertEquals(rs.getArray("float64Array").getArray(), float64s1);
 
             Assert.assertTrue(rs.next());
-            Assert.assertEquals(rs.getString("date"), "2017-05-09");
-            Assert.assertEquals(rs.getTimestamp("dateTime").getTime(), date2.getTime());
-            Assert.assertEquals(rs.getString("string"), "a\tbdasd''a");
-            Assert.assertEquals(rs.getInt("int8"), Byte.MAX_VALUE);
-            Assert.assertEquals(rs.getInt("uInt8"), 255);
-            Assert.assertEquals(rs.getInt("int16"), Short.MAX_VALUE);
-            Assert.assertEquals(rs.getInt("uInt16"), 42000);
-            Assert.assertEquals(rs.getInt("int32"), Integer.MAX_VALUE);
-            Assert.assertEquals(rs.getLong("uInt32"), 2147483747L);
-            Assert.assertEquals(rs.getLong("int64"), Long.MAX_VALUE);
-            Assert.assertEquals(rs.getString("uInt64"), "18446744073709551615");
-            Assert.assertEquals(rs.getDouble("float32"), 21.21);
-            Assert.assertEquals(rs.getDouble("float64"), 77.77);
-            Assert.assertEquals(rs.getString("uuid"), "789e0123-e89b-12d3-a456-426655444444");
+            assertEquals(rs.getString("date"), "2017-05-09");
+            assertEquals(rs.getTimestamp("dateTime").getTime(), date2.getTime());
+            assertEquals(rs.getString("string"), "a\tbdasd''a");
+            assertEquals(rs.getInt("int8"), Byte.MAX_VALUE);
+            assertEquals(rs.getInt("uInt8"), 255);
+            assertEquals(rs.getInt("int16"), Short.MAX_VALUE);
+            assertEquals(rs.getInt("uInt16"), 42000);
+            assertEquals(rs.getInt("int32"), Integer.MAX_VALUE);
+            assertEquals(rs.getLong("uInt32"), 2147483747L);
+            assertEquals(rs.getLong("int64"), Long.MAX_VALUE);
+            assertEquals(rs.getString("uInt64"), "18446744073709551615");
+            assertEquals(rs.getDouble("float32"), 21.21);
+            assertEquals(rs.getDouble("float64"), 77.77);
+            assertEquals(rs.getString("uuid"), "789e0123-e89b-12d3-a456-426655444444");
+            assertEquals(rs.getString("lowCardinality"), "lowCardinality\n2");
 
             Assert.assertFalse(rs.next());
         } else {
             ClickHouseRowBinaryInputStream is = connection.createStatement().executeQueryClickhouseRowBinaryStream("SELECT * FROM test.raw_binary ORDER BY date");
 
-            Assert.assertEquals(is.readDate(), withTimeAtStartOfDay(date1));
-            Assert.assertEquals(is.readDateTime(), date1);
-            Assert.assertEquals(is.readString(), "string\n1");
-            Assert.assertEquals(is.readInt8(), Byte.MIN_VALUE);
-            Assert.assertEquals(is.readUInt8(), (short) 0);
-            Assert.assertEquals(is.readInt16(), Short.MIN_VALUE);
-            Assert.assertEquals(is.readUInt16(), 0);
-            Assert.assertEquals(is.readInt32(), Integer.MIN_VALUE);
-            Assert.assertEquals(is.readUInt32(), (long) 0);
-            Assert.assertEquals(is.readInt64(), Long.MIN_VALUE);
-            Assert.assertEquals(is.readUInt64(), BigInteger.valueOf(0));
-            Assert.assertEquals(is.readFloat32(), (float) 123.456);
-            Assert.assertEquals(is.readFloat64(), 42.21);
+            assertEquals(is.readDate(), withTimeAtStartOfDay(date1));
+            assertEquals(is.readDateTime(), date1);
+            assertEquals(is.readString(), "string\n1");
+            assertEquals(is.readInt8(), Byte.MIN_VALUE);
+            assertEquals(is.readUInt8(), (short) 0);
+            assertEquals(is.readInt16(), Short.MIN_VALUE);
+            assertEquals(is.readUInt16(), 0);
+            assertEquals(is.readInt32(), Integer.MIN_VALUE);
+            assertEquals(is.readUInt32(), 0);
+            assertEquals(is.readInt64(), Long.MIN_VALUE);
+            assertEquals(is.readUInt64(), BigInteger.valueOf(0));
+            assertEquals(is.readFloat32(), (float) 123.456);
+            assertEquals(is.readFloat64(), 42.21);
 
             Date[] expectedDates1 = new Date[dates1.length];
-            for (int i = 0; i < dates1.length; i++)
+            for (int i = 0; i < dates1.length; i++) {
                 // expected is Date at start of the day in local timezone
                 expectedDates1[i] = withTimeAtStartOfDay(dates1[i]);
+            }
 
-            Assert.assertEquals(is.readDateArray(), expectedDates1);
-            Assert.assertEquals(is.readDateTimeArray(), dateTimes1);
+            assertEquals(is.readDateArray(), expectedDates1);
+            assertEquals(is.readDateTimeArray(), dateTimes1);
 
-            Assert.assertEquals(is.readStringArray(), strings1);
+            assertEquals(is.readStringArray(), strings1);
 
-            Assert.assertEquals(is.readInt8Array(), int8s1);
+            assertEquals(is.readInt8Array(), int8s1);
             assertArrayEquals(is.readUInt8Array(), uint8s1);
 
-            Assert.assertEquals(is.readInt16Array(), int16s1);
-            Assert.assertEquals(is.readUInt16Array(), uint16s1);
+            assertEquals(is.readInt16Array(), int16s1);
+            assertEquals(is.readUInt16Array(), uint16s1);
 
-            Assert.assertEquals(is.readInt32Array(), int32s1);
-            Assert.assertEquals(is.readUInt32Array(), uint32s1);
+            assertEquals(is.readInt32Array(), int32s1);
+            assertEquals(is.readUInt32Array(), uint32s1);
 
-            Assert.assertEquals(is.readInt64Array(), int64s1);
+            assertEquals(is.readInt64Array(), int64s1);
             assertArrayEquals(is.readUInt64Array(), uint64s1);
 
-            Assert.assertEquals(is.readFloat32Array(), float32s1);
-            Assert.assertEquals(is.readFloat64Array(), float64s1);
+            assertEquals(is.readFloat32Array(), float32s1);
+            assertEquals(is.readFloat64Array(), float64s1);
 
-            Assert.assertEquals(is.readUUID(), uuid1);
+            assertEquals(is.readUUID(), uuid1);
+            assertEquals(is.readString(), "lowCardinality\n1");
 
-            Assert.assertEquals(is.readDate(), withTimeAtStartOfDay(date2));
-            Assert.assertEquals(is.readDateTime().getTime(), date2.getTime());
-            Assert.assertEquals(is.readString(), "a\tbdasd''a");
-            Assert.assertEquals(is.readInt8(), Byte.MAX_VALUE);
-            Assert.assertEquals(is.readUInt8(), (short) 255);
-            Assert.assertEquals(is.readInt16(), Short.MAX_VALUE);
-            Assert.assertEquals(is.readUInt16(), 42000);
-            Assert.assertEquals(is.readInt32(), Integer.MAX_VALUE);
-            Assert.assertEquals(is.readUInt32(), ((long) Integer.MAX_VALUE) + 100L);
-            Assert.assertEquals(is.readInt64(), Long.MAX_VALUE);
-            Assert.assertEquals(is.readUInt64AsUnsignedLong(), UnsignedLong.fromLongBits(UnsignedLongs.MAX_VALUE));
-            Assert.assertEquals(is.readFloat32(), (float) 21.21);
-            Assert.assertEquals(is.readFloat64(), 77.77);
+            assertEquals(is.readDate(), withTimeAtStartOfDay(date2));
+            assertEquals(is.readDateTime().getTime(), date2.getTime());
+            assertEquals(is.readString(), "a\tbdasd''a");
+            assertEquals(is.readInt8(), Byte.MAX_VALUE);
+            assertEquals(is.readUInt8(), (short) 255);
+            assertEquals(is.readInt16(), Short.MAX_VALUE);
+            assertEquals(is.readUInt16(), 42000);
+            assertEquals(is.readInt32(), Integer.MAX_VALUE);
+            assertEquals(is.readUInt32(), (Integer.MAX_VALUE) + 100L);
+            assertEquals(is.readInt64(), Long.MAX_VALUE);
+            assertEquals(is.readUInt64AsUnsignedLong(), UnsignedLong.fromLongBits(UnsignedLongs.MAX_VALUE));
+            assertEquals(is.readFloat32(), (float) 21.21);
+            assertEquals(is.readFloat64(), 77.77);
 
             // skip arrays
             is.readDateArray();
@@ -336,7 +352,8 @@ public class RowBinaryStreamTest {
             is.readFloat32Array();
             is.readFloat64Array();
 
-            Assert.assertEquals(is.readUUID(), uuid2);
+            assertEquals(is.readUUID(), uuid2);
+            assertEquals(is.readString(), "lowCardinality\n2");
 
             // check EOF
             try {
@@ -375,9 +392,9 @@ public class RowBinaryStreamTest {
         );
 
         Assert.assertTrue(rs.next());
-        Assert.assertEquals(rs.getTime("dateTime"), new Time(date1.getTime()));
+        assertEquals(rs.getTime("dateTime"), new Time(date1.getTime()));
         Date expectedDate = withTimeAtStartOfDay(date1); // expected start of the day in local timezone
-        Assert.assertEquals(rs.getDate("date"), expectedDate);
+        assertEquals(rs.getDate("date"), expectedDate);
     }
 
     private static Date withTimeAtStartOfDay(Date date) {
@@ -392,46 +409,49 @@ public class RowBinaryStreamTest {
 
     private static void assertArrayEquals(int[] actual, byte[] expected) {
         int[] expectedInts = new int[expected.length];
-        for (int i = 0; i < expected.length; i++)
+        for (int i = 0; i < expected.length; i++) {
             expectedInts[i] = expected[i];
-
-        Assert.assertEquals(actual, expectedInts);
-
+        }
+        assertEquals(actual, expectedInts);
     }
 
     private static void assertArrayEquals(int[] actual, short[] expected) {
         int[] expectedInts = new int[expected.length];
-        for (int i = 0; i < expected.length; i++)
+        for (int i = 0; i < expected.length; i++) {
             expectedInts[i] = expected[i];
+        }
 
-        Assert.assertEquals(actual, expectedInts);
+        assertEquals(actual, expectedInts);
 
     }
 
     private static void assertArrayEquals(short[] actual, int[] expected) {
         int[] actualInts = new int[actual.length];
-        for (int i = 0; i < actual.length; i++)
+        for (int i = 0; i < actual.length; i++) {
             actualInts[i] = actual[i];
+        }
 
-        Assert.assertEquals(actualInts, expected);
+        assertEquals(actualInts, expected);
 
     }
 
     private static void assertArrayEquals(long[] actual, int[] expected) {
         long[] expectedLongs = new long[expected.length];
-        for (int i = 0; i < expected.length; i++)
+        for (int i = 0; i < expected.length; i++) {
             expectedLongs[i] = expected[i];
+        }
 
-        Assert.assertEquals(actual, expectedLongs);
+        assertEquals(actual, expectedLongs);
 
     }
 
     private static void assertArrayEquals(BigInteger[] actual, long[] expected) {
         BigInteger[] expectedBigs = new BigInteger[expected.length];
-        for (int i = 0; i < expected.length; i++)
+        for (int i = 0; i < expected.length; i++) {
             expectedBigs[i] = BigInteger.valueOf(expected[i]);
+        }
 
-        Assert.assertEquals(actual, expectedBigs);
+        assertEquals(actual, expectedBigs);
 
     }
 }
