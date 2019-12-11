@@ -1,3 +1,6 @@
+0.2.2
+  * close certificate keystore
+  * fix for Boolean data type
 0.2.1
   * implement some ResultSet metadata methods
   * added support for "any_join_distinct_right_table_keys" setting
