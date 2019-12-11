@@ -168,6 +168,9 @@ public final class ClickHouseValueFormatter {
         if (o instanceof Number) {
             return false;
         }
+        if (o instanceof Boolean) {
+            return false;
+        }
         if (o.getClass().isArray()) {
             return false;
         }
