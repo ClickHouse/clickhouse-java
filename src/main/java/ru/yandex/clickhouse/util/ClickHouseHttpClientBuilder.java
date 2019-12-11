@@ -189,14 +189,16 @@ public class ClickHouseHttpClientBuilder {
                       .getSslRootCertificate() + "'", ex);
           }
       }
-      CertificateFactory cf = CertificateFactory.getInstance("X.509");
-      Iterator<? extends Certificate> caIt = cf.generateCertificates(caInputStream).iterator();
-      StreamUtils.close(caInputStream);
-      for (int i = 0; caIt.hasNext(); i++) {
-        ks.setCertificateEntry("cert" + i, caIt.next());
+
+      try {
+          CertificateFactory cf = CertificateFactory.getInstance("X.509");
+          Iterator<? extends Certificate> caIt = cf.generateCertificates(caInputStream).iterator();
+          for (int i = 0; caIt.hasNext(); i++) {
+              ks.setCertificateEntry("cert" + i, caIt.next());
+          }
+          return ks;
+      } finally {
+          caInputStream.close();
       }
-
-      return ks;
   }
-
 }
