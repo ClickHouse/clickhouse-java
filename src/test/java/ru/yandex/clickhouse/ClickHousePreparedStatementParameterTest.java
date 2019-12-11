@@ -33,4 +33,25 @@ public class ClickHousePreparedStatementParameterTest {
         assertEquals(p0.getBatchValue(), p1.getBatchValue());
     }
 
+    @Test
+    public void testBooleanParam() {
+        assertEquals(ClickHousePreparedStatementParameter.fromObject(Boolean.TRUE,
+            TimeZone.getDefault(), TimeZone.getDefault()).getRegularValue(), "1");
+        assertEquals(ClickHousePreparedStatementParameter.fromObject(Boolean.FALSE,
+            TimeZone.getDefault(), TimeZone.getDefault()).getRegularValue(), "0");
+    }
+
+    @Test
+    public void testNumberParam() {
+        assertEquals(ClickHousePreparedStatementParameter.fromObject(10,
+            TimeZone.getDefault(), TimeZone.getDefault()).getRegularValue(), "10");
+        assertEquals(ClickHousePreparedStatementParameter.fromObject(10.5,
+            TimeZone.getDefault(), TimeZone.getDefault()).getRegularValue(), "10.5");
+    }
+
+    @Test
+    public void testStringParam() {
+        assertEquals(ClickHousePreparedStatementParameter.fromObject("someString",
+            TimeZone.getDefault(), TimeZone.getDefault()).getRegularValue(), "'someString'");
+    }
 }
