@@ -8,12 +8,16 @@ import ru.yandex.clickhouse.util.guava.StreamUtils;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Date;
 import java.util.TimeZone;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+
+import static com.google.common.primitives.Bytes.concat;
 
 /**
  * @author Dmitry Andreev <a href="mailto:AndreevDm@yandex-team.ru"></a>
@@ -51,6 +55,7 @@ public class ClickHouseRowBinaryStream {
     /**
      * Dangerous. Can only be used for rare optimizations, for example when the string is written in parts
      * without prior concatenation. The size of the string in bytes must be passed through writeUnsignedLeb128.
+     *
      * @param bytes byte array will be written into stream
      * @throws IOException in case if an I/O error occurs
      */
@@ -163,11 +168,50 @@ public class ClickHouseRowBinaryStream {
         out.writeDouble(value);
     }
 
+    public static void reverse(byte[] array) {
+        if (array == null) {
+            return;
+        }
+        int i = 0;
+        int j = array.length - 1;
+        byte tmp;
+        while (j > i) {
+            tmp = array[j];
+            array[j] = array[i];
+            array[i] = tmp;
+            j--;
+            i++;
+        }
+    }
+
+    byte[] bigDecimalToByte(BigDecimal num, int bytesLen, int scale) {
+        BigDecimal ten = BigDecimal.valueOf(10);
+        BigDecimal s = ten.pow(scale);
+        BigInteger res = num.multiply(s).toBigInteger();
+        byte[] r = res.toByteArray();
+        reverse(r);
+        return concat(r, new byte[bytesLen - r.length]);
+    }
+
+    public void writeDecimal128(BigDecimal v, int scale) throws IOException {
+        byte[] x = bigDecimalToByte(v, 16, scale);
+        out.write(x);
+    }
+
+    public void writeDecimal64(BigDecimal v, int scale) throws IOException {
+        byte[] x = bigDecimalToByte(v, 8, scale);
+        out.write(x);
+    }
+
+    public void writeDecimal32(BigDecimal v, int scale) throws IOException {
+        byte[] x = bigDecimalToByte(v, 4, scale);
+        out.write(x);
+    }
 
     public void writeDateArray(Date[] dates) throws IOException {
         Preconditions.checkNotNull(dates);
         writeUnsignedLeb128(dates.length);
-        for (Date date: dates) {
+        for (Date date : dates) {
             writeDate(date);
         }
     }
@@ -175,7 +219,7 @@ public class ClickHouseRowBinaryStream {
     public void writeDateTimeArray(Date[] dates) throws IOException {
         Preconditions.checkNotNull(dates);
         writeUnsignedLeb128(dates.length);
-        for (Date date: dates) {
+        for (Date date : dates) {
             writeDateTime(date);
         }
     }
@@ -191,14 +235,15 @@ public class ClickHouseRowBinaryStream {
     public void writeInt8Array(byte[] bytes) throws IOException {
         Preconditions.checkNotNull(bytes);
         writeUnsignedLeb128(bytes.length);
-        for (byte b: bytes) {
+        for (byte b : bytes) {
             writeInt8(b);
         }
     }
+
     public void writeInt8Array(int[] ints) throws IOException {
         Preconditions.checkNotNull(ints);
         writeUnsignedLeb128(ints.length);
-        for (int i: ints) {
+        for (int i : ints) {
             writeInt8(i);
         }
     }
@@ -206,7 +251,7 @@ public class ClickHouseRowBinaryStream {
     public void writeUInt8Array(int[] ints) throws IOException {
         Preconditions.checkNotNull(ints);
         writeUnsignedLeb128(ints.length);
-        for (int i: ints) {
+        for (int i : ints) {
             writeUInt8(i);
         }
     }
@@ -214,7 +259,7 @@ public class ClickHouseRowBinaryStream {
     public void writeInt16Array(short[] shorts) throws IOException {
         Preconditions.checkNotNull(shorts);
         writeUnsignedLeb128(shorts.length);
-        for (short s: shorts) {
+        for (short s : shorts) {
             writeInt16(s);
         }
     }
@@ -222,7 +267,7 @@ public class ClickHouseRowBinaryStream {
     public void writeUInt16Array(int[] ints) throws IOException {
         Preconditions.checkNotNull(ints);
         writeUnsignedLeb128(ints.length);
-        for (int i: ints) {
+        for (int i : ints) {
             writeUInt16(i);
         }
     }
@@ -230,7 +275,7 @@ public class ClickHouseRowBinaryStream {
     public void writeInt32Array(int[] ints) throws IOException {
         Preconditions.checkNotNull(ints);
         writeUnsignedLeb128(ints.length);
-        for (int i: ints) {
+        for (int i : ints) {
             writeInt32(i);
         }
     }
@@ -238,7 +283,7 @@ public class ClickHouseRowBinaryStream {
     public void writeUInt32Array(long[] longs) throws IOException {
         Preconditions.checkNotNull(longs);
         writeUnsignedLeb128(longs.length);
-        for (long l: longs) {
+        for (long l : longs) {
             writeUInt32(l);
         }
     }
@@ -246,7 +291,7 @@ public class ClickHouseRowBinaryStream {
     public void writeInt64Array(long[] longs) throws IOException {
         Preconditions.checkNotNull(longs);
         writeUnsignedLeb128(longs.length);
-        for (long l: longs) {
+        for (long l : longs) {
             writeInt64(l);
         }
     }
@@ -254,7 +299,7 @@ public class ClickHouseRowBinaryStream {
     public void writeUInt64Array(long[] longs) throws IOException {
         Preconditions.checkNotNull(longs);
         writeUnsignedLeb128(longs.length);
-        for (long l: longs) {
+        for (long l : longs) {
             writeUInt64(l);
         }
     }
@@ -262,7 +307,7 @@ public class ClickHouseRowBinaryStream {
     public void writeFloat32Array(float[] floats) throws IOException {
         Preconditions.checkNotNull(floats);
         writeUnsignedLeb128(floats.length);
-        for (float f: floats) {
+        for (float f : floats) {
             writeFloat32(f);
         }
     }
@@ -270,13 +315,14 @@ public class ClickHouseRowBinaryStream {
     public void writeFloat64Array(double[] doubles) throws IOException {
         Preconditions.checkNotNull(doubles);
         writeUnsignedLeb128(doubles.length);
-        for (double d: doubles) {
+        for (double d : doubles) {
             writeFloat64(d);
         }
     }
 
-    /** Write a marker indicating if value is nullable or not.
-     *
+    /**
+     * Write a marker indicating if value is nullable or not.
+     * <p>
      * E.g., to write Nullable(Int32):
      *
      * <pre>
