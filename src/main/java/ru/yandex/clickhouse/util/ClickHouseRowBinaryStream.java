@@ -17,8 +17,6 @@ import java.util.TimeZone;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
-import static com.google.common.primitives.Bytes.concat;
-
 /**
  * @author Dmitry Andreev <a href="mailto:AndreevDm@yandex-team.ru"></a>
  */
@@ -168,44 +166,27 @@ public class ClickHouseRowBinaryStream {
         out.writeDouble(value);
     }
 
-    public static void reverse(byte[] array) {
-        if (array == null) {
-            return;
-        }
-        int i = 0;
-        int j = array.length - 1;
-        byte tmp;
-        while (j > i) {
-            tmp = array[j];
-            array[j] = array[i];
-            array[i] = tmp;
-            j--;
-            i++;
-        }
-    }
-
-    byte[] bigDecimalToByte(BigDecimal num, int bytesLen, int scale) {
+    private BigInteger removeComma(BigDecimal num, int scale) {
         BigDecimal ten = BigDecimal.valueOf(10);
         BigDecimal s = ten.pow(scale);
-        BigInteger res = num.multiply(s).toBigInteger();
-        byte[] r = res.toByteArray();
-        reverse(r);
-        return concat(r, new byte[bytesLen - r.length]);
+        return num.multiply(s).toBigInteger();
     }
 
-    public void writeDecimal128(BigDecimal v, int scale) throws IOException {
-        byte[] x = bigDecimalToByte(v, 16, scale);
-        out.write(x);
+    public void writeDecimal128(BigDecimal num, int scale) throws IOException {
+        BigInteger bi = removeComma(num, scale);
+        byte[] r = bi.toByteArray();
+        for (int i = r.length; i > 0; i--) {
+            out.write(r[i - 1]);
+        }
+        out.write(new byte[16 - r.length]);
     }
 
-    public void writeDecimal64(BigDecimal v, int scale) throws IOException {
-        byte[] x = bigDecimalToByte(v, 8, scale);
-        out.write(x);
+    public void writeDecimal64(BigDecimal num, int scale) throws IOException {
+        out.writeLong(removeComma(num, scale).longValue());
     }
 
-    public void writeDecimal32(BigDecimal v, int scale) throws IOException {
-        byte[] x = bigDecimalToByte(v, 4, scale);
-        out.write(x);
+    public void writeDecimal32(BigDecimal num, int scale) throws IOException {
+        out.writeInt(removeComma(num, scale).intValue());
     }
 
     public void writeDateArray(Date[] dates) throws IOException {
