@@ -6,6 +6,7 @@ import org.testng.annotations.Test;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
 
 import java.io.ByteArrayOutputStream;
+import java.math.BigDecimal;
 import java.util.Date;
 import java.util.TimeZone;
 import java.util.UUID;
@@ -73,6 +74,47 @@ public class ClickHouseRowBinaryStreamTest {
                 }
             },
             new byte[]{0, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1, -1, -1,}
+        );
+    }
+
+    @Test
+    public void testDecimal32() throws Exception {
+        check(
+                new StreamWriter() {
+                    @Override
+                    public void write(ClickHouseRowBinaryStream stream) throws Exception {
+                        stream.writeDecimal32(new BigDecimal(10.23), 3);
+                        stream.writeDecimal32(new BigDecimal(-99999.9998), 4);
+                    }
+                },
+                new byte[]{-10, 39, 0, 0, 2, 54, 101, -60}
+        );
+    }
+
+    @Test
+    public void testDecimal64() throws Exception {
+        check(
+                new StreamWriter() {
+                    @Override
+                    public void write(ClickHouseRowBinaryStream stream) throws Exception {
+                        stream.writeDecimal64(new BigDecimal(10.23), 3);
+                        stream.writeDecimal64(new BigDecimal(-9999999999.99999998), 8);
+                    }
+                },
+                new byte[]{-10, 39, 0, 0, 0, 0, 0, 0, 0, 0, -100, 88, 76, 73, 31, -14}
+        );
+    }
+
+    @Test
+    public void testDecimal128() throws Exception {
+        check(
+                new StreamWriter() {
+                    @Override
+                    public void write(ClickHouseRowBinaryStream stream) throws Exception {
+                        stream.writeDecimal128(new BigDecimal(10.23), 3);
+                    }
+                },
+                new byte[]{-10, 39, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
         );
     }
 

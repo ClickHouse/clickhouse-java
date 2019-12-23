@@ -5,8 +5,7 @@ import org.testng.annotations.Test;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
 
 import java.io.ByteArrayInputStream;
-import java.io.IOException;
-import java.nio.charset.Charset;
+import java.math.BigDecimal;
 import java.util.Date;
 import java.util.TimeZone;
 
@@ -78,6 +77,26 @@ public class ClickHouseRowBinaryInputStreamTest {
 
 		assertEquals(input.readUInt64AsLong(), 0);
 		assertEquals(input.readUInt64AsLong(), UnsignedLong.valueOf("18446744073709551615").longValue());
+	}
+
+	@Test
+	public void testDecimal128() throws Exception {
+		ClickHouseRowBinaryInputStream input = prepareStream(new byte[]{-10, 39, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0});
+		assertEquals(input.readDecimal128(3), new BigDecimal("10.230"));
+		ClickHouseRowBinaryInputStream input2 = prepareStream(new byte[]{-2, 127, -58, -92, 126, -115, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0});
+		assertEquals(input2.readDecimal128(2), new BigDecimal("9999999999999.98"));
+	}
+
+	@Test
+	public void testDecimal64() throws Exception {
+		ClickHouseRowBinaryInputStream input = prepareStream(new byte[]{-10, 39, 0, 0, 0, 0, 0, 0});
+		assertEquals(input.readDecimal64(3), new BigDecimal("10.23"));
+	}
+
+	@Test
+	public void testDecimal32() throws Exception {
+		ClickHouseRowBinaryInputStream input = prepareStream(new byte[]{-10, 39, 0, 0});
+		assertEquals(input.readDecimal32(3), new BigDecimal("10.23"));
 	}
 
 	@Test
