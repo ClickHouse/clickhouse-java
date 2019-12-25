@@ -9,6 +9,7 @@ import java.io.Closeable;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -385,6 +386,29 @@ public class ClickHouseRowBinaryInputStream implements Closeable {
 		ByteBuffer bb = ByteBuffer.wrap(array).order(ByteOrder.LITTLE_ENDIAN);
 		return new UUID(bb.getLong(), bb.getLong());
 	}
+
+    public BigDecimal readDecimal32(int scale) throws IOException {
+        int i = in.readInt();
+        BigDecimal ten = BigDecimal.valueOf(10);
+        BigDecimal s = ten.pow(scale);
+        return new BigDecimal(i).divide(s);
+    }
+
+    public BigDecimal readDecimal64(int scale) throws IOException {
+        long i = in.readLong();
+        BigDecimal ten = BigDecimal.valueOf(10);
+        BigDecimal s = ten.pow(scale);
+        return new BigDecimal(i).divide(s);
+    }
+
+    public BigDecimal readDecimal128(int scale) throws IOException {
+        byte[] r = new byte[16];
+        for (int i = 16; i > 0; i--) {
+            r[i - 1] = in.readByte();
+        }
+        BigDecimal res = new BigDecimal(new BigInteger(r), scale);
+        return res;
+    }
 
 	@Override
 	public void close() throws IOException {
