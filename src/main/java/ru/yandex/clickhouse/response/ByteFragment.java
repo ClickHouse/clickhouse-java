@@ -1,10 +1,10 @@
 package ru.yandex.clickhouse.response;
 
-import ru.yandex.clickhouse.util.guava.StreamUtils;
-
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+
+import ru.yandex.clickhouse.util.guava.StreamUtils;
 
 public class ByteFragment {
 
@@ -30,7 +30,9 @@ public class ByteFragment {
 
     public String asString(boolean unescape) {
         if(unescape) {
-            if (isNull()) return null;
+            if (isNull()) {
+                return null;
+            }
             return new String(unescape(), StreamUtils.UTF_8);
         } else {
             return asString();
@@ -40,6 +42,15 @@ public class ByteFragment {
     public boolean isNull() {
         // \N
         return len == 2 && buf[start] == '\\' && buf[start + 1] == 'N';
+    }
+
+    public boolean isEmpty() {
+        return len == 0;
+    }
+
+    public boolean isNaN() {
+        // nan
+        return len == 3 && buf[start] == 'n' && buf[start + 1] == 'a' && buf[start + 2] == 'n';
     }
 
     @Override
@@ -72,7 +83,9 @@ public class ByteFragment {
             }
         } catch (IOException ignore) {
         }
-        if(res[c-1] == null) res[c-1] = ByteFragment.EMPTY;
+        if(res[c-1] == null) {
+            res[c-1] = ByteFragment.EMPTY;
+        }
         return res;
     }
     //  [45, 49, 57, 52, 49, 51, 56, 48, 57, 49, 52, 9, 9, 50, 48, 49, 50, 45, 48, 55, 45, 49, 55, 32, 49, 51, 58, 49, 50, 58, 50, 49, 9, 49, 50, 49, 50, 55, 53, 53, 9, 50, 57, 57, 57, 55, 55, 57, 57, 55, 56, 9, 48, 9, 52, 48, 57, 49, 57, 55, 52, 49, 49, 51, 50, 56, 53, 53, 50, 54, 57, 51, 9, 51, 9, 54, 9, 50, 48, 9, 48, 92, 48, 9, 104, 116, 116, 112, 58, 47, 47, 119, 119, 119, 46, 97, 118, 105, 116, 111, 46, 114, 117, 47, 99, 97, 116, 97, 108, 111, 103, 47, 103, 97, 114, 97, 122, 104, 105, 95, 105, 95, 109, 97, 115, 104, 105, 110, 111, 109, 101, 115, 116, 97, 45, 56, 53, 47, 116, 97, 116, 97, 114, 115, 116, 97, 110, 45, 54, 53, 48, 49, 51, 48, 47, 112, 97, 103, 101, 56, 9, 104, 116, 116, 112, 58, 47, 47, 119, 119, 119, 46, 97, 118, 105, 116, 111, 46, 114, 117, 47, 99, 97, 116, 97, 108, 111, 103, 47, 103, 97, 114, 97, 122, 104, 105, 95, 105, 95, 109, 97, 115, 104, 105, 110, 111, 109, 101, 115, 116, 97, 45, 56, 53, 47, 116, 97, 116, 97, 114, 115, 116, 97, 110, 45, 54, 53, 48, 49, 51, 48, 47, 112, 97, 103, 101, 55, 9, 48, 9, 48, 9, 50, 56, 53, 55, 48, 56, 48, 9, 45, 49, 9, 48, 9, 9, 48, 9, 48, 9, 48, 9, 45, 49, 9, 48, 48, 48, 48, 45, 48, 48, 45, 48, 48, 32, 48, 48, 58, 48, 48, 58, 48, 48, 9, 9, 48, 9, 48, 9, 103, 9, 45, 49, 9, 45, 49, 9, 45, 49, 9]
@@ -174,7 +187,9 @@ public class ByteFragment {
         for (int i = 0; i < convert.length; i++) {
             reverse[i] = -1;
             byte c = convert[i];
-            if (c != -1) reverse[c] = (byte) i;
+            if (c != -1) {
+                reverse[c] = (byte) i;
+            }
         }
     }
 

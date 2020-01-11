@@ -117,9 +117,9 @@ public final class FastByteArrayOutputStream extends OutputStream {
 
 
     /**
-     * Closing a <code>ByteArrayOutputStream</code> has no effect. The methods in
+     * Closing a {@code ByteArrayOutputStream} has no effect. The methods in
      * this class can be called after the stream has been closed without
-     * generating an <code>IOException</code>.
+     * generating an {@code IOException}.
      */
     @Override
     public void close() throws IOException {
@@ -156,7 +156,7 @@ public final class FastByteArrayOutputStream extends OutputStream {
      * @return a input stream contained all bytes recorded in a current stream
      */
     public FastByteArrayInputStream convertToInputStream() {
-        return new FastByteArrayInputStream(buf, count); 
+        return new FastByteArrayInputStream(buf, count);
     }
 
     public ByteBuffer toByteBuffer() {

@@ -274,7 +274,7 @@ public class ClickHousePreparedStatementTest {
         rs.next();
         Assert.assertEquals(rs.getMetaData().getColumnType(1), Types.INTEGER);
         Assert.assertEquals(rs.getMetaData().getColumnType(2), Types.BIGINT);
-        Assert.assertEquals(rs.getMetaData().getColumnType(3), Types.FLOAT);
+        Assert.assertEquals(rs.getMetaData().getColumnType(3), Types.REAL);
         Assert.assertEquals(rs.getMetaData().getColumnType(4), Types.VARCHAR);
 
         Assert.assertNull(rs.getObject(1));
@@ -363,22 +363,21 @@ public class ClickHousePreparedStatementTest {
     }
 
     @Test
-    public void testTrailingParameter() throws Exception {
+    public void testTrailingParameterOrderBy() throws Exception {
         String sqlStatement =
-         // "SELECT 42 AS foo, 23 AS bar "
             "SELECT 42 AS foo, 23 AS bar from numbers(100) "
           + "ORDER BY foo DESC LIMIT ?, ?";
-
         PreparedStatement stmt = connection.prepareStatement(sqlStatement);
-        stmt.setInt(1, 42);
-        stmt.setInt(2, 23);
+        stmt.setString(1, "foo");
+        stmt.setString(2, "bar");
         ResultSet rs = stmt.executeQuery();
+        Assert.assertTrue(rs.next());
     }
 
     @Test
     public void testSetTime() throws Exception {
         ClickHousePreparedStatement stmt = (ClickHousePreparedStatement)
-            connection.prepareStatement("SELECT toDateTime(?)");
+            connection.prepareStatement("SELECT ?");
         stmt.setTime(1, Time.valueOf("13:37:42"));
         ResultSet rs = stmt.executeQuery();
         rs.next();
@@ -589,7 +588,7 @@ public class ClickHousePreparedStatementTest {
           + "\t\tVALUES\n"
           + "(?, ?) , \n\r"
           + "\t(?,?),(?,?)\n");
-        Map<Integer, String> testData = new HashMap<Integer, String>();
+        Map<Integer, String> testData = new HashMap<>();
         testData.put(23, "baz");
         testData.put(42, "bar");
         testData.put(1337, "oof");

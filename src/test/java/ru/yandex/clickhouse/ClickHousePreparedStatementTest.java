@@ -6,6 +6,8 @@ import java.sql.ResultSet;
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.sql.Types;
+import java.util.Calendar;
+import java.util.GregorianCalendar;
 import java.util.TimeZone;
 
 import org.apache.http.impl.client.CloseableHttpClient;
@@ -177,6 +179,41 @@ public class ClickHousePreparedStatementTest {
     }
 
     @Test
+    public void testSetDateCalendar() throws Exception {
+        ClickHouseProperties props = new ClickHouseProperties();
+        props.setUseServerTimeZoneForDates(true);
+        ClickHousePreparedStatement s = createStatement(
+            TimeZone.getTimeZone("Asia/Tokyo"),
+            props);
+        Calendar cal = new GregorianCalendar(TimeZone.getTimeZone("Europe/Berlin"));
+        s.setDate(1, new Date(1557168043000L), cal);
+        assertParamMatches(s, "'2019-05-06'");
+    }
+
+    @Test
+    public void testSetDateCalendarSameTimeZone() throws Exception {
+        ClickHouseProperties props = new ClickHouseProperties();
+        props.setUseServerTimeZoneForDates(true);
+        ClickHousePreparedStatement s = createStatement(
+            TimeZone.getTimeZone("Asia/Tokyo"),
+            props);
+        Calendar cal = new GregorianCalendar(TimeZone.getTimeZone("Asia/Tokyo"));
+        s.setDate(1, new Date(1557168043000L), cal);
+        assertParamMatches(s, "'2019-05-07'");
+    }
+
+    @Test
+    public void testSetDateCalendarNull() throws Exception {
+        ClickHouseProperties props = new ClickHouseProperties();
+        props.setUseServerTimeZoneForDates(true);
+        ClickHousePreparedStatement s = createStatement(
+            TimeZone.getTimeZone("Asia/Tokyo"),
+            props);
+        s.setDate(1, new Date(1557168043000L), null);
+        assertParamMatches(s, "'2019-05-07'");
+    }
+
+    @Test
     public void testSetTimeNull() throws Exception {
         ClickHousePreparedStatement s = createStatement();
         s.setTime(1, null);
@@ -187,7 +224,7 @@ public class ClickHousePreparedStatementTest {
     public void testSetTimeNormal() throws Exception {
         ClickHousePreparedStatement s = createStatement();
         s.setTime(1, new Time(1557168043000L));
-        assertParamMatches(s, "'2019-05-06 21:40:43'");
+        assertParamMatches(s, "'21:40:43'");
     }
 
     @Test
@@ -196,7 +233,36 @@ public class ClickHousePreparedStatementTest {
             TimeZone.getTimeZone("America/Los_Angeles"),
             new ClickHouseProperties());
         s.setTime(1, new Time(1557168043000L));
-        assertParamMatches(s, "'2019-05-06 11:40:43'");
+        assertParamMatches(s, "'11:40:43'");
+    }
+
+    @Test
+    public void testSetTimeCalendar() throws Exception {
+        ClickHousePreparedStatement s = createStatement(
+            TimeZone.getTimeZone("America/Los_Angeles"),
+            new ClickHouseProperties());
+        Calendar cal = new GregorianCalendar(TimeZone.getTimeZone("Asia/Kuala_Lumpur"));
+        s.setTime(1, new Time(1557168043000L), cal);
+        assertParamMatches(s, "'02:40:43'");
+    }
+
+    @Test
+    public void testSetTimeCalendarNull() throws Exception {
+        ClickHousePreparedStatement s = createStatement(
+            TimeZone.getTimeZone("America/Los_Angeles"),
+            new ClickHouseProperties());
+        s.setTime(1, new Time(1557168043000L), null);
+        assertParamMatches(s, "'11:40:43'");
+    }
+
+    @Test
+    public void testSetTimeCalendarSameTimeZone() throws Exception {
+        ClickHousePreparedStatement s = createStatement(
+            TimeZone.getTimeZone("America/Los_Angeles"),
+            new ClickHouseProperties());
+        Calendar cal = new GregorianCalendar(TimeZone.getTimeZone("America/Los_Angeles"));
+        s.setTime(1, new Time(1557168043000L), cal);
+        assertParamMatches(s, "'11:40:43'");
     }
 
     @Test
@@ -219,6 +285,35 @@ public class ClickHousePreparedStatementTest {
             TimeZone.getTimeZone("America/Los_Angeles"),
             new ClickHouseProperties());
         s.setTimestamp(1, new Timestamp(1557168043000L));
+        assertParamMatches(s, "'2019-05-06 11:40:43'");
+    }
+
+    @Test
+    public void testSetTimestampCalendar() throws Exception {
+        ClickHousePreparedStatement s = createStatement(
+            TimeZone.getTimeZone("America/Los_Angeles"),
+            new ClickHouseProperties());
+        Calendar cal = new  GregorianCalendar(TimeZone.getTimeZone("Asia/Manila"));
+        s.setTimestamp(1, new Timestamp(1557168043000L), cal);
+        assertParamMatches(s, "'2019-05-07 02:40:43'");
+    }
+
+    @Test
+    public void testSetTimestampCalendarSameTimeZone() throws Exception {
+        ClickHousePreparedStatement s = createStatement(
+            TimeZone.getTimeZone("America/Los_Angeles"),
+            new ClickHouseProperties());
+        Calendar cal = new  GregorianCalendar(TimeZone.getTimeZone("America/Los_Angeles"));
+        s.setTimestamp(1, new Timestamp(1557168043000L), cal);
+        assertParamMatches(s, "'2019-05-06 11:40:43'");
+    }
+
+    @Test
+    public void testSetTimestampCalendarNull() throws Exception {
+        ClickHousePreparedStatement s = createStatement(
+            TimeZone.getTimeZone("America/Los_Angeles"),
+            new ClickHouseProperties());
+        s.setTimestamp(1, new Timestamp(1557168043000L), null);
         assertParamMatches(s, "'2019-05-06 11:40:43'");
     }
 

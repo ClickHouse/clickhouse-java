@@ -20,7 +20,7 @@ public class ClickHouseDataTypeTestDataProvider {
     }
 
     public static List<ClickHouseDataTypeTestData> provideDataTypes() {
-        List<ClickHouseDataTypeTestData> filtered = new ArrayList<ClickHouseDataTypeTestData>();
+        List<ClickHouseDataTypeTestData> filtered = new ArrayList<>();
         for (int i = 0; i < getTestData().length; i++) {
             ClickHouseDataTypeTestData d = getTestData()[i];
             if (d.isCheckValue()) {
@@ -86,7 +86,7 @@ public class ClickHouseDataTypeTestDataProvider {
             create("TINYINT", ClickHouseDataType.Int8),
             create("DEC", ClickHouseDataType.Decimal),
             create("BINARY", ClickHouseDataType.FixedString),
-            create("FLOAT", ClickHouseDataType.Float32),
+            create("REAL", ClickHouseDataType.Float32),
             create("CHAR", ClickHouseDataType.String),
             create("VARCHAR", ClickHouseDataType.String),
             create("TEXT", ClickHouseDataType.String),

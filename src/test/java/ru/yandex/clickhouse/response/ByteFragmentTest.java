@@ -1,13 +1,16 @@
 package ru.yandex.clickhouse.response;
 
-import static org.testng.Assert.assertEquals;
-
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
+
 import ru.yandex.clickhouse.util.guava.StreamUtils;
+
+import static org.testng.Assert.assertEquals;
+import static org.testng.Assert.assertFalse;
+import static org.testng.Assert.assertTrue;
 
 
 public class ByteFragmentTest {
@@ -34,6 +37,13 @@ public class ByteFragmentTest {
         byte[] bytes = escapedStr.getBytes(StreamUtils.UTF_8);
         ByteFragment byteFragment = new ByteFragment(bytes, 0, bytes.length);
         assertEquals(new String(byteFragment.unescape(), StreamUtils.UTF_8.name()), str);
+    }
+
+    @Test
+    public void testIsEmpty() {
+        ByteFragment byteFragment = new ByteFragment(new byte[0], 0, 0);
+        assertTrue(byteFragment.isEmpty());
+        assertFalse(byteFragment.isNull());
     }
 
 }

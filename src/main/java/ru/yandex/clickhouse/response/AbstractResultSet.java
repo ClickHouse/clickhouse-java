@@ -4,12 +4,27 @@ import java.io.InputStream;
 import java.io.Reader;
 import java.math.BigDecimal;
 import java.net.URL;
-import java.sql.*;
+import java.sql.Array;
+import java.sql.Blob;
+import java.sql.Clob;
+import java.sql.Date;
+import java.sql.NClob;
+import java.sql.Ref;
+import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
+import java.sql.RowId;
+import java.sql.SQLException;
+import java.sql.SQLWarning;
+import java.sql.SQLXML;
+import java.sql.Statement;
+import java.sql.Time;
+import java.sql.Timestamp;
 import java.util.Calendar;
 import java.util.Map;
 
 
 public abstract class AbstractResultSet implements ResultSet {
+
     @Override
     public boolean next() throws SQLException {
         throw new UnsupportedOperationException();
@@ -952,12 +967,20 @@ public abstract class AbstractResultSet implements ResultSet {
         throw new UnsupportedOperationException();
     }
 
-    public long[] getLongArray(String column) throws SQLException {
-        Array array = getArray(column);
-        return (long[])array.getArray(); // optimistic
-    }
-
-
-
+    /**
+     * Parse the value in current row at column with label {@code column} as an array
+     * of long
+     *
+     * @param column
+     *            the label, name, alias of the column
+     * @return an array of longs
+     * @throws SQLException
+     *             if the value cannot be interpreted as {@code long[]}
+     * @deprecated prefer to use regular JDBC API, e.g. via
+     *             {@link #getArray(int)} or simply
+     *             {@link #getObject(int, Class)}
+     */
+    @Deprecated
+    public abstract long[] getLongArray(String column) throws SQLException;
 
 }

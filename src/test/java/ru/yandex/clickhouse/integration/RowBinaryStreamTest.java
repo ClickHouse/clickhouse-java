@@ -6,8 +6,10 @@ import java.math.BigInteger;
 import java.sql.Date;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Time;
 import java.sql.Timestamp;
+import java.time.Instant;
+import java.time.LocalTime;
+import java.time.ZoneId;
 import java.util.Calendar;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
@@ -374,6 +376,7 @@ public class RowBinaryStreamTest {
             "CREATE TABLE test.binary_tz (date Date, dateTime DateTime) ENGINE = MergeTree(date, (date), 8192)"
         );
 
+        //
         final Date date1 = new Date(1497474018000L);
 
         statement.sendRowBinaryStream(
@@ -392,9 +395,29 @@ public class RowBinaryStreamTest {
         );
 
         Assert.assertTrue(rs.next());
-        assertEquals(rs.getTime("dateTime"), new Time(date1.getTime()));
+
+        /*
+         * The following, commented-out assertion would be nice, but against the
+         * definition of the Time class:
+         *
+         * "The date components should be set to the "zero epoch" value of
+         * January 1, 1970 and should not be accessed."
+         *
+         * assertEquals(rs.getTime("dateTime"), new Time(date1.getTime()));
+         *
+         * The original timestamp is 2017-06-14 21:00:18 (UTC), so we expect
+         * 21:00:18 as the local time, regardless of a different DST offset
+         */
+        assertEquals(
+            Instant.ofEpochMilli(rs.getTime("dateTime").getTime())
+                .atZone(ZoneId.of("UTC"))
+                .toLocalTime(),
+            LocalTime.of(21, 0, 18));
+
         Date expectedDate = withTimeAtStartOfDay(date1); // expected start of the day in local timezone
         assertEquals(rs.getDate("date"), expectedDate);
+
+        assertEquals(rs.getTimestamp("dateTime"), new Timestamp(date1.getTime()));
     }
 
     private static Date withTimeAtStartOfDay(Date date) {
