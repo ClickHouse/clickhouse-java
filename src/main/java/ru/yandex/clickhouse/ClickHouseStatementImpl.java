@@ -66,6 +66,7 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
 
     private volatile String queryId;
 
+
     /**
      * Current database name may be changed by {@link java.sql.Connection#setCatalog(String)}
      * between creation of this object and query execution, but javadoc does not allow
@@ -465,7 +466,7 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
             ? cleanSQL.length() - 1
             : cleanSQL.length();
         sb.append(cleanSQL.substring(0, idx))
-          .append(" FORMAT ")
+          .append("\nFORMAT ")
           .append(format.name())
           .append(';');
         return sb.toString();
