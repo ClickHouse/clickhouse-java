@@ -464,7 +464,7 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
         int idx = cleanSQL.endsWith(";")
             ? cleanSQL.length() - 1
             : cleanSQL.length();
-        sb.append(cleanSQL.substring(0, idx))
+        sb.append(cleanSQL, 0, idx)
           .append("\nFORMAT ")
           .append(format.name())
           .append(';');
