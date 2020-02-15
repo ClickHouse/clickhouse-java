@@ -23,22 +23,41 @@ public class ClickHouseStatementTest {
     @Test
     public void testClickhousify() throws Exception {
         String sql = "SELECT ololo FROM ololoed;";
-        assertEquals("SELECT ololo FROM ololoed FORMAT TabSeparatedWithNamesAndTypes;", ClickHouseStatementImpl.clickhousifySql(sql));
+        assertEquals(ClickHouseStatementImpl.clickhousifySql(sql), "SELECT ololo FROM ololoed\nFORMAT TabSeparatedWithNamesAndTypes;");
 
         String sql2 = "SELECT ololo FROM ololoed";
-        assertEquals("SELECT ololo FROM ololoed FORMAT TabSeparatedWithNamesAndTypes;", ClickHouseStatementImpl.clickhousifySql(sql2));
+        assertEquals(ClickHouseStatementImpl.clickhousifySql(sql2), "SELECT ololo FROM ololoed\nFORMAT TabSeparatedWithNamesAndTypes;");
 
         String sql3 = "SELECT ololo FROM ololoed FORMAT TabSeparatedWithNamesAndTypes";
-        assertEquals("SELECT ololo FROM ololoed FORMAT TabSeparatedWithNamesAndTypes", ClickHouseStatementImpl.clickhousifySql(sql3));
+        assertEquals(ClickHouseStatementImpl.clickhousifySql(sql3), "SELECT ololo FROM ololoed FORMAT TabSeparatedWithNamesAndTypes");
 
         String sql4 = "SELECT ololo FROM ololoed FORMAT TabSeparatedWithNamesAndTypes;";
-        assertEquals("SELECT ololo FROM ololoed FORMAT TabSeparatedWithNamesAndTypes;", ClickHouseStatementImpl.clickhousifySql(sql4));
+        assertEquals(ClickHouseStatementImpl.clickhousifySql(sql4), "SELECT ololo FROM ololoed FORMAT TabSeparatedWithNamesAndTypes;");
 
         String sql5 = "SHOW ololo FROM ololoed;";
-        assertEquals("SHOW ololo FROM ololoed FORMAT TabSeparatedWithNamesAndTypes;", ClickHouseStatementImpl.clickhousifySql(sql5));
+        assertEquals(ClickHouseStatementImpl.clickhousifySql(sql5), "SHOW ololo FROM ololoed\nFORMAT TabSeparatedWithNamesAndTypes;");
 
         String sql6 = " show ololo FROM ololoed;";
-        assertEquals("show ololo FROM ololoed FORMAT TabSeparatedWithNamesAndTypes;", ClickHouseStatementImpl.clickhousifySql(sql6));
+        assertEquals(ClickHouseStatementImpl.clickhousifySql(sql6), "show ololo FROM ololoed\nFORMAT TabSeparatedWithNamesAndTypes;");
+
+        String sql7 = "SELECT ololo FROM ololoed \nFORMAT TabSeparatedWithNamesAndTypes";
+        assertEquals(ClickHouseStatementImpl.clickhousifySql(sql7), "SELECT ololo FROM ololoed \nFORMAT TabSeparatedWithNamesAndTypes");
+
+        String sql8 = "SELECT ololo FROM ololoed \n\n FORMAT TabSeparatedWithNamesAndTypes";
+        assertEquals(ClickHouseStatementImpl.clickhousifySql(sql8), "SELECT ololo FROM ololoed \n\n FORMAT TabSeparatedWithNamesAndTypes");
+
+        String sql9 = "SELECT ololo FROM ololoed\n-- some comments one line";
+        assertEquals(ClickHouseStatementImpl.clickhousifySql(sql9), "SELECT ololo FROM ololoed\n-- some comments one line\nFORMAT TabSeparatedWithNamesAndTypes;");
+
+        String sql10 = "SELECT ololo FROM ololoed\n-- some comments\ntwo line";
+        assertEquals(ClickHouseStatementImpl.clickhousifySql(sql10), "SELECT ololo FROM ololoed\n-- some comments\ntwo line\nFORMAT TabSeparatedWithNamesAndTypes;");
+
+        String sql11 = "SELECT ololo FROM ololoed/*\nsome comments\ntwo line*/";
+        assertEquals(ClickHouseStatementImpl.clickhousifySql(sql11), "SELECT ololo FROM ololoed/*\nsome comments\ntwo line*/\nFORMAT TabSeparatedWithNamesAndTypes;");
+
+        String sql12 = "SELECT ololo FROM ololoed\n// c style some comments one line";
+        assertEquals(ClickHouseStatementImpl.clickhousifySql(sql12), "SELECT ololo FROM ololoed\n// c style some comments one line\nFORMAT TabSeparatedWithNamesAndTypes;");
+
     }
 
     @Test
