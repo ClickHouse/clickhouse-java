@@ -162,7 +162,7 @@ public class ClickHousePreparedStatementTest {
             TimeZone.getTimeZone("Asia/Tokyo"),
             new ClickHouseProperties());
         s.setDate(1, new Date(1557168043000L));
-        assertParamMatches(s, "'2019-05-06'");
+        assertParamMatches(s, "'2019-05-07'");
     }
 
     @Test
@@ -227,9 +227,10 @@ public class ClickHousePreparedStatementTest {
     }
 
     private static ClickHousePreparedStatement createStatement() throws Exception {
+    	ClickHouseProperties props =  new ClickHouseProperties();
+    	props.setUseServerTimeZoneForDates(true);
         return createStatement(
-            TimeZone.getTimeZone("Europe/Moscow"),
-            new ClickHouseProperties());
+            TimeZone.getTimeZone("Europe/Moscow"),props);
     }
 
     private static ClickHousePreparedStatement createStatement(TimeZone timezone,

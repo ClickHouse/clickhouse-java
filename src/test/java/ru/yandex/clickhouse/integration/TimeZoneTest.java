@@ -6,8 +6,9 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.Calendar;
-import java.util.TimeZone;
 import java.util.concurrent.TimeUnit;
 
 import org.testng.Assert;
@@ -29,18 +30,25 @@ public class TimeZoneTest {
     public void setUp() throws Exception {
         ClickHouseDataSource datasourceServerTz = new ClickHouseDataSource("jdbc:clickhouse://localhost:8123", new ClickHouseProperties());
         connectionServerTz = datasourceServerTz.getConnection();
-        TimeZone serverTimeZone = connectionServerTz.getTimeZone();
+//        TimeZone serverTimeZone = connectionServerTz.getTimeZone();
         ClickHouseProperties properties = new ClickHouseProperties();
         properties.setUseServerTimeZone(false);
-        int serverTimeZoneOffsetHours = (int) TimeUnit.MILLISECONDS.toHours(serverTimeZone.getOffset(currentTime));
-        int manualTimeZoneOffsetHours = serverTimeZoneOffsetHours - 1;
-        properties.setUseTimeZone("GMT" + (manualTimeZoneOffsetHours > 0 ? "+" : "")  + manualTimeZoneOffsetHours + ":00");
+        LocalDateTime dateTime = LocalDateTime.now();
+        String localZone = dateTime.atZone(ZoneId.systemDefault()).getOffset().getId().replace("Z", "+00:00");
+        
+        char[] localZ= localZone.toCharArray();
+        localZ[2]=(char)((Character.getNumericValue(localZ[2])-1)+'0');
+        
+//        int serverTimeZoneOffsetHours = (int) TimeUnit.MILLISECONDS.toHours(serverTimeZone.getOffset(currentTime));
+//        int manualTimeZoneOffsetHours = serverTimeZoneOffsetHours - 1;
+//        properties.setUseTimeZone("GMT" + (manualTimeZoneOffsetHours > 0 ? "+" : "")  + manualTimeZoneOffsetHours + ":00");
+        properties.setUseTimeZone(String.format("%s%s","GMT",new String(localZ)));
         ClickHouseDataSource dataSourceManualTz = new ClickHouseDataSource("jdbc:clickhouse://localhost:8123", properties);
         connectionManualTz = dataSourceManualTz.getConnection();
-
         connectionServerTz.createStatement().execute("CREATE DATABASE IF NOT EXISTS test");
+        
     }
-
+    
     @Test
     public void timeZoneTest() throws Exception {
 
