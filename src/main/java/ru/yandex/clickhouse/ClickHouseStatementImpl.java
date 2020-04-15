@@ -24,6 +24,7 @@ import ru.yandex.clickhouse.settings.ClickHouseQueryParam;
 import ru.yandex.clickhouse.util.ClickHouseRowBinaryInputStream;
 import ru.yandex.clickhouse.util.ClickHouseStreamCallback;
 import ru.yandex.clickhouse.util.Utils;
+import ru.yandex.clickhouse.util.apache.StringUtils;
 import ru.yandex.clickhouse.util.guava.StreamUtils;
 
 import java.io.ByteArrayInputStream;
@@ -120,13 +121,13 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
             if (isSelect(sql)) {
                 currentUpdateCount = -1;
                 currentResult = createResultSet(properties.isCompress()
-                    ? new ClickHouseLZ4Stream(is) : is, properties.getBufferSize(),
-                    extractDBName(sql),
-                    extractTableName(sql),
-                    extractWithTotals(sql),
-                    this,
-                    getConnection().getTimeZone(),
-                    properties
+                                ? new ClickHouseLZ4Stream(is) : is, properties.getBufferSize(),
+                        extractDBName(sql),
+                        extractTableName(sql),
+                        extractWithTotals(sql),
+                        this,
+                        getConnection().getTimeZone(),
+                        properties
                 );
                 currentResult.setMaxRows(maxRows);
                 return currentResult;
@@ -283,7 +284,7 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
             return;
         }
 
-       executeQuery(String.format("KILL QUERY WHERE query_id='%s'", queryId));
+        executeQuery(String.format("KILL QUERY WHERE query_id='%s'", queryId));
     }
 
     @Override
@@ -462,12 +463,12 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
         }
         StringBuilder sb = new StringBuilder();
         int idx = cleanSQL.endsWith(";")
-            ? cleanSQL.length() - 1
-            : cleanSQL.length();
+                ? cleanSQL.length() - 1
+                : cleanSQL.length();
         sb.append(cleanSQL, 0, idx)
-          .append("\nFORMAT ")
-          .append(format.name())
-          .append(';');
+                .append("\nFORMAT ")
+                .append(format.name())
+                .append(';');
         return sb.toString();
     }
 
@@ -480,7 +481,7 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
                 i = Math.max(i, sql.indexOf("*/", i));
             } else if (Character.isLetter(sql.charAt(i))) {
                 String trimmed = sql.substring(i, Math.min(sql.length(), Math.max(i, sql.indexOf(" ", i))));
-                for (String keyword : selectKeywords){
+                for (String keyword : selectKeywords) {
                     if (trimmed.regionMatches(true, 0, keyword, 0, keyword.length())) {
                         return true;
                     }
@@ -510,8 +511,8 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
     }
 
     private String extractDBAndTableName(String sql) {
-        if (Utils.startsWithIgnoreCase(sql, "select")) {
-            String withoutStrings = Utils.retainUnquoted(sql, '\'');
+        if (StringUtils.startsWithIgnoreCase(sql, "select")) {
+            String withoutStrings = StringUtils.retainUnquoted(sql, '\'');
             int fromIndex = withoutStrings.indexOf("from");
             if (fromIndex == -1) {
                 fromIndex = withoutStrings.indexOf("FROM");
@@ -522,28 +523,28 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
                 return fromTable.split(" ")[0];
             }
         }
-        if (Utils.startsWithIgnoreCase(sql, "desc")) {
+        if (StringUtils.startsWithIgnoreCase(sql, "desc")) {
             return "system.columns";
         }
-        if (Utils.startsWithIgnoreCase(sql, "show")) {
+        if (StringUtils.startsWithIgnoreCase(sql, "show")) {
             return "system.tables";
         }
         return "system.unknown";
     }
 
     private boolean extractWithTotals(String sql) {
-        if (Utils.startsWithIgnoreCase(sql, "select")) {
-            String withoutStrings = Utils.retainUnquoted(sql, '\'');
+        if (StringUtils.startsWithIgnoreCase(sql, "select")) {
+            String withoutStrings = StringUtils.retainUnquoted(sql, '\'');
             return withoutStrings.toLowerCase().contains(" with totals");
         }
         return false;
     }
 
     private InputStream getInputStream(
-        String sql,
-        Map<ClickHouseQueryParam, String> additionalClickHouseDBParams,
-        List<ClickHouseExternalData> externalData,
-        Map<String, String> additionalRequestParams
+            String sql,
+            Map<ClickHouseQueryParam, String> additionalClickHouseDBParams,
+            List<ClickHouseExternalData> externalData,
+            Map<String, String> additionalRequestParams
     ) throws ClickHouseException {
         sql = clickhousifySql(sql);
         log.debug("Executing SQL: {}", sql);
@@ -590,10 +591,10 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
                     // so read content to byte array to avoid chunked encoding
                     // TODO do not read stream into memory when this issue is fixed in clickhouse
                     entityBuilder.addBinaryBody(
-                        externalDataItem.getName(),
-                        StreamUtils.toByteArray(externalDataItem.getContent()),
-                        ContentType.APPLICATION_OCTET_STREAM,
-                        externalDataItem.getName()
+                            externalDataItem.getName(),
+                            StreamUtils.toByteArray(externalDataItem.getContent()),
+                            ContentType.APPLICATION_OCTET_STREAM,
+                            externalDataItem.getName()
                     );
                 }
             } catch (IOException e) {
@@ -635,28 +636,28 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
     }
 
     URI buildRequestUri(
-        String sql,
-        List<ClickHouseExternalData> externalData,
-        Map<ClickHouseQueryParam, String> additionalClickHouseDBParams,
-        Map<String, String> additionalRequestParams,
-        boolean ignoreDatabase
+            String sql,
+            List<ClickHouseExternalData> externalData,
+            Map<ClickHouseQueryParam, String> additionalClickHouseDBParams,
+            Map<String, String> additionalRequestParams,
+            boolean ignoreDatabase
     ) {
         try {
             List<NameValuePair> queryParams = getUrlQueryParams(
-                sql,
-                externalData,
-                additionalClickHouseDBParams,
-                additionalRequestParams,
-                ignoreDatabase
+                    sql,
+                    externalData,
+                    additionalClickHouseDBParams,
+                    additionalRequestParams,
+                    ignoreDatabase
             );
 
             return new URIBuilder()
-                .setScheme(properties.getSsl() ? "https" : "http")
-                .setHost(properties.getHost())
-                .setPort(properties.getPort())
-                .setPath((properties.getPath() == null || properties.getPath().isEmpty() ? "/" : properties.getPath()))
-                .setParameters(queryParams)
-                .build();
+                    .setScheme(properties.getSsl() ? "https" : "http")
+                    .setHost(properties.getHost())
+                    .setPort(properties.getPort())
+                    .setPath((properties.getPath() == null || properties.getPath().isEmpty() ? "/" : properties.getPath()))
+                    .setParameters(queryParams)
+                    .build();
         } catch (URISyntaxException e) {
             log.error("Mailformed URL: {}", e.getMessage());
             throw new IllegalStateException("illegal configuration of db");
@@ -664,11 +665,11 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
     }
 
     private List<NameValuePair> getUrlQueryParams(
-        String sql,
-        List<ClickHouseExternalData> externalData,
-        Map<ClickHouseQueryParam, String> additionalClickHouseDBParams,
-        Map<String, String> additionalRequestParams,
-        boolean ignoreDatabase
+            String sql,
+            List<ClickHouseExternalData> externalData,
+            Map<ClickHouseQueryParam, String> additionalClickHouseDBParams,
+            Map<String, String> additionalRequestParams,
+            boolean ignoreDatabase
     ) {
         List<NameValuePair> result = new ArrayList<NameValuePair>();
 
@@ -747,7 +748,7 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
             params.put(ClickHouseQueryParam.MAX_RESULT_ROWS, String.valueOf(maxRows));
             params.put(ClickHouseQueryParam.RESULT_OVERFLOW_MODE, "break");
         }
-        if(isQueryTimeoutSet) {
+        if (isQueryTimeoutSet) {
             params.put(ClickHouseQueryParam.MAX_EXECUTION_TIME, String.valueOf(queryTimeout));
         }
     }
@@ -892,12 +893,12 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
     }
 
     private ClickHouseResultSet createResultSet(InputStream is, int bufferSize, String db, String table, boolean usesWithTotals,
-    		ClickHouseStatement statement, TimeZone timezone, ClickHouseProperties properties) throws IOException {
-    	if(isResultSetScrollable) {
-    		return new ClickHouseScrollableResultSet(is, bufferSize, db, table, usesWithTotals, statement, timezone, properties);
-    	} else {
-    		return new ClickHouseResultSet(is, bufferSize, db, table, usesWithTotals, statement, timezone, properties);
-    	}
+                                                ClickHouseStatement statement, TimeZone timezone, ClickHouseProperties properties) throws IOException {
+        if (isResultSetScrollable) {
+            return new ClickHouseScrollableResultSet(is, bufferSize, db, table, usesWithTotals, statement, timezone, properties);
+        } else {
+            return new ClickHouseResultSet(is, bufferSize, db, table, usesWithTotals, statement, timezone, properties);
+        }
     }
 
     private Map<ClickHouseQueryParam, String> addQueryIdTo(Map<ClickHouseQueryParam, String> parameters) {
