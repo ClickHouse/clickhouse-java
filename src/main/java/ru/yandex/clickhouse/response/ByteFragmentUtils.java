@@ -9,6 +9,7 @@ import java.sql.Date;
 import java.sql.Timestamp;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.util.UUID;
 
 final class ByteFragmentUtils {
 
@@ -273,6 +274,14 @@ final class ByteFragmentUtils {
                         doubleValue = Double.parseDouble(fragment.asString());
                     }
                     java.lang.reflect.Array.set(array, index++, doubleValue);
+                } else if (elementClass == UUID.class) {
+                    UUID uuidValue;
+                    if (fragment.isNull()) {
+                        uuidValue = useObjects ? null : UUID.fromString("00000000-0000-0000-0000-000000000000");
+                    } else {
+                        uuidValue = UUID.fromString(fragment.asString());
+                    }
+                    java.lang.reflect.Array.set(array, index++, uuidValue);
                 } else if (elementClass == Date.class) {
                     Date dateValue;
                     if (fragment.isNull()) {
