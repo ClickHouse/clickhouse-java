@@ -15,6 +15,7 @@ import java.sql.Date;
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.TimeZone;
+import java.util.UUID;
 
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertNotNull;
@@ -33,6 +34,15 @@ public class ByteFragmentUtilsTest {
                 {new String[]{"", ""}},
                 {new String[]{""}},
                 {new String[]{}}
+        };
+    }
+
+    @DataProvider(name = "uuidArray")
+    public Object[][] uuidArray() {
+        return new Object[][]{
+                {new UUID[]{UUID.fromString("00000000-0000-0000-0000-000000000000"), UUID.fromString("00000000-0000-0000-0000-000000000000")}},
+                {new UUID[]{UUID.fromString("00000000-0000-0000-0000-000000000000")}},
+                {new UUID[]{}}
         };
     }
 
@@ -148,6 +158,26 @@ public class ByteFragmentUtilsTest {
         byte[] bytes = sourceString.getBytes(StreamUtils.UTF_8);
         ByteFragment fragment = new ByteFragment(bytes, 0, bytes.length);
         String[] parsedArray = (String[]) ByteFragmentUtils.parseArray(fragment, String.class, 1);
+
+        assertNotNull(parsedArray);
+        assertEquals(parsedArray.length, array.length);
+        for (int i = 0; i < parsedArray.length; i++) {
+            assertEquals(parsedArray[i], array[i]);
+        }
+    }
+
+    @Test(dataProvider = "uuidArray")
+    public void testParseUuidArray(UUID[] array) throws Exception {
+        String sourceString = array.length == 0 ? "[]" : "['" + Joiner.on("','").join(Iterables.transform(Arrays.asList(array), new Function<UUID, String>() {
+            @Override
+            public String apply(UUID s) {
+                return s.toString();
+            }
+        })) + "']";
+
+        byte[] bytes = sourceString.getBytes(StreamUtils.UTF_8);
+        ByteFragment fragment = new ByteFragment(bytes, 0, bytes.length);
+        UUID[] parsedArray = (UUID[]) ByteFragmentUtils.parseArray(fragment, UUID.class, 1);
 
         assertNotNull(parsedArray);
         assertEquals(parsedArray.length, array.length);
