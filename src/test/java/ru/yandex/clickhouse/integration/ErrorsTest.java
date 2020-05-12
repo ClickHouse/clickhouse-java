@@ -22,7 +22,7 @@ public class ErrorsTest {
         try {
             Connection connection = dataSource.getConnection();
         } catch (Exception e) {
-            Assert.assertEquals((getClickhouseException(e)).getErrorCode(), 192);
+            Assert.assertEquals((getClickhouseException(e)).getErrorCode(), 516);
             return;
         }
         Assert.assertTrue(false, "didn' find correct error");

@@ -126,7 +126,7 @@ public class ClickHouseStatementImplTest {
         ClickHouseStatement stmt = connection.createStatement();
         ResultSet rs = stmt.executeQuery(
                 "select UserName, GroupName " +
-                        "from (select 'User' as UserName, 1 as GroupId) " +
+                        "from (select 'User' as UserName, 1 as GroupId) AS g" +
                         "any left join groups using GroupId",
                 null,
                 Collections.singletonList(new ClickHouseExternalData(
