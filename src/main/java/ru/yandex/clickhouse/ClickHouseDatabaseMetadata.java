@@ -803,10 +803,10 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
         StringBuilder query;
         if (connection.getServerVersion().compareTo("1.1.54237") > 0) {
             query = new StringBuilder(
-                "SELECT database, table, name, type, default_kind as default_type, default_expression ");
+                "SELECT database, table, name, type, default_kind as default_type, default_expression, comment ");
         } else {
             query = new StringBuilder(
-                "SELECT database, table, name, type, default_type, default_expression ");
+                "SELECT database, table, name, type, default_type, default_expression, comment ");
         }
         query.append("FROM system.columns ");
         List<String> predicates = new ArrayList<String>();
@@ -856,7 +856,7 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
                 ? String.valueOf(columnNullable)
                 : String.valueOf(columnNoNulls));
             //remarks
-            row.add(null);
+            row.add(descTable.getString("comment"));
 
             // COLUMN_DEF
             if ("DEFAULT".equals(descTable.getString("default_type"))) {
