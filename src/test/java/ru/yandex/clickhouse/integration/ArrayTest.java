@@ -40,6 +40,7 @@ public class ArrayTest {
     @BeforeTest
     public void setUp() throws Exception {
         ClickHouseProperties properties = new ClickHouseProperties();
+        properties.setKeepAliveTimeout(10000);
         dataSource = new ClickHouseDataSource("jdbc:clickhouse://localhost:8123", properties);
         connection = dataSource.getConnection();
     }

@@ -4,8 +4,8 @@ sudo: required
 language: java
 install: mvn install -DskipTests=true -Dgpg.skip=true
 jdk:
-  - openjdk6
   - openjdk8
+  - openjdk14
 services:
   - docker
 before_script:

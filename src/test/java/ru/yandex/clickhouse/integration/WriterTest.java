@@ -51,7 +51,12 @@ public class WriterTest {
 
     @Test
     public void testTSV() throws Exception {
-        File tempFile = Utils.createTempFile("");
+        File tempFile;
+        try {
+            tempFile = File.createTempFile("testng-tmp", null);
+        } catch (IOException ioe) {
+            throw new RuntimeException(ioe);
+        }
         FileOutputStream fos = new FileOutputStream(tempFile);
         for (int i = 0; i < 1000; i++) {
             fos.write((i + "\tИмя " + i + "\n").getBytes("UTF-8"));

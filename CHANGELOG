@@ -1,3 +1,6 @@
+0.2.5
+  * Update dependencies
+  * Fix tests: Incorrect user is now reported as generic auth error. JOINs require explicit alias for tables.
 0.2.4
   * fix FORMAT clause append for queries, ending with comment
 0.2.3

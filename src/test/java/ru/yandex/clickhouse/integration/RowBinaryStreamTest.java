@@ -281,7 +281,7 @@ public class RowBinaryStreamTest {
             ClickHouseRowBinaryInputStream is = connection.createStatement().executeQueryClickhouseRowBinaryStream("SELECT * FROM test.raw_binary ORDER BY date");
 
             assertEquals(is.readDate(), withTimeAtStartOfDay(date1));
-            assertEquals(is.readDateTime(), date1);
+            assertEquals(is.readDateTime().getTime(), date1.getTime());
             assertEquals(is.readString(), "string\n1");
             assertEquals(is.readInt8(), Byte.MIN_VALUE);
             assertEquals(is.readUInt8(), (short) 0);

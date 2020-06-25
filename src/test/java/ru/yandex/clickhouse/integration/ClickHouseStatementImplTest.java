@@ -1,6 +1,7 @@
 package ru.yandex.clickhouse.integration;
 import java.io.ByteArrayInputStream;
 import java.io.UnsupportedEncodingException;
+import java.lang.reflect.Field;
 import java.math.BigInteger;
 import java.sql.Array;
 import java.sql.Connection;
@@ -16,7 +17,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
-import org.mockito.internal.util.reflection.Whitebox;
 import org.testng.Assert;
 import org.testng.annotations.AfterTest;
 import org.testng.annotations.BeforeTest;
@@ -126,7 +126,7 @@ public class ClickHouseStatementImplTest {
         ClickHouseStatement stmt = connection.createStatement();
         ResultSet rs = stmt.executeQuery(
                 "select UserName, GroupName " +
-                        "from (select 'User' as UserName, 1 as GroupId) " +
+                        "from (select 'User' as UserName, 1 as GroupId) t1 " +
                         "any left join groups using GroupId",
                 null,
                 Collections.singletonList(new ClickHouseExternalData(
@@ -308,7 +308,7 @@ public class ClickHouseStatementImplTest {
         long start = System.currentTimeMillis();
         Object value;
         do {
-            value = Whitebox.getInternalState(object, fieldName);
+            value = getInternalState(object, fieldName);
         } while (value == null && TimeUnit.MILLISECONDS.toSeconds(System.currentTimeMillis() - start) < timeoutSecs);
 
         return value;
@@ -337,5 +337,36 @@ public class ClickHouseStatementImplTest {
         return false;
     }
 
+    private static Object getInternalState(Object target, String field) {
+        Class<?> c = target.getClass();
+        try {
+            Field f = getFieldFromHierarchy(c, field);
+            f.setAccessible(true);
+            return f.get(target);
+        } catch (Exception e) {
+            throw new RuntimeException("Unable to get internal state on a private field. Please report to mockito mailing list.", e);
+        }
+    }
+    private static Field getFieldFromHierarchy(Class<?> clazz, String field) {
+        Field f = getField(clazz, field);
+        while (f == null && clazz != Object.class) {
+            clazz = clazz.getSuperclass();
+            f = getField(clazz, field);
+        }
+        if (f == null) {
+            throw new RuntimeException(
+                    "You want me to get this field: '" + field +
+                            "' on this class: '" + clazz.getSimpleName() +
+                            "' but this field is not declared within the hierarchy of this class!");
+        }
+        return f;
+    }
 
+    private static Field getField(Class<?> clazz, String field) {
+        try {
+            return clazz.getDeclaredField(field);
+        } catch (NoSuchFieldException e) {
+            return null;
+        }
+    }
 }

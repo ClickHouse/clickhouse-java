@@ -41,6 +41,7 @@ public class ClickHousePreparedStatementTest {
     public void setUp() throws Exception {
         ClickHouseProperties properties = new ClickHouseProperties();
         dataSource = new ClickHouseDataSource("jdbc:clickhouse://localhost:8123", properties);
+        properties.setKeepAliveTimeout(10000);
         connection = dataSource.getConnection();
         connection.createStatement().execute("CREATE DATABASE IF NOT EXISTS test");
     }
