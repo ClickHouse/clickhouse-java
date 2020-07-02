@@ -259,6 +259,10 @@ final class ByteFragmentUtils {
                         floatValue = useObjects ? null : 0.0F;
                     } else if (fragment.isNaN()) {
                         floatValue = Float.NaN;
+                    } else if (fragment.isPositiveInf()) {
+                        floatValue = Float.POSITIVE_INFINITY;
+                    } else if (fragment.isNegativeInf()) {
+                        floatValue = Float.NEGATIVE_INFINITY;
                     } else {
                         floatValue = Float.parseFloat(fragment.asString());
                     }
@@ -269,6 +273,10 @@ final class ByteFragmentUtils {
                         doubleValue = useObjects ? null : 0.0;
                     } else if (fragment.isNaN()) {
                         doubleValue = Double.NaN;
+                    } else if (fragment.isPositiveInf()) {
+                        doubleValue = Double.POSITIVE_INFINITY;
+                    } else if (fragment.isNegativeInf()) {
+                        doubleValue = Double.NEGATIVE_INFINITY;
                     } else {
                         doubleValue = Double.parseDouble(fragment.asString());
                     }

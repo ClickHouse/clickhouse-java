@@ -20,4 +20,15 @@ class ArrayByteFragment extends ByteFragment {
         // nan
         return len == 3 && buf[start] == 'n' && buf[start + 1] == 'a' && buf[start + 2] == 'n';
     }
+
+    public boolean isPositiveInf() {
+        // +inf inf
+        return (len == 3 && buf[start] == 'i' && buf[start + 1] == 'n' && buf[start + 2] == 'f') ||
+          (len == 4 && buf[start] == '+' && buf[start + 1] == 'i' && buf[start + 2] == 'n' && buf[start + 3] == 'f');
+    }
+
+    public boolean isNegativeInf() {
+        // -inf
+        return len == 4 && buf[start] == '-' && buf[start + 1] == 'i' && buf[start + 2] == 'n' && buf[start + 3] == 'f';
+    }
 }
