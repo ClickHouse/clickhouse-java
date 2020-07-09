@@ -23,6 +23,7 @@ public class ClickHouseResultBuilder {
     private TimeZone timezone = TimeZone.getTimeZone("UTC");
     private boolean usesWithTotals;
     private ClickHouseProperties properties = new ClickHouseProperties();
+    private boolean isSelectWithFormatJSONEachRow = false;
 
     public static ClickHouseResultBuilder builder(int columnsNum) {
         return new ClickHouseResultBuilder(columnsNum);
@@ -46,6 +47,11 @@ public class ClickHouseResultBuilder {
 
     public ClickHouseResultBuilder withTotals(boolean usesWithTotals) {
         this.usesWithTotals = usesWithTotals;
+        return this;
+    }
+
+    public ClickHouseResultBuilder withSelectWithFormatJSONEachRow(boolean selectWithFormatJSONEachRow) {
+        isSelectWithFormatJSONEachRow = selectWithFormatJSONEachRow;
         return this;
     }
 
@@ -91,7 +97,7 @@ public class ClickHouseResultBuilder {
             byte[] bytes = baos.toByteArray();
             ByteArrayInputStream inputStream = new ByteArrayInputStream(bytes);
 
-            return new ClickHouseResultSet(inputStream, 1024, "system", "unknown", usesWithTotals, null, timezone, properties);
+            return new ClickHouseResultSet(inputStream, 1024, "system", "unknown", usesWithTotals, null, timezone,isSelectWithFormatJSONEachRow, properties);
         } catch (IOException e) {
             throw new RuntimeException("Never happens", e);
         }

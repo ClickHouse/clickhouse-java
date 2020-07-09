@@ -13,8 +13,10 @@ public class ClickHouseScrollableResultSet extends ClickHouseResultSet {
     
     private List<ByteFragment[]> lines;
 
-    public ClickHouseScrollableResultSet(InputStream is, int bufferSize, String db, String table, boolean usesWithTotals, ClickHouseStatement statement, TimeZone timezone, ClickHouseProperties properties) throws IOException {
-        super(is, bufferSize, db, table, usesWithTotals, statement, timezone, properties);
+    public ClickHouseScrollableResultSet(InputStream is, int bufferSize, String db, String table,
+										 boolean usesWithTotals, ClickHouseStatement statement,
+										 TimeZone timezone,boolean isSelectWithFormatJSONEachRow, ClickHouseProperties properties) throws IOException {
+        super(is, bufferSize, db, table, usesWithTotals, statement, timezone,isSelectWithFormatJSONEachRow, properties);
         lines = new ArrayList<ByteFragment[]>();
     }
 

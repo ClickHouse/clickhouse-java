@@ -23,8 +23,11 @@ import java.util.List;
 import java.util.TimeZone;
 import java.util.UUID;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import ru.yandex.clickhouse.ClickHouseArray;
 import ru.yandex.clickhouse.ClickHouseStatement;
+import ru.yandex.clickhouse.ClickHouseStatementImpl;
 import ru.yandex.clickhouse.domain.ClickHouseDataType;
 import ru.yandex.clickhouse.except.ClickHouseExceptionSpecifier;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
@@ -33,6 +36,8 @@ import static ru.yandex.clickhouse.response.ByteFragmentUtils.parseArray;
 
 
 public class ClickHouseResultSet extends AbstractResultSet {
+
+    private static final Logger log = LoggerFactory.getLogger(ClickHouseResultSet.class);
 
     private final static long[] EMPTY_LONG_ARRAY = new long[0];
     private static final String DATE_TIME_PATTERN = "yyyy-MM-dd HH:mm:ss";
@@ -77,11 +82,17 @@ public class ClickHouseResultSet extends AbstractResultSet {
     // it does not do prefetch. It is effectively a witness
     // to the fact that rs.next() returned false.
     private boolean lastReached = false;
-    
+
     private boolean isAfterLastReached = false;
+
+    // whether is a select sql with FORMAT JSONEachRow
+    // like
+    // select * from xxx FORMAT JSONEachRow
+    private boolean isSelectWithFormatJSONEachRow = false;
 
     public ClickHouseResultSet(InputStream is, int bufferSize, String db, String table,
         boolean usesWithTotals, ClickHouseStatement statement, TimeZone timeZone,
+        boolean isSelectWithFormatJSONEachRow,
         ClickHouseProperties properties) throws IOException
     {
         this.db = db;
@@ -93,23 +104,36 @@ public class ClickHouseResultSet extends AbstractResultSet {
         this.dateTimeZone = properties.isUseServerTimeZoneForDates()
             ? timeZone
             : TimeZone.getDefault();
+        this.isSelectWithFormatJSONEachRow = isSelectWithFormatJSONEachRow;
         dateTimeFormat.setTimeZone(dateTimeTimeZone);
         dateFormat.setTimeZone(dateTimeZone);
         bis = new StreamSplitter(is, (byte) 0x0A, bufferSize);  ///   \n
+        if (isSelectWithFormatJSONEachRow){
+            // if sql is a select with FORMAT JSONEachRow,
+            // result has no headerFragment and typesFragment from clickhouse server.
+            // build a default column info
+            log.info("sql is select with FORMAT JSONEachRow,there has no headerFragment and typesFragment");
+            columns = new ArrayList<ClickHouseColumnInfo>(1);
+            columns.add(ClickHouseColumnInfo.parse("String", "JsonValue"));
+            return;
+        }
         ByteFragment headerFragment = bis.next();
         if (headerFragment == null) {
             throw new IllegalArgumentException("ClickHouse response without column names");
         }
+        // log.info("headerFragment:{}",headerFragment.asString());
         String header = headerFragment.asString(true);
         if (header.startsWith("Code: ") && !header.contains("\t")) {
             is.close();
             throw new IOException("ClickHouse error: " + header);
         }
         String[] cols = toStringArray(headerFragment);
+
         ByteFragment typesFragment = bis.next();
         if (typesFragment == null) {
             throw new IllegalArgumentException("ClickHouse response without column types");
         }
+        // log.info("typesFragment:{}",typesFragment.asString());
         String[] types = toStringArray(typesFragment);
         columns = new ArrayList<ClickHouseColumnInfo>(cols.length);
         for (int i = 0; i < cols.length; i++) {
@@ -149,12 +173,12 @@ public class ClickHouseResultSet extends AbstractResultSet {
         return nextLine != null;
     }
 
-    @Override 
+    @Override
     public boolean isBeforeFirst() throws SQLException {
         return rowNumber == 0 && hasNext();
     }
 
-    @Override 
+    @Override
     public boolean isAfterLast() throws SQLException {
         return isAfterLastReached;
     }
@@ -166,8 +190,8 @@ public class ClickHouseResultSet extends AbstractResultSet {
 
     @Override
     public boolean isLast() throws SQLException {
-        return !hasNext(); 
-     // && !isAfterLastReached should be probably added, 
+        return !hasNext();
+     // && !isAfterLastReached should be probably added,
      // but it may brake compatibility with the previous implementation
     }
 
