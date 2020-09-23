@@ -51,6 +51,7 @@ import java.util.concurrent.TimeUnit;
 public class ClickHouseHttpClientBuilder {
 
     private final ClickHouseProperties properties;
+    private static PoolingHttpClientConnectionManager connectionManager;
 
     public ClickHouseHttpClientBuilder(ClickHouseProperties properties) {
         this.properties = properties;
@@ -68,7 +69,18 @@ public class ClickHouseHttpClientBuilder {
                 .build();
     }
 
-    private PoolingHttpClientConnectionManager getConnectionManager()
+    private PoolingHttpClientConnectionManager getConnectionManager() throws Exception{
+        if (connectionManager == null) {
+            synchronized (ClickHouseHttpClientBuilder.class) {
+                if (connectionManager == null) {
+                  connectionManager = buildConnectionManager();
+                }
+            }
+        }
+        return connectionManager;
+    }
+
+    private PoolingHttpClientConnectionManager buildConnectionManager()
         throws CertificateException, NoSuchAlgorithmException, KeyStoreException, KeyManagementException, IOException {
         RegistryBuilder<ConnectionSocketFactory> registry = RegistryBuilder.<ConnectionSocketFactory>create()
           .register("http", PlainConnectionSocketFactory.getSocketFactory());
