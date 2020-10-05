@@ -1,4 +1,4 @@
-dist: bionic
+dist: trusty
 group: deprecated-2017Q2
 sudo: required
 language: java
@@ -8,7 +8,7 @@ jdk:
   - openjdk8
   - openjdk9
   - openjdk10
-  - openjdk11
+  - openjdk12
 services:
   - docker
 before_script:
