@@ -448,6 +448,25 @@ public class ClickHouseResultSetTest {
         }
     }
 
+    @Test
+    public void testGetColumnNames() throws Exception {
+        String response = "SiteName\tCountry\n" +
+                "String\tString\n" +
+                "hello.com\tPoland\n" +
+                "there.com\tUSA\n" +
+                "\t\n" +
+                "other.com\t\n" +
+                "\n" +
+                "\t\n";
+
+        ByteArrayInputStream is = new ByteArrayInputStream(response.getBytes("UTF-8"));
+
+        ClickHouseResultSet rs = buildResultSet(is, 1024, "db", "table", false, null, null, props);
+        String[] columnNames = rs.getColumnNames();
+        assertEquals(2, columnNames.length);
+        assertEquals("SiteName", columnNames[0]);
+        assertEquals("Country", columnNames[1]);
+    }
 
     /**
      * By jdbc specification
