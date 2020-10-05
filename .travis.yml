@@ -1,4 +1,4 @@
-dist: trusty
+dist: bionic
 group: deprecated-2017Q2
 sudo: required
 language: java
