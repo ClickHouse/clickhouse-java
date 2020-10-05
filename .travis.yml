@@ -8,7 +8,6 @@ jdk:
   - openjdk8
   - openjdk9
   - openjdk10
-  - openjdk12
 services:
   - docker
 before_script:
