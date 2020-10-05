@@ -634,8 +634,10 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
             }
 
             // retrieve response summary
-            Header summaryHeader = response.getFirstHeader("X-ClickHouse-Summary");
-            currentSummary = summaryHeader != null ? Jackson.getObjectMapper().readValue(summaryHeader.getValue(), ClickHouseResponseSummary.class) : null;
+            if (isClickhouseSummarySet(additionalClickHouseDBParams, additionalRequestParams)) {
+                Header summaryHeader = response.getFirstHeader("X-ClickHouse-Summary");
+                currentSummary = summaryHeader != null ? Jackson.getObjectMapper().readValue(summaryHeader.getValue(), ClickHouseResponseSummary.class) : null;
+            }
 
             return is;
         } catch (ClickHouseException e) {
@@ -736,6 +738,23 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
 
 
         return result;
+    }
+
+    private boolean isClickhouseSummarySet(Map<ClickHouseQueryParam, String> additionalClickHouseDBParams, Map<String, String> additionalRequestParams) {
+        if (Boolean.TRUE.equals(properties.getSendProgressInHttpHeaders()))
+            return true;
+
+        if (additionalClickHouseDBParams != null && isQueryParamSet(additionalClickHouseDBParams.get(ClickHouseQueryParam.SEND_PROGRESS_IN_HTTP_HEADERS)))
+            return true;
+
+        if (additionalRequestParams != null && isQueryParamSet(additionalRequestParams.get(ClickHouseQueryParam.SEND_PROGRESS_IN_HTTP_HEADERS.getKey())))
+            return true;
+
+        return false;
+    }
+
+    private boolean isQueryParamSet(String param) {
+        return "true".equals(param) || "1".equals(param);
     }
 
     private URI followRedirects(URI uri) throws IOException, URISyntaxException {
@@ -866,9 +885,10 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
             checkForErrorAndThrow(entity, response);
 
             // retrieve response summary
-            Header summaryHeader = response.getFirstHeader("X-ClickHouse-Summary");
-            currentSummary = summaryHeader != null ? Jackson.getObjectMapper().readValue(summaryHeader.getValue(), ClickHouseResponseSummary.class) : null;
-
+            if (isClickhouseSummarySet(writer.getAdditionalDBParams(), writer.getRequestParams())) {
+                Header summaryHeader = response.getFirstHeader("X-ClickHouse-Summary");
+                currentSummary = summaryHeader != null ? Jackson.getObjectMapper().readValue(summaryHeader.getValue(), ClickHouseResponseSummary.class) : null;
+            }
         } catch (ClickHouseException e) {
             throw e;
         } catch (Exception e) {

@@ -15,9 +15,10 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.testng.Assert.assertEquals;
+import static org.testng.Assert.assertNull;
 import static org.testng.AssertJUnit.assertTrue;
 
-public class ResultSetSummary {
+public class ResultSummary {
     private ClickHouseConnection connection;
 
     @BeforeTest
@@ -117,5 +118,13 @@ public class ResultSetSummary {
 
         assertEquals(ps.getResponseSummary().getWrittenRows(), 10000000);
         assertTrue(ps.getResponseSummary().getWrittenBytes() > 0);
+    }
+
+    @Test
+    public void noSummary() throws Exception {
+        ClickHouseStatement st = connection.createStatement();
+        st.executeQuery("SELECT * FROM numbers(10)");
+
+        assertNull(st.getResponseSummary());
     }
 }
