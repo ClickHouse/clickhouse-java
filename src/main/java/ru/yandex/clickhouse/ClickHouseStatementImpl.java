@@ -1,6 +1,7 @@
 package ru.yandex.clickhouse;
 
 import com.google.common.base.Strings;
+import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.NameValuePair;
@@ -51,6 +52,8 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
     private ClickHouseResultSet currentResult;
 
     private ClickHouseRowBinaryInputStream currentRowBinaryResult;
+
+    private ClickHouseResponseSummary currentSummary;
 
     private int currentUpdateCount = -1;
 
@@ -217,6 +220,7 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
         } finally {
             StreamUtils.close(is);
         }
+        // should we return currentSummary.writtenRows?
         return 1;
     }
 
@@ -444,6 +448,11 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
         return iface.isAssignableFrom(getClass());
     }
 
+    @Override
+    public ClickHouseResponseSummary getResponseSummary() {
+        return currentSummary;
+    }
+
     static String clickhousifySql(String sql) {
         return addFormatIfAbsent(sql, ClickHouseFormat.TabSeparatedWithNamesAndTypes);
     }
@@ -623,6 +632,11 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
                 entity.writeTo(baos);
                 is = baos.convertToInputStream();
             }
+
+            // retrieve response summary
+            Header summaryHeader = response.getFirstHeader("X-ClickHouse-Summary");
+            currentSummary = summaryHeader != null ? Jackson.getObjectMapper().readValue(summaryHeader.getValue(), ClickHouseResponseSummary.class) : null;
+
             return is;
         } catch (ClickHouseException e) {
             throw e;
@@ -850,6 +864,11 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
             HttpResponse response = client.execute(httpPost);
             entity = response.getEntity();
             checkForErrorAndThrow(entity, response);
+
+            // retrieve response summary
+            Header summaryHeader = response.getFirstHeader("X-ClickHouse-Summary");
+            currentSummary = summaryHeader != null ? Jackson.getObjectMapper().readValue(summaryHeader.getValue(), ClickHouseResponseSummary.class) : null;
+
         } catch (ClickHouseException e) {
             throw e;
         } catch (Exception e) {

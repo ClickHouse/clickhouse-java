@@ -217,6 +217,8 @@ public enum ClickHouseQueryParam implements DriverPropertyCreator {
 
     SELECT_SEQUENTIAL_CONSISTENCY("select_sequential_consistency", null, Long.class, ""),
 
+    SEND_PROGRESS_IN_HTTP_HEADERS("send_progress_in_http_headers", null, Boolean.class, "Allow to populate summary in ClickHouseStatement with read/written rows/bytes"),
+
     SEND_TIMEOUT("send_timeout", null, Integer.class, ""),
 
     SESSION_CHECK("session_check", false, Boolean.class, ""),
