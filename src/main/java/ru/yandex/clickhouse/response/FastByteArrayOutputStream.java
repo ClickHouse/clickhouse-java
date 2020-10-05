@@ -117,9 +117,9 @@ public final class FastByteArrayOutputStream extends OutputStream {
 
 
     /**
-     * Closing a <tt>ByteArrayOutputStream</tt> has no effect. The methods in
+     * Closing a <code>ByteArrayOutputStream</code> has no effect. The methods in
      * this class can be called after the stream has been closed without
-     * generating an <tt>IOException</tt>.
+     * generating an <code>IOException</code>.
      */
     @Override
     public void close() throws IOException {
