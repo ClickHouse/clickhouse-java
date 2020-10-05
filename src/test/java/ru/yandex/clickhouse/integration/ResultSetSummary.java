@@ -11,6 +11,8 @@ import ru.yandex.clickhouse.settings.ClickHouseProperties;
 import ru.yandex.clickhouse.settings.ClickHouseQueryParam;
 
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.testng.Assert.assertEquals;
 import static org.testng.AssertJUnit.assertTrue;
@@ -38,8 +40,33 @@ public class ResultSetSummary {
         ClickHouseStatement st = connection.createStatement();
         st.executeQuery("SELECT * FROM numbers(10)", Collections.singletonMap(ClickHouseQueryParam.SEND_PROGRESS_IN_HTTP_HEADERS, "true"));
 
-        assertEquals(st.getResponseSummary().getReadRows(), 10);
+        assertTrue(st.getResponseSummary().getReadRows() >= 10);
         assertTrue(st.getResponseSummary().getReadBytes() > 0);
+    }
+
+    @Test
+    public void largeSelect() throws Exception {
+        ClickHouseStatement st = connection.createStatement();
+        st.executeQuery("SELECT * FROM numbers(10000000)", Collections.singletonMap(ClickHouseQueryParam.SEND_PROGRESS_IN_HTTP_HEADERS, "true"));
+
+        assertTrue(st.getResponseSummary().getReadRows() < 10000000);
+        assertTrue(st.getResponseSummary().getReadBytes() > 0);
+    }
+
+    @Test
+    public void largeSelectWaitEndOfQuery() throws Exception {
+        ClickHouseStatement st = connection.createStatement();
+        st.executeQuery("SELECT * FROM numbers(10000000)", largeSelectWaitEndOfQueryParams());
+
+        assertTrue(st.getResponseSummary().getReadRows() >= 10000000);
+        assertTrue(st.getResponseSummary().getReadBytes() > 0);
+    }
+
+    private Map<ClickHouseQueryParam, String> largeSelectWaitEndOfQueryParams() {
+        Map<ClickHouseQueryParam, String> res = new HashMap<>();
+        res.put(ClickHouseQueryParam.SEND_PROGRESS_IN_HTTP_HEADERS, "true");
+        res.put(ClickHouseQueryParam.WAIT_END_OF_QUERY, "true");
+        return res;
     }
 
     @Test
@@ -47,7 +74,7 @@ public class ResultSetSummary {
         ClickHouseStatement st = connection.createStatement();
         st.executeQuery("SELECT * FROM numbers(10)", Collections.singletonMap(ClickHouseQueryParam.SEND_PROGRESS_IN_HTTP_HEADERS, "true"));
 
-        assertEquals(st.getResponseSummary().getReadRows(), 10);
+        assertTrue(st.getResponseSummary().getReadRows() >= 10);
         assertTrue(st.getResponseSummary().getReadBytes() > 0);
     }
 
@@ -80,6 +107,15 @@ public class ResultSetSummary {
         ps.executeQuery(Collections.singletonMap(ClickHouseQueryParam.SEND_PROGRESS_IN_HTTP_HEADERS, "true"));
 
         assertEquals(ps.getResponseSummary().getWrittenRows(), 10);
+        assertTrue(ps.getResponseSummary().getWrittenBytes() > 0);
+    }
+
+    @Test
+    public void insertLargeSelect() throws Exception {
+        ClickHousePreparedStatement ps = (ClickHousePreparedStatement) connection.prepareStatement("INSERT INTO test.insert_test SELECT number FROM numbers(10000000)");
+        ps.executeQuery(Collections.singletonMap(ClickHouseQueryParam.SEND_PROGRESS_IN_HTTP_HEADERS, "true"));
+
+        assertEquals(ps.getResponseSummary().getWrittenRows(), 10000000);
         assertTrue(ps.getResponseSummary().getWrittenBytes() > 0);
     }
 }

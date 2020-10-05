@@ -3,8 +3,8 @@ package ru.yandex.clickhouse.response;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 public class ClickHouseResponseSummary {
-    final private long readRows;
-    final private long writtenRows;
+    final private long readRows; // number of read rows for selects (may be more than rows in result set)
+    final private long writtenRows; // number of written rows for inserts
     final private long readBytes;
     final private long writtenBytes;
     final private long totalRowsToRead;

@@ -220,8 +220,8 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
         } finally {
             StreamUtils.close(is);
         }
-        // should we return currentSummary.writtenRows?
-        return 1;
+
+        return currentSummary != null ? (int) currentSummary.getWrittenRows() : 1;
     }
 
     @Override
