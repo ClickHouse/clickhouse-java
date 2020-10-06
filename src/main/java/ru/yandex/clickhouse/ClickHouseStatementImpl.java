@@ -634,7 +634,7 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
             }
 
             // retrieve response summary
-            if (isClickhouseSummarySet(additionalClickHouseDBParams, additionalRequestParams)) {
+            if (isQueryParamSet(ClickHouseQueryParam.SEND_PROGRESS_IN_HTTP_HEADERS, additionalClickHouseDBParams, additionalRequestParams)) {
                 Header summaryHeader = response.getFirstHeader("X-ClickHouse-Summary");
                 currentSummary = summaryHeader != null ? Jackson.getObjectMapper().readValue(summaryHeader.getValue(), ClickHouseResponseSummary.class) : null;
             }
@@ -740,21 +740,20 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
         return result;
     }
 
-    private boolean isClickhouseSummarySet(Map<ClickHouseQueryParam, String> additionalClickHouseDBParams, Map<String, String> additionalRequestParams) {
-        if (Boolean.TRUE.equals(properties.getSendProgressInHttpHeaders()))
-            return true;
+    private boolean isQueryParamSet(ClickHouseQueryParam param, Map<ClickHouseQueryParam, String> additionalClickHouseDBParams, Map<String, String> additionalRequestParams) {
+        String value = getQueryParamValue(param, additionalClickHouseDBParams, additionalRequestParams);
 
-        if (additionalClickHouseDBParams != null && isQueryParamSet(additionalClickHouseDBParams.get(ClickHouseQueryParam.SEND_PROGRESS_IN_HTTP_HEADERS)))
-            return true;
-
-        if (additionalRequestParams != null && isQueryParamSet(additionalRequestParams.get(ClickHouseQueryParam.SEND_PROGRESS_IN_HTTP_HEADERS.getKey())))
-            return true;
-
-        return false;
+        return "true".equals(value) || "1".equals(value);
     }
 
-    private boolean isQueryParamSet(String param) {
-        return "true".equals(param) || "1".equals(param);
+    private String getQueryParamValue(ClickHouseQueryParam param, Map<ClickHouseQueryParam, String> additionalClickHouseDBParams, Map<String, String> additionalRequestParams) {
+        if (additionalRequestParams != null && additionalRequestParams.containsKey(param.getKey()) && !Strings.isNullOrEmpty(additionalRequestParams.get(param.getKey())))
+            return additionalRequestParams.get(param.getKey());
+
+        if (additionalClickHouseDBParams != null && additionalClickHouseDBParams.containsKey(param) && !Strings.isNullOrEmpty(additionalClickHouseDBParams.get(param)))
+            return additionalClickHouseDBParams.get(param);
+
+        return properties.asProperties().getProperty(param.getKey());
     }
 
     private URI followRedirects(URI uri) throws IOException, URISyntaxException {
@@ -885,7 +884,7 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
             checkForErrorAndThrow(entity, response);
 
             // retrieve response summary
-            if (isClickhouseSummarySet(writer.getAdditionalDBParams(), writer.getRequestParams())) {
+            if (isQueryParamSet(ClickHouseQueryParam.SEND_PROGRESS_IN_HTTP_HEADERS, writer.getAdditionalDBParams(), writer.getRequestParams())) {
                 Header summaryHeader = response.getFirstHeader("X-ClickHouse-Summary");
                 currentSummary = summaryHeader != null ? Jackson.getObjectMapper().readValue(summaryHeader.getValue(), ClickHouseResponseSummary.class) : null;
             }
