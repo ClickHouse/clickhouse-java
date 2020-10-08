@@ -93,6 +93,7 @@ public class ClickHouseProperties {
     private Boolean insertDeduplicate;
     private Boolean insertDistributedSync;
     private Boolean anyJoinDistinctRightTableKeys;
+    private String queryId;
 
 
     public ClickHouseProperties() {
@@ -161,6 +162,7 @@ public class ClickHouseProperties {
         this.insertDeduplicate = getSetting(info, ClickHouseQueryParam.INSERT_DEDUPLICATE);
         this.insertDistributedSync = getSetting(info, ClickHouseQueryParam.INSERT_DISTRIBUTED_SYNC);
         this.anyJoinDistinctRightTableKeys = getSetting(info, ClickHouseQueryParam.ANY_JOIN_DISTINCT_RIGHT_TABLE_KEYS);
+        this.queryId = getSetting(info, ClickHouseQueryParam.QUERY_ID);
     }
 
     public Properties asProperties() {
@@ -225,7 +227,7 @@ public class ClickHouseProperties {
         ret.put(ClickHouseQueryParam.INSERT_DEDUPLICATE.getKey(), insertDeduplicate);
         ret.put(ClickHouseQueryParam.INSERT_DISTRIBUTED_SYNC.getKey(), insertDistributedSync);
         ret.put(ClickHouseQueryParam.ANY_JOIN_DISTINCT_RIGHT_TABLE_KEYS.getKey(), anyJoinDistinctRightTableKeys);
-
+        ret.put(ClickHouseQueryParam.QUERY_ID.getKey(), queryId);
         return ret.getProperties();
     }
 
@@ -291,6 +293,7 @@ public class ClickHouseProperties {
         setInsertDeduplicate(properties.insertDeduplicate);
         setInsertDistributedSync(properties.insertDistributedSync);
         setAnyJoinDistinctRightTableKeys(properties.anyJoinDistinctRightTableKeys);
+        setQueryId(properties.queryId);
     }
 
     public Map<ClickHouseQueryParam, String> buildQueryParams(boolean ignoreDatabase){
@@ -373,6 +376,7 @@ public class ClickHouseProperties {
         addQueryParam(insertDeduplicate, ClickHouseQueryParam.INSERT_DEDUPLICATE, params);
         addQueryParam(insertDistributedSync, ClickHouseQueryParam.INSERT_DISTRIBUTED_SYNC, params);
         addQueryParam(anyJoinDistinctRightTableKeys, ClickHouseQueryParam.ANY_JOIN_DISTINCT_RIGHT_TABLE_KEYS, params);
+        addQueryParam(queryId, ClickHouseQueryParam.QUERY_ID, params);
 
         if (enableOptimizePredicateExpression != null) {
             params.put(ClickHouseQueryParam.ENABLE_OPTIMIZE_PREDICATE_EXPRESSION, enableOptimizePredicateExpression ? "1" : "0");
@@ -900,6 +904,14 @@ public class ClickHouseProperties {
 
     public void setAnyJoinDistinctRightTableKeys(Boolean anyJoinDistinctRightTableKeys) {
         this.anyJoinDistinctRightTableKeys = anyJoinDistinctRightTableKeys;
+    }
+
+    public String getQueryId() {
+        return this.queryId;
+    }
+
+    public void setQueryId(String queryId) {
+        this.queryId = queryId;
     }
 
     public Boolean getAnyJoinDistinctRightTableKeys() {

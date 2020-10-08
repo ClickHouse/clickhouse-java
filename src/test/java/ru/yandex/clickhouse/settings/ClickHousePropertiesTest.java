@@ -8,6 +8,7 @@ import ru.yandex.clickhouse.ClickHouseDataSource;
 import java.net.URI;
 import java.util.Map;
 import java.util.Properties;
+import java.util.UUID;
 
 import static org.testng.AssertJUnit.assertEquals;
 import static org.testng.AssertJUnit.assertTrue;
@@ -136,6 +137,7 @@ public class ClickHousePropertiesTest {
 
     @Test
     public void buildQueryParamsTest() {
+        String queryId = UUID.randomUUID().toString();
         ClickHouseProperties clickHouseProperties = new ClickHouseProperties();
         clickHouseProperties.setInsertQuorumTimeout(1000L);
         clickHouseProperties.setInsertQuorum(3L);
@@ -143,6 +145,7 @@ public class ClickHousePropertiesTest {
         clickHouseProperties.setMaxInsertBlockSize(42L);
         clickHouseProperties.setInsertDeduplicate(true);
         clickHouseProperties.setInsertDistributedSync(true);
+        clickHouseProperties.setQueryId(queryId);
 
         Map<ClickHouseQueryParam, String> clickHouseQueryParams = clickHouseProperties.buildQueryParams(true);
         Assert.assertEquals(clickHouseQueryParams.get(ClickHouseQueryParam.INSERT_QUORUM), "3");
@@ -151,6 +154,7 @@ public class ClickHousePropertiesTest {
         Assert.assertEquals(clickHouseQueryParams.get(ClickHouseQueryParam.MAX_INSERT_BLOCK_SIZE), "42");
         Assert.assertEquals(clickHouseQueryParams.get(ClickHouseQueryParam.INSERT_DEDUPLICATE), "1");
         Assert.assertEquals(clickHouseQueryParams.get(ClickHouseQueryParam.INSERT_DISTRIBUTED_SYNC), "1");
+        Assert.assertEquals(clickHouseQueryParams.get(ClickHouseQueryParam.QUERY_ID), queryId);
     }
 
     @Test
