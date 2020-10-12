@@ -28,6 +28,7 @@ public enum ClickHouseConnectionSettings implements DriverPropertyCreator {
 
 
     KEEP_ALIVE_TIMEOUT("keepAliveTimeout", 30 * 1000, ""),
+    REUSE_CONNECTIONS("reuseConnections", false, ""),
 
     /**
      * for ConnectionManager

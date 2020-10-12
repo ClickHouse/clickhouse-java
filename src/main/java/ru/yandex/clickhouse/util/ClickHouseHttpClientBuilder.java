@@ -1,5 +1,6 @@
 package ru.yandex.clickhouse.util;
 
+import org.apache.http.ConnectionReuseStrategy;
 import org.apache.http.Header;
 import org.apache.http.HeaderElement;
 import org.apache.http.HeaderElementIterator;
@@ -13,7 +14,9 @@ import org.apache.http.conn.socket.ConnectionSocketFactory;
 import org.apache.http.conn.socket.PlainConnectionSocketFactory;
 import org.apache.http.conn.ssl.NoopHostnameVerifier;
 import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
+import org.apache.http.impl.NoConnectionReuseStrategy;
 import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.DefaultClientConnectionReuseStrategy;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 import org.apache.http.message.BasicHeader;
@@ -59,6 +62,7 @@ public class ClickHouseHttpClientBuilder {
     public CloseableHttpClient buildClient() throws Exception {
         return HttpClientBuilder.create()
                 .setConnectionManager(getConnectionManager())
+                .setConnectionReuseStrategy(createReuseStrategy())
                 .setKeepAliveStrategy(createKeepAliveStrategy())
                 .setDefaultConnectionConfig(getConnectionConfig())
                 .setDefaultRequestConfig(getRequestConfig())
@@ -115,25 +119,38 @@ public class ClickHouseHttpClientBuilder {
         return headers;
     }
 
-    private ConnectionKeepAliveStrategy createKeepAliveStrategy() {
-        return new ConnectionKeepAliveStrategy() {
+    private ConnectionReuseStrategy createReuseStrategy() {
+        return properties.getReuseConnections() ? new DefaultClientConnectionReuseStrategy() {
+
             @Override
-            public long getKeepAliveDuration(HttpResponse httpResponse, HttpContext httpContext) {
-                // in case of errors keep-alive not always works. close connection just in case
+            public boolean keepAlive(HttpResponse httpResponse, HttpContext context) {
                 if (httpResponse.getStatusLine().getStatusCode() != HttpURLConnection.HTTP_OK) {
-                    return -1;
+                    return false;
                 }
+                boolean keepAliveHeaderFound = false;
                 HeaderElementIterator it = new BasicHeaderElementIterator(
                         httpResponse.headerIterator(HTTP.CONN_DIRECTIVE));
                 while (it.hasNext()) {
                     HeaderElement he = it.nextElement();
                     String param = he.getName();
-                    //String value = he.getValue();
                     if (param != null && param.equalsIgnoreCase(HTTP.CONN_KEEP_ALIVE)) {
-                        return properties.getKeepAliveTimeout();
+                        keepAliveHeaderFound = true;
+                        break;
                     }
                 }
-                return -1;
+                if (!keepAliveHeaderFound) {
+                    return false;
+                }
+                return super.keepAlive(httpResponse, context);
+            }
+        } : new NoConnectionReuseStrategy();
+    }
+
+    private ConnectionKeepAliveStrategy createKeepAliveStrategy() {
+        return new ConnectionKeepAliveStrategy() {
+            @Override
+            public long getKeepAliveDuration(HttpResponse httpResponse, HttpContext httpContext) {
+                return properties.getKeepAliveTimeout();
             }
         };
     }

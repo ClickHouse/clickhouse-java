@@ -93,7 +93,7 @@ public class ClickHouseProperties {
     private Boolean insertDeduplicate;
     private Boolean insertDistributedSync;
     private Boolean anyJoinDistinctRightTableKeys;
-
+    private boolean reuseConnections;
 
     public ClickHouseProperties() {
         this(new Properties());
@@ -108,6 +108,7 @@ public class ClickHouseProperties {
         this.connectionTimeout = (Integer)getSetting(info, ClickHouseConnectionSettings.CONNECTION_TIMEOUT);
         this.dataTransferTimeout = (Integer)getSetting(info, ClickHouseConnectionSettings.DATA_TRANSFER_TIMEOUT);
         this.keepAliveTimeout = (Integer)getSetting(info, ClickHouseConnectionSettings.KEEP_ALIVE_TIMEOUT);
+        this.reuseConnections = (Boolean)getSetting(info, ClickHouseConnectionSettings.REUSE_CONNECTIONS);
         this.timeToLiveMillis = (Integer)getSetting(info, ClickHouseConnectionSettings.TIME_TO_LIVE_MILLIS);
         this.defaultMaxPerRoute = (Integer)getSetting(info, ClickHouseConnectionSettings.DEFAULT_MAX_PER_ROUTE);
         this.maxTotal = (Integer)getSetting(info, ClickHouseConnectionSettings.MAX_TOTAL);
@@ -172,6 +173,7 @@ public class ClickHouseProperties {
         ret.put(ClickHouseConnectionSettings.CONNECTION_TIMEOUT.getKey(), String.valueOf(connectionTimeout));
         ret.put(ClickHouseConnectionSettings.DATA_TRANSFER_TIMEOUT.getKey(), String.valueOf(dataTransferTimeout));
         ret.put(ClickHouseConnectionSettings.KEEP_ALIVE_TIMEOUT.getKey(), String.valueOf(keepAliveTimeout));
+        ret.put(ClickHouseConnectionSettings.REUSE_CONNECTIONS.getKey(), String.valueOf(reuseConnections));
         ret.put(ClickHouseConnectionSettings.TIME_TO_LIVE_MILLIS.getKey(), String.valueOf(timeToLiveMillis));
         ret.put(ClickHouseConnectionSettings.DEFAULT_MAX_PER_ROUTE.getKey(), String.valueOf(defaultMaxPerRoute));
         ret.put(ClickHouseConnectionSettings.MAX_TOTAL.getKey(), String.valueOf(maxTotal));
@@ -239,6 +241,7 @@ public class ClickHouseProperties {
         setConnectionTimeout(properties.connectionTimeout);
         setDataTransferTimeout(properties.dataTransferTimeout);
         setKeepAliveTimeout(properties.keepAliveTimeout);
+        setReuseConnections(properties.reuseConnections);
         setTimeToLiveMillis(properties.timeToLiveMillis);
         setDefaultMaxPerRoute(properties.defaultMaxPerRoute);
         setMaxTotal(properties.maxTotal);
@@ -525,6 +528,14 @@ public class ClickHouseProperties {
 
     public void setKeepAliveTimeout(int keepAliveTimeout) {
         this.keepAliveTimeout = keepAliveTimeout;
+    }
+
+    public boolean getReuseConnections() {
+        return reuseConnections;
+    }
+
+    public void setReuseConnections(boolean reuseConnections) {
+        this.reuseConnections = reuseConnections;
     }
 
     public String getUser() {
