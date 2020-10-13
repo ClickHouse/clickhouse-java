@@ -39,7 +39,7 @@ import java.sql.SQLWarning;
 import java.util.*;
 
 
-public class ClickHouseStatementImpl implements ClickHouseStatement {
+public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement> implements ClickHouseStatement {
 
     private static final Logger log = LoggerFactory.getLogger(ClickHouseStatementImpl.class);
 
@@ -81,6 +81,7 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
 
     public ClickHouseStatementImpl(CloseableHttpClient client, ClickHouseConnection connection,
                                    ClickHouseProperties properties, int resultSetType) {
+        super(null);
         this.client = client;
         this.connection = connection;
         this.properties = properties == null ? new ClickHouseProperties() : properties;
@@ -716,6 +717,8 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
             params.put(ClickHouseQueryParam.DATABASE, initialDatabase);
         }
 
+        params.putAll(getAdditionalDBParams());
+
         if (additionalClickHouseDBParams != null && !additionalClickHouseDBParams.isEmpty()) {
             params.putAll(additionalClickHouseDBParams);
         }
@@ -728,6 +731,12 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
             }
         }
 
+        for (Map.Entry<String, String> entry : getRequestParams().entrySet()) {
+            if (!Strings.isNullOrEmpty(entry.getValue())) {
+                result.add(new BasicNameValuePair(entry.getKey(), entry.getValue()));
+            }
+        }
+
         if (additionalRequestParams != null) {
             for (Map.Entry<String, String> entry : additionalRequestParams.entrySet()) {
                 if (!Strings.isNullOrEmpty(entry.getValue())) {
@@ -735,7 +744,6 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
                 }
             }
         }
-
 
         return result;
     }
@@ -750,8 +758,14 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
         if (additionalRequestParams != null && additionalRequestParams.containsKey(param.getKey()) && !Strings.isNullOrEmpty(additionalRequestParams.get(param.getKey())))
             return additionalRequestParams.get(param.getKey());
 
+        if (getRequestParams().containsKey(param.getKey()) && !Strings.isNullOrEmpty(getRequestParams().get(param.getKey())))
+            return getRequestParams().get(param.getKey());
+
         if (additionalClickHouseDBParams != null && additionalClickHouseDBParams.containsKey(param) && !Strings.isNullOrEmpty(additionalClickHouseDBParams.get(param)))
             return additionalClickHouseDBParams.get(param);
+
+        if (getAdditionalDBParams().containsKey(param) && !Strings.isNullOrEmpty(getAdditionalDBParams().get(param)))
+            return getAdditionalDBParams().get(param);
 
         return properties.asProperties().getProperty(param.getKey());
     }
@@ -957,6 +971,6 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
 
     @Override
     public Writer write() {
-        return new Writer(this);
+        return new Writer(this).withDbParams(getAdditionalDBParams()).options(getRequestParams());
     }
 }
