@@ -284,7 +284,7 @@ public enum ClickHouseQueryParam implements DriverPropertyCreator {
 
     @Override
     public String toString() {
-        return name().toLowerCase();
+        return name().toLowerCase(Locale.ENGLISH);
     }
 
     @Override
