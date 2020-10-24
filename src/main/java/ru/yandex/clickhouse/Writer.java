@@ -2,6 +2,7 @@ package ru.yandex.clickhouse;
 
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.InputStreamEntity;
+import ru.yandex.clickhouse.domain.ClickHouseCompression;
 import ru.yandex.clickhouse.domain.ClickHouseFormat;
 import ru.yandex.clickhouse.util.ClickHouseStreamCallback;
 import ru.yandex.clickhouse.util.ClickHouseStreamHttpEntity;
@@ -17,7 +18,7 @@ import static ru.yandex.clickhouse.domain.ClickHouseFormat.*;
 public class Writer extends ConfigurableApi<Writer> {
 
     private ClickHouseFormat format = TabSeparated;
-    private String compression = null;
+    private ClickHouseCompression compression = null;
     private String table = null;
     private String sql = null;
     private InputStreamProvider streamProvider = null;
@@ -73,7 +74,7 @@ public class Writer extends ConfigurableApi<Writer> {
         return format(format).data(stream);
     }
 
-    public Writer data(InputStream stream, ClickHouseFormat format, String compression) {
+    public Writer data(InputStream stream, ClickHouseFormat format, ClickHouseCompression compression) {
         return dataCompression(compression).format(format).data(stream);
     }
 
@@ -89,11 +90,11 @@ public class Writer extends ConfigurableApi<Writer> {
         return format(format).data(input);
     }
 
-    public Writer data(File input, ClickHouseFormat format, String compression) {
+    public Writer data(File input, ClickHouseFormat format, ClickHouseCompression compression) {
         return dataCompression(compression).format(format).data(input);
     }
 
-    public Writer dataCompression(String compression) {
+    public Writer dataCompression(ClickHouseCompression compression) {
         if (null == compression) {
             throw new NullPointerException("Compression can not be null");
         }
@@ -200,7 +201,7 @@ public class Writer extends ConfigurableApi<Writer> {
         }
     }
 
-    public String getCompression() {
+    public ClickHouseCompression getCompression() {
         return compression;
     }
 }

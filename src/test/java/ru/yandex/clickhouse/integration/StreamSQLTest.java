@@ -5,6 +5,7 @@ import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
 import ru.yandex.clickhouse.ClickHouseConnection;
 import ru.yandex.clickhouse.ClickHouseDataSource;
+import ru.yandex.clickhouse.domain.ClickHouseCompression;
 import ru.yandex.clickhouse.domain.ClickHouseFormat;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
 import java.io.*;
@@ -127,7 +128,7 @@ public class StreamSQLTest {
         connection.createStatement().
                 write()
                 .sql("insert into test.tsv_compressed_stream_sql format TSV")
-                .data(gz, ClickHouseFormat.TSV,"gzip")
+                .data(gz, ClickHouseFormat.TSV, ClickHouseCompression.gzip)
                 .send();
 
         ResultSet rs = connection.createStatement().executeQuery(
@@ -153,7 +154,7 @@ public class StreamSQLTest {
                 .sql("insert into test.json_stream_sql")
                 .data(inputStream, ClickHouseFormat.JSONEachRow)
                 .data(inputStream)
-                .dataCompression("auto")
+                .dataCompression(ClickHouseCompression.none)
                 .send();
 
         ResultSet rs = connection.createStatement().executeQuery(
@@ -179,7 +180,7 @@ public class StreamSQLTest {
                 .sql("insert into test.json_comressed_stream_sql")
                 .data(inputStream, ClickHouseFormat.JSONEachRow)
                 .data(gzStream(inputStream))
-                .dataCompression("gzip")
+                .dataCompression(ClickHouseCompression.gzip)
                 .send();
 
         ResultSet rs = connection.createStatement().executeQuery(

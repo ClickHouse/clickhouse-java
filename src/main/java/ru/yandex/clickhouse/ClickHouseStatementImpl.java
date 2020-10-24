@@ -847,7 +847,7 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
             HttpPost httpPost = new HttpPost(uri);
 
             if (writer.getCompression() != null) {
-                httpPost.addHeader("Content-Encoding", writer.getCompression());
+                httpPost.addHeader("Content-Encoding", writer.getCompression().name());
             }
             httpPost.setEntity(content);
             HttpResponse response = client.execute(httpPost);
