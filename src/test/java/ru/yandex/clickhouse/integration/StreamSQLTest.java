@@ -191,4 +191,30 @@ public class StreamSQLTest {
         Assert.assertEquals(rs.getLong("uniq"), 1);
     }
 
+    @Test
+    public void CSVInsertCompressedIntoTable() throws SQLException, IOException {
+        connection.createStatement().execute("DROP TABLE IF EXISTS test.csv_stream_compressed");
+        connection.createStatement().execute(
+                "CREATE TABLE test.csv_stream_compressed (value Int32, string_value String) ENGINE = Log()"
+        );
+
+        String string = "5,6\n1,6";
+        InputStream inputStream = new ByteArrayInputStream(string.getBytes(Charset.forName("UTF-8")));
+
+        connection.createStatement().
+                write()
+                .table("test.csv_stream_compressed")
+                .format(ClickHouseFormat.CSV)
+                .dataCompression(ClickHouseCompression.gzip)
+                .data(gzStream(inputStream))
+                .send();
+
+        ResultSet rs = connection.createStatement().executeQuery(
+                "SELECT count() AS cnt, sum(value) AS sum, uniqExact(string_value) uniq FROM test.csv_stream_compressed");
+        Assert.assertTrue(rs.next());
+        Assert.assertEquals(rs.getInt("cnt"), 2);
+        Assert.assertEquals(rs.getLong("sum"), 6);
+        Assert.assertEquals(rs.getLong("uniq"), 1);
+    }
+
 }
