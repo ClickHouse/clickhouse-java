@@ -35,7 +35,7 @@ sth
     .write() // Write API entrypoint
     .table("default.my_table") // where to write data
     .option("format_csv_delimiter", ";") // specific param
-    .data(new File("/path/to/file.csv.gz"), ClickHouseFormat.CSV, 'gzip') // specify input
+    .data(new File("/path/to/file.csv.gz"), ClickHouseFormat.CSV, "gzip") // specify input
     .send();
 ```
 #### Configurable send
