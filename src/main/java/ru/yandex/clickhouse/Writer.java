@@ -17,7 +17,7 @@ import static ru.yandex.clickhouse.domain.ClickHouseFormat.*;
 public class Writer extends ConfigurableApi<Writer> {
 
     private ClickHouseFormat format = TabSeparated;
-
+    private String compression = null;
     private String table = null;
     private String sql = null;
     private InputStreamProvider streamProvider = null;
@@ -73,6 +73,10 @@ public class Writer extends ConfigurableApi<Writer> {
         return format(format).data(stream);
     }
 
+    public Writer data(InputStream stream, ClickHouseFormat format, String compression) {
+        return dataCompression(compression).format(format).data(stream);
+    }
+
     /**
      * Shortcut method for specifying a file as an input
      */
@@ -85,6 +89,17 @@ public class Writer extends ConfigurableApi<Writer> {
         return format(format).data(input);
     }
 
+    public Writer data(File input, ClickHouseFormat format, String compression) {
+        return dataCompression(compression).format(format).data(input);
+    }
+
+    public Writer dataCompression(String compression) {
+        if (null == compression) {
+            throw new NullPointerException("Compression can not be null");
+        }
+        this.compression = compression;
+        return this;
+    }
     /**
      * Method to call, when Writer is fully configured
      */
@@ -183,5 +198,9 @@ public class Writer extends ConfigurableApi<Writer> {
         public InputStream get() throws IOException {
             return stream;
         }
+    }
+
+    public String getCompression() {
+        return compression;
     }
 }
