@@ -35,7 +35,7 @@ sth
     .write() // Write API entrypoint
     .table("default.my_table") // where to write data
     .option("format_csv_delimiter", ";") // specific param
-    .data(new File("/path/to/file.csv"), ClickHouseFormat.CSV) // specify input
+    .data(new File("/path/to/file.csv.gz"), ClickHouseFormat.CSV, ClickHouseCompression.gzip) // specify input
     .send();
 ```
 #### Configurable send
@@ -46,6 +46,7 @@ sth
     .write()
     .sql("INSERT INTO default.my_table (a,b,c)")
     .data(new MyCustomInputStream(), ClickHouseFormat.JSONEachRow)
+    .dataCompression(ClickHouseCompression.brotli)
     .addDbParam(ClickHouseQueryParam.MAX_PARALLEL_REPLICAS, 2)
     .send();
 ```
