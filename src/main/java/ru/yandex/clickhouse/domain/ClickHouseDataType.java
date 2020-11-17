@@ -44,6 +44,7 @@ public enum ClickHouseDataType {
     Date              (Types.DATE,      Date.class,       false, 10,  0),
     DateTime          (Types.TIMESTAMP, Timestamp.class,  false, 19,  0,
         "TIMESTAMP"),
+    DateTime64        (Types.TIMESTAMP, Timestamp.class,  false, 19,  0),
     Enum8             (Types.VARCHAR,   String.class,     false,  0,  0),
     Enum16            (Types.VARCHAR,   String.class,     false,  0,  0),
     Float32           (Types.FLOAT,     Float.class,      true,   8,  8,
