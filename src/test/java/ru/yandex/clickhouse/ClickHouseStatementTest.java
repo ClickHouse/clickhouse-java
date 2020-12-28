@@ -151,6 +151,11 @@ public class ClickHouseStatementTest {
         assertFalse(ClickHouseStatementImpl.isSelect("/*"));
         assertFalse(ClickHouseStatementImpl.isSelect("/**/"));
         assertFalse(ClickHouseStatementImpl.isSelect(" --"));
+        assertTrue(ClickHouseStatementImpl.isSelect("explain select 42"));
+        assertTrue(ClickHouseStatementImpl.isSelect("EXPLAIN select 42"));
+        assertFalse(ClickHouseStatementImpl.isSelect("--EXPLAIN select 42\n alter"));
+        assertTrue(ClickHouseStatementImpl.isSelect("--\nEXPLAIN select 42"));
+        assertTrue(ClickHouseStatementImpl.isSelect("/*test*/ EXPLAIN select 42"));
     }
 
 }
