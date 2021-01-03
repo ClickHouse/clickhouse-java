@@ -36,6 +36,8 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.SQLWarning;
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 
 public class ClickHouseStatementImpl implements ClickHouseStatement {
@@ -491,7 +493,7 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
         return false;
     }
 
-    private String extractTableName(String sql) {
+    static String extractTableName(String sql) {
         String s = extractDBAndTableName(sql);
         if (s.contains(".")) {
             return s.substring(s.indexOf(".") + 1);
@@ -500,34 +502,37 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
         }
     }
 
-    private String extractDBName(String sql) {
+    static String extractDBNameInt(String sql) {
         String s = extractDBAndTableName(sql);
         if (s.contains(".")) {
             return s.substring(0, s.indexOf("."));
-        } else {
-            return properties.getDatabase();
         }
+        return "";
     }
 
-    private String extractDBAndTableName(String sql) {
-        if (Utils.startsWithIgnoreCase(sql, "select")) {
-            String withoutStrings = Utils.retainUnquoted(sql, '\'');
-            int fromIndex = withoutStrings.indexOf("from");
-            if (fromIndex == -1) {
-                fromIndex = withoutStrings.indexOf("FROM");
-            }
-            if (fromIndex != -1) {
-                String fromFrom = withoutStrings.substring(fromIndex);
-                String fromTable = fromFrom.substring("from".length()).trim();
-                return fromTable.split(" ")[0];
-            }
-        }
-        if (Utils.startsWithIgnoreCase(sql, "desc")) {
+    private String extractDBName(String sql) {
+        String dbName = extractDBNameInt(sql);
+        return dbName.equals("") ? properties.getDatabase() : dbName;
+    }
+
+    static String extractDBAndTableName(String sql) {
+        String withoutStrings = Utils.retainUnquoted(sql, '\'');
+
+        if (withoutStrings.matches("^.*[dD][eE][sS][cC].+")) {
             return "system.columns";
         }
-        if (Utils.startsWithIgnoreCase(sql, "show")) {
+
+        if (withoutStrings.matches("^.*[sS][hH][oO][wW].+")) {
             return "system.tables";
         }
+
+        String pattern = "[sS][eE][lL][eE][cC][tT]\\s+.*[fF][rR][oO][Mm]\\s+([\\w.\"`]+)\\s*";
+        Pattern r = Pattern.compile(pattern);
+        Matcher m = r.matcher(withoutStrings);
+        if (m.find()) {
+            return m.group(1).replace("\"","").replace("`","");
+        }
+
         return "system.unknown";
     }
 

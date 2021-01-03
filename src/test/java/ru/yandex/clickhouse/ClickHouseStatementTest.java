@@ -158,4 +158,51 @@ public class ClickHouseStatementTest {
         assertTrue(ClickHouseStatementImpl.isSelect("/*test*/ EXPLAIN select 42"));
     }
 
+    @Test
+    public void testExtractDBAndTableName() {
+        assertEquals(ClickHouseStatementImpl.extractDBAndTableName("SELECT from table"), "table");
+        assertEquals(ClickHouseStatementImpl.extractDBAndTableName("SELECT from table a"), "table");
+        assertEquals(ClickHouseStatementImpl.extractDBAndTableName("SELECT from\ntable a"), "table");
+        assertEquals(ClickHouseStatementImpl.extractDBAndTableName("SELECT\nfrom\ntable a"), "table");
+        assertEquals(ClickHouseStatementImpl.extractDBAndTableName("SELECT\nFrom\ntable a"), "table");
+        assertEquals(ClickHouseStatementImpl.extractDBAndTableName("SELECT from db.table a"), "db.table");
+        assertEquals(ClickHouseStatementImpl.extractDBAndTableName(" SELECT from \"db.table\" a"), "db.table");
+        assertEquals(ClickHouseStatementImpl.extractDBAndTableName("SELECT from `db.table` a"), "db.table");
+        assertEquals(ClickHouseStatementImpl.extractDBAndTableName("from `db.table` a"), "system.unknown");
+        assertEquals(ClickHouseStatementImpl.extractDBAndTableName(" from `db.table` a"), "system.unknown");
+        assertEquals(ClickHouseStatementImpl.extractDBAndTableName("ELECT from `db.table` a"), "system.unknown");
+        assertEquals(ClickHouseStatementImpl.extractDBAndTableName("SHOW create"), "system.tables");
+        assertEquals(ClickHouseStatementImpl.extractDBAndTableName("desc table"), "system.columns");
+        assertEquals(ClickHouseStatementImpl.extractDBAndTableName("DESC table"), "system.columns");
+        assertEquals(ClickHouseStatementImpl.extractDBAndTableName("SELECT 'from db.table a' from tab"), "tab");
+        assertEquals(ClickHouseStatementImpl.extractDBAndTableName("SELECT"), "system.unknown");
+        assertEquals(ClickHouseStatementImpl.extractDBAndTableName("S"), "system.unknown");
+        assertEquals(ClickHouseStatementImpl.extractDBAndTableName(""), "system.unknown");
+        assertEquals(ClickHouseStatementImpl.extractDBAndTableName(" SELECT from table from"), "table");
+        assertEquals(ClickHouseStatementImpl.extractDBAndTableName(" SELECT from table from"), "table");
+        assertEquals(ClickHouseStatementImpl.extractDBAndTableName("SELECT fromUnixTimestamp64Milli(time) as x from table"), "table");
+        assertEquals(ClickHouseStatementImpl.extractDBAndTableName(" SELECT fromUnixTimestamp64Milli(time)from table"), "table");
+        assertEquals(ClickHouseStatementImpl.extractDBAndTableName("/*qq*/ SELECT fromUnixTimestamp64Milli(time)from table"), "table");
+        assertEquals(ClickHouseStatementImpl.extractDBAndTableName(" SELECTfromUnixTimestamp64Milli(time)from table"), "system.unknown");
+        assertEquals(ClickHouseStatementImpl.extractDBAndTableName(" SELECT fromUnixTimestamp64Milli(time)from .inner.a"), ".inner.a");
+        assertEquals(ClickHouseStatementImpl.extractDBAndTableName(" SELECT fromUnixTimestamp64Milli(time)from db.`.inner.a`"), "db..inner.a");
+    }
+
+    @Test
+    public void testExtractTableName() {
+        assertEquals(ClickHouseStatementImpl.extractTableName("SELECT from table"), "table");
+        assertEquals(ClickHouseStatementImpl.extractTableName("SELECT from table a"), "table");
+        assertEquals(ClickHouseStatementImpl.extractTableName("SELECT from db.table a"), "table");
+        assertEquals(ClickHouseStatementImpl.extractTableName("SELECT from `db.table` a"), "table");
+        assertEquals(ClickHouseStatementImpl.extractTableName(" SELECT fromUnixTimestamp64Milli(time)from db.`.inner.a`"), ".inner.a");
+    }
+
+    @Test
+    public void testExtractDBNameInt() {
+        assertEquals(ClickHouseStatementImpl.extractDBNameInt("SELECT from table"), "");
+        assertEquals(ClickHouseStatementImpl.extractDBNameInt("SELECT from table a"), "");
+        assertEquals(ClickHouseStatementImpl.extractDBNameInt("SELECT from db.table a"), "db");
+        assertEquals(ClickHouseStatementImpl.extractDBNameInt("SELECT from `db.table` a"), "db");
+        assertEquals(ClickHouseStatementImpl.extractDBNameInt(" SELECT fromUnixTimestamp64Milli(time)from db.`.inner.a`"), "db");
+    }
 }
