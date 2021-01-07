@@ -1,13 +1,42 @@
 package ru.yandex.clickhouse;
 
-
+import org.testng.annotations.AfterSuite;
+import org.testng.annotations.BeforeSuite;
 import org.testng.annotations.Test;
 
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.fail;
 
+import java.time.Duration;
+
+import org.testcontainers.containers.GenericContainer;
+import org.testcontainers.containers.wait.strategy.Wait;
+
+import static java.time.temporal.ChronoUnit.SECONDS;
 
 public class ClickHouseDataSourceTest {
+    private static final GenericContainer<?> chServer;
+
+    static {
+        String clickhouseVersion = System.getProperty("clickhouseVersion");
+        if (clickhouseVersion == null || (clickhouseVersion = clickhouseVersion.trim()).isEmpty()) {
+            clickhouseVersion = "latest";
+        }
+
+        chServer = new GenericContainer<>("yandex/clickhouse-server:" + clickhouseVersion)
+                .waitingFor(Wait.forHttp("/ping").forStatusCode(200).withStartupTimeout(Duration.of(60, SECONDS)));
+    }
+
+    @BeforeSuite(groups = { "sit" })
+    public void beforeSuite() {
+        chServer.start();
+    }
+
+    @AfterSuite(groups = { "sit" })
+    public void afterSuite() {
+        chServer.stop();
+    }
+
     @Test
     public void testConstructor() throws Exception {
         ClickHouseDataSource ds = new ClickHouseDataSource("jdbc:clickhouse://localhost:1234/ppc");

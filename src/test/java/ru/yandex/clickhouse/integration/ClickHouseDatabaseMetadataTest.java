@@ -16,9 +16,9 @@ import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 import ru.yandex.clickhouse.ClickHouseConnection;
+import ru.yandex.clickhouse.ClickHouseContainerForTest;
 import ru.yandex.clickhouse.ClickHouseDataSource;
 import ru.yandex.clickhouse.ClickHouseDatabaseMetadata;
-import ru.yandex.clickhouse.settings.ClickHouseProperties;
 
 public class ClickHouseDatabaseMetadataTest {
 
@@ -27,8 +27,7 @@ public class ClickHouseDatabaseMetadataTest {
 
     @BeforeTest
     public void setUp() throws Exception {
-        ClickHouseProperties properties = new ClickHouseProperties();
-        dataSource = new ClickHouseDataSource("jdbc:clickhouse://localhost:8123", properties);
+        dataSource = ClickHouseContainerForTest.newDataSource();
         connection = dataSource.getConnection();
         connection.createStatement().execute("CREATE DATABASE IF NOT EXISTS test");
     }
