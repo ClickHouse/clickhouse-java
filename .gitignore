@@ -5,6 +5,8 @@
 *.war
 *.ear
 
+# VSCode
+.vscode
 
 # Eclipse
 .classpath
