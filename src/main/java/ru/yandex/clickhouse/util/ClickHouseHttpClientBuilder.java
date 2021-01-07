@@ -1,6 +1,7 @@
 package ru.yandex.clickhouse.util;
 
 import org.apache.http.*;
+import org.apache.http.client.HttpRequestRetryHandler;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.config.ConnectionConfig;
 import org.apache.http.config.RegistryBuilder;
@@ -11,6 +12,7 @@ import org.apache.http.conn.ssl.NoopHostnameVerifier;
 import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
 import org.apache.http.impl.DefaultConnectionReuseStrategy;
 import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.DefaultHttpRequestRetryHandler;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 import org.apache.http.message.BasicHeader;
@@ -55,13 +57,29 @@ public class ClickHouseHttpClientBuilder {
     public CloseableHttpClient buildClient() throws Exception {
         return HttpClientBuilder.create()
                 .setConnectionManager(getConnectionManager())
+                .setRetryHandler(getRequestRetryHandler())
                 .setConnectionReuseStrategy(getConnectionReuseStrategy())
                 .setDefaultConnectionConfig(getConnectionConfig())
                 .setDefaultRequestConfig(getRequestConfig())
                 .setDefaultHeaders(getDefaultHeaders())
-                .disableContentCompression() // gzip здесь ни к чему. Используется lz4 при compress=1
+                .disableContentCompression() // gzip is not needed. Use lz4 when compress=1
                 .disableRedirectHandling()
                 .build();
+    }
+
+    private HttpRequestRetryHandler getRequestRetryHandler() {
+        final int maxRetry = 3;
+        return new DefaultHttpRequestRetryHandler(maxRetry, false) {
+            @Override
+            public boolean retryRequest(IOException exception, int executionCount, HttpContext context) {
+                if (executionCount > maxRetry) {
+                    return false;
+                }
+
+                // TODO should never retry for DDL/mutation
+                return (exception instanceof NoHttpResponseException) || super.retryRequest(exception, executionCount, context);
+            }
+        };
     }
 
     private ConnectionReuseStrategy getConnectionReuseStrategy() {
