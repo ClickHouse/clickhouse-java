@@ -640,6 +640,25 @@ public class ClickHousePreparedStatementTest {
         Assert.assertEquals(result[1].getTime(), 1560698526598L);
     }
 
+    @Test
+    public void testStaticNullValue() throws Exception {
+        connection.createStatement().execute(
+            "DROP TABLE IF EXISTS test.static_null_value");
+        connection.createStatement().execute(
+            "CREATE TABLE IF NOT EXISTS test.static_null_value"
+          + "(foo Nullable(String), bar Nullable(String)) "
+          + "ENGINE = TinyLog"
+        );
+        PreparedStatement ps0 = connection.prepareStatement(
+            "INSERT INTO test.static_null_value(foo) VALUES (null)");
+        ps0.executeUpdate();
+
+        ps0 = connection.prepareStatement(
+            "INSERT INTO test.static_null_value(foo, bar) VALUES (null, ?)");
+        ps0.setNull(1, Types.VARCHAR);
+        ps0.executeUpdate();
+    }
+
     private static byte[] randomEncodedUUID() {
         UUID uuid = UUID.randomUUID();
         return ByteBuffer.allocate(16)
