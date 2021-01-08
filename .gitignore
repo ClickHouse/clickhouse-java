@@ -23,5 +23,6 @@ test-output/
 out/
 
 # Maven
+.antlr/
 log/
 target/
