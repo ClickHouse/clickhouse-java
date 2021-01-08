@@ -68,7 +68,7 @@ public class ClickHouseDatabaseMetadataTest {
             "DROP TABLE IF EXISTS test.testMetadata");
         connection.createStatement().executeQuery(
             "CREATE TABLE test.testMetadata("
-          + "foo Float32, bar String COMMENT 'baz') ENGINE = TinyLog");
+          + "foo Float32, bar UInt8 DEFAULT 42 COMMENT 'baz') ENGINE = TinyLog");
         ResultSet columns = connection.getMetaData().getColumns(
             null, "test", "testMetadata", null);
         columns.next();
@@ -97,6 +97,7 @@ public class ClickHouseDatabaseMetadataTest {
         Assert.assertEquals(columns.getString("IS_AUTOINCREMENT"), "NO");
         Assert.assertEquals(columns.getString("IS_GENERATEDCOLUMN"), "NO");
         columns.next();
+        Assert.assertEquals(columns.getInt("COLUMN_DEF"), 42);
         Assert.assertEquals(columns.getObject("REMARKS"), "baz");
     }
 
