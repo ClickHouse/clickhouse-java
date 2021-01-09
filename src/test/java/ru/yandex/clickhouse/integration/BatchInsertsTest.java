@@ -17,10 +17,10 @@ import org.testng.annotations.AfterTest;
 import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
 
+import ru.yandex.clickhouse.ClickHouseContainerForTest;
 import ru.yandex.clickhouse.ClickHouseDataSource;
 import ru.yandex.clickhouse.ClickHousePreparedStatement;
 import ru.yandex.clickhouse.ClickHousePreparedStatementImpl;
-import ru.yandex.clickhouse.settings.ClickHouseProperties;
 import ru.yandex.clickhouse.settings.ClickHouseQueryParam;
 
 public class BatchInsertsTest {
@@ -30,8 +30,7 @@ public class BatchInsertsTest {
 
     @BeforeTest
     public void setUp() throws Exception {
-        ClickHouseProperties properties = new ClickHouseProperties();
-        ClickHouseDataSource dataSource = new ClickHouseDataSource("jdbc:clickhouse://localhost:8123", properties);
+        ClickHouseDataSource dataSource = ClickHouseContainerForTest.newDataSource();
         connection = dataSource.getConnection();
         connection.createStatement().execute("CREATE DATABASE IF NOT EXISTS test");
         dateFormat = new SimpleDateFormat("yyyy-MM-dd");
