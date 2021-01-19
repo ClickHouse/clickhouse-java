@@ -7,6 +7,7 @@ import org.testng.annotations.Test;
 import ru.yandex.clickhouse.ClickHouseContainerForTest;
 import ru.yandex.clickhouse.except.ClickHouseException;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
+import ru.yandex.clickhouse.util.ClickHouseVersionNumberUtil;
 
 import javax.sql.DataSource;
 
@@ -27,7 +28,12 @@ public class ErrorsTest {
         try {
             Connection connection = dataSource.getConnection();
         } catch (Exception e) {
-            Assert.assertEquals((getClickhouseException(e)).getErrorCode(), 516);
+            String version = ClickHouseContainerForTest.getClickHouseVersion();
+            if (!version.isEmpty() && ClickHouseVersionNumberUtil.getMajorVersion(version) <= 19) {
+                Assert.assertEquals((getClickhouseException(e)).getErrorCode(), 192);
+            } else {
+                Assert.assertEquals((getClickhouseException(e)).getErrorCode(), 516);
+            }
             return;
         }
         Assert.assertTrue(false, "didn' find correct error");
@@ -58,7 +64,8 @@ public class ErrorsTest {
         try {
             statement.executeBatch();
         } catch (Exception e) {
-            Assert.assertTrue(getClickhouseException(e).getMessage().startsWith("ClickHouse exception, code: 60, host: " + address[0] +", port: " + address[1] +"; Code: 60, e.displayText() = DB::Exception: Table test.table_not_exists doesn't exist."));
+            String exceptionMsg = getClickhouseException(e).getMessage();
+            Assert.assertTrue(exceptionMsg.startsWith("ClickHouse exception, code: 60, host: " + address[0] +", port: " + address[1] +"; Code: 60, e.displayText() = DB::Exception: Table test.table_not_exists doesn't exist"), exceptionMsg);
             return;
         }
         Assert.assertTrue(false, "didn' find correct error");
