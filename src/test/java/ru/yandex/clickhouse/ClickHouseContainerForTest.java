@@ -17,13 +17,15 @@ public class ClickHouseContainerForTest {
     private static final int NATIVE_PORT = 9000;
     private static final int MYSQL_PORT = 3306;
 
+    private static final String clickhouseVersion;
     private static final GenericContainer<?> clickhouseContainer;
 
     static {
         String imageTag = System.getProperty("clickhouseVersion");
         if (imageTag == null || (imageTag = imageTag.trim()).isEmpty()) {
-            imageTag = "";
+            clickhouseVersion = imageTag = "";
         } else {
+            clickhouseVersion = imageTag;
             imageTag = ":" + imageTag;
         }
 
@@ -31,6 +33,10 @@ public class ClickHouseContainerForTest {
                 .waitingFor(Wait.forHttp("/ping").forPort(HTTP_PORT).forStatusCode(200)
                         .withStartupTimeout(Duration.of(60, SECONDS)))
                 .withExposedPorts(HTTP_PORT, NATIVE_PORT, MYSQL_PORT);
+    }
+
+    public static String getClickHouseVersion() {
+        return clickhouseVersion;
     }
 
     public static GenericContainer<?> getClickHouseContainer() {
