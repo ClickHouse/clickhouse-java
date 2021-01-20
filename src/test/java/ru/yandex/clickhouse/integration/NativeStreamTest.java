@@ -36,6 +36,11 @@ public class NativeStreamTest {
             "CREATE TABLE test.low_cardinality (date Date, lowCardinality LowCardinality(String), string String) ENGINE = MergeTree(date, (date), 8192)"
         );
 
+        // Code: 368, e.displayText() = DB::Exception: Bad cast from type DB::ColumnString to DB::ColumnLowCardinality
+        if (connection.getMetaData().getDatabaseMajorVersion() <= 19) {
+            return;
+        }
+
         final Date date1 = new Date(1497474018000L);
 
         statement.sendNativeStream(
