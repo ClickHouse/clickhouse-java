@@ -4,6 +4,7 @@ import org.testng.annotations.AfterSuite;
 import org.testng.annotations.BeforeSuite;
 
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
+import ru.yandex.clickhouse.util.ClickHouseVersionNumberUtil;
 
 import java.time.Duration;
 
@@ -25,7 +26,11 @@ public class ClickHouseContainerForTest {
         if (imageTag == null || (imageTag = imageTag.trim()).isEmpty()) {
             clickhouseVersion = imageTag = "";
         } else {
-            clickhouseVersion = imageTag;
+            if (ClickHouseVersionNumberUtil.getMajorVersion(imageTag) == 0) {
+                clickhouseVersion = "";
+            } else {
+                clickhouseVersion = imageTag;
+            }
             imageTag = ":" + imageTag;
         }
 
