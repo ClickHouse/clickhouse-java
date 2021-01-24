@@ -1,10 +1,10 @@
 package ru.yandex.clickhouse.settings;
 
-import ru.yandex.clickhouse.util.apache.StringUtils;
-
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
+
+import ru.yandex.clickhouse.util.apache.StringUtils;
 
 
 
@@ -302,22 +302,42 @@ public class ClickHouseProperties {
     }
 
     public Map<ClickHouseQueryParam, String> buildQueryParams(boolean ignoreDatabase){
-        Map<ClickHouseQueryParam, String> params = new HashMap<ClickHouseQueryParam, String>();
+        Map<ClickHouseQueryParam, String> params = new HashMap<>();
 
-        if (maxParallelReplicas != null) params.put(ClickHouseQueryParam.MAX_PARALLEL_REPLICAS, String.valueOf(maxParallelReplicas));
-        if (maxPartitionsPerInsertBlock != null) params.put(ClickHouseQueryParam.MAX_PARTITIONS_PER_INSERT_BLOCK, String.valueOf(maxPartitionsPerInsertBlock));
-        if (maxRowsToGroupBy != null) params.put(ClickHouseQueryParam.MAX_ROWS_TO_GROUP_BY, String.valueOf(maxRowsToGroupBy));
-        if (totalsMode != null) params.put(ClickHouseQueryParam.TOTALS_MODE, totalsMode);
-        if (quotaKey != null) params.put(ClickHouseQueryParam.QUOTA_KEY, quotaKey);
-        if (priority != null) params.put(ClickHouseQueryParam.PRIORITY, String.valueOf(priority));
+        if (maxParallelReplicas != null) {
+            params.put(ClickHouseQueryParam.MAX_PARALLEL_REPLICAS, String.valueOf(maxParallelReplicas));
+        }
+        if (maxPartitionsPerInsertBlock != null) {
+            params.put(ClickHouseQueryParam.MAX_PARTITIONS_PER_INSERT_BLOCK, String.valueOf(maxPartitionsPerInsertBlock));
+        }
+        if (maxRowsToGroupBy != null) {
+            params.put(ClickHouseQueryParam.MAX_ROWS_TO_GROUP_BY, String.valueOf(maxRowsToGroupBy));
+        }
+        if (totalsMode != null) {
+            params.put(ClickHouseQueryParam.TOTALS_MODE, totalsMode);
+        }
+        if (quotaKey != null) {
+            params.put(ClickHouseQueryParam.QUOTA_KEY, quotaKey);
+        }
+        if (priority != null) {
+            params.put(ClickHouseQueryParam.PRIORITY, String.valueOf(priority));
+        }
 
-        if (!StringUtils.isBlank(database) && !ignoreDatabase) params.put(ClickHouseQueryParam.DATABASE, getDatabase());
+        if (!StringUtils.isBlank(database) && !ignoreDatabase) {
+            params.put(ClickHouseQueryParam.DATABASE, getDatabase());
+        }
 
-        if (compress) params.put(ClickHouseQueryParam.COMPRESS, "1");
-        if (decompress) params.put(ClickHouseQueryParam.DECOMPRESS, "1");
+        if (compress) {
+            params.put(ClickHouseQueryParam.COMPRESS, "1");
+        }
+        if (decompress) {
+            params.put(ClickHouseQueryParam.DECOMPRESS, "1");
+        }
 
 
-        if (extremes) params.put(ClickHouseQueryParam.EXTREMES, "1");
+        if (extremes) {
+            params.put(ClickHouseQueryParam.EXTREMES, "1");
+        }
 
         if (StringUtils.isBlank(profile)) {
             if (getMaxThreads() != null) {
@@ -336,13 +356,16 @@ public class ClickHouseProperties {
             params.put(ClickHouseQueryParam.PROFILE, profile);
         }
 
-        if (user != null) params.put(ClickHouseQueryParam.USER, user);
-        if (password != null) params.put(ClickHouseQueryParam.PASSWORD, password);
+        if (distributedAggregationMemoryEfficient) {
+            params.put(ClickHouseQueryParam.DISTRIBUTED_AGGREGATION_MEMORY_EFFICIENT, "1");
+        }
 
-        if (distributedAggregationMemoryEfficient) params.put(ClickHouseQueryParam.DISTRIBUTED_AGGREGATION_MEMORY_EFFICIENT, "1");
-
-        if (maxBytesBeforeExternalGroupBy != null) params.put(ClickHouseQueryParam.MAX_BYTES_BEFORE_EXTERNAL_GROUP_BY, String.valueOf(maxBytesBeforeExternalGroupBy));
-        if (maxBytesBeforeExternalSort != null) params.put(ClickHouseQueryParam.MAX_BYTES_BEFORE_EXTERNAL_SORT, String.valueOf(maxBytesBeforeExternalSort));
+        if (maxBytesBeforeExternalGroupBy != null) {
+            params.put(ClickHouseQueryParam.MAX_BYTES_BEFORE_EXTERNAL_GROUP_BY, String.valueOf(maxBytesBeforeExternalGroupBy));
+        }
+        if (maxBytesBeforeExternalSort != null) {
+            params.put(ClickHouseQueryParam.MAX_BYTES_BEFORE_EXTERNAL_SORT, String.valueOf(maxBytesBeforeExternalSort));
+        }
         if (maxMemoryUsage != null) {
             params.put(ClickHouseQueryParam.MAX_MEMORY_USAGE, String.valueOf(maxMemoryUsage));
         }
@@ -421,8 +444,9 @@ public class ClickHouseProperties {
     @SuppressWarnings("unchecked")
     private <T> T getSetting(Properties info, String key, Object defaultValue, Class clazz){
         String val = info.getProperty(key);
-        if (val == null)
+        if (val == null) {
             return (T)defaultValue;
+        }
         if (clazz == int.class || clazz == Integer.class) {
             return (T) clazz.cast(Integer.valueOf(val));
         }
@@ -974,16 +998,18 @@ public class ClickHouseProperties {
 
     public ClickHouseProperties merge(ClickHouseProperties second){
         Properties properties = this.asProperties();
-        for (Map.Entry<Object, Object> entry : second.asProperties().entrySet())
+        for (Map.Entry<Object, Object> entry : second.asProperties().entrySet()) {
             properties.put(entry.getKey(), entry.getValue());
+        }
 
         return new ClickHouseProperties(properties);
     }
 
     public ClickHouseProperties merge(Properties other){
         Properties properties = this.asProperties();
-        for (Map.Entry<Object, Object> entry : other.entrySet())
+        for (Map.Entry<Object, Object> entry : other.entrySet()) {
             properties.put(entry.getKey(), entry.getValue());
+        }
 
         return new ClickHouseProperties(properties);
     }
