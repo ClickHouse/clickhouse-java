@@ -1,6 +1,6 @@
-[![clickhouse-jdbc](https://maven-badges.herokuapp.com/maven-central/ru.yandex.clickhouse/clickhouse-jdbc/badge.svg)](https://maven-badges.herokuapp.com/maven-central/ru.yandex.clickhouse/clickhouse-jdbc) [![Build Status](https://travis-ci.org/ClickHouse/clickhouse-jdbc.svg?branch=master)](https://travis-ci.org/ClickHouse/clickhouse-jdbc)
 ClickHouse JDBC driver
 ===============
+[![clickhouse-jdbc](https://maven-badges.herokuapp.com/maven-central/ru.yandex.clickhouse/clickhouse-jdbc/badge.svg)](https://maven-badges.herokuapp.com/maven-central/ru.yandex.clickhouse/clickhouse-jdbc) ![Build Status(https://github.com/ClickHouse/clickhouse-jdbc/workflows/Build/badge.svg)](https://github.com/ClickHouse/clickhouse-jdbc/workflows/Build/badge.svg)
 
 This is a basic and restricted implementation of jdbc driver for ClickHouse.
 It has support of a minimal subset of features to be usable.
@@ -10,7 +10,7 @@ It has support of a minimal subset of features to be usable.
 <dependency>
     <groupId>ru.yandex.clickhouse</groupId>
     <artifactId>clickhouse-jdbc</artifactId>
-    <version>0.2.4</version>
+    <version>0.2.5</version>
 </dependency>
 ```
 
@@ -49,7 +49,7 @@ sth
     .addDbParam(ClickHouseQueryParam.MAX_PARALLEL_REPLICAS, 2)
     .send();
 ```
-#### Send data in binary formatd with custom user callback
+#### Send data in binary formated with custom user callback
 ```java
 import ru.yandex.clickhouse.ClickHouseStatement;
 ClickHouseStatement sth = connection.createStatement();
@@ -73,4 +73,4 @@ To build a jar with dependencies use
 `mvn package assembly:single -DskipTests=true`
 
 ### Build requirements
-In order to build the jdbc client one need to have jdk 1.6 or higher.
+In order to build the jdbc client one need to have jdk 1.7 or higher.
