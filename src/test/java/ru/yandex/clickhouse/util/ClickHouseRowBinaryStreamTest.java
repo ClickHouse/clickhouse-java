@@ -206,6 +206,21 @@ public class ClickHouseRowBinaryStreamTest {
     }
 
     @Test
+    public void testUInt64Array() throws Exception {
+        check(
+            new StreamWriter() {
+              @Override
+              public void write(ClickHouseRowBinaryStream stream) throws Exception {
+                stream.writeUInt64Array(new long[]{0, Long.MAX_VALUE});
+                stream.writeUInt64Array(new UnsignedLong[]{UnsignedLong.valueOf(0), UnsignedLong.valueOf("18446744073709551615")});
+              }
+            },
+            new byte[] { 2, 0, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1, -1, 127, // First array
+                2, 0, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1, -1, -1, } // Second array
+        );
+    }
+
+    @Test
     public void testString() throws Exception {
         check(
             new StreamWriter() {

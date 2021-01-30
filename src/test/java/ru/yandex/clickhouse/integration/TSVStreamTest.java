@@ -4,10 +4,11 @@ import org.testng.Assert;
 import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
 import ru.yandex.clickhouse.ClickHouseConnection;
+import ru.yandex.clickhouse.ClickHouseContainerForTest;
 import ru.yandex.clickhouse.ClickHouseDataSource;
-import ru.yandex.clickhouse.settings.ClickHouseProperties;
 
-import java.io.*;
+import java.io.ByteArrayInputStream;
+import java.io.InputStream;
 import java.nio.charset.Charset;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -19,8 +20,7 @@ public class TSVStreamTest {
 
     @BeforeTest
     public void setUp() throws Exception {
-        ClickHouseProperties properties = new ClickHouseProperties();
-        dataSource = new ClickHouseDataSource("jdbc:clickhouse://localhost:8123", properties);
+        dataSource = ClickHouseContainerForTest.newDataSource();
         connection = dataSource.getConnection();
         connection.createStatement().execute("CREATE DATABASE IF NOT EXISTS test");
     }

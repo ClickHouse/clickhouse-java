@@ -5,6 +5,8 @@
 *.war
 *.ear
 
+# VSCode
+.vscode
 
 # Eclipse
 .classpath
@@ -21,5 +23,6 @@ test-output/
 out/
 
 # Maven
+.antlr/
 log/
 target/

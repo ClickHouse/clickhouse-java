@@ -1,0 +1,36 @@
+name: Verify
+
+on:
+  workflow_dispatch:
+    inputs:
+      clickhouse:
+        description: "ClickHouse version"
+        required: true
+        default: "latest"
+      java:
+        description: "Java version"
+        required: true
+        default: "8"
+      pr:
+        description: "Pull request#"
+        required: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    name: Verify branch/PR using JDK ${{ github.event.inputs.java }} against ClickHouse ${{ github.event.inputs.clickhouse }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v2
+        if: github.event.inputs.pr == ''
+      - name: Check out PR ${{ github.event.inputs.pr }}
+        uses: actions/checkout@v2
+        if: github.event.inputs.pr != ''
+        with:
+          ref: refs/remotes/pull/${{ github.event.inputs.pr }}/merge
+      - name: Set up JDK ${{ github.event.inputs.java }}
+        uses: actions/setup-java@v1
+        with:
+          java-version: ${{ github.event.inputs.java }}
+      - name: Verify with Maven
+        run: mvn --batch-mode --update-snapshots -DclickhouseVersion=${{ github.event.inputs.clickhouse }} verify

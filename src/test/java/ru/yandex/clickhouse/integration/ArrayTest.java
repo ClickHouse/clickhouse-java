@@ -21,10 +21,10 @@ import com.google.common.base.Joiner;
 import com.google.common.collect.Iterables;
 
 import ru.yandex.clickhouse.ClickHouseArray;
+import ru.yandex.clickhouse.ClickHouseContainerForTest;
 import ru.yandex.clickhouse.ClickHouseDataSource;
 import ru.yandex.clickhouse.ClickHousePreparedStatement;
 import ru.yandex.clickhouse.domain.ClickHouseDataType;
-import ru.yandex.clickhouse.settings.ClickHouseProperties;
 
 import static org.testng.Assert.assertEquals;
 
@@ -39,8 +39,7 @@ public class ArrayTest {
 
     @BeforeTest
     public void setUp() throws Exception {
-        ClickHouseProperties properties = new ClickHouseProperties();
-        dataSource = new ClickHouseDataSource("jdbc:clickhouse://localhost:8123", properties);
+        dataSource = ClickHouseContainerForTest.newDataSource();
         connection = dataSource.getConnection();
     }
 

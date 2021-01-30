@@ -144,6 +144,7 @@ public class BalancedClickhouseDataSource implements DataSource {
             driver.connect(url, properties).createStatement().execute("SELECT 1");
             return true;
         } catch (Exception e) {
+            log.debug("Unable to connect using {}", url, e);
             return false;
         }
     }

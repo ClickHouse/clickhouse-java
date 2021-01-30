@@ -1,10 +1,6 @@
 package ru.yandex.clickhouse.util;
 
-import org.apache.http.Header;
-import org.apache.http.HeaderElement;
-import org.apache.http.HeaderElementIterator;
-import org.apache.http.HttpHeaders;
-import org.apache.http.HttpResponse;
+import org.apache.http.*;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.config.ConnectionConfig;
 import org.apache.http.config.RegistryBuilder;
@@ -13,6 +9,7 @@ import org.apache.http.conn.socket.ConnectionSocketFactory;
 import org.apache.http.conn.socket.PlainConnectionSocketFactory;
 import org.apache.http.conn.ssl.NoopHostnameVerifier;
 import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
+import org.apache.http.impl.DefaultConnectionReuseStrategy;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
@@ -21,7 +18,6 @@ import org.apache.http.message.BasicHeaderElementIterator;
 import org.apache.http.protocol.HTTP;
 import org.apache.http.protocol.HttpContext;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
-import ru.yandex.clickhouse.util.guava.StreamUtils;
 import ru.yandex.clickhouse.util.ssl.NonValidatingTrustManager;
 
 import javax.net.ssl.HostnameVerifier;
@@ -59,13 +55,25 @@ public class ClickHouseHttpClientBuilder {
     public CloseableHttpClient buildClient() throws Exception {
         return HttpClientBuilder.create()
                 .setConnectionManager(getConnectionManager())
-                .setKeepAliveStrategy(createKeepAliveStrategy())
+                .setConnectionReuseStrategy(getConnectionReuseStrategy())
                 .setDefaultConnectionConfig(getConnectionConfig())
                 .setDefaultRequestConfig(getRequestConfig())
                 .setDefaultHeaders(getDefaultHeaders())
                 .disableContentCompression() // gzip здесь ни к чему. Используется lz4 при compress=1
                 .disableRedirectHandling()
                 .build();
+    }
+
+    private ConnectionReuseStrategy getConnectionReuseStrategy() {
+        return new DefaultConnectionReuseStrategy() {
+            @Override
+            public boolean keepAlive(HttpResponse httpResponse, HttpContext httpContext) {
+                if (httpResponse.getStatusLine().getStatusCode() != HttpURLConnection.HTTP_OK) {
+                    return false;
+                }
+                return super.keepAlive(httpResponse, httpContext);
+            }
+        };
     }
 
     private PoolingHttpClientConnectionManager getConnectionManager()

@@ -1,0 +1,46 @@
+name: Build
+
+on:
+  push:
+    branches:
+      - master
+      - develop
+    paths-ignore:
+      - "CHANGELOG"
+      - "**.md"
+
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+    paths-ignore:
+      - "CHANGELOG"
+      - "**.md"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        java: [8, 9, 11]
+        # most recent LTS releases and latest stable build
+        clickhouse: ["19.14", "20.3", "20.8", "latest"]
+    name: Build using JDK ${{ matrix.java }} against ClickHouse ${{ matrix.clickhouse }}
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v2
+      - name: Set up JDK ${{ matrix.java }}
+        uses: actions/setup-java@v1
+        with:
+          java-version: ${{ matrix.java }}
+      # Step that does that actual cache save and restore
+      - name: Cache maven dependencies
+        uses: actions/cache@v2
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-build-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-build-
+      - name: Build with Maven
+        run: mvn --batch-mode --update-snapshots -DclickhouseVersion=${{ matrix.clickhouse }} verify

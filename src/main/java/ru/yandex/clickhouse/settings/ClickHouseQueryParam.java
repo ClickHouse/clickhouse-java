@@ -2,6 +2,7 @@ package ru.yandex.clickhouse.settings;
 
 
 import java.sql.DriverPropertyInfo;
+import java.util.Locale;
 import java.util.Properties;
 
 public enum ClickHouseQueryParam implements DriverPropertyCreator {
@@ -284,7 +285,7 @@ public enum ClickHouseQueryParam implements DriverPropertyCreator {
 
     @Override
     public String toString() {
-        return name().toLowerCase();
+        return name().toLowerCase(Locale.ROOT);
     }
 
     @Override
