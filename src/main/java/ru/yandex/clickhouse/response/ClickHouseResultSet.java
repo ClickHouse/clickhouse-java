@@ -607,11 +607,6 @@ public class ClickHouseResultSet extends AbstractResultSet {
         }
     }
 
-    @Override
-    public int findColumn(String columnLabel) throws SQLException {
-        return asColNum(columnLabel);
-    }
-
     //////
 
     @Override

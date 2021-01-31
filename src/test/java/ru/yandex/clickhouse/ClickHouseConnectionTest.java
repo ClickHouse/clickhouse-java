@@ -17,13 +17,12 @@ import static org.testng.Assert.assertTrue;
 public class ClickHouseConnectionTest {
     @Test
     public void testGetSetCatalog() throws SQLException {
-        String address = ClickHouseContainerForTest.getClickHouseHttpAddress();
-        String url = "jdbc:clickhouse://" + address + "/default?option1=one%20two&option2=y";
-        ClickHouseDataSource dataSource = ClickHouseContainerForTest.newDataSource(url);
+        ClickHouseDataSource dataSource = new ClickHouseDataSource(
+                "jdbc:clickhouse://localhost:8123/default?option1=one%20two&option2=y");
         String[] dbNames = new String[]{"get_set_catalog_test1", "get_set_catalog_test2"};
         try {
             ClickHouseConnectionImpl connection = (ClickHouseConnectionImpl) dataSource.getConnection();
-            assertEquals(connection.getUrl(), url);
+            assertEquals(connection.getUrl(), "jdbc:clickhouse://localhost:8123/default?option1=one%20two&option2=y");
             assertEquals(connection.getCatalog(), "default");
             assertEquals(connection.getProperties().getDatabase(), "default");
 
@@ -37,7 +36,7 @@ public class ClickHouseConnectionTest {
                 assertEquals(connection.getCatalog(), db);
                 assertEquals(connection.getProperties().getDatabase(), db);
                 assertEquals(connection.getUrl(),
-                        "jdbc:clickhouse://" + address + "/" + db + "?option1=one%20two&option2=y");
+                        "jdbc:clickhouse://localhost:8123/" + db + "?option1=one%20two&option2=y");
 
                 ResultSet resultSet = connection.createStatement().executeQuery("SELECT field FROM some_table");
                 assertTrue(resultSet.next());
@@ -53,8 +52,8 @@ public class ClickHouseConnectionTest {
 
     @Test
     public void testSetCatalogAndStatements() throws SQLException {
-        ClickHouseDataSource dataSource = ClickHouseContainerForTest.newDataSource(
-                "default?option1=one%20two&option2=y");
+        ClickHouseDataSource dataSource = new ClickHouseDataSource(
+                "jdbc:clickhouse://localhost:8123/default?option1=one%20two&option2=y");
         ClickHouseConnectionImpl connection = (ClickHouseConnectionImpl) dataSource.getConnection();
         final String sql = "SELECT currentDatabase()";
 
@@ -73,8 +72,8 @@ public class ClickHouseConnectionTest {
 
     @Test
     public void testSetCatalogAndPreparedStatements() throws SQLException {
-        ClickHouseDataSource dataSource = ClickHouseContainerForTest.newDataSource(
-                "default?option1=one%20two&option2=y");
+        ClickHouseDataSource dataSource = new ClickHouseDataSource(
+                "jdbc:clickhouse://localhost:8123/default?option1=one%20two&option2=y");
         ClickHouseConnectionImpl connection = (ClickHouseConnectionImpl) dataSource.getConnection();
         final String sql = "SELECT currentDatabase() FROM system.tables WHERE name = ? LIMIT 1";
 
@@ -95,8 +94,8 @@ public class ClickHouseConnectionTest {
 
     @Test
     public void testScrollableResultSetOnPreparedStatements() throws SQLException {
-        ClickHouseDataSource dataSource = ClickHouseContainerForTest.newDataSource(
-                "default?option1=one%20two&option2=y");
+        ClickHouseDataSource dataSource = new ClickHouseDataSource(
+                "jdbc:clickhouse://localhost:8123/default?option1=one%20two&option2=y");
         ClickHouseConnectionImpl connection = (ClickHouseConnectionImpl) dataSource.getConnection();
         final String sql = "SELECT currentDatabase() FROM system.tables WHERE name = ? LIMIT 1";
 
@@ -122,8 +121,8 @@ public class ClickHouseConnectionTest {
 
     @Test
     public void testScrollableResultSetOnStatements() throws SQLException {
-        ClickHouseDataSource dataSource = ClickHouseContainerForTest.newDataSource(
-                "default?option1=one%20two&option2=y");
+        ClickHouseDataSource dataSource = new ClickHouseDataSource(
+                "jdbc:clickhouse://localhost:8123/default?option1=one%20two&option2=y");
         ClickHouseConnectionImpl connection = (ClickHouseConnectionImpl) dataSource.getConnection();
         final String sql = "SELECT currentDatabase()";
 
@@ -148,7 +147,8 @@ public class ClickHouseConnectionTest {
     @Test
     public void testCreateArrayOf() throws Exception {
         // TODO: more
-        ClickHouseDataSource dataSource = ClickHouseContainerForTest.newDataSource("default");
+        ClickHouseDataSource dataSource = new ClickHouseDataSource(
+            "jdbc:clickhouse://localhost:8123/default");
         ClickHouseConnectionImpl connection = (ClickHouseConnectionImpl) dataSource.getConnection();
         for (ClickHouseDataType dataType : ClickHouseDataType.values()) {
             if (dataType == ClickHouseDataType.Array) {

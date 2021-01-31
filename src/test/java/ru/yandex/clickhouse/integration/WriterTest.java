@@ -4,7 +4,7 @@ import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 import org.testng.internal.Utils;
 import ru.yandex.clickhouse.ClickHouseConnection;
-import ru.yandex.clickhouse.ClickHouseContainerForTest;
+import ru.yandex.clickhouse.ClickHouseDataSource;
 import ru.yandex.clickhouse.ClickHouseStatement;
 import ru.yandex.clickhouse.domain.ClickHouseFormat;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
@@ -28,7 +28,7 @@ public class WriterTest {
         ClickHouseProperties properties = new ClickHouseProperties();
         properties.setDecompress(true);
         properties.setCompress(true);
-        connection = ClickHouseContainerForTest.newDataSource(properties).getConnection();
+        connection = new ClickHouseDataSource("jdbc:clickhouse://localhost:8123", properties).getConnection();
         statement = connection.createStatement();
         connection.createStatement().execute("CREATE DATABASE IF NOT EXISTS test");
         connection.createStatement().execute("DROP TABLE IF EXISTS test.writer");

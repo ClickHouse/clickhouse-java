@@ -19,9 +19,6 @@ public class ClickHouseResultBuilderTest {
             .build();
         List<ClickHouseColumnInfo> columns = resultSet.getColumns();
 
-        Assert.assertEquals(1, resultSet.findColumn("string"));
-        Assert.assertEquals(2, resultSet.findColumn("int"));
-
         Assert.assertEquals("string", columns.get(0).getColumnName());
         Assert.assertEquals("int", columns.get(1).getColumnName());
 

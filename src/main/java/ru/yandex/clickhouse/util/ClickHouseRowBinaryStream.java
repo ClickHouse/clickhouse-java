@@ -285,15 +285,6 @@ public class ClickHouseRowBinaryStream {
         }
     }
 
-    public void writeUInt64Array(UnsignedLong[] longs) throws IOException {
-        Preconditions.checkNotNull(longs);
-        writeUnsignedLeb128(longs.length);
-        for (UnsignedLong l : longs) {
-            writeUInt64(l);
-        }
-    }
-
-
     public void writeFloat32Array(float[] floats) throws IOException {
         Preconditions.checkNotNull(floats);
         writeUnsignedLeb128(floats.length);

@@ -12,24 +12,16 @@ public class ClickHouseLZ4OutputStream extends OutputStream {
     private static final LZ4Factory factory = LZ4Factory.safeInstance();
     private final LittleEndianDataOutputStream dataWrapper;
 
-    private final LZ4Compressor compressor;
-    private final byte[] currentBlock;
-    private final byte[] compressedBlock;
-
+    private byte[] currentBlock;
     private int pointer;
+    private byte[] compressedBlock;
+    private final LZ4Compressor compressor;
 
     public ClickHouseLZ4OutputStream(OutputStream stream, int maxCompressBlockSize) {
         dataWrapper = new LittleEndianDataOutputStream(stream);
         compressor = factory.fastCompressor();
         currentBlock = new byte[maxCompressBlockSize];
         compressedBlock = new byte[compressor.maxCompressedLength(maxCompressBlockSize)];
-    }
-
-    /**
-    * @return Location of pointer in the byte buffer (bytes not yet flushed)
-    */
-    public int position() {
-        return pointer;
     }
 
     @Override

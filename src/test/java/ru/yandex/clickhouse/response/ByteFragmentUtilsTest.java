@@ -14,10 +14,8 @@ import java.math.BigDecimal;
 import java.sql.Date;
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
-import java.util.Objects;
 import java.util.TimeZone;
 
-import static org.junit.Assert.assertTrue;
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertNotNull;
 import static org.testng.Assert.assertNull;
@@ -120,9 +118,7 @@ public class ByteFragmentUtilsTest {
         byte[] bytes = sourceString.getBytes(StreamUtils.UTF_8);
         ByteFragment fragment = new ByteFragment(bytes, 0, bytes.length);
         double[] arr= (double[]) ByteFragmentUtils.parseArray(fragment, Double.class, 1);
-        // Double.NaN != Double.NaN
-        // assertEquals(arr, expected);
-        assertTrue(Objects.deepEquals(arr, expected));
+        assertEquals(arr, expected);
     }
 
     @Test(dataProvider = "floatArrayWithNan")
@@ -137,8 +133,7 @@ public class ByteFragmentUtilsTest {
         byte[] bytes = sourceString.getBytes(StreamUtils.UTF_8);
         ByteFragment fragment = new ByteFragment(bytes, 0, bytes.length);
         float[] arr= (float[]) ByteFragmentUtils.parseArray(fragment, Float.class, 1);
-        // assertEquals(arr, expected);
-        assertTrue(Objects.deepEquals(arr, expected));
+        assertEquals(arr, expected);
     }
 
     @Test(dataProvider = "stringArray")
@@ -285,8 +280,7 @@ public class ByteFragmentUtilsTest {
         byte[] bytes = sourceString.getBytes(StreamUtils.UTF_8);
         ByteFragment fragment = new ByteFragment(bytes, 0, bytes.length);
         int[][][] actual = (int[][][]) ByteFragmentUtils.parseArray(fragment, Integer.class, 3);
-        // assertEquals(expected, actual);
-        assertTrue(Objects.deepEquals(expected, actual));
+        assertEquals(expected, actual);
     }
 
     @Test

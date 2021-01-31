@@ -17,7 +17,6 @@ public class ClickHouseProperties {
     private int socketTimeout;
     private int connectionTimeout;
     private int dataTransferTimeout;
-    @Deprecated
     private int keepAliveTimeout;
     private int timeToLiveMillis;
     private int defaultMaxPerRoute;

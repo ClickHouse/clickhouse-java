@@ -1,5 +1,4 @@
 package ru.yandex.clickhouse.integration;
-
 import java.io.ByteArrayInputStream;
 import java.io.UnsupportedEncodingException;
 import java.math.BigInteger;
@@ -24,7 +23,6 @@ import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
 
 import ru.yandex.clickhouse.ClickHouseConnection;
-import ru.yandex.clickhouse.ClickHouseContainerForTest;
 import ru.yandex.clickhouse.ClickHouseDataSource;
 import ru.yandex.clickhouse.ClickHouseExternalData;
 import ru.yandex.clickhouse.ClickHouseStatement;
@@ -41,7 +39,8 @@ public class ClickHouseStatementImplTest {
 
     @BeforeTest
     public void setUp() throws Exception {
-        dataSource = ClickHouseContainerForTest.newDataSource();
+        ClickHouseProperties properties = new ClickHouseProperties();
+        dataSource = new ClickHouseDataSource("jdbc:clickhouse://localhost:8123", properties);
         connection = dataSource.getConnection();
     }
 
@@ -149,7 +148,7 @@ public class ClickHouseStatementImplTest {
     public void testResultSetWithExtremes() throws SQLException {
         ClickHouseProperties properties = new ClickHouseProperties();
         properties.setExtremes(true);
-        ClickHouseDataSource dataSource = ClickHouseContainerForTest.newDataSource(properties);
+        ClickHouseDataSource dataSource = new ClickHouseDataSource("jdbc:clickhouse://localhost:8123", properties);
         Connection connection = dataSource.getConnection();
 
         try {

@@ -20,9 +20,9 @@ import com.google.common.primitives.UnsignedLong;
 import com.google.common.primitives.UnsignedLongs;
 
 import ru.yandex.clickhouse.ClickHouseConnection;
-import ru.yandex.clickhouse.ClickHouseContainerForTest;
 import ru.yandex.clickhouse.ClickHouseDataSource;
 import ru.yandex.clickhouse.ClickHouseStatement;
+import ru.yandex.clickhouse.settings.ClickHouseProperties;
 import ru.yandex.clickhouse.util.ClickHouseRowBinaryInputStream;
 import ru.yandex.clickhouse.util.ClickHouseRowBinaryStream;
 import ru.yandex.clickhouse.util.ClickHouseStreamCallback;
@@ -39,7 +39,8 @@ public class RowBinaryStreamTest {
 
     @BeforeTest
     public void setUp() throws Exception {
-        dataSource = ClickHouseContainerForTest.newDataSource();
+        ClickHouseProperties properties = new ClickHouseProperties();
+        dataSource = new ClickHouseDataSource("jdbc:clickhouse://localhost:8123", properties);
         connection = dataSource.getConnection();
         connection.createStatement().execute("CREATE DATABASE IF NOT EXISTS test");
     }
@@ -126,8 +127,7 @@ public class RowBinaryStreamTest {
     private void testRowBinaryStream(boolean rowBinaryResult) throws Exception {
         createTable("test.raw_binary");
         ClickHouseStatement statement = connection.createStatement();
-        final long timestamp = 1483230102000L; //2017-01-01 03:21:42
-        final Date date1 = new Date(timestamp);
+        final Date date1 = new Date(1483230102000L); //2017-01-01 03:21:42
         final Date date2 = new Date(1494321702000L); //2017-05-09 12:21:42
         final Date[] dates1 = {new Date(1263945600000L)};
         final Timestamp[] dateTimes1 = {new Timestamp(1483230102000L)};
@@ -281,7 +281,7 @@ public class RowBinaryStreamTest {
             ClickHouseRowBinaryInputStream is = connection.createStatement().executeQueryClickhouseRowBinaryStream("SELECT * FROM test.raw_binary ORDER BY date");
 
             assertEquals(is.readDate(), withTimeAtStartOfDay(date1));
-            assertEquals(is.readDateTime(), new Timestamp(timestamp));
+            assertEquals(is.readDateTime(), date1);
             assertEquals(is.readString(), "string\n1");
             assertEquals(is.readInt8(), Byte.MIN_VALUE);
             assertEquals(is.readUInt8(), (short) 0);

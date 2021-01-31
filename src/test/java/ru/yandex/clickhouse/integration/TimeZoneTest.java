@@ -15,7 +15,6 @@ import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
 
 import ru.yandex.clickhouse.ClickHouseConnection;
-import ru.yandex.clickhouse.ClickHouseContainerForTest;
 import ru.yandex.clickhouse.ClickHouseDataSource;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
 import ru.yandex.clickhouse.util.ClickHouseRowBinaryStream;
@@ -28,7 +27,7 @@ public class TimeZoneTest {
 
     @BeforeTest
     public void setUp() throws Exception {
-        ClickHouseDataSource datasourceServerTz = ClickHouseContainerForTest.newDataSource();;
+        ClickHouseDataSource datasourceServerTz = new ClickHouseDataSource("jdbc:clickhouse://localhost:8123", new ClickHouseProperties());
         connectionServerTz = datasourceServerTz.getConnection();
         TimeZone serverTimeZone = connectionServerTz.getTimeZone();
         ClickHouseProperties properties = new ClickHouseProperties();
@@ -36,7 +35,7 @@ public class TimeZoneTest {
         int serverTimeZoneOffsetHours = (int) TimeUnit.MILLISECONDS.toHours(serverTimeZone.getOffset(currentTime));
         int manualTimeZoneOffsetHours = serverTimeZoneOffsetHours - 1;
         properties.setUseTimeZone("GMT" + (manualTimeZoneOffsetHours > 0 ? "+" : "")  + manualTimeZoneOffsetHours + ":00");
-        ClickHouseDataSource dataSourceManualTz = ClickHouseContainerForTest.newDataSource(properties);
+        ClickHouseDataSource dataSourceManualTz = new ClickHouseDataSource("jdbc:clickhouse://localhost:8123", properties);
         connectionManualTz = dataSourceManualTz.getConnection();
 
         connectionServerTz.createStatement().execute("CREATE DATABASE IF NOT EXISTS test");

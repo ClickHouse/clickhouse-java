@@ -25,7 +25,6 @@ import java.util.regex.Pattern;
 public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl implements ClickHousePreparedStatement {
 
     static final String PARAM_MARKER = "?";
-    static final String NULL_MARKER = "\\N";
 
     private static final Pattern VALUES = Pattern.compile("(?i)VALUES[\\s]*\\(");
 
@@ -83,8 +82,6 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
             String pValue = getParameter(i - 1);
             if (PARAM_MARKER.equals(pValue)) {
                 sb.append(binds[p++].getRegularValue());
-            } else if (NULL_MARKER.equals(pValue)) {
-                sb.append("NULL");
             } else {
                 sb.append(pValue);
             }

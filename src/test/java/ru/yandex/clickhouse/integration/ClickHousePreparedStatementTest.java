@@ -23,7 +23,6 @@ import org.testng.annotations.Test;
 
 import ru.yandex.clickhouse.ClickHouseArray;
 import ru.yandex.clickhouse.ClickHouseConnection;
-import ru.yandex.clickhouse.ClickHouseContainerForTest;
 import ru.yandex.clickhouse.ClickHouseDataSource;
 import ru.yandex.clickhouse.ClickHousePreparedStatement;
 import ru.yandex.clickhouse.ClickHousePreparedStatementImpl;
@@ -40,7 +39,8 @@ public class ClickHousePreparedStatementTest {
 
     @BeforeTest
     public void setUp() throws Exception {
-        dataSource = ClickHouseContainerForTest.newDataSource();
+        ClickHouseProperties properties = new ClickHouseProperties();
+        dataSource = new ClickHouseDataSource("jdbc:clickhouse://localhost:8123", properties);
         connection = dataSource.getConnection();
         connection.createStatement().execute("CREATE DATABASE IF NOT EXISTS test");
     }
@@ -638,25 +638,6 @@ public class ClickHousePreparedStatementTest {
         Timestamp[] result = (Timestamp[]) rs.getArray(1).getArray();
         Assert.assertEquals(result[0].getTime(), 1557136800000L);
         Assert.assertEquals(result[1].getTime(), 1560698526598L);
-    }
-
-    @Test
-    public void testStaticNullValue() throws Exception {
-        connection.createStatement().execute(
-            "DROP TABLE IF EXISTS test.static_null_value");
-        connection.createStatement().execute(
-            "CREATE TABLE IF NOT EXISTS test.static_null_value"
-          + "(foo Nullable(String), bar Nullable(String)) "
-          + "ENGINE = TinyLog"
-        );
-        PreparedStatement ps0 = connection.prepareStatement(
-            "INSERT INTO test.static_null_value(foo) VALUES (null)");
-        ps0.executeUpdate();
-
-        ps0 = connection.prepareStatement(
-            "INSERT INTO test.static_null_value(foo, bar) VALUES (null, ?)");
-        ps0.setNull(1, Types.VARCHAR);
-        ps0.executeUpdate();
     }
 
     private static byte[] randomEncodedUUID() {

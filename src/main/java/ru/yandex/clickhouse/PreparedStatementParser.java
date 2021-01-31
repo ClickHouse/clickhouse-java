@@ -173,7 +173,7 @@ final class PreparedStatementParser  {
             return "0";
         }
         if ("NULL".equalsIgnoreCase(paramValue)) {
-            return ClickHousePreparedStatementImpl.NULL_MARKER;
+            return "\\N";
         }
         return paramValue;
     }
