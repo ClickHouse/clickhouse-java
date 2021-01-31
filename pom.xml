@@ -52,7 +52,7 @@
     </developers>
 
     <properties>
-        <revision>0.2.5</revision>
+        <revision>0.2.6</revision>
         <slf4j.version>1.7.30</slf4j.version>
         <project.current.year>2021</project.current.year>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
