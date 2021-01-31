@@ -717,7 +717,7 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
 
         List typeList = types != null ? Arrays.asList(types) : null;
         while (result.next()) {
-            List<String> row = new ArrayList<String>();
+            List<String> row = new ArrayList<>();
             row.add(DEFAULT_CAT);
             row.add(result.getString(1));
             row.add(result.getString(2));
@@ -803,13 +803,13 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
         StringBuilder query;
         if (connection.getServerVersion().compareTo("1.1.54237") > 0) {
             query = new StringBuilder(
-                "SELECT database, table, name, type, default_kind as default_type, default_expression ");
+                "SELECT database, table, name, type, default_kind as default_type, default_expression, comment ");
         } else {
             query = new StringBuilder(
-                "SELECT database, table, name, type, default_type, default_expression ");
+                "SELECT database, table, name, type, default_type, default_expression, NULL AS comment ");
         }
         query.append("FROM system.columns ");
-        List<String> predicates = new ArrayList<String>();
+        List<String> predicates = new ArrayList<>();
         if (schemaPattern != null) {
             predicates.add("database LIKE '" + schemaPattern + "' ");
         }
@@ -827,7 +827,7 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
         ResultSet descTable = request(query.toString());
         int colNum = 1;
         while (descTable.next()) {
-            List<String> row = new ArrayList<String>();
+            List<String> row = new ArrayList<>();
             //catalog name
             row.add(DEFAULT_CAT);
             //database name
@@ -856,7 +856,10 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
                 ? String.valueOf(columnNullable)
                 : String.valueOf(columnNoNulls));
             //remarks
-            row.add(null);
+            String remarks = descTable.getString("comment");
+            row.add("".equals(remarks)
+                ? null
+                : remarks);
 
             // COLUMN_DEF
             if ("DEFAULT".equals(descTable.getString("default_type"))) {
@@ -1322,10 +1325,12 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
         return iface.isAssignableFrom(getClass());
     }
 
+    @Override
     public ResultSet getPseudoColumns(String catalog, String schemaPattern, String tableNamePattern, String columnNamePattern) throws SQLException {
         return null;
     }
 
+    @Override
     public boolean generatedKeyAlwaysReturned() throws SQLException {
         return false;
     }

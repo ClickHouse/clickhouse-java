@@ -73,7 +73,7 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
      */
     private final String initialDatabase;
 
-    private static final String[] selectKeywords = new String[]{"SELECT", "WITH", "SHOW", "DESC", "EXISTS"};
+    private static final String[] selectKeywords = new String[]{"SELECT", "WITH", "SHOW", "DESC", "EXISTS", "EXPLAIN"};
     private static final String databaseKeyword = "CREATE DATABASE";
 
     public ClickHouseStatementImpl(CloseableHttpClient client, ClickHouseConnection connection,
