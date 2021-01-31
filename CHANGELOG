@@ -3,6 +3,7 @@
   * new API: ClickHouseRowBinaryStream.writeUInt64Array(UnsignedLong[])
   * support column comments
   * support explain queries
+  * fix keep-alive timeout issue by reusing validated connection
   * fix ResultSet.findColumn(String) issue
   * fix the issue of not being able to use NULL constant in PreparedStatement
   * fix toLowerCase issue for Turkish
