@@ -49,7 +49,7 @@ sth
     .addDbParam(ClickHouseQueryParam.MAX_PARALLEL_REPLICAS, 2)
     .send();
 ```
-#### Send data in binary formated with custom user callback
+#### Send data in binary formatted with custom user callback
 ```java
 import ru.yandex.clickhouse.ClickHouseStatement;
 ClickHouseStatement sth = connection.createStatement();

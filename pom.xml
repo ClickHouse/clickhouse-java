@@ -352,6 +352,10 @@
                             <shadedPattern>${shade.base}.apache</shadedPattern>
                         </relocation>
                         <relocation>
+                            <pattern>org.checkerframework</pattern>
+                            <shadedPattern>${shade.base}.checker</shadedPattern>
+                        </relocation>
+                        <relocation>
                             <pattern>net.jpountz</pattern>
                             <shadedPattern>${shade.base}.jpountz</shadedPattern>
                         </relocation>
