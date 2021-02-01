@@ -20,7 +20,7 @@ jobs:
         uses: actions/setup-java@v1
         with:
           java-version: 1.8
-      - run: sed -i -e 's|\(<version>\).*\(</version>\)|\1${{ github.event.inputs.version }}\2|' pom.xml
+      - run: sed -i -e 's|^\(    <version>\).*\(</version>\)$|\1${{ github.event.inputs.version }}\2|' pom.xml
       - name: Release Maven package
         uses: samuelmeuli/action-maven-publish@v1
         with:
