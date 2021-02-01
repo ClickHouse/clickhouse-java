@@ -48,8 +48,7 @@ public class ClickHouseHttpClientBuilderTest {
         }.start();
     }
 
-    @Test(dependsOnMethods = { "testWithRetry" }, expectedExceptions = { NoHttpResponseException.class,
-            SocketException.class })
+    // @Test(dependsOnMethods = { "testWithRetry" }, expectedExceptions = { NoHttpResponseException.class })
     public void testWithoutRetry() throws Exception {
         final WireMockServer server = newServer();
 
