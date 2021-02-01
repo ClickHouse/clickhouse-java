@@ -614,18 +614,6 @@ public class ClickHouseResultSet extends AbstractResultSet {
         return result;
     }
 
-    private Long toTimestamp(ByteFragment value, TimeZone timeZone) {
-        if (value.isNull() || value.asString().equals("0000-00-00 00:00:00")) {
-            return null;
-        }
-        try {
-            dateTimeFormat.setTimeZone(timeZone);
-            return dateTimeFormat.parse(value.asString()).getTime();
-        } catch (ParseException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
     //////
 
     @Override
