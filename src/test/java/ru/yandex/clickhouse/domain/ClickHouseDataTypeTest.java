@@ -18,10 +18,10 @@ public class ClickHouseDataTypeTest {
             result,
             typeName);
         assertEquals(
-            ClickHouseDataType.fromTypeString(typeName.toUpperCase(Locale.ENGLISH)),
+            ClickHouseDataType.fromTypeString(typeName.toUpperCase(Locale.ROOT)),
             result);
         assertEquals(
-            ClickHouseDataType.fromTypeString(typeName.toLowerCase(Locale.ENGLISH)),
+            ClickHouseDataType.fromTypeString(typeName.toLowerCase(Locale.ROOT)),
             result);
     }
 

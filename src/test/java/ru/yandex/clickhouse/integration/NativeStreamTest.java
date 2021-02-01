@@ -4,9 +4,9 @@ import org.testng.Assert;
 import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
 import ru.yandex.clickhouse.ClickHouseConnection;
+import ru.yandex.clickhouse.ClickHouseContainerForTest;
 import ru.yandex.clickhouse.ClickHouseDataSource;
 import ru.yandex.clickhouse.ClickHouseStatement;
-import ru.yandex.clickhouse.settings.ClickHouseProperties;
 import ru.yandex.clickhouse.util.ClickHouseRowBinaryStream;
 import ru.yandex.clickhouse.util.ClickHouseStreamCallback;
 
@@ -23,8 +23,7 @@ public class NativeStreamTest {
 
     @BeforeTest
     public void setUp() throws Exception {
-        ClickHouseProperties properties = new ClickHouseProperties();
-        dataSource = new ClickHouseDataSource("jdbc:clickhouse://localhost:8123", properties);
+        dataSource = ClickHouseContainerForTest.newDataSource();
         connection = dataSource.getConnection();
         connection.createStatement().execute("CREATE DATABASE IF NOT EXISTS test");
     }
@@ -36,6 +35,11 @@ public class NativeStreamTest {
         connection.createStatement().execute(
             "CREATE TABLE test.low_cardinality (date Date, lowCardinality LowCardinality(String), string String) ENGINE = MergeTree(date, (date), 8192)"
         );
+
+        // Code: 368, e.displayText() = DB::Exception: Bad cast from type DB::ColumnString to DB::ColumnLowCardinality
+        if (connection.getMetaData().getDatabaseMajorVersion() <= 19) {
+            return;
+        }
 
         final Date date1 = new Date(1497474018000L);
 
