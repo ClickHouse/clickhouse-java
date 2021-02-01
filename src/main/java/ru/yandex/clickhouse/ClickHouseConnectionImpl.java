@@ -385,8 +385,10 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
                 closeableHttpClient = this.httpclient;
             } else {
                 ClickHouseProperties properties = new ClickHouseProperties(this.properties);
-                properties.setConnectionTimeout((int) TimeUnit.SECONDS.toMillis(timeout));
+                int timeoutMs = (int) TimeUnit.SECONDS.toMillis(timeout);
+                properties.setConnectionTimeout(timeoutMs);
                 properties.setMaxExecutionTime(timeout);
+                properties.setSocketTimeout(timeoutMs);
                 closeableHttpClient = new ClickHouseHttpClientBuilder(properties).buildClient();
                 isAnotherHttpClient = true;
             }
