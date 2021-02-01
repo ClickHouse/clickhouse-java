@@ -22,6 +22,7 @@ public class ClickHouseProperties {
     private int timeToLiveMillis;
     private int defaultMaxPerRoute;
     private int maxTotal;
+    private int maxRetries;
     private String host;
     private int port;
     private boolean usePathAsDb;
@@ -112,6 +113,7 @@ public class ClickHouseProperties {
         this.timeToLiveMillis = (Integer)getSetting(info, ClickHouseConnectionSettings.TIME_TO_LIVE_MILLIS);
         this.defaultMaxPerRoute = (Integer)getSetting(info, ClickHouseConnectionSettings.DEFAULT_MAX_PER_ROUTE);
         this.maxTotal = (Integer)getSetting(info, ClickHouseConnectionSettings.MAX_TOTAL);
+        this.maxRetries = (Integer)getSetting(info, ClickHouseConnectionSettings.MAX_RETRIES);
         this.maxCompressBufferSize = (Integer) getSetting(info, ClickHouseConnectionSettings.MAX_COMPRESS_BUFFER_SIZE);
         this.ssl = (Boolean) getSetting(info, ClickHouseConnectionSettings.SSL);
         this.sslRootCertificate = (String) getSetting(info, ClickHouseConnectionSettings.SSL_ROOT_CERTIFICATE);
@@ -176,6 +178,7 @@ public class ClickHouseProperties {
         ret.put(ClickHouseConnectionSettings.TIME_TO_LIVE_MILLIS.getKey(), String.valueOf(timeToLiveMillis));
         ret.put(ClickHouseConnectionSettings.DEFAULT_MAX_PER_ROUTE.getKey(), String.valueOf(defaultMaxPerRoute));
         ret.put(ClickHouseConnectionSettings.MAX_TOTAL.getKey(), String.valueOf(maxTotal));
+        ret.put(ClickHouseConnectionSettings.MAX_RETRIES.getKey(), String.valueOf(maxRetries));
         ret.put(ClickHouseConnectionSettings.MAX_COMPRESS_BUFFER_SIZE.getKey(), String.valueOf(maxCompressBufferSize));
         ret.put(ClickHouseConnectionSettings.SSL.getKey(), String.valueOf(ssl));
         ret.put(ClickHouseConnectionSettings.SSL_ROOT_CERTIFICATE.getKey(), String.valueOf(sslRootCertificate));
@@ -243,6 +246,7 @@ public class ClickHouseProperties {
         setTimeToLiveMillis(properties.timeToLiveMillis);
         setDefaultMaxPerRoute(properties.defaultMaxPerRoute);
         setMaxTotal(properties.maxTotal);
+        setMaxRetries(properties.maxRetries);
         setMaxCompressBufferSize(properties.maxCompressBufferSize);
         setSsl(properties.ssl);
         setSslRootCertificate(properties.sslRootCertificate);
@@ -558,6 +562,14 @@ public class ClickHouseProperties {
 
     public void setMaxTotal(int maxTotal) {
         this.maxTotal = maxTotal;
+    }
+
+    public int getMaxRetries() {
+        return maxRetries;
+    }
+
+    public void setMaxRetries(int maxRetries) {
+        this.maxRetries = maxRetries;
     }
 
     public int getMaxCompressBufferSize() {

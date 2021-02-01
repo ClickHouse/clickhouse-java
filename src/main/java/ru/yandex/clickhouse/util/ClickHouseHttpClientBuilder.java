@@ -5,7 +5,6 @@ import org.apache.http.client.HttpRequestRetryHandler;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.config.ConnectionConfig;
 import org.apache.http.config.RegistryBuilder;
-import org.apache.http.conn.ConnectionKeepAliveStrategy;
 import org.apache.http.conn.socket.ConnectionSocketFactory;
 import org.apache.http.conn.socket.PlainConnectionSocketFactory;
 import org.apache.http.conn.ssl.NoopHostnameVerifier;
@@ -16,8 +15,6 @@ import org.apache.http.impl.client.DefaultHttpRequestRetryHandler;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 import org.apache.http.message.BasicHeader;
-import org.apache.http.message.BasicHeaderElementIterator;
-import org.apache.http.protocol.HTTP;
 import org.apache.http.protocol.HttpContext;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
 import ru.yandex.clickhouse.util.ssl.NonValidatingTrustManager;
@@ -68,11 +65,11 @@ public class ClickHouseHttpClientBuilder {
     }
 
     private HttpRequestRetryHandler getRequestRetryHandler() {
-        final int maxRetry = 3;
-        return new DefaultHttpRequestRetryHandler(maxRetry, false) {
+        final int maxRetries = properties.getMaxRetries();
+        return new DefaultHttpRequestRetryHandler(maxRetries, false) {
             @Override
             public boolean retryRequest(IOException exception, int executionCount, HttpContext context) {
-                if (executionCount > maxRetry) {
+                if (executionCount > maxRetries) {
                     return false;
                 }
 
@@ -139,29 +136,6 @@ public class ClickHouseHttpClientBuilder {
             headers.add(new BasicHeader(HttpHeaders.AUTHORIZATION, properties.getHttpAuthorization()));
         }
         return headers;
-    }
-
-    private ConnectionKeepAliveStrategy createKeepAliveStrategy() {
-        return new ConnectionKeepAliveStrategy() {
-            @Override
-            public long getKeepAliveDuration(HttpResponse httpResponse, HttpContext httpContext) {
-                // in case of errors keep-alive not always works. close connection just in case
-                if (httpResponse.getStatusLine().getStatusCode() != HttpURLConnection.HTTP_OK) {
-                    return -1;
-                }
-                HeaderElementIterator it = new BasicHeaderElementIterator(
-                        httpResponse.headerIterator(HTTP.CONN_DIRECTIVE));
-                while (it.hasNext()) {
-                    HeaderElement he = it.nextElement();
-                    String param = he.getName();
-                    //String value = he.getValue();
-                    if (param != null && param.equalsIgnoreCase(HTTP.CONN_KEEP_ALIVE)) {
-                        return properties.getKeepAliveTimeout();
-                    }
-                }
-                return -1;
-            }
-        };
     }
 
   private SSLContext getSSLContext()
