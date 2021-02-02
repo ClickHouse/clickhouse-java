@@ -94,7 +94,8 @@ public class ClickHouseProperties {
     private Boolean insertDeduplicate;
     private Boolean insertDistributedSync;
     private Boolean anyJoinDistinctRightTableKeys;
-
+    private Boolean sendProgressInHttpHeaders;
+    private Boolean waitEndOfQuery;
 
     public ClickHouseProperties() {
         this(new Properties());
@@ -162,6 +163,8 @@ public class ClickHouseProperties {
         this.insertDeduplicate = getSetting(info, ClickHouseQueryParam.INSERT_DEDUPLICATE);
         this.insertDistributedSync = getSetting(info, ClickHouseQueryParam.INSERT_DISTRIBUTED_SYNC);
         this.anyJoinDistinctRightTableKeys = getSetting(info, ClickHouseQueryParam.ANY_JOIN_DISTINCT_RIGHT_TABLE_KEYS);
+        this.sendProgressInHttpHeaders = (Boolean)getSetting(info, ClickHouseQueryParam.SEND_PROGRESS_IN_HTTP_HEADERS);
+        this.waitEndOfQuery = (Boolean)getSetting(info, ClickHouseQueryParam.WAIT_END_OF_QUERY);
     }
 
     public Properties asProperties() {
@@ -226,6 +229,8 @@ public class ClickHouseProperties {
         ret.put(ClickHouseQueryParam.INSERT_DEDUPLICATE.getKey(), insertDeduplicate);
         ret.put(ClickHouseQueryParam.INSERT_DISTRIBUTED_SYNC.getKey(), insertDistributedSync);
         ret.put(ClickHouseQueryParam.ANY_JOIN_DISTINCT_RIGHT_TABLE_KEYS.getKey(), anyJoinDistinctRightTableKeys);
+        ret.put(ClickHouseQueryParam.SEND_PROGRESS_IN_HTTP_HEADERS.getKey(), sendProgressInHttpHeaders);
+        ret.put(ClickHouseQueryParam.WAIT_END_OF_QUERY.getKey(), waitEndOfQuery);
 
         return ret.getProperties();
     }
@@ -292,6 +297,8 @@ public class ClickHouseProperties {
         setInsertDeduplicate(properties.insertDeduplicate);
         setInsertDistributedSync(properties.insertDistributedSync);
         setAnyJoinDistinctRightTableKeys(properties.anyJoinDistinctRightTableKeys);
+        setSendProgressInHttpHeaders(properties.sendProgressInHttpHeaders);
+        setWaitEndOfQuery(properties.waitEndOfQuery);
     }
 
     public Map<ClickHouseQueryParam, String> buildQueryParams(boolean ignoreDatabase){
@@ -378,6 +385,9 @@ public class ClickHouseProperties {
         if (enableOptimizePredicateExpression != null) {
             params.put(ClickHouseQueryParam.ENABLE_OPTIMIZE_PREDICATE_EXPRESSION, enableOptimizePredicateExpression ? "1" : "0");
         }
+
+        addQueryParam(sendProgressInHttpHeaders, ClickHouseQueryParam.SEND_PROGRESS_IN_HTTP_HEADERS, params);
+        addQueryParam(waitEndOfQuery, ClickHouseQueryParam.WAIT_END_OF_QUERY, params);
 
         return params;
     }
@@ -905,6 +915,22 @@ public class ClickHouseProperties {
 
     public Boolean getAnyJoinDistinctRightTableKeys() {
         return anyJoinDistinctRightTableKeys;
+    }
+
+    public Boolean getSendProgressInHttpHeaders() {
+        return sendProgressInHttpHeaders;
+    }
+
+    public void setSendProgressInHttpHeaders(Boolean sendProgressInHttpHeaders) {
+        this.sendProgressInHttpHeaders = sendProgressInHttpHeaders;
+    }
+
+    public Boolean getWaitEndOfQuery() {
+        return waitEndOfQuery;
+    }
+
+    public void setWaitEndOfQuery(Boolean waitEndOfQuery) {
+        this.waitEndOfQuery = waitEndOfQuery;
     }
 
     private static class PropertiesBuilder {

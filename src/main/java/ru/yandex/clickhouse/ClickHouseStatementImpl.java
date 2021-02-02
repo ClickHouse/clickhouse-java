@@ -1,6 +1,7 @@
 package ru.yandex.clickhouse;
 
 import com.google.common.base.Strings;
+import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.NameValuePair;
@@ -38,7 +39,7 @@ import java.sql.SQLWarning;
 import java.util.*;
 
 
-public class ClickHouseStatementImpl implements ClickHouseStatement {
+public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement> implements ClickHouseStatement {
 
     private static final Logger log = LoggerFactory.getLogger(ClickHouseStatementImpl.class);
 
@@ -51,6 +52,8 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
     private ClickHouseResultSet currentResult;
 
     private ClickHouseRowBinaryInputStream currentRowBinaryResult;
+
+    private ClickHouseResponseSummary currentSummary;
 
     private int currentUpdateCount = -1;
 
@@ -78,6 +81,7 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
 
     public ClickHouseStatementImpl(CloseableHttpClient client, ClickHouseConnection connection,
                                    ClickHouseProperties properties, int resultSetType) {
+        super(null);
         this.client = client;
         this.connection = connection;
         this.properties = properties == null ? new ClickHouseProperties() : properties;
@@ -217,7 +221,8 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
         } finally {
             StreamUtils.close(is);
         }
-        return 1;
+
+        return currentSummary != null ? (int) currentSummary.getWrittenRows() : 1;
     }
 
     @Override
@@ -444,6 +449,11 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
         return iface.isAssignableFrom(getClass());
     }
 
+    @Override
+    public ClickHouseResponseSummary getResponseSummary() {
+        return currentSummary;
+    }
+
     static String clickhousifySql(String sql) {
         return addFormatIfAbsent(sql, ClickHouseFormat.TabSeparatedWithNamesAndTypes);
     }
@@ -623,6 +633,13 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
                 entity.writeTo(baos);
                 is = baos.convertToInputStream();
             }
+
+            // retrieve response summary
+            if (isQueryParamSet(ClickHouseQueryParam.SEND_PROGRESS_IN_HTTP_HEADERS, additionalClickHouseDBParams, additionalRequestParams)) {
+                Header summaryHeader = response.getFirstHeader("X-ClickHouse-Summary");
+                currentSummary = summaryHeader != null ? Jackson.getObjectMapper().readValue(summaryHeader.getValue(), ClickHouseResponseSummary.class) : null;
+            }
+
             return is;
         } catch (ClickHouseException e) {
             throw e;
@@ -700,6 +717,8 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
             params.put(ClickHouseQueryParam.DATABASE, initialDatabase);
         }
 
+        params.putAll(getAdditionalDBParams());
+
         if (additionalClickHouseDBParams != null && !additionalClickHouseDBParams.isEmpty()) {
             params.putAll(additionalClickHouseDBParams);
         }
@@ -712,6 +731,12 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
             }
         }
 
+        for (Map.Entry<String, String> entry : getRequestParams().entrySet()) {
+            if (!Strings.isNullOrEmpty(entry.getValue())) {
+                result.add(new BasicNameValuePair(entry.getKey(), entry.getValue()));
+            }
+        }
+
         if (additionalRequestParams != null) {
             for (Map.Entry<String, String> entry : additionalRequestParams.entrySet()) {
                 if (!Strings.isNullOrEmpty(entry.getValue())) {
@@ -720,8 +745,29 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
             }
         }
 
-
         return result;
+    }
+
+    private boolean isQueryParamSet(ClickHouseQueryParam param, Map<ClickHouseQueryParam, String> additionalClickHouseDBParams, Map<String, String> additionalRequestParams) {
+        String value = getQueryParamValue(param, additionalClickHouseDBParams, additionalRequestParams);
+
+        return "true".equals(value) || "1".equals(value);
+    }
+
+    private String getQueryParamValue(ClickHouseQueryParam param, Map<ClickHouseQueryParam, String> additionalClickHouseDBParams, Map<String, String> additionalRequestParams) {
+        if (additionalRequestParams != null && additionalRequestParams.containsKey(param.getKey()) && !Strings.isNullOrEmpty(additionalRequestParams.get(param.getKey())))
+            return additionalRequestParams.get(param.getKey());
+
+        if (getRequestParams().containsKey(param.getKey()) && !Strings.isNullOrEmpty(getRequestParams().get(param.getKey())))
+            return getRequestParams().get(param.getKey());
+
+        if (additionalClickHouseDBParams != null && additionalClickHouseDBParams.containsKey(param) && !Strings.isNullOrEmpty(additionalClickHouseDBParams.get(param)))
+            return additionalClickHouseDBParams.get(param);
+
+        if (getAdditionalDBParams().containsKey(param) && !Strings.isNullOrEmpty(getAdditionalDBParams().get(param)))
+            return getAdditionalDBParams().get(param);
+
+        return properties.asProperties().getProperty(param.getKey());
     }
 
     private URI followRedirects(URI uri) throws IOException, URISyntaxException {
@@ -850,6 +896,12 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
             HttpResponse response = client.execute(httpPost);
             entity = response.getEntity();
             checkForErrorAndThrow(entity, response);
+
+            // retrieve response summary
+            if (isQueryParamSet(ClickHouseQueryParam.SEND_PROGRESS_IN_HTTP_HEADERS, writer.getAdditionalDBParams(), writer.getRequestParams())) {
+                Header summaryHeader = response.getFirstHeader("X-ClickHouse-Summary");
+                currentSummary = summaryHeader != null ? Jackson.getObjectMapper().readValue(summaryHeader.getValue(), ClickHouseResponseSummary.class) : null;
+            }
         } catch (ClickHouseException e) {
             throw e;
         } catch (Exception e) {
@@ -919,6 +971,6 @@ public class ClickHouseStatementImpl implements ClickHouseStatement {
 
     @Override
     public Writer write() {
-        return new Writer(this);
+        return new Writer(this).withDbParams(getAdditionalDBParams()).options(getRequestParams());
     }
 }

@@ -217,6 +217,8 @@ public enum ClickHouseQueryParam implements DriverPropertyCreator {
 
     SELECT_SEQUENTIAL_CONSISTENCY("select_sequential_consistency", null, Long.class, ""),
 
+    SEND_PROGRESS_IN_HTTP_HEADERS("send_progress_in_http_headers", null, Boolean.class, "Allow to populate summary in ClickHouseStatement with read/written rows/bytes"),
+
     SEND_TIMEOUT("send_timeout", null, Integer.class, ""),
 
     SESSION_CHECK("session_check", false, Boolean.class, ""),
@@ -253,6 +255,8 @@ public enum ClickHouseQueryParam implements DriverPropertyCreator {
     PREFERRED_BLOCK_SIZE_BYTES("preferred_block_size_bytes", null, Long.class, "Adaptively estimates number of required rows in a block."),
 
     ENABLE_OPTIMIZE_PREDICATE_EXPRESSION("enable_optimize_predicate_expression", null, Boolean.class, "See Clickhouse server description for this parameter. Default value is null so that server setting is taken."),
+
+    WAIT_END_OF_QUERY("wait_end_of_query", null, Boolean.class, "Buffer the response server-side before sending to client. Useful when using SEND_PROGRESS_IN_HTTP_HEADERS to get accurate stats."),
     ;
 
     private final String key;
