@@ -154,7 +154,6 @@ public class StreamSQLTest {
                 .sql("insert into test.json_stream_sql")
                 .data(inputStream, ClickHouseFormat.JSONEachRow)
                 .data(inputStream)
-                .dataCompression(ClickHouseCompression.none)
                 .send();
 
         ResultSet rs = connection.createStatement().executeQuery(
