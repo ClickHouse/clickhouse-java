@@ -892,6 +892,9 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
 
             HttpPost httpPost = new HttpPost(uri);
 
+            if (writer.getCompression() != null) {
+                httpPost.addHeader("Content-Encoding", writer.getCompression().name());
+            }
             httpPost.setEntity(content);
             HttpResponse response = client.execute(httpPost);
             entity = response.getEntity();
