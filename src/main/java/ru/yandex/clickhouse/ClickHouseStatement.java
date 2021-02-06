@@ -1,6 +1,7 @@
 package ru.yandex.clickhouse;
 
 import ru.yandex.clickhouse.response.ClickHouseResponse;
+import ru.yandex.clickhouse.response.ClickHouseResponseSummary;
 import ru.yandex.clickhouse.settings.ClickHouseQueryParam;
 import ru.yandex.clickhouse.util.ClickHouseRowBinaryInputStream;
 import ru.yandex.clickhouse.util.ClickHouseStreamCallback;
@@ -79,4 +80,6 @@ public interface ClickHouseStatement extends Statement {
      *         construct a request to the server
      */
     Writer write();
+
+    ClickHouseResponseSummary getResponseSummary();
 }

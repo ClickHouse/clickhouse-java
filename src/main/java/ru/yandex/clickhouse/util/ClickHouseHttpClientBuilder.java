@@ -112,6 +112,7 @@ public class ClickHouseHttpClientBuilder {
         return RequestConfig.custom()
                 .setSocketTimeout(properties.getSocketTimeout())
                 .setConnectTimeout(properties.getConnectionTimeout())
+                .setConnectionRequestTimeout(properties.getConnectionTimeout())
                 .build();
     }
 

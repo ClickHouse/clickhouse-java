@@ -2,16 +2,16 @@ package ru.yandex.clickhouse;
 
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.InputStreamEntity;
+
+import ru.yandex.clickhouse.domain.ClickHouseFormat;
+import ru.yandex.clickhouse.util.ClickHouseStreamCallback;
+import ru.yandex.clickhouse.util.ClickHouseStreamHttpEntity;
+
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.sql.SQLException;
-
-
-import ru.yandex.clickhouse.domain.ClickHouseFormat;
-import ru.yandex.clickhouse.util.ClickHouseStreamCallback;
-import ru.yandex.clickhouse.util.ClickHouseStreamHttpEntity;
 
 import static ru.yandex.clickhouse.domain.ClickHouseFormat.Native;
 import static ru.yandex.clickhouse.domain.ClickHouseFormat.RowBinary;
@@ -20,7 +20,7 @@ import static ru.yandex.clickhouse.domain.ClickHouseFormat.TabSeparated;
 public final class Writer extends ConfigurableApi<Writer> {
 
     private ClickHouseFormat format = TabSeparated;
-
+    private ClickHouseCompression compression = null;
     private String table = null;
     private String sql = null;
     private InputStreamProvider streamProvider = null;
@@ -104,6 +104,22 @@ public final class Writer extends ConfigurableApi<Writer> {
      */
     public Writer data(File input) {
         streamProvider = new FileInputProvider(input);
+        return this;
+    }
+
+    public Writer data(InputStream stream, ClickHouseFormat format, ClickHouseCompression compression) {
+        return dataCompression(compression).format(format).data(stream);
+    }
+
+    public Writer data(File input, ClickHouseFormat format, ClickHouseCompression compression) {
+        return dataCompression(compression).format(format).data(input);
+    }
+
+    public Writer dataCompression(ClickHouseCompression compression) {
+        if (null == compression) {
+            throw new NullPointerException("Compression can not be null");
+        }
+        this.compression = compression;
         return this;
     }
 
@@ -228,5 +244,9 @@ public final class Writer extends ConfigurableApi<Writer> {
         public InputStream get() throws IOException {
             return stream;
         }
+    }
+
+    public ClickHouseCompression getCompression() {
+        return compression;
     }
 }
