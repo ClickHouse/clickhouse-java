@@ -1,13 +1,13 @@
 package ru.yandex.clickhouse;
 
+import org.apache.http.HttpEntity;
+import org.apache.http.entity.InputStreamEntity;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.sql.SQLException;
 
-import org.apache.http.HttpEntity;
-import org.apache.http.entity.InputStreamEntity;
 
 import ru.yandex.clickhouse.domain.ClickHouseFormat;
 import ru.yandex.clickhouse.util.ClickHouseStreamCallback;
@@ -107,24 +107,12 @@ public final class Writer extends ConfigurableApi<Writer> {
         return this;
     }
 
-    /**
-     * Shortcut method for specifying a file as an input and its format
-     *
-     * @param input
-     *            the file to upload
-     * @param format
-     *            the format of the {@code file}
-     * @return this writer instance
-     */
     public Writer data(File input, ClickHouseFormat format) {
         return format(format).data(input);
     }
 
     /**
-     * Method to call when this Writer is fully configured.
-     *
-     * @throws SQLException
-     *             if the upload fails
+     * Method to call, when Writer is fully configured
      */
     public void send() throws SQLException {
         HttpEntity entity;
