@@ -380,7 +380,7 @@ public class TimeZoneTest {
               + manualTimeZoneOffsetHours + ":00");
         }
         props.setUseServerTimeZoneForDates(useServerTimeZoneForParsingDates);
-        return new ClickHouseDataSource("jdbc:clickhouse://localhost:8123", props);
+        return ClickHouseContainerForTest.newDataSource(props);
     }
 
     private void resetDateTestTable() throws Exception {

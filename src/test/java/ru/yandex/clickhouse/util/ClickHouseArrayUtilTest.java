@@ -27,6 +27,7 @@ import ru.yandex.clickhouse.util.guava.StreamUtils;
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertNotNull;
 import static org.testng.Assert.assertNull;
+import static org.testng.Assert.assertTrue;
 
 /**
  * @author Dmitry Andreev <a href="mailto:AndreevDm@yandex-team.ru"></a>
@@ -260,7 +261,17 @@ public class ClickHouseArrayUtilTest {
         ByteFragment fragment = new ByteFragment(bytes, 0, bytes.length);
         double[] arr= (double[]) ClickHouseArrayUtil.parseArray(fragment, Double.class, false,
             getStringArrayColumnInfo(1));
-        assertEquals(arr, expected);
+        // TestNG Assert compares directly, but Double.NaN != Double.NaN
+        // assertEquals(arr, expected);
+        assertEquals(arr.length, expected.length);
+        for (int i = 0; i < expected.length; i++) {
+            double e = expected[i];
+            if (Double.isNaN(e)) {
+                assertTrue(Double.isNaN(arr[i]));
+            } else {
+                assertEquals(arr[i], e, 0.0);
+            }
+        }
     }
 
     @Test(dataProvider = "floatArrayWithNan")
@@ -276,7 +287,16 @@ public class ClickHouseArrayUtilTest {
         ByteFragment fragment = new ByteFragment(bytes, 0, bytes.length);
         float[] arr= (float[]) ClickHouseArrayUtil.parseArray(fragment, Float.class, false,
             getStringArrayColumnInfo(1));
-        assertEquals(arr, expected);
+
+        assertEquals(arr.length, expected.length);
+        for (int i = 0; i < expected.length; i++) {
+            float e = expected[i];
+            if (Float.isNaN(e)) {
+                assertTrue(Float.isNaN(arr[i]));
+            } else {
+                assertEquals(arr[i], e, 0.0);
+            }
+        }
     }
 
     @Test(dataProvider = "stringArray")
@@ -445,7 +465,15 @@ public class ClickHouseArrayUtilTest {
         ByteFragment fragment = new ByteFragment(bytes, 0, bytes.length);
         int[][][] actual = (int[][][]) ClickHouseArrayUtil.parseArray(fragment, Integer.class, false,
             getStringArrayColumnInfo(3));
-        assertEquals(actual, expected);
+        // TestNG does not work like this
+        // assertEquals(actual, expected);
+        for (int i = 0; i < expected.length; i++) {
+            for (int j = 0; j < expected[i].length; j++) {
+                for (int k = 0; k < expected[i][j].length; k++) {
+                    assertEquals(actual[i][j][k], expected[i][j][k]);
+                }
+            }
+        }
     }
 
     @Test

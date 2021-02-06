@@ -368,8 +368,8 @@ public class ClickHousePreparedStatementTest {
             "SELECT 42 AS foo, 23 AS bar from numbers(100) "
           + "ORDER BY foo DESC LIMIT ?, ?";
         PreparedStatement stmt = connection.prepareStatement(sqlStatement);
-        stmt.setString(1, "foo");
-        stmt.setString(2, "bar");
+        stmt.setInt(1, 23);
+        stmt.setInt(2, 42);
         ResultSet rs = stmt.executeQuery();
         Assert.assertTrue(rs.next());
     }
