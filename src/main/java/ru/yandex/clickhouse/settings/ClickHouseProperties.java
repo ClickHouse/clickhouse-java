@@ -96,6 +96,8 @@ public class ClickHouseProperties {
     private Boolean anyJoinDistinctRightTableKeys;
     private Boolean sendProgressInHttpHeaders;
     private Boolean waitEndOfQuery;
+    @Deprecated
+    private boolean useNewParser;
 
     public ClickHouseProperties() {
         this(new Properties());
@@ -125,6 +127,7 @@ public class ClickHouseProperties {
         this.useTimeZone = (String)getSetting(info, ClickHouseConnectionSettings.USE_TIME_ZONE);
         this.useServerTimeZoneForDates = (Boolean)getSetting(info, ClickHouseConnectionSettings.USE_SERVER_TIME_ZONE_FOR_DATES);
         this.useObjectsInArrays = (Boolean)getSetting(info, ClickHouseConnectionSettings.USE_OBJECTS_IN_ARRAYS);
+        this.useNewParser = (Boolean)getSetting(info, ClickHouseConnectionSettings.USE_NEW_PARSER);
 
         this.maxParallelReplicas = getSetting(info, ClickHouseQueryParam.MAX_PARALLEL_REPLICAS);
         this.maxPartitionsPerInsertBlock = getSetting(info, ClickHouseQueryParam.MAX_PARTITIONS_PER_INSERT_BLOCK);
@@ -191,6 +194,7 @@ public class ClickHouseProperties {
         ret.put(ClickHouseConnectionSettings.USE_TIME_ZONE.getKey(), String.valueOf(useTimeZone));
         ret.put(ClickHouseConnectionSettings.USE_SERVER_TIME_ZONE_FOR_DATES.getKey(), String.valueOf(useServerTimeZoneForDates));
         ret.put(ClickHouseConnectionSettings.USE_OBJECTS_IN_ARRAYS.getKey(), String.valueOf(useObjectsInArrays));
+        ret.put(ClickHouseConnectionSettings.USE_NEW_PARSER.getKey(), String.valueOf(useNewParser));
 
         ret.put(ClickHouseQueryParam.MAX_PARALLEL_REPLICAS.getKey(), maxParallelReplicas);
         ret.put(ClickHouseQueryParam.MAX_PARTITIONS_PER_INSERT_BLOCK.getKey(), maxPartitionsPerInsertBlock);
@@ -260,6 +264,7 @@ public class ClickHouseProperties {
         setUseTimeZone(properties.useTimeZone);
         setUseServerTimeZoneForDates(properties.useServerTimeZoneForDates);
         setUseObjectsInArrays(properties.useObjectsInArrays);
+        setUseNewParser(properties.useNewParser);
         setMaxParallelReplicas(properties.maxParallelReplicas);
         setMaxPartitionsPerInsertBlock(properties.maxPartitionsPerInsertBlock);
         setTotalsMode(properties.totalsMode);
@@ -554,10 +559,12 @@ public class ClickHouseProperties {
         this.dataTransferTimeout = dataTransferTimeout;
     }
 
+    @Deprecated
     public int getKeepAliveTimeout() {
         return keepAliveTimeout;
     }
 
+    @Deprecated
     public void setKeepAliveTimeout(int keepAliveTimeout) {
         this.keepAliveTimeout = keepAliveTimeout;
     }
@@ -663,6 +670,16 @@ public class ClickHouseProperties {
 
     public void setUseObjectsInArrays(boolean useObjectsInArrays) {
         this.useObjectsInArrays = useObjectsInArrays;
+    }
+
+    @Deprecated
+    public boolean isUseNewParser() {
+        return useNewParser;
+    }
+
+    @Deprecated
+    public void setUseNewParser(boolean useNewParser) {
+        this.useNewParser = useNewParser;
     }
 
     public boolean isUseServerTimeZoneForDates() {

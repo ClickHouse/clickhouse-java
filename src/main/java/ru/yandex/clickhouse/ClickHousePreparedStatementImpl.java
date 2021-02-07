@@ -36,13 +36,15 @@ import java.util.regex.Pattern;
 import org.apache.http.entity.AbstractHttpEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
 
+import ru.yandex.clickhouse.jdbc.parser.ClickHouseSqlParser;
+import ru.yandex.clickhouse.jdbc.parser.ClickHouseSqlStatement;
+import ru.yandex.clickhouse.jdbc.parser.StatementType;
 import ru.yandex.clickhouse.response.ClickHouseResponse;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
 import ru.yandex.clickhouse.settings.ClickHouseQueryParam;
 import ru.yandex.clickhouse.util.ClickHouseArrayUtil;
 import ru.yandex.clickhouse.util.ClickHouseValueFormatter;
 import ru.yandex.clickhouse.util.guava.StreamUtils;
-
 
 public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl implements ClickHousePreparedStatement {
 
@@ -53,6 +55,7 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
 
     private final TimeZone dateTimeZone;
     private final TimeZone dateTimeTimeZone;
+    private final ClickHouseSqlStatement parsedSql;
     private final String sql;
     private final List<String> sqlParts;
     private final ClickHousePreparedStatementParameter[] binds;
@@ -65,6 +68,7 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
         TimeZone serverTimeZone, int resultSetType) throws SQLException
     {
         super(client, connection, properties, resultSetType);
+        this.parsedSql = ClickHouseSqlParser.parseSingleStatement(sql, properties);
         this.sql = sql;
         PreparedStatementParser parser = PreparedStatementParser.parse(sql);
         this.parameterList = parser.getParameters();
@@ -347,14 +351,22 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
 
     @Override
     public int[] executeBatch(Map<ClickHouseQueryParam, String> additionalDBParams) throws SQLException {
-        Matcher matcher = VALUES.matcher(sql);
-        if (!matcher.find()) {
+        int valuePosition = -1;
+        if (parsedSql.getStatementType() == StatementType.INSERT && parsedSql.hasValues()) {
+            valuePosition = parsedSql.getStartPosition(ClickHouseSqlStatement.KEYWORD_VALUES);
+        } else {
+            Matcher matcher = VALUES.matcher(sql);
+            if (matcher.find()) {
+                valuePosition = matcher.start();
+            }    
+        }
+
+        if (valuePosition < 0) {
             throw new SQLSyntaxErrorException(
                     "Query must be like 'INSERT INTO [db.]table [(c1, c2, c3)] VALUES (?, ?, ?)'. " +
                             "Got: " + sql
             );
         }
-        int valuePosition = matcher.start();
         String insertSql = sql.substring(0, valuePosition);
         BatchHttpEntity entity = new BatchHttpEntity(batchRows);
         sendStream(entity, insertSql, additionalDBParams);
@@ -429,7 +441,9 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
         if (currentResult != null) {
             return currentResult.getMetaData();
         }
-        if (!isSelect(sql)) {
+        
+        ClickHouseSqlStatement parsedStmt = ClickHouseSqlParser.parseSingleStatement(sql, properties);
+        if ((parsedStmt.isRecognized() && !parsedStmt.isQuery()) || !isSelect(sql)) {
             return null;
         }
         ResultSet myRs = executeQuery(Collections.singletonMap(

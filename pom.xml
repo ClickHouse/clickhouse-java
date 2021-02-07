@@ -70,6 +70,7 @@
         <deploy-plugin.version>3.0.0-M1</deploy-plugin.version>
         <staging-plugin.version>1.6.8</staging-plugin.version>
         <gpg-plugin.version>1.6</gpg-plugin.version>
+        <javacc-plugin.version>4.1.4</javacc-plugin.version>
         <compiler-plugin.version>3.8.1</compiler-plugin.version>
         <source-plugin.version>3.2.1</source-plugin.version>
         <jar-plugin.version>3.2.0</jar-plugin.version>
@@ -287,6 +288,27 @@
                     <skipTests>${skipUTs}</skipTests>
                     <useSystemClassLoader>false</useSystemClassLoader>
                 </configuration>
+            </plugin>
+            <plugin>
+                <groupId>com.helger.maven</groupId>
+                <artifactId>ph-javacc-maven-plugin</artifactId>
+                <version>${javacc-plugin.version}</version>
+                <executions>
+                    <execution>
+                        <id>jjc</id>
+                        <phase>generate-sources</phase>
+                        <goals>
+                            <goal>javacc</goal>
+                        </goals>
+                        <configuration>
+                            <jdkVersion>${jdk.version}</jdkVersion>
+                            <javadocFriendlyComments>true</javadocFriendlyComments>
+                            <packageName>ru.yandex.clickhouse.jdbc.parser</packageName>
+                            <sourceDirectory>src/main/javacc</sourceDirectory>
+                            <outputDirectory>src/main/java</outputDirectory>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

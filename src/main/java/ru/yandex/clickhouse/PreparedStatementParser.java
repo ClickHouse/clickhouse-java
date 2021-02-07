@@ -6,6 +6,10 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import ru.yandex.clickhouse.jdbc.parser.ClickHouseSqlParser;
+import ru.yandex.clickhouse.jdbc.parser.ClickHouseSqlStatement;
+import ru.yandex.clickhouse.jdbc.parser.StatementType;
+import ru.yandex.clickhouse.settings.ClickHouseProperties;
 import ru.yandex.clickhouse.util.apache.StringUtils;
 
 /**
@@ -30,12 +34,17 @@ final class PreparedStatementParser  {
         valuesMode = false;
     }
 
+    @Deprecated
     static PreparedStatementParser parse(String sql) {
+        return parse(sql, null);
+    }
+
+    static PreparedStatementParser parse(String sql, ClickHouseProperties properties) {
         if (StringUtils.isBlank(sql)) {
             throw new IllegalArgumentException("SQL may not be blank");
         }
         PreparedStatementParser parser = new PreparedStatementParser();
-        parser.parseSQL(sql);
+        parser.parseSQL(sql, properties);
         return parser;
     }
 
@@ -57,7 +66,7 @@ final class PreparedStatementParser  {
         valuesMode = false;
     }
 
-    private void parseSQL(String sql) {
+    private void parseSQL(String sql, ClickHouseProperties properties) {
         reset();
         List<String> currentParamList = new ArrayList<String>();
         boolean afterBackSlash = false;
@@ -66,21 +75,35 @@ final class PreparedStatementParser  {
         boolean inSingleLineComment = false;
         boolean inMultiLineComment = false;
         boolean whiteSpace = false;
-        Matcher matcher = VALUES.matcher(sql);
-        if (matcher.find()) {
-            valuesMode = true;
+        ClickHouseSqlStatement parsedSql = ClickHouseSqlParser.parseSingleStatement(sql, properties);
+        int endPosition = 0;
+        if (parsedSql.getStatementType() == StatementType.INSERT) {
+            endPosition = parsedSql.getEndPosition(ClickHouseSqlStatement.KEYWORD_VALUES) - 1;
+            if (endPosition > 0) {
+                valuesMode = true;
+            } else {
+                endPosition = 0;
+            }
+        } else {
+            Matcher matcher = VALUES.matcher(sql);
+            if (matcher.find()) {
+                valuesMode = true;
+                endPosition = matcher.end() - 1;
+            }
         }
+        
         int currentParensLevel = 0;
         int quotedStart = 0;
         int partStart = 0;
-        for (int i = valuesMode ? matcher.end() - 1 : 0, idxStart = i, idxEnd = i ; i < sql.length(); i++) {
+        int sqlLength = sql.length();
+        for (int i = valuesMode ? endPosition : 0, idxStart = i, idxEnd = i ; i < sqlLength; i++) {
             char c = sql.charAt(i);
             if (inSingleLineComment) {
                 if (c == '\n') {
                     inSingleLineComment = false;
                 }
             } else if (inMultiLineComment) {
-                if (c == '*' && sql.length() > i + 1 && sql.charAt(i + 1) == '/') {
+                if (c == '*' && sqlLength > i + 1 && sql.charAt(i + 1) == '/') {
                     inMultiLineComment = false;
                     i++;
                 }
@@ -109,10 +132,10 @@ final class PreparedStatementParser  {
                         partStart = i + 1;
                         currentParamList.add(ClickHousePreparedStatementImpl.PARAM_MARKER);
                     }
-                } else if (c == '-' && sql.length() > i + 1 && sql.charAt(i + 1) == '-') {
+                } else if (c == '-' && sqlLength > i + 1 && sql.charAt(i + 1) == '-') {
                     inSingleLineComment = true;
                     i++;
-                } else if (c == '/' && sql.length() > i + 1 && sql.charAt(i + 1) == '*') {
+                } else if (c == '/' && sqlLength > i + 1 && sql.charAt(i + 1) == '*') {
                     inMultiLineComment = true;
                     i++;
                 } else if (c == ',') {
@@ -158,7 +181,7 @@ final class PreparedStatementParser  {
         if (!valuesMode && !currentParamList.isEmpty()) {
             parameters.add(currentParamList);
         }
-        String lastPart = sql.substring(partStart, sql.length());
+        String lastPart = sql.substring(partStart, sqlLength);
         parts.add(lastPart);
     }
 
