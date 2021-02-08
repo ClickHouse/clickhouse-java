@@ -15,10 +15,10 @@ public interface ParseHandler {
     /**
      * Handle parameter.
      * 
-     * @param String cluster cluster
-     * @param String database database
-     * @param String table table
-     * @param int    index(starts from 1 not 0)
+     * @param cluster     cluster
+     * @param database    database
+     * @param table       table
+     * @param columnIndex columnIndex(starts from 1 not 0)
      * @return parameter value
      */
     String handleParameter(String cluster, String database, String table, int columnIndex);

@@ -66,9 +66,15 @@ public class ClickHouseSqlParser {
     }
 
     /**
+     * Parse given SQL.
+     *
      * @deprecated This method will be removed in the near future.
      *             <p>
-     *             Use {@link Utils#parse(String)} instead.
+     *             Use {@link #parse(String, ClickHouseProperties)} instead.
+     *
+     * @param sql SQL query
+     * @param properties properties
+     * @return parsed SQL statement
      */
     public static ClickHouseSqlStatement parseSingleStatement(String sql, ClickHouseProperties properties) {
         return parseSingleStatement(sql, properties, null);
@@ -79,7 +85,7 @@ public class ClickHouseSqlParser {
      * 
      * @deprecated This method will be removed in the near future.
      *             <p>
-     *             Use {@link Utils#parse(String, ParseHandler)} instead.
+     *             Use {@link #parse(String, ClickHouseProperties, ParseHandler)} instead.
      *
      * @param sql SQL query
      * @param properties properties
@@ -91,11 +97,6 @@ public class ClickHouseSqlParser {
         ClickHouseSqlStatement[] stmts = parse(sql, properties, handler);
 
         return stmts.length == 1 ? stmts[0] : new ClickHouseSqlStatement(sql, StatementType.UNKNOWN, null, null, null, null, null, null);
-    }
-
-    @Deprecated
-    public static ClickHouseSqlStatement[] parse(String sql) {
-        return parse(sql, null, null);
     }
 
     public static ClickHouseSqlStatement[] parse(String sql, ClickHouseProperties properties) {
