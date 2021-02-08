@@ -166,7 +166,8 @@ public class ClickHouseSqlStatement {
 
         sb.append('[').append(stmtType.name()).append(']').append(" cluster=").append(cluster).append(", database=")
                 .append(database).append(", table=").append(table).append(", format=").append(format)
-                .append(", positions=").append(positions).append("\nSQL:\n").append(sql);
+                .append(", outfile=").append(outfile).append(", positions=").append(positions).append("\nSQL:\n")
+                .append(sql);
 
         return sb.toString();
     }

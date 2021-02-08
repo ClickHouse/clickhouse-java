@@ -443,7 +443,7 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
         }
         
         ClickHouseSqlStatement parsedStmt = ClickHouseSqlParser.parseSingleStatement(sql, properties);
-        if ((parsedStmt.isRecognized() && !parsedStmt.isQuery()) || !isSelect(sql)) {
+        if (!parsedStmt.isQuery() || (!parsedStmt.isRecognized() && !isSelect(sql))) {
             return null;
         }
         ResultSet myRs = executeQuery(Collections.singletonMap(

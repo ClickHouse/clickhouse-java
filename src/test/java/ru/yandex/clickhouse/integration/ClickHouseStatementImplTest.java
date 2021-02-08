@@ -168,6 +168,16 @@ public class ClickHouseStatementImplTest {
     }
 
     @Test
+    public void testSelectOne() throws SQLException {
+        try (Statement stmt = connection.createStatement()) {
+            ResultSet rs = stmt.executeQuery("select\n1");
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getInt(1), 1);
+            Assert.assertFalse(rs.next());
+        }
+    }
+
+    @Test
     public void testSelectManyRows() throws SQLException {
         Statement stmt = connection.createStatement();
         int limit = 10000;

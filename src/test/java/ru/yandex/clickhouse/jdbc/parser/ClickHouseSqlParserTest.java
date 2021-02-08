@@ -10,6 +10,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.util.HashMap;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -56,8 +57,10 @@ public class ClickHouseSqlParserTest {
     public void testParseNonSql() throws ParseException {
         String sql;
 
-        assertEquals(ClickHouseSqlParser.parse(sql = null), new ClickHouseSqlStatement[0]);
-        assertEquals(ClickHouseSqlParser.parse(sql = ""), new ClickHouseSqlStatement[0]);
+        assertEquals(ClickHouseSqlParser.parse(sql = null), new ClickHouseSqlStatement[] {
+                new ClickHouseSqlStatement(sql, StatementType.UNKNOWN, null, null, null, null, null, null) });
+        assertEquals(ClickHouseSqlParser.parse(sql = ""), new ClickHouseSqlStatement[] {
+                new ClickHouseSqlStatement(sql, StatementType.UNKNOWN, null, null, null, null, null, null) });
 
         checkSingleStatement(ClickHouseSqlParser.parse(sql = "invalid sql"), sql);
         checkSingleStatement(ClickHouseSqlParser.parse(sql = "-- some comments"), sql);
@@ -123,9 +126,13 @@ public class ClickHouseSqlParserTest {
     public void testDescribeStatement() {
         String sql;
 
+        checkSingleStatement(ClickHouseSqlParser.parse(sql = "desc a"), sql, StatementType.DESCRIBE, "system",
+                "columns");
         checkSingleStatement(ClickHouseSqlParser.parse(sql = "desc table a"), sql, StatementType.DESCRIBE, "system",
                 "columns");
         checkSingleStatement(ClickHouseSqlParser.parse(sql = "describe table a.a"), sql, StatementType.DESCRIBE, "a",
+                "columns");
+        checkSingleStatement(ClickHouseSqlParser.parse(sql = "desc table table"), sql, StatementType.DESCRIBE, "system",
                 "columns");
     }
 
@@ -265,6 +272,15 @@ public class ClickHouseSqlParserTest {
     public void testSelectStatement() {
         String sql;
 
+        assertEquals(ClickHouseSqlParser.parse(sql = "select\n1"), new ClickHouseSqlStatement[] {
+                new ClickHouseSqlStatement(sql, StatementType.SELECT, null, null, "unknown", null, null, null) });
+        assertEquals(ClickHouseSqlParser.parse(sql = "select\r\n1"), new ClickHouseSqlStatement[] {
+                new ClickHouseSqlStatement(sql, StatementType.SELECT, null, null, "unknown", null, null, null) });
+
+        assertEquals(ClickHouseSqlParser.parse(sql = "select 314 limit 5\nFORMAT JSONCompact;"),
+                new ClickHouseSqlStatement[] { new ClickHouseSqlStatement("select 314 limit 5\nFORMAT JSONCompact",
+                        StatementType.SELECT, null, null, "unknown", "JSONCompact", null, null) });
+
         checkSingleStatement(ClickHouseSqlParser.parse(sql = "select (())"), sql, StatementType.SELECT);
         checkSingleStatement(ClickHouseSqlParser.parse(sql = "select []"), sql, StatementType.SELECT);
         checkSingleStatement(ClickHouseSqlParser.parse(sql = "select [[]]"), sql, StatementType.SELECT);
@@ -283,7 +299,7 @@ public class ClickHouseSqlParserTest {
                 StatementType.SELECT);
         checkSingleStatement(
                 ClickHouseSqlParser
-                        .parse(sql = "select 1,1.1,'\"''`a' a, \"'`\"\"a\" as b, (1 + `a`a) c, null, inf i, nan as n"),
+                        .parse(sql = "select 1,1.1,'\"''`a' a, \"'`\"\"a\" as b, (1 + `a`.a) c, null, inf i, nan as n"),
                 sql, StatementType.SELECT);
         checkSingleStatement(ClickHouseSqlParser.parse(sql = "select 1 as select"), sql, StatementType.SELECT);
         checkSingleStatement(ClickHouseSqlParser.parse(sql = "select 1, 2 a, 3 as b, 1+1-2*3/4, *, c.* from c a"), sql,
@@ -301,8 +317,17 @@ public class ClickHouseSqlParserTest {
                 sql, StatementType.SELECT, "test", "fun_with_timezones_array");
         checkSingleStatement(ClickHouseSqlParser.parse(sql = "SELECT SUM(x) FROM t WHERE y = ? GROUP BY ?"), sql,
                 StatementType.SELECT, "system", "t");
-        checkSingleStatement(ClickHouseSqlParser.parse(sql = loadSql("simple-query-from-telegram.sql")), sql,
-                StatementType.SELECT, "system", "wrd");
+
+        assertEquals(ClickHouseSqlParser.parse(sql = loadSql("issue-441_with-totals.sql")),
+                new ClickHouseSqlStatement[] { new ClickHouseSqlStatement(sql, StatementType.SELECT, null, null,
+                        "unknown", null, null, new HashMap<String, Integer>() {
+                            {
+                                put("TOTALS", 208);
+                            }
+                        }) });
+        assertEquals(ClickHouseSqlParser.parse(sql = loadSql("issue-555_custom-format.sql")),
+                new ClickHouseSqlStatement[] { new ClickHouseSqlStatement(sql, StatementType.SELECT, null, null, "wrd",
+                        "CSVWithNames", null, null) });
     }
 
     @Test
@@ -401,6 +426,10 @@ public class ClickHouseSqlParserTest {
     @Test
     public void testExpression() throws ParseException {
         String sql;
+
+        checkSingleStatement(
+                ClickHouseSqlParser.parse(sql = "select 1 and `a`.\"b\" c1, c1 or (c2 and c3), c4 ? c5 : c6 from a.b"),
+                sql, StatementType.SELECT, "a", "b");
         checkSingleStatement(ClickHouseSqlParser.parse(sql = "select [[[1,2],[3,4],[5,6]]] a, a[1][1][2] from a.b"),
                 sql, StatementType.SELECT, "a", "b");
         checkSingleStatement(
@@ -537,5 +566,62 @@ public class ClickHouseSqlParserTest {
         });
         assertEquals(stmts.length, 1);
         assertEquals(stmts[0].getSQL(), "select a, b  from (select 1||2||3)");
+    }
+
+    @Test
+    public void testExtractDBAndTableName() {
+        String sql;
+
+        checkSingleStatement(ClickHouseSqlParser.parse(sql = "SELECT 1 from table"), sql, StatementType.SELECT,
+                "system", "table");
+        checkSingleStatement(ClickHouseSqlParser.parse(sql = "SELECT 1 from table a"), sql, StatementType.SELECT,
+                "system", "table");
+        checkSingleStatement(ClickHouseSqlParser.parse(sql = "SELECT 1 from\ntable a"), sql, StatementType.SELECT,
+                "system", "table");
+        checkSingleStatement(ClickHouseSqlParser.parse(sql = "SELECT 1\nfrom\ntable a"), sql, StatementType.SELECT,
+                "system", "table");
+        checkSingleStatement(ClickHouseSqlParser.parse(sql = "SELECT 1\nFrom\ntable a"), sql, StatementType.SELECT,
+                "system", "table");
+        checkSingleStatement(ClickHouseSqlParser.parse(sql = "SELECT 1 from db.table a"), sql, StatementType.SELECT,
+                "db", "table");
+        checkSingleStatement(ClickHouseSqlParser.parse(sql = " SELECT 1 from \"db.table\" a"), sql,
+                StatementType.SELECT, "system", "db.table");
+        checkSingleStatement(ClickHouseSqlParser.parse(sql = "SELECT 1 from `db.table` a"), sql, StatementType.SELECT,
+                "system", "db.table");
+        checkSingleStatement(ClickHouseSqlParser.parse(sql = "from `db.table` a"), sql, StatementType.UNKNOWN, "system",
+                "unknown");
+        checkSingleStatement(ClickHouseSqlParser.parse(sql = " from `db.table` a"), sql, StatementType.UNKNOWN,
+                "system", "unknown");
+        checkSingleStatement(ClickHouseSqlParser.parse(sql = "ELECT from `db.table` a"), sql, StatementType.UNKNOWN,
+                "system", "unknown");
+        checkSingleStatement(ClickHouseSqlParser.parse(sql = "SHOW tables"), sql, StatementType.SHOW, "system",
+                "tables");
+        checkSingleStatement(ClickHouseSqlParser.parse(sql = "desc table1"), sql, StatementType.DESCRIBE, "system",
+                "columns");
+        checkSingleStatement(ClickHouseSqlParser.parse(sql = "DESC table1"), sql, StatementType.DESCRIBE, "system",
+                "columns");
+        checkSingleStatement(ClickHouseSqlParser.parse(sql = "SELECT 'from db.table a' from tab"), sql,
+                StatementType.SELECT, "system", "tab");
+        checkSingleStatement(ClickHouseSqlParser.parse(sql = "SELECT"), sql, StatementType.UNKNOWN, "system",
+                "unknown");
+        checkSingleStatement(ClickHouseSqlParser.parse(sql = "S"), sql, StatementType.UNKNOWN, "system", "unknown");
+        checkSingleStatement(ClickHouseSqlParser.parse(sql = ""), sql, StatementType.UNKNOWN, "system", "unknown");
+        checkSingleStatement(ClickHouseSqlParser.parse(sql = " SELECT 1 from table from"), sql, StatementType.SELECT,
+                "system", "table");
+        checkSingleStatement(ClickHouseSqlParser.parse(sql = " SELECT 1 from table from"), sql, StatementType.SELECT,
+                "system", "table");
+        checkSingleStatement(ClickHouseSqlParser.parse(sql = "SELECT fromUnixTimestamp64Milli(time) as x from table"),
+                sql, StatementType.SELECT, "system", "table");
+        checkSingleStatement(ClickHouseSqlParser.parse(sql = " SELECT fromUnixTimestamp64Milli(time)from table"), sql,
+                StatementType.SELECT, "system", "table");
+        checkSingleStatement(ClickHouseSqlParser.parse(sql = "/*qq*/ SELECT fromUnixTimestamp64Milli(time)from table"),
+                sql, StatementType.SELECT, "system", "table");
+        checkSingleStatement(ClickHouseSqlParser.parse(sql = " SELECTfromUnixTimestamp64Milli(time)from table"), sql,
+                StatementType.UNKNOWN, "system", "unknown");
+        checkSingleStatement(ClickHouseSqlParser.parse(sql = " SELECT fromUnixTimestamp64Milli(time)from \".inner.a\""),
+                sql, StatementType.SELECT, "system", ".inner.a");
+        checkSingleStatement(
+                ClickHouseSqlParser.parse(sql = " SELECT fromUnixTimestamp64Milli(time)from db.`.inner.a`"), sql,
+                StatementType.SELECT, "db", ".inner.a");
     }
 }

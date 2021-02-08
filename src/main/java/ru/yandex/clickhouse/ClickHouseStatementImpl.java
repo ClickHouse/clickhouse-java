@@ -144,7 +144,7 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
 
         ClickHouseSqlStatement parsedStmt = ClickHouseSqlParser.parseSingleStatement(sql, properties);
         try {
-            if (parsedStmt.isQuery() || isSelect(sql)) {
+            if (parsedStmt.isQuery() || (!parsedStmt.isRecognized() && isSelect(sql))) {
                 if (!parsedStmt.isRecognized()) {
                     Map<String, Integer> positions = new HashMap<>();
                     String dbName = extractDBName(sql);
@@ -503,10 +503,10 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
     private static String addFormatIfAbsent(final String sql, ClickHouseProperties properties, ClickHouseFormat format) {
         String cleanSQL = sql.trim();
         ClickHouseSqlStatement parsedStmt = ClickHouseSqlParser.parseSingleStatement(cleanSQL, properties);
-        if ((parsedStmt.isRecognized() && !parsedStmt.isQuery()) || !isSelect(cleanSQL)) {
+        if (!parsedStmt.isQuery() || (!parsedStmt.isRecognized() && !isSelect(cleanSQL))) {
             return cleanSQL;
         }
-        if ((parsedStmt.isRecognized() && parsedStmt.hasFormat()) || ClickHouseFormat.containsFormat(cleanSQL)) {
+        if (parsedStmt.hasFormat() || (!parsedStmt.isRecognized() && ClickHouseFormat.containsFormat(cleanSQL))) {
             return cleanSQL;
         }
         StringBuilder sb = new StringBuilder();

@@ -107,16 +107,11 @@ public class ClickHouseSqlParser {
             properties = new ClickHouseProperties();
         }
 
-        ClickHouseSqlStatement[] stmts = new ClickHouseSqlStatement[0];
+        ClickHouseSqlStatement[] stmts = new ClickHouseSqlStatement[] {
+                new ClickHouseSqlStatement(sql, StatementType.UNKNOWN, null, null, null, null, null, null) };
 
-        if (sql == null || sql.isEmpty()) {
+        if (!properties.isUseNewParser() || sql == null || sql.isEmpty()) {
             return stmts;
-        }
-
-        if (!properties.isUseNewParser()) {
-            return new ClickHouseSqlStatement[] {
-                new ClickHouseSqlStatement(sql, StatementType.UNKNOWN, null, null, null, null, null, null)
-            };
         }
 
         ClickHouseSqlParser p = new ClickHouseSqlParser(sql, properties, handler);
@@ -344,10 +339,8 @@ void deleteStmt(): {} { // not interested
 
 // https://clickhouse.tech/docs/en/sql-reference/statements/describe-table/
 void describeStmt(): {} {
-    (<DESCRIBE> | <DESC>)
-    { token_source.table = "columns"; }
-    (LOOKAHEAD(2) <TABLE>)?
-    (LOOKAHEAD(2) tableIdentifier(true) | anyExprList())
+    (<DESCRIBE> | <DESC>) { token_source.table = "columns"; }
+    (LOOKAHEAD({ getToken(1).kind == TABLE }) <TABLE>)? (LOOKAHEAD(2) tableIdentifier(true) | anyExprList())
 }
 
 // https://clickhouse.tech/docs/en/sql-reference/statements/detach/
@@ -567,14 +560,14 @@ void anyExprList(): {} {
 }
 
 void anyExpr(): {} {
-    anyNestedExpr() (LOOKAHEAD(2) (<COLON> | <QUERY> | operator()) anyNestedExpr())*
+    anyNestedExpr() (LOOKAHEAD(2) (<COLON> | <QUERY> | <AND> | <OR> | operator())? anyNestedExpr())*
 }
 
 void anyNestedExpr(): {} {
     LOOKAHEAD(2) formatPart()
     | LOOKAHEAD(2) withTotalPart()
     | LOOKAHEAD(2) outfilePart()
-    | (LOOKAHEAD(2) anyColumnExpr() (<TUPLE_INDEX_LITERAL> | <DOT> <DECIMAL_LITERAL>)*)+
+    | LOOKAHEAD(2) anyColumnExpr() (<TUPLE_INDEX_LITERAL> | <DOT> <DECIMAL_LITERAL>)*
 }
 
 void anyColumnExpr(): { Token t; } {
@@ -716,14 +709,14 @@ Token anyKeyword(): { Token t; } {
         | t = <OPTIMIZE> | t = <RENAME> | t = <REVOKE> | t = <SELECT> | t = <SET> | t = <SHOW> | t = <SYSTEM>
         | t = <TRUNCATE> | t = <UPDATE> | t = <USE> | t = <WATCH>
         // others
-        | t = <AND> | t = <APPLY> | t = <AS> | t = <ASOF> | t = <BETWEEN> 
-        | t = <CASE> | t = <CLUSTER> | t = <DATE> | t = <DATABASE> | t = <DATABASES> 
-        | t = <DICTIONARY> | t = <DICTIONARIES> | t = <DISTINCT> | t = <ELSE> | t = <END> 
-        | t = <EXCEPT> | t = <FORMAT> | t = <FROM> | t = <FINAL> | t = <FUNCTION>
-        | t = <IF> | t = <IN> | t = <INTERVAL> | t = <INTO> | t = <IS> | t = <NOT> 
-        | t = <ON> | t = <OR> | t = <OUTFILE> | t = <REPLACE> | t = <SAMPLE>
-        | t = <TEMPORARY> | t = <TABLE> | t = <TABLES> | t = <THEN> | t = <TIES> | t = <TIMESTAMP>
-        | t = <TOP> | t = <TOTALS> | t = <VALUES> | t = <USING> | t = <WHEN> | t = <WHERE> | t = <WITH>
+        | t = <ALL> | t = <AND> | t = <APPLY> | t = <ARRAY> | t = <AS> | t = <ASOF> | t = <BETWEEN> 
+        | t = <CASE> | t = <CLUSTER> | t = <DATE> | t = <DATABASE> | t = <DATABASES> | t = <DICTIONARY> | t = <DICTIONARIES> 
+        | t = <DISTINCT> | t = <ELSE> | t = <END> | t = <EXCEPT> | t = <FORMAT> | t = <FROM> | t = <FINAL> | t = <FULL> 
+        | t = <FUNCTION> | t = <GLOBAL> | t = <GROUP> | t = <HAVING> | t = <IF> | t = <IN> | t = <INNER> | t = <INTERVAL> 
+        | t = <INTO> | t = <IS> | t = <JOIN> | t = <LEFT> | t = <LIMIT> | t = <NOT> 
+        | t = <ON> | t = <OR> | t = <ORDER> | t = <OUTFILE> | t = <PREWHERE> | t = <REPLACE> | t = <RIGHT> | t = <SAMPLE>
+        | t = <SETTINGS> | t = <TEMPORARY> | t = <TABLE> | t = <TABLES> | t = <THEN> | t = <TIES> | t = <TIMESTAMP>
+        | t = <TOP> | t = <TOTALS> | t = <VALUES> | t = <UNION> | t = <USING> | t = <WHEN> | t = <WHERE> | t = <WITH>
         // interval
         | t = <SECOND> | t = <MINUTE> | t = <HOUR> | t = <DAY> | t = <WEEK> | t = <MONTH> | t = <QUARTER> | t = <YEAR>
         // values
@@ -781,8 +774,10 @@ TOKEN: {
     | <USE      : <U> <S> <E>                    >
     | <WATCH    : <W> <A> <T> <C> <H>            >
 
+    | <ALL      : <A> <L> <L>                        >
     | <AND      : <A> <N> <D>                        >
     | <APPLY    : <A> <P> <P> <L> <Y>                >
+    | <ARRAY    : <A> <R> <R> <A> <Y>                >
     | <AS       : <A> <S>                            >
     | <ASOF     : <A> <S> <O> <F>                    >
     | <BETWEEN  : <B> <E> <T> <W> <E> <E> <N>        >
@@ -800,18 +795,30 @@ TOKEN: {
     | <FINAL    : <F> <I> <N> <A> <L>                >
     | <FORMAT   : <F> <O> <R> <M> <A> <T>            >
     | <FROM     : <F> <R> <O> <M>                    >
+    | <FULL     : <F> <U> <L> <L>                    >
     | <FUNCTION : <F> <U> <N> <C> <T> <I> <O> <N>    >
+    | <GLOBAL   : <G> <L> <O> <B> <A> <L>            >
+    | <GROUP    : <G> <R> <O> <U> <P>                >
+    | <HAVING   : <H> <A> <V> <I> <N> <G>            >
     | <IF       : <I> <F>                            >
     | <IN       : <I> <N>                            >
+    | <INNER    : <I> <N> <N> <E> <R>                >
     | <INTERVAL : <I> <N> <T> <E> <R> <V> <A> <L>    >
     | <INTO     : <I> <N> <T> <O>                    >
     | <IS       : <I> <S>                            >
+    | <JOIN     : <J> <O> <I> <N>                    >
+    | <LEFT     : <L> <E> <F> <T>                    >
+    | <LIMIT    : <L> <I> <M> <I> <T>                >
     | <NOT      : <N> <O> <T>                        >
     | <ON       : <O> <N>                            >
     | <OR       : <O> <R>                            >
+    | <ORDER    : <O> <R> <D> <E> <R>                >
     | <OUTFILE  : <O> <U> <T> <F> <I> <L> <E>        >
+    | <PREWHERE : <P> <R> <E> <W> <H> <E> <R> <E>    >
     | <REPLACE  : <R> <E> <P> <L> <A> <C> <E>        >
+    | <RIGHT    : <R> <I> <G> <H> <T>                >
     | <SAMPLE   : <S> <A> <M> <P> <L> <E>            >
+    | <SETTINGS : <S> <E> <T> <T> <I> <N> <G> <S>    >
     | <TEMPORARY: <T> <E> <M> <P> <O> <R> <A> <R> <Y>>
     | <TABLE    : <T> <A> <B> <L> <E>                >
     | <TABLES   : <T> <A> <B> <L> <E> <S>            >
@@ -820,6 +827,7 @@ TOKEN: {
     | <TIMESTAMP: <T> <I> <M> <E> <S> <T> <A> <M> <P>>
     | <TOP      : <T> <O> <P>                        >
     | <TOTALS   : <T> <O> <T> <A> <L> <S>            >
+    | <UNION    : <U> <N> <I> <O> <N>                >
     | <USING    : <U> <S> <I> <N> <G>                >
     | <VALUES   : <V> <A> <L> <U> <E> <S>            >
     | <WHEN     : <W> <H> <E> <N>                    >
