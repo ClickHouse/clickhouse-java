@@ -13,6 +13,7 @@ import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.TimeZone;
 import java.util.UUID;
@@ -584,7 +585,7 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
     private boolean extractWithTotals(String sql) {
         if (Utils.startsWithIgnoreCase(sql, "select")) {
             String withoutStrings = Utils.retainUnquoted(sql, '\'');
-            return withoutStrings.toLowerCase().contains(" with totals");
+            return withoutStrings.toLowerCase(Locale.ROOT).contains(" with totals");
         }
         return false;
     }

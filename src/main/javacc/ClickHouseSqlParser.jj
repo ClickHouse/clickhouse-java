@@ -65,6 +65,11 @@ public class ClickHouseSqlParser {
         return matched;
     }
 
+    // FIXME ugly workaround but performs better than adding another lexical state for <BETWEEN>...<AND>
+    private boolean noAndWithinBetween() {
+        return !(getToken(1).kind == AND && token_source.parentToken == BETWEEN);
+    }
+
     /**
      * Parse given SQL.
      *
@@ -141,7 +146,11 @@ public class ClickHouseSqlParser {
 
     public void addStatement() {
         if (token_source.isValid()) {
-            statements.add(token_source.build());
+            ClickHouseSqlStatement sqlStmt = token_source.build();
+            // FIXME remove the restriction once we can hanlde insertion with format well
+            if (statements.size() == 0 || sqlStmt.isRecognized()) {
+                statements.add(sqlStmt);
+            }
         } else {
             token_source.reset();
         }
@@ -151,7 +160,13 @@ public class ClickHouseSqlParser {
 PARSER_END(ClickHouseSqlParser)
 
 TOKEN_MGR_DECLS: {
-    private int validTokens = 0; // whitespaces and comments are invalid
+    // whitespaces and comments are invalid
+    private int validTokens = 0;
+    // see http://www.engr.mun.ca/~theo/JavaCC-FAQ/javacc-faq-moz.htm#tth_sEc3.17
+    private int commentNestingDepth = 0;
+
+    final java.util.Deque<Integer> stack = new java.util.LinkedList<>();
+    int parentToken = -1;
 
     final StringBuilder builder = new StringBuilder();
 
@@ -174,6 +189,22 @@ TOKEN_MGR_DECLS: {
             }
         }
 	}
+
+    void enterToken(int tokenKind) {
+        if (tokenKind < 0) {
+            return;
+        }
+
+        stack.push(parentToken = tokenKind);
+    }
+
+    void leaveToken(int tokenKind) {
+        if (parentToken == tokenKind) {
+            stack.pop();
+        }
+
+        parentToken = stack.isEmpty() ? -1 : stack.getLast();
+    }
 
     void processMacro(String name, List<String> params, ParseHandler handler) {
         StringBuilder m = new StringBuilder();
@@ -209,6 +240,9 @@ TOKEN_MGR_DECLS: {
     }
 
     void reset() {
+        stack.clear();
+        parentToken = -1;
+
         builder.setLength(validTokens = 0);
 
         stmtType = StatementType.UNKNOWN;
@@ -245,15 +279,18 @@ TOKEN_MGR_DECLS: {
 }
 
 SKIP: {
-    <WHITESPACE: " " | "\u000B" | "\u000C" | "\t" | "\n" | "\r">
+    <WHITESPACE: " " | "\t" | "\n" | "\r" | "\u000b" | "\u000c" | "\u0085" | "\u00a0" | "\u180e"
+        | "\u2000" | "\u200a" | "\u200b" | "\u200c" | "\u200d" 
+        | "\u2028" | "\u2029" | "\u202f" | "\u205f" | "\u2060" | "\u3000" | "\ufeff">
     { append(image); }
+    | <SINGLE_LINE_COMMENT: ("--" | "//") (~["\r", "\n"])*> { append(image); }
+    | "/*" { commentNestingDepth = 1; append(image); }: MULTI_LINE_COMMENT
 }
 
-SPECIAL_TOKEN: {
-    <SINGLE_LINE_COMMENT: ("--" | "//")(~["\r", "\n"])*>
-    { append(image); }
-    | <MULTI_LINE_COMMENT: "/*" (~["*"])* "*" ("*" | (~["*", "/"] (~["*"])* "*"))* "/">
-    { append(image); }
+<MULTI_LINE_COMMENT> SKIP: {
+    "/*" { commentNestingDepth += 1; append(image); }
+    | "*/" { SwitchTo(--commentNestingDepth == 0 ? DEFAULT : MULTI_LINE_COMMENT); append(image); }
+    | < ~[] > { append(image); }
 }
 
 // top-level statements
@@ -306,11 +343,12 @@ void alterStmt(): {} {
     <ALTER>
     (
         LOOKAHEAD(2)
-        <TABLE> tableIdentifier(true) (clusterClause())? (
-            <UPDATE> { token_source.stmtType = StatementType.ALTER_UPDATE; }
+        <TABLE> tableIdentifier(true) (LOOKAHEAD(2) clusterClause())? (
+            LOOKAHEAD({ !tokenIn(1, UPDATE, DELETE) }) anyIdentifier()
+            | <UPDATE> { token_source.stmtType = StatementType.ALTER_UPDATE; }
             | <DELETE> { token_source.stmtType = StatementType.ALTER_DELETE; }
         )
-    )? anyExprList()
+    )? (anyExprList())?
 }
 
 void clusterClause(): { Token t; } {
@@ -381,15 +419,23 @@ void insertStmt(): {} {
 }
 
 void dataClause(): { Token t; } {
-    LOOKAHEAD(2) <FORMAT> anyIdentifier()
-    | LOOKAHEAD(2) t = <VALUES> { token_source.setPosition(t.image); } 
-        <LPAREN> columnExprList() <RPAREN>
-        (
-            LOOKAHEAD(2)
-            (<COMMA>)?
+    try {
+        LOOKAHEAD(2) <FORMAT> anyIdentifier() (LOOKAHEAD(2) anyExprList())?
+        | LOOKAHEAD(2) t = <VALUES> { token_source.setPosition(t.image); } 
             <LPAREN> columnExprList() <RPAREN>
-        )*
-    | anyExprList() // not interested
+            (
+                LOOKAHEAD(2)
+                (<COMMA>)?
+                <LPAREN> columnExprList() <RPAREN>
+            )*
+        | anyExprList() // not interested
+    } catch (ParseException e) {
+        // FIXME introduce a lexical state in next release with consideration of delimiter from the context
+        Token nextToken;
+        do {
+            nextToken = getNextToken();
+        } while(nextToken.kind != SEMICOLON && nextToken.kind != EOF);
+    }
 }
 
 // https://clickhouse.tech/docs/en/sql-reference/statements/kill/
@@ -415,10 +461,15 @@ void revokeStmt(): {} { // not interested
 // https://clickhouse.tech/docs/en/sql-reference/statements/select/
 void selectStmt(): {} {
     // FIXME with (select 1), (select 2), 3 select *
-    (<WITH> (LOOKAHEAD(2) columnExprList() | <LPAREN> anyExprList() <RPAREN>))?
+    (withClause())?
     <SELECT> (LOOKAHEAD(2) <DISTINCT>)? (LOOKAHEAD(2) topClause())? columnExprList()
     (LOOKAHEAD(2) <FROM> tableClause(true) (<COMMA> tableClause(false))*)?
     (LOOKAHEAD(2) anyExprList())? // everything else
+}
+
+void withClause(): {} {
+    <WITH> { token_source.enterToken(WITH); } withExpr() (<COMMA> withExpr())*
+    { token_source.leaveToken(WITH); }
 }
 
 void topClause(): {} { <TOP> <DECIMAL_LITERAL> (LOOKAHEAD(2) <WITH> <TIES>)? }
@@ -427,7 +478,9 @@ void tableClause(boolean record): { Token t; } {
     (LOOKAHEAD(2) tableIdentifier(record) | (<LPAREN> anyExprList() <RPAREN>))
     (LOOKAHEAD(2) t = aliasExpr() { if (record && t != null && token_source.table == null) token_source.table = ClickHouseSqlUtils.unescape(t.image); } )?
     (LOOKAHEAD(2) <FINAL>)?
-    (LOOKAHEAD(2) <SAMPLE> literal())?
+    (LOOKAHEAD(2) <SAMPLE> numberLiteral() (LOOKAHEAD(2) <SLASH> numberLiteral())?
+        (LOOKAHEAD(2) <OFFSET> numberLiteral() (LOOKAHEAD(2) <SLASH> numberLiteral())?)?
+    )?
 }
 
 // https://clickhouse.tech/docs/en/sql-reference/statements/set/
@@ -489,6 +542,24 @@ void columnExprList(): {} {
     columnsExpr() (<COMMA> columnsExpr())*
 }
 
+void withExpr(): {} {
+    nestedExpr()
+    (
+        (
+            LOOKAHEAD({ getToken(1).kind == FLOATING_LITERAL })
+            <FLOATING_LITERAL> | <DOT> <DECIMAL_LITERAL>
+        )+
+        | (LOOKAHEAD(2) <LBRACKET> anyExprList() <RBRACKET>)+
+        | LOOKAHEAD(2) <IS> (<NOT>)? <NULL>
+        | LOOKAHEAD(2) (<NOT>)? betweenExpr()
+        | LOOKAHEAD(2) (<NOT>)? (<ILIKE> | <LIKE>) nestedExpr()
+        | LOOKAHEAD(2, { noAndWithinBetween() }) (LOOKAHEAD(2, { noAndWithinBetween() }) calcExpr())+
+        | LOOKAHEAD(2) (<NOT>)? <IN> nestedExpr()
+        | LOOKAHEAD(2) <QUERY> nestedExpr() <COLON> nestedExpr()
+        | LOOKAHEAD(2) <AS> columnExpr()
+    )?
+}
+
 void columnsExpr(): {} {
     LOOKAHEAD(allColumnsExpr()) allColumnsExpr()
     (
@@ -496,12 +567,16 @@ void columnsExpr(): {} {
     )*
     | nestedExpr()
     (
-        (<TUPLE_INDEX_LITERAL> | <DOT> <DECIMAL_LITERAL>)+
+        (
+            LOOKAHEAD({ getToken(1).kind == FLOATING_LITERAL })
+            <FLOATING_LITERAL> | <DOT> <DECIMAL_LITERAL>
+        )+
         | (LOOKAHEAD(2) <LBRACKET> anyExprList() <RBRACKET>)+
         | LOOKAHEAD(2) <IS> (<NOT>)? <NULL>
-        | LOOKAHEAD(2) (<NOT>)? <BETWEEN> nestedExpr() <AND> nestedExpr()
-        | LOOKAHEAD(2) (LOOKAHEAD(2) (<AND> | <OR> | operator()) nestedExpr())+
-        | LOOKAHEAD(2) (<NOT>)? <IN> <LPAREN> anyExprList() <RPAREN>
+        | LOOKAHEAD(2) (<NOT>)? betweenExpr()
+        | LOOKAHEAD(2) (<NOT>)? (<ILIKE> | <LIKE>) nestedExpr()
+        | LOOKAHEAD(2, { noAndWithinBetween() }) (LOOKAHEAD(2, { noAndWithinBetween() }) calcExpr())+
+        | LOOKAHEAD(2) (<NOT>)? <IN> nestedExpr()
         | LOOKAHEAD(2) <QUERY> nestedExpr() <COLON> nestedExpr()
         | LOOKAHEAD(2) aliasExpr()
     )?
@@ -513,22 +588,40 @@ void allColumnsExpr(): {} {
 
 void nestedExpr(): {} {
     LOOKAHEAD(2) (<DASH> | <NOT>) nestedExpr()
-    | LOOKAHEAD(2) <CASE> (LOOKAHEAD(2) nestedExpr())? (<WHEN> nestedExpr() <THEN> nestedExpr())+ (<ELSE> nestedExpr())? <END>
-    | LOOKAHEAD(2) <INTERVAL> nestedExpr() interval()
+    | LOOKAHEAD(2) <CASE> (LOOKAHEAD({ getToken(1).kind != WHEN }) nestedExpr())? 
+        (<WHEN> nestedExpr() <THEN> nestedExpr())+ (<ELSE> nestedExpr())? <END>
+    | LOOKAHEAD(2) <INTERVAL> (LOOKAHEAD(2) <STRING_LITERAL> | nestedExpr() interval())
     | columnExpr()
     (
-        (<TUPLE_INDEX_LITERAL> | <DOT> <DECIMAL_LITERAL>)+
+        (
+            LOOKAHEAD({ getToken(1).kind == FLOATING_LITERAL })
+            <FLOATING_LITERAL> | <DOT> <DECIMAL_LITERAL>
+        )+
         |(LOOKAHEAD(2) <LBRACKET> anyExprList() <RBRACKET>)+
         | LOOKAHEAD(2) <IS> (<NOT>)? <NULL>
-        | LOOKAHEAD(2) (<NOT>)? <BETWEEN> nestedExpr() <AND> nestedExpr()
-        | LOOKAHEAD(2) (LOOKAHEAD(2) (<AND> | <OR> | operator()) nestedExpr())+
-        | LOOKAHEAD(2) (<NOT>)? <IN> <LPAREN> anyExprList() <RPAREN>
+        | LOOKAHEAD(2) (<NOT>)? betweenExpr()
+        | LOOKAHEAD(2) (<NOT>)? (<ILIKE> | <LIKE>) nestedExpr()
+        | LOOKAHEAD(2, { noAndWithinBetween() }) (LOOKAHEAD(2, { noAndWithinBetween() }) calcExpr())+
+        | LOOKAHEAD(2) (<NOT>)? <IN> nestedExpr()
         | LOOKAHEAD(2) <QUERY> nestedExpr() <COLON> nestedExpr()
     )?
 }
 
+void calcExpr(): {} {
+    (<AND> | <OR> | operator()) nestedExpr()
+}
+
+void betweenExpr(): {} {
+    <BETWEEN> { token_source.enterToken(BETWEEN); }
+    nestedExpr() 
+    <AND>  { token_source.leaveToken(BETWEEN); }
+    nestedExpr()
+}
+
 void functionExpr(): {} {
     anyIdentifier() <LPAREN> (anyExprList())? <RPAREN>
+    // https://clickhouse.tech/docs/en/sql-reference/aggregate-functions/parametric-functions/
+    (LOOKAHEAD(2) <LPAREN> (anyExprList())? <RPAREN>)?
 }
 
 void columnExpr(): { Token t; } {
@@ -561,24 +654,31 @@ void anyExprList(): {} {
 }
 
 void anyExpr(): {} {
-    anyNestedExpr() (LOOKAHEAD(2) (<COLON> | <QUERY> | <AND> | <OR> | operator())? anyNestedExpr())*
+    anyNestedExpr() (
+        LOOKAHEAD(2)
+        (<AT> | <AND> | <OR> | <COLON> | <QUERY> | operator())? anyNestedExpr()
+    )*
 }
 
 void anyNestedExpr(): {} {
     LOOKAHEAD(2) formatPart()
     | LOOKAHEAD(2) withTotalPart()
     | LOOKAHEAD(2) outfilePart()
-    | LOOKAHEAD(2) anyColumnExpr() (<TUPLE_INDEX_LITERAL> | <DOT> <DECIMAL_LITERAL>)*
+    | (LOOKAHEAD(2) <DASH>)? anyColumnExpr() (
+        LOOKAHEAD({ getToken(1).kind == FLOATING_LITERAL })
+        <FLOATING_LITERAL> | <DOT> <DECIMAL_LITERAL>
+    )*
 }
 
 void anyColumnExpr(): { Token t; } {
-    <ASTERISK>
-    | t = <QUERY> { token_source.processParameter(t.image, handler); }
+    // <ASTERISK>
+    t = <QUERY> { token_source.processParameter(t.image, handler); }
     | <LBRACE> (LOOKAHEAD(2) anyExprList())? <RBRACE>
     | <LBRACKET> (LOOKAHEAD(2) anyExprList())? <RBRACKET>
     | <LPAREN> (LOOKAHEAD(2) anyExprList())? <RPAREN>
     | (LOOKAHEAD(2) macro())+
     | LOOKAHEAD(2, { !(tokenIn(1, INF, NAN, NULL) && tokenIn(2, DOT)) }) literal()
+    // | (LOOKAHEAD(2, { !(tokenIn(1, INF, NAN, NULL)) }) <FLOATING_LITERAL> | literal())
     | nestedIdentifier()
 }
 
@@ -593,7 +693,7 @@ Token aliasExpr(): { Token t = null; } {
 }
 
 void nestedIdentifier(): {} {
-    anyIdentifier() (LOOKAHEAD(2) <DOT> (<ASTERISK> | anyIdentifier()))*
+    (<ASTERISK> | anyIdentifier()) (LOOKAHEAD(2) <DOT> (<ASTERISK> | anyIdentifier()))*
 }
 
 void tableIdentifier(boolean record): { Token t; } {
@@ -664,12 +764,14 @@ Token dateLiteral(): { Token t; String prefix; } {
 }
 
 Token numberLiteral(): { Token t = null; StringBuilder sb = new StringBuilder(); } {
-    (t = <PLUS> | t = <DASH>)? { if (t != null) sb.append(t.image); }
     (
-        LOOKAHEAD(2)
-        t = <DECIMAL_LITERAL> | t = <HEXADECIMAL_LITERAL> | t = <FLOATING_LITERAL> | t = <INF> | t = <NAN>
+        (t = <PLUS> | t = <DASH>)? { if (t != null) sb.append(t.image); }
+        (
+            LOOKAHEAD(2)
+            t = <DECIMAL_LITERAL> | t = <HEXADECIMAL_LITERAL> | t = <FLOATING_LITERAL> | t = <INF> | t = <NAN>
+        ) { sb.append(t.image); }
     )
-    { return Token.newToken(0, sb.append(t.image).toString()); }
+    { return Token.newToken(0, sb.toString()); }
 }
 
 void operator(): {} {
@@ -710,14 +812,15 @@ Token anyKeyword(): { Token t; } {
         | t = <OPTIMIZE> | t = <RENAME> | t = <REVOKE> | t = <SELECT> | t = <SET> | t = <SHOW> | t = <SYSTEM>
         | t = <TRUNCATE> | t = <UPDATE> | t = <USE> | t = <WATCH>
         // others
-        | t = <ALL> | t = <AND> | t = <APPLY> | t = <ARRAY> | t = <AS> | t = <ASOF> | t = <BETWEEN> 
-        | t = <CASE> | t = <CLUSTER> | t = <DATE> | t = <DATABASE> | t = <DATABASES> | t = <DICTIONARY> | t = <DICTIONARIES> 
+        | t = <ALL> | t = <AND> | t = <APPLY> | t = <ARRAY> | t = <AS> | t = <ASOF> | t = <BETWEEN> | t = <CASE> 
+        | t = <CLUSTER> | t = <DATE> | t = <DATABASE> | t = <DATABASES> | t = <DICTIONARY> | t = <DICTIONARIES> 
         | t = <DISTINCT> | t = <ELSE> | t = <END> | t = <EXCEPT> | t = <FORMAT> | t = <FROM> | t = <FINAL> | t = <FULL> 
-        | t = <FUNCTION> | t = <GLOBAL> | t = <GROUP> | t = <HAVING> | t = <IF> | t = <IN> | t = <INNER> | t = <INTERVAL> 
-        | t = <INTO> | t = <IS> | t = <JOIN> | t = <LEFT> | t = <LIMIT> | t = <NOT> 
-        | t = <ON> | t = <OR> | t = <ORDER> | t = <OUTFILE> | t = <PREWHERE> | t = <REPLACE> | t = <RIGHT> | t = <SAMPLE>
-        | t = <SETTINGS> | t = <TEMPORARY> | t = <TABLE> | t = <TABLES> | t = <THEN> | t = <TIES> | t = <TIMESTAMP>
-        | t = <TOP> | t = <TOTALS> | t = <VALUES> | t = <UNION> | t = <USING> | t = <WHEN> | t = <WHERE> | t = <WITH>
+        | t = <FUNCTION> | t = <GLOBAL> | t = <GROUP> | t = <HAVING> | t = <IF> | t = <ILIKE> | t = <IN> | t = <INNER> 
+        | t = <INTERVAL> | t = <INTO> | t = <IS> | t = <JOIN> | t = <LEFT> | t = <LIKE> | t = <LIMIT> | t = <NOT> 
+        | t = <OFFSET> | t = <ON> | t = <OR> | t = <ORDER> | t = <OUTFILE> | t = <PREWHERE> | t = <REPLACE> 
+        | t = <RIGHT> | t = <SAMPLE> | t = <SETTINGS> | t = <TEMPORARY> | t = <TABLE> | t = <TABLES> | t = <THEN> 
+        | t = <TIES> | t = <TIMESTAMP> | t = <TOP> | t = <TOTALS> | t = <VALUES> | t = <UNION> | t = <USING> 
+        | t = <WHEN> | t = <WHERE> | t = <WITH>
         // interval
         | t = <SECOND> | t = <MINUTE> | t = <HOUR> | t = <DAY> | t = <WEEK> | t = <MONTH> | t = <QUARTER> | t = <YEAR>
         // values
@@ -802,6 +905,7 @@ TOKEN: {
     | <GROUP    : <G> <R> <O> <U> <P>                >
     | <HAVING   : <H> <A> <V> <I> <N> <G>            >
     | <IF       : <I> <F>                            >
+    | <ILIKE    : <I> <L> <I> <K> <E>                >
     | <IN       : <I> <N>                            >
     | <INNER    : <I> <N> <N> <E> <R>                >
     | <INTERVAL : <I> <N> <T> <E> <R> <V> <A> <L>    >
@@ -809,8 +913,10 @@ TOKEN: {
     | <IS       : <I> <S>                            >
     | <JOIN     : <J> <O> <I> <N>                    >
     | <LEFT     : <L> <E> <F> <T>                    >
+    | <LIKE     : <L> <I> <K> <E>                    >
     | <LIMIT    : <L> <I> <M> <I> <T>                >
     | <NOT      : <N> <O> <T>                        >
+    | <OFFSET   : <O> <F> <F> <S> <E> <T>            >
     | <ON       : <O> <N>                            >
     | <OR       : <O> <R>                            >
     | <ORDER    : <O> <R> <D> <E> <R>                >
@@ -922,7 +1028,7 @@ TOKEN: {
     | <RPAREN: ")">
     | <SEMICOLON: ";">
     | <SLASH: "/">
-    | <UNDERSCORE: "_">
+    | <#UNDERSCORE: "_">
 }
 
 // string literal
@@ -931,18 +1037,26 @@ TOKEN: {
 }
 
 TOKEN: {
-    <IDENTIFIER: (<LETTER> | <UNDERSCORE> | <DOLLAR>) (<LETTER> | <UNDERSCORE> | <DOLLAR> | <DEC_DIGIT>)*>
+    <IDENTIFIER:
+        (<LETTER> | <UNDERSCORE> | <DOLLAR>) (<LETTER> | <UNDERSCORE> | <DOLLAR> | <DEC_DIGIT>)*
+        | (<DEC_DIGIT>)+ (
+            <E> (<LETTER> | <UNDERSCORE>)*
+            | (
+                <A> | <B> | <C> | <D> | <F> | <G> | <H> | <I> | <J> | <K> | <L> | <M> | <N>
+                | <O> | <P> | <Q> | <R> | <S> | <T> | <U> | <V> | <W> | <X> | <Y> | <Z>
+                | <UNDERSCORE>
+            ) (<LETTER> | <UNDERSCORE> | <DEC_DIGIT>)*
+        )>
     | <BACK_QUOTED_NAME: <BACK_QUOTE> (<BACK_SLASH> ~[] | ~["`", "\\"] | "``")* <BACK_QUOTE>>
     | <DOUBLE_QUOTED_NAME: <DOUBLE_QUOTE> (<BACK_SLASH> ~[] | ~["\"", "\\"] | "\"\"")* <DOUBLE_QUOTE>>
 }
 
 TOKEN: {
-    <TUPLE_INDEX_LITERAL: <DOT> <DECIMAL_LITERAL> (<DOT> <DECIMAL_LITERAL>)*>
-    | <FLOATING_LITERAL:
+    <FLOATING_LITERAL:
         <HEXADECIMAL_LITERAL> <DOT> (<HEXADECIMAL_LITERAL>)? (<P> | <E>) (<PLUS> | <DASH>)? <DECIMAL_LITERAL>
         | <HEXADECIMAL_LITERAL> (<P> | <E>) (<PLUS> | <DASH>)? <DECIMAL_LITERAL>
         | <DECIMAL_LITERAL> <DOT> (<DECIMAL_LITERAL>)? (<E> (<PLUS> | <DASH>)? <DECIMAL_LITERAL>)?
-        // | <DOT> <DECIMAL_LITERAL> (<E> (<PLUS> | <DASH>)? <DECIMAL_LITERAL>)?
+        | <DOT> <DECIMAL_LITERAL> (<E> (<PLUS> | <DASH>)? <DECIMAL_LITERAL>)?
         | <DECIMAL_LITERAL> <E> (<PLUS> | <DASH>)? <DECIMAL_LITERAL>>
 }
 TOKEN: { <DECIMAL_LITERAL: (<DEC_DIGIT>)+> }

@@ -7,9 +7,12 @@ import ru.yandex.clickhouse.settings.ClickHouseProperties;
 import static org.testng.Assert.assertEquals;
 
 import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.List;
 import java.util.regex.Matcher;
@@ -82,6 +85,8 @@ public class ClickHouseSqlParserTest {
     public void testAlterStatement() {
         String sql;
 
+        checkSingleStatement(parse(sql = "ALTER TABLE alter_test ADD COLUMN Added0 UInt32"), sql, StatementType.ALTER,
+                "system", "alter_test");
         checkSingleStatement(
                 parse(sql = "ALTER TABLE test_db.test_table UPDATE a = 1, \"b\" = '2', `c`=3.3 WHERE d=123 and e=456"),
                 sql, StatementType.ALTER_UPDATE, "test_db", "test_table");
@@ -305,6 +310,8 @@ public class ClickHouseSqlParserTest {
                         }) });
         assertEquals(parse(sql = loadSql("issue-555_custom-format.sql")), new ClickHouseSqlStatement[] {
                 new ClickHouseSqlStatement(sql, StatementType.SELECT, null, null, "wrd", "CSVWithNames", null, null) });
+        assertEquals(parse(sql = loadSql("with-clause.sql")), new ClickHouseSqlStatement[] {
+                new ClickHouseSqlStatement(sql, StatementType.SELECT, null, null, "unknown", null, null, null) });
     }
 
     @Test
@@ -364,6 +371,19 @@ public class ClickHouseSqlParserTest {
     }
 
     @Test
+    public void testComments() throws ParseException {
+        String sql;
+        checkSingleStatement(parse(sql = "select\n--something\n//else\n1/*2*/ from a.b"), sql, StatementType.SELECT,
+                "a", "b");
+
+        checkSingleStatement(parse(sql = "select 1/*/**/*/ from a.b"), sql, StatementType.SELECT, "a", "b");
+        checkSingleStatement(parse(sql = "select 1/*/1/**/*2*/ from a.b"), sql, StatementType.SELECT, "a", "b");
+        checkSingleStatement(parse(sql = "SELECT /*/**/*/ 1 from a.b"), sql, StatementType.SELECT, "a", "b");
+        checkSingleStatement(parse(sql = "SELECT /*a/*b*/c*/ 1 from a.b"), sql, StatementType.SELECT, "a", "b");
+        checkSingleStatement(parse(sql = "SELECT /*ab/*cd*/ef*/ 1 from a.b"), sql, StatementType.SELECT, "a", "b");
+    }
+
+    @Test
     public void testMultipleStatements() throws ParseException {
         assertEquals(parse("use ab;;;select 1; ;\t;\r;\n"),
                 new ClickHouseSqlStatement[] {
@@ -391,7 +411,14 @@ public class ClickHouseSqlParserTest {
     @Test
     public void testExpression() throws ParseException {
         String sql;
-
+        checkSingleStatement(parse(sql = "SELECT a._ from a.b"), sql, StatementType.SELECT, "a", "b");
+        checkSingleStatement(parse(sql = "SELECT 2 BETWEEN 1 + 1 AND 3 - 1 from a.b"), sql, StatementType.SELECT, "a",
+                "b");
+        checkSingleStatement(parse(sql = "SELECT CASE WHEN 1 THEN 2 WHEN 3 THEN  4 ELSE 5 END from a.b"), sql,
+                StatementType.SELECT, "a", "b");
+        checkSingleStatement(parse(sql = "select (1,2) a1, a1.1, a1 .1, a1 . 1 from a.b"), sql, StatementType.SELECT,
+                "a", "b");
+        checkSingleStatement(parse(sql = "select -.0, +.0, -a from a.b"), sql, StatementType.SELECT, "a", "b");
         checkSingleStatement(parse(sql = "select 1 and `a`.\"b\" c1, c1 or (c2 and c3), c4 ? c5 : c6 from a.b"), sql,
                 StatementType.SELECT, "a", "b");
         checkSingleStatement(parse(sql = "select [[[1,2],[3,4],[5,6]]] a, a[1][1][2] from a.b"), sql,
@@ -564,5 +591,44 @@ public class ClickHouseSqlParserTest {
                 StatementType.SELECT, "system", ".inner.a");
         checkSingleStatement(parse(sql = " SELECT fromUnixTimestamp64Milli(time)from db.`.inner.a`"), sql,
                 StatementType.SELECT, "db", ".inner.a");
+    }
+
+    static void parseAllSqlFiles(File f) throws IOException {
+        if (f.isDirectory()) {
+            File[] files = f.listFiles();
+            for (File file : files) {
+                parseAllSqlFiles(file);
+            }
+        } else if (f.getName().endsWith(".sql")) {
+            StringBuilder sql = new StringBuilder();
+            try (BufferedReader br = new BufferedReader(
+                    new InputStreamReader(new FileInputStream(f), StandardCharsets.UTF_8))) {
+                String line;
+                while ((line = br.readLine()) != null) {
+                    sql.append(line).append("\n");
+                }
+            } catch (IOException e) {
+                throw new IllegalArgumentException(e);
+            }
+
+            ClickHouseSqlParser p = new ClickHouseSqlParser(sql.toString(), null, null);
+            try {
+                p.sql();
+            } catch (ParseException e) {
+                System.out.println(f.getAbsolutePath() + " -> " + e.getMessage());
+            } catch (TokenMgrException e) {
+                System.out.println(f.getAbsolutePath() + " -> " + e.getMessage());
+            }
+        }
+    }
+
+    // TODO: add a sub-module points to ClickHouse/tests/queries?
+    public static void main(String[] args) throws Exception {
+        String chTestQueryDir = "D:/Sources/Github/ch/queries";
+        if (args != null && args.length > 0) {
+            chTestQueryDir = args[0];
+        }
+        chTestQueryDir = System.getProperty("chTestQueryDir", chTestQueryDir);
+        parseAllSqlFiles(new File(chTestQueryDir));
     }
 }

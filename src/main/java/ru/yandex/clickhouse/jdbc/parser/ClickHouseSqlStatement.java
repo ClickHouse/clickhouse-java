@@ -3,6 +3,7 @@ package ru.yandex.clickhouse.jdbc.parser;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 
@@ -52,7 +53,7 @@ public class ClickHouseSqlStatement {
                 Integer position = e.getValue();
 
                 if (keyword != null && position != null) {
-                    p.put(keyword.toUpperCase(), position);
+                    p.put(keyword.toUpperCase(Locale.ROOT), position);
                 }
             }
             this.positions = Collections.unmodifiableMap(p);
@@ -145,7 +146,7 @@ public class ClickHouseSqlStatement {
         int position = -1;
 
         if (!this.positions.isEmpty() && keyword != null) {
-            Integer p = this.positions.get(keyword.toUpperCase());
+            Integer p = this.positions.get(keyword.toUpperCase(Locale.ROOT));
             if (p != null) {
                 position = p.intValue();
             }
