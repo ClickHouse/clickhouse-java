@@ -69,11 +69,11 @@ public class ClickHouseHttpClientBuilder {
         return new DefaultHttpRequestRetryHandler(maxRetries, false) {
             @Override
             public boolean retryRequest(IOException exception, int executionCount, HttpContext context) {
-                if (executionCount > maxRetries) {
+                if (executionCount > maxRetries || context == null 
+                    || !Boolean.TRUE.equals(context.getAttribute("is_idempotent"))) {
                     return false;
                 }
 
-                // TODO should never retry for DDL/mutation
                 return (exception instanceof NoHttpResponseException) || super.retryRequest(exception, executionCount, context);
             }
         };
