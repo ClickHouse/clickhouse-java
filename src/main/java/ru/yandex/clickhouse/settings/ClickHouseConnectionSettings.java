@@ -36,6 +36,7 @@ public enum ClickHouseConnectionSettings implements DriverPropertyCreator {
     TIME_TO_LIVE_MILLIS("timeToLiveMillis", 60 * 1000, ""),
     DEFAULT_MAX_PER_ROUTE("defaultMaxPerRoute", 500, ""),
     MAX_TOTAL("maxTotal", 10000, ""),
+    MAX_RETRIES("maxRetries", 3, "Maximum retries(default to 3) for idempotent operation. Set 0 to disable retry."),
 
     /**
      * additional
