@@ -5,6 +5,8 @@ import org.apache.http.NoHttpResponseException;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.conn.HttpHostConnectException;
 import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.protocol.BasicHttpContext;
+import org.apache.http.protocol.HttpContext;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeClass;
@@ -199,12 +201,14 @@ public class ClickHouseHttpClientBuilderTest {
         // props.setMaxRetries(3);
         ClickHouseHttpClientBuilder builder = new ClickHouseHttpClientBuilder(props);
         CloseableHttpClient client = builder.buildClient();
+        HttpContext context = new BasicHttpContext();
+        context.setAttribute("is_idempotent", Boolean.TRUE);
         HttpPost post = new HttpPost("http://localhost:" + server.port() + "/?db=system&query=select%202");
-
+        
         shutDownServerWithDelay(server, 100);
 
         try {
-            client.execute(post);
+            client.execute(post, context);
         } finally {
             client.close();
         }
