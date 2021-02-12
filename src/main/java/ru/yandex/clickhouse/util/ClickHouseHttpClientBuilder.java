@@ -1,29 +1,5 @@
 package ru.yandex.clickhouse.util;
 
-import org.apache.http.*;
-import org.apache.http.client.HttpRequestRetryHandler;
-import org.apache.http.client.config.RequestConfig;
-import org.apache.http.config.ConnectionConfig;
-import org.apache.http.config.RegistryBuilder;
-import org.apache.http.conn.socket.ConnectionSocketFactory;
-import org.apache.http.conn.socket.PlainConnectionSocketFactory;
-import org.apache.http.conn.ssl.NoopHostnameVerifier;
-import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
-import org.apache.http.impl.DefaultConnectionReuseStrategy;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.DefaultHttpRequestRetryHandler;
-import org.apache.http.impl.client.HttpClientBuilder;
-import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
-import org.apache.http.message.BasicHeader;
-import org.apache.http.protocol.HttpContext;
-import ru.yandex.clickhouse.settings.ClickHouseProperties;
-import ru.yandex.clickhouse.util.ssl.NonValidatingTrustManager;
-
-import javax.net.ssl.HostnameVerifier;
-import javax.net.ssl.KeyManager;
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.TrustManager;
-import javax.net.ssl.TrustManagerFactory;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -43,6 +19,45 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
+import javax.net.ssl.HostnameVerifier;
+import javax.net.ssl.KeyManager;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.TrustManagerFactory;
+
+import org.apache.http.ConnectionReuseStrategy;
+import org.apache.http.Header;
+import org.apache.http.HttpHeaders;
+import org.apache.http.HttpHost;
+import org.apache.http.HttpResponse;
+import org.apache.http.NoHttpResponseException;
+import org.apache.http.auth.AuthScope;
+import org.apache.http.auth.UsernamePasswordCredentials;
+import org.apache.http.client.AuthCache;
+import org.apache.http.client.CredentialsProvider;
+import org.apache.http.client.HttpRequestRetryHandler;
+import org.apache.http.client.config.RequestConfig;
+import org.apache.http.client.protocol.HttpClientContext;
+import org.apache.http.config.ConnectionConfig;
+import org.apache.http.config.RegistryBuilder;
+import org.apache.http.conn.socket.ConnectionSocketFactory;
+import org.apache.http.conn.socket.PlainConnectionSocketFactory;
+import org.apache.http.conn.ssl.NoopHostnameVerifier;
+import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
+import org.apache.http.impl.DefaultConnectionReuseStrategy;
+import org.apache.http.impl.auth.BasicScheme;
+import org.apache.http.impl.client.BasicAuthCache;
+import org.apache.http.impl.client.BasicCredentialsProvider;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.DefaultHttpRequestRetryHandler;
+import org.apache.http.impl.client.HttpClientBuilder;
+import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
+import org.apache.http.message.BasicHeader;
+import org.apache.http.protocol.HttpContext;
+
+import ru.yandex.clickhouse.settings.ClickHouseProperties;
+import ru.yandex.clickhouse.util.ssl.NonValidatingTrustManager;
+
 public class ClickHouseHttpClientBuilder {
 
     private final ClickHouseProperties properties;
@@ -59,6 +74,7 @@ public class ClickHouseHttpClientBuilder {
                 .setDefaultConnectionConfig(getConnectionConfig())
                 .setDefaultRequestConfig(getRequestConfig())
                 .setDefaultHeaders(getDefaultHeaders())
+                .setDefaultCredentialsProvider(getDefaultCredentialsProvider())
                 .disableContentCompression() // gzip is not needed. Use lz4 when compress=1
                 .disableRedirectHandling()
                 .build();
@@ -77,6 +93,20 @@ public class ClickHouseHttpClientBuilder {
                 return (exception instanceof NoHttpResponseException) || super.retryRequest(exception, executionCount, context);
             }
         };
+    }
+
+    public static HttpClientContext createClientContext(ClickHouseProperties props) {
+        if (props == null
+            || !isConfigurationValidForAuth(props))
+        {
+            return HttpClientContext.create();
+        }
+        AuthCache authCache = new BasicAuthCache();
+        BasicScheme basicAuth = new BasicScheme();
+        authCache.put(getTargetHost(props), basicAuth);
+        HttpClientContext ctx = HttpClientContext.create();
+        ctx.setAuthCache(authCache);
+        return ctx;
     }
 
     private ConnectionReuseStrategy getConnectionReuseStrategy() {
@@ -127,18 +157,19 @@ public class ClickHouseHttpClientBuilder {
         return RequestConfig.custom()
                 .setSocketTimeout(properties.getSocketTimeout())
                 .setConnectTimeout(properties.getConnectionTimeout())
+                .setConnectionRequestTimeout(properties.getConnectionTimeout())
                 .build();
     }
 
     private Collection<Header> getDefaultHeaders() {
-        List<Header> headers = new ArrayList<Header>();
+        List<Header> headers = new ArrayList<>();
         if (properties.getHttpAuthorization() != null) {
             headers.add(new BasicHeader(HttpHeaders.AUTHORIZATION, properties.getHttpAuthorization()));
         }
         return headers;
     }
 
-  private SSLContext getSSLContext()
+    private SSLContext getSSLContext()
       throws CertificateException, NoSuchAlgorithmException, KeyStoreException, IOException, KeyManagementException {
       SSLContext ctx = SSLContext.getInstance("TLS");
       TrustManager[] tms = null;
@@ -201,4 +232,31 @@ public class ClickHouseHttpClientBuilder {
           caInputStream.close();
       }
   }
+
+    private CredentialsProvider getDefaultCredentialsProvider() {
+        if (!isConfigurationValidForAuth(properties)) {
+            return null;
+        }
+        HttpHost targetHost = getTargetHost(properties);
+        CredentialsProvider credsProvider = new BasicCredentialsProvider();
+        credsProvider.setCredentials(
+            new AuthScope(targetHost.getHostName(), targetHost.getPort()),
+            new UsernamePasswordCredentials(
+                properties.getUser() != null  ? properties.getUser() : "default",
+                properties.getPassword() != null ? properties.getPassword() : ""));
+        return credsProvider;
+    }
+
+    private static HttpHost getTargetHost(ClickHouseProperties props) {
+        return new HttpHost(
+            props.getHost(),
+            props.getPort(),
+            props.getSsl() ? "https" : "http");
+    }
+
+    private static boolean isConfigurationValidForAuth(ClickHouseProperties props) {
+        return props.getHost() != null
+            && props.getHttpAuthorization() == null
+            && (props.getUser() != null || props.getPassword() != null);
+    }
 }

@@ -1,10 +1,10 @@
 package ru.yandex.clickhouse.settings;
 
-import ru.yandex.clickhouse.util.apache.StringUtils;
-
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
+
+import ru.yandex.clickhouse.util.apache.StringUtils;
 
 
 
@@ -95,7 +95,8 @@ public class ClickHouseProperties {
     private Boolean insertDeduplicate;
     private Boolean insertDistributedSync;
     private Boolean anyJoinDistinctRightTableKeys;
-
+    private Boolean sendProgressInHttpHeaders;
+    private Boolean waitEndOfQuery;
 
     public ClickHouseProperties() {
         this(new Properties());
@@ -164,6 +165,8 @@ public class ClickHouseProperties {
         this.insertDeduplicate = getSetting(info, ClickHouseQueryParam.INSERT_DEDUPLICATE);
         this.insertDistributedSync = getSetting(info, ClickHouseQueryParam.INSERT_DISTRIBUTED_SYNC);
         this.anyJoinDistinctRightTableKeys = getSetting(info, ClickHouseQueryParam.ANY_JOIN_DISTINCT_RIGHT_TABLE_KEYS);
+        this.sendProgressInHttpHeaders = (Boolean)getSetting(info, ClickHouseQueryParam.SEND_PROGRESS_IN_HTTP_HEADERS);
+        this.waitEndOfQuery = (Boolean)getSetting(info, ClickHouseQueryParam.WAIT_END_OF_QUERY);
     }
 
     public Properties asProperties() {
@@ -229,6 +232,8 @@ public class ClickHouseProperties {
         ret.put(ClickHouseQueryParam.INSERT_DEDUPLICATE.getKey(), insertDeduplicate);
         ret.put(ClickHouseQueryParam.INSERT_DISTRIBUTED_SYNC.getKey(), insertDistributedSync);
         ret.put(ClickHouseQueryParam.ANY_JOIN_DISTINCT_RIGHT_TABLE_KEYS.getKey(), anyJoinDistinctRightTableKeys);
+        ret.put(ClickHouseQueryParam.SEND_PROGRESS_IN_HTTP_HEADERS.getKey(), sendProgressInHttpHeaders);
+        ret.put(ClickHouseQueryParam.WAIT_END_OF_QUERY.getKey(), waitEndOfQuery);
 
         return ret.getProperties();
     }
@@ -296,25 +301,47 @@ public class ClickHouseProperties {
         setInsertDeduplicate(properties.insertDeduplicate);
         setInsertDistributedSync(properties.insertDistributedSync);
         setAnyJoinDistinctRightTableKeys(properties.anyJoinDistinctRightTableKeys);
+        setSendProgressInHttpHeaders(properties.sendProgressInHttpHeaders);
+        setWaitEndOfQuery(properties.waitEndOfQuery);
     }
 
     public Map<ClickHouseQueryParam, String> buildQueryParams(boolean ignoreDatabase){
-        Map<ClickHouseQueryParam, String> params = new HashMap<ClickHouseQueryParam, String>();
+        Map<ClickHouseQueryParam, String> params = new HashMap<>();
 
-        if (maxParallelReplicas != null) params.put(ClickHouseQueryParam.MAX_PARALLEL_REPLICAS, String.valueOf(maxParallelReplicas));
-        if (maxPartitionsPerInsertBlock != null) params.put(ClickHouseQueryParam.MAX_PARTITIONS_PER_INSERT_BLOCK, String.valueOf(maxPartitionsPerInsertBlock));
-        if (maxRowsToGroupBy != null) params.put(ClickHouseQueryParam.MAX_ROWS_TO_GROUP_BY, String.valueOf(maxRowsToGroupBy));
-        if (totalsMode != null) params.put(ClickHouseQueryParam.TOTALS_MODE, totalsMode);
-        if (quotaKey != null) params.put(ClickHouseQueryParam.QUOTA_KEY, quotaKey);
-        if (priority != null) params.put(ClickHouseQueryParam.PRIORITY, String.valueOf(priority));
+        if (maxParallelReplicas != null) {
+            params.put(ClickHouseQueryParam.MAX_PARALLEL_REPLICAS, String.valueOf(maxParallelReplicas));
+        }
+        if (maxPartitionsPerInsertBlock != null) {
+            params.put(ClickHouseQueryParam.MAX_PARTITIONS_PER_INSERT_BLOCK, String.valueOf(maxPartitionsPerInsertBlock));
+        }
+        if (maxRowsToGroupBy != null) {
+            params.put(ClickHouseQueryParam.MAX_ROWS_TO_GROUP_BY, String.valueOf(maxRowsToGroupBy));
+        }
+        if (totalsMode != null) {
+            params.put(ClickHouseQueryParam.TOTALS_MODE, totalsMode);
+        }
+        if (quotaKey != null) {
+            params.put(ClickHouseQueryParam.QUOTA_KEY, quotaKey);
+        }
+        if (priority != null) {
+            params.put(ClickHouseQueryParam.PRIORITY, String.valueOf(priority));
+        }
 
-        if (!StringUtils.isBlank(database) && !ignoreDatabase) params.put(ClickHouseQueryParam.DATABASE, getDatabase());
+        if (!StringUtils.isBlank(database) && !ignoreDatabase) {
+            params.put(ClickHouseQueryParam.DATABASE, getDatabase());
+        }
 
-        if (compress) params.put(ClickHouseQueryParam.COMPRESS, "1");
-        if (decompress) params.put(ClickHouseQueryParam.DECOMPRESS, "1");
+        if (compress) {
+            params.put(ClickHouseQueryParam.COMPRESS, "1");
+        }
+        if (decompress) {
+            params.put(ClickHouseQueryParam.DECOMPRESS, "1");
+        }
 
 
-        if (extremes) params.put(ClickHouseQueryParam.EXTREMES, "1");
+        if (extremes) {
+            params.put(ClickHouseQueryParam.EXTREMES, "1");
+        }
 
         if (StringUtils.isBlank(profile)) {
             if (getMaxThreads() != null) {
@@ -333,13 +360,16 @@ public class ClickHouseProperties {
             params.put(ClickHouseQueryParam.PROFILE, profile);
         }
 
-        if (user != null) params.put(ClickHouseQueryParam.USER, user);
-        if (password != null) params.put(ClickHouseQueryParam.PASSWORD, password);
+        if (distributedAggregationMemoryEfficient) {
+            params.put(ClickHouseQueryParam.DISTRIBUTED_AGGREGATION_MEMORY_EFFICIENT, "1");
+        }
 
-        if (distributedAggregationMemoryEfficient) params.put(ClickHouseQueryParam.DISTRIBUTED_AGGREGATION_MEMORY_EFFICIENT, "1");
-
-        if (maxBytesBeforeExternalGroupBy != null) params.put(ClickHouseQueryParam.MAX_BYTES_BEFORE_EXTERNAL_GROUP_BY, String.valueOf(maxBytesBeforeExternalGroupBy));
-        if (maxBytesBeforeExternalSort != null) params.put(ClickHouseQueryParam.MAX_BYTES_BEFORE_EXTERNAL_SORT, String.valueOf(maxBytesBeforeExternalSort));
+        if (maxBytesBeforeExternalGroupBy != null) {
+            params.put(ClickHouseQueryParam.MAX_BYTES_BEFORE_EXTERNAL_GROUP_BY, String.valueOf(maxBytesBeforeExternalGroupBy));
+        }
+        if (maxBytesBeforeExternalSort != null) {
+            params.put(ClickHouseQueryParam.MAX_BYTES_BEFORE_EXTERNAL_SORT, String.valueOf(maxBytesBeforeExternalSort));
+        }
         if (maxMemoryUsage != null) {
             params.put(ClickHouseQueryParam.MAX_MEMORY_USAGE, String.valueOf(maxMemoryUsage));
         }
@@ -383,6 +413,9 @@ public class ClickHouseProperties {
             params.put(ClickHouseQueryParam.ENABLE_OPTIMIZE_PREDICATE_EXPRESSION, enableOptimizePredicateExpression ? "1" : "0");
         }
 
+        addQueryParam(sendProgressInHttpHeaders, ClickHouseQueryParam.SEND_PROGRESS_IN_HTTP_HEADERS, params);
+        addQueryParam(waitEndOfQuery, ClickHouseQueryParam.WAIT_END_OF_QUERY, params);
+
         return params;
     }
 
@@ -415,8 +448,9 @@ public class ClickHouseProperties {
     @SuppressWarnings("unchecked")
     private <T> T getSetting(Properties info, String key, Object defaultValue, Class clazz){
         String val = info.getProperty(key);
-        if (val == null)
+        if (val == null) {
             return (T)defaultValue;
+        }
         if (clazz == int.class || clazz == Integer.class) {
             return (T) clazz.cast(Integer.valueOf(val));
         }
@@ -919,6 +953,22 @@ public class ClickHouseProperties {
         return anyJoinDistinctRightTableKeys;
     }
 
+    public Boolean getSendProgressInHttpHeaders() {
+        return sendProgressInHttpHeaders;
+    }
+
+    public void setSendProgressInHttpHeaders(Boolean sendProgressInHttpHeaders) {
+        this.sendProgressInHttpHeaders = sendProgressInHttpHeaders;
+    }
+
+    public Boolean getWaitEndOfQuery() {
+        return waitEndOfQuery;
+    }
+
+    public void setWaitEndOfQuery(Boolean waitEndOfQuery) {
+        this.waitEndOfQuery = waitEndOfQuery;
+    }
+
     private static class PropertiesBuilder {
         private final Properties properties;
         public PropertiesBuilder() {
@@ -960,16 +1010,18 @@ public class ClickHouseProperties {
 
     public ClickHouseProperties merge(ClickHouseProperties second){
         Properties properties = this.asProperties();
-        for (Map.Entry<Object, Object> entry : second.asProperties().entrySet())
+        for (Map.Entry<Object, Object> entry : second.asProperties().entrySet()) {
             properties.put(entry.getKey(), entry.getValue());
+        }
 
         return new ClickHouseProperties(properties);
     }
 
     public ClickHouseProperties merge(Properties other){
         Properties properties = this.asProperties();
-        for (Map.Entry<Object, Object> entry : other.entrySet())
+        for (Map.Entry<Object, Object> entry : other.entrySet()) {
             properties.put(entry.getKey(), entry.getValue());
+        }
 
         return new ClickHouseProperties(properties);
     }

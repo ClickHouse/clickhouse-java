@@ -4,7 +4,7 @@
 
     <groupId>ru.yandex.clickhouse</groupId>
     <artifactId>clickhouse-jdbc</artifactId>
-    <version>${revision}</version>
+    <version>0.2.6</version>
     <packaging>jar</packaging>
 
     <name>clickhouse-jdbc</name>
@@ -52,7 +52,6 @@
     </developers>
 
     <properties>
-        <revision>0.2.6</revision>
         <slf4j.version>1.7.30</slf4j.version>
         <project.current.year>2021</project.current.year>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -155,7 +154,7 @@
         </dependency>
         <dependency>
             <groupId>com.github.tomakehurst</groupId>
-            <artifactId>wiremock</artifactId>
+            <artifactId>wiremock-jre8</artifactId>
             <version>${wiremock.version}</version>
             <scope>test</scope>
         </dependency>

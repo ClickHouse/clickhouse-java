@@ -1,15 +1,15 @@
 package ru.yandex.clickhouse;
 
+import java.time.Duration;
+
+import org.testcontainers.containers.BindMode;
+import org.testcontainers.containers.GenericContainer;
+import org.testcontainers.containers.wait.strategy.Wait;
 import org.testng.annotations.AfterSuite;
 import org.testng.annotations.BeforeSuite;
 
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
 import ru.yandex.clickhouse.util.ClickHouseVersionNumberUtil;
-
-import java.time.Duration;
-
-import org.testcontainers.containers.GenericContainer;
-import org.testcontainers.containers.wait.strategy.Wait;
 
 import static java.time.temporal.ChronoUnit.SECONDS;
 
@@ -33,11 +33,15 @@ public class ClickHouseContainerForTest {
             }
             imageTag = ":" + imageTag;
         }
-
         clickhouseContainer = new GenericContainer<>("yandex/clickhouse-server" + imageTag)
+                .withExposedPorts(HTTP_PORT, NATIVE_PORT, MYSQL_PORT)
+                .withClasspathResourceMapping(
+                    "ru/yandex/clickhouse/users.d",
+                    "/etc/clickhouse-server/users.d",
+                    BindMode.READ_ONLY)
                 .waitingFor(Wait.forHttp("/ping").forPort(HTTP_PORT).forStatusCode(200)
-                        .withStartupTimeout(Duration.of(60, SECONDS)))
-                .withExposedPorts(HTTP_PORT, NATIVE_PORT, MYSQL_PORT);
+                    .withStartupTimeout(Duration.of(60, SECONDS)));
+
     }
 
     public static String getClickHouseVersion() {
@@ -110,13 +114,13 @@ public class ClickHouseContainerForTest {
         return new BalancedClickhouseDataSource(url.toString(), properties);
     }
 
-    @BeforeSuite
-    public void beforeSuite() {
+    @BeforeSuite()
+    public static void beforeSuite() {
         clickhouseContainer.start();
     }
 
-    @AfterSuite
-    public void afterSuite() {
+    @AfterSuite()
+    public static void afterSuite() {
         clickhouseContainer.stop();
     }
 }

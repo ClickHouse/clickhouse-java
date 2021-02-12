@@ -5,6 +5,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.Collections;
 import java.util.Properties;
 
 import org.apache.http.impl.client.HttpClientBuilder;
@@ -13,6 +14,7 @@ import org.testng.annotations.Test;
 import com.google.common.collect.ImmutableMap;
 
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
+import ru.yandex.clickhouse.settings.ClickHouseQueryParam;
 
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertFalse;
@@ -71,37 +73,38 @@ public class ClickHouseStatementTest {
         assertEquals(withCredentials.getPassword(), "test_password");
 
         ClickHouseStatementImpl statement = new ClickHouseStatementImpl(
-                HttpClientBuilder.create().build(),null, withCredentials, ResultSet.TYPE_FORWARD_ONLY
-                );
+            HttpClientBuilder.create().build(),
+            null, withCredentials, ResultSet.TYPE_FORWARD_ONLY);
 
         URI uri = statement.buildRequestUri(null, null, null, null, false);
         String query = uri.getQuery();
-        assertTrue(query.contains("password=test_password"));
-        assertTrue(query.contains("user=test_user"));
+        // we use Basic AUTH nowadays
+        assertFalse(query.contains("password=test_password"));
+        assertFalse(query.contains("user=test_user"));
     }
 
     @Test
     public void testMaxExecutionTime() throws Exception {
         ClickHouseProperties properties = new ClickHouseProperties();
         properties.setMaxExecutionTime(20);
-        ClickHouseStatementImpl statement = new ClickHouseStatementImpl(HttpClientBuilder.create().build(), null,
-                properties, ResultSet.TYPE_FORWARD_ONLY);
+        ClickHouseStatementImpl statement = new ClickHouseStatementImpl(HttpClientBuilder.create().build(),
+            null, properties, ResultSet.TYPE_FORWARD_ONLY);
         URI uri = statement.buildRequestUri(null, null, null, null, false);
         String query = uri.getQuery();
         assertTrue(query.contains("max_execution_time=20"), "max_execution_time param is missing in URL");
-        
+
         statement.setQueryTimeout(10);
         uri = statement.buildRequestUri(null, null, null, null, false);
         query = uri.getQuery();
         assertTrue(query.contains("max_execution_time=10"), "max_execution_time param is missing in URL");
     }
-    
+
     @Test
     public void testMaxMemoryUsage() throws Exception {
         ClickHouseProperties properties = new ClickHouseProperties();
         properties.setMaxMemoryUsage(41L);
-        ClickHouseStatementImpl statement = new ClickHouseStatementImpl(HttpClientBuilder.create().build(), null,
-                properties, ResultSet.TYPE_FORWARD_ONLY);
+        ClickHouseStatementImpl statement = new ClickHouseStatementImpl(HttpClientBuilder.create().build(),
+           null, properties, ResultSet.TYPE_FORWARD_ONLY);
 
         URI uri = statement.buildRequestUri(null, null, null, null, false);
         String query = uri.getQuery();
@@ -109,7 +112,7 @@ public class ClickHouseStatementTest {
     }
 
     @Test
-    public void testAdditionalRequestParams() throws Exception {
+    public void testAdditionalRequestParams() {
         ClickHouseProperties properties = new ClickHouseProperties();
         ClickHouseStatementImpl statement = new ClickHouseStatementImpl(
                 HttpClientBuilder.create().build(),
@@ -118,15 +121,58 @@ public class ClickHouseStatementTest {
                 ResultSet.TYPE_FORWARD_ONLY
         );
 
+        statement.option("cache_namespace", "aaaa");
         URI uri = statement.buildRequestUri(
                 null,
                 null,
                 null,
-                ImmutableMap.of("cache_namespace", "aaaa"),
+                null,
                 false
         );
         String query = uri.getQuery();
         assertTrue(query.contains("cache_namespace=aaaa"), "cache_namespace param is missing in URL");
+
+        uri = statement.buildRequestUri(
+                null,
+                null,
+                null,
+                ImmutableMap.of("cache_namespace", "bbbb"),
+                false
+        );
+        query = uri.getQuery();
+        assertTrue(query.contains("cache_namespace=bbbb"), "cache_namespace param is missing in URL");
+
+        // check that statement level params are given to Writer
+        assertEquals(statement.write().getRequestParams().get("cache_namespace"), "aaaa");
+    }
+
+    @Test
+    public void testAdditionalDBParams() {
+        ClickHouseProperties properties = new ClickHouseProperties();
+        properties.setMaxThreads(1);
+
+        ClickHouseStatementImpl statement = new ClickHouseStatementImpl(
+                HttpClientBuilder.create().build(),
+                null,
+                properties,
+                ResultSet.TYPE_FORWARD_ONLY
+        );
+
+        URI uri = statement.buildRequestUri(null, null, null, null, false);
+        assertTrue(uri.getQuery().contains("max_threads=1"));
+
+        // override on statement level
+        statement.addDbParam(ClickHouseQueryParam.MAX_THREADS, "2");
+
+        uri = statement.buildRequestUri(null, null, null, null, false);
+        assertTrue(uri.getQuery().contains("max_threads=2"));
+
+        // override on method level
+        uri = statement.buildRequestUri(null, null, Collections.singletonMap(ClickHouseQueryParam.MAX_THREADS, "3"), null, false);
+        assertTrue(uri.getQuery().contains("max_threads=3"));
+
+        // check that statement level params are given to Writer
+        assertEquals(statement.write().getAdditionalDBParams().get(ClickHouseQueryParam.MAX_THREADS), "2");
     }
 
     @Test

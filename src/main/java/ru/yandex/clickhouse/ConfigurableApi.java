@@ -28,6 +28,11 @@ class ConfigurableApi<T> {
         return (T) this;
     }
 
+    public T removeDbParam(ClickHouseQueryParam param) {
+        additionalDBParams.remove(param);
+        return (T) this;
+    }
+
     public T withDbParams(Map<ClickHouseQueryParam, String> dbParams) {
         this.additionalDBParams = new HashMap<ClickHouseQueryParam, String>();
         if (null != dbParams) {
@@ -46,6 +51,11 @@ class ConfigurableApi<T> {
 
     public T option(String key, String value) {
         additionalRequestParams.put(key, value);
+        return (T) this;
+    }
+
+    public T removeOption(String key) {
+        additionalRequestParams.remove(key);
         return (T) this;
     }
 

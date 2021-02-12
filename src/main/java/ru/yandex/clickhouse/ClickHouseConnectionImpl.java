@@ -111,7 +111,13 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
     }
 
     public ClickHouseStatement createStatement(int resultSetType) throws SQLException {
-        return LogProxy.wrap(ClickHouseStatement.class, new ClickHouseStatementImpl(httpclient, this, properties, resultSetType));
+        return LogProxy.wrap(
+            ClickHouseStatement.class,
+            new ClickHouseStatementImpl(
+                httpclient,
+                this,
+                properties,
+                resultSetType));
     }
 
     @Deprecated
@@ -126,15 +132,37 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
     }
 
     private ClickHouseStatement createClickHouseStatement(CloseableHttpClient httpClient) throws SQLException {
-        return LogProxy.wrap(ClickHouseStatement.class, new ClickHouseStatementImpl(httpClient, this, properties, DEFAULT_RESULTSET_TYPE));
+        return LogProxy.wrap(
+            ClickHouseStatement.class,
+            new ClickHouseStatementImpl(
+                httpClient,
+                this,
+                properties,
+                DEFAULT_RESULTSET_TYPE));
     }
 
     public PreparedStatement createPreparedStatement(String sql, int resultSetType) throws SQLException {
-        return LogProxy.wrap(PreparedStatement.class, new ClickHousePreparedStatementImpl(httpclient, this, properties, sql, getTimeZone(), resultSetType));
+        return LogProxy.wrap(
+            PreparedStatement.class,
+            new ClickHousePreparedStatementImpl(
+                httpclient,
+                this,
+                properties,
+                sql,
+                getTimeZone(),
+                resultSetType));
     }
 
     public ClickHousePreparedStatement createClickHousePreparedStatement(String sql, int resultSetType) throws SQLException {
-        return LogProxy.wrap(ClickHousePreparedStatement.class, new ClickHousePreparedStatementImpl(httpclient, this, properties, sql, getTimeZone(), resultSetType));
+        return LogProxy.wrap(
+            ClickHousePreparedStatement.class,
+            new ClickHousePreparedStatementImpl(
+                httpclient,
+                this,
+                properties,
+                sql,
+                getTimeZone(),
+                resultSetType));
     }
 
 
@@ -385,8 +413,10 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
                 closeableHttpClient = this.httpclient;
             } else {
                 ClickHouseProperties properties = new ClickHouseProperties(this.properties);
-                properties.setConnectionTimeout((int) TimeUnit.SECONDS.toMillis(timeout));
+                int timeoutMs = (int) TimeUnit.SECONDS.toMillis(timeout);
+                properties.setConnectionTimeout(timeoutMs);
                 properties.setMaxExecutionTime(timeout);
+                properties.setSocketTimeout(timeoutMs);
                 closeableHttpClient = new ClickHouseHttpClientBuilder(properties).buildClient();
                 isAnotherHttpClient = true;
             }
@@ -406,12 +436,13 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
 
             return false;
         } finally {
-            if (isAnotherHttpClient)
+            if (isAnotherHttpClient) {
                 try {
                     closeableHttpClient.close();
                 } catch (IOException e) {
                     log.warn("Can't close a http client", e);
                 }
+            }
         }
     }
 
@@ -460,22 +491,27 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
         return iface.isAssignableFrom(getClass());
     }
 
+    @Override
     public void setSchema(String schema) throws SQLException {
         properties.setDatabase(schema);
     }
 
+    @Override
     public String getSchema() throws SQLException {
         return properties.getDatabase();
     }
 
+    @Override
     public void abort(Executor executor) throws SQLException {
         this.close();
     }
 
+    @Override
     public void setNetworkTimeout(Executor executor, int milliseconds) throws SQLException {
 
     }
 
+    @Override
     public int getNetworkTimeout() throws SQLException {
         return 0;
     }
