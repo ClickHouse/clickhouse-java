@@ -27,20 +27,19 @@ import javax.net.ssl.TrustManagerFactory;
 
 import org.apache.http.ConnectionReuseStrategy;
 import org.apache.http.Header;
-import org.apache.http.HeaderElement;
-import org.apache.http.HeaderElementIterator;
 import org.apache.http.HttpHeaders;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpResponse;
+import org.apache.http.NoHttpResponseException;
 import org.apache.http.auth.AuthScope;
 import org.apache.http.auth.UsernamePasswordCredentials;
 import org.apache.http.client.AuthCache;
 import org.apache.http.client.CredentialsProvider;
+import org.apache.http.client.HttpRequestRetryHandler;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.http.config.ConnectionConfig;
 import org.apache.http.config.RegistryBuilder;
-import org.apache.http.conn.ConnectionKeepAliveStrategy;
 import org.apache.http.conn.socket.ConnectionSocketFactory;
 import org.apache.http.conn.socket.PlainConnectionSocketFactory;
 import org.apache.http.conn.ssl.NoopHostnameVerifier;
@@ -50,11 +49,10 @@ import org.apache.http.impl.auth.BasicScheme;
 import org.apache.http.impl.client.BasicAuthCache;
 import org.apache.http.impl.client.BasicCredentialsProvider;
 import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.DefaultHttpRequestRetryHandler;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 import org.apache.http.message.BasicHeader;
-import org.apache.http.message.BasicHeaderElementIterator;
-import org.apache.http.protocol.HTTP;
 import org.apache.http.protocol.HttpContext;
 
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
@@ -71,14 +69,30 @@ public class ClickHouseHttpClientBuilder {
     public CloseableHttpClient buildClient() throws Exception {
         return HttpClientBuilder.create()
                 .setConnectionManager(getConnectionManager())
+                .setRetryHandler(getRequestRetryHandler())
                 .setConnectionReuseStrategy(getConnectionReuseStrategy())
                 .setDefaultConnectionConfig(getConnectionConfig())
                 .setDefaultRequestConfig(getRequestConfig())
                 .setDefaultHeaders(getDefaultHeaders())
                 .setDefaultCredentialsProvider(getDefaultCredentialsProvider())
-                .disableContentCompression() // gzip здесь ни к чему. Используется lz4 при compress=1
+                .disableContentCompression() // gzip is not needed. Use lz4 when compress=1
                 .disableRedirectHandling()
                 .build();
+    }
+
+    private HttpRequestRetryHandler getRequestRetryHandler() {
+        final int maxRetries = properties.getMaxRetries();
+        return new DefaultHttpRequestRetryHandler(maxRetries, false) {
+            @Override
+            public boolean retryRequest(IOException exception, int executionCount, HttpContext context) {
+                if (executionCount > maxRetries || context == null 
+                    || !Boolean.TRUE.equals(context.getAttribute("is_idempotent"))) {
+                    return false;
+                }
+
+                return (exception instanceof NoHttpResponseException) || super.retryRequest(exception, executionCount, context);
+            }
+        };
     }
 
     public static HttpClientContext createClientContext(ClickHouseProperties props) {
@@ -153,29 +167,6 @@ public class ClickHouseHttpClientBuilder {
             headers.add(new BasicHeader(HttpHeaders.AUTHORIZATION, properties.getHttpAuthorization()));
         }
         return headers;
-    }
-
-    private ConnectionKeepAliveStrategy createKeepAliveStrategy() {
-        return new ConnectionKeepAliveStrategy() {
-            @Override
-            public long getKeepAliveDuration(HttpResponse httpResponse, HttpContext httpContext) {
-                // in case of errors keep-alive not always works. close connection just in case
-                if (httpResponse.getStatusLine().getStatusCode() != HttpURLConnection.HTTP_OK) {
-                    return -1;
-                }
-                HeaderElementIterator it = new BasicHeaderElementIterator(
-                        httpResponse.headerIterator(HTTP.CONN_DIRECTIVE));
-                while (it.hasNext()) {
-                    HeaderElement he = it.nextElement();
-                    String param = he.getName();
-                    //String value = he.getValue();
-                    if (param != null && param.equalsIgnoreCase(HTTP.CONN_KEEP_ALIVE)) {
-                        return properties.getKeepAliveTimeout();
-                    }
-                }
-                return -1;
-            }
-        };
     }
 
     private SSLContext getSSLContext()
