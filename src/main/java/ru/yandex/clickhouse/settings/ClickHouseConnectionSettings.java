@@ -49,7 +49,9 @@ public enum ClickHouseConnectionSettings implements DriverPropertyCreator {
     USE_SERVER_TIME_ZONE_FOR_DATES("use_server_time_zone_for_dates", false,
             "Whether to use timezone from server on Date parsing in getDate(). " +
                     "If false, Date returned is a wrapper of a timestamp at start of the day in client timezone. " +
-                    "If true - at start of the day in server or use_timezone timezone.")
+                    "If true - at start of the day in server or use_timezone timezone."),
+    @Deprecated
+    USE_NEW_PARSER("use_new_parser", true, "Whether to use JavaCC based SQL parser or not.")
     ;
 
     private final String key;

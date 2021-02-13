@@ -184,7 +184,7 @@ public class ClickHouseHttpClientBuilderTest {
         CloseableHttpClient client = builder.buildClient();
         HttpPost post = new HttpPost("http://localhost:" + server.port() + "/?db=system&query=select%201");
 
-        shutDownServerWithDelay(server, 100);
+        shutDownServerWithDelay(server, 500);
 
         try {
             client.execute(post);
@@ -205,7 +205,7 @@ public class ClickHouseHttpClientBuilderTest {
         context.setAttribute("is_idempotent", Boolean.TRUE);
         HttpPost post = new HttpPost("http://localhost:" + server.port() + "/?db=system&query=select%202");
         
-        shutDownServerWithDelay(server, 100);
+        shutDownServerWithDelay(server, 500);
 
         try {
             client.execute(post, context);
