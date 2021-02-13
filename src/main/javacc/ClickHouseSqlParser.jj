@@ -9,7 +9,7 @@
  * The ANTLR4 grammar at https://github.com/ClickHouse/ClickHouse/blob/master/src/Parsers/New is incomplete.
  * Also using it will introduce 300KB runtime and we'll have to deal with many parsing errors, 
  * which is too much for a JDBC driver. On the other hand, if we write a parser from scratch, 
- * we'll end up with one like Druid, which is more complex the JDBC driver itself.
+ * we'll end up with one like Druid, which is more complex than the JDBC driver itself.
  *
  * JavaCC is something in the middle that fits our need - no runtime and easy to maintain/extend.
  */
@@ -101,7 +101,7 @@ public class ClickHouseSqlParser {
         String sql, ClickHouseProperties properties, ParseHandler handler) {
         ClickHouseSqlStatement[] stmts = parse(sql, properties, handler);
 
-        return stmts.length == 1 ? stmts[0] : new ClickHouseSqlStatement(sql, StatementType.UNKNOWN, null, null, null, null, null, null);
+        return stmts.length == 1 ? stmts[0] : new ClickHouseSqlStatement(sql, StatementType.UNKNOWN);
     }
 
     public static ClickHouseSqlStatement[] parse(String sql, ClickHouseProperties properties) {
@@ -114,7 +114,7 @@ public class ClickHouseSqlParser {
         }
 
         ClickHouseSqlStatement[] stmts = new ClickHouseSqlStatement[] {
-                new ClickHouseSqlStatement(sql, StatementType.UNKNOWN, null, null, null, null, null, null) };
+                new ClickHouseSqlStatement(sql, StatementType.UNKNOWN) };
 
         if (!properties.isUseNewParser() || sql == null || sql.isEmpty()) {
             return stmts;
@@ -122,15 +122,12 @@ public class ClickHouseSqlParser {
 
         ClickHouseSqlParser p = new ClickHouseSqlParser(sql, properties, handler);
         try {
-            p.sql();
-            List<ClickHouseSqlStatement> list = p.statements;
-            stmts = list.toArray(new ClickHouseSqlStatement[list.size()]);
+            stmts = p.sql();
         } catch (Exception e) {
             if (DEBUG) {
                 throw new IllegalArgumentException(e);
             } else {
                 log.warn("Failed to parse the given SQL. If you believe the SQL is valid, please feel free to open an issue on Github with the following SQL and exception attached.\n{}", sql, e);
-                stmts = new ClickHouseSqlStatement[] { new ClickHouseSqlStatement(sql, StatementType.UNKNOWN) };
             }
         }
 
@@ -146,7 +143,7 @@ public class ClickHouseSqlParser {
 
     public void addStatement() {
         if (token_source.isValid()) {
-            ClickHouseSqlStatement sqlStmt = token_source.build();
+            ClickHouseSqlStatement sqlStmt = token_source.build(handler);
             // FIXME remove the restriction once we can hanlde insertion with format well
             if (statements.size() == 0 || sqlStmt.isRecognized()) {
                 statements.add(sqlStmt);
@@ -255,9 +252,18 @@ TOKEN_MGR_DECLS: {
         positions.clear();
     }
 
-    ClickHouseSqlStatement build() {
-        ClickHouseSqlStatement s = new ClickHouseSqlStatement(
-            builder.toString(), stmtType, cluster, database, table, format, outfile, positions);
+    ClickHouseSqlStatement build(ParseHandler handler) {
+        String sqlStmt = builder.toString();
+        ClickHouseSqlStatement s = null;
+        if (handler != null) {
+            s = handler.handleStatement(
+                sqlStmt, stmtType, cluster, database, table, format, outfile, parameters, positions);
+        }
+
+        if (s == null) {
+            s = new ClickHouseSqlStatement(
+                sqlStmt, stmtType, cluster, database, table, format, outfile, parameters, positions);
+        }
         
         // reset variables
         reset();
@@ -357,8 +363,22 @@ void clusterClause(): { Token t; } {
 }
 
 // https://clickhouse.tech/docs/en/sql-reference/statements/attach/
-void attachStmt(): {} { // not interested
-    <ATTACH> anyExprList()
+void attachStmt(): { Token t; } {
+    <ATTACH> (
+        LOOKAHEAD(2)
+        (
+            t = <DATABASE> { token_source.setPosition(t.image); }
+            | <DICTIONARY>
+            | (<OR> t = <REPLACE> { token_source.setPosition(t.image); }) (
+                (<TEMPORARY>)? <TABLE> | (<LIVE> | <MATERIALIZED>)? <VIEW>
+            )
+        )
+        (
+            LOOKAHEAD(2)
+            <IF> <NOT> t = <EXISTS> { token_source.setPosition(t.image); }
+        )?
+    )?
+    anyExprList() // not interested
 }
 
 // https://clickhouse.tech/docs/en/sql-reference/statements/check-table/
@@ -367,12 +387,26 @@ void checkStmt(): {} { // not interested
 }
 
 // https://clickhouse.tech/docs/en/sql-reference/statements/create/
-void createStmt(): {} { // not interested
-    <CREATE> anyExprList()
+void createStmt(): { Token t; } {
+    <CREATE> (
+        LOOKAHEAD(2)
+        (
+            t = <DATABASE> { token_source.setPosition(t.image); }
+            | (<OR> t = <REPLACE> { token_source.setPosition(t.image); })? (
+                (<TEMPORARY>)? <TABLE> | (<LIVE> | <MATERIALIZED>)? <VIEW>
+            )
+            | <DICTIONARY> | <USER> | <ROLE> | (<ROW>)? <POLICY> | <QUOTA> | (<SETTINGS>)? <PROFILE>
+        )
+        (
+            LOOKAHEAD(2)
+            <IF> <NOT> t = <EXISTS> { token_source.setPosition(t.image); }
+        )?
+    )?
+    anyExprList() // not interested
 }
 
 // upcoming lightweight mutation - see https://github.com/ClickHouse/ClickHouse/issues/19627
-void deleteStmt(): {} { // not interested
+void deleteStmt(): {} {
     <DELETE> <FROM> tableIdentifier(true) (<WHERE> anyExprList())?
 }
 
@@ -383,13 +417,36 @@ void describeStmt(): {} {
 }
 
 // https://clickhouse.tech/docs/en/sql-reference/statements/detach/
-void detachStmt(): {} { // not interested
-    <DETACH> anyExprList()
+void detachStmt(): { Token t; } {
+    <DETACH> (
+        LOOKAHEAD(2)
+        (
+            t = <DATABASE> { token_source.setPosition(t.image); }
+            | (<TEMPORARY>)? <TABLE> | <VIEW> | <DICTIONARY>
+        )
+        (
+            LOOKAHEAD(2)
+            <IF> t = <EXISTS> { token_source.setPosition(t.image); }
+        )?
+    )?
+    anyExprList() // not interested
 }
 
 // https://clickhouse.tech/docs/en/sql-reference/statements/drop/
-void dropStmt(): {} { // not interested
-    <DROP> anyExprList()
+void dropStmt(): { Token t; } {
+    <DROP> (
+        LOOKAHEAD(2)
+        (
+            t = <DATABASE> { token_source.setPosition(t.image); }
+            | (<TEMPORARY>)? <TABLE> | <VIEW> | <DICTIONARY> | <USER> | <ROLE> 
+            | (<ROW>)? <POLICY> | <QUOTA> | (<SETTINGS>)? <PROFILE>
+        )
+        (
+            LOOKAHEAD(2)
+            <IF> t = <EXISTS> { token_source.setPosition(t.image); }
+        )?
+    )?
+    anyExprList() // not interested
 }
 
 // https://clickhouse.tech/docs/en/sql-reference/statements/exists/
@@ -594,10 +651,9 @@ void nestedExpr(): {} {
     | columnExpr()
     (
         (
-            LOOKAHEAD({ getToken(1).kind == FLOATING_LITERAL })
             <FLOATING_LITERAL> | <DOT> <DECIMAL_LITERAL>
         )+
-        |(LOOKAHEAD(2) <LBRACKET> anyExprList() <RBRACKET>)+
+        | (LOOKAHEAD(2) <LBRACKET> anyExprList() <RBRACKET>)+
         | LOOKAHEAD(2) <IS> (<NOT>)? <NULL>
         | LOOKAHEAD(2) (<NOT>)? betweenExpr()
         | LOOKAHEAD(2) (<NOT>)? (<ILIKE> | <LIKE>) nestedExpr()
@@ -656,7 +712,9 @@ void anyExprList(): {} {
 void anyExpr(): {} {
     anyNestedExpr() (
         LOOKAHEAD(2)
-        (<AT> | <AND> | <OR> | <COLON> | <QUERY> | operator())? anyNestedExpr()
+        (
+            <AT> | <AND> | <OR> | <COLON> | <QUERY> | operator()
+        )? anyNestedExpr()
     )*
 }
 
@@ -816,10 +874,11 @@ Token anyKeyword(): { Token t; } {
         | t = <CLUSTER> | t = <DATE> | t = <DATABASE> | t = <DATABASES> | t = <DICTIONARY> | t = <DICTIONARIES> 
         | t = <DISTINCT> | t = <ELSE> | t = <END> | t = <EXCEPT> | t = <FORMAT> | t = <FROM> | t = <FINAL> | t = <FULL> 
         | t = <FUNCTION> | t = <GLOBAL> | t = <GROUP> | t = <HAVING> | t = <IF> | t = <ILIKE> | t = <IN> | t = <INNER> 
-        | t = <INTERVAL> | t = <INTO> | t = <IS> | t = <JOIN> | t = <LEFT> | t = <LIKE> | t = <LIMIT> | t = <NOT> 
-        | t = <OFFSET> | t = <ON> | t = <OR> | t = <ORDER> | t = <OUTFILE> | t = <PREWHERE> | t = <REPLACE> 
-        | t = <RIGHT> | t = <SAMPLE> | t = <SETTINGS> | t = <TEMPORARY> | t = <TABLE> | t = <TABLES> | t = <THEN> 
-        | t = <TIES> | t = <TIMESTAMP> | t = <TOP> | t = <TOTALS> | t = <VALUES> | t = <UNION> | t = <USING> 
+        | t = <INTERVAL> | t = <INTO> | t = <IS> | t = <JOIN> | t = <LEFT> | t = <LIKE> | t = <LIMIT> | t = <LIVE> 
+        | t = <MATERIALIZED> | t = <NOT> | t = <OFFSET> | t = <ON> | t = <OR> | t = <ORDER> | t = <OUTFILE> | t = <POLICY>
+        | t = <PREWHERE> | t = <PROFILE> | t = <QUOTA> | t = <REPLACE> | t = <RIGHT> | t = <ROLE> | t = <ROW> | t = <SAMPLE>
+        | t = <SETTINGS> | t = <TEMPORARY> | t = <TABLE> | t = <TABLES> | t = <THEN> | t = <TIES> | t = <TIMESTAMP> 
+        | t = <TOP> | t = <TOTALS> | t = <VALUES> | t = <VIEW> | t = <USER> | t = <UNION> | t = <USING> 
         | t = <WHEN> | t = <WHERE> | t = <WITH>
         // interval
         | t = <SECOND> | t = <MINUTE> | t = <HOUR> | t = <DAY> | t = <WEEK> | t = <MONTH> | t = <QUARTER> | t = <YEAR>
@@ -837,11 +896,12 @@ Token keyword(): { Token t; } {
         | t = <OPTIMIZE> | t = <RENAME> | t = <REVOKE> | t = <SELECT> | t = <SET> | t = <SHOW> | t = <SYSTEM>
         | t = <TRUNCATE> | t = <UPDATE> | t = <USE> | t = <WATCH>
         // others
-        | t = <CASE> | t = <CLUSTER> | t = <DATE> | t = <DATABASE> | t = <DATABASES> 
-        | t = <DICTIONARY> | t = <DICTIONARIES> | t = <DISTINCT> | t = <ELSE> | t = <END> 
-        | t = <EXCEPT>| t = <FUNCTION> | t = <IF> | t = <INTERVAL> | t = <IS> | t = <OUTFILE> 
-        | t = <REPLACE> | t = <TEMPORARY> | t = <TABLE> | t = <TABLES> | t = <THEN> 
-        | t = <TIES> | t = <TIMESTAMP> | t = <TOP> | t = <TOTALS> | t = <VALUES> | t = <WHEN>
+        | t = <CASE> | t = <CLUSTER> | t = <DATE> | t = <DATABASE> | t = <DATABASES> | t = <DICTIONARY> 
+        | t = <DICTIONARIES> | t = <DISTINCT> | t = <ELSE> | t = <END> | t = <EXCEPT>| t = <FUNCTION> 
+        | t = <IF> | t = <INTERVAL> | t = <IS> | t = <LIVE>  | t = <MATERIALIZED> | t = <OUTFILE> | t = <POLICY> 
+        | t = <PROFILE> | t = <QUOTA> | t = <REPLACE> | t = <ROLE> | t = <ROW> | t = <TEMPORARY> 
+        | t = <TABLE> | t = <TABLES> | t = <THEN> | t = <TIES> | t = <TIMESTAMP> | t = <TOP> | t = <TOTALS> 
+        | t = <VALUES> | t = <VIEW> | t = <WHEN> | t = <USER>
         // interval
         | t = <SECOND> | t = <MINUTE> | t = <HOUR> | t = <DAY> | t = <WEEK> | t = <MONTH> | t = <QUARTER> | t = <YEAR>
         // values
@@ -915,14 +975,21 @@ TOKEN: {
     | <LEFT     : <L> <E> <F> <T>                    >
     | <LIKE     : <L> <I> <K> <E>                    >
     | <LIMIT    : <L> <I> <M> <I> <T>                >
+    | <LIVE     : <L> <I> <V> <E>                    >
+    | <MATERIALIZED: <M> <A> <T> <E> <R> <I> <A> <L> <I> <Z> <E> <D>>
     | <NOT      : <N> <O> <T>                        >
     | <OFFSET   : <O> <F> <F> <S> <E> <T>            >
     | <ON       : <O> <N>                            >
     | <OR       : <O> <R>                            >
     | <ORDER    : <O> <R> <D> <E> <R>                >
     | <OUTFILE  : <O> <U> <T> <F> <I> <L> <E>        >
+    | <POLICY   : <P> <O> <L> <I> <C> <Y>            >
     | <PREWHERE : <P> <R> <E> <W> <H> <E> <R> <E>    >
+    | <PROFILE  : <P> <R> <O> <F> <I> <L> <E>        >
+    | <QUOTA    : <Q> <U> <O> <T> <A>                >
     | <REPLACE  : <R> <E> <P> <L> <A> <C> <E>        >
+    | <ROLE     : <R> <O> <L> <E>                    >
+    | <ROW      : <R> <O> <W>                        >
     | <RIGHT    : <R> <I> <G> <H> <T>                >
     | <SAMPLE   : <S> <A> <M> <P> <L> <E>            >
     | <SETTINGS : <S> <E> <T> <T> <I> <N> <G> <S>    >
@@ -935,8 +1002,10 @@ TOKEN: {
     | <TOP      : <T> <O> <P>                        >
     | <TOTALS   : <T> <O> <T> <A> <L> <S>            >
     | <UNION    : <U> <N> <I> <O> <N>                >
+    | <USER     : <U> <S> <E> <R>                    >
     | <USING    : <U> <S> <I> <N> <G>                >
     | <VALUES   : <V> <A> <L> <U> <E> <S>            >
+    | <VIEW     : <V> <I> <E> <W>                    >
     | <WHEN     : <W> <H> <E> <N>                    >
     | <WHERE    : <W> <H> <E> <R> <E>                >
     | <WITH     : <W> <I> <T> <H>                    >

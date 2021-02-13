@@ -64,10 +64,10 @@ public class ClickHouseSqlParserTest {
     public void testParseNonSql() throws ParseException {
         String sql;
 
-        assertEquals(parse(sql = null), new ClickHouseSqlStatement[] {
-                new ClickHouseSqlStatement(sql, StatementType.UNKNOWN, null, null, null, null, null, null) });
-        assertEquals(parse(sql = ""), new ClickHouseSqlStatement[] {
-                new ClickHouseSqlStatement(sql, StatementType.UNKNOWN, null, null, null, null, null, null) });
+        assertEquals(parse(sql = null),
+                new ClickHouseSqlStatement[] { new ClickHouseSqlStatement(sql, StatementType.UNKNOWN) });
+        assertEquals(parse(sql = ""),
+                new ClickHouseSqlStatement[] { new ClickHouseSqlStatement(sql, StatementType.UNKNOWN) });
 
         checkSingleStatement(parse(sql = "invalid sql"), sql);
         checkSingleStatement(parse(sql = "-- some comments"), sql);
@@ -261,13 +261,13 @@ public class ClickHouseSqlParserTest {
         String sql;
 
         assertEquals(parse(sql = "select\n1"), new ClickHouseSqlStatement[] {
-                new ClickHouseSqlStatement(sql, StatementType.SELECT, null, null, "unknown", null, null, null) });
+                new ClickHouseSqlStatement(sql, StatementType.SELECT, null, null, "unknown", null, null, null, null) });
         assertEquals(parse(sql = "select\r\n1"), new ClickHouseSqlStatement[] {
-                new ClickHouseSqlStatement(sql, StatementType.SELECT, null, null, "unknown", null, null, null) });
+                new ClickHouseSqlStatement(sql, StatementType.SELECT, null, null, "unknown", null, null, null, null) });
 
         assertEquals(parse(sql = "select 314 limit 5\nFORMAT JSONCompact;"),
                 new ClickHouseSqlStatement[] { new ClickHouseSqlStatement("select 314 limit 5\nFORMAT JSONCompact",
-                        StatementType.SELECT, null, null, "unknown", "JSONCompact", null, null) });
+                        StatementType.SELECT, null, null, "unknown", "JSONCompact", null, null, null) });
 
         checkSingleStatement(parse(sql = "select (())"), sql, StatementType.SELECT);
         checkSingleStatement(parse(sql = "select []"), sql, StatementType.SELECT);
@@ -303,15 +303,16 @@ public class ClickHouseSqlParserTest {
 
         assertEquals(parse(sql = loadSql("issue-441_with-totals.sql")),
                 new ClickHouseSqlStatement[] { new ClickHouseSqlStatement(sql, StatementType.SELECT, null, null,
-                        "unknown", null, null, new HashMap<String, Integer>() {
+                        "unknown", null, null, null, new HashMap<String, Integer>() {
                             {
                                 put("TOTALS", 208);
                             }
                         }) });
-        assertEquals(parse(sql = loadSql("issue-555_custom-format.sql")), new ClickHouseSqlStatement[] {
-                new ClickHouseSqlStatement(sql, StatementType.SELECT, null, null, "wrd", "CSVWithNames", null, null) });
+        assertEquals(parse(sql = loadSql("issue-555_custom-format.sql")),
+                new ClickHouseSqlStatement[] { new ClickHouseSqlStatement(sql, StatementType.SELECT, null, null, "wrd",
+                        "CSVWithNames", null, null, null) });
         assertEquals(parse(sql = loadSql("with-clause.sql")), new ClickHouseSqlStatement[] {
-                new ClickHouseSqlStatement(sql, StatementType.SELECT, null, null, "unknown", null, null, null) });
+                new ClickHouseSqlStatement(sql, StatementType.SELECT, null, null, "unknown", null, null, null, null) });
     }
 
     @Test
@@ -385,14 +386,13 @@ public class ClickHouseSqlParserTest {
 
     @Test
     public void testMultipleStatements() throws ParseException {
-        assertEquals(parse("use ab;;;select 1; ;\t;\r;\n"),
-                new ClickHouseSqlStatement[] {
-                        new ClickHouseSqlStatement("use ab", StatementType.USE, null, "ab", null, null, null, null),
-                        new ClickHouseSqlStatement("select 1", StatementType.SELECT) });
+        assertEquals(parse("use ab;;;select 1; ;\t;\r;\n"), new ClickHouseSqlStatement[] {
+                new ClickHouseSqlStatement("use ab", StatementType.USE, null, "ab", null, null, null, null, null),
+                new ClickHouseSqlStatement("select 1", StatementType.SELECT) });
         assertEquals(parse("select * from \"a;1\".`b;c`;;;select 1 as `a ; a`; ;\t;\r;\n"),
                 new ClickHouseSqlStatement[] {
                         new ClickHouseSqlStatement("select * from \"a;1\".`b;c`", StatementType.SELECT, null, "a;1",
-                                "b;c", null, null, null),
+                                "b;c", null, null, null, null),
                         new ClickHouseSqlStatement("select 1 as `a ; a`", StatementType.SELECT) });
     }
 
@@ -511,11 +511,6 @@ public class ClickHouseSqlParserTest {
 
         stmts = ClickHouseSqlParser.parse(sql, new ClickHouseProperties(), new ParseHandler() {
             @Override
-            public String handleMacro(String name, List<String> parameters) {
-                return null;
-            }
-
-            @Override
             public String handleParameter(String cluster, String database, String table, int columnIndex) {
                 return String.valueOf(columnIndex);
             }
@@ -537,19 +532,14 @@ public class ClickHouseSqlParserTest {
                 if ("listOfColumns".equals(name)) {
                     return "a, b";
                 } else if ("subQuery".equals(name)) {
-                    return "select " + String.join("||", parameters);
+                    return "select " + String.join("+", parameters);
                 } else {
                     return null;
                 }
             }
-
-            @Override
-            public String handleParameter(String cluster, String database, String table, int columnIndex) {
-                return null;
-            }
         });
         assertEquals(stmts.length, 1);
-        assertEquals(stmts[0].getSQL(), "select a, b  from (select 1||2||3)");
+        assertEquals(stmts[0].getSQL(), "select a, b  from (select 1+2+3)");
     }
 
     @Test

@@ -6,10 +6,6 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import ru.yandex.clickhouse.jdbc.parser.ClickHouseSqlParser;
-import ru.yandex.clickhouse.jdbc.parser.ClickHouseSqlStatement;
-import ru.yandex.clickhouse.jdbc.parser.StatementType;
-import ru.yandex.clickhouse.settings.ClickHouseProperties;
 import ru.yandex.clickhouse.util.apache.StringUtils;
 
 /**
@@ -36,15 +32,16 @@ final class PreparedStatementParser  {
 
     @Deprecated
     static PreparedStatementParser parse(String sql) {
-        return parse(sql, null);
+        return parse(sql, -1);
     }
 
-    static PreparedStatementParser parse(String sql, ClickHouseProperties properties) {
+    @Deprecated
+    static PreparedStatementParser parse(String sql, int valuesEndPosition) {
         if (StringUtils.isBlank(sql)) {
             throw new IllegalArgumentException("SQL may not be blank");
         }
         PreparedStatementParser parser = new PreparedStatementParser();
-        parser.parseSQL(sql, properties);
+        parser.parseSQL(sql, valuesEndPosition);
         return parser;
     }
 
@@ -66,7 +63,7 @@ final class PreparedStatementParser  {
         valuesMode = false;
     }
 
-    private void parseSQL(String sql, ClickHouseProperties properties) {
+    private void parseSQL(String sql, int valuesEndPosition) {
         reset();
         List<String> currentParamList = new ArrayList<String>();
         boolean afterBackSlash = false;
@@ -75,15 +72,10 @@ final class PreparedStatementParser  {
         boolean inSingleLineComment = false;
         boolean inMultiLineComment = false;
         boolean whiteSpace = false;
-        ClickHouseSqlStatement parsedSql = ClickHouseSqlParser.parseSingleStatement(sql, properties);
         int endPosition = 0;
-        if (parsedSql.getStatementType() == StatementType.INSERT) {
-            endPosition = parsedSql.getEndPosition(ClickHouseSqlStatement.KEYWORD_VALUES) - 1;
-            if (endPosition > 0) {
-                valuesMode = true;
-            } else {
-                endPosition = 0;
-            }
+        if (valuesEndPosition > 0) {
+            valuesMode = true;
+            endPosition = valuesEndPosition;
         } else {
             Matcher matcher = VALUES.matcher(sql);
             if (matcher.find()) {

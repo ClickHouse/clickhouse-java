@@ -36,7 +36,6 @@ import java.util.regex.Pattern;
 import org.apache.http.entity.AbstractHttpEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
 
-import ru.yandex.clickhouse.jdbc.parser.ClickHouseSqlParser;
 import ru.yandex.clickhouse.jdbc.parser.ClickHouseSqlStatement;
 import ru.yandex.clickhouse.jdbc.parser.StatementType;
 import ru.yandex.clickhouse.response.ClickHouseResponse;
@@ -55,7 +54,6 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
 
     private final TimeZone dateTimeZone;
     private final TimeZone dateTimeTimeZone;
-    private final ClickHouseSqlStatement parsedSql;
     private final String sql;
     private final List<String> sqlParts;
     private final ClickHousePreparedStatementParameter[] binds;
@@ -68,9 +66,11 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
         TimeZone serverTimeZone, int resultSetType) throws SQLException
     {
         super(client, connection, properties, resultSetType);
-        this.parsedSql = ClickHouseSqlParser.parseSingleStatement(sql, properties);
+        parseSingleStatement(sql);
+
         this.sql = sql;
-        PreparedStatementParser parser = PreparedStatementParser.parse(sql);
+        PreparedStatementParser parser = PreparedStatementParser.parse(sql,
+            parsedStmt.getEndPosition(ClickHouseSqlStatement.KEYWORD_VALUES));
         this.parameterList = parser.getParameters();
         this.insertBatchMode = parser.isValuesMode();
         this.sqlParts = parser.getParts();
@@ -352,8 +352,8 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
     @Override
     public int[] executeBatch(Map<ClickHouseQueryParam, String> additionalDBParams) throws SQLException {
         int valuePosition = -1;
-        if (parsedSql.getStatementType() == StatementType.INSERT && parsedSql.hasValues()) {
-            valuePosition = parsedSql.getStartPosition(ClickHouseSqlStatement.KEYWORD_VALUES);
+        if (parsedStmt.getStatementType() == StatementType.INSERT && parsedStmt.hasValues()) {
+            valuePosition = parsedStmt.getStartPosition(ClickHouseSqlStatement.KEYWORD_VALUES);
         } else {
             Matcher matcher = VALUES.matcher(sql);
             if (matcher.find()) {
@@ -442,7 +442,6 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
             return currentResult.getMetaData();
         }
         
-        ClickHouseSqlStatement parsedStmt = ClickHouseSqlParser.parseSingleStatement(sql, properties);
         if (!parsedStmt.isQuery() || (!parsedStmt.isRecognized() && !isSelect(sql))) {
             return null;
         }
