@@ -9,7 +9,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 
 public class ClickHouseLZ4OutputStream extends OutputStream {
-    private static final LZ4Factory factory = LZ4Factory.safeInstance();
+    private static final LZ4Factory factory = LZ4Factory.fastestInstance();
     private final LittleEndianDataOutputStream dataWrapper;
 
     private final LZ4Compressor compressor;
@@ -26,8 +26,8 @@ public class ClickHouseLZ4OutputStream extends OutputStream {
     }
 
     /**
-    * @return Location of pointer in the byte buffer (bytes not yet flushed)
-    */
+     * @return Location of pointer in the byte buffer (bytes not yet flushed)
+     */
     public int position() {
         return pointer;
     }
@@ -43,8 +43,35 @@ public class ClickHouseLZ4OutputStream extends OutputStream {
     }
 
     @Override
+    public void write(byte[] b, int off, int len) throws IOException {
+        if (b == null) {
+            throw new NullPointerException();
+        } else if (off < 0 || len < 0 || len > b.length - off) {
+            throw new IndexOutOfBoundsException();
+        } else if (len == 0) {
+            return;
+        }
+
+        int blockSize = currentBlock.length;
+        int rest = blockSize - pointer;
+        while (len >= rest) {
+            System.arraycopy(b, off, currentBlock, pointer, rest);
+            pointer += rest;
+            writeBlock();
+            off += rest;
+            len -= rest;
+            rest = blockSize;
+        }
+
+        if (len > 0) {
+            System.arraycopy(b, off, currentBlock, pointer, len);
+            pointer += len;
+        }
+    }
+
+    @Override
     public void flush() throws IOException {
-        if (pointer != 0){
+        if (pointer != 0) {
             writeBlock();
         }
         dataWrapper.flush();
@@ -52,7 +79,7 @@ public class ClickHouseLZ4OutputStream extends OutputStream {
 
     private void writeBlock() throws IOException {
         int compressed = compressor.compress(currentBlock, 0, pointer, compressedBlock, 0);
-        ClickHouseBlockChecksum checksum = ClickHouseBlockChecksum.calculateForBlock((byte)ClickHouseLZ4Stream.MAGIC,
+        ClickHouseBlockChecksum checksum = ClickHouseBlockChecksum.calculateForBlock((byte) ClickHouseLZ4Stream.MAGIC,
                 compressed + 9, pointer, compressedBlock, compressed);
         dataWrapper.write(checksum.asBytes());
         dataWrapper.writeByte(ClickHouseLZ4Stream.MAGIC);

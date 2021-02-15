@@ -1,26 +1,49 @@
 package ru.yandex.clickhouse;
 
-import org.apache.http.entity.AbstractHttpEntity;
-import org.apache.http.impl.client.CloseableHttpClient;
-import ru.yandex.clickhouse.response.ClickHouseResponse;
-import ru.yandex.clickhouse.settings.ClickHouseProperties;
-import ru.yandex.clickhouse.settings.ClickHouseQueryParam;
-import ru.yandex.clickhouse.util.ClickHouseArrayUtil;
-import ru.yandex.clickhouse.util.ClickHouseValueFormatter;
-import ru.yandex.clickhouse.util.guava.StreamUtils;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.Reader;
 import java.math.BigDecimal;
 import java.net.URL;
+import java.sql.Array;
+import java.sql.Blob;
+import java.sql.Clob;
 import java.sql.Date;
-import java.sql.*;
-import java.util.*;
+import java.sql.NClob;
+import java.sql.ParameterMetaData;
+import java.sql.Ref;
+import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
+import java.sql.RowId;
+import java.sql.SQLException;
+import java.sql.SQLFeatureNotSupportedException;
+import java.sql.SQLSyntaxErrorException;
+import java.sql.SQLXML;
+import java.sql.Time;
+import java.sql.Timestamp;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Calendar;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.TimeZone;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import org.apache.http.entity.AbstractHttpEntity;
+import org.apache.http.impl.client.CloseableHttpClient;
+
+import ru.yandex.clickhouse.jdbc.parser.ClickHouseSqlStatement;
+import ru.yandex.clickhouse.jdbc.parser.StatementType;
+import ru.yandex.clickhouse.response.ClickHouseResponse;
+import ru.yandex.clickhouse.settings.ClickHouseProperties;
+import ru.yandex.clickhouse.settings.ClickHouseQueryParam;
+import ru.yandex.clickhouse.util.ClickHouseArrayUtil;
+import ru.yandex.clickhouse.util.ClickHouseValueFormatter;
+import ru.yandex.clickhouse.util.guava.StreamUtils;
 
 public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl implements ClickHousePreparedStatement {
 
@@ -36,15 +59,18 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
     private final ClickHousePreparedStatementParameter[] binds;
     private final List<List<String>> parameterList;
     private final boolean insertBatchMode;
-    private List<byte[]> batchRows = new ArrayList<byte[]>();
+    private List<byte[]> batchRows = new ArrayList<>();
 
-    public ClickHousePreparedStatementImpl(CloseableHttpClient client, ClickHouseConnection connection,
-                                           ClickHouseProperties properties, String sql, TimeZone serverTimeZone,
-                                           int resultSetType) throws SQLException
+    public ClickHousePreparedStatementImpl(CloseableHttpClient client,
+        ClickHouseConnection connection, ClickHouseProperties properties, String sql,
+        TimeZone serverTimeZone, int resultSetType) throws SQLException
     {
         super(client, connection, properties, resultSetType);
+        parseSingleStatement(sql);
+
         this.sql = sql;
-        PreparedStatementParser parser = PreparedStatementParser.parse(sql);
+        PreparedStatementParser parser = PreparedStatementParser.parse(sql,
+            parsedStmt.getEndPosition(ClickHouseSqlStatement.KEYWORD_VALUES));
         this.parameterList = parser.getParameters();
         this.insertBatchMode = parser.isValuesMode();
         this.sqlParts = parser.getParts();
@@ -295,7 +321,7 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
 
     private List<byte[]> buildBatch() throws SQLException {
         checkBinded();
-        List<byte[]> newBatches = new ArrayList<byte[]>(parameterList.size());
+        List<byte[]> newBatches = new ArrayList<>(parameterList.size());
         StringBuilder sb = new StringBuilder();
         for (int i = 0, p = 0; i < parameterList.size(); i++) {
             List<String> pList = parameterList.get(i);
@@ -325,20 +351,28 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
 
     @Override
     public int[] executeBatch(Map<ClickHouseQueryParam, String> additionalDBParams) throws SQLException {
-        Matcher matcher = VALUES.matcher(sql);
-        if (!matcher.find()) {
+        int valuePosition = -1;
+        if (parsedStmt.getStatementType() == StatementType.INSERT && parsedStmt.hasValues()) {
+            valuePosition = parsedStmt.getStartPosition(ClickHouseSqlStatement.KEYWORD_VALUES);
+        } else {
+            Matcher matcher = VALUES.matcher(sql);
+            if (matcher.find()) {
+                valuePosition = matcher.start();
+            }    
+        }
+
+        if (valuePosition < 0) {
             throw new SQLSyntaxErrorException(
                     "Query must be like 'INSERT INTO [db.]table [(c1, c2, c3)] VALUES (?, ?, ?)'. " +
                             "Got: " + sql
             );
         }
-        int valuePosition = matcher.start();
         String insertSql = sql.substring(0, valuePosition);
         BatchHttpEntity entity = new BatchHttpEntity(batchRows);
         sendStream(entity, insertSql, additionalDBParams);
         int[] result = new int[batchRows.size()];
         Arrays.fill(result, 1);
-        batchRows = new ArrayList<byte[]>();
+        batchRows = new ArrayList<>();
         return result;
     }
 
@@ -407,7 +441,8 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
         if (currentResult != null) {
             return currentResult.getMetaData();
         }
-        if (!isSelect(sql)) {
+        
+        if (!parsedStmt.isQuery() || (!parsedStmt.isRecognized() && !isSelect(sql))) {
             return null;
         }
         ResultSet myRs = executeQuery(Collections.singletonMap(

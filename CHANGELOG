@@ -1,8 +1,19 @@
+0.2.6
+  * add new feature for sending compressed files/streams
+  * introduce an experimental SQL parser to fix parsing related issues - set connection setting use_new_parser to false to disable
+  * restore String[] getColumnNames() method for backward compatibility
+  * retry idempotent operation up to 3 times when server closed connection - set connection setting maxRetries to zero to disable
+  * return inserted rows(not accurate) when query parameter send_progress_in_http_headers is set to true
+  * set socket timeout in ClickHouseConnectionImpl.isValid()
+  * upgrade to lz4-java and improve performance of LZ4 stream
+  * use HTTP Basic Auth for credentials instead of query parameters
+  * use static version instead of property-based revision in pom.xml
 0.2.5
   * bump dependencies and include lz4 in shaded jar
   * new API: ClickHouseRowBinaryStream.writeUInt64Array(UnsignedLong[])
   * support column comments
   * support explain queries
+  * fix keep-alive timeout issue by reusing validated connection
   * fix ResultSet.findColumn(String) issue
   * fix the issue of not being able to use NULL constant in PreparedStatement
   * fix toLowerCase issue for Turkish
