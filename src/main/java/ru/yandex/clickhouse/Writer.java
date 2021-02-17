@@ -2,7 +2,7 @@ package ru.yandex.clickhouse;
 
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.InputStreamEntity;
-
+import ru.yandex.clickhouse.domain.ClickHouseCompression;
 import ru.yandex.clickhouse.domain.ClickHouseFormat;
 import ru.yandex.clickhouse.util.ClickHouseStreamCallback;
 import ru.yandex.clickhouse.util.ClickHouseStreamHttpEntity;
