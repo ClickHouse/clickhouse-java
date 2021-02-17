@@ -652,9 +652,8 @@ public class ClickHouseResultSet extends AbstractResultSet {
                 return i+1;
             }
         }
-        throw new ClickHouseUnknownException(
-            "no column '" + column + "' in columns list " + getColumnNames(),
-            null);
+        // TODO Java8
+        throw new SQLException("no column " + column + " in columns list " + getColumnNamesString());
     }
 
     private ByteFragment getValue(int colNum) {
@@ -739,7 +738,7 @@ public class ClickHouseResultSet extends AbstractResultSet {
             ", bis=" + bis +
             ", db='" + db + '\'' +
             ", table='" + table + '\'' +
-            ", columns=" + getColumnNames() +
+            ", columns=" + getColumnNamesString() +
             ", maxRows=" + maxRows +
             ", values=" + Arrays.toString(values) +
             ", lastReadColumn=" + lastReadColumn +
@@ -749,7 +748,7 @@ public class ClickHouseResultSet extends AbstractResultSet {
             '}';
     }
 
-    private String getColumnNames() {
+    private String getColumnNamesString() {
         StringBuilder sb = new StringBuilder();
         for (ClickHouseColumnInfo info : columns) {
             sb.append(info.getColumnName()).append(' ');
