@@ -37,7 +37,10 @@ public enum ClickHouseFormat {
     Native,
     Null,
     XML,
-    CapnProto;
+    CapnProto,
+    Parquet,
+    ORC
+    ;
 
     public static boolean containsFormat(String statement) {
         if (statement == null || statement.isEmpty()) {
