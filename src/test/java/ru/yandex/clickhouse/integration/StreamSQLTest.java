@@ -224,7 +224,7 @@ public class StreamSQLTest {
         // toDateTime('2020-01-01 00:00:00') + number time from numbers(100) format ORC"|gzip > test_sample.orc.gz
 
         String version = ClickHouseContainerForTest.getClickHouseVersion();
-        if (version.isEmpty() || ClickHouseVersionNumberUtil.getMajorVersion(version) <= 20) {
+        if (version.isEmpty() || ClickHouseVersionNumberUtil.getMajorVersion(version) < 20) {
             return;
         }
 
@@ -269,7 +269,7 @@ public class StreamSQLTest {
         // toDateTime('2020-01-01 00:00:00') + number time from numbers(100) format ORC"|gzip > test_sample.orc.gz
 
         String version = ClickHouseContainerForTest.getClickHouseVersion();
-        if (version.isEmpty() || ClickHouseVersionNumberUtil.getMajorVersion(version) <= 20) {
+        if (version.isEmpty() || ClickHouseVersionNumberUtil.getMajorVersion(version) < 20) {
             return;
         }
 
@@ -305,7 +305,7 @@ public class StreamSQLTest {
 
 
         String version = ClickHouseContainerForTest.getClickHouseVersion();
-        if (version.isEmpty() || ClickHouseVersionNumberUtil.getMajorVersion(version) <= 20) {
+        if (version.isEmpty() || ClickHouseVersionNumberUtil.getMajorVersion(version) < 20) {
             return;
         }
 
@@ -350,7 +350,7 @@ public class StreamSQLTest {
         // toDateTime('2020-01-01 00:00:00') + number time from numbers(100) format Parquet"|gzip > test_sample.parquet.gz
 
         String version = ClickHouseContainerForTest.getClickHouseVersion();
-        if (version.isEmpty() || ClickHouseVersionNumberUtil.getMajorVersion(version) <= 20) {
+        if (version.isEmpty() || ClickHouseVersionNumberUtil.getMajorVersion(version) < 20) {
             return;
         }
 
