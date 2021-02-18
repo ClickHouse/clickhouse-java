@@ -35,23 +35,14 @@ public class ClickHouseContainerForTest {
             imageTag = ":" + imageTag;
         }
 
-        /* on java 8 better to replace with
-        *  clickhouseContainer = new GenericContainer<>(
-        *       new ImageFromDockerfile()
-        *               .withDockerfileFromBuilder(builder ->
-        *                               builder
-        *                                      .from("yandex/clickhouse-server" + imageTag )
-        *                                      .run("apt-get update && apt-get install tzdata")
-        *               ))
-        */
+        final String imageNameWithTag = "yandex/clickhouse-server" + imageTag;
 
-        final String fullImageName = "yandex/clickhouse-server" + imageTag;
-        final String runInstallTZ = "RUN apt-get update && apt-get install tzdata";
-
-        ImageFromDockerfile i = new ImageFromDockerfile();
-        i.withFileFromString("Dockerfile", String.format("FROM %s \n %s", fullImageName, runInstallTZ));
-
-        clickhouseContainer = new GenericContainer<>(i)
+        clickhouseContainer = new GenericContainer<>( new ImageFromDockerfile()
+                .withDockerfileFromBuilder(builder ->
+                        builder
+                               .from( imageNameWithTag )
+                               .run("apt-get update && apt-get install tzdata")
+                ))
                 .withExposedPorts(HTTP_PORT, NATIVE_PORT, MYSQL_PORT)
                 .withClasspathResourceMapping(
                     "ru/yandex/clickhouse/users.d",
