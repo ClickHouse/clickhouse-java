@@ -223,8 +223,8 @@ public class StreamSQLTest {
         // clickhouse-client -q "select number int, toString(number) str, 1/number flt, toDecimal64( 1/(number+1) , 9) dcml,
         // toDateTime('2020-01-01 00:00:00') + number time from numbers(100) format ORC"|gzip > test_sample.orc.gz
 
-        String version = ClickHouseContainerForTest.getClickHouseVersion();
-        if (version.isEmpty() || ClickHouseVersionNumberUtil.getMajorVersion(version) < 20) {
+        String version = connection.getServerVersion();
+        if (version.compareTo("20.8.4.11") < 0) {
             return;
         }
 
@@ -268,8 +268,8 @@ public class StreamSQLTest {
         // clickhouse-client -q "select number int, toString(number) str, 1/number flt, toDecimal64( 1/(number+1) , 9) dcml,
         // toDateTime('2020-01-01 00:00:00') + number time from numbers(100) format ORC"|gzip > test_sample.orc.gz
 
-        String version = ClickHouseContainerForTest.getClickHouseVersion();
-        if (version.isEmpty() || ClickHouseVersionNumberUtil.getMajorVersion(version) < 20) {
+        String version = connection.getServerVersion();
+        if (version.compareTo("20.8.4.11") < 0) {
             return;
         }
 
@@ -303,9 +303,8 @@ public class StreamSQLTest {
         // clickhouse-client -q "select number int, toString(number) str, 1/number flt, toDecimal64( 1/(number+1) , 9) dcml,
         // toDateTime('2020-01-01 00:00:00') + number time from numbers(100) format Parquet"|gzip > test_sample.parquet.gz
 
-
-        String version = ClickHouseContainerForTest.getClickHouseVersion();
-        if (version.isEmpty() || ClickHouseVersionNumberUtil.getMajorVersion(version) < 20) {
+        String version = connection.getServerVersion();
+        if (version.compareTo("20.8.4.11") < 0) {
             return;
         }
 
@@ -349,8 +348,8 @@ public class StreamSQLTest {
         // clickhouse-client -q "select number int, toString(number) str, 1/number flt, toDecimal64( 1/(number+1) , 9) dcml,
         // toDateTime('2020-01-01 00:00:00') + number time from numbers(100) format Parquet"|gzip > test_sample.parquet.gz
 
-        String version = ClickHouseContainerForTest.getClickHouseVersion();
-        if (version.isEmpty() || ClickHouseVersionNumberUtil.getMajorVersion(version) < 20) {
+        String version = connection.getServerVersion();
+        if (version.compareTo("20.8.4.11") < 0) {
             return;
         }
 
