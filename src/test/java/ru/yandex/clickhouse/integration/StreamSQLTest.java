@@ -224,7 +224,7 @@ public class StreamSQLTest {
         // toDateTime('2020-01-01 00:00:00') + number time from numbers(100) format ORC"|gzip > test_sample.orc.gz
 
         String version = connection.getServerVersion();
-        if (version.compareTo("20.8.4.11") < 0) {
+        if (version.compareTo("20.8") < 0) {
             return;
         }
 
@@ -269,7 +269,7 @@ public class StreamSQLTest {
         // toDateTime('2020-01-01 00:00:00') + number time from numbers(100) format ORC"|gzip > test_sample.orc.gz
 
         String version = connection.getServerVersion();
-        if (version.compareTo("20.8.4.11") < 0) {
+        if (version.compareTo("20.8") < 0) {
             return;
         }
 
@@ -304,7 +304,7 @@ public class StreamSQLTest {
         // toDateTime('2020-01-01 00:00:00') + number time from numbers(100) format Parquet"|gzip > test_sample.parquet.gz
 
         String version = connection.getServerVersion();
-        if (version.compareTo("20.8.4.11") < 0) {
+        if (version.compareTo("20.8") < 0) {
             return;
         }
 
@@ -349,7 +349,7 @@ public class StreamSQLTest {
         // toDateTime('2020-01-01 00:00:00') + number time from numbers(100) format Parquet"|gzip > test_sample.parquet.gz
 
         String version = connection.getServerVersion();
-        if (version.compareTo("20.8.4.11") < 0) {
+        if (version.compareTo("20.8") < 0) {
             return;
         }
 
