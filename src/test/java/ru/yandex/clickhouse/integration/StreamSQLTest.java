@@ -234,7 +234,7 @@ public class StreamSQLTest {
                      "dcml Decimal64(9), time DateTime) ENGINE = Log();"
         );
 
-        InputStream inputStream = BufferedInputStream.class.getResourceAsStream("/data_samples/test_sample.orc.gz");
+        InputStream inputStream = StreamSQLTest.class.getResourceAsStream("/data_samples/test_sample.orc.gz");
 
         connection.createStatement().
                 write()
@@ -279,7 +279,7 @@ public class StreamSQLTest {
                         "dcml Decimal64(9), time DateTime) ENGINE = Log();"
         );
 
-        InputStream inputStream = BufferedInputStream.class.getResourceAsStream("/data_samples/test_sample.orc.gz");
+        InputStream inputStream = StreamSQLTest.class.getResourceAsStream("/data_samples/test_sample.orc.gz");
 
         connection.createStatement().
                 write()
@@ -314,7 +314,7 @@ public class StreamSQLTest {
                         "dcml Decimal64(9), time DateTime) ENGINE = Log();"
         );
 
-        InputStream inputStream = BufferedInputStream.class.getResourceAsStream("/data_samples/test_sample.parquet.gz");
+        InputStream inputStream = StreamSQLTest.class.getResourceAsStream("/data_samples/test_sample.parquet.gz");
 
         connection.createStatement().
                 write()
@@ -359,7 +359,7 @@ public class StreamSQLTest {
                         "dcml Decimal64(9), time DateTime) ENGINE = Log();"
         );
 
-        InputStream inputStream = BufferedInputStream.class.getResourceAsStream("/data_samples/test_sample.parquet.gz");
+        InputStream inputStream = StreamSQLTest.class.getResourceAsStream("/data_samples/test_sample.parquet.gz");
 
         connection.createStatement().
                 write()
