@@ -652,7 +652,6 @@ public class ClickHouseResultSet extends AbstractResultSet {
                 return i+1;
             }
         }
-        // TODO Java8
         throw new SQLException("no column " + column + " in columns list " + getColumnNamesString());
     }
 
@@ -717,6 +716,14 @@ public class ClickHouseResultSet extends AbstractResultSet {
         return result != null
             ? result.setScale(scale, RoundingMode.HALF_UP)
             : null;
+    }
+
+    public String[] getColumnNames() {
+        String[] columnNames = new String[columns.size()];
+        for (int i = 0; i < columns.size(); ++i) {
+            columnNames[i] = columns.get(i).getColumnName();
+        }
+        return columnNames;
     }
 
     @Override

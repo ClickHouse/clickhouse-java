@@ -73,37 +73,38 @@ public class ClickHouseStatementTest {
         assertEquals(withCredentials.getPassword(), "test_password");
 
         ClickHouseStatementImpl statement = new ClickHouseStatementImpl(
-                HttpClientBuilder.create().build(),null, withCredentials, ResultSet.TYPE_FORWARD_ONLY
-                );
+            HttpClientBuilder.create().build(),
+            null, withCredentials, ResultSet.TYPE_FORWARD_ONLY);
 
         URI uri = statement.buildRequestUri(null, null, null, null, false);
         String query = uri.getQuery();
-        assertTrue(query.contains("password=test_password"));
-        assertTrue(query.contains("user=test_user"));
+        // we use Basic AUTH nowadays
+        assertFalse(query.contains("password=test_password"));
+        assertFalse(query.contains("user=test_user"));
     }
 
     @Test
     public void testMaxExecutionTime() throws Exception {
         ClickHouseProperties properties = new ClickHouseProperties();
         properties.setMaxExecutionTime(20);
-        ClickHouseStatementImpl statement = new ClickHouseStatementImpl(HttpClientBuilder.create().build(), null,
-                properties, ResultSet.TYPE_FORWARD_ONLY);
+        ClickHouseStatementImpl statement = new ClickHouseStatementImpl(HttpClientBuilder.create().build(),
+            null, properties, ResultSet.TYPE_FORWARD_ONLY);
         URI uri = statement.buildRequestUri(null, null, null, null, false);
         String query = uri.getQuery();
         assertTrue(query.contains("max_execution_time=20"), "max_execution_time param is missing in URL");
-        
+
         statement.setQueryTimeout(10);
         uri = statement.buildRequestUri(null, null, null, null, false);
         query = uri.getQuery();
         assertTrue(query.contains("max_execution_time=10"), "max_execution_time param is missing in URL");
     }
-    
+
     @Test
     public void testMaxMemoryUsage() throws Exception {
         ClickHouseProperties properties = new ClickHouseProperties();
         properties.setMaxMemoryUsage(41L);
-        ClickHouseStatementImpl statement = new ClickHouseStatementImpl(HttpClientBuilder.create().build(), null,
-                properties, ResultSet.TYPE_FORWARD_ONLY);
+        ClickHouseStatementImpl statement = new ClickHouseStatementImpl(HttpClientBuilder.create().build(),
+           null, properties, ResultSet.TYPE_FORWARD_ONLY);
 
         URI uri = statement.buildRequestUri(null, null, null, null, false);
         String query = uri.getQuery();

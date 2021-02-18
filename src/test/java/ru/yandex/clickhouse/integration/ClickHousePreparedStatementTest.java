@@ -214,6 +214,24 @@ public class ClickHousePreparedStatementTest {
     }
 
     @Test
+    public void testInsertStringContainsKeyword() throws SQLException {
+        connection.createStatement().execute("DROP TABLE IF EXISTS test.keyword_insert");
+        connection.createStatement().execute(
+                "CREATE TABLE test.keyword_insert(a String,b String)ENGINE = MergeTree() ORDER BY a SETTINGS index_granularity = 8192"
+        );
+
+        PreparedStatement stmt = connection.prepareStatement("insert into test.keyword_insert(a,b) values('values(',',')");
+        stmt.execute();
+        
+        Statement select = connection.createStatement();
+        ResultSet rs = select.executeQuery("select * from test.keyword_insert");
+        Assert.assertTrue(rs.next());
+        Assert.assertEquals(rs.getString(1), "values(");
+        Assert.assertEquals(rs.getString(2), ",");
+        Assert.assertFalse(rs.next());
+    }
+
+    @Test
     public void testInsertNullString() throws SQLException {
         connection.createStatement().execute("DROP TABLE IF EXISTS test.null_insert");
         connection.createStatement().execute(

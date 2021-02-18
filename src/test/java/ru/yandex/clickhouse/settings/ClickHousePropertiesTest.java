@@ -1,14 +1,16 @@
 package ru.yandex.clickhouse.settings;
 
-import org.testng.Assert;
-import org.testng.annotations.Test;
-import ru.yandex.clickhouse.BalancedClickhouseDataSource;
-import ru.yandex.clickhouse.ClickHouseDataSource;
-
 import java.net.URI;
 import java.util.Map;
 import java.util.Properties;
 
+import org.testng.Assert;
+import org.testng.annotations.Test;
+
+import ru.yandex.clickhouse.BalancedClickhouseDataSource;
+import ru.yandex.clickhouse.ClickHouseDataSource;
+
+import static org.testng.Assert.assertFalse;
 import static org.testng.AssertJUnit.assertEquals;
 import static org.testng.AssertJUnit.assertTrue;
 
@@ -143,6 +145,8 @@ public class ClickHousePropertiesTest {
         clickHouseProperties.setMaxInsertBlockSize(42L);
         clickHouseProperties.setInsertDeduplicate(true);
         clickHouseProperties.setInsertDistributedSync(true);
+        clickHouseProperties.setUser("myUser");
+        clickHouseProperties.setPassword("myPassword");
 
         Map<ClickHouseQueryParam, String> clickHouseQueryParams = clickHouseProperties.buildQueryParams(true);
         Assert.assertEquals(clickHouseQueryParams.get(ClickHouseQueryParam.INSERT_QUORUM), "3");
@@ -151,6 +155,8 @@ public class ClickHousePropertiesTest {
         Assert.assertEquals(clickHouseQueryParams.get(ClickHouseQueryParam.MAX_INSERT_BLOCK_SIZE), "42");
         Assert.assertEquals(clickHouseQueryParams.get(ClickHouseQueryParam.INSERT_DEDUPLICATE), "1");
         Assert.assertEquals(clickHouseQueryParams.get(ClickHouseQueryParam.INSERT_DISTRIBUTED_SYNC), "1");
+        assertFalse(clickHouseQueryParams.containsKey(ClickHouseQueryParam.USER));
+        assertFalse(clickHouseQueryParams.containsKey(ClickHouseQueryParam.PASSWORD));
     }
 
     @Test

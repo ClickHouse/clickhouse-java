@@ -36,6 +36,7 @@ import static org.testng.AssertJUnit.assertNull;
 import static org.testng.AssertJUnit.assertTrue;
 
 public class ClickHouseStatementImplTest {
+
     private ClickHouseDataSource dataSource;
     private ClickHouseConnection connection;
 
@@ -167,6 +168,16 @@ public class ClickHouseStatementImplTest {
     }
 
     @Test
+    public void testSelectOne() throws SQLException {
+        try (Statement stmt = connection.createStatement()) {
+            ResultSet rs = stmt.executeQuery("select\n1");
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getInt(1), 1);
+            Assert.assertFalse(rs.next());
+        }
+    }
+
+    @Test
     public void testSelectManyRows() throws SQLException {
         Statement stmt = connection.createStatement();
         int limit = 10000;
@@ -223,12 +234,12 @@ public class ClickHouseStatementImplTest {
     public void cancelTest_queryId_is_not_set() throws Exception {
         final ClickHouseStatement firstStatement = dataSource.getConnection().createStatement();
 
-        final AtomicReference<Exception> exceptionAtomicReference = new AtomicReference<Exception>();
+        final AtomicReference<Exception> exceptionAtomicReference = new AtomicReference<>();
         Thread thread = new Thread() {
             @Override
             public void run() {
                 try {
-                    Map<ClickHouseQueryParam, String> params = new EnumMap<ClickHouseQueryParam, String>(ClickHouseQueryParam.class);
+                    Map<ClickHouseQueryParam, String> params = new EnumMap<>(ClickHouseQueryParam.class);
                     params.put(ClickHouseQueryParam.CONNECT_TIMEOUT, Long.toString(TimeUnit.MINUTES.toMillis(1)));
                     firstStatement.executeQuery("SELECT count() FROM system.numbers", params);
                 } catch (Exception e) {
@@ -261,12 +272,12 @@ public class ClickHouseStatementImplTest {
         final ClickHouseStatement firstStatement = dataSource.getConnection().createStatement();
 
         final CountDownLatch countDownLatch = new CountDownLatch(1);
-        final AtomicReference<Exception> exceptionAtomicReference = new AtomicReference<Exception>();
+        final AtomicReference<Exception> exceptionAtomicReference = new AtomicReference<>();
         Thread thread = new Thread() {
             @Override
             public void run() {
                 try {
-                    Map<ClickHouseQueryParam, String> params = new EnumMap<ClickHouseQueryParam, String>(ClickHouseQueryParam.class);
+                    Map<ClickHouseQueryParam, String> params = new EnumMap<>(ClickHouseQueryParam.class);
                     params.put(ClickHouseQueryParam.CONNECT_TIMEOUT, Long.toString(TimeUnit.MINUTES.toMillis(1)));
                     params.put(ClickHouseQueryParam.QUERY_ID, queryId);
                     countDownLatch.countDown();

@@ -1,15 +1,18 @@
 package ru.yandex.clickhouse;
 
-import org.testng.annotations.BeforeTest;
-import org.testng.annotations.Test;
-import ru.yandex.clickhouse.settings.ClickHouseProperties;
-
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.Arrays;
 
+import org.testng.annotations.BeforeTest;
+import org.testng.annotations.Test;
+
+import ru.yandex.clickhouse.settings.ClickHouseProperties;
+
 import static org.testng.Assert.assertEquals;
+import static org.testng.Assert.assertTrue;
 import static org.testng.Assert.fail;
 
 public class BalancedClickhouseDataSourceTest {
@@ -46,14 +49,12 @@ public class BalancedClickhouseDataSourceTest {
 
     }
 
-
     @BeforeTest
     public void setUp() throws Exception {
         dataSource = ClickHouseContainerForTest.newBalancedDataSource();
         String address = ClickHouseContainerForTest.getClickHouseHttpAddress();
         doubleDataSource = ClickHouseContainerForTest.newBalancedDataSource(address, address);
     }
-
 
     @Test
     public void testSingleDatabaseConnection() throws Exception {
@@ -76,7 +77,6 @@ public class BalancedClickhouseDataSourceTest {
         assertEquals("asd", rs.getString("s"));
         assertEquals(42, rs.getInt("i"));
     }
-
 
     @Test
     public void testDoubleDatabaseConnection() throws Exception {
@@ -115,7 +115,6 @@ public class BalancedClickhouseDataSourceTest {
         assertEquals(42, rs.getInt("i"));
 
     }
-
 
     @Test
     public void testCorrectActualizationDatabaseConnection() throws Exception {
@@ -210,6 +209,107 @@ public class BalancedClickhouseDataSourceTest {
         assertEquals(dataSource.getAllClickhouseUrls().get(0), "jdbc:clickhouse://" + hostAddr + "/click?socket_timeout" +
                 "=12345&user=readonly");
         assertEquals(dataSource.getAllClickhouseUrls().get(1), "jdbc:clickhouse://" + ipAddr + "/click?socket_timeout=12345&user=readonly");
+    }
+
+    @Test
+    public void testConnectionWithAuth() throws SQLException {
+        final ClickHouseProperties properties = new ClickHouseProperties();
+        final String hostAddr = ClickHouseContainerForTest.getClickHouseHttpAddress();
+        final String ipAddr = ClickHouseContainerForTest.getClickHouseHttpAddress(true);
+
+        final BalancedClickhouseDataSource dataSource0 = ClickHouseContainerForTest
+            .newBalancedDataSourceWithSuffix(
+                "default?user=foo&password=bar",
+                properties,
+                hostAddr,
+                ipAddr);
+        assertTrue(dataSource0.getConnection().createStatement().execute("SELECT 1"));
+
+        final BalancedClickhouseDataSource dataSource1 = ClickHouseContainerForTest
+            .newBalancedDataSourceWithSuffix(
+                "default?user=foo",
+                properties,
+                hostAddr,
+                ipAddr);
+        // assertThrows(RuntimeException.class,
+        //    () -> dataSource1.getConnection().createStatement().execute("SELECT 1"));
+
+
+        final BalancedClickhouseDataSource dataSource2 = ClickHouseContainerForTest
+            .newBalancedDataSourceWithSuffix(
+                "default?user=oof",
+                properties,
+                hostAddr,
+                ipAddr);
+        assertTrue(dataSource2.getConnection().createStatement().execute("SELECT 1"));
+
+        properties.setUser("foo");
+        properties.setPassword("bar");
+        final BalancedClickhouseDataSource dataSource3 = ClickHouseContainerForTest
+            .newBalancedDataSourceWithSuffix(
+                "default",
+                properties,
+                hostAddr,
+                ipAddr);
+        assertTrue(dataSource3.getConnection().createStatement().execute("SELECT 1"));
+
+        properties.setPassword("bar");
+        final BalancedClickhouseDataSource dataSource4 = ClickHouseContainerForTest
+            .newBalancedDataSourceWithSuffix(
+                "default?user=oof",
+                properties,
+                hostAddr,
+                ipAddr);
+        // JDK 1.8
+        // assertThrows(RuntimeException.class,
+        //    () -> dataSource4.getConnection().createStatement().execute("SELECT 1"));
+        try {
+            dataSource4.getConnection().createStatement().execute("SELECT 1");
+            fail();
+        } catch (RuntimeException re) {
+            // expected
+        }
+
+        // it is not allowed to have query parameters per host
+        try {
+            ClickHouseContainerForTest
+            .newBalancedDataSourceWithSuffix(
+                "default?user=oof",
+                properties,
+                hostAddr + "/default?user=foo&password=bar",
+                ipAddr);
+            fail();
+        } catch (IllegalArgumentException iae) {
+            // expected
+        }
+
+        // the following behavior is quite unexpected, honestly
+        // but query params always have precedence over properties
+        final BalancedClickhouseDataSource dataSource5 = ClickHouseContainerForTest
+            .newBalancedDataSourceWithSuffix(
+                "default?user=foo&password=bar",
+                properties,
+                hostAddr,
+                ipAddr);
+        assertTrue(
+            dataSource5.getConnection("broken", "hacker").createStatement().execute("SELECT 1"));
+
+        // now the other way round, also strange
+        final BalancedClickhouseDataSource dataSource6 = ClickHouseContainerForTest
+            .newBalancedDataSourceWithSuffix(
+                "default?user=broken&password=hacker",
+                properties,
+                hostAddr,
+                ipAddr);
+        // JDK 1.8
+        // assertThrows(RuntimeException.class,
+        //    () -> dataSource6.getConnection("foo", "bar").createStatement().execute("SELECT 1"));
+        try {
+            dataSource6.getConnection("foo", "bar").createStatement().execute("SELECT 1");
+            fail();
+        } catch (RuntimeException re) {
+            // expected
+        }
     }
 
 }
