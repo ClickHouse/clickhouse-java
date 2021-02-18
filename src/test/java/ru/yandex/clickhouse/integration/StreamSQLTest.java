@@ -8,8 +8,10 @@ import ru.yandex.clickhouse.ClickHouseContainerForTest;
 import ru.yandex.clickhouse.ClickHouseDataSource;
 import ru.yandex.clickhouse.domain.ClickHouseCompression;
 import ru.yandex.clickhouse.domain.ClickHouseFormat;
-import ru.yandex.clickhouse.settings.ClickHouseProperties;
+import ru.yandex.clickhouse.util.ClickHouseVersionNumberUtil;
+
 import java.io.*;
+import java.math.BigDecimal;
 import java.nio.charset.Charset;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -214,6 +216,166 @@ public class StreamSQLTest {
         Assert.assertEquals(rs.getInt("cnt"), 2);
         Assert.assertEquals(rs.getLong("sum"), 6);
         Assert.assertEquals(rs.getLong("uniq"), 1);
+    }
+
+    @Test
+    public void ORCInsertCompressedIntoTable() throws SQLException {
+        // clickhouse-client -q "select number int, toString(number) str, 1/number flt, toDecimal64( 1/(number+1) , 9) dcml,
+        // toDateTime('2020-01-01 00:00:00') + number time from numbers(100) format ORC"|gzip > test_sample.orc.gz
+
+        String version = connection.getServerVersion();
+        if (version.compareTo("20.8") < 0) {
+            return;
+        }
+
+        connection.createStatement().execute("DROP TABLE IF EXISTS test.orc_stream_compressed");
+        connection.createStatement().execute(
+                "CREATE TABLE test.orc_stream_compressed (int Int64, str String, flt Float64, " +
+                     "dcml Decimal64(9), time DateTime) ENGINE = Log();"
+        );
+
+        InputStream inputStream = StreamSQLTest.class.getResourceAsStream("/data_samples/test_sample.orc.gz");
+
+        connection.createStatement().
+                write()
+                .table("test.orc_stream_compressed")
+                .format(ClickHouseFormat.ORC)
+                .dataCompression(ClickHouseCompression.gzip)
+                .data(inputStream)
+                .send();
+
+        ResultSet rs = connection.createStatement().executeQuery(
+                "SELECT count() AS cnt, " +
+                        "sum(int) sum_int, " +
+                        "round(sum(flt),2) AS sum_flt, " +
+                        "uniqExact(str) uniq_str, " +
+                        "max(dcml) max_dcml, " +
+                        "min(time) min_time, " +
+                        "max(time) max_time " +
+                        "FROM test.orc_stream_compressed");
+        Assert.assertTrue(rs.next());
+        Assert.assertEquals(rs.getInt("cnt"), 100);
+        Assert.assertEquals(rs.getLong("sum_int"), 4950);
+        Assert.assertEquals(rs.getFloat("sum_flt"), Float.POSITIVE_INFINITY);
+        Assert.assertEquals(rs.getLong("uniq_str"), 100);
+        Assert.assertEquals(rs.getBigDecimal("max_dcml"), new BigDecimal("1.000000000"));
+        Assert.assertEquals(rs.getString("min_time"), "2020-01-01 00:00:00");
+        Assert.assertEquals(rs.getString("max_time"), "2020-01-01 00:01:39");
+    }
+
+    @Test
+    public void ORCInsertCompressedIntoTable1() throws SQLException {
+        // clickhouse-client -q "select number int, toString(number) str, 1/number flt, toDecimal64( 1/(number+1) , 9) dcml,
+        // toDateTime('2020-01-01 00:00:00') + number time from numbers(100) format ORC"|gzip > test_sample.orc.gz
+
+        String version = connection.getServerVersion();
+        if (version.compareTo("20.8") < 0) {
+            return;
+        }
+
+        connection.createStatement().execute("DROP TABLE IF EXISTS test.orc1_stream_compressed");
+        connection.createStatement().execute(
+                "CREATE TABLE test.orc1_stream_compressed (int Int64, str String, flt Float64, " +
+                        "dcml Decimal64(9), time DateTime) ENGINE = Log();"
+        );
+
+        InputStream inputStream = StreamSQLTest.class.getResourceAsStream("/data_samples/test_sample.orc.gz");
+
+        connection.createStatement().
+                write()
+                .sql("insert into test.orc1_stream_compressed format ORC")
+                .dataCompression(ClickHouseCompression.gzip)
+                .data(inputStream)
+                .send();
+
+        ResultSet rs = connection.createStatement().executeQuery(
+                "select * from test.orc1_stream_compressed where int=42");
+        Assert.assertTrue(rs.next());
+        Assert.assertEquals(rs.getInt("int"), 42);
+        Assert.assertEquals(rs.getString("str"), "42");
+        Assert.assertTrue( Math.abs(rs.getFloat("flt") - 0.023809524) < 0.0001);
+        Assert.assertTrue( Math.abs(rs.getFloat("dcml") - 0.023255813) < 0.0001);
+        Assert.assertEquals(rs.getString("time"), "2020-01-01 00:00:42");
+    }
+
+    @Test
+    public void ParquetInsertCompressedIntoTable() throws SQLException {
+        // clickhouse-client -q "select number int, toString(number) str, 1/number flt, toDecimal64( 1/(number+1) , 9) dcml,
+        // toDateTime('2020-01-01 00:00:00') + number time from numbers(100) format Parquet"|gzip > test_sample.parquet.gz
+
+        String version = connection.getServerVersion();
+        if (version.compareTo("20.8") < 0) {
+            return;
+        }
+
+        connection.createStatement().execute("DROP TABLE IF EXISTS test.parquet_stream_compressed");
+        connection.createStatement().execute(
+                "CREATE TABLE test.parquet_stream_compressed (int Int64, str String, flt Float64, " +
+                        "dcml Decimal64(9), time DateTime) ENGINE = Log();"
+        );
+
+        InputStream inputStream = StreamSQLTest.class.getResourceAsStream("/data_samples/test_sample.parquet.gz");
+
+        connection.createStatement().
+                write()
+                .table("test.parquet_stream_compressed")
+                .format(ClickHouseFormat.Parquet)
+                .dataCompression(ClickHouseCompression.gzip)
+                .data(inputStream)
+                .send();
+
+        ResultSet rs = connection.createStatement().executeQuery(
+                "SELECT count() AS cnt, " +
+                        "sum(int) sum_int, " +
+                        "round(sum(flt),2) AS sum_flt, " +
+                        "uniqExact(str) uniq_str, " +
+                        "max(dcml) max_dcml, " +
+                        "min(time) min_time, " +
+                        "max(time) max_time " +
+                        "FROM test.parquet_stream_compressed");
+        Assert.assertTrue(rs.next());
+        Assert.assertEquals(rs.getInt("cnt"), 100);
+        Assert.assertEquals(rs.getLong("sum_int"), 4950);
+        Assert.assertEquals(rs.getFloat("sum_flt"), Float.POSITIVE_INFINITY);
+        Assert.assertEquals(rs.getLong("uniq_str"), 100);
+        Assert.assertEquals(rs.getBigDecimal("max_dcml"), new BigDecimal("1.000000000"));
+        Assert.assertEquals(rs.getString("min_time"), "2020-01-01 00:00:00");
+        Assert.assertEquals(rs.getString("max_time"), "2020-01-01 00:01:39");
+    }
+
+    @Test
+    public void ParquetInsertCompressedIntoTable1() throws SQLException {
+        // clickhouse-client -q "select number int, toString(number) str, 1/number flt, toDecimal64( 1/(number+1) , 9) dcml,
+        // toDateTime('2020-01-01 00:00:00') + number time from numbers(100) format Parquet"|gzip > test_sample.parquet.gz
+
+        String version = connection.getServerVersion();
+        if (version.compareTo("20.8") < 0) {
+            return;
+        }
+
+        connection.createStatement().execute("DROP TABLE IF EXISTS test.parquet1_stream_compressed");
+        connection.createStatement().execute(
+                "CREATE TABLE test.parquet1_stream_compressed (int Int64, str String, flt Float64, " +
+                        "dcml Decimal64(9), time DateTime) ENGINE = Log();"
+        );
+
+        InputStream inputStream = StreamSQLTest.class.getResourceAsStream("/data_samples/test_sample.parquet.gz");
+
+        connection.createStatement().
+                write()
+                .sql("insert into test.parquet1_stream_compressed format Parquet")
+                .dataCompression(ClickHouseCompression.gzip)
+                .data(inputStream)
+                .send();
+
+        ResultSet rs = connection.createStatement().executeQuery(
+                "select * from test.parquet1_stream_compressed where int=42");
+        Assert.assertTrue(rs.next());
+        Assert.assertEquals(rs.getInt("int"), 42);
+        Assert.assertEquals(rs.getString("str"), "42");
+        Assert.assertTrue( Math.abs(rs.getFloat("flt") - 0.023809524) < 0.0001);
+        Assert.assertTrue( Math.abs(rs.getFloat("dcml") - 0.023255813) < 0.0001);
+        Assert.assertEquals(rs.getString("time"), "2020-01-01 00:00:42");
     }
 
 }

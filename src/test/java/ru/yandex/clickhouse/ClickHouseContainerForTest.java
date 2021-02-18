@@ -1,10 +1,10 @@
 package ru.yandex.clickhouse;
 
 import java.time.Duration;
-
 import org.testcontainers.containers.BindMode;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.wait.strategy.Wait;
+import org.testcontainers.images.builder.ImageFromDockerfile;
 import org.testng.annotations.AfterSuite;
 import org.testng.annotations.BeforeSuite;
 
@@ -23,6 +23,7 @@ public class ClickHouseContainerForTest {
 
     static {
         String imageTag = System.getProperty("clickhouseVersion");
+
         if (imageTag == null || (imageTag = imageTag.trim()).isEmpty()) {
             clickhouseVersion = imageTag = "";
         } else {
@@ -33,7 +34,15 @@ public class ClickHouseContainerForTest {
             }
             imageTag = ":" + imageTag;
         }
-        clickhouseContainer = new GenericContainer<>("yandex/clickhouse-server" + imageTag)
+
+        final String imageNameWithTag = "yandex/clickhouse-server" + imageTag;
+
+        clickhouseContainer = new GenericContainer<>( new ImageFromDockerfile()
+                .withDockerfileFromBuilder(builder ->
+                        builder
+                               .from( imageNameWithTag )
+                               .run("apt-get update && apt-get install tzdata")
+                ))
                 .withExposedPorts(HTTP_PORT, NATIVE_PORT, MYSQL_PORT)
                 .withClasspathResourceMapping(
                     "ru/yandex/clickhouse/users.d",
