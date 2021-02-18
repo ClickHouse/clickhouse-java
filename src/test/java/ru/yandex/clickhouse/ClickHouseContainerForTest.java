@@ -1,10 +1,10 @@
 package ru.yandex.clickhouse;
 
 import java.time.Duration;
-
 import org.testcontainers.containers.BindMode;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.wait.strategy.Wait;
+import org.testcontainers.images.builder.ImageFromDockerfile;
 import org.testng.annotations.AfterSuite;
 import org.testng.annotations.BeforeSuite;
 
@@ -23,6 +23,7 @@ public class ClickHouseContainerForTest {
 
     static {
         String imageTag = System.getProperty("clickhouseVersion");
+
         if (imageTag == null || (imageTag = imageTag.trim()).isEmpty()) {
             clickhouseVersion = imageTag = "";
         } else {
@@ -33,7 +34,24 @@ public class ClickHouseContainerForTest {
             }
             imageTag = ":" + imageTag;
         }
-        clickhouseContainer = new GenericContainer<>("yandex/clickhouse-server" + imageTag)
+
+        /* on java 8 better to replace with
+        *  clickhouseContainer = new GenericContainer<>(
+        *       new ImageFromDockerfile()
+        *               .withDockerfileFromBuilder(builder ->
+        *                               builder
+        *                                      .from("yandex/clickhouse-server" + imageTag )
+        *                                      .run("apt-get update && apt-get install tzdata")
+        *               ))
+        */
+
+        final String fullImageName = "yandex/clickhouse-server" + imageTag;
+        final String runInstallTZ = "RUN apt-get update && apt-get install tzdata";
+
+        ImageFromDockerfile i = new ImageFromDockerfile();
+        i.withFileFromString("Dockerfile", String.format("FROM %s \n %s", fullImageName, runInstallTZ));
+
+        clickhouseContainer = new GenericContainer<>(i)
                 .withExposedPorts(HTTP_PORT, NATIVE_PORT, MYSQL_PORT)
                 .withClasspathResourceMapping(
                     "ru/yandex/clickhouse/users.d",
