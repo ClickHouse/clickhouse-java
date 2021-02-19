@@ -5,9 +5,11 @@ on:
     branches:
       - master
       - develop
+      - 0.2.x
     paths-ignore:
-      - "CHANGELOG"
       - "**.md"
+      - "docs/**"
+      - "**/CHANGELOG"
 
   pull_request:
     types:
@@ -15,17 +17,18 @@ on:
       - synchronize
       - reopened
     paths-ignore:
-      - "CHANGELOG"
       - "**.md"
+      - "docs/**"
+      - "**/CHANGELOG"
 
 jobs:
   build:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        java: [8, 9, 11]
-        # most recent LTS releases and latest stable build
-        clickhouse: ["19.14", "20.3", "20.8", "latest"]
+        java: [8, 11]
+        # most recent LTS releases as well as latest stable builds
+        clickhouse: ["19.14", "20.3", "20.8", "20.10", "20.12", "21.2", "latest"]
     name: Build using JDK ${{ matrix.java }} against ClickHouse ${{ matrix.clickhouse }}
     steps:
       - name: Check out Git repository
