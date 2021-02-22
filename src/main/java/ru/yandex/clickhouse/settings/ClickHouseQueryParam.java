@@ -78,6 +78,8 @@ public enum ClickHouseQueryParam implements DriverPropertyCreator {
 
     INTERACTIVE_DELAY("interactive_delay", null, Long.class, ""),
 
+    JOIN_ALGORITHM("join_algorithm", null, String.class, ""),
+
     LOAD_BALANCING("load_balancing", null, String.class, ""),
 
     LOG_QUERIES("log_queries", false, Boolean.class, ""),
