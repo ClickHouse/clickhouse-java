@@ -1,0 +1,124 @@
+name: Benchmark
+
+on:
+  workflow_dispatch:
+    inputs:
+      clickhouse:
+        description: "ClickHouse version"
+        required: true
+        default: "latest"
+      java:
+        description: "Java version"
+        required: true
+        default: "8"
+      baseline:
+        description: "Baseline to compare"
+        required: true
+        default: "0.2.6"
+      driver:
+        description: "Driver version"
+        required: true
+        default: "0.3.0-SNAPSHOT"
+      options:
+        description: "Benchmark options"
+        required: true
+        default: "-prof gc 'Query|Insertion'"
+      pr:
+        description: "Pull request#"
+        required: false
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    name: Benchmark on demand
+    if: github.event_name == 'workflow_dispatch'
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v2
+      - name: Check out PR
+        run: |
+          git fetch --no-tags --prune --progress --no-recurse-submodules --depth=1 \
+            origin pull/${{ github.event.inputs.pr }}/merge:merged-pr && git checkout merged-pr
+        if: github.event.inputs.pr != ''
+      - name: Set up JDK ${{ github.event.inputs.java }}
+        uses: actions/setup-java@v1
+        with:
+          java-version: ${{ github.event.inputs.java }}
+        continue-on-error: true
+      - name: Update version and group id
+        run: |
+          find . -type f -name "pom.xml" -exec sed -i -e 's|${revision}|${{ github.event.inputs.driver }}|g' \
+            -e 's|${parent.groupId}|tech.clickhouse|g' '{}' \;
+          sed -i -e 's|^\(    <version>\).*\(</version>\)$|\1${{ github.event.inputs.driver }}\2|' pom.xml
+        continue-on-error: true
+      - name: Install driver as needed
+        run: mvn --batch-mode --update-snapshots -q -DskipTests install
+        if: endsWith(github.event.inputs.driver, '-SNAPSHOT')
+        continue-on-error: true
+      - name: Build project
+        run: |
+          cd clickhouse-benchmark
+          mvn --batch-mode --update-snapshots -Drevision=${{ github.event.inputs.driver }} \
+            -DclickhouseVersion=${{ github.event.inputs.clickhouse }} install
+          java -jar target/benchmarks.jar -rf json ${{ github.event.inputs.options }} > output.txt
+          echo "BENCHMARK_REPORT<<EOF" >> $GITHUB_ENV
+          tail -n +$(grep -n '^REMEMBER:' output.txt | tail -1 | awk -F: '{print $1+6}') output.txt | head -n -2 | grep -v ':·' >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+          cd -
+        id: benchmark
+        continue-on-error: true
+      - name: Record benchmark results
+        run: |
+          mv -fv clickhouse-benchmark/jmh-result.json \
+            clickhouse-benchmark/docs/results/v${{ github.event.inputs.driver }}.json
+        if: github.event.inputs.pr == ''
+        continue-on-error: true
+      - name: Record pull request benchmark results
+        run: |
+          mv -fv clickhouse-benchmark/jmh-result.json \
+            clickhouse-benchmark/docs/results/pull-request_${{github.event.inputs.pr}}.json
+        if: github.event.inputs.pr != ''
+        continue-on-error: true
+      - name: Commit benchmark result
+        uses: zhicwu/add-and-commit@v7
+        with:
+          add: 'clickhouse-benchmark/docs/results/*.json'
+          author_name: zhicwu
+          author_email: 4270380+zhicwu@users.noreply.github.com
+          branch: develop
+          message: 'Record benchmark results'
+          push: true
+        continue-on-error: true
+      - name: Get commit hash
+        run: |
+          echo ::set-output name=hash::$(git log --pretty=format:'%H' -n 1)
+        id: commit
+        continue-on-error: true
+      - name: 'Comment PR'
+        uses: actions/github-script@v3
+        if: github.event.inputs.pr != ''
+        env:
+          PR_NO: ${{ github.event.inputs.pr }}
+          COMMIT_HASH: ${{ steps.commit.outputs.hash }}
+          COMPARE_TO: ${{ github.event.inputs.baseline }}
+          CLICKHOUSE_VRESION: ${{ github.event.inputs.clickhouse }}
+          DRIVER_VRESION: ${{ github.event.inputs.driver }}
+          JAVA_VERSION: ${{ github.event.inputs.java }}
+          PREV_STEP_RESULT: '${{ steps.benchmark.outcome }}'
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const issue_number = process.env.PR_NO;
+            const { repo: { owner, repo }  } = context;
+            const result = process.env.PREV_STEP_RESULT;
+            const compareUrl = `http://jmh.morethan.io/?sources=https://raw.githubusercontent.com/${owner}/${repo}/develop/clickhouse-benchmark/docs/results/v${process.env.COMPARE_TO}.json,https://raw.githubusercontent.com/${owner}/${repo}/${process.env.COMMIT_HASH || 'develop'}/clickhouse-benchmark/docs/results/${issue_number ? 'pull-request_' + issue_number : 'v' + process.env.DRIVER_VERSION}.json`;
+            // const benchmarkUrl = `http://jmh.morethan.io/?source=https://raw.githubusercontent.com/${owner}/${repo}/${process.env.COMMIT_HASH || 'develop'}/clickhouse-benchmark/docs/results/${issue_number ? 'pull-request_' + issue_number : 'v' + process.env.DRIVER_VERSION}.json`;
+            const buildUrl = `https://github.com/${owner}/${repo}/actions/runs/${context.runId}`;
+            const flag = result === 'success'
+              ? ':green_circle:'
+              : (result === 'failure' ? ':red_circle:' : ':yellow_circle:');
+            const msg = `${flag} [benchmark](${compareUrl}) using JDK [${process.env.JAVA_VERSION}] and ClickHouse [${process.env.CLICKHOUSE_VRESION}]: [${result}](${buildUrl})`
+              + '<details>\n<summary>Expand to see details...</summary>\n\n```\n'
+              + process.env.BENCHMARK_REPORT || ''
+              + '\n```\n</details>';
+            github.issues.createComment({ issue_number, owner, repo, body: msg });
