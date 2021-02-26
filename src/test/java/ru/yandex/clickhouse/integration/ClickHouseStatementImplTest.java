@@ -1,8 +1,10 @@
 package ru.yandex.clickhouse.integration;
 
 import java.io.ByteArrayInputStream;
+import java.io.InputStream;
 import java.io.UnsupportedEncodingException;
 import java.math.BigInteger;
+import java.nio.charset.Charset;
 import java.sql.Array;
 import java.sql.Connection;
 import java.sql.ResultSet;
@@ -145,6 +147,59 @@ public class ClickHouseStatementImplTest {
         Assert.assertEquals(userName, "User");
         Assert.assertEquals(groupName, "Group");
     }
+
+
+    private InputStream getTSVStream(final int rowsCount) {
+        return new InputStream() {
+            private int si = 0;
+            private String s = "";
+            private int i = 0;
+
+            private boolean genNextString() {
+                if (i >= rowsCount) return false;
+                si = 0;
+                s = String.format("%d\t%d\n", i, i);
+                i++;
+                return true;
+            }
+
+            public int read() {
+                if (si >= s.length()) {
+                    if ( ! genNextString() ) {
+                        return -1;
+                    }
+                }
+                return s.charAt( si++ );
+            }
+        };
+    }
+
+
+    @Test
+    public void testExternalDataStream() throws SQLException, UnsupportedEncodingException {
+        final ClickHouseStatement statement = connection.createStatement();
+        connection.createStatement().execute("DROP TABLE IF EXISTS test.testExternalData");
+        connection.createStatement().execute("CREATE TABLE test.testExternalData (id UInt64, s String) ENGINE = Memory");
+        connection.createStatement().execute("insert into test.testExternalData select number, toString(number) from numbers(500,100000)");
+
+        InputStream inputStream = getTSVStream(100000);
+
+        ClickHouseExternalData extData = new ClickHouseExternalData("ext_data", inputStream);
+        extData.setStructure("id UInt64, s String");
+
+        ResultSet rs = connection.createStatement().executeQuery(
+                "select count() cnt from test.testExternalData where (id,s) in ext_data",
+                null,
+                Collections.singletonList(extData)
+        );
+
+        rs.next();
+
+        int cnt = rs.getInt("cnt");
+
+        Assert.assertEquals(cnt, 99500);
+    }
+
 
     @Test
     public void testResultSetWithExtremes() throws SQLException {
