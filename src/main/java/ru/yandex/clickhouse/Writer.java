@@ -13,9 +13,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.sql.SQLException;
 
-import static ru.yandex.clickhouse.domain.ClickHouseFormat.*;
+import static ru.yandex.clickhouse.domain.ClickHouseFormat.Native;
+import static ru.yandex.clickhouse.domain.ClickHouseFormat.RowBinary;
+import static ru.yandex.clickhouse.domain.ClickHouseFormat.TabSeparated;
 
-public class Writer extends ConfigurableApi<Writer> {
+public final class Writer extends ConfigurableApi<Writer> {
 
     private ClickHouseFormat format = TabSeparated;
     private ClickHouseCompression compression = null;
@@ -29,6 +31,10 @@ public class Writer extends ConfigurableApi<Writer> {
 
     /**
      * Specifies format for further insert of data via send()
+     *
+     * @param format
+     *            the format of the data to upload
+     * @return this writer instance
      */
     public Writer format(ClickHouseFormat format) {
         if (null == format) {
@@ -41,8 +47,9 @@ public class Writer extends ConfigurableApi<Writer> {
     /**
      * Set table name for data insertion
      *
-     * @param table table name
-     * @return this
+     * @param table
+     *            name of the table to upload the data to
+     * @return this writer instance
      */
     public Writer table(String table) {
         this.sql = null;
@@ -53,8 +60,9 @@ public class Writer extends ConfigurableApi<Writer> {
     /**
      * Set SQL for data insertion
      *
-     * @param sql in a form "INSERT INTO table_name [(X,Y,Z)] VALUES "
-     * @return this
+     * @param sql
+     *            in a form "INSERT INTO table_name [(X,Y,Z)] VALUES "
+     * @return this writer instance
      */
     public Writer sql(String sql) {
         this.sql = sql;
@@ -64,18 +72,35 @@ public class Writer extends ConfigurableApi<Writer> {
 
     /**
      * Specifies data input stream
+     *
+     * @param stream
+     *            a stream providing the data to upload
+     * @return this writer instance
      */
     public Writer data(InputStream stream) {
         streamProvider = new HoldingInputProvider(stream);
         return this;
     }
 
+    /**
+     * Specifies data input stream, and the format to use
+     *
+     * @param stream
+     *            a stream providing the data to upload
+     * @param format
+     *            the format of the data to upload
+     * @return this writer instance
+     */
     public Writer data(InputStream stream, ClickHouseFormat format) {
         return format(format).data(stream);
     }
 
     /**
      * Shortcut method for specifying a file as an input
+     *
+     * @param input
+     *            the file to upload
+     * @return this writer instance
      */
     public Writer data(File input) {
         streamProvider = new FileInputProvider(input);
@@ -126,10 +151,14 @@ public class Writer extends ConfigurableApi<Writer> {
     /**
      * Allows to send stream of data to ClickHouse
      *
-     * @param sql    in a form of "INSERT INTO table_name (X,Y,Z) VALUES "
-     * @param data   where to read data from
-     * @param format format of data in InputStream
+     * @param sql
+     *            in a form of "INSERT INTO table_name (X,Y,Z) VALUES "
+     * @param data
+     *            where to read data from
+     * @param format
+     *            format of data in InputStream
      * @throws SQLException
+     *             if the upload fails
      */
     public void send(String sql, InputStream data, ClickHouseFormat format) throws SQLException {
         sql(sql).data(data).format(format).send();
@@ -138,17 +167,32 @@ public class Writer extends ConfigurableApi<Writer> {
     /**
      * Convenient method for importing the data into table
      *
-     * @param table  table name
-     * @param data   source data
-     * @param format format of data in InputStream
+     * @param table
+     *            table name
+     * @param data
+     *            source data
+     * @param format
+     *            format of data in InputStream
      * @throws SQLException
+     *             if the upload fails
      */
     public void sendToTable(String table, InputStream data, ClickHouseFormat format) throws SQLException {
         table(table).data(data).format(format).send();
     }
 
     /**
-     * Sends the data in RowBinary or in Native formats
+     * Sends the data in {@link ClickHouseFormat#RowBinary RowBinary} or in
+     * {@link ClickHouseFormat#Native Native} format
+     *
+     * @param sql
+     *            the SQL statement to execute
+     * @param callback
+     *            data source for the upload
+     * @param format
+     *            the format to use, either {@link ClickHouseFormat#RowBinary
+     *            RowBinary} or {@link ClickHouseFormat#Native Native}
+     * @throws SQLException
+     *             if the upload fails
      */
     public void send(String sql, ClickHouseStreamCallback callback, ClickHouseFormat format) throws SQLException {
         if (!(RowBinary.equals(format) || Native.equals(format))) {

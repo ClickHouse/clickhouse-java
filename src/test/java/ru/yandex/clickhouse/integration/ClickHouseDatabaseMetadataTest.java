@@ -75,7 +75,7 @@ public class ClickHouseDatabaseMetadataTest {
         Assert.assertEquals(columns.getString("TABLE_SCHEM"), "test");
         Assert.assertEquals(columns.getString("TABLE_NAME"), "testMetadata");
         Assert.assertEquals(columns.getString("COLUMN_NAME"), "foo");
-        Assert.assertEquals(columns.getInt("DATA_TYPE"), Types.FLOAT);
+        Assert.assertEquals(columns.getInt("DATA_TYPE"), Types.REAL);
         Assert.assertEquals(columns.getString("TYPE_NAME"), "Float32");
         Assert.assertEquals(columns.getInt("COLUMN_SIZE"), 8);
         Assert.assertEquals(columns.getInt("BUFFER_LENGTH"), 0);

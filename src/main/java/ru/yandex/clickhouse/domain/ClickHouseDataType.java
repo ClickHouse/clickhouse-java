@@ -4,8 +4,8 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.sql.Array;
 import java.sql.Date;
+import java.sql.JDBCType;
 import java.sql.Timestamp;
-import java.sql.Types;
 import java.util.UUID;
 
 /**
@@ -20,43 +20,43 @@ import java.util.UUID;
  */
 public enum ClickHouseDataType {
 
-    IntervalYear      (Types.INTEGER,   Integer.class,    true,  19,  0),
-    IntervalQuarter   (Types.INTEGER,   Integer.class,    true,  19,  0),
-    IntervalMonth     (Types.INTEGER,   Integer.class,    true,  19,  0),
-    IntervalWeek      (Types.INTEGER,   Integer.class,    true,  19,  0),
-    IntervalDay       (Types.INTEGER,   Integer.class,    true,  19,  0),
-    IntervalHour      (Types.INTEGER,   Integer.class,    true,  19,  0),
-    IntervalMinute    (Types.INTEGER,   Integer.class,    true,  19,  0),
-    IntervalSecond    (Types.INTEGER,   Integer.class,    true,  19,  0),
-    UInt64            (Types.BIGINT,    BigInteger.class, false, 19,  0),
-    UInt32            (Types.INTEGER,   Long.class,       false, 10,  0),
-    UInt16            (Types.SMALLINT,  Integer.class,    false,  5,  0),
-    UInt8             (Types.TINYINT,   Integer.class,    false,  3,  0),
-    Int64             (Types.BIGINT,    Long.class,       true,  20,  0,
+    IntervalYear      (JDBCType.INTEGER,   Integer.class,    true,  19,  0),
+    IntervalQuarter   (JDBCType.INTEGER,   Integer.class,    true,  19,  0),
+    IntervalMonth     (JDBCType.INTEGER,   Integer.class,    true,  19,  0),
+    IntervalWeek      (JDBCType.INTEGER,   Integer.class,    true,  19,  0),
+    IntervalDay       (JDBCType.INTEGER,   Integer.class,    true,  19,  0),
+    IntervalHour      (JDBCType.INTEGER,   Integer.class,    true,  19,  0),
+    IntervalMinute    (JDBCType.INTEGER,   Integer.class,    true,  19,  0),
+    IntervalSecond    (JDBCType.INTEGER,   Integer.class,    true,  19,  0),
+    UInt64            (JDBCType.BIGINT,    BigInteger.class, false, 19,  0),
+    UInt32            (JDBCType.BIGINT,    Long.class,       false, 10,  0),
+    UInt16            (JDBCType.SMALLINT,  Integer.class,    false,  5,  0),
+    UInt8             (JDBCType.TINYINT,   Integer.class,    false,  3,  0),
+    Int64             (JDBCType.BIGINT,    Long.class,       true,  20,  0,
         "BIGINT"),
-    Int32             (Types.INTEGER,   Integer.class,    true,  11,  0,
+    Int32             (JDBCType.INTEGER,   Integer.class,    true,  11,  0,
         "INTEGER",
         "INT"),
-    Int16             (Types.SMALLINT,  Integer.class,    true,   6,  0,
+    Int16             (JDBCType.SMALLINT,  Integer.class,    true,   6,  0,
         "SMALLINT"),
-    Int8              (Types.TINYINT,   Integer.class,    true,   4,  0,
+    Int8              (JDBCType.TINYINT,   Integer.class,    true,   4,  0,
         "TINYINT"),
-    Date              (Types.DATE,      Date.class,       false, 10,  0),
-    DateTime          (Types.TIMESTAMP, Timestamp.class,  false, 19,  0,
+    Date              (JDBCType.DATE,      Date.class,       false, 10,  0),
+    DateTime          (JDBCType.TIMESTAMP, Timestamp.class,  false, 19,  0,
         "TIMESTAMP"),
-    Enum8             (Types.VARCHAR,   String.class,     false,  0,  0),
-    Enum16            (Types.VARCHAR,   String.class,     false,  0,  0),
-    Float32           (Types.FLOAT,     Float.class,      true,   8,  8,
-        "FLOAT"),
-    Float64           (Types.DOUBLE,    Double.class,     true,  17, 17,
+    Enum8             (JDBCType.VARCHAR,   String.class,     false,  0,  0),
+    Enum16            (JDBCType.VARCHAR,   String.class,     false,  0,  0),
+    Float32           (JDBCType.REAL,      Float.class,      true,   8,  8,
+        "REAL"),
+    Float64           (JDBCType.DOUBLE,    Double.class,     true,  17, 17,
         "DOUBLE"),
-    Decimal32         (Types.DECIMAL,   BigDecimal.class, true,   9,  9),
-    Decimal64         (Types.DECIMAL,   BigDecimal.class, true,  18, 18),
-    Decimal128        (Types.DECIMAL,   BigDecimal.class, true,  38, 38),
-    Decimal           (Types.DECIMAL,   BigDecimal.class, true,   0,  0,
+    Decimal32         (JDBCType.DECIMAL,   BigDecimal.class, true,   9,  9),
+    Decimal64         (JDBCType.DECIMAL,   BigDecimal.class, true,  18, 18),
+    Decimal128        (JDBCType.DECIMAL,   BigDecimal.class, true,  38, 38),
+    Decimal           (JDBCType.DECIMAL,   BigDecimal.class, true,   0,  0,
         "DEC"),
-    UUID              (Types.OTHER,     UUID.class,       false, 36,  0),
-    String            (Types.VARCHAR,   String.class,     false,  0,  0,
+    UUID              (JDBCType.OTHER,     UUID.class,       false, 36,  0),
+    String            (JDBCType.VARCHAR,   String.class,     false,  0,  0,
         "LONGBLOB",
         "MEDIUMBLOB",
         "TINYBLOB",
@@ -67,27 +67,27 @@ public enum ClickHouseDataType {
         "TINYTEXT",
         "LONGTEXT",
         "BLOB"),
-    FixedString       (Types.CHAR,      String.class,     false, -1,  0,
+    FixedString       (JDBCType.CHAR,      String.class,     false, -1,  0,
         "BINARY"),
-    Nothing           (Types.NULL,      Object.class,     false,  0,  0),
-    Nested            (Types.STRUCT,    String.class,     false,  0,  0),
-    Tuple             (Types.OTHER,     String.class,     false,  0,  0),
-    Array             (Types.ARRAY,     Array.class,      false,  0,  0),
-    AggregateFunction (Types.OTHER,     String.class,     false,  0,  0),
-    Unknown           (Types.OTHER,     String.class,     false,  0,  0);
+    Nothing           (JDBCType.NULL,      Object.class,     false,  0,  0),
+    Nested            (JDBCType.STRUCT,    String.class,     false,  0,  0),
+    Tuple             (JDBCType.OTHER,     String.class,     false,  0,  0),
+    Array             (JDBCType.ARRAY,     Array.class,      false,  0,  0),
+    AggregateFunction (JDBCType.OTHER,     String.class,     false,  0,  0),
+    Unknown           (JDBCType.OTHER,     String.class,     false,  0,  0);
 
-    private final int sqlType;
+    private final JDBCType jdbcType;
     private final Class<?> javaClass;
     private final boolean signed;
     private final int defaultPrecision;
     private final int defaultScale;
     private final String[] aliases;
 
-    ClickHouseDataType(int sqlType, Class<?> javaClass,
+    ClickHouseDataType(JDBCType jdbcType, Class<?> javaClass,
         boolean signed, int defaultPrecision, int defaultScale,
         String... aliases)
     {
-        this.sqlType = sqlType;
+        this.jdbcType = jdbcType;
         this.javaClass = javaClass;
         this.signed = signed;
         this.defaultPrecision = defaultPrecision;
@@ -96,7 +96,11 @@ public enum ClickHouseDataType {
     }
 
     public int getSqlType() {
-        return sqlType;
+        return jdbcType.getVendorTypeNumber().intValue();
+    }
+
+    public JDBCType getJdbcType() {
+        return jdbcType;
     }
 
     public Class<?> getJavaClass() {

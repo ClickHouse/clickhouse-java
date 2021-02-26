@@ -1,16 +1,22 @@
 package ru.yandex.clickhouse.integration;
 
 import java.io.IOException;
+import java.sql.Connection;
 import java.sql.Date;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.Calendar;
 import java.util.TimeZone;
 import java.util.concurrent.TimeUnit;
 
 import org.testng.Assert;
+import org.testng.annotations.AfterTest;
 import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
 
@@ -21,9 +27,13 @@ import ru.yandex.clickhouse.settings.ClickHouseProperties;
 import ru.yandex.clickhouse.util.ClickHouseRowBinaryStream;
 import ru.yandex.clickhouse.util.ClickHouseStreamCallback;
 
+import static org.testng.Assert.fail;
+
 public class TimeZoneTest {
+
     private ClickHouseConnection connectionServerTz;
     private ClickHouseConnection connectionManualTz;
+
     private long currentTime = 1000 * (System.currentTimeMillis() / 1000);
 
     @BeforeTest
@@ -38,12 +48,23 @@ public class TimeZoneTest {
         properties.setUseTimeZone("GMT" + (manualTimeZoneOffsetHours > 0 ? "+" : "")  + manualTimeZoneOffsetHours + ":00");
         ClickHouseDataSource dataSourceManualTz = ClickHouseContainerForTest.newDataSource(properties);
         connectionManualTz = dataSourceManualTz.getConnection();
-
         connectionServerTz.createStatement().execute("CREATE DATABASE IF NOT EXISTS test");
     }
 
+    @AfterTest
+    public void tearDown() throws Exception {
+        if (connectionServerTz != null) {
+            connectionServerTz.close();
+            connectionServerTz = null;
+        }
+        if (connectionManualTz != null) {
+            connectionManualTz.close();
+            connectionManualTz = null;
+        }
+    }
+
     @Test
-    public void timeZoneTest() throws Exception {
+    public void timeZoneTestTimestamp() throws Exception {
 
         connectionServerTz.createStatement().execute("DROP TABLE IF EXISTS test.time_zone_test");
         connectionServerTz.createStatement().execute(
@@ -63,19 +84,152 @@ public class TimeZoneTest {
         ResultSet rs = connectionServerTz.createStatement().executeQuery("SELECT i, d as cnt from test.time_zone_test order by i");
         // server write, server read
         rs.next();
-        Assert.assertEquals(rs.getTime(2).getTime(), currentTime);
+        Assert.assertEquals(rs.getTimestamp(2).getTime(), currentTime);
 
         // manual write, server read
         rs.next();
-        Assert.assertEquals(rs.getTime(2).getTime(), currentTime - TimeUnit.HOURS.toMillis(1));
+        Assert.assertEquals(rs.getTimestamp(2).getTime(), currentTime - TimeUnit.HOURS.toMillis(1));
 
         ResultSet rsMan = connectionManualTz.createStatement().executeQuery("SELECT i, d as cnt from test.time_zone_test order by i");
         // server write, manual read
         rsMan.next();
-        Assert.assertEquals(rsMan.getTime(2).getTime(), currentTime + TimeUnit.HOURS.toMillis(1));
+        Assert.assertEquals(rsMan.getTimestamp(2).getTime(), currentTime + TimeUnit.HOURS.toMillis(1));
         // manual write, manual read
         rsMan.next();
-        Assert.assertEquals(rsMan.getTime(2).getTime(), currentTime);
+        Assert.assertEquals(rsMan.getTimestamp(2).getTime(), currentTime);
+    }
+
+    /*
+     * These are the scenarios we need to test
+     *
+     * USE_SERVER_TIME_ZONE  USE_TIME_ZONE  USE_SERVER_TIME_ZONE_FOR_DATES  effective TZ Date parsing
+     * --------------------  -------------  ------------------------------  -------------------------
+     * false                 null           false                           (forbidden)
+     * false                 TZ_DIFF        false                           TZ_JVM
+     * false                 null           true                            (forbidden)
+     * false                 TZ_DIFF        true                            TZ_DIFF
+     * true                  null           false                           TZ_JVM
+     * true                  TZ_DIFF        false                           (forbidden)
+     * true                  null           true                            TZ_SERVER
+     * true                  TZ_DIFF        true                            (forbidden)
+     */
+
+    @Test
+    public void testTimeZoneParseSQLDate1() throws Exception {
+        try {
+            ClickHouseDataSource ds = createDataSource(false, null, false);
+            ds.getConnection();
+            fail();
+        } catch (IllegalArgumentException iae) {
+            // expected
+        }
+    }
+
+    @Test
+    public void testTimeZoneParseSQLDate2() throws Exception {
+        Long offset = Long.valueOf(
+            TimeUnit.MILLISECONDS.toHours(
+                connectionServerTz.getTimeZone().getOffset(currentTime)) - 1);
+        ClickHouseDataSource ds = createDataSource(false, offset, false);
+        resetDateTestTable();
+        ClickHouseConnection conn = ds.getConnection();
+        insertDateTestData(connectionServerTz, 1);
+        insertDateTestData(conn, 1);
+        assertDateResult(
+            conn,
+            Instant.ofEpochMilli(currentTime)
+                .atZone(ZoneId.systemDefault())
+                .truncatedTo(ChronoUnit.DAYS)
+                .toEpochSecond());
+        conn.close();
+        ds = null;
+    }
+
+    @Test
+    public void testTimeZoneParseSQLDate3() throws Exception {
+        try {
+            ClickHouseDataSource ds = createDataSource(false, null, false);
+            ds.getConnection();
+            fail();
+        } catch (IllegalArgumentException iae) {
+            // expected
+        }
+    }
+
+    @Test
+    public void testTimeZoneParseSQLDate4() throws Exception {
+        Long offset = Long.valueOf(
+            TimeUnit.MILLISECONDS.toHours(
+                connectionServerTz.getTimeZone().getOffset(currentTime)) - 1);
+        ClickHouseDataSource ds = createDataSource(false, offset, true);
+        resetDateTestTable();
+        ClickHouseConnection conn = ds.getConnection();
+        insertDateTestData(connectionServerTz, 1);
+        insertDateTestData(conn, 1);
+        assertDateResult(
+            conn,
+            Instant.ofEpochMilli(currentTime)
+                .atOffset(ZoneOffset.ofHours(offset.intValue()))
+                .truncatedTo(ChronoUnit.DAYS)
+                .toEpochSecond());
+        conn.close();
+        ds = null;
+    }
+
+    @Test
+    public void testTimeZoneParseSQLDate5() throws Exception {
+        ClickHouseDataSource ds = createDataSource(true, null, false);
+        resetDateTestTable();
+        ClickHouseConnection conn = ds.getConnection();
+        insertDateTestData(connectionServerTz, 1);
+        insertDateTestData(conn, 1);
+        assertDateResult(
+            conn,
+            Instant.ofEpochMilli(currentTime)
+                .atZone(ZoneId.systemDefault())
+                .truncatedTo(ChronoUnit.DAYS)
+                .toEpochSecond());
+        conn.close();
+        ds = null;
+    }
+
+    @Test
+    public void testTimeZoneParseSQLDate6() throws Exception {
+        try {
+            ClickHouseDataSource ds = createDataSource(true, Long.valueOf(1L), false);
+            ds.getConnection();
+            fail();
+        } catch (IllegalArgumentException iae) {
+            // expected
+        }
+    }
+
+    @Test
+    public void testTimeZoneParseSQLDate7() throws Exception {
+        ClickHouseDataSource ds = createDataSource(true, null, true);
+        resetDateTestTable();
+        ClickHouseConnection conn = ds.getConnection();
+        insertDateTestData(connectionServerTz, 1);
+        insertDateTestData(conn, 1);
+        assertDateResult(
+            conn,
+            Instant.ofEpochMilli(currentTime)
+                .atZone(connectionServerTz.getTimeZone().toZoneId())
+                .truncatedTo(ChronoUnit.DAYS)
+                .toEpochSecond());
+        conn.close();
+        ds = null;
+    }
+
+    @Test
+    public void testTimeZoneParseSQLDate8() throws Exception {
+        try {
+            ClickHouseDataSource ds = createDataSource(true, Long.valueOf(1L), true);
+            ds.getConnection();
+            fail();
+        } catch (IllegalArgumentException iae) {
+            // expected
+        }
     }
 
     @Test
@@ -213,4 +367,47 @@ public class TimeZoneTest {
         cal.set(Calendar.MILLISECOND, 0);
         return new Date(cal.getTimeInMillis());
     }
+
+    private static ClickHouseDataSource createDataSource(boolean useServerTimeZone,
+        Long manualTimeZoneOffsetHours, boolean useServerTimeZoneForParsingDates)
+    {
+        ClickHouseProperties props = new ClickHouseProperties();
+        props.setUseServerTimeZone(useServerTimeZone);
+        if (manualTimeZoneOffsetHours != null) {
+            props.setUseTimeZone(
+                "GMT"
+              + (manualTimeZoneOffsetHours.intValue() > 0 ? "+" : "")
+              + manualTimeZoneOffsetHours + ":00");
+        }
+        props.setUseServerTimeZoneForDates(useServerTimeZoneForParsingDates);
+        return ClickHouseContainerForTest.newDataSource(props);
+    }
+
+    private void resetDateTestTable() throws Exception {
+        connectionServerTz.createStatement().execute(
+            "DROP TABLE IF EXISTS test.time_zone_test");
+        connectionServerTz.createStatement().execute(
+            "CREATE TABLE IF NOT EXISTS test.time_zone_test (i Int32, d DateTime) ENGINE = TinyLog"
+        );
+    }
+
+    private void insertDateTestData(ClickHouseConnection conn, int id) throws Exception {
+        PreparedStatement statement = conn.prepareStatement(
+            "INSERT INTO test.time_zone_test (i, d) VALUES (?, ?)");
+        statement.setInt(1, id);
+        statement.setTimestamp(2, new Timestamp(currentTime));
+        statement.execute();
+    }
+
+    private static void assertDateResult(Connection conn, long expectedSecondsEpoch)
+        throws Exception
+    {
+        ResultSet rs = conn.createStatement().executeQuery(
+            "SELECT i, d as cnt from test.time_zone_test order by i");
+        rs.next();
+        Assert.assertEquals(rs.getDate(2).getTime(), expectedSecondsEpoch * 1000);
+        rs.next();
+        Assert.assertEquals(rs.getDate(2).getTime(), expectedSecondsEpoch * 1000);
+    }
+
 }

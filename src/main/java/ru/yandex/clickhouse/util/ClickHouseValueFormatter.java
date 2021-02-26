@@ -1,21 +1,37 @@
 package ru.yandex.clickhouse.util;
 
-import ru.yandex.clickhouse.ClickHouseArray;
-import ru.yandex.clickhouse.ClickHouseUtil;
-
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.sql.Date;
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.text.SimpleDateFormat;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.OffsetDateTime;
+import java.time.OffsetTime;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Collection;
 import java.util.TimeZone;
 import java.util.UUID;
 
+import ru.yandex.clickhouse.ClickHouseArray;
+import ru.yandex.clickhouse.ClickHouseUtil;
+import ru.yandex.clickhouse.domain.ClickHouseDataType;
+
 public final class ClickHouseValueFormatter {
 
     public static final String NULL_MARKER  = "\\N";
+
+    private static final DateTimeFormatter DATE_FORMATTER =
+        DateTimeFormatter.ofPattern("yyyy-MM-dd");
+    private static final DateTimeFormatter DATE_TIME_FORMATTER =
+        DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+    private static final DateTimeFormatter TIME_FORMATTER =
+        DateTimeFormatter.ofPattern("HH:mm:ss");
 
     private static ThreadLocal<SimpleDateFormat> dateFormat = new ThreadLocal<SimpleDateFormat>() {
         @Override
@@ -99,8 +115,12 @@ public final class ClickHouseValueFormatter {
     }
 
     public static String formatTime(Time time, TimeZone timeZone) {
-        getDateTimeFormat().setTimeZone(timeZone);
-        return getDateTimeFormat().format(time);
+        return TIME_FORMATTER.format(
+            Instant.ofEpochMilli(time.getTime())
+                .atZone(timeZone.toZoneId())
+                .toLocalTime());
+        // getDateTimeFormat().setTimeZone(timeZone);
+        // return getDateTimeFormat().format(time);
     }
 
     public static String formatTimestamp(Timestamp time, TimeZone timeZone) {
@@ -114,6 +134,51 @@ public final class ClickHouseValueFormatter {
 
     public static String formatBigInteger(BigInteger x) {
         return x.toString();
+    }
+
+    public static String formatLocalDate(LocalDate x) {
+        return DATE_FORMATTER.format(x);
+    }
+
+    public static String formatLocalDateTime(LocalDateTime x) {
+        return DATE_TIME_FORMATTER.format(x);
+    }
+
+    /**
+     * Formats a {@link LocalTime} as &quot;HH:mm:ss&quot;. There isn't any
+     * dedicated ClickHouse data type for times, so this is the most
+     * straightforward thing to do. It would be wrong for the JDBC driver to
+     * construct an artificial {@link ClickHouseDataType#DateTime DateTime}
+     * representation using a dummy date, e.g. 1970-01-01.
+     *
+     * @param x
+     *            a {@link LocalTime} parameter
+     * @return {@code x} formatted as &quot;HH:mm:ss&quot;
+     */
+    public static String formatLocalTime(LocalTime x) {
+        return TIME_FORMATTER.format(x);
+    }
+
+    public static String formatOffsetTime(OffsetTime x) {
+        return DateTimeFormatter.ISO_OFFSET_TIME.format(x);
+    }
+
+    public static String formatOffsetDateTime(OffsetDateTime x, TimeZone timeZone) {
+        return DATE_TIME_FORMATTER
+            .withZone(timeZone.toZoneId())
+            .format(x);
+    }
+
+    public static String formatZonedDateTime(ZonedDateTime x, TimeZone timeZone) {
+        return DATE_TIME_FORMATTER
+            .withZone(timeZone.toZoneId())
+            .format(x);
+    }
+
+    public static String formatInstant(Instant x, TimeZone timeZone) {
+        return DATE_TIME_FORMATTER
+            .withZone(timeZone.toZoneId())
+            .format(x);
     }
 
     public static String formatObject(Object x, TimeZone dateTimeZone,
@@ -142,10 +207,22 @@ public final class ClickHouseValueFormatter {
             return formatBytes((byte[]) x);
         } else if (x instanceof Date) {
             return formatDate((Date) x, dateTimeZone);
+        } else if (x instanceof LocalDate) {
+            return formatLocalDate((LocalDate) x);
         } else if (x instanceof Time) {
             return formatTime((Time) x, dateTimeTimeZone);
+        } else if (x instanceof LocalTime) {
+            return formatLocalTime((LocalTime) x);
+        } else if (x instanceof OffsetTime) {
+            return formatOffsetTime((OffsetTime) x);
         } else if (x instanceof Timestamp) {
             return formatTimestamp((Timestamp) x, dateTimeTimeZone);
+        } else if (x instanceof LocalDateTime) {
+            return formatLocalDateTime((LocalDateTime) x);
+        } else if (x instanceof OffsetDateTime) {
+            return formatOffsetDateTime((OffsetDateTime) x, dateTimeTimeZone);
+        } else if (x instanceof ZonedDateTime) {
+            return formatZonedDateTime((ZonedDateTime) x, dateTimeTimeZone);
         } else if (x instanceof Boolean) {
             return formatBoolean(((Boolean) x).booleanValue());
         } else if (x instanceof UUID) {
@@ -153,7 +230,7 @@ public final class ClickHouseValueFormatter {
         } else if (x instanceof BigInteger) {
             return formatBigInteger((BigInteger) x);
         } else if (x instanceof Collection) {
-            return ClickHouseArrayUtil.toString((Collection) x, dateTimeZone, dateTimeTimeZone);
+            return ClickHouseArrayUtil.toString((Collection<?>) x, dateTimeZone, dateTimeTimeZone);
         } else if (x.getClass().isArray()) {
             return ClickHouseArrayUtil.arrayToString(x, dateTimeZone, dateTimeTimeZone);
         } else {

@@ -42,68 +42,42 @@ public interface ClickHouseStatement extends Statement {
                            List<ClickHouseExternalData> externalData,
                            Map<String, String> additionalRequestParams) throws SQLException;
 
-    /**
-     * @see #write()
-     */
     @Deprecated
     void sendStream(InputStream content, String table, Map<ClickHouseQueryParam, String> additionalDBParams) throws SQLException;
 
-    /**
-     * @see #write()
-     */
     @Deprecated
     void sendStream(InputStream content, String table) throws SQLException;
 
-    /**
-     * @see #write()
-     */
     @Deprecated
     void sendRowBinaryStream(String sql, Map<ClickHouseQueryParam, String> additionalDBParams, ClickHouseStreamCallback callback) throws SQLException;
 
-    /**
-     * @see #write()
-     */
     @Deprecated
     void sendRowBinaryStream(String sql, ClickHouseStreamCallback callback) throws SQLException;
 
-    /**
-     * @see #write()
-     */
     @Deprecated
     void sendNativeStream(String sql, Map<ClickHouseQueryParam, String> additionalDBParams, ClickHouseStreamCallback callback) throws SQLException;
 
-    /**
-     * @see #write()
-     */
     @Deprecated
     void sendNativeStream(String sql, ClickHouseStreamCallback callback) throws SQLException;
 
-    /**
-     * @see #write()
-     */
     @Deprecated
     void sendCSVStream(InputStream content, String table, Map<ClickHouseQueryParam, String> additionalDBParams) throws SQLException;
 
-    /**
-     * @see #write()
-     */
     @Deprecated
     void sendCSVStream(InputStream content, String table) throws SQLException;
 
-    /**
-     * @see #write()
-     */
     @Deprecated
     void sendStreamSQL(InputStream content, String sql, Map<ClickHouseQueryParam, String> additionalDBParams) throws SQLException;
 
-    /**
-     * @see #write()
-     */
     @Deprecated
     void sendStreamSQL(InputStream content, String sql) throws SQLException;
 
     /**
-     * Returns extended write-API
+     * Returns extended write-API, which simplifies uploading larger files or
+     * data streams
+     *
+     * @return a new {@link Writer} builder object which can be used to
+     *         construct a request to the server
      */
     Writer write();
 

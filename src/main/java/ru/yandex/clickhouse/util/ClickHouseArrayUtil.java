@@ -1,14 +1,27 @@
 package ru.yandex.clickhouse.util;
 
+import java.sql.Date;
+import java.sql.SQLException;
+import java.sql.Timestamp;
 import java.util.Collection;
 import java.util.TimeZone;
 
+import com.google.common.primitives.Primitives;
+
 import ru.yandex.clickhouse.ClickHouseUtil;
+import ru.yandex.clickhouse.response.ArrayByteFragment;
+import ru.yandex.clickhouse.response.ByteFragment;
+import ru.yandex.clickhouse.response.ClickHouseColumnInfo;
+import ru.yandex.clickhouse.response.parser.ClickHouseValueParser;
 
 /**
  * @author Dmitry Andreev <a href="mailto:AndreevDm@yandex-team.ru"></a>
  */
 public class ClickHouseArrayUtil {
+
+    private static final char ARRAY_ELEMENTS_SEPARATOR = ',';
+    private static final char STRING_QUOTATION = '\'';
+    private static final int MAX_ARRAY_DEPTH = 32;
 
     private ClickHouseArrayUtil() {
         // NOP
@@ -61,6 +74,131 @@ public class ClickHouseArrayUtil {
         TimeZone dateTimeTimeZone)
     {
         return toString(collection.toArray(), dateTimeZone, dateTimeTimeZone);
+    }
+
+    public static Object parseArray(ByteFragment value, boolean useObjects,
+        TimeZone timeZone, int arrayLevel, Class<?> elementClass, ClickHouseColumnInfo columnInfo) throws SQLException
+    {
+        if (arrayLevel > ClickHouseArrayUtil.MAX_ARRAY_DEPTH) {
+            throw new IllegalArgumentException("Maximum parse depth exceeded");
+        }
+
+        if (value.isNull()) {
+            return null;
+        }
+
+        if (value.charAt(0) != '[' || value.charAt(value.length() - 1) != ']') {
+            throw new IllegalArgumentException("not an array: " + value);
+        }
+
+        if ((elementClass == Date.class || elementClass == Timestamp.class) && timeZone == null) {
+            throw new IllegalArgumentException("Time zone must be provided for date/dateTime array");
+        }
+
+        ByteFragment trim = value.subseq(1, value.length() - 2);
+
+        int index = 0;
+        Object array;
+        if (arrayLevel > 1) {
+            int[] dimensions = new int[arrayLevel];
+            dimensions[0] = ClickHouseArrayUtil.getArrayLength(trim);
+            array = java.lang.reflect.Array.newInstance(
+                useObjects ? elementClass : Primitives.unwrap(elementClass),
+                dimensions
+            );
+        } else {
+            array = java.lang.reflect.Array.newInstance(
+                useObjects ? elementClass : Primitives.unwrap(elementClass),
+                ClickHouseArrayUtil.getArrayLength(trim)
+            );
+        }
+        int fieldStart = 0;
+        int currentLevel = 0;
+        boolean inQuotation = false;
+        for (int chIdx = 0; chIdx < trim.length(); chIdx++) {
+            int ch = trim.charAt(chIdx);
+
+            if (ch == '\\') {
+                chIdx++;
+            }
+            inQuotation = ch == STRING_QUOTATION ^ inQuotation;
+            if (!inQuotation) {
+                if (ch == '[') {
+                    currentLevel++;
+                } else if (ch == ']') {
+                    currentLevel--;
+                }
+            }
+
+            if (!inQuotation && ch == ARRAY_ELEMENTS_SEPARATOR && currentLevel == 0 || chIdx == trim.length() - 1) {
+                int fieldEnd = chIdx == trim.length() - 1 ? chIdx + 1 : chIdx;
+                if (trim.charAt(fieldStart) == '\'') {
+                    fieldStart++;
+                    fieldEnd--;
+                }
+                ArrayByteFragment fragment = ArrayByteFragment.wrap(trim.subseq(fieldStart, fieldEnd - fieldStart));
+                if (arrayLevel > 1) {
+                    Object arrayValue = parseArray(
+                        fragment, useObjects, timeZone, arrayLevel - 1, elementClass, columnInfo);
+                    java.lang.reflect.Array.set(array, index++, arrayValue);
+                } else {
+                    Object o = useObjects
+                        ? ClickHouseValueParser.getParser(elementClass).parse(
+                            fragment, columnInfo, timeZone)
+                        : ClickHouseValueParser.getParser(elementClass).parseWithDefault(
+                            fragment, columnInfo, timeZone);
+                    java.lang.reflect.Array.set(array, index++, o);
+                }
+                fieldStart = chIdx + 1;
+            }
+        }
+
+        return array;
+    }
+
+    public static int getArrayLength(ByteFragment value) {
+        if (value.length() == 0) {
+            return 0;
+        }
+
+        int length = 1;
+        boolean inQuotation = false;
+        int arrayLevel = 0;
+        for (int i = 0; i < value.length(); i++) {
+            int ch = value.charAt(i);
+
+            if (ch == '\\') {
+                i++;
+            }
+
+            inQuotation = ch == ClickHouseArrayUtil.STRING_QUOTATION ^ inQuotation;
+            if (!inQuotation) {
+                if (ch == '[') {
+                    ++arrayLevel;
+                } else if (ch == ']') {
+                    --arrayLevel;
+                } else if (ch == ClickHouseArrayUtil.ARRAY_ELEMENTS_SEPARATOR && arrayLevel == 0) {
+                    ++length;
+                }
+            }
+        }
+        return length;
+    }
+
+    public static Object parseArray(ByteFragment value,
+        boolean useObjects, TimeZone timeZone, ClickHouseColumnInfo columnInfo)
+        throws SQLException
+    {
+        return parseArray(value, useObjects, timeZone, columnInfo.getArrayLevel(),
+            columnInfo.getEffectiveClickHouseDataType().getJavaClass(), columnInfo);
+    }
+
+    static Object parseArray(ByteFragment value, Class<?> clazz,
+        boolean useObjects, ClickHouseColumnInfo columnInfo)
+        throws SQLException
+    {
+        return parseArray(value, useObjects, null, columnInfo.getArrayLevel(),
+            clazz, columnInfo);
     }
 
     /**
@@ -230,4 +368,6 @@ public class ClickHouseArrayUtil {
             return builder.toString();
         }
     }
+
+
 }

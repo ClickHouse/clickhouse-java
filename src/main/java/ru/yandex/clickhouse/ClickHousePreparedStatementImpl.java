@@ -38,6 +38,7 @@ import org.apache.http.impl.client.CloseableHttpClient;
 
 import ru.yandex.clickhouse.jdbc.parser.ClickHouseSqlStatement;
 import ru.yandex.clickhouse.jdbc.parser.StatementType;
+
 import ru.yandex.clickhouse.response.ClickHouseResponse;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
 import ru.yandex.clickhouse.settings.ClickHouseQueryParam;
@@ -452,17 +453,38 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
 
     @Override
     public void setDate(int parameterIndex, Date x, Calendar cal) throws SQLException {
-        throw new SQLFeatureNotSupportedException();
+        if (x != null && cal != null && cal.getTimeZone() != null) {
+            setBind(
+                parameterIndex,
+                ClickHouseValueFormatter.formatDate(x, cal.getTimeZone()),
+                true);
+        } else {
+            setDate(parameterIndex, x);
+        }
     }
 
     @Override
     public void setTime(int parameterIndex, Time x, Calendar cal) throws SQLException {
-        throw new SQLFeatureNotSupportedException();
+        if (x != null && cal != null && cal.getTimeZone() != null) {
+            setBind(
+                parameterIndex,
+                ClickHouseValueFormatter.formatTime(x, cal.getTimeZone()),
+                true);
+        } else {
+            setTime(parameterIndex, x);
+        }
     }
 
     @Override
     public void setTimestamp(int parameterIndex, Timestamp x, Calendar cal) throws SQLException {
-        throw new SQLFeatureNotSupportedException();
+        if (x != null && cal != null && cal.getTimeZone() != null) {
+            setBind(
+                parameterIndex,
+                ClickHouseValueFormatter.formatTimestamp(x, cal.getTimeZone()),
+                true);
+        } else {
+            setTimestamp(parameterIndex, x);
+        }
     }
 
     @Override

@@ -64,6 +64,9 @@ public class ClickHouseColumnInfoTest {
         assertEquals(info.getArrayLevel(), arrayLevel);
         assertEquals(info.getOriginalTypeName(), input);
         assertEquals(info.getColumnName(), "columnName");
+        assertEquals(
+            info.getEffectiveClickHouseDataType(),
+            dataType == ClickHouseDataType.Array ? arrayBaseType : dataType);
     }
 
     @SuppressWarnings("boxing")
