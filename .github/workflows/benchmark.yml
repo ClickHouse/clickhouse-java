@@ -1,6 +1,11 @@
 name: Benchmark
 
 on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
   workflow_dispatch:
     inputs:
       clickhouse:
@@ -28,7 +33,52 @@ on:
         required: false
 
 jobs:
-  benchmark:
+  benchmark-pull-request:
+    runs-on: ubuntu-latest
+    name: Benchmark pull request
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v2
+      - name: Set up JDK
+        uses: actions/setup-java@v1
+        with:
+          java-version: 8
+      - name: Extract version
+        id: version
+        run: |
+          echo ::set-output name=value::$(grep '<revision>' pom.xml | sed -e 's|.*>\(.*\)<.*|\1|')
+      - name: Update version and group id
+        run: |
+          find . -type f -name "pom.xml" -exec sed -i -e 's|${revision}|${{ steps.version.outputs.value }}|g' \
+            -e 's|^\(    <version>\).*\(</version>\)$|\1${{ steps.version.outputs.value }}\2|' \
+            -e 's|${parent.groupId}|tech.clickhouse|g' -e 's|.*argLine.*timezone=.*||g' '{}' \;
+          find . -type f -name "log4j.*" -exec rm -fv '{}' \;
+      - name: Build project
+        run: |
+          mvn --batch-mode --update-snapshots -q -DskipTests install
+          cd clickhouse-benchmark
+          mvn --batch-mode --update-snapshots install
+          java -jar target/benchmarks.jar -rf text -p client=clickhouse-jdbc Basic
+          echo "BENCHMARK_REPORT<<EOF" >> $GITHUB_ENV
+          cat jmh-result.text >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+          cd -
+      - name: Comment PR
+        uses: actions/github-script@v3
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            if (process.env.BENCHMARK_REPORT) {
+              github.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: '```\n' + process.env.BENCHMARK_REPORT + '\n```'
+              });
+            }
+
+  benchmark-on-demand:
     runs-on: ubuntu-latest
     name: Benchmark on demand
     if: github.event_name == 'workflow_dispatch'
@@ -47,9 +97,10 @@ jobs:
         continue-on-error: true
       - name: Update version and group id
         run: |
-          find . -type f -name "pom.xml" -exec sed -i -e 's|${revision}|${{ github.event.inputs.driver }}|g' \
-            -e 's|${parent.groupId}|tech.clickhouse|g' '{}' \;
-          sed -i -e 's|^\(    <version>\).*\(</version>\)$|\1${{ github.event.inputs.driver }}\2|' pom.xml
+          find . -type f -name "pom.xml" -exec sed -i -e 's|${revision}|${{ github.event.inputs.version }}|g' \
+            -e 's|^\(    <version>\).*\(</version>\)$|\1${{ github.event.inputs.driver }}\2|' \
+            -e 's|${parent.groupId}|tech.clickhouse|g' -e 's|.*argLine.*timezone=.*||g' '{}' \;
+          find . -type f -name "log4j.*" -exec rm -fv '{}' \;
         continue-on-error: true
       - name: Install driver as needed
         run: mvn --batch-mode --update-snapshots -q -DskipTests install
@@ -58,8 +109,7 @@ jobs:
       - name: Build project
         run: |
           cd clickhouse-benchmark
-          mvn --batch-mode --update-snapshots -Drevision=${{ github.event.inputs.driver }} \
-            -DclickhouseVersion=${{ github.event.inputs.clickhouse }} install
+          mvn --batch-mode --update-snapshots -DclickhouseVersion=${{ github.event.inputs.clickhouse }} install
           java -jar target/benchmarks.jar -rf json ${{ github.event.inputs.options }} > output.txt
           echo "BENCHMARK_REPORT<<EOF" >> $GITHUB_ENV
           tail -n +$(grep -n '^REMEMBER:' output.txt | tail -1 | awk -F: '{print $1+6}') output.txt | head -n -2 | grep -v ':·' >> $GITHUB_ENV
@@ -94,7 +144,7 @@ jobs:
           echo ::set-output name=hash::$(git log --pretty=format:'%H' -n 1)
         id: commit
         continue-on-error: true
-      - name: 'Comment PR'
+      - name: Comment PR
         uses: actions/github-script@v3
         if: github.event.inputs.pr != ''
         env:
@@ -117,8 +167,9 @@ jobs:
             const flag = result === 'success'
               ? ':green_circle:'
               : (result === 'failure' ? ':red_circle:' : ':yellow_circle:');
-            const msg = `${flag} [benchmark](${compareUrl}) using JDK [${process.env.JAVA_VERSION}] and ClickHouse [${process.env.CLICKHOUSE_VRESION}]: [${result}](${buildUrl})`
-              + '<details>\n<summary>Expand to see details...</summary>\n\n```\n'
-              + process.env.BENCHMARK_REPORT || ''
-              + '\n```\n</details>';
+            let msg = `${flag} [benchmark](${compareUrl}) using JDK [${process.env.JAVA_VERSION}] and ClickHouse [${process.env.CLICKHOUSE_VRESION}]: [${result}](${buildUrl})`;
+            if (result === 'success') {
+              msg = msg + '<details>\n<summary>Expand to see details...</summary>\n\n```\n'
+                + process.env.BENCHMARK_REPORT || '' + '\n```\n</details>';
+            }
             github.issues.createComment({ issue_number, owner, repo, body: msg });
