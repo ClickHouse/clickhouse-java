@@ -20,8 +20,12 @@ jobs:
         uses: actions/setup-java@v1
         with:
           java-version: 8
-      - run: find . -type f -name "pom.xml" -exec sed -i -e 's|${revision}|${{ github.event.inputs.version }}|g' -e 's|${parent.groupId}|tech.clickhouse|g' '{}' \;
-      - run: find . -type f -name "log4j.properties" -exec sed -i -e 's|DEBUG|WARN|g' '{}' \;
+      - name: Update pom files and reduce logs
+        run: |
+          find . -type f -name "pom.xml" -exec sed -i -e 's|${revision}|${{ github.event.inputs.version }}|g' \
+            -e 's|^\(    <version>\).*\(</version>\)$|\1${{ github.event.inputs.version }}\2|' \
+            -e 's|${parent.groupId}|tech.clickhouse|g' -e 's|.*argLine.*timezone=.*||g' '{}' \;
+          find . -type f -name "log4j.*" -exec rm -fv '{}' \;
       - name: Release Maven package
         uses: samuelmeuli/action-maven-publish@v1
         with:
@@ -40,4 +44,4 @@ jobs:
           title: "Release v${{ github.event.inputs.version }}"
           files: |
             LICENSE
-            target/clickhouse*.jar
+            **/target/clickhouse*.jar

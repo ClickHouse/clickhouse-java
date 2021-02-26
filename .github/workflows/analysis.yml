@@ -1,0 +1,67 @@
+name: Analysis
+
+on:
+  push:
+    branches:
+      - master
+      - develop
+      - 0.2.x
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: "Pull request#"
+        required: false
+
+jobs:
+  static:
+    runs-on: ubuntu-latest
+    name: Static code analysis
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v2
+      - name: Check out head
+        uses: actions/checkout@v2
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+        if: github.event_name == 'pull_request'
+      - name: Check out PR
+        run: |
+          git fetch --no-tags --prune --progress --no-recurse-submodules --depth=1 \
+            origin pull/${{ github.event.inputs.pr }}/head:the-pr && git checkout the-pr
+        if: github.event.inputs.pr != ''
+      - name: Set up JDK
+        uses: actions/setup-java@v1
+        with:
+          java-version: 11
+      - name: Cache SonarCloud packages
+        uses: actions/cache@v1
+        with:
+          path: ~/.sonar/cache
+          key: ${{ runner.os }}-sonar
+          restore-keys: ${{ runner.os }}-sonar
+      - name: Cache Maven packages
+        uses: actions/cache@v1
+        with:
+          path: ~/.m2
+          key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
+          restore-keys: ${{ runner.os }}-m2
+      - name: Check style and spell
+        uses: zhicwu/checkstyle-action@master
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          reporter: 'github-pr-check'
+          # added,diff_context,file,nofilter
+          filter_mode: 'added'
+        if: github.event_name == 'pull_request' || github.event.inputs.pr != ''
+      - name: Build and analyze
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          find . -type f -name "log4j.*" -exec rm -fv '{}' \;
+          mvn -q --batch-mode -Panalysis verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar

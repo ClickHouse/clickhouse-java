@@ -11,6 +11,14 @@ on:
         description: "Java version"
         required: true
         default: "8"
+      chTz:
+        description: "ClickHouse timezone"
+        required: true
+        default: "Asia/Chongqing"
+      javaTz:
+        description: "Java timezone"
+        required: true
+        default: "America/Los_Angeles"
       pr:
         description: "Pull request#"
         required: false
@@ -66,7 +74,8 @@ jobs:
       - name: Check out commented PR
         if: steps.check.outputs.triggered == 'true'
         run: |
-          git fetch --no-tags --prune --progress --no-recurse-submodules --depth=1 origin pull/${{ fromJSON(steps.commented.outputs.result).pr }}/merge:merged-pr && git checkout merged-pr
+          git fetch --no-tags --prune --progress --no-recurse-submodules --depth=1 \
+            origin pull/${{ fromJSON(steps.commented.outputs.result).pr }}/merge:merged-pr && git checkout merged-pr
       - name: Set up JDK
         if: steps.check.outputs.triggered == 'true'
         uses: actions/setup-java@v1
@@ -75,14 +84,19 @@ jobs:
         continue-on-error: true
       - name: Verify with Maven
         if: steps.check.outputs.triggered == 'true'
-        run: mvn --batch-mode --update-snapshots -DclickhouseVersion=${{ fromJSON(steps.commented.outputs.result).clickhouse }} verify
+        run: |
+          find . -type f -name "pom.xml" -exec sed -i -e 's|.*argLine.*timezone=.*||g' '{}' \;
+          mvn --batch-mode --update-snapshots \
+            -DclickhouseVersion=${{ fromJSON(steps.commented.outputs.result).clickhouse }} \
+            -DclickhouseTimezone=Asia/Chongqing \
+            -Duser.timezone=America/Los_Angeles verify
         id: maven
         continue-on-error: true
       - name: Comment PR
         uses: actions/github-script@v3
         if: steps.check.outputs.triggered == 'true'
         env:
-          CLICKHOUSE_VRESION: ${{ fromJSON(steps.commented.outputs.result).clickhouse }}
+          CLICKHOUSE_VERSION: ${{ fromJSON(steps.commented.outputs.result).clickhouse }}
           JAVA_VERSION: ${{ fromJSON(steps.commented.outputs.result).java }}
           PREV_STEP_RESULT: '${{ steps.maven.outcome }}'
         with:
@@ -94,7 +108,7 @@ jobs:
             const flag = result === 'success'
               ? ':green_circle:'
               : (result === 'failure' ? ':red_circle:' : ':yellow_circle:');
-            const msg = `${flag} verify using JDK [${process.env.JAVA_VERSION}] and ClickHouse [${process.env.CLICKHOUSE_VRESION}]: [${result}](${buildUrl})`;
+            const msg = `${flag} verify using JDK [${process.env.JAVA_VERSION}] and ClickHouse [${process.env.CLICKHOUSE_VERSION}]: [${result}](${buildUrl})`;
             github.issues.createComment({ issue_number, owner, repo, body: msg });
 
   verify-on-demand:
@@ -114,15 +128,22 @@ jobs:
           java-version: ${{ github.event.inputs.java }}
         continue-on-error: true
       - name: Verify with Maven
-        run: mvn --batch-mode --update-snapshots -DclickhouseVersion=${{ github.event.inputs.clickhouse }} verify
+        run: |
+          find . -type f -name "pom.xml" -exec sed -i -e 's|.*argLine.*timezone=.*||g' '{}' \;
+          mvn --batch-mode --update-snapshots \
+            -DclickhouseVersion=${{ github.event.inputs.clickhouse }} \
+            -DclickhouseTimezone=${{ github.event.inputs.chTz }} \
+            -Duser.timezone=${{ github.event.inputs.javaTz }} verify
         id: maven
         continue-on-error: true
-      - name: 'Comment PR'
+      - name: Comment PR
         uses: actions/github-script@v3
         if: github.event.inputs.pr != ''
         env:
           PR_NO: ${{ github.event.inputs.pr }}
-          CLICKHOUSE_VRESION: ${{ github.event.inputs.clickhouse }}
+          CLICKHOUSE_TIMEZONE: ${{ github.event.inputs.chTz }}
+          CLICKHOUSE_VERSION: ${{ github.event.inputs.clickhouse }}
+          JAVA_TIMEZONE: ${{ github.event.inputs.javaTz }}
           JAVA_VERSION: ${{ github.event.inputs.java }}
           PREV_STEP_RESULT: '${{ steps.maven.outcome }}'
         with:
@@ -135,5 +156,5 @@ jobs:
             const flag = result === 'success'
               ? ':green_circle:'
               : (result === 'failure' ? ':red_circle:' : ':yellow_circle:');
-            const msg = `${flag} verify using JDK [${process.env.JAVA_VERSION}] and ClickHouse [${process.env.CLICKHOUSE_VRESION}]: [${result}](${buildUrl})`;
+            const msg = `${flag} verify using JDK [${process.env.JAVA_VERSION}, timezone=${process.env.JAVA_TIMEZONE}] and ClickHouse [${process.env.CLICKHOUSE_VERSION}, timezone=${process.env.CLICKHOUSE_TIMEZONE}]: [${result}](${buildUrl})`;
             github.issues.createComment({ issue_number, owner, repo, body: msg });
