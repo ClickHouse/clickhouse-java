@@ -8,18 +8,29 @@ import ru.yandex.clickhouse.ClickHouseContainerForTest;
 import ru.yandex.clickhouse.ClickHouseDataSource;
 import ru.yandex.clickhouse.domain.ClickHouseCompression;
 import ru.yandex.clickhouse.domain.ClickHouseFormat;
-import ru.yandex.clickhouse.util.ClickHouseVersionNumberUtil;
 
 import java.io.*;
 import java.math.BigDecimal;
 import java.nio.charset.Charset;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Timestamp;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.zip.GZIPOutputStream;
 
 public class StreamSQLTest {
+    private static final DateTimeFormatter DATE_TIME_FORMATTER_TZ = 
+        DateTimeFormatter.ofPattern("yyyy-MM-dd['T'][ ]HH:mm:ss[.SSS][XXX]");
+
     private ClickHouseDataSource dataSource;
     private ClickHouseConnection connection;
+
+    private Timestamp utcToServerTimezone(String datetime) {
+        return Timestamp.from(LocalDateTime.parse(datetime, DATE_TIME_FORMATTER_TZ)
+            .atZone(ZoneId.of("UTC")).withZoneSameInstant(connection.getTimeZone().toZoneId()).toInstant());
+    }
 
     @BeforeTest
     public void setUp() throws Exception {
@@ -259,8 +270,8 @@ public class StreamSQLTest {
         Assert.assertEquals(rs.getFloat("sum_flt"), Float.POSITIVE_INFINITY);
         Assert.assertEquals(rs.getLong("uniq_str"), 100);
         Assert.assertEquals(rs.getBigDecimal("max_dcml"), new BigDecimal("1.000000000"));
-        Assert.assertEquals(rs.getString("min_time"), "2020-01-01 00:00:00");
-        Assert.assertEquals(rs.getString("max_time"), "2020-01-01 00:01:39");
+        Assert.assertEquals(rs.getTimestamp("min_time"), utcToServerTimezone("2020-01-01 00:00:00"));
+        Assert.assertEquals(rs.getTimestamp("max_time"), utcToServerTimezone("2020-01-01 00:01:39"));
     }
 
     @Test
@@ -295,7 +306,7 @@ public class StreamSQLTest {
         Assert.assertEquals(rs.getString("str"), "42");
         Assert.assertTrue( Math.abs(rs.getFloat("flt") - 0.023809524) < 0.0001);
         Assert.assertTrue( Math.abs(rs.getFloat("dcml") - 0.023255813) < 0.0001);
-        Assert.assertEquals(rs.getString("time"), "2020-01-01 00:00:42");
+        Assert.assertEquals(rs.getTimestamp("time"), utcToServerTimezone("2020-01-01 00:00:42"));
     }
 
     @Test
@@ -339,8 +350,8 @@ public class StreamSQLTest {
         Assert.assertEquals(rs.getFloat("sum_flt"), Float.POSITIVE_INFINITY);
         Assert.assertEquals(rs.getLong("uniq_str"), 100);
         Assert.assertEquals(rs.getBigDecimal("max_dcml"), new BigDecimal("1.000000000"));
-        Assert.assertEquals(rs.getString("min_time"), "2020-01-01 00:00:00");
-        Assert.assertEquals(rs.getString("max_time"), "2020-01-01 00:01:39");
+        Assert.assertEquals(rs.getTimestamp("min_time"), utcToServerTimezone("2020-01-01 00:00:00"));
+        Assert.assertEquals(rs.getTimestamp("max_time"), utcToServerTimezone("2020-01-01 00:01:39"));
     }
 
     @Test
@@ -375,7 +386,7 @@ public class StreamSQLTest {
         Assert.assertEquals(rs.getString("str"), "42");
         Assert.assertTrue( Math.abs(rs.getFloat("flt") - 0.023809524) < 0.0001);
         Assert.assertTrue( Math.abs(rs.getFloat("dcml") - 0.023255813) < 0.0001);
-        Assert.assertEquals(rs.getString("time"), "2020-01-01 00:00:42");
+        Assert.assertEquals(rs.getTimestamp("time"), utcToServerTimezone("2020-01-01 00:00:42"));
     }
 
 }
