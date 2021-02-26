@@ -22,6 +22,10 @@ public class ClickHouseContainerForTest {
     private static final GenericContainer<?> clickhouseContainer;
 
     static {
+        String timezone = System.getProperty("clickhouseTimezone");
+        if (timezone == null || timezone.isEmpty()) {
+            timezone = "UTC";
+        }
         String imageTag = System.getProperty("clickhouseVersion");
 
         if (imageTag == null || (imageTag = imageTag.trim()).isEmpty()) {
@@ -43,6 +47,7 @@ public class ClickHouseContainerForTest {
                                .from( imageNameWithTag )
                                .run("apt-get update && apt-get install tzdata")
                 ))
+                .withEnv("TZ", timezone)
                 .withExposedPorts(HTTP_PORT, NATIVE_PORT, MYSQL_PORT)
                 .withClasspathResourceMapping(
                     "ru/yandex/clickhouse/users.d",
