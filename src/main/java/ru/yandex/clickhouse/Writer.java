@@ -17,7 +17,7 @@ import static ru.yandex.clickhouse.domain.ClickHouseFormat.Native;
 import static ru.yandex.clickhouse.domain.ClickHouseFormat.RowBinary;
 import static ru.yandex.clickhouse.domain.ClickHouseFormat.TabSeparated;
 
-public final class Writer extends ConfigurableApi<Writer> {
+public class Writer extends ConfigurableApi<Writer> {
 
     private ClickHouseFormat format = TabSeparated;
     private ClickHouseCompression compression = null;
