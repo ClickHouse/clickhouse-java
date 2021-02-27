@@ -5,6 +5,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.time.temporal.ChronoUnit;
 import java.util.TimeZone;
 
 import org.testng.annotations.BeforeClass;
@@ -130,7 +131,9 @@ public class ClickHouseSQLDateParserTest {
                 ByteFragment.fromString("2020-01-12 01:02:03"), columnInfo, null),
             new Date(
                 LocalDate.of(2020, 1, 12)
-                    .atStartOfDay(ZoneId.systemDefault())
+                    .atStartOfDay(ZoneId.of("Europe/Berlin"))
+                    .withZoneSameInstant(ZoneId.systemDefault())
+                    .truncatedTo(ChronoUnit.DAYS)
                     .toInstant()
                     .toEpochMilli()));
         assertEquals(

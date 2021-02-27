@@ -705,7 +705,9 @@ public class ClickHouseResultSetTest {
         Calendar cal = new GregorianCalendar();
         cal.setTimeZone(TimeZone.getTimeZone("America/Los_Angeles"));
         Date d = rs.getDate(1, cal);
-        assertEquals(d.toLocalDate(), LocalDate.of(2020, 2, 8));
+        assertEquals(d.getTime(), 
+            LocalDate.of(2020, 2, 8).atStartOfDay(ZoneId.of("UTC"))
+                .toInstant().toEpochMilli());
         assertEquals(
             d.getTime() / 1000,
             ZonedDateTime

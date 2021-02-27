@@ -165,13 +165,13 @@ public class ClickHouseSQLTimeParserTest {
     }
 
     private static Time createExpectedTime(LocalTime expected, TimeZone timeZone) {
-        return new Time(
+        return new Time(ClickHouseSQLTimeParser.normalize(
             LocalDateTime.of(
                 LocalDate.ofEpochDay(0),
                 expected)
             .atZone(timeZone.toZoneId())
             .toInstant()
-            .toEpochMilli());
+            .toEpochMilli()));
     }
 
 }

@@ -22,6 +22,10 @@ final class ClickHouseSQLTimeParser extends ClickHouseDateValueParser<Time> {
         return instance;
     }
 
+    static long normalize(long time) {
+        return (time + MILLISECONDS_A_DAY) % MILLISECONDS_A_DAY;
+    }
+
     private ClickHouseSQLTimeParser() {
         super(Time.class);
     }
@@ -30,40 +34,40 @@ final class ClickHouseSQLTimeParser extends ClickHouseDateValueParser<Time> {
     Time parseDate(String value, ClickHouseColumnInfo columnInfo,
         TimeZone timeZone)
     {
-        return new Time(
+        return new Time(normalize(
             LocalDateTime.of(
                 LocalDate.ofEpochDay(0),
                 LocalTime.MIDNIGHT)
             .atZone(effectiveTimeZone(columnInfo, timeZone))
             .toInstant()
-            .toEpochMilli());
+            .toEpochMilli()));
     }
 
     @Override
     Time parseDateTime(String value, ClickHouseColumnInfo columnInfo,
         TimeZone timeZone)
     {
-        return new Time(parseAsLocalDateTime(value)
+        return new Time(normalize(parseAsLocalDateTime(value)
             .atZone(effectiveTimeZone(columnInfo, timeZone))
             .withFixedOffsetZone()
             .withYear(1970)
             .withMonth(1)
             .withDayOfMonth(1)
             .toInstant()
-            .toEpochMilli());
+            .toEpochMilli()));
     }
 
     @Override
     Time parseNumber(long value, ClickHouseColumnInfo columnInfo,
         TimeZone timeZone)
     {
-        return new Time(
+        return new Time(normalize(
             LocalDateTime.of(
                 LocalDate.ofEpochDay(0),
                 parseAsLocalTime(value))
             .atZone(effectiveTimeZone(columnInfo, timeZone))
             .toInstant()
-            .toEpochMilli());
+            .toEpochMilli()));
     }
 
     @Override
@@ -71,24 +75,24 @@ final class ClickHouseSQLTimeParser extends ClickHouseDateValueParser<Time> {
         TimeZone timeZone)
     {
         try {
-            return new Time(
+            return new Time(normalize(
                 LocalDateTime.of(
                     LocalDate.ofEpochDay(0),
                     LocalTime.parse(value, DateTimeFormatter.ISO_LOCAL_TIME))
                 .atZone(effectiveTimeZone(columnInfo, timeZone))
                 .toInstant()
-                .toEpochMilli() % MILLISECONDS_A_DAY);
+                .toEpochMilli()));
         } catch (DateTimeParseException dtpe) {
             // try next pattern candidate
         }
 
-        return new Time(
+        return new Time(normalize(
             LocalDateTime.of(
                 LocalDate.ofEpochDay(0),
                 parseAsLocalTime(value))
             .atZone(effectiveTimeZone(columnInfo, timeZone))
             .toInstant()
-            .toEpochMilli() % MILLISECONDS_A_DAY);
+            .toEpochMilli()));
     }
 
 }
