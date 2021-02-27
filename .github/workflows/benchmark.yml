@@ -69,13 +69,10 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            if (process.env.BENCHMARK_REPORT) {
-              github.issues.createComment({
-                issue_number: context.issue.number,
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                body: '```\n' + process.env.BENCHMARK_REPORT + '\n```'
-              });
+            const report = process.env.BENCHMARK_REPORT;
+            const { issue: { number: issue_number }, repo: { owner, repo } } = context;
+            if (report) {
+              github.issues.createComment({issue_number, owner, repo, body: '```\n' + report + '\n```'});
             }
 
   benchmark-on-demand:

@@ -154,17 +154,28 @@ public class ClickHousePreparedStatementTest {
     @Test
     public void testSetDateNormal() throws Exception {
         ClickHousePreparedStatement s = createStatement();
-        s.setDate(1, new Date(1557168043000L));
-        assertParamMatches(s, "'2019-05-06'");
+        Date d = new Date(1557168043000L);
+        s.setDate(1, d);
+        assertParamMatches(s, "'" + d.toLocalDate().toString() + "'");
     }
 
     @Test
     public void testSetDateOtherTimeZone() throws Exception {
+        ClickHouseProperties p = new ClickHouseProperties();
         ClickHousePreparedStatement s = createStatement(
-            TimeZone.getTimeZone("Asia/Tokyo"),
-            new ClickHouseProperties());
-        s.setDate(1, new Date(1557168043000L));
-        assertParamMatches(s, "'2019-05-06'");
+            TimeZone.getTimeZone("Asia/Tokyo"), p);
+        Date d = new Date(1557168043000L);
+        s.setDate(1, d);
+        assertParamMatches(s, "'" + d.toLocalDate().toString() + "'");
+
+        /*
+        TimeZone t = TimeZone.getTimeZone("American/Los_Angels");
+        p.setUseServerTimeZoneForDates(true);
+        s = createStatement(t, p);
+        s.setDate(1, d);
+        assertParamMatches(s, "'" + LocalDate.ofInstant(
+            Instant.ofEpochMilli(d.getTime()), t.toZoneId()).toString() + "'");
+        */
     }
 
     @Test

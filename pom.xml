@@ -4,7 +4,7 @@
 
     <groupId>ru.yandex.clickhouse</groupId>
     <artifactId>clickhouse-jdbc</artifactId>
-    <version>0.2.6</version>
+    <version>${revision}</version>
     <packaging>jar</packaging>
 
     <name>clickhouse-jdbc</name>
@@ -52,6 +52,7 @@
     </developers>
 
     <properties>
+        <revision>0.3.0-SNAPSHOT</revision>
         <slf4j.version>1.7.30</slf4j.version>
         <project.current.year>2021</project.current.year>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -62,7 +63,7 @@
         <guava.version>29.0-jre</guava.version>
         <jaxb.version>2.3.1</jaxb.version>
         <jdk.version>1.8</jdk.version>
-        <testcontainers.version>1.15.1</testcontainers.version>
+        <testcontainers.version>1.15.2</testcontainers.version>
         <testng.version>6.14.3</testng.version>
         <mockito.version>1.10.19</mockito.version>
         <wiremock.version>2.27.2</wiremock.version>
@@ -84,7 +85,7 @@
         <skipITs>${skipTests}</skipITs>
         <skipUTs>${skipTests}</skipUTs>
         <spec.title>JDBC</spec.title>
-        <spec.version>4.1</spec.version>
+        <spec.version>4.2</spec.version>
     </properties>
 
     <dependencies>
@@ -262,7 +263,6 @@
                 <artifactId>maven-failsafe-plugin</artifactId>
                 <version>${failsafe-plugin.version}</version>
                 <configuration>
-                    <argLine>-Duser.timezone=Europe/Moscow</argLine>
                     <includes>**/*.java</includes>
                     <skipTests>${skipTests}</skipTests>
                     <skipITs>${skipITs}</skipITs>
@@ -284,7 +284,6 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>${surefire-plugin.version}</version>
                 <configuration>
-                    <argLine>-Duser.timezone=Europe/Moscow</argLine>
                     <skipTests>${skipUTs}</skipTests>
                     <useSystemClassLoader>false</useSystemClassLoader>
                 </configuration>

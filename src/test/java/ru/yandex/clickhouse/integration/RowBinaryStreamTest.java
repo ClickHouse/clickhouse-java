@@ -219,7 +219,9 @@ public class RowBinaryStreamTest {
             ResultSet rs = connection.createStatement().executeQuery("SELECT * FROM test.raw_binary ORDER BY date");
 
             Assert.assertTrue(rs.next());
-            assertEquals(rs.getString("date"), "2017-01-01");
+            assertEquals(rs.getString("date"), 
+                Instant.ofEpochMilli(timestamp).atZone(connection.getTimeZone().toZoneId())
+                    .withZoneSameInstant(ZoneId.systemDefault()).toLocalDate().toString());
             assertEquals(rs.getTimestamp("dateTime").getTime(), date1.getTime());
             assertEquals(rs.getString("string"), "string\n1");
             assertEquals(rs.getInt("int8"), Byte.MIN_VALUE);

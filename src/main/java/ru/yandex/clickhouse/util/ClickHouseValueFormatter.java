@@ -110,8 +110,9 @@ public final class ClickHouseValueFormatter {
     }
 
     public static String formatDate(Date date, TimeZone timeZone) {
-        getDateFormat().setTimeZone(timeZone);
-        return getDateFormat().format(date);
+        SimpleDateFormat formatter = getDateFormat();
+        formatter.setTimeZone(timeZone);
+        return formatter.format(date);
     }
 
     public static String formatTime(Time time, TimeZone timeZone) {
@@ -124,8 +125,9 @@ public final class ClickHouseValueFormatter {
     }
 
     public static String formatTimestamp(Timestamp time, TimeZone timeZone) {
-        getDateTimeFormat().setTimeZone(timeZone);
-        return getDateTimeFormat().format(time);
+        SimpleDateFormat formatter = getDateTimeFormat();
+        formatter.setTimeZone(timeZone);
+        return formatter.format(time);
     }
 
     public static String formatUUID(UUID x) {

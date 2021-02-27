@@ -352,7 +352,7 @@ public class ClickHouseValueFormatterTest {
                 ClickHouseColumnInfo.parse("String", "col"), tzBerlin);
         assertEquals(
             Instant.ofEpochMilli(t1.getTime()),
-            Instant.ofEpochMilli(t0.getTime()).minus(Duration.ofHours(9)));
+            Instant.ofEpochMilli((t0.getTime() + (24 - 9) * 3600 * 1000) % (24 * 3600 * 1000)));
     }
 
     @Test
