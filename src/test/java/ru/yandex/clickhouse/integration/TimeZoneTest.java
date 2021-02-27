@@ -127,23 +127,23 @@ public class TimeZoneTest {
 
     @Test
     public void testTimeZoneParseSQLDate2() throws Exception {
+        int suffix = 2;
         Long offset = Long.valueOf(
             TimeUnit.MILLISECONDS.toHours(
                 connectionServerTz.getTimeZone().getOffset(currentTime)));
         ClickHouseDataSource ds = createDataSource(false, offset, false);
-        resetDateTestTable();
+        resetDateTestTable(suffix);
         ClickHouseConnection conn = ds.getConnection();
-        insertDateTestData(connectionServerTz, 1);
-        insertDateTestData(conn, 1);
+        insertDateTestData(suffix, connectionServerTz, 1);
+        insertDateTestData(suffix, conn, 1);
 
+        // TODO revisit this before 0.3.0 release
         currentTime = Instant.ofEpochMilli(currentTime)
-            .truncatedTo(ChronoUnit.DAYS)
-            .atZone(connectionServerTz.getTimeZone().toZoneId())
+            .atZone(ZoneId.systemDefault())
             .truncatedTo(ChronoUnit.DAYS)
             .toEpochSecond() * 1000L;
-        
-        assertDateResult( 
-            conn, Instant.ofEpochMilli(currentTime)
+
+        assertDateResult(suffix, conn, Instant.ofEpochMilli(currentTime)
             .atZone(ZoneId.systemDefault())
             .truncatedTo(ChronoUnit.DAYS)
             .toEpochSecond());
@@ -164,16 +164,17 @@ public class TimeZoneTest {
 
     @Test
     public void testTimeZoneParseSQLDate4() throws Exception {
+        int suffix = 4;
         Long offset = Long.valueOf(
             TimeUnit.MILLISECONDS.toHours(
                 connectionServerTz.getTimeZone().getOffset(currentTime)));
         ClickHouseDataSource ds = createDataSource(false, offset, true);
-        resetDateTestTable();
+        resetDateTestTable(suffix);
         ClickHouseConnection conn = ds.getConnection();
-        insertDateTestData(connectionServerTz, 1);
-        insertDateTestData(conn, 1);
+        insertDateTestData(suffix, connectionServerTz, 1);
+        insertDateTestData(suffix, conn, 1);
         assertDateResult(
-            conn,
+            suffix, conn,
             Instant.ofEpochMilli(currentTime)
                 .atOffset(ZoneOffset.ofHours(offset.intValue()))
                 .truncatedTo(ChronoUnit.DAYS)
@@ -184,13 +185,20 @@ public class TimeZoneTest {
 
     @Test
     public void testTimeZoneParseSQLDate5() throws Exception {
+        int suffix = 5;
         ClickHouseDataSource ds = createDataSource(true, null, false);
-        resetDateTestTable();
+        resetDateTestTable(suffix);
         ClickHouseConnection conn = ds.getConnection();
-        insertDateTestData(connectionServerTz, 1);
-        insertDateTestData(conn, 1);
+        insertDateTestData(suffix, connectionServerTz, 1);
+        insertDateTestData(suffix, conn, 1);
+
+        // TODO revisit this before 0.3.0 release
+        currentTime -= currentTime % (24 * 3600 * 1000L);
+        currentTime -= ZoneId.systemDefault().getRules().getOffset(
+            Instant.ofEpochMilli(currentTime)).getTotalSeconds() * 1000L;
+    
         assertDateResult(
-            conn,
+            suffix, conn,
             Instant.ofEpochMilli(currentTime)
                 .atZone(ZoneId.systemDefault())
                 .truncatedTo(ChronoUnit.DAYS)
@@ -212,13 +220,14 @@ public class TimeZoneTest {
 
     @Test
     public void testTimeZoneParseSQLDate7() throws Exception {
+        int suffix = 7;
         ClickHouseDataSource ds = createDataSource(true, null, true);
-        resetDateTestTable();
+        resetDateTestTable(suffix);
         ClickHouseConnection conn = ds.getConnection();
-        insertDateTestData(connectionServerTz, 1);
-        insertDateTestData(conn, 1);
+        insertDateTestData(suffix, connectionServerTz, 1);
+        insertDateTestData(suffix, conn, 1);
         assertDateResult(
-            conn,
+            suffix, conn,
             Instant.ofEpochMilli(currentTime)
                 .atZone(connectionServerTz.getTimeZone().toZoneId())
                 .truncatedTo(ChronoUnit.DAYS)
@@ -389,27 +398,27 @@ public class TimeZoneTest {
         return ClickHouseContainerForTest.newDataSource(props);
     }
 
-    private void resetDateTestTable() throws Exception {
+    private void resetDateTestTable(int suffix) throws Exception {
         connectionServerTz.createStatement().execute(
-            "DROP TABLE IF EXISTS test.time_zone_test");
+            "DROP TABLE IF EXISTS test.time_zone_test" + suffix);
         connectionServerTz.createStatement().execute(
-            "CREATE TABLE IF NOT EXISTS test.time_zone_test (i Int32, d DateTime) ENGINE = TinyLog"
+            "CREATE TABLE IF NOT EXISTS test.time_zone_test" + suffix + " (i Int32, d DateTime) ENGINE = TinyLog"
         );
     }
 
-    private void insertDateTestData(ClickHouseConnection conn, int id) throws Exception {
+    private void insertDateTestData(int suffix, ClickHouseConnection conn, int id) throws Exception {
         PreparedStatement statement = conn.prepareStatement(
-            "INSERT INTO test.time_zone_test (i, d) VALUES (?, ?)");
+            "INSERT INTO test.time_zone_test" + suffix + " (i, d) VALUES (?, ?)");
         statement.setInt(1, id);
         statement.setTimestamp(2, new Timestamp(currentTime));
         statement.execute();
     }
 
-    private static void assertDateResult(Connection conn, long expectedSecondsEpoch)
+    private static void assertDateResult(int suffix, Connection conn, long expectedSecondsEpoch)
         throws Exception
     {
         ResultSet rs = conn.createStatement().executeQuery(
-            "SELECT i, d as cnt from test.time_zone_test order by i");
+            "SELECT i, d as cnt from test.time_zone_test" + suffix + " order by i");
         rs.next();
         Assert.assertEquals(rs.getDate(2).getTime(), expectedSecondsEpoch * 1000);
         rs.next();
