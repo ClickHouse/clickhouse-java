@@ -129,18 +129,24 @@ public class TimeZoneTest {
     public void testTimeZoneParseSQLDate2() throws Exception {
         Long offset = Long.valueOf(
             TimeUnit.MILLISECONDS.toHours(
-                connectionServerTz.getTimeZone().getOffset(currentTime)) - 1);
+                connectionServerTz.getTimeZone().getOffset(currentTime)));
         ClickHouseDataSource ds = createDataSource(false, offset, false);
         resetDateTestTable();
         ClickHouseConnection conn = ds.getConnection();
         insertDateTestData(connectionServerTz, 1);
         insertDateTestData(conn, 1);
-        assertDateResult(
-            conn,
-            Instant.ofEpochMilli(currentTime)
-                .atZone(ZoneId.systemDefault())
-                .truncatedTo(ChronoUnit.DAYS)
-                .toEpochSecond());
+
+        currentTime = Instant.ofEpochMilli(currentTime)
+            .truncatedTo(ChronoUnit.DAYS)
+            .atZone(connectionServerTz.getTimeZone().toZoneId())
+            .truncatedTo(ChronoUnit.DAYS)
+            .toEpochSecond() * 1000L;
+        
+        assertDateResult( 
+            conn, Instant.ofEpochMilli(currentTime)
+            .atZone(ZoneId.systemDefault())
+            .truncatedTo(ChronoUnit.DAYS)
+            .toEpochSecond());
         conn.close();
         ds = null;
     }
@@ -160,7 +166,7 @@ public class TimeZoneTest {
     public void testTimeZoneParseSQLDate4() throws Exception {
         Long offset = Long.valueOf(
             TimeUnit.MILLISECONDS.toHours(
-                connectionServerTz.getTimeZone().getOffset(currentTime)) - 1);
+                connectionServerTz.getTimeZone().getOffset(currentTime)));
         ClickHouseDataSource ds = createDataSource(false, offset, true);
         resetDateTestTable();
         ClickHouseConnection conn = ds.getConnection();

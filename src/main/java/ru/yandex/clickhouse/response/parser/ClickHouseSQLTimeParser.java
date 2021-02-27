@@ -11,6 +11,7 @@ import java.util.TimeZone;
 import ru.yandex.clickhouse.response.ClickHouseColumnInfo;
 
 final class ClickHouseSQLTimeParser extends ClickHouseDateValueParser<Time> {
+    private static final long MILLISECONDS_A_DAY = 24 * 3600 * 1000;
 
     private static ClickHouseSQLTimeParser instance;
 
@@ -76,7 +77,7 @@ final class ClickHouseSQLTimeParser extends ClickHouseDateValueParser<Time> {
                     LocalTime.parse(value, DateTimeFormatter.ISO_LOCAL_TIME))
                 .atZone(effectiveTimeZone(columnInfo, timeZone))
                 .toInstant()
-                .toEpochMilli());
+                .toEpochMilli() % MILLISECONDS_A_DAY);
         } catch (DateTimeParseException dtpe) {
             // try next pattern candidate
         }
@@ -87,7 +88,7 @@ final class ClickHouseSQLTimeParser extends ClickHouseDateValueParser<Time> {
                 parseAsLocalTime(value))
             .atZone(effectiveTimeZone(columnInfo, timeZone))
             .toInstant()
-            .toEpochMilli());
+            .toEpochMilli() % MILLISECONDS_A_DAY);
     }
 
 }
