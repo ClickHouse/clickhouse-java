@@ -29,10 +29,10 @@ log/
 target/
 
 # Generated files
-src/main/java/ru/yandex/clickhouse/jdbc/parser/*CharStream.java
-src/main/java/ru/yandex/clickhouse/jdbc/parser/ClickHouseSqlParser*.java
-src/main/java/ru/yandex/clickhouse/jdbc/parser/Token*.java
-src/main/java/ru/yandex/clickhouse/jdbc/parser/ParseException.java
+**/parser/*CharStream.java
+**/parser/ClickHouseSqlParser*.java
+**/parser/Token*.java
+**/parser/ParseException.java
 
 # Shell scripts
 *.sh
