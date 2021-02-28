@@ -94,6 +94,7 @@
         <compiler-plugin.version>3.8.1</compiler-plugin.version>
         <shade-plugin.version>3.2.4</shade-plugin.version>
         <source-plugin.version>3.2.1</source-plugin.version>
+        <jacoco-plugin.version>0.8.6</jacoco-plugin.version>
         <jar-plugin.version>3.2.0</jar-plugin.version>
         <javadoc-plugin.version>3.2.0</javadoc-plugin.version>
         <surefire-plugin.version>3.0.0-M5</surefire-plugin.version>
@@ -102,6 +103,11 @@
         <skipTests>false</skipTests>
         <skipITs>${skipTests}</skipITs>
         <skipUTs>${skipTests}</skipUTs>
+
+        <sonar.projectKey>clickhouse_clickhouse-jdbc</sonar.projectKey>
+        <sonar.organization>clickhouse</sonar.organization>
+        <sonar.host.url>https://sonarcloud.io</sonar.host.url>
+        <sonar.projectVersion>0.3.0</sonar.projectVersion>
     </properties>
 
     <dependencyManagement>
@@ -248,6 +254,52 @@
     </build>
 
     <profiles>
+        <profile>
+            <id>analysis</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.jacoco</groupId>
+                        <artifactId>jacoco-maven-plugin</artifactId>
+                        <version>${jacoco-plugin.version}</version>
+                        <executions>
+                            <execution>
+                                <goals>
+                                    <goal>prepare-agent</goal>
+                                </goals>
+                            </execution>
+                            <execution>
+                                <id>jacoco-report</id>
+                                <phase>test</phase>
+                                <goals>
+                                    <goal>report</goal>
+                                </goals>
+                            </execution>
+                            <execution>
+                                <id>jacoco-check</id>
+                                <goals>
+                                    <goal>check</goal>
+                                </goals>
+                                <configuration>
+                                    <rules>
+                                        <rule>
+                                            <element>PACKAGE</element>
+                                            <limits>
+                                                <limit>
+                                                    <counter>LINE</counter>
+                                                    <value>COVEREDRATIO</value>
+                                                    <minimum>0.0</minimum>
+                                                </limit>
+                                            </limits>
+                                        </rule>
+                                    </rules>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
         <profile>
             <id>release</id>
             <build>
