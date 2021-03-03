@@ -1,12 +1,12 @@
 package ru.yandex.clickhouse.util;
 
-import com.google.common.primitives.UnsignedLong;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
 
 import java.io.ByteArrayOutputStream;
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.util.Date;
 import java.util.TimeZone;
 import java.util.UUID;
@@ -70,7 +70,7 @@ public class ClickHouseRowBinaryStreamTest {
                 @Override
                 public void write(ClickHouseRowBinaryStream stream) throws Exception {
                     stream.writeUInt64(0);
-                    stream.writeUInt64(UnsignedLong.valueOf("18446744073709551615"));
+                    stream.writeUInt64(new BigInteger("18446744073709551615"));
                 }
             },
             new byte[]{0, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1, -1, -1,}
@@ -212,7 +212,7 @@ public class ClickHouseRowBinaryStreamTest {
               @Override
               public void write(ClickHouseRowBinaryStream stream) throws Exception {
                 stream.writeUInt64Array(new long[]{0, Long.MAX_VALUE});
-                stream.writeUInt64Array(new UnsignedLong[]{UnsignedLong.valueOf(0), UnsignedLong.valueOf("18446744073709551615")});
+                stream.writeUInt64Array(new BigInteger[]{BigInteger.ZERO, new BigInteger("18446744073709551615")});
               }
             },
             new byte[] { 2, 0, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1, -1, 127, // First array

@@ -16,10 +16,6 @@ import org.testng.Assert;
 import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
 
-import com.google.common.base.Function;
-import com.google.common.base.Joiner;
-import com.google.common.collect.Iterables;
-
 import ru.yandex.clickhouse.ClickHouseArray;
 import ru.yandex.clickhouse.ClickHouseContainerForTest;
 import ru.yandex.clickhouse.ClickHouseDataSource;
@@ -46,12 +42,17 @@ public class ArrayTest {
     @Test
     public void testStringArray() throws SQLException {
         String[] array = {"a'','sadf',aa", "", ",", "юникод,'юникод'", ",2134,saldfk"};
-        String arrayString = array.length == 0 ? "" : "'" + Joiner.on("','").join(Iterables.transform(Arrays.asList(array), new Function<String, String>() {
-            @Override
-            public String apply(String s) {
-                return s.replace("'", "\\'");
-            }
-        })) + "'";
+
+        StringBuilder sb = new StringBuilder();
+        for (String s : array) {
+            sb.append("','").append(s.replace("'", "\\'"));
+        }
+
+        if (sb.length() > 0) {
+            sb.deleteCharAt(0).deleteCharAt(0).append('\'');
+        }
+
+        String arrayString = sb.toString();
 
         Statement statement = connection.createStatement();
         ResultSet rs = statement.executeQuery("select array(" + arrayString + ")");
@@ -69,7 +70,14 @@ public class ArrayTest {
     @Test
     public void testLongArray() throws SQLException {
         Long[] array = {-12345678987654321L, 23325235235L, -12321342L};
-        String arrayString = array.length == 0 ? "" : "toInt64(" + Joiner.on("),toInt64(").join(array) + ")";
+        StringBuilder sb = new StringBuilder();
+        for (long l : array) {
+            sb.append("),toInt64(").append(l);
+        }
+        if (sb.length() > 0) {
+            sb.deleteCharAt(0).deleteCharAt(0).append(')');
+        }
+        String arrayString = sb.toString();
 
         Statement statement = connection.createStatement();
         ResultSet rs = statement.executeQuery("select array(" + arrayString + ")");
@@ -87,7 +95,14 @@ public class ArrayTest {
     @Test
     public void testDecimalArray() throws SQLException {
         BigDecimal[] array = {BigDecimal.valueOf(-12.345678987654321), BigDecimal.valueOf(23.325235235), BigDecimal.valueOf(-12.321342)};
-        String arrayString = array.length == 0 ? "" : "toDecimal64(" + Joiner.on(", 15),toDecimal64(").join(array) + ", 15)";
+        StringBuilder sb = new StringBuilder();
+        for (BigDecimal d : array) {
+            sb.append(", 15),toDecimal64(").append(d);
+        }
+        if (sb.length() > 0) {
+            sb.deleteCharAt(0).delete(0, sb.indexOf(",") + 1).append(", 15)");
+        }
+        String arrayString = sb.toString();
 
         Statement statement = connection.createStatement();
         ResultSet rs = statement.executeQuery("select array(" + arrayString + ")");

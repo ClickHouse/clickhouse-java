@@ -1,16 +1,16 @@
 package ru.yandex.clickhouse.util;
 
-import com.google.common.io.LittleEndianDataOutputStream;
 import net.jpountz.lz4.LZ4Compressor;
 import net.jpountz.lz4.LZ4Factory;
 import ru.yandex.clickhouse.response.ClickHouseLZ4Stream;
 
+import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 
 public class ClickHouseLZ4OutputStream extends OutputStream {
     private static final LZ4Factory factory = LZ4Factory.fastestInstance();
-    private final LittleEndianDataOutputStream dataWrapper;
+    private final DataOutputStream dataWrapper;
 
     private final LZ4Compressor compressor;
     private final byte[] currentBlock;
@@ -19,7 +19,7 @@ public class ClickHouseLZ4OutputStream extends OutputStream {
     private int pointer;
 
     public ClickHouseLZ4OutputStream(OutputStream stream, int maxCompressBlockSize) {
-        dataWrapper = new LittleEndianDataOutputStream(stream);
+        dataWrapper = new DataOutputStream(stream);
         compressor = factory.fastCompressor();
         currentBlock = new byte[maxCompressBlockSize];
         compressedBlock = new byte[compressor.maxCompressedLength(maxCompressBlockSize)];
@@ -83,8 +83,8 @@ public class ClickHouseLZ4OutputStream extends OutputStream {
                 compressed + 9, pointer, compressedBlock, compressed);
         dataWrapper.write(checksum.asBytes());
         dataWrapper.writeByte(ClickHouseLZ4Stream.MAGIC);
-        dataWrapper.writeInt(compressed + 9); // compressed size with header
-        dataWrapper.writeInt(pointer); // uncompressed size
+        Utils.writeInt(dataWrapper, compressed + 9); // compressed size with header
+        Utils.writeInt(dataWrapper, pointer); // uncompressed size
         dataWrapper.write(compressedBlock, 0, compressed);
         pointer = 0;
     }

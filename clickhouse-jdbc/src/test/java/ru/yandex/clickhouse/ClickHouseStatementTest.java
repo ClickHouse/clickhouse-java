@@ -11,8 +11,6 @@ import java.util.Properties;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.testng.annotations.Test;
 
-import com.google.common.collect.ImmutableMap;
-
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
 import ru.yandex.clickhouse.settings.ClickHouseQueryParam;
 
@@ -136,7 +134,7 @@ public class ClickHouseStatementTest {
                 null,
                 null,
                 null,
-                ImmutableMap.of("cache_namespace", "bbbb"),
+                Collections.singletonMap("cache_namespace", "bbbb"),
                 false
         );
         query = uri.getQuery();

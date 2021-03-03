@@ -1,6 +1,5 @@
 package ru.yandex.clickhouse;
 
-import com.google.common.collect.MapMaker;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -9,10 +8,18 @@ import ru.yandex.clickhouse.settings.ClickHouseProperties;
 import ru.yandex.clickhouse.settings.ClickHouseQueryParam;
 import ru.yandex.clickhouse.settings.DriverPropertyCreator;
 import ru.yandex.clickhouse.util.LogProxy;
-import java.sql.*;
+
+import java.sql.Driver;
+import java.sql.DriverManager;
+import java.sql.DriverPropertyInfo;
+import java.sql.SQLException;
+import java.sql.SQLFeatureNotSupportedException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
+import java.util.WeakHashMap;
 import java.util.concurrent.*;
 
 /**
@@ -30,7 +37,7 @@ public class ClickHouseDriver implements Driver {
 
     private static final Logger logger = LoggerFactory.getLogger(ClickHouseDriver.class);
 
-    private static final ConcurrentMap<ClickHouseConnectionImpl, Boolean> connections = new MapMaker().weakKeys().makeMap();
+    private static final Map<ClickHouseConnectionImpl, Boolean> connections = Collections.synchronizedMap(new WeakHashMap<>());
 
     static {
         ClickHouseDriver driver = new ClickHouseDriver();

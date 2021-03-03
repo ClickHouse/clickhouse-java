@@ -31,16 +31,13 @@ import org.apache.http.impl.client.CloseableHttpClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.google.common.base.Strings;
-
 import ru.yandex.clickhouse.domain.ClickHouseDataType;
 import ru.yandex.clickhouse.except.ClickHouseUnknownException;
 import ru.yandex.clickhouse.settings.ClickHouseConnectionSettings;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
 import ru.yandex.clickhouse.util.ClickHouseHttpClientBuilder;
 import ru.yandex.clickhouse.util.LogProxy;
-import ru.yandex.clickhouse.util.guava.StreamUtils;
-
+import ru.yandex.clickhouse.util.Utils;
 
 public class ClickHouseConnectionImpl implements ClickHouseConnection {
 
@@ -81,26 +78,22 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
     }
 
     private void initTimeZone(ClickHouseProperties properties) {
-        if (properties.isUseServerTimeZone() && !Strings.isNullOrEmpty(properties.getUseTimeZone())) {
+        if (properties.isUseServerTimeZone() && !Utils.isNullOrEmptyString(properties.getUseTimeZone())) {
             throw new IllegalArgumentException(String.format("only one of %s or %s must be enabled", ClickHouseConnectionSettings.USE_SERVER_TIME_ZONE.getKey(), ClickHouseConnectionSettings.USE_TIME_ZONE.getKey()));
         }
-        if (!properties.isUseServerTimeZone() && Strings.isNullOrEmpty(properties.getUseTimeZone())) {
+        if (!properties.isUseServerTimeZone() && Utils.isNullOrEmptyString(properties.getUseTimeZone())) {
             throw new IllegalArgumentException(String.format("one of %s or %s must be enabled", ClickHouseConnectionSettings.USE_SERVER_TIME_ZONE.getKey(), ClickHouseConnectionSettings.USE_TIME_ZONE.getKey()));
         }
         if (properties.isUseServerTimeZone()) {
-            ResultSet rs = null;
-            try {
-                timezone = TimeZone.getTimeZone("UTC"); // just for next query
-                rs = createStatement().executeQuery("select timezone()");
-                rs.next();
-                String timeZoneName = rs.getString(1);
-                timezone = TimeZone.getTimeZone(timeZoneName);
+            timezone = TimeZone.getTimeZone("UTC"); // just for next query
+            try (ResultSet rs = createStatement().executeQuery("select timezone()")) {
+                if (rs.next()) {
+                    timezone = TimeZone.getTimeZone(rs.getString(1));
+                }
             } catch (SQLException e) {
                 throw new RuntimeException(e);
-            } finally {
-                StreamUtils.close(rs);
             }
-        } else if (!Strings.isNullOrEmpty(properties.getUseTimeZone())) {
+        } else if (!Utils.isNullOrEmptyString(properties.getUseTimeZone())) {
             timezone = TimeZone.getTimeZone(properties.getUseTimeZone());
         }
     }

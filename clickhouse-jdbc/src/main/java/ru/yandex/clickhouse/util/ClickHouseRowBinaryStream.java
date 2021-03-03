@@ -1,18 +1,17 @@
 package ru.yandex.clickhouse.util;
 
-import com.google.common.base.Preconditions;
-import com.google.common.io.LittleEndianDataOutputStream;
-import com.google.common.primitives.UnsignedLong;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
-import ru.yandex.clickhouse.util.guava.StreamUtils;
 
+import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.charset.StandardCharsets;
 import java.util.Date;
+import java.util.Objects;
 import java.util.TimeZone;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -27,11 +26,11 @@ public class ClickHouseRowBinaryStream {
     private static final long U_INT32_MAX = (1L << 32) - 1;
     protected static final long MILLIS_IN_DAY = TimeUnit.DAYS.toMillis(1);
 
-    private final LittleEndianDataOutputStream out;
+    private final DataOutputStream out;
     private final TimeZone timeZone;
 
     public ClickHouseRowBinaryStream(OutputStream outputStream, TimeZone timeZone, ClickHouseProperties properties) {
-        this.out = new LittleEndianDataOutputStream(outputStream);
+        this.out = new DataOutputStream(outputStream);
         if (properties.isUseServerTimeZoneForDates()) {
             this.timeZone = timeZone;
         } else {
@@ -40,7 +39,8 @@ public class ClickHouseRowBinaryStream {
     }
 
     public void writeUnsignedLeb128(int value) throws IOException {
-        Preconditions.checkArgument(value >= 0);
+        Utils.checkArgument(value, 0);
+
         int remaining = value >>> 7;
         while (remaining != 0) {
             out.write((byte) ((value & 0x7f) | 0x80));
@@ -73,16 +73,9 @@ public class ClickHouseRowBinaryStream {
     }
 
     public void writeString(String string) throws IOException {
-        Preconditions.checkNotNull(string);
-        byte[] bytes = string.getBytes(StreamUtils.UTF_8);
+        byte[] bytes = Objects.requireNonNull(string).getBytes(StandardCharsets.UTF_8);
         writeUnsignedLeb128(bytes.length);
         out.write(bytes);
-    }
-
-    private void validateInt(int value, int minValue, int maxValue, String dataType) {
-        if (value < minValue || value > maxValue) {
-            throw new IllegalStateException("Not a " + dataType + " value: " + value);
-        }
     }
 
     public void writeUInt8(boolean value) throws IOException {
@@ -90,13 +83,13 @@ public class ClickHouseRowBinaryStream {
     }
 
     public void writeUInt8(int value) throws IOException {
-        validateInt(value, 0, U_INT8_MAX, "UInt8");
+        Utils.checkArgument(value, 0, U_INT8_MAX);
         byte unsigned = (byte) (value & 0xffL);
         out.writeByte(unsigned);
     }
 
     public void writeInt8(int value) throws IOException {
-        validateInt(value, Byte.MIN_VALUE, Byte.MAX_VALUE, "Int8");
+        Utils.checkArgument(value, Byte.MIN_VALUE, Byte.MAX_VALUE);
         out.writeByte(value);
     }
 
@@ -105,75 +98,65 @@ public class ClickHouseRowBinaryStream {
     }
 
     public void writeInt16(int value) throws IOException {
-        validateInt(value, Short.MIN_VALUE, Short.MAX_VALUE, "Int6");
-        out.writeShort(value);
+        Utils.checkArgument(value, Short.MIN_VALUE, Short.MAX_VALUE);
+        Utils.writeShort(out, value);
     }
 
     public void writeInt16(short value) throws IOException {
-        out.writeShort(value);
+        Utils.writeShort(out, value);
     }
 
     public void writeUInt16(int value) throws IOException {
-        validateInt(value, 0, U_INT16_MAX, "UInt16");
+        Utils.checkArgument(value, 0, U_INT16_MAX);
         short unsigned = (short) (value & 0xffffL);
-        out.writeShort(unsigned);
+        Utils.writeShort(out, unsigned);
     }
 
     public void writeInt32(int value) throws IOException {
-        out.writeInt(value);
+        Utils.writeInt(out, value);
     }
 
     public void writeUInt32(long value) throws IOException {
-        if (value < 0 || value > U_INT32_MAX) {
-            throw new IllegalStateException("Not a UInt32 value: " + value);
-        }
+        Utils.checkArgument(value, 0, U_INT32_MAX);
         int unsigned = (int) (value & 0xffffffffL);
-        out.writeInt(unsigned);
+        Utils.writeInt(out, unsigned);
     }
 
     public void writeInt64(long value) throws IOException {
-        out.writeLong(value);
+        Utils.writeLong(out, value);
     }
 
     public void writeUInt64(long value) throws IOException {
-        if (value < 0) {
-            throw new IllegalStateException("Not a UInt64 value: " + value);
-        }
-        out.writeLong(value);
+        Utils.writeLong(out, value);
     }
 
-    public void writeUInt64(UnsignedLong value) throws IOException {
-        out.writeLong(value.longValue());
+    public void writeUInt64(BigInteger value) throws IOException {
+        Utils.checkArgument(value, BigInteger.ZERO);
+        Utils.writeLong(out, value.longValue());
     }
 
     public void writeDateTime(Date date) throws IOException {
-        Preconditions.checkNotNull(date);
+        Objects.requireNonNull(date);
         writeUInt32(TimeUnit.MILLISECONDS.toSeconds(date.getTime()));
     }
 
     public void writeDate(Date date) throws IOException {
-        Preconditions.checkNotNull(date);
+        Objects.requireNonNull(date);
         long localMillis = date.getTime() + timeZone.getOffset(date.getTime());
         int daysSinceEpoch = (int) (localMillis / MILLIS_IN_DAY);
         writeUInt16(daysSinceEpoch);
     }
 
     public void writeFloat32(float value) throws IOException {
-        out.writeFloat(value);
+        Utils.writeInt(out, Float.floatToIntBits(value));
     }
 
     public void writeFloat64(double value) throws IOException {
-        out.writeDouble(value);
-    }
-
-    private BigInteger removeComma(BigDecimal num, int scale) {
-        BigDecimal ten = BigDecimal.valueOf(10);
-        BigDecimal s = ten.pow(scale);
-        return num.multiply(s).toBigInteger();
+        Utils.writeLong(out, Double.doubleToLongBits(value));
     }
 
     public void writeDecimal128(BigDecimal num, int scale) throws IOException {
-        BigInteger bi = removeComma(num, scale);
+        BigInteger bi = Utils.toBigInteger(num, scale);
         byte[] r = bi.toByteArray();
         for (int i = r.length; i > 0; i--) {
             out.write(r[i - 1]);
@@ -182,15 +165,15 @@ public class ClickHouseRowBinaryStream {
     }
 
     public void writeDecimal64(BigDecimal num, int scale) throws IOException {
-        out.writeLong(removeComma(num, scale).longValue());
+        Utils.writeLong(out, Utils.toBigInteger(num, scale).longValue());
     }
 
     public void writeDecimal32(BigDecimal num, int scale) throws IOException {
-        out.writeInt(removeComma(num, scale).intValue());
+        Utils.writeInt(out, Utils.toBigInteger(num, scale).intValue());
     }
 
     public void writeDateArray(Date[] dates) throws IOException {
-        Preconditions.checkNotNull(dates);
+        Objects.requireNonNull(dates);
         writeUnsignedLeb128(dates.length);
         for (Date date : dates) {
             writeDate(date);
@@ -198,7 +181,7 @@ public class ClickHouseRowBinaryStream {
     }
 
     public void writeDateTimeArray(Date[] dates) throws IOException {
-        Preconditions.checkNotNull(dates);
+        Objects.requireNonNull(dates);
         writeUnsignedLeb128(dates.length);
         for (Date date : dates) {
             writeDateTime(date);
@@ -206,7 +189,7 @@ public class ClickHouseRowBinaryStream {
     }
 
     public void writeStringArray(String[] strings) throws IOException {
-        Preconditions.checkNotNull(strings);
+        Objects.requireNonNull(strings);
         writeUnsignedLeb128(strings.length);
         for (String el : strings) {
             writeString(el);
@@ -214,7 +197,7 @@ public class ClickHouseRowBinaryStream {
     }
 
     public void writeInt8Array(byte[] bytes) throws IOException {
-        Preconditions.checkNotNull(bytes);
+        Objects.requireNonNull(bytes);
         writeUnsignedLeb128(bytes.length);
         for (byte b : bytes) {
             writeInt8(b);
@@ -222,7 +205,7 @@ public class ClickHouseRowBinaryStream {
     }
 
     public void writeInt8Array(int[] ints) throws IOException {
-        Preconditions.checkNotNull(ints);
+        Objects.requireNonNull(ints);
         writeUnsignedLeb128(ints.length);
         for (int i : ints) {
             writeInt8(i);
@@ -230,7 +213,7 @@ public class ClickHouseRowBinaryStream {
     }
 
     public void writeUInt8Array(int[] ints) throws IOException {
-        Preconditions.checkNotNull(ints);
+        Objects.requireNonNull(ints);
         writeUnsignedLeb128(ints.length);
         for (int i : ints) {
             writeUInt8(i);
@@ -238,7 +221,7 @@ public class ClickHouseRowBinaryStream {
     }
 
     public void writeInt16Array(short[] shorts) throws IOException {
-        Preconditions.checkNotNull(shorts);
+        Objects.requireNonNull(shorts);
         writeUnsignedLeb128(shorts.length);
         for (short s : shorts) {
             writeInt16(s);
@@ -246,7 +229,7 @@ public class ClickHouseRowBinaryStream {
     }
 
     public void writeUInt16Array(int[] ints) throws IOException {
-        Preconditions.checkNotNull(ints);
+        Objects.requireNonNull(ints);
         writeUnsignedLeb128(ints.length);
         for (int i : ints) {
             writeUInt16(i);
@@ -254,7 +237,7 @@ public class ClickHouseRowBinaryStream {
     }
 
     public void writeInt32Array(int[] ints) throws IOException {
-        Preconditions.checkNotNull(ints);
+        Objects.requireNonNull(ints);
         writeUnsignedLeb128(ints.length);
         for (int i : ints) {
             writeInt32(i);
@@ -262,7 +245,7 @@ public class ClickHouseRowBinaryStream {
     }
 
     public void writeUInt32Array(long[] longs) throws IOException {
-        Preconditions.checkNotNull(longs);
+        Objects.requireNonNull(longs);
         writeUnsignedLeb128(longs.length);
         for (long l : longs) {
             writeUInt32(l);
@@ -270,7 +253,7 @@ public class ClickHouseRowBinaryStream {
     }
 
     public void writeInt64Array(long[] longs) throws IOException {
-        Preconditions.checkNotNull(longs);
+        Objects.requireNonNull(longs);
         writeUnsignedLeb128(longs.length);
         for (long l : longs) {
             writeInt64(l);
@@ -278,24 +261,23 @@ public class ClickHouseRowBinaryStream {
     }
 
     public void writeUInt64Array(long[] longs) throws IOException {
-        Preconditions.checkNotNull(longs);
-        writeUnsignedLeb128(longs.length);
+        writeUnsignedLeb128(Objects.requireNonNull(longs).length);
         for (long l : longs) {
             writeUInt64(l);
         }
     }
 
-    public void writeUInt64Array(UnsignedLong[] longs) throws IOException {
-        Preconditions.checkNotNull(longs);
+    public void writeUInt64Array(BigInteger[] longs) throws IOException {
+        Objects.requireNonNull(longs);
         writeUnsignedLeb128(longs.length);
-        for (UnsignedLong l : longs) {
+        for (BigInteger l : longs) {
             writeUInt64(l);
         }
     }
 
 
     public void writeFloat32Array(float[] floats) throws IOException {
-        Preconditions.checkNotNull(floats);
+        Objects.requireNonNull(floats);
         writeUnsignedLeb128(floats.length);
         for (float f : floats) {
             writeFloat32(f);
@@ -303,7 +285,7 @@ public class ClickHouseRowBinaryStream {
     }
 
     public void writeFloat64Array(double[] doubles) throws IOException {
-        Preconditions.checkNotNull(doubles);
+        Objects.requireNonNull(doubles);
         writeUnsignedLeb128(doubles.length);
         for (double d : doubles) {
             writeFloat64(d);
@@ -334,7 +316,7 @@ public class ClickHouseRowBinaryStream {
     }
 
     public void writeUUID(UUID uuid) throws IOException {
-        Preconditions.checkNotNull(uuid);
+        Objects.requireNonNull(uuid);
         ByteBuffer bb = ByteBuffer.wrap(new byte[16]).order(ByteOrder.LITTLE_ENDIAN);
         bb.putLong(uuid.getMostSignificantBits());
         bb.putLong(uuid.getLeastSignificantBits());

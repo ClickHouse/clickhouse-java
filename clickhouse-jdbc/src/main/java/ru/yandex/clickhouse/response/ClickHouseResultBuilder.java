@@ -1,11 +1,11 @@
 package ru.yandex.clickhouse.response;
 
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
-import ru.yandex.clickhouse.util.guava.StreamUtils;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -120,7 +120,7 @@ public class ClickHouseResultBuilder {
             } else {
                 value = o.toString();
             }
-            ByteFragment.escape(value.getBytes(StreamUtils.UTF_8), baos);
+            ByteFragment.escape(value.getBytes(StandardCharsets.UTF_8), baos);
         }
     }
 

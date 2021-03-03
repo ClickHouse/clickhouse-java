@@ -1,10 +1,11 @@
 package ru.yandex.clickhouse.response;
 
-import com.google.common.io.LittleEndianDataInputStream;
 import net.jpountz.lz4.LZ4Factory;
 import net.jpountz.lz4.LZ4FastDecompressor;
 import ru.yandex.clickhouse.util.ClickHouseBlockChecksum;
+import ru.yandex.clickhouse.util.Utils;
 
+import java.io.DataInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 
@@ -19,14 +20,14 @@ public class ClickHouseLZ4Stream extends InputStream {
     public static final int MAGIC = 0x82;
 
     private final InputStream stream;
-    private final LittleEndianDataInputStream dataWrapper;
+    private final DataInputStream dataWrapper;
 
     private byte[] currentBlock;
     private int pointer;
 
     public ClickHouseLZ4Stream(InputStream stream) {
         this.stream = stream;
-        dataWrapper = new LittleEndianDataInputStream(stream);
+        dataWrapper = new DataInputStream(stream);
     }
 
     @Override
@@ -85,20 +86,20 @@ public class ClickHouseLZ4Stream extends InputStream {
         byte[] checksum = new byte[16];
         checksum[0] = (byte)read;
         // checksum - 16 bytes.
-        dataWrapper.readFully(checksum, 1, 15);
+        Utils.readFully(dataWrapper, checksum, 1, 15);
         ClickHouseBlockChecksum expected = ClickHouseBlockChecksum.fromBytes(checksum);
         // header:
         // 1 byte - 0x82 (shows this is LZ4)
         int magic = dataWrapper.readUnsignedByte();
         if (magic != MAGIC) throw new IOException("Magic is not correct: " + magic);
         // 4 bytes - size of the compressed data including 9 bytes of the header
-        int compressedSizeWithHeader = dataWrapper.readInt();
+        int compressedSizeWithHeader = Utils.readInt(dataWrapper);
         // 4 bytes - size of uncompressed data
-        int uncompressedSize = dataWrapper.readInt();
+        int uncompressedSize = Utils.readInt(dataWrapper);
         int compressedSize = compressedSizeWithHeader - 9; //header
         byte[] block = new byte[compressedSize];
         // compressed data: compressed_size - 9 байт.
-        dataWrapper.readFully(block);
+        Utils.readFully(dataWrapper, block);
 
         ClickHouseBlockChecksum real = ClickHouseBlockChecksum.calculateForBlock((byte)magic, compressedSizeWithHeader, uncompressedSize, block, compressedSize);
         if (!real.equals(expected)) {

@@ -6,6 +6,7 @@ import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.SQLWarning;
@@ -35,8 +36,6 @@ import org.apache.http.util.EntityUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.google.common.base.Strings;
-
 import ru.yandex.clickhouse.domain.ClickHouseFormat;
 import ru.yandex.clickhouse.except.ClickHouseException;
 import ru.yandex.clickhouse.except.ClickHouseExceptionSpecifier;
@@ -55,7 +54,6 @@ import ru.yandex.clickhouse.util.ClickHouseHttpClientBuilder;
 import ru.yandex.clickhouse.util.ClickHouseRowBinaryInputStream;
 import ru.yandex.clickhouse.util.ClickHouseStreamCallback;
 import ru.yandex.clickhouse.util.Utils;
-import ru.yandex.clickhouse.util.guava.StreamUtils;
 
 public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement> implements ClickHouseStatement {
 
@@ -194,7 +192,7 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
         }
 
         InputStream is = getInputStream(sql, additionalDBParams, externalData, additionalRequestParams);
-        
+
         try {
             if (parsedStmt.isQuery()) {
                 currentUpdateCount = -1;
@@ -211,11 +209,19 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
                 return currentResult;
             } else {
                 currentUpdateCount = 0;
-                StreamUtils.close(is);
+                try {
+                    is.close();
+                } catch (IOException e) {
+                    log.error("can not close stream: {}", e.getMessage());
+                }
                 return null;
             }
         } catch (Exception e) {
-            StreamUtils.close(is);
+            try {
+                is.close();
+            } catch (IOException ioe) {
+                log.error("can not close stream: {}", ioe.getMessage());
+            }
             throw ClickHouseExceptionSpecifier.specify(e, properties.getHost(), properties.getPort());
         }
     }
@@ -241,21 +247,12 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
             sql = addFormatIfAbsent(sql, ClickHouseFormat.JSONCompact);
         }
 
-        InputStream is = getInputStream(
-                sql,
-                additionalDBParams,
-                null,
-                additionalRequestParams
-        );
-        try {
-            if (properties.isCompress()) {
-                is = new ClickHouseLZ4Stream(is);
-            }
+        try (InputStream is = properties.isCompress()
+            ? new ClickHouseLZ4Stream(getInputStream(sql, additionalDBParams, null, additionalRequestParams))
+            : getInputStream(sql, additionalDBParams, null, additionalRequestParams)) {
             return Jackson.getObjectMapper().readValue(is, ClickHouseResponse.class);
         } catch (IOException e) {
             throw new RuntimeException(e);
-        } finally {
-            StreamUtils.close(is);
         }
     }
 
@@ -298,11 +295,19 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
                 return currentRowBinaryResult;
             } else {
                 currentUpdateCount = 0;
-                StreamUtils.close(is);
+                try {
+                    is.close();
+                } catch (IOException e) {
+                    log.error("can not close stream: {}", e.getMessage());
+                }
                 return null;
             }
         } catch (Exception e) {
-            StreamUtils.close(is);
+            try {
+                is.close();
+            } catch (IOException ioe) {
+                log.error("can not close stream: {}", ioe.getMessage());
+            }
             throw ClickHouseExceptionSpecifier.specify(e, properties.getHost(), properties.getPort());
         }
     }
@@ -311,12 +316,10 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
     public int executeUpdate(String sql) throws SQLException {
         parseSingleStatement(sql, ClickHouseFormat.TabSeparatedWithNamesAndTypes);
 
-        InputStream is = null;
-        try {
-            is = getInputStream(sql, null, null, null);
+        try (InputStream is = getInputStream(sql, null, null, null)) {
             //noinspection StatementWithEmptyBody
-        } finally {
-            StreamUtils.close(is);
+        } catch (IOException e) {
+            log.error("can not close stream: {}", e.getMessage());
         }
 
         return currentSummary != null ? (int) currentSummary.getWrittenRows() : 1;
@@ -335,7 +338,11 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
         }
 
         if (currentRowBinaryResult != null) {
-            StreamUtils.close(currentRowBinaryResult);
+            try {
+                currentRowBinaryResult.close();
+            } catch (IOException e) {
+                log.error("can not close stream: {}", e.getMessage());
+            }
         }
     }
 
@@ -701,7 +708,7 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
 
         HttpEntity requestEntity;
         if (externalData == null || externalData.isEmpty()) {
-            requestEntity = new StringEntity(sql, StreamUtils.UTF_8);
+            requestEntity = new StringEntity(sql, StandardCharsets.UTF_8);
         } else {
             MultipartEntityBuilder entityBuilder = MultipartEntityBuilder.create();
 
@@ -712,7 +719,7 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
                     // TODO do not read stream into memory when this issue is fixed in clickhouse
                     entityBuilder.addBinaryBody(
                         externalDataItem.getName(),
-                        StreamUtils.toByteArray(externalDataItem.getContent()),
+                        Utils.toByteArray(externalDataItem.getContent()),
                         ContentType.APPLICATION_OCTET_STREAM,
                         externalDataItem.getName()
                     );
@@ -837,20 +844,20 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
         setStatementPropertiesToParams(params);
 
         for (Map.Entry<ClickHouseQueryParam, String> entry : params.entrySet()) {
-            if (!Strings.isNullOrEmpty(entry.getValue())) {
+            if (!Utils.isNullOrEmptyString(entry.getValue())) {
                 result.add(new BasicNameValuePair(entry.getKey().toString(), entry.getValue()));
             }
         }
 
         for (Map.Entry<String, String> entry : getRequestParams().entrySet()) {
-            if (!Strings.isNullOrEmpty(entry.getValue())) {
+            if (!Utils.isNullOrEmptyString(entry.getValue())) {
                 result.add(new BasicNameValuePair(entry.getKey(), entry.getValue()));
             }
         }
 
         if (additionalRequestParams != null) {
             for (Map.Entry<String, String> entry : additionalRequestParams.entrySet()) {
-                if (!Strings.isNullOrEmpty(entry.getValue())) {
+                if (!Utils.isNullOrEmptyString(entry.getValue())) {
                     result.add(new BasicNameValuePair(entry.getKey(), entry.getValue()));
                 }
             }
@@ -866,19 +873,19 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
     }
 
     private String getQueryParamValue(ClickHouseQueryParam param, Map<ClickHouseQueryParam, String> additionalClickHouseDBParams, Map<String, String> additionalRequestParams) {
-        if (additionalRequestParams != null && additionalRequestParams.containsKey(param.getKey()) && !Strings.isNullOrEmpty(additionalRequestParams.get(param.getKey()))) {
+        if (additionalRequestParams != null && additionalRequestParams.containsKey(param.getKey()) && !Utils.isNullOrEmptyString(additionalRequestParams.get(param.getKey()))) {
             return additionalRequestParams.get(param.getKey());
         }
 
-        if (getRequestParams().containsKey(param.getKey()) && !Strings.isNullOrEmpty(getRequestParams().get(param.getKey()))) {
+        if (getRequestParams().containsKey(param.getKey()) && !Utils.isNullOrEmptyString(getRequestParams().get(param.getKey()))) {
             return getRequestParams().get(param.getKey());
         }
 
-        if (additionalClickHouseDBParams != null && additionalClickHouseDBParams.containsKey(param) && !Strings.isNullOrEmpty(additionalClickHouseDBParams.get(param))) {
+        if (additionalClickHouseDBParams != null && additionalClickHouseDBParams.containsKey(param) && !Utils.isNullOrEmptyString(additionalClickHouseDBParams.get(param))) {
             return additionalClickHouseDBParams.get(param);
         }
 
-        if (getAdditionalDBParams().containsKey(param) && !Strings.isNullOrEmpty(getAdditionalDBParams().get(param))) {
+        if (getAdditionalDBParams().containsKey(param) && !Utils.isNullOrEmptyString(getAdditionalDBParams().get(param))) {
             return getAdditionalDBParams().get(param);
         }
 
@@ -1032,17 +1039,17 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
     private void checkForErrorAndThrow(HttpEntity entity, HttpResponse response) throws IOException, ClickHouseException {
         if (response.getStatusLine().getStatusCode() != HttpURLConnection.HTTP_OK) {
             InputStream messageStream = entity.getContent();
-            byte[] bytes = StreamUtils.toByteArray(messageStream);
+            byte[] bytes = Utils.toByteArray(messageStream);
             if (properties.isCompress()) {
                 try {
                     messageStream = new ClickHouseLZ4Stream(new ByteArrayInputStream(bytes));
-                    bytes = StreamUtils.toByteArray(messageStream);
+                    bytes = Utils.toByteArray(messageStream);
                 } catch (IOException e) {
                     log.warn("error while read compressed stream {}", e.getMessage());
                 }
             }
             EntityUtils.consumeQuietly(entity);
-            String chMessage = new String(bytes, StreamUtils.UTF_8);
+            String chMessage = new String(bytes, StandardCharsets.UTF_8);
             throw ClickHouseExceptionSpecifier.specify(chMessage, properties.getHost(), properties.getPort());
         }
     }

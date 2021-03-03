@@ -1,12 +1,12 @@
 package ru.yandex.clickhouse.util;
 
-import com.google.common.base.Preconditions;
 import org.apache.http.entity.AbstractHttpEntity;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.Objects;
 import java.util.TimeZone;
 
 /**
@@ -19,9 +19,8 @@ public class ClickHouseStreamHttpEntity extends AbstractHttpEntity {
     private final ClickHouseProperties properties;
 
     public ClickHouseStreamHttpEntity(ClickHouseStreamCallback callback, TimeZone timeZone, ClickHouseProperties properties) {
-        Preconditions.checkNotNull(callback);
         this.timeZone = timeZone;
-        this.callback = callback;
+        this.callback = Objects.requireNonNull(callback);
         this.properties = properties;
     }
 

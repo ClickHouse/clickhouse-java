@@ -1,6 +1,7 @@
 package ru.yandex.clickhouse.util;
 
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.sql.Date;
 import java.sql.SQLException;
 import java.sql.Timestamp;
@@ -13,16 +14,8 @@ import java.util.TimeZone;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
-import com.google.common.base.Function;
-import com.google.common.base.Joiner;
-import com.google.common.collect.Iterables;
-import com.google.common.primitives.Doubles;
-import com.google.common.primitives.Floats;
-import com.google.common.primitives.Longs;
-
 import ru.yandex.clickhouse.response.ByteFragment;
 import ru.yandex.clickhouse.response.ClickHouseColumnInfo;
-import ru.yandex.clickhouse.util.guava.StreamUtils;
 
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertNotNull;
@@ -251,13 +244,15 @@ public class ClickHouseArrayUtilTest {
     @Test(dataProvider = "doubleArrayWithNan")
     public void testDoubleNan(String[] source, double[] expected) throws Exception
     {
-        String sourceString = source.length == 0 ? "[]" : "['" + Joiner.on("','").join(Iterables.transform(Arrays.asList(source), new Function<String, String>() {
-            @Override
-            public String apply(String s) {
-                return s.replace("'", "\\'");
-            }
-        })) + "']";
-        byte[] bytes = sourceString.getBytes(StreamUtils.UTF_8);
+        StringBuilder sb = new StringBuilder();
+        for (String s : source) {
+            sb.append("','").append(s.replace("'", "\\'"));
+        }
+        if (sb.length() > 0) {
+            sb.deleteCharAt(0).deleteCharAt(0).append('\'');
+        }
+        sb.insert(0, "[").append("]");
+        byte[] bytes = sb.toString().getBytes(StandardCharsets.UTF_8);
         ByteFragment fragment = new ByteFragment(bytes, 0, bytes.length);
         double[] arr= (double[]) ClickHouseArrayUtil.parseArray(fragment, Double.class, false,
             getStringArrayColumnInfo(1));
@@ -277,13 +272,15 @@ public class ClickHouseArrayUtilTest {
     @Test(dataProvider = "floatArrayWithNan")
     public void testFloatNan(String[] source, float[] expected) throws Exception
     {
-        String sourceString = source.length == 0 ? "[]" : "['" + Joiner.on("','").join(Iterables.transform(Arrays.asList(source), new Function<String, String>() {
-            @Override
-            public String apply(String s) {
-                return s.replace("'", "\\'");
-            }
-        })) + "']";
-        byte[] bytes = sourceString.getBytes(StreamUtils.UTF_8);
+        StringBuilder sb = new StringBuilder();
+        for (String s : source) {
+            sb.append("','").append(s.replace("'", "\\'"));
+        }
+        if (sb.length() > 0) {
+            sb.deleteCharAt(0).deleteCharAt(0).append('\'');
+        }
+        sb.insert(0, "[").append("]");
+        byte[] bytes = sb.toString().getBytes(StandardCharsets.UTF_8);
         ByteFragment fragment = new ByteFragment(bytes, 0, bytes.length);
         float[] arr= (float[]) ClickHouseArrayUtil.parseArray(fragment, Float.class, false,
             getStringArrayColumnInfo(1));
@@ -301,14 +298,16 @@ public class ClickHouseArrayUtilTest {
 
     @Test(dataProvider = "stringArray")
     public void testParseArray(String[] array) throws Exception {
-        String sourceString = array.length == 0 ? "[]" : "['" + Joiner.on("','").join(Iterables.transform(Arrays.asList(array), new Function<String, String>() {
-            @Override
-            public String apply(String s) {
-                return s.replace("'", "\\'");
-            }
-        })) + "']";
+        StringBuilder sb = new StringBuilder();
+        for (String s : array) {
+            sb.append("','").append(s.replace("'", "\\'"));
+        }
+        if (sb.length() > 0) {
+            sb.deleteCharAt(0).deleteCharAt(0).append('\'');
+        }
+        sb.insert(0, "[").append("]");
 
-        byte[] bytes = sourceString.getBytes(StreamUtils.UTF_8);
+        byte[] bytes = sb.toString().getBytes(StandardCharsets.UTF_8);
         ByteFragment fragment = new ByteFragment(bytes, 0, bytes.length);
         String[] parsedArray = (String[]) ClickHouseArrayUtil.parseArray(fragment, String.class, false,
             getStringArrayColumnInfo(1));
@@ -322,14 +321,16 @@ public class ClickHouseArrayUtilTest {
 
     @Test(dataProvider = "intBoxedArray")
     public void testParseBoxedArray(Integer[] array) throws Exception {
-        String sourceString = "[" + Joiner.on(",").join(Iterables.transform(Arrays.asList(array), new Function<Integer, String>() {
-            @Override
-            public String apply(Integer s) {
-                return s.toString();
-            }
-        })) + "]";
+        StringBuilder sb = new StringBuilder();
+        for (Integer i : array) {
+            sb.append(",").append(i);
+        }
+        if (sb.length() > 0) {
+            sb.deleteCharAt(0);
+        }
+        sb.insert(0, "[").append("]");
 
-        byte[] bytes = sourceString.getBytes(StreamUtils.UTF_8);
+        byte[] bytes = sb.toString().getBytes(StandardCharsets.UTF_8);
         ByteFragment fragment = new ByteFragment(bytes, 0, bytes.length);
         Integer[] parsedArray = (Integer[]) ClickHouseArrayUtil.parseArray(fragment, Integer.class, true,
             getStringArrayColumnInfo(1));
@@ -342,14 +343,16 @@ public class ClickHouseArrayUtilTest {
 
     @Test(dataProvider = "longArray")
     public void testParseArray(long[] array) throws Exception {
-        String sourceString = "[" + Joiner.on(",").join(Iterables.transform(Longs.asList(array), new Function<Long, String>() {
-            @Override
-            public String apply(Long s) {
-                return s.toString();
-            }
-        })) + "]";
+        StringBuilder sb = new StringBuilder();
+        for (long l : array) {
+            sb.append(",").append(l);
+        }
+        if (sb.length() > 0) {
+            sb.deleteCharAt(0);
+        }
+        sb.insert(0, "[").append("]");
 
-        byte[] bytes = sourceString.getBytes(StreamUtils.UTF_8);
+        byte[] bytes = sb.toString().getBytes(StandardCharsets.UTF_8);
         ByteFragment fragment = new ByteFragment(bytes, 0, bytes.length);
         long[] parsedArray = (long[]) ClickHouseArrayUtil.parseArray(fragment, Long.class, false,
             getStringArrayColumnInfo(1));
@@ -362,14 +365,16 @@ public class ClickHouseArrayUtilTest {
 
     @Test(dataProvider = "floatArray")
     public void testParseArray(float[] array) throws Exception {
-        String sourceString = "[" + Joiner.on(",").join(Iterables.transform(Floats.asList(array), new Function<Float, String>() {
-            @Override
-            public String apply(Float s) {
-                return s.toString();
-            }
-        })) + "]";
+        StringBuilder sb = new StringBuilder();
+        for (float f : array) {
+            sb.append(",").append(f);
+        }
+        if (sb.length() > 0) {
+            sb.deleteCharAt(0);
+        }
+        sb.insert(0, "[").append("]");
 
-        byte[] bytes = sourceString.getBytes(StreamUtils.UTF_8);
+        byte[] bytes = sb.toString().getBytes(StandardCharsets.UTF_8);
         ByteFragment fragment = new ByteFragment(bytes, 0, bytes.length);
         float[] parsedArray = (float[]) ClickHouseArrayUtil.parseArray(fragment, Float.class, false,
             getStringArrayColumnInfo(1));
@@ -382,14 +387,16 @@ public class ClickHouseArrayUtilTest {
 
     @Test(dataProvider = "doubleArray")
     public void testParseArray(double[] array) throws Exception {
-        String sourceString = "[" + Joiner.on(",").join(Iterables.transform(Doubles.asList(array), new Function<Double, String>() {
-            @Override
-            public String apply(Double s) {
-                return s.toString();
-            }
-        })) + "]";
+        StringBuilder sb = new StringBuilder();
+        for (double d : array) {
+            sb.append(",").append(d);
+        }
+        if (sb.length() > 0) {
+            sb.deleteCharAt(0);
+        }
+        sb.insert(0, "[").append("]");
 
-        byte[] bytes = sourceString.getBytes(StreamUtils.UTF_8);
+        byte[] bytes = sb.toString().getBytes(StandardCharsets.UTF_8);
         ByteFragment fragment = new ByteFragment(bytes, 0, bytes.length);
         double[] parsedArray = (double[]) ClickHouseArrayUtil.parseArray(fragment, Double.class, false,
             getStringArrayColumnInfo(1));
@@ -403,7 +410,7 @@ public class ClickHouseArrayUtilTest {
     @Test(dataProvider = "booleanArray")
     public void testParseArray(String[] input, boolean[] array) throws Exception {
         String sourceString = "[" + String.join(",", input) + "]";
-        byte[] bytes = sourceString.getBytes(StreamUtils.UTF_8);
+        byte[] bytes = sourceString.getBytes(StandardCharsets.UTF_8);
         ByteFragment fragment = new ByteFragment(bytes, 0, bytes.length);
         boolean[] parsedArray = (boolean[]) ClickHouseArrayUtil.parseArray(
             fragment, Boolean.class, false, getStringArrayColumnInfo(1));
@@ -418,14 +425,16 @@ public class ClickHouseArrayUtilTest {
     public void testParseArray(Date[] array) throws Exception {
         final SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd");
         dateFormat.setTimeZone(TimeZone.getTimeZone("UTC"));
-        String sourceString = "[" + Joiner.on(",").join(Iterables.transform(Arrays.asList(array), new Function<Date, String>() {
-            @Override
-            public String apply(Date s) {
-                return dateFormat.format(s);
-            }
-        })) + "]";
+        StringBuilder sb = new StringBuilder();
+        for (Date d : array) {
+            sb.append(",").append(dateFormat.format(d));
+        }
+        if (sb.length() > 0) {
+            sb.deleteCharAt(0);
+        }
+        sb.insert(0, "[").append("]");
 
-        byte[] bytes = sourceString.getBytes(StreamUtils.UTF_8);
+        byte[] bytes = sb.toString().getBytes(StandardCharsets.UTF_8);
         ByteFragment fragment = new ByteFragment(bytes, 0, bytes.length);
         Date[] parsedArray = (Date[]) ClickHouseArrayUtil.parseArray(fragment, true, dateFormat.getTimeZone(),
             ClickHouseColumnInfo.parse("Array(Date)", "myDate"));
@@ -438,15 +447,16 @@ public class ClickHouseArrayUtilTest {
 
     @Test(dataProvider = "decimalArray")
     public void testParseArray(BigDecimal[] array) throws Exception {
-        String sourceString = "[" + Joiner.on(",").join(Iterables.transform(Arrays.asList(array), new Function<BigDecimal, String>() {
+        StringBuilder sb = new StringBuilder();
+        for (BigDecimal d : array) {
+            sb.append(",").append(d.toPlainString());
+        }
+        if (sb.length() > 0) {
+            sb.deleteCharAt(0);
+        }
+        sb.insert(0, "[").append("]");
 
-            @Override
-            public String apply(BigDecimal s) {
-                return s.toPlainString();
-            }
-        })) + "]";
-
-        byte[] bytes = sourceString.getBytes(StreamUtils.UTF_8);
+        byte[] bytes = sb.toString().getBytes(StandardCharsets.UTF_8);
         ByteFragment fragment = new ByteFragment(bytes, 0, bytes.length);
         BigDecimal[] parsedArray = (BigDecimal[]) ClickHouseArrayUtil.parseArray(fragment, BigDecimal.class, true,
             getStringArrayColumnInfo(1));
@@ -461,7 +471,7 @@ public class ClickHouseArrayUtilTest {
     public void testParseArrayThreeLevels() throws Exception {
         int[][][] expected  =  {{{10,11,12},{13,14,15}},{{20,21,22},{23,24,25}},{{30,31,32},{33,34,35}}};
         String sourceString = "[[[10,11,12],[13,14,15]],[[20,21,22],[23,24,25]],[[30,31,32],[33,34,35]]]";
-        byte[] bytes = sourceString.getBytes(StreamUtils.UTF_8);
+        byte[] bytes = sourceString.getBytes(StandardCharsets.UTF_8);
         ByteFragment fragment = new ByteFragment(bytes, 0, bytes.length);
         int[][][] actual = (int[][][]) ClickHouseArrayUtil.parseArray(fragment, Integer.class, false,
             getStringArrayColumnInfo(3));
@@ -479,7 +489,7 @@ public class ClickHouseArrayUtilTest {
     @Test
     public void testParseArrayTwoLevelsEmpty() throws Exception {
         String sourceString = "[[]]";
-        byte[] bytes = sourceString.getBytes(StreamUtils.UTF_8);
+        byte[] bytes = sourceString.getBytes(StandardCharsets.UTF_8);
         ByteFragment fragment = new ByteFragment(bytes, 0, bytes.length);
         String[][] actual = (String[][]) ClickHouseArrayUtil.parseArray(fragment, String.class, true,
             getStringArrayColumnInfo(2));
@@ -490,7 +500,7 @@ public class ClickHouseArrayUtilTest {
     @Test
     public void testParseSparseArray() throws Exception {
         String sourceString = "[[],[NULL],['a','b',NULL]]";
-        byte[] bytes = sourceString.getBytes(StreamUtils.UTF_8);
+        byte[] bytes = sourceString.getBytes(StandardCharsets.UTF_8);
         ByteFragment fragment = new ByteFragment(bytes, 0, bytes.length);
         String[][] actual = (String[][]) ClickHouseArrayUtil.parseArray(fragment, String.class, true,
             getStringArrayColumnInfo(2));
@@ -507,7 +517,7 @@ public class ClickHouseArrayUtilTest {
     @Test
     public void testParseArrayOf32Levels() throws Exception {
         String sourceString = "[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[32]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]";
-        byte[] bytes = sourceString.getBytes(StreamUtils.UTF_8);
+        byte[] bytes = sourceString.getBytes(StandardCharsets.UTF_8);
         ByteFragment fragment = new ByteFragment(bytes, 0, bytes.length);
         int[][][][][][][][][][][][][][][][][][][][][][][][][][][][][][][][] actual =
             (int[][][][][][][][][][][][][][][][][][][][][][][][][][][][][][][][])
@@ -519,7 +529,7 @@ public class ClickHouseArrayUtilTest {
     @Test(expectedExceptions = IllegalArgumentException.class, expectedExceptionsMessageRegExp = "Maximum parse depth exceeded")
     public void testParseArrayMaximumDepthExceeded() throws SQLException {
         String sourceString = "[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[33]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]";
-        byte[] bytes = sourceString.getBytes(StreamUtils.UTF_8);
+        byte[] bytes = sourceString.getBytes(StandardCharsets.UTF_8);
         ByteFragment fragment = new ByteFragment(bytes, 0, bytes.length);
         ClickHouseArrayUtil.parseArray(fragment, Integer.class, false, getStringArrayColumnInfo(33));
     }
@@ -531,7 +541,7 @@ public class ClickHouseArrayUtilTest {
             expectedExceptionsMessageRegExp = "not an array.*"
     )
     public void testParseInvalidArray(String sourceString, int arrayLevel) throws Exception {
-        byte[] bytes = sourceString.getBytes(StreamUtils.UTF_8);
+        byte[] bytes = sourceString.getBytes(StandardCharsets.UTF_8);
         ByteFragment fragment = new ByteFragment(bytes, 0, bytes.length);
         ClickHouseArrayUtil.parseArray(fragment, String.class, true,
             getStringArrayColumnInfo(arrayLevel));

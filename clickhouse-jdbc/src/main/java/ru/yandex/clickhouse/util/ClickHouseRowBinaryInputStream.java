@@ -1,11 +1,9 @@
 package ru.yandex.clickhouse.util;
 
-import com.google.common.io.LittleEndianDataInputStream;
-import com.google.common.primitives.UnsignedLong;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
-import ru.yandex.clickhouse.util.guava.StreamUtils;
 
 import java.io.Closeable;
+import java.io.DataInputStream;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -13,6 +11,7 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.charset.StandardCharsets;
 import java.sql.Date;
 import java.sql.Timestamp;
 import java.util.TimeZone;
@@ -22,32 +21,16 @@ import java.util.concurrent.TimeUnit;
 import static ru.yandex.clickhouse.util.ClickHouseRowBinaryStream.MILLIS_IN_DAY;
 
 public class ClickHouseRowBinaryInputStream implements Closeable {
-	private final LittleEndianDataInputStream in;
+	private final DataInputStream in;
 	private final TimeZone timeZone;
 
 	public ClickHouseRowBinaryInputStream(InputStream is, TimeZone timeZone, ClickHouseProperties properties) {
-		this.in = new LittleEndianDataInputStream(is);
+		this.in = new DataInputStream(is);
 		if (properties.isUseServerTimeZoneForDates()) {
 			this.timeZone = timeZone;
 		} else {
 			this.timeZone = TimeZone.getDefault();
 		}
-	}
-
-	public int readUnsignedLeb128() throws IOException {
-		int value = 0;
-		int read;
-		int count = 0;
-		do {
-			read = in.readByte() & 0xff;
-			value |= (read & 0x7f) << (count * 7);
-			count++;
-		} while (((read & 0x80) == 0x80) && count < 5);
-
-		if ((read & 0x80) == 0x80) {
-			throw new IOException("invalid LEB128 sequence");
-		}
-		return value;
 	}
 
 	public void readBytes(byte[] bytes) throws IOException {
@@ -65,42 +48,35 @@ public class ClickHouseRowBinaryInputStream implements Closeable {
 	}
 
 	public int readByte() throws IOException {
-		return in.read();
+		return in.readUnsignedByte();
 	}
 
 	public boolean readIsNull() throws IOException {
 		int value = readByte();
-		if (value == -1)
-			throw new EOFException();
 
-		validateInt(value, 0, 1, "nullable");
+		Utils.checkArgument(value, 0, 1);
+
 		return value != 0;
 	}
 
 	public String readString() throws IOException {
-		int length = readUnsignedLeb128();
+		int length = Utils.readUnsignedLeb128(in);
 		byte[] bytes = new byte[length];
 		readBytes(bytes);
 
-		return new String(bytes, StreamUtils.UTF_8);
+		return new String(bytes, StandardCharsets.UTF_8);
 	}
 
 	public String readFixedString(int length) throws IOException {
 		byte[] bytes = new byte[length];
 		readBytes(bytes);
 
-		return new String(bytes, StreamUtils.UTF_8);
-	}
-
-	private void validateInt(int value, int minValue, int maxValue, String dataType) {
-		if (value < minValue || value > maxValue) {
-			throw new IllegalStateException("Not a " + dataType + " value: " + value);
-		}
+		return new String(bytes, StandardCharsets.UTF_8);
 	}
 
 	public boolean readBoolean() throws IOException {
 		int value = readUInt8();
-		validateInt(value, 0, 1, "boolean");
+		Utils.checkArgument(value, 0, 1);
 		return value != 0;
 	}
 
@@ -123,7 +99,7 @@ public class ClickHouseRowBinaryInputStream implements Closeable {
 	}
 
 	public int readUInt16() throws IOException {
-		return in.readUnsignedShort();
+		return Utils.readUnsignedShort(in);
 	}
 
 	/**
@@ -132,15 +108,15 @@ public class ClickHouseRowBinaryInputStream implements Closeable {
 	 * @throws IOException in case if an I/O error occurs
 	 */
 	public short readUInt16AsShort() throws IOException {
-		return in.readShort();
+		return (short) Utils.readUnsignedShort(in);
 	}
 
 	public short readInt16() throws IOException {
-		return in.readShort();
+		return (short) Utils.readUnsignedShort(in);
 	}
 
 	public long readUInt32() throws IOException {
-		return ((long) in.readInt()) & 0xffffffffL;
+		return ((long) Utils.readInt(in)) & 0xffffffffL;
 	}
 
 	/**
@@ -149,11 +125,11 @@ public class ClickHouseRowBinaryInputStream implements Closeable {
 	 * @throws IOException in case if an I/O error occurs
 	 */
 	public int readUInt32AsInt() throws IOException {
-		return in.readInt();
+		return Utils.readInt(in);
 	}
 
 	public int readInt32() throws IOException {
-		return in.readInt();
+		return Utils.readInt(in);
 	}
 
 	/**
@@ -162,21 +138,15 @@ public class ClickHouseRowBinaryInputStream implements Closeable {
 	 * @throws IOException in case if an I/O error occurs
 	 */
 	public long readUInt64AsLong() throws IOException {
-		return in.readLong();
-	}
-
-	public UnsignedLong readUInt64AsUnsignedLong() throws IOException {
-		return UnsignedLong.fromLongBits(in.readLong());
+		return Utils.readLong(in);
 	}
 
 	public BigInteger readUInt64() throws IOException {
-		byte[] bytes = new byte[8];
-		readBytes(bytes);
-		return new BigInteger(bytes);
+		return Utils.readLongAsBigInteger(in);
 	}
 
 	public long readInt64() throws IOException {
-		return in.readLong();
+		return Utils.readLong(in);
 	}
 
 	public Timestamp readDateTime() throws IOException {
@@ -192,15 +162,15 @@ public class ClickHouseRowBinaryInputStream implements Closeable {
 	}
 
 	public float readFloat32() throws IOException {
-		return in.readFloat();
+		return Float.intBitsToFloat(Utils.readInt(in));
 	}
 
 	public double readFloat64() throws IOException {
-		return in.readDouble();
+		return Double.longBitsToDouble(Utils.readLong(in));
 	}
 
 	public Date[] readDateArray() throws IOException {
-		int length = readUnsignedLeb128();
+		int length = Utils.readUnsignedLeb128(in);
 		Date[] dates = new Date[length];
 		for (int i = 0; i < length; i++) {
 			dates[i] = readDate();
@@ -210,7 +180,7 @@ public class ClickHouseRowBinaryInputStream implements Closeable {
 	}
 
 	public Timestamp[] readDateTimeArray() throws IOException {
-		int length = readUnsignedLeb128();
+		int length = Utils.readUnsignedLeb128(in);
 		Timestamp[] dates = new Timestamp[length];
 		for (int i = 0; i < length; i++) {
 			dates[i] = readDateTime();
@@ -220,7 +190,7 @@ public class ClickHouseRowBinaryInputStream implements Closeable {
 	}
 
 	public String[] readStringArray() throws IOException {
-		int length = readUnsignedLeb128();
+		int length = Utils.readUnsignedLeb128(in);
 		String[] strings = new String[length];
 		for (int i = 0; i < length; i++) {
 			strings[i] = readString();
@@ -230,7 +200,7 @@ public class ClickHouseRowBinaryInputStream implements Closeable {
 	}
 
 	public byte[] readInt8Array() throws IOException {
-		int length = readUnsignedLeb128();
+		int length = Utils.readUnsignedLeb128(in);
 		byte[] bytes = new byte[length];
 		for (int i = 0; i < length; i++) {
 			bytes[i] = readInt8();
@@ -240,7 +210,7 @@ public class ClickHouseRowBinaryInputStream implements Closeable {
 	}
 
 	public byte[] readUInt8ArrayAsByte() throws IOException {
-		int length = readUnsignedLeb128();
+		int length = Utils.readUnsignedLeb128(in);
 		byte[] bytes = new byte[length];
 		for (int i = 0; i < length; i++) {
 			bytes[i] = readUInt8AsByte();
@@ -250,7 +220,7 @@ public class ClickHouseRowBinaryInputStream implements Closeable {
 	}
 
 	public short[] readUInt8Array() throws IOException {
-		int length = readUnsignedLeb128();
+		int length = Utils.readUnsignedLeb128(in);
 		short[] shorts = new short[length];
 		for (int i = 0; i < length; i++) {
 			shorts[i] = readUInt8();
@@ -260,7 +230,7 @@ public class ClickHouseRowBinaryInputStream implements Closeable {
 	}
 
 	public short[] readInt16Array() throws IOException {
-		int length = readUnsignedLeb128();
+		int length = Utils.readUnsignedLeb128(in);
 		short[] shorts = new short[length];
 		for (int i = 0; i < length; i++) {
 			shorts[i] = readInt16();
@@ -270,7 +240,7 @@ public class ClickHouseRowBinaryInputStream implements Closeable {
 	}
 
 	public short[] readUInt16ArrayAsShort() throws IOException {
-		int length = readUnsignedLeb128();
+		int length = Utils.readUnsignedLeb128(in);
 		short[] shorts = new short[length];
 		for (int i = 0; i < length; i++) {
 			shorts[i] = readUInt16AsShort();
@@ -280,7 +250,7 @@ public class ClickHouseRowBinaryInputStream implements Closeable {
 	}
 
 	public int[] readUInt16Array() throws IOException {
-		int length = readUnsignedLeb128();
+		int length = Utils.readUnsignedLeb128(in);
 		int[] ints = new int[length];
 		for (int i = 0; i < length; i++) {
 			ints[i] = readUInt16();
@@ -290,7 +260,7 @@ public class ClickHouseRowBinaryInputStream implements Closeable {
 	}
 
 	public int[] readInt32Array() throws IOException {
-		int length = readUnsignedLeb128();
+		int length = Utils.readUnsignedLeb128(in);
 		int[] ints = new int[length];
 		for (int i = 0; i < length; i++) {
 			ints[i] = readInt32();
@@ -300,7 +270,7 @@ public class ClickHouseRowBinaryInputStream implements Closeable {
 	}
 
 	public int[] readUInt32ArrayAsInt() throws IOException {
-		int length = readUnsignedLeb128();
+		int length = Utils.readUnsignedLeb128(in);
 		int[] ints = new int[length];
 		for (int i = 0; i < length; i++) {
 			ints[i] = readUInt32AsInt();
@@ -310,7 +280,7 @@ public class ClickHouseRowBinaryInputStream implements Closeable {
 	}
 
 	public long[] readUInt32Array() throws IOException {
-		int length = readUnsignedLeb128();
+		int length = Utils.readUnsignedLeb128(in);
 		long[] longs = new long[length];
 		for (int i = 0; i < length; i++) {
 			longs[i] = readUInt32();
@@ -320,7 +290,7 @@ public class ClickHouseRowBinaryInputStream implements Closeable {
 	}
 
 	public long[] readInt64Array() throws IOException {
-		int length = readUnsignedLeb128();
+		int length = Utils.readUnsignedLeb128(in);
 		long[] longs = new long[length];
 		for (int i = 0; i < length; i++) {
 			longs[i] = readInt64();
@@ -330,7 +300,7 @@ public class ClickHouseRowBinaryInputStream implements Closeable {
 	}
 
 	public long[] readUInt64ArrayAsLong() throws IOException {
-		int length = readUnsignedLeb128();
+		int length = Utils.readUnsignedLeb128(in);
 		long[] longs = new long[length];
 		for (int i = 0; i < length; i++) {
 			longs[i] = readUInt64AsLong();
@@ -339,18 +309,8 @@ public class ClickHouseRowBinaryInputStream implements Closeable {
 		return longs;
 	}
 
-	public UnsignedLong[] readUInt64ArrayAsUnsignedLong() throws IOException {
-		int length = readUnsignedLeb128();
-		UnsignedLong[] longs = new UnsignedLong[length];
-		for (int i = 0; i < length; i++) {
-			longs[i] = readUInt64AsUnsignedLong();
-		}
-
-		return longs;
-	}
-
 	public BigInteger[] readUInt64Array() throws IOException {
-		int length = readUnsignedLeb128();
+		int length = Utils.readUnsignedLeb128(in);
 		BigInteger[] bigs = new BigInteger[length];
 		for (int i = 0; i < length; i++) {
 			bigs[i] = readUInt64();
@@ -360,7 +320,7 @@ public class ClickHouseRowBinaryInputStream implements Closeable {
 	}
 
 	public float[] readFloat32Array() throws IOException {
-		int length = readUnsignedLeb128();
+		int length = Utils.readUnsignedLeb128(in);
 		float[] floats = new float[length];
 		for (int i = 0; i < length; i++) {
 			floats[i] = readFloat32();
@@ -370,7 +330,7 @@ public class ClickHouseRowBinaryInputStream implements Closeable {
 	}
 
 	public double[] readFloat64Array() throws IOException {
-		int length = readUnsignedLeb128();
+		int length = Utils.readUnsignedLeb128(in);
 		double[] doubles = new double[length];
 		for (int i = 0; i < length; i++) {
 			doubles[i] = readFloat64();
@@ -388,14 +348,14 @@ public class ClickHouseRowBinaryInputStream implements Closeable {
 	}
 
     public BigDecimal readDecimal32(int scale) throws IOException {
-        int i = in.readInt();
+        int i = Utils.readInt(in);
         BigDecimal ten = BigDecimal.valueOf(10);
         BigDecimal s = ten.pow(scale);
         return new BigDecimal(i).divide(s);
     }
 
     public BigDecimal readDecimal64(int scale) throws IOException {
-        long i = in.readLong();
+        long i = Utils.readLong(in);
         BigDecimal ten = BigDecimal.valueOf(10);
         BigDecimal s = ten.pow(scale);
         return new BigDecimal(i).divide(s);
@@ -404,7 +364,7 @@ public class ClickHouseRowBinaryInputStream implements Closeable {
     public BigDecimal readDecimal128(int scale) throws IOException {
         byte[] r = new byte[16];
         for (int i = 16; i > 0; i--) {
-            r[i - 1] = in.readByte();
+            r[i - 1] = (byte) in.readUnsignedByte();
         }
         BigDecimal res = new BigDecimal(new BigInteger(r), scale);
         return res;
