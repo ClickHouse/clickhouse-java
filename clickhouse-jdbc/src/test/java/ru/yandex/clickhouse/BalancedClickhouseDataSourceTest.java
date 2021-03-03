@@ -9,6 +9,7 @@ import java.util.Arrays;
 import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
 
+import ru.yandex.clickhouse.except.ClickHouseException;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
 
 import static org.testng.Assert.assertEquals;
@@ -266,8 +267,8 @@ public class BalancedClickhouseDataSourceTest {
         try {
             dataSource4.getConnection().createStatement().execute("SELECT 1");
             fail();
-        } catch (RuntimeException re) {
-            // expected
+        } catch (ClickHouseException e) {
+            assertTrue(e.getMessage().contains("Authentication failed"));
         }
 
         // it is not allowed to have query parameters per host
@@ -307,8 +308,8 @@ public class BalancedClickhouseDataSourceTest {
         try {
             dataSource6.getConnection("foo", "bar").createStatement().execute("SELECT 1");
             fail();
-        } catch (RuntimeException re) {
-            // expected
+        } catch (ClickHouseException e) {
+            assertTrue(e.getMessage().contains("Authentication failed"));
         }
     }
 

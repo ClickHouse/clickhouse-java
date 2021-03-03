@@ -56,11 +56,11 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
     private TimeZone timezone;
     private volatile String serverVersion;
 
-    public ClickHouseConnectionImpl(String url) {
+    public ClickHouseConnectionImpl(String url) throws SQLException {
         this(url, new ClickHouseProperties());
     }
 
-    public ClickHouseConnectionImpl(String url, ClickHouseProperties properties) {
+    public ClickHouseConnectionImpl(String url, ClickHouseProperties properties) throws SQLException {
         this.url = url;
         try {
             this.properties = ClickhouseJdbcUrlParser.parse(url, properties.asProperties());
@@ -77,7 +77,7 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
         initTimeZone(this.properties);
     }
 
-    private void initTimeZone(ClickHouseProperties properties) {
+    private void initTimeZone(ClickHouseProperties properties) throws SQLException {
         if (properties.isUseServerTimeZone() && !Utils.isNullOrEmptyString(properties.getUseTimeZone())) {
             throw new IllegalArgumentException(String.format("only one of %s or %s must be enabled", ClickHouseConnectionSettings.USE_SERVER_TIME_ZONE.getKey(), ClickHouseConnectionSettings.USE_TIME_ZONE.getKey()));
         }
@@ -90,8 +90,6 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
                 if (rs.next()) {
                     timezone = TimeZone.getTimeZone(rs.getString(1));
                 }
-            } catch (SQLException e) {
-                throw new RuntimeException(e);
             }
         } else if (!Utils.isNullOrEmptyString(properties.getUseTimeZone())) {
             timezone = TimeZone.getTimeZone(properties.getUseTimeZone());
