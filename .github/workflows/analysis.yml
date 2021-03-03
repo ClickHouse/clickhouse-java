@@ -6,7 +6,7 @@ on:
       - master
       - develop
       - 0.2.x
-  pull_request:
+  pull_request_target:
     types:
       - opened
       - synchronize
@@ -28,7 +28,7 @@ jobs:
         uses: actions/checkout@v2
         with:
           ref: ${{ github.event.pull_request.head.sha }}
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request_target'
       - name: Check out PR
         run: |
           git fetch --no-tags --prune --progress --no-recurse-submodules --depth=1 \
@@ -57,7 +57,12 @@ jobs:
           reporter: 'github-pr-check'
           # added,diff_context,file,nofilter
           filter_mode: 'added'
-        if: github.event_name == 'pull_request' || github.event.inputs.pr != ''
+        if: github.event_name == 'pull_request_target' || github.event.inputs.pr != ''
+      - name: Update sonar config
+        run: |
+          sed -i -e 's|^\(.*<sonar.projectKey>\).*\(</sonar.projectKey>\)$|\1ClickHouse_clickhouse-jdbc\2|' \
+            -e 's|^\(.*<sonar.organization>\).*\(</sonar.organization>\)$|\1clickhouse-java\2|' pom.xml
+        if: github.repository_owner == 'ClickHouse'
       - name: Build and analyze
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
