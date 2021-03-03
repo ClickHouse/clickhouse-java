@@ -1,7 +1,10 @@
 name: Benchmark
 
 on:
-  pull_request:
+  pull_request_target:
+    branches:
+      - master
+      - develop
     types:
       - opened
       - synchronize
@@ -36,7 +39,7 @@ jobs:
   benchmark-pull-request:
     runs-on: ubuntu-latest
     name: Benchmark pull request
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request_target'
     steps:
       - name: Check out repository
         uses: actions/checkout@v2
