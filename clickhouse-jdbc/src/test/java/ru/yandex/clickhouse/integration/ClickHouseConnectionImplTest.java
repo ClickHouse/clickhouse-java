@@ -7,6 +7,7 @@ import javax.sql.DataSource;
 import org.testng.annotations.Test;
 
 import ru.yandex.clickhouse.ClickHouseContainerForTest;
+import ru.yandex.clickhouse.except.ClickHouseException;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
 
 import static org.testng.Assert.assertTrue;
@@ -80,8 +81,8 @@ public class ClickHouseConnectionImplTest {
         try {
             dataSource.getConnection();
             fail();
-        } catch (RuntimeException e) {
-            // exppected
+        } catch (ClickHouseException e) {
+            // expected
         }
     }
 
