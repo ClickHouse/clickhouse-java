@@ -6,6 +6,7 @@ import java.io.OutputStream;
 import java.io.Reader;
 import java.math.BigDecimal;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.sql.Array;
 import java.sql.Blob;
 import java.sql.Clob;
@@ -44,7 +45,6 @@ import ru.yandex.clickhouse.settings.ClickHouseProperties;
 import ru.yandex.clickhouse.settings.ClickHouseQueryParam;
 import ru.yandex.clickhouse.util.ClickHouseArrayUtil;
 import ru.yandex.clickhouse.util.ClickHouseValueFormatter;
-import ru.yandex.clickhouse.util.guava.StreamUtils;
 
 public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl implements ClickHousePreparedStatement {
 
@@ -339,7 +339,7 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
                 }
                 sb.append(j < pList.size() - 1 ? "\t" : "\n");
             }
-            newBatches.add(sb.toString().getBytes(StreamUtils.UTF_8));
+            newBatches.add(sb.toString().getBytes(StandardCharsets.UTF_8));
             sb = new StringBuilder();
         }
         return newBatches;

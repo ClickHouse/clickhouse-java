@@ -1,9 +1,8 @@
 package ru.yandex.clickhouse.response;
 
-import ru.yandex.clickhouse.util.guava.StreamUtils;
-
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 
 /**
  * We have a stream of bytes and a separator as an input.
@@ -133,7 +132,7 @@ public class StreamSplitter {
 
     @Override
     public String toString() {
-        String bufStr = new String(buf, StreamUtils.UTF_8).trim();
+        String bufStr = new String(buf, StandardCharsets.UTF_8).trim();
 
         return "StreamSplitter{" +
             "delegate=" + delegate +

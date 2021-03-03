@@ -3,12 +3,11 @@ package ru.yandex.clickhouse;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.AbstractHttpEntity;
 import org.apache.http.entity.StringEntity;
-
-import ru.yandex.clickhouse.util.guava.StreamUtils;
 
 /**
  * Allow to inject sql query in the body, followed by row data
@@ -18,7 +17,7 @@ public class BodyEntityWrapper extends AbstractHttpEntity {
     private final HttpEntity delegate;
 
 	public BodyEntityWrapper(String sql, HttpEntity content) {
-		this.sql = new StringEntity(sql+"\n", StreamUtils.UTF_8);
+		this.sql = new StringEntity(sql+"\n", StandardCharsets.UTF_8);
 		this.delegate = content;
 	}
 

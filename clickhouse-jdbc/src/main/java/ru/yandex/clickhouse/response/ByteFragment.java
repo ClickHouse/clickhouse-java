@@ -3,8 +3,7 @@ package ru.yandex.clickhouse.response;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.OutputStream;
-
-import ru.yandex.clickhouse.util.guava.StreamUtils;
+import java.nio.charset.StandardCharsets;
 
 public class ByteFragment {
 
@@ -20,12 +19,12 @@ public class ByteFragment {
     }
 
     public static ByteFragment fromString(String str) {
-        byte[] bytes = str.getBytes(StreamUtils.UTF_8);
+        byte[] bytes = str.getBytes(StandardCharsets.UTF_8);
         return new ByteFragment(bytes, 0, bytes.length);
     }
 
     public String asString() {
-        return new String(buf, start, len, StreamUtils.UTF_8);
+        return new String(buf, start, len, StandardCharsets.UTF_8);
     }
 
     public String asString(boolean unescape) {
@@ -33,7 +32,7 @@ public class ByteFragment {
             if (isNull()) {
                 return null;
             }
-            return new String(unescape(), StreamUtils.UTF_8);
+            return new String(unescape(), StandardCharsets.UTF_8);
         } else {
             return asString();
         }

@@ -1,9 +1,10 @@
 package ru.yandex.clickhouse.except;
 
-import com.google.common.base.Strings;
 import org.apache.http.conn.ConnectTimeoutException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import ru.yandex.clickhouse.util.Utils;
 
 import java.net.ConnectException;
 import java.net.SocketTimeoutException;
@@ -37,7 +38,7 @@ public final class ClickHouseExceptionSpecifier {
      * "Code: 10, e.displayText() = DB::Exception: ...".
      */
     private static ClickHouseException specify(String clickHouseMessage, Throwable cause, String host, int port) {
-        if (Strings.isNullOrEmpty(clickHouseMessage) && cause != null) {
+        if (Utils.isNullOrEmptyString(clickHouseMessage) && cause != null) {
             return getException(cause, host, port);
         }
 

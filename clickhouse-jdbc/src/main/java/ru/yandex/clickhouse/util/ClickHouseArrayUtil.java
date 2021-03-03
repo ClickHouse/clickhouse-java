@@ -6,8 +6,6 @@ import java.sql.Timestamp;
 import java.util.Collection;
 import java.util.TimeZone;
 
-import com.google.common.primitives.Primitives;
-
 import ru.yandex.clickhouse.ClickHouseUtil;
 import ru.yandex.clickhouse.response.ArrayByteFragment;
 import ru.yandex.clickhouse.response.ByteFragment;
@@ -103,12 +101,12 @@ public class ClickHouseArrayUtil {
             int[] dimensions = new int[arrayLevel];
             dimensions[0] = ClickHouseArrayUtil.getArrayLength(trim);
             array = java.lang.reflect.Array.newInstance(
-                useObjects ? elementClass : Primitives.unwrap(elementClass),
+                useObjects ? elementClass : Utils.unwrap(elementClass),
                 dimensions
             );
         } else {
             array = java.lang.reflect.Array.newInstance(
-                useObjects ? elementClass : Primitives.unwrap(elementClass),
+                useObjects ? elementClass : Utils.unwrap(elementClass),
                 ClickHouseArrayUtil.getArrayLength(trim)
             );
         }

@@ -18,9 +18,6 @@ import org.testng.Assert;
 import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
 
-import com.google.common.primitives.UnsignedLong;
-import com.google.common.primitives.UnsignedLongs;
-
 import ru.yandex.clickhouse.ClickHouseConnection;
 import ru.yandex.clickhouse.ClickHouseContainerForTest;
 import ru.yandex.clickhouse.ClickHouseDataSource;
@@ -193,7 +190,7 @@ public class RowBinaryStreamTest {
                         stream.writeInt32(Integer.MAX_VALUE);
                         stream.writeUInt32(Integer.MAX_VALUE + 100L);
                         stream.writeInt64(Long.MAX_VALUE);
-                        stream.writeUInt64(UnsignedLong.fromLongBits(UnsignedLongs.MAX_VALUE));
+                        stream.writeUInt64(new BigInteger(Long.toUnsignedString(-1L)));
                         stream.writeFloat32((float) 21.21);
                         stream.writeFloat64(77.77);
                         stream.writeDateArray(new Date[]{date2});
@@ -337,7 +334,7 @@ public class RowBinaryStreamTest {
             assertEquals(is.readInt32(), Integer.MAX_VALUE);
             assertEquals(is.readUInt32(), (Integer.MAX_VALUE) + 100L);
             assertEquals(is.readInt64(), Long.MAX_VALUE);
-            assertEquals(is.readUInt64AsUnsignedLong(), UnsignedLong.fromLongBits(UnsignedLongs.MAX_VALUE));
+            assertEquals(is.readUInt64(), new BigInteger(Long.toUnsignedString(-1L)));
             assertEquals(is.readFloat32(), (float) 21.21);
             assertEquals(is.readFloat64(), 77.77);
 

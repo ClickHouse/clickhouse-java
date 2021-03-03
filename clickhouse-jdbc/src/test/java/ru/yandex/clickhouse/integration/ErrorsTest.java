@@ -1,6 +1,5 @@
 package ru.yandex.clickhouse.integration;
 
-import com.google.common.base.Throwables;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
@@ -16,6 +15,7 @@ import java.sql.Date;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.ArrayList;
 import java.util.List;
 
 public class ErrorsTest {
@@ -71,13 +71,33 @@ public class ErrorsTest {
         Assert.assertTrue(false, "didn' find correct error");
     }
 
-    private static ClickHouseException getClickhouseException(Exception e) {
-        List<Throwable> causalChain = Throwables.getCausalChain(e);
-        for (Throwable throwable : causalChain) {
+    private static ClickHouseException getClickhouseException(Throwable t) {
+        List<Throwable> causes = new ArrayList<>(4);
+        causes.add(t);
+
+        Throwable slowPointer = t;
+        boolean advanceSlowPointer = false;
+
+        Throwable cause;
+        while ((cause = t.getCause()) != null) {
+            t = cause;
+            causes.add(t);
+
+            if (t == slowPointer) {
+                throw new IllegalArgumentException("Loop in causal chain detected.", t);
+            }
+            if (advanceSlowPointer) {
+                slowPointer = slowPointer.getCause();
+            }
+            advanceSlowPointer = !advanceSlowPointer; // only advance every other iteration
+        }
+        
+        for (Throwable throwable : causes) {
             if (throwable instanceof ClickHouseException) {
                 return (ClickHouseException) throwable;
             }
         }
+        
         throw new IllegalArgumentException("no ClickHouseException found");
     }
 }
