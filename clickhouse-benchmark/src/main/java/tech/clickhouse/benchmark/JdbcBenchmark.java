@@ -104,14 +104,17 @@ public abstract class JdbcBenchmark {
         final Connection conn = state.getConnection();
 
         if (state.usePreparedStatement()) {
-            PreparedStatement s = conn.prepareStatement(sql);
-            s.setFetchSize(fetchSize);
-            setParameters(s, values).executeQuery();
-            stmt = s;
+            try (PreparedStatement s = conn.prepareStatement(sql)) {
+                stmt = s;
+                s.setFetchSize(fetchSize);
+                setParameters(s, values).executeQuery();
+            }
         } else {
-            stmt = conn.createStatement();
-            stmt.setFetchSize(fetchSize);
-            stmt.executeQuery(replaceParameters(sql, values));
+            try (Statement s = conn.createStatement()) {
+                stmt = s;
+                stmt.setFetchSize(fetchSize);
+                stmt.executeQuery(replaceParameters(sql, values));
+            }
         }
 
         return stmt;
