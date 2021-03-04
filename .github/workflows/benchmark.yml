@@ -108,8 +108,8 @@ jobs:
         continue-on-error: true
       - name: Build project
         run: |
+          mvn --batch-mode --update-snapshots -DskipTests -pl clickhouse-benchmark -am package
           cd clickhouse-benchmark
-          mvn --batch-mode --update-snapshots -DclickhouseVersion=${{ github.event.inputs.clickhouse }} install
           java -jar target/benchmarks.jar -rf json ${{ github.event.inputs.options }} > output.txt
           echo "BENCHMARK_REPORT<<EOF" >> $GITHUB_ENV
           tail -n +$(grep -n '^REMEMBER:' output.txt | tail -1 | awk -F: '{print $1+6}') output.txt | head -n -2 | grep -v ':·' >> $GITHUB_ENV

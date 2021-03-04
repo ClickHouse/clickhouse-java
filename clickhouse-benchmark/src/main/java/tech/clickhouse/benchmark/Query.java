@@ -3,6 +3,7 @@ package tech.clickhouse.benchmark;
 import java.sql.ResultSet;
 import java.sql.Statement;
 import java.sql.Timestamp;
+import java.util.Random;
 
 import org.openjdk.jmh.annotations.Benchmark;
 
@@ -10,7 +11,7 @@ public class Query extends JdbcBenchmark {
     @Benchmark
     public int select10kUInt64Rows(ClientState state) throws Throwable {
         int rows = 10000;
-        int num = (int) (Math.random() * rows);
+        int num = new Random().nextInt(rows);
         try (Statement stmt = executeQuery(state, "select * from system.numbers where number > ? limit " + rows, num)) {
             ResultSet rs = stmt.getResultSet();
 
@@ -31,7 +32,7 @@ public class Query extends JdbcBenchmark {
     @Benchmark
     public int select10kStringRows(ClientState state) throws Throwable {
         int rows = 10000;
-        int num = (int) (Math.random() * rows);
+        int num = new Random().nextInt(rows);
         try (Statement stmt = executeQuery(state,
                 "select toString(number) as s from system.numbers where number > ? limit " + rows, num)) {
             ResultSet rs = stmt.getResultSet();
@@ -54,7 +55,7 @@ public class Query extends JdbcBenchmark {
     @Benchmark
     public int select10kTimestampRows(ClientState state) throws Throwable {
         int rows = 10000;
-        int num = (int) (Math.random() * rows);
+        int num = new Random().nextInt(rows);
         try (Statement stmt = executeQuery(state,
                 "select toDateTime('2021-02-20 13:15:20') + number as d from system.numbers where number > ? limit "
                         + rows,
