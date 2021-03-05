@@ -537,8 +537,7 @@ public class ClickHouseResultSet extends AbstractResultSet {
                 return null;
             }
             ClickHouseDataType chType = getColumnInfo(columnIndex).getClickHouseDataType();
-            int type = chType.getSqlType();
-            switch (type) {
+            switch (chType.getSqlType()) {
                 case Types.BIGINT:
                     if (chType == ClickHouseDataType.UInt64) {
                         return getObject(columnIndex, BigInteger.class);
@@ -561,12 +560,16 @@ public class ClickHouseResultSet extends AbstractResultSet {
                 case Types.BLOB:        return getString(columnIndex);
                 case Types.ARRAY:       return getArray(columnIndex);
                 case Types.DECIMAL:     return getBigDecimal(columnIndex);
+                case Types.NUMERIC:     return getBigInteger(columnIndex);
                 default:
                     // do not return
             }
             switch (chType) {
+                // case Array:
+                // case Tuple:
+                case Map:
                 case UUID :
-                    return getObject(columnIndex, UUID.class);
+                    return getObject(columnIndex, chType.getJavaClass());
                 default :
                     return getString(columnIndex);
             }
@@ -716,6 +719,15 @@ public class ClickHouseResultSet extends AbstractResultSet {
         return result != null
             ? result.setScale(scale, RoundingMode.HALF_UP)
             : null;
+    }
+
+    public BigInteger getBigInteger(String columnLabel)  throws SQLException {
+        return getBigInteger(findColumn(columnLabel));
+    }
+
+    public BigInteger getBigInteger(int columnIndex) throws SQLException {
+        BigDecimal dec = getBigDecimal(columnIndex);
+        return dec == null ? null : dec.toBigInteger();
     }
 
     public String[] getColumnNames() {

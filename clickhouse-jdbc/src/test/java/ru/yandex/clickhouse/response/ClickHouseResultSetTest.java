@@ -23,9 +23,11 @@ import java.sql.Time;
 import java.sql.Timestamp;
 import java.sql.Types;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Calendar;
 import java.util.GregorianCalendar;
 import java.util.HashMap;
@@ -716,6 +718,28 @@ public class ClickHouseResultSetTest {
                     LocalTime.MIDNIGHT,
                     ZoneId.of("UTC"))
                 .toEpochSecond());
+    }
+
+    @Test
+    public void testLocalDateTime() throws Exception {
+        String response =
+                "SiteName\n" +
+                        "Nullable(DateTime)\n" +
+                        "2021-01-08 11:05:14\n" +
+                        "there.com\n" +
+                        "\n" +
+                        "\\N\n" +
+                        "other.com\n" +
+                        "\n" + // with totals separator row
+                        "\\N\n";// with totals values row
+
+        ByteArrayInputStream is = new ByteArrayInputStream(response.getBytes("UTF-8"));
+        ClickHouseResultSet rs = buildResultSet(is, 1024, "db", "table", true, null, null, props);
+        rs.next();
+        
+        LocalDateTime expectedTime = LocalDateTime.parse("2021-01-08 11:05:14", 
+            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+        assertEquals(expectedTime, rs.getObject(1, LocalDateTime.class));
     }
 
     private static ClickHouseResultSet buildResultSet(InputStream is, int bufferSize, String db,

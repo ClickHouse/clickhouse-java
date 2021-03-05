@@ -165,7 +165,7 @@ public class ClickHouseSQLTimeParserTest {
     }
 
     private static Time createExpectedTime(LocalTime expected, TimeZone timeZone) {
-        return new Time(ClickHouseSQLTimeParser.normalize(
+        return new Time(ClickHouseSQLTimeParser.normalize(null,
             LocalDateTime.of(
                 LocalDate.ofEpochDay(0),
                 expected)

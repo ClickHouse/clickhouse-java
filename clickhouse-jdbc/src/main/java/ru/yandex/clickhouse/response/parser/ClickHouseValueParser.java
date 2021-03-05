@@ -2,6 +2,7 @@ package ru.yandex.clickhouse.response.parser;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.sql.Array;
 import java.sql.Date;
 import java.sql.SQLException;
 import java.sql.Time;
@@ -30,6 +31,7 @@ public abstract class ClickHouseValueParser<T> {
 
     static {
         parsers = new HashMap<>();
+        register(Array.class, ClickHouseArrayParser.getInstance());
         register(BigDecimal.class, BigDecimal::new);
         register(BigInteger.class, BigInteger::new);
         register(Boolean.class,
@@ -47,6 +49,7 @@ public abstract class ClickHouseValueParser<T> {
         register(LocalDateTime.class, ClickHouseLocalDateTimeParser.getInstance());
         register(LocalTime.class, ClickHouseLocalTimeParser.getInstance());
         register(Long.class, Long::decode, Long.valueOf(0L));
+        register(Map.class, ClickHouseMapParser.getInstance());
         register(Object.class, s -> s);
         register(OffsetDateTime.class, ClickHouseOffsetDateTimeParser.getInstance());
         register(OffsetTime.class, ClickHouseOffsetTimeParser.getInstance());

@@ -27,7 +27,7 @@ abstract class ClickHouseDateValueParser<T> extends ClickHouseValueParser<T> {
     private static final DateTimeFormatter DATE_FORMATTER =
         DateTimeFormatter.ofPattern("yyyy[-]MM[-]dd");
     private static final DateTimeFormatter DATE_TIME_FORMATTER =
-        DateTimeFormatter.ofPattern("yyyy-MM-dd['T'][ ]HH:mm:ss[.SSS]");
+        DateTimeFormatter.ofPattern("yyyy-MM-dd['T'][ ]HH:mm:ss");
     private static final DateTimeFormatter TIME_FORMATTER_NUMBERS =
         DateTimeFormatter.ofPattern("HH[mm][ss]")
             .withResolverStyle(ResolverStyle.STRICT);
@@ -69,6 +69,8 @@ abstract class ClickHouseDateValueParser<T> extends ClickHouseValueParser<T> {
                         e);
                 }
             case DateTime:
+            case DateTime32:
+            case DateTime64:
                 try {
                     return parseDateTime(s, columnInfo, timeZone);
                 } catch (Exception e) {
@@ -158,6 +160,28 @@ abstract class ClickHouseDateValueParser<T> extends ClickHouseValueParser<T> {
     }
 
     protected final LocalDateTime parseAsLocalDateTime(String value) {
+        int index = value == null ? -1 : value.indexOf('.');
+        if (index > 0) {
+            int endIndex = -1;
+            for (int i = index + 1, len = value.length(); i < len; i++) {
+                char ch = value.charAt(i);
+                if (!Character.isDigit(ch)) {
+                    endIndex = i;
+                    break;
+                }
+            }
+            String part1 = value.substring(0, index);
+            if (endIndex > index) {
+                part1 += value.substring(endIndex);
+            }
+            String part2 = endIndex > index ? value.substring(index, endIndex) : value.substring(index);
+
+            LocalDateTime ts = LocalDateTime.parse(part1, DATE_TIME_FORMATTER);
+            int nanoSeconds = (int) Math.round(Double.parseDouble(part2) * 1000000000);
+            return LocalDateTime.of(ts.getYear(), ts.getMonth(), ts.getDayOfMonth(), 
+                ts.getHour(), ts.getMinute(), ts.getSecond(), nanoSeconds);
+        }
+
         return LocalDateTime.parse(value, DATE_TIME_FORMATTER);
     }
 
