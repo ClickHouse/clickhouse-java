@@ -132,8 +132,8 @@ public class ClickHouseSQLDateParserTest {
             parser.parse(
                 ByteFragment.fromString("2020-01-12 01:02:03"), columnInfo, null),
             new Date(
-                LocalDate.of(2020, 1, 12)
-                    .atStartOfDay(tzBerlin.toZoneId())
+                LocalDateTime.of(2020, 1, 12, 1, 2, 3)
+                    .atZone(tzBerlin.toZoneId())
                     .withZoneSameInstant(ZoneId.systemDefault())
                     .truncatedTo(ChronoUnit.DAYS)
                     .toInstant()
@@ -142,16 +142,19 @@ public class ClickHouseSQLDateParserTest {
             parser.parse(
                 ByteFragment.fromString("2020-01-12 22:23:24"), columnInfo, tzLosAngeles),
             new Date(
-                LocalDate.of(2020, 1, 12)
-                    .atStartOfDay(tzLosAngeles.toZoneId())
+                LocalDateTime.of(2020, 1, 12, 22, 23, 24)
+                    .atZone(tzBerlin.toZoneId())
+                    .withZoneSameInstant(tzLosAngeles.toZoneId())
+                    .truncatedTo(ChronoUnit.DAYS)
                     .toInstant()
                     .toEpochMilli()));
         assertEquals(
             parser.parse(
                 ByteFragment.fromString("2020-01-12 22:23:24"), columnInfo, tzBerlin),
             new Date(
-                LocalDate.of(2020, 1, 12)
-                    .atStartOfDay(tzBerlin.toZoneId())
+                LocalDateTime.of(2020, 1, 12, 22, 23, 24)
+                    .atZone(tzBerlin.toZoneId())
+                    .truncatedTo(ChronoUnit.DAYS)
                     .toInstant()
                     .toEpochMilli()));
         assertNull(
