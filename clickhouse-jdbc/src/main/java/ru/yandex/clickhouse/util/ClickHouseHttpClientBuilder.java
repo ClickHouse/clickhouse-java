@@ -67,7 +67,7 @@ public class ClickHouseHttpClientBuilder {
     }
 
     public CloseableHttpClient buildClient() throws Exception {
-        return HttpClientBuilder.create()
+        HttpClientBuilder builder = HttpClientBuilder.create()
                 .setConnectionManager(getConnectionManager())
                 .setRetryHandler(getRequestRetryHandler())
                 .setConnectionReuseStrategy(getConnectionReuseStrategy())
@@ -76,8 +76,14 @@ public class ClickHouseHttpClientBuilder {
                 .setDefaultHeaders(getDefaultHeaders())
                 .setDefaultCredentialsProvider(getDefaultCredentialsProvider())
                 .disableContentCompression() // gzip is not needed. Use lz4 when compress=1
-                .disableRedirectHandling()
-                .build();
+                .disableRedirectHandling();
+
+        String clientName = properties != null ? properties.getClientName() : null;
+        if (!Utils.isNullOrEmptyString(clientName)) {
+            builder.setUserAgent(clientName);
+        }
+        
+        return builder.build();
     }
 
     private HttpRequestRetryHandler getRequestRetryHandler() {
