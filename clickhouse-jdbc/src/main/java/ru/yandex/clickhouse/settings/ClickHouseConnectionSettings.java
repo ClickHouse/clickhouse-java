@@ -50,6 +50,7 @@ public enum ClickHouseConnectionSettings implements DriverPropertyCreator {
             "Whether to use timezone from server on Date parsing in getDate(). " +
                     "If false, Date returned is a wrapper of a timestamp at start of the day in client timezone. " +
                     "If true - at start of the day in server or use_timezone timezone."),
+    CLIENT_NAME("client_name", "", "client_name or http_user_agent show up in system.query_log table, depending on the protocol you're using."),
     @Deprecated
     USE_NEW_PARSER("use_new_parser", true, "Whether to use JavaCC based SQL parser or not.")
     ;
@@ -57,7 +58,7 @@ public enum ClickHouseConnectionSettings implements DriverPropertyCreator {
     private final String key;
     private final Object defaultValue;
     private final String description;
-    private final Class clazz;
+    private final Class<?> clazz;
 
     ClickHouseConnectionSettings(String key, Object defaultValue, String description) {
         this.key = key;
@@ -74,7 +75,7 @@ public enum ClickHouseConnectionSettings implements DriverPropertyCreator {
         return defaultValue;
     }
 
-    public Class getClazz() {
+    public Class<?> getClazz() {
         return clazz;
     }
 
