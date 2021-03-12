@@ -727,7 +727,7 @@ public class ClickHouseResultSet extends AbstractResultSet {
         ClickHouseColumnInfo columnInfo = getColumnInfo(columnIndex);
         TimeZone tz = getEffectiveTimeZone(columnInfo);
         return columnInfo.isArray()
-            ? (T) getArray(columnIndex)
+            ? (Array.class.isAssignableFrom(type) ? (T) getArray(columnIndex) : (T) getArray(columnIndex).getArray())
             : ClickHouseValueParser.getParser(type).parse(getValue(columnIndex), columnInfo, tz);
     }
 
