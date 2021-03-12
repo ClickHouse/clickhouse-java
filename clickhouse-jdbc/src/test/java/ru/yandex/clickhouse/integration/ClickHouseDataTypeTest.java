@@ -927,7 +927,7 @@ public class ClickHouseDataTypeTest {
         try (Statement s = conn.createStatement()) {
             s.execute("DROP TABLE IF EXISTS test_datetime64");
             s.execute(
-                    "CREATE TABLE IF NOT EXISTS test_datetime64(d0 DateTime64, d1 Nullable(DateTime64)) ENGINE = Memory");
+                    "CREATE TABLE IF NOT EXISTS test_datetime64(d0 DateTime64(3, 'UTC'), d1 Nullable(DateTime64)) ENGINE = Memory");
         } catch (ClickHouseException e) {
             return;
         }
