@@ -53,8 +53,9 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
 
     private boolean closed = false;
 
+    private TimeZone serverTimeZone;
     private TimeZone timezone;
-    private volatile String serverVersion;
+    private String serverVersion;
 
     public ClickHouseConnectionImpl(String url) throws SQLException {
         this(url, new ClickHouseProperties());
@@ -74,25 +75,35 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
         }catch (Exception e) {
             throw  new IllegalStateException("cannot initialize http client", e);
         }
-        initTimeZone(this.properties);
+        initConnection(this.properties);
     }
 
-    private void initTimeZone(ClickHouseProperties properties) throws SQLException {
+    private void initConnection(ClickHouseProperties properties) throws SQLException {
+        // timezone
         if (properties.isUseServerTimeZone() && !Utils.isNullOrEmptyString(properties.getUseTimeZone())) {
             throw new IllegalArgumentException(String.format("only one of %s or %s must be enabled", ClickHouseConnectionSettings.USE_SERVER_TIME_ZONE.getKey(), ClickHouseConnectionSettings.USE_TIME_ZONE.getKey()));
         }
         if (!properties.isUseServerTimeZone() && Utils.isNullOrEmptyString(properties.getUseTimeZone())) {
             throw new IllegalArgumentException(String.format("one of %s or %s must be enabled", ClickHouseConnectionSettings.USE_SERVER_TIME_ZONE.getKey(), ClickHouseConnectionSettings.USE_TIME_ZONE.getKey()));
         }
-        if (properties.isUseServerTimeZone()) {
-            timezone = TimeZone.getTimeZone("UTC"); // just for next query
-            try (ResultSet rs = createStatement().executeQuery("select timezone()")) {
-                if (rs.next()) {
-                    timezone = TimeZone.getTimeZone(rs.getString(1));
-                }
+
+        serverTimeZone = TimeZone.getTimeZone("UTC"); // just for next query
+        try (Statement s = createStatement(); ResultSet rs = s.executeQuery("select timezone(), version()")) {
+            if (rs.next()) {
+                serverTimeZone = TimeZone.getTimeZone(rs.getString(1));
+                serverVersion = rs.getString(2);
             }
-        } else if (!Utils.isNullOrEmptyString(properties.getUseTimeZone())) {
-            timezone = TimeZone.getTimeZone(properties.getUseTimeZone());
+        }
+
+        timezone = serverTimeZone;
+        if (!properties.isUseServerTimeZone()) {
+            timezone = Utils.isNullOrEmptyString(properties.getUseTimeZone())
+                ? TimeZone.getDefault()
+                : TimeZone.getTimeZone(properties.getUseTimeZone());
+        }
+
+        if (serverVersion == null) {
+            serverVersion = "";
         }
     }
 
@@ -120,6 +131,11 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
     @Override
     public TimeZone getTimeZone() {
         return timezone;
+    }
+
+    @Override
+    public TimeZone getServerTimeZone() {
+        return serverTimeZone;
     }
 
     private ClickHouseStatement createClickHouseStatement(CloseableHttpClient httpClient) throws SQLException {
@@ -169,12 +185,6 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
      */
     @Override
     public String getServerVersion() throws SQLException {
-        if (serverVersion == null) {
-            ResultSet rs = createStatement().executeQuery("select version()");
-            rs.next();
-            serverVersion = rs.getString(1);
-            rs.close();
-        }
         return serverVersion;
     }
 

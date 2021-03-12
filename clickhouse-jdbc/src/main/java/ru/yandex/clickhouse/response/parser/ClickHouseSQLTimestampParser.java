@@ -30,19 +30,14 @@ final class ClickHouseSQLTimestampParser extends ClickHouseDateValueParser<Times
     Timestamp parseDate(String value, ClickHouseColumnInfo columnInfo,
         TimeZone timeZone)
     {
-      return Timestamp.from(parseAsLocalDate(value)
-          .atStartOfDay()
-          .atZone(effectiveTimeZone(columnInfo, timeZone))
-          .toInstant());
+        return Timestamp.from(dateToZonedDateTime(value, columnInfo, timeZone).toInstant());
     }
 
     @Override
     Timestamp parseDateTime(String value, ClickHouseColumnInfo columnInfo,
         TimeZone timeZone)
     {
-        return Timestamp.from(parseAsLocalDateTime(value)
-              .atZone(effectiveTimeZone(columnInfo, timeZone))
-              .toInstant());
+        return Timestamp.from(dateTimeToZonedDateTime(value, columnInfo, timeZone).toInstant());
     }
 
     @Override

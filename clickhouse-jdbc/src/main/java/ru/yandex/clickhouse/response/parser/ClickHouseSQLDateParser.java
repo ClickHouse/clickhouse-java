@@ -29,22 +29,17 @@ final class ClickHouseSQLDateParser extends ClickHouseDateValueParser<Date> {
     Date parseDate(String value, ClickHouseColumnInfo columnInfo,
         TimeZone timeZone)
     {
-        return new Date(parseAsLocalDate(value)
-            .atStartOfDay(getParsingTimeZone(columnInfo, timeZone))
-            .toInstant()
-            .toEpochMilli());
+        return new Date(dateToZonedDateTime(value, columnInfo, timeZone).truncatedTo(ChronoUnit.DAYS).toInstant().toEpochMilli());
     }
 
     @Override
     Date parseDateTime(String value, ClickHouseColumnInfo columnInfo,
         TimeZone timeZone)
     {
-      return new Date(parseAsLocalDateTime(value)
-          .atZone(getParsingTimeZone(columnInfo, timeZone))
-          .withZoneSameInstant(getResultTimeZone(timeZone))
-          .truncatedTo(ChronoUnit.DAYS)
-          .toInstant()
-          .toEpochMilli());
+        if (timeZone == null) {
+            timeZone = TimeZone.getDefault();
+        }
+        return new Date(dateTimeToZonedDateTime(value, columnInfo, timeZone).truncatedTo(ChronoUnit.DAYS).toInstant().toEpochMilli());
     }
 
     @Override

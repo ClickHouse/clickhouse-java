@@ -135,6 +135,24 @@ public class ClickHouseRowBinaryStream {
         Utils.writeLong(out, value.longValue());
     }
 
+    public void writeInt128(BigInteger value) throws IOException {
+        Utils.writeBigInteger(out, value, 16);
+    }
+
+    public void writeUInt128(BigInteger value) throws IOException {
+        Utils.checkArgument(value, BigInteger.ZERO);
+        Utils.writeBigInteger(out, value, 16);
+    }
+
+    public void writeInt256(BigInteger value) throws IOException {
+        Utils.writeBigInteger(out, value, 32);
+    }
+
+    public void writeUInt256(BigInteger value) throws IOException {
+        Utils.checkArgument(value, BigInteger.ZERO);
+        Utils.writeBigInteger(out, value, 32);
+    }
+
     public void writeDateTime(Date date) throws IOException {
         Objects.requireNonNull(date);
         writeUInt32(TimeUnit.MILLISECONDS.toSeconds(date.getTime()));
@@ -164,6 +182,15 @@ public class ClickHouseRowBinaryStream {
         out.write(new byte[16 - r.length]);
     }
 
+    public void writeDecimal256(BigDecimal num, int scale) throws IOException {
+        BigInteger bi = Utils.toBigInteger(num, scale);
+        byte[] r = bi.toByteArray();
+        for (int i = r.length; i > 0; i--) {
+            out.write(r[i - 1]);
+        }
+        out.write(new byte[32 - r.length]);
+    }
+
     public void writeDecimal64(BigDecimal num, int scale) throws IOException {
         Utils.writeLong(out, Utils.toBigInteger(num, scale).longValue());
     }
@@ -173,88 +200,77 @@ public class ClickHouseRowBinaryStream {
     }
 
     public void writeDateArray(Date[] dates) throws IOException {
-        Objects.requireNonNull(dates);
-        writeUnsignedLeb128(dates.length);
+        writeUnsignedLeb128(Objects.requireNonNull(dates).length);
         for (Date date : dates) {
             writeDate(date);
         }
     }
 
     public void writeDateTimeArray(Date[] dates) throws IOException {
-        Objects.requireNonNull(dates);
-        writeUnsignedLeb128(dates.length);
+        writeUnsignedLeb128(Objects.requireNonNull(dates).length);
         for (Date date : dates) {
             writeDateTime(date);
         }
     }
 
     public void writeStringArray(String[] strings) throws IOException {
-        Objects.requireNonNull(strings);
-        writeUnsignedLeb128(strings.length);
+        writeUnsignedLeb128(Objects.requireNonNull(strings).length);
         for (String el : strings) {
             writeString(el);
         }
     }
 
     public void writeInt8Array(byte[] bytes) throws IOException {
-        Objects.requireNonNull(bytes);
-        writeUnsignedLeb128(bytes.length);
+        writeUnsignedLeb128(Objects.requireNonNull(bytes).length);
         for (byte b : bytes) {
             writeInt8(b);
         }
     }
 
     public void writeInt8Array(int[] ints) throws IOException {
-        Objects.requireNonNull(ints);
-        writeUnsignedLeb128(ints.length);
+        writeUnsignedLeb128(Objects.requireNonNull(ints).length);
         for (int i : ints) {
             writeInt8(i);
         }
     }
 
     public void writeUInt8Array(int[] ints) throws IOException {
-        Objects.requireNonNull(ints);
-        writeUnsignedLeb128(ints.length);
+        writeUnsignedLeb128(Objects.requireNonNull(ints).length);
         for (int i : ints) {
             writeUInt8(i);
         }
     }
 
     public void writeInt16Array(short[] shorts) throws IOException {
-        Objects.requireNonNull(shorts);
-        writeUnsignedLeb128(shorts.length);
+        writeUnsignedLeb128(Objects.requireNonNull(shorts).length);
         for (short s : shorts) {
             writeInt16(s);
         }
     }
 
     public void writeUInt16Array(int[] ints) throws IOException {
-        Objects.requireNonNull(ints);
-        writeUnsignedLeb128(ints.length);
+        writeUnsignedLeb128(Objects.requireNonNull(ints).length);
         for (int i : ints) {
             writeUInt16(i);
         }
     }
 
     public void writeInt32Array(int[] ints) throws IOException {
-        Objects.requireNonNull(ints);
-        writeUnsignedLeb128(ints.length);
+        writeUnsignedLeb128(Objects.requireNonNull(ints).length);
         for (int i : ints) {
             writeInt32(i);
         }
     }
 
     public void writeUInt32Array(long[] longs) throws IOException {
-        Objects.requireNonNull(longs);
-        writeUnsignedLeb128(longs.length);
+        writeUnsignedLeb128(Objects.requireNonNull(longs).length);
         for (long l : longs) {
             writeUInt32(l);
         }
     }
 
     public void writeInt64Array(long[] longs) throws IOException {
-        Objects.requireNonNull(longs);
-        writeUnsignedLeb128(longs.length);
+        writeUnsignedLeb128(Objects.requireNonNull(longs).length);
         for (long l : longs) {
             writeInt64(l);
         }
@@ -268,25 +284,21 @@ public class ClickHouseRowBinaryStream {
     }
 
     public void writeUInt64Array(BigInteger[] longs) throws IOException {
-        Objects.requireNonNull(longs);
-        writeUnsignedLeb128(longs.length);
+        writeUnsignedLeb128(Objects.requireNonNull(longs).length);
         for (BigInteger l : longs) {
             writeUInt64(l);
         }
     }
 
-
     public void writeFloat32Array(float[] floats) throws IOException {
-        Objects.requireNonNull(floats);
-        writeUnsignedLeb128(floats.length);
+        writeUnsignedLeb128(Objects.requireNonNull(floats).length);
         for (float f : floats) {
             writeFloat32(f);
         }
     }
 
     public void writeFloat64Array(double[] doubles) throws IOException {
-        Objects.requireNonNull(doubles);
-        writeUnsignedLeb128(doubles.length);
+        writeUnsignedLeb128(Objects.requireNonNull(doubles).length);
         for (double d : doubles) {
             writeFloat64(d);
         }
@@ -324,4 +336,10 @@ public class ClickHouseRowBinaryStream {
         this.writeBytes(array);
     }
 
+    public void writeUUIDArray(UUID[] uuids) throws IOException {
+        writeUnsignedLeb128(Objects.requireNonNull(uuids).length);
+        for (UUID uuid : uuids) {
+            writeUUID(uuid);
+        }
+    }
 }

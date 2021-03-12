@@ -11,8 +11,6 @@ import java.util.TimeZone;
 import ru.yandex.clickhouse.response.ClickHouseColumnInfo;
 
 final class ClickHouseSQLTimeParser extends ClickHouseDateValueParser<Time> {
-    private static final long MILLISECONDS_A_DAY = 24 * 3600 * 1000;
-
     private static ClickHouseSQLTimeParser instance;
 
     static ClickHouseSQLTimeParser getInstance() {
@@ -20,10 +18,6 @@ final class ClickHouseSQLTimeParser extends ClickHouseDateValueParser<Time> {
             instance = new ClickHouseSQLTimeParser();
         }
         return instance;
-    }
-
-    static long normalize(long time) {
-        return (time + MILLISECONDS_A_DAY) % MILLISECONDS_A_DAY;
     }
 
     private ClickHouseSQLTimeParser() {
@@ -34,34 +28,21 @@ final class ClickHouseSQLTimeParser extends ClickHouseDateValueParser<Time> {
     Time parseDate(String value, ClickHouseColumnInfo columnInfo,
         TimeZone timeZone)
     {
-        return new Time(normalize(
-            LocalDateTime.of(
-                LocalDate.ofEpochDay(0),
-                LocalTime.MIDNIGHT)
-            .atZone(effectiveTimeZone(columnInfo, timeZone))
-            .toInstant()
-            .toEpochMilli()));
+        return new Time(normalizeTime(columnInfo, dateToZonedDateTime(value, columnInfo, timeZone).toInstant().toEpochMilli()));
     }
 
     @Override
     Time parseDateTime(String value, ClickHouseColumnInfo columnInfo,
         TimeZone timeZone)
     {
-        return new Time(normalize(parseAsLocalDateTime(value)
-            .atZone(effectiveTimeZone(columnInfo, timeZone))
-            .withFixedOffsetZone()
-            .withYear(1970)
-            .withMonth(1)
-            .withDayOfMonth(1)
-            .toInstant()
-            .toEpochMilli()));
+        return new Time(normalizeTime(columnInfo, dateTimeToZonedDateTime(value, columnInfo, timeZone).toInstant().toEpochMilli()));
     }
 
     @Override
     Time parseNumber(long value, ClickHouseColumnInfo columnInfo,
         TimeZone timeZone)
     {
-        return new Time(normalize(
+        return new Time(normalizeTime(columnInfo,
             LocalDateTime.of(
                 LocalDate.ofEpochDay(0),
                 parseAsLocalTime(value))
@@ -75,7 +56,7 @@ final class ClickHouseSQLTimeParser extends ClickHouseDateValueParser<Time> {
         TimeZone timeZone)
     {
         try {
-            return new Time(normalize(
+            return new Time(normalizeTime(columnInfo,
                 LocalDateTime.of(
                     LocalDate.ofEpochDay(0),
                     LocalTime.parse(value, DateTimeFormatter.ISO_LOCAL_TIME))
@@ -86,7 +67,7 @@ final class ClickHouseSQLTimeParser extends ClickHouseDateValueParser<Time> {
             // try next pattern candidate
         }
 
-        return new Time(normalize(
+        return new Time(normalizeTime(columnInfo,
             LocalDateTime.of(
                 LocalDate.ofEpochDay(0),
                 parseAsLocalTime(value))

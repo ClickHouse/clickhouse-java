@@ -2,6 +2,7 @@ package ru.yandex.clickhouse.util;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.sql.Array;
 import java.sql.Date;
 import java.sql.Time;
 import java.sql.Timestamp;
@@ -15,10 +16,10 @@ import java.time.OffsetTime;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Collection;
+import java.util.Map;
 import java.util.TimeZone;
 import java.util.UUID;
 
-import ru.yandex.clickhouse.ClickHouseArray;
 import ru.yandex.clickhouse.ClickHouseUtil;
 import ru.yandex.clickhouse.domain.ClickHouseDataType;
 
@@ -127,7 +128,12 @@ public final class ClickHouseValueFormatter {
     public static String formatTimestamp(Timestamp time, TimeZone timeZone) {
         SimpleDateFormat formatter = getDateTimeFormat();
         formatter.setTimeZone(timeZone);
-        return formatter.format(time);
+        StringBuilder formatted = new StringBuilder(formatter.format(time));
+        // TODO implement a true prepared statement to format according to parameter type
+        if (time != null && time.getNanos() % 1000000 > 0) {
+            formatted.append('.').append(time.getNanos());
+        }
+        return formatted.toString();
     }
 
     public static String formatUUID(UUID x) {
@@ -183,6 +189,34 @@ public final class ClickHouseValueFormatter {
             .format(x);
     }
 
+    public static String formatMap(Map<?, ?> map, TimeZone dateTimeZone,
+        TimeZone dateTimeTimeZone) {
+        StringBuilder sb = new StringBuilder();
+        for (Map.Entry<?, ?> e : map.entrySet()) {
+            Object key = e.getKey();
+            Object value = e.getValue();
+            sb.append(',');
+            
+            if (key instanceof String) {
+                sb.append('\'').append(formatString((String) key)).append('\'');
+            } else {
+                sb.append(formatObject(key, dateTimeZone, dateTimeTimeZone));
+            }
+
+            sb.append(':');
+
+            if (value instanceof String) {
+                sb.append('\'').append(formatString((String) value)).append('\'');
+            } else {
+                sb.append(formatObject(value, dateTimeZone, dateTimeTimeZone));
+            }
+        }
+        if (sb.length() > 0) {
+            sb.deleteCharAt(0);
+        }
+        return sb.insert(0, '{').append('}').toString();
+    }
+
     public static String formatObject(Object x, TimeZone dateTimeZone,
         TimeZone dateTimeTimeZone)
     {
@@ -233,6 +267,8 @@ public final class ClickHouseValueFormatter {
             return formatBigInteger((BigInteger) x);
         } else if (x instanceof Collection) {
             return ClickHouseArrayUtil.toString((Collection<?>) x, dateTimeZone, dateTimeTimeZone);
+        } else if (x instanceof Map) {
+            return formatMap((Map<?, ?>) x, dateTimeZone, dateTimeTimeZone);
         } else if (x.getClass().isArray()) {
             return ClickHouseArrayUtil.arrayToString(x, dateTimeZone, dateTimeTimeZone);
         } else {
@@ -241,24 +277,16 @@ public final class ClickHouseValueFormatter {
     }
 
     public static boolean needsQuoting(Object o) {
-        if (o == null) {
+        if (o == null
+            || o instanceof Array
+            || o instanceof Boolean
+            || o instanceof Collection
+            || o instanceof Map
+            || o instanceof Number
+            || o.getClass().isArray()) {
             return false;
         }
-        if (o instanceof Number) {
-            return false;
-        }
-        if (o instanceof Boolean) {
-            return false;
-        }
-        if (o.getClass().isArray()) {
-            return false;
-        }
-        if (o instanceof ClickHouseArray) {
-            return false;
-        }
-        if (o instanceof Collection) {
-            return false;
-        }
+        
         return true;
     }
 

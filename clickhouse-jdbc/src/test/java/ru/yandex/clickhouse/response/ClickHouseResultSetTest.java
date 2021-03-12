@@ -22,10 +22,13 @@ import java.sql.Struct;
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.sql.Types;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Calendar;
 import java.util.GregorianCalendar;
 import java.util.HashMap;
@@ -71,7 +74,7 @@ public class ClickHouseResultSetTest {
         Assert.assertEquals(
                 ClickHouseResultSet.toLongArray(
                     ByteFragment.fromString(str),
-                    ClickHouseColumnInfo.parse("Array(UInt64)", "columnName")),
+                    ClickHouseColumnInfo.parse("Array(UInt64)", "columnName", null)),
                 expected
         );
     }
@@ -681,14 +684,16 @@ public class ClickHouseResultSetTest {
         Calendar cal = new GregorianCalendar();
         cal.setTimeZone(TimeZone.getTimeZone("America/Los_Angeles"));
         Date d = rs.getDate(1, cal);
-        assertEquals(d.toLocalDate(), LocalDate.of(2020, 2, 8));
+        // d.toLocalDate() is deprecated and it does not take TimeZone into count
+        assertEquals(Instant.ofEpochMilli(
+            rs.getDate(1, cal).getTime()).atZone(ZoneId.of("UTC")).toLocalDate(), LocalDate.of(2020, 2, 8));
         assertEquals(
             d.getTime() / 1000,
             ZonedDateTime
                 .of(
                     LocalDate.of(2020, 2, 8),
                     LocalTime.MIDNIGHT,
-                    ZoneId.systemDefault())
+                    ZoneId.of("UTC"))
                 .toEpochSecond());
     }
 
@@ -716,6 +721,28 @@ public class ClickHouseResultSetTest {
                     LocalTime.MIDNIGHT,
                     ZoneId.of("UTC"))
                 .toEpochSecond());
+    }
+
+    @Test
+    public void testLocalDateTime() throws Exception {
+        String response =
+                "SiteName\n" +
+                        "Nullable(DateTime)\n" +
+                        "2021-01-08 11:05:14\n" +
+                        "there.com\n" +
+                        "\n" +
+                        "\\N\n" +
+                        "other.com\n" +
+                        "\n" + // with totals separator row
+                        "\\N\n";// with totals values row
+
+        ByteArrayInputStream is = new ByteArrayInputStream(response.getBytes("UTF-8"));
+        ClickHouseResultSet rs = buildResultSet(is, 1024, "db", "table", true, null, null, props);
+        rs.next();
+        
+        LocalDateTime expectedTime = LocalDateTime.parse("2021-01-08 11:05:14", 
+            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+        assertEquals(expectedTime, rs.getObject(1, LocalDateTime.class));
     }
 
     private static ClickHouseResultSet buildResultSet(InputStream is, int bufferSize, String db,

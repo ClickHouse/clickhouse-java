@@ -33,7 +33,7 @@ public class ClickHouseLocalDateParserTest {
     @Test
     public void testParseLocalDateNull() throws Exception {
         ClickHouseColumnInfo columnInfo =
-            ClickHouseColumnInfo.parse("Date", "col");
+            ClickHouseColumnInfo.parse("Date", "col", null);
         try {
             parser.parse(
                 null, columnInfo, tzBerlin);
@@ -45,7 +45,7 @@ public class ClickHouseLocalDateParserTest {
     @Test
     public void testParseLocalDateDate() throws Exception {
         ClickHouseColumnInfo columnInfo =
-            ClickHouseColumnInfo.parse("Date", "col");
+            ClickHouseColumnInfo.parse("Date", "col", null);
         assertEquals(
             parser.parse(
                 ByteFragment.fromString("2020-01-12"), columnInfo, null),
@@ -67,7 +67,7 @@ public class ClickHouseLocalDateParserTest {
     @Test
     public void testParseLocalDateDateNullable() throws Exception {
         ClickHouseColumnInfo columnInfo =
-            ClickHouseColumnInfo.parse("Nullable(Date)", "col");
+            ClickHouseColumnInfo.parse("Nullable(Date)", "col", null);
         assertNull(
             parser.parse(
                 ByteFragment.fromString("0000-00-00"), columnInfo, tzLosAngeles));
@@ -76,7 +76,7 @@ public class ClickHouseLocalDateParserTest {
     @Test
     public void testParseLocalDateDateTime() throws Exception {
         ClickHouseColumnInfo columnInfo =
-            ClickHouseColumnInfo.parse("DateTime", "col");
+            ClickHouseColumnInfo.parse("DateTime", "col", null);
         assertEquals(
             parser.parse(
                 ByteFragment.fromString("2020-01-12 01:02:03"), columnInfo, null),
@@ -97,7 +97,7 @@ public class ClickHouseLocalDateParserTest {
     @Test
     public void testParseLocalDateDateTimeTZColumn() throws Exception {
         ClickHouseColumnInfo columnInfo =
-            ClickHouseColumnInfo.parse("DateTime(Europe/Berlin)", "col");
+            ClickHouseColumnInfo.parse("DateTime(Europe/Berlin)", "col", null);
         assertEquals(
             parser.parse(
                 ByteFragment.fromString("2020-01-12 01:02:03"), columnInfo, null),
@@ -125,7 +125,7 @@ public class ClickHouseLocalDateParserTest {
             .atZone(tzLosAngeles.toZoneId())
             .toInstant();
         ClickHouseColumnInfo columnInfo =
-            ClickHouseColumnInfo.parse(dataType.name(), "col");
+            ClickHouseColumnInfo.parse(dataType.name(), "col", null);
 
         // same time zone: no problem
         assertEquals(
@@ -167,8 +167,7 @@ public class ClickHouseLocalDateParserTest {
     @Test
     public void testParseLocalDateNumberNegative() throws Exception {
         ClickHouseColumnInfo columnInfo =
-            ClickHouseColumnInfo.parse(
-                ClickHouseDataType.Int64.name(), "col");
+            ClickHouseColumnInfo.parse(ClickHouseDataType.Int64.name(), "col", null);
         assertEquals(
             parser.parse(
                 ByteFragment.fromString(String.valueOf(-386384400)),
@@ -179,9 +178,7 @@ public class ClickHouseLocalDateParserTest {
     @Test
     public void testParseLocalDateOtherLikeDate() throws Exception {
         ClickHouseColumnInfo columnInfo =
-            ClickHouseColumnInfo.parse(
-                ClickHouseDataType.Unknown.name(),
-                "col");
+            ClickHouseColumnInfo.parse(ClickHouseDataType.Unknown.name(), "col", null);
         assertEquals(
             parser.parse(
                 ByteFragment.fromString("2020-01-13"), columnInfo, null),
@@ -205,9 +202,7 @@ public class ClickHouseLocalDateParserTest {
     @Test
     public void testParseLocalDateOtherLikeDateTime() throws Exception {
         ClickHouseColumnInfo columnInfo =
-            ClickHouseColumnInfo.parse(
-                ClickHouseDataType.Unknown.name(),
-                "col");
+            ClickHouseColumnInfo.parse(ClickHouseDataType.Unknown.name(), "col", null);
         assertEquals(
             parser.parse(
                 ByteFragment.fromString("2020-01-13 22:23:24"), columnInfo, null),

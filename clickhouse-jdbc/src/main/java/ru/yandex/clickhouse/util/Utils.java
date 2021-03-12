@@ -13,6 +13,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -40,6 +42,26 @@ public class Utils {
         @SuppressWarnings("unchecked")
         Class<T> unwrapped = (Class<T>) classToPrimitive.get(Objects.requireNonNull(type));
         return (unwrapped == null) ? type : unwrapped;
+    }
+
+    public static Map<Object, Object> mapOf(Object... kvps) {
+        Map<Object, Object> map = new LinkedHashMap<>();
+
+        for (int i = 0, len = kvps.length; i < len; i += 2) {
+            map.put(kvps[i], kvps[i + 1]);
+        }
+
+        return Collections.unmodifiableMap(map);
+    }
+
+    public static List<Object> listOf(Object... values) {
+        List<Object> list = new LinkedList<>();
+
+        for (int i = 0, len = values.length; i < len; i++) {
+            list.add(values[i]);
+        }
+
+        return Collections.unmodifiableList(list);
     }
 
     public static String toString(InputStream in) throws IOException {
@@ -235,6 +257,19 @@ public class Utils {
         outputStream.write((int) (0xFF & (value >> 40)));
         outputStream.write((int) (0xFF & (value >> 48)));
         outputStream.write((int) (0xFF & (value >> 56)));
+    }
+
+    public static void writeBigInteger(DataOutputStream outputStream, BigInteger value, int byteLength) throws IOException {
+        byte empty = value.signum() == -1 ? (byte) 0xFF : 0x00;
+        byte[] bytes = value.toByteArray();
+        for (int i = bytes.length - 1; i >= 0; i--) {
+            outputStream.writeByte(bytes[i]);
+        }
+
+        // FIXME when the given (byte)length is less than bytes.length...
+        for (int i = byteLength - bytes.length; i > 0; i--) {
+            outputStream.writeByte(empty);
+        }
     }
 
     public static BigInteger toBigInteger(BigDecimal num, int scale) {

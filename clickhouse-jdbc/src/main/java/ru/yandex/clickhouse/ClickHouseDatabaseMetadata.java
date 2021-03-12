@@ -837,7 +837,8 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
             //column name
             ClickHouseColumnInfo columnInfo = ClickHouseColumnInfo.parse(
                 descTable.getString("type"),
-                descTable.getString("name"));
+                descTable.getString("name"),
+                connection.getServerTimeZone());
             row.add(columnInfo.getColumnName());
             //data type
             row.add(String.valueOf(columnInfo.getClickHouseDataType().getSqlType()));

@@ -44,7 +44,7 @@ public class ClickHouseOffsetTimeParserTest {
 
     @Test
     public void testParseOffsetTimeDate() throws Exception {
-        ClickHouseColumnInfo columnInfo = ClickHouseColumnInfo.parse("Date", "col");
+        ClickHouseColumnInfo columnInfo = ClickHouseColumnInfo.parse("Date", "col", null);
         assertEquals(
             parser.parse(
                 ByteFragment.fromString("2020-01-17"), columnInfo, tzBerlin),
@@ -57,20 +57,21 @@ public class ClickHouseOffsetTimeParserTest {
 
     @Test
     public void testParseOffsetTimeDateTime() throws Exception {
-        ClickHouseColumnInfo columnInfo = ClickHouseColumnInfo.parse("DateTime", "col");
         assertEquals(
             parser.parse(
-                ByteFragment.fromString("2020-01-17 22:23:24"), columnInfo, tzBerlin),
+                ByteFragment.fromString("2020-01-17 22:23:24"),
+                ClickHouseColumnInfo.parse("DateTime", "col", tzBerlin), tzBerlin),
             LocalTime.of(22, 23, 24).atOffset(offsetBerlin));
         assertEquals(
             parser.parse(
-                ByteFragment.fromString("2020-01-17 22:23:24"), columnInfo, tzLosAngeles),
+                ByteFragment.fromString("2020-01-17 22:23:24"),
+                ClickHouseColumnInfo.parse("DateTime", "col", tzLosAngeles), tzLosAngeles),
             LocalTime.of(22, 23, 24).atOffset(offsetLosAngeles));
     }
 
     @Test
     public void testParseOffsetTimeRegular() throws Exception {
-        ClickHouseColumnInfo columnInfo = ClickHouseColumnInfo.parse("String", "col");
+        ClickHouseColumnInfo columnInfo = ClickHouseColumnInfo.parse("String", "col", null);
         assertEquals(
             parser.parse(
                 ByteFragment.fromString("13:37:42.023+07:00"), columnInfo, null),
@@ -81,18 +82,20 @@ public class ClickHouseOffsetTimeParserTest {
 
     @Test
     public void testParseOffsetTimeDateTimeColumnTimeZone() throws Exception {
-        ZoneOffset offsetVladivostok = ZoneId.of("Asia/Vladivostok").getRules().getOffset(
-            LocalDateTime.of(LocalDate.of(2020,01,17), LocalTime.MIDNIGHT));
+        LocalDateTime localDateTime = LocalDateTime.of(LocalDate.of(2020,01,17), LocalTime.MIDNIGHT);
+        ZoneOffset offsetVladivostok = ZoneId.of("Asia/Vladivostok").getRules().getOffset(localDateTime);
+        ZoneOffset offsetBerlin = tzBerlin.toZoneId().getRules().getOffset(localDateTime);
+        ZoneOffset offsetLosAngeles = tzLosAngeles.toZoneId().getRules().getOffset(localDateTime);
         ClickHouseColumnInfo columnInfo =
-            ClickHouseColumnInfo.parse("DateTime(Asia/Vladivostok)", "col");
+            ClickHouseColumnInfo.parse("DateTime(Asia/Vladivostok)", "col", TimeZone.getTimeZone("Europe/Moscow"));
         assertEquals(
             parser.parse(
                 ByteFragment.fromString("2020-01-17 22:23:24"), columnInfo, tzBerlin),
-            LocalTime.of(22, 23, 24).atOffset(offsetVladivostok));
+            LocalTime.of(13, 23, 24).atOffset(offsetBerlin));
         assertEquals(
             parser.parse(
                 ByteFragment.fromString("2020-01-17 22:23:24"), columnInfo, tzLosAngeles),
-            LocalTime.of(22, 23, 24).atOffset(offsetVladivostok));
+            LocalTime.of(4, 23, 24).atOffset(offsetLosAngeles));
     }
 
     @Test(
@@ -100,7 +103,7 @@ public class ClickHouseOffsetTimeParserTest {
         dataProviderClass = ClickHouseTimeParserTestDataProvider.class)
     public void testParseOffsetTimeNumber(ClickHouseDataType dataType) throws Exception {
         ClickHouseColumnInfo columnInfo =
-            ClickHouseColumnInfo.parse(dataType.name(), "col");
+            ClickHouseColumnInfo.parse(dataType.name(), "col", null);
         assertEquals(
             parser.parse(
                 ByteFragment.fromString("222324"), columnInfo, null),
@@ -140,7 +143,7 @@ public class ClickHouseOffsetTimeParserTest {
     @Test
     public void testParseOffsetTimeString() throws Exception {
         ClickHouseColumnInfo columnInfo =
-            ClickHouseColumnInfo.parse(ClickHouseDataType.String.name(), "col");
+            ClickHouseColumnInfo.parse(ClickHouseDataType.String.name(), "col", null);
         assertEquals(
             parser.parse(
                 ByteFragment.fromString("22:23:24"), columnInfo, null),

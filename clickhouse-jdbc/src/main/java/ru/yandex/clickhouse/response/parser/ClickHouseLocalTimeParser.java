@@ -33,7 +33,7 @@ final class ClickHouseLocalTimeParser extends ClickHouseDateValueParser<LocalTim
     LocalTime parseDateTime(String value, ClickHouseColumnInfo columnInfo,
         TimeZone timeZone)
     {
-        return parseAsLocalDateTime(value).toLocalTime();
+        return dateTimeToLocalDateTime(value, columnInfo, timeZone).toLocalTime();
     }
 
     @Override

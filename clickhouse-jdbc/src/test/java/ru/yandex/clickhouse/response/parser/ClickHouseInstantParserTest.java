@@ -30,15 +30,15 @@ public class ClickHouseInstantParserTest {
 
     @Test
     public void testParseInstantDateTime() throws Exception {
-        ClickHouseColumnInfo columnInfo = ClickHouseColumnInfo.parse(
-            "DateTime", "col");
         Instant inst = parser.parse(
-            ByteFragment.fromString("2020-01-20 22:23:24"), columnInfo, tzBerlin);
+            ByteFragment.fromString("2020-01-20 22:23:24"),
+            ClickHouseColumnInfo.parse("DateTime", "col", tzBerlin), tzBerlin);
         assertEquals(
             inst.getEpochSecond(),
             1579555404);
         inst = parser.parse(
-            ByteFragment.fromString("2020-01-20 22:23:24"), columnInfo, tzLosAngeles);
+            ByteFragment.fromString("2020-01-20 22:23:24"),
+            ClickHouseColumnInfo.parse("DateTime", "col", tzLosAngeles), tzLosAngeles);
         assertEquals(
             inst.getEpochSecond(),
             1579587804);
@@ -47,7 +47,7 @@ public class ClickHouseInstantParserTest {
     @Test
     public void testParseInstantDateTimeColumnOverride() throws Exception {
         ClickHouseColumnInfo columnInfo = ClickHouseColumnInfo.parse(
-            "DateTime(Europe/Berlin)", "col");
+            "DateTime(Europe/Berlin)", "col", TimeZone.getTimeZone("Asia/Chongqing"));
         Instant inst = parser.parse(
             ByteFragment.fromString("2020-01-20 22:23:24"), columnInfo, tzLosAngeles);
         assertEquals(
@@ -58,12 +58,12 @@ public class ClickHouseInstantParserTest {
     @Test
     public void testParseInstantDate() throws Exception {
         ClickHouseColumnInfo columnInfo = ClickHouseColumnInfo.parse(
-            "Date", "col");
+            "Date", "col", null);
         Instant inst = parser.parse(
             ByteFragment.fromString("2020-01-20"), columnInfo, tzLosAngeles);
         assertEquals(
             inst.getEpochSecond(),
-            1579507200);
+            1579478400);
     }
 
     @Test(
@@ -71,7 +71,7 @@ public class ClickHouseInstantParserTest {
         dataProviderClass = ClickHouseTimeParserTestDataProvider.class)
     public void testParseInstantTimestampSeconds(ClickHouseDataType dataType) throws Exception {
         ClickHouseColumnInfo columnInfo = ClickHouseColumnInfo.parse(
-            dataType.name(), "col");
+            dataType.name(), "col", null);
         Instant inst = parser.parse(
             ByteFragment.fromString("1579507200"), columnInfo, tzLosAngeles);
         assertEquals(
@@ -89,7 +89,7 @@ public class ClickHouseInstantParserTest {
         dataProviderClass = ClickHouseTimeParserTestDataProvider.class)
     public void parseInstantTimestampMillis(ClickHouseDataType dataType) throws Exception {
         ClickHouseColumnInfo columnInfo = ClickHouseColumnInfo.parse(
-            dataType.name(), "col");
+            dataType.name(), "col", null);
         Instant inst = parser.parse(
             ByteFragment.fromString("1579507200000"), columnInfo, tzLosAngeles);
         assertEquals(
@@ -105,7 +105,7 @@ public class ClickHouseInstantParserTest {
     @Test
     public void testParseInstantString() throws Exception {
         ClickHouseColumnInfo columnInfo = ClickHouseColumnInfo.parse(
-            "String", "col");
+            "String", "col", null);
         Instant inst = parser.parse(
             ByteFragment.fromString("2020-01-20T22:23:24.123"), columnInfo, tzLosAngeles);
         assertEquals(
@@ -121,7 +121,7 @@ public class ClickHouseInstantParserTest {
     @Test
     public void testParseInstantUInt64Overflow() throws Exception {
         ClickHouseColumnInfo columnInfo = ClickHouseColumnInfo.parse(
-            "UInt64", "col");
+            "UInt64", "col", null);
         Instant inst = parser.parse(
             ByteFragment.fromString(
                 BigInteger.valueOf(Long.MAX_VALUE)
@@ -138,7 +138,7 @@ public class ClickHouseInstantParserTest {
     @Test
     public void testParseInstantUInt64Millis() throws Exception {
         ClickHouseColumnInfo columnInfo = ClickHouseColumnInfo.parse(
-            "UInt64", "col");
+            "UInt64", "col", null);
         Instant inst = parser.parse(
             ByteFragment.fromString("9223372036854"), columnInfo, tzLosAngeles);
         assertEquals(

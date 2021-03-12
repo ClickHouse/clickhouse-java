@@ -22,7 +22,7 @@ public class ClickHouseBigDecimalParserTest {
     @BeforeClass
     public void setUp() throws Exception {
         parser = ClickHouseValueParser.getParser(BigDecimal.class);
-        columnInfo = ClickHouseColumnInfo.parse("Float64", "column_name");
+        columnInfo = ClickHouseColumnInfo.parse("Float64", "column_name", null);
     }
 
     @Test

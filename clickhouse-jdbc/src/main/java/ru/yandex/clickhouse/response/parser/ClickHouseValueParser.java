@@ -2,6 +2,7 @@ package ru.yandex.clickhouse.response.parser;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.sql.Array;
 import java.sql.Date;
 import java.sql.SQLException;
 import java.sql.Time;
@@ -20,6 +21,7 @@ import java.util.TimeZone;
 import java.util.UUID;
 import java.util.function.Function;
 
+import ru.yandex.clickhouse.domain.ClickHouseDataType;
 import ru.yandex.clickhouse.except.ClickHouseUnknownException;
 import ru.yandex.clickhouse.response.ByteFragment;
 import ru.yandex.clickhouse.response.ClickHouseColumnInfo;
@@ -30,6 +32,7 @@ public abstract class ClickHouseValueParser<T> {
 
     static {
         parsers = new HashMap<>();
+        register(Array.class, ClickHouseArrayParser.getInstance());
         register(BigDecimal.class, BigDecimal::new);
         register(BigInteger.class, BigInteger::new);
         register(Boolean.class,
@@ -47,6 +50,7 @@ public abstract class ClickHouseValueParser<T> {
         register(LocalDateTime.class, ClickHouseLocalDateTimeParser.getInstance());
         register(LocalTime.class, ClickHouseLocalTimeParser.getInstance());
         register(Long.class, Long::decode, Long.valueOf(0L));
+        register(Map.class, ClickHouseMapParser.getInstance());
         register(Object.class, s -> s);
         register(OffsetDateTime.class, ClickHouseOffsetDateTimeParser.getInstance());
         register(OffsetTime.class, ClickHouseOffsetTimeParser.getInstance());
@@ -56,6 +60,16 @@ public abstract class ClickHouseValueParser<T> {
         register(Timestamp.class, ClickHouseSQLTimestampParser.getInstance());
         register(UUID.class, UUID::fromString);
         register(ZonedDateTime.class, ClickHouseZonedDateTimeParser.getInstance());
+    }
+
+    private static final long MILLISECONDS_A_DAY = 24 * 3600 * 1000;
+
+    public static long normalizeTime(ClickHouseColumnInfo info, long time) {
+        if (info == null ||
+            (info.getClickHouseDataType() != ClickHouseDataType.DateTime64 && info.getScale() == 0)) {
+            time -= time % 1000; // FIXME fix this after switching to RowBinary format
+        }
+        return (time + MILLISECONDS_A_DAY) % MILLISECONDS_A_DAY;
     }
 
     private static <T> void register(Class<T> clazz, Function<String, T> parseFunction) {

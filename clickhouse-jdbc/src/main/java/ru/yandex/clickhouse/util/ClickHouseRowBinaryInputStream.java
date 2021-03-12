@@ -347,6 +347,16 @@ public class ClickHouseRowBinaryInputStream implements Closeable {
 		return new UUID(bb.getLong(), bb.getLong());
 	}
 
+	public UUID[] readUUIDArray() throws IOException {
+		int length = Utils.readUnsignedLeb128(in);
+		UUID[] uuids = new UUID[length];
+		for (int i = 0; i < length; i++) {
+			uuids[i] = readUUID();
+		}
+
+		return uuids;
+	}
+
     public BigDecimal readDecimal32(int scale) throws IOException {
         int i = Utils.readInt(in);
         BigDecimal ten = BigDecimal.valueOf(10);
@@ -363,7 +373,16 @@ public class ClickHouseRowBinaryInputStream implements Closeable {
 
     public BigDecimal readDecimal128(int scale) throws IOException {
         byte[] r = new byte[16];
-        for (int i = 16; i > 0; i--) {
+        for (int i = r.length; i > 0; i--) {
+            r[i - 1] = (byte) in.readUnsignedByte();
+        }
+        BigDecimal res = new BigDecimal(new BigInteger(r), scale);
+        return res;
+    }
+
+	public BigDecimal readDecimal256(int scale) throws IOException {
+        byte[] r = new byte[32];
+        for (int i = r.length; i > 0; i--) {
             r[i - 1] = (byte) in.readUnsignedByte();
         }
         BigDecimal res = new BigDecimal(new BigInteger(r), scale);

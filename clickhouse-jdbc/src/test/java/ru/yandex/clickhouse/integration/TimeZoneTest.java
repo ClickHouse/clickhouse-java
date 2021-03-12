@@ -6,6 +6,7 @@ import java.sql.Date;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.ZoneId;
@@ -65,38 +66,46 @@ public class TimeZoneTest {
 
     @Test
     public void timeZoneTestTimestamp() throws Exception {
-
-        connectionServerTz.createStatement().execute("DROP TABLE IF EXISTS test.time_zone_test");
-        connectionServerTz.createStatement().execute(
+        try (Statement s = connectionServerTz.createStatement()) {
+            s.execute("DROP TABLE IF EXISTS test.time_zone_test");
+            s.execute(
                 "CREATE TABLE IF NOT EXISTS test.time_zone_test (i Int32, d DateTime) ENGINE = TinyLog"
-        );
+            );
+        }
 
-        PreparedStatement statement = connectionServerTz.prepareStatement("INSERT INTO test.time_zone_test (i, d) VALUES (?, ?)");
-        statement.setInt(1, 1);
-        statement.setTimestamp(2, new Timestamp(currentTime));
-        statement.execute();
+        try (PreparedStatement statement =
+            connectionServerTz.prepareStatement("INSERT INTO test.time_zone_test (i, d) VALUES (?, ?)")) {
+            statement.setInt(1, 1);
+            statement.setTimestamp(2, new Timestamp(currentTime));
+            statement.execute();
+        }
 
-        PreparedStatement statementUtc = connectionManualTz.prepareStatement("INSERT INTO test.time_zone_test (i, d) VALUES (?, ?)");
-        statementUtc.setInt(1, 2);
-        statementUtc.setTimestamp(2, new Timestamp(currentTime));
-        statementUtc.execute();
+        try (PreparedStatement statementUtc =
+            connectionManualTz.prepareStatement("INSERT INTO test.time_zone_test (i, d) VALUES (?, ?)")) {
+            statementUtc.setInt(1, 2);
+            statementUtc.setTimestamp(2, new Timestamp(currentTime));
+            statementUtc.execute();
+        }
 
-        ResultSet rs = connectionServerTz.createStatement().executeQuery("SELECT i, d as cnt from test.time_zone_test order by i");
-        // server write, server read
-        rs.next();
-        Assert.assertEquals(rs.getTimestamp(2).getTime(), currentTime);
+        String query = "SELECT i, d as cnt from test.time_zone_test order by i";
+        try (Statement s = connectionServerTz.createStatement(); ResultSet rs = s.executeQuery(query)) {
+            // server write, server read
+            rs.next();
+            Assert.assertEquals(rs.getTimestamp(2).getTime(), currentTime);
 
-        // manual write, server read
-        rs.next();
-        Assert.assertEquals(rs.getTimestamp(2).getTime(), currentTime - TimeUnit.HOURS.toMillis(1));
+            // manual write, server read
+            rs.next();
+            Assert.assertEquals(rs.getTimestamp(2).getTime(), currentTime - TimeUnit.HOURS.toMillis(1));
+        }
 
-        ResultSet rsMan = connectionManualTz.createStatement().executeQuery("SELECT i, d as cnt from test.time_zone_test order by i");
-        // server write, manual read
-        rsMan.next();
-        Assert.assertEquals(rsMan.getTimestamp(2).getTime(), currentTime + TimeUnit.HOURS.toMillis(1));
-        // manual write, manual read
-        rsMan.next();
-        Assert.assertEquals(rsMan.getTimestamp(2).getTime(), currentTime);
+        try (Statement s = connectionManualTz.createStatement(); ResultSet rsMan = s.executeQuery(query)) {
+            // server write, manual read
+            rsMan.next();
+            Assert.assertEquals(rsMan.getTimestamp(2).getTime(), currentTime);
+            // manual write, manual read
+            rsMan.next();
+            Assert.assertEquals(rsMan.getTimestamp(2).getTime(), currentTime - TimeUnit.HOURS.toMillis(1));
+        }
     }
 
     /*
@@ -130,21 +139,15 @@ public class TimeZoneTest {
         int suffix = 2;
         Long offset = Long.valueOf(
             TimeUnit.MILLISECONDS.toHours(
-                connectionServerTz.getTimeZone().getOffset(currentTime)));
+                connectionServerTz.getServerTimeZone().getOffset(currentTime)));
         ClickHouseDataSource ds = createDataSource(false, offset, false);
         resetDateTestTable(suffix);
         ClickHouseConnection conn = ds.getConnection();
         insertDateTestData(suffix, connectionServerTz, 1);
         insertDateTestData(suffix, conn, 1);
 
-        // TODO revisit this before 0.3.0 release
-        currentTime = Instant.ofEpochMilli(currentTime)
-            .atZone(ZoneId.systemDefault())
-            .truncatedTo(ChronoUnit.DAYS)
-            .toEpochSecond() * 1000L;
-
         assertDateResult(suffix, conn, Instant.ofEpochMilli(currentTime)
-            .atZone(ZoneId.systemDefault())
+            .atOffset(ZoneOffset.ofHours(offset.intValue()))
             .truncatedTo(ChronoUnit.DAYS)
             .toEpochSecond());
         conn.close();
@@ -183,8 +186,7 @@ public class TimeZoneTest {
         ds = null;
     }
 
-    // TODO revisit this before 0.3.0 release
-    @Test(enabled = false)
+    @Test
     public void testTimeZoneParseSQLDate5() throws Exception {
         int suffix = 5;
         ClickHouseDataSource ds = createDataSource(true, null, false);
@@ -192,10 +194,6 @@ public class TimeZoneTest {
         ClickHouseConnection conn = ds.getConnection();
         insertDateTestData(suffix, connectionServerTz, 1);
         insertDateTestData(suffix, conn, 1);
-        
-        currentTime -= currentTime % (24 * 3600 * 1000L);
-        currentTime -= ZoneId.systemDefault().getRules().getOffset(
-            Instant.ofEpochMilli(currentTime)).getTotalSeconds() * 1000L;
     
         assertDateResult(
             suffix, conn,
@@ -229,7 +227,7 @@ public class TimeZoneTest {
         assertDateResult(
             suffix, conn,
             Instant.ofEpochMilli(currentTime)
-                .atZone(connectionServerTz.getTimeZone().toZoneId())
+                .atZone(ZoneId.systemDefault())
                 .truncatedTo(ChronoUnit.DAYS)
                 .toEpochSecond());
         conn.close();
@@ -417,12 +415,13 @@ public class TimeZoneTest {
     private static void assertDateResult(int suffix, Connection conn, long expectedSecondsEpoch)
         throws Exception
     {
-        ResultSet rs = conn.createStatement().executeQuery(
-            "SELECT i, d as cnt from test.time_zone_test" + suffix + " order by i");
-        rs.next();
-        Assert.assertEquals(rs.getDate(2).getTime(), expectedSecondsEpoch * 1000);
-        rs.next();
-        Assert.assertEquals(rs.getDate(2).getTime(), expectedSecondsEpoch * 1000);
+        try (Statement stmt = conn.createStatement();
+            ResultSet rs = stmt.executeQuery("SELECT i, d as cnt from test.time_zone_test" + suffix + " order by i")) {
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getDate(2).getTime(), expectedSecondsEpoch * 1000);
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getDate(2).getTime(), expectedSecondsEpoch * 1000);
+        }
     }
 
 }

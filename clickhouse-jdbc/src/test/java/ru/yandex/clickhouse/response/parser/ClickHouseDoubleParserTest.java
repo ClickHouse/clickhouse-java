@@ -17,7 +17,7 @@ public class ClickHouseDoubleParserTest {
     @BeforeClass
     public void setUp() {
         parser = ClickHouseDoubleParser.getInstance();
-        columnInfo = ClickHouseColumnInfo.parse("Float64", "columnName");
+        columnInfo = ClickHouseColumnInfo.parse("Float64", "columnName", null);
     }
 
     @Test

@@ -20,8 +20,8 @@ public class ClickHouseResultSetMetaDataTest {
 
     ClickHouseResultSet resultSet = mock(ClickHouseResultSet.class);
     ClickHouseColumnInfo[] types = new ClickHouseColumnInfo[] {
-        ClickHouseColumnInfo.parse("DateTime", "column1"),
-        ClickHouseColumnInfo.parse("Nullable(Float64)", "column2")
+        ClickHouseColumnInfo.parse("DateTime", "column1", null),
+        ClickHouseColumnInfo.parse("Nullable(Float64)", "column2", null)
     };
     when(resultSet.getColumns()).thenReturn(Arrays.asList(types));
     ClickHouseResultSetMetaData resultSetMetaData = new ClickHouseResultSetMetaData(resultSet);
@@ -34,7 +34,7 @@ public class ClickHouseResultSetMetaDataTest {
 
         ClickHouseResultSet resultSet = mock(ClickHouseResultSet.class);
         when(resultSet.getColumns()).thenReturn(Collections.singletonList(
-            ClickHouseColumnInfo.parse("Nullable(Float64)", "column1")));
+            ClickHouseColumnInfo.parse("Nullable(Float64)", "column1", null)));
         ClickHouseResultSetMetaData resultSetMetaData = new ClickHouseResultSetMetaData(resultSet);
         Assert.assertEquals(resultSetMetaData.getColumnTypeName(1), "Float64");
     }
@@ -43,9 +43,9 @@ public class ClickHouseResultSetMetaDataTest {
     public void testIsNullableSigned() throws SQLException {
         ClickHouseResultSet resultSet = mock(ClickHouseResultSet.class);
         ClickHouseColumnInfo[] types = new ClickHouseColumnInfo[]{
-            ClickHouseColumnInfo.parse("Nullable(Float64)", "column1"),
-            ClickHouseColumnInfo.parse("Nullable(UInt64)", "column2"),
-            ClickHouseColumnInfo.parse("Nullable(UFantasy)", "column3")
+            ClickHouseColumnInfo.parse("Nullable(Float64)", "column1", null),
+            ClickHouseColumnInfo.parse("Nullable(UInt64)", "column2", null),
+            ClickHouseColumnInfo.parse("Nullable(UFantasy)", "column3", null)
         };
         when(resultSet.getColumns()).thenReturn(Arrays.asList(types));
         ClickHouseResultSetMetaData resultSetMetaData = new ClickHouseResultSetMetaData(
@@ -59,7 +59,7 @@ public class ClickHouseResultSetMetaDataTest {
     public void testDateTimeWithTimeZone() throws SQLException {
         ClickHouseResultSet resultSet = mock(ClickHouseResultSet.class);
         when(resultSet.getColumns()).thenReturn(Collections.singletonList(
-            ClickHouseColumnInfo.parse("DateTime('W-SU')", "column1")));
+            ClickHouseColumnInfo.parse("DateTime('W-SU')", "column1", null)));
         ClickHouseResultSetMetaData resultSetMetaData = new ClickHouseResultSetMetaData(
             resultSet);
         Assert.assertEquals(resultSetMetaData.getColumnTypeName(1), "DateTime('W-SU')");

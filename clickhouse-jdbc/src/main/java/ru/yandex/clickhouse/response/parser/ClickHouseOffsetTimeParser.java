@@ -29,20 +29,14 @@ final class ClickHouseOffsetTimeParser extends ClickHouseDateValueParser<OffsetT
     OffsetTime parseDate(String value, ClickHouseColumnInfo columnInfo,
         TimeZone timeZone)
     {
-        return OffsetTime.of(
-            LocalTime.MIDNIGHT,
-            effectiveTimeZone(columnInfo, timeZone).getRules().getOffset(
-                parseAsLocalDate(value).atStartOfDay()));
+        return dateToZonedDateTime(value, columnInfo, timeZone).toOffsetDateTime().toOffsetTime();
     }
 
     @Override
     OffsetTime parseDateTime(String value, ClickHouseColumnInfo columnInfo,
         TimeZone timeZone)
     {
-        LocalDateTime ldt = parseAsLocalDateTime(value);
-        return OffsetTime.of(
-            ldt.toLocalTime(),
-            effectiveTimeZone(columnInfo, timeZone).getRules().getOffset(ldt));
+        return dateTimeToZonedDateTime(value, columnInfo, timeZone).toOffsetDateTime().toOffsetTime();
     }
 
     @Override

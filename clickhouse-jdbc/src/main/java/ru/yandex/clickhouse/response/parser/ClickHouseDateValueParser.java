@@ -7,6 +7,7 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.time.format.ResolverStyle;
@@ -20,6 +21,7 @@ import ru.yandex.clickhouse.response.ByteFragment;
 import ru.yandex.clickhouse.response.ClickHouseColumnInfo;
 
 abstract class ClickHouseDateValueParser<T> extends ClickHouseValueParser<T> {
+    private static final ZoneId UTC_ZONE = ZoneId.of("UTC");
 
     private static final Pattern PATTERN_EMPTY_DATE =
         Pattern.compile("^(0000-00-00|0000-00-00 00:00:00|0)$");
@@ -27,7 +29,7 @@ abstract class ClickHouseDateValueParser<T> extends ClickHouseValueParser<T> {
     private static final DateTimeFormatter DATE_FORMATTER =
         DateTimeFormatter.ofPattern("yyyy[-]MM[-]dd");
     private static final DateTimeFormatter DATE_TIME_FORMATTER =
-        DateTimeFormatter.ofPattern("yyyy-MM-dd['T'][ ]HH:mm:ss[.SSS]");
+        DateTimeFormatter.ofPattern("yyyy-MM-dd['T'][ ]HH:mm:ss");
     private static final DateTimeFormatter TIME_FORMATTER_NUMBERS =
         DateTimeFormatter.ofPattern("HH[mm][ss]")
             .withResolverStyle(ResolverStyle.STRICT);
@@ -36,6 +38,33 @@ abstract class ClickHouseDateValueParser<T> extends ClickHouseValueParser<T> {
 
     protected ClickHouseDateValueParser(Class<T> clazz) {
         this.clazz = Objects.requireNonNull(clazz);
+    }
+
+    protected LocalDateTime dateToLocalDate(String value, ClickHouseColumnInfo columnInfo, TimeZone timeZone) {
+        return parseAsLocalDate(value).atStartOfDay();
+    }
+
+    protected LocalDateTime dateTimeToLocalDateTime(String value, ClickHouseColumnInfo columnInfo, TimeZone timeZone) {
+        TimeZone serverTimeZone = columnInfo.getTimeZone();
+        LocalDateTime localDateTime = parseAsLocalDateTime(value);
+        if (serverTimeZone != null && (serverTimeZone.useDaylightTime() || serverTimeZone.getRawOffset() > 0)) { // non-UTC
+            localDateTime = localDateTime.atZone(columnInfo.getTimeZone().toZoneId())
+                .withZoneSameInstant(java.time.ZoneId.of("UTC")).toLocalDateTime();
+        }
+
+        return localDateTime;
+    }
+
+    protected ZonedDateTime dateToZonedDateTime(String value, ClickHouseColumnInfo columnInfo, TimeZone timeZone) {
+        LocalDate localDate = parseAsLocalDate(value);
+        return localDate.atStartOfDay(timeZone != null ? timeZone.toZoneId() : ZoneId.systemDefault());
+    }
+
+    protected ZonedDateTime dateTimeToZonedDateTime(String value, ClickHouseColumnInfo columnInfo, TimeZone timeZone) {
+        LocalDateTime localDateTime = parseAsLocalDateTime(value);
+        return timeZone != null && !timeZone.equals(columnInfo.getTimeZone())
+            ? localDateTime.atZone(columnInfo.getTimeZone().toZoneId()).withZoneSameInstant(timeZone.toZoneId())
+            : localDateTime.atZone(columnInfo.getTimeZone().toZoneId());
     }
 
     @Override
@@ -69,6 +98,8 @@ abstract class ClickHouseDateValueParser<T> extends ClickHouseValueParser<T> {
                         e);
                 }
             case DateTime:
+            case DateTime32:
+            case DateTime64:
                 try {
                     return parseDateTime(s, columnInfo, timeZone);
                 } catch (Exception e) {
@@ -146,10 +177,10 @@ abstract class ClickHouseDateValueParser<T> extends ClickHouseValueParser<T> {
     protected final ZoneId effectiveTimeZone(ClickHouseColumnInfo columnInfo,
         TimeZone timeZone)
     {
-        return columnInfo.getTimeZone() != null
-            ? columnInfo.getTimeZone().toZoneId()
-            : timeZone != null
-                ? timeZone.toZoneId()
+        return timeZone != null 
+            ? timeZone.toZoneId()
+            : columnInfo.getTimeZone() != null
+                ? columnInfo.getTimeZone().toZoneId()
                 : ZoneId.systemDefault();
     }
 
@@ -158,6 +189,28 @@ abstract class ClickHouseDateValueParser<T> extends ClickHouseValueParser<T> {
     }
 
     protected final LocalDateTime parseAsLocalDateTime(String value) {
+        int index = value == null ? -1 : value.indexOf('.');
+        if (index > 0) {
+            int endIndex = -1;
+            for (int i = index + 1, len = value.length(); i < len; i++) {
+                char ch = value.charAt(i);
+                if (!Character.isDigit(ch)) {
+                    endIndex = i;
+                    break;
+                }
+            }
+            String part1 = value.substring(0, index);
+            if (endIndex > index) {
+                part1 += value.substring(endIndex);
+            }
+            String part2 = endIndex > index ? value.substring(index, endIndex) : value.substring(index);
+
+            LocalDateTime ts = LocalDateTime.parse(part1, DATE_TIME_FORMATTER);
+            int nanoSeconds = (int) Math.round(Double.parseDouble(part2) * 1000000000);
+            return LocalDateTime.of(ts.getYear(), ts.getMonth(), ts.getDayOfMonth(), 
+                ts.getHour(), ts.getMinute(), ts.getSecond(), nanoSeconds);
+        }
+
         return LocalDateTime.parse(value, DATE_TIME_FORMATTER);
     }
 

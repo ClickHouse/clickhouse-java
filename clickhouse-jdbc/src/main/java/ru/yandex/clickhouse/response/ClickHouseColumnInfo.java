@@ -20,8 +20,15 @@ public final class ClickHouseColumnInfo {
     private TimeZone timeZone;
     private int precision;
     private int scale;
+    private ClickHouseColumnInfo keyInfo;
+    private ClickHouseColumnInfo valueInfo;
 
+    @Deprecated
     public static ClickHouseColumnInfo parse(String typeInfo, String columnName) {
+        return parse(typeInfo, columnName, null);
+    }
+
+    public static ClickHouseColumnInfo parse(String typeInfo, String columnName, TimeZone serverTimeZone) {
         ClickHouseColumnInfo column = new ClickHouseColumnInfo(typeInfo, columnName);
         int currIdx = 0;
         while (typeInfo.startsWith(KEYWORD_ARRAY, currIdx)) {
@@ -52,6 +59,7 @@ public final class ClickHouseColumnInfo {
         }
         column.precision = dataType.getDefaultPrecision();
         column.scale = dataType.getDefaultScale();
+        column.timeZone = serverTimeZone;
         currIdx = endIdx;
         if (endIdx == typeInfo.length()
             || !typeInfo.startsWith("(", currIdx))
@@ -61,12 +69,31 @@ public final class ClickHouseColumnInfo {
 
         switch (dataType) {
             case DateTime :
-                String[] argsTZ = splitArgs(typeInfo, currIdx);
-                if (argsTZ.length == 1) {
+                String[] argsDT = splitArgs(typeInfo, currIdx);
+                if (argsDT.length == 2) { // same as DateTime64
+                    column.scale = Integer.parseInt(argsDT[0]);
+                    column.timeZone = TimeZone.getTimeZone(argsDT[1].replace("'", ""));
+                } else if (argsDT.length == 1) { // same as DateTime32
                     // unfortunately this will fall back to GMT if the time zone
                     // cannot be resolved
-                    TimeZone tz = TimeZone.getTimeZone(argsTZ[0].replace("'", ""));
+                    TimeZone tz = TimeZone.getTimeZone(argsDT[0].replace("'", ""));
                     column.timeZone = tz;
+                }
+                break;
+            case DateTime32:
+                String[] argsD32 = splitArgs(typeInfo, currIdx);
+                if (argsD32.length == 1) {
+                    // unfortunately this will fall back to GMT if the time zone
+                    // cannot be resolved
+                    TimeZone tz = TimeZone.getTimeZone(argsD32[0].replace("'", ""));
+                    column.timeZone = tz;
+                }
+                break;
+            case DateTime64:
+                String[] argsD64 = splitArgs(typeInfo, currIdx);
+                if (argsD64.length == 2) {
+                    column.scale = Integer.parseInt(argsD64[0]);
+                    column.timeZone = TimeZone.getTimeZone(argsD64[1].replace("'", ""));
                 }
                 break;
             case Decimal :
@@ -79,12 +106,20 @@ public final class ClickHouseColumnInfo {
             case Decimal32 :
             case Decimal64 :
             case Decimal128 :
+            case Decimal256 :
                 String[] argsScale = splitArgs(typeInfo, currIdx);
                 column.scale = Integer.parseInt(argsScale[0]);
                 break;
             case FixedString :
                 String[] argsPrecision = splitArgs(typeInfo, currIdx);
                 column.precision = Integer.parseInt(argsPrecision[0]);
+                break;
+            case Map:
+                String[] argsMap = splitArgs(typeInfo, currIdx);
+                if (argsMap.length == 2) {
+                    column.keyInfo = ClickHouseColumnInfo.parse(argsMap[0], columnName + "Key", serverTimeZone);
+                    column.valueInfo = ClickHouseColumnInfo.parse(argsMap[1], columnName + "Value", serverTimeZone);
+                }
                 break;
             default :
                 break;
@@ -184,4 +219,11 @@ public final class ClickHouseColumnInfo {
         return scale;
     }
 
+    public ClickHouseColumnInfo getKeyInfo() {
+        return this.keyInfo;
+    }
+
+    public ClickHouseColumnInfo getValueInfo() {
+        return this.valueInfo;
+    }
 }
