@@ -1,11 +1,10 @@
-name: Build
+name: TimeZone Test
 
 on:
   push:
     branches:
       - master
       - develop
-      - 0.2.x
     paths-ignore:
       - "**.md"
       - "docs/**"
@@ -28,14 +27,14 @@ on:
         required: false
 
 jobs:
-  build:
+  timezone:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        java: [8, 11, 15]
-        # most recent LTS releases as well as latest stable builds
-        clickhouse: ["20.8", "20.10", "20.12", "21.2", "latest"]
-    name: Build using JDK ${{ matrix.java }} against ClickHouse ${{ matrix.clickhouse }}
+        serverTz: ["Asia/Chongqing", "America/Los_Angeles", "Etc/UTC", "Europe/Berlin", "Europe/Moscow"]
+        clientTz: ["Asia/Chongqing", "America/Los_Angeles", "Etc/UTC", "Europe/Berlin", "Europe/Moscow"]
+      fail-fast: false
+    name: "Test TimeZones - Server: ${{ matrix.serverTz }}, Client: ${{ matrix.clientTz }}"
     steps:
       - name: Check out Git repository
         uses: actions/checkout@v2
@@ -44,11 +43,10 @@ jobs:
           git fetch --no-tags --prune --progress --no-recurse-submodules --depth=1 \
             origin pull/${{ github.event.inputs.pr }}/merge:merged-pr && git checkout merged-pr
         if: github.event.inputs.pr != ''
-      - name: Set up JDK ${{ matrix.java }}
+      - name: Set up JDK 11
         uses: actions/setup-java@v1
         with:
-          java-version: ${{ matrix.java }}
-      # Step that does that actual cache save and restore
+          java-version: 11
       - name: Cache maven dependencies
         uses: actions/cache@v2
         with:
@@ -56,6 +54,9 @@ jobs:
           key: ${{ runner.os }}-build-${{ hashFiles('**/pom.xml') }}
           restore-keys: |
             ${{ runner.os }}-build-
-      - name: Build with Maven
+      - name: Test using Maven
         run: |
-          mvn --batch-mode --update-snapshots -DclickhouseVersion=${{ matrix.clickhouse }} verify
+          find . -type f -name "pom.xml" -exec sed -i -e 's|.*argLine.*timezone=.*||g' '{}' \;
+          mvn --batch-mode --update-snapshots \
+            -DclickhouseTimezone=${{ matrix.serverTz }} \
+            -Duser.timezone=${{ matrix.clientTz }} verify
