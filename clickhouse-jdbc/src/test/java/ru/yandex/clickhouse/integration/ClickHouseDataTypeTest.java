@@ -1,5 +1,6 @@
 package ru.yandex.clickhouse.integration;
 
+import static org.testng.Assert.assertNull;
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertTrue;
 
@@ -24,12 +25,14 @@ import java.time.zone.ZoneRules;
 import java.util.Calendar;
 import java.util.Objects;
 import java.util.TimeZone;
+import java.util.UUID;
 
 import org.testng.annotations.AfterTest;
 import org.testng.annotations.BeforeTest;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
+import ru.yandex.clickhouse.ClickHouseArray;
 import ru.yandex.clickhouse.ClickHouseConnection;
 import ru.yandex.clickhouse.ClickHouseContainerForTest;
 import ru.yandex.clickhouse.ClickHouseDataSource;
@@ -47,7 +50,7 @@ public class ClickHouseDataTypeTest {
         ZoneRules rules = zone.getRules();
         ZoneOffset offset = rules.getOffset(instant);
         long localSecond = instant.getEpochSecond() + offset.getTotalSeconds();
-        long localEpochDay = Math.floorDiv(localSecond, 24 * 3600);
+        long localEpochDay = Math.floorDiv(localSecond, 24 * 3600L);
         return LocalDate.ofEpochDay(localEpochDay);
     }
 
@@ -56,7 +59,7 @@ public class ClickHouseDataTypeTest {
         Objects.requireNonNull(zone, "zone");
         ZoneOffset offset = zone.getRules().getOffset(instant);
         long localSecond = instant.getEpochSecond() + offset.getTotalSeconds();
-        int secondsADay = 24 * 3600;
+        long secondsADay = 24 * 3600L;
         int secsOfDay = (int) (localSecond - Math.floorDiv(localSecond, secondsADay) * secondsADay);
         return LocalTime.ofNanoOfDay(secsOfDay * 1000_000_000L + instant.getNano());
     }
@@ -322,8 +325,9 @@ public class ClickHouseDataTypeTest {
                     assertEquals(r.getDate("d2"), expectedDate);
                     assertEquals(r.getObject("d2", Date.class), expectedDate);
                 }
-                //expectedDate = new Date(testInstant.atZone(connServerTz.getServerTimeZone().toZoneId())
-                //        .truncatedTo(ChronoUnit.DAYS).toInstant().toEpochMilli());
+                // expectedDate = new
+                // Date(testInstant.atZone(connServerTz.getServerTimeZone().toZoneId())
+                // .truncatedTo(ChronoUnit.DAYS).toInstant().toEpochMilli());
                 try (Statement s = connServerTz.createStatement(); ResultSet r = s.executeQuery(query);) {
                     assertTrue(r.next());
                     assertEquals(r.getDate("d0"), expectedDate);
@@ -874,6 +878,78 @@ public class ClickHouseDataTypeTest {
             }
 
             stmt.execute("truncate table test_date_with_timezone");
+        }
+    }
+
+    @Test
+    public void testUUID() throws Exception {
+        try (Statement s = conn.createStatement()) {
+            s.execute("DROP TABLE IF EXISTS test_uuid");
+            s.execute(
+                    "CREATE TABLE IF NOT EXISTS test_uuid(u0 UUID, u1 Nullable(UUID), u2 Array(UUID), u3 Array(Nullable(UUID))) ENGINE = Memory");
+        } catch (ClickHouseException e) {
+            return;
+        }
+
+        try (Statement s = conn.createStatement()) {
+            UUID uuid = UUID.randomUUID();
+            String str = uuid.toString();
+            s.execute("insert into test_uuid values ('" + str + "', null, ['" + str + "'], [null])");
+
+            try (ResultSet rs = s.executeQuery("select * from test_uuid")) {
+                assertTrue(rs.next());
+
+                assertEquals(rs.getString(1), str);
+                assertEquals(rs.getObject(1), uuid);
+                assertEquals(rs.getObject(1, UUID.class), uuid);
+
+                assertNull(rs.getString(2));
+                assertNull(rs.getObject(2));
+                assertNull(rs.getObject(2, UUID.class));
+
+                assertEquals(rs.getString(3), "['" + str + "']");
+                assertEquals(rs.getArray(3).getArray(), new UUID[] { uuid });
+                assertEquals(rs.getObject(3, ClickHouseArray.class).getArray(), new UUID[] { uuid });
+                assertEquals(rs.getObject(3, UUID[].class), new UUID[] { uuid });
+
+                assertEquals(rs.getString(4), "[NULL]");
+                assertEquals(rs.getArray(4).getArray(), new UUID[] { null });
+                assertEquals(rs.getObject(4, ClickHouseArray.class).getArray(), new UUID[] { null });
+                assertEquals(rs.getObject(4, UUID[].class), new UUID[] { null });
+            }
+
+            s.execute("truncate table test_uuid");
+        }
+    }
+
+    @Test
+    public void testDateTime64() throws Exception {
+        try (Statement s = conn.createStatement()) {
+            s.execute("DROP TABLE IF EXISTS test_datetime64");
+            s.execute(
+                    "CREATE TABLE IF NOT EXISTS test_datetime64(d0 DateTime64, d1 Nullable(DateTime64)) ENGINE = Memory");
+        } catch (ClickHouseException e) {
+            return;
+        }
+
+        try (Statement s = conn.createStatement()) {
+            s.execute("insert into test_datetime64 values (1, null)");
+
+            try (ResultSet rs = s.executeQuery("select * from test_datetime64")) {
+                assertTrue(rs.next());
+                assertEquals(rs.getObject(1), new Timestamp(1L));
+                assertEquals(rs.getObject(1, Instant.class), Instant.ofEpochMilli(1L));
+                assertEquals(rs.getObject(1, LocalDate.class),
+                        Instant.ofEpochMilli(1L).atZone(conn.getServerTimeZone().toZoneId()).toLocalDate());
+                assertEquals(rs.getObject(1, LocalDateTime.class),
+                        Instant.ofEpochMilli(1L).atZone(conn.getServerTimeZone().toZoneId()).toLocalDateTime());
+                assertNull(rs.getObject(2));
+                assertNull(rs.getObject(2, Instant.class));
+                assertNull(rs.getObject(2, LocalDate.class));
+                assertNull(rs.getObject(2, LocalDateTime.class));
+            }
+
+            s.execute("truncate table test_datetime64");
         }
     }
 
