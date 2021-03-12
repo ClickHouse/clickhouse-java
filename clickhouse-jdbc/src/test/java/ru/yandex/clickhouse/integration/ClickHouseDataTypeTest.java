@@ -939,10 +939,9 @@ public class ClickHouseDataTypeTest {
                 assertTrue(rs.next());
                 assertEquals(rs.getObject(1), new Timestamp(1L));
                 assertEquals(rs.getObject(1, Instant.class), Instant.ofEpochMilli(1L));
-                assertEquals(rs.getObject(1, LocalDate.class),
-                        Instant.ofEpochMilli(1L).atZone(conn.getServerTimeZone().toZoneId()).toLocalDate());
+                assertEquals(rs.getObject(1, LocalDate.class), LocalDate.ofEpochDay(0));
                 assertEquals(rs.getObject(1, LocalDateTime.class),
-                        Instant.ofEpochMilli(1L).atZone(conn.getServerTimeZone().toZoneId()).toLocalDateTime());
+                        Instant.ofEpochMilli(1L).atZone(ZoneId.of("UTC")).toLocalDateTime());
                 assertNull(rs.getObject(2));
                 assertNull(rs.getObject(2, Instant.class));
                 assertNull(rs.getObject(2, LocalDate.class));
