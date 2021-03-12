@@ -22,10 +22,8 @@ final class ClickHouseStringParser extends ClickHouseValueParser<String> {
     }
 
     @Override
-    public String parse(ByteFragment value, ClickHouseColumnInfo columnInfo,
-        TimeZone resultTimeZone) throws SQLException
-    {
+    public String parse(ByteFragment value, ClickHouseColumnInfo columnInfo, TimeZone resultTimeZone)
+            throws SQLException {
         return value.asString(true);
     }
-
 }

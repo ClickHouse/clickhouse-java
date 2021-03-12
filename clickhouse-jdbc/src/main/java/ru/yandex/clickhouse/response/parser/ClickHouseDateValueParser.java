@@ -7,6 +7,7 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.time.format.ResolverStyle;
@@ -20,6 +21,7 @@ import ru.yandex.clickhouse.response.ByteFragment;
 import ru.yandex.clickhouse.response.ClickHouseColumnInfo;
 
 abstract class ClickHouseDateValueParser<T> extends ClickHouseValueParser<T> {
+    private static final ZoneId UTC_ZONE = ZoneId.of("UTC");
 
     private static final Pattern PATTERN_EMPTY_DATE =
         Pattern.compile("^(0000-00-00|0000-00-00 00:00:00|0)$");
@@ -36,6 +38,33 @@ abstract class ClickHouseDateValueParser<T> extends ClickHouseValueParser<T> {
 
     protected ClickHouseDateValueParser(Class<T> clazz) {
         this.clazz = Objects.requireNonNull(clazz);
+    }
+
+    protected LocalDateTime dateToLocalDate(String value, ClickHouseColumnInfo columnInfo, TimeZone timeZone) {
+        return parseAsLocalDate(value).atStartOfDay();
+    }
+
+    protected LocalDateTime dateTimeToLocalDateTime(String value, ClickHouseColumnInfo columnInfo, TimeZone timeZone) {
+        TimeZone serverTimeZone = columnInfo.getTimeZone();
+        LocalDateTime localDateTime = parseAsLocalDateTime(value);
+        if (serverTimeZone != null && (serverTimeZone.useDaylightTime() || serverTimeZone.getRawOffset() > 0)) { // non-UTC
+            localDateTime = localDateTime.atZone(columnInfo.getTimeZone().toZoneId())
+                .withZoneSameInstant(java.time.ZoneId.of("UTC")).toLocalDateTime();
+        }
+
+        return localDateTime;
+    }
+
+    protected ZonedDateTime dateToZonedDateTime(String value, ClickHouseColumnInfo columnInfo, TimeZone timeZone) {
+        LocalDate localDate = parseAsLocalDate(value);
+        return localDate.atStartOfDay(timeZone != null ? timeZone.toZoneId() : ZoneId.systemDefault());
+    }
+
+    protected ZonedDateTime dateTimeToZonedDateTime(String value, ClickHouseColumnInfo columnInfo, TimeZone timeZone) {
+        LocalDateTime localDateTime = parseAsLocalDateTime(value);
+        return timeZone != null && !timeZone.equals(columnInfo.getTimeZone())
+            ? localDateTime.atZone(columnInfo.getTimeZone().toZoneId()).withZoneSameInstant(timeZone.toZoneId())
+            : localDateTime.atZone(columnInfo.getTimeZone().toZoneId());
     }
 
     @Override
@@ -148,10 +177,10 @@ abstract class ClickHouseDateValueParser<T> extends ClickHouseValueParser<T> {
     protected final ZoneId effectiveTimeZone(ClickHouseColumnInfo columnInfo,
         TimeZone timeZone)
     {
-        return columnInfo.getTimeZone() != null
-            ? columnInfo.getTimeZone().toZoneId()
-            : timeZone != null
-                ? timeZone.toZoneId()
+        return timeZone != null 
+            ? timeZone.toZoneId()
+            : columnInfo.getTimeZone() != null
+                ? columnInfo.getTimeZone().toZoneId()
                 : ZoneId.systemDefault();
     }
 

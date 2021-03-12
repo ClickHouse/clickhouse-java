@@ -27,15 +27,15 @@ public class ClickHouseOffsetDateTimeParserTest {
 
     @Test
     public void testParseOffsetDateTimeDateTime() throws Exception {
-        ClickHouseColumnInfo columnInfo = ClickHouseColumnInfo.parse(
-            "DateTime", "col");
         OffsetDateTime inst = parser.parse(
-            ByteFragment.fromString("2020-01-20 22:23:24"), columnInfo, tzBerlin);
+            ByteFragment.fromString("2020-01-20 22:23:24"),
+            ClickHouseColumnInfo.parse("DateTime", "col", tzBerlin), tzBerlin);
         assertEquals(
             inst.toInstant().getEpochSecond(),
             1579555404);
         inst = parser.parse(
-            ByteFragment.fromString("2020-01-20 22:23:24"), columnInfo, tzLosAngeles);
+            ByteFragment.fromString("2020-01-20 22:23:24"),
+            ClickHouseColumnInfo.parse("DateTime", "col", tzLosAngeles), tzLosAngeles);
         assertEquals(
             inst.toInstant().getEpochSecond(),
             1579587804);
@@ -44,7 +44,7 @@ public class ClickHouseOffsetDateTimeParserTest {
     @Test
     public void testParseOffsetDateTimeDateTimeColumnOverride() throws Exception {
         ClickHouseColumnInfo columnInfo = ClickHouseColumnInfo.parse(
-            "DateTime(Europe/Berlin)", "col");
+            "DateTime(Europe/Berlin)", "col", null);
         OffsetDateTime inst = parser.parse(
             ByteFragment.fromString("2020-01-20 22:23:24"), columnInfo, tzLosAngeles);
         assertEquals(
@@ -55,7 +55,7 @@ public class ClickHouseOffsetDateTimeParserTest {
     @Test
     public void testParseOffsetDateTimeDate() throws Exception {
         ClickHouseColumnInfo columnInfo = ClickHouseColumnInfo.parse(
-            "Date", "col");
+            "Date", "col", null);
         OffsetDateTime inst = parser.parse(
             ByteFragment.fromString("2020-01-20"), columnInfo, tzLosAngeles);
         assertEquals(
@@ -68,7 +68,7 @@ public class ClickHouseOffsetDateTimeParserTest {
         dataProviderClass = ClickHouseTimeParserTestDataProvider.class)
     public void parseOffsetDateTimeTimestampSeconds(ClickHouseDataType dataType) throws Exception {
         ClickHouseColumnInfo columnInfo = ClickHouseColumnInfo.parse(
-            dataType.name(), "col");
+            dataType.name(), "col", null);
         OffsetDateTime inst = parser.parse(
             ByteFragment.fromString("1579507200"), columnInfo, tzLosAngeles);
         assertEquals(
@@ -86,7 +86,7 @@ public class ClickHouseOffsetDateTimeParserTest {
         dataProviderClass = ClickHouseTimeParserTestDataProvider.class)
     public void parseOffsetDateTimeTimestampMillis(ClickHouseDataType dataType) throws Exception {
         ClickHouseColumnInfo columnInfo = ClickHouseColumnInfo.parse(
-            dataType.name(), "col");
+            dataType.name(), "col", null);
         OffsetDateTime inst = parser.parse(
             ByteFragment.fromString("1579507200000"), columnInfo, tzLosAngeles);
         assertEquals(
@@ -102,7 +102,7 @@ public class ClickHouseOffsetDateTimeParserTest {
     @Test
     public void testParseOffsetDateTimeString() throws Exception {
         ClickHouseColumnInfo columnInfo = ClickHouseColumnInfo.parse(
-            "String", "col");
+            "String", "col", null);
         OffsetDateTime inst = parser.parse(
             ByteFragment.fromString("2020-01-20T22:23:24.123"), columnInfo, tzLosAngeles);
         assertEquals(

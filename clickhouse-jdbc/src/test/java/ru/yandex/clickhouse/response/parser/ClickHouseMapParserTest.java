@@ -105,21 +105,25 @@ public class ClickHouseMapParserTest {
     public void testParse() throws Exception {
         ClickHouseMapParser parser = ClickHouseMapParser.getInstance();
         Map<?, ?> result = parser.parse(ByteFragment.fromString("{'a': 1, 'a''\\\\\\'b':2}"),
-                ClickHouseColumnInfo.parse("Map(String, Int8)", "dunno"), TimeZone.getDefault());
+                ClickHouseColumnInfo.parse("Map(String, Int8)", "dunno", TimeZone.getTimeZone("Asia/Chongqing")),
+                TimeZone.getDefault());
         assertEquals(result, Utils.mapOf("a", 1, "a''\\'b", 2));
 
         result = parser.parse(ByteFragment.fromString("{'a': '1', 'a''\\\\\\'b':'1''\\\\\\'2'}"),
-                ClickHouseColumnInfo.parse("Map(String, String)", "dunno"), TimeZone.getDefault());
+                ClickHouseColumnInfo.parse("Map(String, String)", "dunno", TimeZone.getTimeZone("Asia/Chongqing")),
+                TimeZone.getDefault());
         assertEquals(result, Utils.mapOf("a", "1", "a''\\'b", "1''\\'2"));
 
         result = parser.parse(ByteFragment.fromString("{123: '1a1', -456:'331'}"),
-                ClickHouseColumnInfo.parse("Map(Int16, String)", "dunno"), TimeZone.getDefault());
+                ClickHouseColumnInfo.parse("Map(Int16, String)", "dunno", TimeZone.getTimeZone("Asia/Chongqing")),
+                TimeZone.getDefault());
         assertEquals(result, Utils.mapOf(123, "1a1", -456, "331"));
 
         result = parser.parse(
                 ByteFragment
                         .fromString("{123: 1111111111111111111111111111111111111, -456:222222222222222222222222222}"),
-                ClickHouseColumnInfo.parse("Map(Int16, UInt256)", "dunno"), TimeZone.getDefault());
+                ClickHouseColumnInfo.parse("Map(Int16, UInt256)", "dunno", TimeZone.getTimeZone("Asia/Chongqing")),
+                TimeZone.getDefault());
         assertEquals(result, Utils.mapOf(123, new BigInteger("1111111111111111111111111111111111111"), -456,
                 new BigInteger("222222222222222222222222222")));
     }

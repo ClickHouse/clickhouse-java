@@ -15,7 +15,7 @@ public class ClickHouseColumnInfoTest {
     @Test
     public void testParseNull() {
         try {
-            ClickHouseColumnInfo.parse(null, null);
+            ClickHouseColumnInfo.parse(null, null, null);
             fail();
         } catch (NullPointerException npe) { /* expected */ }
     }
@@ -23,28 +23,29 @@ public class ClickHouseColumnInfoTest {
     @Test
     public void testDateTimeWithoutTimeZone() {
         ClickHouseColumnInfo info = ClickHouseColumnInfo.parse(
-            "DateTime", "column");
+            "DateTime", "column", null);
         assertEquals(info.getClickHouseDataType(), ClickHouseDataType.DateTime);
     }
 
     @Test
     public void testDateTimeWithEmptyTimeZone() {
         ClickHouseColumnInfo info = ClickHouseColumnInfo.parse(
-            "DateTime()", "column");
+            "DateTime()", "column", null);
         assertEquals(info.getClickHouseDataType(), ClickHouseDataType.DateTime);
     }
 
     @Test
     public void testDateTimeArrayWithTimeZonee() {
         assertEquals(
-            ClickHouseColumnInfo.parse("Array(DateTime('America/Los_Angeles'))", "foo").getTimeZone(),
+            ClickHouseColumnInfo.parse(
+                "Array(DateTime('America/Los_Angeles'))", "foo", TimeZone.getTimeZone("Asia/Chongqing")).getTimeZone(),
             TimeZone.getTimeZone("America/Los_Angeles"));
     }
 
     @Test
     public void testSpuriousArguments() {
         ClickHouseColumnInfo info = ClickHouseColumnInfo.parse(
-            "Decimal(12, 3), 42)", "column");
+            "Decimal(12, 3), 42)", "column", null);
         assertEquals(info.getScale(), 3);
     }
 
@@ -53,7 +54,7 @@ public class ClickHouseColumnInfoTest {
         boolean nullable, boolean lowCardinality, int precision, int scale, TimeZone timeZone,
         int arrayLevel)
     {
-        ClickHouseColumnInfo info = ClickHouseColumnInfo.parse(input, "columnName");
+        ClickHouseColumnInfo info = ClickHouseColumnInfo.parse(input, "columnName", null);
         assertEquals(info.getClickHouseDataType(), dataType);
         assertEquals(info.getArrayBaseType(), arrayBaseType);
         assertEquals(info.isNullable(), nullable);
@@ -104,7 +105,7 @@ public class ClickHouseColumnInfoTest {
     public void testParserUnknownDataTypes(String input, boolean nullable,
         boolean lowCardinality)
     {
-        ClickHouseColumnInfo info = ClickHouseColumnInfo.parse(input, "columnName");
+        ClickHouseColumnInfo info = ClickHouseColumnInfo.parse(input, "columnName", null);
         assertEquals(info.getClickHouseDataType(), ClickHouseDataType.Unknown);
         assertEquals(info.isNullable(), nullable);
         assertEquals(info.isLowCardinality(), lowCardinality);
@@ -115,7 +116,7 @@ public class ClickHouseColumnInfoTest {
         boolean lowCardinality)
     {
         ClickHouseColumnInfo info = ClickHouseColumnInfo.parse(
-            "Array(" + input + ")", "columnName");
+            "Array(" + input + ")", "columnName", null);
         assertEquals(info.getClickHouseDataType(), ClickHouseDataType.Array);
         assertEquals(info.getArrayBaseType(), ClickHouseDataType.Unknown);
         assertEquals(info.isNullable(), nullable);
@@ -135,22 +136,22 @@ public class ClickHouseColumnInfoTest {
     @Test
     public void testCleanTypeName() {
         assertEquals(
-            ClickHouseColumnInfo.parse("Decimal(12,3)", "col").getCleanTypeName(),
+            ClickHouseColumnInfo.parse("Decimal(12,3)", "col", null).getCleanTypeName(),
             "Decimal(12,3)");
         assertEquals(
-            ClickHouseColumnInfo.parse("LowCardinality(Nullable(Decimal(12,3)))", "col").getCleanTypeName(),
+            ClickHouseColumnInfo.parse("LowCardinality(Nullable(Decimal(12,3)))", "col", null).getCleanTypeName(),
             "Decimal(12,3)");
         assertEquals(
-            ClickHouseColumnInfo.parse("LowCardinality(Decimal(12,3))", "col").getCleanTypeName(),
+            ClickHouseColumnInfo.parse("LowCardinality(Decimal(12,3))", "col", null).getCleanTypeName(),
             "Decimal(12,3)");
         assertEquals(
-            ClickHouseColumnInfo.parse("Nullable(Decimal(12,3))", "col").getCleanTypeName(),
+            ClickHouseColumnInfo.parse("Nullable(Decimal(12,3))", "col", null).getCleanTypeName(),
             "Decimal(12,3)");
         assertEquals(
-            ClickHouseColumnInfo.parse("Array(LowCardinality(Nullable(Decimal(12,3))))", "col").getCleanTypeName(),
+            ClickHouseColumnInfo.parse("Array(LowCardinality(Nullable(Decimal(12,3))))", "col", null).getCleanTypeName(),
             "Array(Decimal(12,3))");
         assertEquals(
-            ClickHouseColumnInfo.parse("Array(Array(LowCardinality(Nullable(Decimal(12,3)))))", "col").getCleanTypeName(),
+            ClickHouseColumnInfo.parse("Array(Array(LowCardinality(Nullable(Decimal(12,3)))))", "col", null).getCleanTypeName(),
             "Array(Array(Decimal(12,3)))");
     }
 
@@ -158,7 +159,7 @@ public class ClickHouseColumnInfoTest {
     public void testTypeIsNullable(String typeDef, Boolean nullable) throws Exception {
         assertEquals(
             nullable.booleanValue(),
-            ClickHouseColumnInfo.parse(typeDef, "foo").isNullable());
+            ClickHouseColumnInfo.parse(typeDef, "foo", null).isNullable());
     }
 
     @DataProvider(name = "columnInfoNullableTypeDefinitions")
@@ -174,7 +175,7 @@ public class ClickHouseColumnInfoTest {
     @Test(dataProvider = "columnInfoScales")
     public void testGetScale(String typeDef, int scale) {
         assertEquals(
-            ClickHouseColumnInfo.parse(typeDef, "foo").getScale(),
+            ClickHouseColumnInfo.parse(typeDef, "foo", null).getScale(),
             scale);
     }
 
@@ -201,7 +202,7 @@ public class ClickHouseColumnInfoTest {
     @Test(dataProvider = "columnInfoPrecisions")
     public void testGetPrecision(String typeDef, int precision) {
         assertEquals(
-            ClickHouseColumnInfo.parse(typeDef, "foo").getPrecision(),
+            ClickHouseColumnInfo.parse(typeDef, "foo", null).getPrecision(),
             precision);
     }
 

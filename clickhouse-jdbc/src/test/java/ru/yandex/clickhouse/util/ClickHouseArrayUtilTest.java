@@ -437,7 +437,7 @@ public class ClickHouseArrayUtilTest {
         byte[] bytes = sb.toString().getBytes(StandardCharsets.UTF_8);
         ByteFragment fragment = new ByteFragment(bytes, 0, bytes.length);
         Date[] parsedArray = (Date[]) ClickHouseArrayUtil.parseArray(fragment, true, dateFormat.getTimeZone(),
-            ClickHouseColumnInfo.parse("Array(Date)", "myDate"));
+            ClickHouseColumnInfo.parse("Array(Date)", "myDate", null));
 
         assertEquals(parsedArray.length, array.length);
         for (int i = 0; i < parsedArray.length; i++) {
@@ -655,7 +655,7 @@ public class ClickHouseArrayUtilTest {
         for (int i = 0; i < level; i++) {
             sb.append(")");
         }
-        return ClickHouseColumnInfo.parse(sb.toString(), "columnName");
+        return ClickHouseColumnInfo.parse(sb.toString(), "columnName", null);
     }
 
 }

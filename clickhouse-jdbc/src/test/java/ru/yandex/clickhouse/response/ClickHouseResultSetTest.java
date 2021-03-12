@@ -73,7 +73,7 @@ public class ClickHouseResultSetTest {
         Assert.assertEquals(
                 ClickHouseResultSet.toLongArray(
                     ByteFragment.fromString(str),
-                    ClickHouseColumnInfo.parse("Array(UInt64)", "columnName")),
+                    ClickHouseColumnInfo.parse("Array(UInt64)", "columnName", null)),
                 expected
         );
     }
@@ -690,7 +690,7 @@ public class ClickHouseResultSetTest {
                 .of(
                     LocalDate.of(2020, 2, 8),
                     LocalTime.MIDNIGHT,
-                    ZoneId.systemDefault())
+                    ZoneId.of("UTC"))
                 .toEpochSecond());
     }
 

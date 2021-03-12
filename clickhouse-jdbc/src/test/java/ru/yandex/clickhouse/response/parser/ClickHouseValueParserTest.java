@@ -16,7 +16,7 @@ public class ClickHouseValueParserTest {
 
     @Test
     public void testParseInt() throws Exception {
-        ClickHouseColumnInfo columnInfo = ClickHouseColumnInfo.parse("Int64", "columnName");
+        ClickHouseColumnInfo columnInfo = ClickHouseColumnInfo.parse("Int64", "columnName", null);
         assertEquals(ClickHouseValueParser.parseInt(ByteFragment.fromString("42"), columnInfo), 42);
         assertEquals(ClickHouseValueParser.parseInt(ByteFragment.fromString("-42"), columnInfo), -42);
         assertEquals(ClickHouseValueParser.parseInt(ByteFragment.fromString(""), columnInfo), 0);
@@ -59,7 +59,7 @@ public class ClickHouseValueParserTest {
 
     @Test
     public void testParseLong() throws Exception {
-        ClickHouseColumnInfo columnInfo = ClickHouseColumnInfo.parse("Int64", "columnName");
+        ClickHouseColumnInfo columnInfo = ClickHouseColumnInfo.parse("Int64", "columnName", null);
         assertEquals(ClickHouseValueParser.parseLong(ByteFragment.fromString("42"), columnInfo), 42);
         assertEquals(ClickHouseValueParser.parseLong(ByteFragment.fromString("-42"), columnInfo), -42);
         assertEquals(ClickHouseValueParser.parseLong(ByteFragment.fromString(""), columnInfo), 0L);
@@ -103,7 +103,7 @@ public class ClickHouseValueParserTest {
 
     @Test
     public void testParseShort() throws Exception {
-        ClickHouseColumnInfo columnInfo = ClickHouseColumnInfo.parse("UInt16", "columnName");
+        ClickHouseColumnInfo columnInfo = ClickHouseColumnInfo.parse("UInt16", "columnName", null);
         assertEquals(ClickHouseValueParser.parseShort(ByteFragment.fromString("42"), columnInfo), 42);
         assertEquals(ClickHouseValueParser.parseShort(ByteFragment.fromString("-42"), columnInfo), -42);
         assertEquals(ClickHouseValueParser.parseShort(ByteFragment.fromString(""), columnInfo), 0);
@@ -146,7 +146,7 @@ public class ClickHouseValueParserTest {
 
     @Test
     public void testParseBoolean() throws SQLException {
-        ClickHouseColumnInfo columnInfo = ClickHouseColumnInfo.parse("UInt8", "columnName");
+        ClickHouseColumnInfo columnInfo = ClickHouseColumnInfo.parse("UInt8", "columnName", null);
         assertFalse(ClickHouseValueParser.parseBoolean(ByteFragment.fromString(""), columnInfo));
         assertFalse(ClickHouseValueParser.parseBoolean(ByteFragment.fromString("\\N"), columnInfo));
         assertFalse(ClickHouseValueParser.parseBoolean(ByteFragment.fromString("0"), columnInfo));

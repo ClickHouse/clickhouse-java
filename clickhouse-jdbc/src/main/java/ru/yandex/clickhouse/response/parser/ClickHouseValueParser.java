@@ -21,6 +21,7 @@ import java.util.TimeZone;
 import java.util.UUID;
 import java.util.function.Function;
 
+import ru.yandex.clickhouse.domain.ClickHouseDataType;
 import ru.yandex.clickhouse.except.ClickHouseUnknownException;
 import ru.yandex.clickhouse.response.ByteFragment;
 import ru.yandex.clickhouse.response.ClickHouseColumnInfo;
@@ -59,6 +60,16 @@ public abstract class ClickHouseValueParser<T> {
         register(Timestamp.class, ClickHouseSQLTimestampParser.getInstance());
         register(UUID.class, UUID::fromString);
         register(ZonedDateTime.class, ClickHouseZonedDateTimeParser.getInstance());
+    }
+
+    private static final long MILLISECONDS_A_DAY = 24 * 3600 * 1000;
+
+    public static long normalizeTime(ClickHouseColumnInfo info, long time) {
+        if (info == null ||
+            (info.getClickHouseDataType() != ClickHouseDataType.DateTime64 && info.getScale() == 0)) {
+            time -= time % 1000; // FIXME fix this after switching to RowBinary format
+        }
+        return (time + MILLISECONDS_A_DAY) % MILLISECONDS_A_DAY;
     }
 
     private static <T> void register(Class<T> clazz, Function<String, T> parseFunction) {

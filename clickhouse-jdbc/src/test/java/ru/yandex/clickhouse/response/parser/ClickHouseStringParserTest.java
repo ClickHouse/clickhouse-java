@@ -17,7 +17,7 @@ public class ClickHouseStringParserTest {
     @BeforeClass
     public void setUp() {
         parser = ClickHouseStringParser.getInstance();
-        columnInfo = ClickHouseColumnInfo.parse("String", "column_name");
+        columnInfo = ClickHouseColumnInfo.parse("String", "column_name", null);
     }
 
     @Test

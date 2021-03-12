@@ -1,6 +1,7 @@
 package ru.yandex.clickhouse.response.parser;
 
 import java.time.Instant;
+import java.time.ZoneOffset;
 import java.time.format.DateTimeParseException;
 import java.util.TimeZone;
 
@@ -25,18 +26,14 @@ final class ClickHouseInstantParser extends ClickHouseDateValueParser<Instant> {
     Instant parseDate(String value, ClickHouseColumnInfo columnInfo,
         TimeZone timeZone)
     {
-        return parseAsLocalDate(value)
-            .atStartOfDay(effectiveTimeZone(columnInfo, timeZone))
-            .toInstant();
+        return parseAsLocalDate(value).atStartOfDay().toInstant(ZoneOffset.UTC);
     }
 
     @Override
     Instant parseDateTime(String value, ClickHouseColumnInfo columnInfo,
         TimeZone timeZone)
     {
-        return parseAsLocalDateTime(value)
-            .atZone(effectiveTimeZone(columnInfo, timeZone))
-            .toInstant();
+        return dateTimeToZonedDateTime(value, columnInfo, timeZone).toInstant();
     }
 
     @Override

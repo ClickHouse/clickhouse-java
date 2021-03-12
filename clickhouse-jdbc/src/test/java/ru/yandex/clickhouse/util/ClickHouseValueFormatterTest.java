@@ -7,7 +7,6 @@ import java.nio.charset.Charset;
 import java.sql.Date;
 import java.sql.Time;
 import java.sql.Timestamp;
-import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -205,11 +204,11 @@ public class ClickHouseValueFormatterTest {
         LocalDate l0 = LocalDate.of(1957, 10, 4);
         LocalDate l1 = (LocalDate) ClickHouseValueParser.getParser(LocalDate.class).parse(
             ByteFragment.fromString(ClickHouseValueFormatter.formatLocalDate(l0)),
-            ClickHouseColumnInfo.parse("Date", "col"), null);
+            ClickHouseColumnInfo.parse("Date", "col", null), null);
         assertEquals(l1, l0);
         l1 = (LocalDate) ClickHouseValueParser.getParser(LocalDate.class).parse(
             ByteFragment.fromString(ClickHouseValueFormatter.formatLocalDate(l0)),
-            ClickHouseColumnInfo.parse("String", "col"), null);
+            ClickHouseColumnInfo.parse("String", "col", null), null);
         assertEquals(l1, l0);
     }
 
@@ -218,7 +217,7 @@ public class ClickHouseValueFormatterTest {
         LocalTime l0 = LocalTime.of(13, 37, 42);
         LocalTime l1 = (LocalTime) ClickHouseValueParser.getParser(LocalTime.class).parse(
             ByteFragment.fromString(ClickHouseValueFormatter.formatLocalTime(l0)),
-            ClickHouseColumnInfo.parse("String", "col"), null);
+            ClickHouseColumnInfo.parse("String", "col", null), null);
         assertEquals(l1, l0);
     }
 
@@ -227,11 +226,11 @@ public class ClickHouseValueFormatterTest {
         LocalDateTime l0 = LocalDateTime.of(1957, 10, 4, 13, 37, 42);
         LocalDateTime l1 = (LocalDateTime) ClickHouseValueParser.getParser(LocalDateTime.class)
             .parse(ByteFragment.fromString(ClickHouseValueFormatter.formatLocalDateTime(l0)),
-            ClickHouseColumnInfo.parse("DateTime", "col"), null);
+            ClickHouseColumnInfo.parse("DateTime", "col", null), null);
         assertEquals(l1, l0);
         l1 = (LocalDateTime) ClickHouseValueParser.getParser(LocalDateTime.class)
             .parse(ByteFragment.fromString(ClickHouseValueFormatter.formatLocalDateTime(l0)),
-            ClickHouseColumnInfo.parse("String", "col"), null);
+            ClickHouseColumnInfo.parse("String", "col", null), null);
         assertEquals(l1, l0);
     }
 
@@ -242,7 +241,7 @@ public class ClickHouseValueFormatterTest {
         OffsetTime ot0 = OffsetTime.of(LocalTime.of(13, 37, 42), offset);
         OffsetTime ot1 = (OffsetTime) ClickHouseValueParser.getParser(OffsetTime.class)
             .parse(ByteFragment.fromString(ClickHouseValueFormatter.formatOffsetTime(ot0)),
-            ClickHouseColumnInfo.parse("String", "col"), null);
+            ClickHouseColumnInfo.parse("String", "col", null), null);
         assertEquals(ot1, ot0);
     }
 
@@ -258,21 +257,21 @@ public class ClickHouseValueFormatterTest {
 
         OffsetDateTime odt1 = (OffsetDateTime) ClickHouseValueParser.getParser(OffsetDateTime.class)
             .parse(ByteFragment.fromString(ClickHouseValueFormatter.formatOffsetDateTime(odt0, tzLosAngeles)),
-            ClickHouseColumnInfo.parse("String", "col"), tzBerlin);
+            ClickHouseColumnInfo.parse("String", "col", tzLosAngeles), tzBerlin);
         assertEquals(odt1, OffsetDateTime.of(
             LocalDateTime.of(1957, 10, 3, 19, 37, 42),
             tzBerlin.toZoneId().getRules().getOffset(ldt)));
 
         odt1 = (OffsetDateTime) ClickHouseValueParser.getParser(OffsetDateTime.class)
             .parse(ByteFragment.fromString(ClickHouseValueFormatter.formatOffsetDateTime(odt0, tzLosAngeles)),
-            ClickHouseColumnInfo.parse("DateTime", "col"), tzBerlin);
+            ClickHouseColumnInfo.parse("DateTime", "col", tzBerlin), tzBerlin);
         assertEquals(odt1, OffsetDateTime.of(
             LocalDateTime.of(1957, 10, 3, 19, 37, 42),
             tzBerlin.toZoneId().getRules().getOffset(ldt)));
 
         odt1 = (OffsetDateTime) ClickHouseValueParser.getParser(OffsetDateTime.class)
             .parse(ByteFragment.fromString(ClickHouseValueFormatter.formatOffsetDateTime(odt0, tzLosAngeles)),
-            ClickHouseColumnInfo.parse("DateTime", "col"), tzLosAngeles);
+            ClickHouseColumnInfo.parse("DateTime", "col", tzLosAngeles), tzLosAngeles);
         assertEquals(odt1, OffsetDateTime.of(
             LocalDateTime.of(1957, 10, 3, 19, 37, 42),
             tzLosAngeles.toZoneId().getRules().getOffset(ldt)));
@@ -290,21 +289,21 @@ public class ClickHouseValueFormatterTest {
 
         ZonedDateTime odt1 = (ZonedDateTime) ClickHouseValueParser.getParser(ZonedDateTime.class)
             .parse(ByteFragment.fromString(ClickHouseValueFormatter.formatZonedDateTime(odt0, tzLosAngeles)),
-            ClickHouseColumnInfo.parse("String", "col"), tzBerlin);
+            ClickHouseColumnInfo.parse("String", "col", tzLosAngeles), tzBerlin);
         assertEquals(odt1, ZonedDateTime.of(
             LocalDateTime.of(1957, 10, 3, 19, 37, 42),
             tzBerlin.toZoneId()));
 
         odt1 = (ZonedDateTime) ClickHouseValueParser.getParser(ZonedDateTime.class)
             .parse(ByteFragment.fromString(ClickHouseValueFormatter.formatZonedDateTime(odt0, tzLosAngeles)),
-            ClickHouseColumnInfo.parse("DateTime", "col"), tzBerlin);
+            ClickHouseColumnInfo.parse("DateTime", "col", tzBerlin), tzBerlin);
         assertEquals(odt1, ZonedDateTime.of(
             LocalDateTime.of(1957, 10, 3, 19, 37, 42),
             tzBerlin.toZoneId()));
 
         odt1 = (ZonedDateTime) ClickHouseValueParser.getParser(ZonedDateTime.class)
             .parse(ByteFragment.fromString(ClickHouseValueFormatter.formatZonedDateTime(odt0, tzLosAngeles)),
-            ClickHouseColumnInfo.parse("DateTime", "col"), tzLosAngeles);
+            ClickHouseColumnInfo.parse("DateTime", "col", tzLosAngeles), tzLosAngeles);
         assertEquals(odt1, ZonedDateTime.of(
             LocalDateTime.of(1957, 10, 3, 19, 37, 42),
             tzLosAngeles.toZoneId()));
@@ -317,17 +316,17 @@ public class ClickHouseValueFormatterTest {
         Timestamp t0 = new Timestamp(1497474018000L);
         Timestamp t1 = (Timestamp) ClickHouseValueParser.getParser(Timestamp.class)
             .parse(ByteFragment.fromString(ClickHouseValueFormatter.formatTimestamp(t0, tzLosAngeles)),
-                ClickHouseColumnInfo.parse("String", "col"), tzLosAngeles);
+                ClickHouseColumnInfo.parse("String", "col", tzLosAngeles), tzLosAngeles);
         assertEquals(t1, t0);
 
         t1 = (Timestamp) ClickHouseValueParser.getParser(Timestamp.class)
             .parse(ByteFragment.fromString(ClickHouseValueFormatter.formatTimestamp(t0, tzLosAngeles)),
-                ClickHouseColumnInfo.parse("DateTime", "col"), tzLosAngeles);
+                ClickHouseColumnInfo.parse("DateTime", "col", tzLosAngeles), tzLosAngeles);
         assertEquals(t1, t0);
 
         t1 = (Timestamp) ClickHouseValueParser.getParser(Timestamp.class)
             .parse(ByteFragment.fromString(ClickHouseValueFormatter.formatTimestamp(t0, tzLosAngeles)),
-                ClickHouseColumnInfo.parse("String", "col"), tzBerlin);
+                ClickHouseColumnInfo.parse("String", "col", tzLosAngeles), tzBerlin);
         Timestamp t2 = new Timestamp(
                 ZonedDateTime.of(LocalDateTime.of(2017,6, 14, 14, 0, 18),
                 tzBerlin.toZoneId())
@@ -344,12 +343,12 @@ public class ClickHouseValueFormatterTest {
         Time t0 = Time.valueOf(LocalTime.of(13, 37, 42));
         Time t1 = (Time) ClickHouseValueParser.getParser(Time.class)
             .parse(ByteFragment.fromString(ClickHouseValueFormatter.formatTime(t0, tzLosAngeles)),
-                ClickHouseColumnInfo.parse("String", "col"), tzLosAngeles);
+                ClickHouseColumnInfo.parse("String", "col", null), tzLosAngeles);
         assertEquals(t1, t0);
 
         t1 = (Time) ClickHouseValueParser.getParser(Time.class)
             .parse(ByteFragment.fromString(ClickHouseValueFormatter.formatTime(t0, tzLosAngeles)),
-                ClickHouseColumnInfo.parse("String", "col"), tzBerlin);
+                ClickHouseColumnInfo.parse("String", "col", null), tzBerlin);
         assertEquals(
             Instant.ofEpochMilli(t1.getTime()),
             Instant.ofEpochMilli((t0.getTime() + (24 - 9) * 3600 * 1000) % (24 * 3600 * 1000)));
@@ -375,7 +374,7 @@ public class ClickHouseValueFormatterTest {
         Date t0 = new Date(1497474018000L);
         Date t1 = (Date) ClickHouseValueParser.getParser(Date.class)
             .parse(ByteFragment.fromString(ClickHouseValueFormatter.formatDate(t0, tzLosAngeles)),
-                ClickHouseColumnInfo.parse("String", "col"), tzLosAngeles);
+                ClickHouseColumnInfo.parse("String", "col", null), tzLosAngeles);
         assertNotEquals(t1, t0);
         assertEquals(
             t1,
@@ -388,7 +387,7 @@ public class ClickHouseValueFormatterTest {
 
         Date t2 = (Date) ClickHouseValueParser.getParser(Date.class)
             .parse(ByteFragment.fromString(ClickHouseValueFormatter.formatDate(t0, tzLosAngeles)),
-                ClickHouseColumnInfo.parse("String", "col"), tzBerlin);
+                ClickHouseColumnInfo.parse("String", "col", null), tzBerlin);
         assertNotEquals(t2, t0);
         assertEquals(
             t2,

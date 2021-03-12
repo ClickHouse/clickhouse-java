@@ -27,16 +27,14 @@ final class ClickHouseZonedDateTimeParser extends ClickHouseDateValueParser<Zone
     ZonedDateTime parseDate(String value, ClickHouseColumnInfo columnInfo,
         TimeZone timeZone)
     {
-        return parseAsLocalDate(value)
-            .atStartOfDay(effectiveTimeZone(columnInfo, timeZone));
+        return dateToZonedDateTime(value, columnInfo, timeZone);
     }
 
     @Override
     ZonedDateTime parseDateTime(String value, ClickHouseColumnInfo columnInfo,
         TimeZone timeZone)
     {
-        return parseAsLocalDateTime(value)
-            .atZone(effectiveTimeZone(columnInfo, timeZone));
+        return dateTimeToZonedDateTime(value, columnInfo, timeZone);
     }
 
     @Override

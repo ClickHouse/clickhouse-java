@@ -23,7 +23,12 @@ public final class ClickHouseColumnInfo {
     private ClickHouseColumnInfo keyInfo;
     private ClickHouseColumnInfo valueInfo;
 
+    @Deprecated
     public static ClickHouseColumnInfo parse(String typeInfo, String columnName) {
+        return parse(typeInfo, columnName, null);
+    }
+
+    public static ClickHouseColumnInfo parse(String typeInfo, String columnName, TimeZone serverTimeZone) {
         ClickHouseColumnInfo column = new ClickHouseColumnInfo(typeInfo, columnName);
         int currIdx = 0;
         while (typeInfo.startsWith(KEYWORD_ARRAY, currIdx)) {
@@ -54,6 +59,7 @@ public final class ClickHouseColumnInfo {
         }
         column.precision = dataType.getDefaultPrecision();
         column.scale = dataType.getDefaultScale();
+        column.timeZone = serverTimeZone;
         currIdx = endIdx;
         if (endIdx == typeInfo.length()
             || !typeInfo.startsWith("(", currIdx))
@@ -111,8 +117,8 @@ public final class ClickHouseColumnInfo {
             case Map:
                 String[] argsMap = splitArgs(typeInfo, currIdx);
                 if (argsMap.length == 2) {
-                    column.keyInfo = ClickHouseColumnInfo.parse(argsMap[0], columnName + "Key");
-                    column.valueInfo = ClickHouseColumnInfo.parse(argsMap[1], columnName + "Value");
+                    column.keyInfo = ClickHouseColumnInfo.parse(argsMap[0], columnName + "Key", serverTimeZone);
+                    column.valueInfo = ClickHouseColumnInfo.parse(argsMap[1], columnName + "Value", serverTimeZone);
                 }
                 break;
             default :

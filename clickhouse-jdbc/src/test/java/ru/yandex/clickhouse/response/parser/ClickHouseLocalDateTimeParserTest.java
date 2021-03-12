@@ -34,7 +34,7 @@ public class ClickHouseLocalDateTimeParserTest {
     @Test
     public void testParseLocalDateTimeNull() throws Exception {
         ClickHouseColumnInfo columnInfo =
-            ClickHouseColumnInfo.parse("Date", "col");
+            ClickHouseColumnInfo.parse("Date", "col", null);
         try {
             parser.parse(
                 null, columnInfo, tzBerlin);
@@ -47,7 +47,7 @@ public class ClickHouseLocalDateTimeParserTest {
     @Test
     public void testParseLocalDateTimeDate() throws Exception {
         ClickHouseColumnInfo columnInfo =
-            ClickHouseColumnInfo.parse("Date", "col");
+            ClickHouseColumnInfo.parse("Date", "col", null);
         assertEquals(
             parser.parse(
                 ByteFragment.fromString("2020-01-12"), columnInfo, null),
@@ -69,7 +69,7 @@ public class ClickHouseLocalDateTimeParserTest {
     @Test
     public void testParseLocalDateTimeDateTimeNullable() throws Exception {
         ClickHouseColumnInfo columnInfo =
-            ClickHouseColumnInfo.parse("Nullable(DateTime)", "col");
+            ClickHouseColumnInfo.parse("Nullable(DateTime)", "col", null);
         assertNull(
             parser.parse(
                 ByteFragment.fromString("0000-00-00 00:00:00"), columnInfo, tzLosAngeles));
@@ -78,7 +78,7 @@ public class ClickHouseLocalDateTimeParserTest {
     @Test
     public void testParseLocalDateTimeDateTime() throws Exception {
         ClickHouseColumnInfo columnInfo =
-            ClickHouseColumnInfo.parse("DateTime", "col");
+            ClickHouseColumnInfo.parse("DateTime", "col", null);
         assertEquals(
             parser.parse(
                 ByteFragment.fromString("2020-01-12 01:02:03"), columnInfo, null),
@@ -102,19 +102,19 @@ public class ClickHouseLocalDateTimeParserTest {
     @Test
     public void testParseLocalDateTimeDateTimeTZColumn() throws Exception {
         ClickHouseColumnInfo columnInfo =
-            ClickHouseColumnInfo.parse("DateTime(Europe/Berlin)", "col");
+            ClickHouseColumnInfo.parse("DateTime(Europe/Berlin)", "col", null);
         assertEquals(
             parser.parse(
                 ByteFragment.fromString("2020-01-12 01:02:03"), columnInfo, null),
-            LocalDateTime.of(2020, 1, 12, 1, 2, 3));
+            LocalDateTime.of(2020, 1, 12, 0, 2, 3));
         assertEquals(
             parser.parse(
                 ByteFragment.fromString("2020-01-12 22:23:24"), columnInfo, tzLosAngeles),
-            LocalDateTime.of(2020, 1, 12, 22, 23, 24));
+            LocalDateTime.of(2020, 1, 12, 21, 23, 24));
         assertEquals(
             parser.parse(
                 ByteFragment.fromString("2020-01-12 22:23:24"), columnInfo, tzBerlin),
-            LocalDateTime.of(2020, 1, 12, 22, 23, 24));
+            LocalDateTime.of(2020, 1, 12, 21, 23, 24));
         assertNull(
             parser.parse(
                 ByteFragment.fromString("0000-00-00 00:00:00"), columnInfo, null));
@@ -129,7 +129,7 @@ public class ClickHouseLocalDateTimeParserTest {
             .atZone(tzLosAngeles.toZoneId())
             .toInstant();
         ClickHouseColumnInfo columnInfo =
-            ClickHouseColumnInfo.parse(dataType.name(), "col");
+            ClickHouseColumnInfo.parse(dataType.name(), "col", null);
 
         // same time zone: no problem
         assertEquals(
@@ -183,8 +183,7 @@ public class ClickHouseLocalDateTimeParserTest {
     @Test
     public void testParseLocalDateTimeNumberNegative() throws Exception {
         ClickHouseColumnInfo columnInfo =
-            ClickHouseColumnInfo.parse(
-                ClickHouseDataType.Int64.name(), "col");
+            ClickHouseColumnInfo.parse(ClickHouseDataType.Int64.name(), "col", null);
         assertEquals(
             parser.parse(
                 ByteFragment.fromString(String.valueOf(-386384400)), columnInfo, tzBerlin),
@@ -194,9 +193,7 @@ public class ClickHouseLocalDateTimeParserTest {
     @Test
     public void testParseLocalDateTimeOtherLikeDate() throws Exception {
         ClickHouseColumnInfo columnInfo =
-            ClickHouseColumnInfo.parse(
-                ClickHouseDataType.Unknown.name(),
-                "col");
+            ClickHouseColumnInfo.parse(ClickHouseDataType.Unknown.name(), "col", null);
         assertEquals(
             parser.parse(
                 ByteFragment.fromString("2020-01-13"), columnInfo, null),
@@ -220,9 +217,7 @@ public class ClickHouseLocalDateTimeParserTest {
     @Test
     public void testParseLocalDateTimeOtherLikeDateTime() throws Exception {
         ClickHouseColumnInfo columnInfo =
-            ClickHouseColumnInfo.parse(
-                ClickHouseDataType.Unknown.name(),
-                "col");
+            ClickHouseColumnInfo.parse(ClickHouseDataType.Unknown.name(), "col", null);
         assertEquals(
             parser.parse(
                 ByteFragment.fromString("2020-01-13 22:23:24"), columnInfo, null),

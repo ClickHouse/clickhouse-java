@@ -20,9 +20,9 @@ import java.util.Calendar;
 import java.util.Collections;
 import java.util.List;
 import java.util.TimeZone;
-import java.util.UUID;
 
 import ru.yandex.clickhouse.ClickHouseArray;
+import ru.yandex.clickhouse.ClickHouseConnection;
 import ru.yandex.clickhouse.ClickHouseStatement;
 import ru.yandex.clickhouse.domain.ClickHouseDataType;
 import ru.yandex.clickhouse.except.ClickHouseExceptionSpecifier;
@@ -30,6 +30,8 @@ import ru.yandex.clickhouse.except.ClickHouseUnknownException;
 import ru.yandex.clickhouse.response.parser.ClickHouseValueParser;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
 import ru.yandex.clickhouse.util.ClickHouseArrayUtil;
+import ru.yandex.clickhouse.util.ClickHouseValueFormatter;
+import ru.yandex.clickhouse.util.Utils;
 
 
 public class ClickHouseResultSet extends AbstractResultSet {
@@ -88,7 +90,7 @@ public class ClickHouseResultSet extends AbstractResultSet {
         this.dateTimeTimeZone = timeZone;
         this.dateTimeZone = properties.isUseServerTimeZoneForDates()
             ? timeZone
-            : TimeZone.getDefault();
+            : TimeZone.getDefault(); // FIXME should be the timezone defined in useTimeZone?
         bis = new StreamSplitter(is, (byte) 0x0A, bufferSize);  ///   \n
         ByteFragment headerFragment = bis.next();
         if (headerFragment == null) {
@@ -106,8 +108,21 @@ public class ClickHouseResultSet extends AbstractResultSet {
         }
         String[] types = toStringArray(typesFragment);
         columns = new ArrayList<>(cols.length);
+        TimeZone tz = null;
+        try {
+            if (statement != null && statement.getConnection() instanceof ClickHouseConnection) {
+                tz = ((ClickHouseConnection)statement.getConnection()).getServerTimeZone();
+            }
+        } catch (SQLException e) {
+            // ignore the error
+        }
+
+        if (tz == null) {
+            tz = timeZone;
+        }
+        
         for (int i = 0; i < cols.length; i++) {
-            columns.add(ClickHouseColumnInfo.parse(types[i], cols[i]));
+            columns.add(ClickHouseColumnInfo.parse(types[i], cols[i], tz));
         }
     }
 
@@ -289,6 +304,27 @@ public class ClickHouseResultSet extends AbstractResultSet {
     }
 
     @Override
+    public Timestamp getTimestamp(int columnIndex) throws SQLException {
+        ClickHouseColumnInfo columnInfo = getColumnInfo(columnIndex);
+        TimeZone tz = getEffectiveTimeZone(columnInfo);
+        
+        return ClickHouseValueParser.getParser(Timestamp.class).parse(
+            getValue(columnIndex), columnInfo, tz);
+    }
+
+    private TimeZone getEffectiveTimeZone(ClickHouseColumnInfo columnInfo) {
+        TimeZone tz = null;
+
+        if (columnInfo.getClickHouseDataType() == ClickHouseDataType.Date) {
+            tz = dateTimeZone;
+        } else {
+            tz = properties.isUseServerTimeZone() ? null : dateTimeTimeZone;
+        }
+
+        return tz;
+    }
+
+    @Override
     public Timestamp getTimestamp(String column, Calendar cal) throws SQLException {
         return getTimestamp(findColumn(column), cal);
     }
@@ -377,8 +413,34 @@ public class ClickHouseResultSet extends AbstractResultSet {
 
     @Override
     public String getString(int colNum) throws SQLException {
-        return ClickHouseValueParser.getParser(String.class)
-            .parse(getValue(colNum), getColumnInfo(colNum), null);
+        // FIXME this won't help when datetime string is in a nested structure
+        ClickHouseColumnInfo columnInfo = getColumnInfo(colNum);
+        ByteFragment value = getValue(colNum);
+        ClickHouseDataType dataType = columnInfo.getClickHouseDataType();
+        
+        // Date is time-zone netural so let's skip that.
+        // DateTime string returned from Server however is always formatted using server/column
+        // timezone. The behaviour may change when
+        // https://github.com/ClickHouse/ClickHouse/issues/4548 is addressed  
+        if (!properties.isUseServerTimeZone() && (
+                dataType == ClickHouseDataType.DateTime
+                || dataType == ClickHouseDataType.DateTime32
+                || dataType == ClickHouseDataType.DateTime64)) {
+            TimeZone serverTimeZone = columnInfo.getTimeZone();
+            if (serverTimeZone == null) {
+                serverTimeZone = ((ClickHouseConnection)getStatement().getConnection()).getServerTimeZone();
+            }
+            TimeZone clientTimeZone = Utils.isNullOrEmptyString(properties.getUseTimeZone())
+                ? TimeZone.getDefault()
+                : TimeZone.getTimeZone(properties.getUseTimeZone());
+
+            if (!clientTimeZone.equals(serverTimeZone)) {
+                Timestamp newTs = ClickHouseValueParser.getParser(Timestamp.class).parse(value, columnInfo, serverTimeZone);
+                value = ByteFragment.fromString(ClickHouseValueFormatter.formatTimestamp(newTs, clientTimeZone));
+            }
+        }
+
+        return ClickHouseValueParser.getParser(String.class).parse(value, columnInfo, null);
     }
 
     @Override
@@ -417,11 +479,9 @@ public class ClickHouseResultSet extends AbstractResultSet {
      */
     @Deprecated
     public Long getTimestampAsLong(int colNum) {
-        ClickHouseColumnInfo info = getColumnInfo(colNum);
-        TimeZone timeZone = info.getTimeZone() != null
-            ? info.getTimeZone()
-            : dateTimeTimeZone;
-        return getTimestampAsLong(colNum, timeZone);
+        ClickHouseColumnInfo columnInfo = getColumnInfo(colNum);
+        TimeZone tz = getEffectiveTimeZone(columnInfo);
+        return getTimestampAsLong(colNum, tz);
     }
 
     /**
@@ -448,16 +508,6 @@ public class ClickHouseResultSet extends AbstractResultSet {
         } catch (SQLException sqle) {
             throw new RuntimeException(sqle);
         }
-    }
-
-    @Override
-    public Timestamp getTimestamp(int columnIndex) throws SQLException {
-        ByteFragment value = getValue(columnIndex);
-        if (value.isNull()) {
-            return null;
-        }
-        return ClickHouseValueParser.getParser(Timestamp.class).parse(
-            value, getColumnInfo(columnIndex), dateTimeTimeZone);
     }
 
     @Override
@@ -506,10 +556,10 @@ public class ClickHouseResultSet extends AbstractResultSet {
 
     @Override
     public Date getDate(int columnIndex) throws SQLException {
+        ClickHouseColumnInfo columnInfo = getColumnInfo(columnIndex);
+        TimeZone tz = getEffectiveTimeZone(columnInfo);
         return ClickHouseValueParser.getParser(Date.class).parse(
-            getValue(columnIndex),
-            getColumnInfo(columnIndex),
-            dateTimeZone);
+            getValue(columnIndex), columnInfo, tz);
     }
 
     @Override
@@ -519,10 +569,10 @@ public class ClickHouseResultSet extends AbstractResultSet {
 
     @Override
     public Time getTime(int columnIndex) throws SQLException {
+        ClickHouseColumnInfo columnInfo = getColumnInfo(columnIndex);
+        TimeZone tz = getEffectiveTimeZone(columnInfo);
         return ClickHouseValueParser.getParser(Time.class).parse(
-            getValue(columnIndex),
-            getColumnInfo(columnIndex),
-            dateTimeTimeZone);
+            getValue(columnIndex), columnInfo, tz);
     }
 
     @Override
@@ -670,14 +720,15 @@ public class ClickHouseResultSet extends AbstractResultSet {
     @SuppressWarnings("unchecked")
     @Override
     public <T> T getObject(int columnIndex, Class<T> type) throws SQLException {
-        TimeZone tz = Date.class.equals(type)
-            ? dateTimeZone
-            : dateTimeTimeZone;
+        if (String.class.equals(type)) {
+            return (T) getString(columnIndex);
+        }
+
         ClickHouseColumnInfo columnInfo = getColumnInfo(columnIndex);
+        TimeZone tz = getEffectiveTimeZone(columnInfo);
         return columnInfo.isArray()
             ? (T) getArray(columnIndex)
-            : ClickHouseValueParser.getParser(type)
-                .parse(getValue(columnIndex), getColumnInfo(columnIndex), tz);
+            : ClickHouseValueParser.getParser(type).parse(getValue(columnIndex), columnInfo, tz);
     }
 
     @Override
