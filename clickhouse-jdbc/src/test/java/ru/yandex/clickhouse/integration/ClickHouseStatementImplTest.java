@@ -32,6 +32,7 @@ import ru.yandex.clickhouse.ClickHouseStatement;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
 import ru.yandex.clickhouse.settings.ClickHouseQueryParam;
 
+import static org.testng.Assert.assertEquals;
 import static org.testng.AssertJUnit.assertNotNull;
 import static org.testng.AssertJUnit.assertNull;
 import static org.testng.AssertJUnit.assertTrue;
@@ -45,6 +46,7 @@ public class ClickHouseStatementImplTest {
     public void setUp() throws Exception {
         dataSource = ClickHouseContainerForTest.newDataSource();
         connection = dataSource.getConnection();
+        connection.createStatement().execute("CREATE DATABASE IF NOT EXISTS test");
     }
 
     @AfterTest
@@ -155,13 +157,16 @@ public class ClickHouseStatementImplTest {
             private int i = 0;
 
             private boolean genNextString() {
-                if (i >= rowsCount) return false;
+                if (i >= rowsCount) {
+                    return false;
+                }
                 si = 0;
                 s = String.format("%d\t%d\n", i, i);
                 i++;
                 return true;
             }
 
+            @Override
             public int read() {
                 if (si >= s.length()) {
                     if ( ! genNextString() ) {
@@ -368,6 +373,25 @@ public class ClickHouseStatementImplTest {
         Assert.assertEquals(((int[]) arr.getArray())[0], 42);
         Assert.assertEquals(((int[]) arr.getArray())[1], 23);
 
+    }
+
+    @Test
+    public void testInsertQueryUUIDArray() throws SQLException {
+        // issue #569
+        connection.createStatement().execute(
+            "DROP TABLE IF EXISTS test.uuidArray");
+        connection.createStatement().execute(
+            "CREATE TABLE IF NOT EXISTS test.uuidArray"
+          + "(id UInt8, arr Array(UUID)) "
+          + "ENGINE = TinyLog");
+        connection.createStatement().execute(
+            "INSERT INTO test.uuidArray VALUES(1, ['5ff22319-793d-4e6c-bdc1-916095a5a496'])");
+        ResultSet rs = connection.createStatement().executeQuery(
+            "SELECT * FROM test.uuidArray");
+        rs.next();
+        assertEquals(
+            rs.getArray(2).getArray(),
+            new UUID[] {UUID.fromString("5ff22319-793d-4e6c-bdc1-916095a5a496")});
     }
 
     private static Object readField(Object object, String fieldName, long timeoutSecs) {
