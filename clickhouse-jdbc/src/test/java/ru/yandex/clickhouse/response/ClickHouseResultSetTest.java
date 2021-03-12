@@ -22,6 +22,7 @@ import java.sql.Struct;
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.sql.Types;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -683,7 +684,9 @@ public class ClickHouseResultSetTest {
         Calendar cal = new GregorianCalendar();
         cal.setTimeZone(TimeZone.getTimeZone("America/Los_Angeles"));
         Date d = rs.getDate(1, cal);
-        assertEquals(d.toLocalDate(), LocalDate.of(2020, 2, 8));
+        // d.toLocalDate() is deprecated and it does not take TimeZone into count
+        assertEquals(Instant.ofEpochMilli(
+            rs.getDate(1, cal).getTime()).atZone(ZoneId.of("UTC")).toLocalDate(), LocalDate.of(2020, 2, 8));
         assertEquals(
             d.getTime() / 1000,
             ZonedDateTime
