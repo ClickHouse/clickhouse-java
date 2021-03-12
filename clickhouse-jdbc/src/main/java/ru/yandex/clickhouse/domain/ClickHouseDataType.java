@@ -8,7 +8,6 @@ import java.sql.JDBCType;
 import java.sql.Timestamp;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -103,14 +102,25 @@ public enum ClickHouseDataType {
 
     static {
         Map<String, ClickHouseDataType> map = new HashMap<>();
+        String errorMsg = "[%s] is used by type [%s]";
+        ClickHouseDataType used = null;
         for (ClickHouseDataType t : ClickHouseDataType.values()) {
-            assert map.put(t.name(), t) == null;
+            used = map.put(t.name(), t);
+            if (used != null) {
+                throw new IllegalStateException(java.lang.String.format(errorMsg, t.name(), used.name()));
+            }
             String nameInUpperCase = t.name().toUpperCase();
             if (!nameInUpperCase.equals(t.name())) {
-                assert map.put(nameInUpperCase, t) == null;
+                used = map.put(nameInUpperCase, t);
+                if (used != null) {
+                    throw new IllegalStateException(java.lang.String.format(errorMsg, nameInUpperCase, used.name()));
+                }
             }
             for (String alias: t.aliases) {
-                assert map.put(alias.toUpperCase(), t) == null;
+                used = map.put(alias.toUpperCase(), t);
+                if (used != null) {
+                    throw new IllegalStateException(java.lang.String.format(errorMsg, alias, used.name()));
+                }
             }
         }
         name2type = Collections.unmodifiableMap(map);

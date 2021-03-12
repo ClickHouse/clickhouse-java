@@ -189,7 +189,7 @@ abstract class ClickHouseDateValueParser<T> extends ClickHouseValueParser<T> {
     }
 
     protected final LocalDateTime parseAsLocalDateTime(String value) {
-        int index = value == null ? -1 : value.indexOf('.');
+        int index = Objects.requireNonNull(value).indexOf('.');
         if (index > 0) {
             int endIndex = -1;
             for (int i = index + 1, len = value.length(); i < len; i++) {
