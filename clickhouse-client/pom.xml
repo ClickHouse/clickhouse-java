@@ -8,9 +8,7 @@
         <version>${revision}</version>
     </parent>
 
-    <groupId>${parent.groupId}</groupId>
     <artifactId>clickhouse-client</artifactId>
-    <version>${revision}</version>
     <packaging>jar</packaging>
 
     <dependencies>

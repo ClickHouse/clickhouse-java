@@ -10,7 +10,6 @@
 
     <groupId>ru.yandex.clickhouse</groupId>
     <artifactId>clickhouse-jdbc</artifactId>
-    <version>${revision}</version>
     <packaging>jar</packaging>
 
     <developers>

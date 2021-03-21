@@ -8,9 +8,7 @@
         <version>${revision}</version>
     </parent>
 
-    <groupId>${parent.groupId}</groupId>
     <artifactId>clickhouse-mysql-client</artifactId>
-    <version>${revision}</version>
     <packaging>jar</packaging>
 
     <properties>
@@ -20,7 +18,7 @@
 
     <dependencies>
         <dependency>
-            <groupId>${parent.groupId}</groupId>
+            <groupId>${project.parent.groupId}</groupId>
             <artifactId>clickhouse-client</artifactId>
             <version>${revision}</version>
         </dependency>

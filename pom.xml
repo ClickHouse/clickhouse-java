@@ -105,7 +105,7 @@
         <skipUTs>${skipTests}</skipUTs>
 
         <sonar.projectKey>clickhouse_clickhouse-jdbc</sonar.projectKey>
-        <sonar.moduleKey>${artifactId}</sonar.moduleKey>
+        <sonar.moduleKey>${project.artifactId}</sonar.moduleKey>
         <sonar.organization>clickhouse</sonar.organization>
         <sonar.host.url>https://sonarcloud.io</sonar.host.url>
         <sonar.projectVersion>0.3.0</sonar.projectVersion>
