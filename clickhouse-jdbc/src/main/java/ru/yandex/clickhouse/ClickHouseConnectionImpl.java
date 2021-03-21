@@ -88,7 +88,9 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
         }
 
         serverTimeZone = TimeZone.getTimeZone("UTC"); // just for next query
-        try (Statement s = createStatement(); ResultSet rs = s.executeQuery("select timezone(), version()")) {
+        try (Statement s = createStatement();
+            ResultSet rs = s.executeQuery("select timezone(), version()"))
+        {
             if (rs.next()) {
                 serverTimeZone = TimeZone.getTimeZone(rs.getString(1));
                 serverVersion = rs.getString(2);

@@ -1,17 +1,18 @@
 package ru.yandex.clickhouse;
 
-import org.apache.http.HttpEntity;
-import org.apache.http.entity.InputStreamEntity;
-import ru.yandex.clickhouse.domain.ClickHouseCompression;
-import ru.yandex.clickhouse.domain.ClickHouseFormat;
-import ru.yandex.clickhouse.util.ClickHouseStreamCallback;
-import ru.yandex.clickhouse.util.ClickHouseStreamHttpEntity;
-
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.sql.SQLException;
+
+import org.apache.http.HttpEntity;
+import org.apache.http.entity.InputStreamEntity;
+
+import ru.yandex.clickhouse.domain.ClickHouseCompression;
+import ru.yandex.clickhouse.domain.ClickHouseFormat;
+import ru.yandex.clickhouse.util.ClickHouseStreamCallback;
+import ru.yandex.clickhouse.util.ClickHouseStreamHttpEntity;
 
 import static ru.yandex.clickhouse.domain.ClickHouseFormat.Native;
 import static ru.yandex.clickhouse.domain.ClickHouseFormat.RowBinary;
@@ -199,7 +200,7 @@ public class Writer extends ConfigurableApi<Writer> {
             throw new SQLException("Wrong binary format - only RowBinary and Native are supported");
         }
 
-        format(format).sql(sql).send(new ClickHouseStreamHttpEntity(callback, statement.getConnection().getTimeZone(), statement.properties));
+        format(format).sql(sql).send(new ClickHouseStreamHttpEntity(callback, statement.getConnection().getTimeZone(), statement.getProperties()));
     }
 
     String getSql() {
@@ -214,6 +215,15 @@ public class Writer extends ConfigurableApi<Writer> {
         } else {
             throw new IllegalArgumentException("Neither table nor SQL clause are specified");
         }
+    }
+
+    public ClickHouseCompression getCompression() {
+        return compression;
+    }
+
+    @Override
+    protected Writer getThis() {
+        return this;
     }
 
     private interface InputStreamProvider {
@@ -246,7 +256,4 @@ public class Writer extends ConfigurableApi<Writer> {
         }
     }
 
-    public ClickHouseCompression getCompression() {
-        return compression;
-    }
 }

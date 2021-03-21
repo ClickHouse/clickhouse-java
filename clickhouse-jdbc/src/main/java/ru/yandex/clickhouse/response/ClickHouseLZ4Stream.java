@@ -1,18 +1,17 @@
 package ru.yandex.clickhouse.response;
 
+import java.io.DataInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+
 import net.jpountz.lz4.LZ4Factory;
 import net.jpountz.lz4.LZ4FastDecompressor;
 import ru.yandex.clickhouse.util.ClickHouseBlockChecksum;
 import ru.yandex.clickhouse.util.Utils;
 
-import java.io.DataInputStream;
-import java.io.IOException;
-import java.io.InputStream;
-
 /**
  * Reader from clickhouse in lz4
  */
-
 public class ClickHouseLZ4Stream extends InputStream {
 
     private static final LZ4Factory factory = LZ4Factory.fastestInstance();
@@ -32,7 +31,9 @@ public class ClickHouseLZ4Stream extends InputStream {
 
     @Override
     public int read() throws IOException {
-        if (!checkNext()) return -1;
+        if (!checkNext()) {
+            return -1;
+        }
         byte b = currentBlock[pointer];
         pointer += 1;
         return b & 0xFF;
@@ -48,7 +49,9 @@ public class ClickHouseLZ4Stream extends InputStream {
             return 0;
         }
 
-        if (!checkNext()) return -1;
+        if (!checkNext()) {
+            return -1;
+        }
 
         int copied = 0;
         int targetPointer = off;
@@ -81,7 +84,9 @@ public class ClickHouseLZ4Stream extends InputStream {
     // every block is:
     private byte[] readNextBlock() throws IOException {
         int read = stream.read();
-        if (read < 0) return null;
+        if (read < 0) {
+            return null;
+        }
 
         byte[] checksum = new byte[16];
         checksum[0] = (byte)read;
@@ -91,7 +96,9 @@ public class ClickHouseLZ4Stream extends InputStream {
         // header:
         // 1 byte - 0x82 (shows this is LZ4)
         int magic = dataWrapper.readUnsignedByte();
-        if (magic != MAGIC) throw new IOException("Magic is not correct: " + magic);
+        if (magic != MAGIC) {
+            throw new IOException("Magic is not correct: " + magic);
+        }
         // 4 bytes - size of the compressed data including 9 bytes of the header
         int compressedSizeWithHeader = Utils.readInt(dataWrapper);
         // 4 bytes - size of uncompressed data

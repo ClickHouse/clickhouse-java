@@ -394,6 +394,32 @@ public class ClickHouseStatementImplTest {
             new UUID[] {UUID.fromString("5ff22319-793d-4e6c-bdc1-916095a5a496")});
     }
 
+    @Test
+    public void testBatch() throws Exception {
+        connection.createStatement().execute(
+            "DROP TABLE IF EXISTS test.stmt_batch_update");
+        connection.createStatement().execute(
+            "CREATE TABLE IF NOT EXISTS test.stmt_batch_update"
+          + "(foo UInt32, bar String) "
+          + "ENGINE = TinyLog"
+        );
+        connection.createStatement().execute(
+            "INSERT INTO test.stmt_batch_update (foo, bar) VALUES "
+          + "(42, 'baz'), (23, 'oof')");
+
+        Statement stmt = connection.createStatement();
+        stmt.addBatch("UPDATE test.stmt_batch_update SET bar = 'House' WHERE foo = 42");
+        stmt.addBatch("UPDATE test.stmt_batch_update SET bar = 'Click' WHERE foo = 23");
+        int[] updatedRows = stmt.executeBatch();
+        assertEquals(updatedRows.length, 2);
+        ResultSet res = connection.createStatement().executeQuery(
+            "SELECT bar FROM test.batch_update ORDER BY foo");
+        res.next();
+        Assert.assertEquals(res.getString(1), "Click");
+        res.next();
+        Assert.assertEquals(res.getString(1), "House");
+    }
+
     private static Object readField(Object object, String fieldName, long timeoutSecs) {
         long start = System.currentTimeMillis();
         Object value;

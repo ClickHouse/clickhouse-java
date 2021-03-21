@@ -173,33 +173,4 @@ public class ClickHouseStatementTest {
         assertEquals(statement.write().getAdditionalDBParams().get(ClickHouseQueryParam.MAX_THREADS), "2");
     }
 
-    @Test
-    public void testIsSelect() {
-        assertTrue(ClickHouseStatementImpl.isSelect("SELECT 42"));
-        assertTrue(ClickHouseStatementImpl.isSelect("select 42"));
-        assertFalse(ClickHouseStatementImpl.isSelect("selectfoo"));
-        assertTrue(ClickHouseStatementImpl.isSelect("  SELECT foo"));
-        assertTrue(ClickHouseStatementImpl.isSelect("WITH foo"));
-        assertTrue(ClickHouseStatementImpl.isSelect("DESC foo"));
-        assertTrue(ClickHouseStatementImpl.isSelect("EXISTS foo"));
-        assertTrue(ClickHouseStatementImpl.isSelect("SHOW foo"));
-        assertTrue(ClickHouseStatementImpl.isSelect("-- foo\n SELECT 42"));
-        assertTrue(ClickHouseStatementImpl.isSelect("--foo\n SELECT 42"));
-        assertFalse(ClickHouseStatementImpl.isSelect("- foo\n SELECT 42"));
-        assertTrue(ClickHouseStatementImpl.isSelect("/* foo */ SELECT 42"));
-        assertTrue(ClickHouseStatementImpl.isSelect("/*\n * foo\n*/\n SELECT 42"));
-        assertFalse(ClickHouseStatementImpl.isSelect("/ foo */ SELECT 42"));
-        assertFalse(ClickHouseStatementImpl.isSelect("-- SELECT baz\n UPDATE foo"));
-        assertFalse(ClickHouseStatementImpl.isSelect("/* SELECT baz */\n UPDATE foo"));
-        assertFalse(ClickHouseStatementImpl.isSelect("/*\n UPDATE foo"));
-        assertFalse(ClickHouseStatementImpl.isSelect("/*"));
-        assertFalse(ClickHouseStatementImpl.isSelect("/**/"));
-        assertFalse(ClickHouseStatementImpl.isSelect(" --"));
-        assertTrue(ClickHouseStatementImpl.isSelect("explain select 42"));
-        assertTrue(ClickHouseStatementImpl.isSelect("EXPLAIN select 42"));
-        assertFalse(ClickHouseStatementImpl.isSelect("--EXPLAIN select 42\n alter"));
-        assertTrue(ClickHouseStatementImpl.isSelect("--\nEXPLAIN select 42"));
-        assertTrue(ClickHouseStatementImpl.isSelect("/*test*/ EXPLAIN select 42"));
-    }
-
 }

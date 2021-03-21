@@ -11,6 +11,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.SQLWarning;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
@@ -23,7 +24,7 @@ import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.NameValuePair;
-import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.http.client.utils.URIBuilder;
@@ -57,13 +58,14 @@ import ru.yandex.clickhouse.util.Utils;
 
 public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement> implements ClickHouseStatement {
 
-    private static final Logger log = LoggerFactory.getLogger(ClickHouseStatementImpl.class);
+    private static final Logger LOG = LoggerFactory.getLogger(
+        ClickHouseStatementImpl.class);
 
     private final CloseableHttpClient client;
 
     private final HttpClientContext httpContext;
 
-    protected ClickHouseProperties properties;
+    private final ClickHouseProperties properties;
 
     private ClickHouseConnection connection;
 
@@ -89,54 +91,13 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
 
     protected ClickHouseSqlStatement parsedStmt;
 
-    /**
+    /*
      * Current database name may be changed by {@link java.sql.Connection#setCatalog(String)}
      * between creation of this object and query execution, but javadoc does not allow
      * {@code setCatalog} influence on already created statements.
      */
     private final String initialDatabase;
 
-    @Deprecated
-    private static final String[] selectKeywords = new String[]{"SELECT", "WITH", "SHOW", "DESC", "EXISTS", "EXPLAIN"};
-    @Deprecated
-    private static final String databaseKeyword = "CREATE DATABASE";
-
-    @Deprecated
-    protected void parseSingleStatement(String sql) throws SQLException {
-        this.parsedStmt = null;
-        ClickHouseSqlStatement[] stmts = ClickHouseSqlParser.parse(sql, properties);
-        
-        if (stmts.length == 1) {
-            this.parsedStmt = stmts[0];
-        } else {
-            this.parsedStmt = new ClickHouseSqlStatement(sql, StatementType.UNKNOWN);
-            // throw new SQLException("Multiple statements are not supported.");
-        }
-
-        if (this.parsedStmt.isIdemponent()) {
-            httpContext.setAttribute("is_idempotent", Boolean.TRUE);
-        } else {
-            httpContext.removeAttribute("is_idempotent");
-        }
-    }
-
-    @Deprecated
-    private void parseSingleStatement(String sql, ClickHouseFormat preferredFormat) throws SQLException {
-        parseSingleStatement(sql);
-
-        if (parsedStmt.isQuery() && !parsedStmt.hasFormat()) {
-            String format = preferredFormat.name();
-            Map<String, Integer> positions = new HashMap<>();
-            positions.putAll(parsedStmt.getPositions());
-            positions.put(ClickHouseSqlStatement.KEYWORD_FORMAT, sql.length());
-            
-            sql = new StringBuilder(parsedStmt.getSQL()).append("\nFORMAT ").append(format).append(';')
-                        .toString();
-            parsedStmt = new ClickHouseSqlStatement(sql, parsedStmt.getStatementType(), 
-                parsedStmt.getCluster(), parsedStmt.getDatabase(), parsedStmt.getTable(),
-                format, parsedStmt.getOutfile(), parsedStmt.getParameters(), positions);
-        }
-    }
 
     public ClickHouseStatementImpl(CloseableHttpClient client, ClickHouseConnection connection,
                                    ClickHouseProperties properties, int resultSetType) {
@@ -147,6 +108,7 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
         this.properties = properties == null ? new ClickHouseProperties() : properties;
         this.initialDatabase = this.properties.getDatabase();
         this.isResultSetScrollable = (resultSetType != ResultSet.TYPE_FORWARD_ONLY);
+        this.queryId = UUID.randomUUID().toString();
     }
 
     @Override
@@ -165,65 +127,45 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
     }
 
     @Override
-    public ResultSet executeQuery(String sql,
-                                  Map<ClickHouseQueryParam, String> additionalDBParams,
-                                  List<ClickHouseExternalData> externalData,
-                                  Map<String, String> additionalRequestParams) throws SQLException {
-
+    public ResultSet executeQuery(final String sql, final Map<ClickHouseQueryParam, String> additionalDBParams,
+        final List<ClickHouseExternalData> externalData, final Map<String, String> additionalRequestParams)
+        throws SQLException
+    {
         // forcibly disable extremes for ResultSet queries
-        if (additionalDBParams == null || additionalDBParams.isEmpty()) {
-            additionalDBParams = new EnumMap<>(ClickHouseQueryParam.class);
-        } else {
-            additionalDBParams = new EnumMap<>(additionalDBParams);
-        }
-        additionalDBParams.put(ClickHouseQueryParam.EXTREMES, "0");
-
+        // why only in this method???
+        Map<ClickHouseQueryParam, String> myAdditionalDBParams =
+                additionalDBParams == null || additionalDBParams.isEmpty()
+            ? new EnumMap<>(ClickHouseQueryParam.class)
+            : new EnumMap<>(additionalDBParams);
+        updateStateFromQueryParams(myAdditionalDBParams);
+        myAdditionalDBParams.put(ClickHouseQueryParam.EXTREMES, "0");
         parseSingleStatement(sql, ClickHouseFormat.TabSeparatedWithNamesAndTypes);
-        if (!parsedStmt.isRecognized() && isSelect(sql)) {
-            Map<String, Integer> positions = new HashMap<>();
-            String dbName = extractDBName(sql);
-            String tableName = extractTableName(sql);
-            if (extractWithTotals(sql)) {
-                positions.put(ClickHouseSqlStatement.KEYWORD_TOTALS, 1);
-            }
-            parsedStmt = new ClickHouseSqlStatement(sql, StatementType.SELECT,
-                null, dbName, tableName, null, null, null, positions);
-            // httpContext.setAttribute("is_idempotent", Boolean.TRUE);
-        }
-
-        InputStream is = getInputStream(sql, additionalDBParams, externalData, additionalRequestParams);
-
+        InputStream is = getInputStream(parsedStmt.getSQL(), myAdditionalDBParams, externalData, additionalRequestParams);
         try {
             if (parsedStmt.isQuery()) {
                 currentUpdateCount = -1;
-                currentResult = createResultSet(properties.isCompress()
-                    ? new ClickHouseLZ4Stream(is) : is, properties.getBufferSize(),
-                    parsedStmt.getDatabaseOrDefault(properties.getDatabase()),
-                    parsedStmt.getTable(),
-                    parsedStmt.hasWithTotals(),
-                    this,
-                    getConnection().getTimeZone(),
-                    properties
-                );
+                currentResult = createResultSet(
+                        is,
+                        properties.getBufferSize(),
+                        parsedStmt.getDatabaseOrDefault(properties.getDatabase()),
+                        parsedStmt.getTable(),
+                        parsedStmt.hasWithTotals(),
+                        this,
+                        getConnection().getTimeZone(),
+                        properties);
                 currentResult.setMaxRows(maxRows);
                 return currentResult;
-            } else {
-                currentUpdateCount = 0;
-                try {
-                    is.close();
-                } catch (IOException e) {
-                    log.error("can not close stream: {}", e.getMessage());
-                }
-                return null;
             }
+            currentUpdateCount = 0;
         } catch (Exception e) {
             try {
                 is.close();
             } catch (IOException ioe) {
-                log.error("can not close stream: {}", ioe.getMessage());
+                throw ClickHouseExceptionSpecifier.specify(ioe, properties.getHost(), properties.getPort());
             }
             throw ClickHouseExceptionSpecifier.specify(e, properties.getHost(), properties.getPort());
         }
+        return null;
     }
 
     @Override
@@ -237,22 +179,16 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
     }
 
     @Override
-    public ClickHouseResponse executeQueryClickhouseResponse(String sql,
-                                                             Map<ClickHouseQueryParam, String> additionalDBParams,
-                                                             Map<String, String> additionalRequestParams) throws SQLException {
+    public ClickHouseResponse executeQueryClickhouseResponse(final String sql,
+        final Map<ClickHouseQueryParam, String> additionalDBParams,
+        final Map<String, String> additionalRequestParams) throws SQLException
+    {
         parseSingleStatement(sql, ClickHouseFormat.JSONCompact);
-        if (parsedStmt.isRecognized()) {
-            sql = parsedStmt.getSQL();
-        } else {
-            sql = addFormatIfAbsent(sql, ClickHouseFormat.JSONCompact);
-        }
-
-        try (InputStream is = properties.isCompress()
-            ? new ClickHouseLZ4Stream(getInputStream(sql, additionalDBParams, null, additionalRequestParams))
-            : getInputStream(sql, additionalDBParams, null, additionalRequestParams)) {
+        updateStateFromQueryParams(additionalDBParams);
+        try (InputStream is = getInputStream(parsedStmt.getSQL(), additionalDBParams, null, additionalRequestParams)) {
             return Jackson.getObjectMapper().readValue(is, ClickHouseResponse.class);
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            throw ClickHouseExceptionSpecifier.specify(e, properties.getHost(), properties.getPort());
         }
     }
 
@@ -262,64 +198,46 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
     }
 
     @Override
-    public ClickHouseRowBinaryInputStream executeQueryClickhouseRowBinaryStream(String sql, Map<ClickHouseQueryParam, String> additionalDBParams) throws SQLException {
+    public ClickHouseRowBinaryInputStream executeQueryClickhouseRowBinaryStream(String sql,
+        Map<ClickHouseQueryParam, String> additionalDBParams) throws SQLException
+    {
         return executeQueryClickhouseRowBinaryStream(sql, additionalDBParams, null);
     }
 
     @Override
-    public ClickHouseRowBinaryInputStream executeQueryClickhouseRowBinaryStream(String sql, Map<ClickHouseQueryParam, String> additionalDBParams, Map<String, String> additionalRequestParams) throws SQLException {
+    public ClickHouseRowBinaryInputStream executeQueryClickhouseRowBinaryStream(
+        final String sql, Map<ClickHouseQueryParam, String> additionalDBParams,
+        Map<String, String> additionalRequestParams) throws SQLException
+    {
         parseSingleStatement(sql, ClickHouseFormat.RowBinary);
-        if (parsedStmt.isRecognized()) {
-            sql = parsedStmt.getSQL();
-        } else {
-            sql = addFormatIfAbsent(sql, ClickHouseFormat.RowBinary);
-            if (isSelect(sql)) {
-                parsedStmt = new ClickHouseSqlStatement(sql, StatementType.SELECT);
-                // httpContext.setAttribute("is_idempotent", Boolean.TRUE);
-            } else {
-                parsedStmt = new ClickHouseSqlStatement(sql, StatementType.UNKNOWN);
-            }
-        }
-
-        InputStream is = getInputStream(
-                sql,
-                additionalDBParams,
-                null,
-                additionalRequestParams
-        );
+        updateStateFromQueryParams(additionalDBParams);
+        InputStream is = getInputStream(parsedStmt.getSQL(), additionalDBParams, null, additionalRequestParams);
         try {
             if (parsedStmt.isQuery()) {
                 currentUpdateCount = -1;
-                currentRowBinaryResult = new ClickHouseRowBinaryInputStream(properties.isCompress()
-                        ? new ClickHouseLZ4Stream(is) : is, getConnection().getTimeZone(), properties);
+                currentRowBinaryResult = new ClickHouseRowBinaryInputStream(
+                    is, getConnection().getTimeZone(), properties);
                 return currentRowBinaryResult;
-            } else {
-                currentUpdateCount = 0;
-                try {
-                    is.close();
-                } catch (IOException e) {
-                    log.error("can not close stream: {}", e.getMessage());
-                }
-                return null;
             }
-        } catch (Exception e) {
+            currentUpdateCount = 0;
             try {
                 is.close();
-            } catch (IOException ioe) {
-                log.error("can not close stream: {}", ioe.getMessage());
+            } catch (IOException e) {
+                LOG.error("can not close stream: {}", e.getMessage());
             }
+        } catch (Exception e) {
             throw ClickHouseExceptionSpecifier.specify(e, properties.getHost(), properties.getPort());
         }
+        return null;
     }
 
     @Override
     public int executeUpdate(String sql) throws SQLException {
         parseSingleStatement(sql, ClickHouseFormat.TabSeparatedWithNamesAndTypes);
-
         try (InputStream is = getInputStream(sql, null, null, null)) {
             //noinspection StatementWithEmptyBody
         } catch (IOException e) {
-            log.error("can not close stream: {}", e.getMessage());
+            LOG.error("can not close stream: {}", e.getMessage());
         }
 
         return currentSummary != null ? (int) currentSummary.getWrittenRows() : 1;
@@ -341,7 +259,7 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
             try {
                 currentRowBinaryResult.close();
             } catch (IOException e) {
-                log.error("can not close stream: {}", e.getMessage());
+                LOG.error("can not close stream: {}", e.getMessage());
             }
         }
     }
@@ -390,8 +308,12 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
         if (this.queryId == null || isClosed()) {
             return;
         }
-
-       executeQuery(String.format("KILL QUERY WHERE query_id='%s'", queryId));
+       executeQuery(
+           String.format("KILL QUERY WHERE query_id='%s'", queryId),
+           // we need a new query ID for the cancellation query
+           Collections.singletonMap(
+               ClickHouseQueryParam.QUERY_ID,
+               UUID.randomUUID().toString()));
     }
 
     @Override
@@ -569,7 +491,11 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
     @Deprecated
     private static String addFormatIfAbsent(final String sql, ClickHouseFormat format) {
         String cleanSQL = sql.trim();
-        if (!isSelect(cleanSQL)) {
+        ClickHouseSqlStatement[] statements = ClickHouseSqlParser.parse(cleanSQL, null);
+        if (statements == null
+            || statements.length != 1
+            || !statements[0].isQuery())
+        {
             return cleanSQL;
         }
         if (ClickHouseFormat.containsFormat(cleanSQL)) {
@@ -587,44 +513,19 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
     }
 
     @Deprecated
-    static boolean isSelect(String sql) {
-        for (int i = 0; i < sql.length(); i++) {
-            String nextTwo = sql.substring(i, Math.min(i + 2, sql.length()));
-            if ("--".equals(nextTwo)) {
-                i = Math.max(i, sql.indexOf("\n", i));
-            } else if ("/*".equals(nextTwo)) {
-                i = Math.max(i, sql.indexOf("*/", i));
-            } else if (Character.isLetter(sql.charAt(i))) {
-                String trimmed = sql.substring(i, Math.min(sql.length(), Math.max(i, sql.indexOf(" ", i))));
-                for (String keyword : selectKeywords){
-                    if (trimmed.regionMatches(true, 0, keyword, 0, keyword.length())) {
-                        return true;
-                    }
-                }
-                return false;
-            }
-        }
-        return false;
-    }
-
-    @Deprecated
     private String extractTableName(String sql) {
         String s = extractDBAndTableName(sql);
-        if (s.contains(".")) {
-            return s.substring(s.indexOf(".") + 1);
-        } else {
-            return s;
-        }
+        return s.contains(".")
+            ? s.substring(s.indexOf(".") + 1)
+            : s;
     }
 
     @Deprecated
     private String extractDBName(String sql) {
         String s = extractDBAndTableName(sql);
-        if (s.contains(".")) {
-            return s.substring(0, s.indexOf("."));
-        } else {
-            return properties.getDatabase();
-        }
+        return s.contains(".")
+            ? s.substring(0, s.indexOf("."))
+            : properties.getDatabase();
     }
 
     @Deprecated
@@ -660,34 +561,31 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
     }
 
     private InputStream getInputStream(
-        String sql,
-        Map<ClickHouseQueryParam, String> additionalClickHouseDBParams,
-        List<ClickHouseExternalData> externalData,
-        Map<String, String> additionalRequestParams
-    ) throws ClickHouseException {
+        final String sql,
+        final Map<ClickHouseQueryParam, String> additionalClickHouseDBParams,
+        final List<ClickHouseExternalData> externalData,
+        final Map<String, String> additionalRequestParams)
+            throws ClickHouseException
+    {
         boolean ignoreDatabase = false;
-        if (parsedStmt.isRecognized()) {
-            sql = parsedStmt.getSQL();
-            // TODO consider more scenarios like drop, show etc.
-            ignoreDatabase = parsedStmt.getStatementType() == StatementType.CREATE 
-                && parsedStmt.containsKeyword(ClickHouseSqlStatement.KEYWORD_DATABASE);
-        } else {
-            sql = clickhousifySql(sql);
-            ignoreDatabase = sql.trim().regionMatches(true, 0, databaseKeyword, 0, databaseKeyword.length());
-        }
-        log.debug("Executing SQL: {}", sql);
+        String mySql =  parsedStmt.getSQL();
+        // TODO consider more scenarios like drop, show etc.
+        ignoreDatabase = parsedStmt.getStatementType() == StatementType.CREATE
+            && parsedStmt.containsKeyword(ClickHouseSqlStatement.KEYWORD_DATABASE);
+        LOG.debug("Executing SQL: {}", mySql);
 
-        additionalClickHouseDBParams = addQueryIdTo(
+        Map<ClickHouseQueryParam, String> myAdditionalClickHouseDBParams =
+            addQueryIdTo(
                 additionalClickHouseDBParams == null
-                        ? new EnumMap<ClickHouseQueryParam, String>(ClickHouseQueryParam.class)
-                        : additionalClickHouseDBParams);
+                    ? new EnumMap<ClickHouseQueryParam, String>(ClickHouseQueryParam.class)
+                    : additionalClickHouseDBParams);
 
         URI uri;
         if (externalData == null || externalData.isEmpty()) {
             uri = buildRequestUri(
                     null,
                     null,
-                    additionalClickHouseDBParams,
+                    myAdditionalClickHouseDBParams,
                     additionalRequestParams,
                     ignoreDatabase
             );
@@ -698,12 +596,12 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
             uri = buildRequestUri(
                     sql,
                     externalData,
-                    additionalClickHouseDBParams,
+                    myAdditionalClickHouseDBParams,
                     additionalRequestParams,
                     ignoreDatabase
             );
         }
-        log.debug("Request url: {}", uri);
+        LOG.debug("Request url: {}", uri);
 
 
         HttpEntity requestEntity;
@@ -735,8 +633,12 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
 
         HttpEntity entity = null;
         try {
-            uri = followRedirects(uri);
             HttpPost post = new HttpPost(uri);
+            if (properties.isCheckForRedirects()) {
+                post.setConfig(RequestConfig.custom()
+                    .setMaxRedirects(properties.getMaxRedirects())
+                    .build());
+            }
             post.setEntity(requestEntity);
 
             HttpResponse response = client.execute(post, httpContext);
@@ -758,13 +660,15 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
                 currentSummary = summaryHeader != null ? Jackson.getObjectMapper().readValue(summaryHeader.getValue(), ClickHouseResponseSummary.class) : null;
             }
 
-            return is;
+            return properties.isCompress()
+                ? new ClickHouseLZ4Stream(is)
+                : is;
         } catch (ClickHouseException e) {
             throw e;
         } catch (Exception e) {
-            log.info("Error during connection to {}, reporting failure to data source, message: {}", properties, e.getMessage());
+            LOG.info("Error during connection to {}, reporting failure to data source, message: {}", properties, e.getMessage());
             EntityUtils.consumeQuietly(entity);
-            log.info("Error sql: {}", sql);
+            LOG.info("Error sql: {}", sql);
             throw ClickHouseExceptionSpecifier.specify(e, properties.getHost(), properties.getPort());
         }
     }
@@ -793,7 +697,7 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
                 .setParameters(queryParams)
                 .build();
         } catch (URISyntaxException e) {
-            log.error("Mailformed URL: {}", e.getMessage());
+            LOG.error("Mailformed URL: {}", e.getMessage());
             throw new IllegalStateException("illegal configuration of db");
         }
     }
@@ -866,6 +770,46 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
         return result;
     }
 
+    @Deprecated
+    protected void parseSingleStatement(String sql) throws SQLException {
+        this.parsedStmt = null;
+        ClickHouseSqlStatement[] stmts = ClickHouseSqlParser.parse(sql, properties);
+
+        if (stmts.length == 1) {
+            this.parsedStmt = stmts[0];
+        } else {
+            this.parsedStmt = new ClickHouseSqlStatement(sql, StatementType.UNKNOWN);
+            // throw new SQLException("Multiple statements are not supported.");
+        }
+
+        if (this.parsedStmt.isIdemponent()) {
+            httpContext.setAttribute("is_idempotent", Boolean.TRUE);
+        } else {
+            httpContext.removeAttribute("is_idempotent");
+        }
+    }
+
+    @Deprecated
+    private void parseSingleStatement(final String sql, final ClickHouseFormat preferredFormat)
+        throws SQLException
+    {
+        parseSingleStatement(sql);
+        if (parsedStmt.isQuery() && !parsedStmt.hasFormat()) {
+            String format = preferredFormat.name();
+            Map<String, Integer> positions = new HashMap<>();
+            positions.putAll(parsedStmt.getPositions());
+            positions.put(ClickHouseSqlStatement.KEYWORD_FORMAT, Integer.valueOf(sql.length()));
+            String mySql = new StringBuilder(parsedStmt.getSQL())
+                .append("\nFORMAT ")
+                .append(format)
+                .append(';')
+                .toString();
+            parsedStmt = new ClickHouseSqlStatement(mySql, parsedStmt.getStatementType(),
+                parsedStmt.getCluster(), parsedStmt.getDatabase(), parsedStmt.getTable(),
+                format, parsedStmt.getOutfile(), parsedStmt.getParameters(), positions);
+        }
+    }
+
     private boolean isQueryParamSet(ClickHouseQueryParam param, Map<ClickHouseQueryParam, String> additionalClickHouseDBParams, Map<String, String> additionalRequestParams) {
         String value = getQueryParamValue(param, additionalClickHouseDBParams, additionalRequestParams);
 
@@ -890,24 +834,6 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
         }
 
         return properties.asProperties().getProperty(param.getKey());
-    }
-
-    private URI followRedirects(URI uri) throws IOException, URISyntaxException {
-        if (properties.isCheckForRedirects()) {
-            int redirects = 0;
-            while (redirects < properties.getMaxRedirects()) {
-                HttpGet httpGet = new HttpGet(uri);
-                HttpResponse response = client.execute(httpGet, httpContext);
-                if (response.getStatusLine().getStatusCode() == 307) {
-                    uri = new URI(response.getHeaders("Location")[0].getValue());
-                    redirects++;
-                    log.info("Redirected to " + uri.getHost());
-                } else {
-                    break;
-                }
-            }
-        }
-        return uri;
     }
 
     private void setStatementPropertiesToParams(Map<ClickHouseQueryParam, String> params) {
@@ -985,10 +911,14 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
         sendStream(content, sql, ClickHouseFormat.TabSeparated, additionalDBParams);
     }
 
-    private void sendStream(HttpEntity content, String sql, ClickHouseFormat format,
-                            Map<ClickHouseQueryParam, String> additionalDBParams) throws ClickHouseException {
+    protected final void sendStream(HttpEntity content, String sql,
+        ClickHouseFormat format,
+        Map<ClickHouseQueryParam, String> additionalDBParams)
+        throws ClickHouseException
+    {
 
-        Writer writer = write().format(format).withDbParams(additionalDBParams).sql(sql);
+        Writer writer = write().format(format).withDbParams(additionalDBParams)
+            .sql(sql);
         sendStream(writer, content);
     }
 
@@ -1008,16 +938,16 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
         try {
 
             URI uri = buildRequestUri(writer.getSql(), null, writer.getAdditionalDBParams(), writer.getRequestParams(), false);
-            uri = followRedirects(uri);
-
-            content = applyRequestBodyCompression(content);
-
             HttpPost httpPost = new HttpPost(uri);
-
+            if (properties.isCheckForRedirects()) {
+                httpPost.setConfig(RequestConfig.custom()
+                    .setMaxRedirects(properties.getMaxRedirects())
+                    .build());
+            }
             if (writer.getCompression() != null) {
                 httpPost.addHeader("Content-Encoding", writer.getCompression().name());
             }
-            httpPost.setEntity(content);
+            httpPost.setEntity(applyRequestBodyCompression(content));
             HttpResponse response = client.execute(httpPost, httpContext);
             entity = response.getEntity();
             checkForErrorAndThrow(entity, response);
@@ -1045,13 +975,17 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
                     messageStream = new ClickHouseLZ4Stream(new ByteArrayInputStream(bytes));
                     bytes = Utils.toByteArray(messageStream);
                 } catch (IOException e) {
-                    log.warn("error while read compressed stream {}", e.getMessage());
+                    LOG.warn("error while read compressed stream {}", e.getMessage());
                 }
             }
             EntityUtils.consumeQuietly(entity);
             String chMessage = new String(bytes, StandardCharsets.UTF_8);
             throw ClickHouseExceptionSpecifier.specify(chMessage, properties.getHost(), properties.getPort());
         }
+    }
+
+    final ClickHouseProperties getProperties() {
+        return properties;
     }
 
     @Override
@@ -1073,31 +1007,40 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
 
     private ClickHouseResultSet createResultSet(InputStream is, int bufferSize, String db, String table, boolean usesWithTotals,
     		ClickHouseStatement statement, TimeZone timezone, ClickHouseProperties properties) throws IOException {
-    	if(isResultSetScrollable) {
-    		return new ClickHouseScrollableResultSet(is, bufferSize, db, table, usesWithTotals, statement, timezone, properties);
-    	} else {
-    		return new ClickHouseResultSet(is, bufferSize, db, table, usesWithTotals, statement, timezone, properties);
-    	}
+    	return isResultSetScrollable
+    	    ? new ClickHouseScrollableResultSet(is, bufferSize, db, table, usesWithTotals, statement, timezone, properties)
+    	    : new ClickHouseResultSet(is, bufferSize, db, table, usesWithTotals, statement, timezone, properties);
     }
 
-    private Map<ClickHouseQueryParam, String> addQueryIdTo(Map<ClickHouseQueryParam, String> parameters) {
-        if (this.queryId != null) {
+    private Map<ClickHouseQueryParam, String> addQueryIdTo(Map<ClickHouseQueryParam,
+        String> parameters)
+    {
+        if (parameters.containsKey(ClickHouseQueryParam.QUERY_ID)) {
             return parameters;
         }
-
-        String queryId = parameters.get(ClickHouseQueryParam.QUERY_ID);
-        if (queryId == null) {
-            this.queryId = UUID.randomUUID().toString();
-            parameters.put(ClickHouseQueryParam.QUERY_ID, this.queryId);
-        } else {
-            this.queryId = queryId;
-        }
-
-        return parameters;
+        // parameters might be non-modifiable
+        Map<ClickHouseQueryParam, String> myParams = new EnumMap<>(parameters);
+        myParams.put(ClickHouseQueryParam.QUERY_ID, queryId);
+        return myParams;
     }
 
     @Override
     public Writer write() {
         return new Writer(this).withDbParams(getAdditionalDBParams()).options(getRequestParams());
+    }
+
+    @Override
+    protected ClickHouseStatement getThis() {
+        return this;
+    }
+
+    private void updateStateFromQueryParams(
+        Map<ClickHouseQueryParam, String> additionalQueryParameters)
+    {
+        if (additionalQueryParameters != null) {
+            this.queryId = additionalQueryParameters.getOrDefault(
+                ClickHouseQueryParam.QUERY_ID,
+                queryId);
+        }
     }
 }
