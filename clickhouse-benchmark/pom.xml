@@ -18,10 +18,9 @@
 
     <properties>
         <clickhouse4j-driver.version>1.4.4</clickhouse4j-driver.version>
-        <native-driver.version>2.5.3</native-driver.version>
         <mariadb-driver.version>2.7.2</mariadb-driver.version>
         <mysql-driver.version>8.0.23</mysql-driver.version>
-        <native-driver.version>2.5.3</native-driver.version>
+        <native-driver.version>2.5.4</native-driver.version>
         <testcontainers.version>1.15.2</testcontainers.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <jmh.version>1.27</jmh.version>
