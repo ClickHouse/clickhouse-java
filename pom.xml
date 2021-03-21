@@ -79,9 +79,13 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <jdk.version>1.8</jdk.version>
+        <caffeine.version>3.0.0</caffeine.version>
+        <disruptor.version>3.4.2</disruptor.version>
+        <dnsjava.version>3.3.1</dnsjava.version>
         <lz4.version>1.7.1</lz4.version>
         <jackson-core.version>2.9.10</jackson-core.version>
         <jackson-databind.version>2.9.10.8</jackson-databind.version>
+        <roaring-bitmap.version>0.9.9</roaring-bitmap.version>
         <slf4j.version>1.7.30</slf4j.version>
         <mockito.version>1.10.19</mockito.version>
         <wiremock.version>2.27.2</wiremock.version>
@@ -124,9 +128,29 @@
                 <version>${jackson-databind.version}</version>
             </dependency>
             <dependency>
+                <groupId>com.github.ben-manes.caffeine</groupId>
+                <artifactId>caffeine</artifactId>
+                <version>${caffeine.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.lmax</groupId>
+                <artifactId>disruptor</artifactId>
+                <version>${disruptor.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>dnsjava</groupId>
+                <artifactId>dnsjava</artifactId>
+                <version>${dnsjava.version}</version>
+            </dependency>
+            <dependency>
                 <groupId>org.lz4</groupId>
                 <artifactId>lz4-java</artifactId>
                 <version>${lz4.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.github.RoaringBitmap</groupId>
+                <artifactId>RoaringBitmap</artifactId>
+                <version>${roaring-bitmap.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.slf4j</groupId>
@@ -377,4 +401,12 @@
             </build>
         </profile>
     </profiles>
+
+    <!-- required to get latest RoaringBitmap lib -->
+    <repositories>
+        <repository>
+            <id>jitpack.io</id>
+            <url>https://jitpack.io</url>
+        </repository>
+    </repositories>
 </project>
