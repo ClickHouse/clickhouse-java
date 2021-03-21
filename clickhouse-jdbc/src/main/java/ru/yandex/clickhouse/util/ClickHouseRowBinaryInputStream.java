@@ -1,5 +1,6 @@
 package ru.yandex.clickhouse.util;
 
+import ru.yandex.clickhouse.domain.ClickHouseDataType;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
 
 import java.io.Closeable;
@@ -148,6 +149,22 @@ public class ClickHouseRowBinaryInputStream implements Closeable {
 	public long readInt64() throws IOException {
 		return Utils.readLong(in);
 	}
+
+	public BigInteger readInt128() throws IOException {
+        return Utils.readBigInteger(in, 16);
+    }
+
+    public BigInteger writeUInt128() throws IOException {
+		return Utils.readBigInteger(in, 16);
+    }
+
+    public BigInteger writeInt256() throws IOException {
+		return Utils.readBigInteger(in, 32);
+    }
+
+    public BigInteger writeUInt256() throws IOException {
+        return Utils.readBigInteger(in, 32);
+    }
 
 	public Timestamp readDateTime() throws IOException {
 		long value = readUInt32();
@@ -388,6 +405,10 @@ public class ClickHouseRowBinaryInputStream implements Closeable {
         BigDecimal res = new BigDecimal(new BigInteger(r), scale);
         return res;
     }
+
+	public ClickHouseBitmap readBitmap(ClickHouseDataType innerType) throws IOException {
+		return ClickHouseBitmap.deserialize(in, innerType);
+	}
 
 	@Override
 	public void close() throws IOException {

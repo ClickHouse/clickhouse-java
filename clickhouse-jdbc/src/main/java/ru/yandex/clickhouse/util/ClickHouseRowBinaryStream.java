@@ -9,6 +9,7 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.channels.Channels;
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.util.Objects;
@@ -59,6 +60,10 @@ public class ClickHouseRowBinaryStream {
      */
     public void writeBytes(byte[] bytes) throws IOException {
         out.write(bytes);
+    }
+
+    public void writeByteBuffer(ByteBuffer buffer) throws IOException {
+        Channels.newChannel(out).write(buffer);
     }
 
     /**
@@ -341,5 +346,9 @@ public class ClickHouseRowBinaryStream {
         for (UUID uuid : uuids) {
             writeUUID(uuid);
         }
+    }
+
+    public void writeBitmap(ClickHouseBitmap rb) throws IOException {
+        this.writeByteBuffer(Objects.requireNonNull(rb).toByteBuffer());
     }
 }

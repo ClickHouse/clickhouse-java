@@ -22,6 +22,7 @@ public final class ClickHouseColumnInfo {
     private int scale;
     private ClickHouseColumnInfo keyInfo;
     private ClickHouseColumnInfo valueInfo;
+    private String functionName;
 
     @Deprecated
     public static ClickHouseColumnInfo parse(String typeInfo, String columnName) {
@@ -68,6 +69,14 @@ public final class ClickHouseColumnInfo {
         }
 
         switch (dataType) {
+            case AggregateFunction :
+                String[] argsAF = splitArgs(typeInfo, currIdx);
+                column.functionName = argsAF[0];
+                column.arrayBaseType = ClickHouseDataType.Unknown;
+                if (argsAF.length == 2) {
+                    column.arrayBaseType = ClickHouseDataType.fromTypeString(argsAF[1]);
+                }
+                break;
             case DateTime :
                 String[] argsDT = splitArgs(typeInfo, currIdx);
                 if (argsDT.length == 2) { // same as DateTime64
@@ -225,5 +234,9 @@ public final class ClickHouseColumnInfo {
 
     public ClickHouseColumnInfo getValueInfo() {
         return this.valueInfo;
+    }
+
+    public String getFunctionName() {
+        return this.functionName;
     }
 }

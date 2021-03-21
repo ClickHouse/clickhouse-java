@@ -255,6 +255,25 @@ public class ClickHouseRowBinaryStreamTest {
     }
 
     @Test
+    public void testUUIDArray() throws Exception {
+        check(
+                new StreamWriter() {
+                    @Override
+                    public void write(ClickHouseRowBinaryStream stream) throws Exception {
+                        stream.writeUUIDArray(new UUID[] {
+                            UUID.fromString("123e4567-e89b-12d3-a456-426655440000"),
+                            UUID.fromString("123e4567-e89b-12d3-a456-426655440001")
+                        });
+                    }
+                },
+                new byte[] {
+                    2, -45, 18, -101, -24, 103, 69, 62, 18, 0, 0, 68, 85, 102, 66,  86, -92,
+                    -45, 18, -101, -24, 103, 69, 62, 18, 1, 0, 68, 85, 102, 66,  86, -92
+                }
+        );
+    }
+
+    @Test
     public void testWriteNullableInt32() throws Exception {
         check(
             new StreamWriter() {

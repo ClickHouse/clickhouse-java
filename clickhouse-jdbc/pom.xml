@@ -73,6 +73,10 @@
             <artifactId>jackson-databind</artifactId>
         </dependency>
         <dependency>
+            <groupId>com.github.RoaringBitmap</groupId>
+            <artifactId>RoaringBitmap</artifactId>
+        </dependency>
+        <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
         </dependency>
@@ -197,6 +201,10 @@
                         <relocation>
                             <pattern>net.jpountz</pattern>
                             <shadedPattern>${shade.base}.jpountz</shadedPattern>
+                        </relocation>
+                        <relocation>
+                            <pattern>org.roaringbitmap</pattern>
+                            <shadedPattern>${shade.base}.bitmap</shadedPattern>
                         </relocation>
                         <relocation>
                             <pattern>org.slf4j</pattern>

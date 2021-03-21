@@ -189,14 +189,17 @@ public final class ClickHouseValueFormatter {
             .format(x);
     }
 
-    public static String formatMap(Map<?, ?> map, TimeZone dateTimeZone,
-        TimeZone dateTimeTimeZone) {
+    public static String formatBitmap(ClickHouseBitmap bitmap) {
+        return bitmap.toBitmapBuildExpression();
+    }
+
+    public static String formatMap(Map<?, ?> map, TimeZone dateTimeZone, TimeZone dateTimeTimeZone) {
         StringBuilder sb = new StringBuilder();
         for (Map.Entry<?, ?> e : map.entrySet()) {
             Object key = e.getKey();
             Object value = e.getValue();
             sb.append(',');
-            
+
             if (key instanceof String) {
                 sb.append('\'').append(formatString((String) key)).append('\'');
             } else {
@@ -267,6 +270,8 @@ public final class ClickHouseValueFormatter {
             return formatBigInteger((BigInteger) x);
         } else if (x instanceof Collection) {
             return ClickHouseArrayUtil.toString((Collection<?>) x, dateTimeZone, dateTimeTimeZone);
+        } else if (x instanceof ClickHouseBitmap) {
+            return formatBitmap((ClickHouseBitmap) x);
         } else if (x instanceof Map) {
             return formatMap((Map<?, ?>) x, dateTimeZone, dateTimeTimeZone);
         } else if (x.getClass().isArray()) {
@@ -281,12 +286,14 @@ public final class ClickHouseValueFormatter {
             || o instanceof Array
             || o instanceof Boolean
             || o instanceof Collection
+            // || o instanceof Iterable
             || o instanceof Map
             || o instanceof Number
-            || o.getClass().isArray()) {
+            || o.getClass().isArray()
+            || o instanceof ClickHouseBitmap) {
             return false;
         }
-        
+
         return true;
     }
 

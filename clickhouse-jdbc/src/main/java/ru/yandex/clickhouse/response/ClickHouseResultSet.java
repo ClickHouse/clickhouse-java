@@ -30,6 +30,7 @@ import ru.yandex.clickhouse.except.ClickHouseUnknownException;
 import ru.yandex.clickhouse.response.parser.ClickHouseValueParser;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
 import ru.yandex.clickhouse.util.ClickHouseArrayUtil;
+import ru.yandex.clickhouse.util.ClickHouseBitmap;
 import ru.yandex.clickhouse.util.ClickHouseValueFormatter;
 import ru.yandex.clickhouse.util.Utils;
 
@@ -586,7 +587,8 @@ public class ClickHouseResultSet extends AbstractResultSet {
             if (getValue(columnIndex).isNull()) {
                 return null;
             }
-            ClickHouseDataType chType = getColumnInfo(columnIndex).getClickHouseDataType();
+            ClickHouseColumnInfo columnInfo = getColumnInfo(columnIndex);
+            ClickHouseDataType chType = columnInfo.getClickHouseDataType();
             switch (chType.getSqlType()) {
                 case Types.BIGINT:
                     if (chType == ClickHouseDataType.UInt64) {
@@ -617,6 +619,26 @@ public class ClickHouseResultSet extends AbstractResultSet {
             switch (chType) {
                 // case Array:
                 // case Tuple:
+                case AggregateFunction:
+                    // TODO support more functions
+                    if ("groupBitmap".equals(columnInfo.getFunctionName())) {
+                        ClickHouseDataType innerType = columnInfo.getArrayBaseType();
+                        switch (innerType) {
+                            // seems signed integers are not supported in ClickHouse
+                            case Int8:
+                            case Int16:
+                            case Int32:
+                            case Int64:
+                            case UInt8:
+                            case UInt16:
+                            case UInt32:
+                            case UInt64:
+                                return getObject(columnIndex, ClickHouseBitmap.class);
+                            default:
+                                break;
+                        }
+                    }
+                    return getString(columnIndex);
                 case Map:
                 case UUID :
                     return getObject(columnIndex, chType.getJavaClass());
