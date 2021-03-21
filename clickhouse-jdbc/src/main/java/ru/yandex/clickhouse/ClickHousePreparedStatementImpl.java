@@ -39,7 +39,6 @@ import org.apache.http.impl.client.CloseableHttpClient;
 
 import ru.yandex.clickhouse.jdbc.parser.ClickHouseSqlStatement;
 import ru.yandex.clickhouse.jdbc.parser.StatementType;
-
 import ru.yandex.clickhouse.response.ClickHouseResponse;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
 import ru.yandex.clickhouse.settings.ClickHouseQueryParam;
@@ -359,7 +358,7 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
             Matcher matcher = VALUES.matcher(sql);
             if (matcher.find()) {
                 valuePosition = matcher.start();
-            }    
+            }
         }
 
         if (valuePosition < 0) {
@@ -442,7 +441,7 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
         if (currentResult != null) {
             return currentResult.getMetaData();
         }
-        
+
         if (!parsedStmt.isQuery() || (!parsedStmt.isRecognized() && !isSelect(sql))) {
             return null;
         }

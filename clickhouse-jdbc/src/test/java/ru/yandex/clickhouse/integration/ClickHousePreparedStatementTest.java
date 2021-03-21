@@ -40,6 +40,7 @@ public class ClickHousePreparedStatementTest {
 
     @BeforeTest
     public void setUp() throws Exception {
+        ClickHouseContainerForTest.beforeSuite();
         dataSource = ClickHouseContainerForTest.newDataSource();
         connection = dataSource.getConnection();
         connection.createStatement().execute("CREATE DATABASE IF NOT EXISTS test");
@@ -222,7 +223,7 @@ public class ClickHousePreparedStatementTest {
 
         PreparedStatement stmt = connection.prepareStatement("insert into test.keyword_insert(a,b) values('values(',',')");
         stmt.execute();
-        
+
         Statement select = connection.createStatement();
         ResultSet rs = select.executeQuery("select * from test.keyword_insert");
         Assert.assertTrue(rs.next());
@@ -674,6 +675,37 @@ public class ClickHousePreparedStatementTest {
             "INSERT INTO test.static_null_value(foo, bar) VALUES (null, ?)");
         ps0.setNull(1, Types.VARCHAR);
         ps0.executeUpdate();
+    }
+
+    @Test
+    public void testBatchUpdate() throws Exception {
+        connection.createStatement().execute(
+            "DROP TABLE IF EXISTS test.batch_update");
+        connection.createStatement().execute(
+            "CREATE TABLE IF NOT EXISTS test.batch_update"
+          + "(foo UInt32, bar String) "
+          + "ENGINE = TinyLog"
+        );
+        connection.createStatement().execute(
+            "INSERT INTO test.batch_update (foo, bar) VALUES "
+          + "(42, 'baz'), (23, 'oof')");
+
+        PreparedStatement stmt = connection.prepareStatement(
+            "UPDATE test.batch_update SET bar = ? WHERE foo = ?");
+        stmt.setString(1, "House");
+        stmt.setInt(2, 42);
+        stmt.addBatch();
+        stmt.setString(1, "Click");
+        stmt.setInt(2, 23);
+        stmt.addBatch();
+        stmt.executeBatch();
+
+        ResultSet res = connection.createStatement().executeQuery(
+            "SELECT bar FROM test.batch_update ORDER BY foo");
+        res.next();
+        Assert.assertEquals(res.getString(1), "Click");
+        res.next();
+        Assert.assertEquals(res.getString(1), "House");
     }
 
     private static byte[] randomEncodedUUID() {
