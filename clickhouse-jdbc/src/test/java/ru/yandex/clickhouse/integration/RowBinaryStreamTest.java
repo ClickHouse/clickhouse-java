@@ -1,5 +1,10 @@
 package ru.yandex.clickhouse.integration;
 
+import static org.testng.Assert.assertEquals;
+import static org.testng.Assert.assertFalse;
+import static org.testng.Assert.assertThrows;
+import static org.testng.Assert.assertTrue;
+
 import java.io.EOFException;
 import java.io.IOException;
 import java.math.BigInteger;
@@ -13,7 +18,6 @@ import java.time.ZoneId;
 import java.util.Calendar;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
-
 import org.roaringbitmap.RoaringBitmap;
 import org.roaringbitmap.buffer.ImmutableRoaringBitmap;
 import org.roaringbitmap.buffer.MutableRoaringBitmap;
@@ -22,7 +26,6 @@ import org.roaringbitmap.longlong.Roaring64NavigableMap;
 import org.testng.Assert;
 import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
-
 import ru.yandex.clickhouse.ClickHouseConnection;
 import ru.yandex.clickhouse.ClickHouseContainerForTest;
 import ru.yandex.clickhouse.ClickHouseDataSource;
@@ -32,11 +35,8 @@ import ru.yandex.clickhouse.util.ClickHouseBitmap;
 import ru.yandex.clickhouse.util.ClickHouseRowBinaryInputStream;
 import ru.yandex.clickhouse.util.ClickHouseRowBinaryStream;
 import ru.yandex.clickhouse.util.ClickHouseStreamCallback;
+import ru.yandex.clickhouse.util.ClickHouseVersionNumberUtil;
 
-import static org.testng.Assert.assertEquals;
-import static org.testng.Assert.assertFalse;
-import static org.testng.Assert.assertThrows;
-import static org.testng.Assert.assertTrue;
 /**
  * @author Dmitry Andreev <a href="mailto:AndreevDm@yandex-team.ru"></a>
  */
@@ -92,9 +92,7 @@ public class RowBinaryStreamTest {
     public void multiRowTest() throws SQLException {
         connection.createStatement().execute("DROP TABLE IF EXISTS test.big_data");
         connection.createStatement().execute(
-                "CREATE TABLE test.big_data (" +
-                        "value Int32" +
-                        ") ENGINE = TinyLog()"
+                "CREATE TABLE test.big_data (value Int32) ENGINE = TinyLog()"
         );
 
         final int count = 1000000;
@@ -271,7 +269,13 @@ public class RowBinaryStreamTest {
         testBitmap(ClickHouseDataType.UInt32, 65537);
 
         testBitmap64(32);
-        testBitmap64(65537);
+
+        String versionNumber = connection.getServerVersion();
+        int majorVersion = ClickHouseVersionNumberUtil.getMajorVersion(versionNumber);
+        int minorVersion = ClickHouseVersionNumberUtil.getMinorVersion(versionNumber);
+        if (majorVersion > 20 || (majorVersion == 20 && minorVersion > 8)) {
+            testBitmap64(65537);
+        }
     }
 
     private void testRowBinaryStream(boolean rowBinaryResult) throws Exception {
@@ -431,7 +435,8 @@ public class RowBinaryStreamTest {
 
             Assert.assertFalse(rs.next());
         } else {
-            ClickHouseRowBinaryInputStream is = connection.createStatement().executeQueryClickhouseRowBinaryStream("SELECT * FROM test.raw_binary ORDER BY date");
+            ClickHouseRowBinaryInputStream is = connection.createStatement().executeQueryClickhouseRowBinaryStream(
+                "SELECT * FROM test.raw_binary ORDER BY date");
 
             assertEquals(is.readDate(), withTimeAtStartOfDay(date1));
             assertEquals(is.readDateTime(), new Timestamp(timestamp));
@@ -596,7 +601,6 @@ public class RowBinaryStreamTest {
         }
 
         assertEquals(actual, expectedInts);
-
     }
 
     private static void assertArrayEquals(short[] actual, int[] expected) {
@@ -606,7 +610,6 @@ public class RowBinaryStreamTest {
         }
 
         assertEquals(actualInts, expected);
-
     }
 
     private static void assertArrayEquals(long[] actual, int[] expected) {
@@ -626,6 +629,5 @@ public class RowBinaryStreamTest {
         }
 
         assertEquals(actual, expectedBigs);
-
     }
 }
