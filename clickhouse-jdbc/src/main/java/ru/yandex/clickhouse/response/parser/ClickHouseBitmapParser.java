@@ -3,13 +3,11 @@ package ru.yandex.clickhouse.response.parser;
 import java.io.IOException;
 import java.sql.SQLException;
 import java.util.TimeZone;
-
 import ru.yandex.clickhouse.response.ByteFragment;
 import ru.yandex.clickhouse.response.ClickHouseColumnInfo;
 import ru.yandex.clickhouse.util.ClickHouseBitmap;
 
 final class ClickHouseBitmapParser extends ClickHouseValueParser<ClickHouseBitmap> {
-
     private static ClickHouseBitmapParser instance;
 
     static ClickHouseBitmapParser getInstance() {

@@ -3,7 +3,6 @@ package tech.clickhouse.benchmark;
 import java.sql.Timestamp;
 // import java.util.Collections;
 import java.util.Enumeration;
-
 import org.openjdk.jmh.annotations.Benchmark;
 
 public class Insertion extends JdbcBenchmark {

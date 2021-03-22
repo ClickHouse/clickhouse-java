@@ -1,5 +1,9 @@
 package ru.yandex.clickhouse.integration;
 
+import static org.testng.AssertJUnit.assertNotNull;
+import static org.testng.AssertJUnit.assertNull;
+import static org.testng.AssertJUnit.assertTrue;
+
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.io.UnsupportedEncodingException;
@@ -17,13 +21,11 @@ import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
-
 import org.mockito.internal.util.reflection.Whitebox;
 import org.testng.Assert;
 import org.testng.annotations.AfterTest;
 import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
-
 import ru.yandex.clickhouse.ClickHouseConnection;
 import ru.yandex.clickhouse.ClickHouseContainerForTest;
 import ru.yandex.clickhouse.ClickHouseDataSource;
@@ -31,10 +33,6 @@ import ru.yandex.clickhouse.ClickHouseExternalData;
 import ru.yandex.clickhouse.ClickHouseStatement;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
 import ru.yandex.clickhouse.settings.ClickHouseQueryParam;
-
-import static org.testng.AssertJUnit.assertNotNull;
-import static org.testng.AssertJUnit.assertNull;
-import static org.testng.AssertJUnit.assertTrue;
 
 public class ClickHouseStatementImplTest {
 
@@ -155,7 +153,9 @@ public class ClickHouseStatementImplTest {
             private int i = 0;
 
             private boolean genNextString() {
-                if (i >= rowsCount) return false;
+                if (i >= rowsCount) {
+                    return false;
+                }
                 si = 0;
                 s = String.format("%d\t%d\n", i, i);
                 i++;
@@ -164,11 +164,11 @@ public class ClickHouseStatementImplTest {
 
             public int read() {
                 if (si >= s.length()) {
-                    if ( ! genNextString() ) {
+                    if (!genNextString()) {
                         return -1;
                     }
                 }
-                return s.charAt( si++ );
+                return s.charAt(si++);
             }
         };
     }
@@ -177,16 +177,18 @@ public class ClickHouseStatementImplTest {
     @Test
     public void testExternalDataStream() throws SQLException, UnsupportedEncodingException {
         final ClickHouseStatement statement = connection.createStatement();
-        connection.createStatement().execute("DROP TABLE IF EXISTS test.testExternalData");
-        connection.createStatement().execute("CREATE TABLE test.testExternalData (id UInt64, s String) ENGINE = Memory");
-        connection.createStatement().execute("insert into test.testExternalData select number, toString(number) from numbers(500,100000)");
+        statement.execute("DROP TABLE IF EXISTS test.testExternalData");
+        statement.execute(
+            "CREATE TABLE test.testExternalData (id UInt64, s String) ENGINE = Memory");
+        statement.execute(
+            "insert into test.testExternalData select number, toString(number) from numbers(500,100000)");
 
         InputStream inputStream = getTSVStream(100000);
 
         ClickHouseExternalData extData = new ClickHouseExternalData("ext_data", inputStream);
         extData.setStructure("id UInt64, s String");
 
-        ResultSet rs = connection.createStatement().executeQuery(
+        ResultSet rs = statement.executeQuery(
                 "select count() cnt from test.testExternalData where (id,s) in ext_data",
                 null,
                 Collections.singletonList(extData)
@@ -235,7 +237,8 @@ public class ClickHouseStatementImplTest {
     public void testSelectManyRows() throws SQLException {
         Statement stmt = connection.createStatement();
         int limit = 10000;
-        ResultSet rs = stmt.executeQuery("select concat('test', toString(number)) as str from system.numbers limit " + limit);
+        ResultSet rs = stmt.executeQuery(
+            "select concat('test', toString(number)) as str from system.numbers limit " + limit);
         int i = 0;
         while (rs.next()) {
             String s = rs.getString("str");
@@ -307,7 +310,9 @@ public class ClickHouseStatementImplTest {
 
         final long timeout = 10;
         String queryId = (String) readField(firstStatement, "queryId", timeout);
-        assertNotNull(String.format("it's actually very strange. It seems the query hasn't been executed in %s seconds", timeout), queryId);
+        assertNotNull(
+            String.format("it's actually very strange. It seems the query hasn't been executed in %s seconds", timeout),
+            queryId);
         assertNull("An exception happened while the query was being executed", exceptionAtomicReference.get());
 
 
@@ -344,7 +349,9 @@ public class ClickHouseStatementImplTest {
         thread.setDaemon(true);
         thread.start();
         final long timeout = 10;
-        assertTrue(String.format("it's actually very strange. It seems the query hasn't been executed in %s seconds", timeout), countDownLatch.await(timeout, TimeUnit.SECONDS));
+        assertTrue(
+            String.format("it's actually very strange. It seems the query hasn't been executed in %s seconds", timeout),
+            countDownLatch.await(timeout, TimeUnit.SECONDS));
         assertNull("An exception happened while the query was being executed", exceptionAtomicReference.get());
 
         assertTrue("The query isn't being executed. It seems very strange", checkQuery(queryId, true,10));

@@ -16,12 +16,14 @@ public enum JdbcDriver {
 
     // MariaDB Java Client
     MariadbJavaClient("org.mariadb.jdbc.Driver",
-            "jdbc:mariadb://%s:%s/%s?user=%s&password=%s&useSSL=false&useCompression=true&useServerPrepStmts=false&rewriteBatchedStatements=true&cachePrepStmts=true&serverTimezone=UTC",
+            "jdbc:mariadb://%s:%s/%s?user=%s&password=%s&useSSL=false&useCompression=true&useServerPrepStmts=false"
+                    + "&rewriteBatchedStatements=true&cachePrepStmts=true&serverTimezone=UTC",
             Constants.MYSQL_PORT),
 
     // MySQL Connector/J
     MysqlConnectorJava("com.mysql.cj.jdbc.Driver",
-            "jdbc:mysql://%s:%s/%s?user=%s&password=%s&useSSL=false&useCompression=true&useServerPrepStmts=false&rewriteBatchedStatements=true&cachePrepStmts=true&connectionTimeZone=UTC",
+            "jdbc:mysql://%s:%s/%s?user=%s&password=%s&useSSL=false&useCompression=true&useServerPrepStmts=false"
+                    + "&rewriteBatchedStatements=true&cachePrepStmts=true&connectionTimeZone=UTC",
             Constants.MYSQL_PORT);
 
     private final String className;

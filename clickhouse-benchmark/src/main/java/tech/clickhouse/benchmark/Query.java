@@ -3,7 +3,6 @@ package tech.clickhouse.benchmark;
 import java.sql.ResultSet;
 import java.sql.Statement;
 import java.sql.Timestamp;
-
 import org.openjdk.jmh.annotations.Benchmark;
 
 public class Query extends JdbcBenchmark {

@@ -3,7 +3,6 @@ package tech.clickhouse.benchmark;
 import java.sql.ResultSet;
 import java.sql.Statement;
 import java.util.Collections;
-
 import org.openjdk.jmh.annotations.Benchmark;
 
 public class Basic extends JdbcBenchmark {
