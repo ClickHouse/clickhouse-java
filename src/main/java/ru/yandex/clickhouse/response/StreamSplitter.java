@@ -108,7 +108,11 @@ public class StreamSplitter {
             posNext = 0;
         } else {
             byte[] oldBuf = buf;
-            buf = new byte[buf.length*2];
+            if (buf.length > (Integer.MAX_VALUE - 2) / 2) {
+                buf = new byte[Integer.MAX_VALUE - 2];// Some platforms will throw 'Requested array size exceeds VM limit' when maximum length of array is Integer.MAX_VALUE - 1
+            } else {
+                buf = new byte[buf.length * 2];
+            }
             System.arraycopy(oldBuf, 0, buf, 0, oldBuf.length);
         }
     }
