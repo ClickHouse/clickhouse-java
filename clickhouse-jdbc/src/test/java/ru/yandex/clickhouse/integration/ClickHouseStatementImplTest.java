@@ -125,24 +125,27 @@ public class ClickHouseStatementImplTest {
     @Test
     public void testExternalData() throws SQLException, UnsupportedEncodingException {
         ClickHouseStatement stmt = connection.createStatement();
-        ResultSet rs = stmt.executeQuery(
+        String[] rows = "21.3.3.14".equals(connection.getServerVersion())
+            ? new String[] { "1\tGroup\n" }
+            : new String[] { "1\tGroup", "1\tGroup\n" };
+        
+        for (String row : rows) {
+            try (ResultSet rs = stmt.executeQuery(
                 "select UserName, GroupName " +
-                        "from (select 'User' as UserName, 1 as GroupId) as g" +
-                        "any left join groups using GroupId",
-                null,
+                "from (select 'User' as UserName, 1 as GroupId) as g" +
+                "any left join groups using GroupId", null,
                 Collections.singletonList(new ClickHouseExternalData(
                         "groups",
-                        new ByteArrayInputStream("1\tGroup".getBytes())
-                ).withStructure("GroupId UInt8, GroupName String"))
-        );
+                        new ByteArrayInputStream(row.getBytes())
+                ).withStructure("GroupId UInt8, GroupName String")))) {
+                Assert.assertTrue(rs.next());
+                String userName = rs.getString("UserName");
+                String groupName = rs.getString("GroupName");
 
-        rs.next();
-
-        String userName = rs.getString("UserName");
-        String groupName = rs.getString("GroupName");
-
-        Assert.assertEquals(userName, "User");
-        Assert.assertEquals(groupName, "Group");
+                Assert.assertEquals(userName, "User");
+                Assert.assertEquals(groupName, "Group");
+            }
+        }
     }
 
 
@@ -176,6 +179,10 @@ public class ClickHouseStatementImplTest {
 
     @Test
     public void testExternalDataStream() throws SQLException, UnsupportedEncodingException {
+        if ("21.3.3.14".equals(connection.getServerVersion())) {
+            return;
+        }
+
         final ClickHouseStatement statement = connection.createStatement();
         statement.execute("DROP TABLE IF EXISTS test.testExternalData");
         statement.execute(

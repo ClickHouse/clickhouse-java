@@ -1,21 +1,19 @@
 package ru.yandex.clickhouse.integration;
 
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import org.testng.Assert;
 import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
-
+import ru.yandex.clickhouse.ClickHouseConnection;
 import ru.yandex.clickhouse.ClickHouseContainerForTest;
 import ru.yandex.clickhouse.ClickHouseDataSource;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
 
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-
 public class ClickhouseLZ4StreamTest {
     private ClickHouseDataSource dataSource;
-    private Connection connection;
+    private ClickHouseConnection connection;
 
     @BeforeTest
     public void setUp() throws Exception {
@@ -28,6 +26,10 @@ public class ClickhouseLZ4StreamTest {
 
     @Test
     public void testBigBatchCompressedInsert() throws SQLException {
+        if ("21.3.3.14".equals(connection.getServerVersion())) {
+            return;
+        }
+
         connection.createStatement().execute("DROP TABLE IF EXISTS test.big_batch_insert");
         connection.createStatement().execute(
                 "CREATE TABLE IF NOT EXISTS test.big_batch_insert (i Int32, s String) ENGINE = TinyLog"
