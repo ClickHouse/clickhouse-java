@@ -25,6 +25,7 @@ import ru.yandex.clickhouse.domain.ClickHouseDataType;
 import ru.yandex.clickhouse.except.ClickHouseUnknownException;
 import ru.yandex.clickhouse.response.ByteFragment;
 import ru.yandex.clickhouse.response.ClickHouseColumnInfo;
+import ru.yandex.clickhouse.util.ClickHouseBitmap;
 
 public abstract class ClickHouseValueParser<T> {
 
@@ -50,6 +51,7 @@ public abstract class ClickHouseValueParser<T> {
         register(LocalDateTime.class, ClickHouseLocalDateTimeParser.getInstance());
         register(LocalTime.class, ClickHouseLocalTimeParser.getInstance());
         register(Long.class, Long::decode, Long.valueOf(0L));
+        register(ClickHouseBitmap.class, ClickHouseBitmapParser.getInstance());
         register(Map.class, ClickHouseMapParser.getInstance());
         register(Object.class, s -> s);
         register(OffsetDateTime.class, ClickHouseOffsetDateTimeParser.getInstance());

@@ -20,7 +20,6 @@ import java.util.Calendar;
 import java.util.Collections;
 import java.util.List;
 import java.util.TimeZone;
-
 import ru.yandex.clickhouse.ClickHouseArray;
 import ru.yandex.clickhouse.ClickHouseConnection;
 import ru.yandex.clickhouse.ClickHouseStatement;
@@ -30,13 +29,14 @@ import ru.yandex.clickhouse.except.ClickHouseUnknownException;
 import ru.yandex.clickhouse.response.parser.ClickHouseValueParser;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
 import ru.yandex.clickhouse.util.ClickHouseArrayUtil;
+import ru.yandex.clickhouse.util.ClickHouseBitmap;
 import ru.yandex.clickhouse.util.ClickHouseValueFormatter;
 import ru.yandex.clickhouse.util.Utils;
 
 
 public class ClickHouseResultSet extends AbstractResultSet {
 
-    private final static long[] EMPTY_LONG_ARRAY = new long[0];
+    private static final long[] EMPTY_LONG_ARRAY = new long[0];
 
     private final TimeZone dateTimeTimeZone;
     private final TimeZone dateTimeZone;
@@ -358,25 +358,25 @@ public class ClickHouseResultSet extends AbstractResultSet {
 
         final Object array;
         switch (colInfo.getArrayBaseType()) {
-            case Date :
-                array = ClickHouseArrayUtil.parseArray(
-                    getValue(columnIndex),
-                    properties.isUseObjectsInArrays(),
-                    dateTimeZone,
-                    colInfo
-                );
-                break;
-            default :
-                TimeZone timeZone = colInfo.getTimeZone() != null
-                    ? colInfo.getTimeZone()
-                    : dateTimeTimeZone;
-                array = ClickHouseArrayUtil.parseArray(
-                    getValue(columnIndex),
-                    properties.isUseObjectsInArrays(),
-                    timeZone,
-                    colInfo
-                );
-                break;
+        case Date :
+            array = ClickHouseArrayUtil.parseArray(
+                getValue(columnIndex),
+                properties.isUseObjectsInArrays(),
+                dateTimeZone,
+                colInfo
+            );
+            break;
+        default :
+            TimeZone timeZone = colInfo.getTimeZone() != null
+                ? colInfo.getTimeZone()
+                : dateTimeTimeZone;
+            array = ClickHouseArrayUtil.parseArray(
+                getValue(columnIndex),
+                properties.isUseObjectsInArrays(),
+                timeZone,
+                colInfo
+            );
+            break;
         }
         return new ClickHouseArray(colInfo.getArrayBaseType(), array);
     }
@@ -428,14 +428,15 @@ public class ClickHouseResultSet extends AbstractResultSet {
                 || dataType == ClickHouseDataType.DateTime64)) {
             TimeZone serverTimeZone = columnInfo.getTimeZone();
             if (serverTimeZone == null) {
-                serverTimeZone = ((ClickHouseConnection)getStatement().getConnection()).getServerTimeZone();
+                serverTimeZone = ((ClickHouseConnection) getStatement().getConnection()).getServerTimeZone();
             }
             TimeZone clientTimeZone = Utils.isNullOrEmptyString(properties.getUseTimeZone())
                 ? TimeZone.getDefault()
                 : TimeZone.getTimeZone(properties.getUseTimeZone());
 
             if (!clientTimeZone.equals(serverTimeZone)) {
-                Timestamp newTs = ClickHouseValueParser.getParser(Timestamp.class).parse(value, columnInfo, serverTimeZone);
+                Timestamp newTs = ClickHouseValueParser.getParser(Timestamp.class)
+                    .parse(value, columnInfo, serverTimeZone);
                 value = ByteFragment.fromString(ClickHouseValueFormatter.formatTimestamp(newTs, clientTimeZone));
             }
         }
@@ -468,7 +469,7 @@ public class ClickHouseResultSet extends AbstractResultSet {
 
     /**
      * Tries to parse the value as a timestamp using the connection time zone if
-     * applicable and return its representation as milliseconds since epoch
+     * applicable and return its representation as milliseconds since epoch.
      *
      * @param colNum
      *            column number
@@ -586,42 +587,63 @@ public class ClickHouseResultSet extends AbstractResultSet {
             if (getValue(columnIndex).isNull()) {
                 return null;
             }
-            ClickHouseDataType chType = getColumnInfo(columnIndex).getClickHouseDataType();
+            ClickHouseColumnInfo columnInfo = getColumnInfo(columnIndex);
+            ClickHouseDataType chType = columnInfo.getClickHouseDataType();
             switch (chType.getSqlType()) {
-                case Types.BIGINT:
-                    if (chType == ClickHouseDataType.UInt64) {
-                        return getObject(columnIndex, BigInteger.class);
-                    }
+            case Types.BIGINT:
+                if (chType == ClickHouseDataType.UInt64) {
+                    return getObject(columnIndex, BigInteger.class);
+                }
+                return getObject(columnIndex, Long.class);
+            case Types.INTEGER:
+                if (!chType.isSigned()){
                     return getObject(columnIndex, Long.class);
-                case Types.INTEGER:
-                    if (!chType.isSigned()){
-                        return getObject(columnIndex, Long.class);
-                    }
-                    return getObject(columnIndex, Integer.class);
-                case Types.TINYINT:
-                case Types.SMALLINT:
-                    return getObject(columnIndex, Integer.class);
-                case Types.VARCHAR:     return getString(columnIndex);
-                case Types.REAL:        return getObject(columnIndex, Float.class);
-                case Types.FLOAT:
-                case Types.DOUBLE:      return getObject(columnIndex, Double.class);
-                case Types.DATE:        return getDate(columnIndex);
-                case Types.TIMESTAMP:   return getTimestamp(columnIndex);
-                case Types.BLOB:        return getString(columnIndex);
-                case Types.ARRAY:       return getArray(columnIndex);
-                case Types.DECIMAL:     return getBigDecimal(columnIndex);
-                case Types.NUMERIC:     return getBigInteger(columnIndex);
-                default:
-                    // do not return
+                }
+                return getObject(columnIndex, Integer.class);
+            case Types.TINYINT:
+            case Types.SMALLINT:
+                return getObject(columnIndex, Integer.class);
+            case Types.VARCHAR:     return getString(columnIndex);
+            case Types.REAL:        return getObject(columnIndex, Float.class);
+            case Types.FLOAT:
+            case Types.DOUBLE:      return getObject(columnIndex, Double.class);
+            case Types.DATE:        return getDate(columnIndex);
+            case Types.TIMESTAMP:   return getTimestamp(columnIndex);
+            case Types.BLOB:        return getString(columnIndex);
+            case Types.ARRAY:       return getArray(columnIndex);
+            case Types.DECIMAL:     return getBigDecimal(columnIndex);
+            case Types.NUMERIC:     return getBigInteger(columnIndex);
+            default:
+                // do not return
             }
             switch (chType) {
-                // case Array:
-                // case Tuple:
-                case Map:
-                case UUID :
-                    return getObject(columnIndex, chType.getJavaClass());
-                default :
-                    return getString(columnIndex);
+            // case Array:
+            // case Tuple:
+            case AggregateFunction:
+                // TODO support more functions
+                if ("groupBitmap".equals(columnInfo.getFunctionName())) {
+                    ClickHouseDataType innerType = columnInfo.getArrayBaseType();
+                    switch (innerType) {
+                    // seems signed integers are not supported in ClickHouse
+                    case Int8:
+                    case Int16:
+                    case Int32:
+                    case Int64:
+                    case UInt8:
+                    case UInt16:
+                    case UInt32:
+                    case UInt64:
+                        return getObject(columnIndex, ClickHouseBitmap.class);
+                    default:
+                        break;
+                    }
+                }
+                return getString(columnIndex);
+            case Map:
+            case UUID :
+                return getObject(columnIndex, chType.getJavaClass());
+            default :
+                return getString(columnIndex);
             }
         } catch (Exception e) {
             throw new ClickHouseUnknownException(
@@ -646,14 +668,12 @@ public class ClickHouseResultSet extends AbstractResultSet {
         return value.unescape();
     }
 
-    static long[] toLongArray(ByteFragment value, ClickHouseColumnInfo columnInfo)
-        throws SQLException
-    {
+    static long[] toLongArray(ByteFragment value, ClickHouseColumnInfo columnInfo) throws SQLException {
         if (value.isNull()) {
             return null;
         }
-        if (value.charAt(0) != '[' || value.charAt(value.length()-1) != ']') {
-            throw new IllegalArgumentException("not an array: "+value);
+        if (value.charAt(0) != '[' || value.charAt(value.length() - 1) != ']') {
+            throw new IllegalArgumentException("not an array: " + value);
         }
         if (value.length() == 2) {
             return EMPTY_LONG_ARRAY;

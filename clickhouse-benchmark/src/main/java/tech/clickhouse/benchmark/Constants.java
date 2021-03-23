@@ -1,5 +1,8 @@
 package tech.clickhouse.benchmark;
 
+/**
+ * Constant interface.
+ */
 public interface Constants {
     public static final String CLICKHOUSE_DRIVER = "clickhouse-jdbc";
 

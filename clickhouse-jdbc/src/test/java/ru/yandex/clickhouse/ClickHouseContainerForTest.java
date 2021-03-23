@@ -1,5 +1,7 @@
 package ru.yandex.clickhouse;
 
+import static java.time.temporal.ChronoUnit.SECONDS;
+
 import java.time.Duration;
 import org.testcontainers.containers.BindMode;
 import org.testcontainers.containers.GenericContainer;
@@ -7,11 +9,8 @@ import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.images.builder.ImageFromDockerfile;
 import org.testng.annotations.AfterSuite;
 import org.testng.annotations.BeforeSuite;
-
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
 import ru.yandex.clickhouse.util.ClickHouseVersionNumberUtil;
-
-import static java.time.temporal.ChronoUnit.SECONDS;
 
 public class ClickHouseContainerForTest {
     private static final int HTTP_PORT = 8123;
@@ -41,10 +40,10 @@ public class ClickHouseContainerForTest {
 
         final String imageNameWithTag = "yandex/clickhouse-server" + imageTag;
 
-        clickhouseContainer = new GenericContainer<>( new ImageFromDockerfile()
+        clickhouseContainer = new GenericContainer<>(new ImageFromDockerfile()
                 .withDockerfileFromBuilder(builder ->
                         builder
-                               .from( imageNameWithTag )
+                               .from(imageNameWithTag)
                                .run("apt-get update && apt-get install tzdata")
                 ))
                 .withEnv("TZ", timezone)

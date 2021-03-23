@@ -1,6 +1,7 @@
 package ru.yandex.clickhouse.util;
 
 import java.io.ByteArrayOutputStream;
+import java.io.DataInput;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.EOFException;
@@ -9,6 +10,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -236,6 +238,15 @@ public class Utils {
 		return value;
 	}
 
+    public static BigInteger readBigInteger(DataInputStream inputStream, int byteLength) throws IOException {
+        byte[] r = new byte[byteLength];
+        for (int i = r.length; i > 0; i--) {
+            r[i - 1] = inputStream.readByte();
+        }
+
+        return new BigInteger(r);
+    }
+
     public static void writeShort(DataOutputStream outputStream, int value) throws IOException {
         outputStream.write(0xFF & value);
         outputStream.write(0xFF & (value >> 8));
@@ -270,6 +281,70 @@ public class Utils {
         for (int i = byteLength - bytes.length; i > 0; i--) {
             outputStream.writeByte(empty);
         }
+    }
+
+    public static int getVarIntSize(int value) {
+        int result = 0;
+        do {
+            result++;
+            value >>>= 7;
+        } while (value != 0);
+
+        return result;
+    }
+
+    public static int getVarLongSize(long value) {
+        int result = 0;
+        do {
+            result++;
+            value >>>= 7;
+        } while (value != 0);
+
+        return result;
+    }
+
+    public static void writeVarInt(int value, ByteBuffer buffer) {
+        while ((value & 0xFFFFFF80) != 0L) {
+            buffer.put((byte) ((value & 0x7F) | 0x80));
+            value >>>= 7;
+        }
+        buffer.put((byte) (value & 0x7F));
+    }
+
+    public static int readVarInt(DataInput in) throws IOException {
+        int result = 0;
+        int shift = 0;
+        int b;
+        do {
+            if (shift >= 32) {
+                // Out of range
+                throw new IndexOutOfBoundsException("varint too long");
+            }
+            // Get 7 bits from next byte
+            b = in.readUnsignedByte();
+            result |= (b & 0x7F) << shift;
+            shift += 7;
+        } while ((b & 0x80) != 0);
+        
+        return result;
+    }
+
+    public static int readVarInt(ByteBuffer buffer) {
+        int result = 0;
+        int shift = 0;
+        int b;
+        do {
+            if (shift >= 32) {
+                // Out of range
+                throw new IndexOutOfBoundsException("varint too long");
+            }
+            // Get 7 bits from next byte
+            b = buffer.get();
+            result |= (b & 0x7F) << shift;
+            shift += 7;
+        } while ((b & 0x80) != 0);
+        
+        return result;
     }
 
     public static BigInteger toBigInteger(BigDecimal num, int scale) {

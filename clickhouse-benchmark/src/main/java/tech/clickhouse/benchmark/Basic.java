@@ -4,7 +4,6 @@ import java.sql.ResultSet;
 import java.sql.Statement;
 import java.util.Collections;
 import java.util.Random;
-
 import org.openjdk.jmh.annotations.Benchmark;
 
 public class Basic extends JdbcBenchmark {

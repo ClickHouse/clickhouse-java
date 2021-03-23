@@ -1,5 +1,10 @@
 package ru.yandex.clickhouse.integration;
 
+import static org.testng.Assert.assertEquals;
+import static org.testng.Assert.assertFalse;
+import static org.testng.Assert.assertThrows;
+import static org.testng.Assert.assertTrue;
+
 import java.io.EOFException;
 import java.io.IOException;
 import java.math.BigInteger;
@@ -13,20 +18,24 @@ import java.time.ZoneId;
 import java.util.Calendar;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
-
+import org.roaringbitmap.RoaringBitmap;
+import org.roaringbitmap.buffer.ImmutableRoaringBitmap;
+import org.roaringbitmap.buffer.MutableRoaringBitmap;
+import org.roaringbitmap.longlong.Roaring64Bitmap;
+import org.roaringbitmap.longlong.Roaring64NavigableMap;
 import org.testng.Assert;
 import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
-
 import ru.yandex.clickhouse.ClickHouseConnection;
 import ru.yandex.clickhouse.ClickHouseContainerForTest;
 import ru.yandex.clickhouse.ClickHouseDataSource;
 import ru.yandex.clickhouse.ClickHouseStatement;
+import ru.yandex.clickhouse.domain.ClickHouseDataType;
+import ru.yandex.clickhouse.util.ClickHouseBitmap;
 import ru.yandex.clickhouse.util.ClickHouseRowBinaryInputStream;
 import ru.yandex.clickhouse.util.ClickHouseRowBinaryStream;
 import ru.yandex.clickhouse.util.ClickHouseStreamCallback;
-
-import static org.testng.Assert.assertEquals;
+import ru.yandex.clickhouse.util.ClickHouseVersionNumberUtil;
 
 /**
  * @author Dmitry Andreev <a href="mailto:AndreevDm@yandex-team.ru"></a>
@@ -83,9 +92,7 @@ public class RowBinaryStreamTest {
     public void multiRowTest() throws SQLException {
         connection.createStatement().execute("DROP TABLE IF EXISTS test.big_data");
         connection.createStatement().execute(
-                "CREATE TABLE test.big_data (" +
-                        "value Int32" +
-                        ") ENGINE = TinyLog()"
+                "CREATE TABLE test.big_data (value Int32) ENGINE = TinyLog()"
         );
 
         final int count = 1000000;
@@ -120,6 +127,155 @@ public class RowBinaryStreamTest {
     @Test
     public void testRowBinaryInputStream() throws Exception {
         testRowBinaryStream(true);
+    }
+
+    private String createtestBitmapTable(ClickHouseDataType innerType) throws Exception {
+        String tableName = "test_binary_rb_" + innerType.name();
+        String arrType = "Array(" + innerType.name() + ")";
+        String rbTypeName = "AggregateFunction(groupBitmap, " + innerType.name() + ")";
+        try (ClickHouseStatement statement = connection.createStatement()) {
+            statement.execute("DROP TABLE IF EXISTS " + tableName);
+            statement.execute("CREATE TABLE IF NOT EXISTS " + tableName + 
+                "(i UInt8, a " + arrType + ", b " + rbTypeName + ") engine=Memory");
+        }
+
+        return tableName;
+    }
+
+    private int[] genRoaringBitmapValues(int length, ClickHouseDataType innerType) {
+        int[] values = new int[length];
+
+        for (int i = 0; i < length; i++) {
+            values[i] = i;
+        }
+
+        return values;
+    }
+
+    private long[] genRoaring64BitmapValues(int length) {
+        long[] values = new long[length];
+
+        for (int i = 0; i < length; i++) {
+            values[i] = 100000L + i;
+        }
+
+        return values;
+    }
+
+    private void writeValues(ClickHouseRowBinaryStream stream,
+        int [] values, ClickHouseDataType innerType) throws IOException {
+        switch (innerType) {
+            case Int8:
+            case UInt8:
+                stream.writeUInt8Array(values);
+                break;
+            case Int16:
+            case UInt16:
+                stream.writeUInt16Array(values);
+                break;
+            case Int32:
+            case UInt32:
+                stream.writeInt32Array(values);
+                break;
+            default:
+                throw new IllegalArgumentException(innerType.name() + " is not supported!");
+        }
+    }
+
+    private void testBitmap(ClickHouseDataType innerType, int valueLength) throws Exception {
+        try (ClickHouseStatement statement = connection.createStatement()) {
+            String tableName = createtestBitmapTable(innerType);
+            int[] values = genRoaringBitmapValues(valueLength, innerType);
+            statement.sendRowBinaryStream("insert into table " + tableName, new ClickHouseStreamCallback() {
+                @Override
+                public void writeTo(ClickHouseRowBinaryStream stream) throws IOException {
+                    stream.writeByte((byte) 1);
+                    writeValues(stream, values, innerType);
+                    stream.writeBitmap(ClickHouseBitmap.wrap(RoaringBitmap.bitmapOf(values), innerType));
+                    stream.writeByte((byte) 2);
+                    writeValues(stream, values, innerType);
+                    stream.writeBitmap(ClickHouseBitmap.wrap(ImmutableRoaringBitmap.bitmapOf(values), innerType));
+                    stream.writeByte((byte) 3);
+                    writeValues(stream, values, innerType);
+                    stream.writeBitmap(ClickHouseBitmap.wrap(MutableRoaringBitmap.bitmapOf(values), innerType));
+                }
+            });
+
+            for (int i = 0; i < 3; i++) {
+                String sql = "select b = bitmapBuild(a) ? 1 : 0 from " + tableName + " where i = " + (i+1);
+                try (ResultSet rs = statement.executeQuery(sql)) {
+                    assertTrue(rs.next());
+                    assertEquals(rs.getInt(1), 1);
+                    assertFalse(rs.next());
+                }
+
+                sql = "select b from " + tableName + " where i = " + (i+1);
+                try (ClickHouseRowBinaryInputStream in = statement.executeQueryClickhouseRowBinaryStream(sql)) {
+                    assertEquals(in.readBitmap(innerType), ClickHouseBitmap.wrap(RoaringBitmap.bitmapOf(values), innerType));
+                }
+            }
+
+            statement.execute("drop table if exists " + tableName);
+        }
+    }
+
+    private void testBitmap64(int valueLength) throws Exception {
+        ClickHouseDataType innerType = ClickHouseDataType.UInt64;
+        try (ClickHouseStatement statement = connection.createStatement()) {
+            String tableName = createtestBitmapTable(innerType);
+            long[] values = genRoaring64BitmapValues(valueLength);
+            statement.sendRowBinaryStream("insert into table " + tableName, new ClickHouseStreamCallback() {
+                @Override
+                public void writeTo(ClickHouseRowBinaryStream stream) throws IOException {
+                    stream.writeByte((byte) 1);
+                    stream.writeUInt64Array(values);
+                    stream.writeBitmap(ClickHouseBitmap.wrap(Roaring64NavigableMap.bitmapOf(values), ClickHouseDataType.UInt64));
+                    stream.writeByte((byte) 2);
+                    stream.writeUInt64Array(values);
+                    stream.writeBitmap(ClickHouseBitmap.wrap(Roaring64Bitmap.bitmapOf(values), ClickHouseDataType.UInt64));
+                }
+            });
+
+            String sql = "select bitmapBuild(a) = b ? 1 : 0 from " + tableName + " order by i";
+            try (ResultSet rs = statement.executeQuery(sql)) {
+                assertTrue(rs.next());
+                assertEquals(rs.getInt(1), 1);
+                assertTrue(rs.next());
+                assertEquals(rs.getInt(1), 1);
+                assertFalse(rs.next());
+            }
+
+            sql = "select b from " + tableName + " order by i";
+            try (ClickHouseRowBinaryInputStream in = statement.executeQueryClickhouseRowBinaryStream(sql)) {
+                if (valueLength <= 32) {
+                    assertEquals(in.readBitmap(innerType), ClickHouseBitmap.wrap(Roaring64NavigableMap.bitmapOf(values), innerType));
+                } else {
+                    assertThrows(UnsupportedOperationException.class, () -> in.readBitmap(innerType));
+                }
+            }
+
+            statement.execute("drop table if exists " + tableName);
+        }
+    }
+    
+    @Test
+    public void testBitmap() throws Exception {
+        // TODO seems Int8, Int16 and Int32 are still not supported in ClickHouse
+        testBitmap(ClickHouseDataType.UInt8, 32);
+        testBitmap(ClickHouseDataType.UInt8, 256);
+        testBitmap(ClickHouseDataType.UInt16, 32);
+        testBitmap(ClickHouseDataType.UInt16, 65536);
+        testBitmap(ClickHouseDataType.UInt32, 32);
+        testBitmap(ClickHouseDataType.UInt32, 65537);
+
+        testBitmap64(32);
+
+        String versionNumber = connection.getServerVersion();
+        int majorVersion = ClickHouseVersionNumberUtil.getMajorVersion(versionNumber);
+        int minorVersion = ClickHouseVersionNumberUtil.getMinorVersion(versionNumber);
+        if (majorVersion > 20 || (majorVersion == 20 && minorVersion > 8)) {
+            testBitmap64(65537);
+        }
     }
 
     private void testRowBinaryStream(boolean rowBinaryResult) throws Exception {
@@ -279,7 +435,8 @@ public class RowBinaryStreamTest {
 
             Assert.assertFalse(rs.next());
         } else {
-            ClickHouseRowBinaryInputStream is = connection.createStatement().executeQueryClickhouseRowBinaryStream("SELECT * FROM test.raw_binary ORDER BY date");
+            ClickHouseRowBinaryInputStream is = connection.createStatement().executeQueryClickhouseRowBinaryStream(
+                "SELECT * FROM test.raw_binary ORDER BY date");
 
             assertEquals(is.readDate(), withTimeAtStartOfDay(date1));
             assertEquals(is.readDateTime(), new Timestamp(timestamp));
@@ -444,7 +601,6 @@ public class RowBinaryStreamTest {
         }
 
         assertEquals(actual, expectedInts);
-
     }
 
     private static void assertArrayEquals(short[] actual, int[] expected) {
@@ -454,7 +610,6 @@ public class RowBinaryStreamTest {
         }
 
         assertEquals(actualInts, expected);
-
     }
 
     private static void assertArrayEquals(long[] actual, int[] expected) {
@@ -474,6 +629,5 @@ public class RowBinaryStreamTest {
         }
 
         assertEquals(actual, expectedBigs);
-
     }
 }

@@ -1,9 +1,11 @@
 package ru.yandex.clickhouse.response;
 
 import java.util.TimeZone;
-
 import ru.yandex.clickhouse.domain.ClickHouseDataType;
 
+/**
+ * This class represents a column defined in database.
+ */
 public final class ClickHouseColumnInfo {
 
     private static final String KEYWORD_NULLABLE = "Nullable";
@@ -22,12 +24,21 @@ public final class ClickHouseColumnInfo {
     private int scale;
     private ClickHouseColumnInfo keyInfo;
     private ClickHouseColumnInfo valueInfo;
+    private String functionName;
 
     @Deprecated
     public static ClickHouseColumnInfo parse(String typeInfo, String columnName) {
         return parse(typeInfo, columnName, null);
     }
 
+    /**
+     * Parse given type string.
+     *
+     * @param typeInfo type defined in database
+     * @param columnName column name
+     * @param serverTimeZone server time zone
+     * @return parsed type
+     */
     public static ClickHouseColumnInfo parse(String typeInfo, String columnName, TimeZone serverTimeZone) {
         ClickHouseColumnInfo column = new ClickHouseColumnInfo(typeInfo, columnName);
         int currIdx = 0;
@@ -61,68 +72,74 @@ public final class ClickHouseColumnInfo {
         column.scale = dataType.getDefaultScale();
         column.timeZone = serverTimeZone;
         currIdx = endIdx;
-        if (endIdx == typeInfo.length()
-            || !typeInfo.startsWith("(", currIdx))
-        {
+        if (endIdx == typeInfo.length() || !typeInfo.startsWith("(", currIdx)) {
             return column;
         }
 
         switch (dataType) {
-            case DateTime :
-                String[] argsDT = splitArgs(typeInfo, currIdx);
-                if (argsDT.length == 2) { // same as DateTime64
-                    column.scale = Integer.parseInt(argsDT[0]);
-                    column.timeZone = TimeZone.getTimeZone(argsDT[1].replace("'", ""));
-                } else if (argsDT.length == 1) { // same as DateTime32
-                    // unfortunately this will fall back to GMT if the time zone
-                    // cannot be resolved
-                    TimeZone tz = TimeZone.getTimeZone(argsDT[0].replace("'", ""));
-                    column.timeZone = tz;
-                }
-                break;
-            case DateTime32:
-                String[] argsD32 = splitArgs(typeInfo, currIdx);
-                if (argsD32.length == 1) {
-                    // unfortunately this will fall back to GMT if the time zone
-                    // cannot be resolved
-                    TimeZone tz = TimeZone.getTimeZone(argsD32[0].replace("'", ""));
-                    column.timeZone = tz;
-                }
-                break;
-            case DateTime64:
-                String[] argsD64 = splitArgs(typeInfo, currIdx);
-                if (argsD64.length == 2) {
-                    column.scale = Integer.parseInt(argsD64[0]);
-                    column.timeZone = TimeZone.getTimeZone(argsD64[1].replace("'", ""));
-                }
-                break;
-            case Decimal :
-                String[] argsDecimal = splitArgs(typeInfo, currIdx);
-                if (argsDecimal.length == 2) {
-                    column.precision = Integer.parseInt(argsDecimal[0]);
-                    column.scale = Integer.parseInt(argsDecimal[1]);
-                }
-                break;
-            case Decimal32 :
-            case Decimal64 :
-            case Decimal128 :
-            case Decimal256 :
-                String[] argsScale = splitArgs(typeInfo, currIdx);
-                column.scale = Integer.parseInt(argsScale[0]);
-                break;
-            case FixedString :
-                String[] argsPrecision = splitArgs(typeInfo, currIdx);
-                column.precision = Integer.parseInt(argsPrecision[0]);
-                break;
-            case Map:
-                String[] argsMap = splitArgs(typeInfo, currIdx);
-                if (argsMap.length == 2) {
-                    column.keyInfo = ClickHouseColumnInfo.parse(argsMap[0], columnName + "Key", serverTimeZone);
-                    column.valueInfo = ClickHouseColumnInfo.parse(argsMap[1], columnName + "Value", serverTimeZone);
-                }
-                break;
-            default :
-                break;
+        case AggregateFunction :
+            String[] argsAf = splitArgs(typeInfo, currIdx);
+            column.functionName = argsAf[0];
+            column.arrayBaseType = ClickHouseDataType.Unknown;
+            if (argsAf.length == 2) {
+                column.arrayBaseType = ClickHouseDataType.fromTypeString(argsAf[1]);
+            }
+            break;
+        case DateTime :
+            String[] argsDt = splitArgs(typeInfo, currIdx);
+            if (argsDt.length == 2) { // same as DateTime64
+                column.scale = Integer.parseInt(argsDt[0]);
+                column.timeZone = TimeZone.getTimeZone(argsDt[1].replace("'", ""));
+            } else if (argsDt.length == 1) { // same as DateTime32
+                // unfortunately this will fall back to GMT if the time zone
+                // cannot be resolved
+                TimeZone tz = TimeZone.getTimeZone(argsDt[0].replace("'", ""));
+                column.timeZone = tz;
+            }
+            break;
+        case DateTime32:
+            String[] argsD32 = splitArgs(typeInfo, currIdx);
+            if (argsD32.length == 1) {
+                // unfortunately this will fall back to GMT if the time zone
+                // cannot be resolved
+                TimeZone tz = TimeZone.getTimeZone(argsD32[0].replace("'", ""));
+                column.timeZone = tz;
+            }
+            break;
+        case DateTime64:
+            String[] argsD64 = splitArgs(typeInfo, currIdx);
+            if (argsD64.length == 2) {
+                column.scale = Integer.parseInt(argsD64[0]);
+                column.timeZone = TimeZone.getTimeZone(argsD64[1].replace("'", ""));
+            }
+            break;
+        case Decimal :
+            String[] argsDecimal = splitArgs(typeInfo, currIdx);
+            if (argsDecimal.length == 2) {
+                column.precision = Integer.parseInt(argsDecimal[0]);
+                column.scale = Integer.parseInt(argsDecimal[1]);
+            }
+            break;
+        case Decimal32 :
+        case Decimal64 :
+        case Decimal128 :
+        case Decimal256 :
+            String[] argsScale = splitArgs(typeInfo, currIdx);
+            column.scale = Integer.parseInt(argsScale[0]);
+            break;
+        case FixedString :
+            String[] argsPrecision = splitArgs(typeInfo, currIdx);
+            column.precision = Integer.parseInt(argsPrecision[0]);
+            break;
+        case Map:
+            String[] argsMap = splitArgs(typeInfo, currIdx);
+            if (argsMap.length == 2) {
+                column.keyInfo = ClickHouseColumnInfo.parse(argsMap[0], columnName + "Key", serverTimeZone);
+                column.valueInfo = ClickHouseColumnInfo.parse(argsMap[1], columnName + "Value", serverTimeZone);
+            }
+            break;
+        default:
+            break;
         }
 
         return column;
@@ -153,8 +170,9 @@ public final class ClickHouseColumnInfo {
     }
 
     /**
-     * @return the type name returned from the database, without modifiers, i.e.
-     *         Nullable or LowCardinality
+     * Get the type name returned from the database, without modifiers, i.e. Nullable or LowCardinality.
+     *
+     * @return the type name returned from the database
      */
     public String getCleanTypeName() {
         if (!nullable && !lowCardinality) {
@@ -225,5 +243,9 @@ public final class ClickHouseColumnInfo {
 
     public ClickHouseColumnInfo getValueInfo() {
         return this.valueInfo;
+    }
+
+    public String getFunctionName() {
+        return this.functionName;
     }
 }

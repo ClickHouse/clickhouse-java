@@ -19,6 +19,7 @@ public class ByteFragment {
     }
 
     public static ByteFragment fromString(String str) {
+        // https://bugs.openjdk.java.net/browse/JDK-6219899
         byte[] bytes = str.getBytes(StandardCharsets.UTF_8);
         return new ByteFragment(bytes, 0, bytes.length);
     }

@@ -4,7 +4,6 @@ import java.sql.Timestamp;
 // import java.util.Collections;
 import java.util.Enumeration;
 import java.util.Random;
-
 import org.openjdk.jmh.annotations.Benchmark;
 
 public class Insertion extends JdbcBenchmark {

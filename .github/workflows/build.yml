@@ -34,7 +34,8 @@ jobs:
       matrix:
         java: [8, 11, 15]
         # most recent LTS releases as well as latest stable builds
-        clickhouse: ["20.8", "20.10", "20.12", "21.2", "latest"]
+        clickhouse: ["20.8", "21.3", "latest"]
+      fail-fast: false
     name: Build using JDK ${{ matrix.java }} against ClickHouse ${{ matrix.clickhouse }}
     steps:
       - name: Check out Git repository

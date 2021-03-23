@@ -61,6 +61,7 @@ jobs:
           # added,diff_context,file,nofilter
           filter_mode: 'added'
         if: github.event_name == 'pull_request_target' || github.event.inputs.pr != ''
+        continue-on-error: true
       - name: Update sonar config
         run: |
           sed -i -e 's|^\(.*<sonar.projectKey>\).*\(</sonar.projectKey>\)$|\1ClickHouse_clickhouse-jdbc\2|' \
@@ -73,3 +74,4 @@ jobs:
         run: |
           find . -type f -name "log4j.*" -exec rm -fv '{}' \;
           mvn -q --batch-mode -Panalysis verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar
+        continue-on-error: true
