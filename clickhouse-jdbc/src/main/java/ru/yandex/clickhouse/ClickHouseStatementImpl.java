@@ -18,7 +18,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.TimeZone;
 import java.util.UUID;
-
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
@@ -35,7 +34,7 @@ import org.apache.http.message.BasicNameValuePair;
 import org.apache.http.util.EntityUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
+import ru.yandex.clickhouse.domain.ClickHouseCompression;
 import ru.yandex.clickhouse.domain.ClickHouseFormat;
 import ru.yandex.clickhouse.except.ClickHouseException;
 import ru.yandex.clickhouse.except.ClickHouseExceptionSpecifier;
@@ -1014,7 +1013,7 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
 
             HttpPost httpPost = new HttpPost(uri);
 
-            if (writer.getCompression() != null) {
+            if (writer.getCompression() != ClickHouseCompression.none) {
                 httpPost.addHeader("Content-Encoding", writer.getCompression().name());
             }
             httpPost.setEntity(content);
