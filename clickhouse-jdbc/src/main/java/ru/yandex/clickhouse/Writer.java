@@ -1,21 +1,23 @@
 package ru.yandex.clickhouse;
 
-import org.apache.http.HttpEntity;
-import org.apache.http.entity.InputStreamEntity;
-import ru.yandex.clickhouse.domain.ClickHouseCompression;
-import ru.yandex.clickhouse.domain.ClickHouseFormat;
-import ru.yandex.clickhouse.util.ClickHouseStreamCallback;
-import ru.yandex.clickhouse.util.ClickHouseStreamHttpEntity;
+import static ru.yandex.clickhouse.domain.ClickHouseFormat.Native;
+import static ru.yandex.clickhouse.domain.ClickHouseFormat.RowBinary;
+import static ru.yandex.clickhouse.domain.ClickHouseFormat.TabSeparated;
 
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.sql.SQLException;
+import java.util.Objects;
 
-import static ru.yandex.clickhouse.domain.ClickHouseFormat.Native;
-import static ru.yandex.clickhouse.domain.ClickHouseFormat.RowBinary;
-import static ru.yandex.clickhouse.domain.ClickHouseFormat.TabSeparated;
+import org.apache.http.HttpEntity;
+import org.apache.http.entity.InputStreamEntity;
+import ru.yandex.clickhouse.domain.ClickHouseCompression;
+import ru.yandex.clickhouse.domain.ClickHouseFormat;
+import ru.yandex.clickhouse.settings.ClickHouseQueryParam;
+import ru.yandex.clickhouse.util.ClickHouseStreamCallback;
+import ru.yandex.clickhouse.util.ClickHouseStreamHttpEntity;
 
 public class Writer extends ConfigurableApi<Writer> {
 
@@ -27,10 +29,12 @@ public class Writer extends ConfigurableApi<Writer> {
 
     Writer(ClickHouseStatementImpl statement) {
         super(statement);
+
+        dataCompression(ClickHouseCompression.none);
     }
 
     /**
-     * Specifies format for further insert of data via send()
+     * Specifies format for further insert of data via send().
      *
      * @param format
      *            the format of the data to upload
@@ -45,7 +49,7 @@ public class Writer extends ConfigurableApi<Writer> {
     }
 
     /**
-     * Set table name for data insertion
+     * Set table name for data insertion.
      *
      * @param table
      *            name of the table to upload the data to
@@ -58,7 +62,7 @@ public class Writer extends ConfigurableApi<Writer> {
     }
 
     /**
-     * Set SQL for data insertion
+     * Set SQL for data insertion.
      *
      * @param sql
      *            in a form "INSERT INTO table_name [(X,Y,Z)] VALUES "
@@ -71,7 +75,7 @@ public class Writer extends ConfigurableApi<Writer> {
     }
 
     /**
-     * Specifies data input stream
+     * Specifies data input stream.
      *
      * @param stream
      *            a stream providing the data to upload
@@ -83,7 +87,7 @@ public class Writer extends ConfigurableApi<Writer> {
     }
 
     /**
-     * Specifies data input stream, and the format to use
+     * Specifies data input stream, and the format to use.
      *
      * @param stream
      *            a stream providing the data to upload
@@ -96,7 +100,7 @@ public class Writer extends ConfigurableApi<Writer> {
     }
 
     /**
-     * Shortcut method for specifying a file as an input
+     * Shortcut method for specifying a file as an input.
      *
      * @param input
      *            the file to upload
@@ -116,10 +120,9 @@ public class Writer extends ConfigurableApi<Writer> {
     }
 
     public Writer dataCompression(ClickHouseCompression compression) {
-        if (null == compression) {
-            throw new NullPointerException("Compression can not be null");
-        }
-        this.compression = compression;
+        this.compression = Objects.requireNonNull(compression, "Compression can not be null");
+        this.addDbParam(ClickHouseQueryParam.COMPRESS, String.valueOf(compression != ClickHouseCompression.none));
+        
         return this;
     }
 
@@ -128,7 +131,7 @@ public class Writer extends ConfigurableApi<Writer> {
     }
 
     /**
-     * Method to call, when Writer is fully configured
+     * Method to call, when Writer is fully configured.
      */
     public void send() throws SQLException {
         HttpEntity entity;
@@ -149,7 +152,7 @@ public class Writer extends ConfigurableApi<Writer> {
     }
 
     /**
-     * Allows to send stream of data to ClickHouse
+     * Allows to send stream of data to ClickHouse.
      *
      * @param sql
      *            in a form of "INSERT INTO table_name (X,Y,Z) VALUES "
@@ -165,7 +168,7 @@ public class Writer extends ConfigurableApi<Writer> {
     }
 
     /**
-     * Convenient method for importing the data into table
+     * Convenient method for importing the data into table.
      *
      * @param table
      *            table name
@@ -182,7 +185,7 @@ public class Writer extends ConfigurableApi<Writer> {
 
     /**
      * Sends the data in {@link ClickHouseFormat#RowBinary RowBinary} or in
-     * {@link ClickHouseFormat#Native Native} format
+     * {@link ClickHouseFormat#Native Native} format.
      *
      * @param sql
      *            the SQL statement to execute

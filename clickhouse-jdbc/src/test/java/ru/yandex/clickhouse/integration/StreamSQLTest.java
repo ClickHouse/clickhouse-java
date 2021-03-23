@@ -1,15 +1,11 @@
 package ru.yandex.clickhouse.integration;
 
-import org.testng.Assert;
-import org.testng.annotations.BeforeTest;
-import org.testng.annotations.Test;
-import ru.yandex.clickhouse.ClickHouseConnection;
-import ru.yandex.clickhouse.ClickHouseContainerForTest;
-import ru.yandex.clickhouse.ClickHouseDataSource;
-import ru.yandex.clickhouse.domain.ClickHouseCompression;
-import ru.yandex.clickhouse.domain.ClickHouseFormat;
 
-import java.io.*;
+import java.io.BufferedInputStream;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.math.BigDecimal;
 import java.nio.charset.Charset;
 import java.sql.ResultSet;
@@ -19,6 +15,14 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.zip.GZIPOutputStream;
+import org.testng.Assert;
+import org.testng.annotations.BeforeTest;
+import org.testng.annotations.Test;
+import ru.yandex.clickhouse.ClickHouseConnection;
+import ru.yandex.clickhouse.ClickHouseContainerForTest;
+import ru.yandex.clickhouse.ClickHouseDataSource;
+import ru.yandex.clickhouse.domain.ClickHouseCompression;
+import ru.yandex.clickhouse.domain.ClickHouseFormat;
 
 public class StreamSQLTest {
     private static final DateTimeFormatter DATE_TIME_FORMATTER_TZ = 
@@ -49,8 +53,8 @@ public class StreamSQLTest {
         String string = "5,6\n1,6";
         InputStream inputStream = new ByteArrayInputStream(string.getBytes(Charset.forName("UTF-8")));
 
-        connection.createStatement().
-                write()
+        connection.createStatement()
+                .write()
                 .sql("insert into test.csv_stream_sql format CSV")
                 .data(inputStream)
                 .send();
@@ -114,7 +118,7 @@ public class StreamSQLTest {
     private InputStream gzStream( InputStream is ) throws IOException
     {
         final int bufferSize = 16384;
-        byte data[] = new byte[bufferSize];
+        byte[] data = new byte[bufferSize];
         ByteArrayOutputStream os = new ByteArrayOutputStream();
         GZIPOutputStream gzipOutputStream = new GZIPOutputStream(os);
         BufferedInputStream es = new BufferedInputStream(is, bufferSize);
@@ -137,14 +141,38 @@ public class StreamSQLTest {
         final int rowsCount = 100000;
 
         InputStream gz = gzStream(getTSVStream(rowsCount));
-        connection.createStatement().
-                write()
+        connection.createStatement()
+                .write()
                 .sql("insert into test.tsv_compressed_stream_sql format TSV")
                 .data(gz, ClickHouseFormat.TSV, ClickHouseCompression.gzip)
                 .send();
 
         ResultSet rs = connection.createStatement().executeQuery(
                 "SELECT count() AS cnt, sum(value) AS sum, uniqExact(string_value) uniq FROM test.tsv_compressed_stream_sql");
+        Assert.assertTrue(rs.next());
+        Assert.assertEquals(rs.getInt("cnt"), rowsCount);
+        Assert.assertEquals(rs.getInt("sum"), rowsCount);
+        Assert.assertEquals(rs.getInt("uniq"), rowsCount);
+    }
+
+    @Test
+    public void multiRowTSVInsertNotCompressed() throws SQLException, IOException {
+        connection.createStatement().execute("DROP TABLE IF EXISTS test.tsv_not_compressed_stream_sql");
+        connection.createStatement().execute(
+                "CREATE TABLE test.tsv_not_compressed_stream_sql (value Int32, string_value String) ENGINE = Log()"
+        );
+
+        final int rowsCount = 100000;
+
+        InputStream in = getTSVStream(rowsCount);
+        connection.createStatement()
+                .write()
+                .sql("insert into test.tsv_not_compressed_stream_sql format TSV")
+                .data(in, ClickHouseFormat.TSV, ClickHouseCompression.none)
+                .send();
+
+        ResultSet rs = connection.createStatement().executeQuery(
+                "SELECT count() AS cnt, sum(value) AS sum, uniqExact(string_value) uniq FROM test.tsv_not_compressed_stream_sql");
         Assert.assertTrue(rs.next());
         Assert.assertEquals(rs.getInt("cnt"), rowsCount);
         Assert.assertEquals(rs.getInt("sum"), rowsCount);
