@@ -1,7 +1,10 @@
 name: Benchmark
 
 on:
-  pull_request:
+  pull_request_target:
+    branches:
+      - master
+      - develop
     types:
       - opened
       - synchronize
@@ -36,7 +39,7 @@ jobs:
   benchmark-pull-request:
     runs-on: ubuntu-latest
     name: Benchmark pull request
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request_target'
     steps:
       - name: Check out repository
         uses: actions/checkout@v2
@@ -69,13 +72,10 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            if (process.env.BENCHMARK_REPORT) {
-              github.issues.createComment({
-                issue_number: context.issue.number,
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                body: '```\n' + process.env.BENCHMARK_REPORT + '\n```'
-              });
+            const report = process.env.BENCHMARK_REPORT;
+            const { issue: { number: issue_number }, repo: { owner, repo } } = context;
+            if (report) {
+              github.issues.createComment({issue_number, owner, repo, body: '```\n' + report + '\n```'});
             }
 
   benchmark-on-demand:
@@ -108,8 +108,8 @@ jobs:
         continue-on-error: true
       - name: Build project
         run: |
+          mvn --batch-mode --update-snapshots -DskipTests -pl clickhouse-benchmark -am package
           cd clickhouse-benchmark
-          mvn --batch-mode --update-snapshots -DclickhouseVersion=${{ github.event.inputs.clickhouse }} install
           java -jar target/benchmarks.jar -rf json ${{ github.event.inputs.options }} > output.txt
           echo "BENCHMARK_REPORT<<EOF" >> $GITHUB_ENV
           tail -n +$(grep -n '^REMEMBER:' output.txt | tail -1 | awk -F: '{print $1+6}') output.txt | head -n -2 | grep -v ':·' >> $GITHUB_ENV

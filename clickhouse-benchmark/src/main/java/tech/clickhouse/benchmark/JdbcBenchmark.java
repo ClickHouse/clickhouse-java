@@ -1,7 +1,5 @@
 package tech.clickhouse.benchmark;
 
-import org.openjdk.jmh.annotations.*;
-
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
@@ -9,7 +7,19 @@ import java.sql.Statement;
 import java.util.Enumeration;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
+import org.openjdk.jmh.annotations.BenchmarkMode;
+import org.openjdk.jmh.annotations.Fork;
+import org.openjdk.jmh.annotations.Measurement;
+import org.openjdk.jmh.annotations.Mode;
+import org.openjdk.jmh.annotations.OutputTimeUnit;
+import org.openjdk.jmh.annotations.Scope;
+import org.openjdk.jmh.annotations.State;
+import org.openjdk.jmh.annotations.Threads;
+import org.openjdk.jmh.annotations.Warmup;
 
+/**
+ * Base class for JDBC driver benchmarking.
+ */
 @State(Scope.Benchmark)
 @Warmup(iterations = 10, timeUnit = TimeUnit.SECONDS, time = 1)
 @Measurement(iterations = 10, timeUnit = TimeUnit.SECONDS, time = 1)
@@ -104,14 +114,17 @@ public abstract class JdbcBenchmark {
         final Connection conn = state.getConnection();
 
         if (state.usePreparedStatement()) {
-            PreparedStatement s = conn.prepareStatement(sql);
-            s.setFetchSize(fetchSize);
-            setParameters(s, values).executeQuery();
-            stmt = s;
+            try (PreparedStatement s = conn.prepareStatement(sql)) {
+                stmt = s;
+                s.setFetchSize(fetchSize);
+                setParameters(s, values).executeQuery();
+            }
         } else {
-            stmt = conn.createStatement();
-            stmt.setFetchSize(fetchSize);
-            stmt.executeQuery(replaceParameters(sql, values));
+            try (Statement s = conn.createStatement()) {
+                stmt = s;
+                stmt.setFetchSize(fetchSize);
+                stmt.executeQuery(replaceParameters(sql, values));
+            }
         }
 
         return stmt;
