@@ -67,6 +67,16 @@ public class ClickHouseRowBinaryStream {
     }
 
     /**
+     * @param bytes  byte array will be written into stream
+     * @param offset the starting offset in {@code bytes} to start writing at
+     * @param len    the length of the {@code bytes}, starting from {@code offset}
+     * @throws IOException in case if an I/O error occurs
+     */
+    public void writeBytes(byte[] bytes, int offset, int len) throws IOException {
+        out.write(bytes, offset, len);
+    }
+
+    /**
      * Dangerous. Can only be used for rare optimizations, for example when the string is written in parts
      * without prior concatenation. The size of the string in bytes must be passed through writeUnsignedLeb128.
      *
