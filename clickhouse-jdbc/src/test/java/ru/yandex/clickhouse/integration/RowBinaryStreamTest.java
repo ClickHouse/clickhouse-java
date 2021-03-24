@@ -152,11 +152,11 @@ public class RowBinaryStreamTest {
         return values;
     }
 
-    private long[] genRoaring64BitmapValues(int length) {
+    private long[] gen64BitmapValues(int length, long base, long step) {
         long[] values = new long[length];
 
         for (int i = 0; i < length; i++) {
-            values[i] = 100000L + i;
+            values[i] = base + i * step;
         }
 
         return values;
@@ -219,11 +219,11 @@ public class RowBinaryStreamTest {
         }
     }
 
-    private void testBitmap64(int valueLength) throws Exception {
+    private void testBitmap64(int valueLength, long base, long step) throws Exception {
         ClickHouseDataType innerType = ClickHouseDataType.UInt64;
         try (ClickHouseStatement statement = connection.createStatement()) {
             String tableName = createtestBitmapTable(innerType);
-            long[] values = genRoaring64BitmapValues(valueLength);
+            long[] values = gen64BitmapValues(valueLength, base, step);
             statement.sendRowBinaryStream("insert into table " + tableName, new ClickHouseStreamCallback() {
                 @Override
                 public void writeTo(ClickHouseRowBinaryStream stream) throws IOException {
@@ -247,11 +247,7 @@ public class RowBinaryStreamTest {
 
             sql = "select b from " + tableName + " order by i";
             try (ClickHouseRowBinaryInputStream in = statement.executeQueryClickhouseRowBinaryStream(sql)) {
-                if (valueLength <= 32) {
-                    assertEquals(in.readBitmap(innerType), ClickHouseBitmap.wrap(Roaring64NavigableMap.bitmapOf(values), innerType));
-                } else {
-                    assertThrows(UnsupportedOperationException.class, () -> in.readBitmap(innerType));
-                }
+                assertEquals(in.readBitmap(innerType), ClickHouseBitmap.wrap(Roaring64NavigableMap.bitmapOf(values), innerType));
             }
 
             statement.execute("drop table if exists " + tableName);
@@ -268,13 +264,15 @@ public class RowBinaryStreamTest {
         testBitmap(ClickHouseDataType.UInt32, 32);
         testBitmap(ClickHouseDataType.UInt32, 65537);
 
-        testBitmap64(32);
+        testBitmap64(32, 0L, 1L);
+        testBitmap64(32, Long.MAX_VALUE, -1L);
 
         String versionNumber = connection.getServerVersion();
         int majorVersion = ClickHouseVersionNumberUtil.getMajorVersion(versionNumber);
         int minorVersion = ClickHouseVersionNumberUtil.getMinorVersion(versionNumber);
         if (majorVersion > 20 || (majorVersion == 20 && minorVersion > 8)) {
-            testBitmap64(65537);
+            testBitmap64(65537, 100000L, 1L); // highToBitmap.size() == 1
+            testBitmap64(65537, 9223372036854775807L, -1000000000L); // highToBitmap.size() > 1
         }
     }
 
