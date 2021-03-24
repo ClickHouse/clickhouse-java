@@ -1,3 +1,16 @@
+0.3.0
+  * BREAKING CHANGE - dropped JDK 7 support
+  * BREAKING CHANGE - removed Guava dependency(and so is UnsignedLong)
+  * JDBC 4.2 support
+  * add connection setting client_name for load-balancing and troubleshooting
+  * add writeBytes & writeUUIDArray and remove UnsignedLong related methods in ClickHouseRowBinaryStream
+  * support more data types: IPv4, IPv6, Int128, UInt128, Int256, UInt256, Decimal256, DateTime*, and Map
+  * support ORC/Parquet streaming
+  * support read/write Bitmap from/into AggregateFunction(groupBitmap, UInt[8-64]) column
+  * throw SQLException instead of RuntimeException when instantiating ClickHouseConnectionImpl
+  * fix error when using ClickHouseCompression.none against 19.16
+  * fix NegativeArraySizeException when dealing with large array
+  * fix datetime/date display issue caused by timezone differences(between client and column/server)
 0.2.6
   * add new feature for sending compressed files/streams
   * introduce an experimental SQL parser to fix parsing related issues - set connection setting use_new_parser to false to disable
