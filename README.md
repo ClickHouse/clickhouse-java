@@ -22,6 +22,17 @@ JDBC Driver Class:
 
 additionally, if you have a few instances, you can use `BalancedClickhouseDataSource`.
 
+**Notice**
+
+If your build tool can not resolve dependency: `com.github.RoaringBitmap:RoaringBitmap`, please add the JitPack repository to your build file:
+```xml
+<repositories>
+    <repository>
+        <id>jitpack.io</id>
+        <url>https://jitpack.io</url>
+    </repository>
+</repositories>
+```
 
 ### Extended API
 In order to provide non-JDBC complaint data manipulation functionality, proprietary API exists.
