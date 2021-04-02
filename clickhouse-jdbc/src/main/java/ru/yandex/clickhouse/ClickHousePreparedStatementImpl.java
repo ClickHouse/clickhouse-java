@@ -368,8 +368,8 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
                             "Got: " + sql
             );
         }
-        String insertSql = sql.substring(0, valuePosition);
-        BatchHttpEntity entity = new BatchHttpEntity(batchRows);
+        String insertSql = sql.substring(0, valuePosition) + " FORMAT TabSeparated\n";
+        BatchHttpEntity entity = new BatchHttpEntity(insertSql, batchRows);
         sendStream(entity, insertSql, additionalDBParams);
         int[] result = new int[batchRows.size()];
         Arrays.fill(result, 1);
@@ -378,9 +378,11 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
     }
 
     private static class BatchHttpEntity extends AbstractHttpEntity {
+        private final String sql;
         private final List<byte[]> rows;
 
-        public BatchHttpEntity(List<byte[]> rows) {
+        public BatchHttpEntity(String sql, List<byte[]> rows) {
+            this.sql = sql;
             this.rows = rows;
         }
 
@@ -401,6 +403,10 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
 
         @Override
         public void writeTo(OutputStream outputStream) throws IOException {
+            if (sql != null && !sql.isEmpty()) {
+                outputStream.write(sql.getBytes(StandardCharsets.UTF_8));
+            }
+
             for (byte[] row : rows) {
                 outputStream.write(row);
             }

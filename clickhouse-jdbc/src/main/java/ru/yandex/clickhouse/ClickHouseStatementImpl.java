@@ -22,6 +22,7 @@ import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.NameValuePair;
+import org.apache.http.StatusLine;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.protocol.HttpClientContext;
@@ -806,7 +807,7 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
     ) {
         List<NameValuePair> result = new ArrayList<>();
 
-        if (sql != null) {
+        if (sql != null && !sql.isEmpty()) {
             result.add(new BasicNameValuePair("query", sql));
         }
 
@@ -1006,7 +1007,7 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
         HttpEntity entity = null;
         try {
 
-            URI uri = buildRequestUri(writer.getSql(), null, writer.getAdditionalDBParams(), writer.getRequestParams(), false);
+            URI uri = buildRequestUri(null, null, writer.getAdditionalDBParams(), writer.getRequestParams(), false);
             uri = followRedirects(uri);
 
             content = applyRequestBodyCompression(content);
@@ -1036,7 +1037,8 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
     }
 
     private void checkForErrorAndThrow(HttpEntity entity, HttpResponse response) throws IOException, ClickHouseException {
-        if (response.getStatusLine().getStatusCode() != HttpURLConnection.HTTP_OK) {
+        StatusLine line = response.getStatusLine();
+        if (line.getStatusCode() != HttpURLConnection.HTTP_OK) {
             InputStream messageStream = entity.getContent();
             byte[] bytes = Utils.toByteArray(messageStream);
             if (properties.isCompress()) {
@@ -1048,8 +1050,11 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
                 }
             }
             EntityUtils.consumeQuietly(entity);
-            String chMessage = new String(bytes, StandardCharsets.UTF_8);
-            throw ClickHouseExceptionSpecifier.specify(chMessage, properties.getHost(), properties.getPort());
+            if (bytes.length == 0) {
+                throw ClickHouseExceptionSpecifier.specify(new IllegalStateException(line.toString()), properties.getHost(), properties.getPort());
+            } else {
+                throw ClickHouseExceptionSpecifier.specify(new String(bytes, StandardCharsets.UTF_8), properties.getHost(), properties.getPort());
+            }
         }
     }
 
