@@ -135,6 +135,10 @@ public class ClickHouseSqlParserTest {
         checkSingleStatement(parse(sql = "desc table a"), sql, StatementType.DESCRIBE, "system", "columns");
         checkSingleStatement(parse(sql = "describe table a.a"), sql, StatementType.DESCRIBE, "a", "columns");
         checkSingleStatement(parse(sql = "desc table table"), sql, StatementType.DESCRIBE, "system", "columns");
+        // fix issue #614
+        checkSingleStatement(parse(sql = "desc t1 t2"), sql, StatementType.DESCRIBE, "system", "columns");
+        checkSingleStatement(parse(sql = "desc table t1 t2"), sql, StatementType.DESCRIBE, "system", "columns");
+        checkSingleStatement(parse(sql = "desc table t1 as `t2`"), sql, StatementType.DESCRIBE, "system", "columns");
     }
 
     @Test
