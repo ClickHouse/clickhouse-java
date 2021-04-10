@@ -188,7 +188,7 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
             if (extractWithTotals(sql)) {
                 positions.put(ClickHouseSqlStatement.KEYWORD_TOTALS, 1);
             }
-            parsedStmt = new ClickHouseSqlStatement(sql, StatementType.SELECT,
+            parsedStmt = new ClickHouseSqlStatement(clickhousifySql(sql), StatementType.SELECT,
                 null, dbName, tableName, null, null, null, positions);
             // httpContext.setAttribute("is_idempotent", Boolean.TRUE);
         }

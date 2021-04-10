@@ -1,14 +1,19 @@
 package ru.yandex.clickhouse.integration;
 
 import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.Statement;
 
 import javax.sql.DataSource;
 
 import org.testng.annotations.Test;
 
 import ru.yandex.clickhouse.ClickHouseContainerForTest;
+import ru.yandex.clickhouse.ClickHouseDataSource;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
 
+import static org.testng.Assert.assertFalse;
+import static org.testng.Assert.assertNotNull;
 import static org.testng.Assert.assertTrue;
 import static org.testng.Assert.fail;
 
@@ -67,6 +72,20 @@ public class ClickHouseConnectionImplTest {
     @Test
     public void testOofWrongPassword() throws Exception {
         assertFailure(createDataSource("oof", "baz"));
+    }
+
+    @Test
+    public void testNewParserOption() throws Exception {
+        ClickHouseProperties props = new ClickHouseProperties();
+        props.setUseNewParser(false);
+        ClickHouseDataSource ds = ClickHouseContainerForTest.newDataSource(props);
+        try (Connection conn = ds.getConnection(); Statement s = conn.createStatement();
+            ResultSet rs = s.executeQuery("select timezone(), version()");) {
+            assertTrue(rs.next());
+            assertNotNull(rs.getString(1));
+            assertNotNull(rs.getString(2));
+            assertFalse(rs.next());
+        }
     }
 
     private static void assertSuccess(DataSource dataSource) throws Exception {
