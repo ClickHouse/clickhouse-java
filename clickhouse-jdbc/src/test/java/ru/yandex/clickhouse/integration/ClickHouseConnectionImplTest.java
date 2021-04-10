@@ -77,7 +77,6 @@ public class ClickHouseConnectionImplTest {
 
     @Test
     public void testNewParserOption() throws Exception {
-        ClickHouseContainerForTest.beforeSuite();
         ClickHouseProperties props = new ClickHouseProperties();
         props.setUseNewParser(false);
         ClickHouseDataSource ds = ClickHouseContainerForTest.newDataSource(props);
