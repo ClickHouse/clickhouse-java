@@ -413,7 +413,7 @@ void deleteStmt(): {} {
 // https://clickhouse.tech/docs/en/sql-reference/statements/describe-table/
 void describeStmt(): {} {
     (<DESCRIBE> | <DESC>) { token_source.table = "columns"; }
-    (LOOKAHEAD({ getToken(1).kind == TABLE }) <TABLE>)? (LOOKAHEAD(2) tableIdentifier(true) | anyExprList())
+    (LOOKAHEAD({ getToken(1).kind == TABLE }) <TABLE>)? tableIdentifier(true) (anyExprList())?
 }
 
 // https://clickhouse.tech/docs/en/sql-reference/statements/detach/
