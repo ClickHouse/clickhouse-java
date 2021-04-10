@@ -30,7 +30,9 @@ target/
 
 # Generated files
 **/parser/*CharStream.java
-**/parser/ClickHouseSqlParser*.java
+**/parser/ClickHouseSqlParser.java
+**/parser/ClickHouseSqlParserConstants.java
+**/parser/ClickHouseSqlParserTokenManager.java
 **/parser/Token*.java
 **/parser/ParseException.java
 
