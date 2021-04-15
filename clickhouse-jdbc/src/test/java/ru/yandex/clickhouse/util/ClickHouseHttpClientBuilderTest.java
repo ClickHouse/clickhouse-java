@@ -110,6 +110,7 @@ public class ClickHouseHttpClientBuilderTest {
         ClickHouseProperties props = new ClickHouseProperties();
         props.setHost("localhost");
         props.setPort(mockServer.port());
+        props.setDatabase("default");
         props.setUseSharedCookieStore(true);
         CloseableHttpClient client = new ClickHouseHttpClientBuilder(props).buildClient();
         String cookie = "AWS-ALB=random-value-" + Instant.now().toEpochMilli();

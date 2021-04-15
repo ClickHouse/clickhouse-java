@@ -56,6 +56,7 @@ public class ClickHouseProperties {
     private String useTimeZone;
     private boolean useServerTimeZoneForDates;
     private boolean useObjectsInArrays;
+    // the shared cookie store is scoped to a database
     private boolean useSharedCookieStore;
 
     // queries settings
