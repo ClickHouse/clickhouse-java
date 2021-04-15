@@ -4,6 +4,8 @@ import org.testng.annotations.Test;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
 
 import static org.testng.Assert.assertEquals;
+import static org.testng.Assert.assertNotEquals;
+import static org.testng.Assert.assertNotNull;
 import static org.testng.Assert.assertNull;
 
 public class ClickHouseCookieStoreProviderTest {
@@ -42,19 +44,20 @@ public class ClickHouseCookieStoreProviderTest {
         ClickHouseProperties props = new ClickHouseProperties();
         props.setUseSharedCookieStore(true);
         props.setHost("127.0.0.1");
-        props.setPort(0);
+        props.setPort(8080);
         props.setDatabase("default");
+        assertNotNull(cookieStoreProvider.getCookieStore(props));
         assertEquals(cookieStoreProvider.getCookieStore(props), cookieStoreProvider.getCookieStore(props));
     }
 
     @Test
-    public void testCookieStoreProviderWithSameDBAndPrivateCookieStore() {
+    public void testCookieStoreProviderWithPrivateCookieStore() {
         ClickHouseProperties props = new ClickHouseProperties();
-        props.setUseSharedCookieStore(true);
+        props.setUseSharedCookieStore(false);
         props.setHost("127.0.0.1");
-        props.setPort(0);
+        props.setPort(8080);
         props.setDatabase("default");
-        assertEquals(cookieStoreProvider.getCookieStore(props), cookieStoreProvider.getCookieStore(props));
+        assertNull(cookieStoreProvider.getCookieStore(props));
     }
 
     @Test
@@ -62,10 +65,10 @@ public class ClickHouseCookieStoreProviderTest {
         ClickHouseProperties props1 = new ClickHouseProperties();
         props1.setUseSharedCookieStore(true);
         props1.setHost("127.0.0.1");
-        props1.setPort(0);
+        props1.setPort(8080);
         props1.setDatabase("default1");
         ClickHouseProperties props2 = new ClickHouseProperties(props1);
         props2.setDatabase("default2");
-        assertEquals(cookieStoreProvider.getCookieStore(props1), cookieStoreProvider.getCookieStore(props2));
+        assertNotEquals(cookieStoreProvider.getCookieStore(props1), cookieStoreProvider.getCookieStore(props2));
     }
 }
