@@ -42,6 +42,7 @@ public enum ClickHouseConnectionSettings implements DriverPropertyCreator {
      * additional
      */
     USE_OBJECTS_IN_ARRAYS("use_objects_in_arrays", false, "Whether Object[] should be used instead primitive arrays."),
+    USE_SHARED_COOKIE_STORE("use_shared_cookie_store", false, "Whether to use shared cookie to store among all http clients are not"),
     MAX_COMPRESS_BUFFER_SIZE("maxCompressBufferSize", 1024*1024, ""),
 
     USE_SERVER_TIME_ZONE("use_server_time_zone", true, "Whether to use timezone from server. On connection init select timezone() will be executed"),

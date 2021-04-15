@@ -34,6 +34,7 @@ import org.apache.http.NoHttpResponseException;
 import org.apache.http.auth.AuthScope;
 import org.apache.http.auth.UsernamePasswordCredentials;
 import org.apache.http.client.AuthCache;
+import org.apache.http.client.CookieStore;
 import org.apache.http.client.CredentialsProvider;
 import org.apache.http.client.HttpRequestRetryHandler;
 import org.apache.http.client.config.RequestConfig;
@@ -47,6 +48,7 @@ import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
 import org.apache.http.impl.DefaultConnectionReuseStrategy;
 import org.apache.http.impl.auth.BasicScheme;
 import org.apache.http.impl.client.BasicAuthCache;
+import org.apache.http.impl.client.BasicCookieStore;
 import org.apache.http.impl.client.BasicCredentialsProvider;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.DefaultHttpRequestRetryHandler;
@@ -60,6 +62,7 @@ import ru.yandex.clickhouse.util.ssl.NonValidatingTrustManager;
 
 public class ClickHouseHttpClientBuilder {
 
+    private static final CookieStore SHARED_COOKIE_STORE = new BasicCookieStore();
     private final ClickHouseProperties properties;
 
     public ClickHouseHttpClientBuilder(ClickHouseProperties properties) {
@@ -76,6 +79,7 @@ public class ClickHouseHttpClientBuilder {
                 .setDefaultHeaders(getDefaultHeaders())
                 .setDefaultCredentialsProvider(getDefaultCredentialsProvider())
                 .disableContentCompression() // gzip is not needed. Use lz4 when compress=1
+                .setDefaultCookieStore(getCookieStore())
                 .disableRedirectHandling();
 
         String clientName = properties != null ? properties.getClientName() : null;
@@ -251,6 +255,10 @@ public class ClickHouseHttpClientBuilder {
                 properties.getUser() != null  ? properties.getUser() : "default",
                 properties.getPassword() != null ? properties.getPassword() : ""));
         return credsProvider;
+    }
+
+    private CookieStore getCookieStore() {
+        return properties.isUseSharedCookieStore() ? SHARED_COOKIE_STORE : new BasicCookieStore();
     }
 
     private static HttpHost getTargetHost(ClickHouseProperties props) {

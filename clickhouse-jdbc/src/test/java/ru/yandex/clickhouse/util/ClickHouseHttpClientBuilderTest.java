@@ -2,6 +2,7 @@ package ru.yandex.clickhouse.util;
 
 import org.apache.http.HttpHost;
 import org.apache.http.NoHttpResponseException;
+import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.conn.HttpHostConnectException;
 import org.apache.http.impl.client.CloseableHttpClient;
@@ -19,6 +20,9 @@ import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
 
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
 
+import java.time.Instant;
+
+import static com.github.tomakehurst.wiremock.client.WireMock.getRequestedFor;
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertNull;
 
@@ -101,6 +105,30 @@ public class ClickHouseHttpClientBuilderTest {
             "basic");
     }
 
+    @Test
+    public void testHttpClientsWithSharedCookie() throws Exception {
+        ClickHouseProperties props = new ClickHouseProperties();
+        props.setHost("localhost");
+        props.setPort(mockServer.port());
+        props.setUseSharedCookieStore(true);
+        CloseableHttpClient client = new ClickHouseHttpClientBuilder(props).buildClient();
+        String cookie = "AWS-ALB=random-value-" + Instant.now().toEpochMilli();
+        mockServer.stubFor(WireMock.get(WireMock.urlPathMatching("/cookie/get"))
+                                   .willReturn(WireMock.aResponse()
+                                                       .withStatus(200)
+                                                       .withHeader("set-cookie", cookie)
+                                                       .withBody("OK")));
+        HttpGet getCookie = new HttpGet(mockServer.baseUrl() + "/cookie/get");
+        client.execute(getCookie);
+        CloseableHttpClient clientWithSharedCookieStore = new ClickHouseHttpClientBuilder(props).buildClient();
+        props.setUseSharedCookieStore(false);
+        CloseableHttpClient clientWithPrivateCookieStore = new ClickHouseHttpClientBuilder(props).buildClient();
+        HttpGet checkCookie = new HttpGet(mockServer.baseUrl() + "/cookie/check");
+        clientWithPrivateCookieStore.execute(checkCookie);
+        mockServer.verify(getRequestedFor(WireMock.urlEqualTo("/cookie/check")).withoutHeader("cookie"));
+        clientWithSharedCookieStore.execute(checkCookie);
+        mockServer.verify(getRequestedFor(WireMock.urlEqualTo("/cookie/check")).withHeader("cookie", equalTo(cookie)));
+    }
 
     @Test(dataProvider = "authUserPassword")
     public void testHttpAuthParametersCombination(String authorization, String user,

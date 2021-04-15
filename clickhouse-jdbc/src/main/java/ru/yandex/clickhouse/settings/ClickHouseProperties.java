@@ -56,6 +56,7 @@ public class ClickHouseProperties {
     private String useTimeZone;
     private boolean useServerTimeZoneForDates;
     private boolean useObjectsInArrays;
+    private boolean useSharedCookieStore;
 
     // queries settings
     private Integer maxParallelReplicas;
@@ -130,6 +131,7 @@ public class ClickHouseProperties {
         this.useTimeZone = (String)getSetting(info, ClickHouseConnectionSettings.USE_TIME_ZONE);
         this.useServerTimeZoneForDates = (Boolean)getSetting(info, ClickHouseConnectionSettings.USE_SERVER_TIME_ZONE_FOR_DATES);
         this.useObjectsInArrays = (Boolean)getSetting(info, ClickHouseConnectionSettings.USE_OBJECTS_IN_ARRAYS);
+        this.useSharedCookieStore = (Boolean)getSetting(info, ClickHouseConnectionSettings.USE_SHARED_COOKIE_STORE);
         this.clientName = (String)getSetting(info, ClickHouseConnectionSettings.CLIENT_NAME);
         this.useNewParser = (Boolean)getSetting(info, ClickHouseConnectionSettings.USE_NEW_PARSER);
 
@@ -199,6 +201,7 @@ public class ClickHouseProperties {
         ret.put(ClickHouseConnectionSettings.USE_TIME_ZONE.getKey(), String.valueOf(useTimeZone));
         ret.put(ClickHouseConnectionSettings.USE_SERVER_TIME_ZONE_FOR_DATES.getKey(), String.valueOf(useServerTimeZoneForDates));
         ret.put(ClickHouseConnectionSettings.USE_OBJECTS_IN_ARRAYS.getKey(), String.valueOf(useObjectsInArrays));
+        ret.put(ClickHouseConnectionSettings.USE_SHARED_COOKIE_STORE.getKey(), String.valueOf(useSharedCookieStore));
         ret.put(ClickHouseConnectionSettings.CLIENT_NAME.getKey(), String.valueOf(clientName));
         ret.put(ClickHouseConnectionSettings.USE_NEW_PARSER.getKey(), String.valueOf(useNewParser));
 
@@ -271,6 +274,7 @@ public class ClickHouseProperties {
         setUseTimeZone(properties.useTimeZone);
         setUseServerTimeZoneForDates(properties.useServerTimeZoneForDates);
         setUseObjectsInArrays(properties.useObjectsInArrays);
+        setUseSharedCookieStore(properties.useSharedCookieStore);
         setClientName(properties.clientName);
         setUseNewParser(properties.useNewParser);
         setMaxParallelReplicas(properties.maxParallelReplicas);
@@ -686,6 +690,14 @@ public class ClickHouseProperties {
 
     public void setUseObjectsInArrays(boolean useObjectsInArrays) {
         this.useObjectsInArrays = useObjectsInArrays;
+    }
+
+    public boolean isUseSharedCookieStore() {
+        return useSharedCookieStore;
+    }
+
+    public void setUseSharedCookieStore(boolean useSharedCookieStore) {
+        this.useSharedCookieStore = useSharedCookieStore;
     }
 
     public String getClientName() {
