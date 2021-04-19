@@ -10,7 +10,7 @@ It has support of a minimal subset of features to be usable.
 <dependency>
     <groupId>ru.yandex.clickhouse</groupId>
     <artifactId>clickhouse-jdbc</artifactId>
-    <version>0.3.0</version>
+    <version>0.3.1</version>
 </dependency>
 ```
 
@@ -24,14 +24,22 @@ additionally, if you have a few instances, you can use `BalancedClickhouseDataSo
 
 **Notice**
 
-If your build tool can not resolve dependency: `com.github.RoaringBitmap:RoaringBitmap`, please add the JitPack repository to your build file:
+To use an up-to-date version of RoaringBitmap, please update your POM with below two changes:
 ```xml
+<!-- 1. add repository -->
 <repositories>
     <repository>
         <id>jitpack.io</id>
         <url>https://jitpack.io</url>
     </repository>
 </repositories>
+
+<!-- 2. add dependency(groupId is different from the one in maven central) -->
+<dependency>
+    <groupId>com.github.RoaringBitmap</groupId>
+    <artifactId>RoaringBitmap</artifactId>
+    <version>0.9.10</version>
+</dependency>
 ```
 
 ### Extended API
