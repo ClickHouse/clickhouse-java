@@ -34,6 +34,7 @@ import ru.yandex.clickhouse.ClickHouseExternalData;
 import ru.yandex.clickhouse.ClickHouseStatement;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
 import ru.yandex.clickhouse.settings.ClickHouseQueryParam;
+import ru.yandex.clickhouse.util.ClickHouseVersionNumberUtil;
 
 public class ClickHouseStatementImplTest {
 
@@ -126,8 +127,10 @@ public class ClickHouseStatementImplTest {
 
     @Test
     public void testExternalData() throws SQLException, UnsupportedEncodingException {
+        String serverVersion = connection.getServerVersion();
         ClickHouseStatement stmt = connection.createStatement();
-        String[] rows = "21.3.3.14".equals(connection.getServerVersion())
+        String[] rows = ClickHouseVersionNumberUtil.getMajorVersion(serverVersion) >= 21
+            && ClickHouseVersionNumberUtil.getMinorVersion(serverVersion) >= 3
             ? new String[] { "1\tGroup\n" }
             : new String[] { "1\tGroup", "1\tGroup\n" };
         

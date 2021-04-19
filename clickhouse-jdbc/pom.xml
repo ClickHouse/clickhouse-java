@@ -50,6 +50,13 @@
     </properties>
 
     <dependencies>
+        <!--
+        <dependency>
+            <groupId>${project.parent.groupId}</groupId>
+            <artifactId>clickhouse-http-client</artifactId>
+            <version>${revision}</version>
+        </dependency>
+        -->
         <dependency>
             <groupId>org.apache.httpcomponents</groupId>
             <artifactId>httpclient</artifactId>
@@ -73,8 +80,9 @@
             <artifactId>jackson-databind</artifactId>
         </dependency>
         <dependency>
-            <groupId>com.github.RoaringBitmap</groupId>
+            <groupId>org.roaringbitmap</groupId>
             <artifactId>RoaringBitmap</artifactId>
+            <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>org.slf4j</groupId>
@@ -201,10 +209,6 @@
                         <relocation>
                             <pattern>net.jpountz</pattern>
                             <shadedPattern>${shade.base}.jpountz</shadedPattern>
-                        </relocation>
-                        <relocation>
-                            <pattern>org.roaringbitmap</pattern>
-                            <shadedPattern>${shade.base}.bitmap</shadedPattern>
                         </relocation>
                         <relocation>
                             <pattern>org.slf4j</pattern>
