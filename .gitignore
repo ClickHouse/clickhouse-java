@@ -29,6 +29,7 @@ log/
 target/
 
 # Generated files
+.flattened-pom.xml
 **/parser/*CharStream.java
 **/parser/ClickHouseSqlParser.java
 **/parser/ClickHouseSqlParserConstants.java
