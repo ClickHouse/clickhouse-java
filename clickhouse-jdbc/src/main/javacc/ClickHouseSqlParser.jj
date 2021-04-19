@@ -127,7 +127,7 @@ public class ClickHouseSqlParser {
             if (DEBUG) {
                 throw new IllegalArgumentException(e);
             } else {
-                log.warn("Failed to parse the given SQL. If you believe the SQL is valid, please feel free to open an issue on Github with the following SQL and exception attached.\n{}", sql, e);
+                log.warn("{}. If you believe the SQL is valid, please feel free to open an issue on Github with this warning and the following SQL attached.\n{}", e.getMessage(), sql);
             }
         }
 
