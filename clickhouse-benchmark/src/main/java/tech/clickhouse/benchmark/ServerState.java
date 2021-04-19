@@ -1,12 +1,13 @@
 package tech.clickhouse.benchmark;
 
+import static java.time.temporal.ChronoUnit.SECONDS;
+
 import java.net.Inet4Address;
 import java.net.InetAddress;
 import java.net.InterfaceAddress;
 import java.net.NetworkInterface;
 import java.time.Duration;
 import java.util.Enumeration;
-
 import org.openjdk.jmh.annotations.Level;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
@@ -15,8 +16,6 @@ import org.openjdk.jmh.annotations.TearDown;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.images.builder.ImageFromDockerfile;
-
-import static java.time.temporal.ChronoUnit.SECONDS;
 
 @State(Scope.Benchmark)
 public class ServerState {
