@@ -36,6 +36,7 @@ import org.apache.http.auth.UsernamePasswordCredentials;
 import org.apache.http.client.AuthCache;
 import org.apache.http.client.CredentialsProvider;
 import org.apache.http.client.HttpRequestRetryHandler;
+import org.apache.http.client.config.CookieSpecs;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.http.config.ConnectionConfig;
@@ -60,6 +61,7 @@ import ru.yandex.clickhouse.util.ssl.NonValidatingTrustManager;
 
 public class ClickHouseHttpClientBuilder {
 
+    private static final ClickHouseCookieStoreProvider cookieStoreProvider = new ClickHouseCookieStoreProvider();
     private final ClickHouseProperties properties;
 
     public ClickHouseHttpClientBuilder(ClickHouseProperties properties) {
@@ -76,6 +78,7 @@ public class ClickHouseHttpClientBuilder {
                 .setDefaultHeaders(getDefaultHeaders())
                 .setDefaultCredentialsProvider(getDefaultCredentialsProvider())
                 .disableContentCompression() // gzip is not needed. Use lz4 when compress=1
+                .setDefaultCookieStore(cookieStoreProvider.getCookieStore(properties))
                 .disableRedirectHandling();
 
         String clientName = properties != null ? properties.getClientName() : null;
@@ -112,6 +115,7 @@ public class ClickHouseHttpClientBuilder {
         authCache.put(getTargetHost(props), basicAuth);
         HttpClientContext ctx = HttpClientContext.create();
         ctx.setAuthCache(authCache);
+        ctx.setCookieStore(cookieStoreProvider.getCookieStore(props));
         return ctx;
     }
 
@@ -164,6 +168,7 @@ public class ClickHouseHttpClientBuilder {
                 .setSocketTimeout(properties.getSocketTimeout())
                 .setConnectTimeout(properties.getConnectionTimeout())
                 .setConnectionRequestTimeout(properties.getConnectionTimeout())
+                .setCookieSpec(CookieSpecs.STANDARD)
                 .build();
     }
 
