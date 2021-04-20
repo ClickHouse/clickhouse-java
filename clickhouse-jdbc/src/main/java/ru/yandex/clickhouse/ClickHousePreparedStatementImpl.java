@@ -95,18 +95,19 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
 
     @Override
     public ClickHouseResponse executeQueryClickhouseResponse() throws SQLException {
-        return super.executeQueryClickhouseResponse(buildSql());
+        return executeQueryClickhouseResponse(buildSql(), null, null);
     }
 
     @Override
     public ClickHouseResponse executeQueryClickhouseResponse(Map<ClickHouseQueryParam, String> additionalDBParams) throws SQLException {
-        return super.executeQueryClickhouseResponse(buildSql(), additionalDBParams);
+        return executeQueryClickhouseResponse(buildSql(), additionalDBParams, null);
     }
 
-    private String buildSql() throws SQLException {
+    private ClickHouseSqlStatement buildSql() throws SQLException {
         if (sqlParts.size() == 1) {
-            return sqlParts.get(0);
+            return new ClickHouseSqlStatement(sqlParts.get(0), parsedStmt.getStatementType());
         }
+
         checkBinded();
         StringBuilder sb = new StringBuilder(sqlParts.get(0));
         for (int i = 1, p = 0; i < sqlParts.size(); i++) {
@@ -120,7 +121,7 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
             }
             sb.append(sqlParts.get(i));
         }
-        return sb.toString();
+        return new ClickHouseSqlStatement(sb.toString(), parsedStmt.getStatementType());
     }
 
     private void checkBinded() throws SQLException {
@@ -135,12 +136,12 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
 
     @Override
     public boolean execute() throws SQLException {
-        return super.execute(buildSql());
+        return executeQueryStatement(buildSql(), null, null, null) != null;
     }
 
     @Override
     public ResultSet executeQuery() throws SQLException {
-        return super.executeQuery(buildSql());
+        return executeQueryStatement(buildSql(), null, null, null);
     }
 
     @Override
@@ -150,17 +151,17 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
 
     @Override
     public ResultSet executeQuery(Map<ClickHouseQueryParam, String> additionalDBParams) throws SQLException {
-        return super.executeQuery(buildSql(), additionalDBParams);
+        return executeQuery(additionalDBParams, null);
     }
 
     @Override
     public ResultSet executeQuery(Map<ClickHouseQueryParam, String> additionalDBParams, List<ClickHouseExternalData> externalData) throws SQLException {
-        return super.executeQuery(buildSql(), additionalDBParams, externalData);
+        return executeQueryStatement(buildSql(), additionalDBParams, externalData, null);
     }
 
     @Override
     public int executeUpdate() throws SQLException {
-        return super.executeUpdate(buildSql());
+        return executeStatement(buildSql(), null, null, null);
     }
 
     private void setBind(int parameterIndex, String bind, boolean quote) {
@@ -316,6 +317,11 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
         } else {
             setNull(parameterIndex);
         }
+    }
+
+    @Override
+    public void addBatch(String sql) throws SQLException {
+        throw new SQLException("addBatch(String) cannot be called in PreparedStatement or CallableStatement!");
     }
 
     @Override
@@ -623,7 +629,7 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
     @Override
     public String asSql() {
         try {
-            return buildSql();
+            return buildSql().getSQL();
         } catch (SQLException e) {
             return parsedStmt.getSQL();
         }

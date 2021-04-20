@@ -87,6 +87,8 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
 
     protected ClickHouseSqlStatement[] parsedStmts;
 
+    protected final List<ClickHouseSqlStatement> batchStmts;
+
     /**
      * Current database name may be changed by {@link java.sql.Connection#setCatalog(String)}
      * between creation of this object and query execution, but javadoc does not allow
@@ -132,21 +134,120 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
         }
 
         ClickHouseSqlStatement lastStmt = getLastStatement();
-
-        if (lastStmt.isQuery() && !lastStmt.hasFormat()) {
-            String format = preferredFormat.name();
-            Map<String, Integer> positions = new HashMap<>();
-            positions.putAll(lastStmt.getPositions());
-            positions.put(ClickHouseSqlStatement.KEYWORD_FORMAT, sql.length());
-            
-            sql = new StringBuilder(lastStmt.getSQL()).append("\nFORMAT ").append(format).toString();
-            lastStmt = new ClickHouseSqlStatement(sql, lastStmt.getStatementType(), 
-                lastStmt.getCluster(), lastStmt.getDatabase(), lastStmt.getTable(),
-                format, lastStmt.getOutfile(), lastStmt.getParameters(), positions);
-            setLastStatement(lastStmt);
+        ClickHouseSqlStatement formattedStmt = applyFormat(lastStmt, preferredFormat);
+        if (formattedStmt != lastStmt) {
+            setLastStatement(lastStmt = formattedStmt);
         }
 
         return lastStmt;
+    }
+
+    protected ClickHouseSqlStatement applyFormat(ClickHouseSqlStatement stmt, ClickHouseFormat preferredFormat) {
+        if (Objects.requireNonNull(stmt).isQuery() && !stmt.hasFormat()) {
+            String sql = stmt.getSQL();
+            String format = Objects.requireNonNull(preferredFormat).name();
+
+            Map<String, Integer> positions = new HashMap<>();
+            positions.putAll(stmt.getPositions());
+            positions.put(ClickHouseSqlStatement.KEYWORD_FORMAT, sql.length());
+
+            sql = new StringBuilder(sql).append("\nFORMAT ").append(format).toString();
+            stmt = new ClickHouseSqlStatement(sql, stmt.getStatementType(), 
+                stmt.getCluster(), stmt.getDatabase(), stmt.getTable(),
+                format, stmt.getOutfile(), stmt.getParameters(), positions);
+        }
+
+        return stmt;
+    }
+
+    protected ResultSet updateResult(ClickHouseSqlStatement stmt, InputStream is) throws IOException, ClickHouseException {
+        ResultSet rs = null;
+        if (stmt.isQuery()) {
+            currentUpdateCount = -1;
+            currentResult = createResultSet(
+                properties.isCompress() ? new ClickHouseLZ4Stream(is) : is, properties.getBufferSize(),
+                stmt.getDatabaseOrDefault(properties.getDatabase()),
+                stmt.getTable(),
+                stmt.hasWithTotals(),
+                this,
+                getConnection().getTimeZone(),
+                properties
+            );
+            currentResult.setMaxRows(maxRows);
+            rs = currentResult;
+        } else {
+            currentUpdateCount = 0;
+            try {
+                is.close();
+            } catch (IOException e) {
+                log.error("can not close stream: {}", e.getMessage());
+            }
+        }
+
+        return rs;
+    }
+
+    protected int executeStatement(
+        ClickHouseSqlStatement stmt,
+        Map<ClickHouseQueryParam, String> additionalDBParams,
+        List<ClickHouseExternalData> externalData,
+        Map<String, String> additionalRequestParams) throws SQLException {
+        stmt = applyFormat(stmt, ClickHouseFormat.TabSeparatedWithNamesAndTypes);
+        if (additionalDBParams == null || additionalDBParams.isEmpty()) {
+            additionalDBParams = new EnumMap<>(ClickHouseQueryParam.class);
+        } else {
+            additionalDBParams = new EnumMap<>(additionalDBParams);
+        }
+        try (InputStream is = getInputStream(stmt, additionalDBParams, externalData, additionalRequestParams)) {
+            //noinspection StatementWithEmptyBody
+        } catch (IOException e) {
+            log.error("can not close stream: {}", e.getMessage());
+        }
+
+        return currentSummary != null ? (int) currentSummary.getWrittenRows() : 1;
+    }
+
+    protected ResultSet executeQueryStatement(ClickHouseSqlStatement stmt,
+        Map<ClickHouseQueryParam, String> additionalDBParams,
+        List<ClickHouseExternalData> externalData,
+        Map<String, String> additionalRequestParams) throws SQLException {
+        stmt = applyFormat(stmt, ClickHouseFormat.TabSeparatedWithNamesAndTypes);
+        if (additionalDBParams == null || additionalDBParams.isEmpty()) {
+            additionalDBParams = new EnumMap<>(ClickHouseQueryParam.class);
+        } else {
+            additionalDBParams = new EnumMap<>(additionalDBParams);
+        }
+
+        InputStream is = getInputStream(stmt, additionalDBParams, externalData, additionalRequestParams);
+        try {
+            return updateResult(stmt, is);
+        } catch (Exception e) {
+            try {
+                is.close();
+            } catch (IOException ioe) {
+                log.error("can not close stream: {}", ioe.getMessage());
+            }
+            throw ClickHouseExceptionSpecifier.specify(e, properties.getHost(), properties.getPort());
+        }
+    }
+
+    protected ClickHouseResponse executeQueryClickhouseResponse(
+        ClickHouseSqlStatement stmt,
+        Map<ClickHouseQueryParam, String> additionalDBParams,
+        Map<String, String> additionalRequestParams) throws SQLException {
+        if (additionalDBParams == null || additionalDBParams.isEmpty()) {
+            additionalDBParams = new EnumMap<>(ClickHouseQueryParam.class);
+        } else {
+            additionalDBParams = new EnumMap<>(additionalDBParams);
+        }
+        stmt = applyFormat(stmt, ClickHouseFormat.JSONCompact);
+        
+        try (InputStream is = getInputStream(stmt, additionalDBParams, null, additionalRequestParams)) {
+            return Jackson.getObjectMapper().readValue(
+                properties.isCompress() ? new ClickHouseLZ4Stream(is) : is, ClickHouseResponse.class);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     public ClickHouseStatementImpl(CloseableHttpClient client, ClickHouseConnection connection,
@@ -158,6 +259,8 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
         this.properties = properties == null ? new ClickHouseProperties() : properties;
         this.initialDatabase = this.properties.getDatabase();
         this.isResultSetScrollable = (resultSetType != ResultSet.TYPE_FORWARD_ONLY);
+
+        this.batchStmts = new ArrayList<>();
     }
 
     @Override
@@ -196,28 +299,7 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
         ClickHouseSqlStatement parsedStmt = getLastStatement();
 
         try {
-            if (parsedStmt.isQuery()) {
-                currentUpdateCount = -1;
-                currentResult = createResultSet(properties.isCompress()
-                    ? new ClickHouseLZ4Stream(is) : is, properties.getBufferSize(),
-                    parsedStmt.getDatabaseOrDefault(properties.getDatabase()),
-                    parsedStmt.getTable(),
-                    parsedStmt.hasWithTotals(),
-                    this,
-                    getConnection().getTimeZone(),
-                    properties
-                );
-                currentResult.setMaxRows(maxRows);
-                return currentResult;
-            } else {
-                currentUpdateCount = 0;
-                try {
-                    is.close();
-                } catch (IOException e) {
-                    log.error("can not close stream: {}", e.getMessage());
-                }
-                return null;
-            }
+            return updateResult(parsedStmt, is);
         } catch (Exception e) {
             try {
                 is.close();
@@ -459,17 +541,25 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
 
     @Override
     public void addBatch(String sql) throws SQLException {
-
+        for (ClickHouseSqlStatement s : ClickHouseSqlParser.parse(sql, properties)) {
+            this.batchStmts.add(s);
+        }
     }
 
     @Override
     public void clearBatch() throws SQLException {
-
+        this.batchStmts.clear();
     }
 
     @Override
     public int[] executeBatch() throws SQLException {
-        return new int[0];
+        int len = batchStmts.size();
+        int[] results = new int[len];
+        for (int i = 0; i < len; i++) {
+            results[i] = executeStatement(batchStmts.get(i), null, null, null);
+        }
+
+        return results;
     }
 
     @Override
@@ -555,8 +645,10 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
         return currentSummary;
     }
 
-    private InputStream getLastInputStream(Map<ClickHouseQueryParam, String> additionalDBParams,
-        List<ClickHouseExternalData> externalData, Map<String, String> additionalRequestParams) throws ClickHouseException {
+    private InputStream getLastInputStream(
+        Map<ClickHouseQueryParam, String> additionalDBParams,
+        List<ClickHouseExternalData> externalData,
+        Map<String, String> additionalRequestParams) throws ClickHouseException {
         InputStream is = null;
         for (int i = 0, len = parsedStmts.length; i < len; i++) {
             // TODO skip useless queries to reduce network calls and server load
