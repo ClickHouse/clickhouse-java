@@ -70,40 +70,6 @@ public class ClickHouseSqlParser {
         return !(getToken(1).kind == AND && token_source.parentToken == BETWEEN);
     }
 
-    /**
-     * Parse given SQL.
-     *
-     * @deprecated This method will be removed in the near future.
-     *             <p>
-     *             Use {@link #parse(String, ClickHouseProperties)} instead.
-     *
-     * @param sql SQL query
-     * @param properties properties
-     * @return parsed SQL statement
-     */
-    public static ClickHouseSqlStatement parseSingleStatement(String sql, ClickHouseProperties properties) {
-        return parseSingleStatement(sql, properties, null);
-    }
-
-    /**
-     * Parse given SQL.
-     * 
-     * @deprecated This method will be removed in the near future.
-     *             <p>
-     *             Use {@link #parse(String, ClickHouseProperties, ParseHandler)} instead.
-     *
-     * @param sql SQL query
-     * @param properties properties
-     * @param handler parse handler
-     * @return parsed SQL statement
-     */
-    public static ClickHouseSqlStatement parseSingleStatement(
-        String sql, ClickHouseProperties properties, ParseHandler handler) {
-        ClickHouseSqlStatement[] stmts = parse(sql, properties, handler);
-
-        return stmts.length == 1 ? stmts[0] : new ClickHouseSqlStatement(sql, StatementType.UNKNOWN);
-    }
-
     public static ClickHouseSqlStatement[] parse(String sql, ClickHouseProperties properties) {
         return parse(sql, properties, null);
     }
@@ -116,7 +82,7 @@ public class ClickHouseSqlParser {
         ClickHouseSqlStatement[] stmts = new ClickHouseSqlStatement[] {
                 new ClickHouseSqlStatement(sql, StatementType.UNKNOWN) };
 
-        if (!properties.isUseNewParser() || sql == null || sql.isEmpty()) {
+        if (sql == null || sql.isEmpty()) {
             return stmts;
         }
 

@@ -75,20 +75,6 @@ public class ClickHouseConnectionImplTest {
         assertFailure(createDataSource("oof", "baz"));
     }
 
-    @Test
-    public void testNewParserOption() throws Exception {
-        ClickHouseProperties props = new ClickHouseProperties();
-        props.setUseNewParser(false);
-        ClickHouseDataSource ds = ClickHouseContainerForTest.newDataSource(props);
-        try (Connection conn = ds.getConnection(); Statement s = conn.createStatement();
-            ResultSet rs = s.executeQuery("select timezone(), version()");) {
-            assertTrue(rs.next());
-            assertNotNull(rs.getString(1));
-            assertNotNull(rs.getString(2));
-            assertFalse(rs.next());
-        }
-    }
-
     private static void assertSuccess(DataSource dataSource) throws Exception {
         Connection connection = dataSource.getConnection();
         assertTrue(connection.createStatement().execute("SELECT 1"));

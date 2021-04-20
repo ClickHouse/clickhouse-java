@@ -74,7 +74,7 @@ public interface ClickHouseStatement extends Statement {
 
     /**
      * Returns extended write-API, which simplifies uploading larger files or
-     * data streams
+     * data streams.
      *
      * @return a new {@link Writer} builder object which can be used to
      *         construct a request to the server

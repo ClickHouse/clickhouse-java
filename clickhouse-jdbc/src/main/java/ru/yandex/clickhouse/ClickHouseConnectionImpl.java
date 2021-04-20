@@ -122,12 +122,6 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
                 resultSetType));
     }
 
-    @Deprecated
-    @Override
-    public ClickHouseStatement createClickHouseStatement() throws SQLException {
-        return createStatement();
-    }
-
     @Override
     public TimeZone getTimeZone() {
         return timezone;

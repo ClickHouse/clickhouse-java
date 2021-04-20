@@ -51,11 +51,9 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
     static final String PARAM_MARKER = "?";
     static final String NULL_MARKER = "\\N";
 
-    private static final Pattern VALUES = Pattern.compile("(?i)VALUES[\\s]*\\(");
-
     private final TimeZone dateTimeZone;
     private final TimeZone dateTimeTimeZone;
-    private final String sql;
+    private final ClickHouseSqlStatement parsedStmt;
     private final List<String> sqlParts;
     private final ClickHousePreparedStatementParameter[] binds;
     private final List<List<String>> parameterList;
@@ -67,9 +65,14 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
         TimeZone serverTimeZone, int resultSetType) throws SQLException
     {
         super(client, connection, properties, resultSetType);
-        parseSingleStatement(sql);
+        parseSqlStatements(sql);
 
-        this.sql = sql;
+        if (parsedStmts.length != 1) {
+            throw new IllegalArgumentException("Only single statement is supported");
+        }
+
+        parsedStmt = parsedStmts[0];
+
         PreparedStatementParser parser = PreparedStatementParser.parse(sql,
             parsedStmt.getEndPosition(ClickHouseSqlStatement.KEYWORD_VALUES));
         this.parameterList = parser.getParameters();
@@ -353,13 +356,9 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
     @Override
     public int[] executeBatch(Map<ClickHouseQueryParam, String> additionalDBParams) throws SQLException {
         int valuePosition = -1;
+        String sql = parsedStmt.getSQL();
         if (parsedStmt.getStatementType() == StatementType.INSERT && parsedStmt.hasValues()) {
             valuePosition = parsedStmt.getStartPosition(ClickHouseSqlStatement.KEYWORD_VALUES);
-        } else {
-            Matcher matcher = VALUES.matcher(sql);
-            if (matcher.find()) {
-                valuePosition = matcher.start();
-            }    
         }
 
         if (valuePosition < 0) {
@@ -443,7 +442,7 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
             return currentResult.getMetaData();
         }
         
-        if (!parsedStmt.isQuery() || (!parsedStmt.isRecognized() && !isSelect(sql))) {
+        if (!parsedStmt.isQuery()) {
             return null;
         }
         ResultSet myRs = executeQuery(Collections.singletonMap(
@@ -626,7 +625,7 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
         try {
             return buildSql();
         } catch (SQLException e) {
-            return sql;
+            return parsedStmt.getSQL();
         }
     }
 }
