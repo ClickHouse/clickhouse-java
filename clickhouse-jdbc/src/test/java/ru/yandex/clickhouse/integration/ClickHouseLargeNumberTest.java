@@ -57,6 +57,10 @@ public class ClickHouseLargeNumberTest {
 
     @Test
     public void testBigIntSupport() throws SQLException {
+        if (conn == null) {
+            return;
+        }
+        
         String testSql = "create table if not exists system.test_bigint_support(i Int256) engine=Memory;"
                 + "drop table if exists system.test_bigint_support;";
         try (Connection conn = ClickHouseContainerForTest.newDataSource().getConnection();
