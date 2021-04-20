@@ -1,9 +1,10 @@
 package ru.yandex.clickhouse.integration;
 
 import static org.testng.Assert.assertEquals;
-import static org.testng.AssertJUnit.assertNotNull;
-import static org.testng.AssertJUnit.assertNull;
-import static org.testng.AssertJUnit.assertTrue;
+import static org.testng.Assert.assertFalse;
+import static org.testng.Assert.assertNotNull;
+import static org.testng.Assert.assertNull;
+import static org.testng.Assert.assertTrue;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
@@ -326,12 +327,12 @@ public class ClickHouseStatementImplTest {
         assertNotNull(
             String.format("it's actually very strange. It seems the query hasn't been executed in %s seconds", timeout),
             queryId);
-        assertNull("An exception happened while the query was being executed", exceptionAtomicReference.get());
+        assertNull(exceptionAtomicReference.get(), "An exception happened while the query was being executed");
 
 
-        assertTrue("The query isn't being executed. It seems very strange", checkQuery(queryId, true,10));
+        assertTrue(checkQuery(queryId, true, 10), "The query isn't being executed. It seems very strange");
         firstStatement.cancel();
-        assertTrue("The query is still being executed", checkQuery(queryId, false, 10));
+        assertTrue(checkQuery(queryId, false, 10), "The query is still being executed");
 
         firstStatement.close();
         thread.interrupt();
@@ -362,14 +363,14 @@ public class ClickHouseStatementImplTest {
         thread.setDaemon(true);
         thread.start();
         final long timeout = 10;
-        assertTrue(
-            String.format("it's actually very strange. It seems the query hasn't been executed in %s seconds", timeout),
-            countDownLatch.await(timeout, TimeUnit.SECONDS));
-        assertNull("An exception happened while the query was being executed", exceptionAtomicReference.get());
+        assertTrue(countDownLatch.await(timeout, TimeUnit.SECONDS),
+            String.format(
+                "it's actually very strange. It seems the query hasn't been executed in %s seconds", timeout));
+        assertNull(exceptionAtomicReference.get(), "An exception happened while the query was being executed");
 
-        assertTrue("The query isn't being executed. It seems very strange", checkQuery(queryId, true,10));
+        assertTrue(checkQuery(queryId, true, 10), "The query isn't being executed. It seems very strange");
         firstStatement.cancel();
-        assertTrue("The query is still being executed", checkQuery(queryId, false, 10));
+        assertTrue(checkQuery(queryId, false, 10), "The query is still being executed");
 
         firstStatement.close();
         thread.interrupt();
@@ -407,6 +408,28 @@ public class ClickHouseStatementImplTest {
         assertEquals(
             rs.getArray(2).getArray(),
             new UUID[] {UUID.fromString("5ff22319-793d-4e6c-bdc1-916095a5a496")});
+    }
+
+    @Test
+    public void testMultiStatements() throws SQLException {
+        try (Statement s = connection.createStatement()) {
+            String sql = "select 1; select 2";
+            try (ResultSet rs = s.executeQuery(sql)) {
+                assertTrue(rs.next());
+                assertEquals(rs.getString(1), "2");
+                assertFalse(rs.next());
+            }
+
+            assertTrue(s.execute(sql));
+            try (ResultSet rs = s.getResultSet()) {
+                assertNotNull(rs);
+                assertTrue(rs.next());
+                assertEquals(rs.getString(1), "2");
+                assertFalse(rs.next());
+            }
+            
+            assertEquals(s.executeUpdate(sql), 1);
+        }
     }
 
     private static Object readField(Object object, String fieldName, long timeoutSecs) {
