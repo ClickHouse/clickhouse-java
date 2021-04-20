@@ -2,12 +2,17 @@ package ru.yandex.clickhouse.integration;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.testng.Assert.assertEquals;
+import static org.testng.Assert.assertFalse;
+import static org.testng.Assert.assertNull;
 import static org.testng.Assert.assertTrue;
+import static org.testng.Assert.fail;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.EnumMap;
 import java.util.Map;
 import java.util.UUID;
 
@@ -15,10 +20,13 @@ import org.testng.annotations.AfterTest;
 import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
 
+import ru.yandex.clickhouse.ClickHouseConnection;
 import ru.yandex.clickhouse.ClickHouseContainerForTest;
 import ru.yandex.clickhouse.ClickHouseDataSource;
+import ru.yandex.clickhouse.ClickHouseStatement;
 import ru.yandex.clickhouse.except.ClickHouseException;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
+import ru.yandex.clickhouse.settings.ClickHouseQueryParam;
 import ru.yandex.clickhouse.util.Utils;
 
 public class ClickHouseMapTest {
@@ -58,6 +66,41 @@ public class ClickHouseMapTest {
             } else {
                 assertEquals(e.getValue(), m2.get(e.getKey()));
             }
+        }
+    }
+
+    @Test
+    public void testMapSupport() throws SQLException {
+        if (conn == null) {
+            return;
+        }
+
+        String testSql = "create table if not exists system.test_map_support(m Map(UInt8, String)) engine=Memory;"
+                + "drop table if exists system.test_map_support;";
+        try (Connection conn = ClickHouseContainerForTest.newDataSource().getConnection();
+                Statement s = conn.createStatement()) {
+            s.execute("set allow_experimental_map_type=0;" + testSql);
+            fail("Should fail without enabling map support");
+        } catch (SQLException e) {
+            assertEquals(e.getErrorCode(), 44);
+        }
+
+        try (Connection conn = ClickHouseContainerForTest.newDataSource().getConnection();
+                Statement s = conn.createStatement()) {
+            assertFalse(s.execute("set allow_experimental_map_type=1;" + testSql));
+        }
+
+        try (ClickHouseConnection conn = ClickHouseContainerForTest.newDataSource().getConnection();
+                ClickHouseStatement s = conn.createStatement()) {
+            Map<ClickHouseQueryParam, String> params = new EnumMap<>(ClickHouseQueryParam.class);
+            params.put(ClickHouseQueryParam.ALLOW_EXPERIMENTAL_MAP_TYPE, "1");
+            assertNull(s.executeQuery(testSql, params));
+
+            params.put(ClickHouseQueryParam.ALLOW_EXPERIMENTAL_MAP_TYPE, "0");
+            s.executeQuery(testSql, params);
+            fail("Should fail without enabling map support");
+        } catch (SQLException e) {
+            assertEquals(e.getErrorCode(), 44);
         }
     }
 
