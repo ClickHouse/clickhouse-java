@@ -78,7 +78,7 @@ public class ClickHouseMapTest {
             s.execute("set allow_experimental_map_type=0;" + testSql);
             fail("Should fail without enabling map support");
         } catch (SQLException e) {
-            assertEquals(e.getErrorCode(), 44);
+            assertTrue(e.getErrorCode() == 44 || e.getErrorCode() == 115);
         }
 
         try (Connection conn = ClickHouseContainerForTest.newDataSource().getConnection();
@@ -96,7 +96,7 @@ public class ClickHouseMapTest {
             s.executeQuery(testSql, params);
             fail("Should fail without enabling map support");
         } catch (SQLException e) {
-            assertEquals(e.getErrorCode(), 44);
+            assertTrue(e.getErrorCode() == 44 || e.getErrorCode() == 115);
         }
     }
 
