@@ -155,6 +155,7 @@ public class ClickHouseStatementImplTest {
     }
 
     // reproduce issue #634
+    @Test
     public void testLargeQueryWithExternalData() throws Exception {
         String serverVersion = connection.getServerVersion();
         String[] rows = ClickHouseVersionNumberUtil.getMajorVersion(serverVersion) >= 21
