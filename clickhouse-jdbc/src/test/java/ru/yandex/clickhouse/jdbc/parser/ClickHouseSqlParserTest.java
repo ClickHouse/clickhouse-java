@@ -587,6 +587,15 @@ public class ClickHouseSqlParserTest {
                 StatementType.SELECT, "db", ".inner.a");
     }
 
+    // known issue
+    public void testTernaryOperator() {
+        String sql = "select x > 2 ? 'a' : 'b' from (select number as x from system.numbers limit ?)";
+        ClickHouseSqlStatement[] stmts = parse(sql);
+        assertEquals(stmts.length, 1);
+        assertEquals(stmts[0].getStatementType(), StatementType.SELECT);
+        assertEquals(stmts[0].getParameters().size(), 1);
+    }
+
     static void parseAllSqlFiles(File f) throws IOException {
         if (f.isDirectory()) {
             File[] files = f.listFiles();

@@ -679,6 +679,7 @@ void anyExpr(): {} {
     anyNestedExpr() (
         LOOKAHEAD(2)
         (
+            // TODO needs to extract parameters(and exclude ternary operator) here
             <AT> | <AND> | <OR> | <COLON> | <QUERY> | operator()
         )? anyNestedExpr()
     )*
