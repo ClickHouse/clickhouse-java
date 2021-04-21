@@ -154,6 +154,40 @@ public class ClickHouseStatementImplTest {
         }
     }
 
+    // reproduce issue #634
+    public void testLargeQueryWithExternalData() throws Exception {
+        String serverVersion = connection.getServerVersion();
+        String[] rows = ClickHouseVersionNumberUtil.getMajorVersion(serverVersion) >= 21
+            && ClickHouseVersionNumberUtil.getMinorVersion(serverVersion) >= 3
+            ? new String[] { "1\tGroup\n" }
+            : new String[] { "1\tGroup", "1\tGroup\n" };
+        
+        int length = 160000;
+        StringBuilder builder = new StringBuilder(length);
+        for (int i = 0; i < length; i++) {
+            builder.append('u');
+        }
+        String user = builder.toString();
+        for (String row : rows) {
+            try (ClickHouseStatement stmt = connection.createStatement();
+                ResultSet rs = stmt.executeQuery(
+                    "select UserName, GroupName from (select '"
+                    + user
+                    + "' as UserName, 1 as GroupId) as g"
+                    + "any left join groups using GroupId", null,
+                    Collections.singletonList(new ClickHouseExternalData(
+                        "groups", new ByteArrayInputStream(row.getBytes())
+                ).withStructure("GroupId UInt8, GroupName String")))) {
+                Assert.assertTrue(rs.next());
+                String userName = rs.getString("UserName");
+                String groupName = rs.getString("GroupName");
+
+                Assert.assertEquals(userName, user);
+                Assert.assertEquals(groupName, "Group");
+            }
+        }
+    }
+
 
     private InputStream getTSVStream(final int rowsCount) {
         return new InputStream() {

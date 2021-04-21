@@ -3,6 +3,7 @@ package ru.yandex.clickhouse;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -22,10 +23,12 @@ import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.NameValuePair;
+import org.apache.http.StatusLine;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.http.client.utils.URIBuilder;
+import org.apache.http.entity.AbstractHttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.entity.mime.MultipartEntityBuilder;
@@ -56,6 +59,50 @@ import ru.yandex.clickhouse.util.Utils;
 public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement> implements ClickHouseStatement {
 
     private static final Logger log = LoggerFactory.getLogger(ClickHouseStatementImpl.class);
+
+    protected static class WrappedHttpEntity extends AbstractHttpEntity {
+        private final String sql;
+        private final HttpEntity entity;
+
+        public WrappedHttpEntity(String sql, HttpEntity entity) {
+            this.sql = sql;
+            this.entity = Objects.requireNonNull(entity);
+
+            this.chunked = entity.isChunked();
+            this.contentEncoding = entity.getContentEncoding();
+            this.contentType = entity.getContentType();
+        }
+
+        @Override
+        public boolean isRepeatable() {
+            return entity.isRepeatable();
+        }
+
+        @Override
+        public long getContentLength() {
+            return entity.getContentLength();
+        }
+
+        @Override
+        public InputStream getContent() throws IOException, IllegalStateException {
+            return entity.getContent();
+        }
+
+        @Override
+        public void writeTo(OutputStream outputStream) throws IOException {
+            if (sql != null && !sql.isEmpty()) {
+                outputStream.write(sql.getBytes(StandardCharsets.UTF_8));
+                outputStream.write('\n');
+            }
+            
+            entity.writeTo(outputStream);
+        }
+
+        @Override
+        public boolean isStreaming() {
+            return entity.isStreaming();
+        }
+    }
 
     private final CloseableHttpClient client;
 
@@ -820,7 +867,7 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
     ) {
         List<NameValuePair> result = new ArrayList<>();
 
-        if (sql != null) {
+        if (sql != null && !sql.isEmpty()) {
             result.add(new BasicNameValuePair("query", sql));
         }
 
@@ -1020,10 +1067,14 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
         HttpEntity entity = null;
         // TODO no parser involved so user can execute arbitray statement here
         try {
-            URI uri = buildRequestUri(writer.getSql(), null, writer.getAdditionalDBParams(), writer.getRequestParams(), false);
+            String sql = writer.getSql();
+            boolean isContentCompressed = writer.getCompression() != ClickHouseCompression.none;
+            URI uri = buildRequestUri(
+                isContentCompressed ? sql : null, null, writer.getAdditionalDBParams(), writer.getRequestParams(), false);
             uri = followRedirects(uri);
 
-            content = applyRequestBodyCompression(content);
+            content = applyRequestBodyCompression(
+                new WrappedHttpEntity(isContentCompressed ? null : sql, content));
 
             HttpPost httpPost = new HttpPost(uri);
 
@@ -1050,7 +1101,8 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
     }
 
     private void checkForErrorAndThrow(HttpEntity entity, HttpResponse response) throws IOException, ClickHouseException {
-        if (response.getStatusLine().getStatusCode() != HttpURLConnection.HTTP_OK) {
+        StatusLine line = response.getStatusLine();
+        if (line.getStatusCode() != HttpURLConnection.HTTP_OK) {
             InputStream messageStream = entity.getContent();
             byte[] bytes = Utils.toByteArray(messageStream);
             if (properties.isCompress()) {
@@ -1062,8 +1114,11 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
                 }
             }
             EntityUtils.consumeQuietly(entity);
-            String chMessage = new String(bytes, StandardCharsets.UTF_8);
-            throw ClickHouseExceptionSpecifier.specify(chMessage, properties.getHost(), properties.getPort());
+            if (bytes.length == 0) {
+                throw ClickHouseExceptionSpecifier.specify(new IllegalStateException(line.toString()), properties.getHost(), properties.getPort());
+            } else {
+                throw ClickHouseExceptionSpecifier.specify(new String(bytes, StandardCharsets.UTF_8), properties.getHost(), properties.getPort());
+            }
         }
     }
 

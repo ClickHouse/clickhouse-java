@@ -5,12 +5,15 @@ import java.sql.Date;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.sql.Timestamp;
 import java.sql.Types;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.Collections;
 import java.util.TimeZone;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import org.testng.Assert;
 import org.testng.annotations.AfterTest;
@@ -289,4 +292,28 @@ public class BatchInsertsTest {
         st.addBatch();
     }
 
+    @Test
+    public void testBatchInsertWithLongQuery() throws SQLException {
+        int columnCount = 200;
+        try (Statement s = connection.createStatement()) {
+            String createColumns = IntStream.range(0, columnCount).mapToObj(
+                i -> "`looooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooongnaaaaameeeeeeee" + i + "` String "
+            ).collect(Collectors.joining(","));
+            s.execute("DROP TABLE IF EXISTS test.batch_insert_with_long_query");
+            s.execute("CREATE TABLE test.batch_insert_with_long_query (" + createColumns + ") ENGINE = Memory");
+        }
+        
+        String values = IntStream.range(0, columnCount).mapToObj(i -> "?").collect(Collectors.joining(","));
+        String columns = IntStream.range(0, columnCount).mapToObj(
+            i -> "looooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooongnaaaaameeeeeeee" + i
+        ).collect(Collectors.joining(","));
+        int index = 1;
+        try (PreparedStatement s = connection.prepareStatement("INSERT INTO test.batch_insert_with_long_query (" + columns + ") VALUES (" + values + ")")) {
+            for (int i = 0; i < columnCount; i++) {
+                s.setString(index++, "12345");
+            }
+            s.addBatch();
+            s.executeBatch();
+        }
+    }
 }
