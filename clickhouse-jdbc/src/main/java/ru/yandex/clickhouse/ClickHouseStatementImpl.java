@@ -87,7 +87,7 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
 
     protected ClickHouseSqlStatement[] parsedStmts;
 
-    protected final List<ClickHouseSqlStatement> batchStmts;
+    protected List<ClickHouseSqlStatement> batchStmts;
 
     /**
      * Current database name may be changed by {@link java.sql.Connection#setCatalog(String)}
@@ -548,7 +548,7 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
 
     @Override
     public void clearBatch() throws SQLException {
-        this.batchStmts.clear();
+        this.batchStmts = new ArrayList<>();
     }
 
     @Override
@@ -558,6 +558,8 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
         for (int i = 0; i < len; i++) {
             results[i] = executeStatement(batchStmts.get(i), null, null, null);
         }
+        
+        clearBatch();
 
         return results;
     }

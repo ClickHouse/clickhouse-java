@@ -19,7 +19,6 @@ import java.sql.ResultSetMetaData;
 import java.sql.RowId;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
-import java.sql.SQLSyntaxErrorException;
 import java.sql.SQLXML;
 import java.sql.Time;
 import java.sql.Timestamp;
@@ -31,15 +30,14 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.TimeZone;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import org.apache.http.entity.AbstractHttpEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import ru.yandex.clickhouse.jdbc.parser.ClickHouseSqlStatement;
 import ru.yandex.clickhouse.jdbc.parser.StatementType;
-
 import ru.yandex.clickhouse.response.ClickHouseResponse;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
 import ru.yandex.clickhouse.settings.ClickHouseQueryParam;
@@ -47,6 +45,7 @@ import ru.yandex.clickhouse.util.ClickHouseArrayUtil;
 import ru.yandex.clickhouse.util.ClickHouseValueFormatter;
 
 public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl implements ClickHousePreparedStatement {
+    private static final Logger log = LoggerFactory.getLogger(ClickHousePreparedStatementImpl.class);
 
     static final String PARAM_MARKER = "?";
     static final String NULL_MARKER = "\\N";
@@ -146,7 +145,9 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
 
     @Override
     public void clearBatch() throws SQLException {
-        batchRows.clear();
+        super.clearBatch();
+
+        batchRows = new ArrayList<>();
     }
 
     @Override
@@ -326,7 +327,11 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
 
     @Override
     public void addBatch() throws SQLException {
-        batchRows.addAll(buildBatch());
+        if (parsedStmt.getStatementType() == StatementType.INSERT) {
+            batchRows.addAll(buildBatch());
+        } else {
+            batchStmts.add(buildSql());
+        }
     }
 
     private List<byte[]> buildBatch() throws SQLException {
@@ -363,22 +368,27 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
     public int[] executeBatch(Map<ClickHouseQueryParam, String> additionalDBParams) throws SQLException {
         int valuePosition = -1;
         String sql = parsedStmt.getSQL();
-        if (parsedStmt.getStatementType() == StatementType.INSERT && parsedStmt.hasValues()) {
+        StatementType type = parsedStmt.getStatementType();
+        if (type == StatementType.INSERT && parsedStmt.hasValues()) {
             valuePosition = parsedStmt.getStartPosition(ClickHouseSqlStatement.KEYWORD_VALUES);
         }
 
-        if (valuePosition < 0) {
-            throw new SQLSyntaxErrorException(
-                    "Query must be like 'INSERT INTO [db.]table [(c1, c2, c3)] VALUES (?, ?, ?)'. " +
-                            "Got: " + sql
-            );
-        }
-        String insertSql = sql.substring(0, valuePosition);
-        BatchHttpEntity entity = new BatchHttpEntity(batchRows);
-        sendStream(entity, insertSql, additionalDBParams);
         int[] result = new int[batchRows.size()];
         Arrays.fill(result, 1);
-        batchRows = new ArrayList<>();
+        if (valuePosition > 0) { // insert
+            String insertSql = sql.substring(0, valuePosition);
+            BatchHttpEntity entity = new BatchHttpEntity(batchRows);
+            sendStream(entity, insertSql, additionalDBParams);        
+        } else { // others
+            if (type == StatementType.ALTER_DELETE || type == StatementType.ALTER_UPDATE) {
+                log.warn("UPDATE and DELETE should be used with caution, as they are expensive operations and not supposed to be used frequently.");
+            } else {
+                log.warn("PreparedStatement will slow down non-INSERT queries, so please consider to use Statement instead.");
+            }
+            result = super.executeBatch();
+        }
+
+        clearBatch();
         return result;
     }
 

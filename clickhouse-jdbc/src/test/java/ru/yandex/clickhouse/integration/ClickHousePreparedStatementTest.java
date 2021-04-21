@@ -32,6 +32,10 @@ import ru.yandex.clickhouse.response.ClickHouseResponse;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
 
 import static java.util.Collections.singletonList;
+import static org.testng.Assert.assertEquals;
+import static org.testng.Assert.assertFalse;
+import static org.testng.Assert.assertNotNull;
+import static org.testng.Assert.assertTrue;
 
 public class ClickHousePreparedStatementTest {
 
@@ -674,6 +678,93 @@ public class ClickHousePreparedStatementTest {
             "INSERT INTO test.static_null_value(foo, bar) VALUES (null, ?)");
         ps0.setNull(1, Types.VARCHAR);
         ps0.executeUpdate();
+    }
+
+    // known issue
+    public void testTernaryOperator() throws Exception {
+        String sql = "select x > 2 ? 'a' : 'b' from (select number as x from system.numbers limit ?)";
+        try (PreparedStatement s = connection.prepareStatement(sql)) {
+            int len = 5;
+            s.setInt(1, len);
+            ResultSet rs = s.executeQuery();
+            for (int i = 0; i < len; i++) {
+                assertTrue(rs.next());
+                assertEquals(rs.getString(1), i > 2 ? "a" : "b");
+            }
+            assertFalse(rs.next());
+            rs.close();
+        }
+    }
+
+    @Test
+    public void testBatchProcess() throws Exception {
+        try (PreparedStatement s = connection.prepareStatement(
+            "create table if not exists test.batch_update(k UInt8, v String) engine=MergeTree order by k")) {
+            s.execute();
+        }
+
+        Object[][] data = new Object[][] {
+            new Object[] {1, "a"},
+            new Object[] {1, "b"},
+            new Object[] {3, "c"}
+        };
+
+        // insert
+        try (PreparedStatement s = connection.prepareStatement("insert into table test.batch_update values(?,?)")) {
+            for (int i = 0; i < data.length; i++) {
+                Object[] row = data[i];
+                s.setInt(1, (int) row[0]);
+                s.setString(2, (String) row[1]);
+                s.addBatch();
+            }
+            int[] results = s.executeBatch();
+            assertNotNull(results);
+            assertEquals(results.length, 3);
+        }
+
+        // select
+        try (PreparedStatement s = connection.prepareStatement(
+            "select * from test.batch_update where k in (?, ?) order by k, v")) {
+            s.setInt(1, 1);
+            s.setInt(2, 3);
+            ResultSet rs = s.executeQuery();
+            int index = 0;
+            while (rs.next()) {
+                Object[] row = data[index++];
+                assertEquals(rs.getInt(1), (int) row[0]);
+                assertEquals(rs.getString(2), (String) row[1]);
+            }
+            assertEquals(index, data.length);
+        }
+
+        // update
+        try (PreparedStatement s = connection.prepareStatement(
+            "alter table test.batch_update update v = ? where k = ?")) {
+            s.setString(1, "x");
+            s.setInt(2, 1);
+            s.addBatch();
+            s.setString(1, "y");
+            s.setInt(2, 3);
+            s.addBatch();
+            int[] results = s.executeBatch();
+            assertNotNull(results);
+            assertEquals(results.length, 2);
+        }
+
+        // delete
+        try (PreparedStatement s = connection.prepareStatement("alter table test.batch_update delete where k = ?")) {
+            s.setInt(1, 1);
+            s.addBatch();
+            s.setInt(1, 3);
+            s.addBatch();
+            int[] results = s.executeBatch();
+            assertNotNull(results);
+            assertEquals(results.length, 2);
+        }
+
+        try (PreparedStatement s = connection.prepareStatement("drop table if exists test.batch_update")) {
+            s.execute();
+        }
     }
 
     private static byte[] randomEncodedUUID() {
