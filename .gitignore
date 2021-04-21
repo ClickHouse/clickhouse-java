@@ -36,6 +36,7 @@ target/
 **/parser/ClickHouseSqlParserTokenManager.java
 **/parser/Token*.java
 **/parser/ParseException.java
+jmh-result.*
 
 # Shell scripts
 *.sh
