@@ -731,27 +731,13 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
                         ? new EnumMap<ClickHouseQueryParam, String>(ClickHouseQueryParam.class)
                         : additionalClickHouseDBParams);
 
-        URI uri;
-        if (externalData == null || externalData.isEmpty()) {
-            uri = buildRequestUri(
-                    null,
-                    null,
-                    additionalClickHouseDBParams,
-                    additionalRequestParams,
-                    ignoreDatabase
-            );
-        } else {
-            // write sql in query params when there is external data
-            // as it is impossible to pass both external data and sql in body
-            // TODO move sql to request body when it is supported in clickhouse
-            uri = buildRequestUri(
-                    sql,
-                    externalData,
-                    additionalClickHouseDBParams,
-                    additionalRequestParams,
-                    ignoreDatabase
-            );
-        }
+        URI uri = buildRequestUri(
+            null,
+            externalData,
+            additionalClickHouseDBParams,
+            additionalRequestParams,
+            ignoreDatabase
+        );
         log.debug("Request url: {}", uri);
 
 
@@ -760,6 +746,7 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
             requestEntity = new StringEntity(sql, StandardCharsets.UTF_8);
         } else {
             MultipartEntityBuilder entityBuilder = MultipartEntityBuilder.create();
+            entityBuilder.addTextBody("query", sql);
 
             try {
                 for (ClickHouseExternalData externalDataItem : externalData) {
