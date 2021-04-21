@@ -432,6 +432,26 @@ public class ClickHouseStatementImplTest {
         }
     }
 
+    @Test
+    public void testBatchProcessing() throws SQLException {
+        try (Statement s = connection.createStatement()) {
+            int[] results = s.executeBatch();
+            assertNotNull(results);
+            assertEquals(results.length, 0);
+
+            s.addBatch("select 1; select 2");
+            s.addBatch("select 3");
+            results = s.executeBatch();
+            assertNotNull(results);
+            assertEquals(results.length, 3);
+
+            s.clearBatch();
+            results = s.executeBatch();
+            assertNotNull(results);
+            assertEquals(results.length, 0);
+        }
+    }
+
     private static Object readField(Object object, String fieldName, long timeoutSecs) {
         long start = System.currentTimeMillis();
         Object value;

@@ -19,7 +19,7 @@ public class Insertion extends JdbcBenchmark {
         final int rows = 10000;
         final int num = new Random().nextInt(rows);
 
-        return executeInsert(state, "insert into test_insert(i) values(?)", new Enumeration<Object[]>() {
+        return executeInsert(state, "insert into system.test_insert(i) values(?)", new Enumeration<Object[]>() {
             int counter = 0;
 
             @Override
@@ -39,7 +39,7 @@ public class Insertion extends JdbcBenchmark {
         final int rows = 10000;
         final int num = new Random().nextInt(rows);
 
-        return executeInsert(state, "insert into test_insert(s) values(?)", new Enumeration<Object[]>() {
+        return executeInsert(state, "insert into system.test_insert(s) values(?)", new Enumeration<Object[]>() {
             int counter = 0;
 
             @Override
@@ -59,7 +59,7 @@ public class Insertion extends JdbcBenchmark {
         final int rows = 10000;
         final int num = new Random().nextInt(rows);
 
-        return executeInsert(state, "insert into test_insert(t) values(?)", new Enumeration<Object[]>() {
+        return executeInsert(state, "insert into system.test_insert(t) values(?)", new Enumeration<Object[]>() {
             int counter = 0;
 
             @Override
