@@ -207,6 +207,16 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
         return stmt;
     }
 
+    protected Map<ClickHouseQueryParam, String> importAdditionalDBParameters(Map<ClickHouseQueryParam, String> additionalDBParams) {
+        if (additionalDBParams == null || additionalDBParams.isEmpty()) {
+            additionalDBParams = new EnumMap<>(ClickHouseQueryParam.class);
+        } else { // in case the given additionalDBParams is immutable
+            additionalDBParams = new EnumMap<>(additionalDBParams);
+        }
+
+        return additionalDBParams;
+    }
+
     protected ResultSet updateResult(ClickHouseSqlStatement stmt, InputStream is) throws IOException, ClickHouseException {
         ResultSet rs = null;
         if (stmt.isQuery()) {
@@ -239,12 +249,9 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
         Map<ClickHouseQueryParam, String> additionalDBParams,
         List<ClickHouseExternalData> externalData,
         Map<String, String> additionalRequestParams) throws SQLException {
+        additionalDBParams = importAdditionalDBParameters(additionalDBParams);
         stmt = applyFormat(stmt, ClickHouseFormat.TabSeparatedWithNamesAndTypes);
-        if (additionalDBParams == null || additionalDBParams.isEmpty()) {
-            additionalDBParams = new EnumMap<>(ClickHouseQueryParam.class);
-        } else {
-            additionalDBParams = new EnumMap<>(additionalDBParams);
-        }
+
         try (InputStream is = getInputStream(stmt, additionalDBParams, externalData, additionalRequestParams)) {
             //noinspection StatementWithEmptyBody
         } catch (IOException e) {
@@ -258,12 +265,8 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
         Map<ClickHouseQueryParam, String> additionalDBParams,
         List<ClickHouseExternalData> externalData,
         Map<String, String> additionalRequestParams) throws SQLException {
+        additionalDBParams = importAdditionalDBParameters(additionalDBParams);
         stmt = applyFormat(stmt, ClickHouseFormat.TabSeparatedWithNamesAndTypes);
-        if (additionalDBParams == null || additionalDBParams.isEmpty()) {
-            additionalDBParams = new EnumMap<>(ClickHouseQueryParam.class);
-        } else {
-            additionalDBParams = new EnumMap<>(additionalDBParams);
-        }
 
         InputStream is = getInputStream(stmt, additionalDBParams, externalData, additionalRequestParams);
         try {
@@ -282,11 +285,7 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
         ClickHouseSqlStatement stmt,
         Map<ClickHouseQueryParam, String> additionalDBParams,
         Map<String, String> additionalRequestParams) throws SQLException {
-        if (additionalDBParams == null || additionalDBParams.isEmpty()) {
-            additionalDBParams = new EnumMap<>(ClickHouseQueryParam.class);
-        } else {
-            additionalDBParams = new EnumMap<>(additionalDBParams);
-        }
+        additionalDBParams = importAdditionalDBParameters(additionalDBParams);
         stmt = applyFormat(stmt, ClickHouseFormat.JSONCompact);
         
         try (InputStream is = getInputStream(stmt, additionalDBParams, null, additionalRequestParams)) {
@@ -332,11 +331,7 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
                                   Map<String, String> additionalRequestParams) throws SQLException {
 
         // forcibly disable extremes for ResultSet queries
-        if (additionalDBParams == null || additionalDBParams.isEmpty()) {
-            additionalDBParams = new EnumMap<>(ClickHouseQueryParam.class);
-        } else {
-            additionalDBParams = new EnumMap<>(additionalDBParams);
-        }
+        additionalDBParams = importAdditionalDBParameters(additionalDBParams);
         // FIXME respect the value set in additionalDBParams?
         additionalDBParams.put(ClickHouseQueryParam.EXTREMES, "0");
 
@@ -371,11 +366,7 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
     public ClickHouseResponse executeQueryClickhouseResponse(String sql,
                                                              Map<ClickHouseQueryParam, String> additionalDBParams,
                                                              Map<String, String> additionalRequestParams) throws SQLException {
-        if (additionalDBParams == null || additionalDBParams.isEmpty()) {
-            additionalDBParams = new EnumMap<>(ClickHouseQueryParam.class);
-        } else {
-            additionalDBParams = new EnumMap<>(additionalDBParams);
-        }
+        additionalDBParams = importAdditionalDBParameters(additionalDBParams);
         parseSqlStatements(sql, ClickHouseFormat.JSONCompact, additionalDBParams);
         
         try (InputStream is = getLastInputStream(additionalDBParams, null, additionalRequestParams)) {
@@ -398,12 +389,8 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
 
     @Override
     public ClickHouseRowBinaryInputStream executeQueryClickhouseRowBinaryStream(String sql, Map<ClickHouseQueryParam, String> additionalDBParams, Map<String, String> additionalRequestParams) throws SQLException {
-        if (additionalDBParams == null || additionalDBParams.isEmpty()) {
-            additionalDBParams = new EnumMap<>(ClickHouseQueryParam.class);
-        } else {
-            additionalDBParams = new EnumMap<>(additionalDBParams);
-        }
-        parseSqlStatements(sql, ClickHouseFormat.RowBinary, additionalDBParams);
+        additionalDBParams = importAdditionalDBParameters(additionalDBParams);
+        parseSqlStatements(sql, ClickHouseFormat.RowBinaryWithNamesAndTypes, additionalDBParams);
 
         InputStream is = getLastInputStream(
                 additionalDBParams,
@@ -417,7 +404,7 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
                 currentUpdateCount = -1;
                 // FIXME get server timezone?
                 currentRowBinaryResult = new ClickHouseRowBinaryInputStream(properties.isCompress()
-                        ? new ClickHouseLZ4Stream(is) : is, getConnection().getTimeZone(), properties);
+                        ? new ClickHouseLZ4Stream(is) : is, getConnection().getTimeZone(), properties, true);
                 return currentRowBinaryResult;
             } else {
                 currentUpdateCount = 0;
