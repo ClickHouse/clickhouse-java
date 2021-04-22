@@ -14,23 +14,59 @@ import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.sql.Date;
 import java.sql.Timestamp;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.TimeZone;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import ru.yandex.clickhouse.domain.ClickHouseDataType;
+import ru.yandex.clickhouse.response.ClickHouseColumnInfo;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
 
 public class ClickHouseRowBinaryInputStream implements Closeable {
     private final DataInputStream in;
     private final TimeZone timeZone;
 
-    public ClickHouseRowBinaryInputStream(InputStream is, TimeZone timeZone, ClickHouseProperties properties) {
+    private final List<ClickHouseColumnInfo> columns;
+
+    public ClickHouseRowBinaryInputStream(InputStream is, TimeZone timeZone, ClickHouseProperties properties)
+            throws IOException {
+        this(is, timeZone, properties, false);
+    }
+
+    public ClickHouseRowBinaryInputStream(InputStream is, TimeZone timeZone, ClickHouseProperties properties,
+            boolean hasColumnInfo) throws IOException {
         this.in = new DataInputStream(is);
         if (properties.isUseServerTimeZoneForDates()) {
             this.timeZone = timeZone;
         } else {
             this.timeZone = TimeZone.getDefault();
         }
+
+        if (hasColumnInfo) {
+            // read names and types
+            int count = Utils.readVarInt(in);
+            String[][] columns = new String[count][2];
+            for (int i = 0; i < 2; i++) {
+                for (int j = 0; j < count; j++) {
+                    columns[j][i] = readString();
+                }
+            }
+
+            List<ClickHouseColumnInfo> list = new ArrayList<>(count);
+            for (int i = 0; i < count; i++) {
+                String[] column = columns[i];
+                list.add(ClickHouseColumnInfo.parse(column[1], column[0], timeZone));
+            }
+            this.columns = Collections.unmodifiableList(list);
+        } else {
+            this.columns = Collections.emptyList();
+        }
+    }
+
+    public List<ClickHouseColumnInfo> getColumns() {
+        return this.columns;
     }
 
     public void readBytes(byte[] bytes) throws IOException {

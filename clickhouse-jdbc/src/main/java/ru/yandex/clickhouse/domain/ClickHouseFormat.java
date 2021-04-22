@@ -38,6 +38,7 @@ public enum ClickHouseFormat {
     PrettySpace,
     Protobuf,
     RowBinary,
+    RowBinaryWithNamesAndTypes,
     Native,
     Null,
     XML,

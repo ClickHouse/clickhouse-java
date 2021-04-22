@@ -390,7 +390,7 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
     @Override
     public ClickHouseRowBinaryInputStream executeQueryClickhouseRowBinaryStream(String sql, Map<ClickHouseQueryParam, String> additionalDBParams, Map<String, String> additionalRequestParams) throws SQLException {
         additionalDBParams = importAdditionalDBParameters(additionalDBParams);
-        parseSqlStatements(sql, ClickHouseFormat.RowBinary, additionalDBParams);
+        parseSqlStatements(sql, ClickHouseFormat.RowBinaryWithNamesAndTypes, additionalDBParams);
 
         InputStream is = getLastInputStream(
                 additionalDBParams,
@@ -404,7 +404,7 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
                 currentUpdateCount = -1;
                 // FIXME get server timezone?
                 currentRowBinaryResult = new ClickHouseRowBinaryInputStream(properties.isCompress()
-                        ? new ClickHouseLZ4Stream(is) : is, getConnection().getTimeZone(), properties);
+                        ? new ClickHouseLZ4Stream(is) : is, getConnection().getTimeZone(), properties, true);
                 return currentRowBinaryResult;
             } else {
                 currentUpdateCount = 0;

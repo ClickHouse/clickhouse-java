@@ -121,7 +121,7 @@ public class ClickHouseRowBinaryInputStreamTest {
 		assertEquals(input.readUInt32(), 1492350000L);
 	}
 
-	private ClickHouseRowBinaryInputStream prepareStream(byte[] input) {
+	private ClickHouseRowBinaryInputStream prepareStream(byte[] input) throws Exception {
 		return new ClickHouseRowBinaryInputStream(new ByteArrayInputStream(input), TimeZone.getTimeZone("ETC"), new ClickHouseProperties());
 	}
 }
