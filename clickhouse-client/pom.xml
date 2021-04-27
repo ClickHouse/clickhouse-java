@@ -12,6 +12,10 @@
     <version>${revision}</version>
     <packaging>jar</packaging>
 
+    <name>${project.artifactId}</name>
+    <description>Unified Java client for ClickHouse</description>
+    <url>https://github.com/ClickHouse/clickhouse-jdbc/tree/master/clickhouse-client</url>
+
     <properties>
         <javacc-plugin.version>4.1.4</javacc-plugin.version>
     </properties>
