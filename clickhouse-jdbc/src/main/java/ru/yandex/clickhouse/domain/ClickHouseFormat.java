@@ -13,7 +13,7 @@ package ru.yandex.clickhouse.domain;
  * @author Dmitry Andreev <a href="mailto:AndreevDm@yandex-team.ru"></a>
  */
 public enum ClickHouseFormat {
-
+    CustomSeparated,
     TabSeparated,
     TabSeparatedRaw,
     TabSeparatedWithNames,
@@ -38,6 +38,7 @@ public enum ClickHouseFormat {
     PrettySpace,
     Protobuf,
     RowBinary,
+    RowBinaryWithNamesAndTypes,
     Native,
     Null,
     XML,

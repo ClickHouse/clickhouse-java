@@ -19,7 +19,6 @@ import java.sql.ResultSetMetaData;
 import java.sql.RowId;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
-import java.sql.SQLSyntaxErrorException;
 import java.sql.SQLXML;
 import java.sql.Time;
 import java.sql.Timestamp;
@@ -31,15 +30,14 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.TimeZone;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import org.apache.http.entity.AbstractHttpEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import ru.yandex.clickhouse.jdbc.parser.ClickHouseSqlStatement;
 import ru.yandex.clickhouse.jdbc.parser.StatementType;
-
 import ru.yandex.clickhouse.response.ClickHouseResponse;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
 import ru.yandex.clickhouse.settings.ClickHouseQueryParam;
@@ -47,15 +45,14 @@ import ru.yandex.clickhouse.util.ClickHouseArrayUtil;
 import ru.yandex.clickhouse.util.ClickHouseValueFormatter;
 
 public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl implements ClickHousePreparedStatement {
+    private static final Logger log = LoggerFactory.getLogger(ClickHousePreparedStatementImpl.class);
 
     static final String PARAM_MARKER = "?";
     static final String NULL_MARKER = "\\N";
 
-    private static final Pattern VALUES = Pattern.compile("(?i)VALUES[\\s]*\\(");
-
     private final TimeZone dateTimeZone;
     private final TimeZone dateTimeTimeZone;
-    private final String sql;
+    private final ClickHouseSqlStatement parsedStmt;
     private final List<String> sqlParts;
     private final ClickHousePreparedStatementParameter[] binds;
     private final List<List<String>> parameterList;
@@ -67,9 +64,14 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
         TimeZone serverTimeZone, int resultSetType) throws SQLException
     {
         super(client, connection, properties, resultSetType);
-        parseSingleStatement(sql);
+        parseSqlStatements(sql);
 
-        this.sql = sql;
+        if (parsedStmts.length != 1) {
+            throw new IllegalArgumentException("Only single statement is supported");
+        }
+
+        parsedStmt = parsedStmts[0];
+
         PreparedStatementParser parser = PreparedStatementParser.parse(sql,
             parsedStmt.getEndPosition(ClickHouseSqlStatement.KEYWORD_VALUES));
         this.parameterList = parser.getParameters();
@@ -92,18 +94,19 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
 
     @Override
     public ClickHouseResponse executeQueryClickhouseResponse() throws SQLException {
-        return super.executeQueryClickhouseResponse(buildSql());
+        return executeQueryClickhouseResponse(buildSql(), null, null);
     }
 
     @Override
     public ClickHouseResponse executeQueryClickhouseResponse(Map<ClickHouseQueryParam, String> additionalDBParams) throws SQLException {
-        return super.executeQueryClickhouseResponse(buildSql(), additionalDBParams);
+        return executeQueryClickhouseResponse(buildSql(), additionalDBParams, null);
     }
 
-    private String buildSql() throws SQLException {
+    private ClickHouseSqlStatement buildSql() throws SQLException {
         if (sqlParts.size() == 1) {
-            return sqlParts.get(0);
+            return new ClickHouseSqlStatement(sqlParts.get(0), parsedStmt.getStatementType());
         }
+
         checkBinded();
         StringBuilder sb = new StringBuilder(sqlParts.get(0));
         for (int i = 1, p = 0; i < sqlParts.size(); i++) {
@@ -117,7 +120,7 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
             }
             sb.append(sqlParts.get(i));
         }
-        return sb.toString();
+        return new ClickHouseSqlStatement(sb.toString(), parsedStmt.getStatementType());
     }
 
     private void checkBinded() throws SQLException {
@@ -132,32 +135,34 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
 
     @Override
     public boolean execute() throws SQLException {
-        return super.execute(buildSql());
+        return executeQueryStatement(buildSql(), null, null, null) != null;
     }
 
     @Override
     public ResultSet executeQuery() throws SQLException {
-        return super.executeQuery(buildSql());
+        return executeQueryStatement(buildSql(), null, null, null);
     }
 
     @Override
     public void clearBatch() throws SQLException {
-        batchRows.clear();
+        super.clearBatch();
+
+        batchRows = new ArrayList<>();
     }
 
     @Override
     public ResultSet executeQuery(Map<ClickHouseQueryParam, String> additionalDBParams) throws SQLException {
-        return super.executeQuery(buildSql(), additionalDBParams);
+        return executeQuery(additionalDBParams, null);
     }
 
     @Override
     public ResultSet executeQuery(Map<ClickHouseQueryParam, String> additionalDBParams, List<ClickHouseExternalData> externalData) throws SQLException {
-        return super.executeQuery(buildSql(), additionalDBParams, externalData);
+        return executeQueryStatement(buildSql(), additionalDBParams, externalData, null);
     }
 
     @Override
     public int executeUpdate() throws SQLException {
-        return super.executeUpdate(buildSql());
+        return executeStatement(buildSql(), null, null, null);
     }
 
     private void setBind(int parameterIndex, String bind, boolean quote) {
@@ -316,8 +321,17 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
     }
 
     @Override
+    public void addBatch(String sql) throws SQLException {
+        throw new SQLException("addBatch(String) cannot be called in PreparedStatement or CallableStatement!");
+    }
+
+    @Override
     public void addBatch() throws SQLException {
-        batchRows.addAll(buildBatch());
+        if (parsedStmt.getStatementType() == StatementType.INSERT) {
+            batchRows.addAll(buildBatch());
+        } else {
+            batchStmts.add(buildSql());
+        }
     }
 
     private List<byte[]> buildBatch() throws SQLException {
@@ -353,27 +367,28 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
     @Override
     public int[] executeBatch(Map<ClickHouseQueryParam, String> additionalDBParams) throws SQLException {
         int valuePosition = -1;
-        if (parsedStmt.getStatementType() == StatementType.INSERT && parsedStmt.hasValues()) {
+        String sql = parsedStmt.getSQL();
+        StatementType type = parsedStmt.getStatementType();
+        if (type == StatementType.INSERT && parsedStmt.hasValues()) {
             valuePosition = parsedStmt.getStartPosition(ClickHouseSqlStatement.KEYWORD_VALUES);
-        } else {
-            Matcher matcher = VALUES.matcher(sql);
-            if (matcher.find()) {
-                valuePosition = matcher.start();
-            }    
         }
 
-        if (valuePosition < 0) {
-            throw new SQLSyntaxErrorException(
-                    "Query must be like 'INSERT INTO [db.]table [(c1, c2, c3)] VALUES (?, ?, ?)'. " +
-                            "Got: " + sql
-            );
-        }
-        String insertSql = sql.substring(0, valuePosition);
-        BatchHttpEntity entity = new BatchHttpEntity(batchRows);
-        sendStream(entity, insertSql, additionalDBParams);
         int[] result = new int[batchRows.size()];
         Arrays.fill(result, 1);
-        batchRows = new ArrayList<>();
+        if (valuePosition > 0) { // insert
+            String insertSql = sql.substring(0, valuePosition);
+            BatchHttpEntity entity = new BatchHttpEntity(batchRows);
+            sendStream(entity, insertSql, additionalDBParams);        
+        } else { // others
+            if (type == StatementType.ALTER_DELETE || type == StatementType.ALTER_UPDATE) {
+                log.warn("UPDATE and DELETE should be used with caution, as they are expensive operations and not supposed to be used frequently.");
+            } else {
+                log.warn("PreparedStatement will slow down non-INSERT queries, so please consider to use Statement instead.");
+            }
+            result = super.executeBatch();
+        }
+
+        clearBatch();
         return result;
     }
 
@@ -443,7 +458,7 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
             return currentResult.getMetaData();
         }
         
-        if (!parsedStmt.isQuery() || (!parsedStmt.isRecognized() && !isSelect(sql))) {
+        if (!parsedStmt.isQuery()) {
             return null;
         }
         ResultSet myRs = executeQuery(Collections.singletonMap(
@@ -624,9 +639,9 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
     @Override
     public String asSql() {
         try {
-            return buildSql();
+            return buildSql().getSQL();
         } catch (SQLException e) {
-            return sql;
+            return parsedStmt.getSQL();
         }
     }
 }

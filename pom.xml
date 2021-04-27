@@ -74,7 +74,7 @@
     </distributionManagement>
 
     <properties>
-        <revision>0.3.0-SNAPSHOT</revision>
+        <revision>0.3.1-SNAPSHOT</revision>
         <project.current.year>2021</project.current.year>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
@@ -85,7 +85,7 @@
         <lz4.version>1.7.1</lz4.version>
         <jackson-core.version>2.9.10</jackson-core.version>
         <jackson-databind.version>2.9.10.8</jackson-databind.version>
-        <roaring-bitmap.version>0.9.9</roaring-bitmap.version>
+        <roaring-bitmap.version>0.9.10</roaring-bitmap.version>
         <slf4j.version>1.7.30</slf4j.version>
         <mockito.version>1.10.19</mockito.version>
         <wiremock.version>2.27.2</wiremock.version>
@@ -93,6 +93,7 @@
         <testng.version>6.14.3</testng.version>
         <assembly-plugin.version>3.3.0</assembly-plugin.version>
         <deploy-plugin.version>3.0.0-M1</deploy-plugin.version>
+        <flatten-plugin.version>1.2.7</flatten-plugin.version>
         <staging-plugin.version>1.6.8</staging-plugin.version>
         <gpg-plugin.version>1.6</gpg-plugin.version>
         <compiler-plugin.version>3.8.1</compiler-plugin.version>
@@ -109,10 +110,10 @@
         <skipUTs>${skipTests}</skipUTs>
 
         <sonar.projectKey>clickhouse_clickhouse-jdbc</sonar.projectKey>
-        <sonar.moduleKey>${artifactId}</sonar.moduleKey>
+        <sonar.moduleKey>${project.artifactId}</sonar.moduleKey>
         <sonar.organization>clickhouse</sonar.organization>
         <sonar.host.url>https://sonarcloud.io</sonar.host.url>
-        <sonar.projectVersion>0.3.0</sonar.projectVersion>
+        <sonar.projectVersion>0.3.1</sonar.projectVersion>
     </properties>
 
     <dependencyManagement>
@@ -148,7 +149,7 @@
                 <version>${lz4.version}</version>
             </dependency>
             <dependency>
-                <groupId>com.github.RoaringBitmap</groupId>
+                <groupId>org.roaringbitmap</groupId>
                 <artifactId>RoaringBitmap</artifactId>
                 <version>${roaring-bitmap.version}</version>
             </dependency>
@@ -274,8 +275,39 @@
                         <useSystemClassLoader>false</useSystemClassLoader>
                     </configuration>
                 </plugin>
+                <plugin>
+                    <groupId>org.codehaus.mojo</groupId>
+                    <artifactId>flatten-maven-plugin</artifactId>
+                    <version>${flatten-plugin.version}</version>
+                    <configuration>
+                        <updatePomFile>true</updatePomFile>
+                        <flattenMode>ossrh</flattenMode>
+                    </configuration>
+                    <executions>
+                        <execution>
+                            <id>flatten</id>
+                            <phase>process-resources</phase>
+                            <goals>
+                                <goal>flatten</goal>
+                            </goals>
+                        </execution>
+                        <execution>
+                            <id>flatten.clean</id>
+                            <phase>clean</phase>
+                            <goals>
+                                <goal>clean</goal>
+                            </goals>
+                        </execution>
+                    </executions>
+                </plugin>
             </plugins>
         </pluginManagement>
+        <plugins>
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>flatten-maven-plugin</artifactId>
+            </plugin>
+        </plugins>
     </build>
 
     <profiles>
@@ -401,12 +433,4 @@
             </build>
         </profile>
     </profiles>
-
-    <!-- required to get latest RoaringBitmap lib -->
-    <repositories>
-        <repository>
-            <id>jitpack.io</id>
-            <url>https://jitpack.io</url>
-        </repository>
-    </repositories>
 </project>

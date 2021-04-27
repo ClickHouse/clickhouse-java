@@ -33,8 +33,7 @@ public class ClientState {
                             serverState.getUser(), serverState.getPassword()), new Properties());
 
             try (Statement s = conn.createStatement()) {
-                s.execute(
-                        "create table if not exists test_insert(i Nullable(UInt64), s Nullable(String), t Nullable(DateTime))engine=Memory");
+                s.execute("create table if not exists system.test_insert(i Nullable(UInt64), s Nullable(String), t Nullable(DateTime))engine=Memory");
             }
         } catch (SQLException e) {
             e.printStackTrace();
@@ -43,9 +42,9 @@ public class ClientState {
     }
 
     @TearDown(Level.Trial)
-    public void doTearDown() throws SQLException {
+    public void doTearDown(ServerState serverState) throws SQLException {
         try (Statement s = conn.createStatement()) {
-            s.execute("drop table if exists test_insert");
+            s.execute("drop table if exists system.test_insert");
         }
         conn.close();
     }

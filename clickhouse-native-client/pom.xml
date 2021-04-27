@@ -13,6 +13,10 @@
     <version>${revision}</version>
     <packaging>jar</packaging>
 
+    <name>${project.artifactId}</name>
+    <description>Native client for ClickHouse</description>
+    <url>https://github.com/ClickHouse/clickhouse-jdbc/tree/master/clickhouse-native-client</url>
+
     <dependencies>
         <dependency>
             <groupId>${parent.groupId}</groupId>

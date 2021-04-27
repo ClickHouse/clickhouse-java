@@ -27,9 +27,6 @@ public enum ClickHouseConnectionSettings implements DriverPropertyCreator {
             + " ClickHouse rejects request execution if its time exceeds max_execution_time"),
 
 
-    @Deprecated
-    KEEP_ALIVE_TIMEOUT("keepAliveTimeout", 30 * 1000, ""),
-
     /**
      * for ConnectionManager
      */
@@ -42,6 +39,7 @@ public enum ClickHouseConnectionSettings implements DriverPropertyCreator {
      * additional
      */
     USE_OBJECTS_IN_ARRAYS("use_objects_in_arrays", false, "Whether Object[] should be used instead primitive arrays."),
+    USE_SHARED_COOKIE_STORE("useSharedCookieStore", false, "Whether to use shared cookie to store among all http clients of db are not"),
     MAX_COMPRESS_BUFFER_SIZE("maxCompressBufferSize", 1024*1024, ""),
 
     USE_SERVER_TIME_ZONE("use_server_time_zone", true, "Whether to use timezone from server. On connection init select timezone() will be executed"),
@@ -51,8 +49,6 @@ public enum ClickHouseConnectionSettings implements DriverPropertyCreator {
                     "If false, Date returned is a wrapper of a timestamp at start of the day in client timezone. " +
                     "If true - at start of the day in server or use_timezone timezone."),
     CLIENT_NAME("client_name", "", "client_name or http_user_agent show up in system.query_log table, depending on the protocol you're using."),
-    @Deprecated
-    USE_NEW_PARSER("use_new_parser", true, "Whether to use JavaCC based SQL parser or not.")
     ;
 
     private final String key;

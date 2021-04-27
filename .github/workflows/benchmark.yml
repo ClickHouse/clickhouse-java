@@ -26,7 +26,7 @@ on:
       driver:
         description: "Driver version"
         required: true
-        default: "0.3.0-SNAPSHOT"
+        default: "0.3.1-SNAPSHOT"
       options:
         description: "Benchmark options"
         required: true
@@ -62,7 +62,7 @@ jobs:
           mvn --batch-mode --update-snapshots -q -DskipTests install
           cd clickhouse-benchmark
           mvn --batch-mode --update-snapshots install
-          java -jar target/benchmarks.jar -rf text -p client=clickhouse-jdbc Basic
+          java -DclickhouseVersion="21.3" -jar target/benchmarks.jar -rf text -p client=clickhouse-jdbc Basic
           echo "BENCHMARK_REPORT<<EOF" >> $GITHUB_ENV
           cat jmh-result.text >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
@@ -110,7 +110,7 @@ jobs:
         run: |
           mvn --batch-mode --update-snapshots -DskipTests -pl clickhouse-benchmark -am package
           cd clickhouse-benchmark
-          java -jar target/benchmarks.jar -rf json ${{ github.event.inputs.options }} > output.txt
+          java -DclickhouseVersion="21.3" -jar target/benchmarks.jar -rf json ${{ github.event.inputs.options }} > output.txt
           echo "BENCHMARK_REPORT<<EOF" >> $GITHUB_ENV
           tail -n +$(grep -n '^REMEMBER:' output.txt | tail -1 | awk -F: '{print $1+6}') output.txt | head -n -2 | grep -v ':·' >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV

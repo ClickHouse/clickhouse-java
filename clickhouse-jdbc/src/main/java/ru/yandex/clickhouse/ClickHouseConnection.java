@@ -6,10 +6,6 @@ import java.util.TimeZone;
 
 
 public interface ClickHouseConnection extends Connection {
-
-    @Deprecated
-    ClickHouseStatement createClickHouseStatement() throws SQLException;
-
     TimeZone getServerTimeZone();
     
     TimeZone getTimeZone();

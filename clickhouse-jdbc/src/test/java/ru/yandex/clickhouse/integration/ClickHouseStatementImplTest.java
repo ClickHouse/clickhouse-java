@@ -1,9 +1,10 @@
 package ru.yandex.clickhouse.integration;
 
 import static org.testng.Assert.assertEquals;
-import static org.testng.AssertJUnit.assertNotNull;
-import static org.testng.AssertJUnit.assertNull;
-import static org.testng.AssertJUnit.assertTrue;
+import static org.testng.Assert.assertFalse;
+import static org.testng.Assert.assertNotNull;
+import static org.testng.Assert.assertNull;
+import static org.testng.Assert.assertTrue;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
@@ -34,6 +35,7 @@ import ru.yandex.clickhouse.ClickHouseExternalData;
 import ru.yandex.clickhouse.ClickHouseStatement;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
 import ru.yandex.clickhouse.settings.ClickHouseQueryParam;
+import ru.yandex.clickhouse.util.ClickHouseVersionNumberUtil;
 
 public class ClickHouseStatementImplTest {
 
@@ -126,8 +128,10 @@ public class ClickHouseStatementImplTest {
 
     @Test
     public void testExternalData() throws SQLException, UnsupportedEncodingException {
+        String serverVersion = connection.getServerVersion();
         ClickHouseStatement stmt = connection.createStatement();
-        String[] rows = "21.3.3.14".equals(connection.getServerVersion())
+        String[] rows = ClickHouseVersionNumberUtil.getMajorVersion(serverVersion) >= 21
+            && ClickHouseVersionNumberUtil.getMinorVersion(serverVersion) >= 3
             ? new String[] { "1\tGroup\n" }
             : new String[] { "1\tGroup", "1\tGroup\n" };
         
@@ -145,6 +149,41 @@ public class ClickHouseStatementImplTest {
                 String groupName = rs.getString("GroupName");
 
                 Assert.assertEquals(userName, "User");
+                Assert.assertEquals(groupName, "Group");
+            }
+        }
+    }
+
+    // reproduce issue #634
+    @Test
+    public void testLargeQueryWithExternalData() throws Exception {
+        String serverVersion = connection.getServerVersion();
+        String[] rows = ClickHouseVersionNumberUtil.getMajorVersion(serverVersion) >= 21
+            && ClickHouseVersionNumberUtil.getMinorVersion(serverVersion) >= 3
+            ? new String[] { "1\tGroup\n" }
+            : new String[] { "1\tGroup", "1\tGroup\n" };
+        
+        int length = 160000;
+        StringBuilder builder = new StringBuilder(length);
+        for (int i = 0; i < length; i++) {
+            builder.append('u');
+        }
+        String user = builder.toString();
+        for (String row : rows) {
+            try (ClickHouseStatement stmt = connection.createStatement();
+                ResultSet rs = stmt.executeQuery(
+                    "select UserName, GroupName from (select '"
+                    + user
+                    + "' as UserName, 1 as GroupId) as g"
+                    + "any left join groups using GroupId", null,
+                    Collections.singletonList(new ClickHouseExternalData(
+                        "groups", new ByteArrayInputStream(row.getBytes())
+                ).withStructure("GroupId UInt8, GroupName String")))) {
+                Assert.assertTrue(rs.next());
+                String userName = rs.getString("UserName");
+                String groupName = rs.getString("GroupName");
+
+                Assert.assertEquals(userName, user);
                 Assert.assertEquals(groupName, "Group");
             }
         }
@@ -323,12 +362,12 @@ public class ClickHouseStatementImplTest {
         assertNotNull(
             String.format("it's actually very strange. It seems the query hasn't been executed in %s seconds", timeout),
             queryId);
-        assertNull("An exception happened while the query was being executed", exceptionAtomicReference.get());
+        assertNull(exceptionAtomicReference.get(), "An exception happened while the query was being executed");
 
 
-        assertTrue("The query isn't being executed. It seems very strange", checkQuery(queryId, true,10));
+        assertTrue(checkQuery(queryId, true, 10), "The query isn't being executed. It seems very strange");
         firstStatement.cancel();
-        assertTrue("The query is still being executed", checkQuery(queryId, false, 10));
+        assertTrue(checkQuery(queryId, false, 10), "The query is still being executed");
 
         firstStatement.close();
         thread.interrupt();
@@ -359,14 +398,14 @@ public class ClickHouseStatementImplTest {
         thread.setDaemon(true);
         thread.start();
         final long timeout = 10;
-        assertTrue(
-            String.format("it's actually very strange. It seems the query hasn't been executed in %s seconds", timeout),
-            countDownLatch.await(timeout, TimeUnit.SECONDS));
-        assertNull("An exception happened while the query was being executed", exceptionAtomicReference.get());
+        assertTrue(countDownLatch.await(timeout, TimeUnit.SECONDS),
+            String.format(
+                "it's actually very strange. It seems the query hasn't been executed in %s seconds", timeout));
+        assertNull(exceptionAtomicReference.get(), "An exception happened while the query was being executed");
 
-        assertTrue("The query isn't being executed. It seems very strange", checkQuery(queryId, true,10));
+        assertTrue(checkQuery(queryId, true, 10), "The query isn't being executed. It seems very strange");
         firstStatement.cancel();
-        assertTrue("The query is still being executed", checkQuery(queryId, false, 10));
+        assertTrue(checkQuery(queryId, false, 10), "The query is still being executed");
 
         firstStatement.close();
         thread.interrupt();
@@ -404,6 +443,48 @@ public class ClickHouseStatementImplTest {
         assertEquals(
             rs.getArray(2).getArray(),
             new UUID[] {UUID.fromString("5ff22319-793d-4e6c-bdc1-916095a5a496")});
+    }
+
+    @Test
+    public void testMultiStatements() throws SQLException {
+        try (Statement s = connection.createStatement()) {
+            String sql = "select 1; select 2";
+            try (ResultSet rs = s.executeQuery(sql)) {
+                assertTrue(rs.next());
+                assertEquals(rs.getString(1), "2");
+                assertFalse(rs.next());
+            }
+
+            assertTrue(s.execute(sql));
+            try (ResultSet rs = s.getResultSet()) {
+                assertNotNull(rs);
+                assertTrue(rs.next());
+                assertEquals(rs.getString(1), "2");
+                assertFalse(rs.next());
+            }
+            
+            assertEquals(s.executeUpdate(sql), 1);
+        }
+    }
+
+    @Test
+    public void testBatchProcessing() throws SQLException {
+        try (Statement s = connection.createStatement()) {
+            int[] results = s.executeBatch();
+            assertNotNull(results);
+            assertEquals(results.length, 0);
+
+            s.addBatch("select 1; select 2");
+            s.addBatch("select 3");
+            results = s.executeBatch();
+            assertNotNull(results);
+            assertEquals(results.length, 3);
+
+            s.clearBatch();
+            results = s.executeBatch();
+            assertNotNull(results);
+            assertEquals(results.length, 0);
+        }
     }
 
     private static Object readField(Object object, String fieldName, long timeoutSecs) {

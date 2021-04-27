@@ -9,9 +9,9 @@ import java.util.regex.Pattern;
 import ru.yandex.clickhouse.util.apache.StringUtils;
 
 /**
- * Parser for JDBC SQL Strings
- * <p>
- * Tries to extract query parameters in a way that is usable for (batched)
+ * Parser for JDBC SQL Strings.
+ *
+ * <p>Tries to extract query parameters in a way that is usable for (batched)
  * prepared statements.
  */
 final class PreparedStatementParser  {
@@ -88,7 +88,7 @@ final class PreparedStatementParser  {
         int quotedStart = 0;
         int partStart = 0;
         int sqlLength = sql.length();
-        for (int i = valuesMode ? endPosition : 0, idxStart = i, idxEnd = i ; i < sqlLength; i++) {
+        for (int i = valuesMode ? endPosition : 0, idxStart = i, idxEnd = i; i < sqlLength; i++) {
             char c = sql.charAt(i);
             if (inSingleLineComment) {
                 if (c == '\n') {

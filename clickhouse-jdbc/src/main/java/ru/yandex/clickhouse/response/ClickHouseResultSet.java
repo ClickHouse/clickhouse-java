@@ -137,22 +137,20 @@ public class ClickHouseResultSet extends AbstractResultSet {
     }
 
     /**
-     * Check if there is another row
+     * Check if there is another row.
      *
      * @return {@code true} if this result set has another row after the current
      *         cursor position, {@code false} else
-     * @throws SQLException
-     *             if something goes wrong
-     * @deprecated prefer to use JDBC API methods, for example {@link #isLast()}
-     *             or simply looping using {@code while (rs.next())}
+     * @throws SQLException if something goes wrong
      */
-    @Deprecated
-    public boolean hasNext() throws SQLException {
+    protected boolean hasNext() throws SQLException {
         if (nextLine == null && !lastReached) {
             try {
                 nextLine = bis.next();
 
-                if (nextLine == null || (maxRows != 0 && rowNumber >= maxRows) || (usesWithTotals && nextLine.length() == 0)) {
+                if (nextLine == null
+                    || (maxRows != 0 && rowNumber >= maxRows)
+                    || (usesWithTotals && nextLine.length() == 0)) {
                     if (usesWithTotals) {
                         if (onTheSeparatorRow()) {
                             totalLine = bis.next();

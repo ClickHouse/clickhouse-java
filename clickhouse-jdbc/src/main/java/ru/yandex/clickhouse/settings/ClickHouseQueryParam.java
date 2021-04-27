@@ -11,6 +11,10 @@ public enum ClickHouseQueryParam implements DriverPropertyCreator {
 
     AGGREGATION_MEMORY_EFFICIENT_MERGE_THREADS("aggregation_memory_efficient_merge_threads", null, Long.class, ""),
 
+    ALLOW_EXPERIMENTAL_BIGINT_TYPES("allow_experimental_bigint_types", null, Integer.class, "Enables or disables integer values exceeding the range that is supported by the int data type."),
+    
+    ALLOW_EXPERIMENTAL_MAP_TYPE("allow_experimental_map_type", null, Integer.class, "Enables or disables Map data type."),
+    
     BACKGROUND_POOL_SIZE("background_pool_size", null, Long.class, ""),
 
     AUTHORIZATION("authorization", null, String.class, "Authorization header content for HTTP transport"),
@@ -77,6 +81,8 @@ public enum ClickHouseQueryParam implements DriverPropertyCreator {
     INSERT_QUORUM_TIMEOUT("insert_quorum_timeout", null, Long.class, ""),
 
     INTERACTIVE_DELAY("interactive_delay", null, Long.class, ""),
+
+    JOIN_ALGORITHM("join_algorithm", null, String.class, ""),
 
     LOAD_BALANCING("load_balancing", null, String.class, ""),
 
@@ -245,8 +251,8 @@ public enum ClickHouseQueryParam implements DriverPropertyCreator {
 
     QUOTA_KEY("quota_key", null, String.class, "quota is calculated for each quota_key value. For example here may be some user name."),
 
+    @Deprecated
     use_client_time_zone("use_client_time_zone", false, Boolean.class, ""),
-
 
     USE_UNCOMPRESSED_CACHE("use_uncompressed_cache", true, Boolean.class, "Whether to use the cache of uncompressed blocks."),
 
@@ -261,7 +267,7 @@ public enum ClickHouseQueryParam implements DriverPropertyCreator {
 
     private final String key;
     private final Object defaultValue;
-    private final Class clazz;
+    private final Class<?> clazz;
     private final String description;
 
     <T> ClickHouseQueryParam(String key, T defaultValue, Class<T> clazz, String description) {
@@ -279,7 +285,7 @@ public enum ClickHouseQueryParam implements DriverPropertyCreator {
         return defaultValue;
     }
 
-    public Class getClazz() {
+    public Class<?> getClazz() {
         return clazz;
     }
 

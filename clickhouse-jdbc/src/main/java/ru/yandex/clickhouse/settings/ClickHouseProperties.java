@@ -17,8 +17,6 @@ public class ClickHouseProperties {
     private int socketTimeout;
     private int connectionTimeout;
     private int dataTransferTimeout;
-    @Deprecated
-    private int keepAliveTimeout;
     private int timeToLiveMillis;
     private int defaultMaxPerRoute;
     private int maxTotal;
@@ -56,6 +54,8 @@ public class ClickHouseProperties {
     private String useTimeZone;
     private boolean useServerTimeZoneForDates;
     private boolean useObjectsInArrays;
+    // the shared cookie store is scoped to a database
+    private boolean useSharedCookieStore;
 
     // queries settings
     private Integer maxParallelReplicas;
@@ -98,8 +98,6 @@ public class ClickHouseProperties {
     private Boolean sendProgressInHttpHeaders;
     private Boolean waitEndOfQuery;
     private String  clientName;
-    @Deprecated
-    private boolean useNewParser;
 
     public ClickHouseProperties() {
         this(new Properties());
@@ -113,7 +111,6 @@ public class ClickHouseProperties {
         this.socketTimeout = (Integer)getSetting(info, ClickHouseConnectionSettings.SOCKET_TIMEOUT);
         this.connectionTimeout = (Integer)getSetting(info, ClickHouseConnectionSettings.CONNECTION_TIMEOUT);
         this.dataTransferTimeout = (Integer)getSetting(info, ClickHouseConnectionSettings.DATA_TRANSFER_TIMEOUT);
-        this.keepAliveTimeout = (Integer)getSetting(info, ClickHouseConnectionSettings.KEEP_ALIVE_TIMEOUT);
         this.timeToLiveMillis = (Integer)getSetting(info, ClickHouseConnectionSettings.TIME_TO_LIVE_MILLIS);
         this.defaultMaxPerRoute = (Integer)getSetting(info, ClickHouseConnectionSettings.DEFAULT_MAX_PER_ROUTE);
         this.maxTotal = (Integer)getSetting(info, ClickHouseConnectionSettings.MAX_TOTAL);
@@ -130,8 +127,8 @@ public class ClickHouseProperties {
         this.useTimeZone = (String)getSetting(info, ClickHouseConnectionSettings.USE_TIME_ZONE);
         this.useServerTimeZoneForDates = (Boolean)getSetting(info, ClickHouseConnectionSettings.USE_SERVER_TIME_ZONE_FOR_DATES);
         this.useObjectsInArrays = (Boolean)getSetting(info, ClickHouseConnectionSettings.USE_OBJECTS_IN_ARRAYS);
+        this.useSharedCookieStore = (Boolean)getSetting(info, ClickHouseConnectionSettings.USE_SHARED_COOKIE_STORE);
         this.clientName = (String)getSetting(info, ClickHouseConnectionSettings.CLIENT_NAME);
-        this.useNewParser = (Boolean)getSetting(info, ClickHouseConnectionSettings.USE_NEW_PARSER);
 
         this.maxParallelReplicas = getSetting(info, ClickHouseQueryParam.MAX_PARALLEL_REPLICAS);
         this.maxPartitionsPerInsertBlock = getSetting(info, ClickHouseQueryParam.MAX_PARTITIONS_PER_INSERT_BLOCK);
@@ -182,7 +179,6 @@ public class ClickHouseProperties {
         ret.put(ClickHouseConnectionSettings.SOCKET_TIMEOUT.getKey(), String.valueOf(socketTimeout));
         ret.put(ClickHouseConnectionSettings.CONNECTION_TIMEOUT.getKey(), String.valueOf(connectionTimeout));
         ret.put(ClickHouseConnectionSettings.DATA_TRANSFER_TIMEOUT.getKey(), String.valueOf(dataTransferTimeout));
-        ret.put(ClickHouseConnectionSettings.KEEP_ALIVE_TIMEOUT.getKey(), String.valueOf(keepAliveTimeout));
         ret.put(ClickHouseConnectionSettings.TIME_TO_LIVE_MILLIS.getKey(), String.valueOf(timeToLiveMillis));
         ret.put(ClickHouseConnectionSettings.DEFAULT_MAX_PER_ROUTE.getKey(), String.valueOf(defaultMaxPerRoute));
         ret.put(ClickHouseConnectionSettings.MAX_TOTAL.getKey(), String.valueOf(maxTotal));
@@ -199,9 +195,9 @@ public class ClickHouseProperties {
         ret.put(ClickHouseConnectionSettings.USE_TIME_ZONE.getKey(), String.valueOf(useTimeZone));
         ret.put(ClickHouseConnectionSettings.USE_SERVER_TIME_ZONE_FOR_DATES.getKey(), String.valueOf(useServerTimeZoneForDates));
         ret.put(ClickHouseConnectionSettings.USE_OBJECTS_IN_ARRAYS.getKey(), String.valueOf(useObjectsInArrays));
+        ret.put(ClickHouseConnectionSettings.USE_SHARED_COOKIE_STORE.getKey(), String.valueOf(useSharedCookieStore));
         ret.put(ClickHouseConnectionSettings.CLIENT_NAME.getKey(), String.valueOf(clientName));
-        ret.put(ClickHouseConnectionSettings.USE_NEW_PARSER.getKey(), String.valueOf(useNewParser));
-
+        
         ret.put(ClickHouseQueryParam.MAX_PARALLEL_REPLICAS.getKey(), maxParallelReplicas);
         ret.put(ClickHouseQueryParam.MAX_PARTITIONS_PER_INSERT_BLOCK.getKey(), maxPartitionsPerInsertBlock);
         ret.put(ClickHouseQueryParam.TOTALS_MODE.getKey(), totalsMode);
@@ -254,7 +250,6 @@ public class ClickHouseProperties {
         setSocketTimeout(properties.socketTimeout);
         setConnectionTimeout(properties.connectionTimeout);
         setDataTransferTimeout(properties.dataTransferTimeout);
-        setKeepAliveTimeout(properties.keepAliveTimeout);
         setTimeToLiveMillis(properties.timeToLiveMillis);
         setDefaultMaxPerRoute(properties.defaultMaxPerRoute);
         setMaxTotal(properties.maxTotal);
@@ -271,8 +266,8 @@ public class ClickHouseProperties {
         setUseTimeZone(properties.useTimeZone);
         setUseServerTimeZoneForDates(properties.useServerTimeZoneForDates);
         setUseObjectsInArrays(properties.useObjectsInArrays);
+        setUseSharedCookieStore(properties.useSharedCookieStore);
         setClientName(properties.clientName);
-        setUseNewParser(properties.useNewParser);
         setMaxParallelReplicas(properties.maxParallelReplicas);
         setMaxPartitionsPerInsertBlock(properties.maxPartitionsPerInsertBlock);
         setTotalsMode(properties.totalsMode);
@@ -567,16 +562,6 @@ public class ClickHouseProperties {
         this.dataTransferTimeout = dataTransferTimeout;
     }
 
-    @Deprecated
-    public int getKeepAliveTimeout() {
-        return keepAliveTimeout;
-    }
-
-    @Deprecated
-    public void setKeepAliveTimeout(int keepAliveTimeout) {
-        this.keepAliveTimeout = keepAliveTimeout;
-    }
-
     public String getUser() {
         return user;
     }
@@ -688,22 +673,20 @@ public class ClickHouseProperties {
         this.useObjectsInArrays = useObjectsInArrays;
     }
 
+    public boolean isUseSharedCookieStore() {
+        return useSharedCookieStore;
+    }
+
+    public void setUseSharedCookieStore(boolean useSharedCookieStore) {
+        this.useSharedCookieStore = useSharedCookieStore;
+    }
+
     public String getClientName() {
         return this.clientName;
     }
 
     public void setClientName(String clientName) {
         this.clientName = clientName;
-    }
-
-    @Deprecated
-    public boolean isUseNewParser() {
-        return useNewParser;
-    }
-
-    @Deprecated
-    public void setUseNewParser(boolean useNewParser) {
-        this.useNewParser = useNewParser;
     }
 
     public boolean isUseServerTimeZoneForDates() {

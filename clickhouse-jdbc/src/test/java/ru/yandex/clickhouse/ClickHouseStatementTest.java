@@ -11,6 +11,7 @@ import java.util.Properties;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.testng.annotations.Test;
 
+import ru.yandex.clickhouse.domain.ClickHouseFormat;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
 import ru.yandex.clickhouse.settings.ClickHouseQueryParam;
 
@@ -22,41 +23,54 @@ import static org.testng.Assert.assertTrue;
 public class ClickHouseStatementTest {
     @Test
     public void testClickhousify() throws Exception {
+        ClickHouseStatementImpl s = new ClickHouseStatementImpl(null, null, null, ResultSet.TYPE_FORWARD_ONLY);
         String sql = "SELECT ololo FROM ololoed;";
-        assertEquals(ClickHouseStatementImpl.clickhousifySql(sql), "SELECT ololo FROM ololoed\nFORMAT TabSeparatedWithNamesAndTypes;");
+        assertEquals(s.parseSqlStatements(sql, ClickHouseFormat.TabSeparatedWithNamesAndTypes, null).getSQL(),
+            "SELECT ololo FROM ololoed\nFORMAT TabSeparatedWithNamesAndTypes");
 
-        String sql2 = "SELECT ololo FROM ololoed";
-        assertEquals(ClickHouseStatementImpl.clickhousifySql(sql2), "SELECT ololo FROM ololoed\nFORMAT TabSeparatedWithNamesAndTypes;");
+        sql = "SELECT ololo FROM ololoed";
+        assertEquals(s.parseSqlStatements(sql, ClickHouseFormat.TabSeparatedWithNamesAndTypes, null).getSQL(),
+            "SELECT ololo FROM ololoed\nFORMAT TabSeparatedWithNamesAndTypes");
 
-        String sql3 = "SELECT ololo FROM ololoed FORMAT TabSeparatedWithNamesAndTypes";
-        assertEquals(ClickHouseStatementImpl.clickhousifySql(sql3), "SELECT ololo FROM ololoed FORMAT TabSeparatedWithNamesAndTypes");
+        sql = "SELECT ololo FROM ololoed FORMAT TabSeparatedWithNamesAndTypes";
+        assertEquals(s.parseSqlStatements(sql, ClickHouseFormat.TabSeparatedWithNamesAndTypes, null).getSQL(),
+            "SELECT ololo FROM ololoed FORMAT TabSeparatedWithNamesAndTypes");
 
-        String sql4 = "SELECT ololo FROM ololoed FORMAT TabSeparatedWithNamesAndTypes;";
-        assertEquals(ClickHouseStatementImpl.clickhousifySql(sql4), "SELECT ololo FROM ololoed FORMAT TabSeparatedWithNamesAndTypes;");
+        sql = "SELECT ololo FROM ololoed FORMAT TabSeparatedWithNamesAndTypes;";
+        assertEquals(s.parseSqlStatements(sql, ClickHouseFormat.TabSeparatedWithNamesAndTypes, null).getSQL(),
+            "SELECT ololo FROM ololoed FORMAT TabSeparatedWithNamesAndTypes");
 
-        String sql5 = "SHOW ololo FROM ololoed;";
-        assertEquals(ClickHouseStatementImpl.clickhousifySql(sql5), "SHOW ololo FROM ololoed\nFORMAT TabSeparatedWithNamesAndTypes;");
+        sql = "SHOW ololo FROM ololoed;";
+        assertEquals(s.parseSqlStatements(sql, ClickHouseFormat.TabSeparatedWithNamesAndTypes, null).getSQL(),
+            "SHOW ololo FROM ololoed\nFORMAT TabSeparatedWithNamesAndTypes");
 
-        String sql6 = " show ololo FROM ololoed;";
-        assertEquals(ClickHouseStatementImpl.clickhousifySql(sql6), "show ololo FROM ololoed\nFORMAT TabSeparatedWithNamesAndTypes;");
+        sql = " show ololo FROM ololoed;";
+        assertEquals(s.parseSqlStatements(sql, ClickHouseFormat.TabSeparatedWithNamesAndTypes, null).getSQL(),
+            " show ololo FROM ololoed\nFORMAT TabSeparatedWithNamesAndTypes");
 
-        String sql7 = "SELECT ololo FROM ololoed \nFORMAT TabSeparatedWithNamesAndTypes";
-        assertEquals(ClickHouseStatementImpl.clickhousifySql(sql7), "SELECT ololo FROM ololoed \nFORMAT TabSeparatedWithNamesAndTypes");
+        sql = "SELECT ololo FROM ololoed \nFORMAT TabSeparatedWithNamesAndTypes";
+        assertEquals(s.parseSqlStatements(sql, ClickHouseFormat.TabSeparatedWithNamesAndTypes, null).getSQL(),
+            "SELECT ololo FROM ololoed \nFORMAT TabSeparatedWithNamesAndTypes");
 
-        String sql8 = "SELECT ololo FROM ololoed \n\n FORMAT TabSeparatedWithNamesAndTypes";
-        assertEquals(ClickHouseStatementImpl.clickhousifySql(sql8), "SELECT ololo FROM ololoed \n\n FORMAT TabSeparatedWithNamesAndTypes");
+        sql = "SELECT ololo FROM ololoed \n\n FORMAT TabSeparatedWithNamesAndTypes";
+        assertEquals(s.parseSqlStatements(sql, ClickHouseFormat.TabSeparatedWithNamesAndTypes, null).getSQL(),
+            "SELECT ololo FROM ololoed \n\n FORMAT TabSeparatedWithNamesAndTypes");
 
-        String sql9 = "SELECT ololo FROM ololoed\n-- some comments one line";
-        assertEquals(ClickHouseStatementImpl.clickhousifySql(sql9), "SELECT ololo FROM ololoed\n-- some comments one line\nFORMAT TabSeparatedWithNamesAndTypes;");
+        sql = "SELECT ololo FROM ololoed\n-- some comments one line";
+        assertEquals(s.parseSqlStatements(sql, ClickHouseFormat.TabSeparatedWithNamesAndTypes, null).getSQL(),
+            "SELECT ololo FROM ololoed\n-- some comments one line\nFORMAT TabSeparatedWithNamesAndTypes");
 
-        String sql10 = "SELECT ololo FROM ololoed\n-- some comments\ntwo line";
-        assertEquals(ClickHouseStatementImpl.clickhousifySql(sql10), "SELECT ololo FROM ololoed\n-- some comments\ntwo line\nFORMAT TabSeparatedWithNamesAndTypes;");
+        sql = "SELECT ololo FROM ololoed\n-- some comments\ntwo line";
+        assertEquals(s.parseSqlStatements(sql, ClickHouseFormat.TabSeparatedWithNamesAndTypes, null).getSQL(),
+            "SELECT ololo FROM ololoed\n-- some comments\ntwo line\nFORMAT TabSeparatedWithNamesAndTypes");
 
-        String sql11 = "SELECT ololo FROM ololoed/*\nsome comments\ntwo line*/";
-        assertEquals(ClickHouseStatementImpl.clickhousifySql(sql11), "SELECT ololo FROM ololoed/*\nsome comments\ntwo line*/\nFORMAT TabSeparatedWithNamesAndTypes;");
+        sql = "SELECT ololo FROM ololoed/*\nsome comments\ntwo line*/";
+        assertEquals(s.parseSqlStatements(sql, ClickHouseFormat.TabSeparatedWithNamesAndTypes, null).getSQL(),
+            "SELECT ololo FROM ololoed/*\nsome comments\ntwo line*/\nFORMAT TabSeparatedWithNamesAndTypes");
 
-        String sql12 = "SELECT ololo FROM ololoed\n// c style some comments one line";
-        assertEquals(ClickHouseStatementImpl.clickhousifySql(sql12), "SELECT ololo FROM ololoed\n// c style some comments one line\nFORMAT TabSeparatedWithNamesAndTypes;");
+        sql = "SELECT ololo FROM ololoed\n// c style some comments one line";
+        assertEquals(s.parseSqlStatements(sql, ClickHouseFormat.TabSeparatedWithNamesAndTypes, null).getSQL(),
+            "SELECT ololo FROM ololoed\n// c style some comments one line\nFORMAT TabSeparatedWithNamesAndTypes");
 
     }
 
@@ -174,32 +188,33 @@ public class ClickHouseStatementTest {
     }
 
     @Test
-    public void testIsSelect() {
-        assertTrue(ClickHouseStatementImpl.isSelect("SELECT 42"));
-        assertTrue(ClickHouseStatementImpl.isSelect("select 42"));
-        assertFalse(ClickHouseStatementImpl.isSelect("selectfoo"));
-        assertTrue(ClickHouseStatementImpl.isSelect("  SELECT foo"));
-        assertTrue(ClickHouseStatementImpl.isSelect("WITH foo"));
-        assertTrue(ClickHouseStatementImpl.isSelect("DESC foo"));
-        assertTrue(ClickHouseStatementImpl.isSelect("EXISTS foo"));
-        assertTrue(ClickHouseStatementImpl.isSelect("SHOW foo"));
-        assertTrue(ClickHouseStatementImpl.isSelect("-- foo\n SELECT 42"));
-        assertTrue(ClickHouseStatementImpl.isSelect("--foo\n SELECT 42"));
-        assertFalse(ClickHouseStatementImpl.isSelect("- foo\n SELECT 42"));
-        assertTrue(ClickHouseStatementImpl.isSelect("/* foo */ SELECT 42"));
-        assertTrue(ClickHouseStatementImpl.isSelect("/*\n * foo\n*/\n SELECT 42"));
-        assertFalse(ClickHouseStatementImpl.isSelect("/ foo */ SELECT 42"));
-        assertFalse(ClickHouseStatementImpl.isSelect("-- SELECT baz\n UPDATE foo"));
-        assertFalse(ClickHouseStatementImpl.isSelect("/* SELECT baz */\n UPDATE foo"));
-        assertFalse(ClickHouseStatementImpl.isSelect("/*\n UPDATE foo"));
-        assertFalse(ClickHouseStatementImpl.isSelect("/*"));
-        assertFalse(ClickHouseStatementImpl.isSelect("/**/"));
-        assertFalse(ClickHouseStatementImpl.isSelect(" --"));
-        assertTrue(ClickHouseStatementImpl.isSelect("explain select 42"));
-        assertTrue(ClickHouseStatementImpl.isSelect("EXPLAIN select 42"));
-        assertFalse(ClickHouseStatementImpl.isSelect("--EXPLAIN select 42\n alter"));
-        assertTrue(ClickHouseStatementImpl.isSelect("--\nEXPLAIN select 42"));
-        assertTrue(ClickHouseStatementImpl.isSelect("/*test*/ EXPLAIN select 42"));
+    public void testIsSelect() throws SQLException {
+        ClickHouseStatementImpl s = new ClickHouseStatementImpl(null, null, null, ResultSet.TYPE_FORWARD_ONLY);
+        assertTrue(s.parseSqlStatements("SELECT 42")[0].isQuery());
+        assertTrue(s.parseSqlStatements("select 42")[0].isQuery());
+        assertFalse(s.parseSqlStatements("selectfoo")[0].isQuery());
+        assertTrue(s.parseSqlStatements("  SELECT foo")[0].isQuery());
+        assertFalse(s.parseSqlStatements("WITH foo")[0].isQuery());
+        assertTrue(s.parseSqlStatements("DESC foo")[0].isQuery());
+        assertTrue(s.parseSqlStatements("EXISTS foo")[0].isQuery());
+        assertTrue(s.parseSqlStatements("SHOW foo")[0].isQuery());
+        assertTrue(s.parseSqlStatements("-- foo\n SELECT 42")[0].isQuery());
+        assertTrue(s.parseSqlStatements("--foo\n SELECT 42")[0].isQuery());
+        assertFalse(s.parseSqlStatements("- foo\n SELECT 42")[0].isQuery());
+        assertTrue(s.parseSqlStatements("/* foo */ SELECT 42")[0].isQuery());
+        assertTrue(s.parseSqlStatements("/*\n * foo\n*/\n SELECT 42")[0].isQuery());
+        assertFalse(s.parseSqlStatements("/ foo */ SELECT 42")[0].isQuery());
+        assertFalse(s.parseSqlStatements("-- SELECT baz\n UPDATE foo")[0].isQuery());
+        assertFalse(s.parseSqlStatements("/* SELECT baz */\n UPDATE foo")[0].isQuery());
+        assertFalse(s.parseSqlStatements("/*\n UPDATE foo")[0].isQuery());
+        assertFalse(s.parseSqlStatements("/*")[0].isQuery());
+        assertFalse(s.parseSqlStatements("/**/")[0].isQuery());
+        assertFalse(s.parseSqlStatements(" --")[0].isQuery());
+        assertTrue(s.parseSqlStatements("explain select 42")[0].isQuery());
+        assertTrue(s.parseSqlStatements("EXPLAIN select 42")[0].isQuery());
+        assertFalse(s.parseSqlStatements("--EXPLAIN select 42\n alter")[0].isQuery());
+        assertTrue(s.parseSqlStatements("--\nEXPLAIN select 42")[0].isQuery());
+        assertTrue(s.parseSqlStatements("/*test*/ EXPLAIN select 42")[0].isQuery());
     }
 
 }
