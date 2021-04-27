@@ -85,7 +85,7 @@
         <lz4.version>1.7.1</lz4.version>
         <jackson-core.version>2.9.10</jackson-core.version>
         <jackson-databind.version>2.9.10.8</jackson-databind.version>
-        <roaring-bitmap.version>0.9.3</roaring-bitmap.version>
+        <roaring-bitmap.version>0.9.10</roaring-bitmap.version>
         <slf4j.version>1.7.30</slf4j.version>
         <mockito.version>1.10.19</mockito.version>
         <wiremock.version>2.27.2</wiremock.version>
@@ -432,14 +432,4 @@
             </build>
         </profile>
     </profiles>
-
-    <!--
-    Add below to get latest RoaringBitmap lib
-    <repositories>
-        <repository>
-            <id>jitpack.io</id>
-            <url>https://jitpack.io</url>
-        </repository>
-    </repositories>
-    -->
 </project>

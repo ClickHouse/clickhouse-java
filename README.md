@@ -20,27 +20,31 @@ URL syntax:
 JDBC Driver Class:
 `ru.yandex.clickhouse.ClickHouseDriver`
 
-additionally, if you have a few instances, you can use `BalancedClickhouseDataSource`.
+For example:
+```java
+String url = "jdbc:clickhouse://localhost:8123/test";
+ClickHouseProperties properties = new ClickHouseProperties();
+// set connection options - see more defined in ClickHouseConnectionSettings
+properties.setClientName("Agent #1");
+...
+// set default request options - more in ClickHouseQueryParam
+properties.setSessionId("default-session-id");
+...
 
-**Notice**
-
-To use an up-to-date version of RoaringBitmap, please update your POM with below two changes:
-```xml
-<!-- 1. add repository -->
-<repositories>
-    <repository>
-        <id>jitpack.io</id>
-        <url>https://jitpack.io</url>
-    </repository>
-</repositories>
-
-<!-- 2. add dependency(groupId is different from the one in maven central) -->
-<dependency>
-    <groupId>com.github.RoaringBitmap</groupId>
-    <artifactId>RoaringBitmap</artifactId>
-    <version>0.9.10</version>
-</dependency>
+ClickHouseDataSource dataSource = new ClickHouseDataSource(url, properties)
+String sql = "select * from mytable";
+Map<ClickHouseQueryParam, String> additionalDBParams = new HashMap<>();
+// set request options, which will override the default ones in ClickHouseProperties
+additionalDBParams.put(ClickHouseQueryParam.SESSION_ID, "new-session-id");
+...
+try (ClickHouseConnection conn = dataSource.getConnection();
+    ClickHouseStatement stmt = conn.createStatement();
+    ResultSet rs = stmt.executeQuery(sql, additionalDBParams)) {
+    ...
+}
 ```
+
+Additionally, if you have a few instances, you can use `BalancedClickhouseDataSource`.
 
 ### Extended API
 In order to provide non-JDBC complaint data manipulation functionality, proprietary API exists.

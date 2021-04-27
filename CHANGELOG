@@ -1,3 +1,15 @@
+0.3.1
+  * BREAKING CHANGE - move query from url to request body
+  * BREAKING CHANGE - always parse SQL(use extended API to skip that)
+  * BREAKING CHANGE - remove keepAliveTimeout and useNewParser from ClickHouseProperties
+  * BREAKING CHANGE - exclude RoaringBitmap from shaded jar
+  * add new connection setting useSharedCookieStore for load balancing
+  * add new query parameters: allow_experimental_bigint_types, allow_experimental_map_type, and join_algorithm
+  * add new format: CustomSeparated and RowBinaryWithNamesAndTypes
+  * fix 400 bad request error when dealing with large query
+  * fix parser issue when DESC statement contains alias
+  * support batch processing with arbitrary query - update and delete are not recommended so there'll be warnings
+  * support multi-statement sql - session will be used automatically and only the last result will be returned
 0.3.0
   * BREAKING CHANGE - dropped JDK 7 support
   * BREAKING CHANGE - removed Guava dependency(and so is UnsignedLong)
