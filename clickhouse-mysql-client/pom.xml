@@ -13,6 +13,10 @@
     <version>${revision}</version>
     <packaging>jar</packaging>
 
+    <name>${project.artifactId}</name>
+    <description>MySQL client for ClickHouse</description>
+    <url>https://github.com/ClickHouse/clickhouse-jdbc/tree/master/clickhouse-mysql-client</url>
+
     <properties>
         <mariadb-driver.version>2.7.2</mariadb-driver.version>
         <mysql-driver.version>8.0.23</mysql-driver.version>

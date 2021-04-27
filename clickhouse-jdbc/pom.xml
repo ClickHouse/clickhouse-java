@@ -13,6 +13,10 @@
     <version>${revision}</version>
     <packaging>jar</packaging>
 
+    <name>${project.artifactId}</name>
+    <description>JDBC driver for ClickHouse</description>
+    <url>https://github.com/ClickHouse/clickhouse-jdbc/tree/master/clickhouse-jdbc</url>
+
     <developers>
         <developer>
             <id>serebrserg</id>

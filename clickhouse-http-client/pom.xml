@@ -12,6 +12,10 @@
     <version>${revision}</version>
     <packaging>jar</packaging>
 
+    <name>${project.artifactId}</name>
+    <description>HTTP client for ClickHouse</description>
+    <url>https://github.com/ClickHouse/clickhouse-jdbc/tree/master/clickhouse-http-client</url>
+
     <properties>
         <httpclient.version>4.5.13</httpclient.version>
     </properties>

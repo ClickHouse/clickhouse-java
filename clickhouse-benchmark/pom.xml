@@ -12,8 +12,9 @@
     <version>${revision}</version>
     <packaging>jar</packaging>
 
-    <name>clickhouse-benchmark</name>
+    <name>${project.artifactId}</name>
     <description>Benchmarks for ClickHouse clients</description>
+    <url>https://github.com/ClickHouse/clickhouse-jdbc/tree/master/clickhouse-benchmark</url>
 
     <properties>
         <clickhouse4j-driver.version>1.4.4</clickhouse4j-driver.version>

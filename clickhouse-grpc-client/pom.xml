@@ -12,6 +12,10 @@
     <version>${revision}</version>
     <packaging>jar</packaging>
 
+    <name>${project.artifactId}</name>
+    <description>gRPC client for ClickHouse</description>
+    <url>https://github.com/ClickHouse/clickhouse-jdbc/tree/master/clickhouse-grpc-client</url>
+
     <dependencies>
         <dependency>
             <groupId>${project.parent.groupId}</groupId>
