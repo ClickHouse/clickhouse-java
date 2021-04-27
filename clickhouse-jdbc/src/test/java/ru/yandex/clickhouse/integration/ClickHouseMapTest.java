@@ -27,10 +27,11 @@ import ru.yandex.clickhouse.ClickHouseStatement;
 import ru.yandex.clickhouse.except.ClickHouseException;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
 import ru.yandex.clickhouse.settings.ClickHouseQueryParam;
+import ru.yandex.clickhouse.util.ClickHouseVersionNumberUtil;
 import ru.yandex.clickhouse.util.Utils;
 
 public class ClickHouseMapTest {
-    private Connection conn;
+    private ClickHouseConnection conn;
 
     @BeforeTest
     public void setUp() throws Exception {
@@ -107,6 +108,13 @@ public class ClickHouseMapTest {
     @Test
     public void testMaps() throws Exception {
         if (conn == null) {
+            return;
+        }
+
+        // skip 21.4
+        String serverVersion = conn.getServerVersion();
+        if (ClickHouseVersionNumberUtil.getMajorVersion(serverVersion) == 21
+                && ClickHouseVersionNumberUtil.getMinorVersion(serverVersion) == 4) {
             return;
         }
 
