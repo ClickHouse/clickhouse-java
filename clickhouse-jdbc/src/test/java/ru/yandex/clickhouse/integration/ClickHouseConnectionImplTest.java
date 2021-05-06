@@ -1,6 +1,7 @@
 package ru.yandex.clickhouse.integration;
 
 import java.sql.Connection;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.Statement;
 
@@ -85,12 +86,19 @@ public class ClickHouseConnectionImplTest {
                 assertEquals(rs.getString(1), "default");
                 assertFalse(rs.next());
             }
+
+            PreparedStatement p = conn.prepareStatement(currentDbQuery);
+            try (ResultSet rs = p.executeQuery()) {
+                assertTrue(rs.next());
+                assertEquals(rs.getString(1), "default");
+                assertFalse(rs.next());
+            }
             s.execute("create database if not exists tdb1; create database if not exists tdb2");
         }
 
         ds = ClickHouseContainerForTest.newDataSource("tdb2");
         try (Connection conn = ds.getConnection(); Statement s = conn.createStatement()) {
-            try (ResultSet rs = s.executeQuery("select currentDatabase()")) {
+            try (ResultSet rs = s.executeQuery(currentDbQuery)) {
                 assertTrue(rs.next());
                 assertEquals(rs.getString(1), "tdb2");
                 assertFalse(rs.next());
@@ -115,6 +123,14 @@ public class ClickHouseConnectionImplTest {
             }
 
             try (ResultSet rs = s.executeQuery("use `tdb2`; select currentDatabase(), a from tdb2_aaa")) {
+                assertTrue(rs.next());
+                assertEquals(rs.getString(1), "tdb2");
+                assertEquals(rs.getString(2), "3");
+                assertFalse(rs.next());
+            }
+
+            String sql = "select currentDatabase(), a from tdb2_aaa";
+            try (PreparedStatement p = conn.prepareStatement(sql); ResultSet rs = p.executeQuery()) {
                 assertTrue(rs.next());
                 assertEquals(rs.getString(1), "tdb2");
                 assertEquals(rs.getString(2), "3");
