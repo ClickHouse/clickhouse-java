@@ -209,7 +209,10 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
 
     @Override
     public void setAutoCommit(boolean autoCommit) throws SQLException {
-
+        if (autoCommit) {
+            return;
+        }
+        throw new SQLFeatureNotSupportedException("Transactions are not supported");
     }
 
     @Override
@@ -219,12 +222,12 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
 
     @Override
     public void commit() throws SQLException {
-
+        throw new SQLException("Cannot commit when auto-commit is enabled");
     }
 
     @Override
     public void rollback() throws SQLException {
-
+        throw new SQLException("Cannot commit when auto-commit is enabled");
     }
 
     @Override
