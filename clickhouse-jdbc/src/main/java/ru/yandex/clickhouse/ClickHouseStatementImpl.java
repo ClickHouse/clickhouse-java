@@ -43,6 +43,7 @@ import ru.yandex.clickhouse.except.ClickHouseException;
 import ru.yandex.clickhouse.except.ClickHouseExceptionSpecifier;
 import ru.yandex.clickhouse.jdbc.parser.ClickHouseSqlParser;
 import ru.yandex.clickhouse.jdbc.parser.ClickHouseSqlStatement;
+import ru.yandex.clickhouse.jdbc.parser.StatementType;
 import ru.yandex.clickhouse.response.ClickHouseLZ4Stream;
 import ru.yandex.clickhouse.response.ClickHouseResponse;
 import ru.yandex.clickhouse.response.ClickHouseResponseSummary;
@@ -141,7 +142,7 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
      * between creation of this object and query execution, but javadoc does not allow
      * {@code setCatalog} influence on already created statements.
      */
-    private final String initialDatabase;
+    protected String currentDatabase;
 
     protected ClickHouseSqlStatement getLastStatement() {
         ClickHouseSqlStatement stmt = null;
@@ -303,7 +304,7 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
         this.httpContext = ClickHouseHttpClientBuilder.createClientContext(properties);
         this.connection = connection;
         this.properties = properties == null ? new ClickHouseProperties() : properties;
-        this.initialDatabase = this.properties.getDatabase();
+        this.currentDatabase = this.properties.getDatabase();
         this.isResultSetScrollable = (resultSetType != ResultSet.TYPE_FORWARD_ONLY);
 
         this.batchStmts = new ArrayList<>();
@@ -708,8 +709,12 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
         List<ClickHouseExternalData> externalData,
         Map<String, String> additionalRequestParams
     ) throws ClickHouseException {
-        String sql = parsedStmt.getSQL();
-        boolean ignoreDatabase = this.initialDatabase == null;
+        String sql = parsedStmt.getSQL()
+        boolean ignoreDatabase = parsedStmt.isRecognized() && !parsedStmt.isDML()
+            && parsedStmt.containsKeyword("DATABASE");
+        if (parsedStmt.getStatementType() == StatementType.USE) {
+            currentDatabase = parsedStmt.getDatabaseOrDefault(currentDatabase);
+        }
         
         log.debug("Executing SQL: {}", sql);
 
@@ -866,7 +871,7 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
 
         Map<ClickHouseQueryParam, String> params = properties.buildQueryParams(true);
         if (!ignoreDatabase) {
-            params.put(ClickHouseQueryParam.DATABASE, initialDatabase);
+            params.put(ClickHouseQueryParam.DATABASE, currentDatabase);
         }
 
         params.putAll(getAdditionalDBParams());
