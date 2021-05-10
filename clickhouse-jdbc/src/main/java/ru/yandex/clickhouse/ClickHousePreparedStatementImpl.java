@@ -327,7 +327,7 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
 
     @Override
     public void addBatch() throws SQLException {
-        if (parsedStmt.getStatementType() == StatementType.INSERT) {
+        if (parsedStmt.getStatementType() == StatementType.INSERT && parsedStmt.hasValues()) {
             batchRows.addAll(buildBatch());
         } else {
             batchStmts.add(buildSql());
