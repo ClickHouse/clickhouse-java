@@ -709,7 +709,7 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
         Map<String, String> additionalRequestParams
     ) throws ClickHouseException {
         String sql = parsedStmt.getSQL();
-        boolean ignoreDatabase = parsedStmt.isRecognized() && !parsedStmt.isDML();
+        boolean ignoreDatabase = this.initialDatabase == null;
         
         log.debug("Executing SQL: {}", sql);
 
