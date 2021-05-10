@@ -214,7 +214,7 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
 
     @Override
     public boolean getAutoCommit() throws SQLException {
-        return false;
+        return true;
     }
 
     @Override
