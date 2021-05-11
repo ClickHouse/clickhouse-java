@@ -227,7 +227,7 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
 
     @Override
     public void rollback() throws SQLException {
-        throw new SQLException("Cannot commit when auto-commit is enabled");
+        throw new SQLException("Cannot rollback when auto-commit is enabled");
     }
 
     @Override
