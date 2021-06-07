@@ -19,6 +19,7 @@ import ru.yandex.clickhouse.ClickHouseConnection;
 import ru.yandex.clickhouse.ClickHouseContainerForTest;
 import ru.yandex.clickhouse.ClickHouseDataSource;
 import ru.yandex.clickhouse.ClickHouseDatabaseMetadata;
+import ru.yandex.clickhouse.util.ClickHouseVersionNumberUtil;
 
 public class ClickHouseDatabaseMetadataTest {
 
@@ -159,7 +160,15 @@ public class ClickHouseDatabaseMetadataTest {
         ResultSetMetaData meta = rs.getMetaData();
         Assert.assertEquals(meta.getColumnClassName(1), Timestamp.class.getCanonicalName());
         TimeZone timezone = ((ClickHouseConnection) connection).getTimeZone();
-        Assert.assertEquals(meta.getColumnTypeName(1), "DateTime('" + timezone.getID() + "')");
+        String version = ((ClickHouseConnection) connection).getServerVersion();
+        int majorVersion = ClickHouseVersionNumberUtil.getMajorVersion(version);
+        int minorVersion = ClickHouseVersionNumberUtil.getMinorVersion(version);
+        if (majorVersion > 21 || (majorVersion == 21 && minorVersion >= 6)) {
+            Assert.assertEquals(meta.getColumnTypeName(1), "DateTime");
+        } else {
+            Assert.assertEquals(meta.getColumnTypeName(1), "DateTime('" + timezone.getID() + "')");
+        }
+        
         Assert.assertEquals(meta.getColumnType(1), Types.TIMESTAMP);
     }
 

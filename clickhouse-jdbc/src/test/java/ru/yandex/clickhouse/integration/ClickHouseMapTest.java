@@ -111,44 +111,55 @@ public class ClickHouseMapTest {
             return;
         }
 
-        // skip 21.4
-        String serverVersion = conn.getServerVersion();
-        if (ClickHouseVersionNumberUtil.getMajorVersion(serverVersion) == 21
-                && ClickHouseVersionNumberUtil.getMinorVersion(serverVersion) == 4) {
+        String columns = ", ma Map(Integer, Array(String)), mi Map(Integer, Integer)";
+        String values = ",1:['11','12'],2:['22','23']},{1:11,2:22}";
+        String version = ((ClickHouseConnection) conn).getServerVersion();
+        int majorVersion = ClickHouseVersionNumberUtil.getMajorVersion(version);
+        int minorVersion = ClickHouseVersionNumberUtil.getMinorVersion(version);
+        if (majorVersion > 21 || (majorVersion == 21 && minorVersion >= 3)) {
+            // https://github.com/ClickHouse/ClickHouse/issues/25026
+            columns = "";
+            values = "";
+
             return;
         }
 
         try (Statement s = conn.createStatement()) {
             s.execute("DROP TABLE IF EXISTS test_maps");
-            s.execute(
-                    "CREATE TABLE IF NOT EXISTS test_maps(ma Map(Integer, Array(String)), mi Map(Integer, Integer), ms Map(String, String)) ENGINE = Memory");
-            s.execute("insert into test_maps values ({1:['11','12'],2:['22','23']},{1:11,2:22},{'k1':'v1','k2':'v2'})");
+            s.execute("CREATE TABLE IF NOT EXISTS test_maps(ms Map(String, String)" + columns + ") ENGINE = Memory");
+            s.execute("insert into test_maps values ({{'k1':'v1','k2':'v2'}" + values + ")");
 
             try (ResultSet rs = s.executeQuery("select * from test_maps")) {
                 assertTrue(rs.next());
-                assertMap(rs.getObject("ma"),
-                        Utils.mapOf(1, new String[] { "11", "12" }, 2, new String[] { "22", "23" }));
-                assertMap(rs.getObject("mi"), Utils.mapOf(1, 11, 2, 22));
                 assertMap(rs.getObject("ms"), Utils.mapOf("k1", "v1", "k2", "v2"));
+                if (!columns.isEmpty()) {
+                    assertMap(rs.getObject("ma"),
+                            Utils.mapOf(1, new String[] { "11", "12" }, 2, new String[] { "22", "23" }));
+                    assertMap(rs.getObject("mi"), Utils.mapOf(1, 11, 2, 22));
+                }
             }
 
             s.execute("truncate table test_maps");
         }
 
         try (PreparedStatement s = conn.prepareStatement("insert into test_maps values(?,?,?)")) {
-            s.setObject(1, Utils.mapOf(1, new String[] { "11", "12" }, 2, new String[] { "22", "23" }));
-            s.setObject(2, Utils.mapOf(1, 11, 2, 22));
-            s.setObject(3, Utils.mapOf("k1", "v1", "k2", "v2"));
+            s.setObject(1, Utils.mapOf("k1", "v1", "k2", "v2"));
+            if (!columns.isEmpty()) {
+                s.setObject(2, Utils.mapOf(1, new String[] { "11", "12" }, 2, new String[] { "22", "23" }));
+                s.setObject(3, Utils.mapOf(1, 11, 2, 22));
+            }
             s.execute();
         }
 
         try (Statement s = conn.createStatement()) {
             try (ResultSet rs = s.executeQuery("select * from test_maps")) {
                 assertTrue(rs.next());
-                assertMap(rs.getObject("ma"),
-                        Utils.mapOf(1, new String[] { "11", "12" }, 2, new String[] { "22", "23" }));
-                assertMap(rs.getObject("mi"), Utils.mapOf(1, 11, 2, 22));
                 assertMap(rs.getObject("ms"), Utils.mapOf("k1", "v1", "k2", "v2"));
+                if (!columns.isEmpty()) {
+                    assertMap(rs.getObject("ma"),
+                            Utils.mapOf(1, new String[] { "11", "12" }, 2, new String[] { "22", "23" }));
+                    assertMap(rs.getObject("mi"), Utils.mapOf(1, 11, 2, 22));
+                }
             }
         }
     }
