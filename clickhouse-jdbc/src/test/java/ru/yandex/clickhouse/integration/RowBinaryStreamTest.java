@@ -2,11 +2,11 @@ package ru.yandex.clickhouse.integration;
 
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertFalse;
-import static org.testng.Assert.assertThrows;
 import static org.testng.Assert.assertTrue;
 
 import java.io.EOFException;
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.sql.Date;
 import java.sql.ResultSet;
@@ -273,6 +273,46 @@ public class RowBinaryStreamTest {
         if (majorVersion > 20 || (majorVersion == 20 && minorVersion > 8)) {
             testBitmap64(65537, 100000L, 1L); // highToBitmap.size() == 1
             testBitmap64(65537, 9223372036854775807L, -1000000000L); // highToBitmap.size() > 1
+        }
+    }
+
+    @Test
+    public void testBigDecimals() throws Exception {
+        try (ClickHouseStatement statement = connection.createStatement()) {
+            statement.execute("set allow_experimental_bigint_types=1;"
+                + "create table if not exists test.test_big_decimals(d128 Decimal128(6), d256 Decimal256(12)) engine=Memory");
+        } catch (SQLException e) {
+            return;
+        }
+
+        try (ClickHouseStatement statement = connection.createStatement()) {
+            BigDecimal[] values = new BigDecimal[] {
+                BigDecimal.valueOf(-123.123456789D),
+                BigDecimal.ZERO,
+                BigDecimal.valueOf(123.123456789D)
+            };
+            statement.sendRowBinaryStream("insert into table test.test_big_decimals", new ClickHouseStreamCallback() {
+                @Override
+                public void writeTo(ClickHouseRowBinaryStream stream) throws IOException {
+                    for (int i = 0; i < values.length; i++) {
+                        stream.writeDecimal128(values[i], 6);
+                        stream.writeDecimal256(values[i], 12);
+                    }
+                }
+            });
+
+            try (ResultSet rs = statement.executeQuery("select * from test.test_big_decimals order by d128")) {
+                int rowCounter = 0;
+                while (rs.next()) {
+                    rowCounter++;
+                    assertEquals(rs.getBigDecimal(1, 6), values[rowCounter - 1].setScale(6, BigDecimal.ROUND_DOWN));
+                    assertEquals(rs.getBigDecimal(2, 12), values[rowCounter - 1].setScale(12, BigDecimal.ROUND_DOWN));
+                }
+
+                assertEquals(rowCounter, values.length);
+            }
+
+            statement.execute("drop table if exists test.test_big_decimals");
         }
     }
 

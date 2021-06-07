@@ -188,22 +188,24 @@ public class ClickHouseRowBinaryStream {
         Utils.writeLong(out, Double.doubleToLongBits(value));
     }
 
-    public void writeDecimal128(BigDecimal num, int scale) throws IOException {
-        BigInteger bi = Utils.toBigInteger(num, scale);
-        byte[] r = bi.toByteArray();
-        for (int i = r.length; i > 0; i--) {
-            out.write(r[i - 1]);
+    public void writeBigInteger(BigInteger value, int byteLength) throws IOException {
+        byte empty = value.signum() == -1 ? (byte) 0xFF : 0x00;
+        byte[] bytes = value.toByteArray();
+        for (int i = bytes.length - 1; i >= 0; i--) {
+            out.write(bytes[i]);
         }
-        out.write(new byte[16 - r.length]);
+
+        for (int i = byteLength - bytes.length; i > 0; i--) {
+            out.write(empty);
+        }
+    }
+
+    public void writeDecimal128(BigDecimal num, int scale) throws IOException {
+        writeBigInteger(Utils.toBigInteger(num, scale), 16);
     }
 
     public void writeDecimal256(BigDecimal num, int scale) throws IOException {
-        BigInteger bi = Utils.toBigInteger(num, scale);
-        byte[] r = bi.toByteArray();
-        for (int i = r.length; i > 0; i--) {
-            out.write(r[i - 1]);
-        }
-        out.write(new byte[32 - r.length]);
+        writeBigInteger(Utils.toBigInteger(num, scale), 32);
     }
 
     public void writeDecimal64(BigDecimal num, int scale) throws IOException {

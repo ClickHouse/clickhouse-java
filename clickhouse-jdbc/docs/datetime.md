@@ -51,7 +51,7 @@ The methods which take a [Calendar]((https://docs.oracle.com/javase/8/docs/api/j
 For Date and DateTime fields, the JDBC driver has enough time zone related information available, so these methods would only be relevant for String or other typed fields. There might be valid use cases, but for now we think that adding such an option would make things even more complicated.
 
 Requested Type | Number | Date | DateTime | Other 
----------------| ----------------------------------  
+---------------| -------|------|----------|--------  
 [Date](https://docs.oracle.com/javase/8/docs/api/java/sql/Date.html) | Seconds or milliseconds past epoch truncated to day in relevant time zone | Date in relevant time zone, midnight |  Date time in relevant time zone, rewind to midnight | Try number, date time (with or without offset) truncated to day, date
 [Time](https://docs.oracle.com/javase/8/docs/api/java/sql/Time.html) | Local time at 1970-01-01 (e.g. “1337” is “13:37:00” at TZ) | Midnight on 1970-01-01 in relevant time zone | Local time in relevant time zone | Local time in relevant time zone via ISO format or via number, at 1970-01-01
 [Timestamp](https://docs.oracle.com/javase/8/docs/api/java/sql/Timestamp.html) | Seconds or milliseconds past epoch | Local date at midnight in relevant time zone | Local date and time in relevant time zone | Number, date time with or without offset

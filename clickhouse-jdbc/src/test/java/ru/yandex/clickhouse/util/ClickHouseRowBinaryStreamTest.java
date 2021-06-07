@@ -112,9 +112,32 @@ public class ClickHouseRowBinaryStreamTest {
                     @Override
                     public void write(ClickHouseRowBinaryStream stream) throws Exception {
                         stream.writeDecimal128(new BigDecimal(10.23), 3);
+                        stream.writeDecimal128(new BigDecimal(-10.23), 3);
                     }
                 },
-                new byte[]{-10, 39, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
+                new byte[] {
+                    -10, 39, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    10, -40, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1
+                }
+        );
+    }
+
+    @Test
+    public void testDecimal256() throws Exception {
+        check(
+                new StreamWriter() {
+                    @Override
+                    public void write(ClickHouseRowBinaryStream stream) throws Exception {
+                        stream.writeDecimal256(new BigDecimal(10.23), 3);
+                        stream.writeDecimal256(new BigDecimal(-10.23), 3);
+                    }
+                },
+                new byte[] {
+                    -10, 39, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    10, -40, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+                    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1
+                }
         );
     }
 
