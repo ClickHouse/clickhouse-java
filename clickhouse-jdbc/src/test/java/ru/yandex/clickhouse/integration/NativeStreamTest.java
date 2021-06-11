@@ -33,7 +33,11 @@ public class NativeStreamTest {
         final ClickHouseStatement statement = connection.createStatement();
         connection.createStatement().execute("DROP TABLE IF EXISTS test.low_cardinality");
         connection.createStatement().execute(
-            "CREATE TABLE test.low_cardinality (date Date, lowCardinality LowCardinality(String), string String) ENGINE = MergeTree(date, (date), 8192)"
+            "CREATE TABLE test.low_cardinality (date Date, " +
+                    "lowCardinality LowCardinality(String), " +
+                    "string String," +
+                    "fixedString String) " +
+                    "ENGINE = MergeTree(date, (date), 8192)"
         );
 
         // Code: 368, e.displayText() = DB::Exception: Bad cast from type DB::ColumnString to DB::ColumnLowCardinality
@@ -44,11 +48,11 @@ public class NativeStreamTest {
         final Date date1 = new Date(1497474018000L);
 
         statement.sendNativeStream(
-            "INSERT INTO test.low_cardinality (date, lowCardinality, string)",
+            "INSERT INTO test.low_cardinality (date, lowCardinality, string, fixedString)",
             new ClickHouseStreamCallback() {
                 @Override
                 public void writeTo(ClickHouseRowBinaryStream stream) throws IOException {
-                    stream.writeUnsignedLeb128(3); // Columns number
+                    stream.writeUnsignedLeb128(4); // Columns number
                     stream.writeUnsignedLeb128(1); // Rows number
 
                     stream.writeString("date"); // Column name
@@ -62,6 +66,10 @@ public class NativeStreamTest {
                     stream.writeString("string"); // Column name
                     stream.writeString("String");  // Column type
                     stream.writeString("string");  // value
+
+                    stream.writeString("fixedString"); // Column name
+                    stream.writeString("FixedString(3)");  // Column type
+                    stream.writeFixedString("str");  // value
                 }
             }
         );
@@ -71,5 +79,6 @@ public class NativeStreamTest {
         Assert.assertTrue(rs.next());
         assertEquals(rs.getString("lowCardinality"), "string");
         assertEquals(rs.getString("string"), "string");
+        assertEquals(rs.getString("fixedString"), "str");
     }
 }

@@ -93,6 +93,20 @@ public class ClickHouseRowBinaryStream {
         out.write(bytes);
     }
 
+    public void writeFixedString(String string) throws IOException {
+        byte[] bytes = Objects.requireNonNull(string).getBytes(StandardCharsets.UTF_8);
+        out.write(bytes);
+    }
+
+    public void writeFixedString(String string, Integer len) throws IOException {
+        byte[] bytes = Objects.requireNonNull(string).getBytes(StandardCharsets.UTF_8);
+        Integer bl = bytes.length;
+        out.write(bytes, 0, Math.min(len, bl));
+        for (int i = 0; i < len - bl; i++) {
+            out.write(0);
+        }
+    }
+
     public void writeUInt8(boolean value) throws IOException {
         out.writeByte(value ? 1 : 0);
     }
