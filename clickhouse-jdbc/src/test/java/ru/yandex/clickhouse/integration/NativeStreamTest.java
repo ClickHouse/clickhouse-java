@@ -36,7 +36,7 @@ public class NativeStreamTest {
             "CREATE TABLE test.low_cardinality (date Date, " +
                     "lowCardinality LowCardinality(String), " +
                     "string String," +
-                    "fixedString String) " +
+                    "fixedString FixedString(3)) " +
                     "ENGINE = MergeTree(date, (date), 8192)"
         );
 
