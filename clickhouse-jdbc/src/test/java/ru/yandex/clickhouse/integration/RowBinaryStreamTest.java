@@ -85,7 +85,7 @@ public class RowBinaryStreamTest {
                         "uuid UUID," +
                         "lowCardinality LowCardinality(String)," +
                         "fixedString FixedString(15)" +
-                        ") ENGINE = MergeTree(date, (date), 8192)"
+                        ") ENGINE = MergeTree partition by toYYYYMM(date) order by date"
         );
     }
 
@@ -374,7 +374,6 @@ public class RowBinaryStreamTest {
                         stream.writeFloat64Array(float64s1);
                         stream.writeUUID(uuid1);
                         stream.writeString("lowCardinality\n1");
-                        stream.writeString("lowCardinality\n1");
                         stream.writeFixedString("fixedString1", 15);
 
                         stream.writeDate(date2);
@@ -431,7 +430,7 @@ public class RowBinaryStreamTest {
             assertEquals(rs.getDouble("float64"), 42.21);
             assertEquals(rs.getObject("uuid").toString(), "123e4567-e89b-12d3-a456-426655440000");
             assertEquals(rs.getString("lowCardinality"), "lowCardinality\n1");
-            assertEquals(rs.getString("fixedString"), "fixedString1");
+            assertEquals(rs.getString("fixedString"), "fixedString1\0\0\0");
 
             Date[] expectedDates1 = new Date[dates1.length];
             for (int i = 0; i < dates1.length; i++) {
@@ -475,7 +474,7 @@ public class RowBinaryStreamTest {
             assertEquals(rs.getDouble("float64"), 77.77);
             assertEquals(rs.getString("uuid"), "789e0123-e89b-12d3-a456-426655444444");
             assertEquals(rs.getString("lowCardinality"), "lowCardinality\n2");
-            assertEquals(rs.getString("fixedString"), "fixedString2");
+            assertEquals(rs.getString("fixedString"), "fixedString2\0\0\0");
 
             Assert.assertFalse(rs.next());
         } else {
@@ -556,6 +555,7 @@ public class RowBinaryStreamTest {
 
             assertEquals(is.readUUID(), uuid2);
             assertEquals(is.readString(), "lowCardinality\n2");
+            assertEquals(is.readString(), "fixedString2\0\0\0");
 
             // check EOF
             try {

@@ -93,11 +93,24 @@ public class ClickHouseRowBinaryStream {
         out.write(bytes);
     }
 
+    /**
+     *  Write string with predefined proper length.
+     *
+     * @param string Input string
+     * @throws IOException in case if an I/O error occurs
+     */
     public void writeFixedString(String string) throws IOException {
         byte[] bytes = Objects.requireNonNull(string).getBytes(StandardCharsets.UTF_8);
         out.write(bytes);
     }
 
+    /**
+     *  Write string with any length, but it will be corrected, cut or extended to len
+     *
+     * @param string Input string
+     * @param len Length of FixedString
+     * @throws IOException in case if an I/O error occurs
+     */
     public void writeFixedString(String string, Integer len) throws IOException {
         byte[] bytes = Objects.requireNonNull(string).getBytes(StandardCharsets.UTF_8);
         Integer bl = bytes.length;
