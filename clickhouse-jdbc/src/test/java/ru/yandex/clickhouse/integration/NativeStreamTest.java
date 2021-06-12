@@ -36,8 +36,9 @@ public class NativeStreamTest {
             "CREATE TABLE test.low_cardinality (date Date, " +
                     "lowCardinality LowCardinality(String), " +
                     "string String," +
-                    "fixedString FixedString(3)) " +
-                    "ENGINE = MergeTree(date, (date), 8192)"
+                    "fixedString FixedString(3)," +
+                    "fixedStringLC LowCardinality(FixedString(6))" +
+                    ") ENGINE = MergeTree(date, (date), 8192)"
         );
 
         // Code: 368, e.displayText() = DB::Exception: Bad cast from type DB::ColumnString to DB::ColumnLowCardinality
@@ -48,7 +49,7 @@ public class NativeStreamTest {
         final Date date1 = new Date(1497474018000L);
 
         statement.sendNativeStream(
-            "INSERT INTO test.low_cardinality (date, lowCardinality, string, fixedString)",
+            "INSERT INTO test.low_cardinality (date, lowCardinality, string, fixedString, fixedStringLC)",
             new ClickHouseStreamCallback() {
                 @Override
                 public void writeTo(ClickHouseRowBinaryStream stream) throws IOException {
@@ -70,6 +71,11 @@ public class NativeStreamTest {
                     stream.writeString("fixedString"); // Column name
                     stream.writeString("FixedString(3)");  // Column type
                     stream.writeFixedString("str");  // value
+
+                    stream.writeString("fixedStringLC"); // Column name
+                    stream.writeString("FixedString(6)");  // Column type
+                    stream.writeFixedString("str1", 6);  // value
+
                 }
             }
         );
@@ -80,5 +86,6 @@ public class NativeStreamTest {
         assertEquals(rs.getString("lowCardinality"), "string");
         assertEquals(rs.getString("string"), "string");
         assertEquals(rs.getString("fixedString"), "str");
+        assertEquals(rs.getString("fixedStringLC"), "str1");
     }
 }
