@@ -341,7 +341,10 @@ public class RowBinaryStreamTest {
 
         statement.sendRowBinaryStream(
                 "INSERT INTO test.raw_binary " +
-                        "(date, dateTime, string, int8, uInt8, int16, uInt16, int32, uInt32, int64, uInt64, float32, float64, dateArray, dateTimeArray, stringArray, int8Array, uInt8Array, int16Array, uInt16Array, int32Array, uInt32Array, int64Array, uInt64Array, float32Array, float64Array, uuid, lowCardinality, fixedString)",
+                        "(date, dateTime, string, int8, uInt8, int16, uInt16, int32, uInt32, int64, uInt64, float32, " +
+                        "float64, dateArray, dateTimeArray, stringArray, int8Array, uInt8Array, int16Array, uInt16Array, " +
+                        "int32Array, uInt32Array, int64Array, uInt64Array, float32Array, float64Array, uuid, lowCardinality, " +
+                        "fixedString)",
                 new ClickHouseStreamCallback() {
                     @Override
                     public void writeTo(ClickHouseRowBinaryStream stream) throws IOException {
@@ -374,7 +377,7 @@ public class RowBinaryStreamTest {
                         stream.writeFloat64Array(float64s1);
                         stream.writeUUID(uuid1);
                         stream.writeString("lowCardinality\n1");
-                        stream.writeFixedString("fixedString1", 15);
+                        stream.writeFixedString("fixedString1\0\0\0");
 
                         stream.writeDate(date2);
                         stream.writeDateTime(date2);
@@ -523,6 +526,7 @@ public class RowBinaryStreamTest {
 
             assertEquals(is.readUUID(), uuid1);
             assertEquals(is.readString(), "lowCardinality\n1");
+            assertEquals(is.readFixedString(15), "fixedString1\0\0\0");
 
             assertEquals(is.readDate(), withTimeAtStartOfDay(date2));
             assertEquals(is.readDateTime().getTime(), date2.getTime());
@@ -555,7 +559,7 @@ public class RowBinaryStreamTest {
 
             assertEquals(is.readUUID(), uuid2);
             assertEquals(is.readString(), "lowCardinality\n2");
-            assertEquals(is.readString(), "fixedString2\0\0\0");
+            assertEquals(is.readFixedString(15), "fixedString2\0\0\0");
 
             // check EOF
             try {
