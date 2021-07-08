@@ -88,18 +88,18 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
         }
 
         serverTimeZone = TimeZone.getTimeZone("UTC"); // just for next query
+        timezone = serverTimeZone;
+        if (!properties.isUseServerTimeZone()) {
+            timezone = Utils.isNullOrEmptyString(properties.getUseTimeZone())
+                    ? TimeZone.getDefault()
+                    : TimeZone.getTimeZone(properties.getUseTimeZone());
+        }
+
         try (Statement s = createStatement(); ResultSet rs = s.executeQuery("select timezone(), version()")) {
             if (rs.next()) {
                 serverTimeZone = TimeZone.getTimeZone(rs.getString(1));
                 serverVersion = rs.getString(2);
             }
-        }
-
-        timezone = serverTimeZone;
-        if (!properties.isUseServerTimeZone()) {
-            timezone = Utils.isNullOrEmptyString(properties.getUseTimeZone())
-                ? TimeZone.getDefault()
-                : TimeZone.getTimeZone(properties.getUseTimeZone());
         }
 
         if (serverVersion == null) {
