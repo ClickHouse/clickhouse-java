@@ -2,44 +2,20 @@ package tech.clickhouse.benchmark;
 
 import java.sql.ResultSet;
 import java.sql.Statement;
-import java.sql.Timestamp;
-import java.util.Random;
 import org.openjdk.jmh.annotations.Benchmark;
+import org.openjdk.jmh.infra.Blackhole;
 
 public class Query extends JdbcBenchmark {
     @Benchmark
-    public int select10kUInt64Rows(ClientState state) throws Throwable {
-        int rows = 10000;
-        int num = new Random().nextInt(rows);
-        try (Statement stmt = executeQuery(state, "select * from system.numbers where number > ? limit " + rows, num)) {
-            ResultSet rs = stmt.getResultSet();
-
-            float avg = 0.0F;
-            int count = 0;
-            while (rs.next()) {
-                avg = (rs.getInt(1) + avg * count) / (++count);
-            }
-
-            if (count != rows) {
-                throw new IllegalStateException();
-            }
-
-            return count;
-        }
-    }
-
-    @Benchmark
-    public int select10kStringRows(ClientState state) throws Throwable {
-        int rows = 10000;
-        int num = new Random().nextInt(rows);
-        try (Statement stmt = executeQuery(state,
-                "select toString(number) as s from system.numbers where number > ? limit " + rows, num)) {
+    public int select10kUInt64Rows(Blackhole blackhole, ClientState state) throws Throwable {
+        int num = state.getRandomNumber();
+        int rows = state.getSampleSize() + num;
+        try (Statement stmt = executeQuery(state, "select * from system.numbers limit ?", rows)) {
             ResultSet rs = stmt.getResultSet();
 
             int count = 0;
-            String str = null;
             while (rs.next()) {
-                str = rs.getString(1);
+                blackhole.consume(rs.getInt(1));
                 count++;
             }
 
@@ -52,19 +28,37 @@ public class Query extends JdbcBenchmark {
     }
 
     @Benchmark
-    public int select10kTimestampRows(ClientState state) throws Throwable {
-        int rows = 10000;
-        int num = new Random().nextInt(rows);
-        try (Statement stmt = executeQuery(state,
-                "select toDateTime('2021-02-20 13:15:20') + number as d from system.numbers where number > ? limit "
-                        + rows,
-                num)) {
+    public int select10kStringRows(Blackhole blackhole, ClientState state) throws Throwable {
+        int num = state.getRandomNumber();
+        int rows = state.getSampleSize() + num;
+        try (Statement stmt = executeQuery(state, "select toString(number) as s from system.numbers limit ?", rows)) {
             ResultSet rs = stmt.getResultSet();
 
             int count = 0;
-            Timestamp ts = null;
             while (rs.next()) {
-                ts = rs.getTimestamp(1);
+                blackhole.consume(rs.getString(1));
+                count++;
+            }
+
+            if (count != rows) {
+                throw new IllegalStateException();
+            }
+
+            return count;
+        }
+    }
+
+    @Benchmark
+    public int select10kTimestampRows(Blackhole blackhole, ClientState state) throws Throwable {
+        int num = state.getRandomNumber();
+        int rows = state.getSampleSize() + num;
+        try (Statement stmt = executeQuery(state,
+                "select toDateTime('2021-02-20 13:15:20') + number as d from system.numbers limit ?", rows)) {
+            ResultSet rs = stmt.getResultSet();
+
+            int count = 0;
+            while (rs.next()) {
+                blackhole.consume(rs.getTimestamp(1));
                 count++;
             }
 

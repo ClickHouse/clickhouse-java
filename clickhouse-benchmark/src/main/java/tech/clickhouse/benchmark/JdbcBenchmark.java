@@ -29,9 +29,9 @@ import org.openjdk.jmh.annotations.Warmup;
 @OutputTimeUnit(TimeUnit.SECONDS)
 public abstract class JdbcBenchmark {
     // batch size for mutation
-    private final int batchSize = Integer.parseInt(System.getProperty("batchSize", "1000"));
+    private final int BATCH_SIZE = Integer.parseInt(System.getProperty("batchSize", "5000"));
     // fetch size for query
-    private final int fetchSize = Integer.parseInt(System.getProperty("fetchSize", "1000"));
+    private final int FETCH_SIZE = Integer.parseInt(System.getProperty("fetchSize", "1000"));
 
     protected PreparedStatement setParameters(PreparedStatement s, Object... values) throws SQLException {
         if (values != null && values.length > 0) {
@@ -73,16 +73,30 @@ public abstract class JdbcBenchmark {
         while (generator.hasMoreElements()) {
             Object[] values = generator.nextElement();
             if (ps != null) {
-                setParameters(ps, values).addBatch();
+                setParameters(ps, values);
+
+                if (BATCH_SIZE > 0) {
+                    ps.addBatch();
+                } else {
+                    ps.execute();
+                    rows++;
+                }
             } else {
-                s.addBatch(replaceParameters(sql, values));
+                sql = replaceParameters(sql, values);
+                if (BATCH_SIZE > 0) {
+                    s.addBatch(sql);
+                } else {
+                    s.execute(sql);
+                    rows++;
+                }
             }
-            if (++counter % batchSize == 0) {
+
+            if (BATCH_SIZE > 0 && ++counter % BATCH_SIZE == 0) {
                 rows += s.executeBatch().length;
             }
         }
 
-        if (counter % batchSize != 0) {
+        if (BATCH_SIZE > 0 && counter % BATCH_SIZE != 0) {
             rows += s.executeBatch().length;
         }
 
@@ -114,17 +128,14 @@ public abstract class JdbcBenchmark {
         final Connection conn = state.getConnection();
 
         if (state.usePreparedStatement()) {
-            try (PreparedStatement s = conn.prepareStatement(sql)) {
-                stmt = s;
-                s.setFetchSize(fetchSize);
-                setParameters(s, values).executeQuery();
-            }
+            PreparedStatement s = conn.prepareStatement(sql);
+            stmt = s;
+            s.setFetchSize(FETCH_SIZE);
+            setParameters(s, values).executeQuery();
         } else {
-            try (Statement s = conn.createStatement()) {
-                stmt = s;
-                stmt.setFetchSize(fetchSize);
-                stmt.executeQuery(replaceParameters(sql, values));
-            }
+            stmt = conn.createStatement();
+            stmt.setFetchSize(FETCH_SIZE);
+            stmt.executeQuery(replaceParameters(sql, values));
         }
 
         return stmt;

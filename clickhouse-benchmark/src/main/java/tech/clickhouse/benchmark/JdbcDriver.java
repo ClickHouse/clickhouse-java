@@ -24,7 +24,12 @@ public enum JdbcDriver {
     MysqlConnectorJava("com.mysql.cj.jdbc.Driver",
             "jdbc:mysql://%s:%s/%s?user=%s&password=%s&useSSL=false&useCompression=true&useServerPrepStmts=false"
                     + "&rewriteBatchedStatements=true&cachePrepStmts=true&connectionTimeZone=UTC",
-            Constants.MYSQL_PORT);
+            Constants.MYSQL_PORT),
+
+    // PostgreSQL JDBC Driver
+    PostgresqlJdbc("org.postgresql.Driver",
+            "jdbc:postgresql://%s:%s/%s?user=%s&password=%s&ssl=false&sslmode=disable&preferQueryMode=simple",
+            Constants.POSTGRESQL_PORT);
 
     private final String className;
     private final String urlTemplate;
