@@ -5,12 +5,13 @@ ClickHouse JDBC driver
 This is a basic and restricted implementation of jdbc driver for ClickHouse.
 It has support of a minimal subset of features to be usable.
 
+
 ### Usage
 ```xml
 <dependency>
     <groupId>ru.yandex.clickhouse</groupId>
     <artifactId>clickhouse-jdbc</artifactId>
-    <version>0.3.1</version>
+    <version>0.3.2</version>
 </dependency>
 ```
 
@@ -46,6 +47,7 @@ try (ClickHouseConnection conn = dataSource.getConnection();
 
 Additionally, if you have a few instances, you can use `BalancedClickhouseDataSource`.
 
+
 ### Extended API
 In order to provide non-JDBC complaint data manipulation functionality, proprietary API exists.
 Entry point for API is `ClickHouseStatement#write()` method.
@@ -61,6 +63,7 @@ sth
     .data(new File("/path/to/file.csv.gz"), ClickHouseFormat.CSV, ClickHouseCompression.gzip) // specify input     
     .send();
 ```
+
 #### Configurable send
 ```java
 import ru.yandex.clickhouse.ClickHouseStatement;
@@ -73,6 +76,7 @@ sth
     .addDbParam(ClickHouseQueryParam.MAX_PARALLEL_REPLICAS, 2)
     .send();
 ```
+
 #### Send data in binary formatted with custom user callback
 ```java
 import ru.yandex.clickhouse.ClickHouseStatement;
@@ -88,6 +92,12 @@ sth.write().send("INSERT INTO test.writer", new ClickHouseStreamCallback() {
 },
 ClickHouseFormat.RowBinary); // RowBinary or Native are supported
 ```
+
+
+### Supported Server Versions
+All [active releases](../ClickHouse/pulls?q=is%3Aopen+is%3Apr+label%3Arelease) are supported. You can still use the driver for older versions like 18.14 or 19.16 but please keep in mind that they're no longer supported.
+
+
 ### Compiling with maven
 The driver is built with maven.
 `mvn package -DskipTests=true`
@@ -96,5 +106,6 @@ To build a jar with dependencies use
 
 `mvn package assembly:single -DskipTests=true`
 
+
 ### Build requirements
-In order to build the jdbc client one need to have jdk 1.7 or higher.
+In order to build the jdbc client one need to have jdk 1.8 or higher.
