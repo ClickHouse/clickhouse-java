@@ -53,6 +53,8 @@ public enum ClickHouseQueryParam implements DriverPropertyCreator {
 
     FORCE_INDEX_BY_DATE("force_index_by_date", false, Boolean.class, ""),
 
+    FORCE_OPTIMIZE_SKIP_UNUSED_SHARDS("force_optimize_skip_unused_shards", 0, Integer.class, "Enables or disables query execution if optimize_skip_unused_shards is enabled and skipping of unused shards is not possible. If the skipping is not possible and the setting is enabled, an exception will be thrown."),
+
     FORCE_PRIMARY_KEY("force_primary_key", false, Boolean.class, ""),
 
     GLOBAL_SUBQUERIES_METHOD("global_subqueries_method", null, String.class, ""),
@@ -180,6 +182,8 @@ public enum ClickHouseQueryParam implements DriverPropertyCreator {
     OPTIMIZE_MIN_EQUALITY_DISJUNCTION_CHAIN_LENGTH("optimize_min_equality_disjunction_chain_length", null, Long.class, ""),
 
     OPTIMIZE_MOVE_TO_PREWHERE("optimize_move_to_prewhere", true, Boolean.class, ""),
+
+    OPTIMIZE_SKIP_UNUSED_SHARDS("optimize_skip_unused_shards", 0, Integer.class, "Enables or disables skipping of unused shards for SELECT queries that have sharding key condition in WHERE/PREWHERE (assuming that the data is distributed by sharding key, otherwise does nothing)."),
 
     OUTPUT_FORMAT_JSON_QUOTE_64BIT_INTEGERS("output_format_json_quote_64bit_integers", true, Boolean.class, "Controls quoting of 64-bit integers in JSON output format."),
 
