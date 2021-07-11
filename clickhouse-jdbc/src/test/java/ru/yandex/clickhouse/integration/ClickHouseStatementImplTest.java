@@ -10,14 +10,18 @@ import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.io.UnsupportedEncodingException;
 import java.math.BigInteger;
+import java.nio.charset.Charset;
 import java.sql.Array;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Types;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumMap;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
@@ -250,6 +254,64 @@ public class ClickHouseStatementImplTest {
         Assert.assertEquals(cnt, 99500);
     }
 
+    @Test
+    public void testQueryWithMultipleExternalTables() throws SQLException {
+        int tables = 30;
+        int rows = 10;
+
+        String ddl = "drop table if exists test.test_ext_data_query;\n"
+            + "create table test.test_ext_data_query (\n"
+            + "   Cb String,\n"
+            + "   CREATETIME DateTime64(3),\n"
+            + "   TIMESTAMP UInt64,\n"
+            + "   Cc String,\n"
+            + "   Ca1 UInt64,\n"
+            + "   Ca2 UInt64,\n"
+            + "   Ca3 UInt64\n"
+            + ") engine = MergeTree()\n"
+            + "PARTITION BY toYYYYMMDD(CREATETIME)\n"
+            + "ORDER BY (Cb, CREATETIME, Cc);";
+
+        String template = "avgIf(Ca1, Cb in L%1$d) as avgCa1%2$d, sumIf(Ca1, Cb in L%1$d) as sumCa1%2$d, minIf(Ca1, Cb in L%1$d) as minCa1%2$d, maxIf(Ca1, Cb in L%1$d) as maxCa1%2$d, anyIf(Ca1, Cb in L%1$d) as anyCa1%2$d, avgIf(Ca2, Cb in L%1$d) as avgCa2%2$d, sumIf(Ca2, Cb in L%1$d) as sumCa2%2$d, minIf(Ca2, Cb in L%1$d) as minCa2%2$d, maxIf(Ca2, Cb in L%1$d) as maxCa2%2$d, anyIf(Ca2, Cb in L%1$d) as anyCa2%2$d, avgIf(Ca3, Cb in L%1$d) as avgCa3%2$d, sumIf(Ca3, Cb in L%1$d) as sumCa3%2$d, minIf(Ca3, Cb in L%1$d) as minCa3%2$d, maxIf(Ca3, Cb in L%1$d) as maxCa3%2$d, anyIf(Ca3, Cb in L%1$d) as anyCa3%2$d";
+        ClickHouseProperties properties = new ClickHouseProperties();
+        properties.setDatabase("test");
+        properties.setSocketTimeout(300000);
+        properties.setMaxAstElements(Long.MAX_VALUE);
+        properties.setMaxTotal(20);
+        properties.setMaxQuerySize(104857600L);
+
+        Map<ClickHouseQueryParam, String> paramMap = new HashMap<>();
+        paramMap.put(ClickHouseQueryParam.PRIORITY,"2");
+
+        StringBuilder sql = new StringBuilder().append("select ");
+        List<ClickHouseExternalData> extDataList = new ArrayList<>(tables);
+        for (int i = 0; i < tables; i++) {
+            sql.append(String.format(template, i, i + 1)).append(',');
+            List<String> valueList = new ArrayList<>(rows);
+            for (int j = i, size = i + rows; j < size; j++) {
+                valueList.add(String.valueOf(j));
+            }
+            String dnExtString = String.join("\n", valueList);
+            InputStream inputStream = new ByteArrayInputStream(dnExtString.getBytes(Charset.forName("UTF-8")));
+            ClickHouseExternalData extData = new ClickHouseExternalData("L" + i, inputStream);
+            extData.setStructure("Cb String");
+            extDataList.add(extData);
+        }
+
+        if (tables > 0) {
+            sql.deleteCharAt(sql.length() - 1);
+        } else {
+            sql.append('*');
+        }
+        sql.append(" from test.test_ext_data_query where TIMESTAMP >= 1625796480 and TIMESTAMP < 1625796540 and Cc = 'eth0'");
+
+        try (ClickHouseConnection c = ClickHouseContainerForTest.newDataSource(properties).getConnection();
+            ClickHouseStatement s = c.createStatement();) {
+            s.execute(ddl);
+            ResultSet rs = s.executeQuery(sql.toString(), paramMap, extDataList);
+            assertTrue(tables <= 0 || rs.next());
+        }
+    }
 
     @Test
     public void testResultSetWithExtremes() throws SQLException {
