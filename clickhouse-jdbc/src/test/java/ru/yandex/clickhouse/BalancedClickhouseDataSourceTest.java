@@ -313,4 +313,18 @@ public class BalancedClickhouseDataSourceTest {
         }
     }
 
+    @Test
+    public void testIPv6() throws Exception {
+        // dedup is not supported at all :<
+        assertEquals(Arrays.asList("jdbc:clickhouse://[::1]:12345", "jdbc:clickhouse://[0:0:0:0:0:0:0:1]:12345"),
+                BalancedClickhouseDataSource.splitUrl("jdbc:clickhouse://[::1]:12345,[0:0:0:0:0:0:0:1]:12345"));
+        assertEquals(Arrays.asList("jdbc:clickhouse://[192:168:0:0:0:0:0:1]:12345", "jdbc:clickhouse://[192:168:0:0:0:0:0:2]:12345"),
+                BalancedClickhouseDataSource.splitUrl("jdbc:clickhouse://[192:168:0:0:0:0:0:1]:12345,[192:168:0:0:0:0:0:2]:12345"));
+        
+        ClickHouseProperties properties = new ClickHouseProperties();
+        String hostAddr = ClickHouseContainerForTest.getClickHouseHttpAddress();
+        String ipAddr = ClickHouseContainerForTest.getClickHouseHttpAddress("[::1]");
+        assertEquals(ClickHouseContainerForTest.newBalancedDataSource(properties, ipAddr).getConnection().getServerVersion(),
+            ClickHouseContainerForTest.newBalancedDataSource(properties, hostAddr).getConnection().getServerVersion());
+    }
 }

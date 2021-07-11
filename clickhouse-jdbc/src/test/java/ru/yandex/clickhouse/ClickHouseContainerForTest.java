@@ -75,6 +75,12 @@ public class ClickHouseContainerForTest {
                 .append(':').append(clickhouseContainer.getMappedPort(HTTP_PORT)).toString();
     }
 
+    public static String getClickHouseHttpAddress(String customHostOrIp) {
+        return new StringBuilder()
+                .append(customHostOrIp == null || customHostOrIp.isEmpty() ? clickhouseContainer.getContainerIpAddress() : customHostOrIp)
+                .append(':').append(clickhouseContainer.getMappedPort(HTTP_PORT)).toString();
+    }
+
     public static ClickHouseDataSource newDataSource() {
         return newDataSource(new ClickHouseProperties());
     }
