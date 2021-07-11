@@ -18,12 +18,12 @@
 
     <properties>
         <clickhouse4j-driver.version>1.4.4</clickhouse4j-driver.version>
-        <mariadb-driver.version>2.7.2</mariadb-driver.version>
-        <mysql-driver.version>8.0.23</mysql-driver.version>
-        <native-driver.version>2.5.4</native-driver.version>
-        <testcontainers.version>1.15.2</testcontainers.version>
+        <mariadb-driver.version>2.7.3</mariadb-driver.version>
+        <mysql-driver.version>8.0.25</mysql-driver.version>
+        <native-driver.version>2.5.6</native-driver.version>
+        <postgresql-driver.version>42.2.22</postgresql-driver.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <jmh.version>1.27</jmh.version>
+        <jmh.version>1.32</jmh.version>
         <shade.name>benchmarks</shade.name>
     </properties>
 
@@ -90,6 +90,17 @@
             <groupId>com.github.housepower</groupId>
             <artifactId>clickhouse-native-jdbc-shaded</artifactId>
             <version>${native-driver.version}</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>*</groupId>
+                    <artifactId>*</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <version>${postgresql-driver.version}</version>
             <exclusions>
                 <exclusion>
                     <groupId>*</groupId>
