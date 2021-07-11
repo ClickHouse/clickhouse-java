@@ -27,9 +27,10 @@ import ru.yandex.clickhouse.ClickHouseStatement;
 import ru.yandex.clickhouse.except.ClickHouseException;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
 import ru.yandex.clickhouse.settings.ClickHouseQueryParam;
+import ru.yandex.clickhouse.util.ClickHouseVersionNumberUtil;
 
 public class ClickHouseLargeNumberTest {
-    private Connection conn;
+    private ClickHouseConnection conn;
 
     @BeforeTest
     public void setUp() throws Exception {
@@ -57,10 +58,10 @@ public class ClickHouseLargeNumberTest {
 
     @Test
     public void testBigIntSupport() throws SQLException {
-        if (conn == null) {
+        if (conn == null || ClickHouseVersionNumberUtil.compare(conn.getServerVersion(), "21.7") >= 0) {
             return;
         }
-        
+
         String testSql = "create table if not exists system.test_bigint_support(i Int256) engine=Memory;"
                 + "drop table if exists system.test_bigint_support;";
         try (Connection conn = ClickHouseContainerForTest.newDataSource().getConnection();
