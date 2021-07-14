@@ -149,7 +149,7 @@
                 <version>${lz4.version}</version>
             </dependency>
             <dependency>
-                <groupId>org.roaringbitmap</groupId>
+                <groupId>com.github.RoaringBitmap.RoaringBitmap</groupId>
                 <artifactId>RoaringBitmap</artifactId>
                 <version>${roaring-bitmap.version}</version>
             </dependency>
