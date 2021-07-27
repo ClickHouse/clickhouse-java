@@ -21,6 +21,7 @@ import java.sql.Savepoint;
 import java.sql.Statement;
 import java.sql.Struct;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.TimeZone;
 import java.util.concurrent.Executor;
@@ -92,7 +93,7 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
             try (Statement s = createStatement(); ResultSet rs = s.executeQuery("select timezone(), version()")) {
                 if (rs.next()) {
                     serverTimeZone = TimeZone.getTimeZone(rs.getString(1));
-                    serverVersion = rs.getString(2);
+                    serverVersion = Optional.ofNullable(rs.getString(2)).orElse("");
                 }
             }
         } else {
