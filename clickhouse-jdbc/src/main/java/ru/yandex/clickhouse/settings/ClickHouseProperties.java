@@ -54,6 +54,7 @@ public class ClickHouseProperties {
     private String useTimeZone;
     private boolean useServerTimeZoneForDates;
     private boolean useObjectsInArrays;
+    private String serverVersion;
     // the shared cookie store is scoped to a database
     private boolean useSharedCookieStore;
 
@@ -129,6 +130,7 @@ public class ClickHouseProperties {
         this.useObjectsInArrays = (Boolean)getSetting(info, ClickHouseConnectionSettings.USE_OBJECTS_IN_ARRAYS);
         this.useSharedCookieStore = (Boolean)getSetting(info, ClickHouseConnectionSettings.USE_SHARED_COOKIE_STORE);
         this.clientName = (String)getSetting(info, ClickHouseConnectionSettings.CLIENT_NAME);
+        this.serverVersion = (String)getSetting(info, ClickHouseConnectionSettings.SERVER_VERSION);
 
         this.maxParallelReplicas = getSetting(info, ClickHouseQueryParam.MAX_PARALLEL_REPLICAS);
         this.maxPartitionsPerInsertBlock = getSetting(info, ClickHouseQueryParam.MAX_PARTITIONS_PER_INSERT_BLOCK);
@@ -197,6 +199,7 @@ public class ClickHouseProperties {
         ret.put(ClickHouseConnectionSettings.USE_OBJECTS_IN_ARRAYS.getKey(), String.valueOf(useObjectsInArrays));
         ret.put(ClickHouseConnectionSettings.USE_SHARED_COOKIE_STORE.getKey(), String.valueOf(useSharedCookieStore));
         ret.put(ClickHouseConnectionSettings.CLIENT_NAME.getKey(), String.valueOf(clientName));
+        ret.put(ClickHouseConnectionSettings.SERVER_VERSION.getKey(), String.valueOf(serverVersion));
         
         ret.put(ClickHouseQueryParam.MAX_PARALLEL_REPLICAS.getKey(), maxParallelReplicas);
         ret.put(ClickHouseQueryParam.MAX_PARTITIONS_PER_INSERT_BLOCK.getKey(), maxPartitionsPerInsertBlock);
@@ -268,6 +271,7 @@ public class ClickHouseProperties {
         setUseObjectsInArrays(properties.useObjectsInArrays);
         setUseSharedCookieStore(properties.useSharedCookieStore);
         setClientName(properties.clientName);
+        setServerVersion(properties.serverVersion);
         setMaxParallelReplicas(properties.maxParallelReplicas);
         setMaxPartitionsPerInsertBlock(properties.maxPartitionsPerInsertBlock);
         setTotalsMode(properties.totalsMode);
@@ -687,6 +691,14 @@ public class ClickHouseProperties {
 
     public void setClientName(String clientName) {
         this.clientName = clientName;
+    }
+
+    public String getServerVersion() {
+        return serverVersion;
+    }
+
+    private void setServerVersion(String serverVersion) {
+        this.serverVersion = serverVersion;
     }
 
     public boolean isUseServerTimeZoneForDates() {

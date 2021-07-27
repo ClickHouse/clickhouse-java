@@ -87,7 +87,7 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
             throw new IllegalArgumentException(String.format("one of %s or %s must be enabled", ClickHouseConnectionSettings.USE_SERVER_TIME_ZONE.getKey(), ClickHouseConnectionSettings.USE_TIME_ZONE.getKey()));
         }
 
-        if (properties.isUseServerTimeZone()) {
+        if (properties.isUseServerTimeZone() || Utils.isNullOrEmptyString(properties.getServerVersion())) {
             serverTimeZone = TimeZone.getTimeZone("UTC"); // just for next query
             try (Statement s = createStatement(); ResultSet rs = s.executeQuery("select timezone(), version()")) {
                 if (rs.next()) {
@@ -100,10 +100,7 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
                     ? TimeZone.getDefault()
                     : TimeZone.getTimeZone(properties.getUseTimeZone());
             serverTimeZone = timezone;
-        }
-
-        if (serverVersion == null) {
-            serverVersion = "";
+            serverVersion = properties.getServerVersion();
         }
     }
 

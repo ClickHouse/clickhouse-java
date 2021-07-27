@@ -49,6 +49,7 @@ public enum ClickHouseConnectionSettings implements DriverPropertyCreator {
                     "If false, Date returned is a wrapper of a timestamp at start of the day in client timezone. " +
                     "If true - at start of the day in server or use_timezone timezone."),
     CLIENT_NAME("client_name", "", "client_name or http_user_agent show up in system.query_log table, depending on the protocol you're using."),
+    SERVER_VERSION("server_version", "", "version of the server as returned by select version()")
     ;
 
     private final String key;
