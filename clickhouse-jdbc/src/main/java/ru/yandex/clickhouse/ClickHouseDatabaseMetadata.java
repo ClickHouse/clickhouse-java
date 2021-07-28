@@ -801,12 +801,12 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
     @Override
     public ResultSet getColumns(String catalog, String schemaPattern, String tableNamePattern, String columnNamePattern) throws SQLException {
         StringBuilder query;
-        if (connection.getServerVersion().compareTo("1.1.54237") > 0) {
+        if (ClickHouseVersionNumberUtil.compare(connection.getServerVersion(), "18.16") >= 0) {
             query = new StringBuilder(
                 "SELECT database, table, name, type, default_kind as default_type, default_expression, comment ");
         } else {
             query = new StringBuilder(
-                "SELECT database, table, name, type, default_type, default_expression, NULL AS comment ");
+                "SELECT database, table, name, type, default_kind as default_type, default_expression, NULL AS comment ");
         }
         query.append("FROM system.columns ");
         List<String> predicates = new ArrayList<>();

@@ -24,7 +24,7 @@ import ru.yandex.clickhouse.util.ClickHouseVersionNumberUtil;
 public class ClickHouseDatabaseMetadataTest {
 
     private ClickHouseDataSource dataSource;
-    private Connection connection;
+    private ClickHouseConnection connection;
 
     @BeforeTest
     public void setUp() throws Exception {
@@ -64,11 +64,14 @@ public class ClickHouseDatabaseMetadataTest {
 
     @Test
     public void testMetadataColumns() throws Exception {
+        boolean supportComment = ClickHouseVersionNumberUtil.compare(connection.getServerVersion(), "18.16") >= 0;
         connection.createStatement().executeQuery(
             "DROP TABLE IF EXISTS test.testMetadata");
         connection.createStatement().executeQuery(
             "CREATE TABLE test.testMetadata("
-          + "foo Float32, bar UInt8 DEFAULT 42 COMMENT 'baz') ENGINE = TinyLog");
+          + "foo Float32, bar UInt8"
+          + (supportComment ? " DEFAULT 42 COMMENT 'baz'" : "")
+          + ") ENGINE = TinyLog");
         ResultSet columns = connection.getMetaData().getColumns(
             null, "test", "testMetadata", null);
         columns.next();
@@ -97,8 +100,10 @@ public class ClickHouseDatabaseMetadataTest {
         Assert.assertEquals(columns.getString("IS_AUTOINCREMENT"), "NO");
         Assert.assertEquals(columns.getString("IS_GENERATEDCOLUMN"), "NO");
         columns.next();
-        Assert.assertEquals(columns.getInt("COLUMN_DEF"), 42);
-        Assert.assertEquals(columns.getObject("REMARKS"), "baz");
+        if (supportComment) {
+            Assert.assertEquals(columns.getInt("COLUMN_DEF"), 42);
+            Assert.assertEquals(columns.getObject("REMARKS"), "baz");
+        }
     }
 
     @Test
