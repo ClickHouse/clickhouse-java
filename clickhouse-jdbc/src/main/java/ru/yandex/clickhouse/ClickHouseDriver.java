@@ -46,7 +46,7 @@ public class ClickHouseDriver implements Driver {
         } catch (SQLException e) {
             throw new RuntimeException(e);
         }
-        logger.info("Driver registered");
+        logger.debug("Driver registered");
     }
 
     @Override
