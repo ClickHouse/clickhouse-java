@@ -19,14 +19,6 @@ public enum ClickHouseConnectionSettings implements DriverPropertyCreator {
     CHECK_FOR_REDIRECTS("check_for_redirects", false, "whether we should check for 307 redirect using GET before sending POST to given URL"),
     MAX_REDIRECTS("max_redirects", 5, "number of redirect checks before using last URL"),
 
-    /*
-    *
-    * */
-    DATA_TRANSFER_TIMEOUT( "dataTransferTimeout", 10000, "Timeout for data transfer. "
-            + " socketTimeout + dataTransferTimeout is sent to ClickHouse as max_execution_time. "
-            + " ClickHouse rejects request execution if its time exceeds max_execution_time"),
-
-
     /**
      * for ConnectionManager
      */
