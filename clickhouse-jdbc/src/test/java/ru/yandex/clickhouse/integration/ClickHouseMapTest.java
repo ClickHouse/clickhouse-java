@@ -76,12 +76,17 @@ public class ClickHouseMapTest {
             return;
         }
 
+
         String testSql = "create table if not exists system.test_map_support(m Map(UInt8, String)) engine=Memory;"
                 + "drop table if exists system.test_map_support;";
-        try (Connection conn = ClickHouseContainerForTest.newDataSource().getConnection();
+        try (ClickHouseConnection conn = ClickHouseContainerForTest.newDataSource().getConnection();
                 Statement s = conn.createStatement()) {
             s.execute("set allow_experimental_map_type=0;" + testSql);
-            fail("Should fail without enabling map support");
+
+            String version = conn.getServerVersion();
+            if (version.compareTo("21.8") < 0) {
+                fail("Should fail without enabling map support");
+            }
         } catch (SQLException e) {
             assertEquals(e.getErrorCode(), 44);
         }
@@ -99,7 +104,10 @@ public class ClickHouseMapTest {
 
             params.put(ClickHouseQueryParam.ALLOW_EXPERIMENTAL_MAP_TYPE, "0");
             s.executeQuery(testSql, params);
-            fail("Should fail without enabling map support");
+            String version = conn.getServerVersion();
+            if (version.compareTo("21.8") < 0) {
+                fail("Should fail without enabling map support");
+            }
         } catch (SQLException e) {
             assertEquals(e.getErrorCode(), 44);
         }
