@@ -110,11 +110,11 @@ public class ClickHouseRowBinaryInputStreamTest {
 		assertEquals(inputZeroPaddedString.readFixedString(10), "hello\0\0\0\0\0");
 	}
 
-	@Test
-	public void testUnsignedLeb128() throws Exception {
-		ClickHouseRowBinaryInputStream input = prepareStream(new byte[] { -128, -62, -41, 47 });
-		assertEquals(input.readUnsignedLeb128(), 100000000);
-	}
+    @Test
+    public void testUnsignedLeb128() throws Exception {
+        ClickHouseRowBinaryInputStream input = prepareStream(new byte[] { -128, -62, -41, 47 });
+        assertEquals(input.readUnsignedLeb128(), 100000000);
+    }
 
 	@Test
 	public void testOne() throws Exception {
