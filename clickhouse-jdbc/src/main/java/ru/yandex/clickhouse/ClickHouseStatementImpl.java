@@ -723,6 +723,9 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
                         ? new EnumMap<ClickHouseQueryParam, String>(ClickHouseQueryParam.class)
                         : additionalClickHouseDBParams);
 
+        // merge request externalData with those set in ConfigurableApi
+        externalData = getAllExternalData(externalData);
+
         URI uri = buildRequestUri(
             null,
             externalData,
@@ -801,6 +804,14 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
             log.info("Error sql: {}", sql);
             throw ClickHouseExceptionSpecifier.specify(e, properties.getHost(), properties.getPort());
         }
+    }
+
+    private List<ClickHouseExternalData> getAllExternalData(List<ClickHouseExternalData> requestExternalData) {
+        List<ClickHouseExternalData> res = new ArrayList<>(getAdditionalExternalData());
+        if (requestExternalData != null) {
+            res.addAll(requestExternalData);
+        }
+        return res;
     }
 
     URI buildRequestUri(

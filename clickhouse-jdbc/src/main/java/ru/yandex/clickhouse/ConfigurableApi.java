@@ -10,6 +10,7 @@ class ConfigurableApi<T> {
     protected final ClickHouseStatementImpl statement;
     private Map<ClickHouseQueryParam, String> additionalDBParams = new HashMap<ClickHouseQueryParam, String>();
     private Map<String, String> additionalRequestParams = new HashMap<String, String>();
+    private List<ClickHouseExternalData> additionalExternalData = new ArrayList<>();
 
     ConfigurableApi(ClickHouseStatementImpl statement) {
         this.statement = statement;
@@ -21,6 +22,10 @@ class ConfigurableApi<T> {
 
     Map<ClickHouseQueryParam, String> getAdditionalDBParams() {
         return additionalDBParams;
+    }
+
+    List<ClickHouseExternalData> getAdditionalExternalData() {
+        return additionalExternalData;
     }
 
     public T addDbParam(ClickHouseQueryParam param, String value) {
@@ -59,4 +64,16 @@ class ConfigurableApi<T> {
         return (T) this;
     }
 
+    public T addExternalData(ClickHouseExternalData data) {
+        additionalExternalData.add(data);
+        return (T) this;
+    }
+
+    public T withExternalData(List<ClickHouseExternalData> data) {
+        additionalExternalData = new ArrayList<>();
+        if (data != null) {
+            additionalExternalData.addAll(data);
+        }
+        return (T) this;
+    }
 }

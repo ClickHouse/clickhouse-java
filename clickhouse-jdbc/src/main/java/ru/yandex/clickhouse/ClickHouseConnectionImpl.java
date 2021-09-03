@@ -514,6 +514,11 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
         return 0;
     }
 
+    @Override
+    public ClickHouseProperties getProperties() {
+        return new ClickHouseProperties(properties);
+    }
+
     void cleanConnections() {
         httpclient.getConnectionManager().closeExpiredConnections();
         httpclient.getConnectionManager().closeIdleConnections(2 * properties.getSocketTimeout(), TimeUnit.MILLISECONDS);
@@ -521,9 +526,5 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
 
     String getUrl() {
         return url;
-    }
-
-    ClickHouseProperties getProperties() {
-        return properties;
     }
 }
