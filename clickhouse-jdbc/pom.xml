@@ -51,6 +51,7 @@
         <shade.base>ru.yandex.clickhouse.jdbc.internal</shade.base>
         <spec.title>JDBC</spec.title>
         <spec.version>4.2</spec.version>
+        <automatic.module.name>ru.yandex.clickhouse.jdbc</automatic.module.name>
     </properties>
 
     <dependencies>
@@ -171,6 +172,7 @@
                             <addBuildEnvironmentEntries>true</addBuildEnvironmentEntries>
                         </manifest>
                         <manifestEntries>
+                            <Automatic-Module-Name>${automatic.module.name}</Automatic-Module-Name>
                             <Specification-Title>${spec.title}</Specification-Title>
                             <Specification-Version>${spec.version}</Specification-Version>
                             <Implementation-Vendor-Id>${project.groupId}</Implementation-Vendor-Id>
