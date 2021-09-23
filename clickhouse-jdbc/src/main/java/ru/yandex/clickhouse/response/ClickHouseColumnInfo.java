@@ -152,7 +152,7 @@ public final class ClickHouseColumnInfo {
         return args
             .substring(
                 args.indexOf("(", currIdx) + 1,
-                args.indexOf(")", currIdx))
+                args.lastIndexOf(")"))
             .split("\\s*,\\s*");
     }
 
