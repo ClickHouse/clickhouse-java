@@ -60,7 +60,7 @@ public class ClickHouseSqlParserTest {
         assertEquals(s.getTable(), table);
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testParseNonSql() throws ParseException {
         String sql;
 
@@ -81,7 +81,7 @@ public class ClickHouseSqlParserTest {
         // StatementType.UNKNOWN);
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testAlterStatement() {
         String sql;
 
@@ -95,7 +95,7 @@ public class ClickHouseSqlParserTest {
         checkSingleStatement(parse(sql = "ALTER USER user DEFAULT ROLE role1, role2"), sql, StatementType.ALTER);
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testAttachStatement() {
         String sql;
 
@@ -103,7 +103,7 @@ public class ClickHouseSqlParserTest {
                 StatementType.ATTACH);
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testCheckStatement() {
         String sql;
 
@@ -111,14 +111,14 @@ public class ClickHouseSqlParserTest {
         checkSingleStatement(parse(sql = "check table a.a"), sql, StatementType.CHECK);
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testCreateStatement() {
         String sql;
 
         checkSingleStatement(parse(sql = "create table a(a String) engine=Memory"), sql, StatementType.CREATE);
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testDeleteStatement() {
         String sql;
 
@@ -127,7 +127,7 @@ public class ClickHouseSqlParserTest {
                 "c", "a");
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testDescribeStatement() {
         String sql;
 
@@ -141,7 +141,7 @@ public class ClickHouseSqlParserTest {
         checkSingleStatement(parse(sql = "desc table t1 as `t2`"), sql, StatementType.DESCRIBE, "system", "columns");
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testDetachStatement() {
         String sql;
 
@@ -149,7 +149,7 @@ public class ClickHouseSqlParserTest {
         checkSingleStatement(parse(sql = "detach TABLE if exists t.t on cluster 'cc'"), sql, StatementType.DETACH);
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testDropStatement() {
         String sql;
 
@@ -157,7 +157,7 @@ public class ClickHouseSqlParserTest {
         checkSingleStatement(parse(sql = "drop TABLE if exists t.t on cluster 'cc'"), sql, StatementType.DROP);
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testExistsStatement() {
         String sql;
 
@@ -166,7 +166,7 @@ public class ClickHouseSqlParserTest {
         checkSingleStatement(parse(sql = "EXISTS DICTIONARY c"), sql, StatementType.EXISTS);
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testExplainStatement() {
         String sql;
 
@@ -179,7 +179,7 @@ public class ClickHouseSqlParserTest {
                 sql, StatementType.EXPLAIN);
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testGrantStatement() {
         String sql;
 
@@ -188,7 +188,7 @@ public class ClickHouseSqlParserTest {
         checkSingleStatement(parse(sql = "GRANT INSERT(x,y) ON db.table TO john"), sql, StatementType.GRANT);
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testInsertStatement() throws ParseException {
         String sql;
 
@@ -222,7 +222,7 @@ public class ClickHouseSqlParserTest {
 
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testKillStatement() {
         String sql;
 
@@ -233,7 +233,7 @@ public class ClickHouseSqlParserTest {
                 sql, StatementType.KILL);
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testOptimizeStatement() {
         String sql;
 
@@ -241,7 +241,7 @@ public class ClickHouseSqlParserTest {
                 StatementType.OPTIMIZE);
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testRenameStatement() {
         String sql;
 
@@ -252,7 +252,7 @@ public class ClickHouseSqlParserTest {
                 sql, StatementType.RENAME);
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testRevokeStatement() {
         String sql;
 
@@ -260,7 +260,7 @@ public class ClickHouseSqlParserTest {
         checkSingleStatement(parse(sql = "REVOKE SELECT(wage) ON accounts.staff FROM mira"), sql, StatementType.REVOKE);
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testSelectStatement() {
         String sql;
 
@@ -319,7 +319,7 @@ public class ClickHouseSqlParserTest {
                 new ClickHouseSqlStatement(sql, StatementType.SELECT, null, null, "unknown", null, null, null, null) });
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testSetStatement() {
         String sql;
 
@@ -327,7 +327,7 @@ public class ClickHouseSqlParserTest {
         checkSingleStatement(parse(sql = "SET DEFAULT ROLE role1, role2, role3 TO user"), sql, StatementType.SET);
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testShowStatement() {
         String sql;
 
@@ -337,7 +337,7 @@ public class ClickHouseSqlParserTest {
                 "dictionaries");
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testSystemStatement() {
         String sql;
 
@@ -347,14 +347,14 @@ public class ClickHouseSqlParserTest {
                 StatementType.SYSTEM);
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testTruncateStatement() {
         String sql;
 
         checkSingleStatement(parse(sql = "truncate table a.b"), sql, StatementType.TRUNCATE, "a", "b");
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testUpdateStatement() {
         String sql;
 
@@ -363,19 +363,19 @@ public class ClickHouseSqlParserTest {
                 StatementType.UPDATE);
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testUseStatement() throws ParseException {
         String sql;
         checkSingleStatement(parse(sql = "use system"), sql, StatementType.USE);
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testWatchStatement() throws ParseException {
         String sql;
         checkSingleStatement(parse(sql = "watch system.processes"), sql, StatementType.WATCH);
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testComments() throws ParseException {
         String sql;
         checkSingleStatement(parse(sql = "select\n--something\n//else\n1/*2*/ from a.b"), sql, StatementType.SELECT,
@@ -388,7 +388,7 @@ public class ClickHouseSqlParserTest {
         checkSingleStatement(parse(sql = "SELECT /*ab/*cd*/ef*/ 1 from a.b"), sql, StatementType.SELECT, "a", "b");
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testMultipleStatements() throws ParseException {
         assertEquals(parse("use ab;;;select 1; ;\t;\r;\n"), new ClickHouseSqlStatement[] {
                 new ClickHouseSqlStatement("use ab", StatementType.USE, null, "ab", null, null, null, null, null),
@@ -400,7 +400,7 @@ public class ClickHouseSqlParserTest {
                         new ClickHouseSqlStatement("select 1 as `a ; a`", StatementType.SELECT) });
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testAlias() throws ParseException {
         String sql;
         checkSingleStatement(parse(sql = "select 1 as c, 2 b"), sql, StatementType.SELECT);
@@ -412,7 +412,7 @@ public class ClickHouseSqlParserTest {
         checkSingleStatement(parse(sql = "select 1 from a.b c1, b.a c2"), sql, StatementType.SELECT, "a", "b");
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testExpression() throws ParseException {
         String sql;
         checkSingleStatement(parse(sql = "SELECT a._ from a.b"), sql, StatementType.SELECT, "a", "b");
@@ -450,7 +450,7 @@ public class ClickHouseSqlParserTest {
                 "a", "b");
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testFormat() throws ParseException {
         String sql = "select 1 as format, format csv";
         ClickHouseSqlStatement[] stmts = parse(sql);
@@ -474,7 +474,7 @@ public class ClickHouseSqlParserTest {
         assertEquals(stmts[0].getFormat(), "CSVWithNames");
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testOutfile() throws ParseException {
         String sql = "select 1 into outfile '1.txt'";
         ClickHouseSqlStatement[] stmts = parse(sql);
@@ -491,7 +491,7 @@ public class ClickHouseSqlParserTest {
         assertEquals(stmts[0].getOutfile(), null);
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testWithTotals() throws ParseException {
         String sql = "select 1 as with totals";
         ClickHouseSqlStatement[] stmts = parse(sql);
@@ -506,7 +506,7 @@ public class ClickHouseSqlParserTest {
         assertEquals(stmts[0].hasWithTotals(), true);
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testParameterHandling() throws ParseException {
         String sql = "insert into table d.t(a1, a2, a3) values(?,?,?)";
         ClickHouseSqlStatement[] stmts = parse(sql);
@@ -523,7 +523,7 @@ public class ClickHouseSqlParserTest {
         assertEquals(stmts[0].getSQL(), "insert into table d.t(a1, a2, a3) values(1,2,3)");
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testMacroHandling() throws ParseException {
         String sql = "select #listOfColumns #ignored from (#subQuery('1','2','3'))";
         ClickHouseSqlStatement[] stmts = parse(sql);
@@ -546,7 +546,7 @@ public class ClickHouseSqlParserTest {
         assertEquals(stmts[0].getSQL(), "select a, b  from (select 1+2+3)");
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testExtractDBAndTableName() {
         String sql;
 

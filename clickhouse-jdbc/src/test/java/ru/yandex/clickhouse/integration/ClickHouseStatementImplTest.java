@@ -29,38 +29,32 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import org.mockito.internal.util.reflection.Whitebox;
 import org.testng.Assert;
-import org.testng.annotations.AfterTest;
-import org.testng.annotations.BeforeTest;
+import org.testng.annotations.AfterClass;
+import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 import ru.yandex.clickhouse.ClickHouseConnection;
-import ru.yandex.clickhouse.ClickHouseContainerForTest;
 import ru.yandex.clickhouse.ClickHouseDataSource;
 import ru.yandex.clickhouse.ClickHouseExternalData;
 import ru.yandex.clickhouse.ClickHouseStatement;
+import ru.yandex.clickhouse.JdbcIntegrationTest;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
 import ru.yandex.clickhouse.settings.ClickHouseQueryParam;
 import ru.yandex.clickhouse.util.ClickHouseVersionNumberUtil;
 
-public class ClickHouseStatementImplTest {
-
-    private ClickHouseDataSource dataSource;
+public class ClickHouseStatementImplTest extends JdbcIntegrationTest {
     private ClickHouseConnection connection;
 
-    @BeforeTest
+    @BeforeClass(groups = "integration")
     public void setUp() throws Exception {
-        dataSource = ClickHouseContainerForTest.newDataSource();
-        connection = dataSource.getConnection();
-        connection.createStatement().execute("CREATE DATABASE IF NOT EXISTS test");
+        connection = newConnection();
     }
 
-    @AfterTest
+    @AfterClass(groups = "integration")
     public void tearDown() throws Exception {
-        if (connection != null) {
-            connection.close();
-        }
+        closeConnection(connection);
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testUpdateCountForSelect() throws Exception {
         Statement stmt = connection.createStatement();
         ResultSet rs = stmt.executeQuery("SELECT dummy FROM system.one");
@@ -71,7 +65,7 @@ public class ClickHouseStatementImplTest {
         stmt.close();
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testSingleColumnResultSet() throws SQLException {
         ResultSet rs = connection.createStatement().executeQuery("select c from (\n" +
                 "    select 'a' as c, 1 as rn\n" +
@@ -86,7 +80,7 @@ public class ClickHouseStatementImplTest {
         Assert.assertEquals(sb.toString(), "a\nb\n\nd\n");
     }
 
-    @Test
+    @Test(groups = "integration")
     public void readsPastLastAreSafe() throws SQLException {
         ResultSet rs = connection.createStatement().executeQuery("select c from (\n" +
                 "    select 'a' as c, 1 as rn\n" +
@@ -104,7 +98,7 @@ public class ClickHouseStatementImplTest {
         Assert.assertEquals(sb.toString(), "a\nb\n\nd\n");
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testSelectUInt32() throws SQLException {
         Statement stmt = connection.createStatement();
         ResultSet rs = stmt.executeQuery("select toUInt32(10), toUInt32(-10)");
@@ -117,7 +111,7 @@ public class ClickHouseStatementImplTest {
         Assert.assertEquals(((Long)bigUInt32).longValue(), 4294967286L);
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testSelectUInt64() throws SQLException {
         Statement stmt = connection.createStatement();
         ResultSet rs = stmt.executeQuery("select toUInt64(10), toUInt64(-10)");
@@ -130,7 +124,7 @@ public class ClickHouseStatementImplTest {
         Assert.assertEquals(bigUInt64, new BigInteger("18446744073709551606"));
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testExternalData() throws SQLException, UnsupportedEncodingException {
         String serverVersion = connection.getServerVersion();
         ClickHouseStatement stmt = connection.createStatement();
@@ -159,7 +153,7 @@ public class ClickHouseStatementImplTest {
     }
 
     // reproduce issue #634
-    @Test
+    @Test(groups = "integration")
     public void testLargeQueryWithExternalData() throws Exception {
         String serverVersion = connection.getServerVersion();
         String[] rows = ClickHouseVersionNumberUtil.getMajorVersion(serverVersion) >= 21
@@ -223,18 +217,18 @@ public class ClickHouseStatementImplTest {
     }
 
 
-    @Test
+    @Test(groups = "integration")
     public void testExternalDataStream() throws SQLException, UnsupportedEncodingException {
         if ("21.3.3.14".equals(connection.getServerVersion())) {
             return;
         }
 
         final ClickHouseStatement statement = connection.createStatement();
-        statement.execute("DROP TABLE IF EXISTS test.testExternalData");
+        statement.execute("DROP TABLE IF EXISTS testExternalData");
         statement.execute(
-            "CREATE TABLE test.testExternalData (id UInt64, s String) ENGINE = Memory");
+            "CREATE TABLE testExternalData (id UInt64, s String) ENGINE = Memory");
         statement.execute(
-            "insert into test.testExternalData select number, toString(number) from numbers(500,100000)");
+            "insert into testExternalData select number, toString(number) from numbers(500,100000)");
 
         InputStream inputStream = getTSVStream(100000);
 
@@ -242,7 +236,7 @@ public class ClickHouseStatementImplTest {
         extData.setStructure("id UInt64, s String");
 
         ResultSet rs = statement.executeQuery(
-                "select count() cnt from test.testExternalData where (id,s) in ext_data",
+                "select count() cnt from testExternalData where (id,s) in ext_data",
                 null,
                 Collections.singletonList(extData)
         );
@@ -254,13 +248,13 @@ public class ClickHouseStatementImplTest {
         Assert.assertEquals(cnt, 99500);
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testQueryWithMultipleExternalTables() throws SQLException {
         int tables = 30;
         int rows = 10;
 
-        String ddl = "drop table if exists test.test_ext_data_query;\n"
-            + "create table test.test_ext_data_query (\n"
+        String ddl = "drop table if exists test_ext_data_query;\n"
+            + "create table test_ext_data_query (\n"
             + "   Cb String,\n"
             + "   CREATETIME DateTime64(3),\n"
             + "   TIMESTAMP UInt64,\n"
@@ -274,7 +268,7 @@ public class ClickHouseStatementImplTest {
 
         String template = "avgIf(Ca1, Cb in L%1$d) as avgCa1%2$d, sumIf(Ca1, Cb in L%1$d) as sumCa1%2$d, minIf(Ca1, Cb in L%1$d) as minCa1%2$d, maxIf(Ca1, Cb in L%1$d) as maxCa1%2$d, anyIf(Ca1, Cb in L%1$d) as anyCa1%2$d, avgIf(Ca2, Cb in L%1$d) as avgCa2%2$d, sumIf(Ca2, Cb in L%1$d) as sumCa2%2$d, minIf(Ca2, Cb in L%1$d) as minCa2%2$d, maxIf(Ca2, Cb in L%1$d) as maxCa2%2$d, anyIf(Ca2, Cb in L%1$d) as anyCa2%2$d, avgIf(Ca3, Cb in L%1$d) as avgCa3%2$d, sumIf(Ca3, Cb in L%1$d) as sumCa3%2$d, minIf(Ca3, Cb in L%1$d) as minCa3%2$d, maxIf(Ca3, Cb in L%1$d) as maxCa3%2$d, anyIf(Ca3, Cb in L%1$d) as anyCa3%2$d";
         ClickHouseProperties properties = new ClickHouseProperties();
-        properties.setDatabase("test");
+        properties.setDatabase(dbName);
         properties.setSocketTimeout(300000);
         properties.setMaxAstElements(Long.MAX_VALUE);
         properties.setMaxTotal(20);
@@ -303,9 +297,9 @@ public class ClickHouseStatementImplTest {
         } else {
             sql.append('*');
         }
-        sql.append(" from test.test_ext_data_query where TIMESTAMP >= 1625796480 and TIMESTAMP < 1625796540 and Cc = 'eth0'");
+        sql.append(" from test_ext_data_query where TIMESTAMP >= 1625796480 and TIMESTAMP < 1625796540 and Cc = 'eth0'");
 
-        try (ClickHouseConnection c = ClickHouseContainerForTest.newDataSource(properties).getConnection();
+        try (ClickHouseConnection c = newDataSource(properties).getConnection();
             ClickHouseStatement s = c.createStatement();) {
             s.execute(ddl);
             ResultSet rs = s.executeQuery(sql.toString(), paramMap, extDataList);
@@ -313,11 +307,11 @@ public class ClickHouseStatementImplTest {
         }
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testResultSetWithExtremes() throws SQLException {
         ClickHouseProperties properties = new ClickHouseProperties();
         properties.setExtremes(true);
-        ClickHouseDataSource dataSource = ClickHouseContainerForTest.newDataSource(properties);
+        ClickHouseDataSource dataSource = newDataSource(properties);
         Connection connection = dataSource.getConnection();
 
         try {
@@ -334,7 +328,7 @@ public class ClickHouseStatementImplTest {
         }
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testSelectOne() throws SQLException {
         try (Statement stmt = connection.createStatement()) {
             ResultSet rs = stmt.executeQuery("select\n1");
@@ -344,7 +338,7 @@ public class ClickHouseStatementImplTest {
         }
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testSelectManyRows() throws SQLException {
         Statement stmt = connection.createStatement();
         int limit = 10000;
@@ -359,7 +353,7 @@ public class ClickHouseStatementImplTest {
         Assert.assertEquals(i, limit);
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testMoreResultsWithResultSet() throws SQLException {
         Statement stmt = connection.createStatement();
 
@@ -372,7 +366,7 @@ public class ClickHouseStatementImplTest {
         Assert.assertEquals(stmt.getUpdateCount(), -1);
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testMoreResultsWithUpdateCount() throws SQLException {
         Statement stmt = connection.createStatement();
 
@@ -385,7 +379,7 @@ public class ClickHouseStatementImplTest {
         Assert.assertEquals(stmt.getUpdateCount(), -1);
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testSelectQueryStartingWithWith() throws SQLException {
         Statement stmt = connection.createStatement();
         ResultSet rs = stmt.executeQuery("WITH 2 AS two SELECT two * two;");
@@ -398,9 +392,9 @@ public class ClickHouseStatementImplTest {
         stmt.close();
     }
 
-    @Test
+    @Test(groups = "integration")
     public void cancelTest_queryId_is_not_set() throws Exception {
-        final ClickHouseStatement firstStatement = dataSource.getConnection().createStatement();
+        final ClickHouseStatement firstStatement = newConnection().createStatement();
 
         final AtomicReference<Exception> exceptionAtomicReference = new AtomicReference<>();
         Thread thread = new Thread() {
@@ -436,10 +430,10 @@ public class ClickHouseStatementImplTest {
     }
 
 
-    @Test
+    @Test(groups = "integration")
     public void cancelTest_queryId_is_set() throws Exception {
         final String queryId = UUID.randomUUID().toString();
-        final ClickHouseStatement firstStatement = dataSource.getConnection().createStatement();
+        final ClickHouseStatement firstStatement = newConnection().createStatement();
 
         final CountDownLatch countDownLatch = new CountDownLatch(1);
         final AtomicReference<Exception> exceptionAtomicReference = new AtomicReference<>();
@@ -473,7 +467,7 @@ public class ClickHouseStatementImplTest {
         thread.interrupt();
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testArrayMetaActualExecutiom() throws SQLException {
         Statement stmt = connection.createStatement();
         ResultSet rs = stmt.executeQuery("SELECT array(42, 23)");
@@ -488,26 +482,26 @@ public class ClickHouseStatementImplTest {
 
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testInsertQueryUUIDArray() throws SQLException {
         // issue #569
         connection.createStatement().execute(
-            "DROP TABLE IF EXISTS test.uuidArray");
+            "DROP TABLE IF EXISTS uuidArray");
         connection.createStatement().execute(
-            "CREATE TABLE IF NOT EXISTS test.uuidArray"
+            "CREATE TABLE IF NOT EXISTS uuidArray"
           + "(id UInt8, arr Array(UUID)) "
           + "ENGINE = TinyLog");
         connection.createStatement().execute(
-            "INSERT INTO test.uuidArray VALUES(1, ['5ff22319-793d-4e6c-bdc1-916095a5a496'])");
+            "INSERT INTO uuidArray VALUES(1, ['5ff22319-793d-4e6c-bdc1-916095a5a496'])");
         ResultSet rs = connection.createStatement().executeQuery(
-            "SELECT * FROM test.uuidArray");
+            "SELECT * FROM uuidArray");
         rs.next();
         assertEquals(
             rs.getArray(2).getArray(),
             new UUID[] {UUID.fromString("5ff22319-793d-4e6c-bdc1-916095a5a496")});
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testMultiStatements() throws SQLException {
         try (Statement s = connection.createStatement()) {
             String sql = "select 1; select 2";
@@ -529,7 +523,7 @@ public class ClickHouseStatementImplTest {
         }
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testBatchProcessing() throws SQLException {
         try (Statement s = connection.createStatement()) {
             int[] results = s.executeBatch();

@@ -16,19 +16,19 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.zip.GZIPOutputStream;
 import org.testng.Assert;
-import org.testng.annotations.BeforeTest;
+import org.testng.annotations.AfterClass;
+import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 import ru.yandex.clickhouse.ClickHouseConnection;
-import ru.yandex.clickhouse.ClickHouseContainerForTest;
-import ru.yandex.clickhouse.ClickHouseDataSource;
+import ru.yandex.clickhouse.JdbcIntegrationTest;
 import ru.yandex.clickhouse.domain.ClickHouseCompression;
 import ru.yandex.clickhouse.domain.ClickHouseFormat;
+import ru.yandex.clickhouse.util.ClickHouseVersionNumberUtil;
 
-public class StreamSQLTest {
+public class StreamSQLTest extends JdbcIntegrationTest {
     private static final DateTimeFormatter DATE_TIME_FORMATTER_TZ = 
         DateTimeFormatter.ofPattern("yyyy-MM-dd['T'][ ]HH:mm:ss[.SSS][XXX]");
 
-    private ClickHouseDataSource dataSource;
     private ClickHouseConnection connection;
 
     private Timestamp utcToServerTimezone(String datetime) {
@@ -36,18 +36,21 @@ public class StreamSQLTest {
             .atZone(ZoneId.of("UTC")).withZoneSameInstant(connection.getTimeZone().toZoneId()).toInstant());
     }
 
-    @BeforeTest
+    @BeforeClass(groups = "integration")
     public void setUp() throws Exception {
-        dataSource = ClickHouseContainerForTest.newDataSource();
-        connection = dataSource.getConnection();
-        connection.createStatement().execute("CREATE DATABASE IF NOT EXISTS test");
+        connection = newConnection();
     }
 
-    @Test
+    @AfterClass(groups = "integration")
+    public void tearDown() throws Exception {
+        closeConnection(connection);
+    }
+
+    @Test(groups = "integration")
     public void simpleCSVInsert() throws SQLException {
-        connection.createStatement().execute("DROP TABLE IF EXISTS test.csv_stream_sql");
+        connection.createStatement().execute("DROP TABLE IF EXISTS csv_stream_sql");
         connection.createStatement().execute(
-                "CREATE TABLE test.csv_stream_sql (value Int32, string_value String) ENGINE = Log()"
+                "CREATE TABLE csv_stream_sql (value Int32, string_value String) ENGINE = Log()"
         );
 
         String string = "5,6\n1,6";
@@ -55,12 +58,12 @@ public class StreamSQLTest {
 
         connection.createStatement()
                 .write()
-                .sql("insert into test.csv_stream_sql format CSV")
+                .sql("insert into csv_stream_sql format CSV")
                 .data(inputStream)
                 .send();
 
         ResultSet rs = connection.createStatement().executeQuery(
-                "SELECT count() AS cnt, sum(value) AS sum, uniqExact(string_value) uniq FROM test.csv_stream_sql");
+                "SELECT count() AS cnt, sum(value) AS sum, uniqExact(string_value) uniq FROM csv_stream_sql");
         Assert.assertTrue(rs.next());
         Assert.assertEquals(rs.getInt("cnt"), 2);
         Assert.assertEquals(rs.getLong("sum"), 6);
@@ -92,23 +95,23 @@ public class StreamSQLTest {
         };
     }
 
-    @Test
+    @Test(groups = "integration")
     public void multiRowTSVInsert() throws SQLException {
-        connection.createStatement().execute("DROP TABLE IF EXISTS test.tsv_stream_sql");
+        connection.createStatement().execute("DROP TABLE IF EXISTS tsv_stream_sql");
         connection.createStatement().execute(
-                "CREATE TABLE test.tsv_stream_sql (value Int32, string_value String) ENGINE = Log()"
+                "CREATE TABLE tsv_stream_sql (value Int32, string_value String) ENGINE = Log()"
         );
 
         final int rowsCount = 100000;
 
         connection.createStatement().
                 write()
-                .sql("insert into test.tsv_stream_sql format TSV")
+                .sql("insert into tsv_stream_sql format TSV")
                 .data(getTSVStream(rowsCount), ClickHouseFormat.TSV)
                 .send();
 
         ResultSet rs = connection.createStatement().executeQuery(
-                "SELECT count() AS cnt, sum(value) AS sum, uniqExact(string_value) uniq FROM test.tsv_stream_sql");
+                "SELECT count() AS cnt, sum(value) AS sum, uniqExact(string_value) uniq FROM tsv_stream_sql");
         Assert.assertTrue(rs.next());
         Assert.assertEquals(rs.getInt("cnt"), rowsCount);
         Assert.assertEquals(rs.getInt("sum"), rowsCount);
@@ -131,11 +134,11 @@ public class StreamSQLTest {
         return new ByteArrayInputStream( os.toByteArray() );
     }
 
-    @Test
+    @Test(groups = "integration")
     public void multiRowTSVInsertCompressed() throws SQLException, IOException {
-        connection.createStatement().execute("DROP TABLE IF EXISTS test.tsv_compressed_stream_sql");
+        connection.createStatement().execute("DROP TABLE IF EXISTS tsv_compressed_stream_sql");
         connection.createStatement().execute(
-                "CREATE TABLE test.tsv_compressed_stream_sql (value Int32, string_value String) ENGINE = Log()"
+                "CREATE TABLE tsv_compressed_stream_sql (value Int32, string_value String) ENGINE = Log()"
         );
 
         final int rowsCount = 100000;
@@ -143,23 +146,23 @@ public class StreamSQLTest {
         InputStream gz = gzStream(getTSVStream(rowsCount));
         connection.createStatement()
                 .write()
-                .sql("insert into test.tsv_compressed_stream_sql format TSV")
+                .sql("insert into tsv_compressed_stream_sql format TSV")
                 .data(gz, ClickHouseFormat.TSV, ClickHouseCompression.gzip)
                 .send();
 
         ResultSet rs = connection.createStatement().executeQuery(
-                "SELECT count() AS cnt, sum(value) AS sum, uniqExact(string_value) uniq FROM test.tsv_compressed_stream_sql");
+                "SELECT count() AS cnt, sum(value) AS sum, uniqExact(string_value) uniq FROM tsv_compressed_stream_sql");
         Assert.assertTrue(rs.next());
         Assert.assertEquals(rs.getInt("cnt"), rowsCount);
         Assert.assertEquals(rs.getInt("sum"), rowsCount);
         Assert.assertEquals(rs.getInt("uniq"), rowsCount);
     }
 
-    @Test
+    @Test(groups = "integration")
     public void multiRowTSVInsertNotCompressed() throws SQLException, IOException {
-        connection.createStatement().execute("DROP TABLE IF EXISTS test.tsv_not_compressed_stream_sql");
+        connection.createStatement().execute("DROP TABLE IF EXISTS tsv_not_compressed_stream_sql");
         connection.createStatement().execute(
-                "CREATE TABLE test.tsv_not_compressed_stream_sql (value Int32, string_value String) ENGINE = Log()"
+                "CREATE TABLE tsv_not_compressed_stream_sql (value Int32, string_value String) ENGINE = Log()"
         );
 
         final int rowsCount = 100000;
@@ -167,12 +170,12 @@ public class StreamSQLTest {
         InputStream in = getTSVStream(rowsCount);
         connection.createStatement()
                 .write()
-                .sql("insert into test.tsv_not_compressed_stream_sql format TSV")
+                .sql("insert into tsv_not_compressed_stream_sql format TSV")
                 .data(in, ClickHouseFormat.TSV, ClickHouseCompression.none)
                 .send();
 
         ResultSet rs = connection.createStatement().executeQuery(
-                "SELECT count() AS cnt, sum(value) AS sum, uniqExact(string_value) uniq FROM test.tsv_not_compressed_stream_sql");
+                "SELECT count() AS cnt, sum(value) AS sum, uniqExact(string_value) uniq FROM tsv_not_compressed_stream_sql");
         Assert.assertTrue(rs.next());
         Assert.assertEquals(rs.getInt("cnt"), rowsCount);
         Assert.assertEquals(rs.getInt("sum"), rowsCount);
@@ -180,11 +183,11 @@ public class StreamSQLTest {
     }
 
 
-    @Test
+    @Test(groups = "integration")
     public void JSONEachRowInsert() throws SQLException {
-        connection.createStatement().execute("DROP TABLE IF EXISTS test.json_stream_sql");
+        connection.createStatement().execute("DROP TABLE IF EXISTS json_stream_sql");
         connection.createStatement().execute(
-                "CREATE TABLE test.json_stream_sql (value Int32, string_value String) ENGINE = Log()"
+                "CREATE TABLE json_stream_sql (value Int32, string_value String) ENGINE = Log()"
         );
 
         String string = "{\"value\":5,\"string_value\":\"6\"}\n{\"value\":1,\"string_value\":\"6\"}";
@@ -192,24 +195,24 @@ public class StreamSQLTest {
 
         connection.createStatement().
                 write()
-                .sql("insert into test.json_stream_sql")
+                .sql("insert into json_stream_sql")
                 .data(inputStream, ClickHouseFormat.JSONEachRow)
                 .data(inputStream)
                 .send();
 
         ResultSet rs = connection.createStatement().executeQuery(
-                "SELECT count() AS cnt, sum(value) AS sum, uniqExact(string_value) uniq FROM test.json_stream_sql");
+                "SELECT count() AS cnt, sum(value) AS sum, uniqExact(string_value) uniq FROM json_stream_sql");
         Assert.assertTrue(rs.next());
         Assert.assertEquals(rs.getInt("cnt"), 2);
         Assert.assertEquals(rs.getLong("sum"), 6);
         Assert.assertEquals(rs.getLong("uniq"), 1);
     }
 
-    @Test
+    @Test(groups = "integration")
     public void JSONEachRowCompressedInsert() throws SQLException, IOException {
-        connection.createStatement().execute("DROP TABLE IF EXISTS test.json_comressed_stream_sql");
+        connection.createStatement().execute("DROP TABLE IF EXISTS json_comressed_stream_sql");
         connection.createStatement().execute(
-                "CREATE TABLE test.json_comressed_stream_sql (value Int32, string_value String) ENGINE = Log()"
+                "CREATE TABLE json_comressed_stream_sql (value Int32, string_value String) ENGINE = Log()"
         );
 
         String string = "{\"value\":5,\"string_value\":\"6\"}\n{\"value\":1,\"string_value\":\"6\"}";
@@ -217,59 +220,59 @@ public class StreamSQLTest {
 
         connection.createStatement().
                 write()
-                .sql("insert into test.json_comressed_stream_sql")
+                .sql("insert into json_comressed_stream_sql")
                 .data(inputStream, ClickHouseFormat.JSONEachRow)
                 .data(gzStream(inputStream))
                 .dataCompression(ClickHouseCompression.gzip)
                 .send();
 
         ResultSet rs = connection.createStatement().executeQuery(
-                "SELECT count() AS cnt, sum(value) AS sum, uniqExact(string_value) uniq FROM test.json_comressed_stream_sql");
+                "SELECT count() AS cnt, sum(value) AS sum, uniqExact(string_value) uniq FROM json_comressed_stream_sql");
         Assert.assertTrue(rs.next());
         Assert.assertEquals(rs.getInt("cnt"), 2);
         Assert.assertEquals(rs.getLong("sum"), 6);
         Assert.assertEquals(rs.getLong("uniq"), 1);
     }
 
-    @Test
+    @Test(groups = "integration")
     public void CSVInsertCompressedIntoTable() throws SQLException, IOException {
-        connection.createStatement().execute("DROP TABLE IF EXISTS test.csv_stream_compressed");
+        connection.createStatement().execute("DROP TABLE IF EXISTS csv_stream_compressed");
         connection.createStatement().execute(
-                "CREATE TABLE test.csv_stream_compressed (value Int32, string_value String) ENGINE = Log()"
+                "CREATE TABLE csv_stream_compressed (value Int32, string_value String) ENGINE = Log()"
         );
 
         String string = "5,6\n1,6";
         InputStream inputStream = new ByteArrayInputStream(string.getBytes(Charset.forName("UTF-8")));
 
-        connection.createStatement().
-                write()
-                .table("test.csv_stream_compressed")
+        connection.createStatement()
+                .write()
+                .table(dbName + ".csv_stream_compressed")
                 .format(ClickHouseFormat.CSV)
                 .dataCompression(ClickHouseCompression.gzip)
                 .data(gzStream(inputStream))
                 .send();
 
         ResultSet rs = connection.createStatement().executeQuery(
-                "SELECT count() AS cnt, sum(value) AS sum, uniqExact(string_value) uniq FROM test.csv_stream_compressed");
+                "SELECT count() AS cnt, sum(value) AS sum, uniqExact(string_value) uniq FROM csv_stream_compressed");
         Assert.assertTrue(rs.next());
         Assert.assertEquals(rs.getInt("cnt"), 2);
         Assert.assertEquals(rs.getLong("sum"), 6);
         Assert.assertEquals(rs.getLong("uniq"), 1);
     }
 
-    @Test
+    @Test(groups = "integration")
     public void ORCInsertCompressedIntoTable() throws SQLException {
         // clickhouse-client -q "select number int, toString(number) str, 1/number flt, toDecimal64( 1/(number+1) , 9) dcml,
         // toDateTime('2020-01-01 00:00:00') + number time from numbers(100) format ORC"|gzip > test_sample.orc.gz
 
         String version = connection.getServerVersion();
-        if (version.compareTo("20.8") < 0) {
+        if (ClickHouseVersionNumberUtil.compare(version, "20.8") < 0) {
             return;
         }
 
-        connection.createStatement().execute("DROP TABLE IF EXISTS test.orc_stream_compressed");
+        connection.createStatement().execute("DROP TABLE IF EXISTS orc_stream_compressed");
         connection.createStatement().execute(
-                "CREATE TABLE test.orc_stream_compressed (int Int64, str String, flt Float64, " +
+                "CREATE TABLE orc_stream_compressed (int Int64, str String, flt Float64, " +
                      "dcml Decimal64(9), time DateTime) ENGINE = Log();"
         );
 
@@ -277,7 +280,7 @@ public class StreamSQLTest {
 
         connection.createStatement().
                 write()
-                .table("test.orc_stream_compressed")
+                .table(dbName + ".orc_stream_compressed")
                 .format(ClickHouseFormat.ORC)
                 .dataCompression(ClickHouseCompression.gzip)
                 .data(inputStream)
@@ -291,18 +294,18 @@ public class StreamSQLTest {
                         "max(dcml) max_dcml, " +
                         "min(time) min_time, " +
                         "max(time) max_time " +
-                        "FROM test.orc_stream_compressed");
+                        "FROM orc_stream_compressed");
         Assert.assertTrue(rs.next());
         Assert.assertEquals(rs.getInt("cnt"), 100);
         Assert.assertEquals(rs.getLong("sum_int"), 4950);
         Assert.assertEquals(rs.getFloat("sum_flt"), Float.POSITIVE_INFINITY);
         Assert.assertEquals(rs.getLong("uniq_str"), 100);
-        Assert.assertEquals(rs.getBigDecimal("max_dcml"), new BigDecimal("1.000000000"));
+        Assert.assertEquals(rs.getBigDecimal("max_dcml").setScale(9), new BigDecimal("1.000000000"));
         Assert.assertEquals(rs.getTimestamp("min_time"), utcToServerTimezone("2020-01-01 00:00:00"));
         Assert.assertEquals(rs.getTimestamp("max_time"), utcToServerTimezone("2020-01-01 00:01:39"));
     }
 
-    @Test
+    @Test(groups = "integration")
     public void ORCInsertCompressedIntoTable1() throws SQLException {
         // clickhouse-client -q "select number int, toString(number) str, 1/number flt, toDecimal64( 1/(number+1) , 9) dcml,
         // toDateTime('2020-01-01 00:00:00') + number time from numbers(100) format ORC"|gzip > test_sample.orc.gz
@@ -312,9 +315,9 @@ public class StreamSQLTest {
             return;
         }
 
-        connection.createStatement().execute("DROP TABLE IF EXISTS test.orc1_stream_compressed");
+        connection.createStatement().execute("DROP TABLE IF EXISTS orc1_stream_compressed");
         connection.createStatement().execute(
-                "CREATE TABLE test.orc1_stream_compressed (int Int64, str String, flt Float64, " +
+                "CREATE TABLE orc1_stream_compressed (int Int64, str String, flt Float64, " +
                         "dcml Decimal64(9), time DateTime) ENGINE = Log();"
         );
 
@@ -322,13 +325,13 @@ public class StreamSQLTest {
 
         connection.createStatement().
                 write()
-                .sql("insert into test.orc1_stream_compressed format ORC")
+                .sql("insert into orc1_stream_compressed format ORC")
                 .dataCompression(ClickHouseCompression.gzip)
                 .data(inputStream)
                 .send();
 
         ResultSet rs = connection.createStatement().executeQuery(
-                "select * from test.orc1_stream_compressed where int=42");
+                "select * from orc1_stream_compressed where int=42");
         Assert.assertTrue(rs.next());
         Assert.assertEquals(rs.getInt("int"), 42);
         Assert.assertEquals(rs.getString("str"), "42");
@@ -337,7 +340,7 @@ public class StreamSQLTest {
         Assert.assertEquals(rs.getTimestamp("time"), utcToServerTimezone("2020-01-01 00:00:42"));
     }
 
-    @Test
+    @Test(groups = "integration")
     public void ParquetInsertCompressedIntoTable() throws SQLException {
         // clickhouse-client -q "select number int, toString(number) str, 1/number flt, toDecimal64( 1/(number+1) , 9) dcml,
         // toDateTime('2020-01-01 00:00:00') + number time from numbers(100) format Parquet"|gzip > test_sample.parquet.gz
@@ -347,9 +350,9 @@ public class StreamSQLTest {
             return;
         }
 
-        connection.createStatement().execute("DROP TABLE IF EXISTS test.parquet_stream_compressed");
+        connection.createStatement().execute("DROP TABLE IF EXISTS parquet_stream_compressed");
         connection.createStatement().execute(
-                "CREATE TABLE test.parquet_stream_compressed (int Int64, str String, flt Float64, " +
+                "CREATE TABLE parquet_stream_compressed (int Int64, str String, flt Float64, " +
                         "dcml Decimal64(9), time DateTime) ENGINE = Log();"
         );
 
@@ -357,7 +360,7 @@ public class StreamSQLTest {
 
         connection.createStatement().
                 write()
-                .table("test.parquet_stream_compressed")
+                .table(dbName + ".parquet_stream_compressed")
                 .format(ClickHouseFormat.Parquet)
                 .dataCompression(ClickHouseCompression.gzip)
                 .data(inputStream)
@@ -371,18 +374,18 @@ public class StreamSQLTest {
                         "max(dcml) max_dcml, " +
                         "min(time) min_time, " +
                         "max(time) max_time " +
-                        "FROM test.parquet_stream_compressed");
+                        "FROM parquet_stream_compressed");
         Assert.assertTrue(rs.next());
         Assert.assertEquals(rs.getInt("cnt"), 100);
         Assert.assertEquals(rs.getLong("sum_int"), 4950);
         Assert.assertEquals(rs.getFloat("sum_flt"), Float.POSITIVE_INFINITY);
         Assert.assertEquals(rs.getLong("uniq_str"), 100);
-        Assert.assertEquals(rs.getBigDecimal("max_dcml"), new BigDecimal("1.000000000"));
+        Assert.assertEquals(rs.getBigDecimal("max_dcml").setScale(9), new BigDecimal("1.000000000"));
         Assert.assertEquals(rs.getTimestamp("min_time"), utcToServerTimezone("2020-01-01 00:00:00"));
         Assert.assertEquals(rs.getTimestamp("max_time"), utcToServerTimezone("2020-01-01 00:01:39"));
     }
 
-    @Test
+    @Test(groups = "integration")
     public void ParquetInsertCompressedIntoTable1() throws SQLException {
         // clickhouse-client -q "select number int, toString(number) str, 1/number flt, toDecimal64( 1/(number+1) , 9) dcml,
         // toDateTime('2020-01-01 00:00:00') + number time from numbers(100) format Parquet"|gzip > test_sample.parquet.gz
@@ -392,9 +395,9 @@ public class StreamSQLTest {
             return;
         }
 
-        connection.createStatement().execute("DROP TABLE IF EXISTS test.parquet1_stream_compressed");
+        connection.createStatement().execute("DROP TABLE IF EXISTS parquet1_stream_compressed");
         connection.createStatement().execute(
-                "CREATE TABLE test.parquet1_stream_compressed (int Int64, str String, flt Float64, " +
+                "CREATE TABLE parquet1_stream_compressed (int Int64, str String, flt Float64, " +
                         "dcml Decimal64(9), time DateTime) ENGINE = Log();"
         );
 
@@ -402,13 +405,13 @@ public class StreamSQLTest {
 
         connection.createStatement().
                 write()
-                .sql("insert into test.parquet1_stream_compressed format Parquet")
+                .sql("insert into parquet1_stream_compressed format Parquet")
                 .dataCompression(ClickHouseCompression.gzip)
                 .data(inputStream)
                 .send();
 
         ResultSet rs = connection.createStatement().executeQuery(
-                "select * from test.parquet1_stream_compressed where int=42");
+                "select * from parquet1_stream_compressed where int=42");
         Assert.assertTrue(rs.next());
         Assert.assertEquals(rs.getInt("int"), 42);
         Assert.assertEquals(rs.getString("str"), "42");

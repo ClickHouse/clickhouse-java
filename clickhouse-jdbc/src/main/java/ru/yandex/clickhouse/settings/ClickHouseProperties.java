@@ -16,6 +16,7 @@ public class ClickHouseProperties {
     private int apacheBufferSize;
     private int socketTimeout;
     private int connectionTimeout;
+    private int dataTransferTimeout;
     private int timeToLiveMillis;
     private int defaultMaxPerRoute;
     private int maxTotal;
@@ -109,6 +110,7 @@ public class ClickHouseProperties {
         this.apacheBufferSize = (Integer)getSetting(info, ClickHouseConnectionSettings.APACHE_BUFFER_SIZE);
         this.socketTimeout = (Integer)getSetting(info, ClickHouseConnectionSettings.SOCKET_TIMEOUT);
         this.connectionTimeout = (Integer)getSetting(info, ClickHouseConnectionSettings.CONNECTION_TIMEOUT);
+        this.dataTransferTimeout = (Integer)getSetting(info, ClickHouseConnectionSettings.DATA_TRANSFER_TIMEOUT);
         this.timeToLiveMillis = (Integer)getSetting(info, ClickHouseConnectionSettings.TIME_TO_LIVE_MILLIS);
         this.defaultMaxPerRoute = (Integer)getSetting(info, ClickHouseConnectionSettings.DEFAULT_MAX_PER_ROUTE);
         this.maxTotal = (Integer)getSetting(info, ClickHouseConnectionSettings.MAX_TOTAL);
@@ -176,6 +178,7 @@ public class ClickHouseProperties {
         ret.put(ClickHouseConnectionSettings.APACHE_BUFFER_SIZE.getKey(), String.valueOf(apacheBufferSize));
         ret.put(ClickHouseConnectionSettings.SOCKET_TIMEOUT.getKey(), String.valueOf(socketTimeout));
         ret.put(ClickHouseConnectionSettings.CONNECTION_TIMEOUT.getKey(), String.valueOf(connectionTimeout));
+        ret.put(ClickHouseConnectionSettings.DATA_TRANSFER_TIMEOUT.getKey(), String.valueOf(dataTransferTimeout));
         ret.put(ClickHouseConnectionSettings.TIME_TO_LIVE_MILLIS.getKey(), String.valueOf(timeToLiveMillis));
         ret.put(ClickHouseConnectionSettings.DEFAULT_MAX_PER_ROUTE.getKey(), String.valueOf(defaultMaxPerRoute));
         ret.put(ClickHouseConnectionSettings.MAX_TOTAL.getKey(), String.valueOf(maxTotal));
@@ -246,6 +249,7 @@ public class ClickHouseProperties {
         setApacheBufferSize(properties.apacheBufferSize);
         setSocketTimeout(properties.socketTimeout);
         setConnectionTimeout(properties.connectionTimeout);
+        setDataTransferTimeout(properties.dataTransferTimeout);
         setTimeToLiveMillis(properties.timeToLiveMillis);
         setDefaultMaxPerRoute(properties.defaultMaxPerRoute);
         setMaxTotal(properties.maxTotal);
@@ -548,6 +552,14 @@ public class ClickHouseProperties {
 
     public void setConnectionTimeout(int connectionTimeout) {
         this.connectionTimeout = connectionTimeout;
+    }
+
+    public int getDataTransferTimeout() {
+        return dataTransferTimeout;
+    }
+
+    public void setDataTransferTimeout(int dataTransferTimeout) {
+        this.dataTransferTimeout = dataTransferTimeout;
     }
 
     public String getUser() {

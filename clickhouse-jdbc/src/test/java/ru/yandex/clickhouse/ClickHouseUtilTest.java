@@ -9,14 +9,14 @@ import static org.testng.Assert.fail;
 
 public class ClickHouseUtilTest {
 
-    @Test
+    @Test(groups = "unit")
     public void testQuote() throws Exception {
         assertEquals("\\N", ClickHouseUtil.escape(null));
         assertEquals("test", ClickHouseUtil.escape("test"));
         assertEquals("t\\n\\0\\r\\test\\'", ClickHouseUtil.escape("t\n\0\r\test'"));
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testQuoteIdentifier() throws Exception {
         assertEquals("`z`", ClickHouseUtil.quoteIdentifier("z"));
         assertEquals("`a\\`\\' `", ClickHouseUtil.quoteIdentifier("a`' "));

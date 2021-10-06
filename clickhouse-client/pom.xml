@@ -1,9 +1,8 @@
-<project xmlns="http://maven.apache.org/POM/4.0.0"
-    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
-        <groupId>tech.clickhouse</groupId>
+        <groupId>com.clickhouse</groupId>
         <artifactId>clickhouse-java</artifactId>
         <version>${revision}</version>
     </parent>
@@ -16,49 +15,38 @@
     <description>Unified Java client for ClickHouse</description>
     <url>https://github.com/ClickHouse/clickhouse-jdbc/tree/master/clickhouse-client</url>
 
-    <properties>
-        <javacc-plugin.version>4.1.4</javacc-plugin.version>
-    </properties>
-
     <dependencies>
         <dependency>
-            <groupId>com.github.ben-manes.caffeine</groupId>
-            <artifactId>caffeine</artifactId>
+            <groupId>${project.parent.groupId}</groupId>
+            <artifactId>org.roaringbitmap</artifactId>
             <scope>provided</scope>
+            <exclusions>
+                <exclusion>
+                    <groupId>*</groupId>
+                    <artifactId>*</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
-        <dependency>
-            <groupId>com.lmax</groupId>
-            <artifactId>disruptor</artifactId>
-            <scope>provided</scope>
-        </dependency>
+
         <dependency>
             <groupId>dnsjava</groupId>
             <artifactId>dnsjava</artifactId>
             <scope>provided</scope>
         </dependency>
         <dependency>
-            <groupId>org.roaringbitmap</groupId>
-            <artifactId>RoaringBitmap</artifactId>
+            <groupId>org.lz4</groupId>
+            <artifactId>lz4-java</artifactId>
             <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
+            <scope>provided</scope>
         </dependency>
 
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-log4j12</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.mockito</groupId>
-            <artifactId>mockito-all</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>com.github.tomakehurst</groupId>
-            <artifactId>wiremock-jre8</artifactId>
             <scope>test</scope>
         </dependency>
         <dependency>
@@ -76,38 +64,8 @@
     <build>
         <plugins>
             <plugin>
-                <groupId>com.helger.maven</groupId>
-                <artifactId>ph-javacc-maven-plugin</artifactId>
-                <version>${javacc-plugin.version}</version>
-                <executions>
-                    <execution>
-                        <id>jjc</id>
-                        <phase>generate-sources</phase>
-                        <goals>
-                            <goal>javacc</goal>
-                        </goals>
-                        <configuration>
-                            <jdkVersion>${jdk.version}</jdkVersion>
-                            <javadocFriendlyComments>true</javadocFriendlyComments>
-                            <packageName>tech.clickhouse.client.parser</packageName>
-                            <sourceDirectory>src/main/javacc</sourceDirectory>
-                            <outputDirectory>src/main/java</outputDirectory>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
-            <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
-                <configuration>
-                    <source>${jdk.version}</source>
-                    <target>${jdk.version}</target>
-                    <showWarnings>true</showWarnings>
-                    <compilerArgs>
-                        <arg>-Xlint:all</arg>
-                        <!-- arg>-Werror</arg -->
-                    </compilerArgs>
-                </configuration>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -125,9 +83,9 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <configuration>
                     <environmentVariables>
-                        <TEST_ENV_STRING>env_str</TEST_ENV_STRING>
-                        <TEST_ENV_INTEGER>416</TEST_ENV_INTEGER>
-                        <TEST_ENV_BOOLEAN>false</TEST_ENV_BOOLEAN>
+                        <CHC_STR>env_str</CHC_STR>
+                        <CHC_INT>416</CHC_INT>
+                        <CHC_BOOL>false</CHC_BOOL>
                     </environmentVariables>
                 </configuration>
             </plugin>

@@ -13,7 +13,7 @@ import static org.testng.Assert.assertEquals;
 
 public class ClickHouseRowBinaryInputStreamTest {
 
-	@Test
+	@Test(groups = "unit")
 	public void testUInt8() throws Exception {
 		ClickHouseRowBinaryInputStream input = prepareStream(new byte[]{1, 0, 1, 0, -1, -128});
 
@@ -25,7 +25,7 @@ public class ClickHouseRowBinaryInputStreamTest {
 		assertEquals(input.readUInt8(), 128);
 	}
 
-	@Test
+	@Test(groups = "unit")
 	public void testUInt8AsByte() throws Exception {
 		ClickHouseRowBinaryInputStream input = prepareStream(new byte[]{1, 0, 1, 0, -1, -128});
 
@@ -37,7 +37,7 @@ public class ClickHouseRowBinaryInputStreamTest {
 		assertEquals(input.readUInt8AsByte(), (byte) 128);
 	}
 
-	@Test
+	@Test(groups = "unit")
 	public void testUInt16() throws Exception {
 		ClickHouseRowBinaryInputStream input = prepareStream(new byte[]{0, 0, -1, -1, 0, -128});
 
@@ -46,7 +46,7 @@ public class ClickHouseRowBinaryInputStreamTest {
 		assertEquals(input.readUInt16(), 32768);
 	}
 
-	@Test
+	@Test(groups = "unit")
 	public void testUInt16AsShort() throws Exception {
 		ClickHouseRowBinaryInputStream input = prepareStream(new byte[]{0, 0, -1, -1, 0, -128});
 
@@ -56,14 +56,14 @@ public class ClickHouseRowBinaryInputStreamTest {
 	}
 
 
-	@Test
+	@Test(groups = "unit")
 	public void testFloat64() throws Exception {
 		ClickHouseRowBinaryInputStream input = prepareStream(new byte[]{0, 0, 0, 0, 0, 0, -8, 127});
 
 		assertEquals(input.readFloat64(), Double.NaN);
 	}
 
-	@Test
+	@Test(groups = "unit")
 	public void testUInt64() throws Exception {
 		ClickHouseRowBinaryInputStream input = prepareStream(new byte[]{0, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1, -1, -1});
 
@@ -71,7 +71,7 @@ public class ClickHouseRowBinaryInputStreamTest {
 		assertEquals(input.readUInt64(), new BigInteger("18446744073709551615"));
 	}
 
-	@Test
+	@Test(groups = "unit")
 	public void testUInt64AsLong() throws Exception {
 		ClickHouseRowBinaryInputStream input = prepareStream(new byte[]{0, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1, -1, -1});
 
@@ -79,7 +79,7 @@ public class ClickHouseRowBinaryInputStreamTest {
 		assertEquals(input.readUInt64AsLong(), new BigInteger("18446744073709551615").longValue());
 	}
 
-	@Test
+	@Test(groups = "unit")
 	public void testDecimal128() throws Exception {
 		ClickHouseRowBinaryInputStream input = prepareStream(new byte[]{-10, 39, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0});
 		assertEquals(input.readDecimal128(3), new BigDecimal("10.230"));
@@ -87,19 +87,19 @@ public class ClickHouseRowBinaryInputStreamTest {
 		assertEquals(input2.readDecimal128(2), new BigDecimal("9999999999999.98"));
 	}
 
-	@Test
+	@Test(groups = "unit")
 	public void testDecimal64() throws Exception {
 		ClickHouseRowBinaryInputStream input = prepareStream(new byte[]{-10, 39, 0, 0, 0, 0, 0, 0});
 		assertEquals(input.readDecimal64(3), new BigDecimal("10.23"));
 	}
 
-	@Test
+	@Test(groups = "unit")
 	public void testDecimal32() throws Exception {
 		ClickHouseRowBinaryInputStream input = prepareStream(new byte[]{-10, 39, 0, 0});
 		assertEquals(input.readDecimal32(3), new BigDecimal("10.23"));
 	}
 
-	@Test
+	@Test(groups = "unit")
 	public void testFixedString() throws Exception {
 		ClickHouseRowBinaryInputStream input = prepareStream(new byte[]{48, 49, 48, 49, 55, 49, 50, 50, 48, 48});
 
@@ -110,7 +110,7 @@ public class ClickHouseRowBinaryInputStreamTest {
 		assertEquals(inputZeroPaddedString.readFixedString(10), "hello\0\0\0\0\0");
 	}
 
-	@Test
+	@Test(groups = "unit")
 	public void testOne() throws Exception {
 		ClickHouseRowBinaryInputStream input = prepareStream(new byte[]{5, 97, 46, 98, 46, 99, 123, 20, -82, 71, -31, 26, 69, 64, 34, 87, -13, 88, 120, 67, 48, 116, -13, 88});
 

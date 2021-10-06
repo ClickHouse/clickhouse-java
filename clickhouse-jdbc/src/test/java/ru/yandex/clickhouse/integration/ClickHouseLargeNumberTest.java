@@ -16,27 +16,27 @@ import java.util.EnumMap;
 import java.util.Map;
 import java.util.UUID;
 
-import org.testng.annotations.AfterTest;
-import org.testng.annotations.BeforeTest;
+import org.testng.annotations.AfterClass;
+import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
 import ru.yandex.clickhouse.ClickHouseConnection;
-import ru.yandex.clickhouse.ClickHouseContainerForTest;
 import ru.yandex.clickhouse.ClickHouseDataSource;
 import ru.yandex.clickhouse.ClickHouseStatement;
+import ru.yandex.clickhouse.JdbcIntegrationTest;
 import ru.yandex.clickhouse.except.ClickHouseException;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
 import ru.yandex.clickhouse.settings.ClickHouseQueryParam;
 import ru.yandex.clickhouse.util.ClickHouseVersionNumberUtil;
 
-public class ClickHouseLargeNumberTest {
+public class ClickHouseLargeNumberTest extends JdbcIntegrationTest {
     private ClickHouseConnection conn;
 
-    @BeforeTest
+    @BeforeClass(groups = "integration")
     public void setUp() throws Exception {
         ClickHouseProperties props = new ClickHouseProperties();
         props.setSessionId(UUID.randomUUID().toString());
-        ClickHouseDataSource dataSource = ClickHouseContainerForTest.newDataSource(props);
+        ClickHouseDataSource dataSource = newDataSource(props);
         conn = dataSource.getConnection();
         try (Statement s = conn.createStatement()) {
             s.execute("SET allow_experimental_bigint_types=1");
@@ -45,7 +45,7 @@ public class ClickHouseLargeNumberTest {
         }
     }
 
-    @AfterTest
+    @AfterClass(groups = "integration")
     public void tearDown() throws Exception {
         if (conn == null) {
             return;
@@ -56,7 +56,7 @@ public class ClickHouseLargeNumberTest {
         }
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testBigIntSupport() throws SQLException {
         if (conn == null || ClickHouseVersionNumberUtil.compare(conn.getServerVersion(), "21.7") >= 0) {
             return;
@@ -64,20 +64,18 @@ public class ClickHouseLargeNumberTest {
 
         String testSql = "create table if not exists system.test_bigint_support(i Int256) engine=Memory;"
                 + "drop table if exists system.test_bigint_support;";
-        try (Connection conn = ClickHouseContainerForTest.newDataSource().getConnection();
-                Statement s = conn.createStatement()) {
+        try (Connection conn = newDataSource().getConnection(); Statement s = conn.createStatement()) {
             s.execute("set allow_experimental_bigint_types=0;" + testSql);
             fail("Should fail without enabling bigint support");
         } catch (SQLException e) {
             assertEquals(e.getErrorCode(), 44);
         }
 
-        try (Connection conn = ClickHouseContainerForTest.newDataSource().getConnection();
-                Statement s = conn.createStatement()) {
+        try (Connection conn = newDataSource().getConnection(); Statement s = conn.createStatement()) {
             assertFalse(s.execute("set allow_experimental_bigint_types=1;" + testSql));
         }
 
-        try (ClickHouseConnection conn = ClickHouseContainerForTest.newDataSource().getConnection();
+        try (ClickHouseConnection conn = newDataSource().getConnection();
                 ClickHouseStatement s = conn.createStatement()) {
             Map<ClickHouseQueryParam, String> params = new EnumMap<>(ClickHouseQueryParam.class);
             params.put(ClickHouseQueryParam.ALLOW_EXPERIMENTAL_BIGINT_TYPES, "1");
@@ -91,7 +89,7 @@ public class ClickHouseLargeNumberTest {
         }
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testSignedIntegers() throws Exception {
         if (conn == null) {
             return;
@@ -123,7 +121,7 @@ public class ClickHouseLargeNumberTest {
         }
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testUnsignedIntegers() throws Exception {
         if (conn == null) {
             return;
@@ -148,7 +146,7 @@ public class ClickHouseLargeNumberTest {
         }
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testDecimal256() throws Exception {
         if (conn == null) {
             return;
@@ -169,13 +167,16 @@ public class ClickHouseLargeNumberTest {
             }
 
             // check max scale
+            if (ClickHouseVersionNumberUtil.compare(conn.getServerVersion(), "21.9") >= 0) {
+                s.execute("set output_format_decimal_trailing_zeros=1");
+            }
             try (ResultSet rs = s.executeQuery("select d from test_decimal256 order by d")) {
                 assertTrue(rs.next());
-                assertEquals(new BigDecimal("-123456789.123456789").setScale(20), rs.getObject("d"));
+                assertEquals(rs.getObject("d"), new BigDecimal("-123456789.123456789").setScale(20));
 
                 assertTrue(rs.next());
                 assertTrue(rs.next());
-                assertEquals(new BigDecimal("123456789.123456789").setScale(20), rs.getObject("d"));
+                assertEquals(rs.getObject("d"), new BigDecimal("123456789.123456789").setScale(20));
             }
         }
     }

@@ -9,7 +9,7 @@ import ru.yandex.clickhouse.settings.ClickHouseProperties;
 
 public class ClickhouseJdbcUrlParserTest {
 
-    @Test
+    @Test(groups = "unit")
     public void testParseDashes() throws Exception {
         Properties props = new Properties();
         ClickHouseProperties chProps = ClickhouseJdbcUrlParser.parse(
@@ -17,7 +17,7 @@ public class ClickhouseJdbcUrlParserTest {
         Assert.assertEquals(chProps.getDatabase(), "db-name-with-dash");
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testParseTrailingSlash() throws Exception {
         Properties props = new Properties();
         ClickHouseProperties chProps = ClickhouseJdbcUrlParser.parse(
@@ -25,7 +25,7 @@ public class ClickhouseJdbcUrlParserTest {
         Assert.assertEquals(chProps.getDatabase(), "default");
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testParseDbInPathAndProps() throws Exception {
         ClickHouseProperties props = new ClickHouseProperties();
         props.setDatabase("database-name");
@@ -35,7 +35,7 @@ public class ClickhouseJdbcUrlParserTest {
         Assert.assertEquals(chProps.getPath(), "/");
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testParseDbInPathAndProps2() throws Exception {
         ClickHouseProperties props = new ClickHouseProperties();
         props.setDatabase("database-name");
@@ -46,7 +46,7 @@ public class ClickhouseJdbcUrlParserTest {
         Assert.assertEquals(chProps.getPath(), "/database-name");
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testParsePathDefaultDb() throws Exception {
         ClickHouseProperties props = new ClickHouseProperties();
         props.setPath("/path");
@@ -56,7 +56,7 @@ public class ClickhouseJdbcUrlParserTest {
         Assert.assertEquals(chProps.getPath(), "/path");
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testParsePathDefaultDb2() throws Exception {
         ClickHouseProperties props = new ClickHouseProperties();
         props.setPath("/path");
@@ -67,7 +67,7 @@ public class ClickhouseJdbcUrlParserTest {
         Assert.assertEquals(chProps.getPath(), "/"); //uri takes priority
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testParsePathAndDb() throws Exception {
         ClickHouseProperties props = new ClickHouseProperties();
         ClickHouseProperties chProps = ClickhouseJdbcUrlParser.parse(
@@ -76,7 +76,7 @@ public class ClickhouseJdbcUrlParserTest {
         Assert.assertEquals(chProps.getPath(), "/");
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testParsePathAndDb2() throws Exception {
         ClickHouseProperties props = new ClickHouseProperties();
         props.setUsePathAsDb(false);

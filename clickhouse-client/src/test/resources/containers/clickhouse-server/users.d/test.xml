@@ -1,0 +1,40 @@
+<yandex>
+    <users>
+        <dba>
+            <access_management>1</access_management>
+            <profile>default</profile>
+            <networks>
+                <ip>::/0</ip>
+            </networks>
+            <password>dba</password>
+            <quota>default</quota>
+        </dba>
+        <foo>
+            <profile>default</profile>
+            <networks>
+                <ip>::/0</ip>
+            </networks>
+            <password>bar</password>
+            <quota>default</quota>
+        </foo>
+        <oof>
+            <profile>default</profile>
+            <networks>
+                <ip>::/0</ip>
+            </networks>
+            <password></password>
+            <quota>default</quota>
+        </oof>
+        <test>
+            <profile>default</profile>
+            <networks incl="networks" replace="replace">
+                <ip>::/0</ip>
+            </networks>
+            <password>123</password>
+            <quota>default</quota>
+            <allow_databases>
+                <database>system</database>
+            </allow_databases>
+        </test>
+    </users>
+</yandex>

@@ -18,14 +18,14 @@ public class ClickHouseOffsetDateTimeParserTest {
     private TimeZone tzBerlin;
     private ClickHouseOffsetDateTimeParser parser;
 
-    @BeforeClass
+    @BeforeClass(groups = "unit")
     public void setUp() {
         tzLosAngeles = TimeZone.getTimeZone("America/Los_Angeles");
         tzBerlin = TimeZone.getTimeZone("Europe/Berlin");
         parser = ClickHouseOffsetDateTimeParser.getInstance();
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testParseOffsetDateTimeDateTime() throws Exception {
         OffsetDateTime inst = parser.parse(
             ByteFragment.fromString("2020-01-20 22:23:24"),
@@ -41,7 +41,7 @@ public class ClickHouseOffsetDateTimeParserTest {
             1579587804);
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testParseOffsetDateTimeDateTimeColumnOverride() throws Exception {
         ClickHouseColumnInfo columnInfo = ClickHouseColumnInfo.parse(
             "DateTime(Europe/Berlin)", "col", null);
@@ -52,7 +52,7 @@ public class ClickHouseOffsetDateTimeParserTest {
             1579555404);
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testParseOffsetDateTimeDate() throws Exception {
         ClickHouseColumnInfo columnInfo = ClickHouseColumnInfo.parse(
             "Date", "col", null);
@@ -64,6 +64,7 @@ public class ClickHouseOffsetDateTimeParserTest {
     }
 
     @Test(
+        groups = "unit", 
         dataProvider = ClickHouseTimeParserTestDataProvider.OTHER_DATA_TYPES,
         dataProviderClass = ClickHouseTimeParserTestDataProvider.class)
     public void parseOffsetDateTimeTimestampSeconds(ClickHouseDataType dataType) throws Exception {
@@ -82,6 +83,7 @@ public class ClickHouseOffsetDateTimeParserTest {
     }
 
     @Test(
+        groups = "unit", 
         dataProvider = ClickHouseTimeParserTestDataProvider.OTHER_DATA_TYPES,
         dataProviderClass = ClickHouseTimeParserTestDataProvider.class)
     public void parseOffsetDateTimeTimestampMillis(ClickHouseDataType dataType) throws Exception {
@@ -99,7 +101,7 @@ public class ClickHouseOffsetDateTimeParserTest {
             1579507200);
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testParseOffsetDateTimeString() throws Exception {
         ClickHouseColumnInfo columnInfo = ClickHouseColumnInfo.parse(
             "String", "col", null);

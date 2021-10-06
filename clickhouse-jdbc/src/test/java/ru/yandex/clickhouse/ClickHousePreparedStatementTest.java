@@ -22,28 +22,28 @@ public class ClickHousePreparedStatementTest {
 
     private static final String SQL_STATEMENT= "INSERT INTO foo (bar) VALUES (";
 
-    @Test
+    @Test(groups = "unit")
     public void testSetBytesNull() throws Exception {
         ClickHousePreparedStatement s = createStatement();
         s.setBytes(1, null);
         assertParamMatches(s, "null");
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testSetBytesNormal() throws Exception {
         ClickHousePreparedStatement s = createStatement();
         s.setBytes(1, "foo".getBytes("UTF-8"));
         assertParamMatches(s, "'\\x66\\x6F\\x6F'");
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testSetBytesEmpty() throws Exception {
         ClickHousePreparedStatement s = createStatement();
         s.setBytes(1, "".getBytes("UTF-8"));
         assertParamMatches(s, "''");
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testSetNull() throws Exception {
         ClickHousePreparedStatement s = createStatement();
         s.setNull(1, Types.ARRAY);
@@ -52,56 +52,56 @@ public class ClickHousePreparedStatementTest {
         assertParamMatches(s, "null");
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testSetBooleanTrue() throws Exception {
         ClickHousePreparedStatement s = createStatement();
         s.setBoolean(1, true);
         assertParamMatches(s, "1");
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testSetBooleanFalse() throws Exception {
         ClickHousePreparedStatement s = createStatement();
         s.setBoolean(1, false);
         assertParamMatches(s, "0");
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testSetByte() throws Exception {
         ClickHousePreparedStatement s = createStatement();
         s.setByte(1, (byte) -127);
         assertParamMatches(s, "-127");
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testSetShort() throws Exception {
         ClickHousePreparedStatement s = createStatement();
         s.setShort(1, (short) 42);
         assertParamMatches(s, "42");
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testSetInt() throws Exception {
         ClickHousePreparedStatement s = createStatement();
         s.setInt(1, 0);
         assertParamMatches(s, "0");
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testSetLong() throws Exception {
         ClickHousePreparedStatement s = createStatement();
         s.setLong(1, 1337L);
         assertParamMatches(s, "1337");
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testSetFloat() throws Exception {
         ClickHousePreparedStatement s = createStatement();
         s.setFloat(1, -23.42f);
         assertParamMatches(s, "-23.42");
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testSetDouble() throws Exception {
         ClickHousePreparedStatement s = createStatement();
         s.setDouble(1, Double.MIN_VALUE);
@@ -109,49 +109,49 @@ public class ClickHousePreparedStatementTest {
                                            // but parsing is OK
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testSetBigDecimalNull() throws Exception {
         ClickHousePreparedStatement s = createStatement();
         s.setBigDecimal(1, null);
         assertParamMatches(s, "null");
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testSetBigDecimalNormal() throws Exception {
         ClickHousePreparedStatement s = createStatement();
         s.setBigDecimal(1, BigDecimal.valueOf(-0.2342));
         assertParamMatches(s, "-0.2342");
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testSetStringNull() throws Exception {
         ClickHousePreparedStatement s = createStatement();
         s.setString(1, null);
         assertParamMatches(s, "null");
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testSetStringSimple() throws Exception {
         ClickHousePreparedStatement s = createStatement();
         s.setString(1, "foo");
         assertParamMatches(s, "'foo'");
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testSetStringEvil() throws Exception {
         ClickHousePreparedStatement s = createStatement();
         s.setString(1, "\"'\\x32");
         assertParamMatches(s, "'\"\\'\\\\x32'");
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testSetDateNull() throws Exception {
         ClickHousePreparedStatement s = createStatement();
         s.setDate(1, null);
         assertParamMatches(s, "null");
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testSetDateNormal() throws Exception {
         ClickHousePreparedStatement s = createStatement();
         Date d = new Date(1557168043000L);
@@ -159,7 +159,7 @@ public class ClickHousePreparedStatementTest {
         assertParamMatches(s, "'" + d.toLocalDate().toString() + "'");
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testSetDateOtherTimeZone() throws Exception {
         ClickHouseProperties p = new ClickHouseProperties();
         ClickHousePreparedStatement s = createStatement(
@@ -178,7 +178,7 @@ public class ClickHousePreparedStatementTest {
         */
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testSetDateOtherTimeZoneServerTime() throws Exception {
         ClickHouseProperties props = new ClickHouseProperties();
         props.setUseServerTimeZoneForDates(true);
@@ -189,7 +189,7 @@ public class ClickHousePreparedStatementTest {
         assertParamMatches(s, "'2019-05-07'");
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testSetDateCalendar() throws Exception {
         ClickHouseProperties props = new ClickHouseProperties();
         props.setUseServerTimeZoneForDates(true);
@@ -201,7 +201,7 @@ public class ClickHousePreparedStatementTest {
         assertParamMatches(s, "'2019-05-06'");
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testSetDateCalendarSameTimeZone() throws Exception {
         ClickHouseProperties props = new ClickHouseProperties();
         props.setUseServerTimeZoneForDates(true);
@@ -213,7 +213,7 @@ public class ClickHousePreparedStatementTest {
         assertParamMatches(s, "'2019-05-07'");
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testSetDateCalendarNull() throws Exception {
         ClickHouseProperties props = new ClickHouseProperties();
         props.setUseServerTimeZoneForDates(true);
@@ -224,21 +224,21 @@ public class ClickHousePreparedStatementTest {
         assertParamMatches(s, "'2019-05-07'");
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testSetTimeNull() throws Exception {
         ClickHousePreparedStatement s = createStatement();
         s.setTime(1, null);
         assertParamMatches(s, "null");
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testSetTimeNormal() throws Exception {
         ClickHousePreparedStatement s = createStatement();
         s.setTime(1, new Time(1557168043000L));
         assertParamMatches(s, "'21:40:43'");
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testSetTimeNormalOtherTimeZone() throws Exception {
         ClickHousePreparedStatement s = createStatement(
             TimeZone.getTimeZone("America/Los_Angeles"),
@@ -247,7 +247,7 @@ public class ClickHousePreparedStatementTest {
         assertParamMatches(s, "'11:40:43'");
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testSetTimeCalendar() throws Exception {
         ClickHousePreparedStatement s = createStatement(
             TimeZone.getTimeZone("America/Los_Angeles"),
@@ -257,7 +257,7 @@ public class ClickHousePreparedStatementTest {
         assertParamMatches(s, "'02:40:43'");
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testSetTimeCalendarNull() throws Exception {
         ClickHousePreparedStatement s = createStatement(
             TimeZone.getTimeZone("America/Los_Angeles"),
@@ -266,7 +266,7 @@ public class ClickHousePreparedStatementTest {
         assertParamMatches(s, "'11:40:43'");
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testSetTimeCalendarSameTimeZone() throws Exception {
         ClickHousePreparedStatement s = createStatement(
             TimeZone.getTimeZone("America/Los_Angeles"),
@@ -276,21 +276,21 @@ public class ClickHousePreparedStatementTest {
         assertParamMatches(s, "'11:40:43'");
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testSetTimestampNull() throws Exception {
         ClickHousePreparedStatement s = createStatement();
         s.setTimestamp(1, null);
         assertParamMatches(s, "null");
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testSetTimestampNormal() throws Exception {
         ClickHousePreparedStatement s = createStatement();
         s.setTimestamp(1, new Timestamp(1557168043000L));
         assertParamMatches(s, "'2019-05-06 21:40:43'");
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testSetTimestampNormalOtherTimeZone() throws Exception {
         ClickHousePreparedStatement s = createStatement(
             TimeZone.getTimeZone("America/Los_Angeles"),
@@ -299,7 +299,7 @@ public class ClickHousePreparedStatementTest {
         assertParamMatches(s, "'2019-05-06 11:40:43'");
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testSetTimestampCalendar() throws Exception {
         ClickHousePreparedStatement s = createStatement(
             TimeZone.getTimeZone("America/Los_Angeles"),
@@ -309,7 +309,7 @@ public class ClickHousePreparedStatementTest {
         assertParamMatches(s, "'2019-05-07 02:40:43'");
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testSetTimestampCalendarSameTimeZone() throws Exception {
         ClickHousePreparedStatement s = createStatement(
             TimeZone.getTimeZone("America/Los_Angeles"),
@@ -319,7 +319,7 @@ public class ClickHousePreparedStatementTest {
         assertParamMatches(s, "'2019-05-06 11:40:43'");
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testSetTimestampCalendarNull() throws Exception {
         ClickHousePreparedStatement s = createStatement(
             TimeZone.getTimeZone("America/Los_Angeles"),

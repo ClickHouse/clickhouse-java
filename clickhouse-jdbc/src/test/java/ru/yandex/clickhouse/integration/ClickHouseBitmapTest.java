@@ -6,34 +6,35 @@ import static org.testng.Assert.assertTrue;
 
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
-import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 
+import org.junit.Assert;
 import org.roaringbitmap.RoaringBitmap;
 import org.roaringbitmap.buffer.ImmutableRoaringBitmap;
 import org.roaringbitmap.buffer.MutableRoaringBitmap;
-import org.testng.annotations.AfterTest;
-import org.testng.annotations.BeforeTest;
+import org.testng.annotations.AfterClass;
+import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
-import ru.yandex.clickhouse.ClickHouseContainerForTest;
+import ru.yandex.clickhouse.ClickHouseConnection;
 import ru.yandex.clickhouse.ClickHouseDataSource;
+import ru.yandex.clickhouse.JdbcIntegrationTest;
 import ru.yandex.clickhouse.domain.ClickHouseDataType;
 import ru.yandex.clickhouse.util.ClickHouseBitmap;
 
-public class ClickHouseBitmapTest {
-    private Connection conn;
+public class ClickHouseBitmapTest extends JdbcIntegrationTest {
+    private ClickHouseConnection conn;
 
-    @BeforeTest
+    @BeforeClass(groups = "integration")
     public void setUp() throws Exception {
-        ClickHouseDataSource dataSource = ClickHouseContainerForTest.newDataSource();
+        ClickHouseDataSource dataSource = newDataSource();
         conn = dataSource.getConnection();
     }
 
-    @AfterTest
+    @AfterClass(groups = "integration")
     public void tearDown() throws Exception {
         if (conn != null) {
             conn.close();
@@ -66,7 +67,7 @@ public class ClickHouseBitmapTest {
         assertFalse(rs.next());
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testRoaringBitmap() throws Exception {
         if (conn == null) {
             return;
@@ -165,6 +166,36 @@ public class ClickHouseBitmapTest {
             }
 
             s.execute("truncate table test_roaring_bitmap");
+        }
+    }
+
+    @Test(groups = "integration")
+    public void testRoaringBitmap64() throws Exception {
+        if (conn == null) {
+            return;
+        }
+
+        try (Statement s = conn.createStatement()) {
+            s.execute(
+                    "drop table if exists string_labels; create table string_labels (label String, value String, uv AggregateFunction(groupBitmap, UInt64)) ENGINE = AggregatingMergeTree() partition by label order by (label, value);");
+            s.execute(
+                    "drop table if exists user_string_properties; create table user_string_properties (uid UInt64, label String, value String) ENGINE=MergeTree() order by uid");
+            s.execute(
+                    "drop table if exists string_labels_mv; create materialized view string_labels_mv to string_labels as select label, value, groupBitmapState(uid) as uv from user_string_properties group by (label, value)");
+            s.execute(
+                    "insert into user_string_properties select number as uid, 'gender' as label, multiIf((number % 3) = 0, 'f', 'm') as value from numbers(20000000)");
+
+            try (ResultSet rs = s.executeQuery(
+                    "select groupBitmapMergeState(uv) as uv from string_labels where label = 'gender' and value = 'f'")) {
+                Assert.assertTrue(rs.next());
+
+                ClickHouseBitmap bitmap = rs.getObject(1, ClickHouseBitmap.class);
+                Assert.assertNotNull(bitmap);
+
+                Assert.assertFalse(rs.next());
+            }
+
+            // s.execute("truncate table test_roaring_bitmap");
         }
     }
 }

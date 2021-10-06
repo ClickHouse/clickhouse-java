@@ -11,7 +11,7 @@ import static org.testng.Assert.assertNull;
 public class ClickHouseCookieStoreProviderTest {
     ClickHouseCookieStoreProvider cookieStoreProvider = new ClickHouseCookieStoreProvider();
 
-    @Test
+    @Test(groups = "unit")
     public void testCookieStoreProviderWithNullHost() {
         ClickHouseProperties props = new ClickHouseProperties();
         props.setUseSharedCookieStore(true);
@@ -20,7 +20,7 @@ public class ClickHouseCookieStoreProviderTest {
         assertNull(cookieStoreProvider.getCookieStore(props));
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testCookieStoreProviderWithInvalidPort() {
         ClickHouseProperties props = new ClickHouseProperties();
         props.setUseSharedCookieStore(true);
@@ -30,7 +30,7 @@ public class ClickHouseCookieStoreProviderTest {
         assertNull(cookieStoreProvider.getCookieStore(props));
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testCookieStoreProviderWithNullDBName() {
         ClickHouseProperties props = new ClickHouseProperties();
         props.setUseSharedCookieStore(true);
@@ -39,7 +39,7 @@ public class ClickHouseCookieStoreProviderTest {
         assertNull(cookieStoreProvider.getCookieStore(props));
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testCookieStoreProviderWithSameDBAndSharedCookieStore() {
         ClickHouseProperties props = new ClickHouseProperties();
         props.setUseSharedCookieStore(true);
@@ -50,7 +50,7 @@ public class ClickHouseCookieStoreProviderTest {
         assertEquals(cookieStoreProvider.getCookieStore(props), cookieStoreProvider.getCookieStore(props));
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testCookieStoreProviderWithPrivateCookieStore() {
         ClickHouseProperties props = new ClickHouseProperties();
         props.setUseSharedCookieStore(false);
@@ -60,7 +60,7 @@ public class ClickHouseCookieStoreProviderTest {
         assertNull(cookieStoreProvider.getCookieStore(props));
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testCookieStoreProviderWithDiffDB() {
         ClickHouseProperties props1 = new ClickHouseProperties();
         props1.setUseSharedCookieStore(true);
