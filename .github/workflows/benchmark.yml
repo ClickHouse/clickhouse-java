@@ -55,7 +55,7 @@ jobs:
         run: |
           find . -type f -name "pom.xml" -exec sed -i -e 's|${revision}|${{ steps.version.outputs.value }}|g' \
             -e 's|^\(    <version>\).*\(</version>\)$|\1${{ steps.version.outputs.value }}\2|' \
-            -e 's|${parent.groupId}|tech.clickhouse|g' -e 's|.*argLine.*timezone=.*||g' '{}' \;
+            -e 's|${parent.groupId}|com.clickhouse|g' '{}' \;
           find . -type f -name "log4j.*" -exec rm -fv '{}' \;
       - name: Build project
         run: |
@@ -99,7 +99,7 @@ jobs:
         run: |
           find . -type f -name "pom.xml" -exec sed -i -e 's|${revision}|${{ github.event.inputs.version }}|g' \
             -e 's|^\(    <version>\).*\(</version>\)$|\1${{ github.event.inputs.driver }}\2|' \
-            -e 's|${parent.groupId}|tech.clickhouse|g' -e 's|.*argLine.*timezone=.*||g' '{}' \;
+            -e 's|${parent.groupId}|com.clickhouse|g' '{}' \;
           find . -type f -name "log4j.*" -exec rm -fv '{}' \;
         continue-on-error: true
       - name: Install driver as needed

@@ -5,21 +5,18 @@
     <parent>
         <groupId>com.clickhouse</groupId>
         <artifactId>third-party-libraries</artifactId>
-        <version>1.0.0</version>
+        <version>${revision}</version>
     </parent>
 
     <artifactId>io.grpc</artifactId>
-    <version>${grpc.version}</version>
-    <name>Repackaged grpc-java for JPMS support</name>
-    <description>A Java modules compatible re-packaging of grpc-java</description>
+    <version>${revision}</version>
+    <packaging>jar</packaging>
+
+    <name>${project.artifactId}</name>
+    <description>Repackaged grpc-java for JPMS support</description>
+    <url>https://github.com/ClickHouse/clickhouse-jdbc/tree/master/third-party-libraries/io.grpc</url>
 
     <dependencies>
-        <!--
-        <dependency>
-            <groupId>com.google.code.gson</groupId>
-            <artifactId>gson</artifactId>
-        </dependency>
-        -->
         <dependency>
             <groupId>io.grpc</groupId>
             <artifactId>grpc-api</artifactId>
@@ -72,7 +69,6 @@
 
     <build>
         <plugins>
-            <!-- create the base JAR removing all of the dummy classes -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-jar-plugin</artifactId>
@@ -82,8 +78,6 @@
                     </excludes>
                 </configuration>
             </plugin>
-
-            <!-- create the shaded JAR -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
@@ -114,14 +108,6 @@
                                     </excludes>
                                 </filter>
                             </filters>
-                            <!-- artifactSet>
-                                <includes>
-                                    <include>io.grpc:*</include>
-                                    <include>com.google.instrumentation:instrumentation-api</include>
-                                    <include>io.opencensus:opencensus-api</include>
-                                    <include>io.opencensus:opencensus-contrib-grpc-metrics</include>
-                                </includes>
-                            </artifactSet -->
                             <transformers>
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer" />
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer" />

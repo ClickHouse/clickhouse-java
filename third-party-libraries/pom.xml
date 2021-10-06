@@ -4,7 +4,7 @@
 
     <groupId>com.clickhouse</groupId>
     <artifactId>third-party-libraries</artifactId>
-    <version>1.0.0</version>
+    <version>${revision}</version>
     <packaging>pom</packaging>
 
     <name>${project.artifactId}</name>
@@ -68,6 +68,7 @@
     </distributionManagement>
 
     <properties>
+        <revision>1.0.0</revision>
         <project.current.year>2021</project.current.year>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
@@ -85,6 +86,7 @@
         <shade-plugin.version>3.2.4</shade-plugin.version>
         <source-plugin.version>3.2.1</source-plugin.version>
         <jar-plugin.version>3.2.0</jar-plugin.version>
+        <javadoc-plugin.version>3.2.0</javadoc-plugin.version>
     </properties>
 
     <dependencyManagement>
@@ -190,6 +192,11 @@
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-javadoc-plugin</artifactId>
+                    <version>${javadoc-plugin.version}</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-shade-plugin</artifactId>
                     <version>${shade-plugin.version}</version>
                 </plugin>
@@ -256,6 +263,18 @@
                                 <id>attach-sources</id>
                                 <goals>
                                     <goal>jar-no-fork</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-javadoc-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>attach-javadocs</id>
+                                <goals>
+                                    <goal>jar</goal>
                                 </goals>
                             </execution>
                         </executions>

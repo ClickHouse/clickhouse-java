@@ -85,7 +85,6 @@ jobs:
       - name: Verify with Maven
         if: steps.check.outputs.triggered == 'true'
         run: |
-          find . -type f -name "pom.xml" -exec sed -i -e 's|.*argLine.*timezone=.*||g' '{}' \;
           mvn --batch-mode --update-snapshots \
             -DclickhouseVersion=${{ fromJSON(steps.commented.outputs.result).clickhouse }} \
             -DclickhouseTimezone=Asia/Chongqing \
@@ -129,7 +128,6 @@ jobs:
         continue-on-error: true
       - name: Verify with Maven
         run: |
-          find . -type f -name "pom.xml" -exec sed -i -e 's|.*argLine.*timezone=.*||g' '{}' \;
           mvn --batch-mode --update-snapshots \
             -DclickhouseVersion=${{ github.event.inputs.clickhouse }} \
             -DclickhouseTimezone=${{ github.event.inputs.chTz }} \
