@@ -27,7 +27,7 @@ import static ru.yandex.clickhouse.ClickhouseJdbcUrlParser.JDBC_CLICKHOUSE_PREFI
 public class BalancedClickhouseDataSource implements DataSource {
     private static final org.slf4j.Logger log = LoggerFactory.getLogger(BalancedClickhouseDataSource.class);
     private static final Pattern URL_TEMPLATE = Pattern.compile(JDBC_CLICKHOUSE_PREFIX + "" +
-            "//([a-zA-Z0-9_:,.-]+)" +
+            "//([a-zA-Z0-9_\\[\\]:,.-]+)" +
             "(/[a-zA-Z0-9_]+" +
             "([?][a-zA-Z0-9_]+[=][a-zA-Z0-9_]+([&][a-zA-Z0-9_]+[=][a-zA-Z0-9_]+)*)?" +
             ")?");

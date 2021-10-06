@@ -1,6 +1,8 @@
-*.class
+# MacOS
+.DS_Store
 
-# Package Files #
+# Java Files
+*.class
 *.jar
 *.war
 *.ear
@@ -30,13 +32,19 @@ target/
 
 # Generated files
 .flattened-pom.xml
+dependency-reduced-pom.xml
 **/parser/*CharStream.java
 **/parser/ClickHouseSqlParser.java
 **/parser/ClickHouseSqlParserConstants.java
 **/parser/ClickHouseSqlParserTokenManager.java
 **/parser/Token*.java
 **/parser/ParseException.java
+java.prof
 jmh-result.*
+profile.html
 
 # Shell scripts
 *.sh
+
+# test configuration
+**/test/resources/test.properties

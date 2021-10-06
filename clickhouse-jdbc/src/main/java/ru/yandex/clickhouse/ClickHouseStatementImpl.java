@@ -738,7 +738,9 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
             requestEntity = new StringEntity(sql, StandardCharsets.UTF_8);
         } else {
             MultipartEntityBuilder entityBuilder = MultipartEntityBuilder.create();
-            entityBuilder.addTextBody("query", sql);
+
+            ContentType queryContentType = ContentType.create(ContentType.TEXT_PLAIN.getMimeType(), StandardCharsets.UTF_8);
+            entityBuilder.addTextBody("query", sql, queryContentType);
 
             try {
                 for (ClickHouseExternalData externalDataItem : externalData) {

@@ -263,6 +263,80 @@ public class ClickHouseRowBinaryStreamTest {
     }
 
     @Test
+    public void testFixedString() throws Exception {
+        check(
+                new StreamWriter() {
+                    @Override
+                    public void write(ClickHouseRowBinaryStream stream) throws Exception {
+                        stream.writeFixedString(
+                                "aaaa~����%20�&zzzzz"
+                        );
+                    }
+                },
+                new byte[]{
+                        97, 97, 97, 97, 126, -17, -65, -67, -17, -65, -67, -17, -65, -67, -17,
+                        -65, -67, 37, 50, 48, -17, -65, -67, 38, 122, 122, 122, 122, 122
+                }
+                //clickhouse-client -q "select toFixedString('aaaa~����%20�&zzzzz', 29) format RowBinary"| od -vAn -td1
+        );
+    }
+
+    @Test
+    public void testFixedStringLen() throws Exception {
+        check(
+                new StreamWriter() {
+                    @Override
+                    public void write(ClickHouseRowBinaryStream stream) throws Exception {
+                        stream.writeFixedString(
+                                "aaaa~����%20�&zzzzz", 32
+                        );
+                    }
+                },
+                new byte[]{
+                        97, 97, 97, 97, 126, -17, -65, -67, -17, -65, -67, -17, -65, -67, -17,
+                        -65, -67, 37, 50, 48, -17, -65, -67, 38, 122, 122, 122, 122, 122, 0, 0, 0
+                }
+                //clickhouse-client -q "select toFixedString('aaaa~����%20�&zzzzz', 32) format RowBinary"| od -vAn -td1
+        );
+    }
+
+    @Test
+    public void testFixedStringLen1() throws Exception {
+        check(
+                new StreamWriter() {
+                    @Override
+                    public void write(ClickHouseRowBinaryStream stream) throws Exception {
+                        stream.writeFixedString(
+                                "", 5
+                        );
+                    }
+                },
+                new byte[]{
+                        0, 0, 0, 0, 0
+                }
+                //clickhouse-client -q "select toFixedString('', 5) format RowBinary"| od -vAn -td1
+        );
+    }
+
+    @Test
+    public void testFixedStringLen2() throws Exception {
+        check(
+                new StreamWriter() {
+                    @Override
+                    public void write(ClickHouseRowBinaryStream stream) throws Exception {
+                        stream.writeFixedString(
+                                "1234567890", 5
+                        );
+                    }
+                },
+                new byte[]{
+                        49,  50,  51,  52,  53
+                }
+                //clickhouse-client -q "select toFixedString('1234567890', 5) format RowBinary"| od -vAn -td1
+        );
+    }
+
+    @Test
     public void testUUID() throws Exception {
         check(
                 new StreamWriter() {

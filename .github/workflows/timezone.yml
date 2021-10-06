@@ -56,8 +56,7 @@ jobs:
             ${{ runner.os }}-build-
       - name: Test using Maven
         run: |
-          find . -type f -name "pom.xml" -exec sed -i -e 's|.*argLine.*timezone=.*||g' '{}' \;
           mvn --batch-mode --update-snapshots \
             -DclickhouseTimezone=${{ matrix.serverTz }} \
-            -DclickhouseVersion=21.3 \
+            -DclickhouseVersion=21.8 \
             -Duser.timezone=${{ matrix.clientTz }} verify

@@ -10,7 +10,8 @@ public class ClickHouseVersionNumberUtilTest {
         try {
             ClickHouseVersionNumberUtil.getMajorVersion(null);
             Assert.fail();
-        } catch (NullPointerException npe) { /* expected */ }
+        } catch (NullPointerException npe) {
+            /* expected */ }
     }
 
     @Test
@@ -18,7 +19,8 @@ public class ClickHouseVersionNumberUtilTest {
         try {
             ClickHouseVersionNumberUtil.getMinorVersion(null);
             Assert.fail();
-        } catch (NullPointerException npe) { /* expected */ }
+        } catch (NullPointerException npe) {
+            /* expected */ }
     }
 
     @Test
@@ -62,4 +64,15 @@ public class ClickHouseVersionNumberUtilTest {
         Assert.assertEquals(ClickHouseVersionNumberUtil.getMinorVersion("1.1-SNAPSHOT"), 1);
     }
 
+    @Test
+    public void testCompare() {
+        Assert.assertEquals(ClickHouseVersionNumberUtil.compare("1", "1"), 0);
+        Assert.assertEquals(ClickHouseVersionNumberUtil.compare("21.3", "21.12"), -1);
+        Assert.assertEquals(ClickHouseVersionNumberUtil.compare("21 .3", "21. 12"), -1);
+        Assert.assertEquals(ClickHouseVersionNumberUtil.compare("21 .3", "21. 12-test"), -1);
+        Assert.assertEquals(ClickHouseVersionNumberUtil.compare("21.3", "21.1"), 1);
+        Assert.assertEquals(ClickHouseVersionNumberUtil.compare("21. 3", "21 .1"), 1);
+        Assert.assertEquals(ClickHouseVersionNumberUtil.compare("21. 3-test", "21 .1"), 1);
+        Assert.assertEquals(ClickHouseVersionNumberUtil.compare("18.16", "18.16.0"), 0);
+    }
 }
