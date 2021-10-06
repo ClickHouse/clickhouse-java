@@ -19,7 +19,7 @@ jobs:
       - name: Install Java and Maven
         uses: actions/setup-java@v1
         with:
-          java-version: 9
+          java-version: 11
       - name: Update pom files and reduce logs
         run: |
           find . -type f -name "pom.xml" -exec sed -i -e 's|${revision}|${{ github.event.inputs.version }}|g' \
@@ -29,9 +29,8 @@ jobs:
       - name: Release Maven package
         uses: samuelmeuli/action-maven-publish@v1
         with:
-          directory: third-party-libraries
+          directory: ./third-party-libraries/
           maven_profiles: release
-          maven_args: -q --batch-mode
           gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
           gpg_passphrase: ${{ secrets.GPG_PASSPHRASE }}
           nexus_username: ${{ secrets.SONATYPE_USER }}
