@@ -6,11 +6,11 @@ on:
       version:
         description: "Release version"
         required: true
-        default: "0.3.2-SNAPSHOT"
+        default: "1.0.0"
 
 jobs:
   release:
-    name: "Build and Publish Artifact"
+    name: "Build and Publish Repackaged 3rd Party Libraries"
     runs-on: "ubuntu-latest"
 
     steps:
@@ -19,7 +19,7 @@ jobs:
       - name: Install Java and Maven
         uses: actions/setup-java@v1
         with:
-          java-version: 8
+          java-version: 9
       - name: Update pom files and reduce logs
         run: |
           find . -type f -name "pom.xml" -exec sed -i -e 's|${revision}|${{ github.event.inputs.version }}|g' \
@@ -29,19 +29,10 @@ jobs:
       - name: Release Maven package
         uses: samuelmeuli/action-maven-publish@v1
         with:
+          directory: third-party-libraries
           maven_profiles: release
           maven_args: -q --batch-mode
           gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
           gpg_passphrase: ${{ secrets.GPG_PASSPHRASE }}
           nexus_username: ${{ secrets.SONATYPE_USER }}
           nexus_password: ${{ secrets.SONATYPE_PASSWD }}
-      - name: Create Pre-release on Github
-        uses: "zhicwu/action-automatic-releases@latest"
-        with:
-          repo_token: "${{ secrets.GITHUB_TOKEN }}"
-          automatic_release_tag: "v${{ github.event.inputs.version }}"
-          prerelease: true
-          title: "Release v${{ github.event.inputs.version }}"
-          files: |
-            LICENSE
-            **/target/clickhouse*.jar
