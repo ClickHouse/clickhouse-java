@@ -19,7 +19,7 @@ jobs:
       - name: Install Java and Maven
         uses: actions/setup-java@v1
         with:
-          java-version: 8
+          java-version: 11
       - name: Update pom files and reduce logs
         run: |
           find . -type f -name "pom.xml" -exec sed -i -e 's|${revision}|${{ github.event.inputs.version }}|g' \

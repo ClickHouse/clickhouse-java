@@ -27,13 +27,13 @@ ClickHouseNode server = ClickHouseNode.of("server.domain", ClickHouseProtocol.GR
 
 // run multiple queries in one go and wait until it's finished
 ClickHouseClient.send(server,
-    "create database if not exists another_database",
-    "use another_database", // change current database from my_db to test
-    "create table if not exists my_table(s String) engine=Memory",
-    "insert into my_table values('1')('2')('3')",
-    "select * from my_table limit 1",
-    "truncate table my_table",
-    "drop table if exists my_table").get();
+    "create database if not exists test",
+    "use test", // change current database from my_db to test
+    "create table if not exists test_table(s String) engine=Memory",
+    "insert into test_table values('1')('2')('3')",
+    "select * from test_table limit 1",
+    "truncate table test_table",
+    "drop table if exists test_table").get();
 
 // query with named parameters
 try (ClickHouseClient client = ClickHouseClient.newInstance(ClickHouseProtocol.GRPC);
@@ -158,34 +158,49 @@ Java 8 or higher is required in order to use Java client and/or JDBC driver.
 
 ### Data Format
 
-TODO
+`RowBinary` is preferred format in Java client, while JDBC driver uses `TabSeparated`.
 
 ### Data Type
 
-TODO: a table
+| Data Type(s)       | Java Client | JDBC Driver                | Remark                                                                |
+| ------------------ | ----------- | -------------------------- | --------------------------------------------------------------------- |
+| Date\*             | Y           | Y                          |                                                                       |
+| DateTime\*         | Y           | Y                          |                                                                       |
+| Decimal\*          | Y           | Y                          | `SET output_format_decimal_trailing_zeros=1` in 21.9+ for consistency |
+| Enum\*             | Y           | Treated as integer         |
+| Int*, UInt*        | Y           | UInt64 is mapped to `long` |
+| Geo Types          | Y           | N                          |                                                                       |
+| AggregatedFunction | N           | N                          | Partially supported                                                   |
+| Array              | Y           | N                          |                                                                       |
+| Map                | Y           | Y                          |                                                                       |
+| Nested             | Y           | N                          |                                                                       |
+| Tuple              | Y           | N                          |                                                                       |
 
 ### Server Version
 
-All [active releases](../ClickHouse/pulls?q=is%3Aopen+is%3Apr+label%3Arelease) are supported. You can still use the JDBC driver for older versions like 18.14 or 19.16 but please keep in mind that they're no longer supported.
+All [active releases](../ClickHouse/pulls?q=is%3Aopen+is%3Apr+label%3Arelease) are supported. You can still use the JDBC driver for older versions like 18.14 or 19.16, but please keep in mind that they're no longer supported.
 
 ## Build with Maven
 
-### JDK 8
+Use `mvn clean verify` to compile, test and generate packages if you're using JDK 8.
 
-Use below command line to compile, test and generate packages.
-`mvn clean verify`
+If you want to make a multi-release jar file(see [JEP-238](https://openjdk.java.net/jeps/238)), you'd better use JDK 11 or higher version like 17 with below command line:
 
-### JDK 11+
-
-You need a [toolchains.xml](https://maven.apache.org/guides/mini/guide-using-toolchains.html) under `<home directory>/.m2/`, as multi-release jar will be generated.
-
-`mvn -Drelease clean verify`
+```bash
+mvn --global-toolchains .github/toolchains.xml -Drelease clean verify
+```
 
 ## Testing
 
-By default, docker container will be created automatically for integration test. In case you need to test against an existing server, you may put `test.properties` under either test/resources or <home directory>/.m2/clickhouse with content like below:
+By default, docker container will be created automatically during integration test. You can pass system property like `-DclickhouseVersion=21.8` to test against specific version of ClickHouse.
 
-```properties
-clickhouseServer=127.0.0.1
-clickhouseVersion=21.9
-```
+In the case you prefer to test against an existing server, please follow instructions below:
+
+-   make sure the server can be accessed using default account(`default` user without password), which has both DDL and DML privileges
+-   add below two configuration files to the existing server and expose all ports for external access
+    -   [ports.xml](./tree/master/clickhouse-client/src/test/resources/containers/clickhouse-server/config.d/ports.xml) - enable all ports
+    -   and [users.xml](./tree/master/clickhouse-client/src/test/resources/containers/clickhouse-server/users.d/users.xml) - accounts used for integration test
+-   put `test.properties` under either `test/resources` or `~/.m2/clickhouse` with content like below:
+    ```properties
+    clickhouseServer=127.0.0.1
+    ```

@@ -57,6 +57,12 @@ jobs:
           key: ${{ runner.os }}-build-${{ hashFiles('**/pom.xml') }}
           restore-keys: |
             ${{ runner.os }}-build-
-      - name: Build with Maven
+      - name: Build
         run: |
-          mvn --batch-mode --update-snapshots -Drelease -DclickhouseVersion=${{ matrix.clickhouse }} verify
+          mvn --batch-mode --update-snapshots -DclickhouseVersion=${{ matrix.clickhouse }} verify
+        if: matrix.java == '8'
+      - name: Build in release mode
+        run: |
+          mvn --batch-mode --update-snapshots --global-toolchains .github/toolchains.xml \
+            -Drelease -DclickhouseVersion=${{ matrix.clickhouse }} verify
+        if: matrix.java != '8'

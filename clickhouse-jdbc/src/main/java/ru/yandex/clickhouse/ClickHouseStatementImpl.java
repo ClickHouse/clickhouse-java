@@ -144,6 +144,10 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
      */
     protected String currentDatabase;
 
+    protected String getQueryId() {
+        return queryId;
+    }
+
     protected ClickHouseSqlStatement getLastStatement() {
         ClickHouseSqlStatement stmt = null;
 

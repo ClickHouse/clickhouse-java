@@ -7,11 +7,12 @@
         <version>${revision}</version>
     </parent>
 
+    <groupId>${project.parent.groupId}</groupId>
     <artifactId>clickhouse-http-client</artifactId>
     <version>${revision}</version>
     <packaging>jar</packaging>
 
-    <name>${project.parent.groupId}</name>
+    <name>${project.artifactId}</name>
     <description>HTTP client for ClickHouse</description>
     <url>https://github.com/ClickHouse/clickhouse-jdbc/tree/master/clickhouse-http-client</url>
 

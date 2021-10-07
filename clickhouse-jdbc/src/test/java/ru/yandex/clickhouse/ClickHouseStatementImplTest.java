@@ -1,4 +1,4 @@
-package ru.yandex.clickhouse.integration;
+package ru.yandex.clickhouse;
 
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertFalse;
@@ -27,7 +27,6 @@ import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
-import org.mockito.internal.util.reflection.Whitebox;
 import org.testng.Assert;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
@@ -36,7 +35,6 @@ import ru.yandex.clickhouse.ClickHouseConnection;
 import ru.yandex.clickhouse.ClickHouseDataSource;
 import ru.yandex.clickhouse.ClickHouseExternalData;
 import ru.yandex.clickhouse.ClickHouseStatement;
-import ru.yandex.clickhouse.JdbcIntegrationTest;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
 import ru.yandex.clickhouse.settings.ClickHouseQueryParam;
 import ru.yandex.clickhouse.util.ClickHouseVersionNumberUtil;
@@ -414,7 +412,8 @@ public class ClickHouseStatementImplTest extends JdbcIntegrationTest {
 
 
         final long timeout = 10;
-        String queryId = (String) readField(firstStatement, "queryId", timeout);
+        assertTrue(firstStatement instanceof ClickHouseStatementImpl);
+        String queryId = readQueryId((ClickHouseStatementImpl) firstStatement, timeout);
         assertNotNull(
             String.format("it's actually very strange. It seems the query hasn't been executed in %s seconds", timeout),
             queryId);
@@ -543,11 +542,11 @@ public class ClickHouseStatementImplTest extends JdbcIntegrationTest {
         }
     }
 
-    private static Object readField(Object object, String fieldName, long timeoutSecs) {
+    private static String readQueryId(ClickHouseStatementImpl stmt, long timeoutSecs) {
         long start = System.currentTimeMillis();
-        Object value;
+        String value;
         do {
-            value = Whitebox.getInternalState(object, fieldName);
+            value = stmt.getQueryId();
         } while (value == null && TimeUnit.MILLISECONDS.toSeconds(System.currentTimeMillis() - start) < timeoutSecs);
 
         return value;

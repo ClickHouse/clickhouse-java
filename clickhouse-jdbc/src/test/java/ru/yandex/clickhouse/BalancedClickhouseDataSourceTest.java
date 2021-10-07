@@ -1,10 +1,10 @@
 package ru.yandex.clickhouse;
 
+import java.net.SocketException;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Statement;
 import java.util.Arrays;
 
 import org.testng.annotations.BeforeClass;
@@ -317,7 +317,15 @@ public class BalancedClickhouseDataSourceTest extends JdbcIntegrationTest {
         ClickHouseProperties properties = new ClickHouseProperties();
         String hostAddr = getClickHouseHttpAddress();
         String ipAddr = getClickHouseHttpAddress("[::1]");
-        assertEquals(newBalancedDataSource(properties, ipAddr).getConnection().getServerVersion(),
-            newBalancedDataSource(properties, hostAddr).getConnection().getServerVersion());
+
+        try {
+            assertEquals(newBalancedDataSource(properties, ipAddr).getConnection().getServerVersion(),
+                newBalancedDataSource(properties, hostAddr).getConnection().getServerVersion());
+        } catch (SQLException e) {
+            // acceptable if IPv6 is not enabled
+            Throwable cause = e.getCause();
+            assertTrue(cause instanceof SocketException);
+            assertEquals(cause.getMessage(), "Protocol family unavailable");
+        }
     }
 }
