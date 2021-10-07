@@ -9,9 +9,9 @@ import ru.yandex.clickhouse.util.Utils;
 import java.net.ConnectException;
 import java.net.SocketTimeoutException;
 
-
 /**
- * Specify ClickHouse exception to ClickHouseException and fill it with a vendor code.
+ * Specify ClickHouse exception to ClickHouseException and fill it with a vendor
+ * code.
  */
 
 public final class ClickHouseExceptionSpecifier {
@@ -58,29 +58,36 @@ public final class ClickHouseExceptionSpecifier {
 
             return new ClickHouseException(code, messageHolder, host, port);
         } catch (Exception e) {
-            log.error("Unsupported ClickHouse error format, please fix ClickHouseExceptionSpecifier, message: {}, error: {}", clickHouseMessage, e.getMessage());
+            log.error(
+                    "Unsupported ClickHouse error format, please fix ClickHouseExceptionSpecifier, message: {}, error: {}",
+                    clickHouseMessage, e.getMessage());
             return new ClickHouseUnknownException(clickHouseMessage, cause, host, port);
         }
     }
 
     private static int getErrorCode(String errorMessage) {
         int startIndex = errorMessage.indexOf(' ');
-        int endIndex = startIndex == -1 ? -1 : errorMessage.indexOf(',', startIndex);
-
-        if (startIndex == -1 || endIndex == -1) {
-            return -1;
+        if (startIndex >= 0) {
+            for (int i = ++startIndex, len = errorMessage.length(); i < len; i++) {
+                char ch = errorMessage.charAt(i);
+                if (ch == '.' || ch == ',' || Character.isWhitespace(ch)) {
+                    try {
+                        return Integer.parseInt(errorMessage.substring(startIndex, i));
+                    } catch (NumberFormatException e) {
+                        // ignore
+                    }
+                    break;
+                }
+            }
         }
 
-        try {
-        	return Integer.parseInt(errorMessage.substring(startIndex + 1, endIndex));
-        } catch(NumberFormatException e) {
-        	return -1;
-        }
+        return -1;
     }
 
     private static ClickHouseException getException(Throwable cause, String host, int port) {
         if (cause instanceof SocketTimeoutException)
-        // if we've got SocketTimeoutException, we'll say that the query is not good. This is not the same as SOCKET_TIMEOUT of clickhouse
+        // if we've got SocketTimeoutException, we'll say that the query is not good.
+        // This is not the same as SOCKET_TIMEOUT of clickhouse
         // but it actually could be a failing ClickHouse
         {
             return new ClickHouseException(ClickHouseErrorCode.TIMEOUT_EXCEEDED.code, cause, host, port);

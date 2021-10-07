@@ -18,14 +18,14 @@ public class ClickHouseSQLTimestampParserTest {
     private TimeZone tzBerlin;
     private ClickHouseSQLTimestampParser parser;
 
-    @BeforeClass
+    @BeforeClass(groups = "unit")
     public void setUp() {
         tzLosAngeles = TimeZone.getTimeZone("America/Los_Angeles");
         tzBerlin = TimeZone.getTimeZone("Europe/Berlin");
         parser = ClickHouseSQLTimestampParser.getInstance();
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testParseTimestampDateTime() throws Exception {
         Timestamp inst = parser.parse(
             ByteFragment.fromString("2020-01-20 22:23:24"),
@@ -41,7 +41,7 @@ public class ClickHouseSQLTimestampParserTest {
             1579587804000L);
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testParseTimestampDateTimeColumnOverride() throws Exception {
         ClickHouseColumnInfo columnInfo = ClickHouseColumnInfo.parse(
             "DateTime(Europe/Berlin)", "col", TimeZone.getTimeZone("Asia/Chongqing"));
@@ -52,7 +52,7 @@ public class ClickHouseSQLTimestampParserTest {
             1579555404000L);
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testParseTimestampDate() throws Exception {
         ClickHouseColumnInfo columnInfo = ClickHouseColumnInfo.parse(
             "Date", "col", null);
@@ -64,6 +64,7 @@ public class ClickHouseSQLTimestampParserTest {
     }
 
     @Test(
+        groups = "unit", 
         dataProvider = ClickHouseTimeParserTestDataProvider.OTHER_DATA_TYPES,
         dataProviderClass = ClickHouseTimeParserTestDataProvider.class)
     public void parseTimestampTimestampSeconds(ClickHouseDataType dataType) throws Exception {
@@ -82,6 +83,7 @@ public class ClickHouseSQLTimestampParserTest {
     }
 
     @Test(
+        groups = "unit", 
         dataProvider = ClickHouseTimeParserTestDataProvider.OTHER_DATA_TYPES,
         dataProviderClass = ClickHouseTimeParserTestDataProvider.class)
     public void parseTimestampTimestampMillis(ClickHouseDataType dataType) throws Exception {
@@ -99,7 +101,7 @@ public class ClickHouseSQLTimestampParserTest {
             1579507200000L);
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testParseTimestampString() throws Exception {
         ClickHouseColumnInfo columnInfo = ClickHouseColumnInfo.parse(
             "String", "col", null);

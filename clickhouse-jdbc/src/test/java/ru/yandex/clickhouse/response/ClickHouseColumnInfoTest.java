@@ -12,7 +12,7 @@ import static org.testng.Assert.fail;
 
 public class ClickHouseColumnInfoTest {
 
-    @Test
+    @Test(groups = "unit")
     public void testParseNull() {
         try {
             ClickHouseColumnInfo.parse(null, null, null);
@@ -20,21 +20,21 @@ public class ClickHouseColumnInfoTest {
         } catch (NullPointerException npe) { /* expected */ }
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testDateTimeWithoutTimeZone() {
         ClickHouseColumnInfo info = ClickHouseColumnInfo.parse(
             "DateTime", "column", null);
         assertEquals(info.getClickHouseDataType(), ClickHouseDataType.DateTime);
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testDateTimeWithEmptyTimeZone() {
         ClickHouseColumnInfo info = ClickHouseColumnInfo.parse(
             "DateTime()", "column", null);
         assertEquals(info.getClickHouseDataType(), ClickHouseDataType.DateTime);
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testDateTimeArrayWithTimeZonee() {
         assertEquals(
             ClickHouseColumnInfo.parse(
@@ -42,14 +42,14 @@ public class ClickHouseColumnInfoTest {
             TimeZone.getTimeZone("America/Los_Angeles"));
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testSpuriousArguments() {
         ClickHouseColumnInfo info = ClickHouseColumnInfo.parse(
             "Decimal(12, 3), 42)", "column", null);
         assertEquals(info.getScale(), 3);
     }
 
-    @Test(dataProvider = "columnInfoParsingDataProvider")
+    @Test(groups = "unit", dataProvider = "columnInfoParsingDataProvider")
     public void testParser(String input, ClickHouseDataType dataType, ClickHouseDataType arrayBaseType,
         boolean nullable, boolean lowCardinality, int precision, int scale, TimeZone timeZone,
         int arrayLevel)
@@ -101,7 +101,7 @@ public class ClickHouseColumnInfoTest {
         };
     }
 
-    @Test(dataProvider = "columnInfoParsingUnknownDataProvider")
+    @Test(groups = "unit", dataProvider = "columnInfoParsingUnknownDataProvider")
     public void testParserUnknownDataTypes(String input, boolean nullable,
         boolean lowCardinality)
     {
@@ -111,7 +111,7 @@ public class ClickHouseColumnInfoTest {
         assertEquals(info.isLowCardinality(), lowCardinality);
     }
 
-    @Test(dataProvider = "columnInfoParsingUnknownDataProvider")
+    @Test(groups = "unit", dataProvider = "columnInfoParsingUnknownDataProvider")
     public void testParserUnknownArrayDataTypes(String input, boolean nullable,
         boolean lowCardinality)
     {
@@ -133,7 +133,7 @@ public class ClickHouseColumnInfoTest {
         };
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testCleanTypeName() {
         assertEquals(
             ClickHouseColumnInfo.parse("Decimal(12,3)", "col", null).getCleanTypeName(),
@@ -155,7 +155,7 @@ public class ClickHouseColumnInfoTest {
             "Array(Array(Decimal(12,3)))");
     }
 
-    @Test(dataProvider = "columnInfoNullableTypeDefinitions")
+    @Test(groups = "unit", dataProvider = "columnInfoNullableTypeDefinitions")
     public void testTypeIsNullable(String typeDef, Boolean nullable) throws Exception {
         assertEquals(
             nullable.booleanValue(),
@@ -172,7 +172,7 @@ public class ClickHouseColumnInfoTest {
         };
     }
 
-    @Test(dataProvider = "columnInfoScales")
+    @Test(groups = "unit", dataProvider = "columnInfoScales")
     public void testGetScale(String typeDef, int scale) {
         assertEquals(
             ClickHouseColumnInfo.parse(typeDef, "foo", null).getScale(),
@@ -199,7 +199,7 @@ public class ClickHouseColumnInfoTest {
         };
     }
 
-    @Test(dataProvider = "columnInfoPrecisions")
+    @Test(groups = "unit", dataProvider = "columnInfoPrecisions")
     public void testGetPrecision(String typeDef, int precision) {
         assertEquals(
             ClickHouseColumnInfo.parse(typeDef, "foo", null).getPrecision(),

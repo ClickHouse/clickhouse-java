@@ -61,7 +61,6 @@ jobs:
         run: |
           mvn --batch-mode --update-snapshots -q -DskipTests install
           cd clickhouse-benchmark
-          mvn --batch-mode --update-snapshots install
           java -DclickhouseVersion="21.8" -jar target/benchmarks.jar -rf text -p client=clickhouse-jdbc Basic
           echo "BENCHMARK_REPORT<<EOF" >> $GITHUB_ENV
           cat jmh-result.text >> $GITHUB_ENV

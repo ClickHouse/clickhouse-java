@@ -13,7 +13,7 @@ import javax.xml.bind.DatatypeConverter;
 public class ClickHouseBlockChecksumTest {
     private static final int HEADER_SIZE_BYTES = 9;
 
-    @Test
+    @Test(groups = "unit")
     public void trickyBlock() {
         byte[] compressedData = DatatypeConverter.parseHexBinary("1F000100078078000000B4000000");
         int uncompressedSizeBytes = 35;
@@ -32,7 +32,7 @@ public class ClickHouseBlockChecksumTest {
         );
     }
 
-    @Test
+    @Test(groups = "unit")
     public void anotherTrickyBlock() {
         byte[] compressedData = DatatypeConverter.parseHexBinary("80D9CEF753E3A59B3F");
         int uncompressedSizeBytes = 8;

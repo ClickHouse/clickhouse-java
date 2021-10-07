@@ -18,14 +18,14 @@ public class ClickHouseZonedDateTimeParserTest {
     private TimeZone tzBerlin;
     private ClickHouseZonedDateTimeParser parser;
 
-    @BeforeClass
+    @BeforeClass(groups = "unit")
     public void setUp() {
         tzLosAngeles = TimeZone.getTimeZone("America/Los_Angeles");
         tzBerlin = TimeZone.getTimeZone("Europe/Berlin");
         parser = ClickHouseZonedDateTimeParser.getInstance();
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testParseZonedDateTimeDateTime() throws Exception {
         ZonedDateTime inst = parser.parse(
             ByteFragment.fromString("2020-01-20 22:23:24"),
@@ -41,7 +41,7 @@ public class ClickHouseZonedDateTimeParserTest {
             1579587804);
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testParseZonedDateTimeDateTimeColumnOverride() throws Exception {
         ClickHouseColumnInfo columnInfo = ClickHouseColumnInfo.parse(
             "DateTime(Europe/Berlin)", "col", TimeZone.getTimeZone("Asia/Chongqing"));
@@ -52,7 +52,7 @@ public class ClickHouseZonedDateTimeParserTest {
             1579555404);
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testParseZonedDateTimeDate() throws Exception {
         ClickHouseColumnInfo columnInfo = ClickHouseColumnInfo.parse(
             "Date", "col", null);
@@ -64,6 +64,7 @@ public class ClickHouseZonedDateTimeParserTest {
     }
 
     @Test(
+        groups = "unit", 
         dataProvider = ClickHouseTimeParserTestDataProvider.OTHER_DATA_TYPES,
         dataProviderClass = ClickHouseTimeParserTestDataProvider.class)
     public void parseZonedDateTimeTimestampSeconds(ClickHouseDataType dataType) throws Exception {
@@ -82,6 +83,7 @@ public class ClickHouseZonedDateTimeParserTest {
     }
 
     @Test(
+        groups = "unit", 
         dataProvider = ClickHouseTimeParserTestDataProvider.OTHER_DATA_TYPES,
         dataProviderClass = ClickHouseTimeParserTestDataProvider.class)
     public void parseZonedDateTimeTimestampMillis(ClickHouseDataType dataType) throws Exception {
@@ -99,7 +101,7 @@ public class ClickHouseZonedDateTimeParserTest {
             1579507200);
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testParseZonedDateTimeString() throws Exception {
         ClickHouseColumnInfo columnInfo = ClickHouseColumnInfo.parse(
             "String", "col", null);

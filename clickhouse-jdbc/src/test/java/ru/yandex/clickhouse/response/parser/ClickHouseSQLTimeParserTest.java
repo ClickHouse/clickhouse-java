@@ -24,14 +24,14 @@ public class ClickHouseSQLTimeParserTest {
     private TimeZone tzLosAngeles;
     private ClickHouseSQLTimeParser parser;
 
-    @BeforeClass
+    @BeforeClass(groups = "unit")
     public void setUp() {
         tzBerlin = TimeZone.getTimeZone("Europe/Berlin");
         tzLosAngeles = TimeZone.getTimeZone("America/Los_Angeles");
         parser = ClickHouseSQLTimeParser.getInstance();
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testParseTimeTimeDate() throws Exception {
         ClickHouseColumnInfo columnInfo = ClickHouseColumnInfo.parse("Date", "col", null);
         assertEquals(
@@ -44,7 +44,7 @@ public class ClickHouseSQLTimeParserTest {
             createExpectedTime(LocalTime.MIDNIGHT, tzLosAngeles));
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testParseOffsetTimeDateTime() throws Exception {
         assertEquals(
             parser.parse(
@@ -58,7 +58,7 @@ public class ClickHouseSQLTimeParserTest {
             createExpectedTime(LocalTime.of(22, 23, 24), tzLosAngeles));
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testParseOffsetTimeDateTimeColumnTimeZone() throws Exception {
         ClickHouseColumnInfo columnInfo =
             ClickHouseColumnInfo.parse("DateTime(Asia/Vladivostok)", "col", null);
@@ -78,6 +78,7 @@ public class ClickHouseSQLTimeParserTest {
     }
 
     @Test(
+        groups = "unit", 
         dataProvider = ClickHouseTimeParserTestDataProvider.OTHER_DATA_TYPES,
         dataProviderClass = ClickHouseTimeParserTestDataProvider.class)
     public void testParseOffsetTimeNumber(ClickHouseDataType dataType) throws Exception {
@@ -119,7 +120,7 @@ public class ClickHouseSQLTimeParserTest {
         }
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testParseOffsetTimeString() throws Exception {
         ClickHouseColumnInfo columnInfo =
             ClickHouseColumnInfo.parse(ClickHouseDataType.String.name(), "col", null);

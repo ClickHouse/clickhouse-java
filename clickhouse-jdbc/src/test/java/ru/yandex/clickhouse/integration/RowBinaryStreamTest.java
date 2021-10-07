@@ -24,12 +24,12 @@ import org.roaringbitmap.buffer.MutableRoaringBitmap;
 import org.roaringbitmap.longlong.Roaring64Bitmap;
 import org.roaringbitmap.longlong.Roaring64NavigableMap;
 import org.testng.Assert;
-import org.testng.annotations.BeforeTest;
+import org.testng.annotations.AfterClass;
+import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 import ru.yandex.clickhouse.ClickHouseConnection;
-import ru.yandex.clickhouse.ClickHouseContainerForTest;
-import ru.yandex.clickhouse.ClickHouseDataSource;
 import ru.yandex.clickhouse.ClickHouseStatement;
+import ru.yandex.clickhouse.JdbcIntegrationTest;
 import ru.yandex.clickhouse.domain.ClickHouseDataType;
 import ru.yandex.clickhouse.util.ClickHouseBitmap;
 import ru.yandex.clickhouse.util.ClickHouseRowBinaryInputStream;
@@ -40,16 +40,17 @@ import ru.yandex.clickhouse.util.ClickHouseVersionNumberUtil;
 /**
  * @author Dmitry Andreev <a href="mailto:AndreevDm@yandex-team.ru"></a>
  */
-public class RowBinaryStreamTest {
-
-    private ClickHouseDataSource dataSource;
+public class RowBinaryStreamTest extends JdbcIntegrationTest {
     private ClickHouseConnection connection;
 
-    @BeforeTest
+    @BeforeClass(groups = "integration")
     public void setUp() throws Exception {
-        dataSource = ClickHouseContainerForTest.newDataSource();
-        connection = dataSource.getConnection();
-        connection.createStatement().execute("CREATE DATABASE IF NOT EXISTS test");
+        connection = newConnection();
+    }
+
+    @AfterClass(groups = "integration")
+    public void tearDown() throws Exception {
+        closeConnection(connection);
     }
 
     private void createTable(String table) throws SQLException {
@@ -89,18 +90,18 @@ public class RowBinaryStreamTest {
         );
     }
 
-    @Test
+    @Test(groups = "integration")
     public void multiRowTest() throws SQLException {
-        connection.createStatement().execute("DROP TABLE IF EXISTS test.big_data");
+        connection.createStatement().execute("DROP TABLE IF EXISTS big_data");
         connection.createStatement().execute(
-                "CREATE TABLE test.big_data (value Int32) ENGINE = TinyLog()"
+                "CREATE TABLE big_data (value Int32) ENGINE = TinyLog()"
         );
 
         final int count = 1000000;
         final AtomicLong sum = new AtomicLong();
 
         connection.createStatement().sendRowBinaryStream(
-                "INSERT INTO test.big_data (value)",
+                "INSERT INTO big_data (value)",
                 new ClickHouseStreamCallback() {
                     @Override
                     public void writeTo(ClickHouseRowBinaryStream stream) throws IOException {
@@ -112,7 +113,7 @@ public class RowBinaryStreamTest {
                 }
         );
 
-        ResultSet rs = connection.createStatement().executeQuery("SELECT count() AS cnt, sum(value) AS sum FROM test.big_data");
+        ResultSet rs = connection.createStatement().executeQuery("SELECT count() AS cnt, sum(value) AS sum FROM big_data");
 
         Assert.assertTrue(rs.next());
         assertEquals(rs.getInt("cnt"), count);
@@ -120,12 +121,12 @@ public class RowBinaryStreamTest {
     }
 
 
-    @Test
+    @Test(groups = "integration")
     public void testRowBinaryStream() throws Exception {
         testRowBinaryStream(false);
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testRowBinaryInputStream() throws Exception {
         testRowBinaryStream(true);
     }
@@ -255,7 +256,7 @@ public class RowBinaryStreamTest {
         }
     }
     
-    @Test
+    @Test(groups = "integration")
     public void testBitmap() throws Exception {
         // TODO seems Int8, Int16 and Int32 are still not supported in ClickHouse
         testBitmap(ClickHouseDataType.UInt8, 32);
@@ -277,11 +278,11 @@ public class RowBinaryStreamTest {
         }
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testBigDecimals() throws Exception {
         try (ClickHouseStatement statement = connection.createStatement()) {
             statement.execute("set allow_experimental_bigint_types=1;"
-                + "create table if not exists test.test_big_decimals(d128 Decimal128(6), d256 Decimal256(12)) engine=Memory");
+                + "create table if not exists test_big_decimals(d128 Decimal128(6), d256 Decimal256(12)) engine=Memory");
         } catch (SQLException e) {
             return;
         }
@@ -292,7 +293,7 @@ public class RowBinaryStreamTest {
                 BigDecimal.ZERO,
                 BigDecimal.valueOf(123.123456789D)
             };
-            statement.sendRowBinaryStream("insert into table test.test_big_decimals", new ClickHouseStreamCallback() {
+            statement.sendRowBinaryStream("insert into table test_big_decimals", new ClickHouseStreamCallback() {
                 @Override
                 public void writeTo(ClickHouseRowBinaryStream stream) throws IOException {
                     for (int i = 0; i < values.length; i++) {
@@ -302,7 +303,7 @@ public class RowBinaryStreamTest {
                 }
             });
 
-            try (ResultSet rs = statement.executeQuery("select * from test.test_big_decimals order by d128")) {
+            try (ResultSet rs = statement.executeQuery("select * from test_big_decimals order by d128")) {
                 int rowCounter = 0;
                 while (rs.next()) {
                     rowCounter++;
@@ -313,12 +314,12 @@ public class RowBinaryStreamTest {
                 assertEquals(rowCounter, values.length);
             }
 
-            statement.execute("drop table if exists test.test_big_decimals");
+            statement.execute("drop table if exists test_big_decimals");
         }
     }
 
     private void testRowBinaryStream(boolean rowBinaryResult) throws Exception {
-        createTable("test.raw_binary");
+        createTable("raw_binary");
         ClickHouseStatement statement = connection.createStatement();
         final long timestamp = 1483230102000L; //2017-01-01 03:21:42
         final Date date1 = new Date(timestamp);
@@ -340,7 +341,7 @@ public class RowBinaryStreamTest {
         final UUID uuid2 = UUID.fromString("789e0123-e89b-12d3-a456-426655444444");
 
         statement.sendRowBinaryStream(
-                "INSERT INTO test.raw_binary " +
+                "INSERT INTO raw_binary " +
                         "(date, dateTime, string, int8, uInt8, int16, uInt16, int32, uInt32, int64, uInt64, float32, " +
                         "float64, dateArray, dateTimeArray, stringArray, int8Array, uInt8Array, int16Array, uInt16Array, " +
                         "int32Array, uInt32Array, int64Array, uInt64Array, float32Array, float64Array, uuid, lowCardinality, " +
@@ -413,7 +414,7 @@ public class RowBinaryStreamTest {
         );
 
         if (!rowBinaryResult) {
-            ResultSet rs = connection.createStatement().executeQuery("SELECT * FROM test.raw_binary ORDER BY date");
+            ResultSet rs = connection.createStatement().executeQuery("SELECT * FROM raw_binary ORDER BY date");
 
             Assert.assertTrue(rs.next());
             assertEquals(rs.getString("date"), 
@@ -482,7 +483,7 @@ public class RowBinaryStreamTest {
             Assert.assertFalse(rs.next());
         } else {
             ClickHouseRowBinaryInputStream is = connection.createStatement().executeQueryClickhouseRowBinaryStream(
-                "SELECT * FROM test.raw_binary ORDER BY date");
+                "SELECT * FROM raw_binary ORDER BY date");
 
             assertEquals(is.readDate(), withTimeAtStartOfDay(date1));
             assertEquals(is.readDateTime(), new Timestamp(timestamp));
@@ -572,19 +573,19 @@ public class RowBinaryStreamTest {
     }
 
 
-    @Test
+    @Test(groups = "integration")
     public void testTimeZone() throws Exception{
         final ClickHouseStatement statement = connection.createStatement();
-        connection.createStatement().execute("DROP TABLE IF EXISTS test.binary_tz");
+        connection.createStatement().execute("DROP TABLE IF EXISTS binary_tz");
         connection.createStatement().execute(
-            "CREATE TABLE test.binary_tz (date Date, dateTime DateTime) ENGINE = MergeTree(date, (date), 8192)"
+            "CREATE TABLE binary_tz (date Date, dateTime DateTime) ENGINE = MergeTree(date, (date), 8192)"
         );
 
         //
         final Date date1 = new Date(1497474018000L);
 
         statement.sendRowBinaryStream(
-            "INSERT INTO test.binary_tz (date, dateTime)",
+            "INSERT INTO binary_tz (date, dateTime)",
             new ClickHouseStreamCallback() {
                 @Override
                 public void writeTo(ClickHouseRowBinaryStream stream) throws IOException {
@@ -595,7 +596,7 @@ public class RowBinaryStreamTest {
         );
 
         ResultSet rs = connection.createStatement().executeQuery(
-            "SELECT date, dateTime from test.binary_tz"
+            "SELECT date, dateTime from binary_tz"
         );
 
         Assert.assertTrue(rs.next());

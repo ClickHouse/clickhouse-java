@@ -21,7 +21,7 @@ public class ClickHouseLZ4OutputStreamTest {
         return bytes;
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testWrite() throws IOException {
         ByteArrayOutputStream bas = new ByteArrayOutputStream(64);
 
@@ -49,7 +49,7 @@ public class ClickHouseLZ4OutputStreamTest {
         }
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testWriteBytes() throws IOException {
         Assert.assertThrows(NullPointerException.class, new Assert.ThrowingRunnable() {
             @Override
@@ -118,7 +118,7 @@ public class ClickHouseLZ4OutputStreamTest {
         }
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testWriteBytesWithOffset() throws IOException {
         Assert.assertThrows(NullPointerException.class, new Assert.ThrowingRunnable() {
             @Override

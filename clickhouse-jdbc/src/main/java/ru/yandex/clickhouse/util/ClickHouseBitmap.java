@@ -356,6 +356,7 @@ public abstract class ClickHouseBitmap {
                 // consume map size(long in little-endian byte order)
                 byte[] bitmaps = new byte[4];
                 buffer.get(bitmaps);
+
                 if (buffer.get() != 0 || buffer.get() != 0 || buffer.get() != 0 || buffer.get() != 0) {
                     throw new IllegalStateException(
                             "Not able to deserialize ClickHouseBitmap for too many bitmaps(>" + 0xFFFFFFFFL + ")!");
@@ -398,24 +399,25 @@ public abstract class ClickHouseBitmap {
     private static int byteLength(ClickHouseDataType type) {
         int byteLen = 0;
         switch (Objects.requireNonNull(type)) {
-        case Int8:
-        case UInt8:
-            byteLen = 1;
-            break;
-        case Int16:
-        case UInt16:
-            byteLen = 2;
-            break;
-        case Int32:
-        case UInt32:
-            byteLen = 4;
-            break;
-        case Int64:
-        case UInt64:
-            byteLen = 8;
-            break;
-        default:
-            throw new IllegalArgumentException("Only native integer types are supported but we got: " + type.name());
+            case Int8:
+            case UInt8:
+                byteLen = 1;
+                break;
+            case Int16:
+            case UInt16:
+                byteLen = 2;
+                break;
+            case Int32:
+            case UInt32:
+                byteLen = 4;
+                break;
+            case Int64:
+            case UInt64:
+                byteLen = 8;
+                break;
+            default:
+                throw new IllegalArgumentException(
+                        "Only native integer types are supported but we got: " + type.name());
         }
 
         return byteLen;

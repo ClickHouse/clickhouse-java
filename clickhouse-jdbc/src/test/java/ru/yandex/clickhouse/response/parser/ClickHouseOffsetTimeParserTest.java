@@ -30,7 +30,7 @@ public class ClickHouseOffsetTimeParserTest {
     private ZoneOffset offsetJVM;
     private ClickHouseOffsetTimeParser parser;
 
-    @BeforeClass
+    @BeforeClass(groups = "unit")
     public void setUp() {
         tzBerlin = TimeZone.getTimeZone("Europe/Berlin");
         offsetBerlin = tzBerlin.toZoneId().getRules().getOffset(
@@ -42,7 +42,7 @@ public class ClickHouseOffsetTimeParserTest {
         parser = ClickHouseOffsetTimeParser.getInstance();
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testParseOffsetTimeDate() throws Exception {
         ClickHouseColumnInfo columnInfo = ClickHouseColumnInfo.parse("Date", "col", null);
         assertEquals(
@@ -55,7 +55,7 @@ public class ClickHouseOffsetTimeParserTest {
             LocalTime.MIDNIGHT.atOffset(offsetLosAngeles));
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testParseOffsetTimeDateTime() throws Exception {
         assertEquals(
             parser.parse(
@@ -69,7 +69,7 @@ public class ClickHouseOffsetTimeParserTest {
             LocalTime.of(22, 23, 24).atOffset(offsetLosAngeles));
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testParseOffsetTimeRegular() throws Exception {
         ClickHouseColumnInfo columnInfo = ClickHouseColumnInfo.parse("String", "col", null);
         assertEquals(
@@ -80,7 +80,7 @@ public class ClickHouseOffsetTimeParserTest {
                 ZoneOffset.ofHours(7)));
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testParseOffsetTimeDateTimeColumnTimeZone() throws Exception {
         LocalDateTime localDateTime = LocalDateTime.of(LocalDate.of(2020,01,17), LocalTime.MIDNIGHT);
         ZoneOffset offsetVladivostok = ZoneId.of("Asia/Vladivostok").getRules().getOffset(localDateTime);
@@ -99,6 +99,7 @@ public class ClickHouseOffsetTimeParserTest {
     }
 
     @Test(
+        groups = "unit", 
         dataProvider = ClickHouseTimeParserTestDataProvider.OTHER_DATA_TYPES,
         dataProviderClass = ClickHouseTimeParserTestDataProvider.class)
     public void testParseOffsetTimeNumber(ClickHouseDataType dataType) throws Exception {
@@ -140,7 +141,7 @@ public class ClickHouseOffsetTimeParserTest {
         }
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testParseOffsetTimeString() throws Exception {
         ClickHouseColumnInfo columnInfo =
             ClickHouseColumnInfo.parse(ClickHouseDataType.String.name(), "col", null);

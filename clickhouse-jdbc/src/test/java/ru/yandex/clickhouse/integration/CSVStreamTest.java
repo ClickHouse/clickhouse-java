@@ -1,45 +1,45 @@
 package ru.yandex.clickhouse.integration;
 
 import org.testng.Assert;
-import org.testng.annotations.BeforeTest;
+import org.testng.annotations.AfterClass;
+import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 import ru.yandex.clickhouse.ClickHouseConnection;
-import ru.yandex.clickhouse.ClickHouseContainerForTest;
-import ru.yandex.clickhouse.ClickHouseDataSource;
+import ru.yandex.clickhouse.JdbcIntegrationTest;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
-import java.io.StringBufferInputStream;
 import java.nio.charset.Charset;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
-public class CSVStreamTest {
-    private ClickHouseDataSource dataSource;
+public class CSVStreamTest extends JdbcIntegrationTest {
     private ClickHouseConnection connection;
 
-    @BeforeTest
+    @BeforeClass(groups = "integration")
     public void setUp() throws Exception {
-        dataSource = ClickHouseContainerForTest.newDataSource();
-        connection = dataSource.getConnection();
-        connection.createStatement().execute("CREATE DATABASE IF NOT EXISTS test");
+        connection = newConnection();
     }
 
-    @Test
+    @AfterClass(groups = "integration")
+    public void tearDown() throws Exception {
+        closeConnection(connection);
+    }
+    
+    @Test(groups = "integration")
     public void simpleInsert() throws SQLException {
-        connection.createStatement().execute("DROP TABLE IF EXISTS test.csv_stream");
+        connection.createStatement().execute("DROP TABLE IF EXISTS csv_stream");
         connection.createStatement().execute(
-                "CREATE TABLE test.csv_stream (value Int32, string_value String) ENGINE = Log()"
+                "CREATE TABLE csv_stream (value Int32, string_value String) ENGINE = Log()"
         );
 
         String string = "5,6\n1,6";
         InputStream inputStream = new ByteArrayInputStream(string.getBytes(Charset.forName("UTF-8")));
-        inputStream = new StringBufferInputStream(string);
 
-        connection.createStatement().sendCSVStream(inputStream, "test.csv_stream");
+        connection.createStatement().sendCSVStream(inputStream, dbName + ".csv_stream");
 
         ResultSet rs = connection.createStatement().executeQuery(
-                "SELECT count() AS cnt, sum(value) AS sum, uniqExact(string_value) uniq FROM test.csv_stream");
+                "SELECT count() AS cnt, sum(value) AS sum, uniqExact(string_value) uniq FROM csv_stream");
         Assert.assertTrue(rs.next());
         Assert.assertEquals(rs.getInt("cnt"), 2);
         Assert.assertEquals(rs.getLong("sum"), 6);

@@ -14,13 +14,13 @@ public class ClickHouseDoubleParserTest {
     private ClickHouseDoubleParser parser;
     private ClickHouseColumnInfo columnInfo;
 
-    @BeforeClass
+    @BeforeClass(groups = "unit")
     public void setUp() {
         parser = ClickHouseDoubleParser.getInstance();
         columnInfo = ClickHouseColumnInfo.parse("Float64", "columnName", null);
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testParseDouble() throws Exception {
         assertNull(parse("\\N"));
         assertEquals(parse("0"), Double.valueOf(0.0));
@@ -33,7 +33,7 @@ public class ClickHouseDoubleParserTest {
         assertEquals(parse("-inf"), Double.valueOf(Double.NEGATIVE_INFINITY));
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testParseDefault() throws Exception {
         assertEquals(parseWithDefault("\\N"), Double.valueOf(0));
         assertEquals(parseWithDefault("nan"), Double.valueOf(Double.NaN));

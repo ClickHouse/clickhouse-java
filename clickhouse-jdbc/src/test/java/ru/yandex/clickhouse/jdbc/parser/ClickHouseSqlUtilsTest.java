@@ -4,7 +4,7 @@ import org.testng.Assert;
 import org.testng.annotations.Test;
 
 public class ClickHouseSqlUtilsTest {
-    @Test
+    @Test(groups = "unit")
     public void testIsQuote() {
         Assert.assertFalse(ClickHouseSqlUtils.isQuote('\0'));
 
@@ -13,7 +13,7 @@ public class ClickHouseSqlUtilsTest {
         Assert.assertTrue(ClickHouseSqlUtils.isQuote('`'));
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testEscape() {
         char[] quotes = new char[] { '"', '\'', '`' };
         String str;
@@ -39,7 +39,7 @@ public class ClickHouseSqlUtilsTest {
         }
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testUnescape() {
         String str;
         Assert.assertEquals(ClickHouseSqlUtils.unescape(str = null), str);

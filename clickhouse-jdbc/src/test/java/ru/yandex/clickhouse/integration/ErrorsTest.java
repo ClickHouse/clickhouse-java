@@ -1,14 +1,16 @@
 package ru.yandex.clickhouse.integration;
 
 import org.testng.Assert;
+import org.testng.annotations.AfterClass;
+import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
-import ru.yandex.clickhouse.ClickHouseContainerForTest;
+import ru.yandex.clickhouse.ClickHouseConnection;
+import ru.yandex.clickhouse.JdbcIntegrationTest;
 import ru.yandex.clickhouse.except.ClickHouseException;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
 import ru.yandex.clickhouse.util.ClickHouseVersionNumberUtil;
-
-import javax.sql.DataSource;
+import com.clickhouse.client.ClickHouseServerForTest;
 
 import java.sql.Connection;
 import java.sql.Date;
@@ -18,17 +20,26 @@ import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
 
-public class ErrorsTest {
+public class ErrorsTest extends JdbcIntegrationTest {
+    private ClickHouseConnection connection;
 
-    @Test
+    @BeforeClass(groups = "integration")
+    public void setUp() throws Exception {
+        connection = newConnection();
+    }
+
+    @AfterClass(groups = "integration")
+    public void tearDown() throws Exception {
+        closeConnection(connection);
+    }
+
+    @Test(groups = "integration")
     public void testWrongUser() {
         ClickHouseProperties properties = new ClickHouseProperties();
         properties.setUser("not_existing");
-        DataSource dataSource = ClickHouseContainerForTest.newDataSource(properties);
-        try {
-            Connection connection = dataSource.getConnection();
+        try (Connection connection = newConnection(properties)) {
         } catch (Exception e) {
-            String version = ClickHouseContainerForTest.getClickHouseVersion();
+            String version = ClickHouseServerForTest.getClickHouseVersion();
             if (!version.isEmpty() && ClickHouseVersionNumberUtil.getMajorVersion(version) <= 19) {
                 Assert.assertEquals((getClickhouseException(e)).getErrorCode(), 192);
             } else {
@@ -39,36 +50,42 @@ public class ErrorsTest {
         Assert.assertTrue(false, "didn' find correct error");
     }
 
-    @Test(expectedExceptions = ClickHouseException.class)
+    @Test(groups = "integration", expectedExceptions = ClickHouseException.class)
     public void testTableNotExists() throws SQLException {
-        DataSource dataSource = ClickHouseContainerForTest.newDataSource();
-        Connection connection = dataSource.getConnection();
-        Statement statement = connection.createStatement();
-        statement.execute("select * from table_not_exists");
+        try (Statement statement = connection.createStatement()) {
+            statement.execute("select * from table_not_exists");
+        }
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testErrorDecompression() throws Exception {
         ClickHouseProperties properties = new ClickHouseProperties();
         properties.setCompress(true);
-        String[] address = ClickHouseContainerForTest.getClickHouseHttpAddress().split(":");
-        DataSource dataSource = ClickHouseContainerForTest.newDataSource(properties);
-        Connection connection = dataSource.getConnection();
+        String[] address = getClickHouseHttpAddress().split(":");
 
-        connection.createStatement().execute("DROP TABLE IF EXISTS test.table_not_exists");
+        try (Connection connection = newConnection(properties)) {
+            connection.createStatement().execute("DROP TABLE IF EXISTS table_not_exists");
 
-        PreparedStatement statement = connection.prepareStatement("INSERT INTO test.table_not_exists (d, s) VALUES (?, ?)");
+            PreparedStatement statement = connection
+                    .prepareStatement("INSERT INTO table_not_exists (d, s) VALUES (?, ?)");
 
-        statement.setDate(1, new Date(System.currentTimeMillis()));
-        statement.setInt(2, 1);
-        try {
-            statement.executeBatch();
-        } catch (Exception e) {
-            String exceptionMsg = getClickhouseException(e).getMessage();
-            Assert.assertTrue(exceptionMsg.startsWith("ClickHouse exception, code: 60, host: " + address[0] +", port: " + address[1] +"; Code: 60, e.displayText() = DB::Exception: Table test.table_not_exists doesn't exist"), exceptionMsg);
-            return;
+            statement.setDate(1, new Date(System.currentTimeMillis()));
+            statement.setInt(2, 1);
+            try {
+                statement.executeBatch();
+            } catch (Exception e) {
+                String exceptionMsg = getClickhouseException(e).getMessage();
+                Assert.assertTrue(
+                        exceptionMsg
+                                .startsWith("ClickHouse exception, code: 60, host: " + address[0] + ", port: "
+                                        + address[1] + "; Code: 60")
+                                && exceptionMsg.contains(
+                                        " DB::Exception: Table " + dbName + ".table_not_exists doesn't exist"),
+                        exceptionMsg);
+                return;
+            }
+            Assert.assertTrue(false, "didn' find correct error");
         }
-        Assert.assertTrue(false, "didn' find correct error");
     }
 
     private static ClickHouseException getClickhouseException(Throwable t) {
@@ -91,13 +108,13 @@ public class ErrorsTest {
             }
             advanceSlowPointer = !advanceSlowPointer; // only advance every other iteration
         }
-        
+
         for (Throwable throwable : causes) {
             if (throwable instanceof ClickHouseException) {
                 return (ClickHouseException) throwable;
             }
         }
-        
+
         throw new IllegalArgumentException("no ClickHouseException found");
     }
 }

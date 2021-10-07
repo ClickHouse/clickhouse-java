@@ -14,12 +14,12 @@ import ru.yandex.clickhouse.domain.ClickHouseDataType;
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertTrue;
 
-public class ClickHouseConnectionTest {
-    @Test
+public class ClickHouseConnectionTest extends JdbcIntegrationTest {
+    @Test(groups = "integration")
     public void testGetSetCatalog() throws SQLException {
-        String address = ClickHouseContainerForTest.getClickHouseHttpAddress();
+        String address = getClickHouseHttpAddress();
         String url = "jdbc:clickhouse://" + address + "/default?option1=one%20two&option2=y";
-        ClickHouseDataSource dataSource = ClickHouseContainerForTest.newDataSource(url);
+        ClickHouseDataSource dataSource = newDataSource(url);
         String[] dbNames = new String[]{"get_set_catalog_test1", "get_set_catalog_test2"};
         try {
             ClickHouseConnectionImpl connection = (ClickHouseConnectionImpl) dataSource.getConnection();
@@ -51,10 +51,9 @@ public class ClickHouseConnectionTest {
         }
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testSetCatalogAndStatements() throws SQLException {
-        ClickHouseDataSource dataSource = ClickHouseContainerForTest.newDataSource(
-                "default?option1=one%20two&option2=y");
+        ClickHouseDataSource dataSource = newDataSource("default?option1=one%20two&option2=y");
         ClickHouseConnectionImpl connection = (ClickHouseConnectionImpl) dataSource.getConnection();
         final String sql = "SELECT currentDatabase()";
 
@@ -71,10 +70,9 @@ public class ClickHouseConnectionTest {
         assertEquals(resultSet.getString(1), "default");
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testSetCatalogAndPreparedStatements() throws SQLException {
-        ClickHouseDataSource dataSource = ClickHouseContainerForTest.newDataSource(
-                "default?option1=one%20two&option2=y");
+        ClickHouseDataSource dataSource = newDataSource("default?option1=one%20two&option2=y");
         ClickHouseConnectionImpl connection = (ClickHouseConnectionImpl) dataSource.getConnection();
         final String sql = "SELECT currentDatabase() FROM system.tables WHERE name = ? LIMIT 1";
 
@@ -93,10 +91,9 @@ public class ClickHouseConnectionTest {
         assertEquals(resultSet.getString(1), "default");
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testScrollableResultSetOnPreparedStatements() throws SQLException {
-        ClickHouseDataSource dataSource = ClickHouseContainerForTest.newDataSource(
-                "default?option1=one%20two&option2=y");
+        ClickHouseDataSource dataSource = newDataSource("default?option1=one%20two&option2=y");
         ClickHouseConnectionImpl connection = (ClickHouseConnectionImpl) dataSource.getConnection();
         final String sql = "SELECT currentDatabase() FROM system.tables WHERE name = ? LIMIT 1";
 
@@ -120,10 +117,9 @@ public class ClickHouseConnectionTest {
         assertEquals(resultSet.getString(1), "default");
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testScrollableResultSetOnStatements() throws SQLException {
-        ClickHouseDataSource dataSource = ClickHouseContainerForTest.newDataSource(
-                "default?option1=one%20two&option2=y");
+        ClickHouseDataSource dataSource = newDataSource("default?option1=one%20two&option2=y");
         ClickHouseConnectionImpl connection = (ClickHouseConnectionImpl) dataSource.getConnection();
         final String sql = "SELECT currentDatabase()";
 
@@ -145,10 +141,10 @@ public class ClickHouseConnectionTest {
         assertEquals(resultSet.getString(1), "default");
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testCreateArrayOf() throws Exception {
         // TODO: more
-        ClickHouseDataSource dataSource = ClickHouseContainerForTest.newDataSource("default");
+        ClickHouseDataSource dataSource = newDataSource("default");
         ClickHouseConnectionImpl connection = (ClickHouseConnectionImpl) dataSource.getConnection();
         for (ClickHouseDataType dataType : ClickHouseDataType.values()) {
             if (dataType == ClickHouseDataType.Array) {
