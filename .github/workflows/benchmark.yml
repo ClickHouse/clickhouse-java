@@ -96,9 +96,9 @@ jobs:
         continue-on-error: true
       - name: Update version and group id
         run: |
-          find . -type f -name "pom.xml" -exec sed -i -e 's|${revision}|${{ github.event.inputs.version }}|g' \
+          find . -type f -name "pom.xml" -exec sed -i -e 's|${revision}|${{ github.event.inputs.driver }}|g' \
             -e 's|^\(    <version>\).*\(</version>\)$|\1${{ github.event.inputs.driver }}\2|' \
-            -e 's|${parent.groupId}|com.clickhouse|g' '{}' \;
+            -e 's|${parent.groupId}|com.clickhouse|g' -e 's|${project.parent.groupId}|com.clickhouse|g' '{}' \;
           find . -type f -name "log4j.*" -exec rm -fv '{}' \;
         continue-on-error: true
       - name: Install driver as needed
