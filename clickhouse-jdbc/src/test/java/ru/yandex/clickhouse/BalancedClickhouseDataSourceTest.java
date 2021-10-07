@@ -325,7 +325,7 @@ public class BalancedClickhouseDataSourceTest extends JdbcIntegrationTest {
             // acceptable if IPv6 is not enabled
             Throwable cause = e.getCause();
             assertTrue(cause instanceof SocketException);
-            assertEquals(cause.getMessage(), "Protocol family unavailable");
+            assertTrue("Protocol family unavailable".equals(cause.getMessage()) || cause.getMessage().contains("Connection refused"));
         }
     }
 }
