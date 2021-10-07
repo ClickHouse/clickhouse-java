@@ -7,7 +7,6 @@
         <version>${revision}</version>
     </parent>
 
-    <groupId>${project.parent.groupId}</groupId>
     <artifactId>clickhouse-tcp-client</artifactId>
     <version>${revision}</version>
     <packaging>jar</packaging>
