@@ -7,6 +7,8 @@ import java.sql.Timestamp;
 import java.sql.Types;
 import java.util.TimeZone;
 
+import com.clickhouse.client.ClickHouseVersion;
+
 import org.mockito.Mockito;
 import org.testng.Assert;
 import org.testng.annotations.AfterClass;
@@ -17,7 +19,6 @@ import org.testng.annotations.Test;
 import ru.yandex.clickhouse.ClickHouseConnection;
 import ru.yandex.clickhouse.ClickHouseDatabaseMetadata;
 import ru.yandex.clickhouse.JdbcIntegrationTest;
-import ru.yandex.clickhouse.util.ClickHouseVersionNumberUtil;
 
 public class ClickHouseDatabaseMetadataTest extends JdbcIntegrationTest {
     private ClickHouseConnection connection;
@@ -56,7 +57,7 @@ public class ClickHouseDatabaseMetadataTest extends JdbcIntegrationTest {
 
     @Test(groups = "integration")
     public void testMetadataColumns() throws Exception {
-        boolean supportComment = ClickHouseVersionNumberUtil.compare(connection.getServerVersion(), "18.16") >= 0;
+        boolean supportComment = ClickHouseVersion.of(connection.getServerVersion()).isNewerOrEqualTo("18.16");
         connection.createStatement().executeQuery(
             "DROP TABLE IF EXISTS testMetadata");
         connection.createStatement().executeQuery(
@@ -157,10 +158,8 @@ public class ClickHouseDatabaseMetadataTest extends JdbcIntegrationTest {
         ResultSetMetaData meta = rs.getMetaData();
         Assert.assertEquals(meta.getColumnClassName(1), Timestamp.class.getCanonicalName());
         TimeZone timezone = ((ClickHouseConnection) connection).getTimeZone();
-        String version = ((ClickHouseConnection) connection).getServerVersion();
-        int majorVersion = ClickHouseVersionNumberUtil.getMajorVersion(version);
-        int minorVersion = ClickHouseVersionNumberUtil.getMinorVersion(version);
-        if (majorVersion > 21 || (majorVersion == 21 && minorVersion >= 6)) {
+        ClickHouseVersion version = ClickHouseVersion.of(((ClickHouseConnection) connection).getServerVersion());
+        if (version.isNewerOrEqualTo("21.6")) {
             Assert.assertEquals(meta.getColumnTypeName(1), "DateTime");
         } else {
             Assert.assertEquals(meta.getColumnTypeName(1), "DateTime('" + timezone.getID() + "')");

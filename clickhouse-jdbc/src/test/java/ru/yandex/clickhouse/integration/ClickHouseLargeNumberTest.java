@@ -16,6 +16,8 @@ import java.util.EnumMap;
 import java.util.Map;
 import java.util.UUID;
 
+import com.clickhouse.client.ClickHouseVersion;
+
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
@@ -27,7 +29,6 @@ import ru.yandex.clickhouse.JdbcIntegrationTest;
 import ru.yandex.clickhouse.except.ClickHouseException;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
 import ru.yandex.clickhouse.settings.ClickHouseQueryParam;
-import ru.yandex.clickhouse.util.ClickHouseVersionNumberUtil;
 
 public class ClickHouseLargeNumberTest extends JdbcIntegrationTest {
     private ClickHouseConnection conn;
@@ -58,7 +59,7 @@ public class ClickHouseLargeNumberTest extends JdbcIntegrationTest {
 
     @Test(groups = "integration")
     public void testBigIntSupport() throws SQLException {
-        if (conn == null || ClickHouseVersionNumberUtil.compare(conn.getServerVersion(), "21.7") >= 0) {
+        if (conn == null || ClickHouseVersion.of(conn.getServerVersion()).isNewerOrEqualTo("21.7")) {
             return;
         }
 
@@ -167,7 +168,7 @@ public class ClickHouseLargeNumberTest extends JdbcIntegrationTest {
             }
 
             // check max scale
-            if (ClickHouseVersionNumberUtil.compare(conn.getServerVersion(), "21.9") >= 0) {
+            if (ClickHouseVersion.of(conn.getServerVersion()).isNewerOrEqualTo("21.9")) {
                 s.execute("set output_format_decimal_trailing_zeros=1");
             }
             try (ResultSet rs = s.executeQuery("select d from test_decimal256 order by d")) {

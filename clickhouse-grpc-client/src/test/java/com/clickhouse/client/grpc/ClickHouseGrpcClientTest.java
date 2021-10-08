@@ -33,6 +33,7 @@ import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.ClickHouseResponseSummary;
 import com.clickhouse.client.ClickHouseUtils;
 import com.clickhouse.client.ClickHouseValue;
+import com.clickhouse.client.ClickHouseVersion;
 import com.clickhouse.client.ClickHouseWriter;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.data.ClickHouseDateTimeValue;
@@ -378,10 +379,6 @@ public class ClickHouseGrpcClientTest extends BaseIntegrationTest {
     @Test(dataProvider = "simpleTypeProvider", groups = "integration")
     public void testReadWriteSimpleTypes(String dataType, String zero, String negativeOne, String positiveOne)
             throws Exception {
-        // if (ClickHouseDataType.Date32.name().equals(dataType)) {
-        // return;
-        // }
-
         ClickHouseNode server = getServer(ClickHouseProtocol.GRPC);
 
         String typeName = dataType;
@@ -423,9 +420,11 @@ public class ClickHouseGrpcClientTest extends BaseIntegrationTest {
             return;
         }
 
+        ClickHouseVersion version = null;
         try (ClickHouseClient client = ClickHouseClient.newInstance(ClickHouseProtocol.GRPC);
-                ClickHouseResponse resp = client.connect(server).format(ClickHouseFormat.RowBinaryWithNamesAndTypes)
-                        .query(ClickHouseUtils.format("select * except(no) from test_%s order by no", columnName))
+                ClickHouseResponse resp = client
+                        .connect(server).format(ClickHouseFormat.RowBinaryWithNamesAndTypes).query(ClickHouseUtils
+                                .format("select * except(no), version() from test_%s order by no", columnName))
                         .execute().get()) {
             List<String[]> records = new ArrayList<>();
             for (ClickHouseRecord record : resp.records()) {
@@ -440,12 +439,24 @@ public class ClickHouseGrpcClientTest extends BaseIntegrationTest {
             Assert.assertEquals(records.size(), 4);
             Assert.assertEquals(records.get(0)[0], zero);
             Assert.assertEquals(records.get(0)[1], null);
+            if (version == null) {
+                version = ClickHouseVersion.of(records.get(0)[2]);
+            }
+
             Assert.assertEquals(records.get(1)[0], zero);
             Assert.assertEquals(records.get(1)[1], zero);
-            Assert.assertEquals(records.get(2)[0], negativeOne);
-            Assert.assertEquals(records.get(2)[1], negativeOne);
             Assert.assertEquals(records.get(3)[0], positiveOne);
             Assert.assertEquals(records.get(3)[1], positiveOne);
+
+            if ((ClickHouseDataType.DateTime.name().equals(dataType)
+                    || ClickHouseDataType.DateTime32.name().equals(dataType)) && version.getYear() == 21
+                    && version.getMajor() == 3) {
+                // skip DateTime and DateTime32 negative test on 21.3 since it's not doing well
+                // see https://github.com/ClickHouse/ClickHouse/issues/29835 for more
+            } else {
+                Assert.assertEquals(records.get(2)[0], negativeOne);
+                Assert.assertEquals(records.get(2)[1], negativeOne);
+            }
         }
     }
 

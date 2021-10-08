@@ -15,6 +15,9 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.zip.GZIPOutputStream;
+
+import com.clickhouse.client.ClickHouseVersion;
+
 import org.testng.Assert;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
@@ -23,7 +26,6 @@ import ru.yandex.clickhouse.ClickHouseConnection;
 import ru.yandex.clickhouse.JdbcIntegrationTest;
 import ru.yandex.clickhouse.domain.ClickHouseCompression;
 import ru.yandex.clickhouse.domain.ClickHouseFormat;
-import ru.yandex.clickhouse.util.ClickHouseVersionNumberUtil;
 
 public class StreamSQLTest extends JdbcIntegrationTest {
     private static final DateTimeFormatter DATE_TIME_FORMATTER_TZ = 
@@ -266,7 +268,7 @@ public class StreamSQLTest extends JdbcIntegrationTest {
         // toDateTime('2020-01-01 00:00:00') + number time from numbers(100) format ORC"|gzip > test_sample.orc.gz
 
         String version = connection.getServerVersion();
-        if (ClickHouseVersionNumberUtil.compare(version, "20.8") < 0) {
+        if (ClickHouseVersion.of(version).isOlderThan("20.8")) {
             return;
         }
 
@@ -310,8 +312,7 @@ public class StreamSQLTest extends JdbcIntegrationTest {
         // clickhouse-client -q "select number int, toString(number) str, 1/number flt, toDecimal64( 1/(number+1) , 9) dcml,
         // toDateTime('2020-01-01 00:00:00') + number time from numbers(100) format ORC"|gzip > test_sample.orc.gz
 
-        String version = connection.getServerVersion();
-        if (version.compareTo("20.8") < 0) {
+        if (ClickHouseVersion.of(connection.getServerVersion()).isOlderThan("20.8")) {
             return;
         }
 
@@ -345,8 +346,7 @@ public class StreamSQLTest extends JdbcIntegrationTest {
         // clickhouse-client -q "select number int, toString(number) str, 1/number flt, toDecimal64( 1/(number+1) , 9) dcml,
         // toDateTime('2020-01-01 00:00:00') + number time from numbers(100) format Parquet"|gzip > test_sample.parquet.gz
 
-        String version = connection.getServerVersion();
-        if (version.compareTo("20.8") < 0) {
+        if (ClickHouseVersion.of(connection.getServerVersion()).isOlderThan("20.8")) {
             return;
         }
 
@@ -390,8 +390,7 @@ public class StreamSQLTest extends JdbcIntegrationTest {
         // clickhouse-client -q "select number int, toString(number) str, 1/number flt, toDecimal64( 1/(number+1) , 9) dcml,
         // toDateTime('2020-01-01 00:00:00') + number time from numbers(100) format Parquet"|gzip > test_sample.parquet.gz
 
-        String version = connection.getServerVersion();
-        if (version.compareTo("20.8") < 0) {
+        if (ClickHouseVersion.of(connection.getServerVersion()).isOlderThan("20.8")) {
             return;
         }
 
