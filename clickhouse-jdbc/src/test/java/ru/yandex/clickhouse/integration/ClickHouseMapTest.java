@@ -16,6 +16,8 @@ import java.util.EnumMap;
 import java.util.Map;
 import java.util.UUID;
 
+import com.clickhouse.client.ClickHouseVersion;
+
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
@@ -27,7 +29,6 @@ import ru.yandex.clickhouse.JdbcIntegrationTest;
 import ru.yandex.clickhouse.except.ClickHouseException;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
 import ru.yandex.clickhouse.settings.ClickHouseQueryParam;
-import ru.yandex.clickhouse.util.ClickHouseVersionNumberUtil;
 import ru.yandex.clickhouse.util.Utils;
 
 public class ClickHouseMapTest extends JdbcIntegrationTest {
@@ -78,19 +79,16 @@ public class ClickHouseMapTest extends JdbcIntegrationTest {
 
         String testSql = "create table if not exists system.test_map_support(m Map(UInt8, String)) engine=Memory;"
                 + "drop table if exists system.test_map_support;";
-        try (ClickHouseConnection conn = newDataSource().getConnection();
-                Statement s = conn.createStatement()) {
+        try (ClickHouseConnection conn = newDataSource().getConnection(); Statement s = conn.createStatement()) {
             s.execute("set allow_experimental_map_type=0;" + testSql);
-            String version = conn.getServerVersion();
-            if (version.compareTo("21.8") < 0) {
+            if (ClickHouseVersion.of(conn.getServerVersion()).isOlderThan("21.8")) {
                 fail("Should fail without enabling map support");
             }
         } catch (SQLException e) {
             assertEquals(e.getErrorCode(), 44);
         }
 
-        try (Connection conn = newDataSource().getConnection();
-                Statement s = conn.createStatement()) {
+        try (Connection conn = newDataSource().getConnection(); Statement s = conn.createStatement()) {
             assertFalse(s.execute("set allow_experimental_map_type=1;" + testSql));
         }
 
@@ -102,8 +100,7 @@ public class ClickHouseMapTest extends JdbcIntegrationTest {
 
             params.put(ClickHouseQueryParam.ALLOW_EXPERIMENTAL_MAP_TYPE, "0");
             s.executeQuery(testSql, params);
-            String version = conn.getServerVersion();
-            if (version.compareTo("21.8") < 0) {
+            if (ClickHouseVersion.of(conn.getServerVersion()).isOlderThan("21.8")) {
                 fail("Should fail without enabling map support");
             }
         } catch (SQLException e) {
@@ -117,23 +114,24 @@ public class ClickHouseMapTest extends JdbcIntegrationTest {
             return;
         }
 
-        String columns = ", ma Map(Integer, Array(String)), mi Map(Integer, Integer)";
-        String values = ",1:['11','12'],2:['22','23']},{1:11,2:22}";
-        String version = ((ClickHouseConnection) conn).getServerVersion();
-        int majorVersion = ClickHouseVersionNumberUtil.getMajorVersion(version);
-        int minorVersion = ClickHouseVersionNumberUtil.getMinorVersion(version);
-        if (majorVersion > 21 || (majorVersion == 21 && minorVersion >= 3)) {
+        ClickHouseVersion version = ClickHouseVersion.of(conn.getServerVersion());
+        if (version.isOlderOrBelongsTo("21.3")) {
             // https://github.com/ClickHouse/ClickHouse/issues/25026
+            return;
+        }
+        String columns = ", ma Map(Integer, Array(String)), mi Map(Integer, Integer)";
+        String values = ",{1:['11','12'],2:['22','23']},{1:11,2:22}";
+        String params = ",?,?";
+        if (version.isNewerOrEqualTo("21.4") && version.isOlderThan("21.9")) {
             columns = "";
             values = "";
-
-            return;
+            params = "";
         }
 
         try (Statement s = conn.createStatement()) {
             s.execute("DROP TABLE IF EXISTS test_maps");
             s.execute("CREATE TABLE IF NOT EXISTS test_maps(ms Map(String, String)" + columns + ") ENGINE = Memory");
-            s.execute("insert into test_maps values ({{'k1':'v1','k2':'v2'}" + values + ")");
+            s.execute("insert into test_maps values ({'k1':'v1','k2':'v2'}" + values + ")");
 
             try (ResultSet rs = s.executeQuery("select * from test_maps")) {
                 assertTrue(rs.next());
@@ -148,7 +146,7 @@ public class ClickHouseMapTest extends JdbcIntegrationTest {
             s.execute("truncate table test_maps");
         }
 
-        try (PreparedStatement s = conn.prepareStatement("insert into test_maps values(?,?,?)")) {
+        try (PreparedStatement s = conn.prepareStatement("insert into test_maps values(?" + params + ")")) {
             s.setObject(1, Utils.mapOf("k1", "v1", "k2", "v2"));
             if (!columns.isEmpty()) {
                 s.setObject(2, Utils.mapOf(1, new String[] { "11", "12" }, 2, new String[] { "22", "23" }));

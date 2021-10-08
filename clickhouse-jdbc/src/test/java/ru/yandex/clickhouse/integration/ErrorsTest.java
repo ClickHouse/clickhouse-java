@@ -9,8 +9,8 @@ import ru.yandex.clickhouse.ClickHouseConnection;
 import ru.yandex.clickhouse.JdbcIntegrationTest;
 import ru.yandex.clickhouse.except.ClickHouseException;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
-import ru.yandex.clickhouse.util.ClickHouseVersionNumberUtil;
 import com.clickhouse.client.ClickHouseServerForTest;
+import com.clickhouse.client.ClickHouseVersion;
 
 import java.sql.Connection;
 import java.sql.Date;
@@ -40,7 +40,7 @@ public class ErrorsTest extends JdbcIntegrationTest {
         try (Connection connection = newConnection(properties)) {
         } catch (Exception e) {
             String version = ClickHouseServerForTest.getClickHouseVersion();
-            if (!version.isEmpty() && ClickHouseVersionNumberUtil.getMajorVersion(version) <= 19) {
+            if (!version.isEmpty() && ClickHouseVersion.of(version).isOlderOrBelongsTo("19")) {
                 Assert.assertEquals((getClickhouseException(e)).getErrorCode(), 192);
             } else {
                 Assert.assertEquals((getClickhouseException(e)).getErrorCode(), 516);

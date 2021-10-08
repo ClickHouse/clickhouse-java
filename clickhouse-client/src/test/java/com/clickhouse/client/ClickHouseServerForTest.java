@@ -86,12 +86,22 @@ public class ClickHouseServerForTest {
             }
 
             String imageNameWithTag = imageName + imageTag;
-            String additionalPackages = ClickHouseUtils.getProperty("additionalPackages", properties);
+            String customPackages = ClickHouseUtils.getProperty("additionalPackages", properties);
+            if (!ClickHouseChecker.isNullOrEmpty(clickhouseVersion)
+                    && ClickHouseVersion.of(clickhouseVersion).isOlderOrBelongsTo("21.3")) {
+                if (ClickHouseChecker.isNullOrEmpty(customPackages)) {
+                    customPackages = "tzdata";
+                } else if (!customPackages.contains("tzdata")) {
+                    customPackages += " tzdata";
+                }
+            }
+
+            final String additionalPackages = customPackages;
 
             clickhouseContainer = (ClickHouseChecker.isNullOrEmpty(additionalPackages)
                     ? new GenericContainer<>(imageNameWithTag)
                     : new GenericContainer<>(new ImageFromDockerfile().withDockerfileFromBuilder(builder -> builder
-                            .from(imageNameWithTag).run("apt-get update && apt-get install " + additionalPackages))))
+                            .from(imageNameWithTag).run("apt-get update && apt-get install -y " + additionalPackages))))
                                     .withEnv("TZ", timezone)
                                     .withExposedPorts(ClickHouseProtocol.GRPC.getDefaultPort(),
                                             ClickHouseProtocol.HTTP.getDefaultPort(),

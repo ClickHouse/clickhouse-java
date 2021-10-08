@@ -27,17 +27,15 @@ import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+
+import com.clickhouse.client.ClickHouseVersion;
+
 import org.testng.Assert;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
-import ru.yandex.clickhouse.ClickHouseConnection;
-import ru.yandex.clickhouse.ClickHouseDataSource;
-import ru.yandex.clickhouse.ClickHouseExternalData;
-import ru.yandex.clickhouse.ClickHouseStatement;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
 import ru.yandex.clickhouse.settings.ClickHouseQueryParam;
-import ru.yandex.clickhouse.util.ClickHouseVersionNumberUtil;
 
 public class ClickHouseStatementImplTest extends JdbcIntegrationTest {
     private ClickHouseConnection connection;
@@ -126,8 +124,7 @@ public class ClickHouseStatementImplTest extends JdbcIntegrationTest {
     public void testExternalData() throws SQLException, UnsupportedEncodingException {
         String serverVersion = connection.getServerVersion();
         ClickHouseStatement stmt = connection.createStatement();
-        String[] rows = ClickHouseVersionNumberUtil.getMajorVersion(serverVersion) >= 21
-            && ClickHouseVersionNumberUtil.getMinorVersion(serverVersion) >= 3
+        String[] rows = ClickHouseVersion.of(serverVersion).isNewerOrEqualTo("21.3")
             ? new String[] { "1\tGroup\n" }
             : new String[] { "1\tGroup", "1\tGroup\n" };
         
@@ -154,8 +151,7 @@ public class ClickHouseStatementImplTest extends JdbcIntegrationTest {
     @Test(groups = "integration")
     public void testLargeQueryWithExternalData() throws Exception {
         String serverVersion = connection.getServerVersion();
-        String[] rows = ClickHouseVersionNumberUtil.getMajorVersion(serverVersion) >= 21
-            && ClickHouseVersionNumberUtil.getMinorVersion(serverVersion) >= 3
+        String[] rows = ClickHouseVersion.of(serverVersion).isNewerOrEqualTo("21.3")
             ? new String[] { "1\tGroup\n" }
             : new String[] { "1\tGroup", "1\tGroup\n" };
         

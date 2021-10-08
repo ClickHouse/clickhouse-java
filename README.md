@@ -162,19 +162,22 @@ Java 8 or higher is required in order to use Java client and/or JDBC driver.
 
 ### Data Type
 
-| Data Type(s)       | Java Client | JDBC Driver                | Remark                                                                |
-| ------------------ | ----------- | -------------------------- | --------------------------------------------------------------------- |
-| Date\*             | Y           | Y                          |                                                                       |
-| DateTime\*         | Y           | Y                          |                                                                       |
-| Decimal\*          | Y           | Y                          | `SET output_format_decimal_trailing_zeros=1` in 21.9+ for consistency |
-| Enum\*             | Y           | Treated as integer         |
-| Int*, UInt*        | Y           | UInt64 is mapped to `long` |
-| Geo Types          | Y           | N                          |                                                                       |
-| AggregatedFunction | N           | N                          | Partially supported                                                   |
-| Array              | Y           | N                          |                                                                       |
-| Map                | Y           | Y                          |                                                                       |
-| Nested             | Y           | N                          |                                                                       |
-| Tuple              | Y           | N                          |                                                                       |
+| Data Type(s)       | Java Client | JDBC Driver | Remark                                                                |
+| ------------------ | ----------- | ----------- | --------------------------------------------------------------------- |
+| Date\*             | Y           | Y           |                                                                       |
+| DateTime\*         | Y           | Y           |                                                                       |
+| Decimal\*          | Y           | Y           | `SET output_format_decimal_trailing_zeros=1` in 21.9+ for consistency |
+| Enum\*             | Y           | Y           | Treated as integer                                                    |
+| Int*, UInt*        | Y           | Y           | UInt64 is mapped to `long`                                            |
+| IPv\*              | Y           | Y           |                                                                       |
+| Geo Types          | Y           | N           |                                                                       |
+| \*String           | Y           | Y           |                                                                       |
+| UUID               | Y           | Y           |                                                                       |
+| AggregatedFunction | N           | N           | Partially supported                                                   |
+| Array              | Y           | N           |                                                                       |
+| Map                | Y           | Y           |                                                                       |
+| Nested             | Y           | N           |                                                                       |
+| Tuple              | Y           | N           |                                                                       |
 
 ### Server Version
 
@@ -196,11 +199,16 @@ By default, docker container will be created automatically during integration te
 
 In the case you prefer to test against an existing server, please follow instructions below:
 
--   make sure the server can be accessed using default account(`default` user without password), which has both DDL and DML privileges
--   add below two configuration files to the existing server and expose all ports for external access
-    -   [ports.xml](./tree/master/clickhouse-client/src/test/resources/containers/clickhouse-server/config.d/ports.xml) - enable all ports
-    -   and [users.xml](./tree/master/clickhouse-client/src/test/resources/containers/clickhouse-server/users.d/users.xml) - accounts used for integration test
--   put `test.properties` under either `test/resources` or `~/.m2/clickhouse` with content like below:
-    ```properties
-    clickhouseServer=127.0.0.1
-    ```
+- make sure the server can be accessed using default account(`default` user without password), which has both DDL and DML privileges
+- add below two configuration files to the existing server and expose all ports for external access
+  - [ports.xml](./tree/master/clickhouse-client/src/test/resources/containers/clickhouse-server/config.d/ports.xml) - enable all ports
+  - and [users.xml](./tree/master/clickhouse-client/src/test/resources/containers/clickhouse-server/users.d/users.xml) - accounts used for integration test
+- put `test.properties` under either `~/.m2/clickhouse` or `src/test/resources` of your project, with content like below:
+  ```properties
+  clickhouseServer=127.0.0.1
+  # below properties are only useful for test containers
+  #clickhouseVersion=latest
+  #clickhouseTimezone=UTC
+  #clickhouseImage=clickhouse/clickhouse-server
+  #additionalPackages=
+  ```

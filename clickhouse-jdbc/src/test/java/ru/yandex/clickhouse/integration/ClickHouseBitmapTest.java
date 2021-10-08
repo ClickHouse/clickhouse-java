@@ -11,6 +11,8 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 
+import com.clickhouse.client.ClickHouseVersion;
+
 import org.junit.Assert;
 import org.roaringbitmap.RoaringBitmap;
 import org.roaringbitmap.buffer.ImmutableRoaringBitmap;
@@ -171,7 +173,7 @@ public class ClickHouseBitmapTest extends JdbcIntegrationTest {
 
     @Test(groups = "integration")
     public void testRoaringBitmap64() throws Exception {
-        if (conn == null) {
+        if (conn == null || ClickHouseVersion.of(conn.getServerVersion()).isOlderOrBelongsTo("20.8")) {
             return;
         }
 
