@@ -19,6 +19,7 @@ module com.clickhouse.client {
     requires java.base;
 
     requires static java.logging;
+    requires static com.github.benmanes.caffeine;
     requires static org.dnsjava;
     requires static org.lz4.java;
     requires static org.slf4j;
