@@ -149,7 +149,7 @@ public class ClickHouseStatementImplTest extends JdbcIntegrationTest {
     // reproduce issue #634
     @Test(groups = "integration")
     public void testLargeQueryWithExternalData() throws Exception {
-        String[] rows = ClickHouseVersion.check(connection.getServerVersion(), "[21.3)")
+        String[] rows = ClickHouseVersion.check(connection.getServerVersion(), "[21.3,)")
             ? new String[] { "1\tGroup\n" }
             : new String[] { "1\tGroup", "1\tGroup\n" };
         

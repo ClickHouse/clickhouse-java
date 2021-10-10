@@ -22,12 +22,6 @@ public enum ClickHouseDefaults implements ClickHouseConfigOption {
      */
     AUTO_SESSION("auto_session", true, "Whether to create session automatically when there are multiple queries."),
     /**
-     * Whether to resolve DNS name using
-     * {@link com.clickhouse.client.ClickHouseDnsResolver}(e.g. resolve SRV record
-     * to extract both host and port from a given name).
-     */
-    DNS_RESOLVE("dns_resolve", false, "Whether to resolve DNS name."),
-    /**
      * Default cluster.
      */
     CLUSTER("cluster", "", "Cluster name."),
@@ -74,7 +68,13 @@ public enum ClickHouseDefaults implements ClickHouseConfigOption {
     /**
      * Max requests.
      */
-    MAX_REQUESTS("max_requests", 0, "Maximum size of shared thread pool, 0 means no limit.");
+    MAX_REQUESTS("max_requests", 0, "Maximum size of shared thread pool, 0 means no limit."),
+    /**
+     * Whether to resolve DNS SRV name using
+     * {@link com.clickhouse.client.naming.SrvResolver}(e.g. resolve SRV record to
+     * extract both host and port from a given name).
+     */
+    SRV_RESOLVE("srv_resolve", false, "Whether to resolve DNS SRV name.");
 
     private final String key;
     private final Object defaultValue;
