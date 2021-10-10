@@ -1,5 +1,6 @@
 package ru.yandex.clickhouse.response;
 
+import com.clickhouse.client.ClickHouseCache;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -8,26 +9,20 @@ import com.fasterxml.jackson.databind.JsonDeserializer;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.type.TypeFactory;
 import ru.yandex.clickhouse.Jackson;
-import ru.yandex.clickhouse.util.LRUCache;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
-import java.util.function.Function;
 
 class ArrayToStringDeserializer extends JsonDeserializer<List<String>> {
-    private static final Map<DeserializationContext, JsonDeserializer<Object>> deserializers = LRUCache.create(1000,
-            new Function<DeserializationContext, JsonDeserializer<Object>>() {
-                @Override
-                public JsonDeserializer<Object> apply(DeserializationContext ctx) {
-                    try {
-                        return ctx.findContextualValueDeserializer(
-                                TypeFactory.defaultInstance().constructType(new TypeReference<List<Object>>() {
-                                }), null);
-                    } catch (JsonMappingException e) {
-                        throw new IllegalStateException(e);
-                    }
+    private static final ClickHouseCache<DeserializationContext, JsonDeserializer<Object>> deserializers = ClickHouseCache.create(1000, 300,
+            (ctx) -> {
+                try {
+                    return ctx.findContextualValueDeserializer(
+                            TypeFactory.defaultInstance().constructType(new TypeReference<List<Object>>() {
+                            }), null);
+                } catch (JsonMappingException e) {
+                    throw new IllegalStateException(e);
                 }
             });
 

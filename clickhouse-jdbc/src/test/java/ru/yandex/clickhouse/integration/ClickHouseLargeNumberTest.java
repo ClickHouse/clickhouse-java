@@ -59,7 +59,7 @@ public class ClickHouseLargeNumberTest extends JdbcIntegrationTest {
 
     @Test(groups = "integration")
     public void testBigIntSupport() throws SQLException {
-        if (conn == null || ClickHouseVersion.of(conn.getServerVersion()).isNewerOrEqualTo("21.7")) {
+        if (conn == null || ClickHouseVersion.check(conn.getServerVersion(), "[21.7,)")) {
             return;
         }
 
@@ -168,7 +168,7 @@ public class ClickHouseLargeNumberTest extends JdbcIntegrationTest {
             }
 
             // check max scale
-            if (ClickHouseVersion.of(conn.getServerVersion()).isNewerOrEqualTo("21.9")) {
+            if (ClickHouseVersion.check(conn.getServerVersion(), "[21.9,)")) {
                 s.execute("set output_format_decimal_trailing_zeros=1");
             }
             try (ResultSet rs = s.executeQuery("select d from test_decimal256 order by d")) {

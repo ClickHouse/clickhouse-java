@@ -6,7 +6,12 @@ import java.util.regex.Pattern;
 /**
  * Very simple version number parser. It is only needed for ClickHouse driver
  * and database version numbers
+ * 
+ * @deprecated As of release 0.3.2, replaced by
+ *             {@link com.clickhouse.client.ClickHouseVersion} and it will be
+ *             removed in 0.4.0
  */
+@Deprecated
 public final class ClickHouseVersionNumberUtil {
 
     private static final Pattern VERSION_NUMBER_PATTERN = Pattern.compile("^\\s*(\\d+)\\.(\\d+).*");

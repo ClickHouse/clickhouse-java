@@ -173,7 +173,7 @@ public class ClickHouseBitmapTest extends JdbcIntegrationTest {
 
     @Test(groups = "integration")
     public void testRoaringBitmap64() throws Exception {
-        if (conn == null || ClickHouseVersion.of(conn.getServerVersion()).isOlderOrBelongsTo("20.8")) {
+        if (conn == null || ClickHouseVersion.check(conn.getServerVersion(), "(,20.8]")) {
             return;
         }
 

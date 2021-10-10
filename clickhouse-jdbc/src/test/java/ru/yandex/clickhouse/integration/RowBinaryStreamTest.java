@@ -249,7 +249,7 @@ public class RowBinaryStreamTest extends JdbcIntegrationTest {
         testBitmap64(32, 0L, 1L);
         testBitmap64(32, Long.MAX_VALUE, -1L);
 
-        if (ClickHouseVersion.of(connection.getServerVersion()).isBeyond("20.8")) {
+        if (ClickHouseVersion.check(connection.getServerVersion(), "(20.8,]")) {
             testBitmap64(65537, 100000L, 1L); // highToBitmap.size() == 1
             testBitmap64(65537, 9223372036854775807L, -1000000000L); // highToBitmap.size() > 1
         }

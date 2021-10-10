@@ -40,7 +40,7 @@ public class ErrorsTest extends JdbcIntegrationTest {
         try (Connection connection = newConnection(properties)) {
         } catch (Exception e) {
             String version = ClickHouseServerForTest.getClickHouseVersion();
-            if (!version.isEmpty() && ClickHouseVersion.of(version).isOlderOrBelongsTo("19")) {
+            if (!version.isEmpty() && ClickHouseVersion.check(version, "(,19]")) {
                 Assert.assertEquals((getClickhouseException(e)).getErrorCode(), 192);
             } else {
                 Assert.assertEquals((getClickhouseException(e)).getErrorCode(), 516);

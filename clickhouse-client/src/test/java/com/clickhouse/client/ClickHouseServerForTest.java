@@ -88,7 +88,7 @@ public class ClickHouseServerForTest {
             String imageNameWithTag = imageName + imageTag;
             String customPackages = ClickHouseUtils.getProperty("additionalPackages", properties);
             if (!ClickHouseChecker.isNullOrEmpty(clickhouseVersion)
-                    && ClickHouseVersion.of(clickhouseVersion).isOlderOrBelongsTo("21.3")) {
+                    && ClickHouseVersion.check(clickhouseVersion, "(,21.3]")) {
                 if (ClickHouseChecker.isNullOrEmpty(customPackages)) {
                     customPackages = "tzdata";
                 } else if (!customPackages.contains("tzdata")) {

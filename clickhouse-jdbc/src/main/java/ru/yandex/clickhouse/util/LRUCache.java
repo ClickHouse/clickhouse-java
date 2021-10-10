@@ -6,6 +6,14 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 
+/**
+ * LRU Cache.
+ *
+ * @deprecated As of release 0.3.2, replaced by
+ *             {@link com.clickhouse.client.ClickHouseCache} and it will be
+ *             removed in 0.4.0
+ */
+@Deprecated
 public class LRUCache<K, V> extends LinkedHashMap<K, V> {
     /**
      * Generated serial version UID.

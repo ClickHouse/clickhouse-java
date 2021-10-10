@@ -12,12 +12,13 @@ import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 
+import com.clickhouse.client.ClickHouseVersion;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import ru.yandex.clickhouse.response.ClickHouseColumnInfo;
 import ru.yandex.clickhouse.response.ClickHouseResultBuilder;
-import ru.yandex.clickhouse.util.ClickHouseVersionNumberUtil;
 
 
 public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
@@ -109,7 +110,7 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
             log.warn("Error determining driver major version", sqle);
             return 0;
         }
-        return ClickHouseVersionNumberUtil.getMajorVersion(v);
+        return ClickHouseVersion.of(v).getMajorVersion();
     }
 
     @Override
@@ -121,7 +122,7 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
             log.warn("Error determining driver minor version", sqle);
             return 0;
         }
-        return ClickHouseVersionNumberUtil.getMinorVersion(v);
+        return ClickHouseVersion.of(v).getMinorVersion();
     }
 
     @Override
@@ -801,7 +802,7 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
     @Override
     public ResultSet getColumns(String catalog, String schemaPattern, String tableNamePattern, String columnNamePattern) throws SQLException {
         StringBuilder query;
-        if (ClickHouseVersionNumberUtil.compare(connection.getServerVersion(), "18.16") >= 0) {
+        if (ClickHouseVersion.check(connection.getServerVersion(), "[18.16,)")) {
             query = new StringBuilder(
                 "SELECT database, table, name, type, default_kind as default_type, default_expression, comment ");
         } else {
@@ -1248,14 +1249,12 @@ public class ClickHouseDatabaseMetadata implements DatabaseMetaData {
 
     @Override
     public int getDatabaseMajorVersion() throws SQLException {
-        return ClickHouseVersionNumberUtil.getMajorVersion(
-            connection.getServerVersion());
+        return ClickHouseVersion.of(connection.getServerVersion()).getMajorVersion();
     }
 
     @Override
     public int getDatabaseMinorVersion() throws SQLException {
-        return ClickHouseVersionNumberUtil.getMinorVersion(
-            connection.getServerVersion());
+        return ClickHouseVersion.of(connection.getServerVersion()).getMinorVersion();
     }
 
     @Override
