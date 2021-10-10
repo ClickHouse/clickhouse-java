@@ -69,6 +69,10 @@ public class ClickHouseRowBinaryInputStream implements Closeable {
         return this.columns;
     }
 
+    public int readUnsignedLeb128() throws IOException {
+        return Utils.readUnsignedLeb128(in);
+    }
+    
     public void readBytes(byte[] bytes) throws IOException {
         readBytes(bytes, 0, bytes.length);
     }

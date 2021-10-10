@@ -111,6 +111,12 @@ public class ClickHouseRowBinaryInputStreamTest {
 	}
 
 	@Test(groups = "unit")
+	public void testUnsignedLeb128() throws Exception {
+        ClickHouseRowBinaryInputStream input = prepareStream(new byte[] { -128, -62, -41, 47 });
+        assertEquals(input.readUnsignedLeb128(), 100000000);
+    }
+
+	@Test(groups = "unit")
 	public void testOne() throws Exception {
 		ClickHouseRowBinaryInputStream input = prepareStream(new byte[]{5, 97, 46, 98, 46, 99, 123, 20, -82, 71, -31, 26, 69, 64, 34, 87, -13, 88, 120, 67, 48, 116, -13, 88});
 

@@ -5,6 +5,7 @@ import java.util.Map;
 import java.util.Properties;
 
 import com.clickhouse.client.ClickHouseChecker;
+import com.clickhouse.client.ClickHouseProtocol;
 
 public class ClickHouseProperties {
 
@@ -21,6 +22,7 @@ public class ClickHouseProperties {
     private int maxRetries;
     private String host;
     private int port;
+    private ClickHouseProtocol protocol;
     private boolean usePathAsDb;
     private String path;
     private boolean ssl;
@@ -119,6 +121,7 @@ public class ClickHouseProperties {
         this.sslMode = (String) getSetting(info, ClickHouseConnectionSettings.SSL_MODE);
         this.usePathAsDb = (Boolean) getSetting(info, ClickHouseConnectionSettings.USE_PATH_AS_DB);
         this.path = (String) getSetting(info, ClickHouseConnectionSettings.PATH);
+        this.protocol = ClickHouseProtocol.valueOf(((String) getSetting(info, ClickHouseConnectionSettings.PROTOCOL)).toUpperCase());
         this.maxRedirects = (Integer) getSetting(info, ClickHouseConnectionSettings.MAX_REDIRECTS);
         this.checkForRedirects = (Boolean) getSetting(info, ClickHouseConnectionSettings.CHECK_FOR_REDIRECTS);
         this.useServerTimeZone = (Boolean)getSetting(info, ClickHouseConnectionSettings.USE_SERVER_TIME_ZONE);
@@ -134,6 +137,7 @@ public class ClickHouseProperties {
         this.quotaKey = getSetting(info, ClickHouseQueryParam.QUOTA_KEY);
         this.priority = getSetting(info, ClickHouseQueryParam.PRIORITY);
         this.database = getSetting(info, ClickHouseQueryParam.DATABASE);
+        this.protocol = ClickHouseProtocol.valueOf(((String)getSetting(info, ClickHouseConnectionSettings.PROTOCOL)).toUpperCase());
         this.compress = (Boolean)getSetting(info, ClickHouseQueryParam.COMPRESS);
         this.decompress = (Boolean)getSetting(info, ClickHouseQueryParam.DECOMPRESS);
         this.extremes = (Boolean)getSetting(info, ClickHouseQueryParam.EXTREMES);
@@ -187,6 +191,7 @@ public class ClickHouseProperties {
         ret.put(ClickHouseConnectionSettings.SSL_MODE.getKey(), String.valueOf(sslMode));
         ret.put(ClickHouseConnectionSettings.USE_PATH_AS_DB.getKey(), String.valueOf(usePathAsDb));
         ret.put(ClickHouseConnectionSettings.PATH.getKey(), String.valueOf(path));
+        ret.put(ClickHouseConnectionSettings.PROTOCOL.getKey(), String.valueOf(protocol.name().toLowerCase()));
         ret.put(ClickHouseConnectionSettings.MAX_REDIRECTS.getKey(), String.valueOf(maxRedirects));
         ret.put(ClickHouseConnectionSettings.CHECK_FOR_REDIRECTS.getKey(), String.valueOf(checkForRedirects));
         ret.put(ClickHouseConnectionSettings.USE_SERVER_TIME_ZONE.getKey(), String.valueOf(useServerTimeZone));
@@ -258,6 +263,7 @@ public class ClickHouseProperties {
         setSslMode(properties.sslMode);
         setUsePathAsDb(properties.usePathAsDb);
         setPath(properties.path);
+        setProtocol(properties.protocol);
         setMaxRedirects(properties.maxRedirects);
         setCheckForRedirects(properties.checkForRedirects);
         setUseServerTimeZone(properties.useServerTimeZone);
@@ -797,6 +803,14 @@ public class ClickHouseProperties {
 
     public void setPort(int port) {
         this.port = port;
+    }
+
+    public ClickHouseProtocol getProtocol() {
+        return this.protocol;
+    }
+
+    public void setProtocol(ClickHouseProtocol protocol) {
+        this.protocol = protocol;
     }
 
     public boolean isUsePathAsDb() {
