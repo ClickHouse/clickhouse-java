@@ -2,6 +2,8 @@ package ru.yandex.clickhouse;
 
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.util.Properties;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -14,16 +16,17 @@ import ru.yandex.clickhouse.settings.ClickHouseQueryParam;
 
 public class ClickhouseJdbcUrlParser {
     private static final Logger log = LoggerFactory.getLogger(ClickhouseJdbcUrlParser.class);
+
+    protected static final String DEFAULT_DATABASE = "default";
+
     public static final String JDBC_PREFIX = "jdbc:";
     public static final String JDBC_CLICKHOUSE_PREFIX = JDBC_PREFIX + "clickhouse:";
     public static final Pattern DB_PATH_PATTERN = Pattern.compile("/([a-zA-Z0-9_*\\-]+)");
-    protected final static String DEFAULT_DATABASE = "default";
 
-    private ClickhouseJdbcUrlParser(){
+    private ClickhouseJdbcUrlParser() {
     }
 
-    public static ClickHouseProperties parse(String jdbcUrl, Properties defaults) throws URISyntaxException
-    {
+    public static ClickHouseProperties parse(String jdbcUrl, Properties defaults) throws URISyntaxException {
         if (!jdbcUrl.startsWith(JDBC_CLICKHOUSE_PREFIX)) {
             throw new URISyntaxException(jdbcUrl, "'" + JDBC_CLICKHOUSE_PREFIX + "' prefix is mandatory");
         }
@@ -31,17 +34,31 @@ public class ClickhouseJdbcUrlParser {
     }
 
     private static ClickHouseProperties parseClickhouseUrl(String uriString, Properties defaults)
-            throws URISyntaxException
-    {
+            throws URISyntaxException {
         URI uri = new URI(uriString);
         Properties urlProperties = parseUriQueryPart(uri.getQuery(), defaults);
         ClickHouseProperties props = new ClickHouseProperties(urlProperties);
         props.setHost(uri.getHost());
         int port = uri.getPort();
         if (port == -1) {
-            throw new IllegalArgumentException("port is missed or wrong");
+            port = props.getProtocol().getDefaultPort();
         }
         props.setPort(port);
+        String credentials = uri.getRawUserInfo();
+        if (credentials != null && !credentials.isEmpty()) {
+            int index = credentials.indexOf(':');
+            String userName = index == 0 ? ""
+                    : URLDecoder.decode(index > 0 ? credentials.substring(0, index) : credentials,
+                            StandardCharsets.UTF_8);
+            if (!userName.isEmpty()) {
+                props.setUser(userName);
+            }
+            String password = index < 0 ? ""
+                    : URLDecoder.decode(credentials.substring(index + 1), StandardCharsets.UTF_8);
+            if (!password.isEmpty()) {
+                props.setPassword(password);
+            }
+        }
         String path = uri.getPath();
         String database;
         if (props.isUsePathAsDb()) {
@@ -75,9 +92,9 @@ public class ClickhouseJdbcUrlParser {
             return defaults;
         }
         Properties urlProps = new Properties(defaults);
-        String queryKeyValues[] = query.split("&");
+        String[] queryKeyValues = query.split("&");
         for (String keyValue : queryKeyValues) {
-            String keyValueTokens[] = keyValue.split("=");
+            String[] keyValueTokens = keyValue.split("=");
             if (keyValueTokens.length == 2) {
                 urlProps.put(keyValueTokens[0], keyValueTokens[1]);
             } else {
