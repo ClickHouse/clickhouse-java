@@ -122,9 +122,8 @@ public class ClickHouseStatementImplTest extends JdbcIntegrationTest {
 
     @Test(groups = "integration")
     public void testExternalData() throws SQLException, UnsupportedEncodingException {
-        String serverVersion = connection.getServerVersion();
         ClickHouseStatement stmt = connection.createStatement();
-        String[] rows = ClickHouseVersion.of(serverVersion).isNewerOrEqualTo("21.3")
+        String[] rows = ClickHouseVersion.check(connection.getServerVersion(), "[21.3,)")
             ? new String[] { "1\tGroup\n" }
             : new String[] { "1\tGroup", "1\tGroup\n" };
         
@@ -150,8 +149,7 @@ public class ClickHouseStatementImplTest extends JdbcIntegrationTest {
     // reproduce issue #634
     @Test(groups = "integration")
     public void testLargeQueryWithExternalData() throws Exception {
-        String serverVersion = connection.getServerVersion();
-        String[] rows = ClickHouseVersion.of(serverVersion).isNewerOrEqualTo("21.3")
+        String[] rows = ClickHouseVersion.check(connection.getServerVersion(), "[21.3,)")
             ? new String[] { "1\tGroup\n" }
             : new String[] { "1\tGroup", "1\tGroup\n" };
         

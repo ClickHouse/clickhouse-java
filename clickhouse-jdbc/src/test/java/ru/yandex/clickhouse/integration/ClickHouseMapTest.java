@@ -81,7 +81,7 @@ public class ClickHouseMapTest extends JdbcIntegrationTest {
                 + "drop table if exists system.test_map_support;";
         try (ClickHouseConnection conn = newDataSource().getConnection(); Statement s = conn.createStatement()) {
             s.execute("set allow_experimental_map_type=0;" + testSql);
-            if (ClickHouseVersion.of(conn.getServerVersion()).isOlderThan("21.8")) {
+            if (ClickHouseVersion.check(conn.getServerVersion(), "(,21.8)")) {
                 fail("Should fail without enabling map support");
             }
         } catch (SQLException e) {
@@ -100,7 +100,7 @@ public class ClickHouseMapTest extends JdbcIntegrationTest {
 
             params.put(ClickHouseQueryParam.ALLOW_EXPERIMENTAL_MAP_TYPE, "0");
             s.executeQuery(testSql, params);
-            if (ClickHouseVersion.of(conn.getServerVersion()).isOlderThan("21.8")) {
+            if (ClickHouseVersion.check(conn.getServerVersion(), "(,21.8)")) {
                 fail("Should fail without enabling map support");
             }
         } catch (SQLException e) {
@@ -115,14 +115,14 @@ public class ClickHouseMapTest extends JdbcIntegrationTest {
         }
 
         ClickHouseVersion version = ClickHouseVersion.of(conn.getServerVersion());
-        if (version.isOlderOrBelongsTo("21.3")) {
+        if (version.check("(,21.3]")) {
             // https://github.com/ClickHouse/ClickHouse/issues/25026
             return;
         }
         String columns = ", ma Map(Integer, Array(String)), mi Map(Integer, Integer)";
         String values = ",{1:['11','12'],2:['22','23']},{1:11,2:22}";
         String params = ",?,?";
-        if (version.isNewerOrEqualTo("21.4") && version.isOlderThan("21.9")) {
+        if (version.check("[21.4,21.9)")) {
             columns = "";
             values = "";
             params = "";

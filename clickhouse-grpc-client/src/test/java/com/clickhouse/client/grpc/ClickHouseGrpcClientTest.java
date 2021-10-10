@@ -449,8 +449,8 @@ public class ClickHouseGrpcClientTest extends BaseIntegrationTest {
             Assert.assertEquals(records.get(3)[1], positiveOne);
 
             if ((ClickHouseDataType.DateTime.name().equals(dataType)
-                    || ClickHouseDataType.DateTime32.name().equals(dataType)) && version.getYear() == 21
-                    && version.getMajor() == 3) {
+                    || ClickHouseDataType.DateTime32.name().equals(dataType)) && version.getMajorVersion() == 21
+                    && version.getMinorVersion() == 3) {
                 // skip DateTime and DateTime32 negative test on 21.3 since it's not doing well
                 // see https://github.com/ClickHouse/ClickHouse/issues/29835 for more
             } else {

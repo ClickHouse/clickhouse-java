@@ -79,7 +79,7 @@
 
         <annotations-api.version>6.0.53</annotations-api.version>
         <asm.version>9.2</asm.version>
-        <caffeine.version>3.0.3</caffeine.version>
+        <caffeine.version>3.0.4</caffeine.version>
         <disruptor.version>3.4.4</disruptor.version>
         <dnsjava.version>3.4.2</dnsjava.version>
         <fastutil.version>8.5.4</fastutil.version>
@@ -548,6 +548,15 @@
                     </plugin>
                 </plugins>
             </build>
+        </profile>
+        <profile>
+            <id>compile-java8</id>
+            <activation>
+                <jdk>(,8]</jdk>
+            </activation>
+            <properties>
+                <caffeine.version>2.9.2</caffeine.version>
+            </properties>
         </profile>
         <profile>
             <id>compile-java9</id>

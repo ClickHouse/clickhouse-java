@@ -53,13 +53,17 @@
     </properties>
 
     <dependencies>
-        <!--
         <dependency>
             <groupId>${project.parent.groupId}</groupId>
-            <artifactId>clickhouse-http-client</artifactId>
+            <artifactId>clickhouse-client</artifactId>
             <version>${revision}</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>*</groupId>
+                    <artifactId>*</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
-        -->
         <dependency>
             <groupId>org.apache.httpcomponents</groupId>
             <artifactId>httpclient</artifactId>
@@ -92,12 +96,6 @@
             <artifactId>slf4j-api</artifactId>
         </dependency>
 
-        <dependency>
-            <groupId>${project.parent.groupId}</groupId>
-            <artifactId>clickhouse-client</artifactId>
-            <version>${revision}</version>
-            <scope>test</scope>
-        </dependency>
         <dependency>
             <groupId>${project.parent.groupId}</groupId>
             <artifactId>clickhouse-client</artifactId>

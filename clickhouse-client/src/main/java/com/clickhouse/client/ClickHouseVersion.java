@@ -1,20 +1,26 @@
 package com.clickhouse.client;
 
 import java.io.Serializable;
+import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * ClickHouse server version number takes the form
- * {@code Year.Major.Minor.Internal}. Prefix like 'v' and suffix like
- * '-[testing|stable|lts]' will be ignored in parsing and comparison.
+ * Immutable ClickHouse version, which takes the form
+ * {@code Year(Major).Feature(Minor).Maintenance(Patch).Build}. Prefix like 'v'
+ * and suffix like '-[testing|stable|lts]' will be ignored in parsing and
+ * comparison.
  */
 public final class ClickHouseVersion implements Comparable<ClickHouseVersion>, Serializable {
     private static final long serialVersionUID = 6721014333437055314L;
 
     private static final String STR_LATEST = "latest";
+
     private static final ClickHouseVersion defaultVersion = new ClickHouseVersion(false, 0, 0, 0, 0);
     private static final ClickHouseVersion latestVersion = new ClickHouseVersion(true, 0, 0, 0, 0);
+
+    private static final ClickHouseCache<String, ClickHouseVersion> versionCache = ClickHouseCache.create(100, 300,
+            ClickHouseVersion::parseVersion);
 
     @SuppressWarnings({ "squid:S5843", "squid:S5857" })
     private static final Pattern versionPattern = Pattern.compile(
@@ -22,7 +28,31 @@ public final class ClickHouseVersion implements Comparable<ClickHouseVersion>, S
             Pattern.DOTALL);
 
     /**
-     * Compares two versions.
+     * Checks if the version is valid according to the given maven-like version
+     * range. For examples:
+     * <ul>
+     * <li><code>21.3</code> 21.3.x.x, short version of [21.3,21.4)</li>
+     * <li><code>[21.3,21.4)</code> 21.3.x.x (included) to 21.4.x.x (not
+     * included)</li>
+     * <li><code>[21.3,21.4]</code> 21.3.x.x to 21.4.x.x (both included)</li>
+     * <li><code>[21.3,)</code> 21.3.x.x or higher</li>
+     * <li><code>(,21.3],[21.8,)</code> to 21.3.x.x (included) and 21.8.x.x or
+     * higher</li>
+     * </ul>
+     * 
+     * @param version version, null is treated as {@code 0.0.0.0}
+     * @param range   maven-like version range, null or empty means always invalid
+     * @return true if the version is valid; false otherwise
+     */
+    public static boolean check(String version, String range) {
+        return ClickHouseVersion.of(version).check(range);
+    }
+
+    /**
+     * Compares two versions part by part, which is not semantical. For example:
+     * {@code compare("21.3.1", "21.3") > 0}, because "21.3.1.0" is greater than
+     * "21.3.0.0". However, {@code check("21.3.1", "(,21.3]") == true}, since
+     * "21.3.1" is considered as part of "21.3" series.
      *
      * @param fromVersion version
      * @param toVersion   version to compare with
@@ -35,12 +65,27 @@ public final class ClickHouseVersion implements Comparable<ClickHouseVersion>, S
     }
 
     /**
-     * Parses given version in string format.
+     * Parses the given string to extract version. Behind the scene, cache is used
+     * to avoid unnecessary overhead.
      *
      * @param version version, null or empty string is treated as {@code 0.0.0.0}
      * @return parsed version
      */
     public static ClickHouseVersion of(String version) {
+        if (version == null || version.isEmpty()) {
+            return defaultVersion;
+        }
+
+        return versionCache.get(version);
+    }
+
+    /**
+     * Parses given version without caching.
+     * 
+     * @param version version, null or empty string is treated as {@code 0.0.0.0}
+     * @return parsed version
+     */
+    protected static ClickHouseVersion parseVersion(String version) {
         if (version == null || version.isEmpty()) {
             return defaultVersion;
         }
@@ -68,27 +113,73 @@ public final class ClickHouseVersion implements Comparable<ClickHouseVersion>, S
 
     private final boolean latest;
 
-    private final int year;
-    private final int major;
-    private final int minor;
-    private final int internal; // or patch?
+    private final int year; // major
+    private final int feature; // minor
+    private final int maintenance; // patch
+    private final int build;
 
-    // Active Releases:
-    // https://github.com/ClickHouse/ClickHouse/pulls?q=is%3Aopen+is%3Apr+label%3Arelease
-    protected ClickHouseVersion(boolean latest, int year, int major, int minor, int internal) {
+    protected ClickHouseVersion(boolean latest, int year, int feature, int maintenance, int build) {
         this.latest = latest;
 
         if (latest) {
             this.year = 0;
-            this.major = 0;
-            this.minor = 0;
-            this.internal = 0;
+            this.feature = 0;
+            this.maintenance = 0;
+            this.build = 0;
         } else {
             this.year = year > 0 ? year : 0;
-            this.major = major > 0 ? major : 0;
-            this.minor = minor > 0 ? minor : 0;
-            this.internal = internal > 0 ? internal : 0;
+            this.feature = feature > 0 ? feature : 0;
+            this.maintenance = maintenance > 0 ? maintenance : 0;
+            this.build = build > 0 ? build : 0;
         }
+    }
+
+    /**
+     * Checks if the version belongs to the given series. For example: 21.3.1.1
+     * belongs to 21.3 series but not 21.4 or 21.3.2.
+     *
+     * @param version version series, null will be treated as {@code 0.0.0.0}
+     * @return true if the version belongs to the given series; false otherwise
+     */
+    public boolean belongsTo(ClickHouseVersion version) {
+        if (version == null) {
+            version = defaultVersion;
+        }
+
+        if (isLatest()) {
+            return version.isLatest();
+        } else if (version.isLatest()) {
+            return false;
+        }
+
+        if (year != version.year) {
+            return false;
+        }
+
+        if (version.feature == 0 && version.maintenance == 0 && version.build == 0) {
+            return true;
+        } else if (feature != version.feature) {
+            return false;
+        }
+
+        if (version.maintenance == 0 && version.build == 0) {
+            return true;
+        } else if (maintenance != version.maintenance) {
+            return false;
+        }
+
+        return version.build == 0 || build == version.build;
+    }
+
+    /**
+     * Checks if the version belongs to the given series. For example: 21.3.1.1
+     * belongs to 21.3 series but not 21.4 or 21.3.2.
+     *
+     * @param version version series
+     * @return true if the version belongs to the given series; false otherwise
+     */
+    public boolean belongsTo(String version) {
+        return belongsTo(ClickHouseVersion.of(version));
     }
 
     /**
@@ -110,193 +201,297 @@ public final class ClickHouseVersion implements Comparable<ClickHouseVersion>, S
     }
 
     /**
-     * Gets major/feature version.
+     * Gets feature release.
      *
-     * @return major/feature version
+     * @return feature release
      */
-    public int getMajor() {
-        return major;
+    public int getFeatureRelease() {
+        return feature;
     }
 
     /**
-     * Gets minor version.
+     * Gets maintenance release.
+     *
+     * @return maintenance release
+     */
+    public int getMaintenanceRelease() {
+        return maintenance;
+    }
+
+    /**
+     * Gets build number.
+     *
+     * @return build number
+     */
+    public int getBuilderNumber() {
+        return build;
+    }
+
+    /**
+     * Gets major version in semantic versioning. Same as {@link #getYear()}.
+     *
+     * @return major version
+     */
+    public int getMajorVersion() {
+        return getYear();
+    }
+
+    /**
+     * Gets minor version in semantic versioning. Same as
+     * {@link #getFeatureRelease()}.
      *
      * @return minor version
      */
-    public int getMinor() {
-        return minor;
+    public int getMinorVersion() {
+        return getFeatureRelease();
     }
 
     /**
-     * Gets internal build number.
+     * Gets patch in semantic versioning. Same a {@link #getMaintenanceRelease()}.
      *
-     * @return internal build number
+     * @return patch
      */
-    public int getInternal() {
-        return internal;
+    public int getPatch() {
+        return getMaintenanceRelease();
     }
 
     /**
-     * Checks if current version is newer or equal to the given version.
+     * Checks if the version is newer or equal to the given one. Pay attention that
+     * when comparing "21.3.1.1" to "21.3", {@link #compareTo(ClickHouseVersion)}
+     * says the former is greater, but this method will return false(because
+     * 21.3.x.x still belongs to 21.3 series).
      *
      * @param version version to compare
-     * @return true if current version is newer or equal to the given one; false
+     * @return true if the version is newer or equal to the given one; false
+     *         otherwise
+     */
+    public boolean isNewerOrEqualTo(ClickHouseVersion version) {
+        if (version == null) {
+            version = defaultVersion;
+        }
+
+        if (isLatest()) {
+            return true;
+        } else if (version.isLatest()) {
+            return false;
+        }
+
+        if (year < version.year) {
+            return false;
+        }
+
+        if (version.feature == 0 && version.maintenance == 0 && version.build == 0) {
+            return true;
+        } else if (feature < version.feature) {
+            return false;
+        }
+
+        if (version.maintenance == 0 && version.build == 0) {
+            return true;
+        } else if (maintenance < version.maintenance) {
+            return false;
+        }
+
+        return version.build == 0 || build >= version.build;
+    }
+
+    /**
+     * Checks if the version is newer or equal to the given one. Pay attention that
+     * when comparing "21.3.1.1" to "21.3", {@link #compareTo(ClickHouseVersion)}
+     * says the former is greater, but this method will return false(because
+     * 21.3.x.x still belongs to 21.3 series).
+     *
+     * @param version version to compare
+     * @return true if the version is newer or equal to the given one; false
      *         otherwise
      */
     public boolean isNewerOrEqualTo(String version) {
-        return compareTo(ClickHouseVersion.of(version)) >= 0;
+        return isNewerOrEqualTo(ClickHouseVersion.of(version));
     }
 
     /**
-     * Checks if current version is newer than the given version.
+     * Checks if the version is newer than the given one. Same as
+     * {@code compareTo(version) >= 0}.
      *
      * @param version version to compare
-     * @return true if current version is newer than the given one; false otherwise
+     * @return true if the version is newer than the given one; false otherwise
+     */
+    public boolean isNewerThan(ClickHouseVersion version) {
+        return compareTo(version) > 0;
+    }
+
+    /**
+     * Checks if the version is newer than the given one. Same as
+     * {@code compareTo(version) >= 0}.
+     *
+     * @param version version to compare
+     * @return true if the version is newer than the given one; false otherwise
      */
     public boolean isNewerThan(String version) {
-        return compareTo(ClickHouseVersion.of(version)) > 0;
+        return isNewerThan(ClickHouseVersion.of(version));
     }
 
     /**
-     * Checks if current version is older or equal to the given version.
+     * Checks if the version is older or equal to the given one. Pay attention that
+     * when comparing "21.3.1.1" to "21.3", {@link #compareTo(ClickHouseVersion)}
+     * says the former is greater, but this method will return true(because 21.3.x.x
+     * still belongs to 21.3 series).
      *
      * @param version version to compare
-     * @return true if current version is older or equal to the given one; false
+     * @return true if the version is older or equal to the given one; false
+     *         otherwise
+     */
+    public boolean isOlderOrEqualTo(ClickHouseVersion version) {
+        if (version == null) {
+            version = defaultVersion;
+        }
+
+        // latest version is NOT older than latest
+        if (isLatest()) {
+            return false;
+        } else if (version.isLatest()) {
+            return true;
+        }
+
+        if (year > version.year) {
+            return false;
+        }
+
+        if (version.feature == 0 && version.maintenance == 0 && version.build == 0) {
+            return true;
+        } else if (feature > version.feature) {
+            return false;
+        }
+
+        if (version.maintenance == 0 && version.build == 0) {
+            return true;
+        } else if (maintenance > version.maintenance) {
+            return false;
+        }
+
+        return version.build == 0 || build <= version.build;
+    }
+
+    /**
+     * Checks if the version is older or equal to the given one. Pay attention that
+     * when comparing "21.3.1.1" to "21.3", {@link #compareTo(ClickHouseVersion)}
+     * says the former is greater, but this method will return true(because 21.3.x.x
+     * still belongs to 21.3 series).
+     *
+     * @param version version to compare
+     * @return true if the version is older or equal to the given one; false
      *         otherwise
      */
     public boolean isOlderOrEqualTo(String version) {
-        return compareTo(ClickHouseVersion.of(version)) <= 0;
+        return isOlderOrEqualTo(ClickHouseVersion.of(version));
     }
 
     /**
-     * Checks if current version is older than the given version.
+     * Checks if the version is older than the given one. Same as
+     * {@code compareTo(version) <= 0}.
      *
      * @param version version to compare
-     * @return true if current version is older than the given one; false otherwise
+     * @return true if the version is older than the given one; false otherwise
+     */
+    public boolean isOlderThan(ClickHouseVersion version) {
+        return compareTo(version) < 0;
+    }
+
+    /**
+     * Checks if the version is older than the given one. Same as
+     * {@code compareTo(version) <= 0}.
+     *
+     * @param version version to compare
+     * @return true if the version is older than the given one; false otherwise
      */
     public boolean isOlderThan(String version) {
-        return compareTo(ClickHouseVersion.of(version)) < 0;
+        return isOlderThan(ClickHouseVersion.of(version));
     }
 
     /**
-     * Checks if this version belongs to the given series. For example: 21.3.1
-     * belongs to 21.3 but not 21.6 or 21.3.2. No version except {@code latest}
-     * belongs to {@code latest} and vice versa.
+     * Checks if the version is valid according to the given maven-like version
+     * range.
      * 
-     * @param version version series
-     * @return true if this version belongs to the given series; false otherwise
+     * @param range version range, null or empty string means always invalid
+     * @return true if the version is valid; false otherwise
      */
-    public boolean belongsTo(String version) {
-        return belongsTo(ClickHouseVersion.of(version));
-    }
-
-    /**
-     * Checks if this version belongs to the given series. For example: 21.3.1
-     * belongs to 21.3 but not 21.6 or 21.3.2. No version except {@code latest}
-     * belongs to {@code latest} and vice versa.
-     * 
-     * @param version version series, null is treated as {@code 0.0.0.0}
-     * @return true if this version belongs to the given series; false otherwise
-     */
-    public boolean belongsTo(ClickHouseVersion version) {
-        if (version == null) {
-            version = defaultVersion;
-        }
-
-        if (isLatest()) {
-            return version.isLatest();
-        } else if (version.isLatest()) {
+    public boolean check(String range) {
+        if (range == null || range.isEmpty()) {
             return false;
         }
 
-        if (year != version.year) {
-            return false;
+        boolean result = false;
+        StringBuilder builder = new StringBuilder();
+        for (int i = 0, len = range.length(); i < len; i++) {
+            char ch = range.charAt(i);
+            if ((ch >= '0' && ch <= '9') || ch == '.') {
+                builder.append(ch);
+            } else if (ch == '[' || ch == '(') {
+                if (builder.length() > 0) {
+                    throw new IllegalArgumentException(String.format(Locale.ROOT,
+                            "Expect a comma after %s at %d but got %s", builder.toString(), i, ch));
+                }
+
+                ClickHouseVersion v1 = null;
+                ClickHouseVersion v2 = null;
+
+                char nextCh = '\0';
+                for (i = i + 1; i < len; i++) {
+                    nextCh = range.charAt(i);
+                    if ((nextCh >= '0' && nextCh <= '9') || nextCh == '.') {
+                        builder.append(nextCh);
+                    } else if (nextCh == ',') {
+                        v1 = ClickHouseVersion.of(builder.toString());
+                        builder.setLength(0);
+                    } else if (nextCh == ')' || nextCh == ']') {
+                        if (builder.length() == 0) {
+                            v2 = latestVersion;
+                        } else {
+                            v2 = ClickHouseVersion.of(builder.toString());
+                            builder.setLength(0);
+                        }
+                        break;
+                    }
+                }
+
+                if (v1 == null || v2 == null) {
+                    throw new IllegalArgumentException(
+                            "Brackets must come in pairs and at least one version and a comma must be specified within brackets");
+                }
+
+                result = ch == '(' ? isNewerThan(v1) : isNewerOrEqualTo(v1);
+                if (!result) {
+                    break;
+                }
+
+                result = nextCh == ')' ? isOlderThan(v2) : isOlderOrEqualTo(v2);
+                if (!result) {
+                    break;
+                }
+            } else if (ch == ',' && builder.length() > 0) {
+                ClickHouseVersion v = of(builder.toString());
+                builder.setLength(0);
+
+                result = belongsTo(v);
+                if (!result) {
+                    break;
+                }
+            }
         }
 
-        if (version.major == 0) {
-            return true;
-        } else if (major != version.major) {
-            return false;
+        if (builder.length() > 0) {
+            result = belongsTo(builder.toString());
         }
 
-        if (version.minor == 0) {
-            return true;
-        } else if (minor != version.minor) {
-            return false;
-        }
-
-        return version.internal == 0 || internal == version.internal;
-    }
-
-    /**
-     * Checks if this version is beyond the given series. For example: 21.3.1 is
-     * beyond 21.2, but not 21.3 or 21.3.1(because they all belong to 21.3 series).
-     * No version is beyond {@code latest} but it's beyond all other versions.
-     * 
-     * @param version version series
-     * @return true if this version belongs to the given series; false otherwise
-     */
-    public boolean isBeyond(String version) {
-        return isBeyond(ClickHouseVersion.of(version));
-    }
-
-    /**
-     * Checks if this version is beyond the given series. For example: 21.3.1 is
-     * beyond 21.2, but not 21.3 or 21.3.1(because they all belong to 21.3 series).
-     * No version is beyond {@code latest} but it's beyond all other versions.
-     * 
-     * @param version version series, null is treated as {@code 0.0.0.0}
-     * @return true if this version is beyond the given series; false otherwise
-     */
-    public boolean isBeyond(ClickHouseVersion version) {
-        if (version == null) {
-            version = defaultVersion;
-        }
-
-        if (isLatest()) {
-            return !version.isLatest();
-        } else if (version.isLatest()) {
-            return false;
-        }
-
-        int result = year - version.year;
-        if (result != 0) {
-            return result > 0;
-        } else if (version.major == 0 && version.minor == 0 && version.internal == 0) {
-            return false;
-        }
-
-        result = major - version.major;
-        if (result != 0) {
-            return result > 0;
-        } else if (version.minor == 0 && version.internal == 0) {
-            return false;
-        }
-
-        result = minor - version.minor;
-        if (result != 0) {
-            return result > 0;
-        } else if (version.internal == 0) {
-            return false;
-        }
-
-        return internal > version.internal;
-    }
-
-    /**
-     * Checks if this version is older than or belongs to the given version.
-     *
-     * @param version version
-     * @return true if this version is older than or belongs to the given version;
-     *         false otherwise
-     */
-    public boolean isOlderOrBelongsTo(String version) {
-        ClickHouseVersion theOther = ClickHouseVersion.of(version);
-        return compareTo(theOther) < 0 || belongsTo(theOther);
+        return result;
     }
 
     @Override
     public int compareTo(ClickHouseVersion o) {
+        if (o == null) {
+            o = defaultVersion;
+        }
+
         if (this == o) {
             return 0;
         }
@@ -312,17 +507,17 @@ public final class ClickHouseVersion implements Comparable<ClickHouseVersion>, S
             return result;
         }
 
-        result = major - o.major;
+        result = feature - o.feature;
         if (result != 0) {
             return result;
         }
 
-        result = minor - o.minor;
+        result = maintenance - o.maintenance;
         if (result != 0) {
             return result;
         }
 
-        return internal - o.internal;
+        return build - o.build;
     }
 
     @Override
@@ -336,8 +531,8 @@ public final class ClickHouseVersion implements Comparable<ClickHouseVersion>, S
         }
 
         ClickHouseVersion other = (ClickHouseVersion) obj;
-        return (latest && other.latest) || latest == other.latest && year == other.year && major == other.major
-                && minor == other.minor && internal == other.internal;
+        return (latest && other.latest) || latest == other.latest && year == other.year && feature == other.feature
+                && maintenance == other.maintenance && build == other.build;
     }
 
     @Override
@@ -346,16 +541,16 @@ public final class ClickHouseVersion implements Comparable<ClickHouseVersion>, S
         int result = 1;
         result = prime * result + (latest ? 1231 : 1237);
         result = prime * result + year;
-        result = prime * result + major;
-        result = prime * result + minor;
-        result = prime * result + internal;
+        result = prime * result + feature;
+        result = prime * result + maintenance;
+        result = prime * result + build;
         return result;
     }
 
     @Override
     public String toString() {
         return isLatest() ? STR_LATEST
-                : new StringBuilder().append(year).append('.').append(major).append('.').append(minor).append('.')
-                        .append(internal).toString();
+                : new StringBuilder().append(year).append('.').append(feature).append('.').append(maintenance)
+                        .append('.').append(build).toString();
     }
 }

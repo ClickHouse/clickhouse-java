@@ -267,8 +267,7 @@ public class StreamSQLTest extends JdbcIntegrationTest {
         // clickhouse-client -q "select number int, toString(number) str, 1/number flt, toDecimal64( 1/(number+1) , 9) dcml,
         // toDateTime('2020-01-01 00:00:00') + number time from numbers(100) format ORC"|gzip > test_sample.orc.gz
 
-        String version = connection.getServerVersion();
-        if (ClickHouseVersion.of(version).isOlderThan("20.8")) {
+        if (ClickHouseVersion.check(connection.getServerVersion(), "(,20.8)")) {
             return;
         }
 
@@ -312,7 +311,7 @@ public class StreamSQLTest extends JdbcIntegrationTest {
         // clickhouse-client -q "select number int, toString(number) str, 1/number flt, toDecimal64( 1/(number+1) , 9) dcml,
         // toDateTime('2020-01-01 00:00:00') + number time from numbers(100) format ORC"|gzip > test_sample.orc.gz
 
-        if (ClickHouseVersion.of(connection.getServerVersion()).isOlderThan("20.8")) {
+        if (ClickHouseVersion.check(connection.getServerVersion(), "(,20.8)")) {
             return;
         }
 
@@ -346,7 +345,7 @@ public class StreamSQLTest extends JdbcIntegrationTest {
         // clickhouse-client -q "select number int, toString(number) str, 1/number flt, toDecimal64( 1/(number+1) , 9) dcml,
         // toDateTime('2020-01-01 00:00:00') + number time from numbers(100) format Parquet"|gzip > test_sample.parquet.gz
 
-        if (ClickHouseVersion.of(connection.getServerVersion()).isOlderThan("20.8")) {
+        if (ClickHouseVersion.check(connection.getServerVersion(), "(,20.8)")) {
             return;
         }
 
@@ -390,7 +389,7 @@ public class StreamSQLTest extends JdbcIntegrationTest {
         // clickhouse-client -q "select number int, toString(number) str, 1/number flt, toDecimal64( 1/(number+1) , 9) dcml,
         // toDateTime('2020-01-01 00:00:00') + number time from numbers(100) format Parquet"|gzip > test_sample.parquet.gz
 
-        if (ClickHouseVersion.of(connection.getServerVersion()).isOlderThan("20.8")) {
+        if (ClickHouseVersion.check(connection.getServerVersion(), "(,20.8)")) {
             return;
         }
 

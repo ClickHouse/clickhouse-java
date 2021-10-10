@@ -57,7 +57,7 @@ public class ClickHouseDatabaseMetadataTest extends JdbcIntegrationTest {
 
     @Test(groups = "integration")
     public void testMetadataColumns() throws Exception {
-        boolean supportComment = ClickHouseVersion.of(connection.getServerVersion()).isNewerOrEqualTo("18.16");
+        boolean supportComment = ClickHouseVersion.check(connection.getServerVersion(), "[18.16,)");
         connection.createStatement().executeQuery(
             "DROP TABLE IF EXISTS testMetadata");
         connection.createStatement().executeQuery(
@@ -158,8 +158,7 @@ public class ClickHouseDatabaseMetadataTest extends JdbcIntegrationTest {
         ResultSetMetaData meta = rs.getMetaData();
         Assert.assertEquals(meta.getColumnClassName(1), Timestamp.class.getCanonicalName());
         TimeZone timezone = ((ClickHouseConnection) connection).getTimeZone();
-        ClickHouseVersion version = ClickHouseVersion.of(((ClickHouseConnection) connection).getServerVersion());
-        if (version.isNewerOrEqualTo("21.6")) {
+        if (ClickHouseVersion.check(connection.getServerVersion(), "[21.6,)")) {
             Assert.assertEquals(meta.getColumnTypeName(1), "DateTime");
         } else {
             Assert.assertEquals(meta.getColumnTypeName(1), "DateTime('" + timezone.getID() + "')");
