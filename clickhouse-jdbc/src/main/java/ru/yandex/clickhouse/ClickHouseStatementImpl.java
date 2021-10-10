@@ -19,6 +19,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.TimeZone;
 import java.util.UUID;
+
+import com.clickhouse.client.data.JsonStreamUtils;
+
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
@@ -294,7 +297,7 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
         stmt = applyFormat(stmt, ClickHouseFormat.JSONCompact);
         
         try (InputStream is = getInputStream(stmt, additionalDBParams, null, additionalRequestParams)) {
-            return Jackson.getObjectMapper().readValue(
+            return JsonStreamUtils.readObject(
                 properties.isCompress() ? new ClickHouseLZ4Stream(is) : is, ClickHouseResponse.class);
         } catch (IOException e) {
             throw new RuntimeException(e);
@@ -375,7 +378,7 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
         parseSqlStatements(sql, ClickHouseFormat.JSONCompact, additionalDBParams);
         
         try (InputStream is = getLastInputStream(additionalDBParams, null, additionalRequestParams)) {
-            return Jackson.getObjectMapper().readValue(
+            return JsonStreamUtils.readObject(
                 properties.isCompress() ? new ClickHouseLZ4Stream(is) : is, ClickHouseResponse.class);
         } catch (IOException e) {
             throw new RuntimeException(e);
@@ -795,7 +798,7 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
             // retrieve response summary
             if (isQueryParamSet(ClickHouseQueryParam.SEND_PROGRESS_IN_HTTP_HEADERS, additionalClickHouseDBParams, additionalRequestParams)) {
                 Header summaryHeader = response.getFirstHeader("X-ClickHouse-Summary");
-                currentSummary = summaryHeader != null ? Jackson.getObjectMapper().readValue(summaryHeader.getValue(), ClickHouseResponseSummary.class) : null;
+                currentSummary = summaryHeader != null ? JsonStreamUtils.readObject(summaryHeader.getValue(), ClickHouseResponseSummary.class) : null;
             }
 
             return is;
@@ -1074,7 +1077,7 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
             // retrieve response summary
             if (isQueryParamSet(ClickHouseQueryParam.SEND_PROGRESS_IN_HTTP_HEADERS, writer.getAdditionalDBParams(), writer.getRequestParams())) {
                 Header summaryHeader = response.getFirstHeader("X-ClickHouse-Summary");
-                currentSummary = summaryHeader != null ? Jackson.getObjectMapper().readValue(summaryHeader.getValue(), ClickHouseResponseSummary.class) : null;
+                currentSummary = summaryHeader != null ? JsonStreamUtils.readObject(summaryHeader.getValue(), ClickHouseResponseSummary.class) : null;
             }
         } catch (ClickHouseException e) {
             throw e;

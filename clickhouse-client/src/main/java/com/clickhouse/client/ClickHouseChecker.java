@@ -173,8 +173,29 @@ public final class ClickHouseChecker {
      * @param value the string to check
      * @return true if the string is null or empty; false otherwise
      */
-    public static boolean isNullOrEmpty(String value) {
-        return value == null || value.isEmpty();
+    public static boolean isNullOrEmpty(CharSequence value) {
+        return value == null || value.length() == 0;
+    }
+
+    /**
+     * Checks if the given string is null, empty string or a string only contains
+     * white spaces.
+     *
+     * @param value the string to check
+     * @return true if the string is null, empty or blank； false otherwise
+     */
+    public static boolean isNullOrBlank(CharSequence value) {
+        if (isNullOrEmpty(value)) {
+            return true;
+        }
+
+        for (int i = 0, len = value.length(); i < len; i++) {
+            if (!Character.isWhitespace(value.charAt(i))) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**

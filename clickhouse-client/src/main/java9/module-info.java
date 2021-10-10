@@ -14,11 +14,13 @@ module com.clickhouse.client {
         com.clickhouse.client.postgresql,
         // native is a reserved keyword :<
         com.clickhouse.client.tcp,
-        com.clickhouse.jdbc;
+        com.clickhouse.jdbc,
+        ru.yandex.clickhouse;
 
     requires java.base;
 
     requires static java.logging;
+    requires static com.google.gson;
     requires static com.github.benmanes.caffeine;
     requires static org.dnsjava;
     requires static org.lz4.java;
