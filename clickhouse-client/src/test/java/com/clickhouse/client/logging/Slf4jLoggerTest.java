@@ -32,6 +32,11 @@ public class Slf4jLoggerTest extends LoggerTest {
     }
 
     @Test(groups = { "unit" })
+    public void testLogWithFunction() {
+        logWithFunction(() -> Collections.singleton(2L));
+    }
+
+    @Test(groups = { "unit" })
     public void testLogThrowable() {
         logThrowable("msg", new Exception("test exception"));
     }

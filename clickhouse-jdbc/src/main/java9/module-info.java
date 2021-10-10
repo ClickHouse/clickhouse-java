@@ -20,7 +20,7 @@ module ru.yandex.clickhouse {
     requires static java.logging;
     // requires static com.github.benmanes.caffeine;
     // requires static org.dnsjava;
-    requires static org.slf4j;
+    // requires static org.slf4j;
     requires static org.roaringbitmap;
 
     uses com.clickhouse.client.ClickHouseClient;

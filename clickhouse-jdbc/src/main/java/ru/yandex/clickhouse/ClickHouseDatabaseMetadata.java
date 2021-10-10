@@ -13,9 +13,8 @@ import java.util.Iterator;
 import java.util.List;
 
 import com.clickhouse.client.ClickHouseVersion;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import com.clickhouse.client.logging.Logger;
+import com.clickhouse.client.logging.LoggerFactory;
 
 import ru.yandex.clickhouse.response.ClickHouseColumnInfo;
 import ru.yandex.clickhouse.response.ClickHouseResultBuilder;

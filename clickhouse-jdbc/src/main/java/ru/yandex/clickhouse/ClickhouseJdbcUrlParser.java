@@ -6,14 +6,14 @@ import java.util.Properties;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import com.clickhouse.client.logging.Logger;
+import com.clickhouse.client.logging.LoggerFactory;
 
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
 import ru.yandex.clickhouse.settings.ClickHouseQueryParam;
 
 public class ClickhouseJdbcUrlParser {
-    private static final Logger logger = LoggerFactory.getLogger(ClickhouseJdbcUrlParser.class);
+    private static final Logger log = LoggerFactory.getLogger(ClickhouseJdbcUrlParser.class);
     public static final String JDBC_PREFIX = "jdbc:";
     public static final String JDBC_CLICKHOUSE_PREFIX = JDBC_PREFIX + "clickhouse:";
     public static final Pattern DB_PATH_PATTERN = Pattern.compile("/([a-zA-Z0-9_*\\-]+)");
@@ -81,7 +81,7 @@ public class ClickhouseJdbcUrlParser {
             if (keyValueTokens.length == 2) {
                 urlProps.put(keyValueTokens[0], keyValueTokens[1]);
             } else {
-                logger.warn("don't know how to handle parameter pair: {}", keyValue);
+                log.warn("don't know how to handle parameter pair: %s", keyValue);
             }
         }
         return urlProps;

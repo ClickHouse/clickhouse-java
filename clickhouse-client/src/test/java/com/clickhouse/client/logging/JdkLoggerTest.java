@@ -32,6 +32,11 @@ public class JdkLoggerTest extends LoggerTest {
     }
 
     @Test(groups = { "unit" })
+    public void testLogWithFunction() {
+        logWithFunction(() -> Collections.singleton(1));
+    }
+
+    @Test(groups = { "unit" })
     public void testLogThrowable() {
         logThrowable("msg", new Exception("test exception"));
     }

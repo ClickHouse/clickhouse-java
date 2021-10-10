@@ -1,5 +1,7 @@
 package com.clickhouse.client.logging;
 
+import java.util.function.Supplier;
+
 import com.clickhouse.client.ClickHouseChecker;
 
 /**
@@ -18,9 +20,9 @@ public class Slf4jLogger implements Logger {
     }
 
     @Override
-    public void debug(Runnable function) {
+    public void debug(Supplier<?> function) {
         if (function != null && logger.isDebugEnabled()) {
-            function.run();
+            logger.debug(String.valueOf(function.get()));
         }
     }
 
@@ -44,9 +46,9 @@ public class Slf4jLogger implements Logger {
     }
 
     @Override
-    public void error(Runnable function) {
+    public void error(Supplier<?> function) {
         if (function != null && logger.isErrorEnabled()) {
-            function.run();
+            logger.error(String.valueOf(function.get()));
         }
     }
 
@@ -70,9 +72,9 @@ public class Slf4jLogger implements Logger {
     }
 
     @Override
-    public void info(Runnable function) {
+    public void info(Supplier<?> function) {
         if (function != null && logger.isInfoEnabled()) {
-            function.run();
+            logger.info(String.valueOf(function.get()));
         }
     }
 
@@ -96,9 +98,9 @@ public class Slf4jLogger implements Logger {
     }
 
     @Override
-    public void trace(Runnable function) {
+    public void trace(Supplier<?> function) {
         if (function != null && logger.isTraceEnabled()) {
-            function.run();
+            logger.trace(String.valueOf(function.get()));
         }
     }
 
@@ -122,9 +124,9 @@ public class Slf4jLogger implements Logger {
     }
 
     @Override
-    public void warn(Runnable function) {
+    public void warn(Supplier<?> function) {
         if (function != null && logger.isWarnEnabled()) {
-            function.run();
+            logger.warn(String.valueOf(function.get()));
         }
     }
 
