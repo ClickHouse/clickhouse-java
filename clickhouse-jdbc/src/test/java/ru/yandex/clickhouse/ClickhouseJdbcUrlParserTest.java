@@ -98,6 +98,11 @@ public class ClickhouseJdbcUrlParserTest {
                 props.asProperties());
         Assert.assertEquals(chProps.getUser(), "user");
         Assert.assertEquals(chProps.getPassword(), "a:passwd");
+
+        chProps = ClickhouseJdbcUrlParser.parse("jdbc:clickhouse://let%40me%3Ain:let%40me%3Ain@foo.ch",
+                props.asProperties());
+        Assert.assertEquals(chProps.getUser(), "let@me:in");
+        Assert.assertEquals(chProps.getPassword(), "let@me:in");
     }
 
     @Test(groups = "unit")
