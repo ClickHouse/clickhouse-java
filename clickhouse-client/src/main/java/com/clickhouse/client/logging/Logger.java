@@ -1,5 +1,7 @@
 package com.clickhouse.client.logging;
 
+import java.util.function.Supplier;
+
 /**
  * Unified logger. Pay attention that the {@code format} follows standard
  * {@link java.util.Formatter}.
@@ -11,7 +13,7 @@ public interface Logger {
      *
      * @param function custom function to run
      */
-    void debug(Runnable function);
+    void debug(Supplier<?> function);
 
     /**
      * Logs a message at the DEBUG level according to the specified format and
@@ -38,7 +40,7 @@ public interface Logger {
      *
      * @param function custom function to run
      */
-    void error(Runnable function);
+    void error(Supplier<?> function);
 
     /**
      * Logs a message at the ERROR level according to the specified format and
@@ -65,7 +67,7 @@ public interface Logger {
      *
      * @param function custom function to run
      */
-    void info(Runnable function);
+    void info(Supplier<?> function);
 
     /**
      * Logs a message at the INFO level according to the specified format and
@@ -92,7 +94,7 @@ public interface Logger {
      *
      * @param function custom function to run
      */
-    void trace(Runnable function);
+    void trace(Supplier<?> function);
 
     /**
      * Logs a message at the TRACE level according to the specified format and
@@ -119,7 +121,7 @@ public interface Logger {
      *
      * @param function custom function to run
      */
-    void warn(Runnable function);
+    void warn(Supplier<?> function);
 
     /**
      * Logs a message at the WARN level according to the specified format and

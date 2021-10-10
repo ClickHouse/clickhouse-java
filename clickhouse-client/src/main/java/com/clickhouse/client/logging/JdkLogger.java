@@ -1,6 +1,7 @@
 package com.clickhouse.client.logging;
 
 import java.util.ResourceBundle;
+import java.util.function.Supplier;
 import java.util.logging.Level;
 import com.clickhouse.client.ClickHouseChecker;
 
@@ -29,9 +30,9 @@ public class JdkLogger implements Logger {
     }
 
     @Override
-    public void debug(Runnable function) {
+    public void debug(Supplier<?> function) {
         if (function != null && logger.isLoggable(Level.FINE)) {
-            function.run();
+            log(Level.FINE, LogMessage.of(function.get()));
         }
     }
 
@@ -50,9 +51,9 @@ public class JdkLogger implements Logger {
     }
 
     @Override
-    public void error(Runnable function) {
+    public void error(Supplier<?> function) {
         if (function != null && logger.isLoggable(Level.SEVERE)) {
-            function.run();
+            log(Level.SEVERE, LogMessage.of(function.get()));
         }
     }
 
@@ -71,9 +72,9 @@ public class JdkLogger implements Logger {
     }
 
     @Override
-    public void info(Runnable function) {
+    public void info(Supplier<?> function) {
         if (function != null && logger.isLoggable(Level.INFO)) {
-            function.run();
+            log(Level.INFO, LogMessage.of(function.get()));
         }
     }
 
@@ -92,9 +93,9 @@ public class JdkLogger implements Logger {
     }
 
     @Override
-    public void trace(Runnable function) {
+    public void trace(Supplier<?> function) {
         if (function != null && logger.isLoggable(Level.FINEST)) {
-            function.run();
+            log(Level.FINEST, LogMessage.of(function.get()));
         }
     }
 
@@ -113,9 +114,9 @@ public class JdkLogger implements Logger {
     }
 
     @Override
-    public void warn(Runnable function) {
+    public void warn(Supplier<?> function) {
         if (function != null && logger.isLoggable(Level.WARNING)) {
-            function.run();
+            log(Level.WARNING, LogMessage.of(function.get()));
         }
     }
 

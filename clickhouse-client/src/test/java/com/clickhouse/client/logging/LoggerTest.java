@@ -1,5 +1,7 @@
 package com.clickhouse.client.logging;
 
+import java.util.function.Supplier;
+
 import org.testng.Assert;
 
 public abstract class LoggerTest {
@@ -24,15 +26,15 @@ public abstract class LoggerTest {
     protected void logMessage(Object message) {
         Logger logger = getLogger(LoggerTest.class);
 
-        logger.trace(null);
+        logger.trace((Object) null);
         logger.trace(message);
-        logger.debug(null);
+        logger.debug((Object) null);
         logger.debug(message);
-        logger.info(null);
+        logger.info((Object) null);
         logger.info(message);
-        logger.warn(null);
+        logger.warn((Object) null);
         logger.warn(message);
-        logger.error(null);
+        logger.error((Object) null);
         logger.error(message);
     }
 
@@ -52,6 +54,26 @@ public abstract class LoggerTest {
         logger.warn(message, arguments);
         logger.error(null, arguments);
         logger.error(message, arguments);
+    }
+
+    protected void logWithFunction(Supplier<?> function) {
+        Logger logger = getLogger(LoggerTest.class);
+
+        logger.trace((Supplier<?>) null);
+        logger.trace(() -> null);
+        logger.trace(function);
+        logger.debug((Supplier<?>) null);
+        logger.debug(() -> null);
+        logger.debug(function);
+        logger.info((Supplier<?>) null);
+        logger.info(() -> null);
+        logger.info(function);
+        logger.warn((Supplier<?>) null);
+        logger.warn(() -> null);
+        logger.warn(function);
+        logger.error((Supplier<?>) null);
+        logger.error(() -> null);
+        logger.error(function);
     }
 
     protected void logThrowable(Object message, Throwable t) {

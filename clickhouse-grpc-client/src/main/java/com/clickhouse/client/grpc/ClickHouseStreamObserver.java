@@ -10,6 +10,7 @@ import io.grpc.stub.StreamObserver;
 import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseDataStreamFactory;
 import com.clickhouse.client.ClickHouseNode;
+import com.clickhouse.client.ClickHouseUtils;
 import com.clickhouse.client.data.ClickHousePipedStream;
 import com.clickhouse.client.exception.ClickHouseException;
 import com.clickhouse.client.grpc.impl.Exception;
@@ -72,6 +73,8 @@ public class ClickHouseStreamObserver implements StreamObserver<Result> {
                 log.info("%s.%s [ %s ] {%s} <%s> %s: %s", e.getTime(), e.getTimeMicroseconds(), e.getThreadId(),
                         e.getQueryId(), logLevel, e.getSource(), e.getText());
             }
+
+            return ClickHouseUtils.format("Logged %d entries from server", result.getLogsList().size());
         });
 
         boolean proceed = true;

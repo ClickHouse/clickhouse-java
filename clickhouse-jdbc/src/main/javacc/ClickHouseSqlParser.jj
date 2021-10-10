@@ -27,15 +27,15 @@ PARSER_BEGIN(ClickHouseSqlParser)
 
 package ru.yandex.clickhouse.jdbc.parser;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.StringReader;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import com.clickhouse.client.logging.Logger;
+import com.clickhouse.client.logging.LoggerFactory;
 
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
 
@@ -93,7 +93,7 @@ public class ClickHouseSqlParser {
             if (DEBUG) {
                 throw new IllegalArgumentException(e);
             } else {
-                log.warn("{}. If you believe the SQL is valid, please feel free to open an issue on Github with this warning and the following SQL attached.\n{}", e.getMessage(), sql);
+                log.warn("%s. If you believe the SQL is valid, please feel free to open an issue on Github with this warning and the following SQL attached.\n%s", e.getMessage(), sql);
             }
         }
 

@@ -1,13 +1,14 @@
 package ru.yandex.clickhouse.except;
 
 import org.apache.http.conn.ConnectTimeoutException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import ru.yandex.clickhouse.util.Utils;
 
 import java.net.ConnectException;
 import java.net.SocketTimeoutException;
+
+import com.clickhouse.client.logging.Logger;
+import com.clickhouse.client.logging.LoggerFactory;
 
 /**
  * Specify ClickHouse exception to ClickHouseException and fill it with a vendor
@@ -59,7 +60,7 @@ public final class ClickHouseExceptionSpecifier {
             return new ClickHouseException(code, messageHolder, host, port);
         } catch (Exception e) {
             log.error(
-                    "Unsupported ClickHouse error format, please fix ClickHouseExceptionSpecifier, message: {}, error: {}",
+                    "Unsupported ClickHouse error format, please fix ClickHouseExceptionSpecifier, message: %s, error: %s",
                     clickHouseMessage, e.getMessage());
             return new ClickHouseUnknownException(clickHouseMessage, cause, host, port);
         }

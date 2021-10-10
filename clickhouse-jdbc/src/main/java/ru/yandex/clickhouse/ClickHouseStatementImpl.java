@@ -21,6 +21,8 @@ import java.util.TimeZone;
 import java.util.UUID;
 
 import com.clickhouse.client.data.JsonStreamUtils;
+import com.clickhouse.client.logging.Logger;
+import com.clickhouse.client.logging.LoggerFactory;
 
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
@@ -38,8 +40,7 @@ import org.apache.http.entity.mime.MultipartEntityBuilder;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.message.BasicNameValuePair;
 import org.apache.http.util.EntityUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+
 import ru.yandex.clickhouse.domain.ClickHouseCompression;
 import ru.yandex.clickhouse.domain.ClickHouseFormat;
 import ru.yandex.clickhouse.except.ClickHouseException;
@@ -245,7 +246,7 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
             try {
                 is.close();
             } catch (IOException e) {
-                log.error("can not close stream: {}", e.getMessage());
+                log.error("can not close stream: %s", e.getMessage());
             }
         }
 
@@ -263,7 +264,7 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
         try (InputStream is = getInputStream(stmt, additionalDBParams, externalData, additionalRequestParams)) {
             //noinspection StatementWithEmptyBody
         } catch (IOException e) {
-            log.error("can not close stream: {}", e.getMessage());
+            log.error("can not close stream: %s", e.getMessage());
         }
 
         return currentSummary != null ? (int) currentSummary.getWrittenRows() : 1;
@@ -283,7 +284,7 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
             try {
                 is.close();
             } catch (IOException ioe) {
-                log.error("can not close stream: {}", ioe.getMessage());
+                log.error("can not close stream: %s", ioe.getMessage());
             }
             throw ClickHouseExceptionSpecifier.specify(e, properties.getHost(), properties.getPort());
         }
@@ -354,7 +355,7 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
             try {
                 is.close();
             } catch (IOException ioe) {
-                log.error("can not close stream: {}", ioe.getMessage());
+                log.error("can not close stream: %s", ioe.getMessage());
             }
             throw ClickHouseExceptionSpecifier.specify(e, properties.getHost(), properties.getPort());
         }
@@ -419,7 +420,7 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
                 try {
                     is.close();
                 } catch (IOException e) {
-                    log.error("can not close stream: {}", e.getMessage());
+                    log.error("can not close stream: %s", e.getMessage());
                 }
                 return null;
             }
@@ -427,7 +428,7 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
             try {
                 is.close();
             } catch (IOException ioe) {
-                log.error("can not close stream: {}", ioe.getMessage());
+                log.error("can not close stream: %s", ioe.getMessage());
             }
             throw ClickHouseExceptionSpecifier.specify(e, properties.getHost(), properties.getPort());
         }
@@ -441,7 +442,7 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
         try (InputStream is = getLastInputStream(additionalDBParams, null, null)) {
             //noinspection StatementWithEmptyBody
         } catch (IOException e) {
-            log.error("can not close stream: {}", e.getMessage());
+            log.error("can not close stream: %s", e.getMessage());
         }
 
         return currentSummary != null ? (int) currentSummary.getWrittenRows() : 1;
@@ -463,7 +464,7 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
             try {
                 currentRowBinaryResult.close();
             } catch (IOException e) {
-                log.error("can not close stream: {}", e.getMessage());
+                log.error("can not close stream: %s", e.getMessage());
             }
         }
     }
@@ -702,7 +703,7 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
                 try {
                     is.close();
                 } catch (IOException ioe) {
-                    log.warn("Failed to close stream: {}", ioe.getMessage());
+                    log.warn("Failed to close stream: %s", ioe.getMessage());
                 }
             }
         }
@@ -723,7 +724,7 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
             currentDatabase = parsedStmt.getDatabaseOrDefault(currentDatabase);
         }
         
-        log.debug("Executing SQL: {}", sql);
+        log.debug("Executing SQL: %s", sql);
 
         additionalClickHouseDBParams = addQueryIdTo(
                 additionalClickHouseDBParams == null
@@ -737,7 +738,7 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
             additionalRequestParams,
             ignoreDatabase
         );
-        log.debug("Request url: {}", uri);
+        log.debug("Request url: %s", uri);
 
 
         HttpEntity requestEntity;
@@ -805,9 +806,9 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
         } catch (ClickHouseException e) {
             throw e;
         } catch (Exception e) {
-            log.info("Error during connection to {}, reporting failure to data source, message: {}", properties, e.getMessage());
+            log.info("Error during connection to %s, reporting failure to data source, message: %s", properties, e.getMessage());
             EntityUtils.consumeQuietly(entity);
-            log.info("Error sql: {}", sql);
+            log.info("Error sql: %s", sql);
             throw ClickHouseExceptionSpecifier.specify(e, properties.getHost(), properties.getPort());
         }
     }
@@ -841,7 +842,7 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
                 .setParameters(queryParams)
                 .build();
         } catch (URISyntaxException e) {
-            log.error("Mailformed URL: {}", e.getMessage());
+            log.error("Mailformed URL: %s", e.getMessage());
             throw new IllegalStateException("illegal configuration of db");
         }
     }
@@ -949,7 +950,7 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
                 if (response.getStatusLine().getStatusCode() == 307) {
                     uri = new URI(response.getHeaders("Location")[0].getValue());
                     redirects++;
-                    log.info("Redirected to " + uri.getHost());
+                    log.info("Redirected to %s", uri.getHost());
                 } else {
                     break;
                 }
@@ -1098,7 +1099,7 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
                     messageStream = new ClickHouseLZ4Stream(new ByteArrayInputStream(bytes));
                     bytes = Utils.toByteArray(messageStream);
                 } catch (IOException e) {
-                    log.warn("error while read compressed stream {}", e.getMessage());
+                    log.warn("error while read compressed stream %s", e.getMessage());
                 }
             }
             EntityUtils.consumeQuietly(entity);
