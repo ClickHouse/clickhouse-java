@@ -2,9 +2,11 @@ package ru.yandex.clickhouse;
 
 import org.slf4j.LoggerFactory;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
-import ru.yandex.clickhouse.util.apache.StringUtils;
 
 import javax.sql.DataSource;
+
+import com.clickhouse.client.ClickHouseChecker;
+
 import java.io.PrintWriter;
 import java.net.URISyntaxException;
 import java.sql.SQLException;
@@ -328,7 +330,7 @@ public class BalancedClickhouseDataSource implements DataSource {
     }
 
     private static Properties getFromUrlWithoutDefault(String url) {
-        if (StringUtils.isBlank(url))
+        if (ClickHouseChecker.isNullOrBlank(url))
             return new Properties();
 
         int index = url.indexOf("?");

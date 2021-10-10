@@ -4,9 +4,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
 
-import ru.yandex.clickhouse.util.apache.StringUtils;
-
-
+import com.clickhouse.client.ClickHouseChecker;
 
 public class ClickHouseProperties {
 
@@ -331,7 +329,7 @@ public class ClickHouseProperties {
             params.put(ClickHouseQueryParam.PRIORITY, String.valueOf(priority));
         }
 
-        if (!StringUtils.isBlank(database) && !ignoreDatabase) {
+        if (!ClickHouseChecker.isNullOrBlank(database) && !ignoreDatabase) {
             params.put(ClickHouseQueryParam.DATABASE, getDatabase());
         }
 
@@ -347,7 +345,7 @@ public class ClickHouseProperties {
             params.put(ClickHouseQueryParam.EXTREMES, "1");
         }
 
-        if (StringUtils.isBlank(profile)) {
+        if (ClickHouseChecker.isNullOrBlank(profile)) {
             if (getMaxThreads() != null) {
                 params.put(ClickHouseQueryParam.MAX_THREADS, String.valueOf(maxThreads));
             }

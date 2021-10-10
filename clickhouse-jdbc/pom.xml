@@ -65,6 +65,22 @@
             </exclusions>
         </dependency>
         <dependency>
+            <groupId>${project.parent.groupId}</groupId>
+            <artifactId>org.roaringbitmap</artifactId>
+            <version>${repackaged.version}</version>
+            <scope>provided</scope>
+            <exclusions>
+                <exclusion>
+                    <groupId>*</groupId>
+                    <artifactId>*</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>com.google.code.gson</groupId>
+            <artifactId>gson</artifactId>
+        </dependency>
+        <dependency>
             <groupId>org.apache.httpcomponents</groupId>
             <artifactId>httpclient</artifactId>
             <version>${httpclient.version}</version>
@@ -77,19 +93,6 @@
         <dependency>
             <groupId>org.lz4</groupId>
             <artifactId>lz4-java</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.fasterxml.jackson.core</groupId>
-            <artifactId>jackson-core</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.fasterxml.jackson.core</groupId>
-            <artifactId>jackson-databind</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.roaringbitmap</groupId>
-            <artifactId>RoaringBitmap</artifactId>
-            <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>org.slf4j</groupId>
@@ -204,8 +207,8 @@
                     <shadedClassifierName>shaded</shadedClassifierName>
                     <relocations>
                         <relocation>
-                            <pattern>com.fasterxml.jackson</pattern>
-                            <shadedPattern>${shade.base}.jackson</shadedPattern>
+                            <pattern>com.google.gson</pattern>
+                            <shadedPattern>${shade.base}.gson</shadedPattern>
                         </relocation>
                         <relocation>
                             <pattern>org.apache</pattern>

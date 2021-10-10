@@ -31,8 +31,19 @@ public class ClickHouseCheckerTest {
     @Test(groups = { "unit" })
     public void testIsNullOrEmpty() {
         Assert.assertTrue(ClickHouseChecker.isNullOrEmpty(null));
+        Assert.assertTrue(ClickHouseChecker.isNullOrEmpty(new StringBuilder()));
+        Assert.assertTrue(ClickHouseChecker.isNullOrEmpty(new StringBuffer()));
         Assert.assertTrue(ClickHouseChecker.isNullOrEmpty(""));
         Assert.assertFalse(ClickHouseChecker.isNullOrEmpty(" "));
+    }
+
+    @Test(groups = { "unit" })
+    public void testIsNullOrBlank() {
+        Assert.assertTrue(ClickHouseChecker.isNullOrBlank(null));
+        Assert.assertTrue(ClickHouseChecker.isNullOrEmpty(new StringBuilder()));
+        Assert.assertTrue(ClickHouseChecker.isNullOrEmpty(new StringBuffer()));
+        Assert.assertTrue(ClickHouseChecker.isNullOrBlank(""));
+        Assert.assertTrue(ClickHouseChecker.isNullOrBlank(" \t\r\n  "));
     }
 
     @Test(groups = { "unit" })

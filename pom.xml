@@ -88,7 +88,6 @@
         <httpclient.version>4.5.13</httpclient.version>
         <protobuf.version>3.17.3</protobuf.version>
         <lz4.version>1.8.0</lz4.version>
-        <jackson.version>2.12.3</jackson.version>
         <roaring-bitmap.version>0.9.21</roaring-bitmap.version>
         <slf4j.version>1.8.0-beta4</slf4j.version>
         <mockito.version>3.12.4</mockito.version>
@@ -143,16 +142,6 @@
                 <version>${repackaged.version}</version>
             </dependency>
 
-            <dependency>
-                <groupId>com.fasterxml.jackson.core</groupId>
-                <artifactId>jackson-core</artifactId>
-                <version>${jackson.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.fasterxml.jackson.core</groupId>
-                <artifactId>jackson-databind</artifactId>
-                <version>${jackson.version}</version>
-            </dependency>
             <dependency>
                 <groupId>com.google.code.gson</groupId>
                 <artifactId>gson</artifactId>
