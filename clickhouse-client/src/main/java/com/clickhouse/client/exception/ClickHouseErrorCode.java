@@ -608,7 +608,11 @@ public enum ClickHouseErrorCode {
     }
 
     public static ClickHouseErrorCode fromCode(Integer code) {
-        return byCodes.get(code);
+        return fromCodeOrDefault(code, null);
+    }
+
+    public static ClickHouseErrorCode fromCodeOrDefault(Integer code, ClickHouseErrorCode defaultErrorCode) {
+        return byCodes.getOrDefault(code, defaultErrorCode);
     }
 
     @Override

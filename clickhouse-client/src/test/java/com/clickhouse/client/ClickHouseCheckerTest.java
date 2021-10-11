@@ -47,6 +47,15 @@ public class ClickHouseCheckerTest {
     }
 
     @Test(groups = { "unit" })
+    public void testNonBlank() {
+        Assert.assertEquals(ClickHouseChecker.nonBlank(" 1", "value"), " 1");
+
+        Assert.assertThrows(IllegalArgumentException.class, () -> ClickHouseChecker.nonBlank(null, null));
+        Assert.assertThrows(IllegalArgumentException.class, () -> ClickHouseChecker.nonBlank("", ""));
+        Assert.assertThrows(IllegalArgumentException.class, () -> ClickHouseChecker.nonBlank(" ", ""));
+    }
+
+    @Test(groups = { "unit" })
     public void testNonEmpty() {
         Assert.assertEquals(ClickHouseChecker.nonEmpty(" ", "value"), " ");
 

@@ -15,6 +15,7 @@ import com.clickhouse.client.config.ClickHouseDefaults;
 import com.clickhouse.client.data.ClickHouseBigIntegerValue;
 import com.clickhouse.client.data.ClickHouseByteValue;
 import com.clickhouse.client.data.ClickHouseDateTimeValue;
+import com.clickhouse.client.data.ClickHouseExternalTable;
 import com.clickhouse.client.data.ClickHouseFloatValue;
 import com.clickhouse.client.data.ClickHouseIntegerValue;
 import com.clickhouse.client.data.ClickHouseStringValue;
@@ -60,6 +61,56 @@ public class ClickHouseRequestTest {
         m.query(sql = "delete from test where id = 1");
         Assert.assertEquals(m.getStatements().size(), 1);
         Assert.assertEquals(m.getStatements().get(0), sql);
+    }
+
+    @Test(groups = { "unit" })
+    public void testCopy() {
+        ClickHouseRequest<?> request = ClickHouseClient.newInstance().connect(ClickHouseNode.builder().build());
+        request.compression(ClickHouseCompression.LZ4);
+        request.external(ClickHouseExternalTable.builder().content(new ByteArrayInputStream(new byte[0])).build());
+        request.format(ClickHouseFormat.Avro);
+        request.table("table1", "query_id1");
+        request.query("select :a", UUID.randomUUID().toString());
+        request.params("a");
+        request.session(UUID.randomUUID().toString(), true, 120);
+        request.set("key", "value");
+        request.use("db1");
+
+        ClickHouseRequest<?> copy = request.copy();
+        Assert.assertFalse(copy.isSealed(), "Should NOT be sealed");
+        Assert.assertFalse(copy == request, "Should be two different instances");
+        Assert.assertEquals(copy.namedParameters, request.namedParameters);
+        Assert.assertEquals(copy.options, request.options);
+        Assert.assertEquals(copy.queryId, request.queryId);
+        Assert.assertEquals(copy.sessionId, request.sessionId);
+        Assert.assertEquals(copy.sql, request.sql);
+        Assert.assertEquals(copy.getPreparedQuery(), request.getPreparedQuery());
+
+        copy = copy.write();
+        Assert.assertFalse(copy.isSealed(), "Should NOT be sealed");
+        Assert.assertFalse(copy == request, "Should be two different instances");
+        Assert.assertTrue(copy.namedParameters.isEmpty(), "Named parameters should be empty");
+        Assert.assertEquals(copy.options, request.options);
+        Assert.assertNull(copy.queryId, "Query ID should be null");
+        Assert.assertEquals(copy.sessionId, request.sessionId);
+        Assert.assertNull(copy.sql, "SQL should be null");
+
+        ClickHouseRequest<?> newCopy = copy;
+        Assert.assertThrows(IllegalArgumentException.class, () -> newCopy.getPreparedQuery());
+
+        copy.external(ClickHouseExternalTable.builder().content(new ByteArrayInputStream(new byte[0])).build());
+        copy.table("table1", "query_id1");
+        copy.query("select :a", request.queryId);
+        copy.params("a");
+
+        Assert.assertFalse(copy.isSealed(), "Should NOT be sealed");
+        Assert.assertFalse(copy == request, "Should be two different instances");
+        Assert.assertEquals(copy.namedParameters, request.namedParameters);
+        Assert.assertEquals(copy.options, request.options);
+        Assert.assertEquals(copy.queryId, request.queryId);
+        Assert.assertEquals(copy.sessionId, request.sessionId);
+        Assert.assertEquals(copy.sql, request.sql);
+        Assert.assertEquals(copy.getPreparedQuery(), request.getPreparedQuery());
     }
 
     @Test(groups = { "unit" })
@@ -115,6 +166,32 @@ public class ClickHouseRequestTest {
         Assert.assertEquals(request.getStatements(false).size(), 1);
         Assert.assertEquals(request.getStatements(false).get(0),
                 "select '' as one, '2012-12-12 12:23:34.56789' as two, * from my_table where key='key' and arr[1] in numbers(10)");
+    }
+
+    @Test(groups = { "unit" })
+    public void testSeal() {
+        ClickHouseRequest<?> request = ClickHouseClient.newInstance().connect(ClickHouseNode.builder().build());
+        request.compression(ClickHouseCompression.LZ4);
+        request.external(ClickHouseExternalTable.builder().content(new ByteArrayInputStream(new byte[0])).build());
+        request.format(ClickHouseFormat.Avro);
+        request.table("table1", "query_id1");
+        request.query("select :a", UUID.randomUUID().toString());
+        request.params("a");
+        request.session(UUID.randomUUID().toString(), true, 120);
+        request.set("key", "value");
+        request.use("db1");
+
+        ClickHouseRequest<?> sealed = request.seal();
+        Assert.assertTrue(sealed.isSealed(), "Should be sealed");
+        Assert.assertFalse(sealed == request, "Should be two different instances");
+        Assert.assertEquals(sealed.namedParameters, request.namedParameters);
+        Assert.assertEquals(sealed.options, request.options);
+        Assert.assertEquals(sealed.queryId, request.queryId);
+        Assert.assertEquals(sealed.sessionId, request.sessionId);
+        Assert.assertEquals(sealed.sql, request.sql);
+        Assert.assertEquals(sealed.getPreparedQuery(), request.getPreparedQuery());
+
+        Assert.assertThrows(IllegalStateException.class, () -> sealed.write());
     }
 
     @Test(groups = { "unit" })

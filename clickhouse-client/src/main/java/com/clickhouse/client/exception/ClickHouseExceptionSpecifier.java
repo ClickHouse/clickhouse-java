@@ -2,7 +2,10 @@ package com.clickhouse.client.exception;
 
 import java.net.ConnectException;
 import java.net.SocketTimeoutException;
+import java.util.concurrent.ExecutionException;
+
 import com.clickhouse.client.ClickHouseChecker;
+import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.logging.Logger;
 import com.clickhouse.client.logging.LoggerFactory;
 
@@ -17,25 +20,39 @@ public final class ClickHouseExceptionSpecifier {
     private ClickHouseExceptionSpecifier() {
     }
 
-    public static ClickHouseException specify(Throwable cause, String host, int port) {
-        return specify(cause != null ? cause.getMessage() : null, cause, host, port);
+    /**
+     * Handles ExecutionException.
+     *
+     * @param e      ExecutionException
+     * @param server server
+     */
+    public static ClickHouseException handle(ExecutionException e, ClickHouseNode server) {
+        Throwable cause = e.getCause();
+        if (cause == null) {
+            cause = e;
+        }
+        return ClickHouseExceptionSpecifier.specify(cause, server);
     }
 
-    public static ClickHouseException specify(String clickHouseMessage, String host, int port) {
-        return specify(clickHouseMessage, null, host, port);
+    public static ClickHouseException specify(Throwable cause, ClickHouseNode server) {
+        return specify(cause != null ? cause.getMessage() : null, cause, server);
+    }
+
+    public static ClickHouseException specify(String clickHouseMessage, ClickHouseNode server) {
+        return specify(clickHouseMessage, null, server);
     }
 
     public static ClickHouseException specify(String clickHouseMessage) {
-        return specify(clickHouseMessage, "unknown", -1);
+        return specify(clickHouseMessage, null);
     }
 
     /**
      * Here we expect the ClickHouse error message to be of the following format:
      * "Code: 10, e.displayText() = DB::Exception: ...".
      */
-    private static ClickHouseException specify(String clickHouseMessage, Throwable cause, String host, int port) {
+    private static ClickHouseException specify(String clickHouseMessage, Throwable cause, ClickHouseNode server) {
         if (ClickHouseChecker.isNullOrEmpty(clickHouseMessage) && cause != null) {
-            return getException(cause, host, port);
+            return getException(cause, server);
         }
 
         try {
@@ -49,15 +66,15 @@ public final class ClickHouseExceptionSpecifier {
             // ошибку в изначальном виде все-таки укажем
             Throwable messageHolder = cause != null ? cause : new Throwable(clickHouseMessage);
             if (code == -1) {
-                return getException(messageHolder, host, port);
+                return getException(messageHolder, server);
             }
 
-            return new ClickHouseException(code, messageHolder, host, port);
+            return new ClickHouseException(code, messageHolder, server);
         } catch (Exception e) {
             log.error(
                     "Unsupported ClickHouse error format, please fix ClickHouseExceptionSpecifier, message: {}, error: {}",
                     clickHouseMessage, e.getMessage());
-            return new ClickHouseUnknownException(clickHouseMessage, cause, host, port);
+            return new ClickHouseUnknownException(clickHouseMessage, cause, server);
         }
     }
 
@@ -76,19 +93,19 @@ public final class ClickHouseExceptionSpecifier {
         }
     }
 
-    private static ClickHouseException getException(Throwable cause, String host, int port) {
+    private static ClickHouseException getException(Throwable cause, ClickHouseNode server) {
         if (cause instanceof SocketTimeoutException)
         // if we've got SocketTimeoutException, we'll say that the query is not good.
         // This is not the same as SOCKET_TIMEOUT of clickhouse
         // but it actually could be a failing ClickHouse
         {
-            return new ClickHouseException(ClickHouseErrorCode.TIMEOUT_EXCEEDED.code, cause, host, port);
+            return new ClickHouseException(ClickHouseErrorCode.TIMEOUT_EXCEEDED.code, cause, server);
         } else if (cause instanceof ConnectException)
         // couldn't connect to ClickHouse during connectTimeout
         {
-            return new ClickHouseException(ClickHouseErrorCode.NETWORK_ERROR.code, cause, host, port);
+            return new ClickHouseException(ClickHouseErrorCode.NETWORK_ERROR.code, cause, server);
         } else {
-            return new ClickHouseUnknownException(cause, host, port);
+            return new ClickHouseUnknownException(cause, server);
         }
     }
 

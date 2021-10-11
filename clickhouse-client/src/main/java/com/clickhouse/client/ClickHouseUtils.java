@@ -295,7 +295,7 @@ public final class ClickHouseUtils {
      * @throws FileNotFoundException when the file does not exists
      */
     public static InputStream getFileInputStream(String file) throws FileNotFoundException {
-        Path path = Paths.get(ClickHouseChecker.nonEmpty(file, "file"));
+        Path path = Paths.get(ClickHouseChecker.nonBlank(file, "file"));
 
         StringBuilder builder = new StringBuilder();
         InputStream in = null;
@@ -332,7 +332,7 @@ public final class ClickHouseUtils {
      * @throws IOException when failed to create directories and/or file
      */
     public static OutputStream getFileOutputStream(String file) throws IOException {
-        Path path = Paths.get(ClickHouseChecker.nonEmpty(file, "file"));
+        Path path = Paths.get(ClickHouseChecker.nonBlank(file, "file"));
 
         if (Files.notExists(path)) {
             Files.createDirectories(path.getParent());

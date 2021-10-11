@@ -1,5 +1,10 @@
 package com.clickhouse.client.exception;
 
+import com.clickhouse.client.ClickHouseNode;
+
+/**
+ * Exception thrown from ClickHouse server.
+ */
 public class ClickHouseException extends Exception {
     /**
      * Generated ID.
@@ -8,7 +13,15 @@ public class ClickHouseException extends Exception {
 
     private final int errorCode;
 
-    private static String buildErrorMessage(String message, int code, String host, int port, Throwable cause) {
+    private static String buildErrorMessage(ClickHouseErrorCode error, ClickHouseNode server, Throwable cause) {
+        if (error == null) {
+            error = ClickHouseErrorCode.UNKNOWN_EXCEPTION;
+        }
+
+        return buildErrorMessage(error.name(), error.code, server, cause);
+    }
+
+    private static String buildErrorMessage(String message, int code, ClickHouseNode server, Throwable cause) {
         StringBuilder builder = new StringBuilder();
 
         builder.append("ClickHouse exception, ");
@@ -18,11 +31,8 @@ public class ClickHouseException extends Exception {
             builder.append(" code: ").append(code);
         }
 
-        if (host != null) {
-            builder.append(", host: ").append(host).append(", port: ").append(port);
-        }
+        builder.append(", server: ").append(server).append(';');
 
-        builder.append(';');
         if (cause != null) {
             builder.append(' ').append(cause.getMessage());
         }
@@ -30,22 +40,36 @@ public class ClickHouseException extends Exception {
         return builder.toString();
     }
 
-    public ClickHouseException(int code, Throwable cause, String host, int port) {
-        super(buildErrorMessage(null, code, host, port, cause), cause);
+    public ClickHouseException(int code, Throwable cause, ClickHouseNode server) {
+        super(buildErrorMessage(
+                ClickHouseErrorCode.fromCodeOrDefault(code, ClickHouseErrorCode.UNKNOWN_EXCEPTION).name(), code, server,
+                cause), cause);
 
         errorCode = code;
     }
 
-    public ClickHouseException(int code, String message, Throwable cause, String host, int port) {
-        super(buildErrorMessage(message, code, host, port, cause), cause);
+    public ClickHouseException(int code, String message, Throwable cause, ClickHouseNode server) {
+        super(buildErrorMessage(
+                message != null ? message
+                        : ClickHouseErrorCode.fromCodeOrDefault(code, ClickHouseErrorCode.UNKNOWN_EXCEPTION).name(),
+                code, server, cause), cause);
 
         errorCode = code;
     }
 
     public ClickHouseException(int code, String message, Throwable cause) {
-        super(buildErrorMessage(message, code, null, 0, cause), cause);
+        super(buildErrorMessage(
+                message != null ? message
+                        : ClickHouseErrorCode.fromCodeOrDefault(code, ClickHouseErrorCode.UNKNOWN_EXCEPTION).name(),
+                code, null, cause), cause);
 
         errorCode = code;
+    }
+
+    public ClickHouseException(ClickHouseErrorCode error, Throwable cause, ClickHouseNode server) {
+        super(buildErrorMessage(error, server, cause), cause);
+
+        errorCode = error != null ? error.code : ClickHouseErrorCode.UNKNOWN_EXCEPTION.code;
     }
 
     public int getErrorCode() {

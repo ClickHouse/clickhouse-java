@@ -42,9 +42,6 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
             this.options.putAll(request.options);
             this.settings.putAll(request.settings);
 
-            this.namedParameters.putAll(request.namedParameters);
-
-            this.queryId = request.queryId;
             this.sessionId = request.sessionId;
         }
 
@@ -137,7 +134,7 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
 
             this.queryId = queryId;
 
-            String sql = "INSERT INTO " + ClickHouseChecker.nonEmpty(table, "table");
+            String sql = "INSERT INTO " + ClickHouseChecker.nonBlank(table, "table");
             if (!sql.equals(this.sql)) {
                 this.sql = sql;
                 this.preparedQuery = null;
@@ -154,6 +151,7 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
             if (!isSealed()) {
                 // no idea which node we'll connect to until now
                 req = new Mutation(this, true);
+                req.externalTables.addAll(externalTables);
                 req.options.putAll(options);
                 req.settings.putAll(settings);
 
@@ -189,10 +187,10 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
     protected String queryId;
     protected String sessionId;
     protected String sql;
+    protected ClickHouseParameterizedQuery preparedQuery;
 
     // cache
     protected transient ClickHouseConfig config;
-    protected transient ClickHouseParameterizedQuery preparedQuery;
     protected transient List<String> statements;
 
     @SuppressWarnings("unchecked")
@@ -253,6 +251,25 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
         if (statements != null) {
             statements = null;
         }
+    }
+
+    /**
+     * Creates a copy of this request object.
+     *
+     * @return copy of this request
+     */
+    public ClickHouseRequest<SelfT> copy() {
+        ClickHouseRequest<SelfT> req = new ClickHouseRequest<>(getClient(), server, false);
+        req.externalTables.addAll(externalTables);
+        req.options.putAll(options);
+        req.settings.putAll(settings);
+        req.namedParameters.putAll(namedParameters);
+        req.input = input;
+        req.queryId = queryId;
+        req.sessionId = sessionId;
+        req.sql = sql;
+        req.preparedQuery = preparedQuery;
+        return req;
     }
 
     /**
@@ -825,7 +842,7 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
     public SelfT query(String sql, String queryId) {
         checkSealed();
 
-        if (!ClickHouseChecker.nonEmpty(sql, "sql").equals(this.sql)) {
+        if (!ClickHouseChecker.nonBlank(sql, "sql").equals(this.sql)) {
             this.sql = sql;
             this.preparedQuery = null;
             resetCache();
@@ -944,7 +961,7 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
     public SelfT set(String setting, Serializable value) {
         checkSealed();
 
-        Serializable oldValue = settings.put(ClickHouseChecker.nonEmpty(setting, "setting"),
+        Serializable oldValue = settings.put(ClickHouseChecker.nonBlank(setting, "setting"),
                 ClickHouseChecker.nonNull(value, "value"));
         if (oldValue == null || !oldValue.equals(value)) {
             resetCache();
@@ -988,7 +1005,7 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
      * @return the request itself
      */
     public SelfT table(String table, String queryId) {
-        return query("SELECT * FROM " + ClickHouseChecker.nonEmpty(table, "table"), queryId);
+        return query("SELECT * FROM " + ClickHouseChecker.nonBlank(table, "table"), queryId);
     }
 
     /**
@@ -1002,7 +1019,7 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
         checkSealed();
 
         Object oldValue = options.put(ClickHouseClientOption.DATABASE,
-                ClickHouseChecker.nonEmpty(database, "database"));
+                ClickHouseChecker.nonBlank(database, "database"));
         if (oldValue == null || !oldValue.equals(database)) {
             resetCache();
         }
@@ -1083,7 +1100,7 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
     public SelfT removeSetting(String setting) {
         checkSealed();
 
-        if (settings.remove(ClickHouseChecker.nonEmpty(setting, "setting")) != null) {
+        if (settings.remove(ClickHouseChecker.nonBlank(setting, "setting")) != null) {
             resetCache();
         }
 

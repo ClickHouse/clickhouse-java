@@ -1,5 +1,6 @@
 package com.clickhouse.client;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -9,12 +10,15 @@ import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * A parameterized query is a parsed query with named parameters being extracted
  * for substitution.
  */
-public final class ClickHouseParameterizedQuery {
+public final class ClickHouseParameterizedQuery implements Serializable {
+    private static final long serialVersionUID = 8108887349618342152L;
+
     /**
      * Substitute named parameters in given SQL.
      *
@@ -97,11 +101,12 @@ public final class ClickHouseParameterizedQuery {
     private final String originalQuery;
     // 0 - from; 1 - to; 2 - parameter index(-1 means no parameter)
     private final List<int[]> parts;
+
     private int[] lastPart;
     private String[] names;
 
     private ClickHouseParameterizedQuery(String query) {
-        originalQuery = ClickHouseChecker.nonEmpty(query, "query");
+        originalQuery = ClickHouseChecker.nonBlank(query, "query");
 
         parts = new LinkedList<>();
         lastPart = null;
@@ -395,5 +400,31 @@ public final class ClickHouseParameterizedQuery {
      */
     public boolean hasParameter() {
         return names.length > 0;
+    }
+
+    @Override
+    public int hashCode() {
+        final int prime = 31;
+        int result = 1;
+        result = prime * result + Arrays.hashCode(lastPart);
+        result = prime * result + Arrays.hashCode(names);
+        result = prime * result + ((originalQuery == null) ? 0 : originalQuery.hashCode());
+        result = prime * result + ((parts == null) ? 0 : parts.hashCode());
+        return result;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+
+        ClickHouseParameterizedQuery other = (ClickHouseParameterizedQuery) obj;
+        return Arrays.equals(lastPart, other.lastPart) && Arrays.equals(names, other.names)
+                && Objects.equals(originalQuery, other.originalQuery) && ((parts.isEmpty() && other.parts.isEmpty())
+                        || Arrays.deepEquals(parts.toArray(new int[0][]), other.parts.toArray(new int[0][])));
     }
 }
