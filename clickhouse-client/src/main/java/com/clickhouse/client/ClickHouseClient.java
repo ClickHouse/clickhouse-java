@@ -5,7 +5,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -38,10 +37,6 @@ import com.clickhouse.client.exception.ClickHouseExceptionSpecifier;
  * implementation properly in runtime.
  */
 public interface ClickHouseClient extends AutoCloseable {
-    /**
-     * Empty stringified parameters.
-     */
-    static final List<Map<String, String>> EMPTY_STRINGIFIED_PARAMETERS = Collections.emptyList();
 
     /**
      * Returns a builder for creating a new client.
@@ -74,6 +69,7 @@ public interface ClickHouseClient extends AutoCloseable {
      * @param <T>  return type of the task
      * @param task non-null task
      * @return future object to get result
+     * @throws CompletionException when failed to complete the task
      */
     static <T> CompletableFuture<T> submit(Callable<T> task) {
         try {
@@ -101,7 +97,10 @@ public interface ClickHouseClient extends AutoCloseable {
      * @param compression  compression algorithm to use
      * @param file         output file
      * @return future object to get result
-     * @throws IOException when failed to create the file or its parent directories
+     * @throws IllegalArgumentException if any of server, tableOrQuery, and output
+     *                                  is null
+     * @throws IOException              when failed to create the file or its parent
+     *                                  directories
      */
     static CompletableFuture<ClickHouseResponseSummary> dump(ClickHouseNode server, String tableOrQuery,
             ClickHouseFormat format, ClickHouseCompression compression, String file) throws IOException {
@@ -120,6 +119,8 @@ public interface ClickHouseClient extends AutoCloseable {
      * @param output       output stream, which will be closed automatically at the
      *                     end of the call
      * @return future object to get result
+     * @throws IllegalArgumentException if any of server, tableOrQuery, and output
+     *                                  is null
      */
     static CompletableFuture<ClickHouseResponseSummary> dump(ClickHouseNode server, String tableOrQuery,
             ClickHouseFormat format, ClickHouseCompression compression, OutputStream output) {
@@ -148,8 +149,11 @@ public interface ClickHouseClient extends AutoCloseable {
                     response.dump(output);
                     return response.getSummary();
                 }
-            } catch (InterruptedException | ExecutionException e) {
-                throw ClickHouseExceptionSpecifier.specify(e, theServer.getHost(), theServer.getPort());
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw ClickHouseExceptionSpecifier.specify(e, theServer);
+            } catch (ExecutionException e) {
+                throw ClickHouseExceptionSpecifier.handle(e, theServer);
             } finally {
                 try {
                     output.close();
@@ -170,7 +174,8 @@ public interface ClickHouseClient extends AutoCloseable {
      * @param compression compression algorithm to use
      * @param file        file to load
      * @return future object to get result
-     * @throws FileNotFoundException when file not found
+     * @throws IllegalArgumentException if any of server, table, and input is null
+     * @throws FileNotFoundException    when file not found
      */
     static CompletableFuture<ClickHouseResponseSummary> load(ClickHouseNode server, String table,
             ClickHouseFormat format, ClickHouseCompression compression, String file) throws FileNotFoundException {
@@ -187,6 +192,7 @@ public interface ClickHouseClient extends AutoCloseable {
      * @param compression compression algorithm to use
      * @param writer      non-null custom writer to generate data
      * @return future object to get result
+     * @throws IllegalArgumentException if any of server, table, and writer is null
      */
     static CompletableFuture<ClickHouseResponseSummary> load(ClickHouseNode server, String table,
             ClickHouseFormat format, ClickHouseCompression compression, ClickHouseWriter writer) {
@@ -221,8 +227,11 @@ public interface ClickHouseClient extends AutoCloseable {
                 try (ClickHouseResponse response = future.get()) {
                     return response.getSummary();
                 }
-            } catch (InterruptedException | ExecutionException e) {
-                throw ClickHouseExceptionSpecifier.specify(e, theServer.getHost(), theServer.getPort());
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw ClickHouseExceptionSpecifier.specify(e, theServer);
+            } catch (ExecutionException e) {
+                throw ClickHouseExceptionSpecifier.handle(e, theServer);
             } finally {
                 if (input != null) {
                     try {
@@ -246,6 +255,7 @@ public interface ClickHouseClient extends AutoCloseable {
      * @param input       input stream, which will be closed automatically at the
      *                    end of the call
      * @return future object to get result
+     * @throws IllegalArgumentException if any of server, table, and input is null
      */
     static CompletableFuture<ClickHouseResponseSummary> load(ClickHouseNode server, String table,
             ClickHouseFormat format, ClickHouseCompression compression, InputStream input) {
@@ -264,8 +274,11 @@ public interface ClickHouseClient extends AutoCloseable {
                     ClickHouseResponse response = client.connect(theServer).write().table(table)
                             .compression(theCompression).format(theFormat).data(input).execute().get()) {
                 return response.getSummary();
-            } catch (InterruptedException | ExecutionException e) {
-                throw ClickHouseExceptionSpecifier.specify(e, theServer.getHost(), theServer.getPort());
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw ClickHouseExceptionSpecifier.specify(e, theServer);
+            } catch (ExecutionException e) {
+                throw ClickHouseExceptionSpecifier.handle(e, theServer);
             } finally {
                 try {
                     input.close();
@@ -295,6 +308,7 @@ public interface ClickHouseClient extends AutoCloseable {
      * @param sql    non-null SQL query
      * @param more   more SQL queries if any
      * @return list of {@link ClickHouseResponseSummary} one for each execution
+     * @throws IllegalArgumentException if server or sql is null
      */
     static CompletableFuture<List<ClickHouseResponseSummary>> send(ClickHouseNode server, String sql, String... more) {
         if (server == null || sql == null) {
@@ -342,6 +356,7 @@ public interface ClickHouseClient extends AutoCloseable {
      * @param sql    non-null SQL query
      * @param params non-null stringified parameters
      * @return list of {@link ClickHouseResponseSummary} one for each execution
+     * @throws IllegalArgumentException if any of server, sql, and params is null
      */
     static CompletableFuture<ClickHouseResponseSummary> send(ClickHouseNode server, String sql,
             Map<String, String> params) {
@@ -373,6 +388,8 @@ public interface ClickHouseClient extends AutoCloseable {
      * @param columns non-empty column list
      * @param params  non-empty raw parameters
      * @return list of {@link ClickHouseResponseSummary} one for each execution
+     * @throws IllegalArgumentException if columns is null, empty or contains null
+     *                                  column
      */
     static CompletableFuture<List<ClickHouseResponseSummary>> send(ClickHouseNode server, String sql,
             List<ClickHouseColumn> columns, Object[]... params) {
@@ -399,6 +416,8 @@ public interface ClickHouseClient extends AutoCloseable {
      * @param templates non-empty template objects to stringify parameters
      * @param params    non-empty raw parameters
      * @return list of {@link ClickHouseResponseSummary} one for each execution
+     * @throws IllegalArgumentException if no named parameter in the query, or
+     *                                  templates or params is null or empty
      */
     static CompletableFuture<List<ClickHouseResponseSummary>> send(ClickHouseNode server, String sql,
             ClickHouseValue[] templates, Object[]... params) {
@@ -455,6 +474,8 @@ public interface ClickHouseClient extends AutoCloseable {
      * @param sql    non-null SQL query
      * @param params non-null stringified parameters
      * @return list of {@link ClickHouseResponseSummary} one for each execution
+     * @throws IllegalArgumentException if any of server, sql, or params is null; or
+     *                                  no named parameter in the query
      */
     static CompletableFuture<List<ClickHouseResponseSummary>> send(ClickHouseNode server, String sql,
             String[][] params) {
@@ -493,13 +514,13 @@ public interface ClickHouseClient extends AutoCloseable {
     }
 
     /**
-     * Tests if the given server is healthy or not. Unlike other methods, it's a
+     * Tests if the given server is alive or not. Unlike other methods, it's a
      * synchronous call with minimum overhead(e.g. tiny buffer, no compression and
      * no deserialization etc).
      *
      * @param server  server to test
      * @param timeout timeout in millisecond
-     * @return true if the server is healthy; false otherwise
+     * @return true if the server is alive; false otherwise
      */
     static boolean test(ClickHouseNode server, int timeout) {
         if (server != null) {

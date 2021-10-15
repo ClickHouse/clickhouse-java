@@ -51,7 +51,7 @@ public interface ClickHouseCache<K, V> {
      * @param <T>   type of the cache
      * @param clazz non-null class of the cache
      * @return inner cache object
-     * @throws NullPointerException
+     * @throws NullPointerException when {@code clazz} is null
      */
     <T> T unwrap(Class<T> clazz);
 }

@@ -86,7 +86,7 @@ public class ClickHouseResponse implements AutoCloseable, Serializable {
                 }
             }
 
-            throw ClickHouseExceptionSpecifier.specify(e, server.getHost(), server.getPort());
+            throw ClickHouseExceptionSpecifier.specify(e, server);
         }
     }
 
@@ -98,7 +98,7 @@ public class ClickHouseResponse implements AutoCloseable, Serializable {
         if (error instanceof ClickHouseException) {
             throw (ClickHouseException) error;
         } else {
-            throw ClickHouseExceptionSpecifier.specify(error, server.getHost(), server.getPort());
+            throw ClickHouseExceptionSpecifier.specify(error, server);
         }
     }
 
@@ -181,7 +181,7 @@ public class ClickHouseResponse implements AutoCloseable, Serializable {
                 output.write(buffer, 0, counter);
             }
         } catch (IOException e) {
-            throw ClickHouseExceptionSpecifier.specify(e, server.getHost(), server.getPort());
+            throw ClickHouseExceptionSpecifier.specify(e, server);
         }
     }
 

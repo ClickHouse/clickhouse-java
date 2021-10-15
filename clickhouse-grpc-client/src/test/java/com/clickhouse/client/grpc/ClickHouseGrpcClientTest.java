@@ -532,8 +532,8 @@ public class ClickHouseGrpcClientTest extends BaseIntegrationTest {
             }
             String dnExtString = String.join("\n", valueList);
             InputStream inputStream = new ByteArrayInputStream(dnExtString.getBytes(Charset.forName("UTF-8")));
-            ClickHouseExternalTable extTable = ClickHouseExternalTable.builder().withName("L" + i)
-                    .withContent(inputStream).addColumn("Cb", "String").build();
+            ClickHouseExternalTable extTable = ClickHouseExternalTable.builder().name("L" + i).content(inputStream)
+                    .addColumn("Cb", "String").build();
             extTableList.add(extTable);
         }
 

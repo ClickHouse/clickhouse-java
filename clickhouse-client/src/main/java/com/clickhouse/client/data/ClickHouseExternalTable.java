@@ -22,17 +22,24 @@ public class ClickHouseExternalTable {
             columns = new LinkedList<>();
         }
 
-        public Builder withName(String name) {
+        public Builder name(String name) {
             this.name = name;
             return this;
         }
 
-        public Builder withContent(InputStream content) {
+        public Builder content(InputStream content) {
             this.content = content;
             return this;
         }
 
-        public Builder withFormat(ClickHouseFormat format) {
+        public Builder format(String format) {
+            if (!ClickHouseChecker.isNullOrBlank(format)) {
+                this.format = ClickHouseFormat.valueOf(format);
+            }
+            return this;
+        }
+
+        public Builder format(ClickHouseFormat format) {
             this.format = format;
             return this;
         }
@@ -59,7 +66,11 @@ public class ClickHouseExternalTable {
             return this;
         }
 
-        public Builder withColumns(Collection<ClickHouseColumn> columns) {
+        public Builder columns(String columns) {
+            return !ClickHouseChecker.isNullOrBlank(columns) ? columns(ClickHouseColumn.parse(columns)) : this;
+        }
+
+        public Builder columns(Collection<ClickHouseColumn> columns) {
             if (columns != null) {
                 for (ClickHouseColumn c : columns) {
                     this.columns.add(c);

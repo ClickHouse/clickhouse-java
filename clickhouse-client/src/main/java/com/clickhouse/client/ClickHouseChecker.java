@@ -199,6 +199,23 @@ public final class ClickHouseChecker {
     }
 
     /**
+     * Checks if the given string is not {@code null}, empty or blank and throws a
+     * customized {@link IllegalArgumentException} if it is.
+     *
+     * @param value the string to check
+     * @param name  name of the string
+     * @return the exact same string
+     * @throws IllegalArgumentException if the string is null, empty or blank
+     */
+    public static String nonBlank(String value, String name) {
+        if (isNullOrBlank(value)) {
+            throw newException("%s cannot be null, empty or blank string", name);
+        }
+
+        return value;
+    }
+
+    /**
      * Checks if the given string is neither {@code null} nor empty and throws a
      * customized {@link IllegalArgumentException} if it is.
      *
