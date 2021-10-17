@@ -1,6 +1,12 @@
 package com.clickhouse.client.config;
 
+import java.io.Serializable;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+
 import com.clickhouse.client.ClickHouseChecker;
+import com.clickhouse.client.ClickHouseFormat;
 
 /**
  * Generic client options.
@@ -35,7 +41,7 @@ public enum ClickHouseClientOption implements ClickHouseConfigOption {
     /**
      * Default format.
      */
-    FORMAT("format", "TabSeparatedWithNamesAndTypes", "Default format."),
+    FORMAT("format", ClickHouseFormat.TabSeparated, "Default format."),
     /**
      * Maximum buffer size in byte used for streaming.
      */
@@ -93,7 +99,7 @@ public enum ClickHouseClientOption implements ClickHouseConfigOption {
     /**
      * SSL mode.
      */
-    SSL_MODE("sslmode", "strict", "verify or not certificate: none (don't verify), strict (verify)"),
+    SSL_MODE("sslmode", ClickHouseSslMode.STRICT, "verify or not certificate: none (don't verify), strict (verify)"),
     /**
      * SSL root certificiate.
      */
@@ -129,9 +135,33 @@ public enum ClickHouseClientOption implements ClickHouseConfigOption {
     USE_TIME_ZONE("use_time_zone", "", "Which time zone to use");
 
     private final String key;
-    private final Object defaultValue;
-    private final Class<?> clazz;
+    private final Serializable defaultValue;
+    private final Class<? extends Serializable> clazz;
     private final String description;
+
+    private static final Map<String, ClickHouseClientOption> options;
+
+    static {
+        Map<String, ClickHouseClientOption> map = new HashMap<>();
+
+        for (ClickHouseClientOption o : values()) {
+            if (map.put(o.getKey(), o) != null) {
+                throw new IllegalStateException("Duplicated key found: " + o.getKey());
+            }
+        }
+
+        options = Collections.unmodifiableMap(map);
+    }
+
+    /**
+     * Gets client option by key.
+     *
+     * @param key key of the option
+     * @return client option object, or null if not found
+     */
+    public static ClickHouseClientOption fromKey(String key) {
+        return options.get(key);
+    }
 
     /**
      * Constructor of an option for client.
@@ -143,7 +173,7 @@ public enum ClickHouseClientOption implements ClickHouseConfigOption {
      * @param defaultValue non-null default value
      * @param description  non-null description of this option
      */
-    <T> ClickHouseClientOption(String key, T defaultValue, String description) {
+    <T extends Serializable> ClickHouseClientOption(String key, T defaultValue, String description) {
         this.key = ClickHouseChecker.nonNull(key, "key");
         this.defaultValue = ClickHouseChecker.nonNull(defaultValue, "defaultValue");
         this.clazz = defaultValue.getClass();
@@ -151,7 +181,7 @@ public enum ClickHouseClientOption implements ClickHouseConfigOption {
     }
 
     @Override
-    public Object getDefaultValue() {
+    public Serializable getDefaultValue() {
         return defaultValue;
     }
 
@@ -166,7 +196,7 @@ public enum ClickHouseClientOption implements ClickHouseConfigOption {
     }
 
     @Override
-    public Class<?> getValueType() {
+    public Class<? extends Serializable> getValueType() {
         return clazz;
     }
 }

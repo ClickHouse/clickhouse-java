@@ -69,7 +69,7 @@ public abstract class ClickHouseDataProcessor {
 
         this.input = input;
         this.output = output;
-        if (settings == null || settings.size() == 0) {
+        if (settings == null || settings.isEmpty()) {
             this.settings = Collections.emptyMap();
         } else {
             Map<String, Object> map = new HashMap<>();

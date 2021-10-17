@@ -83,7 +83,7 @@ public final class ClickHouseUtils {
     }
 
     public static String applyVariables(String template, Map<String, String> variables) {
-        return applyVariables(template, variables == null || variables.size() == 0 ? null : variables::get);
+        return applyVariables(template, variables == null || variables.isEmpty() ? null : variables::get);
     }
 
     private static <T> T findFirstService(Class<? extends T> serviceInterface) {

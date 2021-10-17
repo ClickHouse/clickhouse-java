@@ -29,7 +29,7 @@ public final class ClickHouseParameterizedQuery implements Serializable {
      */
     public static String apply(String sql, Map<String, String> params) {
         int len = sql == null ? 0 : sql.length();
-        if (len < 2 || params == null || params.size() == 0) {
+        if (len < 2 || params == null || params.isEmpty()) {
             return sql;
         }
 

@@ -19,27 +19,28 @@ import com.clickhouse.client.config.ClickHouseSslMode;
  * {@link ClickHouseCredentials} and {@link ClickHouseNodeSelector} etc.
  */
 public class ClickHouseConfig implements Serializable {
-    protected static final Map<ClickHouseConfigOption, Object> mergeOptions(List<ClickHouseConfig> list) {
-        Map<ClickHouseConfigOption, Object> options = new HashMap<>();
+    protected static final Map<ClickHouseConfigOption, Serializable> mergeOptions(List<ClickHouseConfig> list) {
+        if (list == null || list.isEmpty()) {
+            return Collections.emptyMap();
+        }
 
-        if (list != null) {
-            List<ClickHouseConfig> cl = new ArrayList<>(list.size());
-            for (ClickHouseConfig c : list) {
-                if (c != null) {
-                    boolean duplicated = false;
-                    for (ClickHouseConfig conf : cl) {
-                        if (conf == c) {
-                            duplicated = true;
-                            break;
-                        }
+        Map<ClickHouseConfigOption, Serializable> options = new HashMap<>();
+        List<ClickHouseConfig> cl = new ArrayList<>(list.size());
+        for (ClickHouseConfig c : list) {
+            if (c != null) {
+                boolean duplicated = false;
+                for (ClickHouseConfig conf : cl) {
+                    if (conf == c) {
+                        duplicated = true;
+                        break;
                     }
-
-                    if (duplicated) {
-                        continue;
-                    }
-                    options.putAll(c.options);
-                    cl.add(c);
                 }
+
+                if (duplicated) {
+                    continue;
+                }
+                options.putAll(c.options);
+                cl.add(c);
             }
         }
 
@@ -47,14 +48,15 @@ public class ClickHouseConfig implements Serializable {
     }
 
     protected static final ClickHouseCredentials mergeCredentials(List<ClickHouseConfig> list) {
-        ClickHouseCredentials credentials = null;
+        if (list == null || list.isEmpty()) {
+            return null;
+        }
 
-        if (list != null) {
-            for (ClickHouseConfig c : list) {
-                if (c != null && c.credentials != null) {
-                    credentials = c.credentials;
-                    break;
-                }
+        ClickHouseCredentials credentials = null;
+        for (ClickHouseConfig c : list) {
+            if (c != null && c.credentials != null) {
+                credentials = c.credentials;
+                break;
             }
         }
 
@@ -62,14 +64,15 @@ public class ClickHouseConfig implements Serializable {
     }
 
     protected static final ClickHouseNodeSelector mergeNodeSelector(List<ClickHouseConfig> list) {
-        ClickHouseNodeSelector nodeSelector = null;
+        if (list == null || list.isEmpty()) {
+            return null;
+        }
 
-        if (list != null) {
-            for (ClickHouseConfig c : list) {
-                if (c != null && c.nodeSelector != null) {
-                    nodeSelector = c.nodeSelector;
-                    break;
-                }
+        ClickHouseNodeSelector nodeSelector = null;
+        for (ClickHouseConfig c : list) {
+            if (c != null && c.nodeSelector != null) {
+                nodeSelector = c.nodeSelector;
+                break;
             }
         }
 
@@ -77,14 +80,15 @@ public class ClickHouseConfig implements Serializable {
     }
 
     protected static final Object mergeMetricRegistry(List<ClickHouseConfig> list) {
-        Object metricRegistry = null;
+        if (list == null || list.isEmpty()) {
+            return null;
+        }
 
-        if (list != null) {
-            for (ClickHouseConfig c : list) {
-                if (c != null && c.metricRegistry.isPresent()) {
-                    metricRegistry = c.metricRegistry.get();
-                    break;
-                }
+        Object metricRegistry = null;
+        for (ClickHouseConfig c : list) {
+            if (c != null && c.metricRegistry.isPresent()) {
+                metricRegistry = c.metricRegistry.get();
+                break;
             }
         }
 
@@ -122,7 +126,7 @@ public class ClickHouseConfig implements Serializable {
     private final boolean useServerTimeZoneForDate;
 
     // client specific options
-    private final Map<ClickHouseConfigOption, Object> options;
+    private final Map<ClickHouseConfigOption, Serializable> options;
     private final ClickHouseCredentials credentials;
     private final transient Optional<Object> metricRegistry;
 
@@ -156,7 +160,7 @@ public class ClickHouseConfig implements Serializable {
      * @param nodeSelector   node selector
      * @param metricRegistry metric registry
      */
-    public ClickHouseConfig(Map<ClickHouseConfigOption, Object> options, ClickHouseCredentials credentials,
+    public ClickHouseConfig(Map<ClickHouseConfigOption, Serializable> options, ClickHouseCredentials credentials,
             ClickHouseNodeSelector nodeSelector, Object metricRegistry) {
         this.options = new HashMap<>();
         if (options != null) {
@@ -165,12 +169,11 @@ public class ClickHouseConfig implements Serializable {
 
         this.async = (boolean) getOption(ClickHouseClientOption.ASYNC, ClickHouseDefaults.ASYNC);
         this.clientName = (String) getOption(ClickHouseClientOption.CLIENT_NAME);
-        this.compression = ClickHouseCompression
-                .fromEncoding((String) getOption(ClickHouseClientOption.COMPRESSION, ClickHouseDefaults.COMPRESSION));
+        this.compression = (ClickHouseCompression) getOption(ClickHouseClientOption.COMPRESSION,
+                ClickHouseDefaults.COMPRESSION);
         this.connectionTimeout = (int) getOption(ClickHouseClientOption.CONNECTION_TIMEOUT);
         this.database = (String) getOption(ClickHouseClientOption.DATABASE, ClickHouseDefaults.DATABASE);
-        this.format = ClickHouseFormat
-                .valueOf((String) getOption(ClickHouseClientOption.FORMAT, ClickHouseDefaults.FORMAT));
+        this.format = (ClickHouseFormat) getOption(ClickHouseClientOption.FORMAT, ClickHouseDefaults.FORMAT);
         this.maxBufferSize = (int) getOption(ClickHouseClientOption.MAX_BUFFER_SIZE);
         this.maxExecutionTime = (int) getOption(ClickHouseClientOption.MAX_EXECUTION_TIME);
         this.maxQueuedBuffers = (int) getOption(ClickHouseClientOption.MAX_QUEUED_BUFFERS);
@@ -183,7 +186,7 @@ public class ClickHouseConfig implements Serializable {
         this.sessionTimeout = (int) getOption(ClickHouseClientOption.SESSION_TIMEOUT);
         this.sessionCheck = (boolean) getOption(ClickHouseClientOption.SESSION_CHECK);
         this.ssl = (boolean) getOption(ClickHouseClientOption.SSL);
-        this.sslMode = ClickHouseSslMode.valueOf(((String) getOption(ClickHouseClientOption.SSL_MODE)).toUpperCase());
+        this.sslMode = (ClickHouseSslMode) getOption(ClickHouseClientOption.SSL_MODE);
         this.sslRootCert = (String) getOption(ClickHouseClientOption.SSL_ROOT_CERTIFICATE);
         this.sslCert = (String) getOption(ClickHouseClientOption.SSL_CERTIFICATE);
         this.sslKey = (String) getOption(ClickHouseClientOption.SSL_KEY);
@@ -326,15 +329,15 @@ public class ClickHouseConfig implements Serializable {
         return this.nodeSelector.getPreferredTags();
     }
 
-    public Map<ClickHouseConfigOption, Object> getAllOptions() {
+    public Map<ClickHouseConfigOption, Serializable> getAllOptions() {
         return Collections.unmodifiableMap(this.options);
     }
 
-    public Object getOption(ClickHouseConfigOption option) {
+    public Serializable getOption(ClickHouseConfigOption option) {
         return getOption(option, null);
     }
 
-    public Object getOption(ClickHouseConfigOption option, ClickHouseDefaults defaultValue) {
+    public Serializable getOption(ClickHouseConfigOption option, ClickHouseDefaults defaultValue) {
         return this.options.getOrDefault(ClickHouseChecker.nonNull(option, "option"),
                 defaultValue == null ? option.getEffectiveDefaultValue() : defaultValue.getEffectiveDefaultValue());
     }

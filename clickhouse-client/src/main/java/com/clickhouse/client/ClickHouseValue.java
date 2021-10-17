@@ -98,7 +98,7 @@ public interface ClickHouseValue extends Serializable {
      */
     default Object[] asArray() {
         if (isNullOrEmpty()) {
-            return ClickHouseValues.EMPTY_ARRAY;
+            return ClickHouseValues.EMPTY_OBJECT_ARRAY;
         }
 
         return new Object[] { asObject() };
@@ -114,7 +114,7 @@ public interface ClickHouseValue extends Serializable {
     @SuppressWarnings("unchecked")
     default <T> T[] asArray(Class<T> clazz) {
         if (isNullOrEmpty()) {
-            return (T[]) ClickHouseValues.EMPTY_ARRAY;
+            return (T[]) ClickHouseValues.EMPTY_OBJECT_ARRAY;
         }
 
         T[] array = (T[]) Array.newInstance(ClickHouseChecker.nonNull(clazz, ClickHouseValues.TYPE_CLASS), 1);

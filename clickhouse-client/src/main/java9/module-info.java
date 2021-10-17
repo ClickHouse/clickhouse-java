@@ -17,8 +17,6 @@ module com.clickhouse.client {
         com.clickhouse.jdbc,
         ru.yandex.clickhouse;
 
-    requires java.base;
-
     requires static java.logging;
     requires static com.google.gson;
     requires static com.github.benmanes.caffeine;

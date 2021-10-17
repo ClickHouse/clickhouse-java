@@ -34,6 +34,60 @@ public class ClickHouseRowBinaryProcessor extends ClickHouseDataProcessor {
     public static class MappedFunctions {
         private static final MappedFunctions instance = new MappedFunctions();
 
+        private ClickHouseValue readArray(ClickHouseValue ref, ClickHouseColumn nestedColumn,
+                ClickHouseColumn baseColumn, InputStream input, int length, int level) throws IOException {
+            Class<?> javaClass = baseColumn.getDataType().getPrimitiveClass();
+            if (level > 1 || !javaClass.isPrimitive()) {
+                Object[] array = (Object[]) ClickHouseValues.createPrimitiveArray(javaClass, length, level);
+                for (int i = 0; i < length; i++) {
+                    array[i] = deserialize(nestedColumn, null, input).asObject();
+                }
+                ref.update(array);
+            } else {
+                if (byte.class == javaClass) {
+                    byte[] array = new byte[length];
+                    for (int i = 0; i < length; i++) {
+                        array[i] = deserialize(baseColumn, null, input).asByte();
+                    }
+                    ref.update(array);
+                } else if (short.class == javaClass) {
+                    short[] array = new short[length];
+                    for (int i = 0; i < length; i++) {
+                        array[i] = deserialize(baseColumn, null, input).asShort();
+                    }
+                    ref.update(array);
+                } else if (int.class == javaClass) {
+                    int[] array = new int[length];
+                    for (int i = 0; i < length; i++) {
+                        array[i] = deserialize(baseColumn, null, input).asInteger();
+                    }
+                    ref.update(array);
+                } else if (long.class == javaClass) {
+                    long[] array = new long[length];
+                    for (int i = 0; i < length; i++) {
+                        array[i] = deserialize(baseColumn, null, input).asLong();
+                    }
+                    ref.update(array);
+                } else if (float.class == javaClass) {
+                    float[] array = new float[length];
+                    for (int i = 0; i < length; i++) {
+                        array[i] = deserialize(baseColumn, null, input).asFloat();
+                    }
+                    ref.update(array);
+                } else if (double.class == javaClass) {
+                    double[] array = new double[length];
+                    for (int i = 0; i < length; i++) {
+                        array[i] = deserialize(baseColumn, null, input).asDouble();
+                    }
+                    ref.update(array);
+                } else {
+                    throw new IllegalArgumentException("Unsupported primitive type: " + javaClass);
+                }
+            }
+
+            return ref;
+        }
+
         private final Map<ClickHouseDataType, ClickHouseDeserializer<? extends ClickHouseValue>> deserializers;
         private final Map<ClickHouseDataType, ClickHouseSerializer<? extends ClickHouseValue>> serializers;
 
@@ -175,14 +229,12 @@ public class ClickHouseRowBinaryProcessor extends ClickHouseDataProcessor {
 
             // advanced types
             buildMappings(deserializers, serializers, (r, c, i) -> {
-                int size = BinaryStreamUtils.readVarInt(i);
-                ClickHouseColumn nestedColumn = c.getNestedColumns().get(0);
-                // TODO optimize primitive array
-                Object[] arr = (Object[]) Array.newInstance(nestedColumn.getDataType().getJavaClass(), size);
-                for (int k = 0; k < size; k++) {
-                    arr[k] = deserialize(nestedColumn, null, i).asObject();
+                int length = BinaryStreamUtils.readVarInt(i);
+                if (r == null) {
+                    r = ClickHouseValues.newValue(c);
                 }
-                return ClickHouseArrayValue.of(r, arr);
+                return readArray(r, c.getNestedColumns().get(0), c.getArrayBaseColumn(), i, length,
+                        c.getArrayNestedLevel());
             }, (v, c, o) -> {
             }, ClickHouseDataType.Array);
             buildMappings(deserializers, serializers, (r, c, i) -> {
@@ -192,8 +244,8 @@ public class ClickHouseRowBinaryProcessor extends ClickHouseDataProcessor {
                 for (int k = 0, len = BinaryStreamUtils.readVarInt(i); k < len; k++) {
                     map.put(deserialize(keyCol, null, i).asObject(), deserialize(valCol, null, i).asObject());
                 }
-                return ClickHouseMapValue.of(map, valCol.getDataType().getJavaClass(),
-                        valCol.getDataType().getJavaClass());
+                return ClickHouseMapValue.of(map, valCol.getDataType().getObjectClass(),
+                        valCol.getDataType().getObjectClass());
             }, (v, c, o) -> {
             }, ClickHouseDataType.Map);
             buildMappings(deserializers, serializers, (r, c, i) -> {

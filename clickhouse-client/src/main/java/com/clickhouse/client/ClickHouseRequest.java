@@ -17,6 +17,7 @@ import java.util.Objects;
 import java.util.Map.Entry;
 import java.util.concurrent.CompletableFuture;
 import java.util.Optional;
+import java.util.Properties;
 import java.util.function.Function;
 
 import com.clickhouse.client.config.ClickHouseClientOption;
@@ -307,10 +308,10 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
      */
     public ClickHouseConfig getConfig() {
         if (config == null) {
-            if (options.size() == 0) {
+            if (options.isEmpty()) {
                 config = clientConfig;
             } else {
-                Map<ClickHouseConfigOption, Object> merged = new HashMap<>();
+                Map<ClickHouseConfigOption, Serializable> merged = new HashMap<>();
                 merged.putAll(clientConfig.getAllOptions());
                 merged.putAll(options);
                 config = new ClickHouseConfig(merged, clientConfig.getDefaultCredentials(),
@@ -444,8 +445,25 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
             compression = ClickHouseCompression.NONE;
         }
 
-        Object oldValue = options.put(ClickHouseClientOption.COMPRESSION, compression.name());
-        if (oldValue == null || !oldValue.equals(compression.name())) {
+        Object oldValue = options.put(ClickHouseClientOption.COMPRESSION, compression);
+        if (oldValue == null || !oldValue.equals(compression)) {
+            resetCache();
+        }
+
+        return (SelfT) this;
+    }
+
+    /**
+     * Adds an external table.
+     *
+     * @param table non-null external table
+     * @return the request itself
+     */
+    @SuppressWarnings("unchecked")
+    public SelfT addExternal(ClickHouseExternalTable table) {
+        checkSealed();
+
+        if (externalTables.add(ClickHouseChecker.nonNull(table, TYPE_EXTERNAL_TABLE))) {
             resetCache();
         }
 
@@ -504,9 +522,8 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
     public SelfT format(ClickHouseFormat format) {
         checkSealed();
 
-        Object oldValue = options.put(ClickHouseClientOption.FORMAT,
-                ClickHouseChecker.nonNull(format, "format").name());
-        if (oldValue == null || !oldValue.equals(format.name())) {
+        Object oldValue = options.put(ClickHouseClientOption.FORMAT, ClickHouseChecker.nonNull(format, "format"));
+        if (oldValue == null || !oldValue.equals(format)) {
             resetCache();
         }
 
@@ -530,6 +547,59 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
         if (oldValue == null || !oldValue.equals(value)) {
             resetCache();
         }
+
+        return (SelfT) this;
+    }
+
+    /**
+     * Sets all options. {@code option} is for configuring client's behaviour, while
+     * {@code setting} is for server.
+     *
+     * @param options options
+     * @return the request itself
+     */
+    @SuppressWarnings("unchecked")
+    public SelfT options(Map<ClickHouseConfigOption, Serializable> options) {
+        checkSealed();
+
+        this.options.clear();
+        if (options != null) {
+            this.options.putAll(options);
+        }
+
+        resetCache();
+
+        return (SelfT) this;
+    }
+
+    /**
+     * Sets all options. {@code option} is for configuring client's behaviour, while
+     * {@code setting} is for server.
+     *
+     * @param options options
+     * @return the request itself
+     */
+    @SuppressWarnings("unchecked")
+    public SelfT options(Properties options) {
+        checkSealed();
+
+        this.options.clear();
+        if (options != null) {
+            for (Entry<Object, Object> e : options.entrySet()) {
+                Object key = e.getKey();
+                Object value = e.getValue();
+                if (key == null || value == null) {
+                    continue;
+                }
+
+                ClickHouseClientOption o = ClickHouseClientOption.fromKey(key.toString());
+                if (o != null) {
+                    this.options.put(o, ClickHouseConfigOption.fromString(value.toString(), o.getValueType()));
+                }
+            }
+        }
+
+        resetCache();
 
         return (SelfT) this;
     }
@@ -1037,7 +1107,7 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
     public SelfT removeExternal(ClickHouseExternalTable external) {
         checkSealed();
 
-        if (externalTables.remove(ClickHouseChecker.nonNull(external, "external"))) {
+        if (externalTables.remove(ClickHouseChecker.nonNull(external, TYPE_EXTERNAL_TABLE))) {
             resetCache();
         }
 

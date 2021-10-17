@@ -1,5 +1,7 @@
 package com.clickhouse.client.grpc.config;
 
+import java.io.Serializable;
+
 import com.clickhouse.client.ClickHouseChecker;
 import com.clickhouse.client.config.ClickHouseConfigOption;
 
@@ -34,11 +36,11 @@ public enum ClickHouseGrpcClientOption implements ClickHouseConfigOption {
             "Whether to use full stream decompression for better compression ratio or not.");
 
     private final String key;
-    private final Object defaultValue;
+    private final Serializable defaultValue;
     private final Class<?> clazz;
     private final String description;
 
-    <T> ClickHouseGrpcClientOption(String key, T defaultValue, String description) {
+    <T extends Serializable> ClickHouseGrpcClientOption(String key, T defaultValue, String description) {
         this.key = ClickHouseChecker.nonNull(key, "key");
         this.defaultValue = ClickHouseChecker.nonNull(defaultValue, "defaultValue");
         this.clazz = defaultValue.getClass();
@@ -46,7 +48,7 @@ public enum ClickHouseGrpcClientOption implements ClickHouseConfigOption {
     }
 
     @Override
-    public Object getDefaultValue() {
+    public Serializable getDefaultValue() {
         return defaultValue;
     }
 

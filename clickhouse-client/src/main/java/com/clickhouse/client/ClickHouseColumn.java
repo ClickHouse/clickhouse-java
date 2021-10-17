@@ -36,6 +36,9 @@ public final class ClickHouseColumn implements Serializable {
     private List<ClickHouseColumn> nested;
     private List<String> parameters;
 
+    private int arrayLevel;
+    private ClickHouseColumn arrayBaseColumn;
+
     private static ClickHouseColumn update(ClickHouseColumn column) {
         int size = column.parameters.size();
         switch (column.dataType) {
@@ -43,6 +46,18 @@ public final class ClickHouseColumn implements Serializable {
                 column.baseType = ClickHouseDataType.String;
                 if (size == 2) {
                     column.baseType = ClickHouseDataType.of(column.parameters.get(1));
+                }
+                break;
+            case Array:
+                column.arrayLevel = 1;
+                column.arrayBaseColumn = column.nested.get(0);
+                while (column.arrayLevel < 255) {
+                    if (column.arrayBaseColumn.dataType == ClickHouseDataType.Array) {
+                        column.arrayLevel++;
+                        column.arrayBaseColumn = column.arrayBaseColumn.nested.get(0);
+                    } else {
+                        break;
+                    }
                 }
                 break;
             case DateTime:
@@ -140,6 +155,10 @@ public final class ClickHouseColumn implements Serializable {
             int endIndex = ClickHouseUtils.skipBrackets(args, index, len, '(');
             List<ClickHouseColumn> nestedColumns = new LinkedList<>();
             readColumn(args, index + 1, endIndex - 1, "", nestedColumns);
+            if (nestedColumns.size() != 1) {
+                throw new IllegalArgumentException(
+                        "Array can have one and only one nested column, but we got: " + nestedColumns.size());
+            }
             column = new ClickHouseColumn(ClickHouseDataType.Array, name, args.substring(startIndex, endIndex),
                     nullable, lowCardinality, null, nestedColumns);
             i = endIndex;
@@ -158,6 +177,10 @@ public final class ClickHouseColumn implements Serializable {
                     i = readColumn(args, i, endIndex, "", nestedColumns) - 1;
                 }
             }
+            if (nestedColumns.size() != 2) {
+                throw new IllegalArgumentException(
+                        "Map should have two nested columns(key and value), but we got: " + nestedColumns.size());
+            }
             column = new ClickHouseColumn(ClickHouseDataType.Map, name, args.substring(startIndex, endIndex), nullable,
                     lowCardinality, null, nestedColumns);
             i = endIndex;
@@ -168,8 +191,12 @@ public final class ClickHouseColumn implements Serializable {
             }
             i = ClickHouseUtils.skipBrackets(args, index, len, '(');
             String originalTypeName = args.substring(startIndex, i);
+            List<ClickHouseColumn> nestedColumns = parse(args.substring(index + 1, i - 1));
+            if (nestedColumns.isEmpty()) {
+                throw new IllegalArgumentException("Nested should have at least one nested column");
+            }
             column = new ClickHouseColumn(ClickHouseDataType.Nested, name, originalTypeName, nullable, lowCardinality,
-                    null, parse(args.substring(index + 1, i - 1)));
+                    null, nestedColumns);
         } else if (args.startsWith(KEYWORD_TUPLE, i)) {
             int index = args.indexOf('(', i + KEYWORD_TUPLE.length());
             if (index < i) {
@@ -185,7 +212,9 @@ public final class ClickHouseColumn implements Serializable {
                     i = readColumn(args, i, endIndex, "", nestedColumns) - 1;
                 }
             }
-
+            if (nestedColumns.isEmpty()) {
+                throw new IllegalArgumentException("Tuple should have at least one nested column");
+            }
             column = new ClickHouseColumn(ClickHouseDataType.Tuple, name, args.substring(startIndex, endIndex),
                     nullable, lowCardinality, null, nestedColumns);
         }
@@ -324,7 +353,7 @@ public final class ClickHouseColumn implements Serializable {
         this.nullable = nullable;
         this.lowCardinality = lowCardinality;
 
-        if (parameters == null || parameters.size() == 0) {
+        if (parameters == null || parameters.isEmpty()) {
             this.parameters = Collections.emptyList();
         } else {
             List<String> list = new ArrayList<>(parameters.size());
@@ -332,13 +361,41 @@ public final class ClickHouseColumn implements Serializable {
             this.parameters = Collections.unmodifiableList(list);
         }
 
-        if (nestedColumns == null || nestedColumns.size() == 0) {
+        if (nestedColumns == null || nestedColumns.isEmpty()) {
             this.nested = Collections.emptyList();
         } else {
             List<ClickHouseColumn> list = new ArrayList<>(nestedColumns.size());
             list.addAll(nestedColumns);
             this.nested = Collections.unmodifiableList(list);
         }
+    }
+
+    public boolean isAggregateFunction() {
+        return dataType == ClickHouseDataType.AggregateFunction;
+    }
+
+    public boolean isArray() {
+        return dataType == ClickHouseDataType.Array;
+    }
+
+    public boolean isMap() {
+        return dataType == ClickHouseDataType.Map;
+    }
+
+    public boolean isNested() {
+        return dataType == ClickHouseDataType.Nested;
+    }
+
+    public boolean isTuple() {
+        return dataType == ClickHouseDataType.Tuple;
+    }
+
+    public int getArrayNestedLevel() {
+        return arrayLevel;
+    }
+
+    public ClickHouseColumn getArrayBaseColumn() {
+        return arrayBaseColumn;
     }
 
     public ClickHouseDataType getDataType() {

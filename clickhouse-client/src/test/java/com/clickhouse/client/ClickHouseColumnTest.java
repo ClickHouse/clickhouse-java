@@ -107,4 +107,26 @@ public class ClickHouseColumnTest {
         list = ClickHouseColumn.parse("a String default 'cc', b String null");
         Assert.assertEquals(list.size(), 2);
     }
+
+    @Test(groups = { "unit" })
+    public void testArray() throws Exception {
+        ClickHouseColumn column = ClickHouseColumn.of("arr",
+                "Array(Array(Array(Array(Array(Map(LowCardinality(String), Tuple(Array(UInt8),LowCardinality(String))))))))");
+        Assert.assertTrue(column.isArray());
+        Assert.assertEquals(column.getDataType(), ClickHouseDataType.Array);
+        Assert.assertEquals(column.getArrayNestedLevel(), 5);
+        Assert.assertEquals(column.getArrayBaseColumn().getOriginalTypeName(),
+                "Map(LowCardinality(String), Tuple(Array(UInt8),LowCardinality(String)))");
+        Assert.assertFalse(column.getArrayBaseColumn().isArray());
+
+        Assert.assertEquals(column.getArrayBaseColumn().getArrayNestedLevel(), 0);
+        Assert.assertEquals(column.getArrayBaseColumn().getArrayBaseColumn(), null);
+
+        ClickHouseColumn c = ClickHouseColumn.of("arr", "Array(LowCardinality(Nullable(String)))");
+        Assert.assertTrue(c.isArray());
+        Assert.assertEquals(c.getDataType(), ClickHouseDataType.Array);
+        Assert.assertEquals(c.getArrayNestedLevel(), 1);
+        Assert.assertEquals(c.getArrayBaseColumn().getOriginalTypeName(), "LowCardinality(Nullable(String))");
+        Assert.assertFalse(c.getArrayBaseColumn().isArray());
+    }
 }

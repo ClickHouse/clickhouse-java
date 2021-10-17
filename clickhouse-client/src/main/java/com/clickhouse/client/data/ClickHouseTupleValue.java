@@ -78,7 +78,7 @@ public class ClickHouseTupleValue extends ClickHouseObjectValue<List<Object>> {
     @Override
     public Object[] asArray() {
         if (isNullOrEmpty()) {
-            return ClickHouseValues.EMPTY_ARRAY;
+            return ClickHouseValues.EMPTY_OBJECT_ARRAY;
         }
 
         List<Object> value = getValue();
@@ -89,7 +89,7 @@ public class ClickHouseTupleValue extends ClickHouseObjectValue<List<Object>> {
     @SuppressWarnings("unchecked")
     public <T> T[] asArray(Class<T> clazz) {
         if (isNullOrEmpty()) {
-            return (T[]) ClickHouseValues.EMPTY_ARRAY;
+            return (T[]) ClickHouseValues.EMPTY_OBJECT_ARRAY;
         }
 
         List<Object> value = getValue();
@@ -334,48 +334,72 @@ public class ClickHouseTupleValue extends ClickHouseObjectValue<List<Object>> {
 
     @Override
     public ClickHouseTupleValue update(BigInteger value) {
+        if (value == null) {
+            return resetToNullOrEmpty();
+        }
         set(Collections.singletonList(value));
         return this;
     }
 
     @Override
     public ClickHouseTupleValue update(BigDecimal value) {
+        if (value == null) {
+            return resetToNullOrEmpty();
+        }
         set(Collections.singletonList(value));
         return this;
     }
 
     @Override
     public ClickHouseTupleValue update(Enum<?> value) {
+        if (value == null) {
+            return resetToNullOrEmpty();
+        }
         set(Collections.singletonList(value));
         return this;
     }
 
     @Override
     public ClickHouseTupleValue update(Inet4Address value) {
+        if (value == null) {
+            return resetToNullOrEmpty();
+        }
         set(Collections.singletonList(value));
         return this;
     }
 
     @Override
     public ClickHouseTupleValue update(Inet6Address value) {
+        if (value == null) {
+            return resetToNullOrEmpty();
+        }
         set(Collections.singletonList(value));
         return this;
     }
 
     @Override
     public ClickHouseTupleValue update(LocalDate value) {
+        if (value == null) {
+            return resetToNullOrEmpty();
+        }
         set(Collections.singletonList(value));
         return this;
     }
 
     @Override
     public ClickHouseTupleValue update(LocalTime value) {
+        if (value == null) {
+            return resetToNullOrEmpty();
+        }
         set(Collections.singletonList(value));
         return this;
     }
 
     @Override
     public ClickHouseTupleValue update(LocalDateTime value) {
+        if (value == null) {
+            return resetToNullOrEmpty();
+        }
         set(Collections.singletonList(value));
         return this;
     }
@@ -429,12 +453,18 @@ public class ClickHouseTupleValue extends ClickHouseObjectValue<List<Object>> {
 
     @Override
     public ClickHouseTupleValue update(String value) {
+        if (value == null) {
+            return resetToNullOrEmpty();
+        }
         set(Collections.singletonList(value));
         return this;
     }
 
     @Override
     public ClickHouseTupleValue update(UUID value) {
+        if (value == null) {
+            return resetToNullOrEmpty();
+        }
         set(Collections.singletonList(value));
         return this;
     }

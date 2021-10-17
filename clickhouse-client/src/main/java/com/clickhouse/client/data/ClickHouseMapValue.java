@@ -121,7 +121,7 @@ public class ClickHouseMapValue extends ClickHouseObjectValue<Map<?, ?>> {
     @Override
     public String asString(int length, Charset charset) {
         Map<?, ?> value = getValue();
-        if (value == null || value.size() == 0) {
+        if (value == null || value.isEmpty()) {
             return "{}";
         }
         StringBuilder builder = new StringBuilder().append('{');
@@ -148,7 +148,7 @@ public class ClickHouseMapValue extends ClickHouseObjectValue<Map<?, ?>> {
     @Override
     public String toSqlExpression() {
         Map<?, ?> value = getValue();
-        if (value == null || value.size() == 0) {
+        if (value == null || value.isEmpty()) {
             return "{}";
         }
 
@@ -207,20 +207,29 @@ public class ClickHouseMapValue extends ClickHouseObjectValue<Map<?, ?>> {
 
     @Override
     public ClickHouseMapValue update(BigInteger value) {
-        set(Collections.singletonMap(getDefaultKey(), valueType.cast(value)));
-        return this;
+        if (value == null) {
+            return resetToNullOrEmpty();
+        }
+
+        return set(Collections.singletonMap(getDefaultKey(), valueType.cast(value)));
     }
 
     @Override
     public ClickHouseMapValue update(BigDecimal value) {
-        set(Collections.singletonMap(getDefaultKey(), valueType.cast(value)));
-        return this;
+        if (value == null) {
+            return resetToNullOrEmpty();
+        }
+
+        return set(Collections.singletonMap(getDefaultKey(), valueType.cast(value)));
     }
 
     @Override
     public ClickHouseMapValue update(String value) {
-        set(Collections.singletonMap(getDefaultKey(), valueType.cast(value)));
-        return this;
+        if (value == null) {
+            return resetToNullOrEmpty();
+        }
+
+        return set(Collections.singletonMap(getDefaultKey(), valueType.cast(value)));
     }
 
     @Override
@@ -251,54 +260,67 @@ public class ClickHouseMapValue extends ClickHouseObjectValue<Map<?, ?>> {
         } else {
             throw newUnsupportedException(value.getClass().getName(), valueType.getName());
         }
-        set(Collections.singletonMap(getDefaultKey(), v));
-        return this;
+        return set(Collections.singletonMap(getDefaultKey(), v));
     }
 
     @Override
     public ClickHouseMapValue update(Inet4Address value) {
-        set(Collections.singletonMap(getDefaultKey(), valueType.cast(value)));
-        return this;
+        if (value == null) {
+            return resetToNullOrEmpty();
+        }
+        return set(Collections.singletonMap(getDefaultKey(), valueType.cast(value)));
     }
 
     @Override
     public ClickHouseMapValue update(Inet6Address value) {
-        set(Collections.singletonMap(getDefaultKey(), valueType.cast(value)));
-        return this;
+        if (value == null) {
+            return resetToNullOrEmpty();
+        }
+        return set(Collections.singletonMap(getDefaultKey(), valueType.cast(value)));
     }
 
     @Override
     public ClickHouseMapValue update(LocalDate value) {
-        set(Collections.singletonMap(getDefaultKey(), valueType.cast(value)));
-        return this;
+        if (value == null) {
+            return resetToNullOrEmpty();
+        }
+        return set(Collections.singletonMap(getDefaultKey(), valueType.cast(value)));
     }
 
     @Override
     public ClickHouseMapValue update(LocalTime value) {
-        set(Collections.singletonMap(getDefaultKey(), valueType.cast(value)));
-        return this;
+        if (value == null) {
+            return resetToNullOrEmpty();
+        }
+        return set(Collections.singletonMap(getDefaultKey(), valueType.cast(value)));
     }
 
     @Override
     public ClickHouseMapValue update(LocalDateTime value) {
-        set(Collections.singletonMap(getDefaultKey(), valueType.cast(value)));
-        return this;
+        if (value == null) {
+            return resetToNullOrEmpty();
+        }
+        return set(Collections.singletonMap(getDefaultKey(), valueType.cast(value)));
     }
 
     @Override
     public ClickHouseMapValue update(Map<?, ?> value) {
-        set(value == null ? Collections.emptyMap() : value);
-        return this;
+        return set(value == null ? Collections.emptyMap() : value);
     }
 
     @Override
     public ClickHouseMapValue update(UUID value) {
-        set(Collections.singletonMap(getDefaultKey(), valueType.cast(value)));
-        return this;
+        if (value == null) {
+            return resetToNullOrEmpty();
+        }
+        return set(Collections.singletonMap(getDefaultKey(), valueType.cast(value)));
     }
 
     @Override
     public ClickHouseValue updateUnknown(Object value) {
+        if (value == null) {
+            return resetToNullOrEmpty();
+        }
         throw new IllegalArgumentException("Unknown value: " + value);
     }
 

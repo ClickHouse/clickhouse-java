@@ -12,7 +12,7 @@ public class ClickHouseNodeTest {
         Assert.assertNotNull(node);
         Assert.assertEquals(node.getCluster(), ClickHouseDefaults.CLUSTER.getEffectiveDefaultValue());
         Assert.assertEquals(node.getDatabase(), ClickHouseDefaults.DATABASE.getEffectiveDefaultValue());
-        Assert.assertEquals(node.getProtocol().name(), ClickHouseDefaults.PROTOCOL.getEffectiveDefaultValue());
+        Assert.assertEquals(node.getProtocol(), ClickHouseDefaults.PROTOCOL.getEffectiveDefaultValue());
         Assert.assertFalse(node.getCredentials().isPresent());
         Assert.assertTrue(node.getTags().isEmpty());
         Assert.assertNotNull(node.getAddress());
@@ -84,7 +84,7 @@ public class ClickHouseNodeTest {
     public void testBuildInOneGo() {
         String host = "non-existing.host";
         String database = "my_db";
-        ClickHouseProtocol protocol = ClickHouseProtocol.NATIVE;
+        ClickHouseProtocol protocol = ClickHouseProtocol.TCP;
         int port = 19000;
         ClickHouseNode node = ClickHouseNode.of(host, protocol, port, database);
         checkCustomValues(node, (String) ClickHouseDefaults.CLUSTER.getEffectiveDefaultValue(), host, port,

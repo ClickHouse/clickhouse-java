@@ -108,7 +108,8 @@ public class ClickHouseGrpcClientTest extends BaseIntegrationTest {
     @Test(groups = { "integration" })
     public void testOpenCloseConnection() throws Exception {
         for (int i = 0; i < 100; i++) {
-            Assert.assertTrue(ClickHouseClient.test(getServer(ClickHouseProtocol.GRPC), 3000));
+            Assert.assertTrue(ClickHouseClient.newInstance(ClickHouseProtocol.GRPC)
+                    .ping(getServer(ClickHouseProtocol.GRPC), 3000));
         }
     }
 
@@ -199,8 +200,7 @@ public class ClickHouseGrpcClientTest extends BaseIntegrationTest {
     public void testQueryInSameThread() throws Exception {
         ClickHouseNode server = getServer(ClickHouseProtocol.GRPC);
 
-        try (ClickHouseClient client = ClickHouseClient.builder().addOption(ClickHouseClientOption.ASYNC, false)
-                .build()) {
+        try (ClickHouseClient client = ClickHouseClient.builder().option(ClickHouseClientOption.ASYNC, false).build()) {
             CompletableFuture<ClickHouseResponse> future = client.connect(server)
                     .format(ClickHouseFormat.TabSeparatedWithNamesAndTypes).query("select 1,2").execute();
             // Assert.assertTrue(future instanceof ClickHouseImmediateFuture);

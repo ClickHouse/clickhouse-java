@@ -11,6 +11,8 @@ import org.testng.annotations.Test;
 import com.clickhouse.client.ClickHouseColumn;
 import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseValue;
+import com.clickhouse.client.data.array.ClickHouseByteArrayValue;
+import com.clickhouse.client.data.array.ClickHouseShortArrayValue;
 
 public class ClickHouseRowBinaryProcessorTest {
     private ClickHouseRowBinaryProcessor newProcessor(int... bytes) throws IOException {
@@ -20,11 +22,11 @@ public class ClickHouseRowBinaryProcessorTest {
 
     @Test(groups = { "unit" })
     public void testDeserializeArray() throws IOException {
-
         ClickHouseValue value = ClickHouseRowBinaryProcessor.getMappedFunctions().deserialize(
                 ClickHouseColumn.of("a", "Array(UInt8)"), null, BinaryStreamUtilsTest.generateInput(2, 1, 2));
-        Assert.assertTrue(value instanceof ClickHouseArrayValue);
-        Short[] shortArray = value.asObject(Short[].class);
+        Assert.assertTrue(value instanceof ClickHouseShortArrayValue);
+        Assert.assertEquals(value.asObject(), new short[] { 1, 2 });
+        Object[] shortArray = value.asArray();
         Assert.assertEquals(shortArray.length, 2);
         Assert.assertEquals(shortArray[0], Short.valueOf("1"));
         Assert.assertEquals(shortArray[1], Short.valueOf("2"));
@@ -32,8 +34,9 @@ public class ClickHouseRowBinaryProcessorTest {
         value = ClickHouseRowBinaryProcessor.getMappedFunctions().deserialize(
                 ClickHouseColumn.of("a", "Array(Nullable(Int8))"), null,
                 BinaryStreamUtilsTest.generateInput(2, 0, 1, 0, 2));
-        Assert.assertTrue(value instanceof ClickHouseArrayValue);
-        Byte[] byteArray = value.asObject(Byte[].class);
+        Assert.assertTrue(value instanceof ClickHouseByteArrayValue);
+        Assert.assertEquals(value.asObject(), new byte[] { 1, 2 });
+        Object[] byteArray = value.asArray();
         Assert.assertEquals(byteArray.length, 2);
         Assert.assertEquals(byteArray[0], Byte.valueOf("1"));
         Assert.assertEquals(byteArray[1], Byte.valueOf("2"));
@@ -41,12 +44,10 @@ public class ClickHouseRowBinaryProcessorTest {
         value = ClickHouseRowBinaryProcessor.getMappedFunctions().deserialize(
                 ClickHouseColumn.of("a", "Array(Array(UInt8))"), null, BinaryStreamUtilsTest.generateInput(1, 2, 1, 2));
         Assert.assertTrue(value instanceof ClickHouseArrayValue);
+        Assert.assertEquals(value.asObject(), new short[][] { new short[] { 1, 2 } });
         Object[] array = (Object[]) value.asObject();
         Assert.assertEquals(array.length, 1);
-        shortArray = (Short[]) array[0];
-        Assert.assertEquals(shortArray.length, 2);
-        Assert.assertEquals(shortArray[0], Short.valueOf("1"));
-        Assert.assertEquals(shortArray[1], Short.valueOf("2"));
+        Assert.assertEquals(array[0], new short[] { 1, 2 });
 
         // SELECT arrayZip(['a', 'b', 'c'], [3, 2, 1])
         value = ClickHouseRowBinaryProcessor.getMappedFunctions().deserialize(

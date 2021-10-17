@@ -1,5 +1,8 @@
 package com.clickhouse.client;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.lang.reflect.Array;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.Inet4Address;
@@ -26,6 +29,7 @@ import com.clickhouse.client.data.ClickHouseByteValue;
 import com.clickhouse.client.data.ClickHouseDateTimeValue;
 import com.clickhouse.client.data.ClickHouseDateValue;
 import com.clickhouse.client.data.ClickHouseDoubleValue;
+import com.clickhouse.client.data.ClickHouseEmptyValue;
 import com.clickhouse.client.data.ClickHouseFloatValue;
 import com.clickhouse.client.data.ClickHouseGeoMultiPolygonValue;
 import com.clickhouse.client.data.ClickHouseGeoPointValue;
@@ -41,6 +45,12 @@ import com.clickhouse.client.data.ClickHouseShortValue;
 import com.clickhouse.client.data.ClickHouseStringValue;
 import com.clickhouse.client.data.ClickHouseTupleValue;
 import com.clickhouse.client.data.ClickHouseUuidValue;
+import com.clickhouse.client.data.array.ClickHouseByteArrayValue;
+import com.clickhouse.client.data.array.ClickHouseDoubleArrayValue;
+import com.clickhouse.client.data.array.ClickHouseFloatArrayValue;
+import com.clickhouse.client.data.array.ClickHouseIntArrayValue;
+import com.clickhouse.client.data.array.ClickHouseLongArrayValue;
+import com.clickhouse.client.data.array.ClickHouseShortArrayValue;
 
 /**
  * Help class for dealing with values.
@@ -53,7 +63,13 @@ public final class ClickHouseValues {
     public static final LocalDateTime DATETIME_ZERO = LocalDateTime.ofEpochSecond(0L, 0, ZoneOffset.UTC);
     public static final LocalTime TIME_ZERO = LocalTime.ofSecondOfDay(0L);
 
-    public static final Object[] EMPTY_ARRAY = new Object[0];
+    public static final Object[] EMPTY_OBJECT_ARRAY = new Object[0];
+    public static final byte[] EMPTY_BYTE_ARRAY = new byte[0];
+    public static final short[] EMPTY_SHORT_ARRAY = new short[0];
+    public static final int[] EMPTY_INT_ARRAY = new int[0];
+    public static final long[] EMPTY_LONG_ARRAY = new long[0];
+    public static final float[] EMPTY_FLOAT_ARRAY = new float[0];
+    public static final double[] EMPTY_DOUBLE_ARRAY = new double[0];
     public static final String EMPTY_ARRAY_EXPR = "[]";
 
     public static final BigDecimal NANOS = new BigDecimal(BigInteger.TEN.pow(9));
@@ -674,6 +690,62 @@ public final class ClickHouseValues {
     }
 
     /**
+     * Creates an object array. Primitive types will be converted to corresponding
+     * wrapper types, also {@code Boolean} / {@code boolean} will be converted to
+     * {@code Byte}, and {@code Character} / {@code char} to {@code Integer}.
+     *
+     * @param <T>    type of the base element
+     * @param clazz  class of the base element, null is treated as
+     *               {@code Object.class}
+     * @param length length of the array, negative is treated as zero
+     * @param level  level of the array, must between 1 and 255
+     * @return a non-null object array
+     */
+    @SuppressWarnings("unchecked")
+    public static <T extends Object> T[] createObjectArray(Class<T> clazz, int length, int level) {
+        if (level < 1) {
+            level = 1;
+        } else if (level > 255) {
+            level = 255;
+        }
+        int[] dimensions = new int[level];
+        dimensions[0] = length < 0 ? 0 : length;
+        return (T[]) Array.newInstance(ClickHouseDataType.toObjectType(clazz), dimensions);
+    }
+
+    /**
+     * Creates a primitive array if applicable. Wrapper types will be converted to
+     * corresponding primitive types, also {@code Boolean} / {@code boolean} will be
+     * converted to {@code byte}, and {@code Character} / {@code char} to
+     * {@code int}.
+     * 
+     * @param clazz  class of the base element
+     * @param length length of the array, negative is treated as zero
+     * @param level  level of the array, must between 1 and 255
+     * @return a primitive array if applicable; an object array otherwise
+     */
+    public static Object createPrimitiveArray(Class<?> clazz, int length, int level) {
+        if (level < 1) {
+            level = 1;
+        } else if (level > 255) {
+            level = 255;
+        }
+        int[] dimensions = new int[level];
+        dimensions[0] = length < 0 ? 0 : length;
+        return Array.newInstance(ClickHouseDataType.toPrimitiveType(clazz), dimensions);
+    }
+
+    static ClickHouseArrayValue<?> fillByteArray(ClickHouseArrayValue<?> array, ClickHouseColumn column,
+            InputStream input, ClickHouseDeserializer<ClickHouseValue> deserializer, int length) throws IOException {
+        byte[] values = new byte[length];
+        ClickHouseValue ref = ClickHouseByteValue.ofNull();
+        for (int i = 0; i < length; i++) {
+            values[i] = deserializer.deserialize(ref, column, input).asByte();
+        }
+        return array.update(values);
+    }
+
+    /**
      * Extract one and only value from singleton collection.
      *
      * @param value singleton collection
@@ -743,12 +815,12 @@ public final class ClickHouseValues {
      * @return value object with default value, either null or empty
      */
     public static ClickHouseValue newValue(ClickHouseDataType type) {
-        return newValue(type, null);
+        return newValue(ClickHouseChecker.nonNull(type, "type"), null);
     }
 
     private static ClickHouseValue newValue(ClickHouseDataType type, ClickHouseColumn column) {
         ClickHouseValue value;
-        switch (ClickHouseChecker.nonNull(type, "type")) { // still faster than EnumMap and with less overhead
+        switch (type) { // still faster than EnumMap and with less overhead
             case Enum:
             case Enum8:
             case Int8:
@@ -832,14 +904,37 @@ public final class ClickHouseValues {
                 value = ClickHouseGeoMultiPolygonValue.ofEmpty();
                 break;
             case Array:
-                value = ClickHouseArrayValue.ofEmpty();
+                if (column == null) {
+                    value = ClickHouseArrayValue.ofEmpty();
+                } else if (column.getArrayNestedLevel() > 1) {
+                    value = ClickHouseArrayValue.of((Object[]) createPrimitiveArray(
+                            column.getArrayBaseColumn().getDataType().getPrimitiveClass(), 0,
+                            column.getArrayNestedLevel()));
+                } else {
+                    Class<?> javaClass = column.getArrayBaseColumn().getDataType().getPrimitiveClass();
+                    if (byte.class == javaClass) {
+                        value = ClickHouseByteArrayValue.ofEmpty();
+                    } else if (short.class == javaClass) {
+                        value = ClickHouseShortArrayValue.ofEmpty();
+                    } else if (int.class == javaClass) {
+                        value = ClickHouseIntArrayValue.ofEmpty();
+                    } else if (long.class == javaClass) {
+                        value = ClickHouseLongArrayValue.ofEmpty();
+                    } else if (float.class == javaClass) {
+                        value = ClickHouseFloatArrayValue.ofEmpty();
+                    } else if (double.class == javaClass) {
+                        value = ClickHouseDoubleArrayValue.ofEmpty();
+                    } else {
+                        value = ClickHouseArrayValue.ofEmpty();
+                    }
+                }
                 break;
             case Map:
                 if (column == null) {
                     throw new IllegalArgumentException("column types for key and value are required");
                 }
-                value = ClickHouseMapValue.ofEmpty(column.getKeyInfo().getDataType().getJavaClass(),
-                        column.getValueInfo().getDataType().getJavaClass());
+                value = ClickHouseMapValue.ofEmpty(column.getKeyInfo().getDataType().getObjectClass(),
+                        column.getValueInfo().getDataType().getObjectClass());
                 break;
             case Nested:
                 if (column == null) {
@@ -849,6 +944,9 @@ public final class ClickHouseValues {
                 break;
             case Tuple:
                 value = ClickHouseTupleValue.of();
+                break;
+            case Nothing:
+                value = ClickHouseEmptyValue.INSTANCE;
                 break;
             default:
                 throw new IllegalArgumentException("Unsupported data type: " + type.name());

@@ -48,6 +48,8 @@ public class ClickHouseResponse implements AutoCloseable, Serializable {
     protected final List<ClickHouseColumn> columns;
     protected final Throwable error;
 
+    private boolean isClosed;
+
     protected ClickHouseResponse(ClickHouseConfig config, ClickHouseNode server, Throwable error)
             throws ClickHouseException {
         this(config, server, null, null, null, error);
@@ -74,6 +76,7 @@ public class ClickHouseResponse implements AutoCloseable, Serializable {
                 this.error = null;
             }
 
+            this.isClosed = input == null;
             this.columns = columns != null ? columns
                     : (processor != null ? processor.getColumns() : Collections.emptyList());
         } catch (IOException | RuntimeException e) { // TODO and Error?
@@ -102,6 +105,10 @@ public class ClickHouseResponse implements AutoCloseable, Serializable {
         }
     }
 
+    public boolean isClosed() {
+        return isClosed;
+    }
+
     @Override
     public void close() {
         if (input != null) {
@@ -118,6 +125,7 @@ public class ClickHouseResponse implements AutoCloseable, Serializable {
                 } catch (Exception e) {
                     log.warn("Failed to close input stream", e);
                 }
+                isClosed = true;
             }
         }
     }

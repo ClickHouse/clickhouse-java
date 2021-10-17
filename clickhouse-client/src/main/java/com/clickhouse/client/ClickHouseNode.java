@@ -72,7 +72,7 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
 
         protected ClickHouseProtocol getProtocol() {
             if (protocol == null) {
-                protocol = ClickHouseProtocol.valueOf((String) ClickHouseDefaults.PROTOCOL.getEffectiveDefaultValue());
+                protocol = (ClickHouseProtocol) ClickHouseDefaults.PROTOCOL.getEffectiveDefaultValue();
             }
             return protocol;
         }
@@ -375,12 +375,12 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
     private final String cluster;
     private final ClickHouseProtocol protocol;
     private final InetSocketAddress address;
-    private final Optional<ClickHouseCredentials> credentials;
+    private final ClickHouseCredentials credentials;
     private final String database;
     private final Set<String> tags;
     private final int weight;
 
-    private BiConsumer<ClickHouseNode, Status> manager;
+    private transient BiConsumer<ClickHouseNode, Status> manager;
 
     protected ClickHouseNode(Builder builder) {
         ClickHouseChecker.nonNull(builder, "builder");
@@ -388,7 +388,7 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
         this.cluster = builder.getCluster();
         this.protocol = builder.getProtocol();
         this.address = builder.getAddress();
-        this.credentials = Optional.ofNullable(builder.getCredentials());
+        this.credentials = builder.getCredentials();
         this.database = builder.getDatabase();
         this.tags = builder.getTags();
         this.weight = builder.getWeight();
@@ -412,7 +412,7 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
      * @return credentials for accessing this node
      */
     public Optional<ClickHouseCredentials> getCredentials() {
-        return this.credentials;
+        return Optional.ofNullable(credentials);
     }
 
     /**
@@ -540,8 +540,8 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
         }
 
         ClickHouseNode node = (ClickHouseNode) obj;
-        return address.equals(node.address) && cluster.equals(node.cluster) && credentials.equals(node.credentials)
-                && database.equals(node.database) && protocol.equals(node.protocol) && tags.equals(node.tags)
-                && weight == node.weight;
+        return address.equals(node.address) && cluster.equals(node.cluster)
+                && Objects.equals(credentials, node.credentials) && database.equals(node.database)
+                && protocol == node.protocol && tags.equals(node.tags) && weight == node.weight;
     }
 }

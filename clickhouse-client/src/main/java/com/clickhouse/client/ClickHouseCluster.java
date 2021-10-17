@@ -185,7 +185,7 @@ public class ClickHouseCluster implements Function<ClickHouseNodeSelector, Click
                     } else if (buf[3] == 0) {
                         p = ClickHouseProtocol.MYSQL;
                     } else if (buf[0] == 72 && buf[9] == 52) {
-                        p = ClickHouseProtocol.NATIVE;
+                        p = ClickHouseProtocol.TCP;
                     }
                 }
             } catch (IOException e) {
@@ -313,9 +313,18 @@ public class ClickHouseCluster implements Function<ClickHouseNodeSelector, Click
         // detect flaky node and check it in a different way(less frequency)
         try {
             boolean passed = true;
+            int timeout = 5000;
             for (int i = 0; i < unhealthyNodes.size(); i++) {
-                ClickHouseNode node = unhealthyNodes.get(i);
-                if (ClickHouseClient.test(node, 5000)) { // another configuration?
+                ClickHouseNode node = probe(unhealthyNodes.get(i), timeout);
+
+                // probe is faster than ping but it cannot tell if the server works or not
+                boolean isAlive = false;
+                try (ClickHouseClient client = ClickHouseClient.newInstance(node.getProtocol())) {
+                    isAlive = client.ping(node, timeout);
+                } catch (Exception e) {
+                    // ignore
+                }
+                if (isAlive) { // another configuration?
                     update(node, Status.HEALTHY);
                 } else {
                     passed = false;

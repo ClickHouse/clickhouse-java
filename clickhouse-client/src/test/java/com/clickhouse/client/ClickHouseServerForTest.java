@@ -106,7 +106,7 @@ public class ClickHouseServerForTest {
                                     .withExposedPorts(ClickHouseProtocol.GRPC.getDefaultPort(),
                                             ClickHouseProtocol.HTTP.getDefaultPort(),
                                             ClickHouseProtocol.MYSQL.getDefaultPort(),
-                                            ClickHouseProtocol.NATIVE.getDefaultPort(),
+                                            ClickHouseProtocol.TCP.getDefaultPort(),
                                             ClickHouseProtocol.POSTGRESQL.getDefaultPort())
                                     .withClasspathResourceMapping("containers/clickhouse-server/config.d",
                                             "/etc/clickhouse-server/config.d", BindMode.READ_ONLY)

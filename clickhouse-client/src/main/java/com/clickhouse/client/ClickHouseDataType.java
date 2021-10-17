@@ -38,7 +38,7 @@ public enum ClickHouseDataType {
     UInt8(Short.class, false, true, false, 1, 3, 0, "INT1 UNSIGNED", "TINYINT UNSIGNED"),
     UInt16(Integer.class, false, true, false, 2, 5, 0, "SMALLINT UNSIGNED"),
     UInt32(Long.class, false, true, false, 4, 10, 0, "INT UNSIGNED", "INTEGER UNSIGNED", "MEDIUMINT UNSIGNED"),
-    UInt64(BigInteger.class, false, true, false, 8, 19, 0, "BIGINT UNSIGNED"),
+    UInt64(Long.class, false, true, false, 8, 19, 0, "BIGINT UNSIGNED"),
     UInt128(BigInteger.class, false, true, false, 16, 20, 0), UInt256(BigInteger.class, false, true, false, 32, 39, 0),
     Int8(Byte.class, false, true, true, 1, 4, 0, "BOOL", "BOOLEAN", "BYTE", "INT1", "INT1 SIGNED", "TINYINT",
             "TINYINT SIGNED"),
@@ -180,7 +180,62 @@ public enum ClickHouseDataType {
         return type;
     }
 
-    private final Class<?> javaClass;
+    /**
+     * Converts given Java class to wrapper object(e.g. {@code int.class} to
+     * {@code Integer.class}) if applicable.
+     *
+     * @param javaClass Java class
+     * @return wrapper object
+     */
+    public static Class<?> toObjectType(Class<?> javaClass) {
+        if (byte.class == javaClass || boolean.class == javaClass || Boolean.class == javaClass) {
+            javaClass = Byte.class;
+        } else if (short.class == javaClass) {
+            javaClass = Short.class;
+        } else if (int.class == javaClass || char.class == javaClass || Character.class == javaClass) {
+            javaClass = Integer.class;
+        } else if (long.class == javaClass) {
+            javaClass = Long.class;
+        } else if (float.class == javaClass) {
+            javaClass = Float.class;
+        } else if (double.class == javaClass) {
+            javaClass = Double.class;
+        } else if (javaClass == null) {
+            javaClass = Object.class;
+        }
+
+        return javaClass;
+    }
+
+    /**
+     * Converts given Java class to primitive types(e.g. {@code Integer.class} to
+     * {@code int.class}) if applicable.
+     *
+     * @param javaClass Java class
+     * @return primitive type
+     */
+    public static Class<?> toPrimitiveType(Class<?> javaClass) {
+        if (Byte.class == javaClass || Boolean.class == javaClass || boolean.class == javaClass) {
+            javaClass = byte.class;
+        } else if (Short.class == javaClass) {
+            javaClass = short.class;
+        } else if (Integer.class == javaClass || Character.class == javaClass || char.class == javaClass) {
+            javaClass = int.class;
+        } else if (Long.class == javaClass) {
+            javaClass = long.class;
+        } else if (Float.class == javaClass) {
+            javaClass = float.class;
+        } else if (Double.class == javaClass) {
+            javaClass = double.class;
+        } else if (javaClass == null) {
+            javaClass = Object.class;
+        }
+
+        return javaClass;
+    }
+
+    private final Class<?> objectType;
+    private final Class<?> primitiveType;
     private final boolean parameter;
     private final boolean caseSensitive;
     private final boolean signed;
@@ -191,7 +246,8 @@ public enum ClickHouseDataType {
 
     ClickHouseDataType(Class<?> javaClass, boolean parameter, boolean caseSensitive, boolean signed, int byteLength,
             int defaultPrecision, int defaultScale, String... aliases) {
-        this.javaClass = javaClass == null ? Object.class : javaClass;
+        this.objectType = toObjectType(javaClass);
+        this.primitiveType = toPrimitiveType(javaClass);
         this.parameter = parameter;
         this.caseSensitive = caseSensitive;
         this.signed = signed;
@@ -206,12 +262,23 @@ public enum ClickHouseDataType {
     }
 
     /**
-     * Gets Java class for this data type.
+     * Gets Java class for this data type. Prefer wrapper objects to primitives(e.g.
+     * {@code Integer.class} instead of {@code int.class}).
      *
      * @return Java class
      */
-    public Class<?> getJavaClass() {
-        return javaClass;
+    public Class<?> getObjectClass() {
+        return objectType;
+    }
+
+    /**
+     * Gets Java class for this data type. Prefer primitives to wrapper objects(e.g.
+     * {@code int.class} instead of {@code Integer.class}).
+     *
+     * @return Java class
+     */
+    public Class<?> getPrimitiveClass() {
+        return primitiveType;
     }
 
     /**

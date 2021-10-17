@@ -211,7 +211,7 @@ public interface ClickHouseClient extends AutoCloseable {
             // must run in async mode so that we won't hold everything in memory
             try (ClickHouseClient client = ClickHouseClient.builder()
                     .nodeSelector(ClickHouseNodeSelector.of(theServer.getProtocol()))
-                    .addOption(ClickHouseClientOption.ASYNC, true).build()) {
+                    .option(ClickHouseClientOption.ASYNC, true).build()) {
                 ClickHousePipedStream stream = ClickHouseDataStreamFactory.getInstance()
                         .createPipedStream(client.getConfig());
                 // execute query in a separate thread(because async is explicitly set to true)
@@ -333,7 +333,7 @@ public interface ClickHouseClient extends AutoCloseable {
             // set async to false so that we don't have to create additional thread
             try (ClickHouseClient client = ClickHouseClient.builder()
                     .nodeSelector(ClickHouseNodeSelector.of(theServer.getProtocol()))
-                    .addOption(ClickHouseClientOption.ASYNC, false).build()) {
+                    .option(ClickHouseClientOption.ASYNC, false).build()) {
                 ClickHouseRequest<?> request = client.connect(theServer).format(ClickHouseFormat.RowBinary);
                 if ((boolean) ClickHouseDefaults.AUTO_SESSION.getEffectiveDefaultValue() && queries.size() > 1) {
                     request.session(UUID.randomUUID().toString(), false);
@@ -371,7 +371,7 @@ public interface ClickHouseClient extends AutoCloseable {
             // set async to false so that we don't have to create additional thread
             try (ClickHouseClient client = ClickHouseClient.builder()
                     .nodeSelector(ClickHouseNodeSelector.of(theServer.getProtocol()))
-                    .addOption(ClickHouseClientOption.ASYNC, false).build();
+                    .option(ClickHouseClientOption.ASYNC, false).build();
                     ClickHouseResponse resp = client.connect(theServer).format(ClickHouseFormat.RowBinary).query(sql)
                             .params(params).execute().get()) {
                 return resp.getSummary();
@@ -441,7 +441,7 @@ public interface ClickHouseClient extends AutoCloseable {
             // set async to false so that we don't have to create additional thread
             try (ClickHouseClient client = ClickHouseClient.builder()
                     .nodeSelector(ClickHouseNodeSelector.of(theServer.getProtocol()))
-                    .addOption(ClickHouseClientOption.ASYNC, false).build()) {
+                    .option(ClickHouseClientOption.ASYNC, false).build()) {
                 // format doesn't matter here as we only need a summary
                 ClickHouseRequest<?> request = client.connect(theServer).format(ClickHouseFormat.RowBinary)
                         .query(query);
@@ -499,7 +499,7 @@ public interface ClickHouseClient extends AutoCloseable {
             // set async to false so that we don't have to create additional thread
             try (ClickHouseClient client = ClickHouseClient.builder()
                     .nodeSelector(ClickHouseNodeSelector.of(theServer.getProtocol()))
-                    .addOption(ClickHouseClientOption.ASYNC, false).build()) {
+                    .option(ClickHouseClientOption.ASYNC, false).build()) {
                 // format doesn't matter here as we only need a summary
                 ClickHouseRequest<?> request = client.connect(theServer).format(ClickHouseFormat.RowBinary);
                 for (String[] p : params) {
@@ -511,38 +511,6 @@ public interface ClickHouseClient extends AutoCloseable {
 
             return list;
         });
-    }
-
-    /**
-     * Tests if the given server is alive or not. Unlike other methods, it's a
-     * synchronous call with minimum overhead(e.g. tiny buffer, no compression and
-     * no deserialization etc).
-     *
-     * @param server  server to test
-     * @param timeout timeout in millisecond
-     * @return true if the server is alive; false otherwise
-     */
-    static boolean test(ClickHouseNode server, int timeout) {
-        if (server != null) {
-            server = ClickHouseCluster.probe(server, timeout);
-
-            try (ClickHouseClient client = ClickHouseClient.builder()
-                    .nodeSelector(ClickHouseNodeSelector.of(server.getProtocol()))
-                    .addOption(ClickHouseClientOption.ASYNC, false) // use current thread
-                    .addOption(ClickHouseClientOption.CONNECTION_TIMEOUT, timeout)
-                    .addOption(ClickHouseClientOption.SOCKET_TIMEOUT, timeout)
-                    .addOption(ClickHouseClientOption.MAX_BUFFER_SIZE, 8) // actually 4 bytes should be enough
-                    .addOption(ClickHouseClientOption.MAX_QUEUED_BUFFERS, 1).build();
-                    ClickHouseResponse resp = client.connect(server).compression(ClickHouseCompression.NONE)
-                            .format(ClickHouseFormat.TabSeparated).query("SELECT 1").execute()
-                            .get(timeout, TimeUnit.MILLISECONDS)) {
-                return true;
-            } catch (Exception e) {
-                // ignore
-            }
-        }
-
-        return false;
     }
 
     /**
@@ -616,6 +584,37 @@ public interface ClickHouseClient extends AutoCloseable {
      */
     default void init(ClickHouseConfig config) {
         ClickHouseChecker.nonNull(config, "configuration");
+    }
+
+    /**
+     * Tests if the given server is alive or not. Pay attention that it's a
+     * synchronous call with minimum overhead(e.g. tiny buffer, no compression and
+     * no deserialization etc).
+     *
+     * @param server  server to test
+     * @param timeout timeout in millisecond
+     * @return true if the server is alive; false otherwise
+     */
+    default boolean ping(ClickHouseNode server, int timeout) {
+        if (server != null) {
+            server = ClickHouseCluster.probe(server, timeout);
+
+            try (ClickHouseResponse resp = connect(server) // create request
+                    .option(ClickHouseClientOption.ASYNC, false) // use current thread
+                    .option(ClickHouseClientOption.CONNECTION_TIMEOUT, timeout)
+                    .option(ClickHouseClientOption.SOCKET_TIMEOUT, timeout)
+                    .option(ClickHouseClientOption.MAX_BUFFER_SIZE, 8) // actually 4 bytes should be enough
+                    .option(ClickHouseClientOption.MAX_QUEUED_BUFFERS, 1) // enough with only one buffer
+                    .compression(ClickHouseCompression.NONE) // no compression required for such a small packet
+                    .format(ClickHouseFormat.TabSeparated).query("SELECT 1").execute()
+                    .get(timeout, TimeUnit.MILLISECONDS)) {
+                return true;
+            } catch (Exception e) {
+                // ignore
+            }
+        }
+
+        return false;
     }
 
     @Override

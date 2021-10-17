@@ -1,5 +1,6 @@
 package com.clickhouse.client.config;
 
+import java.io.Serializable;
 import java.util.Optional;
 
 /**
@@ -7,26 +8,22 @@ import java.util.Optional;
  * composed of key, default value(which implies type of the value) and
  * description.
  */
-public interface ClickHouseConfigOption {
+public interface ClickHouseConfigOption extends Serializable {
     /**
      * Converts given string to a typed value.
      *
      * @param <T>   type of the value
      * @param value value in string format
-     * @param clazz class of the value
+     * @param clazz non-null class of the value
      * @return typed value
      */
-    static <T> T fromString(String value, Class<T> clazz) {
+    @SuppressWarnings("unchecked")
+    static <T extends Serializable> T fromString(String value, Class<T> clazz) {
         if (value == null || clazz == null) {
             throw new IllegalArgumentException("Non-null value and class are required");
         }
 
-        if (clazz == int.class || clazz == Integer.class) {
-            return clazz.cast(Integer.valueOf(value));
-        }
-        if (clazz == long.class || clazz == Long.class) {
-            return clazz.cast(Long.valueOf(value));
-        }
+        T result;
         if (clazz == boolean.class || clazz == Boolean.class) {
             final Boolean boolValue;
             if ("1".equals(value) || "0".equals(value)) {
@@ -34,10 +31,25 @@ public interface ClickHouseConfigOption {
             } else {
                 boolValue = Boolean.valueOf(value);
             }
-            return clazz.cast(boolValue);
+            result = clazz.cast(boolValue);
+        } else if (byte.class == clazz || Byte.class == clazz) {
+            result = clazz.cast(value.isEmpty() ? Byte.valueOf((byte) 0) : Byte.valueOf(value));
+        } else if (short.class == clazz || Short.class == clazz) {
+            result = clazz.cast(value.isEmpty() ? Short.valueOf((short) 0) : Short.valueOf(value));
+        } else if (int.class == clazz || Integer.class == clazz) {
+            result = clazz.cast(value.isEmpty() ? Integer.valueOf(0) : Integer.valueOf(value));
+        } else if (long.class == clazz || Long.class == clazz) {
+            result = clazz.cast(value.isEmpty() ? Long.valueOf(0L) : Long.valueOf(value));
+        } else if (float.class == clazz || Float.class == clazz) {
+            result = clazz.cast(value.isEmpty() ? Float.valueOf(0F) : Float.valueOf(value));
+        } else if (double.class == clazz || Double.class == clazz) {
+            result = clazz.cast(value.isEmpty() ? Double.valueOf(0D) : Double.valueOf(value));
+        } else if (Enum.class.isAssignableFrom(clazz)) {
+            result = (T) Enum.valueOf((Class<? extends Enum>) clazz, value);
+        } else {
+            result = clazz.cast(value);
         }
-
-        return clazz.cast(value);
+        return result;
     }
 
     /**
@@ -45,35 +57,46 @@ public interface ClickHouseConfigOption {
      *
      * @return default value of the option
      */
-    Object getDefaultValue();
+    Serializable getDefaultValue();
 
     /**
-     * Gets default value from environment variable. By default the environment
-     * variable is named as {@link #getPrefix()} + "_" + {@link #name()} in upper
-     * case.
+     * Gets trimmed default value from environment variable. By default the
+     * environment variable is named as {@link #getPrefix()} + "_" + {@link #name()}
+     * in upper case.
      *
-     * @return default value defined in environment variable
+     * @return trimmed default value defined in environment variable
      */
     default Optional<String> getDefaultValueFromEnvVar() {
         String prefix = getPrefix().toUpperCase();
         String optionName = name();
         int length = optionName.length();
-        return Optional.ofNullable(System.getenv(new StringBuilder(length + prefix.length() + 1).append(prefix)
-                .append('_').append(optionName.toUpperCase()).toString()));
+
+        String value = System.getenv(new StringBuilder(length + prefix.length() + 1).append(prefix).append('_')
+                .append(optionName.toUpperCase()).toString());
+        if (value != null) {
+            value = value.trim();
+        }
+        return Optional.ofNullable(value);
     }
 
     /**
-     * Gets default value from system property. By default the system property is
-     * named as {@link #getPrefix()} + "_" + {@link #name()} in lower case.
+     * Gets trimmed default value from system property. By default the system
+     * property is named as {@link #getPrefix()} + "_" + {@link #name()} in lower
+     * case.
      *
-     * @return default value defined in system property
+     * @return trimmed default value defined in system property
      */
     default Optional<String> getDefaultValueFromSysProp() {
         String prefix = getPrefix().toLowerCase();
         String optionName = name();
         int length = optionName.length();
-        return Optional.ofNullable(System.getProperty(new StringBuilder(length + prefix.length() + 1).append(prefix)
-                .append('_').append(optionName.toLowerCase()).toString()));
+
+        String value = System.getProperty(new StringBuilder(length + prefix.length() + 1).append(prefix).append('_')
+                .append(optionName.toLowerCase()).toString());
+        if (value != null) {
+            value = value.trim();
+        }
+        return Optional.ofNullable(value);
     }
 
     /**
@@ -90,7 +113,8 @@ public interface ClickHouseConfigOption {
      *
      * @return effective default value
      */
-    default Object getEffectiveDefaultValue() {
+    @SuppressWarnings("unchecked")
+    default Serializable getEffectiveDefaultValue() {
         Optional<String> value = getDefaultValueFromEnvVar();
 
         if (!value.isPresent() || value.get().isEmpty()) {
@@ -101,7 +125,7 @@ public interface ClickHouseConfigOption {
             return getDefaultValue();
         }
 
-        return fromString(value.get(), getValueType());
+        return fromString(value.get(), (Class<? extends Serializable>) getValueType());
     }
 
     /**

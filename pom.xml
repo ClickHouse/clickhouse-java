@@ -95,7 +95,7 @@
         <testcontainers.version>1.16.0</testcontainers.version>
         <testng.version>7.4.0</testng.version>
 
-        <repackaged.version>1.0.0</repackaged.version>
+        <repackaged.version>1.1.0</repackaged.version>
 
         <assembly-plugin.version>3.3.0</assembly-plugin.version>
         <compiler-plugin.version>3.8.1</compiler-plugin.version>

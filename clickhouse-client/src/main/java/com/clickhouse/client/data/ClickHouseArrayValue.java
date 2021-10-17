@@ -35,7 +35,7 @@ public class ClickHouseArrayValue<T> extends ClickHouseObjectValue<T[]> {
      */
     @SuppressWarnings("unchecked")
     public static <T> ClickHouseArrayValue<T> ofEmpty() {
-        return of((T[]) ClickHouseValues.EMPTY_ARRAY);
+        return of((T[]) ClickHouseValues.EMPTY_OBJECT_ARRAY);
     }
 
     /**
@@ -136,7 +136,7 @@ public class ClickHouseArrayValue<T> extends ClickHouseObjectValue<T[]> {
     @Override
     @SuppressWarnings("unchecked")
     public ClickHouseArrayValue<T> resetToNullOrEmpty() {
-        set((T[]) ClickHouseValues.EMPTY_ARRAY);
+        set((T[]) ClickHouseValues.EMPTY_OBJECT_ARRAY);
         return this;
     }
 
@@ -149,7 +149,7 @@ public class ClickHouseArrayValue<T> extends ClickHouseObjectValue<T[]> {
 
         StringBuilder builder = new StringBuilder().append('[');
         for (T v : value) {
-            builder.append(ClickHouseValues.convertToSqlExpression(v));
+            builder.append(ClickHouseValues.convertToSqlExpression(v)).append(',');
         }
         if (builder.length() > 1) {
             builder.setLength(builder.length() - 1);
@@ -338,57 +338,81 @@ public class ClickHouseArrayValue<T> extends ClickHouseObjectValue<T[]> {
     @Override
     @SuppressWarnings("unchecked")
     public ClickHouseArrayValue<T> update(BigInteger value) {
-        set((T[]) new BigInteger[] { value });
-        return this;
+        if (value == null) {
+            return resetToNullOrEmpty();
+        }
+
+        return set((T[]) new BigInteger[] { value });
     }
 
     @Override
     @SuppressWarnings("unchecked")
     public ClickHouseArrayValue<T> update(BigDecimal value) {
-        set((T[]) new BigDecimal[] { value });
-        return this;
+        if (value == null) {
+            return resetToNullOrEmpty();
+        }
+
+        return set((T[]) new BigDecimal[] { value });
     }
 
     @Override
     @SuppressWarnings("unchecked")
     public ClickHouseArrayValue<T> update(Enum<?> value) {
-        set((T[]) new Enum<?>[] { value });
-        return this;
+        if (value == null) {
+            return resetToNullOrEmpty();
+        }
+
+        return set((T[]) new Enum<?>[] { value });
     }
 
     @Override
     @SuppressWarnings("unchecked")
     public ClickHouseArrayValue<T> update(Inet4Address value) {
-        set((T[]) new Inet4Address[] { value });
-        return this;
+        if (value == null) {
+            return resetToNullOrEmpty();
+        }
+
+        return set((T[]) new Inet4Address[] { value });
     }
 
     @Override
     @SuppressWarnings("unchecked")
     public ClickHouseArrayValue<T> update(Inet6Address value) {
-        set((T[]) new Inet6Address[] { value });
-        return this;
+        if (value == null) {
+            return resetToNullOrEmpty();
+        }
+
+        return set((T[]) new Inet6Address[] { value });
     }
 
     @Override
     @SuppressWarnings("unchecked")
     public ClickHouseArrayValue<T> update(LocalDate value) {
-        set((T[]) new LocalDate[] { value });
-        return this;
+        if (value == null) {
+            return resetToNullOrEmpty();
+        }
+
+        return set((T[]) new LocalDate[] { value });
     }
 
     @Override
     @SuppressWarnings("unchecked")
     public ClickHouseArrayValue<T> update(LocalTime value) {
-        set((T[]) new LocalTime[] { value });
-        return this;
+        if (value == null) {
+            return resetToNullOrEmpty();
+        }
+
+        return set((T[]) new LocalTime[] { value });
     }
 
     @Override
     @SuppressWarnings("unchecked")
     public ClickHouseArrayValue<T> update(LocalDateTime value) {
-        set((T[]) new LocalDateTime[] { value });
-        return this;
+        if (value == null) {
+            return resetToNullOrEmpty();
+        }
+
+        return set((T[]) new LocalDateTime[] { value });
     }
 
     @Override
@@ -462,7 +486,7 @@ public class ClickHouseArrayValue<T> extends ClickHouseObjectValue<T[]> {
         } else if (value instanceof ClickHouseArrayValue) {
             set(((ClickHouseArrayValue<T>) value).getValue());
         } else {
-            set(value.isNullOrEmpty() ? (T[]) ClickHouseValues.EMPTY_ARRAY : (T[]) value.asArray());
+            set(value.isNullOrEmpty() ? (T[]) ClickHouseValues.EMPTY_OBJECT_ARRAY : (T[]) value.asArray());
         }
         return this;
     }
@@ -470,7 +494,7 @@ public class ClickHouseArrayValue<T> extends ClickHouseObjectValue<T[]> {
     @Override
     @SuppressWarnings("unchecked")
     public ClickHouseArrayValue<T> update(Object[] value) {
-        if (value == null || value.length == 0) {
+        if (value == null) {
             return resetToNullOrEmpty();
         }
 

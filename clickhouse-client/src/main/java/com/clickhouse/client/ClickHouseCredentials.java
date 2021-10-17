@@ -57,8 +57,8 @@ public class ClickHouseCredentials implements Serializable {
     protected ClickHouseCredentials(String userName, String password) {
         this.accessToken = null;
 
-        this.userName = ClickHouseChecker.nonNull(userName, "userName");
-        this.password = ClickHouseChecker.nonNull(password, "password");
+        this.userName = ClickHouseChecker.nonBlank(userName, "userName");
+        this.password = password != null ? password : "";
     }
 
     public boolean useAccessToken() {

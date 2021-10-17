@@ -1,12 +1,16 @@
 package com.clickhouse.client;
 
+import java.io.Serializable;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Properties;
 import java.util.ServiceLoader;
+import java.util.Map.Entry;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ForkJoinPool;
 
+import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.config.ClickHouseConfigOption;
 import com.clickhouse.client.config.ClickHouseDefaults;
 
@@ -47,7 +51,7 @@ public class ClickHouseClientBuilder {
     protected Object metricRegistry;
     protected ClickHouseNodeSelector nodeSelector;
 
-    protected final Map<ClickHouseConfigOption, Object> options;
+    protected final Map<ClickHouseConfigOption, Serializable> options;
 
     /**
      * Default constructor.
@@ -106,7 +110,7 @@ public class ClickHouseClientBuilder {
 
         if (client == null) {
             throw new IllegalStateException(
-                    ClickHouseUtils.format("No suitable client(out of %d) found in classpath.", counter));
+                    ClickHouseUtils.format("No suitable ClickHouse client(out of %d) found in classpath.", counter));
         } else {
             client.init(getConfig());
         }
@@ -122,9 +126,11 @@ public class ClickHouseClientBuilder {
      * @param value  value
      * @return this builder
      */
-    public ClickHouseClientBuilder addOption(ClickHouseConfigOption option, Object value) {
-        Object oldValue = options.put(ClickHouseChecker.nonNull(option, "option"),
-                ClickHouseChecker.nonNull(value, "value"));
+    public ClickHouseClientBuilder option(ClickHouseConfigOption option, Serializable value) {
+        if (option == null || value == null) {
+            throw new IllegalArgumentException("Non-null option and value are required");
+        }
+        Object oldValue = options.put(option, value);
         if (oldValue == null || !value.equals(oldValue)) {
             resetConfig();
         }
@@ -150,12 +156,39 @@ public class ClickHouseClientBuilder {
     /**
      * Sets options.
      *
-     * @param options non-null map containing all options
+     * @param options map containing all options
      * @return this builder
      */
-    public ClickHouseClientBuilder options(Map<ClickHouseConfigOption, Object> options) {
-        if (ClickHouseChecker.nonNull(options, "options").size() > 0) {
-            options.putAll(options);
+    public ClickHouseClientBuilder options(Map<ClickHouseConfigOption, Serializable> options) {
+        if (options != null && !options.isEmpty()) {
+            this.options.putAll(options);
+            resetConfig();
+        }
+
+        return this;
+    }
+
+    /**
+     * Sets options.
+     *
+     * @param options options
+     * @return this builder
+     */
+    public ClickHouseClientBuilder options(Properties options) {
+        if (options != null && !options.isEmpty()) {
+            for (Entry<Object, Object> e : options.entrySet()) {
+                Object key = e.getKey();
+                Object value = e.getValue();
+                if (key == null || value == null) {
+                    continue;
+                }
+
+                ClickHouseClientOption o = ClickHouseClientOption.fromKey(key.toString());
+                if (o != null) {
+                    this.options.put(o, ClickHouseConfigOption.fromString(value.toString(), o.getValueType()));
+                }
+            }
+
             resetConfig();
         }
 
