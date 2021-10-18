@@ -15,6 +15,7 @@ import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseDataProcessor;
 import com.clickhouse.client.ClickHouseFormat;
 import com.clickhouse.client.ClickHouseRecord;
+import com.clickhouse.client.ClickHouseUtils;
 import com.clickhouse.client.ClickHouseValue;
 import com.clickhouse.client.data.tsv.ByteFragment;
 import com.clickhouse.client.data.tsv.StreamSplitter;
@@ -72,16 +73,16 @@ public class ClickHouseTabSeparatedProcessor extends ClickHouseDataProcessor {
                 }
 
                 @Override
-                public ClickHouseValue getValue(String columnName) throws IOException {
+                public ClickHouseValue getValue(String name) {
                     int index = 0;
                     for (ClickHouseColumn c : columns) {
-                        if (c.getColumnName().equals(columnName)) {
-                            getValue(index);
+                        if (c.getColumnName().equalsIgnoreCase(name)) {
+                            return getValue(index);
                         }
                         index++;
                     }
 
-                    throw new IllegalArgumentException("Not able to find a column named: " + columnName);
+                    throw new IllegalArgumentException(ClickHouseUtils.format("Unable to find column [%s]", name));
                 }
             };
         }

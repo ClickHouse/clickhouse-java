@@ -57,24 +57,24 @@ public class ClientState extends BaseState {
 
         ClickHouseClientBuilder builder = ClickHouseClient.builder();
         if (bufferSize != null && !bufferSize.isEmpty()) {
-            builder.addOption(ClickHouseClientOption.MAX_BUFFER_SIZE, Integer.parseInt(bufferSize));
+            builder.option(ClickHouseClientOption.MAX_BUFFER_SIZE, Integer.parseInt(bufferSize));
         }
         if (compression != null && !compression.isEmpty()) {
-            builder.addOption(ClickHouseClientOption.COMPRESSION, compression.toUpperCase());
+            builder.option(ClickHouseClientOption.COMPRESSION, compression.toUpperCase());
             if (ClickHouseCompression.NONE.name().equalsIgnoreCase(compression)) {
-                builder.addOption(ClickHouseGrpcClientOption.USE_FULL_STREAM_DECOMPRESSION, true);
+                builder.option(ClickHouseGrpcClientOption.USE_FULL_STREAM_DECOMPRESSION, true);
             }
         }
         if (threads != null && !threads.isEmpty()) {
-            builder.addOption(ClickHouseClientOption.MAX_THREADS_PER_CLIENT, Integer.parseInt(threads));
+            builder.option(ClickHouseClientOption.MAX_THREADS_PER_CLIENT, Integer.parseInt(threads));
         }
 
         if (window != null && !window.isEmpty()) {
-            builder.addOption(ClickHouseGrpcClientOption.FLOW_CONTROL_WINDOW, Integer.parseInt(window));
+            builder.option(ClickHouseGrpcClientOption.FLOW_CONTROL_WINDOW, Integer.parseInt(window));
         }
 
-        return builder.addOption(ClickHouseClientOption.ASYNC, "async".equals(mode))
-                .addOption(ClickHouseGrpcClientOption.USE_OKHTTP, "okhttp".equals(transport)).build();
+        return builder.option(ClickHouseClientOption.ASYNC, "async".equals(mode))
+                .option(ClickHouseGrpcClientOption.USE_OKHTTP, "okhttp".equals(transport)).build();
     }
 
     @Setup(Level.Trial)

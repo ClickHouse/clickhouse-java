@@ -6,6 +6,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Objects;
 import java.util.TimeZone;
 
 /**
@@ -456,6 +457,46 @@ public final class ClickHouseColumn implements Serializable {
 
     public String getFunctionName() {
         return dataType == ClickHouseDataType.AggregateFunction && parameters.size() > 0 ? parameters.get(0) : null;
+    }
+
+    @Override
+    public int hashCode() {
+        final int prime = 31;
+        int result = 1;
+        result = prime * result + ((arrayBaseColumn == null) ? 0 : arrayBaseColumn.hashCode());
+        result = prime * result + arrayLevel;
+        result = prime * result + ((baseType == null) ? 0 : baseType.hashCode());
+        result = prime * result + ((columnName == null) ? 0 : columnName.hashCode());
+        result = prime * result + ((dataType == null) ? 0 : dataType.hashCode());
+        result = prime * result + (lowCardinality ? 1231 : 1237);
+        result = prime * result + ((nested == null) ? 0 : nested.hashCode());
+        result = prime * result + (nullable ? 1231 : 1237);
+        result = prime * result + ((originalTypeName == null) ? 0 : originalTypeName.hashCode());
+        result = prime * result + ((parameters == null) ? 0 : parameters.hashCode());
+        result = prime * result + precision;
+        result = prime * result + scale;
+        result = prime * result + ((timeZone == null) ? 0 : timeZone.hashCode());
+        return result;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+
+        ClickHouseColumn other = (ClickHouseColumn) obj;
+        return Objects.equals(arrayBaseColumn, other.arrayBaseColumn) && arrayLevel == other.arrayLevel
+                && baseType == other.baseType && Objects.equals(columnName, other.columnName)
+                && dataType == other.dataType && lowCardinality == other.lowCardinality
+                && Objects.equals(nested, other.nested) && nullable == other.nullable
+                && Objects.equals(originalTypeName, other.originalTypeName)
+                && Objects.equals(parameters, other.parameters) && precision == other.precision && scale == other.scale
+                && Objects.equals(timeZone, other.timeZone);
     }
 
     @Override

@@ -4,7 +4,6 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumMap;
@@ -12,6 +11,7 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.function.Supplier;
 import com.clickhouse.client.ClickHouseChecker;
 import com.clickhouse.client.ClickHouseColumn;
@@ -314,6 +314,7 @@ public class ClickHouseRowBinaryProcessor extends ClickHouseDataProcessor {
         return MappedFunctions.instance;
     }
 
+    // TODO this is where ASM should come into play...
     private class Records implements Iterator<ClickHouseRecord> {
         private final Supplier<ClickHouseValue[]> factory;
         private ClickHouseValue[] values;
@@ -365,32 +366,13 @@ public class ClickHouseRowBinaryProcessor extends ClickHouseDataProcessor {
 
         @Override
         public ClickHouseRecord next() {
+            if (!hasNext()) {
+                throw new NoSuchElementException("No more record");
+            }
+
             readNextRow();
 
-            return new ClickHouseRecord() {
-                @Override
-                public int size() {
-                    return values.length;
-                }
-
-                @Override
-                public ClickHouseValue getValue(int index) throws IOException {
-                    return values[index];
-                }
-
-                @Override
-                public ClickHouseValue getValue(String columnName) throws IOException {
-                    int index = 0;
-                    for (ClickHouseColumn c : columns) {
-                        if (c.getColumnName().equals(columnName)) {
-                            getValue(index);
-                        }
-                        index++;
-                    }
-
-                    throw new IllegalArgumentException("Not able to find a column named: " + columnName);
-                }
-            };
+            return new ClickHouseSimpleRecord(columns, values);
         }
     }
 

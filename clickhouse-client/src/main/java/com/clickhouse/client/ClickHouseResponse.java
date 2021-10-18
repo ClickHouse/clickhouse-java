@@ -237,11 +237,7 @@ public class ClickHouseResponse implements AutoCloseable, Serializable {
                             index = 0;
                         }
 
-                        try {
-                            return current.getValue(index++);
-                        } catch (IOException e) {
-                            throw new IllegalStateException(e);
-                        }
+                        return current.getValue(index++);
                     }
                 };
             }
