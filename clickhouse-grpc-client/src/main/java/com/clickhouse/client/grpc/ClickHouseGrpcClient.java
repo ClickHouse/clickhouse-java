@@ -31,7 +31,6 @@ import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.ClickHouseUtils;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.data.ClickHouseExternalTable;
-import com.clickhouse.client.exception.ClickHouseException;
 import com.clickhouse.client.grpc.impl.ClickHouseGrpc;
 import com.clickhouse.client.grpc.impl.ExternalTable;
 import com.clickhouse.client.grpc.impl.NameAndType;
@@ -315,27 +314,31 @@ public class ClickHouseGrpcClient implements ClickHouseClient {
             }
 
             try {
-                return new ClickHouseGrpcResponse(sealedRequest.getConfig(), server, sealedRequest.getSettings(),
+                return new ClickHouseGrpcResponse(sealedRequest.getConfig(), sealedRequest.getSettings(),
                         responseObserver);
-            } catch (ClickHouseException e) {
+            } catch (IOException e) {
                 throw new CompletionException(e);
             }
         }, executor.get());
     }
 
     protected CompletableFuture<ClickHouseResponse> executeSync(ClickHouseRequest<?> sealedRequest,
-            ManagedChannel channel, ClickHouseNode server) throws ClickHouseException {
+            ManagedChannel channel, ClickHouseNode server) {
         ClickHouseGrpc.ClickHouseBlockingStub stub = ClickHouseGrpc.newBlockingStub(channel);
         stub.withCompression(sealedRequest.getCompression().encoding());
-        Result result = stub.executeQuery(convert(server, sealedRequest));
 
         // TODO not as elegant as ClickHouseImmediateFuture :<
-        return CompletableFuture.completedFuture(
-                new ClickHouseGrpcResponse(sealedRequest.getConfig(), server, sealedRequest.getSettings(), result));
+        try {
+            Result result = stub.executeQuery(convert(server, sealedRequest));
+            return CompletableFuture.completedFuture(
+                    new ClickHouseGrpcResponse(sealedRequest.getConfig(), sealedRequest.getSettings(), result));
+        } catch (IOException e) {
+            throw new CompletionException(e);
+        }
     }
 
     @Override
-    public CompletableFuture<ClickHouseResponse> execute(ClickHouseRequest<?> request) throws ClickHouseException {
+    public CompletableFuture<ClickHouseResponse> execute(ClickHouseRequest<?> request) {
         // sealedRequest is an immutable copy of the original request
         final ClickHouseRequest<?> sealedRequest = request.seal();
         final ManagedChannel c = getChannel(sealedRequest);

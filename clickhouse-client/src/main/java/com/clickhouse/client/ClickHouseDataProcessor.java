@@ -91,7 +91,7 @@ public abstract class ClickHouseDataProcessor {
     }
 
     /**
-     * Get column list.
+     * Gets list of columns to process.
      *
      * @return list of columns to process
      */
@@ -100,9 +100,12 @@ public abstract class ClickHouseDataProcessor {
     }
 
     /**
-     * Return iterable to walk through all records in a for-each loop.
+     * Returns an iterable collection of records which can be walked through in a
+     * foreach loop. Please pay attention that: 1)
+     * {@link java.io.UncheckedIOException} might be thrown when iterating through
+     * the collection; and 2) it's not supposed to be called for more than once.
      *
-     * @return iterable
+     * @return non-null iterable collection
      */
     public abstract Iterable<ClickHouseRecord> records();
 }

@@ -28,7 +28,7 @@ public class ClickHouseSimpleRecord implements ClickHouseRecord {
             throw new IllegalArgumentException("Non-null columns and values are required");
         } else if (columns.size() != values.length) {
             throw new IllegalArgumentException(ClickHouseUtils.format(
-                    "Mismatched count: we have %d columns so we should have %d values", columns.size(), values.length));
+                    "Mismatched count: we have %d columns but we got %d values", columns.size(), values.length));
         }
 
         return new ClickHouseSimpleRecord(columns, values);

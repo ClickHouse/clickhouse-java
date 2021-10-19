@@ -4,6 +4,7 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumMap;
@@ -344,13 +345,13 @@ public class ClickHouseRowBinaryProcessor extends ClickHouseDataProcessor {
                 if (index == 0) { // end of the stream, which is fine
                     values = null;
                 } else {
-                    throw new IllegalStateException(
+                    throw new UncheckedIOException(
                             ClickHouseUtils.format("Reached end of the stream when reading column #%d(total %d): %s",
                                     index + 1, size, column),
                             e);
                 }
             } catch (IOException e) {
-                throw new IllegalStateException(
+                throw new UncheckedIOException(
                         ClickHouseUtils.format("Failed to read column #%d(total %d): %s", index + 1, size, column), e);
             }
         }
@@ -360,7 +361,7 @@ public class ClickHouseRowBinaryProcessor extends ClickHouseDataProcessor {
             try {
                 return input.available() > 0;
             } catch (IOException e) {
-                throw new IllegalStateException(e);
+                throw new UncheckedIOException(e);
             }
         }
 

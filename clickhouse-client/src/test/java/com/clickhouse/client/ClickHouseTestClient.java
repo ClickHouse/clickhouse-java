@@ -1,6 +1,7 @@
 package com.clickhouse.client;
 
 import java.util.concurrent.CompletableFuture;
+
 import com.clickhouse.client.exception.ClickHouseException;
 
 public class ClickHouseTestClient implements ClickHouseClient {

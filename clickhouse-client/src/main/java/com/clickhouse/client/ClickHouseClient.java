@@ -146,7 +146,7 @@ public interface ClickHouseClient extends AutoCloseable {
                 }
 
                 try (ClickHouseResponse response = request.execute().get()) {
-                    response.dump(output);
+                    response.pipe(output, 8192);
                     return response.getSummary();
                 }
             } catch (InterruptedException e) {

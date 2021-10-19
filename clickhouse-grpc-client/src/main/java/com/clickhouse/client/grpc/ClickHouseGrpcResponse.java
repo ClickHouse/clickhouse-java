@@ -1,39 +1,30 @@
 package com.clickhouse.client.grpc;
 
+import java.io.IOException;
 import java.util.Map;
 import com.clickhouse.client.ClickHouseConfig;
-import com.clickhouse.client.ClickHouseNode;
-import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.ClickHouseResponseSummary;
-import com.clickhouse.client.exception.ClickHouseException;
+import com.clickhouse.client.data.ClickHouseStreamResponse;
 import com.clickhouse.client.grpc.impl.Result;
 
-public class ClickHouseGrpcResponse extends ClickHouseResponse {
+public class ClickHouseGrpcResponse extends ClickHouseStreamResponse {
     private final ClickHouseStreamObserver observer;
     private final Result result;
 
-    protected ClickHouseGrpcResponse(ClickHouseConfig config, ClickHouseNode server, Map<String, Object> settings,
-            ClickHouseStreamObserver observer) throws ClickHouseException {
-        super(config, server, settings, observer.getInputStream(), null, observer.getError());
+    protected ClickHouseGrpcResponse(ClickHouseConfig config, Map<String, Object> settings,
+            ClickHouseStreamObserver observer) throws IOException {
+        super(config, settings, observer.getInputStream(), null);
 
         this.observer = observer;
         this.result = null;
-
-        throwErrorIfAny();
     }
 
-    protected ClickHouseGrpcResponse(ClickHouseConfig config, ClickHouseNode server, Map<String, Object> settings,
-            Result result) throws ClickHouseException {
-        super(config, server, settings, result.getOutput().newInput(), null,
-                result.hasException()
-                        ? new ClickHouseException(result.getException().getCode(),
-                                result.getException().getDisplayText(), null)
-                        : null);
+    protected ClickHouseGrpcResponse(ClickHouseConfig config, Map<String, Object> settings, Result result)
+            throws IOException {
+        super(config, settings, result.getOutput().newInput(), null);
 
         this.observer = null;
         this.result = result;
-
-        throwErrorIfAny();
     }
 
     @Override
