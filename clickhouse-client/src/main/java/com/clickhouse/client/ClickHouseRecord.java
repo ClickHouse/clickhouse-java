@@ -11,13 +11,6 @@ import java.util.NoSuchElementException;
  */
 public interface ClickHouseRecord extends Iterable<ClickHouseValue>, Serializable {
     /**
-     * Gets size of the record.
-     *
-     * @return size of the record
-     */
-    int size();
-
-    /**
      * Gets deserialized value wrapped in an object using column index. Please avoid
      * to cache the wrapper object, as it's reused among records for memory
      * efficiency when {@link ClickHouseConfig#isReuseValueWrapper()} returns
@@ -64,4 +57,11 @@ public interface ClickHouseRecord extends Iterable<ClickHouseValue>, Serializabl
             }
         };
     }
+
+    /**
+     * Gets size of the record.
+     *
+     * @return size of the record
+     */
+    int size();
 }

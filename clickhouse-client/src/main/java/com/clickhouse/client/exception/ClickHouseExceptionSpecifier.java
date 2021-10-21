@@ -25,6 +25,7 @@ public final class ClickHouseExceptionSpecifier {
      *
      * @param e      ExecutionException
      * @param server server
+     * @return exception
      */
     public static ClickHouseException handle(ExecutionException e, ClickHouseNode server) {
         Throwable cause = e.getCause();

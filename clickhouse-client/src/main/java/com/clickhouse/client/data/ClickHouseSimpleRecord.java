@@ -1,5 +1,6 @@
 package com.clickhouse.client.data;
 
+import java.util.Collections;
 import java.util.List;
 
 import com.clickhouse.client.ClickHouseColumn;
@@ -12,8 +13,10 @@ import com.clickhouse.client.ClickHouseValue;
  * which is simply a combination of list of columns and array of values.
  */
 public class ClickHouseSimpleRecord implements ClickHouseRecord {
-    protected final List<ClickHouseColumn> columns;
+    public static final ClickHouseSimpleRecord EMPTY = new ClickHouseSimpleRecord(Collections.emptyList(),
+            new ClickHouseValue[0]);
 
+    private final List<ClickHouseColumn> columns;
     private ClickHouseValue[] values;
 
     /**
@@ -29,6 +32,8 @@ public class ClickHouseSimpleRecord implements ClickHouseRecord {
         } else if (columns.size() != values.length) {
             throw new IllegalArgumentException(ClickHouseUtils.format(
                     "Mismatched count: we have %d columns but we got %d values", columns.size(), values.length));
+        } else if (values.length == 0) {
+            return EMPTY;
         }
 
         return new ClickHouseSimpleRecord(columns, values);
@@ -37,6 +42,10 @@ public class ClickHouseSimpleRecord implements ClickHouseRecord {
     protected ClickHouseSimpleRecord(List<ClickHouseColumn> columns, ClickHouseValue[] values) {
         this.columns = columns;
         this.values = values;
+    }
+
+    protected List<ClickHouseColumn> getColumns() {
+        return columns;
     }
 
     protected ClickHouseValue[] getValues() {

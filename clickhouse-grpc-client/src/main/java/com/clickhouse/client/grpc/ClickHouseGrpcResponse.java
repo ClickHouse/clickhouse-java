@@ -2,6 +2,7 @@ package com.clickhouse.client.grpc;
 
 import java.io.IOException;
 import java.util.Map;
+
 import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseResponseSummary;
 import com.clickhouse.client.data.ClickHouseStreamResponse;
@@ -13,7 +14,7 @@ public class ClickHouseGrpcResponse extends ClickHouseStreamResponse {
 
     protected ClickHouseGrpcResponse(ClickHouseConfig config, Map<String, Object> settings,
             ClickHouseStreamObserver observer) throws IOException {
-        super(config, settings, observer.getInputStream(), null);
+        super(config, observer.getInputStream(), settings, null);
 
         this.observer = observer;
         this.result = null;
@@ -21,7 +22,7 @@ public class ClickHouseGrpcResponse extends ClickHouseStreamResponse {
 
     protected ClickHouseGrpcResponse(ClickHouseConfig config, Map<String, Object> settings, Result result)
             throws IOException {
-        super(config, settings, result.getOutput().newInput(), null);
+        super(config, result.getOutput().newInput(), settings, null);
 
         this.observer = null;
         this.result = result;

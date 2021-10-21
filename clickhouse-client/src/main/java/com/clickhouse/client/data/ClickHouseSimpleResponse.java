@@ -13,21 +13,27 @@ import com.clickhouse.client.ClickHouseValue;
 import com.clickhouse.client.ClickHouseValues;
 
 /**
- * A simple response built on top of two lists: columns and values.
+ * A simple response built on top of two lists: columns and records.
  */
 public class ClickHouseSimpleResponse implements ClickHouseResponse {
+    public static final ClickHouseSimpleResponse EMPTY = new ClickHouseSimpleResponse(Collections.emptyList(),
+            new ClickHouseValue[0][]);
+
     private final List<ClickHouseColumn> columns;
     private final List<ClickHouseRecord> records;
 
     /**
      * Creates a response object using columns definition and raw values.
      *
-     * @param structure column definition
-     * @param values    non-null raw values
+     * @param columns list of columns
+     * @param values  raw values, which may or may not be null
      * @return response object
      */
-    public static ClickHouseResponse of(String structure, Object[][] values) {
-        List<ClickHouseColumn> columns = ClickHouseColumn.parse(structure);
+    public static ClickHouseResponse of(List<ClickHouseColumn> columns, Object[][] values) {
+        if (columns == null || columns.isEmpty()) {
+            return EMPTY;
+        }
+
         int size = columns.size();
         int len = values != null ? values.length : 0;
 

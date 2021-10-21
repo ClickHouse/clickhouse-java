@@ -31,6 +31,25 @@ public class ClickHouseStreamResponse implements ClickHouseResponse {
     protected static final List<ClickHouseColumn> defaultTypes = Collections
             .singletonList(ClickHouseColumn.of("results", "Nullable(String)"));
 
+    public static ClickHouseResponse of(ClickHouseConfig config, InputStream input) throws IOException {
+        return of(config, input, null, null);
+    }
+
+    public static ClickHouseResponse of(ClickHouseConfig config, InputStream input, Map<String, Object> settings)
+            throws IOException {
+        return of(config, input, settings, null);
+    }
+
+    public static ClickHouseResponse of(ClickHouseConfig config, InputStream input, List<ClickHouseColumn> columns)
+            throws IOException {
+        return of(config, input, null, columns);
+    }
+
+    public static ClickHouseResponse of(ClickHouseConfig config, InputStream input, Map<String, Object> settings,
+            List<ClickHouseColumn> columns) throws IOException {
+        return new ClickHouseStreamResponse(config, input, settings, columns);
+    }
+
     protected final ClickHouseConfig config;
     protected final transient InputStream input;
     protected final transient ClickHouseDataProcessor processor;
@@ -38,7 +57,7 @@ public class ClickHouseStreamResponse implements ClickHouseResponse {
 
     private boolean isClosed;
 
-    protected ClickHouseStreamResponse(ClickHouseConfig config, Map<String, Object> settings, InputStream input,
+    protected ClickHouseStreamResponse(ClickHouseConfig config, InputStream input, Map<String, Object> settings,
             List<ClickHouseColumn> columns) throws IOException {
         if (config == null || input == null) {
             throw new IllegalArgumentException("Non-null configuration and input stream are required");

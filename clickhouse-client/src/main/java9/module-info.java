@@ -6,16 +6,7 @@ module com.clickhouse.client {
     exports com.clickhouse.client.config;
     exports com.clickhouse.client.data;
     exports com.clickhouse.client.exception;
-    
-    exports com.clickhouse.client.logging to
-        com.clickhouse.client.http,
-        com.clickhouse.client.grpc,
-        com.clickhouse.client.mysql,
-        com.clickhouse.client.postgresql,
-        // native is a reserved keyword :<
-        com.clickhouse.client.tcp,
-        com.clickhouse.jdbc,
-        ru.yandex.clickhouse;
+    exports com.clickhouse.client.logging;
 
     requires static java.logging;
     requires static com.google.gson;

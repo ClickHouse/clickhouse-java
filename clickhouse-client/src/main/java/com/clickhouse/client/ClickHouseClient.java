@@ -76,6 +76,8 @@ public interface ClickHouseClient extends AutoCloseable {
             return (boolean) ClickHouseDefaults.ASYNC.getEffectiveDefaultValue() ? CompletableFuture.supplyAsync(() -> {
                 try {
                     return task.call();
+                } catch (CompletionException e) {
+                    throw e;
                 } catch (Exception e) {
                     throw new CompletionException(e);
                 }
@@ -83,7 +85,7 @@ public interface ClickHouseClient extends AutoCloseable {
         } catch (CompletionException e) {
             throw e;
         } catch (Exception e) {
-            throw new CompletionException(e);
+            throw new CompletionException(e.getCause() != null ? e.getCause() : e);
         }
     }
 
@@ -343,6 +345,11 @@ public interface ClickHouseClient extends AutoCloseable {
                         list.add(resp.getSummary());
                     }
                 }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw ClickHouseExceptionSpecifier.specify(e, theServer);
+            } catch (ExecutionException e) {
+                throw ClickHouseExceptionSpecifier.handle(e, theServer);
             }
 
             return list;
@@ -375,6 +382,11 @@ public interface ClickHouseClient extends AutoCloseable {
                     ClickHouseResponse resp = client.connect(theServer).format(ClickHouseFormat.RowBinary).query(sql)
                             .params(params).execute().get()) {
                 return resp.getSummary();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw ClickHouseExceptionSpecifier.specify(e, theServer);
+            } catch (ExecutionException e) {
+                throw ClickHouseExceptionSpecifier.handle(e, theServer);
             }
         });
     }
@@ -461,6 +473,11 @@ public interface ClickHouseClient extends AutoCloseable {
                         list.add(resp.getSummary());
                     }
                 }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw ClickHouseExceptionSpecifier.specify(e, theServer);
+            } catch (ExecutionException e) {
+                throw ClickHouseExceptionSpecifier.handle(e, theServer);
             }
 
             return list;
@@ -507,6 +524,11 @@ public interface ClickHouseClient extends AutoCloseable {
                         list.add(resp.getSummary());
                     }
                 }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw ClickHouseExceptionSpecifier.specify(e, theServer);
+            } catch (ExecutionException e) {
+                throw ClickHouseExceptionSpecifier.handle(e, theServer);
             }
 
             return list;
@@ -556,9 +578,9 @@ public interface ClickHouseClient extends AutoCloseable {
      *                object(e.g. prepare for next call using different SQL
      *                statement) without impacting the execution
      * @return future object to get result
-     * @throws ClickHouseException when error occurred during execution
+     * @throws CompletionException when error occurred during execution
      */
-    CompletableFuture<ClickHouseResponse> execute(ClickHouseRequest<?> request) throws ClickHouseException;
+    CompletableFuture<ClickHouseResponse> execute(ClickHouseRequest<?> request);
 
     /**
      * Gets the immutable configuration associated with this client. In most cases

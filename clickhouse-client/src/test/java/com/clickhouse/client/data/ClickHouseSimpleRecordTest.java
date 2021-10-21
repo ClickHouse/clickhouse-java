@@ -19,7 +19,7 @@ public class ClickHouseSimpleRecordTest {
                 () -> ClickHouseSimpleRecord.of(Collections.emptyList(), null));
 
         ClickHouseSimpleRecord record = new ClickHouseSimpleRecord(null, null);
-        Assert.assertNull(record.columns);
+        Assert.assertNull(record.getColumns());
         Assert.assertNull(record.getValues());
     }
 
@@ -30,7 +30,7 @@ public class ClickHouseSimpleRecordTest {
 
         ClickHouseSimpleRecord record = new ClickHouseSimpleRecord(Arrays.asList(ClickHouseColumn.of("a", "String")),
                 new ClickHouseValue[0]);
-        Assert.assertEquals(record.columns, Arrays.asList(ClickHouseColumn.of("a", "String")));
+        Assert.assertEquals(record.getColumns(), Arrays.asList(ClickHouseColumn.of("a", "String")));
         Assert.assertEquals(record.getValues(), new ClickHouseValue[0]);
     }
 
@@ -38,7 +38,7 @@ public class ClickHouseSimpleRecordTest {
     public void testGetValueByIndex() {
         ClickHouseSimpleRecord record = new ClickHouseSimpleRecord(ClickHouseColumn.parse("a String, b UInt32"),
                 new ClickHouseValue[] { ClickHouseStringValue.of("123"), ClickHouseLongValue.of(1L, true) });
-        Assert.assertEquals(record.columns, ClickHouseColumn.parse("a String, b UInt32"));
+        Assert.assertEquals(record.getColumns(), ClickHouseColumn.parse("a String, b UInt32"));
         Assert.assertEquals(record.getValues(),
                 new ClickHouseValue[] { ClickHouseStringValue.of("123"), ClickHouseLongValue.of(1L, true) });
 
@@ -64,7 +64,7 @@ public class ClickHouseSimpleRecordTest {
                 ClickHouseColumn.parse("`a One` String, `x木哈哈x` UInt32, test Nullable(String)"),
                 new ClickHouseValue[] { ClickHouseStringValue.of("123"), ClickHouseLongValue.of(1L, true),
                         ClickHouseStringValue.ofNull() });
-        Assert.assertEquals(record.columns,
+        Assert.assertEquals(record.getColumns(),
                 ClickHouseColumn.parse("`a One` String, `x木哈哈x` UInt32, test Nullable(String)"));
         Assert.assertEquals(record.getValues(), new ClickHouseValue[] { ClickHouseStringValue.of("123"),
                 ClickHouseLongValue.of(1L, true), ClickHouseStringValue.ofNull() });

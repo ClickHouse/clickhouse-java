@@ -69,7 +69,7 @@ public enum ClickHouseClientOption implements ClickHouseConfigOption {
     /**
      * Maximum size of thread pool for each client.
      */
-    MAX_THREADS_PER_CLIENT("max_threads_per_client", 1,
+    MAX_THREADS_PER_CLIENT("max_threads_per_client", 0,
             "Size of thread pool for each client instance, 0 or negative number means the client will use shared thread pool."),
     /**
      * Whether to enable retry.
