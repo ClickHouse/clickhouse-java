@@ -15,6 +15,17 @@ It has support of a minimal subset of features to be usable.
 </dependency>
 ```
 
+use shaded
+```xml
+<!-- https://mvnrepository.com/artifact/ru.yandex.clickhouse/clickhouse-jdbc -->
+<dependency>
+    <groupId>ru.yandex.clickhouse</groupId>
+    <artifactId>clickhouse-jdbc</artifactId>
+    <classifier>shaded</classifier>
+    <version>0.3.2</version>
+</dependency>
+```
+
 URL syntax: 
 `jdbc:clickhouse://<host>:<port>[/<database>]`, e.g. `jdbc:clickhouse://localhost:8123/test`
 
