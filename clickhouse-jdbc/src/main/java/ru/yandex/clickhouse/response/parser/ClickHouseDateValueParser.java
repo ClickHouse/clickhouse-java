@@ -84,6 +84,7 @@ abstract class ClickHouseDateValueParser<T> extends ClickHouseValueParser<T> {
 
         switch (columnInfo.getEffectiveClickHouseDataType()) {
         case Date:
+        case Date32:
             try {
                 return parseDate(s, columnInfo, timeZone);
             } catch (Exception e) {

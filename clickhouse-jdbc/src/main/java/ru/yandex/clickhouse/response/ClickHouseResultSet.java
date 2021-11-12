@@ -313,7 +313,8 @@ public class ClickHouseResultSet extends AbstractResultSet {
     private TimeZone getEffectiveTimeZone(ClickHouseColumnInfo columnInfo) {
         TimeZone tz = null;
 
-        if (columnInfo.getClickHouseDataType() == ClickHouseDataType.Date) {
+        if (columnInfo.getClickHouseDataType() == ClickHouseDataType.Date
+                || columnInfo.getClickHouseDataType() == ClickHouseDataType.Date32) {
             tz = dateTimeZone;
         } else {
             tz = properties.isUseServerTimeZone() ? null : dateTimeTimeZone;

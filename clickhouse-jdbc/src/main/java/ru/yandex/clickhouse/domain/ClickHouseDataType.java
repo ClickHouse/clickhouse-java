@@ -59,6 +59,7 @@ public enum ClickHouseDataType {
     Int8              (JDBCType.TINYINT,   Integer.class,    true,   4,  0,
         "TINYINT", "BOOL", "BOOLEAN", "INT1", "BYTE", "TINYINT SIGNED", "INT1 SIGNED"),
     Date              (JDBCType.DATE,      Date.class,       false, 10,  0),
+    Date32            (JDBCType.DATE,      Date.class,       false, 10,  0),
     DateTime          (JDBCType.TIMESTAMP, Timestamp.class,  false, 19,  0,
         "TIMESTAMP"),
     DateTime32        (JDBCType.TIMESTAMP, Timestamp.class,  false, 19,  0),

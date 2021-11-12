@@ -57,6 +57,7 @@ public class ClickHouseDataTypeTestDataProvider {
             create("Int16", ClickHouseDataType.Int16, "Int16", "-23", true, true),
             create("Int8", ClickHouseDataType.Int8, "Int8", "-42", true, true),
             create("Date", ClickHouseDataType.Date, "Date", "2019-05-02", true, true),
+            create("Date32", ClickHouseDataType.Date32, "Date32", "2019-05-02", true, true),
             create("UInt32", ClickHouseDataType.UInt32, "UInt32", "42", true, true),
             create("UInt8", ClickHouseDataType.UInt8, "UInt8", "23", true, true),
             create("Enum16", ClickHouseDataType.Enum16, "Enum16(1 = 'foo', 2 = 'bar')", "foo", true, false),
