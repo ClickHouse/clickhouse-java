@@ -17,6 +17,7 @@ public class ClickHouseProperties {
     private int socketTimeout;
     private int connectionTimeout;
     private int timeToLiveMillis;
+    private int validateAfterInactivityMillis;
     private int defaultMaxPerRoute;
     private int maxTotal;
     private int maxRetries;
@@ -110,6 +111,7 @@ public class ClickHouseProperties {
         this.socketTimeout = (Integer)getSetting(info, ClickHouseConnectionSettings.SOCKET_TIMEOUT);
         this.connectionTimeout = (Integer)getSetting(info, ClickHouseConnectionSettings.CONNECTION_TIMEOUT);
         this.timeToLiveMillis = (Integer)getSetting(info, ClickHouseConnectionSettings.TIME_TO_LIVE_MILLIS);
+        this.validateAfterInactivityMillis = (Integer)getSetting(info, ClickHouseConnectionSettings.VALIDATE_AFTER_INACTIVITY_MILLIS);
         this.defaultMaxPerRoute = (Integer)getSetting(info, ClickHouseConnectionSettings.DEFAULT_MAX_PER_ROUTE);
         this.maxTotal = (Integer)getSetting(info, ClickHouseConnectionSettings.MAX_TOTAL);
         this.maxRetries = (Integer)getSetting(info, ClickHouseConnectionSettings.MAX_RETRIES);
@@ -177,6 +179,7 @@ public class ClickHouseProperties {
         ret.put(ClickHouseConnectionSettings.SOCKET_TIMEOUT.getKey(), String.valueOf(socketTimeout));
         ret.put(ClickHouseConnectionSettings.CONNECTION_TIMEOUT.getKey(), String.valueOf(connectionTimeout));
         ret.put(ClickHouseConnectionSettings.TIME_TO_LIVE_MILLIS.getKey(), String.valueOf(timeToLiveMillis));
+        ret.put(ClickHouseConnectionSettings.VALIDATE_AFTER_INACTIVITY_MILLIS.getKey(), String.valueOf(validateAfterInactivityMillis));
         ret.put(ClickHouseConnectionSettings.DEFAULT_MAX_PER_ROUTE.getKey(), String.valueOf(defaultMaxPerRoute));
         ret.put(ClickHouseConnectionSettings.MAX_TOTAL.getKey(), String.valueOf(maxTotal));
         ret.put(ClickHouseConnectionSettings.MAX_RETRIES.getKey(), String.valueOf(maxRetries));
@@ -247,6 +250,7 @@ public class ClickHouseProperties {
         setSocketTimeout(properties.socketTimeout);
         setConnectionTimeout(properties.connectionTimeout);
         setTimeToLiveMillis(properties.timeToLiveMillis);
+        setValidateAfterInactivityMillis(properties.validateAfterInactivityMillis);
         setDefaultMaxPerRoute(properties.defaultMaxPerRoute);
         setMaxTotal(properties.maxTotal);
         setMaxRetries(properties.maxRetries);
@@ -564,6 +568,14 @@ public class ClickHouseProperties {
 
     public void setTimeToLiveMillis(int timeToLiveMillis) {
         this.timeToLiveMillis = timeToLiveMillis;
+    }
+
+    public int getValidateAfterInactivityMillis() {
+        return validateAfterInactivityMillis;
+    }
+
+    public void setValidateAfterInactivityMillis(int validateAfterInactivityMillis) {
+        this.validateAfterInactivityMillis = validateAfterInactivityMillis;
     }
 
     public int getDefaultMaxPerRoute() {
