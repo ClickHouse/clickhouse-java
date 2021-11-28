@@ -10,6 +10,7 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.Map.Entry;
@@ -119,9 +120,27 @@ public class ClickHouseMapValue extends ClickHouseObjectValue<Map<?, ?>> {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
+    public Map<Object, Object> asMap() {
+        return (Map<Object, Object>) getValue();
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public <K, V> Map<K, V> asMap(Class<K> keyClass, Class<V> valueClass) {
+        if (!keyType.isAssignableFrom(keyClass) || !valueType.isAssignableFrom(valueClass)) {
+            throw new IllegalArgumentException(
+                    String.format(Locale.ROOT, "Incompatible types, expected (%s:%s) but got (%s:%s)",
+                            keyType.getName(), valueType.getName(), keyClass, valueClass));
+        }
+
+        return (Map<K, V>) getValue();
+    }
+
+    @Override
     public String asString(int length, Charset charset) {
         Map<?, ?> value = getValue();
-        if (value == null || value.size() == 0) {
+        if (value == null || value.isEmpty()) {
             return "{}";
         }
         StringBuilder builder = new StringBuilder().append('{');
@@ -148,7 +167,7 @@ public class ClickHouseMapValue extends ClickHouseObjectValue<Map<?, ?>> {
     @Override
     public String toSqlExpression() {
         Map<?, ?> value = getValue();
-        if (value == null || value.size() == 0) {
+        if (value == null || value.isEmpty()) {
             return "{}";
         }
 
@@ -207,20 +226,29 @@ public class ClickHouseMapValue extends ClickHouseObjectValue<Map<?, ?>> {
 
     @Override
     public ClickHouseMapValue update(BigInteger value) {
-        set(Collections.singletonMap(getDefaultKey(), valueType.cast(value)));
-        return this;
+        if (value == null) {
+            return resetToNullOrEmpty();
+        }
+
+        return set(Collections.singletonMap(getDefaultKey(), valueType.cast(value)));
     }
 
     @Override
     public ClickHouseMapValue update(BigDecimal value) {
-        set(Collections.singletonMap(getDefaultKey(), valueType.cast(value)));
-        return this;
+        if (value == null) {
+            return resetToNullOrEmpty();
+        }
+
+        return set(Collections.singletonMap(getDefaultKey(), valueType.cast(value)));
     }
 
     @Override
     public ClickHouseMapValue update(String value) {
-        set(Collections.singletonMap(getDefaultKey(), valueType.cast(value)));
-        return this;
+        if (value == null) {
+            return resetToNullOrEmpty();
+        }
+
+        return set(Collections.singletonMap(getDefaultKey(), valueType.cast(value)));
     }
 
     @Override
@@ -251,54 +279,67 @@ public class ClickHouseMapValue extends ClickHouseObjectValue<Map<?, ?>> {
         } else {
             throw newUnsupportedException(value.getClass().getName(), valueType.getName());
         }
-        set(Collections.singletonMap(getDefaultKey(), v));
-        return this;
+        return set(Collections.singletonMap(getDefaultKey(), v));
     }
 
     @Override
     public ClickHouseMapValue update(Inet4Address value) {
-        set(Collections.singletonMap(getDefaultKey(), valueType.cast(value)));
-        return this;
+        if (value == null) {
+            return resetToNullOrEmpty();
+        }
+        return set(Collections.singletonMap(getDefaultKey(), valueType.cast(value)));
     }
 
     @Override
     public ClickHouseMapValue update(Inet6Address value) {
-        set(Collections.singletonMap(getDefaultKey(), valueType.cast(value)));
-        return this;
+        if (value == null) {
+            return resetToNullOrEmpty();
+        }
+        return set(Collections.singletonMap(getDefaultKey(), valueType.cast(value)));
     }
 
     @Override
     public ClickHouseMapValue update(LocalDate value) {
-        set(Collections.singletonMap(getDefaultKey(), valueType.cast(value)));
-        return this;
+        if (value == null) {
+            return resetToNullOrEmpty();
+        }
+        return set(Collections.singletonMap(getDefaultKey(), valueType.cast(value)));
     }
 
     @Override
     public ClickHouseMapValue update(LocalTime value) {
-        set(Collections.singletonMap(getDefaultKey(), valueType.cast(value)));
-        return this;
+        if (value == null) {
+            return resetToNullOrEmpty();
+        }
+        return set(Collections.singletonMap(getDefaultKey(), valueType.cast(value)));
     }
 
     @Override
     public ClickHouseMapValue update(LocalDateTime value) {
-        set(Collections.singletonMap(getDefaultKey(), valueType.cast(value)));
-        return this;
+        if (value == null) {
+            return resetToNullOrEmpty();
+        }
+        return set(Collections.singletonMap(getDefaultKey(), valueType.cast(value)));
     }
 
     @Override
     public ClickHouseMapValue update(Map<?, ?> value) {
-        set(value == null ? Collections.emptyMap() : value);
-        return this;
+        return set(value == null ? Collections.emptyMap() : value);
     }
 
     @Override
     public ClickHouseMapValue update(UUID value) {
-        set(Collections.singletonMap(getDefaultKey(), valueType.cast(value)));
-        return this;
+        if (value == null) {
+            return resetToNullOrEmpty();
+        }
+        return set(Collections.singletonMap(getDefaultKey(), valueType.cast(value)));
     }
 
     @Override
     public ClickHouseValue updateUnknown(Object value) {
+        if (value == null) {
+            return resetToNullOrEmpty();
+        }
         throw new IllegalArgumentException("Unknown value: " + value);
     }
 

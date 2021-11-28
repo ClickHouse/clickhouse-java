@@ -43,7 +43,6 @@ import com.clickhouse.client.data.ClickHouseIpv6Value;
 import com.clickhouse.client.data.ClickHouseLongValue;
 import com.clickhouse.client.data.ClickHouseShortValue;
 import com.clickhouse.client.data.ClickHouseStringValue;
-import com.clickhouse.client.data.ClickHouseTimeValue;
 
 @State(Scope.Benchmark)
 @Warmup(iterations = 10, timeUnit = TimeUnit.SECONDS, time = 1)
@@ -89,7 +88,7 @@ public class FactoryBenchmark {
 
             // add(map, list, Object[].class, () -> ClickHouseArrayValue.of((Object[]) o));
             add(map, list, LocalDate.class, () -> ClickHouseDateValue.ofNull());
-            add(map, list, LocalTime.class, () -> ClickHouseTimeValue.ofNull());
+            add(map, list, LocalTime.class, () -> ClickHouseDateTimeValue.ofNull(0));
             add(map, list, LocalDateTime.class, () -> ClickHouseDateTimeValue.ofNull(0));
             add(map, list, String.class, () -> ClickHouseStringValue.ofNull());
 
@@ -130,7 +129,7 @@ public class FactoryBenchmark {
             } else if (LocalDate.class.equals(clazz)) {
                 return ClickHouseDateValue.ofNull();
             } else if (LocalTime.class.equals(clazz)) {
-                return ClickHouseTimeValue.ofNull();
+                return ClickHouseDateTimeValue.ofNull(0);
             } else if (LocalDateTime.class.equals(clazz)) {
                 return ClickHouseDateTimeValue.ofNull(0);
             } else if (String.class.equals(clazz)) {

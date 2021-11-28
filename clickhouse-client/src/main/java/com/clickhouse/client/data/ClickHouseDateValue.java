@@ -7,6 +7,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+
 import com.clickhouse.client.ClickHouseChecker;
 import com.clickhouse.client.ClickHouseValue;
 import com.clickhouse.client.ClickHouseValues;
@@ -45,6 +46,12 @@ public class ClickHouseDateValue extends ClickHouseObjectValue<LocalDate> {
         return of(null, value);
     }
 
+    /**
+     * Wrap the given value.
+     *
+     * @param epochDay epoch day
+     * @return object representing the value
+     */
     public static ClickHouseDateValue of(long epochDay) {
         return of(null, LocalDate.ofEpochDay(epochDay));
     }
@@ -117,7 +124,7 @@ public class ClickHouseDateValue extends ClickHouseObjectValue<LocalDate> {
     }
 
     @Override
-    public LocalTime asTime() {
+    public final LocalTime asTime(int scale) {
         return isNullOrEmpty() ? null : LocalTime.ofSecondOfDay(0L);
     }
 
@@ -136,7 +143,7 @@ public class ClickHouseDateValue extends ClickHouseObjectValue<LocalDate> {
             return null;
         }
 
-        String str = getValue().format(ClickHouseValues.DATE_FORMATTER);
+        String str = asDate().format(ClickHouseValues.DATE_FORMATTER);
         if (length > 0) {
             ClickHouseChecker.notWithDifferentLength(str.getBytes(charset == null ? StandardCharsets.UTF_8 : charset),
                     length);
@@ -150,7 +157,8 @@ public class ClickHouseDateValue extends ClickHouseObjectValue<LocalDate> {
         if (isNullOrEmpty()) {
             return ClickHouseValues.NULL_EXPR;
         }
-        return new StringBuilder().append('\'').append(getValue().format(ClickHouseValues.DATE_FORMATTER)).append('\'').toString();
+        return new StringBuilder().append('\'').append(asDate().format(ClickHouseValues.DATE_FORMATTER)).append('\'')
+                .toString();
     }
 
     @Override

@@ -41,10 +41,10 @@ import com.clickhouse.client.data.ClickHouseExternalTable;
 import com.clickhouse.client.data.ClickHouseIntegerValue;
 import com.clickhouse.client.data.ClickHouseIpv4Value;
 import com.clickhouse.client.data.ClickHouseIpv6Value;
-import com.clickhouse.client.exception.ClickHouseException;
 import com.clickhouse.client.ClickHouseColumn;
 import com.clickhouse.client.ClickHouseDataProcessor;
 import com.clickhouse.client.ClickHouseDataType;
+import com.clickhouse.client.ClickHouseException;
 import com.clickhouse.client.ClickHouseFormat;
 
 public class ClickHouseGrpcClientTest extends BaseIntegrationTest {
@@ -108,7 +108,8 @@ public class ClickHouseGrpcClientTest extends BaseIntegrationTest {
     @Test(groups = { "integration" })
     public void testOpenCloseConnection() throws Exception {
         for (int i = 0; i < 100; i++) {
-            Assert.assertTrue(ClickHouseClient.test(getServer(ClickHouseProtocol.GRPC), 3000));
+            Assert.assertTrue(ClickHouseClient.newInstance(ClickHouseProtocol.GRPC)
+                    .ping(getServer(ClickHouseProtocol.GRPC), 3000));
         }
     }
 
@@ -199,8 +200,7 @@ public class ClickHouseGrpcClientTest extends BaseIntegrationTest {
     public void testQueryInSameThread() throws Exception {
         ClickHouseNode server = getServer(ClickHouseProtocol.GRPC);
 
-        try (ClickHouseClient client = ClickHouseClient.builder().addOption(ClickHouseClientOption.ASYNC, false)
-                .build()) {
+        try (ClickHouseClient client = ClickHouseClient.builder().option(ClickHouseClientOption.ASYNC, false).build()) {
             CompletableFuture<ClickHouseResponse> future = client.connect(server)
                     .format(ClickHouseFormat.TabSeparatedWithNamesAndTypes).query("select 1,2").execute();
             // Assert.assertTrue(future instanceof ClickHouseImmediateFuture);
@@ -214,7 +214,7 @@ public class ClickHouseGrpcClientTest extends BaseIntegrationTest {
                 }
 
                 ClickHouseResponseSummary summary = resp.getSummary();
-                Assert.assertEquals(summary.getRows(), 1);
+                Assert.assertEquals(summary.getStatistics().getRows(), 1);
             }
         }
     }
@@ -688,7 +688,7 @@ public class ClickHouseGrpcClientTest extends BaseIntegrationTest {
         ClickHouseResponseSummary summary = ClickHouseClient.load(server, "test_grpc_load_data",
                 ClickHouseFormat.TabSeparated, ClickHouseCompression.NONE, temp.toString()).get();
         Assert.assertNotNull(summary);
-        Assert.assertEquals(summary.getWriteRows(), lines);
+        Assert.assertEquals(summary.getWrittenRows(), lines);
 
         try (ClickHouseClient client = ClickHouseClient.newInstance(server.getProtocol());
                 ClickHouseResponse resp = client.connect(server)

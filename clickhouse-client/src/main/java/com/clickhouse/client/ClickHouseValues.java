@@ -1,31 +1,41 @@
 package com.clickhouse.client;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.lang.reflect.Array;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.temporal.ChronoField;
 import java.util.Collection;
 import java.util.Enumeration;
 import java.util.Map;
+import java.util.TimeZone;
 import java.util.UUID;
 import java.util.Map.Entry;
 
 import com.clickhouse.client.data.ClickHouseArrayValue;
 import com.clickhouse.client.data.ClickHouseBigDecimalValue;
 import com.clickhouse.client.data.ClickHouseBigIntegerValue;
+import com.clickhouse.client.data.ClickHouseBitmapValue;
 import com.clickhouse.client.data.ClickHouseByteValue;
 import com.clickhouse.client.data.ClickHouseDateTimeValue;
 import com.clickhouse.client.data.ClickHouseDateValue;
 import com.clickhouse.client.data.ClickHouseDoubleValue;
+import com.clickhouse.client.data.ClickHouseEmptyValue;
 import com.clickhouse.client.data.ClickHouseFloatValue;
 import com.clickhouse.client.data.ClickHouseGeoMultiPolygonValue;
 import com.clickhouse.client.data.ClickHouseGeoPointValue;
@@ -37,10 +47,17 @@ import com.clickhouse.client.data.ClickHouseIpv6Value;
 import com.clickhouse.client.data.ClickHouseLongValue;
 import com.clickhouse.client.data.ClickHouseMapValue;
 import com.clickhouse.client.data.ClickHouseNestedValue;
+import com.clickhouse.client.data.ClickHouseOffsetDateTimeValue;
 import com.clickhouse.client.data.ClickHouseShortValue;
 import com.clickhouse.client.data.ClickHouseStringValue;
 import com.clickhouse.client.data.ClickHouseTupleValue;
 import com.clickhouse.client.data.ClickHouseUuidValue;
+import com.clickhouse.client.data.array.ClickHouseByteArrayValue;
+import com.clickhouse.client.data.array.ClickHouseDoubleArrayValue;
+import com.clickhouse.client.data.array.ClickHouseFloatArrayValue;
+import com.clickhouse.client.data.array.ClickHouseIntArrayValue;
+import com.clickhouse.client.data.array.ClickHouseLongArrayValue;
+import com.clickhouse.client.data.array.ClickHouseShortArrayValue;
 
 /**
  * Help class for dealing with values.
@@ -53,7 +70,13 @@ public final class ClickHouseValues {
     public static final LocalDateTime DATETIME_ZERO = LocalDateTime.ofEpochSecond(0L, 0, ZoneOffset.UTC);
     public static final LocalTime TIME_ZERO = LocalTime.ofSecondOfDay(0L);
 
-    public static final Object[] EMPTY_ARRAY = new Object[0];
+    public static final Object[] EMPTY_OBJECT_ARRAY = new Object[0];
+    public static final byte[] EMPTY_BYTE_ARRAY = new byte[0];
+    public static final short[] EMPTY_SHORT_ARRAY = new short[0];
+    public static final int[] EMPTY_INT_ARRAY = new int[0];
+    public static final long[] EMPTY_LONG_ARRAY = new long[0];
+    public static final float[] EMPTY_FLOAT_ARRAY = new float[0];
+    public static final double[] EMPTY_DOUBLE_ARRAY = new double[0];
     public static final String EMPTY_ARRAY_EXPR = "[]";
 
     public static final BigDecimal NANOS = new BigDecimal(BigInteger.TEN.pow(9));
@@ -63,6 +86,9 @@ public final class ClickHouseValues {
             .appendFraction(ChronoField.NANO_OF_SECOND, 0, 9, true).toFormatter();
     public static final DateTimeFormatter DATETIME_FORMATTER = new DateTimeFormatterBuilder()
             .appendPattern("yyyy-MM-dd HH:mm:ss").appendFraction(ChronoField.NANO_OF_SECOND, 0, 9, true).toFormatter();
+
+    public static final TimeZone UTC_TIMEZONE = TimeZone.getTimeZone("UTC");
+    public static final ZoneId UTC_ZONE = UTC_TIMEZONE.toZoneId();
 
     public static final String NULL_EXPR = "NULL";
     public static final String NAN_EXPR = "NaN";
@@ -173,6 +199,77 @@ public final class ClickHouseValues {
         int nanoSeconds = v < 1000000000L ? (int) v : 0;
 
         return LocalDateTime.ofEpochSecond(value.longValue() - (nanoSeconds > 0 ? 1 : 0), nanoSeconds, ZoneOffset.UTC);
+    }
+
+    /**
+     * Converts big decimal to date time.
+     *
+     * @param value big decimal
+     * @param tz    time zone, null is treated as UTC
+     * @return date time
+     */
+    public static ZonedDateTime convertToDateTime(BigDecimal value, TimeZone tz) {
+        if (value == null) {
+            return null;
+        }
+
+        return convertToDateTime(value, tz != null ? tz.toZoneId() : UTC_ZONE);
+    }
+
+    /**
+     * Converts big decimal to date time.
+     *
+     * @param value big decimal
+     * @param zone  zone id, null is treated as UTC
+     * @return date time
+     */
+    public static ZonedDateTime convertToDateTime(BigDecimal value, ZoneId zone) {
+        if (value == null) {
+            return null;
+        }
+
+        if (zone == null) {
+            zone = UTC_ZONE;
+        }
+        if (value.scale() == 0) {
+            return Instant.ofEpochSecond(value.longValue(), 0L).atZone(zone);
+        } else if (value.signum() >= 0) {
+            return Instant.ofEpochSecond(value.longValue(), value.remainder(BigDecimal.ONE).multiply(NANOS).intValue())
+                    .atZone(zone);
+        }
+
+        long v = NANOS.add(value.remainder(BigDecimal.ONE).multiply(NANOS)).longValue();
+        int nanoSeconds = v < 1000000000L ? (int) v : 0;
+
+        return Instant.ofEpochSecond(value.longValue() - (nanoSeconds > 0 ? 1 : 0), nanoSeconds).atZone(zone);
+    }
+
+    /**
+     * Converts big decimal to date time.
+     *
+     * @param value  big decimal
+     * @param offset zone offset, null is treated as {@code ZoneOffset.UTC}
+     * @return date time
+     */
+    public static OffsetDateTime convertToDateTime(BigDecimal value, ZoneOffset offset) {
+        if (value == null) {
+            return null;
+        }
+
+        if (offset == null) {
+            offset = ZoneOffset.UTC;
+        }
+        if (value.scale() == 0) {
+            return Instant.ofEpochSecond(value.longValue(), 0L).atOffset(offset);
+        } else if (value.signum() >= 0) {
+            return Instant.ofEpochSecond(value.longValue(), value.remainder(BigDecimal.ONE).multiply(NANOS).intValue())
+                    .atOffset(offset);
+        }
+
+        long v = NANOS.add(value.remainder(BigDecimal.ONE).multiply(NANOS)).longValue();
+        int nanoSeconds = v < 1000000000L ? (int) v : 0;
+
+        return Instant.ofEpochSecond(value.longValue() - (nanoSeconds > 0 ? 1 : 0), nanoSeconds).atOffset(offset);
     }
 
     /**
@@ -366,6 +463,12 @@ public final class ClickHouseValues {
                     .toString();
         } else if (value instanceof LocalDateTime) {
             s = new StringBuilder().append('\'').append(((LocalDateTime) value).format(DATETIME_FORMATTER)).append('\'')
+                    .toString();
+        } else if (value instanceof OffsetDateTime) {
+            s = new StringBuilder().append('\'').append(((OffsetDateTime) value).format(DATETIME_FORMATTER))
+                    .append('\'').toString();
+        } else if (value instanceof ZonedDateTime) {
+            s = new StringBuilder().append('\'').append(((ZonedDateTime) value).format(DATETIME_FORMATTER)).append('\'')
                     .toString();
         } else if (value instanceof InetAddress) {
             s = new StringBuilder().append('\'').append(((InetAddress) value).getHostAddress()).append('\'').toString();
@@ -674,6 +777,63 @@ public final class ClickHouseValues {
     }
 
     /**
+     * Creates an object array. Primitive types will be converted to corresponding
+     * wrapper types, also {@code Boolean} / {@code boolean} will be converted to
+     * {@code Byte}, and {@code Character} / {@code char} to {@code Integer}.
+     *
+     * @param <T>    type of the base element
+     * @param clazz  class of the base element, null is treated as
+     *               {@code Object.class}
+     * @param length length of the array, negative is treated as zero
+     * @param level  level of the array, must between 1 and 255
+     * @return a non-null object array
+     */
+    @SuppressWarnings("unchecked")
+    public static <T extends Object> T[] createObjectArray(Class<T> clazz, int length, int level) {
+        if (level < 1) {
+            level = 1;
+        } else if (level > 255) {
+            level = 255;
+        }
+        int[] dimensions = new int[level];
+        dimensions[0] = length < 0 ? 0 : length;
+        return (T[]) Array.newInstance(ClickHouseDataType.toObjectType(clazz), dimensions);
+    }
+
+    /**
+     * Creates a primitive array if applicable. Wrapper types will be converted to
+     * corresponding primitive types, also {@code Boolean} / {@code boolean} will be
+     * converted to {@code byte}, and {@code Character} / {@code char} to
+     * {@code int}.
+     * 
+     * @param clazz  class of the base element
+     * @param length length of the array, negative is treated as zero
+     * @param level  level of the array, must between 1 and 255
+     * @return a primitive array if applicable; an object array otherwise
+     */
+    public static Object createPrimitiveArray(Class<?> clazz, int length, int level) {
+        if (level < 1) {
+            level = 1;
+        } else if (level > 255) {
+            level = 255;
+        }
+        int[] dimensions = new int[level];
+        dimensions[0] = length < 0 ? 0 : length;
+        return Array.newInstance(ClickHouseDataType.toPrimitiveType(clazz), dimensions);
+    }
+
+    static ClickHouseArrayValue<?> fillByteArray(ClickHouseArrayValue<?> array, ClickHouseConfig config,
+            ClickHouseColumn column, InputStream input, ClickHouseDeserializer<ClickHouseValue> deserializer,
+            int length) throws IOException {
+        byte[] values = new byte[length];
+        ClickHouseValue ref = ClickHouseByteValue.ofNull();
+        for (int i = 0; i < length; i++) {
+            values[i] = deserializer.deserialize(ref, config, column, input).asByte();
+        }
+        return array.update(values);
+    }
+
+    /**
      * Extract one and only value from singleton collection.
      *
      * @param value singleton collection
@@ -743,115 +903,159 @@ public final class ClickHouseValues {
      * @return value object with default value, either null or empty
      */
     public static ClickHouseValue newValue(ClickHouseDataType type) {
-        return newValue(type, null);
+        return newValue(ClickHouseChecker.nonNull(type, "type"), null);
     }
 
     private static ClickHouseValue newValue(ClickHouseDataType type, ClickHouseColumn column) {
-        ClickHouseValue value;
-        switch (ClickHouseChecker.nonNull(type, "type")) { // still faster than EnumMap and with less overhead
-            case Enum:
-            case Enum8:
-            case Int8:
-                value = ClickHouseByteValue.ofNull();
-                break;
-            case UInt8:
-            case Enum16:
-            case Int16:
-                value = ClickHouseShortValue.ofNull();
-                break;
-            case UInt16:
-            case Int32:
-                value = ClickHouseIntegerValue.ofNull();
-                break;
-            case UInt32:
-            case IntervalYear:
-            case IntervalQuarter:
-            case IntervalMonth:
-            case IntervalWeek:
-            case IntervalDay:
-            case IntervalHour:
-            case IntervalMinute:
-            case IntervalSecond:
-            case Int64:
-                value = ClickHouseLongValue.ofNull(false);
-                break;
-            case UInt64:
-                value = ClickHouseLongValue.ofNull(true);
-                break;
-            case Int128:
-            case UInt128:
-            case Int256:
-            case UInt256:
-                value = ClickHouseBigIntegerValue.ofNull();
-                break;
-            case Float32:
-                value = ClickHouseFloatValue.ofNull();
-                break;
-            case Float64:
-                value = ClickHouseDoubleValue.ofNull();
-                break;
-            case Decimal:
-            case Decimal32:
-            case Decimal64:
-            case Decimal128:
-            case Decimal256:
-                value = ClickHouseBigDecimalValue.ofNull();
-                break;
-            case Date:
-            case Date32:
-                value = ClickHouseDateValue.ofNull();
-                break;
-            case DateTime:
-            case DateTime32:
-            case DateTime64:
-                value = ClickHouseDateTimeValue.ofNull(column == null ? 0 : column.getScale());
-                break;
-            case IPv4:
-                value = ClickHouseIpv4Value.ofNull();
-                break;
-            case IPv6:
-                value = ClickHouseIpv6Value.ofNull();
-                break;
-            case FixedString:
-            case String:
-                value = ClickHouseStringValue.ofNull();
-                break;
-            case UUID:
-                value = ClickHouseUuidValue.ofNull();
-                break;
-            case Point:
-                value = ClickHouseGeoPointValue.ofOrigin();
-                break;
-            case Ring:
-                value = ClickHouseGeoRingValue.ofEmpty();
-                break;
-            case Polygon:
-                value = ClickHouseGeoPolygonValue.ofEmpty();
-                break;
-            case MultiPolygon:
-                value = ClickHouseGeoMultiPolygonValue.ofEmpty();
-                break;
-            case Array:
+        ClickHouseValue value = null;
+        switch (type) { // still faster than EnumMap and with less overhead
+        case Enum:
+        case Enum8:
+        case Int8:
+            value = ClickHouseByteValue.ofNull();
+            break;
+        case UInt8:
+        case Enum16:
+        case Int16:
+            value = ClickHouseShortValue.ofNull();
+            break;
+        case UInt16:
+        case Int32:
+            value = ClickHouseIntegerValue.ofNull();
+            break;
+        case UInt32:
+        case IntervalYear:
+        case IntervalQuarter:
+        case IntervalMonth:
+        case IntervalWeek:
+        case IntervalDay:
+        case IntervalHour:
+        case IntervalMinute:
+        case IntervalSecond:
+        case Int64:
+            value = ClickHouseLongValue.ofNull(false);
+            break;
+        case UInt64:
+            value = ClickHouseLongValue.ofNull(true);
+            break;
+        case Int128:
+        case UInt128:
+        case Int256:
+        case UInt256:
+            value = ClickHouseBigIntegerValue.ofNull();
+            break;
+        case Float32:
+            value = ClickHouseFloatValue.ofNull();
+            break;
+        case Float64:
+            value = ClickHouseDoubleValue.ofNull();
+            break;
+        case Decimal:
+        case Decimal32:
+        case Decimal64:
+        case Decimal128:
+        case Decimal256:
+            value = ClickHouseBigDecimalValue.ofNull();
+            break;
+        case Date:
+        case Date32:
+            value = ClickHouseDateValue.ofNull();
+            break;
+        case DateTime:
+        case DateTime32:
+        case DateTime64: {
+            if (column == null) {
+                value = ClickHouseDateTimeValue.ofNull(0);
+            } else if (column.getTimeZone() == null) {
+                value = ClickHouseDateTimeValue.ofNull(column.getScale());
+            } else {
+                value = ClickHouseOffsetDateTimeValue.ofNull(column.getScale(), column.getTimeZone());
+            }
+            break;
+        }
+        case IPv4:
+            value = ClickHouseIpv4Value.ofNull();
+            break;
+        case IPv6:
+            value = ClickHouseIpv6Value.ofNull();
+            break;
+        case FixedString:
+        case String:
+            value = ClickHouseStringValue.ofNull();
+            break;
+        case UUID:
+            value = ClickHouseUuidValue.ofNull();
+            break;
+        case Point:
+            value = ClickHouseGeoPointValue.ofOrigin();
+            break;
+        case Ring:
+            value = ClickHouseGeoRingValue.ofEmpty();
+            break;
+        case Polygon:
+            value = ClickHouseGeoPolygonValue.ofEmpty();
+            break;
+        case MultiPolygon:
+            value = ClickHouseGeoMultiPolygonValue.ofEmpty();
+            break;
+        case AggregateFunction:
+            if (column != null) {
+                if (column.getAggregateFunction() == ClickHouseAggregateFunction.groupBitmap) {
+                    value = ClickHouseBitmapValue.ofEmpty(column.getNestedColumns().get(0).getDataType());
+                }
+            }
+            break;
+        case Array:
+            if (column == null) {
                 value = ClickHouseArrayValue.ofEmpty();
-                break;
-            case Map:
-                if (column == null) {
-                    throw new IllegalArgumentException("column types for key and value are required");
+            } else if (column.getArrayNestedLevel() > 1) {
+                value = ClickHouseArrayValue.of(
+                        (Object[]) createPrimitiveArray(column.getArrayBaseColumn().getDataType().getPrimitiveClass(),
+                                0, column.getArrayNestedLevel()));
+            } else {
+                Class<?> javaClass = column.getArrayBaseColumn().getDataType().getPrimitiveClass();
+                if (byte.class == javaClass) {
+                    value = ClickHouseByteArrayValue.ofEmpty();
+                } else if (short.class == javaClass) {
+                    value = ClickHouseShortArrayValue.ofEmpty();
+                } else if (int.class == javaClass) {
+                    value = ClickHouseIntArrayValue.ofEmpty();
+                } else if (long.class == javaClass) {
+                    value = ClickHouseLongArrayValue.ofEmpty();
+                } else if (float.class == javaClass) {
+                    value = ClickHouseFloatArrayValue.ofEmpty();
+                } else if (double.class == javaClass) {
+                    value = ClickHouseDoubleArrayValue.ofEmpty();
+                } else {
+                    value = ClickHouseArrayValue.ofEmpty();
                 }
-                value = ClickHouseMapValue.ofEmpty(column.getKeyInfo().getDataType().getJavaClass(),
-                        column.getValueInfo().getDataType().getJavaClass());
-                break;
-            case Nested:
-                if (column == null) {
-                    throw new IllegalArgumentException("nested column types are required");
-                }
-                value = ClickHouseNestedValue.ofEmpty(column.getNestedColumns());
-                break;
-            case Tuple:
-                value = ClickHouseTupleValue.of();
-                break;
-            default:
-                throw new IllegalArgumentException("Unsupported data type: " + type.name());
+            }
+            break;
+        case Map:
+            if (column == null) {
+                throw new IllegalArgumentException("column types for key and value are required");
+            }
+            value = ClickHouseMapValue.ofEmpty(column.getKeyInfo().getDataType().getObjectClass(),
+                    column.getValueInfo().getDataType().getObjectClass());
+            break;
+        case Nested:
+            if (column == null) {
+                throw new IllegalArgumentException("nested column types are required");
+            }
+            value = ClickHouseNestedValue.ofEmpty(column.getNestedColumns());
+            break;
+        case Tuple:
+            value = ClickHouseTupleValue.of();
+            break;
+        case Nothing:
+            value = ClickHouseEmptyValue.INSTANCE;
+            break;
+        default:
+            break;
+        }
+
+        if (value == null) {
+            throw new IllegalArgumentException("Unsupported data type: " + type.name());
         }
 
         return value;

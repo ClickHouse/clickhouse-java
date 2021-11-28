@@ -24,7 +24,7 @@ public class ClickHouseClientBuilderTest {
         Assert.assertEquals(builder.getConfig(), config);
 
         String clientName = "test client";
-        builder.addOption(ClickHouseClientOption.CLIENT_NAME, clientName);
+        builder.option(ClickHouseClientOption.CLIENT_NAME, clientName);
         Assert.assertNotEquals(builder.getConfig(), config);
         config = builder.getConfig();
         Assert.assertEquals(config.getClientName(), clientName);

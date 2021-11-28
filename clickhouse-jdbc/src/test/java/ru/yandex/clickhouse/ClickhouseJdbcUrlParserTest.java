@@ -4,7 +4,6 @@ import java.util.Properties;
 
 import com.clickhouse.client.ClickHouseProtocol;
 
-import org.eclipse.jetty.client.ProxyProtocolClientConnectionFactory.V2.Tag.Protocol;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 

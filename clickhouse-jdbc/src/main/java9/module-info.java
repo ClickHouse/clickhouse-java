@@ -9,8 +9,6 @@ module ru.yandex.clickhouse {
     exports ru.yandex.clickhouse.settings;
     exports ru.yandex.clickhouse.util;
 
-    requires java.base;
-
     requires transitive com.clickhouse.client;
     requires transitive com.google.gson;
     requires transitive org.apache.httpcomponents.httpclient;

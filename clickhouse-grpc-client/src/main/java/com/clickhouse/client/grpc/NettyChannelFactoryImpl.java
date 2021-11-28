@@ -16,7 +16,7 @@ import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseUtils;
 import com.clickhouse.client.config.ClickHouseSslMode;
-import com.clickhouse.client.grpc.config.ClickHouseGrpcClientOption;
+import com.clickhouse.client.grpc.config.ClickHouseGrpcOption;
 
 final class NettyChannelFactoryImpl extends ClickHouseGrpcChannelFactory {
     private final NettyChannelBuilder builder;
@@ -26,7 +26,7 @@ final class NettyChannelFactoryImpl extends ClickHouseGrpcChannelFactory {
 
         builder = NettyChannelBuilder.forAddress(server.getHost(), server.getPort());
 
-        int flowControlWindow = (int) config.getOption(ClickHouseGrpcClientOption.FLOW_CONTROL_WINDOW);
+        int flowControlWindow = (int) config.getOption(ClickHouseGrpcOption.FLOW_CONTROL_WINDOW);
         if (flowControlWindow > 0) {
             builder.flowControlWindow(flowControlWindow); // what about initialFlowControlWindow?
         }

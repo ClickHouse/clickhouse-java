@@ -9,6 +9,9 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
 
+import com.clickhouse.client.logging.Logger;
+import com.clickhouse.client.logging.LoggerFactory;
+
 /**
  * This class maintains two immutable lists: preferred protocols and tags.
  * Usually it will be used in two scenarios: 1) find suitable
@@ -16,6 +19,8 @@ import java.util.Set;
  * suitable {@link ClickHouseNode} to connect to.
  */
 public class ClickHouseNodeSelector implements Serializable {
+    private static final Logger log = LoggerFactory.getLogger(ClickHouseNodeSelector.class);
+
     public static final ClickHouseNodeSelector EMPTY = new ClickHouseNodeSelector(Collections.emptyList(),
             Collections.emptyList());
 
@@ -56,7 +61,7 @@ public class ClickHouseNodeSelector implements Serializable {
     }
 
     public static ClickHouseNodeSelector of(Collection<ClickHouseProtocol> protocols, Collection<String> tags) {
-        return (protocols == null || protocols.size() == 0) && (tags == null || tags.size() == 0) ? EMPTY
+        return (protocols == null || protocols.isEmpty()) && (tags == null || tags.isEmpty()) ? EMPTY
                 : new ClickHouseNodeSelector(protocols, tags);
     }
 
@@ -66,7 +71,7 @@ public class ClickHouseNodeSelector implements Serializable {
     private final Set<String> tags;
 
     protected ClickHouseNodeSelector(Collection<ClickHouseProtocol> protocols, Collection<String> tags) {
-        if (protocols == null || protocols.size() == 0) {
+        if (protocols == null || protocols.isEmpty()) {
             this.protocols = Collections.emptyList();
         } else {
             List<ClickHouseProtocol> p = new ArrayList<>(protocols.size());
@@ -81,10 +86,10 @@ public class ClickHouseNodeSelector implements Serializable {
                 }
             }
 
-            this.protocols = p.size() == 0 ? Collections.emptyList() : Collections.unmodifiableList(p);
+            this.protocols = p.isEmpty() ? Collections.emptyList() : Collections.unmodifiableList(p);
         }
 
-        if (tags == null || tags.size() == 0) {
+        if (tags == null || tags.isEmpty()) {
             this.tags = Collections.emptySet();
         } else {
             Set<String> t = new HashSet<>();
@@ -96,7 +101,7 @@ public class ClickHouseNodeSelector implements Serializable {
                 }
             }
 
-            this.tags = t.size() == 0 ? Collections.emptySet() : Collections.unmodifiableSet(t);
+            this.tags = t.isEmpty() ? Collections.emptySet() : Collections.unmodifiableSet(t);
         }
     }
 
@@ -121,6 +126,7 @@ public class ClickHouseNodeSelector implements Serializable {
 
         if (client != null) {
             for (ClickHouseProtocol p : protocols) {
+                log.debug("Checking [%s] against [%s]...", client, p);
                 if (client.accept(p)) {
                     matched = true;
                     break;
@@ -142,7 +148,7 @@ public class ClickHouseNodeSelector implements Serializable {
     }
 
     public boolean matchAnyOfPreferredProtocols(ClickHouseProtocol protocol) {
-        boolean matched = protocols.size() == 0 || protocol == ClickHouseProtocol.ANY;
+        boolean matched = protocols.isEmpty() || protocol == ClickHouseProtocol.ANY;
 
         if (!matched && protocol != null) {
             for (ClickHouseProtocol p : protocols) {
@@ -177,7 +183,7 @@ public class ClickHouseNodeSelector implements Serializable {
     }
 
     public boolean matchAnyOfPreferredTags(Collection<String> tags) {
-        boolean matched = tags.size() == 0;
+        boolean matched = tags.isEmpty();
 
         if (tags != null && tags.size() > 0) {
             for (String t : tags) {

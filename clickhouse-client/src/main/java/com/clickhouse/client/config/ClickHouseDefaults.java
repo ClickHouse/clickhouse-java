@@ -1,6 +1,11 @@
 package com.clickhouse.client.config;
 
+import java.io.Serializable;
+
 import com.clickhouse.client.ClickHouseChecker;
+import com.clickhouse.client.ClickHouseCompression;
+import com.clickhouse.client.ClickHouseFormat;
+import com.clickhouse.client.ClickHouseProtocol;
 
 /**
  * System-wide default options. System properties and environment variables can
@@ -12,7 +17,7 @@ import com.clickhouse.client.ClickHouseChecker;
  * {@code -Ddefault_async=false} on the Java command line, or setting
  * environment variable {@code DEFAULT_ASYNC=false}.
  */
-public enum ClickHouseDefaults implements ClickHouseConfigOption {
+public enum ClickHouseDefaults implements ClickHouseOption {
     /**
      * Default execution mode.
      */
@@ -32,7 +37,7 @@ public enum ClickHouseDefaults implements ClickHouseConfigOption {
     /**
      * Default protocol.
      */
-    PROTOCOL("protocol", "ANY", "Protocol to use."),
+    PROTOCOL("protocol", ClickHouseProtocol.ANY, "Protocol to use."),
     /**
      * Default server port.
      */
@@ -54,13 +59,9 @@ public enum ClickHouseDefaults implements ClickHouseConfigOption {
      */
     PASSWORD("password", "", "Password for authentication."),
     /**
-     * Default compression.
-     */
-    COMPRESSION("compression", "LZ4", "Preferred compression alogrithm used in data transferring."),
-    /**
      * Default format.
      */
-    FORMAT("format", "TabSeparated", "Preferred data format for serialization and deserialization."),
+    FORMAT("format", ClickHouseFormat.TabSeparated, "Preferred data format for serialization and deserialization."),
     /**
      * Max threads.
      */
@@ -70,6 +71,14 @@ public enum ClickHouseDefaults implements ClickHouseConfigOption {
      */
     MAX_REQUESTS("max_requests", 0, "Maximum size of shared thread pool, 0 means no limit."),
     /**
+     * Server time zone, defaults to {@code UTC}.
+     */
+    SERVER_TIME_ZONE("time_zone", "UTC", "Server time zone."),
+    /**
+     * Server version, defaults to {@code latest}.
+     */
+    SERVER_VERSION("version", "latest", "Server version"),
+    /**
      * Whether to resolve DNS SRV name using
      * {@link com.clickhouse.client.naming.SrvResolver}(e.g. resolve SRV record to
      * extract both host and port from a given name).
@@ -77,11 +86,11 @@ public enum ClickHouseDefaults implements ClickHouseConfigOption {
     SRV_RESOLVE("srv_resolve", false, "Whether to resolve DNS SRV name.");
 
     private final String key;
-    private final Object defaultValue;
+    private final Serializable defaultValue;
     private final Class<?> clazz;
     private final String description;
 
-    <T> ClickHouseDefaults(String key, T defaultValue, String description) {
+    <T extends Serializable> ClickHouseDefaults(String key, T defaultValue, String description) {
         this.key = ClickHouseChecker.nonNull(key, "key");
         this.defaultValue = ClickHouseChecker.nonNull(defaultValue, "defaultValue");
         this.clazz = defaultValue.getClass();
@@ -89,7 +98,7 @@ public enum ClickHouseDefaults implements ClickHouseConfigOption {
     }
 
     @Override
-    public Object getDefaultValue() {
+    public Serializable getDefaultValue() {
         return defaultValue;
     }
 

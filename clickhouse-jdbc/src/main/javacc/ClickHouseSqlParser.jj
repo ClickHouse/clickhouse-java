@@ -25,19 +25,20 @@ options {
 
 PARSER_BEGIN(ClickHouseSqlParser)
 
-package ru.yandex.clickhouse.jdbc.parser;
+package com.clickhouse.jdbc.parser;
 
 import java.io.StringReader;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
+import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.logging.Logger;
 import com.clickhouse.client.logging.LoggerFactory;
-
-import ru.yandex.clickhouse.settings.ClickHouseProperties;
 
 public class ClickHouseSqlParser {
     private static final boolean DEBUG = false;
@@ -46,7 +47,7 @@ public class ClickHouseSqlParser {
 
     private final List<ClickHouseSqlStatement> statements = new ArrayList<>();
 
-    private ClickHouseProperties properties;
+    private ClickHouseConfig config;
     private ParseHandler handler;
 
     private boolean tokenIn(int tokenIndex, int... tokens) {
@@ -70,13 +71,13 @@ public class ClickHouseSqlParser {
         return !(getToken(1).kind == AND && token_source.parentToken == BETWEEN);
     }
 
-    public static ClickHouseSqlStatement[] parse(String sql, ClickHouseProperties properties) {
-        return parse(sql, properties, null);
+    public static ClickHouseSqlStatement[] parse(String sql, ClickHouseConfig config) {
+        return parse(sql, config, null);
     }
 
-    public static ClickHouseSqlStatement[] parse(String sql, ClickHouseProperties properties, ParseHandler handler) {
-        if (properties == null) {
-            properties = new ClickHouseProperties();
+    public static ClickHouseSqlStatement[] parse(String sql, ClickHouseConfig config, ParseHandler handler) {
+        if (config == null) {
+            config = new ClickHouseConfig();
         }
 
         ClickHouseSqlStatement[] stmts = new ClickHouseSqlStatement[] {
@@ -86,7 +87,7 @@ public class ClickHouseSqlParser {
             return stmts;
         }
 
-        ClickHouseSqlParser p = new ClickHouseSqlParser(sql, properties, handler);
+        ClickHouseSqlParser p = new ClickHouseSqlParser(sql, config, handler);
         try {
             stmts = p.sql();
         } catch (Exception e) {
@@ -100,10 +101,10 @@ public class ClickHouseSqlParser {
         return stmts;
     }
 
-    public ClickHouseSqlParser(String sql, ClickHouseProperties properties, ParseHandler handler) {
+    public ClickHouseSqlParser(String sql, ClickHouseConfig config, ParseHandler handler) {
         this(new StringReader(sql));
 
-        this.properties = properties;
+        this.config = config;
         this.handler = handler;
     }
 
@@ -111,7 +112,7 @@ public class ClickHouseSqlParser {
         if (token_source.isValid()) {
             ClickHouseSqlStatement sqlStmt = token_source.build(handler);
             // FIXME remove the restriction once we can hanlde insertion with format well
-            if (statements.size() == 0 || sqlStmt.isRecognized()) {
+            if (statements.isEmpty() || sqlStmt.isRecognized()) {
                 statements.add(sqlStmt);
             }
         } else {
@@ -137,11 +138,13 @@ TOKEN_MGR_DECLS: {
     String cluster = null;
     String database = null;
     String table = null;
+    String input = null;
     String format = null;
     String outfile = null;
 
     final List<Integer> parameters = new ArrayList<>();
     final Map<String, Integer> positions = new HashMap<>();
+    final Map<String, String> settings = new LinkedHashMap<>();
 
     public void CommonTokenAction(Token t) {
         if (t.kind != ClickHouseSqlParserConstants.SEMICOLON) {
@@ -174,7 +177,7 @@ TOKEN_MGR_DECLS: {
         m.append('#').append(name);
 
         int startPos = builder.lastIndexOf(m.toString());
-        int endPos = params.size() > 0 ? builder.indexOf(")", startPos) + 1 : startPos + m.length();
+        int endPos = !params.isEmpty() ? builder.indexOf(")", startPos) + 1 : startPos + m.length();
 
         builder.delete(startPos, endPos);
         if (handler != null) {
@@ -212,10 +215,12 @@ TOKEN_MGR_DECLS: {
         cluster = null;
         database = null;
         table = null;
+        input = null;
         format = null;
         outfile = null;
         parameters.clear();
         positions.clear();
+        settings.clear();
     }
 
     ClickHouseSqlStatement build(ParseHandler handler) {
@@ -223,12 +228,12 @@ TOKEN_MGR_DECLS: {
         ClickHouseSqlStatement s = null;
         if (handler != null) {
             s = handler.handleStatement(
-                sqlStmt, stmtType, cluster, database, table, format, outfile, parameters, positions);
+                sqlStmt, stmtType, cluster, database, table, input, format, outfile, parameters, positions, settings);
         }
 
         if (s == null) {
             s = new ClickHouseSqlStatement(
-                sqlStmt, stmtType, cluster, database, table, format, outfile, parameters, positions);
+                sqlStmt, stmtType, cluster, database, table, input, format, outfile, parameters, positions, settings);
         }
         
         // reset variables
@@ -241,12 +246,31 @@ TOKEN_MGR_DECLS: {
         return validTokens > 0;
     }
 
-    void setPosition(String keyword) {
+    void addPosition(Token t) {
+        if (t == null) {
+            return;
+        }
+
+        addPosition(t.image, t.beginLine == 1 ? t.beginColumn - 1 : -1);
+    }
+
+    void addPosition(String keyword, int startIndex) {
         if (keyword == null || keyword.isEmpty()) {
             return;
         }
 
-        this.positions.put(keyword, builder.lastIndexOf(keyword));
+        if (startIndex < 0) {
+            startIndex = builder.lastIndexOf(keyword);
+        }
+        this.positions.put(keyword.toUpperCase(Locale.ROOT), startIndex);
+    }
+
+    void addSetting(String key, String value) {
+        if (key == null || key.isEmpty()) {
+            return;
+        }
+
+        this.settings.put(key.toLowerCase(Locale.ROOT), value);
     }
 }
 
@@ -278,7 +302,7 @@ ClickHouseSqlStatement[] sql(): {} {
     { return statements.toArray(new ClickHouseSqlStatement[statements.size()]); }
 }
 
-void stmts(): { Token t; } {
+void stmts(): {} {
     LOOKAHEAD(2) stmt()
     | LOOKAHEAD(2) anyExprList() // in case there's anything new
 }
@@ -333,15 +357,15 @@ void attachStmt(): { Token t; } {
     <ATTACH> (
         LOOKAHEAD(2)
         (
-            t = <DATABASE> { token_source.setPosition(t.image); }
+            <DATABASE> { token_source.addPosition(token); }
             | <DICTIONARY>
-            | (<OR> t = <REPLACE> { token_source.setPosition(t.image); }) (
+            | (<OR> <REPLACE> { token_source.addPosition(token); }) (
                 (<TEMPORARY>)? <TABLE> | (<LIVE> | <MATERIALIZED>)? <VIEW>
             )
         )
         (
             LOOKAHEAD(2)
-            <IF> <NOT> t = <EXISTS> { token_source.setPosition(t.image); }
+            <IF> <NOT> <EXISTS> { token_source.addPosition(token); }
         )?
     )?
     anyExprList() // not interested
@@ -353,19 +377,19 @@ void checkStmt(): {} { // not interested
 }
 
 // https://clickhouse.tech/docs/en/sql-reference/statements/create/
-void createStmt(): { Token t; } {
+void createStmt(): {} {
     <CREATE> (
         LOOKAHEAD(2)
         (
-            t = <DATABASE> { token_source.setPosition(t.image); }
-            | (<OR> t = <REPLACE> { token_source.setPosition(t.image); })? (
+            <DATABASE> { token_source.addPosition(token); }
+            | (<OR> <REPLACE> { token_source.addPosition(token); })? (
                 (<TEMPORARY>)? <TABLE> | (<LIVE> | <MATERIALIZED>)? <VIEW>
             )
             | <DICTIONARY> | <USER> | <ROLE> | (<ROW>)? <POLICY> | <QUOTA> | (<SETTINGS>)? <PROFILE>
         )
         (
             LOOKAHEAD(2)
-            <IF> <NOT> t = <EXISTS> { token_source.setPosition(t.image); }
+            <IF> <NOT> <EXISTS> { token_source.addPosition(token); }
         )?
     )?
     anyExprList() // not interested
@@ -373,7 +397,8 @@ void createStmt(): { Token t; } {
 
 // upcoming lightweight mutation - see https://github.com/ClickHouse/ClickHouse/issues/19627
 void deleteStmt(): {} {
-    <DELETE> <FROM> tableIdentifier(true) (<WHERE> anyExprList())?
+    <DELETE> { token_source.addPosition(token); } <FROM> { token_source.addPosition(token); } tableIdentifier(true)
+    (LOOKAHEAD({ getToken(1).kind == WHERE })<WHERE> { token_source.addPosition(token); })? (anyExprList())?
 }
 
 // https://clickhouse.tech/docs/en/sql-reference/statements/describe-table/
@@ -383,33 +408,33 @@ void describeStmt(): {} {
 }
 
 // https://clickhouse.tech/docs/en/sql-reference/statements/detach/
-void detachStmt(): { Token t; } {
+void detachStmt(): {} {
     <DETACH> (
         LOOKAHEAD(2)
         (
-            t = <DATABASE> { token_source.setPosition(t.image); }
+            <DATABASE> { token_source.addPosition(token); }
             | (<TEMPORARY>)? <TABLE> | <VIEW> | <DICTIONARY>
         )
         (
             LOOKAHEAD(2)
-            <IF> t = <EXISTS> { token_source.setPosition(t.image); }
+            <IF> <EXISTS> { token_source.addPosition(token); }
         )?
     )?
     anyExprList() // not interested
 }
 
 // https://clickhouse.tech/docs/en/sql-reference/statements/drop/
-void dropStmt(): { Token t; } {
+void dropStmt(): {} {
     <DROP> (
         LOOKAHEAD(2)
         (
-            t = <DATABASE> { token_source.setPosition(t.image); }
+            <DATABASE> { token_source.addPosition(token); }
             | (<TEMPORARY>)? <TABLE> | <VIEW> | <DICTIONARY> | <USER> | <ROLE> 
             | (<ROW>)? <POLICY> | <QUOTA> | (<SETTINGS>)? <PROFILE>
         )
         (
             LOOKAHEAD(2)
-            <IF> t = <EXISTS> { token_source.setPosition(t.image); }
+            <IF> <EXISTS> { token_source.addPosition(token); }
         )?
     )?
     anyExprList() // not interested
@@ -441,17 +466,18 @@ void insertStmt(): {} {
     dataClause()
 }
 
-void dataClause(): { Token t; } {
+void dataClause(): {} {
     try {
-        LOOKAHEAD(2) <FORMAT> anyIdentifier() (LOOKAHEAD(2) anyExprList())?
-        | LOOKAHEAD(2) t = <VALUES> { token_source.setPosition(t.image); } 
+        LOOKAHEAD(2) <VALUES> { token_source.addPosition(token); }
             <LPAREN> columnExprList() <RPAREN>
             (
                 LOOKAHEAD(2)
                 (<COMMA>)?
                 <LPAREN> columnExprList() <RPAREN>
             )*
-        | anyExprList() // not interested
+        | (LOOKAHEAD(2) (<SELECT> { token_source.addPosition(token); } columnExprList() <FROM> 
+            <INPUT> <LPAREN> <STRING_LITERAL> { token_source.format = ClickHouseSqlUtils.unescape(token.image); } <RPAREN>)?
+            <FORMAT> <IDENTIFIER> { token_source.format = token.image; })? (anyExprList())?
     } catch (ParseException e) {
         // FIXME introduce a lexical state in next release with consideration of delimiter from the context
         Token nextToken;
@@ -546,8 +572,9 @@ void truncateStmt(): {} {
 }
 
 // upcoming lightweight mutation - see https://github.com/ClickHouse/ClickHouse/issues/19627
-void updateStmt(): {} { // not interested
-    <UPDATE> anyExprList()
+void updateStmt(): {} {
+    <UPDATE> { token_source.addPosition(token); } tableIdentifier(true)
+    <SET> { token_source.addPosition(token); } anyExprList()
 }
 
 // https://clickhouse.tech/docs/en/sql-reference/statements/use/
@@ -658,16 +685,20 @@ void columnExpr(): { Token t; } {
 }
 
 // interested parts
-void formatPart(): { Token t; } {
-    <FORMAT> (LOOKAHEAD(2) t = <IDENTIFIER> { token_source.format = t.image; })?
+void formatPart(): {} {
+    <FORMAT> (LOOKAHEAD(2) <IDENTIFIER> { token_source.format = token.image; })?
 }
 
-void outfilePart(): { Token t; } {
-    <INTO> <OUTFILE> (LOOKAHEAD(2) t = <STRING_LITERAL> { token_source.outfile = t.image; })?
+void outfilePart(): {} {
+    <INTO> <OUTFILE> (LOOKAHEAD(2) <STRING_LITERAL> { token_source.outfile = token.image; })?
 }
 
-void withTotalPart(): { Token t; } {
-    <WITH> (LOOKAHEAD(2) t = <TOTALS> { token_source.setPosition(t.image); })?
+void settingsPart(): {} {
+    <SETTINGS> { token_source.addPosition(token); } settingExprList()
+}
+
+void withTotalPart(): {} {
+    <WITH> (LOOKAHEAD(2) <TOTALS> { token_source.addPosition(token); })?
 }
 
 // expressions
@@ -687,6 +718,7 @@ void anyExpr(): {} {
 
 void anyNestedExpr(): {} {
     LOOKAHEAD(2) formatPart()
+    | LOOKAHEAD(2) settingsPart()
     | LOOKAHEAD(2) withTotalPart()
     | LOOKAHEAD(2) outfilePart()
     | (LOOKAHEAD(2) <DASH>)? anyColumnExpr() (
@@ -695,9 +727,9 @@ void anyNestedExpr(): {} {
     )*
 }
 
-void anyColumnExpr(): { Token t; } {
+void anyColumnExpr(): {} {
     // <ASTERISK>
-    t = <QUERY> { token_source.processParameter(t.image, handler); }
+    <QUERY> { token_source.processParameter(token.image, handler); }
     | <LBRACE> (LOOKAHEAD(2) anyExprList())? <RBRACE>
     | <LBRACKET> (LOOKAHEAD(2) anyExprList())? <RBRACKET>
     | <LPAREN> (LOOKAHEAD(2) anyExprList())? <RPAREN>
@@ -711,6 +743,7 @@ Token aliasExpr(): { Token t = null; } {
     (
         LOOKAHEAD(2) <AS> t = anyIdentifier()
         | LOOKAHEAD(2) formatPart()
+        | LOOKAHEAD(2) settingsPart()
         | LOOKAHEAD(2) outfilePart()
         | t = identifier()
     )
@@ -738,11 +771,11 @@ void databaseIdentifier(boolean record): { Token t; } {
 }
 
 void settingExprList(): {} {
-    settingExpr() (<COMMA> settingExpr())*
+    settingExpr() (LOOKAHEAD(2) <COMMA> settingExpr())*
 }
 
-void settingExpr(): {} {
-    identifier() <EQ_SINGLE> literal()
+void settingExpr(): { String key; } {
+    identifier() { key = token.image; } <EQ_SINGLE> literal() { token_source.addSetting(key, token.image); }
 }
 
 // basics
@@ -782,10 +815,10 @@ Token literal(): { Token t; } {
     { return t; }
 }
 
-Token dateLiteral(): { Token t; String prefix; } {
-    (t = <DATE> | t = <TIMESTAMP>) { prefix = t.image; }
+Token dateLiteral(): { Token t; StringBuilder sb = new StringBuilder(); } {
+    (t = <DATE> | t = <TIMESTAMP>) { sb.append(t.image).append(' '); }
     t = <STRING_LITERAL>
-    { return Token.newToken(0, prefix + " " + t.image); }
+    { return Token.newToken(0, sb.append(t.image).toString()); }
 }
 
 Token numberLiteral(): { Token t = null; StringBuilder sb = new StringBuilder(); } {
@@ -800,7 +833,7 @@ Token numberLiteral(): { Token t = null; StringBuilder sb = new StringBuilder();
 }
 
 void operator(): {} {
-    (<ARROW> | <ASTERISK> | <CONCAT> | <DASH> | <EQ_DOUBLE> | <EQ_SINGLE>
+    (<ARROW> | <ASTERISK> | <CONCAT> | <CONVERT> | <DASH> | <EQ_DOUBLE> | <EQ_SINGLE>
     | <GE> | <GT> | <LE> | <LT> | <NOT_EQ> | <PERCENT> | <PLUS> | <SLASH>)
 }
 
@@ -841,7 +874,7 @@ Token anyKeyword(): { Token t; } {
         | t = <CLUSTER> | t = <DATE> | t = <DATABASE> | t = <DATABASES> | t = <DICTIONARY> | t = <DICTIONARIES> 
         | t = <DISTINCT> | t = <ELSE> | t = <END> | t = <EXCEPT> | t = <FORMAT> | t = <FROM> | t = <FINAL> | t = <FULL> 
         | t = <FUNCTION> | t = <GLOBAL> | t = <GROUP> | t = <HAVING> | t = <IF> | t = <ILIKE> | t = <IN> | t = <INNER> 
-        | t = <INTERVAL> | t = <INTO> | t = <IS> | t = <JOIN> | t = <LEFT> | t = <LIKE> | t = <LIMIT> | t = <LIVE> 
+        | t = <INPUT> | t = <INTERVAL> | t = <INTO> | t = <IS> | t = <JOIN> | t = <LEFT> | t = <LIKE> | t = <LIMIT> | t = <LIVE> 
         | t = <MATERIALIZED> | t = <NOT> | t = <OFFSET> | t = <ON> | t = <OR> | t = <ORDER> | t = <OUTFILE> | t = <POLICY>
         | t = <PREWHERE> | t = <PROFILE> | t = <QUOTA> | t = <REPLACE> | t = <RIGHT> | t = <ROLE> | t = <ROW> | t = <SAMPLE>
         | t = <SETTINGS> | t = <TEMPORARY> | t = <TABLE> | t = <TABLES> | t = <THEN> | t = <TIES> | t = <TIMESTAMP> 
@@ -935,6 +968,7 @@ TOKEN: {
     | <ILIKE    : <I> <L> <I> <K> <E>                >
     | <IN       : <I> <N>                            >
     | <INNER    : <I> <N> <N> <E> <R>                >
+    | <INPUT    : <I> <N> <P> <U> <T>                >
     | <INTERVAL : <I> <N> <T> <E> <R> <V> <A> <L>    >
     | <INTO     : <I> <N> <T> <O>                    >
     | <IS       : <I> <S>                            >
@@ -1040,6 +1074,7 @@ TOKEN: {
     | <COLON: ":">
     | <COMMA: ",">
     | <CONCAT: "||">
+    | <CONVERT: "::">
     | <DASH: "-">
     | <DOLLAR: "$">
     | <DOT: ".">

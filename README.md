@@ -40,7 +40,7 @@ try (ClickHouseClient client = ClickHouseClient.newInstance(ClickHouseProtocol.G
     ClickHouseResponse resp = client.connect(server)
         .format(ClickHouseFormat.RowBinaryWithNamesAndTypes).set("send_logs_level", "trace")
         .query("select id, name from some_table where id in :ids and name like :name").params(Arrays.asList(1,2,3), "%key%").execute().get()) {
-    // you can also use resp.recordStream() as well
+    // you can also use resp.stream() as well
     for (ClickHouseRecord record : resp.records()) {
         int id = record.getValue(0).asInteger();
         String name = record.getValue(1).asString();

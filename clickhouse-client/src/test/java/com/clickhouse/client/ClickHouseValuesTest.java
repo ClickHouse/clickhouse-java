@@ -13,12 +13,64 @@ import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
 public class ClickHouseValuesTest extends BaseClickHouseValueTest {
+    @Test(groups = { "unit" })
+    public void testCreateArray() {
+        Class<?>[] primitiveTypes = new Class<?>[] { boolean.class, byte.class, char.class, short.class, int.class,
+                long.class, float.class, double.class };
+        Class<?>[] wrapperTypes = new Class<?>[] { Boolean.class, Byte.class, Character.class, Short.class,
+                Integer.class, Long.class, Float.class, Double.class };
+        Class<?>[] miscTypes = new Class<?>[] { Object.class, Map.class, Collection.class, Class.class };
+        for (Class<?> c : primitiveTypes) {
+            Assert.assertEquals(ClickHouseValues.createObjectArray(c, 0, 1), ClickHouseValues.EMPTY_OBJECT_ARRAY);
+        }
+        for (Class<?> c : wrapperTypes) {
+            Assert.assertEquals(ClickHouseValues.createObjectArray(c, 0, 1), ClickHouseValues.EMPTY_OBJECT_ARRAY);
+        }
+        for (Class<?> c : miscTypes) {
+            Assert.assertEquals(ClickHouseValues.createObjectArray(c, 0, 1), ClickHouseValues.EMPTY_OBJECT_ARRAY);
+        }
+
+        Object[] expectedValues = new Object[] { ClickHouseValues.EMPTY_BYTE_ARRAY, ClickHouseValues.EMPTY_BYTE_ARRAY,
+                ClickHouseValues.EMPTY_INT_ARRAY, ClickHouseValues.EMPTY_SHORT_ARRAY, ClickHouseValues.EMPTY_INT_ARRAY,
+                ClickHouseValues.EMPTY_LONG_ARRAY, ClickHouseValues.EMPTY_FLOAT_ARRAY,
+                ClickHouseValues.EMPTY_DOUBLE_ARRAY };
+        int index = 0;
+        for (Class<?> c : primitiveTypes) {
+            Assert.assertEquals(ClickHouseValues.createPrimitiveArray(c, 0, 1), expectedValues[index++]);
+        }
+        index = 0;
+        for (Class<?> c : wrapperTypes) {
+            Assert.assertEquals(ClickHouseValues.createPrimitiveArray(c, 0, 1), expectedValues[index++]);
+        }
+        index = 0;
+        for (Class<?> c : miscTypes) {
+            Assert.assertEquals(ClickHouseValues.createPrimitiveArray(c, 0, 1), ClickHouseValues.EMPTY_OBJECT_ARRAY);
+        }
+
+        int[][] intArray = (int[][]) ClickHouseValues.createPrimitiveArray(int.class, 3, 2);
+        Assert.assertEquals(intArray, new int[][] { new int[0], new int[0], new int[0] });
+    }
+
+    @Test(groups = { "unit" })
+    public void testNewArray() {
+        ClickHouseValue v = ClickHouseValues.newValue(ClickHouseColumn.of("a", "Array(UInt32)"));
+        Assert.assertEquals(v.asObject(), new long[0]);
+        v = ClickHouseValues.newValue(ClickHouseColumn.of("a", "Array(Array(UInt16))"));
+        Assert.assertEquals(v.asObject(), new int[0][]);
+        v = ClickHouseValues.newValue(ClickHouseColumn.of("a", "Array(Array(Array(Nullable(UInt8))))"));
+        Assert.assertEquals(v.asObject(), new short[0][][]);
+        v = ClickHouseValues.newValue(ClickHouseColumn.of("a", "Array(Array(Array(Array(LowCardinality(String)))))"));
+        Assert.assertEquals(v.asObject(), new String[0][][][]);
+    }
+
     @Test(groups = { "unit" })
     public void testConvertToDateTime() {
         Assert.assertEquals(ClickHouseValues.convertToDateTime(null), null);

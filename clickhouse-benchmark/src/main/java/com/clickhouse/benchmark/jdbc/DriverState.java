@@ -17,8 +17,8 @@ import com.clickhouse.benchmark.ServerState;
 
 @State(Scope.Thread)
 public class DriverState extends BaseState {
-    @Param(value = { "clickhouse4j", "clickhouse-jdbc", "clickhouse-native-jdbc-shaded", "mariadb-java-client",
-            "mysql-connector-java", "postgresql-jdbc" })
+    @Param(value = { "clickhouse4j", "clickhouse-http-jdbc", "clickhouse-grpc-jdbc", "clickhouse-jdbc",
+            "clickhouse-native-jdbc-shaded", "mariadb-java-client", "mysql-connector-java", "postgresql-jdbc" })
     private String client;
 
     @Param(value = { Constants.REUSE_CONNECTION, Constants.NEW_CONNECTION })
@@ -38,11 +38,13 @@ public class DriverState extends BaseState {
     public void doSetup(ServerState serverState) throws Exception {
         JdbcDriver jdbcDriver = JdbcDriver.from(client);
 
+        String compression = String.valueOf(Boolean.parseBoolean(System.getProperty("compression", "true")));
+
         try {
             driver = (java.sql.Driver) Class.forName(jdbcDriver.getClassName()).getDeclaredConstructor().newInstance();
             url = String.format(jdbcDriver.getUrlTemplate(), serverState.getHost(),
                     serverState.getPort(jdbcDriver.getDefaultPort()), serverState.getDatabase(), serverState.getUser(),
-                    serverState.getPassword());
+                    serverState.getPassword(), compression);
             conn = driver.connect(url, new Properties());
 
             try (Statement s = conn.createStatement()) {

@@ -1,8 +1,8 @@
 package com.clickhouse.client;
 
-import java.io.IOException;
 import java.io.Serializable;
 import java.util.Iterator;
+import java.util.NoSuchElementException;
 
 /**
  * This defines a record returned from ClickHouse server. Usually it's a row but
@@ -10,13 +10,6 @@ import java.util.Iterator;
  * whole data set.
  */
 public interface ClickHouseRecord extends Iterable<ClickHouseValue>, Serializable {
-    /**
-     * Gets size of the record.
-     *
-     * @return size of the record
-     */
-    int size();
-
     /**
      * Gets deserialized value wrapped in an object using column index. Please avoid
      * to cache the wrapper object, as it's reused among records for memory
@@ -27,24 +20,22 @@ public interface ClickHouseRecord extends Iterable<ClickHouseValue>, Serializabl
      * 
      * @param index index of the column
      * @return non-null wrapped value
-     * @throws IOException when failed get data from the input stream
      */
-    ClickHouseValue getValue(int index) throws IOException;
+    ClickHouseValue getValue(int index);
 
     /**
-     * Gets deserialized value wrapped in an object using column name, which usually
-     * is slower than {@link #getValue(int)}. Please avoid to cache the wrapper
-     * object, as it's reused among records for memory efficiency when
-     * {@link ClickHouseConfig#isReuseValueWrapper()} returns {@code true}, which is
-     * the default value. So instead of
+     * Gets deserialized value wrapped in an object using case-insensitive column
+     * name, which usually is slower than {@link #getValue(int)}. Please avoid to
+     * cache the wrapper object, as it's reused among records for memory efficiency
+     * when {@link ClickHouseConfig#isReuseValueWrapper()} returns {@code true},
+     * which is the default value. So instead of
      * {@code map.put("my_value", record.getValue("my_column"))}, try something like
      * {@code map.put("my_value", record.getValue("my_column").asString())}.
      * 
-     * @param name name of the column
+     * @param name case-insensitive name of the column
      * @return non-null wrapped value
-     * @throws IOException when failed get data from the input stream
      */
-    ClickHouseValue getValue(String name) throws IOException;
+    ClickHouseValue getValue(String name);
 
     @Override
     default Iterator<ClickHouseValue> iterator() {
@@ -60,10 +51,17 @@ public interface ClickHouseRecord extends Iterable<ClickHouseValue>, Serializabl
             public ClickHouseValue next() {
                 try {
                     return getValue(index++);
-                } catch (IOException e) {
-                    throw new IllegalStateException(e);
+                } catch (ArrayIndexOutOfBoundsException e) {
+                    throw new NoSuchElementException(e.getMessage());
                 }
             }
         };
     }
+
+    /**
+     * Gets size of the record.
+     *
+     * @return size of the record
+     */
+    int size();
 }

@@ -2,9 +2,11 @@ package com.clickhouse.client;
 
 import java.io.ByteArrayInputStream;
 import java.math.BigInteger;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 import java.util.UUID;
 
 import org.testng.Assert;
@@ -37,15 +39,17 @@ public class ClickHouseRequestTest {
         String sql = "select 1";
 
         request.table(table);
-        // Assert.assertNotEquals(config, request.getConfig());
+        Assert.assertEquals(config, request.getConfig());
         Assert.assertNotEquals(stmts, request.getStatements());
         Assert.assertEquals(request.getStatements().size(), 1);
         Assert.assertEquals(request.getStatements().get(0), "SELECT * FROM " + table);
 
         request.query(sql);
+        Assert.assertEquals(config, request.getConfig());
         Assert.assertEquals(request.getStatements().get(0), sql);
 
         request.use(db);
+        Assert.assertNotEquals(config, request.getConfig()); // because new option being added
         Assert.assertEquals(request.getConfig().getDatabase(), db);
         Assert.assertEquals(request.getStatements().size(), 1);
         Assert.assertEquals(request.getStatements().get(0), sql);
@@ -66,7 +70,8 @@ public class ClickHouseRequestTest {
     @Test(groups = { "unit" })
     public void testCopy() {
         ClickHouseRequest<?> request = ClickHouseClient.newInstance().connect(ClickHouseNode.builder().build());
-        request.compression(ClickHouseCompression.LZ4);
+        request.compressServerResponse(true, ClickHouseCompression.BROTLI, 2);
+        request.decompressClientRequest(true, ClickHouseCompression.ZSTD, 5);
         request.external(ClickHouseExternalTable.builder().content(new ByteArrayInputStream(new byte[0])).build());
         request.format(ClickHouseFormat.Avro);
         request.table("table1", "query_id1");
@@ -117,14 +122,33 @@ public class ClickHouseRequestTest {
     public void testFormat() {
         ClickHouseRequest<?> request = ClickHouseClient.newInstance().connect(ClickHouseNode.builder().build());
         Assert.assertEquals(request.getFormat(),
-                ClickHouseFormat.valueOf((String) ClickHouseDefaults.FORMAT.getEffectiveDefaultValue()));
-        Assert.assertThrows(IllegalArgumentException.class, () -> request.format(null));
-        Assert.assertEquals(request.getFormat(),
-                ClickHouseFormat.valueOf((String) ClickHouseDefaults.FORMAT.getEffectiveDefaultValue()));
+                (ClickHouseFormat) ClickHouseDefaults.FORMAT.getEffectiveDefaultValue());
         request.format(ClickHouseFormat.ArrowStream);
         Assert.assertEquals(request.getFormat(), ClickHouseFormat.ArrowStream);
+        request.format(null);
+        Assert.assertEquals(request.getFormat(),
+                (ClickHouseFormat) ClickHouseDefaults.FORMAT.getEffectiveDefaultValue());
         request.format(ClickHouseFormat.Arrow);
         Assert.assertEquals(request.getFormat(), ClickHouseFormat.Arrow);
+    }
+
+    @Test(groups = { "unit" })
+    public void testOptions() {
+        ClickHouseRequest<?> request = ClickHouseClient.newInstance().connect(ClickHouseNode.builder().build());
+
+        Assert.assertEquals(request.options, Collections.emptyMap());
+        Properties props = new Properties();
+        props.setProperty(ClickHouseClientOption.ASYNC.getKey(), "false");
+        props.setProperty(ClickHouseClientOption.DATABASE.getKey(), "mydb");
+        props.setProperty(ClickHouseClientOption.CLIENT_NAME.getKey(), "new");
+        props.setProperty(ClickHouseClientOption.FORMAT.getKey(), "CapnProto");
+        request.options(props);
+
+        Assert.assertEquals(request.options.size(), 4);
+        Assert.assertEquals(request.options.get(ClickHouseClientOption.ASYNC), false);
+        Assert.assertEquals(request.options.get(ClickHouseClientOption.DATABASE), "mydb");
+        Assert.assertEquals(request.options.get(ClickHouseClientOption.CLIENT_NAME), "new");
+        Assert.assertEquals(request.options.get(ClickHouseClientOption.FORMAT), ClickHouseFormat.CapnProto);
     }
 
     @Test(groups = { "unit" })
@@ -171,7 +195,8 @@ public class ClickHouseRequestTest {
     @Test(groups = { "unit" })
     public void testSeal() {
         ClickHouseRequest<?> request = ClickHouseClient.newInstance().connect(ClickHouseNode.builder().build());
-        request.compression(ClickHouseCompression.LZ4);
+        request.compressServerResponse(true, ClickHouseCompression.BROTLI, 2);
+        request.decompressClientRequest(true, ClickHouseCompression.ZSTD, 5);
         request.external(ClickHouseExternalTable.builder().content(new ByteArrayInputStream(new byte[0])).build());
         request.format(ClickHouseFormat.Avro);
         request.table("table1", "query_id1");

@@ -10,6 +10,7 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
+
 import com.clickhouse.client.ClickHouseChecker;
 import com.clickhouse.client.ClickHouseValue;
 import com.clickhouse.client.ClickHouseValues;
@@ -18,7 +19,7 @@ import com.clickhouse.client.ClickHouseValues;
  * Wraper class of LocalDateTime.
  */
 public class ClickHouseDateTimeValue extends ClickHouseObjectValue<LocalDateTime> {
-    private static final DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+    static final DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     /**
      * Create a new instance representing null getValue().
@@ -166,12 +167,7 @@ public class ClickHouseDateTimeValue extends ClickHouseObjectValue<LocalDateTime
 
     @Override
     public LocalDate asDate() {
-        return isNullOrEmpty() ? null : getValue().toLocalDate();
-    }
-
-    @Override
-    public LocalTime asTime() {
-        return isNullOrEmpty() ? null : getValue().toLocalTime();
+        return isNullOrEmpty() ? null : asDateTime(0).toLocalDate();
     }
 
     @Override
@@ -205,6 +201,7 @@ public class ClickHouseDateTimeValue extends ClickHouseObjectValue<LocalDateTime
         if (isNullOrEmpty()) {
             return ClickHouseValues.NULL_EXPR;
         }
+
         return new StringBuilder().append('\'')
                 .append(getValue().format(scale > 0 ? ClickHouseValues.DATETIME_FORMATTER : dateTimeFormatter))
                 .append('\'').toString();

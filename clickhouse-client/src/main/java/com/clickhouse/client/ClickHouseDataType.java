@@ -31,50 +31,57 @@ import java.util.UUID;
  */
 @SuppressWarnings("squid:S115")
 public enum ClickHouseDataType {
-    IntervalYear(Long.class, false, true, true, 8, 19, 0), IntervalQuarter(Long.class, false, true, true, 8, 19, 0),
-    IntervalMonth(Long.class, false, true, true, 8, 19, 0), IntervalWeek(Long.class, false, true, true, 8, 19, 0),
-    IntervalDay(Long.class, false, true, true, 8, 19, 0), IntervalHour(Long.class, false, true, true, 8, 19, 0),
-    IntervalMinute(Long.class, false, true, true, 8, 19, 0), IntervalSecond(Long.class, false, true, true, 8, 19, 0),
-    UInt8(Short.class, false, true, false, 1, 3, 0, "INT1 UNSIGNED", "TINYINT UNSIGNED"),
-    UInt16(Integer.class, false, true, false, 2, 5, 0, "SMALLINT UNSIGNED"),
-    UInt32(Long.class, false, true, false, 4, 10, 0, "INT UNSIGNED", "INTEGER UNSIGNED", "MEDIUMINT UNSIGNED"),
-    UInt64(BigInteger.class, false, true, false, 8, 19, 0, "BIGINT UNSIGNED"),
-    UInt128(BigInteger.class, false, true, false, 16, 20, 0), UInt256(BigInteger.class, false, true, false, 32, 39, 0),
-    Int8(Byte.class, false, true, true, 1, 4, 0, "BOOL", "BOOLEAN", "BYTE", "INT1", "INT1 SIGNED", "TINYINT",
-            "TINYINT SIGNED"),
-    Int16(Short.class, false, true, true, 2, 6, 0, "SMALLINT", "SMALLINT SIGNED"),
-    Int32(Integer.class, false, true, true, 4, 11, 0, "INT", "INTEGER", "MEDIUMINT", "INT SIGNED", "INTEGER SIGNED",
-            "MEDIUMINT SIGNED"),
-    Int64(Long.class, false, true, true, 8, 20, 0, "BIGINT", "BIGINT SIGNED"),
-    Int128(BigInteger.class, false, true, true, 16, 20, 0), Int256(BigInteger.class, false, true, true, 32, 40, 0),
-    Date(LocalDate.class, false, false, false, 2, 10, 0), Date32(LocalDate.class, false, false, false, 4, 10, 0),
-    DateTime(LocalDateTime.class, true, false, false, 0, 19, 0, "TIMESTAMP"),
-    DateTime32(LocalDateTime.class, true, false, false, 8, 19, 0),
-    DateTime64(LocalDateTime.class, true, false, false, 16, 38, 3), // scale up to 18
-    Decimal(BigDecimal.class, true, false, true, 0, 0, 0, "DEC", "NUMERIC", "FIXED"),
-    Decimal32(BigDecimal.class, true, false, true, 4, 9, 9), Decimal64(BigDecimal.class, true, false, true, 8, 18, 18),
-    Decimal128(BigDecimal.class, true, false, true, 16, 38, 38),
-    Decimal256(BigDecimal.class, true, false, true, 32, 76, 20), UUID(UUID.class, false, true, false, 16, 36, 0),
-    Enum(String.class, true, true, false, 1, 0, 0), Enum8(String.class, true, true, false, 1, 0, 0),
-    Enum16(String.class, true, true, false, 2, 0, 0),
-    Float32(Float.class, false, true, true, 4, 8, 8, "FLOAT", "REAL", "SINGLE"),
-    Float64(Double.class, false, true, true, 16, 17, 17, "DOUBLE", "DOUBLE PRECISION"),
-    IPv4(Inet4Address.class, false, true, false, 4, 10, 0, "INET4"),
-    IPv6(Inet6Address.class, false, true, false, 16, 0, 0, "INET6"),
-    FixedString(String.class, true, true, false, 0, -1, 0, "BINARY"),
-    String(String.class, false, true, false, 0, 0, 0, "BINARY LARGE OBJECT", "BINARY VARYING", "BLOB", "BYTEA", "CHAR",
-            "CHAR LARGE OBJECT", "CHAR VARYING", "CHARACTER", "CHARACTER LARGE OBJECT", "CHARACTER VARYING", "CLOB",
-            "LONGBLOB", "LONGTEXT", "MEDIUMBLOB", "MEDIUMTEXT", "NATIONAL CHAR", "NATIONAL CHAR VARYING",
+    IntervalYear(Long.class, false, true, true, 8, 19, 0, 0, 0),
+    IntervalQuarter(Long.class, false, true, true, 8, 19, 0, 0, 0),
+    IntervalMonth(Long.class, false, true, true, 8, 19, 0, 0, 0),
+    IntervalWeek(Long.class, false, true, true, 8, 19, 0, 0, 0),
+    IntervalDay(Long.class, false, true, true, 8, 19, 0, 0, 0),
+    IntervalHour(Long.class, false, true, true, 8, 19, 0, 0, 0),
+    IntervalMinute(Long.class, false, true, true, 8, 19, 0, 0, 0),
+    IntervalSecond(Long.class, false, true, true, 8, 19, 0, 0, 0),
+    UInt8(Short.class, false, true, false, 1, 3, 0, 0, 0, "INT1 UNSIGNED", "TINYINT UNSIGNED"),
+    UInt16(Integer.class, false, true, false, 2, 5, 0, 0, 0, "SMALLINT UNSIGNED"),
+    UInt32(Long.class, false, true, false, 4, 10, 0, 0, 0, "INT UNSIGNED", "INTEGER UNSIGNED", "MEDIUMINT UNSIGNED"),
+    UInt64(Long.class, false, true, false, 8, 20, 0, 0, 0, "BIGINT UNSIGNED"),
+    UInt128(BigInteger.class, false, true, false, 16, 39, 0, 0, 0),
+    UInt256(BigInteger.class, false, true, false, 32, 78, 0, 0, 0), Int8(Byte.class, false, true, true, 1, 3, 0, 0, 0,
+            "BOOL", "BOOLEAN", "BYTE", "INT1", "INT1 SIGNED", "TINYINT", "TINYINT SIGNED"),
+    Int16(Short.class, false, true, true, 2, 5, 0, 0, 0, "SMALLINT", "SMALLINT SIGNED"),
+    Int32(Integer.class, false, true, true, 4, 10, 0, 0, 0, "INT", "INTEGER", "MEDIUMINT", "INT SIGNED",
+            "INTEGER SIGNED", "MEDIUMINT SIGNED"),
+    Int64(Long.class, false, true, true, 8, 19, 0, 0, 0, "BIGINT", "BIGINT SIGNED"),
+    Int128(BigInteger.class, false, true, true, 16, 39, 0, 0, 0),
+    Int256(BigInteger.class, false, true, true, 32, 77, 0, 0, 0),
+    Date(LocalDate.class, false, false, false, 2, 10, 0, 0, 0),
+    Date32(LocalDate.class, false, false, false, 4, 10, 0, 0, 0),
+    DateTime(LocalDateTime.class, true, false, false, 0, 29, 0, 0, 9, "TIMESTAMP"),
+    DateTime32(LocalDateTime.class, true, false, false, 4, 19, 0, 0, 0),
+    DateTime64(LocalDateTime.class, true, false, false, 8, 29, 3, 0, 9),
+    Decimal(BigDecimal.class, true, false, true, 0, 76, 0, 0, 76, "DEC", "NUMERIC", "FIXED"),
+    Decimal32(BigDecimal.class, true, false, true, 4, 9, 9, 0, 9),
+    Decimal64(BigDecimal.class, true, false, true, 8, 18, 18, 0, 18),
+    Decimal128(BigDecimal.class, true, false, true, 16, 38, 38, 0, 38),
+    Decimal256(BigDecimal.class, true, false, true, 32, 76, 20, 0, 76),
+    UUID(UUID.class, false, true, false, 16, 69, 0, 0, 0), Enum(String.class, true, true, false, 1, 0, 0, 0, 0),
+    Enum8(String.class, true, true, false, 1, 0, 0, 0, 0), Enum16(String.class, true, true, false, 2, 0, 0, 0, 0),
+    Float32(Float.class, false, true, true, 4, 12, 0, 0, 38, "FLOAT", "REAL", "SINGLE"),
+    Float64(Double.class, false, true, true, 16, 22, 0, 0, 308, "DOUBLE", "DOUBLE PRECISION"),
+    IPv4(Inet4Address.class, false, true, false, 4, 0, 0, 0, 0, "INET4"),
+    IPv6(Inet6Address.class, false, true, false, 16, 0, 0, 0, 0, "INET6"),
+    FixedString(String.class, true, true, false, 0, 0, 0, 0, 0, "BINARY"),
+    String(String.class, false, true, false, 0, 0, 0, 0, 0, "BINARY LARGE OBJECT", "BINARY VARYING", "BLOB", "BYTEA",
+            "CHAR", "CHAR LARGE OBJECT", "CHAR VARYING", "CHARACTER", "CHARACTER LARGE OBJECT", "CHARACTER VARYING",
+            "CLOB", "LONGBLOB", "LONGTEXT", "MEDIUMBLOB", "MEDIUMTEXT", "NATIONAL CHAR", "NATIONAL CHAR VARYING",
             "NATIONAL CHARACTER", "NATIONAL CHARACTER LARGE OBJECT", "NATIONAL CHARACTER VARYING", "NCHAR",
             "NCHAR LARGE OBJECT", "NCHAR VARYING", "NVARCHAR", "TEXT", "TINYBLOB", "TINYTEXT", "VARCHAR", "VARCHAR2"),
-    AggregateFunction(String.class, true, true, false, 0, 0, 0), // implementation-defined intermediate state
-    Array(Object.class, true, true, false, 0, 0, 0), Map(Map.class, true, true, false, 0, 0, 0),
-    Nested(Object.class, true, true, false, 0, 0, 0), Tuple(List.class, true, true, false, 0, 0, 0),
-    Point(Object.class, false, true, true, 33, 17, 17), // same as Tuple(Float64, Float64)
-    Polygon(Object.class, false, true, true, 0, 0, 0), // same as Array(Ring)
-    MultiPolygon(Object.class, false, true, true, 0, 0, 0), // same as Array(Polygon)
-    Ring(Object.class, false, true, true, 0, 0, 0), // same as Array(Point)
-    Nothing(Object.class, false, true, false, 0, 0, 0);
+    AggregateFunction(String.class, true, true, false, 0, 0, 0, 0, 0), // implementation-defined intermediate state
+    Array(Object.class, true, true, false, 0, 0, 0, 0, 0), Map(Map.class, true, true, false, 0, 0, 0, 0, 0),
+    Nested(Object.class, true, true, false, 0, 0, 0, 0, 0), Tuple(List.class, true, true, false, 0, 0, 0, 0, 0),
+    Point(Object.class, false, true, true, 33, 0, 0, 0, 0), // same as Tuple(Float64, Float64)
+    Polygon(Object.class, false, true, true, 0, 0, 0, 0, 0), // same as Array(Ring)
+    MultiPolygon(Object.class, false, true, true, 0, 0, 0, 0, 0), // same as Array(Polygon)
+    Ring(Object.class, false, true, true, 0, 0, 0, 0, 0), // same as Array(Point)
+    Nothing(Object.class, false, true, false, 0, 0, 0, 0, 0);
 
     /**
      * Immutable set(sorted) for all aliases.
@@ -180,24 +187,84 @@ public enum ClickHouseDataType {
         return type;
     }
 
-    private final Class<?> javaClass;
+    /**
+     * Converts given Java class to wrapper object(e.g. {@code int.class} to
+     * {@code Integer.class}) if applicable.
+     *
+     * @param javaClass Java class
+     * @return wrapper object
+     */
+    public static Class<?> toObjectType(Class<?> javaClass) {
+        if (byte.class == javaClass || boolean.class == javaClass || Boolean.class == javaClass) {
+            javaClass = Byte.class;
+        } else if (short.class == javaClass) {
+            javaClass = Short.class;
+        } else if (int.class == javaClass || char.class == javaClass || Character.class == javaClass) {
+            javaClass = Integer.class;
+        } else if (long.class == javaClass) {
+            javaClass = Long.class;
+        } else if (float.class == javaClass) {
+            javaClass = Float.class;
+        } else if (double.class == javaClass) {
+            javaClass = Double.class;
+        } else if (javaClass == null) {
+            javaClass = Object.class;
+        }
+
+        return javaClass;
+    }
+
+    /**
+     * Converts given Java class to primitive types(e.g. {@code Integer.class} to
+     * {@code int.class}) if applicable.
+     *
+     * @param javaClass Java class
+     * @return primitive type
+     */
+    public static Class<?> toPrimitiveType(Class<?> javaClass) {
+        if (Byte.class == javaClass || Boolean.class == javaClass || boolean.class == javaClass) {
+            javaClass = byte.class;
+        } else if (Short.class == javaClass) {
+            javaClass = short.class;
+        } else if (Integer.class == javaClass || Character.class == javaClass || char.class == javaClass) {
+            javaClass = int.class;
+        } else if (Long.class == javaClass) {
+            javaClass = long.class;
+        } else if (Float.class == javaClass) {
+            javaClass = float.class;
+        } else if (Double.class == javaClass) {
+            javaClass = double.class;
+        } else if (javaClass == null) {
+            javaClass = Object.class;
+        }
+
+        return javaClass;
+    }
+
+    private final Class<?> objectType;
+    private final Class<?> primitiveType;
     private final boolean parameter;
     private final boolean caseSensitive;
     private final boolean signed;
     private final List<String> aliases;
     private final int byteLength;
-    private final int defaultPrecision;
+    private final int maxPrecision;
     private final int defaultScale;
+    private final int minScale;
+    private final int maxScale;
 
     ClickHouseDataType(Class<?> javaClass, boolean parameter, boolean caseSensitive, boolean signed, int byteLength,
-            int defaultPrecision, int defaultScale, String... aliases) {
-        this.javaClass = javaClass == null ? Object.class : javaClass;
+            int maxPrecision, int defaultScale, int minScale, int maxScale, String... aliases) {
+        this.objectType = toObjectType(javaClass);
+        this.primitiveType = toPrimitiveType(javaClass);
         this.parameter = parameter;
         this.caseSensitive = caseSensitive;
         this.signed = signed;
         this.byteLength = byteLength;
-        this.defaultPrecision = defaultPrecision;
+        this.maxPrecision = maxPrecision;
         this.defaultScale = defaultScale;
+        this.minScale = minScale;
+        this.maxScale = maxScale;
         if (aliases == null || aliases.length == 0) {
             this.aliases = Collections.emptyList();
         } else {
@@ -206,12 +273,23 @@ public enum ClickHouseDataType {
     }
 
     /**
-     * Gets Java class for this data type.
+     * Gets Java class for this data type. Prefer wrapper objects to primitives(e.g.
+     * {@code Integer.class} instead of {@code int.class}).
      *
      * @return Java class
      */
-    public Class<?> getJavaClass() {
-        return javaClass;
+    public Class<?> getObjectClass() {
+        return objectType;
+    }
+
+    /**
+     * Gets Java class for this data type. Prefer primitives to wrapper objects(e.g.
+     * {@code int.class} instead of {@code Integer.class}).
+     *
+     * @return Java class
+     */
+    public Class<?> getPrimitiveClass() {
+        return primitiveType;
     }
 
     /**
@@ -269,13 +347,13 @@ public enum ClickHouseDataType {
     }
 
     /**
-     * Gets default precision of this data type. Zero means unknown or not
+     * Gets maximum precision of this data type. Zero means unknown or not
      * supported.
      *
-     * @return default precision of this data type.
+     * @return maximum precision of this data type.
      */
-    public int getDefaultPrecision() {
-        return defaultPrecision;
+    public int getMaxPrecision() {
+        return maxPrecision;
     }
 
     /**
@@ -285,5 +363,23 @@ public enum ClickHouseDataType {
      */
     public int getDefaultScale() {
         return defaultScale;
+    }
+
+    /**
+     * Gets minimum scale of this data type. Zero means unknown or not supported.
+     *
+     * @return minimum scale of this data type.
+     */
+    public int getMinScale() {
+        return minScale;
+    }
+
+    /**
+     * Gets maximum scale of this data type. Zero means unknown or not supported.
+     *
+     * @return maximum scale of this data type.
+     */
+    public int getMaxScale() {
+        return maxScale;
     }
 }

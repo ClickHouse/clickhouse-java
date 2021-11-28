@@ -1,5 +1,6 @@
 package com.clickhouse.client;
 
+import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import org.testng.Assert;
@@ -106,5 +107,45 @@ public class ClickHouseColumnTest {
         Assert.assertEquals(list.size(), 2);
         list = ClickHouseColumn.parse("a String default 'cc', b String null");
         Assert.assertEquals(list.size(), 2);
+    }
+
+    @Test(groups = { "unit" })
+    public void testAggregationFunction() throws Exception {
+        ClickHouseColumn column = ClickHouseColumn.of("aggFunc", "AggregateFunction(groupBitmap, UInt32)");
+        Assert.assertTrue(column.isAggregateFunction());
+        Assert.assertEquals(column.getDataType(), ClickHouseDataType.AggregateFunction);
+        Assert.assertEquals(column.getAggregateFunction(), ClickHouseAggregateFunction.groupBitmap);
+        Assert.assertEquals(column.getFunction(), "groupBitmap");
+        Assert.assertEquals(column.getNestedColumns(), Collections.singletonList(ClickHouseColumn.of("", "UInt32")));
+
+        column = ClickHouseColumn.of("aggFunc", "AggregateFunction(quantiles(0.5, 0.9), Nullable(UInt64))");
+        Assert.assertTrue(column.isAggregateFunction());
+        Assert.assertEquals(column.getDataType(), ClickHouseDataType.AggregateFunction);
+        Assert.assertEquals(column.getAggregateFunction(), ClickHouseAggregateFunction.quantiles);
+        Assert.assertEquals(column.getFunction(), "quantiles(0.5,0.9)");
+        Assert.assertEquals(column.getNestedColumns(),
+                Collections.singletonList(ClickHouseColumn.of("", "Nullable(UInt64)")));
+    }
+
+    @Test(groups = { "unit" })
+    public void testArray() throws Exception {
+        ClickHouseColumn column = ClickHouseColumn.of("arr",
+                "Array(Array(Array(Array(Array(Map(LowCardinality(String), Tuple(Array(UInt8),LowCardinality(String))))))))");
+        Assert.assertTrue(column.isArray());
+        Assert.assertEquals(column.getDataType(), ClickHouseDataType.Array);
+        Assert.assertEquals(column.getArrayNestedLevel(), 5);
+        Assert.assertEquals(column.getArrayBaseColumn().getOriginalTypeName(),
+                "Map(LowCardinality(String), Tuple(Array(UInt8),LowCardinality(String)))");
+        Assert.assertFalse(column.getArrayBaseColumn().isArray());
+
+        Assert.assertEquals(column.getArrayBaseColumn().getArrayNestedLevel(), 0);
+        Assert.assertEquals(column.getArrayBaseColumn().getArrayBaseColumn(), null);
+
+        ClickHouseColumn c = ClickHouseColumn.of("arr", "Array(LowCardinality(Nullable(String)))");
+        Assert.assertTrue(c.isArray());
+        Assert.assertEquals(c.getDataType(), ClickHouseDataType.Array);
+        Assert.assertEquals(c.getArrayNestedLevel(), 1);
+        Assert.assertEquals(c.getArrayBaseColumn().getOriginalTypeName(), "LowCardinality(Nullable(String))");
+        Assert.assertFalse(c.getArrayBaseColumn().isArray());
     }
 }

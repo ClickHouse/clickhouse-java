@@ -46,7 +46,6 @@ public class ClickHousePipedStream extends OutputStream {
             }
         }
 
-        @SuppressWarnings("squid:S2142")
         private int updateBuffer() throws IOException {
             try {
                 if (timeout > 0) {
@@ -60,6 +59,7 @@ public class ClickHousePipedStream extends OutputStream {
 
                 return buffer.remaining();
             } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
                 throw new IOException("Thread was interrupted when getting next buffer from queue", e);
             }
         }
@@ -186,7 +186,6 @@ public class ClickHousePipedStream extends OutputStream {
         }
     }
 
-    @SuppressWarnings("squid:S2142")
     private void updateBuffer() throws IOException {
         if (buffer.position() > 0) {
             if (buffer.hasRemaining()) {
@@ -203,6 +202,7 @@ public class ClickHousePipedStream extends OutputStream {
                     queue.put(buffer);
                 }
             } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
                 throw new IOException("Thread was interrupted when putting buffer into queue", e);
             }
 
@@ -215,7 +215,6 @@ public class ClickHousePipedStream extends OutputStream {
     }
 
     @Override
-    @SuppressWarnings("squid:S2142")
     public void close() throws IOException {
         if (this.closed) {
             return;
@@ -233,6 +232,7 @@ public class ClickHousePipedStream extends OutputStream {
                 queue.put(buffer);
             }
         } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
             throw new IOException("Thread was interrupted when putting EMPTY buffer into queue", e);
         }
         this.closed = true;

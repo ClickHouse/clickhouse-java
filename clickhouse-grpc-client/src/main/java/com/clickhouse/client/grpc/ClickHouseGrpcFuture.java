@@ -1,5 +1,6 @@
 package com.clickhouse.client.grpc;
 
+import java.io.IOException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -13,7 +14,6 @@ import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.ClickHouseUtils;
-import com.clickhouse.client.exception.ClickHouseException;
 import com.clickhouse.client.grpc.impl.QueryInfo;
 
 @Deprecated
@@ -80,8 +80,8 @@ public class ClickHouseGrpcFuture implements Future<ClickHouseResponse> {
         }
 
         try {
-            return new ClickHouseGrpcResponse(request.getConfig(), server, request.getSettings(), responseObserver);
-        } catch (ClickHouseException e) {
+            return new ClickHouseGrpcResponse(request.getConfig(), request.getSettings(), responseObserver);
+        } catch (IOException e) {
             throw new ExecutionException(e);
         }
     }

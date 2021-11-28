@@ -4,20 +4,25 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.Reader;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
+import java.nio.channels.Channels;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneOffset;
+import java.util.TimeZone;
 import java.util.concurrent.TimeUnit;
 import com.clickhouse.client.ClickHouseChecker;
+import com.clickhouse.client.ClickHouseDataType;
 import com.clickhouse.client.ClickHouseUtils;
 import com.clickhouse.client.ClickHouseValues;
 
@@ -166,20 +171,20 @@ public final class BinaryStreamUtils {
     }
 
     /**
-     * Read {@code size} bytes from given input stream. It behaves in the same way
-     * as {@link java.io.DataInput#readFully(byte[])}.
+     * Reads {@code length} bytes from given input stream. It behaves in the same
+     * way as {@link java.io.DataInput#readFully(byte[])}.
      *
-     * @param input input stream
-     * @param size  number of bytes to read
-     * @return byte array and its length should be {@code size}
+     * @param input  non-null input stream
+     * @param length number of bytes to read
+     * @return byte array and its length should be {@code length}
      * @throws IOException when failed to read value from input stream, not able to
      *                     retrieve all bytes, or reached end of the stream
      */
-    public static byte[] readBytes(InputStream input, int size) throws IOException {
+    public static byte[] readBytes(InputStream input, int length) throws IOException {
         int count = 0;
-        byte[] bytes = new byte[size];
-        while (count < size) {
-            int n = input.read(bytes, count, size - count);
+        byte[] bytes = new byte[length];
+        while (count < length) {
+            int n = input.read(bytes, count, length - count);
             if (n < 0) {
                 try {
                     input.close();
@@ -189,12 +194,95 @@ public final class BinaryStreamUtils {
 
                 throw count == 0 ? new EOFException()
                         : new IOException(ClickHouseUtils
-                                .format("Reached end of input stream after reading %d of %d bytes", count, size));
+                                .format("Reached end of input stream after reading %d of %d bytes", count, length));
             }
             count += n;
         }
 
         return bytes;
+    }
+
+    /**
+     * Writes bytes into given output stream.
+     *
+     * @param output non-null output stream
+     * @param buffer non-null byte buffer
+     * @throws IOException when failed to write value to output stream or reached
+     *                     end of the stream
+     */
+    @SuppressWarnings("squid:S2095")
+    public static void writeByteBuffer(OutputStream output, ByteBuffer buffer) throws IOException {
+        Channels.newChannel(output).write(buffer);
+    }
+
+    /**
+     * Reads bitmap from given input stream. It behaves in a similar way as
+     * {@link java.io.DataInput#readFully(byte[])}.
+     *
+     * @param input    non-null input
+     * @param dataType number of characters to read
+     * @return non-null bitmap wrapper class
+     * @throws IOException when failed to read value from input stream, not able to
+     *                     retrieve all bytes, or reached end of the stream
+     */
+    public static ClickHouseBitmap readBitmap(InputStream input, ClickHouseDataType dataType) throws IOException {
+        return ClickHouseBitmap.deserialize(input, dataType);
+    }
+
+    /**
+     * Writes bitmap into given output stream.
+     *
+     * @param output non-null output stream
+     * @param bitmap non-null bitmap
+     * @throws IOException when failed to write value to output stream or reached
+     *                     end of the stream
+     */
+    public static void writeBitmap(OutputStream output, ClickHouseBitmap bitmap) throws IOException {
+        writeByteBuffer(output, bitmap.toByteBuffer());
+    }
+
+    /**
+     * Writes bytes into given output stream.
+     *
+     * @param output non-null output stream
+     * @param bytes  non-null byte array
+     * @throws IOException when failed to write value to output stream or reached
+     *                     end of the stream
+     */
+    public static void writeBytes(OutputStream output, byte[] bytes) throws IOException {
+        output.write(bytes);
+    }
+
+    /**
+     * Reads {@code length} characters from given reader. It behaves in a similar
+     * way as {@link java.io.DataInput#readFully(byte[])}.
+     *
+     * @param input  non-null reader
+     * @param length number of characters to read
+     * @return character array and its length should be {@code length}
+     * @throws IOException when failed to read value from input stream, not able to
+     *                     retrieve all bytes, or reached end of the stream
+     */
+    public static char[] readCharacters(Reader input, int length) throws IOException {
+        int count = 0;
+        char[] chars = new char[length];
+        while (count < length) {
+            int n = input.read(chars, count, length - count);
+            if (n < 0) {
+                try {
+                    input.close();
+                } catch (IOException e) {
+                    // ignore
+                }
+
+                throw count == 0 ? new EOFException()
+                        : new IOException(ClickHouseUtils
+                                .format("Reached end of reader after reading %d of %d characters", count, length));
+            }
+            count += n;
+        }
+
+        return chars;
     }
 
     /**
@@ -1024,11 +1112,11 @@ public final class BinaryStreamUtils {
     public static BigDecimal readDecimal(InputStream input, int precision, int scale) throws IOException {
         BigDecimal v;
 
-        if (precision <= 9) {
+        if (precision <= ClickHouseDataType.Decimal32.getMaxScale()) {
             v = readDecimal32(input, scale);
-        } else if (precision <= 18) {
+        } else if (precision <= ClickHouseDataType.Decimal64.getMaxScale()) {
             v = readDecimal64(input, scale);
-        } else if (precision <= 38) {
+        } else if (precision <= ClickHouseDataType.Decimal128.getMaxScale()) {
             v = readDecimal128(input, scale);
         } else {
             v = readDecimal256(input, scale);
@@ -1050,11 +1138,11 @@ public final class BinaryStreamUtils {
      */
     public static void writeDecimal(OutputStream output, BigDecimal value, int precision, int scale)
             throws IOException {
-        if (precision > 38) {
+        if (precision > ClickHouseDataType.Decimal128.getMaxScale()) {
             writeDecimal256(output, value, scale);
-        } else if (precision > 18) {
+        } else if (precision > ClickHouseDataType.Decimal64.getMaxScale()) {
             writeDecimal128(output, value, scale);
-        } else if (precision > 9) {
+        } else if (precision > ClickHouseDataType.Decimal32.getMaxScale()) {
             writeDecimal64(output, value, scale);
         } else {
             writeDecimal32(output, value, scale);
@@ -1071,8 +1159,8 @@ public final class BinaryStreamUtils {
      *                     end of the stream
      */
     public static BigDecimal readDecimal32(InputStream input, int scale) throws IOException {
-        return BigDecimal.valueOf(readInt32(input),
-                ClickHouseChecker.between(scale, ClickHouseValues.PARAM_SCALE, 0, 9));
+        return BigDecimal.valueOf(readInt32(input), ClickHouseChecker.between(scale, ClickHouseValues.PARAM_SCALE, 0,
+                ClickHouseDataType.Decimal32.getMaxScale()));
     }
 
     /**
@@ -1088,8 +1176,8 @@ public final class BinaryStreamUtils {
     public static void writeDecimal32(OutputStream output, BigDecimal value, int scale) throws IOException {
         writeInt32(output,
                 ClickHouseChecker.between(
-                        value.multiply(BigDecimal.TEN
-                                .pow(ClickHouseChecker.between(scale, ClickHouseValues.PARAM_SCALE, 0, 9))),
+                        value.multiply(BigDecimal.TEN.pow(ClickHouseChecker.between(scale, ClickHouseValues.PARAM_SCALE,
+                                0, ClickHouseDataType.Decimal32.getMaxScale()))),
                         ClickHouseValues.TYPE_BIG_DECIMAL, DECIMAL32_MIN, DECIMAL32_MAX).intValue());
     }
 
@@ -1103,8 +1191,8 @@ public final class BinaryStreamUtils {
      *                     end of the stream
      */
     public static BigDecimal readDecimal64(InputStream input, int scale) throws IOException {
-        return BigDecimal.valueOf(readInt64(input),
-                ClickHouseChecker.between(scale, ClickHouseValues.PARAM_SCALE, 0, 18));
+        return BigDecimal.valueOf(readInt64(input), ClickHouseChecker.between(scale, ClickHouseValues.PARAM_SCALE, 0,
+                ClickHouseDataType.Decimal64.getMaxScale()));
     }
 
     /**
@@ -1120,8 +1208,9 @@ public final class BinaryStreamUtils {
     public static void writeDecimal64(OutputStream output, BigDecimal value, int scale) throws IOException {
         writeInt64(output,
                 ClickHouseChecker.between(
-                        ClickHouseChecker.between(scale, ClickHouseValues.PARAM_SCALE, 0, 18) == 0 ? value
-                                : value.multiply(BigDecimal.TEN.pow(scale)),
+                        ClickHouseChecker.between(scale, ClickHouseValues.PARAM_SCALE, 0,
+                                ClickHouseDataType.Decimal64.getMaxScale()) == 0 ? value
+                                        : value.multiply(BigDecimal.TEN.pow(scale)),
                         ClickHouseValues.TYPE_BIG_DECIMAL, DECIMAL64_MIN, DECIMAL64_MAX).longValue());
     }
 
@@ -1135,7 +1224,8 @@ public final class BinaryStreamUtils {
      *                     end of the stream
      */
     public static BigDecimal readDecimal128(InputStream input, int scale) throws IOException {
-        return new BigDecimal(readInt128(input), ClickHouseChecker.between(scale, ClickHouseValues.PARAM_SCALE, 0, 38));
+        return new BigDecimal(readInt128(input), ClickHouseChecker.between(scale, ClickHouseValues.PARAM_SCALE, 0,
+                ClickHouseDataType.Decimal128.getMaxScale()));
     }
 
     /**
@@ -1151,8 +1241,9 @@ public final class BinaryStreamUtils {
     public static void writeDecimal128(OutputStream output, BigDecimal value, int scale) throws IOException {
         writeInt128(output,
                 ClickHouseChecker.between(
-                        ClickHouseChecker.between(scale, ClickHouseValues.PARAM_SCALE, 0, 38) == 0 ? value
-                                : value.multiply(BigDecimal.TEN.pow(scale)),
+                        ClickHouseChecker.between(scale, ClickHouseValues.PARAM_SCALE, 0,
+                                ClickHouseDataType.Decimal128.getMaxScale()) == 0 ? value
+                                        : value.multiply(BigDecimal.TEN.pow(scale)),
                         ClickHouseValues.TYPE_BIG_DECIMAL, DECIMAL128_MIN, DECIMAL128_MAX).toBigInteger());
     }
 
@@ -1166,7 +1257,8 @@ public final class BinaryStreamUtils {
      *                     end of the stream
      */
     public static BigDecimal readDecimal256(InputStream input, int scale) throws IOException {
-        return new BigDecimal(readInt256(input), ClickHouseChecker.between(scale, ClickHouseValues.PARAM_SCALE, 0, 76));
+        return new BigDecimal(readInt256(input), ClickHouseChecker.between(scale, ClickHouseValues.PARAM_SCALE, 0,
+                ClickHouseDataType.Decimal256.getMaxScale()));
     }
 
     /**
@@ -1182,8 +1274,9 @@ public final class BinaryStreamUtils {
     public static void writeDecimal256(OutputStream output, BigDecimal value, int scale) throws IOException {
         writeInt256(output,
                 ClickHouseChecker.between(
-                        ClickHouseChecker.between(scale, ClickHouseValues.PARAM_SCALE, 0, 76) == 0 ? value
-                                : value.multiply(BigDecimal.TEN.pow(scale)),
+                        ClickHouseChecker.between(scale, ClickHouseValues.PARAM_SCALE, 0,
+                                ClickHouseDataType.Decimal256.getMaxScale()) == 0 ? value
+                                        : value.multiply(BigDecimal.TEN.pow(scale)),
                         ClickHouseValues.TYPE_BIG_DECIMAL, DECIMAL256_MIN, DECIMAL256_MAX).toBigInteger());
     }
 
@@ -1191,11 +1284,12 @@ public final class BinaryStreamUtils {
      * Read {@link java.time.LocalDate} from given input stream.
      *
      * @param input non-null input stream
+     * @param tz    time zone, null is treated as UTC
      * @return local date
      * @throws IOException when failed to read value from input stream or reached
      *                     end of the stream
      */
-    public static LocalDate readDate(InputStream input) throws IOException {
+    public static LocalDate readDate(InputStream input, TimeZone tz) throws IOException {
         return LocalDate.ofEpochDay(readUnsignedInt16(input));
     }
 
@@ -1204,10 +1298,11 @@ public final class BinaryStreamUtils {
      *
      * @param output non-null output stream
      * @param value  local date
+     * @param tz     time zone, null is treated as UTC
      * @throws IOException when failed to write value to output stream or reached
      *                     end of the stream
      */
-    public static void writeDate(OutputStream output, LocalDate value) throws IOException {
+    public static void writeDate(OutputStream output, LocalDate value, TimeZone tz) throws IOException {
         int days = (int) value.toEpochDay();
         writeUnsignedInt16(output, ClickHouseChecker.between(days, ClickHouseValues.TYPE_DATE, 0, U_INT16_MAX));
     }
@@ -1216,11 +1311,12 @@ public final class BinaryStreamUtils {
      * Read {@link java.time.LocalDate} from given input stream.
      *
      * @param input non-null input stream
+     * @param tz    time zone, null is treated as UTC
      * @return local date
      * @throws IOException when failed to read value from input stream or reached
      *                     end of the stream
      */
-    public static LocalDate readDate32(InputStream input) throws IOException {
+    public static LocalDate readDate32(InputStream input, TimeZone tz) throws IOException {
         return LocalDate.ofEpochDay(readInt32(input));
     }
 
@@ -1229,10 +1325,11 @@ public final class BinaryStreamUtils {
      *
      * @param output non-null output stream
      * @param value  local date
+     * @param tz     time zone, null is treated as UTC
      * @throws IOException when failed to write value to output stream or reached
      *                     end of the stream
      */
-    public static void writeDate32(OutputStream output, LocalDate value) throws IOException {
+    public static void writeDate32(OutputStream output, LocalDate value, TimeZone tz) throws IOException {
         writeInt32(output, ClickHouseChecker.between((int) value.toEpochDay(), ClickHouseValues.TYPE_DATE, DATE32_MIN,
                 DATE32_MAX));
     }
@@ -1241,12 +1338,13 @@ public final class BinaryStreamUtils {
      * Read {@link java.time.LocalDateTime} from given input stream.
      *
      * @param input non-null input stream
+     * @param tz    time zone, null is treated as UTC
      * @return local datetime
      * @throws IOException when failed to read value from input stream or reached
      *                     end of the stream
      */
-    public static LocalDateTime readDateTime(InputStream input) throws IOException {
-        return readDateTime(input, 0);
+    public static LocalDateTime readDateTime(InputStream input, TimeZone tz) throws IOException {
+        return readDateTime(input, 0, tz);
     }
 
     /**
@@ -1254,13 +1352,15 @@ public final class BinaryStreamUtils {
      *
      * @param input non-null input stream
      * @param scale scale of the datetime, must between 0 and 9 inclusive
+     * @param tz    time zone, null is treated as UTC
      * @return local datetime
      * @throws IOException when failed to read value from input stream or reached
      *                     end of the stream
      */
-    public static LocalDateTime readDateTime(InputStream input, int scale) throws IOException {
-        return ClickHouseChecker.between(scale, ClickHouseValues.PARAM_SCALE, 0, 9) == 0 ? readDateTime32(input)
-                : readDateTime64(input, scale);
+    public static LocalDateTime readDateTime(InputStream input, int scale, TimeZone tz) throws IOException {
+        return ClickHouseChecker.between(scale, ClickHouseValues.PARAM_SCALE, 0,
+                ClickHouseDataType.DateTime64.getMaxScale()) == 0 ? readDateTime32(input, tz)
+                        : readDateTime64(input, scale, tz);
     }
 
     /**
@@ -1268,11 +1368,12 @@ public final class BinaryStreamUtils {
      *
      * @param output non-null output stream
      * @param value  local datetime
+     * @param tz     time zone, null is treated as UTC
      * @throws IOException when failed to write value to output stream or reached
      *                     end of the stream
      */
-    public static void writeDateTime(OutputStream output, LocalDateTime value) throws IOException {
-        writeDateTime(output, value, 0);
+    public static void writeDateTime(OutputStream output, LocalDateTime value, TimeZone tz) throws IOException {
+        writeDateTime(output, value, 0, tz);
     }
 
     /**
@@ -1281,14 +1382,17 @@ public final class BinaryStreamUtils {
      * @param output non-null output stream
      * @param value  local datetime
      * @param scale  scale of the datetime, must between 0 and 9 inclusive
+     * @param tz     time zone, null is treated as UTC
      * @throws IOException when failed to write value to output stream or reached
      *                     end of the stream
      */
-    public static void writeDateTime(OutputStream output, LocalDateTime value, int scale) throws IOException {
-        if (ClickHouseChecker.between(scale, ClickHouseValues.PARAM_SCALE, 0, 9) == 0) {
-            writeDateTime32(output, value);
+    public static void writeDateTime(OutputStream output, LocalDateTime value, int scale, TimeZone tz)
+            throws IOException {
+        if (ClickHouseChecker.between(scale, ClickHouseValues.PARAM_SCALE, 0,
+                ClickHouseDataType.DateTime64.getMaxScale()) == 0) {
+            writeDateTime32(output, value, tz);
         } else {
-            writeDateTime64(output, value, scale);
+            writeDateTime64(output, value, scale, tz);
         }
     }
 
@@ -1296,14 +1400,16 @@ public final class BinaryStreamUtils {
      * Read {@link java.time.LocalDateTime} from given input stream.
      *
      * @param input non-null input stream
+     * @param tz    time zone, null is treated as UTC
      * @return local datetime
      * @throws IOException when failed to read value from input stream or reached
      *                     end of the stream
      */
-    public static LocalDateTime readDateTime32(InputStream input) throws IOException {
+    public static LocalDateTime readDateTime32(InputStream input, TimeZone tz) throws IOException {
         long time = readUnsignedInt32(input);
 
-        return LocalDateTime.ofEpochSecond(time < 0L ? 0L : time, 0, ZoneOffset.UTC);
+        return LocalDateTime.ofInstant(Instant.ofEpochSecond(time < 0L ? 0L : time),
+                tz != null ? tz.toZoneId() : ClickHouseValues.UTC_ZONE);
     }
 
     /**
@@ -1311,11 +1417,13 @@ public final class BinaryStreamUtils {
      *
      * @param output non-null output stream
      * @param value  local datetime
+     * @param tz     time zone, null is treated as UTC
      * @throws IOException when failed to write value to output stream or reached
      *                     end of the stream
      */
-    public static void writeDateTime32(OutputStream output, LocalDateTime value) throws IOException {
-        long time = value.toEpochSecond(ZoneOffset.UTC);
+    public static void writeDateTime32(OutputStream output, LocalDateTime value, TimeZone tz) throws IOException {
+        long time = tz == null || tz.equals(ClickHouseValues.UTC_TIMEZONE) ? value.toEpochSecond(ZoneOffset.UTC)
+                : value.atZone(tz.toZoneId()).toEpochSecond();
 
         writeUnsignedInt32(output, ClickHouseChecker.between(time, ClickHouseValues.TYPE_DATE_TIME, 0L, DATETIME_MAX));
     }
@@ -1325,12 +1433,13 @@ public final class BinaryStreamUtils {
      * {@code readDateTime64(input, 3)}.
      * 
      * @param input non-null input stream
+     * @param tz    time zone, null is treated as UTC
      * @return local datetime
      * @throws IOException when failed to read value from input stream or reached
      *                     end of the stream
      */
-    public static LocalDateTime readDateTime64(InputStream input) throws IOException {
-        return readDateTime64(input, 3);
+    public static LocalDateTime readDateTime64(InputStream input, TimeZone tz) throws IOException {
+        return readDateTime64(input, 3, tz);
     }
 
     /**
@@ -1338,11 +1447,12 @@ public final class BinaryStreamUtils {
      *
      * @param input non-null input stream
      * @param scale scale of the datetime
+     * @param tz    time zone, null is treated as UTC
      * @return local datetime
      * @throws IOException when failed to read value from input stream or reached
      *                     end of the stream
      */
-    public static LocalDateTime readDateTime64(InputStream input, int scale) throws IOException {
+    public static LocalDateTime readDateTime64(InputStream input, int scale, TimeZone tz) throws IOException {
         long value = readInt64(input);
         int nanoSeconds = 0;
         if (ClickHouseChecker.between(scale, ClickHouseValues.PARAM_SCALE, 0, 9) > 0) {
@@ -1364,7 +1474,8 @@ public final class BinaryStreamUtils {
             }
         }
 
-        return LocalDateTime.ofEpochSecond(value, nanoSeconds, ZoneOffset.UTC);
+        return LocalDateTime.ofInstant(Instant.ofEpochSecond(value, nanoSeconds),
+                tz != null ? tz.toZoneId() : ClickHouseValues.UTC_ZONE);
     }
 
     /**
@@ -1373,11 +1484,12 @@ public final class BinaryStreamUtils {
      *
      * @param output non-null output stream
      * @param value  local datetime
+     * @param tz     time zone, null is treated as UTC
      * @throws IOException when failed to write value to output stream or reached
      *                     end of the stream
      */
-    public static void writeDateTime64(OutputStream output, LocalDateTime value) throws IOException {
-        writeDateTime64(output, value, 3);
+    public static void writeDateTime64(OutputStream output, LocalDateTime value, TimeZone tz) throws IOException {
+        writeDateTime64(output, value, 3, tz);
     }
 
     /**
@@ -1386,12 +1498,16 @@ public final class BinaryStreamUtils {
      * @param output non-null output stream
      * @param value  local datetime
      * @param scale  scale of the datetime, must between 0 and 9 inclusive
+     * @param tz     time zone, null is treated as UTC
      * @throws IOException when failed to write value to output stream or reached
      *                     end of the stream
      */
-    public static void writeDateTime64(OutputStream output, LocalDateTime value, int scale) throws IOException {
-        long v = ClickHouseChecker.between(value.toEpochSecond(ZoneOffset.UTC), ClickHouseValues.TYPE_DATE_TIME,
-                DATETIME64_MIN, DATETIME64_MAX);
+    public static void writeDateTime64(OutputStream output, LocalDateTime value, int scale, TimeZone tz)
+            throws IOException {
+        long v = ClickHouseChecker.between(
+                tz == null || tz.equals(ClickHouseValues.UTC_TIMEZONE) ? value.toEpochSecond(ZoneOffset.UTC)
+                        : value.atZone(tz.toZoneId()).toEpochSecond(),
+                ClickHouseValues.TYPE_DATE_TIME, DATETIME64_MIN, DATETIME64_MAX);
         if (ClickHouseChecker.between(scale, ClickHouseValues.PARAM_SCALE, 0, 9) > 0) {
             for (int i = 0; i < scale; i++) {
                 v *= 10;
@@ -1480,7 +1596,7 @@ public final class BinaryStreamUtils {
      *                     end of the stream
      */
     public static String readString(InputStream input) throws IOException {
-        return readString(input, null);
+        return readString(input, readVarInt(input), null);
     }
 
     /**
@@ -1493,7 +1609,34 @@ public final class BinaryStreamUtils {
      *                     end of the stream
      */
     public static String readString(InputStream input, Charset charset) throws IOException {
-        return new String(readBytes(input, readVarInt(input)), charset == null ? StandardCharsets.UTF_8 : charset);
+        return readString(input, readVarInt(input), charset);
+    }
+
+    /**
+     * Reads fixed string from given input stream.
+     *
+     * @param input   non-null input stream
+     * @param length  length in byte
+     * @param charset charset used to convert byte array to string, null means UTF-8
+     * @return string value
+     * @throws IOException when failed to read value from input stream or reached
+     *                     end of the stream
+     */
+    public static String readString(InputStream input, int length, Charset charset) throws IOException {
+        return new String(readBytes(input, length), charset == null ? StandardCharsets.UTF_8 : charset);
+    }
+
+    /**
+     * Reads characters from given reader.
+     *
+     * @param input  non-null reader
+     * @param length length in character
+     * @return string value
+     * @throws IOException when failed to read value from reader or reached end of
+     *                     the stream
+     */
+    public static String readString(Reader input, int length) throws IOException {
+        return new String(readCharacters(input, length));
     }
 
     /**

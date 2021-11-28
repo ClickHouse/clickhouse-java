@@ -45,7 +45,7 @@ public class ClickHouseFloatValueTest extends BaseClickHouseValueTest {
                 NumberFormatException.class, // Inet6Address
                 "NaN", // String
                 "NaN", // SQL Expression
-                LocalTime.ofSecondOfDay(0), // Time
+                NumberFormatException.class, // Time
                 NumberFormatException.class, // UUID
                 Object.class, // Key class
                 Float.class, // Value class
@@ -77,7 +77,7 @@ public class ClickHouseFloatValueTest extends BaseClickHouseValueTest {
                 NumberFormatException.class, // Inet6Address
                 "Infinity", // String
                 "Inf", // SQL Expression
-                DateTimeException.class, // Time
+                NumberFormatException.class, // Time
                 NumberFormatException.class, // UUID
                 Object.class, // Key class
                 Float.class, // Value class
@@ -109,7 +109,7 @@ public class ClickHouseFloatValueTest extends BaseClickHouseValueTest {
                 NumberFormatException.class, // Inet6Address
                 "-Infinity", // String
                 "-Inf", // SQL Expression
-                DateTimeException.class, // Time
+                NumberFormatException.class, // Time
                 NumberFormatException.class, // UUID
                 Object.class, // Key class
                 Float.class, // Value class
@@ -240,7 +240,7 @@ public class ClickHouseFloatValueTest extends BaseClickHouseValueTest {
                 Inet6Address.getAllByName("0:0:0:0:0:0:0:ff")[0], // Inet6Address
                 "-1.0", // String
                 "-1.0", // SQL Expression
-                java.time.DateTimeException.class, // Time
+                LocalTime.of(23, 59, 59), // Time
                 UUID.fromString("00000000-0000-0000-ffff-ffffffffffff"), // UUID
                 Object.class, // Key class
                 Float.class, // Value class

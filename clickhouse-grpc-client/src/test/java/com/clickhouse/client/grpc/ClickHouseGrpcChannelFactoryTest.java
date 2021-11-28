@@ -7,7 +7,7 @@ import com.clickhouse.client.ClickHouseClient;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseRequest;
-import com.clickhouse.client.grpc.config.ClickHouseGrpcClientOption;
+import com.clickhouse.client.grpc.config.ClickHouseGrpcOption;
 
 public class ClickHouseGrpcChannelFactoryTest extends BaseIntegrationTest {
     @Test(groups = { "integration" })
@@ -18,10 +18,10 @@ public class ClickHouseGrpcChannelFactoryTest extends BaseIntegrationTest {
             Assert.assertTrue(ClickHouseGrpcChannelFactory.getFactory(request.getConfig(),
                     server) instanceof NettyChannelFactoryImpl);
             Assert.assertTrue(ClickHouseGrpcChannelFactory.getFactory(
-                    request.option(ClickHouseGrpcClientOption.USE_OKHTTP, true).getConfig(),
+                    request.option(ClickHouseGrpcOption.USE_OKHTTP, true).getConfig(),
                     server) instanceof OkHttpChannelFactoryImpl);
             Assert.assertTrue(ClickHouseGrpcChannelFactory.getFactory(
-                    request.option(ClickHouseGrpcClientOption.USE_OKHTTP, false).getConfig(),
+                    request.option(ClickHouseGrpcOption.USE_OKHTTP, false).getConfig(),
                     server) instanceof NettyChannelFactoryImpl);
         }
     }

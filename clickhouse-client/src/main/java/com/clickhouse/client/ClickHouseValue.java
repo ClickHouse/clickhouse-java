@@ -1,6 +1,13 @@
 package com.clickhouse.client;
 
+import java.io.BufferedReader;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.Reader;
 import java.io.Serializable;
+import java.io.StringReader;
 import java.lang.reflect.Array;
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -11,7 +18,9 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -24,7 +33,8 @@ import java.util.UUID;
 /**
  * Wrapper of a value returned from ClickHouse. It could be as simple as one
  * single byte or in a complex structure like nested arrays. It also provides
- * convenient methods for type conversion.
+ * convenient methods for type conversion(e.g. use {@link #asDateTime()} to
+ * convert an integer to {@link java.time.LocalDateTime}).
  */
 public interface ClickHouseValue extends Serializable {
     /**
@@ -36,7 +46,7 @@ public interface ClickHouseValue extends Serializable {
      */
     default UnsupportedOperationException newUnsupportedException(String from, String to) {
         return new UnsupportedOperationException(
-                ClickHouseUtils.format("Converting %s to %s is not supported", from, to));
+                ClickHouseUtils.format("Converting [%s] to [%s] is not supported", from, to));
     }
 
     /**
@@ -98,7 +108,7 @@ public interface ClickHouseValue extends Serializable {
      */
     default Object[] asArray() {
         if (isNullOrEmpty()) {
-            return ClickHouseValues.EMPTY_ARRAY;
+            return ClickHouseValues.EMPTY_OBJECT_ARRAY;
         }
 
         return new Object[] { asObject() };
@@ -114,12 +124,34 @@ public interface ClickHouseValue extends Serializable {
     @SuppressWarnings("unchecked")
     default <T> T[] asArray(Class<T> clazz) {
         if (isNullOrEmpty()) {
-            return (T[]) ClickHouseValues.EMPTY_ARRAY;
+            return (T[]) ClickHouseValues.EMPTY_OBJECT_ARRAY;
         }
 
         T[] array = (T[]) Array.newInstance(ClickHouseChecker.nonNull(clazz, ClickHouseValues.TYPE_CLASS), 1);
         array[0] = asObject(clazz);
         return array;
+    }
+
+    /**
+     * Gets value as byte stream. It's caller's responsibility to close the stream
+     * at the end of reading.
+     *
+     * @return non-null byte stream for reading
+     */
+    default InputStream asByteStream() {
+        byte[] bytes = isNullOrEmpty() ? new byte[0] : new byte[] { asByte() };
+        return new ByteArrayInputStream(bytes);
+    }
+
+    /**
+     * Gets value as character stream. It's caller's responsibility to close the
+     * tream at the end of reading.
+     *
+     * @return non-null character stream for reading
+     */
+    default Reader asCharacterStream() {
+        String s = isNullOrEmpty() ? "" : asString();
+        return new StringReader(s);
     }
 
     /**
@@ -215,7 +247,11 @@ public interface ClickHouseValue extends Serializable {
      * @return date, could be null
      */
     default LocalDate asDate() {
-        return isNullOrEmpty() ? null : LocalDate.ofEpochDay(asLong());
+        if (isNullOrEmpty()) {
+            return null;
+        }
+
+        return LocalDate.ofEpochDay(asLong());
     }
 
     /**
@@ -224,7 +260,21 @@ public interface ClickHouseValue extends Serializable {
      * @return time, could be null
      */
     default LocalTime asTime() {
-        return isNullOrEmpty() ? null : LocalTime.ofSecondOfDay(asLong());
+        return asTime(0);
+    }
+
+    /**
+     * Gets value as {@link java.time.LocalTime}.
+     *
+     * @param scale scale of the date time, between 0 (second) and 9 (nano second)
+     * @return time, could be null
+     */
+    default LocalTime asTime(int scale) {
+        if (isNullOrEmpty()) {
+            return null;
+        }
+
+        return asDateTime(scale).toLocalTime();
     }
 
     /**
@@ -238,15 +288,66 @@ public interface ClickHouseValue extends Serializable {
     }
 
     /**
+     * Gets value as {@link java.time.OffsetDateTime}, using default scale(usually
+     * 0).
+     *
+     * @return date time, could be null
+     */
+    default OffsetDateTime asOffsetDateTime() {
+        return asOffsetDateTime(0);
+    }
+
+    /**
+     * Gets value as {@link java.time.ZonedDateTime}, using default scale(usually
+     * 0).
+     *
+     * @return date time, could be null
+     */
+    default ZonedDateTime asZonedDateTime() {
+        return asZonedDateTime(0);
+    }
+
+    /**
      * Gets value as {@link java.time.LocalDateTime}.
      *
      * @param scale scale of the date time, between 0 (second) and 9 (nano second)
      * @return date time, could be null
      */
     default LocalDateTime asDateTime(int scale) {
-        return isNullOrEmpty() ? null
-                : ClickHouseValues.convertToDateTime(
-                        asBigDecimal(ClickHouseChecker.between(scale, ClickHouseValues.PARAM_SCALE, 0, 9)));
+        if (isNullOrEmpty()) {
+            return null;
+        }
+
+        return ClickHouseValues
+                .convertToDateTime(asBigDecimal(ClickHouseChecker.between(scale, ClickHouseValues.PARAM_SCALE, 0, 9)));
+    }
+
+    /**
+     * Gets value as {@link java.time.OffsetDateTime}.
+     *
+     * @param scale scale of the date time, between 0 (second) and 9 (nano second)
+     * @return date time, could be null
+     */
+    default OffsetDateTime asOffsetDateTime(int scale) {
+        if (isNullOrEmpty()) {
+            return null;
+        }
+
+        return asDateTime(scale).atOffset(ZoneOffset.UTC);
+    }
+
+    /**
+     * Gets value as {@link java.time.ZonedDateTime}.
+     *
+     * @param scale scale of the date time, between 0 (second) and 9 (nano second)
+     * @return date time, could be null
+     */
+    default ZonedDateTime asZonedDateTime(int scale) {
+        if (isNullOrEmpty()) {
+            return null;
+        }
+
+        return asDateTime(scale).atZone(ClickHouseValues.UTC_ZONE);
     }
 
     /**
@@ -447,13 +548,55 @@ public interface ClickHouseValue extends Serializable {
     ClickHouseValue resetToNullOrEmpty();
 
     /**
-     * Convert the value to escaped SQL expression. For example, number 123 will be
+     * Converts the value to escaped SQL expression. For example, number 123 will be
      * converted to {@code 123}, while string "12'3" will be converted to @{code
      * '12\'3'}.
      * 
      * @return escaped SQL expression
      */
     String toSqlExpression();
+
+    /**
+     * Updates value.
+     *
+     * @param value value to update
+     * @return this object
+     */
+    default ClickHouseValue update(InputStream value) {
+        if (value == null) {
+            resetToNullOrEmpty();
+        } else {
+            update(new InputStreamReader(value, StandardCharsets.UTF_8));
+        }
+
+        return this;
+    }
+
+    /**
+     * Updates value.
+     *
+     * @param value value to update
+     * @return this object
+     */
+    default ClickHouseValue update(Reader value) {
+        if (value == null) {
+            resetToNullOrEmpty();
+        } else {
+            StringBuilder builder = new StringBuilder();
+            try (BufferedReader reader = new BufferedReader(value)) {
+                int bufferSize = 1024;
+                char[] buffer = new char[bufferSize];
+                for (int num; (num = reader.read(buffer, 0, buffer.length)) > 0;) {
+                    builder.append(buffer, 0, num);
+                }
+            } catch (IOException e) {
+                throw new IllegalArgumentException("Failed to read", e);
+            }
+            update(builder.toString());
+        }
+
+        return this;
+    }
 
     /**
      * Updates value.
@@ -741,6 +884,16 @@ public interface ClickHouseValue extends Serializable {
      * @param value value to update
      * @return this object
      */
+    default ClickHouseValue update(OffsetDateTime value) {
+        return update(value != null ? value.toLocalDateTime() : null);
+    }
+
+    /**
+     * Updates value.
+     *
+     * @param value value to update
+     * @return this object
+     */
     default ClickHouseValue update(Collection<?> value) {
         int size = value == null ? 0 : value.size();
         if (size == 0) {
@@ -850,7 +1003,8 @@ public interface ClickHouseValue extends Serializable {
      * default, it's same as {@code update(String.valueOf(value))}.
      *
      * <p>
-     * Due to limitationPlease avoid to call {@link #update(Object)} here or
+     * Please avoid to call {@link #update(Object)} here as it will create endless
+     * loop.
      * 
      * @param value value to update
      * @return this object
@@ -923,6 +1077,8 @@ public interface ClickHouseValue extends Serializable {
             return update((LocalTime) value);
         } else if (value instanceof LocalDateTime) {
             return update((LocalDateTime) value);
+        } else if (value instanceof OffsetDateTime) {
+            return update((OffsetDateTime) value);
         } else if (value instanceof Collection) {
             return update((Collection<?>) value);
         } else if (value instanceof Enumeration) {
@@ -935,6 +1091,10 @@ public interface ClickHouseValue extends Serializable {
             return update((UUID) value);
         } else if (value instanceof String) {
             return update((String) value);
+        } else if (value instanceof InputStream) {
+            return update((InputStream) value);
+        } else if (value instanceof Reader) {
+            return update((Reader) value);
         } else if (value instanceof ClickHouseValue) {
             return update((ClickHouseValue) value);
         } else {

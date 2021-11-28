@@ -6,6 +6,7 @@ import java.io.DataInputStream;
 import java.io.DataOutput;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.Buffer;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -18,6 +19,21 @@ import org.roaringbitmap.longlong.Roaring64NavigableMap;
 import com.clickhouse.client.ClickHouseDataType;
 
 public abstract class ClickHouseBitmap {
+    private static final int[] EMPTY_INT_ARRAY = new int[0];
+    private static final long[] EMPTY_LONG_ARRAY = new long[0];
+    private static final ClickHouseBitmap EMPTY_INT8_BITMAP = wrap(ImmutableRoaringBitmap.bitmapOf(EMPTY_INT_ARRAY),
+            ClickHouseDataType.Int8);
+    private static final ClickHouseBitmap EMPTY_UINT8_BITMAP = wrap(ImmutableRoaringBitmap.bitmapOf(EMPTY_INT_ARRAY),
+            ClickHouseDataType.UInt8);
+    private static final ClickHouseBitmap EMPTY_INT16_BITMAP = wrap(ImmutableRoaringBitmap.bitmapOf(EMPTY_INT_ARRAY),
+            ClickHouseDataType.Int16);
+    private static final ClickHouseBitmap EMPTY_UINT16_BITMAP = wrap(ImmutableRoaringBitmap.bitmapOf(EMPTY_INT_ARRAY),
+            ClickHouseDataType.UInt16);
+    private static final ClickHouseBitmap EMPTY_INT32_BITMAP = wrap(ImmutableRoaringBitmap.bitmapOf(EMPTY_INT_ARRAY),
+            ClickHouseDataType.Int32);
+    private static final ClickHouseBitmap EMPTY_UINT32_BITMAP = wrap(ImmutableRoaringBitmap.bitmapOf(EMPTY_INT_ARRAY),
+            ClickHouseDataType.UInt32);
+
     static class ClickHouseRoaringBitmap extends ClickHouseBitmap {
         private final RoaringBitmap rb;
 
@@ -25,6 +41,11 @@ public abstract class ClickHouseBitmap {
             super(bitmap, innerType);
 
             this.rb = Objects.requireNonNull(bitmap);
+        }
+
+        @Override
+        public boolean isEmpty() {
+            return rb.isEmpty();
         }
 
         @Override
@@ -58,6 +79,11 @@ public abstract class ClickHouseBitmap {
         }
 
         @Override
+        public boolean isEmpty() {
+            return rb.isEmpty();
+        }
+
+        @Override
         public int getCardinality() {
             return rb.getCardinality();
         }
@@ -88,6 +114,11 @@ public abstract class ClickHouseBitmap {
         }
 
         @Override
+        public boolean isEmpty() {
+            return rb.isEmpty();
+        }
+
+        @Override
         public int getCardinality() {
             return rb.getCardinality();
         }
@@ -115,6 +146,11 @@ public abstract class ClickHouseBitmap {
             super(bitmap, innerType);
 
             this.rb = Objects.requireNonNull(bitmap);
+        }
+
+        @Override
+        public boolean isEmpty() {
+            return rb.isEmpty();
         }
 
         @Override
@@ -176,6 +212,45 @@ public abstract class ClickHouseBitmap {
         public long[] toLongArray() {
             return rb.toArray();
         }
+    }
+
+    public static ClickHouseBitmap empty() {
+        return empty(null);
+    }
+
+    public static ClickHouseBitmap empty(ClickHouseDataType type) {
+        if (type == null) {
+            type = ClickHouseDataType.UInt32;
+        }
+
+        ClickHouseBitmap v;
+        switch (type) {
+        case Int8:
+            v = ClickHouseBitmap.EMPTY_INT8_BITMAP;
+            break;
+        case UInt8:
+            v = ClickHouseBitmap.EMPTY_UINT8_BITMAP;
+            break;
+        case Int16:
+            v = ClickHouseBitmap.EMPTY_INT16_BITMAP;
+            break;
+        case UInt16:
+            v = ClickHouseBitmap.EMPTY_UINT16_BITMAP;
+            break;
+        case Int32:
+            v = ClickHouseBitmap.EMPTY_INT32_BITMAP;
+            break;
+        case UInt32:
+            v = ClickHouseBitmap.EMPTY_UINT32_BITMAP;
+            break;
+        case Int64:
+        case UInt64:
+            v = wrap(Roaring64NavigableMap.bitmapOf(EMPTY_LONG_ARRAY), type);
+            break;
+        default:
+            throw new IllegalArgumentException("Only native integer types are supported but we got: " + type.name());
+        }
+        return v;
     }
 
     public static ClickHouseBitmap wrap(byte... values) {
@@ -257,6 +332,10 @@ public abstract class ClickHouseBitmap {
         }
 
         return b;
+    }
+
+    public static ClickHouseBitmap deserialize(InputStream in, ClickHouseDataType innerType) throws IOException {
+        return deserialize(in instanceof DataInputStream ? (DataInputStream) in : new DataInputStream(in), innerType);
     }
 
     public static ClickHouseBitmap deserialize(DataInputStream in, ClickHouseDataType innerType) throws IOException {
@@ -396,27 +475,20 @@ public abstract class ClickHouseBitmap {
     }
 
     private static int byteLength(ClickHouseDataType type) {
-        int byteLen = 0;
+        int byteLen;
         switch (Objects.requireNonNull(type)) {
-            case Int8:
-            case UInt8:
-                byteLen = 1;
-                break;
-            case Int16:
-            case UInt16:
-                byteLen = 2;
-                break;
-            case Int32:
-            case UInt32:
-                byteLen = 4;
-                break;
-            case Int64:
-            case UInt64:
-                byteLen = 8;
-                break;
-            default:
-                throw new IllegalArgumentException(
-                        "Only native integer types are supported but we got: " + type.name());
+        case Int8:
+        case UInt8:
+        case Int16:
+        case UInt16:
+        case Int32:
+        case UInt32:
+        case Int64:
+        case UInt64:
+            byteLen = type.getByteLength();
+            break;
+        default:
+            throw new IllegalArgumentException("Only native integer types are supported but we got: " + type.name());
         }
 
         return byteLen;
@@ -431,6 +503,8 @@ public abstract class ClickHouseBitmap {
         this.byteLen = byteLength(innerType);
         this.reference = Objects.requireNonNull(bitmap);
     }
+
+    public abstract boolean isEmpty();
 
     public abstract int getCardinality();
 

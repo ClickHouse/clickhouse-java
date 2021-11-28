@@ -380,56 +380,71 @@ public class ClickHouseNestedValue extends ClickHouseObjectValue<Object[][]> {
                 v[index++] = d;
             }
         }
-        set(new Object[][] { v });
-        return this;
+        return set(new Object[][] { v });
     }
 
     @Override
     public ClickHouseNestedValue update(BigInteger value) {
-        set(new Object[][] { new BigInteger[] { value } });
-        return this;
+        if (value == null) {
+            return resetToNullOrEmpty();
+        }
+        return set(new Object[][] { new BigInteger[] { value } });
     }
 
     @Override
     public ClickHouseNestedValue update(BigDecimal value) {
-        set(new Object[][] { new BigDecimal[] { value } });
-        return this;
+        if (value == null) {
+            return resetToNullOrEmpty();
+        }
+        return set(new Object[][] { new BigDecimal[] { value } });
     }
 
     @Override
     public ClickHouseNestedValue update(Enum<?> value) {
-        set(new Object[][] { new Enum[] { value } });
-        return this;
+        if (value == null) {
+            return resetToNullOrEmpty();
+        }
+        return set(new Object[][] { new Enum[] { value } });
     }
 
     @Override
     public ClickHouseNestedValue update(Inet4Address value) {
-        set(new Object[][] { new Inet4Address[] { value } });
-        return this;
+        if (value == null) {
+            return resetToNullOrEmpty();
+        }
+        return set(new Object[][] { new Inet4Address[] { value } });
     }
 
     @Override
     public ClickHouseNestedValue update(Inet6Address value) {
-        set(new Object[][] { new Inet6Address[] { value } });
-        return this;
+        if (value == null) {
+            return resetToNullOrEmpty();
+        }
+        return set(new Object[][] { new Inet6Address[] { value } });
     }
 
     @Override
     public ClickHouseNestedValue update(LocalDate value) {
-        set(new Object[][] { new LocalDate[] { value } });
-        return this;
+        if (value == null) {
+            return resetToNullOrEmpty();
+        }
+        return set(new Object[][] { new LocalDate[] { value } });
     }
 
     @Override
     public ClickHouseNestedValue update(LocalTime value) {
-        set(new Object[][] { new LocalTime[] { value } });
-        return this;
+        if (value == null) {
+            return resetToNullOrEmpty();
+        }
+        return set(new Object[][] { new LocalTime[] { value } });
     }
 
     @Override
     public ClickHouseNestedValue update(LocalDateTime value) {
-        set(new Object[][] { new LocalDateTime[] { value } });
-        return this;
+        if (value == null) {
+            return resetToNullOrEmpty();
+        }
+        return set(new Object[][] { new LocalDateTime[] { value } });
     }
 
     @Override
@@ -444,8 +459,7 @@ public class ClickHouseNestedValue extends ClickHouseObjectValue<Object[][]> {
         for (Object o : value) {
             v[index++] = o;
         }
-        set(new Object[][] { v });
-        return this;
+        return set(new Object[][] { v });
     }
 
     @Override
@@ -458,8 +472,7 @@ public class ClickHouseNestedValue extends ClickHouseObjectValue<Object[][]> {
         while (value.hasMoreElements()) {
             v.add(value.nextElement());
         }
-        set(new Object[][] { v.toArray(new Object[v.size()]) });
-        return this;
+        return set(new Object[][] { v.toArray(new Object[v.size()]) });
     }
 
     @Override
@@ -474,20 +487,23 @@ public class ClickHouseNestedValue extends ClickHouseObjectValue<Object[][]> {
         for (Object o : value.values()) {
             v[index++] = o;
         }
-        set(new Object[][] { v });
-        return this;
+        return set(new Object[][] { v });
     }
 
     @Override
     public ClickHouseNestedValue update(String value) {
-        set(new Object[][] { new String[] { value } });
-        return this;
+        if (value == null) {
+            return resetToNullOrEmpty();
+        }
+        return set(new Object[][] { new String[] { value } });
     }
 
     @Override
     public ClickHouseNestedValue update(UUID value) {
-        set(new Object[][] { new UUID[] { value } });
-        return this;
+        if (value == null) {
+            return resetToNullOrEmpty();
+        }
+        return set(new Object[][] { new UUID[] { value } });
     }
 
     @Override
@@ -516,8 +532,10 @@ public class ClickHouseNestedValue extends ClickHouseObjectValue<Object[][]> {
 
     @Override
     public ClickHouseValue updateUnknown(Object value) {
-        set(new Object[][] { new Object[] { value } });
-        return this;
+        if (value == null) {
+            return resetToNullOrEmpty();
+        }
+        return set(new Object[][] { new Object[] { value } });
     }
 
     @Override

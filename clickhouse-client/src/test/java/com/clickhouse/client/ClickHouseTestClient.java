@@ -1,7 +1,6 @@
 package com.clickhouse.client;
 
 import java.util.concurrent.CompletableFuture;
-import com.clickhouse.client.exception.ClickHouseException;
 
 public class ClickHouseTestClient implements ClickHouseClient {
     private ClickHouseConfig clientConfig;
@@ -12,7 +11,7 @@ public class ClickHouseTestClient implements ClickHouseClient {
     }
 
     @Override
-    public CompletableFuture<ClickHouseResponse> execute(ClickHouseRequest<?> request) throws ClickHouseException {
+    public CompletableFuture<ClickHouseResponse> execute(ClickHouseRequest<?> request) {
         return CompletableFuture.supplyAsync(() -> null);
     }
 

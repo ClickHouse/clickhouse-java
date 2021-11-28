@@ -14,7 +14,6 @@ import org.junit.Assert;
 import org.testng.annotations.Test;
 import com.clickhouse.client.BaseClickHouseValueTest;
 import com.clickhouse.client.ClickHouseDataType;
-import com.clickhouse.client.ClickHouseValue;
 import com.clickhouse.client.ClickHouseValues;
 
 public class ClickHouseLongValueTest extends BaseClickHouseValueTest {
@@ -147,7 +146,7 @@ public class ClickHouseLongValueTest extends BaseClickHouseValueTest {
                 Inet6Address.getAllByName("0:0:0:0:0:0:0:ff")[0], // Inet6Address
                 "-1", // String
                 "-1", // SQL Expression
-                java.time.DateTimeException.class, // Time
+                LocalTime.of(23, 59, 59), // Time
                 UUID.fromString("00000000-0000-0000-ffff-ffffffffffff"), // UUID
                 Object.class, // Key class
                 Long.class, // Value class
@@ -292,7 +291,7 @@ public class ClickHouseLongValueTest extends BaseClickHouseValueTest {
                 Inet6Address.getAllByName("0:0:0:0:ffff:ffff:ffff:ffff")[0], // Inet6Address
                 "18446744073709551615", // String
                 "18446744073709551615", // SQL Expression
-                java.time.DateTimeException.class, // Time
+                LocalTime.of(23, 59, 59), // Time
                 UUID.fromString("00000000-0000-0000-ffff-ffffffffffff"), // UUID
                 Object.class, // Key class
                 Long.class, // Value class

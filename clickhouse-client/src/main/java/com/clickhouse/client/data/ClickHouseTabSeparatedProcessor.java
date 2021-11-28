@@ -15,13 +15,18 @@ import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseDataProcessor;
 import com.clickhouse.client.ClickHouseFormat;
 import com.clickhouse.client.ClickHouseRecord;
+import com.clickhouse.client.ClickHouseUtils;
 import com.clickhouse.client.ClickHouseValue;
 import com.clickhouse.client.data.tsv.ByteFragment;
 import com.clickhouse.client.data.tsv.StreamSplitter;
 
 public class ClickHouseTabSeparatedProcessor extends ClickHouseDataProcessor {
-    private static String[] toStringArray(ByteFragment headerFragment) {
-        ByteFragment[] split = headerFragment.split((byte) 0x09);
+    private static String[] toStringArray(ByteFragment headerFragment, byte delimitter) {
+        if (delimitter == (byte) 0) {
+            return new String[] { headerFragment.asString(true) };
+        }
+
+        ByteFragment[] split = headerFragment.split(delimitter);
         String[] array = new String[split.length];
         for (int i = 0; i < split.length; i++) {
             array[i] = split[i].asString(true);
@@ -57,7 +62,8 @@ public class ClickHouseTabSeparatedProcessor extends ClickHouseDataProcessor {
                 throw new NoSuchElementException("No more record");
             }
 
-            ByteFragment[] currentCols = currentRow.split((byte) 0x09);
+            ByteFragment[] currentCols = colDelimitter != (byte) 0 ? currentRow.split(colDelimitter)
+                    : new ByteFragment[] { currentRow };
             readNextRow();
 
             return new ClickHouseRecord() {
@@ -72,32 +78,51 @@ public class ClickHouseTabSeparatedProcessor extends ClickHouseDataProcessor {
                 }
 
                 @Override
-                public ClickHouseValue getValue(String columnName) throws IOException {
+                public ClickHouseValue getValue(String name) {
                     int index = 0;
                     for (ClickHouseColumn c : columns) {
-                        if (c.getColumnName().equals(columnName)) {
-                            getValue(index);
+                        if (c.getColumnName().equalsIgnoreCase(name)) {
+                            return getValue(index);
                         }
                         index++;
                     }
 
-                    throw new IllegalArgumentException("Not able to find a column named: " + columnName);
+                    throw new IllegalArgumentException(ClickHouseUtils.format("Unable to find column [%s]", name));
                 }
             };
         }
     }
 
+    private final byte rowDelimitter = (byte) 0x0A;
+
+    // initialize in readColumns()
+    private byte colDelimitter;
     private StreamSplitter splitter;
 
     @Override
     public List<ClickHouseColumn> readColumns() throws IOException {
         if (input == null) {
             return Collections.emptyList();
-        } else if (!config.getFormat().hasHeader()) {
+        }
+
+        ClickHouseFormat format = config.getFormat();
+        if (!format.hasHeader()) {
             return DEFAULT_COLUMNS;
         }
 
-        this.splitter = new StreamSplitter(input, (byte) 0x0A, config.getMaxBufferSize());
+        switch (config.getFormat()) {
+        case TSVWithNames:
+        case TSVWithNamesAndTypes:
+        case TabSeparatedWithNames:
+        case TabSeparatedWithNamesAndTypes:
+            colDelimitter = (byte) 0x09;
+            break;
+        default:
+            colDelimitter = (byte) 0;
+            break;
+        }
+
+        this.splitter = new StreamSplitter(input, rowDelimitter, config.getMaxBufferSize());
 
         ByteFragment headerFragment = this.splitter.next();
         if (headerFragment == null) {
@@ -108,15 +133,16 @@ public class ClickHouseTabSeparatedProcessor extends ClickHouseDataProcessor {
             input.close();
             throw new IllegalArgumentException("ClickHouse error: " + header);
         }
-        String[] cols = toStringArray(headerFragment);
+        String[] cols = toStringArray(headerFragment, colDelimitter);
         String[] types = null;
-        if (ClickHouseFormat.TabSeparatedWithNamesAndTypes == config.getFormat()) {
+        if (ClickHouseFormat.TSVWithNamesAndTypes == format
+                || ClickHouseFormat.TabSeparatedWithNamesAndTypes == format) {
             ByteFragment typesFragment = splitter.next();
             if (typesFragment == null) {
                 throw new IllegalArgumentException("ClickHouse response without column types");
             }
 
-            types = toStringArray(typesFragment);
+            types = toStringArray(typesFragment, colDelimitter);
         }
         List<ClickHouseColumn> list = new ArrayList<>(cols.length);
 
@@ -132,7 +158,7 @@ public class ClickHouseTabSeparatedProcessor extends ClickHouseDataProcessor {
         super(config, input, output, columns, settings);
 
         if (this.splitter == null && input != null) {
-            this.splitter = new StreamSplitter(input, (byte) 0x0A, config.getMaxBufferSize());
+            this.splitter = new StreamSplitter(input, rowDelimitter, config.getMaxBufferSize());
         }
     }
 

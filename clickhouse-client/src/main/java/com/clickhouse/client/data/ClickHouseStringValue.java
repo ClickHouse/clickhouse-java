@@ -241,12 +241,12 @@ public class ClickHouseStringValue implements ClickHouseValue {
 
     @Override
     public ClickHouseValue update(BigInteger value) {
-        return set(String.valueOf(value));
+        return set(value == null ? null : String.valueOf(value));
     }
 
     @Override
     public ClickHouseValue update(BigDecimal value) {
-        return set(String.valueOf(value));
+        return set(value == null ? null : String.valueOf(value));
     }
 
     @Override
