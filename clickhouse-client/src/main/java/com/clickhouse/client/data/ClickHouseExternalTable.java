@@ -7,6 +7,10 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutionException;
+
 import com.clickhouse.client.ClickHouseChecker;
 import com.clickhouse.client.ClickHouseColumn;
 import com.clickhouse.client.ClickHouseFormat;
@@ -14,7 +18,7 @@ import com.clickhouse.client.ClickHouseFormat;
 public class ClickHouseExternalTable {
     public static class Builder {
         private String name;
-        private InputStream content;
+        private CompletableFuture<InputStream> content;
         private ClickHouseFormat format;
         private List<ClickHouseColumn> columns;
 
@@ -28,7 +32,12 @@ public class ClickHouseExternalTable {
         }
 
         public Builder content(InputStream content) {
-            this.content = content;
+            this.content = CompletableFuture.completedFuture(ClickHouseChecker.nonNull(content, "content"));
+            return this;
+        }
+
+        public Builder content(CompletableFuture<InputStream> content) {
+            this.content = ClickHouseChecker.nonNull(content, "Content");
             return this;
         }
 
@@ -89,13 +98,13 @@ public class ClickHouseExternalTable {
     }
 
     private final String name;
-    private final InputStream content;
+    private final CompletableFuture<InputStream> content;
     private final ClickHouseFormat format;
     private final List<ClickHouseColumn> columns;
 
     private final String structure;
 
-    protected ClickHouseExternalTable(String name, InputStream content, ClickHouseFormat format,
+    protected ClickHouseExternalTable(String name, CompletableFuture<InputStream> content, ClickHouseFormat format,
             Collection<ClickHouseColumn> columns) {
         this.name = name == null ? "" : name.trim();
         this.content = ClickHouseChecker.nonNull(content, "content");
@@ -126,7 +135,14 @@ public class ClickHouseExternalTable {
     }
 
     public InputStream getContent() {
-        return content;
+        try {
+            return content.get();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new CompletionException(e);
+        } catch (ExecutionException e) {
+            throw new CompletionException(e.getCause());
+        }
     }
 
     public ClickHouseFormat getFormat() {

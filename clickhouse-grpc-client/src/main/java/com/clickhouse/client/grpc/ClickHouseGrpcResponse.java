@@ -6,7 +6,9 @@ import java.util.Map;
 import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseResponseSummary;
 import com.clickhouse.client.data.ClickHouseStreamResponse;
+import com.clickhouse.client.grpc.impl.Progress;
 import com.clickhouse.client.grpc.impl.Result;
+import com.clickhouse.client.grpc.impl.Stats;
 
 public class ClickHouseGrpcResponse extends ClickHouseStreamResponse {
     private final ClickHouseStreamObserver observer;
@@ -14,7 +16,7 @@ public class ClickHouseGrpcResponse extends ClickHouseStreamResponse {
 
     protected ClickHouseGrpcResponse(ClickHouseConfig config, Map<String, Object> settings,
             ClickHouseStreamObserver observer) throws IOException {
-        super(config, observer.getInputStream(), settings, null);
+        super(config, observer.getInputStream(), settings, null, observer.getSummary());
 
         this.observer = observer;
         this.result = null;
@@ -22,66 +24,25 @@ public class ClickHouseGrpcResponse extends ClickHouseStreamResponse {
 
     protected ClickHouseGrpcResponse(ClickHouseConfig config, Map<String, Object> settings, Result result)
             throws IOException {
-        super(config, result.getOutput().newInput(), settings, null);
+        super(config, result.getOutput().newInput(), settings, null, new ClickHouseResponseSummary(null, null));
 
         this.observer = null;
         this.result = result;
+        if (result.hasProgress()) {
+            Progress p = result.getProgress();
+            summary.update(new ClickHouseResponseSummary.Progress(p.getReadRows(), p.getReadBytes(),
+                    p.getTotalRowsToRead(), p.getWrittenRows(), p.getWrittenBytes()));
+        }
+
+        if (result.hasStats()) {
+            Stats s = result.getStats();
+            summary.update(new ClickHouseResponseSummary.Statistics(s.getRows(), s.getBlocks(), s.getAllocatedBytes(),
+                    s.getAppliedLimit(), s.getRowsBeforeLimit()));
+        }
     }
 
     @Override
     public ClickHouseResponseSummary getSummary() {
-        ClickHouseResponseSummary summary = super.getSummary();
-
-        if (result != null && (result.hasProgress() || result.hasStats())) {
-            summary = new ClickHouseResponseSummary() {
-                @Override
-                public long getAllocatedBytes() {
-                    return result.getStats().getAllocatedBytes();
-                }
-
-                @Override
-                public long getBlocks() {
-                    return result.getStats().getBlocks();
-                }
-
-                @Override
-                public long getReadBytes() {
-                    return result.getProgress().getReadBytes();
-                }
-
-                @Override
-                public long getReadRows() {
-                    return result.getProgress().getReadRows();
-                }
-
-                @Override
-                public long getRows() {
-                    return result.getStats().getRows();
-                }
-
-                @Override
-                public long getRowsBeforeLimit() {
-                    return result.getStats().getRowsBeforeLimit();
-                }
-
-                @Override
-                public long getTotalRowsToRead() {
-                    return result.getProgress().getTotalRowsToRead();
-                }
-
-                @Override
-                public long getWriteBytes() {
-                    return result.getProgress().getWrittenBytes();
-                }
-
-                @Override
-                public long getWriteRows() {
-                    return result.getProgress().getWrittenRows();
-                }
-            };
-        } else if (observer != null) {
-            summary = observer.getSummary();
-        }
         return summary;
     }
 }

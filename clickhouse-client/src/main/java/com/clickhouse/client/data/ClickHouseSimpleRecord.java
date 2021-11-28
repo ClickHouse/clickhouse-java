@@ -56,6 +56,17 @@ public class ClickHouseSimpleRecord implements ClickHouseRecord {
         this.values = values;
     }
 
+    protected void update(Object[] values) {
+        int len = values != null ? values.length : 0;
+        for (int i = 0, size = this.values.length; i < size; i++) {
+            if (i < len) {
+                this.values[i].update(values[i]);
+            } else {
+                this.values[i].resetToNullOrEmpty();
+            }
+        }
+    }
+
     @Override
     public int size() {
         return values.length;

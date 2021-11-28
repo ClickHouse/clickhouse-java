@@ -12,11 +12,21 @@ import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseProtocol;
 
 public abstract class JdbcIntegrationTest extends BaseIntegrationTest {
+    private static final String CLASS_PREFIX = "ClickHouse";
+    private static final String CLASS_SUFFIX = "Test";
+
     protected final String dbName;
 
     public JdbcIntegrationTest() {
         String className = getClass().getSimpleName();
-        this.dbName = className.endsWith("Test") ? className.substring(0, className.length() - 5) : className;
+        if (className.startsWith(CLASS_PREFIX)) {
+            className = className.substring(CLASS_PREFIX.length());
+        }
+        if (className.endsWith(CLASS_SUFFIX)) {
+            className = className.substring(0, className.length() - CLASS_SUFFIX.length());
+        }
+
+        this.dbName = "test_" + className.toLowerCase();
     }
 
     public String getClickHouseHttpAddress() {

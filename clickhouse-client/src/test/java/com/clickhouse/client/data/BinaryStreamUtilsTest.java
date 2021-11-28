@@ -9,18 +9,33 @@ import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.net.InetAddress;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
-import java.util.Arrays;
+import java.util.TimeZone;
 import java.util.UUID;
 
+import com.clickhouse.client.ClickHouseDataType;
+
+import org.roaringbitmap.RoaringBitmap;
+import org.roaringbitmap.buffer.ImmutableRoaringBitmap;
+import org.roaringbitmap.buffer.MutableRoaringBitmap;
+import org.roaringbitmap.longlong.Roaring64Bitmap;
+import org.roaringbitmap.longlong.Roaring64NavigableMap;
 import org.testng.Assert;
+import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 public class BinaryStreamUtilsTest {
+    @DataProvider(name = "timeZoneProvider")
+    private Object[][] getTimeZones() {
+        return new Object[][] { new String[] { "Asia/Chongqing" }, new String[] { "America/Los_Angeles" },
+                new String[] { "Europe/Moscow" }, new String[] { "Etc/UTC" }, new String[] { "Europe/Berlin" } };
+    }
+
     protected static byte[] generateBytes(int... ints) {
         byte[] bytes = new byte[ints.length];
         for (int i = 0; i < ints.length; i++) {
@@ -86,6 +101,46 @@ public class BinaryStreamUtilsTest {
         }
     }
 
+    protected static int[] newBitmapValues(ClickHouseDataType t, int length) {
+        int[] array = new int[length];
+        int base = (t.getByteLength() - 1) * 0xFF;
+        if (t.isSigned()) {
+            for (int i = 0; i < length; i++) {
+                if (i % 2 == 0) {
+                    array[i / 2] = base + i;
+                } else {
+                    array[length - i / 2 - 1] = (base + i) * -1;
+                }
+            }
+        } else {
+            for (int i = 0; i < length; i++) {
+                array[i] = base + i;
+            }
+        }
+
+        return array;
+    }
+
+    protected static long[] newBitmap64Values(ClickHouseDataType t, int length) {
+        long[] array = new long[length];
+        long base = 0xFFFFFFFFL;
+        if (t.isSigned()) {
+            for (int i = 0; i < length; i++) {
+                if (i % 2 == 0) {
+                    array[i / 2] = base + i;
+                } else {
+                    array[length - i / 2 - 1] = (base + i) * -1;
+                }
+            }
+        } else {
+            for (int i = 0; i < length; i++) {
+                array[i] = base + i;
+            }
+        }
+
+        return array;
+    }
+
     @Test(groups = { "unit" })
     public void testReverse() {
         byte[] bytes = null;
@@ -131,6 +186,176 @@ public class BinaryStreamUtilsTest {
                 () -> getWrittenBytes(o -> BinaryStreamUtils.writeInt8(o, Byte.MAX_VALUE + 1)));
         Assert.assertThrows(IllegalArgumentException.class,
                 () -> getWrittenBytes(o -> BinaryStreamUtils.writeInt8(o, Byte.MIN_VALUE - 1)));
+    }
+
+    @Test(groups = { "unit" })
+    public void testWriteEmptyBitmap() throws IOException {
+        Assert.assertEquals(getWrittenBytes(o -> BinaryStreamUtils.writeBitmap(o, ClickHouseBitmap.empty())),
+                generateBytes(0, 0));
+
+        for (ClickHouseDataType t : new ClickHouseDataType[] { ClickHouseDataType.Int8, ClickHouseDataType.UInt8,
+                ClickHouseDataType.Int16, ClickHouseDataType.UInt16, ClickHouseDataType.Int32,
+                ClickHouseDataType.UInt32, ClickHouseDataType.Int64, ClickHouseDataType.UInt64 }) {
+            Assert.assertEquals(getWrittenBytes(o -> BinaryStreamUtils.writeBitmap(o, ClickHouseBitmap.empty(t))),
+                    generateBytes(0, 0));
+        }
+    }
+
+    @Test(groups = { "unit" })
+    public void testWriteBitmap32() throws IOException {
+        // cardinality <= 32
+        for (ClickHouseDataType t : new ClickHouseDataType[] { ClickHouseDataType.Int8, ClickHouseDataType.UInt8,
+                ClickHouseDataType.Int16, ClickHouseDataType.UInt16, ClickHouseDataType.Int32,
+                ClickHouseDataType.UInt32 }) {
+            int[] values = newBitmapValues(t, 32);
+            byte[] expected = getWrittenBytes(o -> {
+                BinaryStreamUtils.writeInt8(o, 0);
+                BinaryStreamUtils.writeInt8(o, 0x20);
+                for (int v : values) {
+                    int len = t.getByteLength();
+                    if (len == 1) {
+                        BinaryStreamUtils.writeInt8(o, (byte) v);
+                    } else if (len == 2) {
+                        BinaryStreamUtils.writeInt16(o, (short) v);
+                    } else { // 4
+                        BinaryStreamUtils.writeInt32(o, v);
+                    }
+                }
+            });
+            for (Object bitmap : new Object[] { RoaringBitmap.bitmapOf(values), MutableRoaringBitmap.bitmapOf(values),
+                    ImmutableRoaringBitmap.bitmapOf(values) }) {
+                byte[] actual = getWrittenBytes(
+                        o -> BinaryStreamUtils.writeBitmap(o, ClickHouseBitmap.wrap(bitmap, t)));
+                Assert.assertEquals(actual, expected);
+            }
+        }
+
+        // cardinality > 32
+        int i = 0;
+        for (ClickHouseDataType t : new ClickHouseDataType[] { ClickHouseDataType.Int8, ClickHouseDataType.UInt8,
+                ClickHouseDataType.Int16, ClickHouseDataType.UInt16, ClickHouseDataType.Int32,
+                ClickHouseDataType.UInt32 }) {
+            int[] values = newBitmapValues(t, 33);
+            byte[][] expected = new byte[][] {
+                    generateBytes(0x01, 0x5A, 0x3A, 0x30, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0x00,
+                            0xFF, 0xFF, 0x0F, 0x00, 0x18, 0x00, 0x00, 0x00, 0x3A, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02,
+                            0x00, 0x04, 0x00, 0x06, 0x00, 0x08, 0x00, 0x0A, 0x00, 0x0C, 0x00, 0x0E, 0x00, 0x10, 0x00,
+                            0x12, 0x00, 0x14, 0x00, 0x16, 0x00, 0x18, 0x00, 0x1A, 0x00, 0x1C, 0x00, 0x1E, 0x00, 0x20,
+                            0x00, 0xE1, 0xFF, 0xE3, 0xFF, 0xE5, 0xFF, 0xE7, 0xFF, 0xE9, 0xFF, 0xEB, 0xFF, 0xED, 0xFF,
+                            0xEF, 0xFF, 0xF1, 0xFF, 0xF3, 0xFF, 0xF5, 0xFF, 0xF7, 0xFF, 0xF9, 0xFF, 0xFB, 0xFF, 0xFD,
+                            0xFF, 0xFF, 0xFF),
+                    generateBytes(0x01, 0x52, 0x3A, 0x30, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x20, 0x00,
+                            0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x02, 0x00, 0x03, 0x00, 0x04, 0x00, 0x05,
+                            0x00, 0x06, 0x00, 0x07, 0x00, 0x08, 0x00, 0x09, 0x00, 0x0A, 0x00, 0x0B, 0x00, 0x0C, 0x00,
+                            0x0D, 0x00, 0x0E, 0x00, 0x0F, 0x00, 0x10, 0x00, 0x11, 0x00, 0x12, 0x00, 0x13, 0x00, 0x14,
+                            0x00, 0x15, 0x00, 0x16, 0x00, 0x17, 0x00, 0x18, 0x00, 0x19, 0x00, 0x1A, 0x00, 0x1B, 0x00,
+                            0x1C, 0x00, 0x1D, 0x00, 0x1E, 0x00, 0x1F, 0x00, 0x20, 0x00),
+                    generateBytes(0x01, 0x5A, 0x3A, 0x30, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0x00,
+                            0xFF, 0xFF, 0x0F, 0x00, 0x18, 0x00, 0x00, 0x00, 0x3A, 0x00, 0x00, 0x00, 0xFF, 0x00, 0x01,
+                            0x01, 0x03, 0x01, 0x05, 0x01, 0x07, 0x01, 0x09, 0x01, 0x0B, 0x01, 0x0D, 0x01, 0x0F, 0x01,
+                            0x11, 0x01, 0x13, 0x01, 0x15, 0x01, 0x17, 0x01, 0x19, 0x01, 0x1B, 0x01, 0x1D, 0x01, 0x1F,
+                            0x01, 0xE2, 0xFE, 0xE4, 0xFE, 0xE6, 0xFE, 0xE8, 0xFE, 0xEA, 0xFE, 0xEC, 0xFE, 0xEE, 0xFE,
+                            0xF0, 0xFE, 0xF2, 0xFE, 0xF4, 0xFE, 0xF6, 0xFE, 0xF8, 0xFE, 0xFA, 0xFE, 0xFC, 0xFE, 0xFE,
+                            0xFE, 0x00, 0xFF),
+                    generateBytes(0x01, 0x52, 0x3A, 0x30, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x20, 0x00,
+                            0x10, 0x00, 0x00, 0x00, 0xFF, 0x00, 0x00, 0x01, 0x01, 0x01, 0x02, 0x01, 0x03, 0x01, 0x04,
+                            0x01, 0x05, 0x01, 0x06, 0x01, 0x07, 0x01, 0x08, 0x01, 0x09, 0x01, 0x0A, 0x01, 0x0B, 0x01,
+                            0x0C, 0x01, 0x0D, 0x01, 0x0E, 0x01, 0x0F, 0x01, 0x10, 0x01, 0x11, 0x01, 0x12, 0x01, 0x13,
+                            0x01, 0x14, 0x01, 0x15, 0x01, 0x16, 0x01, 0x17, 0x01, 0x18, 0x01, 0x19, 0x01, 0x1A, 0x01,
+                            0x1B, 0x01, 0x1C, 0x01, 0x1D, 0x01, 0x1E, 0x01, 0x1F, 0x01),
+                    generateBytes(0x01, 0x5A, 0x3A, 0x30, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0x00,
+                            0xFF, 0xFF, 0x0F, 0x00, 0x18, 0x00, 0x00, 0x00, 0x3A, 0x00, 0x00, 0x00, 0xFD, 0x02, 0xFF,
+                            0x02, 0x01, 0x03, 0x03, 0x03, 0x05, 0x03, 0x07, 0x03, 0x09, 0x03, 0x0B, 0x03, 0x0D, 0x03,
+                            0x0F, 0x03, 0x11, 0x03, 0x13, 0x03, 0x15, 0x03, 0x17, 0x03, 0x19, 0x03, 0x1B, 0x03, 0x1D,
+                            0x03, 0xE4, 0xFC, 0xE6, 0xFC, 0xE8, 0xFC, 0xEA, 0xFC, 0xEC, 0xFC, 0xEE, 0xFC, 0xF0, 0xFC,
+                            0xF2, 0xFC, 0xF4, 0xFC, 0xF6, 0xFC, 0xF8, 0xFC, 0xFA, 0xFC, 0xFC, 0xFC, 0xFE, 0xFC, 0x00,
+                            0xFD, 0x02, 0xFD),
+                    generateBytes(0x01, 0x52, 0x3A, 0x30, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x20, 0x00,
+                            0x10, 0x00, 0x00, 0x00, 0xFD, 0x02, 0xFE, 0x02, 0xFF, 0x02, 0x00, 0x03, 0x01, 0x03, 0x02,
+                            0x03, 0x03, 0x03, 0x04, 0x03, 0x05, 0x03, 0x06, 0x03, 0x07, 0x03, 0x08, 0x03, 0x09, 0x03,
+                            0x0A, 0x03, 0x0B, 0x03, 0x0C, 0x03, 0x0D, 0x03, 0x0E, 0x03, 0x0F, 0x03, 0x10, 0x03, 0x11,
+                            0x03, 0x12, 0x03, 0x13, 0x03, 0x14, 0x03, 0x15, 0x03, 0x16, 0x03, 0x17, 0x03, 0x18, 0x03,
+                            0x19, 0x03, 0x1A, 0x03, 0x1B, 0x03, 0x1C, 0x03, 0x1D, 0x03) };
+            for (Object bitmap : new Object[] { RoaringBitmap.bitmapOf(values), MutableRoaringBitmap.bitmapOf(values),
+                    ImmutableRoaringBitmap.bitmapOf(values) }) {
+                byte[] actual = getWrittenBytes(
+                        o -> BinaryStreamUtils.writeBitmap(o, ClickHouseBitmap.wrap(bitmap, t)));
+                Assert.assertEquals(actual, expected[i]);
+            }
+            i++;
+        }
+    }
+
+    @Test(groups = { "unit" })
+    public void testWriteBitmap64() throws IOException {
+        // cardinality <= 32
+        for (ClickHouseDataType t : new ClickHouseDataType[] { ClickHouseDataType.Int64, ClickHouseDataType.UInt64 }) {
+            long[] values = newBitmap64Values(t, 32);
+            byte[] expected = getWrittenBytes(o -> {
+                BinaryStreamUtils.writeInt8(o, 0);
+                BinaryStreamUtils.writeInt8(o, 0x20);
+                for (long v : values) {
+                    BinaryStreamUtils.writeInt64(o, v);
+                }
+            });
+            for (Object bitmap : new Object[] { Roaring64Bitmap.bitmapOf(values),
+                    Roaring64NavigableMap.bitmapOf(values) }) {
+                byte[] actual = getWrittenBytes(
+                        o -> BinaryStreamUtils.writeBitmap(o, ClickHouseBitmap.wrap(bitmap, t)));
+                Assert.assertEquals(actual, expected);
+            }
+        }
+
+        // cardinality > 32
+        // int i = 0;
+        // for (ClickHouseDataType t : new ClickHouseDataType[] {
+        // ClickHouseDataType.Int64, ClickHouseDataType.UInt64 }) {
+        // long[] values = newBitmap64Values(t, 33);
+        // byte[][] expected = new byte[][] {
+        // generateBytes(0x01, 0x9A, 0x01, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        // 0x00, 0x00, 0x00, 0x00,
+        // 0x00, 0x3A, 0x30, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0x00, 0x00,
+        // 0x10, 0x00,
+        // 0x00, 0x00, 0xFF, 0xFF, 0x01, 0x00, 0x00, 0x00, 0x3A, 0x30, 0x00, 0x00, 0x01,
+        // 0x00, 0x00,
+        // 0x00, 0x00, 0x00, 0x0F, 0x00, 0x10, 0x00, 0x00, 0x00, 0x01, 0x00, 0x03, 0x00,
+        // 0x05, 0x00,
+        // 0x07, 0x00, 0x09, 0x00, 0x0B, 0x00, 0x0D, 0x00, 0x0F, 0x00, 0x11, 0x00, 0x13,
+        // 0x00, 0x15,
+        // 0x00, 0x17, 0x00, 0x19, 0x00, 0x1B, 0x00, 0x1D, 0x00, 0x1F, 0x00, 0xFE, 0xFF,
+        // 0xFF, 0xFF,
+        // 0x3A, 0x30, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0x0E, 0x00, 0x10,
+        // 0x00, 0x00,
+        // 0x00, 0xE2, 0xFF, 0xE4, 0xFF, 0xE6, 0xFF, 0xE8, 0xFF, 0xEA, 0xFF, 0xEC, 0xFF,
+        // 0xEE, 0xFF,
+        // 0xF0, 0xFF, 0xF2, 0xFF, 0xF4, 0xFF, 0xF6, 0xFF, 0xF8, 0xFF, 0xFA, 0xFF, 0xFC,
+        // 0xFF, 0xFE,
+        // 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x3A, 0x30, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00,
+        // 0x00, 0x00,
+        // 0x00, 0x00, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00),
+        // generateBytes(0x01, 0x72, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        // 0x00, 0x00, 0x00, 0x00,
+        // 0x3A, 0x30, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0x00, 0x00, 0x10,
+        // 0x00, 0x00,
+        // 0x00, 0xFF, 0xFF, 0x01, 0x00, 0x00, 0x00, 0x3A, 0x30, 0x00, 0x00, 0x01, 0x00,
+        // 0x00, 0x00,
+        // 0x00, 0x00, 0x1F, 0x00, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x02,
+        // 0x00, 0x03,
+        // 0x00, 0x04, 0x00, 0x05, 0x00, 0x06, 0x00, 0x07, 0x00, 0x08, 0x00, 0x09, 0x00,
+        // 0x0A, 0x00,
+        // 0x0B, 0x00, 0x0C, 0x00, 0x0D, 0x00, 0x0E, 0x00, 0x0F, 0x00, 0x10, 0x00, 0x11,
+        // 0x00, 0x12,
+        // 0x00, 0x13, 0x00, 0x14, 0x00, 0x15, 0x00, 0x16, 0x00, 0x17, 0x00, 0x18, 0x00,
+        // 0x19, 0x00,
+        // 0x1A, 0x00, 0x1B, 0x00, 0x1C, 0x00, 0x1D, 0x00, 0x1E, 0x00, 0x1F, 0x00) };
+        // for (Object bitmap : new Object[] { Roaring64NavigableMap.bitmapOf(values) })
+        // {
+        // byte[] actual = getWrittenBytes(
+        // o -> BinaryStreamUtils.writeBitmap(o, ClickHouseBitmap.wrap(bitmap, t)));
+        // Assert.assertEquals(actual, expected[i]);
+        // }
+        // i++;
+        // }
     }
 
     @Test(groups = { "unit" })
@@ -529,188 +754,378 @@ public class BinaryStreamUtilsTest {
 
     @Test(groups = { "unit" })
     public void testReadDate() throws IOException {
-        Assert.assertEquals(BinaryStreamUtils.readDate(generateInput(-1, 0)), LocalDate.ofEpochDay(255));
-        Assert.assertEquals(BinaryStreamUtils.readDate(generateInput(0, 0x80)), LocalDate.ofEpochDay(0x8000));
-        Assert.assertEquals(BinaryStreamUtils.readDate(generateInput(0, 0)), LocalDate.ofEpochDay(0));
-        Assert.assertEquals(BinaryStreamUtils.readDate(generateInput(1, 0)), LocalDate.ofEpochDay(1));
-        Assert.assertEquals(BinaryStreamUtils.readDate(generateInput(0xFF, 0x7F)),
+        Assert.assertEquals(BinaryStreamUtils.readDate(generateInput(-1, 0), null), LocalDate.ofEpochDay(255));
+        Assert.assertEquals(BinaryStreamUtils.readDate(generateInput(0, 0x80), null), LocalDate.ofEpochDay(0x8000));
+        Assert.assertEquals(BinaryStreamUtils.readDate(generateInput(0, 0), null), LocalDate.ofEpochDay(0));
+        Assert.assertEquals(BinaryStreamUtils.readDate(generateInput(1, 0), null), LocalDate.ofEpochDay(1));
+        Assert.assertEquals(BinaryStreamUtils.readDate(generateInput(0xFF, 0x7F), null),
                 LocalDate.ofEpochDay(Short.MAX_VALUE));
-        Assert.assertEquals(BinaryStreamUtils.readDate(generateInput(0xFF, 0xFF)), LocalDate.ofEpochDay(0xFFFF));
+        Assert.assertEquals(BinaryStreamUtils.readDate(generateInput(0xFF, 0xFF), null), LocalDate.ofEpochDay(0xFFFF));
 
-        Assert.assertEquals(BinaryStreamUtils.readDate(generateInput(0x9E, 0x49)), LocalDate.of(2021, 8, 7));
+        Assert.assertEquals(BinaryStreamUtils.readDate(generateInput(0x9E, 0x49), null), LocalDate.of(2021, 8, 7));
     }
 
     @Test(groups = { "unit" })
     public void testWriteDate() throws IOException {
-        Assert.assertEquals(getWrittenBytes(o -> BinaryStreamUtils.writeDate(o, LocalDate.ofEpochDay(255))),
+        Assert.assertEquals(getWrittenBytes(o -> BinaryStreamUtils.writeDate(o, LocalDate.ofEpochDay(255), null)),
                 generateBytes(-1, 0));
-        Assert.assertEquals(getWrittenBytes(o -> BinaryStreamUtils.writeDate(o, LocalDate.ofEpochDay(0x8000))),
+        Assert.assertEquals(getWrittenBytes(o -> BinaryStreamUtils.writeDate(o, LocalDate.ofEpochDay(0x8000), null)),
                 generateBytes(0, 0x80));
-        Assert.assertEquals(getWrittenBytes(o -> BinaryStreamUtils.writeDate(o, LocalDate.ofEpochDay(0))),
+        Assert.assertEquals(getWrittenBytes(o -> BinaryStreamUtils.writeDate(o, LocalDate.ofEpochDay(0), null)),
                 generateBytes(0, 0));
-        Assert.assertEquals(getWrittenBytes(o -> BinaryStreamUtils.writeDate(o, LocalDate.ofEpochDay(1))),
+        Assert.assertEquals(getWrittenBytes(o -> BinaryStreamUtils.writeDate(o, LocalDate.ofEpochDay(1), null)),
                 generateBytes(1, 0));
-        Assert.assertEquals(getWrittenBytes(o -> BinaryStreamUtils.writeDate(o, LocalDate.ofEpochDay(Short.MAX_VALUE))),
+        Assert.assertEquals(
+                getWrittenBytes(o -> BinaryStreamUtils.writeDate(o, LocalDate.ofEpochDay(Short.MAX_VALUE), null)),
                 generateBytes(0xFF, 0x7F));
-        Assert.assertEquals(getWrittenBytes(o -> BinaryStreamUtils.writeDate(o, LocalDate.ofEpochDay(0xFFFF))),
+        Assert.assertEquals(getWrittenBytes(o -> BinaryStreamUtils.writeDate(o, LocalDate.ofEpochDay(0xFFFF), null)),
                 generateBytes(0xFF, 0xFF));
-        Assert.assertEquals(getWrittenBytes(o -> BinaryStreamUtils.writeDate(o, LocalDate.of(2021, 8, 7))),
+        Assert.assertEquals(getWrittenBytes(o -> BinaryStreamUtils.writeDate(o, LocalDate.of(2021, 8, 7), null)),
                 generateBytes(0x9E, 0x49));
     }
 
     @Test(groups = { "unit" })
     public void testReadDate32() throws IOException {
-        Assert.assertEquals(BinaryStreamUtils.readDate32(generateInput(0xFF, 0xFF, 0xFF, 0xFF)),
+        Assert.assertEquals(BinaryStreamUtils.readDate32(generateInput(0xFF, 0xFF, 0xFF, 0xFF), null),
                 LocalDate.ofEpochDay(-1));
-        Assert.assertEquals(BinaryStreamUtils.readDate32(generateInput(0, 0, 0, 0)), LocalDate.ofEpochDay(0));
-        Assert.assertEquals(BinaryStreamUtils.readDate32(generateInput(1, 0, 0, 0)), LocalDate.ofEpochDay(1));
-        Assert.assertEquals(BinaryStreamUtils.readDate32(generateInput(0x17, 0x61, 0, 0)), LocalDate.of(2038, 1, 19));
+        Assert.assertEquals(BinaryStreamUtils.readDate32(generateInput(0, 0, 0, 0), null), LocalDate.ofEpochDay(0));
+        Assert.assertEquals(BinaryStreamUtils.readDate32(generateInput(1, 0, 0, 0), null), LocalDate.ofEpochDay(1));
+        Assert.assertEquals(BinaryStreamUtils.readDate32(generateInput(0x17, 0x61, 0, 0), null),
+                LocalDate.of(2038, 1, 19));
 
-        Assert.assertEquals(BinaryStreamUtils.readDate32(generateInput(0xCC, 0xBF, 0xFF, 0xFF)),
+        Assert.assertEquals(BinaryStreamUtils.readDate32(generateInput(0xCC, 0xBF, 0xFF, 0xFF), null),
                 LocalDate.of(1925, 1, 1));
-        Assert.assertEquals(BinaryStreamUtils.readDate32(generateInput(0xCB, 0xBF, 1, 0)), LocalDate.of(2283, 11, 11));
+        Assert.assertEquals(BinaryStreamUtils.readDate32(generateInput(0xCB, 0xBF, 1, 0), null),
+                LocalDate.of(2283, 11, 11));
+    }
+
+    @Test(dataProvider = "timeZoneProvider", groups = { "unit" })
+    public void testReadDate32WithTimeZone(String timeZoneId) throws IOException {
+        TimeZone tz = TimeZone.getTimeZone(timeZoneId);
+        Assert.assertEquals(BinaryStreamUtils.readDate32(generateInput(0xFF, 0xFF, 0xFF, 0xFF), tz),
+                LocalDate.ofEpochDay(-1));
+        Assert.assertEquals(BinaryStreamUtils.readDate32(generateInput(0, 0, 0, 0), tz), LocalDate.ofEpochDay(0));
+        Assert.assertEquals(BinaryStreamUtils.readDate32(generateInput(1, 0, 0, 0), tz), LocalDate.ofEpochDay(1));
+        Assert.assertEquals(BinaryStreamUtils.readDate32(generateInput(0x17, 0x61, 0, 0), tz),
+                LocalDate.of(2038, 1, 19));
+
+        Assert.assertEquals(BinaryStreamUtils.readDate32(generateInput(0xCC, 0xBF, 0xFF, 0xFF), tz),
+                LocalDate.of(1925, 1, 1));
+        Assert.assertEquals(BinaryStreamUtils.readDate32(generateInput(0xCB, 0xBF, 1, 0), tz),
+                LocalDate.of(2283, 11, 11));
     }
 
     @Test(groups = { "unit" })
     public void testWriteDate32() throws IOException {
-        Assert.assertEquals(getWrittenBytes(o -> BinaryStreamUtils.writeDate32(o, LocalDate.ofEpochDay(-1))),
+        Assert.assertEquals(getWrittenBytes(o -> BinaryStreamUtils.writeDate32(o, LocalDate.ofEpochDay(-1), null)),
                 generateBytes(0xFF, 0xFF, 0xFF, 0xFF));
-        Assert.assertEquals(getWrittenBytes(o -> BinaryStreamUtils.writeDate32(o, LocalDate.ofEpochDay(0))),
+        Assert.assertEquals(getWrittenBytes(o -> BinaryStreamUtils.writeDate32(o, LocalDate.ofEpochDay(0), null)),
                 generateBytes(0, 0, 0, 0));
-        Assert.assertEquals(getWrittenBytes(o -> BinaryStreamUtils.writeDate32(o, LocalDate.ofEpochDay(1))),
+        Assert.assertEquals(getWrittenBytes(o -> BinaryStreamUtils.writeDate32(o, LocalDate.ofEpochDay(1), null)),
                 generateBytes(1, 0, 0, 0));
-        Assert.assertEquals(getWrittenBytes(o -> BinaryStreamUtils.writeDate32(o, LocalDate.of(2038, 1, 19))),
+        Assert.assertEquals(getWrittenBytes(o -> BinaryStreamUtils.writeDate32(o, LocalDate.of(2038, 1, 19), null)),
                 generateBytes(0x17, 0x61, 0, 0));
 
-        Assert.assertEquals(getWrittenBytes(o -> BinaryStreamUtils.writeDate32(o, LocalDate.of(1925, 1, 1))),
+        Assert.assertEquals(getWrittenBytes(o -> BinaryStreamUtils.writeDate32(o, LocalDate.of(1925, 1, 1), null)),
                 generateBytes(0xCC, 0xBF, 0xFF, 0xFF));
-        Assert.assertEquals(getWrittenBytes(o -> BinaryStreamUtils.writeDate32(o, LocalDate.of(2283, 11, 11))),
+        Assert.assertEquals(getWrittenBytes(o -> BinaryStreamUtils.writeDate32(o, LocalDate.of(2283, 11, 11), null)),
                 generateBytes(0xCB, 0xBF, 1, 0));
 
         Assert.assertThrows(IllegalArgumentException.class, () -> getWrittenBytes(
-                o -> BinaryStreamUtils.writeDate32(o, LocalDate.of(1925, 1, 1).minus(1L, ChronoUnit.DAYS))));
+                o -> BinaryStreamUtils.writeDate32(o, LocalDate.of(1925, 1, 1).minus(1L, ChronoUnit.DAYS), null)));
         Assert.assertThrows(IllegalArgumentException.class, () -> getWrittenBytes(
-                o -> BinaryStreamUtils.writeDate32(o, LocalDate.of(2283, 11, 11).plus(1L, ChronoUnit.DAYS))));
+                o -> BinaryStreamUtils.writeDate32(o, LocalDate.of(2283, 11, 11).plus(1L, ChronoUnit.DAYS), null)));
+    }
+
+    @Test(dataProvider = "timeZoneProvider", groups = { "unit" })
+    public void testWriteDate32WithTimeZone(String timeZoneId) throws IOException {
+        TimeZone tz = TimeZone.getTimeZone(timeZoneId);
+        Assert.assertEquals(getWrittenBytes(o -> BinaryStreamUtils.writeDate32(o, LocalDate.ofEpochDay(-1), tz)),
+                generateBytes(0xFF, 0xFF, 0xFF, 0xFF));
+        Assert.assertEquals(getWrittenBytes(o -> BinaryStreamUtils.writeDate32(o, LocalDate.ofEpochDay(0), tz)),
+                generateBytes(0, 0, 0, 0));
+        Assert.assertEquals(getWrittenBytes(o -> BinaryStreamUtils.writeDate32(o, LocalDate.ofEpochDay(1), tz)),
+                generateBytes(1, 0, 0, 0));
+        Assert.assertEquals(getWrittenBytes(o -> BinaryStreamUtils.writeDate32(o, LocalDate.of(2038, 1, 19), tz)),
+                generateBytes(0x17, 0x61, 0, 0));
+
+        Assert.assertEquals(getWrittenBytes(o -> BinaryStreamUtils.writeDate32(o, LocalDate.of(1925, 1, 1), tz)),
+                generateBytes(0xCC, 0xBF, 0xFF, 0xFF));
+        Assert.assertEquals(getWrittenBytes(o -> BinaryStreamUtils.writeDate32(o, LocalDate.of(2283, 11, 11), tz)),
+                generateBytes(0xCB, 0xBF, 1, 0));
+
+        Assert.assertThrows(IllegalArgumentException.class, () -> getWrittenBytes(
+                o -> BinaryStreamUtils.writeDate32(o, LocalDate.of(1925, 1, 1).minus(1L, ChronoUnit.DAYS), tz)));
+        Assert.assertThrows(IllegalArgumentException.class, () -> getWrittenBytes(
+                o -> BinaryStreamUtils.writeDate32(o, LocalDate.of(2283, 11, 11).plus(1L, ChronoUnit.DAYS), tz)));
     }
 
     @Test(groups = { "unit" })
     public void testReadDateTime32() throws IOException {
-        Assert.assertEquals(BinaryStreamUtils.readDateTime32(generateInput(-1, 0, 0, 0)),
+        Assert.assertEquals(BinaryStreamUtils.readDateTime32(generateInput(-1, 0, 0, 0), null),
                 LocalDateTime.ofEpochSecond(255, 0, ZoneOffset.UTC));
-        Assert.assertEquals(BinaryStreamUtils.readDateTime32(generateInput(0, 0, 0, 0x80)), LocalDateTime
+        Assert.assertEquals(BinaryStreamUtils.readDateTime32(generateInput(0, 0, 0, 0x80), null), LocalDateTime
                 .ofEpochSecond(new BigInteger(1, generateBytes(0x80, 0, 0, 0)).longValue(), 0, ZoneOffset.UTC));
-        Assert.assertEquals(BinaryStreamUtils.readDateTime32(generateInput(0, 0, 0, 0)),
+        Assert.assertEquals(BinaryStreamUtils.readDateTime32(generateInput(0, 0, 0, 0), null),
                 LocalDateTime.ofEpochSecond(0L, 0, ZoneOffset.UTC));
-        Assert.assertEquals(BinaryStreamUtils.readDateTime32(generateInput(1, 0, 0, 0)),
+        Assert.assertEquals(BinaryStreamUtils.readDateTime32(generateInput(1, 0, 0, 0), null),
                 LocalDateTime.ofEpochSecond(1L, 0, ZoneOffset.UTC));
-        Assert.assertEquals(BinaryStreamUtils.readDateTime32(generateInput(0xFF, 0xFF, 0xFF, 0x7F)),
+        Assert.assertEquals(BinaryStreamUtils.readDateTime32(generateInput(0xFF, 0xFF, 0xFF, 0x7F), null),
                 LocalDateTime.ofEpochSecond(Integer.MAX_VALUE, 0, ZoneOffset.UTC));
 
-        Assert.assertEquals(BinaryStreamUtils.readDateTime32(generateInput(0x2D, 0x9A, 0x0E, 0x61)),
+        Assert.assertEquals(BinaryStreamUtils.readDateTime32(generateInput(0x2D, 0x9A, 0x0E, 0x61), null),
                 LocalDateTime.of(2021, 8, 7, 14, 35, 25));
+    }
+
+    @Test(dataProvider = "timeZoneProvider", groups = { "unit" })
+    public void testReadDateTime32WithTimeZone(String timeZoneId) throws IOException {
+        TimeZone tz = TimeZone.getTimeZone(timeZoneId);
+        Assert.assertEquals(BinaryStreamUtils.readDateTime32(generateInput(-1, 0, 0, 0), tz),
+                LocalDateTime.ofInstant(Instant.ofEpochSecond(255L), tz.toZoneId()));
+        Assert.assertEquals(BinaryStreamUtils.readDateTime32(generateInput(0, 0, 0, 0x80), tz), LocalDateTime.ofInstant(
+                Instant.ofEpochSecond(new BigInteger(1, generateBytes(0x80, 0, 0, 0)).longValue()), tz.toZoneId()));
+        Assert.assertEquals(BinaryStreamUtils.readDateTime32(generateInput(0, 0, 0, 0), tz),
+                LocalDateTime.ofInstant(Instant.ofEpochSecond(0L), tz.toZoneId()));
+        Assert.assertEquals(BinaryStreamUtils.readDateTime32(generateInput(1, 0, 0, 0), tz),
+                LocalDateTime.ofInstant(Instant.ofEpochSecond(1L), tz.toZoneId()));
+        Assert.assertEquals(BinaryStreamUtils.readDateTime32(generateInput(0xFF, 0xFF, 0xFF, 0x7F), tz),
+                LocalDateTime.ofInstant(Instant.ofEpochSecond(Integer.MAX_VALUE), tz.toZoneId()));
+
+        Assert.assertEquals(BinaryStreamUtils.readDateTime32(generateInput(0x2D, 0x9A, 0x0E, 0x61), tz),
+                LocalDateTime.ofInstant(
+                        Instant.ofEpochSecond(new BigInteger(1, generateBytes(0x61, 0x0E, 0x9A, 0x2D)).longValue()),
+                        tz.toZoneId()));
     }
 
     @Test(groups = { "unit" })
     public void testWriteDateTime32() throws IOException {
-        Assert.assertEquals(
-                getWrittenBytes(
-                        o -> BinaryStreamUtils.writeDateTime32(o, LocalDateTime.ofEpochSecond(255, 0, ZoneOffset.UTC))),
+        Assert.assertEquals(getWrittenBytes(
+                o -> BinaryStreamUtils.writeDateTime32(o, LocalDateTime.ofEpochSecond(255, 0, ZoneOffset.UTC), null)),
                 generateBytes(-1, 0, 0, 0));
         Assert.assertEquals(
                 getWrittenBytes(o -> BinaryStreamUtils.writeDateTime32(o, LocalDateTime.ofEpochSecond(
-                        new BigInteger(1, generateBytes(0x80, 0, 0, 0)).longValue(), 0, ZoneOffset.UTC))),
+                        new BigInteger(1, generateBytes(0x80, 0, 0, 0)).longValue(), 0, ZoneOffset.UTC), null)),
                 generateBytes(0, 0, 0, 0x80));
-        Assert.assertEquals(
-                getWrittenBytes(
-                        o -> BinaryStreamUtils.writeDateTime32(o, LocalDateTime.ofEpochSecond(0L, 0, ZoneOffset.UTC))),
+        Assert.assertEquals(getWrittenBytes(
+                o -> BinaryStreamUtils.writeDateTime32(o, LocalDateTime.ofEpochSecond(0L, 0, ZoneOffset.UTC), null)),
                 generateBytes(0, 0, 0, 0));
-        Assert.assertEquals(
-                getWrittenBytes(
-                        o -> BinaryStreamUtils.writeDateTime32(o, LocalDateTime.ofEpochSecond(1L, 0, ZoneOffset.UTC))),
+        Assert.assertEquals(getWrittenBytes(
+                o -> BinaryStreamUtils.writeDateTime32(o, LocalDateTime.ofEpochSecond(1L, 0, ZoneOffset.UTC), null)),
                 generateBytes(1, 0, 0, 0));
         Assert.assertEquals(
                 getWrittenBytes(o -> BinaryStreamUtils.writeDateTime32(o,
-                        LocalDateTime.ofEpochSecond(Integer.MAX_VALUE, 0, ZoneOffset.UTC))),
+                        LocalDateTime.ofEpochSecond(Integer.MAX_VALUE, 0, ZoneOffset.UTC), null)),
                 generateBytes(0xFF, 0xFF, 0xFF, 0x7F));
 
         Assert.assertEquals(
-                getWrittenBytes(o -> BinaryStreamUtils.writeDateTime32(o, LocalDateTime.of(2021, 8, 7, 14, 35, 25))),
+                getWrittenBytes(
+                        o -> BinaryStreamUtils.writeDateTime32(o, LocalDateTime.of(2021, 8, 7, 14, 35, 25), null)),
                 generateBytes(0x2D, 0x9A, 0x0E, 0x61));
 
         Assert.assertThrows(IllegalArgumentException.class, () -> getWrittenBytes(
-                o -> BinaryStreamUtils.writeDateTime32(o, LocalDateTime.ofEpochSecond(-1L, 0, ZoneOffset.UTC))));
+                o -> BinaryStreamUtils.writeDateTime32(o, LocalDateTime.ofEpochSecond(-1L, 0, ZoneOffset.UTC), null)));
         Assert.assertThrows(IllegalArgumentException.class,
                 () -> getWrittenBytes(o -> BinaryStreamUtils.writeDateTime32(o,
-                        LocalDateTime.ofEpochSecond(BinaryStreamUtils.DATETIME_MAX + 1, 0, ZoneOffset.UTC))));
+                        LocalDateTime.ofEpochSecond(BinaryStreamUtils.DATETIME_MAX + 1, 0, ZoneOffset.UTC), null)));
+    }
+
+    @Test(dataProvider = "timeZoneProvider", groups = { "unit" })
+    public void testWriteDateTime32WithTimeZone(String timeZoneId) throws IOException {
+        TimeZone tz = TimeZone.getTimeZone(timeZoneId);
+        Assert.assertEquals(
+                getWrittenBytes(o -> BinaryStreamUtils.writeDateTime32(o,
+                        LocalDateTime.ofInstant(Instant.ofEpochSecond(255L), tz.toZoneId()), tz)),
+                generateBytes(-1, 0, 0, 0));
+        Assert.assertEquals(getWrittenBytes(o -> BinaryStreamUtils.writeDateTime32(o,
+                LocalDateTime.ofInstant(
+                        Instant.ofEpochSecond(new BigInteger(1, generateBytes(0x80, 0, 0, 0)).longValue()),
+                        tz.toZoneId()),
+                tz)), generateBytes(0, 0, 0, 0x80));
+        Assert.assertEquals(
+                getWrittenBytes(o -> BinaryStreamUtils.writeDateTime32(o,
+                        LocalDateTime.ofInstant(Instant.ofEpochSecond(0L), tz.toZoneId()), tz)),
+                generateBytes(0, 0, 0, 0));
+        Assert.assertEquals(
+                getWrittenBytes(o -> BinaryStreamUtils.writeDateTime32(o,
+                        LocalDateTime.ofInstant(Instant.ofEpochSecond(1L), tz.toZoneId()), tz)),
+                generateBytes(1, 0, 0, 0));
+        Assert.assertEquals(
+                getWrittenBytes(o -> BinaryStreamUtils.writeDateTime32(o,
+                        LocalDateTime.ofInstant(Instant.ofEpochSecond(Integer.MAX_VALUE), tz.toZoneId()), tz)),
+                generateBytes(0xFF, 0xFF, 0xFF, 0x7F));
+
+        Assert.assertEquals(getWrittenBytes(o -> BinaryStreamUtils.writeDateTime32(o,
+                LocalDateTime.ofInstant(
+                        Instant.ofEpochSecond(new BigInteger(1, generateBytes(0x61, 0x0E, 0x9A, 0x2D)).longValue()),
+                        tz.toZoneId()),
+                tz)), generateBytes(0x2D, 0x9A, 0x0E, 0x61));
+
+        Assert.assertThrows(IllegalArgumentException.class, () -> getWrittenBytes(o -> BinaryStreamUtils
+                .writeDateTime32(o, LocalDateTime.ofInstant(Instant.ofEpochSecond(-1L), tz.toZoneId()), tz)));
+        Assert.assertThrows(IllegalArgumentException.class,
+                () -> getWrittenBytes(o -> BinaryStreamUtils.writeDateTime32(o, LocalDateTime
+                        .ofInstant(Instant.ofEpochSecond(BinaryStreamUtils.DATETIME_MAX + 1), tz.toZoneId()), tz)));
     }
 
     @Test(groups = { "unit" })
     public void testReadDateTime64() throws IOException {
-        Assert.assertEquals(BinaryStreamUtils.readDateTime64(generateInput(-1, 0, 0, 0, 0, 0, 0, 0), 0),
+        Assert.assertEquals(BinaryStreamUtils.readDateTime64(generateInput(-1, 0, 0, 0, 0, 0, 0, 0), 0, null),
                 LocalDateTime.ofEpochSecond(255, 0, ZoneOffset.UTC));
-        Assert.assertEquals(
-                BinaryStreamUtils.readDateTime64(generateInput(0xF6, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF), 1),
+        Assert.assertEquals(BinaryStreamUtils
+                .readDateTime64(generateInput(0xF6, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF), 1, null),
                 LocalDateTime.ofEpochSecond(-1L, 0, ZoneOffset.UTC));
-        Assert.assertEquals(
-                BinaryStreamUtils.readDateTime64(generateInput(0xF5, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF), 1),
+        Assert.assertEquals(BinaryStreamUtils
+                .readDateTime64(generateInput(0xF5, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF), 1, null),
                 LocalDateTime.ofEpochSecond(-2L, 900000000, ZoneOffset.UTC));
         // Actually query "select toDateTime64(-1.000000001::Decimal64(9), 9)" returns:
         // 1969-12-31 23:59:59.000000001
         // see https://github.com/ClickHouse/ClickHouse/issues/29386
-        Assert.assertEquals(
-                BinaryStreamUtils.readDateTime64(generateInput(0xFF, 0x35, 0x65, 0xC4, 0xFF, 0xFF, 0xFF, 0xFF), 9),
+        Assert.assertEquals(BinaryStreamUtils
+                .readDateTime64(generateInput(0xFF, 0x35, 0x65, 0xC4, 0xFF, 0xFF, 0xFF, 0xFF), 9, null),
                 LocalDateTime.ofEpochSecond(-2L, 999999999, ZoneOffset.UTC));
-        Assert.assertEquals(BinaryStreamUtils.readDateTime64(generateInput(0, 0, 0, 0, 0, 0, 0, 0), 0),
+        Assert.assertEquals(BinaryStreamUtils.readDateTime64(generateInput(0, 0, 0, 0, 0, 0, 0, 0), 0, null),
                 LocalDateTime.ofEpochSecond(0L, 0, ZoneOffset.UTC));
-        Assert.assertEquals(BinaryStreamUtils.readDateTime64(generateInput(1, 0, 0, 0, 0, 0, 0, 0), 0),
+        Assert.assertEquals(BinaryStreamUtils.readDateTime64(generateInput(1, 0, 0, 0, 0, 0, 0, 0), 0, null),
                 LocalDateTime.ofEpochSecond(1L, 0, ZoneOffset.UTC));
 
-        Assert.assertEquals(BinaryStreamUtils.readDateTime64(generateInput(0x0A, 0, 0, 0, 0, 0, 0, 0), 1),
+        Assert.assertEquals(BinaryStreamUtils.readDateTime64(generateInput(0x0A, 0, 0, 0, 0, 0, 0, 0), 1, null),
                 LocalDateTime.ofEpochSecond(1L, 0, ZoneOffset.UTC));
-        Assert.assertEquals(BinaryStreamUtils.readDateTime64(generateInput(1, 0, 0, 0, 0, 0, 0, 0), 9),
+        Assert.assertEquals(BinaryStreamUtils.readDateTime64(generateInput(1, 0, 0, 0, 0, 0, 0, 0), 9, null),
                 LocalDateTime.ofEpochSecond(0L, 1, ZoneOffset.UTC));
+    }
+
+    @Test(dataProvider = "timeZoneProvider", groups = { "unit" })
+    public void testReadDateTime64WithTimeZone(String timeZoneId) throws IOException {
+        TimeZone tz = TimeZone.getTimeZone(timeZoneId);
+        Assert.assertEquals(BinaryStreamUtils.readDateTime64(generateInput(-1, 0, 0, 0, 0, 0, 0, 0), 0, tz),
+                LocalDateTime.ofInstant(Instant.ofEpochSecond(255L), tz.toZoneId()));
+        Assert.assertEquals(
+                BinaryStreamUtils.readDateTime64(generateInput(0xF6, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF), 1, tz),
+                LocalDateTime.ofEpochSecond(-1L, 0, ZoneOffset.UTC).atOffset(ZoneOffset.UTC)
+                        .atZoneSameInstant(tz.toZoneId()).toLocalDateTime());
+        Assert.assertEquals(
+                BinaryStreamUtils.readDateTime64(generateInput(0xF5, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF), 1, tz),
+                LocalDateTime.ofEpochSecond(-2L, 900000000, ZoneOffset.UTC).atOffset(ZoneOffset.UTC)
+                        .atZoneSameInstant(tz.toZoneId()).toLocalDateTime());
+        // Actually query "select toDateTime64(-1.000000001::Decimal64(9), 9)" returns:
+        // 1969-12-31 23:59:59.000000001
+        // see https://github.com/ClickHouse/ClickHouse/issues/29386
+        Assert.assertEquals(
+                BinaryStreamUtils.readDateTime64(generateInput(0xFF, 0x35, 0x65, 0xC4, 0xFF, 0xFF, 0xFF, 0xFF), 9, tz),
+                LocalDateTime.ofEpochSecond(-2L, 999999999, ZoneOffset.UTC).atOffset(ZoneOffset.UTC)
+                        .atZoneSameInstant(tz.toZoneId()).toLocalDateTime());
+        Assert.assertEquals(BinaryStreamUtils.readDateTime64(generateInput(0, 0, 0, 0, 0, 0, 0, 0), 0, tz),
+                LocalDateTime.ofEpochSecond(0L, 0, ZoneOffset.UTC).atOffset(ZoneOffset.UTC)
+                        .atZoneSameInstant(tz.toZoneId()).toLocalDateTime());
+        Assert.assertEquals(BinaryStreamUtils.readDateTime64(generateInput(1, 0, 0, 0, 0, 0, 0, 0), 0, tz),
+                LocalDateTime.ofEpochSecond(1L, 0, ZoneOffset.UTC).atOffset(ZoneOffset.UTC)
+                        .atZoneSameInstant(tz.toZoneId()).toLocalDateTime());
+
+        Assert.assertEquals(BinaryStreamUtils.readDateTime64(generateInput(0x0A, 0, 0, 0, 0, 0, 0, 0), 1, tz),
+                LocalDateTime.ofEpochSecond(1L, 0, ZoneOffset.UTC).atOffset(ZoneOffset.UTC)
+                        .atZoneSameInstant(tz.toZoneId()).toLocalDateTime());
+        Assert.assertEquals(BinaryStreamUtils.readDateTime64(generateInput(1, 0, 0, 0, 0, 0, 0, 0), 9, tz),
+                LocalDateTime.ofEpochSecond(0L, 1, ZoneOffset.UTC).atOffset(ZoneOffset.UTC)
+                        .atZoneSameInstant(tz.toZoneId()).toLocalDateTime());
     }
 
     @Test(groups = { "unit" })
     public void testWriteDateTime64() throws IOException {
-        Assert.assertEquals(getWrittenBytes(
-                o -> BinaryStreamUtils.writeDateTime64(o, LocalDateTime.ofEpochSecond(255L, 0, ZoneOffset.UTC), 0)),
+        Assert.assertEquals(
+                getWrittenBytes(o -> BinaryStreamUtils.writeDateTime64(o,
+                        LocalDateTime.ofEpochSecond(255L, 0, ZoneOffset.UTC), 0, null)),
                 generateBytes(-1, 0, 0, 0, 0, 0, 0, 0));
-        Assert.assertEquals(getWrittenBytes(
-                o -> BinaryStreamUtils.writeDateTime64(o, LocalDateTime.ofEpochSecond(-1L, 0, ZoneOffset.UTC), 1)),
+        Assert.assertEquals(
+                getWrittenBytes(o -> BinaryStreamUtils.writeDateTime64(o,
+                        LocalDateTime.ofEpochSecond(-1L, 0, ZoneOffset.UTC), 1, null)),
                 generateBytes(0xF6, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF));
         Assert.assertEquals(
                 getWrittenBytes(o -> BinaryStreamUtils.writeDateTime64(o,
-                        LocalDateTime.ofEpochSecond(-2L, 900000000, ZoneOffset.UTC), 1)),
+                        LocalDateTime.ofEpochSecond(-2L, 900000000, ZoneOffset.UTC), 1, null)),
                 generateBytes(0xF5, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF));
         Assert.assertEquals(
                 getWrittenBytes(o -> BinaryStreamUtils.writeDateTime64(o,
-                        LocalDateTime.ofEpochSecond(-2L, 999999999, ZoneOffset.UTC), 9)),
+                        LocalDateTime.ofEpochSecond(-2L, 999999999, ZoneOffset.UTC), 9, null)),
                 generateBytes(0xFF, 0x35, 0x65, 0xC4, 0xFF, 0xFF, 0xFF, 0xFF));
         Assert.assertEquals(getWrittenBytes(
-                o -> BinaryStreamUtils.writeDateTime64(o, LocalDateTime.ofEpochSecond(0L, 0, ZoneOffset.UTC), 0)),
+                o -> BinaryStreamUtils.writeDateTime64(o, LocalDateTime.ofEpochSecond(0L, 0, ZoneOffset.UTC), 0, null)),
                 generateBytes(0, 0, 0, 0, 0, 0, 0, 0));
         Assert.assertEquals(getWrittenBytes(
-                o -> BinaryStreamUtils.writeDateTime64(o, LocalDateTime.ofEpochSecond(1L, 0, ZoneOffset.UTC), 0)),
+                o -> BinaryStreamUtils.writeDateTime64(o, LocalDateTime.ofEpochSecond(1L, 0, ZoneOffset.UTC), 0, null)),
                 generateBytes(1, 0, 0, 0, 0, 0, 0, 0));
         Assert.assertEquals(getWrittenBytes(
-                o -> BinaryStreamUtils.writeDateTime64(o, LocalDateTime.ofEpochSecond(1L, 0, ZoneOffset.UTC), 1)),
+                o -> BinaryStreamUtils.writeDateTime64(o, LocalDateTime.ofEpochSecond(1L, 0, ZoneOffset.UTC), 1, null)),
                 generateBytes(0x0A, 0, 0, 0, 0, 0, 0, 0));
         Assert.assertEquals(getWrittenBytes(
-                o -> BinaryStreamUtils.writeDateTime64(o, LocalDateTime.ofEpochSecond(0L, 1, ZoneOffset.UTC), 9)),
+                o -> BinaryStreamUtils.writeDateTime64(o, LocalDateTime.ofEpochSecond(0L, 1, ZoneOffset.UTC), 9, null)),
                 generateBytes(1, 0, 0, 0, 0, 0, 0, 0));
 
-        Assert.assertThrows(IllegalArgumentException.class, () -> getWrittenBytes(
-                o -> BinaryStreamUtils.writeDateTime64(o, LocalDateTime.ofEpochSecond(0L, 0, ZoneOffset.UTC), -1)));
-        Assert.assertThrows(IllegalArgumentException.class, () -> getWrittenBytes(
-                o -> BinaryStreamUtils.writeDateTime64(o, LocalDateTime.ofEpochSecond(0L, 0, ZoneOffset.UTC), 10)));
+        Assert.assertThrows(IllegalArgumentException.class, () -> getWrittenBytes(o -> BinaryStreamUtils
+                .writeDateTime64(o, LocalDateTime.ofEpochSecond(0L, 0, ZoneOffset.UTC), -1, null)));
+        Assert.assertThrows(IllegalArgumentException.class, () -> getWrittenBytes(o -> BinaryStreamUtils
+                .writeDateTime64(o, LocalDateTime.ofEpochSecond(0L, 0, ZoneOffset.UTC), 10, null)));
 
         Assert.assertThrows(IllegalArgumentException.class,
                 () -> getWrittenBytes(o -> BinaryStreamUtils.writeDateTime64(o,
-                        LocalDateTime.of(LocalDate.of(1925, 1, 1).minus(1L, ChronoUnit.DAYS), LocalTime.MAX))));
+                        LocalDateTime.of(LocalDate.of(1925, 1, 1).minus(1L, ChronoUnit.DAYS), LocalTime.MAX), null)));
         Assert.assertThrows(IllegalArgumentException.class,
                 () -> getWrittenBytes(o -> BinaryStreamUtils.writeDateTime64(o,
-                        LocalDateTime.of(LocalDate.of(2283, 11, 11).plus(1L, ChronoUnit.DAYS), LocalTime.MIN))));
+                        LocalDateTime.of(LocalDate.of(2283, 11, 11).plus(1L, ChronoUnit.DAYS), LocalTime.MIN), null)));
+    }
+
+    @Test(dataProvider = "timeZoneProvider", groups = { "unit" })
+    public void testWriteDateTime64WithTimeZone(String timeZoneId) throws IOException {
+        TimeZone tz = TimeZone.getTimeZone(timeZoneId);
+        Assert.assertEquals(
+                getWrittenBytes(o -> BinaryStreamUtils.writeDateTime64(o,
+                        LocalDateTime.ofInstant(Instant.ofEpochSecond(255L), tz.toZoneId()), 0, tz)),
+                generateBytes(-1, 0, 0, 0, 0, 0, 0, 0));
+        Assert.assertEquals(
+                getWrittenBytes(o -> BinaryStreamUtils.writeDateTime64(o,
+                        LocalDateTime.ofInstant(Instant.ofEpochSecond(-1L), tz.toZoneId()), 1, tz)),
+                generateBytes(0xF6, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF));
+        Assert.assertEquals(
+                getWrittenBytes(o -> BinaryStreamUtils.writeDateTime64(o,
+                        LocalDateTime.ofInstant(Instant.ofEpochSecond(-2L, 900000000), tz.toZoneId()), 1, tz)),
+                generateBytes(0xF5, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF));
+        Assert.assertEquals(
+                getWrittenBytes(o -> BinaryStreamUtils.writeDateTime64(o,
+                        LocalDateTime.ofInstant(Instant.ofEpochSecond(-2L, 999999999), tz.toZoneId()), 9, tz)),
+                generateBytes(0xFF, 0x35, 0x65, 0xC4, 0xFF, 0xFF, 0xFF, 0xFF));
+        Assert.assertEquals(
+                getWrittenBytes(o -> BinaryStreamUtils.writeDateTime64(o,
+                        LocalDateTime.ofInstant(Instant.ofEpochSecond(0L, 0), tz.toZoneId()), 0, tz)),
+                generateBytes(0, 0, 0, 0, 0, 0, 0, 0));
+        Assert.assertEquals(
+                getWrittenBytes(o -> BinaryStreamUtils.writeDateTime64(o,
+                        LocalDateTime.ofInstant(Instant.ofEpochSecond(1L, 0), tz.toZoneId()), 0, tz)),
+                generateBytes(1, 0, 0, 0, 0, 0, 0, 0));
+        Assert.assertEquals(
+                getWrittenBytes(o -> BinaryStreamUtils.writeDateTime64(o,
+                        LocalDateTime.ofInstant(Instant.ofEpochSecond(1L, 0), tz.toZoneId()), 1, tz)),
+                generateBytes(0x0A, 0, 0, 0, 0, 0, 0, 0));
+        Assert.assertEquals(
+                getWrittenBytes(o -> BinaryStreamUtils.writeDateTime64(o,
+                        LocalDateTime.ofInstant(Instant.ofEpochSecond(0L, 1), tz.toZoneId()), 9, tz)),
+                generateBytes(1, 0, 0, 0, 0, 0, 0, 0));
+
+        Assert.assertThrows(IllegalArgumentException.class, () -> getWrittenBytes(o -> BinaryStreamUtils
+                .writeDateTime64(o, LocalDateTime.ofInstant(Instant.ofEpochSecond(0L, 0), tz.toZoneId()), -1, tz)));
+        Assert.assertThrows(IllegalArgumentException.class, () -> getWrittenBytes(o -> BinaryStreamUtils
+                .writeDateTime64(o, LocalDateTime.ofInstant(Instant.ofEpochSecond(0L, 0), tz.toZoneId()), 10, tz)));
+
+        Assert.assertThrows(IllegalArgumentException.class,
+                () -> getWrittenBytes(
+                        o -> BinaryStreamUtils.writeDateTime64(o,
+                                LocalDateTime.of(LocalDate.of(1925, 1, 1).minus(1L, ChronoUnit.DAYS), LocalTime.MAX)
+                                        .atOffset(ZoneOffset.UTC).atZoneSameInstant(tz.toZoneId()).toLocalDateTime(),
+                                tz)));
+        Assert.assertThrows(IllegalArgumentException.class,
+                () -> getWrittenBytes(
+                        o -> BinaryStreamUtils.writeDateTime64(o,
+                                LocalDateTime.of(LocalDate.of(2283, 11, 11).plus(1L, ChronoUnit.DAYS), LocalTime.MIN)
+                                        .atOffset(ZoneOffset.UTC).atZoneSameInstant(tz.toZoneId()).toLocalDateTime(),
+                                tz)));
     }
 
     @Test(groups = { "unit" })

@@ -9,10 +9,11 @@ import io.grpc.StatusException;
 import io.grpc.stub.StreamObserver;
 import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseDataStreamFactory;
+import com.clickhouse.client.ClickHouseException;
 import com.clickhouse.client.ClickHouseNode;
+import com.clickhouse.client.ClickHouseResponseSummary;
 import com.clickhouse.client.ClickHouseUtils;
 import com.clickhouse.client.data.ClickHousePipedStream;
-import com.clickhouse.client.exception.ClickHouseException;
 import com.clickhouse.client.grpc.impl.Exception;
 import com.clickhouse.client.grpc.impl.LogEntry;
 import com.clickhouse.client.grpc.impl.Progress;
@@ -31,7 +32,7 @@ public class ClickHouseStreamObserver implements StreamObserver<Result> {
 
     private final ClickHousePipedStream stream;
 
-    private final ClickHouseGrpcResponseSummary summary;
+    private final ClickHouseResponseSummary summary;
 
     private Throwable error;
 
@@ -43,7 +44,7 @@ public class ClickHouseStreamObserver implements StreamObserver<Result> {
 
         this.stream = ClickHouseDataStreamFactory.getInstance().createPipedStream(config);
 
-        this.summary = new ClickHouseGrpcResponseSummary();
+        this.summary = new ClickHouseResponseSummary(null, null);
 
         this.error = null;
     }
@@ -61,7 +62,7 @@ public class ClickHouseStreamObserver implements StreamObserver<Result> {
     }
 
     protected boolean updateStatus(Result result) {
-        summary.results.incrementAndGet();
+        summary.update();
 
         log.info(() -> {
             for (LogEntry e : result.getLogsList()) {
@@ -80,20 +81,15 @@ public class ClickHouseStreamObserver implements StreamObserver<Result> {
         boolean proceed = true;
 
         if (result.hasStats()) {
-            Stats stats = result.getStats();
-            summary.allocatedBytes.set(stats.getAllocatedBytes());
-            summary.blocks.set(stats.getBlocks());
-            summary.rows.set(stats.getRows());
-            summary.rowsBeforeLimit.set(stats.getRowsBeforeLimit());
+            Stats s = result.getStats();
+            summary.update(new ClickHouseResponseSummary.Statistics(s.getRows(), s.getBlocks(), s.getAllocatedBytes(),
+                    s.getAppliedLimit(), s.getRowsBeforeLimit()));
         }
 
         if (result.hasProgress()) {
-            Progress prog = result.getProgress();
-            summary.readBytes.set(prog.getReadBytes());
-            summary.readRows.set(prog.getReadRows());
-            summary.totalRowsToRead.set(prog.getTotalRowsToRead());
-            summary.writeBytes.set(prog.getWrittenBytes());
-            summary.writeRows.set(prog.getWrittenRows());
+            Progress p = result.getProgress();
+            summary.update(new ClickHouseResponseSummary.Progress(p.getReadRows(), p.getReadBytes(),
+                    p.getTotalRowsToRead(), p.getWrittenRows(), p.getWrittenBytes()));
         }
 
         if (result.getCancelled()) {
@@ -107,7 +103,7 @@ public class ClickHouseStreamObserver implements StreamObserver<Result> {
 
             if (error == null) {
                 error = new ClickHouseException(result.getException().getCode(), result.getException().getDisplayText(),
-                        null);
+                        this.server);
             }
         }
 
@@ -122,7 +118,7 @@ public class ClickHouseStreamObserver implements StreamObserver<Result> {
         return isCompleted() && error != null;
     }
 
-    public ClickHouseGrpcResponseSummary getSummary() {
+    public ClickHouseResponseSummary getSummary() {
         return summary;
     }
 

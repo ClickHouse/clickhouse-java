@@ -17,7 +17,7 @@ import com.clickhouse.client.ClickHouseProtocol;
  * {@code -Ddefault_async=false} on the Java command line, or setting
  * environment variable {@code DEFAULT_ASYNC=false}.
  */
-public enum ClickHouseDefaults implements ClickHouseConfigOption {
+public enum ClickHouseDefaults implements ClickHouseOption {
     /**
      * Default execution mode.
      */
@@ -59,10 +59,6 @@ public enum ClickHouseDefaults implements ClickHouseConfigOption {
      */
     PASSWORD("password", "", "Password for authentication."),
     /**
-     * Default compression.
-     */
-    COMPRESSION("compression", ClickHouseCompression.LZ4, "Preferred compression alogrithm used in data transferring."),
-    /**
      * Default format.
      */
     FORMAT("format", ClickHouseFormat.TabSeparated, "Preferred data format for serialization and deserialization."),
@@ -74,6 +70,14 @@ public enum ClickHouseDefaults implements ClickHouseConfigOption {
      * Max requests.
      */
     MAX_REQUESTS("max_requests", 0, "Maximum size of shared thread pool, 0 means no limit."),
+    /**
+     * Server time zone, defaults to {@code UTC}.
+     */
+    SERVER_TIME_ZONE("time_zone", "UTC", "Server time zone."),
+    /**
+     * Server version, defaults to {@code latest}.
+     */
+    SERVER_VERSION("version", "latest", "Server version"),
     /**
      * Whether to resolve DNS SRV name using
      * {@link com.clickhouse.client.naming.SrvResolver}(e.g. resolve SRV record to

@@ -1,8 +1,11 @@
 package com.clickhouse.client.data;
 
-import java.io.DataInputStream;
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
+
+import com.clickhouse.client.ClickHouseChecker;
+
 import net.jpountz.lz4.LZ4Factory;
 import net.jpountz.lz4.LZ4FastDecompressor;
 
@@ -15,23 +18,48 @@ public class ClickHouseLZ4InputStream extends InputStream {
     static final int MAGIC = 0x82;
 
     private final InputStream stream;
-    private final DataInputStream dataWrapper;
 
     private byte[] currentBlock;
     private int pointer;
 
+    private void readFully(byte b[], int off, int len) throws IOException {
+        if (len < 0) {
+            throw new IndexOutOfBoundsException();
+        }
+        int n = 0;
+        while (n < len) {
+            int count = stream.read(b, off + n, len - n);
+            if (count < 0) {
+                throw new EOFException();
+            }
+            n += count;
+        }
+    }
+
+    private int readUnsignedByte() throws IOException {
+        int ch = stream.read();
+        if (ch < 0) {
+            throw new EOFException();
+        }
+        return ch;
+    }
+
     public ClickHouseLZ4InputStream(InputStream stream) {
-        this.stream = stream;
-        dataWrapper = new DataInputStream(stream);
+        this.stream = ClickHouseChecker.nonNull(stream, "InputStream");
+    }
+
+    @Override
+    public int available() throws IOException {
+        int estimated = stream.available();
+        if (estimated == 0 && currentBlock != null) {
+            estimated = currentBlock.length - pointer;
+        }
+        return estimated;
     }
 
     @Override
     public int read() throws IOException {
-        if (!checkNext())
-            return -1;
-        byte b = currentBlock[pointer];
-        pointer += 1;
-        return b & 0xFF;
+        return checkNext() ? 0xFF & currentBlock[pointer++] : -1;
     }
 
     @Override
@@ -56,7 +84,7 @@ public class ClickHouseLZ4InputStream extends InputStream {
             pointer += toCopy;
             copied += toCopy;
             if (!checkNext()) { // finished
-                return copied;
+                break;
             }
         }
         return copied;
@@ -72,14 +100,14 @@ public class ClickHouseLZ4InputStream extends InputStream {
             currentBlock = readNextBlock();
             pointer = 0;
         }
-        return currentBlock != null;
+        return currentBlock != null && pointer < currentBlock.length;
     }
 
     private int readInt() throws IOException {
-        byte b1 = (byte) dataWrapper.readUnsignedByte();
-        byte b2 = (byte) dataWrapper.readUnsignedByte();
-        byte b3 = (byte) dataWrapper.readUnsignedByte();
-        byte b4 = (byte) dataWrapper.readUnsignedByte();
+        byte b1 = (byte) readUnsignedByte();
+        byte b2 = (byte) readUnsignedByte();
+        byte b3 = (byte) readUnsignedByte();
+        byte b4 = (byte) readUnsignedByte();
 
         return b4 << 24 | (b3 & 0xFF) << 16 | (b2 & 0xFF) << 8 | (b1 & 0xFF);
     }
@@ -93,11 +121,11 @@ public class ClickHouseLZ4InputStream extends InputStream {
         byte[] checksum = new byte[16];
         checksum[0] = (byte) read;
         // checksum - 16 bytes.
-        dataWrapper.readFully(checksum, 1, 15);
+        readFully(checksum, 1, 15);
         ClickHouseBlockChecksum expected = ClickHouseBlockChecksum.fromBytes(checksum);
         // header:
         // 1 byte - 0x82 (shows this is LZ4)
-        int magic = dataWrapper.readUnsignedByte();
+        int magic = readUnsignedByte();
         if (magic != MAGIC)
             throw new IOException("Magic is not correct: " + magic);
         // 4 bytes - size of the compressed data including 9 bytes of the header
@@ -107,7 +135,7 @@ public class ClickHouseLZ4InputStream extends InputStream {
         int compressedSize = compressedSizeWithHeader - 9; // header
         byte[] block = new byte[compressedSize];
         // compressed data: compressed_size - 9 байт.
-        dataWrapper.readFully(block);
+        readFully(block, 0, block.length);
 
         ClickHouseBlockChecksum real = ClickHouseBlockChecksum.calculateForBlock((byte) magic, compressedSizeWithHeader,
                 uncompressedSize, block, compressedSize);

@@ -110,4 +110,11 @@ public interface ClickHouseResponse extends AutoCloseable, Serializable {
 
     @Override
     void close();
+
+    /**
+     * Checks whether the reponse has been closed or not.
+     *
+     * @return true if the response has been closed; false otherwise
+     */
+    boolean isClosed();
 }

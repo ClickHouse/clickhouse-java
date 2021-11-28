@@ -1,5 +1,6 @@
 package com.clickhouse.client;
 
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -16,12 +17,12 @@ import com.clickhouse.client.logging.LoggerFactory;
 public abstract class AbstractClient<T> implements ClickHouseClient {
     private static final Logger log = LoggerFactory.getLogger(AbstractClient.class);
 
-    private boolean initialized;
+    private boolean initialized = false;
 
-    private ExecutorService executor;
-    private ClickHouseConfig config;
-    private ClickHouseNode server;
-    private T connection;
+    private ExecutorService executor = null;
+    private ClickHouseConfig config = null;
+    private ClickHouseNode server = null;
+    private T connection = null;
 
     protected final ReadWriteLock lock = new ReentrantReadWriteLock();
 
@@ -36,10 +37,18 @@ public abstract class AbstractClient<T> implements ClickHouseClient {
         return initialized;
     }
 
+    protected CompletableFuture<ClickHouseResponse> failedResponse(Throwable ex) {
+        CompletableFuture<ClickHouseResponse> future = new CompletableFuture<>();
+        future.completeExceptionally(ex);
+        return future;
+    }
+
     /**
      * Gets executor service for this client.
      *
      * @return executor service
+     * @throws IllegalStateException when the client is either closed or not
+     *                               initialized
      */
     protected final ExecutorService getExecutor() {
         lock.readLock().lock();
@@ -54,7 +63,7 @@ public abstract class AbstractClient<T> implements ClickHouseClient {
     /**
      * Gets current server.
      *
-     * @return current server, could be null
+     * @return current server
      * @throws IllegalStateException when the client is either closed or not
      *                               initialized
      */
@@ -69,15 +78,37 @@ public abstract class AbstractClient<T> implements ClickHouseClient {
     }
 
     /**
-     * Creates a new connection. This method will be called from
-     * {@link #getConnection(ClickHouseRequest)} as needed.
+     * Checks if the underlying connection can be reused. In general, new connection
+     * will be created when {@code connection} is null or {@code requestServer} is
+     * different from {@code currentServer} - the existing connection will be closed
+     * in the later case.
      *
-     * @param config non-null configuration
-     * @param server non-null server
+     * @param connection    existing connection which may or may not be null
+     * @param requestServer non-null requested server, returned from previous call
+     *                      of {@code request.getServer()}
+     * @param currentServer current server, same as {@code getServer()}
+     * @param request       non-null request
+     * @return true if the connection should NOT be changed(e.g. requestServer is
+     *         same as currentServer); false otherwise
+     */
+    protected boolean checkConnection(T connection, ClickHouseNode requestServer, ClickHouseNode currentServer,
+            ClickHouseRequest<?> request) {
+        return connection != null && requestServer.equals(currentServer);
+    }
+
+    /**
+     * Creates a new connection and optionally close existing connection. This
+     * method will be called from {@link #getConnection(ClickHouseRequest)} as
+     * needed.
+     *
+     * @param connection existing connection which may or may not be null
+     * @param server     non-null requested server, returned from previous call of
+     *                   {@code request.getServer()}
+     * @param request    non-null request
      * @return new connection
      * @throws CompletionException when error occured
      */
-    protected abstract T newConnection(ClickHouseConfig config, ClickHouseNode server);
+    protected abstract T newConnection(T connection, ClickHouseNode server, ClickHouseRequest<?> request);
 
     /**
      * Closes a connection. This method will be called from {@link #close()}.
@@ -96,11 +127,10 @@ public abstract class AbstractClient<T> implements ClickHouseClient {
      */
     protected final T getConnection(ClickHouseRequest<?> request) {
         ClickHouseNode newNode = ClickHouseChecker.nonNull(request, "request").getServer();
-
         lock.readLock().lock();
         try {
             ensureInitialized();
-            if (connection != null && newNode.equals(server)) {
+            if (checkConnection(connection, newNode, server, request)) {
                 return connection;
             }
         } finally {
@@ -109,14 +139,9 @@ public abstract class AbstractClient<T> implements ClickHouseClient {
 
         lock.writeLock().lock();
         try {
-            if (connection != null) {
-                log.debug("Closing connection: %s", connection);
-                closeConnection(connection, false);
-            }
-
             server = newNode;
             log.debug("Connecting to: %s", newNode);
-            connection = newConnection(config, server);
+            connection = newConnection(connection, server, request);
             log.debug("Connection established: %s", connection);
 
             return connection;
@@ -190,8 +215,9 @@ public abstract class AbstractClient<T> implements ClickHouseClient {
             executor = null;
             connection = null;
         } catch (InterruptedException e) {
+            log.warn("Got interrupted when closing client", e);
             Thread.currentThread().interrupt();
-        } catch (RuntimeException e) {
+        } catch (Exception e) {
             log.warn("Exception occurred when closing client", e);
         } finally {
             initialized = false;

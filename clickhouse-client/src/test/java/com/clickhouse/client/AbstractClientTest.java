@@ -15,8 +15,12 @@ public class AbstractClientTest {
         }
 
         @Override
-        protected Object[] newConnection(ClickHouseConfig config, ClickHouseNode server) {
-            return new Object[] { config, server };
+        protected Object[] newConnection(Object[] connection, ClickHouseNode server, ClickHouseRequest<?> request) {
+            if (connection != null) {
+                closeConnection(connection, false);
+            }
+            
+            return new Object[] { request.getConfig(), server };
         }
 
         @Override
@@ -53,7 +57,7 @@ public class AbstractClientTest {
         Assert.assertTrue(sc.isInitialized());
         Assert.assertNotNull(sc.getConfig());
         Assert.assertNull(sc.getServer());
-        Assert.assertEquals(sc.getConnection(req), new Object[] { config, req.getServer() });
+        Assert.assertEquals(sc.getConnection(req), new Object[] { req.getConfig(), req.getServer() });
         sc.close();
         Assert.assertFalse(sc.isInitialized());
         Assert.assertThrows(IllegalStateException.class, () -> sc.getConfig());
@@ -94,11 +98,11 @@ public class AbstractClientTest {
 
         SimpleClient sc = new SimpleClient();
         sc.init(new ClickHouseConfig());
-        Assert.assertEquals(sc.getConnection(req), new Object[] { sc.getConfig(), req.getServer() });
+        Assert.assertEquals(sc.getConnection(req), new Object[] { req.getConfig(), req.getServer() });
 
         req = client.connect(ClickHouseNode.of("127.0.0.1", ClickHouseProtocol.GRPC, 9100, "test"));
         Object[] conn = sc.getConnection(req);
-        Assert.assertEquals(conn, new Object[] { sc.getConfig(), req.getServer() });
+        Assert.assertEquals(conn, new Object[] { req.getConfig(), req.getServer() });
         sc.close();
         Assert.assertNull(conn[0]);
         Assert.assertNull(conn[1]);
@@ -124,7 +128,7 @@ public class AbstractClientTest {
         Assert.assertTrue(sc.isInitialized());
         Assert.assertTrue(sc.getConfig() == config);
         Assert.assertNull(sc.getServer());
-        Assert.assertEquals(sc.getConnection(req), new Object[] { config, req.getServer() });
+        Assert.assertEquals(sc.getConnection(req), new Object[] { req.getConfig(), req.getServer() });
         Assert.assertEquals(sc.getServer(), req.getServer());
 
         ClickHouseConfig newConfig = new ClickHouseConfig();
@@ -132,7 +136,7 @@ public class AbstractClientTest {
         Assert.assertEquals(sc.getExecutor(), ClickHouseClient.getExecutorService());
         Assert.assertTrue(sc.isInitialized());
         Assert.assertTrue(sc.getConfig() != config);
-        Assert.assertEquals(sc.getConnection(req), new Object[] { config, req.getServer() });
+        Assert.assertEquals(sc.getConnection(req), new Object[] { req.getConfig(), req.getServer() });
         Assert.assertEquals(sc.getServer(), req.getServer());
     }
 
@@ -158,13 +162,13 @@ public class AbstractClientTest {
                 throw new IllegalStateException(e);
             }
         }).start();
-        Assert.assertEquals(conn1, new Object[] { config, req1.getServer() });
+        Assert.assertEquals(conn1, new Object[] { req1.getConfig(), req1.getServer() });
         Assert.assertTrue(latch.await(5000L, TimeUnit.MILLISECONDS));
         Assert.assertTrue(client.isInitialized());
         Assert.assertNull(conn1[0]);
         Assert.assertNull(conn1[1]);
         Object[] conn2 = client.getConnection(req2);
         Assert.assertTrue(conn1 != conn2);
-        Assert.assertEquals(conn2, new Object[] { config, req2.getServer() });
+        Assert.assertEquals(conn2, new Object[] { req2.getConfig(), req2.getServer() });
     }
 }

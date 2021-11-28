@@ -3,6 +3,7 @@ package com.clickhouse.client.data;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedList;
 import java.util.List;
 
 import com.clickhouse.client.ClickHouseColumn;
@@ -17,10 +18,7 @@ import com.clickhouse.client.ClickHouseValues;
  */
 public class ClickHouseSimpleResponse implements ClickHouseResponse {
     public static final ClickHouseSimpleResponse EMPTY = new ClickHouseSimpleResponse(Collections.emptyList(),
-            new ClickHouseValue[0][]);
-
-    private final List<ClickHouseColumn> columns;
-    private final List<ClickHouseRecord> records;
+            new ClickHouseValue[0][], ClickHouseResponseSummary.EMPTY);
 
     /**
      * Creates a response object using columns definition and raw values.
@@ -30,6 +28,18 @@ public class ClickHouseSimpleResponse implements ClickHouseResponse {
      * @return response object
      */
     public static ClickHouseResponse of(List<ClickHouseColumn> columns, Object[][] values) {
+        return of(columns, values, null);
+    }
+
+    /**
+     * Creates a response object using columns definition and raw values.
+     *
+     * @param columns list of columns
+     * @param values  raw values, which may or may not be null
+     * @return response object
+     */
+    public static ClickHouseResponse of(List<ClickHouseColumn> columns, Object[][] values,
+            ClickHouseResponseSummary summary) {
         if (columns == null || columns.isEmpty()) {
             return EMPTY;
         }
@@ -55,10 +65,74 @@ public class ClickHouseSimpleResponse implements ClickHouseResponse {
             }
         }
 
-        return new ClickHouseSimpleResponse(columns, wrappedValues);
+        return new ClickHouseSimpleResponse(columns, wrappedValues, summary);
     }
 
-    protected ClickHouseSimpleResponse(List<ClickHouseColumn> columns, ClickHouseValue[][] values) {
+    /**
+     * Creates a response object by copying columns and values from the given one.
+     * Same as {@code of(response, null)}.
+     *
+     * @param response response to copy
+     * @return new response object
+     */
+    public static ClickHouseResponse of(ClickHouseResponse response) {
+        return of(response, null);
+    }
+
+    /**
+     * Creates a response object by copying columns and values from the given one.
+     * You should never use this method against a large response, because it will
+     * load everything into memory. Worse than that, when {@code func} is not null,
+     * it will be applied to every single row, which is going to be slow when
+     * original response contains many records.
+     *
+     * @param response response to copy
+     * @param func     optinal function to update value by column index
+     * @return new response object
+     */
+    public static ClickHouseResponse of(ClickHouseResponse response, ClickHouseRecordTransformer func) {
+        if (response == null) {
+            return EMPTY;
+        } else if (response instanceof ClickHouseSimpleResponse) {
+            return response;
+        }
+
+        List<ClickHouseColumn> columns = response.getColumns();
+        int size = columns.size();
+        List<ClickHouseRecord> records = new LinkedList<>();
+        int rowIndex = 0;
+        for (ClickHouseRecord r : response.records()) {
+            ClickHouseValue[] values = new ClickHouseValue[size];
+            for (int i = 0; i < size; i++) {
+                values[i] = r.getValue(i).copy();
+            }
+
+            ClickHouseRecord rec = ClickHouseSimpleRecord.of(columns, values);
+            if (func != null) {
+                func.update(rowIndex, rec);
+            }
+            records.add(rec);
+        }
+
+        return new ClickHouseSimpleResponse(response.getColumns(), records, response.getSummary());
+    }
+
+    private final List<ClickHouseColumn> columns;
+    // better to use simple ClickHouseRecord as template along with raw values
+    private final List<ClickHouseRecord> records;
+    private final ClickHouseResponseSummary summary;
+
+    private boolean isClosed;
+
+    protected ClickHouseSimpleResponse(List<ClickHouseColumn> columns, List<ClickHouseRecord> records,
+            ClickHouseResponseSummary summary) {
+        this.columns = columns;
+        this.records = Collections.unmodifiableList(records);
+        this.summary = summary != null ? summary : ClickHouseResponseSummary.EMPTY;
+    }
+
+    protected ClickHouseSimpleResponse(List<ClickHouseColumn> columns, ClickHouseValue[][] values,
+            ClickHouseResponseSummary summary) {
         this.columns = columns;
 
         int len = values.length;
@@ -66,7 +140,10 @@ public class ClickHouseSimpleResponse implements ClickHouseResponse {
         for (int i = 0; i < len; i++) {
             list.add(new ClickHouseSimpleRecord(columns, values[i]));
         }
+
         this.records = Collections.unmodifiableList(list);
+
+        this.summary = summary != null ? summary : ClickHouseResponseSummary.EMPTY;
     }
 
     @Override
@@ -76,8 +153,7 @@ public class ClickHouseSimpleResponse implements ClickHouseResponse {
 
     @Override
     public ClickHouseResponseSummary getSummary() {
-        // TODO Auto-generated method stub
-        return null;
+        return summary;
     }
 
     @Override
@@ -93,5 +169,11 @@ public class ClickHouseSimpleResponse implements ClickHouseResponse {
     @Override
     public void close() {
         // nothing to close
+        isClosed = true;
+    }
+
+    @Override
+    public boolean isClosed() {
+        return isClosed;
     }
 }

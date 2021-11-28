@@ -5,7 +5,7 @@ module com.clickhouse.client {
     exports com.clickhouse.client;
     exports com.clickhouse.client.config;
     exports com.clickhouse.client.data;
-    exports com.clickhouse.client.exception;
+    exports com.clickhouse.client.data.array;
     exports com.clickhouse.client.logging;
 
     requires static java.logging;

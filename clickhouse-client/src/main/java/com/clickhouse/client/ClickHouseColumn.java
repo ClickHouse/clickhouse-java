@@ -27,10 +27,10 @@ public final class ClickHouseColumn implements Serializable {
     private String originalTypeName;
     private String columnName;
 
+    private ClickHouseAggregateFunction aggFuncType;
     private ClickHouseDataType dataType;
     private boolean nullable;
     private boolean lowCardinality;
-    private ClickHouseDataType baseType;
     private TimeZone timeZone;
     private int precision;
     private int scale;
@@ -43,68 +43,62 @@ public final class ClickHouseColumn implements Serializable {
     private static ClickHouseColumn update(ClickHouseColumn column) {
         int size = column.parameters.size();
         switch (column.dataType) {
-            case AggregateFunction:
-                column.baseType = ClickHouseDataType.String;
-                if (size == 2) {
-                    column.baseType = ClickHouseDataType.of(column.parameters.get(1));
+        case Array:
+            column.arrayLevel = 1;
+            column.arrayBaseColumn = column.nested.get(0);
+            while (column.arrayLevel < 255) {
+                if (column.arrayBaseColumn.dataType == ClickHouseDataType.Array) {
+                    column.arrayLevel++;
+                    column.arrayBaseColumn = column.arrayBaseColumn.nested.get(0);
+                } else {
+                    break;
                 }
-                break;
-            case Array:
-                column.arrayLevel = 1;
-                column.arrayBaseColumn = column.nested.get(0);
-                while (column.arrayLevel < 255) {
-                    if (column.arrayBaseColumn.dataType == ClickHouseDataType.Array) {
-                        column.arrayLevel++;
-                        column.arrayBaseColumn = column.arrayBaseColumn.nested.get(0);
-                    } else {
-                        break;
-                    }
-                }
-                break;
-            case DateTime:
-                if (size >= 2) { // same as DateTime64
-                    column.scale = Integer.parseInt(column.parameters.get(0));
-                    column.timeZone = TimeZone.getTimeZone(column.parameters.get(1).replace("'", ""));
-                } else if (size == 1) { // same as DateTime32
-                    // unfortunately this will fall back to GMT if the time zone
-                    // cannot be resolved
-                    TimeZone tz = TimeZone.getTimeZone(column.parameters.get(0).replace("'", ""));
-                    column.timeZone = tz;
-                }
-                break;
-            case DateTime32:
-                if (size > 0) {
-                    // unfortunately this will fall back to GMT if the time zone
-                    // cannot be resolved
-                    TimeZone tz = TimeZone.getTimeZone(column.parameters.get(0).replace("'", ""));
-                    column.timeZone = tz;
-                }
-                break;
-            case DateTime64:
-                if (size > 0) {
-                    column.scale = Integer.parseInt(column.parameters.get(0));
-                }
-                if (size > 1) {
-                    column.timeZone = TimeZone.getTimeZone(column.parameters.get(1).replace("'", ""));
-                }
-                break;
-            case Decimal:
-                if (size >= 2) {
-                    column.precision = Integer.parseInt(column.parameters.get(0));
-                    column.scale = Integer.parseInt(column.parameters.get(1));
-                }
-                break;
-            case Decimal32:
-            case Decimal64:
-            case Decimal128:
-            case Decimal256:
+            }
+            break;
+        case DateTime:
+            if (size >= 2) { // same as DateTime64
                 column.scale = Integer.parseInt(column.parameters.get(0));
-                break;
-            case FixedString:
+                column.timeZone = TimeZone.getTimeZone(column.parameters.get(1).replace("'", ""));
+            } else if (size == 1) { // same as DateTime32
+                // unfortunately this will fall back to GMT if the time zone
+                // cannot be resolved
+                TimeZone tz = TimeZone.getTimeZone(column.parameters.get(0).replace("'", ""));
+                column.timeZone = tz;
+            }
+            break;
+        case DateTime32:
+            if (size > 0) {
+                // unfortunately this will fall back to GMT if the time zone
+                // cannot be resolved
+                TimeZone tz = TimeZone.getTimeZone(column.parameters.get(0).replace("'", ""));
+                column.timeZone = tz;
+            }
+            break;
+        case DateTime64:
+            if (size > 0) {
+                column.scale = Integer.parseInt(column.parameters.get(0));
+            }
+            if (size > 1) {
+                column.timeZone = TimeZone.getTimeZone(column.parameters.get(1).replace("'", ""));
+            }
+            break;
+        case Decimal:
+            if (size >= 2) {
                 column.precision = Integer.parseInt(column.parameters.get(0));
-                break;
-            default:
-                break;
+                column.scale = Integer.parseInt(column.parameters.get(1));
+            }
+            break;
+        case Decimal32:
+        case Decimal64:
+        case Decimal128:
+        case Decimal256:
+            column.scale = Integer.parseInt(column.parameters.get(0));
+            break;
+        case FixedString:
+            column.precision = Integer.parseInt(column.parameters.get(0));
+            break;
+        default:
+            break;
         }
 
         return column;
@@ -146,8 +140,22 @@ public final class ClickHouseColumn implements Serializable {
             }
             List<String> params = new LinkedList<>();
             i = ClickHouseUtils.readParameters(args, index, len, params);
+
+            ClickHouseAggregateFunction aggFunc = null;
+            boolean isFirst = true;
+            List<ClickHouseColumn> nestedColumns = new LinkedList<>();
+            for (String p : params) {
+                if (isFirst) {
+                    int pIndex = p.indexOf('(');
+                    aggFunc = ClickHouseAggregateFunction.of(pIndex > 0 ? p.substring(0, pIndex) : p);
+                    isFirst = false;
+                } else {
+                    nestedColumns.add(ClickHouseColumn.of("", p));
+                }
+            }
             column = new ClickHouseColumn(ClickHouseDataType.AggregateFunction, name, args.substring(startIndex, i),
-                    nullable, lowCardinality, params, null);
+                    nullable, lowCardinality, params, nestedColumns);
+            column.aggFuncType = aggFunc;
         } else if (args.startsWith(KEYWORD_ARRAY, i)) {
             int index = args.indexOf('(', i + KEYWORD_ARRAY.length());
             if (index < i) {
@@ -278,6 +286,14 @@ public final class ClickHouseColumn implements Serializable {
         return i;
     }
 
+    public static ClickHouseColumn of(String columnName, ClickHouseDataType dataType, boolean nullable, int precision,
+            int scale) {
+        ClickHouseColumn column = new ClickHouseColumn(dataType, columnName, null, nullable, false, null, null);
+        column.precision = precision;
+        column.scale = scale;
+        return column;
+    }
+
     public static ClickHouseColumn of(String columnName, ClickHouseDataType dataType, boolean nullable,
             boolean lowCardinality, String... parameters) {
         return new ClickHouseColumn(dataType, columnName, null, nullable, lowCardinality, Arrays.asList(parameters),
@@ -285,9 +301,8 @@ public final class ClickHouseColumn implements Serializable {
     }
 
     public static ClickHouseColumn of(String columnName, ClickHouseDataType dataType, boolean nullable,
-            boolean lowCardinality, ClickHouseColumn... nestedColumns) {
-        return new ClickHouseColumn(dataType, columnName, null, nullable, lowCardinality, null,
-                Arrays.asList(nestedColumns));
+            ClickHouseColumn... nestedColumns) {
+        return new ClickHouseColumn(dataType, columnName, null, nullable, false, null, Arrays.asList(nestedColumns));
     }
 
     public static ClickHouseColumn of(String columnName, String columnType) {
@@ -347,6 +362,7 @@ public final class ClickHouseColumn implements Serializable {
 
     private ClickHouseColumn(ClickHouseDataType dataType, String columnName, String originalTypeName, boolean nullable,
             boolean lowCardinality, List<String> parameters, List<ClickHouseColumn> nestedColumns) {
+        this.aggFuncType = null;
         this.dataType = ClickHouseChecker.nonNull(dataType, "dataType");
 
         this.columnName = columnName == null ? "" : columnName;
@@ -419,12 +435,12 @@ public final class ClickHouseColumn implements Serializable {
         return lowCardinality;
     }
 
-    public ClickHouseDataType getEffectiveDataType() {
-        return baseType != null ? baseType : dataType;
-    }
-
     public TimeZone getTimeZone() {
         return timeZone; // null means server timezone
+    }
+
+    public TimeZone getTimeZoneOrDefault(TimeZone defaultTz) {
+        return timeZone != null ? timeZone : defaultTz;
     }
 
     public int getPrecision() {
@@ -455,8 +471,28 @@ public final class ClickHouseColumn implements Serializable {
         return dataType == ClickHouseDataType.Map && nested.size() == 2 ? nested.get(1) : null;
     }
 
-    public String getFunctionName() {
-        return dataType == ClickHouseDataType.AggregateFunction && parameters.size() > 0 ? parameters.get(0) : null;
+    /**
+     * Gets function when column type is
+     * {@link ClickHouseDataType#AggregateFunction}. So it will return
+     * {@code quantiles(0.5, 0.9)} when the column type is
+     * {@code AggregateFunction(quantiles(0.5, 0.9), UInt64)}.
+     *
+     * @return function, null when column type is not AggregateFunction
+     */
+    public String getFunction() {
+        return dataType == ClickHouseDataType.AggregateFunction ? parameters.get(0) : null;
+    }
+
+    /**
+     * Gets aggregate function when column type is
+     * {@link ClickHouseDataType#AggregateFunction}. So it will return
+     * {@link ClickHouseAggregateFunction#quantile} when the column type is
+     * {@code AggregateFunction(quantiles(0.5, 0.9), UInt64)}.
+     *
+     * @return function name, null when column type is not AggregateFunction
+     */
+    public ClickHouseAggregateFunction getAggregateFunction() {
+        return aggFuncType;
     }
 
     @Override
@@ -464,8 +500,8 @@ public final class ClickHouseColumn implements Serializable {
         final int prime = 31;
         int result = 1;
         result = prime * result + ((arrayBaseColumn == null) ? 0 : arrayBaseColumn.hashCode());
+        result = prime * result + ((aggFuncType == null) ? 0 : aggFuncType.hashCode());
         result = prime * result + arrayLevel;
-        result = prime * result + ((baseType == null) ? 0 : baseType.hashCode());
         result = prime * result + ((columnName == null) ? 0 : columnName.hashCode());
         result = prime * result + ((dataType == null) ? 0 : dataType.hashCode());
         result = prime * result + (lowCardinality ? 1231 : 1237);
@@ -490,8 +526,8 @@ public final class ClickHouseColumn implements Serializable {
         }
 
         ClickHouseColumn other = (ClickHouseColumn) obj;
-        return Objects.equals(arrayBaseColumn, other.arrayBaseColumn) && arrayLevel == other.arrayLevel
-                && baseType == other.baseType && Objects.equals(columnName, other.columnName)
+        return Objects.equals(arrayBaseColumn, other.arrayBaseColumn) && aggFuncType == other.aggFuncType
+                && arrayLevel == other.arrayLevel && Objects.equals(columnName, other.columnName)
                 && dataType == other.dataType && lowCardinality == other.lowCardinality
                 && Objects.equals(nested, other.nested) && nullable == other.nullable
                 && Objects.equals(originalTypeName, other.originalTypeName)

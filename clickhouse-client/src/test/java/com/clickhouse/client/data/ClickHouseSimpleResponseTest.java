@@ -14,7 +14,7 @@ import org.testng.annotations.Test;
 public class ClickHouseSimpleResponseTest {
     @Test(groups = { "unit" })
     public void testNullOrEmptyInput() {
-        ClickHouseResponse nullResp = ClickHouseSimpleResponse.of(null, null);
+        ClickHouseResponse nullResp = ClickHouseSimpleResponse.of((List<ClickHouseColumn>) null, null);
         Assert.assertEquals(nullResp.getColumns(), Collections.emptyList());
         Assert.assertTrue(((List<?>) nullResp.records()).isEmpty());
         Assert.assertThrows(NoSuchElementException.class, () -> nullResp.firstRecord());

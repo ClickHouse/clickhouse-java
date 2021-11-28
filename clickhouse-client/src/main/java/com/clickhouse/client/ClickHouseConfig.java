@@ -9,8 +9,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TimeZone;
+
 import com.clickhouse.client.config.ClickHouseClientOption;
-import com.clickhouse.client.config.ClickHouseConfigOption;
+import com.clickhouse.client.config.ClickHouseOption;
 import com.clickhouse.client.config.ClickHouseDefaults;
 import com.clickhouse.client.config.ClickHouseSslMode;
 
@@ -19,12 +21,12 @@ import com.clickhouse.client.config.ClickHouseSslMode;
  * {@link ClickHouseCredentials} and {@link ClickHouseNodeSelector} etc.
  */
 public class ClickHouseConfig implements Serializable {
-    protected static final Map<ClickHouseConfigOption, Serializable> mergeOptions(List<ClickHouseConfig> list) {
+    protected static final Map<ClickHouseOption, Serializable> mergeOptions(List<ClickHouseConfig> list) {
         if (list == null || list.isEmpty()) {
             return Collections.emptyMap();
         }
 
-        Map<ClickHouseConfigOption, Serializable> options = new HashMap<>();
+        Map<ClickHouseOption, Serializable> options = new HashMap<>();
         List<ClickHouseConfig> cl = new ArrayList<>(list.size());
         for (ClickHouseConfig c : list) {
             if (c != null) {
@@ -100,7 +102,12 @@ public class ClickHouseConfig implements Serializable {
     // common options optimized for read
     private final boolean async;
     private final String clientName;
-    private final ClickHouseCompression compression;
+    private final boolean compressServerResponse;
+    private final ClickHouseCompression compressAlgorithm;
+    private final int compressLevel;
+    private final boolean decompressClientRequest;
+    private final ClickHouseCompression decompressAlgorithm;
+    private final int decompressLevel;
     private final int connectionTimeout;
     private final String database;
     private final ClickHouseFormat format;
@@ -112,9 +119,12 @@ public class ClickHouseConfig implements Serializable {
     private final int maxThreads;
     private final boolean retry;
     private final boolean reuseValueWrapper;
-    private final int socketTimeout;
+    private final boolean serverInfo;
+    private final TimeZone serverTimeZone;
+    private final ClickHouseVersion serverVersion;
     private final int sessionTimeout;
     private final boolean sessionCheck;
+    private final int socketTimeout;
     private final boolean ssl;
     private final ClickHouseSslMode sslMode;
     private final String sslRootCert;
@@ -126,7 +136,7 @@ public class ClickHouseConfig implements Serializable {
     private final boolean useServerTimeZoneForDate;
 
     // client specific options
-    private final Map<ClickHouseConfigOption, Serializable> options;
+    private final Map<ClickHouseOption, Serializable> options;
     private final ClickHouseCredentials credentials;
     private final transient Optional<Object> metricRegistry;
 
@@ -160,7 +170,7 @@ public class ClickHouseConfig implements Serializable {
      * @param nodeSelector   node selector
      * @param metricRegistry metric registry
      */
-    public ClickHouseConfig(Map<ClickHouseConfigOption, Serializable> options, ClickHouseCredentials credentials,
+    public ClickHouseConfig(Map<ClickHouseOption, Serializable> options, ClickHouseCredentials credentials,
             ClickHouseNodeSelector nodeSelector, Object metricRegistry) {
         this.options = new HashMap<>();
         if (options != null) {
@@ -169,8 +179,12 @@ public class ClickHouseConfig implements Serializable {
 
         this.async = (boolean) getOption(ClickHouseClientOption.ASYNC, ClickHouseDefaults.ASYNC);
         this.clientName = (String) getOption(ClickHouseClientOption.CLIENT_NAME);
-        this.compression = (ClickHouseCompression) getOption(ClickHouseClientOption.COMPRESSION,
-                ClickHouseDefaults.COMPRESSION);
+        this.compressServerResponse = (boolean) getOption(ClickHouseClientOption.COMPRESS);
+        this.compressAlgorithm = (ClickHouseCompression) getOption(ClickHouseClientOption.COMPRESS_ALGORITHM);
+        this.compressLevel = (int) getOption(ClickHouseClientOption.COMPRESS_LEVEL);
+        this.decompressClientRequest = (boolean) getOption(ClickHouseClientOption.DECOMPRESS);
+        this.decompressAlgorithm = (ClickHouseCompression) getOption(ClickHouseClientOption.DECOMPRESS_ALGORITHM);
+        this.decompressLevel = (int) getOption(ClickHouseClientOption.DECOMPRESS_LEVEL);
         this.connectionTimeout = (int) getOption(ClickHouseClientOption.CONNECTION_TIMEOUT);
         this.database = (String) getOption(ClickHouseClientOption.DATABASE, ClickHouseDefaults.DATABASE);
         this.format = (ClickHouseFormat) getOption(ClickHouseClientOption.FORMAT, ClickHouseDefaults.FORMAT);
@@ -182,9 +196,15 @@ public class ClickHouseConfig implements Serializable {
         this.maxThreads = (int) getOption(ClickHouseClientOption.MAX_THREADS_PER_CLIENT);
         this.retry = (boolean) getOption(ClickHouseClientOption.RETRY);
         this.reuseValueWrapper = (boolean) getOption(ClickHouseClientOption.REUSE_VALUE_WRAPPER);
-        this.socketTimeout = (int) getOption(ClickHouseClientOption.SOCKET_TIMEOUT);
+        this.serverInfo = !ClickHouseChecker.isNullOrBlank((String) getOption(ClickHouseClientOption.SERVER_TIME_ZONE))
+                && !ClickHouseChecker.isNullOrBlank((String) getOption(ClickHouseClientOption.SERVER_VERSION));
+        this.serverTimeZone = TimeZone.getTimeZone(
+                (String) getOption(ClickHouseClientOption.SERVER_TIME_ZONE, ClickHouseDefaults.SERVER_TIME_ZONE));
+        this.serverVersion = ClickHouseVersion
+                .of((String) getOption(ClickHouseClientOption.SERVER_VERSION, ClickHouseDefaults.SERVER_VERSION));
         this.sessionTimeout = (int) getOption(ClickHouseClientOption.SESSION_TIMEOUT);
         this.sessionCheck = (boolean) getOption(ClickHouseClientOption.SESSION_CHECK);
+        this.socketTimeout = (int) getOption(ClickHouseClientOption.SOCKET_TIMEOUT);
         this.ssl = (boolean) getOption(ClickHouseClientOption.SSL);
         this.sslMode = (ClickHouseSslMode) getOption(ClickHouseClientOption.SSL_MODE);
         this.sslRootCert = (String) getOption(ClickHouseClientOption.SSL_ROOT_CERTIFICATE);
@@ -213,8 +233,28 @@ public class ClickHouseConfig implements Serializable {
         return clientName;
     }
 
-    public ClickHouseCompression getCompression() {
-        return compression;
+    public boolean isCompressServerResponse() {
+        return compressServerResponse;
+    }
+
+    public ClickHouseCompression getCompressAlgorithmForServerResponse() {
+        return compressAlgorithm;
+    }
+
+    public int getCompressLevelForServerResponse() {
+        return compressLevel;
+    }
+
+    public boolean isDecompressClientRequet() {
+        return decompressClientRequest;
+    }
+
+    public ClickHouseCompression getDecompressAlgorithmForClientRequest() {
+        return decompressAlgorithm;
+    }
+
+    public int getDecompressLevelForClientRequest() {
+        return decompressLevel;
     }
 
     public int getConnectionTimeout() {
@@ -261,8 +301,21 @@ public class ClickHouseConfig implements Serializable {
         return reuseValueWrapper;
     }
 
-    public int getSocketTimeout() {
-        return socketTimeout;
+    /**
+     * Checks whether we got all server information(e.g. timezone and version).
+     *
+     * @return true if we got all server information; false otherwise
+     */
+    public boolean hasServerInfo() {
+        return serverInfo;
+    }
+
+    public TimeZone getServerTimeZone() {
+        return serverTimeZone;
+    }
+
+    public ClickHouseVersion getServerVersion() {
+        return serverVersion;
     }
 
     public int getSessionTimeout() {
@@ -271,6 +324,10 @@ public class ClickHouseConfig implements Serializable {
 
     public boolean isSessionCheck() {
         return sessionCheck;
+    }
+
+    public int getSocketTimeout() {
+        return socketTimeout;
     }
 
     public boolean isSsl() {
@@ -329,15 +386,15 @@ public class ClickHouseConfig implements Serializable {
         return this.nodeSelector.getPreferredTags();
     }
 
-    public Map<ClickHouseConfigOption, Serializable> getAllOptions() {
+    public Map<ClickHouseOption, Serializable> getAllOptions() {
         return Collections.unmodifiableMap(this.options);
     }
 
-    public Serializable getOption(ClickHouseConfigOption option) {
+    public Serializable getOption(ClickHouseOption option) {
         return getOption(option, null);
     }
 
-    public Serializable getOption(ClickHouseConfigOption option, ClickHouseDefaults defaultValue) {
+    public Serializable getOption(ClickHouseOption option, ClickHouseDefaults defaultValue) {
         return this.options.getOrDefault(ClickHouseChecker.nonNull(option, "option"),
                 defaultValue == null ? option.getEffectiveDefaultValue() : defaultValue.getEffectiveDefaultValue());
     }
@@ -348,7 +405,7 @@ public class ClickHouseConfig implements Serializable {
      * @param option option to test
      * @return true if the option is configured; false otherwise
      */
-    public boolean hasOption(ClickHouseConfigOption option) {
+    public boolean hasOption(ClickHouseOption option) {
         return option != null && this.options.containsKey(option);
     }
 }

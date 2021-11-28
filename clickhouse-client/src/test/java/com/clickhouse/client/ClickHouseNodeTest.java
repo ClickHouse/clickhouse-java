@@ -4,14 +4,16 @@ import org.testng.Assert;
 import org.testng.annotations.Test;
 
 import java.util.Arrays;
+import java.util.Collections;
 
+import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.config.ClickHouseDefaults;
 
 public class ClickHouseNodeTest {
     private void checkDefaultValues(ClickHouseNode node) {
         Assert.assertNotNull(node);
         Assert.assertEquals(node.getCluster(), ClickHouseDefaults.CLUSTER.getEffectiveDefaultValue());
-        Assert.assertEquals(node.getDatabase(), ClickHouseDefaults.DATABASE.getEffectiveDefaultValue());
+        Assert.assertEquals(node.getDatabase().orElse(null), null);
         Assert.assertEquals(node.getProtocol(), ClickHouseDefaults.PROTOCOL.getEffectiveDefaultValue());
         Assert.assertFalse(node.getCredentials().isPresent());
         Assert.assertTrue(node.getTags().isEmpty());
@@ -30,7 +32,7 @@ public class ClickHouseNodeTest {
         Assert.assertEquals(node.getPort(), port);
         Assert.assertEquals(node.getWeight(), weight);
         Assert.assertEquals(node.getProtocol(), protocol);
-        Assert.assertEquals(node.getDatabase(), database);
+        Assert.assertEquals(node.getDatabase().orElse(null), database);
         Assert.assertEquals(node.getCredentials().orElse(null), credentials);
         Assert.assertEquals(node.getTags().size(), tags.length);
         for (String t : tags) {
@@ -95,5 +97,25 @@ public class ClickHouseNodeTest {
         checkCustomValues(node, (String) ClickHouseDefaults.CLUSTER.getEffectiveDefaultValue(), host, port,
                 (int) ClickHouseDefaults.WEIGHT.getEffectiveDefaultValue(), protocol, database, null,
                 new String[] { "read-only", "primary" });
+    }
+
+    @Test(groups = { "unit" })
+    public void testDatabase() {
+        ClickHouseConfig config = new ClickHouseConfig(Collections.singletonMap(ClickHouseClientOption.DATABASE, "ttt"),
+                null, null, null);
+        ClickHouseNode node = ClickHouseNode.builder().build();
+        Assert.assertEquals(node.hasPreferredDatabase(), false);
+        Assert.assertEquals(node.getDatabase().orElse(null), null);
+        Assert.assertEquals(node.getDatabase(config), config.getDatabase());
+
+        node = ClickHouseNode.builder().database("").build();
+        Assert.assertEquals(node.hasPreferredDatabase(), false);
+        Assert.assertEquals(node.getDatabase().orElse(null), "");
+        Assert.assertEquals(node.getDatabase(config), config.getDatabase());
+
+        node = ClickHouseNode.builder().database("123").build();
+        Assert.assertEquals(node.hasPreferredDatabase(), true);
+        Assert.assertEquals(node.getDatabase().orElse(null), "123");
+        Assert.assertEquals(node.getDatabase(config), "123");
     }
 }

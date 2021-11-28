@@ -130,7 +130,7 @@ public class ClickHouseDoubleValue implements ClickHouseValue {
         }
 
         BigDecimal dec = BigDecimal.valueOf(value);
-        if (value == 0F || isInfinity() || isNaN()) {
+        if (value == 0D || isInfinity() || isNaN()) {
             dec = dec.setScale(scale);
         } else {
             int diff = scale - dec.scale();

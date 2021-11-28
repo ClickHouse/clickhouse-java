@@ -41,10 +41,10 @@ import com.clickhouse.client.data.ClickHouseExternalTable;
 import com.clickhouse.client.data.ClickHouseIntegerValue;
 import com.clickhouse.client.data.ClickHouseIpv4Value;
 import com.clickhouse.client.data.ClickHouseIpv6Value;
-import com.clickhouse.client.exception.ClickHouseException;
 import com.clickhouse.client.ClickHouseColumn;
 import com.clickhouse.client.ClickHouseDataProcessor;
 import com.clickhouse.client.ClickHouseDataType;
+import com.clickhouse.client.ClickHouseException;
 import com.clickhouse.client.ClickHouseFormat;
 
 public class ClickHouseGrpcClientTest extends BaseIntegrationTest {
@@ -214,7 +214,7 @@ public class ClickHouseGrpcClientTest extends BaseIntegrationTest {
                 }
 
                 ClickHouseResponseSummary summary = resp.getSummary();
-                Assert.assertEquals(summary.getRows(), 1);
+                Assert.assertEquals(summary.getStatistics().getRows(), 1);
             }
         }
     }
@@ -688,7 +688,7 @@ public class ClickHouseGrpcClientTest extends BaseIntegrationTest {
         ClickHouseResponseSummary summary = ClickHouseClient.load(server, "test_grpc_load_data",
                 ClickHouseFormat.TabSeparated, ClickHouseCompression.NONE, temp.toString()).get();
         Assert.assertNotNull(summary);
-        Assert.assertEquals(summary.getWriteRows(), lines);
+        Assert.assertEquals(summary.getWrittenRows(), lines);
 
         try (ClickHouseClient client = ClickHouseClient.newInstance(server.getProtocol());
                 ClickHouseResponse resp = client.connect(server)

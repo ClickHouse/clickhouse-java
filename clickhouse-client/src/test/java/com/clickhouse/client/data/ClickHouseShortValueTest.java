@@ -141,7 +141,7 @@ public class ClickHouseShortValueTest extends BaseClickHouseValueTest {
                 Inet6Address.getAllByName("0:0:0:0:0:0:0:ff")[0], // Inet6Address
                 "-1", // String
                 "-1", // SQL Expression
-                java.time.DateTimeException.class, // Time
+                LocalTime.of(23, 59, 59), // Time
                 UUID.fromString("00000000-0000-0000-ffff-ffffffffffff"), // UUID
                 Object.class, // Key class
                 Short.class, // Value class

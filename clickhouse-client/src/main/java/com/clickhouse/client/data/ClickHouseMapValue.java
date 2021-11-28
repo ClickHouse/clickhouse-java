@@ -10,6 +10,7 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.Map.Entry;
@@ -116,6 +117,24 @@ public class ClickHouseMapValue extends ClickHouseObjectValue<Map<?, ?>> {
         Map<Object, Object> newValue = new LinkedHashMap<>();
         newValue.putAll(value);
         return new ClickHouseMapValue(newValue, keyType, valueType);
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public Map<Object, Object> asMap() {
+        return (Map<Object, Object>) getValue();
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public <K, V> Map<K, V> asMap(Class<K> keyClass, Class<V> valueClass) {
+        if (!keyType.isAssignableFrom(keyClass) || !valueType.isAssignableFrom(valueClass)) {
+            throw new IllegalArgumentException(
+                    String.format(Locale.ROOT, "Incompatible types, expected (%s:%s) but got (%s:%s)",
+                            keyType.getName(), valueType.getName(), keyClass, valueClass));
+        }
+
+        return (Map<K, V>) getValue();
     }
 
     @Override

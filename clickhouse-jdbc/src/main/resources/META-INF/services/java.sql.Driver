@@ -1,1 +1,1 @@
-ru.yandex.clickhouse.ClickHouseDriver
+com.clickhouse.jdbc.ClickHouseDriver

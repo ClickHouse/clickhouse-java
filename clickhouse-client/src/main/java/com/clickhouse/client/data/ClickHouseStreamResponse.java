@@ -25,40 +25,43 @@ public class ClickHouseStreamResponse implements ClickHouseResponse {
 
     private static final long serialVersionUID = 2271296998310082447L;
 
-    private static final ClickHouseResponseSummary emptySummary = new ClickHouseResponseSummary() {
-    };
-
     protected static final List<ClickHouseColumn> defaultTypes = Collections
             .singletonList(ClickHouseColumn.of("results", "Nullable(String)"));
 
     public static ClickHouseResponse of(ClickHouseConfig config, InputStream input) throws IOException {
-        return of(config, input, null, null);
+        return of(config, input, null, null, null);
     }
 
     public static ClickHouseResponse of(ClickHouseConfig config, InputStream input, Map<String, Object> settings)
             throws IOException {
-        return of(config, input, settings, null);
+        return of(config, input, settings, null, null);
     }
 
     public static ClickHouseResponse of(ClickHouseConfig config, InputStream input, List<ClickHouseColumn> columns)
             throws IOException {
-        return of(config, input, null, columns);
+        return of(config, input, null, columns, null);
     }
 
     public static ClickHouseResponse of(ClickHouseConfig config, InputStream input, Map<String, Object> settings,
             List<ClickHouseColumn> columns) throws IOException {
-        return new ClickHouseStreamResponse(config, input, settings, columns);
+        return of(config, input, settings, columns, null);
+    }
+
+    public static ClickHouseResponse of(ClickHouseConfig config, InputStream input, Map<String, Object> settings,
+            List<ClickHouseColumn> columns, ClickHouseResponseSummary summary) throws IOException {
+        return new ClickHouseStreamResponse(config, input, settings, columns, summary);
     }
 
     protected final ClickHouseConfig config;
     protected final transient InputStream input;
     protected final transient ClickHouseDataProcessor processor;
     protected final List<ClickHouseColumn> columns;
+    protected final ClickHouseResponseSummary summary;
 
     private boolean isClosed;
 
     protected ClickHouseStreamResponse(ClickHouseConfig config, InputStream input, Map<String, Object> settings,
-            List<ClickHouseColumn> columns) throws IOException {
+            List<ClickHouseColumn> columns, ClickHouseResponseSummary summary) throws IOException {
         if (config == null || input == null) {
             throw new IllegalArgumentException("Non-null configuration and input stream are required");
         }
@@ -84,10 +87,11 @@ public class ClickHouseStreamResponse implements ClickHouseResponse {
                 }
             }
         }
-
-        this.isClosed = !hasError;
+        this.summary = summary != null ? summary : ClickHouseResponseSummary.EMPTY;
+        this.isClosed = hasError;
     }
 
+    @Override
     public boolean isClosed() {
         return isClosed;
     }
@@ -95,13 +99,11 @@ public class ClickHouseStreamResponse implements ClickHouseResponse {
     @Override
     public void close() {
         if (input != null) {
-            long skipped = 0L;
             try {
-                skipped = input.skip(Long.MAX_VALUE);
-                log.debug("%d bytes skipped before closing input stream", skipped);
+                log.debug("%d bytes skipped before closing input stream", input.skip(Long.MAX_VALUE));
             } catch (Exception e) {
                 // ignore
-                log.debug("%d bytes skipped before closing input stream", skipped, e);
+                log.debug("Failed to skip reading input stream due to: %s", e.getMessage());
             } finally {
                 try {
                     input.close();
@@ -124,7 +126,7 @@ public class ClickHouseStreamResponse implements ClickHouseResponse {
 
     @Override
     public ClickHouseResponseSummary getSummary() {
-        return emptySummary;
+        return summary;
     }
 
     @Override

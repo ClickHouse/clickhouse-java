@@ -11,7 +11,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ForkJoinPool;
 
 import com.clickhouse.client.config.ClickHouseClientOption;
-import com.clickhouse.client.config.ClickHouseConfigOption;
+import com.clickhouse.client.config.ClickHouseOption;
 import com.clickhouse.client.config.ClickHouseDefaults;
 
 /**
@@ -51,7 +51,7 @@ public class ClickHouseClientBuilder {
     protected Object metricRegistry;
     protected ClickHouseNodeSelector nodeSelector;
 
-    protected final Map<ClickHouseConfigOption, Serializable> options;
+    protected final Map<ClickHouseOption, Serializable> options;
 
     /**
      * Default constructor.
@@ -119,14 +119,32 @@ public class ClickHouseClientBuilder {
     }
 
     /**
+     * Sets configuration.
+     *
+     * @param config non-null configuration
+     * @return this builder
+     */
+    public ClickHouseClientBuilder config(ClickHouseConfig config) {
+        this.config = config;
+
+        this.credentials = config.getDefaultCredentials();
+        this.metricRegistry = config.getMetricRegistry().orElse(null);
+        this.nodeSelector = config.getNodeSelector();
+
+        this.options.putAll(config.getAllOptions());
+
+        return this;
+    }
+
+    /**
      * Adds an option, which is usually an Enum type that implements
-     * {@link com.clickhouse.client.config.ClickHouseConfigOption}.
+     * {@link com.clickhouse.client.config.ClickHouseOption}.
      *
      * @param option non-null option
      * @param value  value
      * @return this builder
      */
-    public ClickHouseClientBuilder option(ClickHouseConfigOption option, Serializable value) {
+    public ClickHouseClientBuilder option(ClickHouseOption option, Serializable value) {
         if (option == null || value == null) {
             throw new IllegalArgumentException("Non-null option and value are required");
         }
@@ -144,7 +162,7 @@ public class ClickHouseClientBuilder {
      * @param option non-null option
      * @return this builder
      */
-    public ClickHouseClientBuilder removeOption(ClickHouseConfigOption option) {
+    public ClickHouseClientBuilder removeOption(ClickHouseOption option) {
         Object value = options.remove(ClickHouseChecker.nonNull(option, "option"));
         if (value != null) {
             resetConfig();
@@ -159,7 +177,7 @@ public class ClickHouseClientBuilder {
      * @param options map containing all options
      * @return this builder
      */
-    public ClickHouseClientBuilder options(Map<ClickHouseConfigOption, Serializable> options) {
+    public ClickHouseClientBuilder options(Map<ClickHouseOption, Serializable> options) {
         if (options != null && !options.isEmpty()) {
             this.options.putAll(options);
             resetConfig();
@@ -185,7 +203,7 @@ public class ClickHouseClientBuilder {
 
                 ClickHouseClientOption o = ClickHouseClientOption.fromKey(key.toString());
                 if (o != null) {
-                    this.options.put(o, ClickHouseConfigOption.fromString(value.toString(), o.getValueType()));
+                    this.options.put(o, ClickHouseOption.fromString(value.toString(), o.getValueType()));
                 }
             }
 

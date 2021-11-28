@@ -1,5 +1,9 @@
 package com.clickhouse.client;
 
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+import java.util.Locale;
+
 import org.testng.annotations.BeforeTest;
 
 /**
@@ -21,5 +25,16 @@ public abstract class BaseIntegrationTest {
 
     protected ClickHouseNode getServer(ClickHouseProtocol protocol, int port) {
         return ClickHouseServerForTest.getClickHouseNode(protocol, port);
+    }
+
+    protected String getIpAddress(ClickHouseNode server) {
+        String ipAddress = server.getHost();
+        try {
+            ipAddress = InetAddress.getByName(ipAddress).getHostAddress();
+        } catch (UnknownHostException e) {
+            throw new IllegalArgumentException(
+                    String.format(Locale.ROOT, "Not able to resolve %s to get its IP address", server.getHost()), e);
+        }
+        return ipAddress;
     }
 }

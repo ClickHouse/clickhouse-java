@@ -6,18 +6,69 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
-import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
- * A parameterized query is a parsed query with named parameters being extracted
- * for substitution.
+ * A parameterized query is a parsed query with parameters being extracted for
+ * substitution.
+ * <p>
+ * Here parameter is define in the format of {@code :<name>[(<type>)]}. It
+ * starts with colon, followed by name, and then optionally type within
+ * brackets. For example: in query "select :no as no, :name(String) as name",
+ * both {@code no} and {@code name} are parameters. Moreover, type of the last
+ * parameter is {@code String}.
  */
-public final class ClickHouseParameterizedQuery implements Serializable {
+public class ClickHouseParameterizedQuery implements Serializable {
     private static final long serialVersionUID = 8108887349618342152L;
+
+    /**
+     * A part of query.
+     */
+    protected static class QueryPart implements Serializable {
+        protected final String part;
+        protected final int paramIndex;
+        protected final String paramName;
+        protected final ClickHouseColumn paramType;
+
+        protected QueryPart(String part, int paramIndex, String paramName, String paramType) {
+            this.part = part;
+            this.paramIndex = paramIndex;
+            this.paramName = paramName != null ? paramName : String.valueOf(paramIndex);
+            // what should be default? ClickHouseAnyValue(simply convert object to string)?
+            this.paramType = paramType != null ? ClickHouseColumn.of("", paramType) : null;
+        }
+
+        @Override
+        public int hashCode() {
+            final int prime = 31;
+            int result = 1;
+            result = prime * result + paramIndex;
+            result = prime * result + ((paramName == null) ? 0 : paramName.hashCode());
+            result = prime * result + ((paramType == null) ? 0 : paramType.hashCode());
+            result = prime * result + ((part == null) ? 0 : part.hashCode());
+            return result;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) {
+                return true;
+            }
+
+            if (obj == null || getClass() != obj.getClass()) {
+                return false;
+            }
+
+            QueryPart other = (QueryPart) obj;
+            return paramIndex == other.paramIndex && Objects.equals(paramName, other.paramName)
+                    && Objects.equals(paramType, other.paramType) && Objects.equals(part, other.part);
+        }
+    }
 
     /**
      * Substitute named parameters in given SQL.
@@ -98,27 +149,72 @@ public final class ClickHouseParameterizedQuery implements Serializable {
         return new ClickHouseParameterizedQuery(query);
     }
 
-    private final String originalQuery;
-    // 0 - from; 1 - to; 2 - parameter index(-1 means no parameter)
-    private final List<int[]> parts;
+    protected final String originalQuery;
 
-    private int[] lastPart;
-    private String[] names;
+    private final List<QueryPart> parts;
+    private final Set<String> names;
+    private final String lastPart;
 
-    private ClickHouseParameterizedQuery(String query) {
+    /**
+     * Default constructor.
+     *
+     * @param query non-blank query
+     */
+    protected ClickHouseParameterizedQuery(String query) {
         originalQuery = ClickHouseChecker.nonBlank(query, "query");
 
         parts = new LinkedList<>();
-        lastPart = null;
-        names = new String[0];
-
-        parse();
+        names = new LinkedHashSet<>();
+        lastPart = parse();
     }
 
-    private void parse() {
+    /**
+     * Adds part of query and the following parameter.
+     *
+     * @param part       part of the query, between previous and current parameter
+     * @param paramIndex zero-based index of the parameter
+     * @param paramType  type of the parameter, could be null
+     */
+    protected void addPart(String part, int paramIndex, String paramType) {
+        addPart(part, paramIndex, null, paramType);
+    }
+
+    /**
+     * Adds part of query and the following parameter.
+     *
+     * @param part       part of the query, between previous and current parameter
+     * @param paramIndex zero-based index of the parameter
+     * @param paramName  name of the parameter, null means
+     *                   {@code String.valueOf(paramIndex)}
+     * @param paramType  type of the parameter, could be null
+     */
+
+    protected void addPart(String part, int paramIndex, String paramName, String paramType) {
+        if (paramName == null) {
+            paramName = String.valueOf(paramIndex);
+        }
+        parts.add(new QueryPart(part, paramIndex, paramName, paramType));
+        names.add(paramName);
+    }
+
+    /**
+     * Gets immutable list of query parts.
+     *
+     * @return immutable list of query parts
+     */
+    protected List<QueryPart> getParts() {
+        return Collections.unmodifiableList(parts);
+    }
+
+    /**
+     * Parses the query given in constructor.
+     *
+     * @return remaining part(right after the last parameter) after parsing, could
+     *         be null
+     */
+    protected String parse() {
         int paramIndex = 0;
         int partIndex = 0;
-        Map<String, Integer> params = new LinkedHashMap<>();
         int len = originalQuery.length();
         for (int i = 0; i < len; i++) {
             char ch = originalQuery.charAt(i);
@@ -134,25 +230,20 @@ public final class ClickHouseParameterizedQuery implements Serializable {
                     if (nextCh == ch) { // skip PostgreSQL-like type conversion
                         i = i + 1;
                     } else if (Character.isJavaIdentifierStart(nextCh)) {
-                        int[] part = new int[] { partIndex, i, -1 };
-                        parts.add(part);
+                        String part = partIndex != i ? originalQuery.substring(partIndex, i) : "";
+                        String paramName = null;
+                        String paramType = null;
                         StringBuilder builder = new StringBuilder().append(nextCh);
                         for (i = i + 2; i < len; i++) {
                             char c = originalQuery.charAt(i);
-                            if (c == '(') {
-                                i = ClickHouseUtils.skipBrackets(originalQuery, i, len, c);
-                                String name = builder.toString();
-                                builder.setLength(0);
-                                Integer existing = params.get(name);
-                                if (existing == null) {
-                                    part[2] = paramIndex;
-                                    params.put(name, paramIndex++);
-                                } else {
-                                    part[2] = existing.intValue();
-                                }
-                            } else if (Character.isJavaIdentifierPart(c)) {
+                            if (Character.isJavaIdentifierPart(c)) {
                                 builder.append(c);
                             } else {
+                                if (c == '(') {
+                                    int idx = ClickHouseUtils.skipBrackets(originalQuery, i, len, c);
+                                    paramType = originalQuery.substring(i + 1, idx - 1);
+                                    i = idx;
+                                }
                                 break;
                             }
                         }
@@ -160,29 +251,19 @@ public final class ClickHouseParameterizedQuery implements Serializable {
                         partIndex = i--;
 
                         if (builder.length() > 0) {
-                            String name = builder.toString();
-                            Integer existing = params.get(name);
-                            if (existing == null) {
-                                part[2] = paramIndex;
-                                params.put(name, paramIndex++);
-                            } else {
-                                part[2] = existing.intValue();
+                            paramName = builder.toString();
+                            if (names.add(paramName)) {
+                                paramIndex++;
                             }
                         }
+
+                        parts.add(new QueryPart(part, paramIndex, paramName, paramType));
                     }
                 }
             }
         }
 
-        names = new String[paramIndex];
-        int index = 0;
-        for (String name : params.keySet()) {
-            names[index++] = name;
-        }
-
-        if (partIndex < len) {
-            lastPart = new int[] { partIndex, len, -1 };
-        }
+        return partIndex < len ? originalQuery.substring(partIndex, len) : null;
     }
 
     /**
@@ -201,13 +282,13 @@ public final class ClickHouseParameterizedQuery implements Serializable {
         }
 
         StringBuilder builder = new StringBuilder();
-        for (int[] part : parts) {
-            builder.append(originalQuery.substring(part[0], part[1]));
-            builder.append(params.getOrDefault(names[part[2]], ClickHouseValues.NULL_EXPR));
+        for (QueryPart p : parts) {
+            builder.append(p.part);
+            builder.append(params.getOrDefault(p.paramName, ClickHouseValues.NULL_EXPR));
         }
 
         if (lastPart != null) {
-            builder.append(originalQuery.substring(lastPart[0], lastPart[1]));
+            builder.append(lastPart);
         }
         return builder.toString();
     }
@@ -226,14 +307,14 @@ public final class ClickHouseParameterizedQuery implements Serializable {
         StringBuilder builder = new StringBuilder();
         Iterator<String> it = params == null ? null : params.iterator();
         boolean hasMore = it != null && it.hasNext();
-        for (int[] part : parts) {
-            builder.append(originalQuery.substring(part[0], part[1]));
+        for (QueryPart p : parts) {
+            builder.append(p.part);
             builder.append(hasMore ? it.next() : ClickHouseValues.NULL_EXPR);
             hasMore = hasMore && it.hasNext();
         }
 
         if (lastPart != null) {
-            builder.append(originalQuery.substring(lastPart[0], lastPart[1]));
+            builder.append(lastPart);
         }
         return builder.toString();
     }
@@ -255,8 +336,8 @@ public final class ClickHouseParameterizedQuery implements Serializable {
         int len = more == null ? 0 : more.length + 1;
         StringBuilder builder = new StringBuilder();
         int index = 0;
-        for (int[] part : parts) {
-            builder.append(originalQuery.substring(part[0], part[1]));
+        for (QueryPart p : parts) {
+            builder.append(p.part);
             if (index > 0) {
                 param = index < len ? more[index - 1] : null;
             }
@@ -265,7 +346,7 @@ public final class ClickHouseParameterizedQuery implements Serializable {
         }
 
         if (lastPart != null) {
-            builder.append(originalQuery.substring(lastPart[0], lastPart[1]));
+            builder.append(lastPart);
         }
         return builder.toString();
     }
@@ -286,15 +367,15 @@ public final class ClickHouseParameterizedQuery implements Serializable {
         int len = values == null ? 0 : values.length;
         StringBuilder builder = new StringBuilder();
         int index = 0;
-        for (int[] part : parts) {
-            builder.append(originalQuery.substring(part[0], part[1]));
+        for (QueryPart p : parts) {
+            builder.append(p.part);
             builder.append(
                     index < len ? ClickHouseValues.convertToSqlExpression(values[index]) : ClickHouseValues.NULL_EXPR);
             index++;
         }
 
         if (lastPart != null) {
-            builder.append(originalQuery.substring(lastPart[0], lastPart[1]));
+            builder.append(lastPart);
         }
         return builder.toString();
     }
@@ -314,8 +395,8 @@ public final class ClickHouseParameterizedQuery implements Serializable {
         int len = more == null ? 0 : more.length + 1;
         StringBuilder builder = new StringBuilder();
         int index = 0;
-        for (int[] part : parts) {
-            builder.append(originalQuery.substring(part[0], part[1]));
+        for (QueryPart p : parts) {
+            builder.append(p.part);
             if (index > 0) {
                 param = index < len ? more[index - 1] : ClickHouseValues.NULL_EXPR;
             }
@@ -324,7 +405,7 @@ public final class ClickHouseParameterizedQuery implements Serializable {
         }
 
         if (lastPart != null) {
-            builder.append(originalQuery.substring(lastPart[0], lastPart[1]));
+            builder.append(lastPart);
         }
         return builder.toString();
     }
@@ -343,14 +424,14 @@ public final class ClickHouseParameterizedQuery implements Serializable {
         int len = values == null ? 0 : values.length;
         StringBuilder builder = new StringBuilder();
         int index = 0;
-        for (int[] part : parts) {
-            builder.append(originalQuery.substring(part[0], part[1]));
+        for (QueryPart p : parts) {
+            builder.append(p.part);
             builder.append(index < len ? values[index] : ClickHouseValues.NULL_EXPR);
             index++;
         }
 
         if (lastPart != null) {
-            builder.append(originalQuery.substring(lastPart[0], lastPart[1]));
+            builder.append(lastPart);
         }
         return builder.toString();
     }
@@ -361,7 +442,7 @@ public final class ClickHouseParameterizedQuery implements Serializable {
      * @return list of named parameters
      */
     public List<String> getNamedParameters() {
-        return names.length == 0 ? Collections.emptyList() : Arrays.asList(names);
+        return names.isEmpty() ? Collections.emptyList() : Arrays.asList(names.toArray(new String[0]));
     }
 
     /**
@@ -382,34 +463,34 @@ public final class ClickHouseParameterizedQuery implements Serializable {
      */
     public List<String[]> getQueryParts() {
         List<String[]> queryParts = new ArrayList<>(parts.size() + 1);
-        for (int[] part : parts) {
-            queryParts.add(new String[] { originalQuery.substring(part[0], part[1]), names[part[2]] });
+        for (QueryPart p : parts) {
+            queryParts.add(new String[] { p.part, p.paramName });
         }
 
         if (lastPart != null) {
-            queryParts.add(new String[] { originalQuery.substring(lastPart[0], lastPart[1]), null });
+            queryParts.add(new String[] { lastPart, null });
         }
 
         return queryParts;
     }
 
     /**
-     * Checks if the query has at least one named parameter or not.
+     * Checks if the query has at least one parameter or not.
      *
-     * @return true if there's at least one named parameter; false otherwise
+     * @return true if there's at least one parameter; false otherwise
      */
     public boolean hasParameter() {
-        return names.length > 0;
+        return !names.isEmpty();
     }
 
     @Override
     public int hashCode() {
         final int prime = 31;
         int result = 1;
-        result = prime * result + Arrays.hashCode(lastPart);
-        result = prime * result + Arrays.hashCode(names);
-        result = prime * result + ((originalQuery == null) ? 0 : originalQuery.hashCode());
-        result = prime * result + ((parts == null) ? 0 : parts.hashCode());
+        result = prime * result + ((lastPart == null) ? 0 : lastPart.hashCode());
+        result = prime * result + names.hashCode();
+        result = prime * result + originalQuery.hashCode();
+        result = prime * result + parts.hashCode();
         return result;
     }
 
@@ -423,8 +504,7 @@ public final class ClickHouseParameterizedQuery implements Serializable {
         }
 
         ClickHouseParameterizedQuery other = (ClickHouseParameterizedQuery) obj;
-        return Arrays.equals(lastPart, other.lastPart) && Arrays.equals(names, other.names)
-                && Objects.equals(originalQuery, other.originalQuery) && ((parts.isEmpty() && other.parts.isEmpty())
-                        || Arrays.deepEquals(parts.toArray(new int[0][]), other.parts.toArray(new int[0][])));
+        return Objects.equals(lastPart, other.lastPart) && names.equals(other.names)
+                && originalQuery.equals(other.originalQuery) && parts.equals(other.parts);
     }
 }

@@ -16,7 +16,7 @@ import com.clickhouse.client.ClickHouseChecker;
 import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseUtils;
-import com.clickhouse.client.grpc.config.ClickHouseGrpcClientOption;
+import com.clickhouse.client.grpc.config.ClickHouseGrpcOption;
 import com.clickhouse.client.grpc.impl.ClickHouseGrpc;
 import com.clickhouse.client.logging.Logger;
 import com.clickhouse.client.logging.LoggerFactory;
@@ -62,7 +62,7 @@ public abstract class ClickHouseGrpcChannelFactory {
     }
 
     public static ClickHouseGrpcChannelFactory getFactory(ClickHouseConfig config, ClickHouseNode server) {
-        return ((boolean) config.getOption(ClickHouseGrpcClientOption.USE_OKHTTP))
+        return ((boolean) config.getOption(ClickHouseGrpcOption.USE_OKHTTP))
                 ? new OkHttpChannelFactoryImpl(config, server)
                 : new NettyChannelFactoryImpl(config, server);
     }
@@ -160,13 +160,13 @@ public abstract class ClickHouseGrpcChannelFactory {
 
     protected void setupMisc() {
         ManagedChannelBuilder<?> builder = getChannelBuilder();
-        if ((boolean) config.getOption(ClickHouseGrpcClientOption.USE_FULL_STREAM_DECOMPRESSION)) {
+        if ((boolean) config.getOption(ClickHouseGrpcOption.USE_FULL_STREAM_DECOMPRESSION)) {
             builder.enableFullStreamDecompression();
         }
 
         // TODO add interceptor to customize retry
-        builder.maxInboundMessageSize((int) config.getOption(ClickHouseGrpcClientOption.MAX_INBOUND_MESSAGE_SIZE))
-                .maxInboundMetadataSize((int) config.getOption(ClickHouseGrpcClientOption.MAX_INBOUND_METADATA_SIZE));
+        builder.maxInboundMessageSize((int) config.getOption(ClickHouseGrpcOption.MAX_INBOUND_MESSAGE_SIZE))
+                .maxInboundMetadataSize((int) config.getOption(ClickHouseGrpcOption.MAX_INBOUND_METADATA_SIZE));
     }
 
     public ManagedChannel create() {

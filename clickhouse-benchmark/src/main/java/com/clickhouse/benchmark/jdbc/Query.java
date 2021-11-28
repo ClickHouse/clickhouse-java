@@ -11,7 +11,7 @@ public class Query extends DriverBenchmark {
         int num = state.getRandomNumber();
         int rows = state.getSampleSize() + num;
         try (Statement stmt = executeQuery(state,
-                "select toDateTime('2021-02-20 13:15:20') + number as d from system.numbers limit ?", rows)) {
+                "select toDateTime32(1613826920 + number) as d from system.numbers limit ?", rows)) {
             ResultSet rs = stmt.getResultSet();
             while (rs.next()) {
                 blackhole.consume(rs.getTimestamp(1));
@@ -24,8 +24,7 @@ public class Query extends DriverBenchmark {
         int num = state.getRandomNumber();
         int rows = state.getSampleSize() + num;
         try (Statement stmt = executeQuery(state,
-                "select toDateTime64('2021-02-20 13:15:20.000000000', 9) + number as d from system.numbers limit ?",
-                rows)) {
+                "select toDateTime64(1613826920 + number / 1000000000, 9) as d from system.numbers limit ?", rows)) {
             ResultSet rs = stmt.getResultSet();
             while (rs.next()) {
                 blackhole.consume(rs.getTimestamp(1));
@@ -34,10 +33,23 @@ public class Query extends DriverBenchmark {
     }
 
     @Benchmark
+    public void selectDateTime64ObjectRows(Blackhole blackhole, DriverState state) throws Throwable {
+        int num = state.getRandomNumber();
+        int rows = state.getSampleSize() + num;
+        try (Statement stmt = executeQuery(state,
+                "select toDateTime64(1613826920 + number / 1000000000, 9) as d from system.numbers limit ?", rows)) {
+            ResultSet rs = stmt.getResultSet();
+            while (rs.next()) {
+                blackhole.consume(rs.getObject(1));
+            }
+        }
+    }
+
+    @Benchmark
     public void selectInt32Rows(Blackhole blackhole, DriverState state) throws Throwable {
         int num = state.getRandomNumber();
         int rows = state.getSampleSize() + num;
-        try (Statement stmt = executeQuery(state, "select * from system.numbers limit ?", rows)) {
+        try (Statement stmt = executeQuery(state, "select toInt32(number) from system.numbers limit ?", rows)) {
             ResultSet rs = stmt.getResultSet();
             while (rs.next()) {
                 blackhole.consume(rs.getInt(1));

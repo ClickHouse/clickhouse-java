@@ -8,7 +8,7 @@ import com.clickhouse.client.ClickHouseDataType;
 import com.clickhouse.client.ClickHouseFormat;
 
 public class ClickHouseConfigOptionTest {
-    static enum ClickHouseTestOption implements ClickHouseConfigOption {
+    static enum ClickHouseTestOption implements ClickHouseOption {
         STR("string_option", "string", "string option"),
         STR0("string_option0", "string0", "string option without environment variable support"),
         STR1("string_option0", "string1", "string option without environment variable and system property support"),
@@ -55,28 +55,28 @@ public class ClickHouseConfigOptionTest {
     @Test(groups = { "unit" })
     public void testFromString() {
         Assert.assertThrows(IllegalArgumentException.class,
-                () -> ClickHouseConfigOption.fromString(null, String.class));
-        Assert.assertEquals(ClickHouseConfigOption.fromString("", String.class), "");
+                () -> ClickHouseOption.fromString(null, String.class));
+        Assert.assertEquals(ClickHouseOption.fromString("", String.class), "");
 
-        Assert.assertEquals(ClickHouseConfigOption.fromString("", Boolean.class), Boolean.FALSE);
-        Assert.assertEquals(ClickHouseConfigOption.fromString("Yes", Boolean.class), Boolean.FALSE);
-        Assert.assertEquals(ClickHouseConfigOption.fromString("1", Boolean.class), Boolean.TRUE);
-        Assert.assertEquals(ClickHouseConfigOption.fromString("true", Boolean.class), Boolean.TRUE);
-        Assert.assertEquals(ClickHouseConfigOption.fromString("True", Boolean.class), Boolean.TRUE);
+        Assert.assertEquals(ClickHouseOption.fromString("", Boolean.class), Boolean.FALSE);
+        Assert.assertEquals(ClickHouseOption.fromString("Yes", Boolean.class), Boolean.FALSE);
+        Assert.assertEquals(ClickHouseOption.fromString("1", Boolean.class), Boolean.TRUE);
+        Assert.assertEquals(ClickHouseOption.fromString("true", Boolean.class), Boolean.TRUE);
+        Assert.assertEquals(ClickHouseOption.fromString("True", Boolean.class), Boolean.TRUE);
 
-        Assert.assertEquals(ClickHouseConfigOption.fromString("", Integer.class), Integer.valueOf(0));
-        Assert.assertEquals(ClickHouseConfigOption.fromString("0", Integer.class), Integer.valueOf(0));
+        Assert.assertEquals(ClickHouseOption.fromString("", Integer.class), Integer.valueOf(0));
+        Assert.assertEquals(ClickHouseOption.fromString("0", Integer.class), Integer.valueOf(0));
         Assert.assertThrows(IllegalArgumentException.class,
-                () -> ClickHouseConfigOption.fromString(null, Integer.class));
+                () -> ClickHouseOption.fromString(null, Integer.class));
 
-        Assert.assertEquals(ClickHouseConfigOption.fromString("0.1", Float.class), Float.valueOf(0.1F));
-        Assert.assertEquals(ClickHouseConfigOption.fromString("NaN", Float.class), Float.valueOf(Float.NaN));
+        Assert.assertEquals(ClickHouseOption.fromString("0.1", Float.class), Float.valueOf(0.1F));
+        Assert.assertEquals(ClickHouseOption.fromString("NaN", Float.class), Float.valueOf(Float.NaN));
 
-        Assert.assertEquals(ClickHouseConfigOption.fromString("Map", ClickHouseDataType.class), ClickHouseDataType.Map);
-        Assert.assertEquals(ClickHouseConfigOption.fromString("RowBinary", ClickHouseFormat.class),
+        Assert.assertEquals(ClickHouseOption.fromString("Map", ClickHouseDataType.class), ClickHouseDataType.Map);
+        Assert.assertEquals(ClickHouseOption.fromString("RowBinary", ClickHouseFormat.class),
                 ClickHouseFormat.RowBinary);
         Assert.assertThrows(IllegalArgumentException.class,
-                () -> ClickHouseConfigOption.fromString("NonExistFormat", ClickHouseFormat.class));
+                () -> ClickHouseOption.fromString("NonExistFormat", ClickHouseFormat.class));
     }
 
     @Test(groups = { "unit" })

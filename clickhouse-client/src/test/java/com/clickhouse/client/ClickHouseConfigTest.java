@@ -6,7 +6,7 @@ import java.util.Map;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 import com.clickhouse.client.config.ClickHouseClientOption;
-import com.clickhouse.client.config.ClickHouseConfigOption;
+import com.clickhouse.client.config.ClickHouseOption;
 import com.clickhouse.client.config.ClickHouseDefaults;
 
 public class ClickHouseConfigTest {
@@ -43,7 +43,7 @@ public class ClickHouseConfigTest {
         String user = "sa";
         String password = "welcome";
 
-        Map<ClickHouseConfigOption, Serializable> options = new HashMap<>();
+        Map<ClickHouseOption, Serializable> options = new HashMap<>();
         options.put(ClickHouseClientOption.CLIENT_NAME, clientName);
         options.put(ClickHouseDefaults.CLUSTER, cluster);
         options.put(ClickHouseClientOption.DATABASE, database);

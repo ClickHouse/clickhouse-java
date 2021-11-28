@@ -135,6 +135,55 @@ public final class ClickHouseVersion implements Comparable<ClickHouseVersion>, S
     }
 
     /**
+     * Compares current version and the given one. When {@code includeEmptyParts} is
+     * {@code true}, this method returns 0(instead of 1) when comparing '21.3.1.2'
+     * with '21.3', because they're in the same series of '21.3'.
+     * 
+     * @param o                    the object to be compared
+     * @param sameSeriesComparison whether compare if two version are in same series
+     * @return a negative integer, zero, or a positive integer as this object is
+     *         less than, equal to, or greater than the specified object
+     */
+    protected int compareTo(ClickHouseVersion o, boolean sameSeriesComparison) {
+        if (o == null) {
+            o = defaultVersion;
+        }
+
+        if (this == o) {
+            return 0;
+        }
+
+        if (latest) {
+            return o.latest ? 0 : 1;
+        } else if (o.latest) {
+            return -1;
+        }
+
+        int result = year - o.year;
+        if (result != 0) {
+            return result;
+        } else if (sameSeriesComparison && o.feature == 0 && o.maintenance == 0 && o.build == 0) {
+            return 0;
+        }
+
+        result = feature - o.feature;
+        if (result != 0) {
+            return result;
+        } else if (sameSeriesComparison && o.maintenance == 0 && o.build == 0) {
+            return 0;
+        }
+
+        result = maintenance - o.maintenance;
+        if (result != 0) {
+            return result;
+        } else if (sameSeriesComparison && o.build == 0) {
+            return 0;
+        }
+
+        return build - o.build;
+    }
+
+    /**
      * Checks if the version belongs to the given series. For example: 21.3.1.1
      * belongs to 21.3 series but not 21.4 or 21.3.2.
      *
@@ -266,33 +315,7 @@ public final class ClickHouseVersion implements Comparable<ClickHouseVersion>, S
      *         otherwise
      */
     public boolean isNewerOrEqualTo(ClickHouseVersion version) {
-        if (version == null) {
-            version = defaultVersion;
-        }
-
-        if (isLatest()) {
-            return true;
-        } else if (version.isLatest()) {
-            return false;
-        }
-
-        if (year < version.year) {
-            return false;
-        }
-
-        if (version.feature == 0 && version.maintenance == 0 && version.build == 0) {
-            return true;
-        } else if (feature < version.feature) {
-            return false;
-        }
-
-        if (version.maintenance == 0 && version.build == 0) {
-            return true;
-        } else if (maintenance < version.maintenance) {
-            return false;
-        }
-
-        return version.build == 0 || build >= version.build;
+        return compareTo(version, true) >= 0;
     }
 
     /**
@@ -311,18 +334,18 @@ public final class ClickHouseVersion implements Comparable<ClickHouseVersion>, S
 
     /**
      * Checks if the version is newer than the given one. Same as
-     * {@code compareTo(version) >= 0}.
+     * {@code compareTo(version) > 0}.
      *
      * @param version version to compare
      * @return true if the version is newer than the given one; false otherwise
      */
     public boolean isNewerThan(ClickHouseVersion version) {
-        return compareTo(version) > 0;
+        return compareTo(version, false) > 0;
     }
 
     /**
      * Checks if the version is newer than the given one. Same as
-     * {@code compareTo(version) >= 0}.
+     * {@code compareTo(version) > 0}.
      *
      * @param version version to compare
      * @return true if the version is newer than the given one; false otherwise
@@ -342,34 +365,7 @@ public final class ClickHouseVersion implements Comparable<ClickHouseVersion>, S
      *         otherwise
      */
     public boolean isOlderOrEqualTo(ClickHouseVersion version) {
-        if (version == null) {
-            version = defaultVersion;
-        }
-
-        // latest version is NOT older than latest
-        if (isLatest()) {
-            return false;
-        } else if (version.isLatest()) {
-            return true;
-        }
-
-        if (year > version.year) {
-            return false;
-        }
-
-        if (version.feature == 0 && version.maintenance == 0 && version.build == 0) {
-            return true;
-        } else if (feature > version.feature) {
-            return false;
-        }
-
-        if (version.maintenance == 0 && version.build == 0) {
-            return true;
-        } else if (maintenance > version.maintenance) {
-            return false;
-        }
-
-        return version.build == 0 || build <= version.build;
+        return compareTo(version, true) <= 0;
     }
 
     /**
@@ -388,18 +384,18 @@ public final class ClickHouseVersion implements Comparable<ClickHouseVersion>, S
 
     /**
      * Checks if the version is older than the given one. Same as
-     * {@code compareTo(version) <= 0}.
+     * {@code compareTo(version) < 0}.
      *
      * @param version version to compare
      * @return true if the version is older than the given one; false otherwise
      */
     public boolean isOlderThan(ClickHouseVersion version) {
-        return compareTo(version) < 0;
+        return compareTo(version, false) < 0;
     }
 
     /**
      * Checks if the version is older than the given one. Same as
-     * {@code compareTo(version) <= 0}.
+     * {@code compareTo(version) < 0}.
      *
      * @param version version to compare
      * @return true if the version is older than the given one; false otherwise
@@ -488,36 +484,7 @@ public final class ClickHouseVersion implements Comparable<ClickHouseVersion>, S
 
     @Override
     public int compareTo(ClickHouseVersion o) {
-        if (o == null) {
-            o = defaultVersion;
-        }
-
-        if (this == o) {
-            return 0;
-        }
-
-        if (latest) {
-            return o.latest ? 0 : 1;
-        } else if (o.latest) {
-            return -1;
-        }
-
-        int result = year - o.year;
-        if (result != 0) {
-            return result;
-        }
-
-        result = feature - o.feature;
-        if (result != 0) {
-            return result;
-        }
-
-        result = maintenance - o.maintenance;
-        if (result != 0) {
-            return result;
-        }
-
-        return build - o.build;
+        return compareTo(o, false);
     }
 
     @Override

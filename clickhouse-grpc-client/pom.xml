@@ -16,7 +16,7 @@
     <url>https://github.com/ClickHouse/clickhouse-jdbc/tree/master/clickhouse-grpc-client</url>
 
     <properties>
-        <shade.base>${project.parent.groupId}.client.grpc.internal</shade.base>
+        <shade.base>${project.parent.groupId}.client.internal</shade.base>
     </properties>
 
     <dependencies>

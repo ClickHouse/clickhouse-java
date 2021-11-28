@@ -8,6 +8,7 @@ import java.util.HashSet;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TimeZone;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import com.clickhouse.client.config.ClickHouseDefaults;
@@ -38,6 +39,9 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
         // label is more expressive, but is slow for comparison
         protected Set<String> tags;
         protected Integer weight;
+
+        protected TimeZone tz;
+        protected ClickHouseVersion version;
 
         /**
          * Default constructor.
@@ -82,9 +86,6 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
         }
 
         protected String getDatabase() {
-            if (database == null) {
-                database = (String) ClickHouseDefaults.DATABASE.getEffectiveDefaultValue();
-            }
             return database;
         }
 
@@ -105,6 +106,14 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
             }
 
             return weight.intValue();
+        }
+
+        protected TimeZone getTimeZone() {
+            return tz;
+        }
+
+        protected ClickHouseVersion getVersion() {
+            return version;
         }
 
         /**
@@ -313,6 +322,50 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
         }
 
         /**
+         * Sets time zone of this node.
+         *
+         * @param tz time zone ID, could be null
+         * @return this builder
+         */
+        public Builder timeZone(String tz) {
+            this.tz = tz != null ? TimeZone.getTimeZone(tz) : null;
+            return this;
+        }
+
+        /**
+         * Sets time zone of this node.
+         *
+         * @param tz time zone, could be null
+         * @return this builder
+         */
+        public Builder timeZone(TimeZone tz) {
+            this.tz = tz;
+            return this;
+        }
+
+        /**
+         * Sets vesion of this node.
+         *
+         * @param version version string, could be null
+         * @return this builder
+         */
+        public Builder version(String version) {
+            this.version = version != null ? ClickHouseVersion.of(version) : null;
+            return this;
+        }
+
+        /**
+         * Sets vesion of this node.
+         *
+         * @param version version, could be null
+         * @return this builder
+         */
+        public Builder version(ClickHouseVersion version) {
+            this.version = version;
+            return this;
+        }
+
+        /**
          * Creates a new node.
          *
          * @return new node
@@ -341,8 +394,9 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
         Builder b = new Builder();
         if (base != null) {
             b.cluster(base.getCluster()).host(base.getHost()).port(base.getProtocol(), base.getPort())
-                    .credentials(base.getCredentials().orElse(null)).database(base.getDatabase()).tags(base.getTags())
-                    .weight(base.getWeight());
+                    .credentials(base.getCredentials().orElse(null)).database(base.getDatabase().orElse(null))
+                    .tags(base.getTags()).weight(base.getWeight()).timeZone(base.getTimeZone().orElse(null))
+                    .version(base.getVersion().orElse(null));
         }
         return b;
     }
@@ -380,6 +434,11 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
     private final Set<String> tags;
     private final int weight;
 
+    // extended attributes, better to use a map and offload to sub class?
+    private final TimeZone tz;
+    private final ClickHouseVersion version;
+    // TODO: metrics
+
     private transient BiConsumer<ClickHouseNode, Status> manager;
 
     protected ClickHouseNode(Builder builder) {
@@ -392,6 +451,9 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
         this.database = builder.getDatabase();
         this.tags = builder.getTags();
         this.weight = builder.getWeight();
+
+        this.tz = builder.getTimeZone();
+        this.version = builder.getVersion();
 
         this.manager = null;
     }
@@ -413,6 +475,18 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
      */
     public Optional<ClickHouseCredentials> getCredentials() {
         return Optional.ofNullable(credentials);
+    }
+
+    /**
+     * Gets credentials for accessing this node. It first attempts to use
+     * credentials tied to the node, and then use default credentials from the given
+     * configuration.
+     * 
+     * @param config non-null configuration for retrieving default credentials
+     * @return credentials for accessing this node
+     */
+    public ClickHouseCredentials getCredentials(ClickHouseConfig config) {
+        return credentials != null ? credentials : ClickHouseChecker.nonNull(config, "config").getDefaultCredentials();
     }
 
     /**
@@ -438,8 +512,19 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
      *
      * @return database of the node
      */
-    public String getDatabase() {
-        return this.database;
+    public Optional<String> getDatabase() {
+        return Optional.ofNullable(database);
+    }
+
+    /**
+     * Gets database of the node. When {@link #hasPreferredDatabase()} is
+     * {@code false}, it will use database from the given configuration.
+     * 
+     * @param config non-null configuration to get default database
+     * @return database of the node
+     */
+    public String getDatabase(ClickHouseConfig config) {
+        return hasPreferredDatabase() ? database : ClickHouseChecker.nonNull(config, "config").getDatabase();
     }
 
     /**
@@ -461,6 +546,46 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
     }
 
     /**
+     * Gets time zone of the node.
+     *
+     * @return time zone of the node
+     */
+    public Optional<TimeZone> getTimeZone() {
+        return Optional.ofNullable(tz);
+    }
+
+    /**
+     * Gets time zone of the node. When not defined, it will use server time zone
+     * from the given configuration.
+     * 
+     * @param config non-null configuration to get server time zone
+     * @return time zone of the node
+     */
+    public TimeZone getTimeZone(ClickHouseConfig config) {
+        return tz != null ? tz : ClickHouseChecker.nonNull(config, "config").getServerTimeZone();
+    }
+
+    /**
+     * Gets version of the node.
+     *
+     * @return version of the node
+     */
+    public Optional<ClickHouseVersion> getVersion() {
+        return Optional.ofNullable(version);
+    }
+
+    /**
+     * Gets version of the node. When not defined, it will use server version from
+     * the given configuration.
+     * 
+     * @param config non-null configuration to get server version
+     * @return version of the node
+     */
+    public ClickHouseVersion getVersion(ClickHouseConfig config) {
+        return version != null ? version : ClickHouseChecker.nonNull(config, "config").getServerVersion();
+    }
+
+    /**
      * Gets cluster name of the node.
      *
      * @return cluster name of node
@@ -476,6 +601,16 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
      */
     public ClickHouseProtocol getProtocol() {
         return this.protocol;
+    }
+
+    /**
+     * Checks if preferred database was specified or not. When preferred database
+     * was not specified, {@link #getDatabase()} will return default database.
+     *
+     * @return true if preferred database was specified; false otherwise
+     */
+    public boolean hasPreferredDatabase() {
+        return database != null && !database.isEmpty();
     }
 
     /**
@@ -518,15 +653,32 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
 
     @Override
     public String toString() {
-        return new StringBuilder().append(getClass().getSimpleName()).append('(').append("cluster=").append(cluster)
-                .append(", protocol=").append(protocol).append(", address=").append(address).append(", database=")
-                .append(database).append(", tags=").append(tags).append(", weight=").append(weight).append(')')
-                .append('@').append(hashCode()).toString();
+        StringBuilder builder = new StringBuilder().append(getClass().getSimpleName()).append('(');
+        boolean hasCluster = cluster != null && !cluster.isEmpty();
+        if (hasCluster) {
+            builder.append("cluster=").append(cluster).append(", ");
+        }
+        builder.append("addr=").append(protocol.name().toLowerCase()).append(":").append(address).append(", db=")
+                .append(database);
+        if (tz != null) {
+            builder.append(", tz=").append(tz.getID());
+        }
+        if (version != null) {
+            builder.append(", ver=").append(version);
+        }
+        if (tags != null && !tags.isEmpty()) {
+            builder.append(", tags=").append(tags);
+        }
+        if (hasCluster) {
+            builder.append(", weight=").append(weight);
+        }
+
+        return builder.append(')').append('@').append(hashCode()).toString();
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(address, cluster, credentials, database, protocol, tags, weight);
+        return Objects.hash(address, cluster, credentials, database, protocol, tags, weight, tz, version);
     }
 
     @Override
@@ -541,7 +693,8 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
 
         ClickHouseNode node = (ClickHouseNode) obj;
         return address.equals(node.address) && cluster.equals(node.cluster)
-                && Objects.equals(credentials, node.credentials) && database.equals(node.database)
-                && protocol == node.protocol && tags.equals(node.tags) && weight == node.weight;
+                && Objects.equals(credentials, node.credentials) && Objects.equals(database, node.database)
+                && protocol == node.protocol && tags.equals(node.tags) && weight == node.weight
+                && Objects.equals(tz, node.tz) && Objects.equals(version, node.version);
     }
 }

@@ -46,7 +46,7 @@ public class ClickHouseDataStreamFactory {
         ClickHouseDataProcessor processor;
         if (ClickHouseFormat.RowBinary == format || ClickHouseFormat.RowBinaryWithNamesAndTypes == format) {
             processor = new ClickHouseRowBinaryProcessor(config, input, output, columns, settings);
-        } else if (ClickHouseFormat.TabSeparated == format || ClickHouseFormat.TabSeparatedRaw == format
+        } else if (ClickHouseFormat.TSVWithNames == format || ClickHouseFormat.TSVWithNamesAndTypes == format
                 || ClickHouseFormat.TabSeparatedWithNames == format
                 || ClickHouseFormat.TabSeparatedWithNamesAndTypes == format) {
             processor = new ClickHouseTabSeparatedProcessor(config, input, output, columns, settings);
@@ -67,6 +67,8 @@ public class ClickHouseDataStreamFactory {
      * @return piped stream
      */
     public ClickHousePipedStream createPipedStream(ClickHouseConfig config) {
+        ClickHouseChecker.nonNull(config, "config");
+
         return new ClickHousePipedStream(config.getMaxBufferSize(), config.getMaxQueuedBuffers(),
                 config.getSocketTimeout());
     }

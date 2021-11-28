@@ -16,14 +16,16 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Map.Entry;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutionException;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.function.Function;
 
 import com.clickhouse.client.config.ClickHouseClientOption;
-import com.clickhouse.client.config.ClickHouseConfigOption;
+import com.clickhouse.client.config.ClickHouseOption;
+import com.clickhouse.client.config.ClickHouseDefaults;
 import com.clickhouse.client.data.ClickHouseExternalTable;
-import com.clickhouse.client.exception.ClickHouseException;
 
 /**
  * Request object holding references to {@link ClickHouseClient},
@@ -98,7 +100,7 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
             if (compression != null && compression != ClickHouseCompression.NONE) {
                 // TODO create input stream
             } else {
-                this.input = fileInput;
+                this.input = CompletableFuture.completedFuture(fileInput);
             }
 
             return this;
@@ -113,7 +115,7 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
         public Mutation data(InputStream input) {
             checkSealed();
 
-            this.input = input;
+            this.input = CompletableFuture.completedFuture(input);
 
             return this;
         }
@@ -123,9 +125,9 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
          * {@code client.execute(request.seal())}.
          *
          * @return future to get response
-         * @throws ClickHouseException when error occurred
+         * @throws CompletionException when error occurred
          */
-        public CompletableFuture<ClickHouseResponse> send() throws ClickHouseException {
+        public CompletableFuture<ClickHouseResponse> send() {
             return getClient().execute(isSealed() ? this : seal());
         }
 
@@ -179,12 +181,12 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
     protected final ClickHouseConfig clientConfig;
     protected final Function<ClickHouseNodeSelector, ClickHouseNode> server;
     protected final transient List<ClickHouseExternalTable> externalTables;
-    protected final Map<ClickHouseConfigOption, Serializable> options;
+    protected final Map<ClickHouseOption, Serializable> options;
     protected final Map<String, Serializable> settings;
 
     protected final Map<String, String> namedParameters;
 
-    protected transient InputStream input;
+    protected transient CompletableFuture<InputStream> input;
     protected String queryId;
     protected String sessionId;
     protected String sql;
@@ -221,7 +223,7 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
 
     protected ClickHouseClient getClient() {
         if (client == null) {
-            client = ClickHouseClient.builder().nodeSelector(clientConfig.getNodeSelector()).build();
+            client = ClickHouseClient.builder().config(clientConfig).build();
         }
 
         return client;
@@ -302,16 +304,16 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
     }
 
     /**
-     * Gets merged configuration.
+     * Gets request configuration.
      *
-     * @return merged configuration
+     * @return request configuration
      */
     public ClickHouseConfig getConfig() {
         if (config == null) {
             if (options.isEmpty()) {
                 config = clientConfig;
             } else {
-                Map<ClickHouseConfigOption, Serializable> merged = new HashMap<>();
+                Map<ClickHouseOption, Serializable> merged = new HashMap<>();
                 merged.putAll(clientConfig.getAllOptions());
                 merged.putAll(options);
                 config = new ClickHouseConfig(merged, clientConfig.getDefaultCredentials(),
@@ -328,17 +330,14 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
      * @return input stream
      */
     public Optional<InputStream> getInputStream() {
-        return Optional.ofNullable(input);
-    }
-
-    /**
-     * Gets compression used for communication between server and client. Same as
-     * {@code getConfig().getCompression()}.
-     *
-     * @return compression used for communication between server and client
-     */
-    public ClickHouseCompression getCompression() {
-        return getConfig().getCompression();
+        try {
+            return Optional.ofNullable(input != null ? input.get() : null);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new CompletionException(e);
+        } catch (ExecutionException e) {
+            throw new CompletionException(e.getCause());
+        }
     }
 
     /**
@@ -431,22 +430,135 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
     }
 
     /**
-     * Sets preferred compression algorithm to be used between server and client.
+     * Enable or disable compression of server response. Pay attention that
+     * {@link ClickHouseClientOption#COMPRESS_ALGORITHM} and
+     * {@link ClickHouseClientOption#COMPRESS_LEVEL} will be used.
      *
-     * @param compression compression used in transportation, null or
-     *                    {@link ClickHouseCompression#NONE} means no compression
+     * @param enable true to enable compression of server response; false otherwise
+     * @return the request itself
+     */
+    public SelfT compressServerResponse(boolean enable) {
+        return compressServerResponse(enable, null,
+                (int) ClickHouseClientOption.COMPRESS_LEVEL.getEffectiveDefaultValue());
+    }
+
+    /**
+     * Enable or disable compression of server response. Pay attention that
+     * {@link ClickHouseClientOption#COMPRESS_LEVEL} will be used.
+     *
+     * @param enable            true to enable compression of server response; false
+     *                          otherwise
+     * @param compressAlgorithm compression algorithm, null is treated as
+     *                          {@link ClickHouseCompression#NONE} or
+     *                          {@link ClickHouseClientOption#COMPRESS_ALGORITHM}
+     *                          depending on whether enabled
+     * @return the request itself
+     */
+    public SelfT compressServerResponse(boolean enable, ClickHouseCompression compressAlgorithm) {
+        return compressServerResponse(enable, compressAlgorithm,
+                (int) ClickHouseClientOption.COMPRESS_LEVEL.getEffectiveDefaultValue());
+    }
+
+    /**
+     * Enable or disable compression of server response.
+     *
+     * @param enable            true to enable compression of server response; false
+     *                          otherwise
+     * @param compressAlgorithm compression algorithm, null is treated as
+     *                          {@link ClickHouseCompression#NONE} or
+     *                          {@link ClickHouseClientOption#COMPRESS_ALGORITHM}
+     *                          depending on whether enabled
+     * @param compressLevel     compression level
      * @return the request itself
      */
     @SuppressWarnings("unchecked")
-    public SelfT compression(ClickHouseCompression compression) {
+    public SelfT compressServerResponse(boolean enable, ClickHouseCompression compressAlgorithm, int compressLevel) {
         checkSealed();
 
-        if (compression == null) {
-            compression = ClickHouseCompression.NONE;
+        if (compressAlgorithm == null) {
+            compressAlgorithm = enable
+                    ? (ClickHouseCompression) ClickHouseClientOption.COMPRESS_ALGORITHM.getEffectiveDefaultValue()
+                    : ClickHouseCompression.NONE;
         }
 
-        Object oldValue = options.put(ClickHouseClientOption.COMPRESSION, compression);
-        if (oldValue == null || !oldValue.equals(compression)) {
+        if (compressLevel < 0) {
+            compressLevel = 0;
+        } else if (compressLevel > 9) {
+            compressLevel = 9;
+        }
+
+        Object oldSwitch = options.put(ClickHouseClientOption.COMPRESS, enable);
+        Object oldAlgorithm = options.put(ClickHouseClientOption.COMPRESS_ALGORITHM, compressAlgorithm);
+        Object oldLevel = options.put(ClickHouseClientOption.COMPRESS_LEVEL, compressLevel);
+        if (oldSwitch == null || !oldSwitch.equals(enable) || oldAlgorithm == null
+                || !oldAlgorithm.equals(compressAlgorithm) || oldLevel == null || !oldLevel.equals(compressLevel)) {
+            resetCache();
+        }
+
+        return (SelfT) this;
+    }
+
+    /**
+     * Enable or disable compression of client request. Pay attention that
+     * {@link ClickHouseClientOption#DECOMPRESS_ALGORITHM} and
+     * {@link ClickHouseClientOption#DECOMPRESS_LEVEL} will be used.
+     *
+     * @param enable true to enable compression of client request; false otherwise
+     * @return the request itself
+     */
+    public SelfT decompressClientRequest(boolean enable) {
+        return decompressClientRequest(enable, null,
+                (int) ClickHouseClientOption.DECOMPRESS_LEVEL.getEffectiveDefaultValue());
+    }
+
+    /**
+     * Enable or disable compression of client request. Pay attention that
+     * {@link ClickHouseClientOption#DECOMPRESS_LEVEL} will be used.
+     *
+     * @param enable            true to enable compression of client request; false
+     *                          otherwise
+     * @param compressAlgorithm compression algorithm, null is treated as
+     *                          {@link ClickHouseCompression#NONE} or
+     *                          {@link ClickHouseClientOption#DECOMPRESS_ALGORITHM}
+     *                          depending on whether enabled
+     * @return the request itself
+     */
+    public SelfT decompressClientRequest(boolean enable, ClickHouseCompression compressAlgorithm) {
+        return decompressClientRequest(enable, compressAlgorithm,
+                (int) ClickHouseClientOption.DECOMPRESS_LEVEL.getEffectiveDefaultValue());
+    }
+
+    /**
+     * Enable or disable compression of client request.
+     *
+     * @param enable            true to enable compression of client request; false
+     *                          otherwise
+     * @param compressAlgorithm compression algorithm, null is treated as
+     *                          {@link ClickHouseCompression#NONE}
+     * @param compressLevel     compression level
+     * @return the request itself
+     */
+    @SuppressWarnings("unchecked")
+    public SelfT decompressClientRequest(boolean enable, ClickHouseCompression compressAlgorithm, int compressLevel) {
+        checkSealed();
+
+        if (compressAlgorithm == null) {
+            compressAlgorithm = enable
+                    ? (ClickHouseCompression) ClickHouseClientOption.DECOMPRESS_ALGORITHM.getEffectiveDefaultValue()
+                    : ClickHouseCompression.NONE;
+        }
+
+        if (compressLevel < 0) {
+            compressLevel = 0;
+        } else if (compressLevel > 9) {
+            compressLevel = 9;
+        }
+
+        Object oldSwitch = options.put(ClickHouseClientOption.DECOMPRESS, enable);
+        Object oldAlgorithm = options.put(ClickHouseClientOption.DECOMPRESS_ALGORITHM, compressAlgorithm);
+        Object oldLevel = options.put(ClickHouseClientOption.DECOMPRESS_LEVEL, compressLevel);
+        if (oldSwitch == null || !oldSwitch.equals(enable) || oldAlgorithm == null
+                || !oldAlgorithm.equals(compressAlgorithm) || oldLevel == null || !oldLevel.equals(compressLevel)) {
             resetCache();
         }
 
@@ -522,7 +634,8 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
     public SelfT format(ClickHouseFormat format) {
         checkSealed();
 
-        Object oldValue = options.put(ClickHouseClientOption.FORMAT, ClickHouseChecker.nonNull(format, "format"));
+        Object oldValue = options.put(ClickHouseClientOption.FORMAT,
+                format != null ? format : (ClickHouseFormat) ClickHouseDefaults.FORMAT.getEffectiveDefaultValue());
         if (oldValue == null || !oldValue.equals(format)) {
             resetCache();
         }
@@ -539,7 +652,7 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
      * @return the request itself
      */
     @SuppressWarnings("unchecked")
-    public SelfT option(ClickHouseConfigOption option, Serializable value) {
+    public SelfT option(ClickHouseOption option, Serializable value) {
         checkSealed();
 
         Object oldValue = options.put(ClickHouseChecker.nonNull(option, "option"),
@@ -559,7 +672,7 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
      * @return the request itself
      */
     @SuppressWarnings("unchecked")
-    public SelfT options(Map<ClickHouseConfigOption, Serializable> options) {
+    public SelfT options(Map<ClickHouseOption, Serializable> options) {
         checkSealed();
 
         this.options.clear();
@@ -594,7 +707,7 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
 
                 ClickHouseClientOption o = ClickHouseClientOption.fromKey(key.toString());
                 if (o != null) {
-                    this.options.put(o, ClickHouseConfigOption.fromString(value.toString(), o.getValueType()));
+                    this.options.put(o, ClickHouseOption.fromString(value.toString(), o.getValueType()));
                 }
             }
         }
@@ -1150,7 +1263,7 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
      * @return the request itself
      */
     @SuppressWarnings("unchecked")
-    public SelfT removeOption(ClickHouseConfigOption option) {
+    public SelfT removeOption(ClickHouseOption option) {
         checkSealed();
 
         if (options.remove(ClickHouseChecker.nonNull(option, "option")) != null) {
@@ -1245,9 +1358,9 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
      * Executes the request. Same as {@code client.execute(request.seal())}.
      * 
      * @return future to get response
-     * @throws ClickHouseException when error occurred preparing for the execution
+     * @throws CompletionException when error occurred during execution
      */
-    public CompletableFuture<ClickHouseResponse> execute() throws ClickHouseException {
-        return client.execute(isSealed() ? this : seal());
+    public CompletableFuture<ClickHouseResponse> execute() {
+        return getClient().execute(isSealed() ? this : seal());
     }
 }

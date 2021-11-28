@@ -1,5 +1,6 @@
 package com.clickhouse.client;
 
+import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import org.testng.Assert;
@@ -106,6 +107,24 @@ public class ClickHouseColumnTest {
         Assert.assertEquals(list.size(), 2);
         list = ClickHouseColumn.parse("a String default 'cc', b String null");
         Assert.assertEquals(list.size(), 2);
+    }
+
+    @Test(groups = { "unit" })
+    public void testAggregationFunction() throws Exception {
+        ClickHouseColumn column = ClickHouseColumn.of("aggFunc", "AggregateFunction(groupBitmap, UInt32)");
+        Assert.assertTrue(column.isAggregateFunction());
+        Assert.assertEquals(column.getDataType(), ClickHouseDataType.AggregateFunction);
+        Assert.assertEquals(column.getAggregateFunction(), ClickHouseAggregateFunction.groupBitmap);
+        Assert.assertEquals(column.getFunction(), "groupBitmap");
+        Assert.assertEquals(column.getNestedColumns(), Collections.singletonList(ClickHouseColumn.of("", "UInt32")));
+
+        column = ClickHouseColumn.of("aggFunc", "AggregateFunction(quantiles(0.5, 0.9), Nullable(UInt64))");
+        Assert.assertTrue(column.isAggregateFunction());
+        Assert.assertEquals(column.getDataType(), ClickHouseDataType.AggregateFunction);
+        Assert.assertEquals(column.getAggregateFunction(), ClickHouseAggregateFunction.quantiles);
+        Assert.assertEquals(column.getFunction(), "quantiles(0.5,0.9)");
+        Assert.assertEquals(column.getNestedColumns(),
+                Collections.singletonList(ClickHouseColumn.of("", "Nullable(UInt64)")));
     }
 
     @Test(groups = { "unit" })

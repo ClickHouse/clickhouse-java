@@ -6,12 +6,13 @@ import java.util.HashMap;
 import java.util.Map;
 
 import com.clickhouse.client.ClickHouseChecker;
+import com.clickhouse.client.ClickHouseCompression;
 import com.clickhouse.client.ClickHouseFormat;
 
 /**
  * Generic client options.
  */
-public enum ClickHouseClientOption implements ClickHouseConfigOption {
+public enum ClickHouseClientOption implements ClickHouseOption {
     /**
      * Whether the client should run in async mode(e.g.
      * {@link com.clickhouse.client.ClickHouseClient#execute(com.clickhouse.client.ClickHouseRequest)}
@@ -23,12 +24,34 @@ public enum ClickHouseClientOption implements ClickHouseConfigOption {
      */
     CLIENT_NAME("client_name", "ClickHouse Java Client",
             "Client name, which is either 'client_name' or 'http_user_agent' shows up in system.query_log table."),
+
     /**
-     * Case-insensitive transport level compression algorithm. See
-     * {@link com.clickhouse.client.ClickHouseCompression} for all possible options.
+     * Whether server will compress response to client or not.
      */
-    COMPRESSION("compression", "LZ4",
-            "Transport level compression algorithm used when exchanging data between server and client."),
+    COMPRESS("compress", true, "Whether the server will compress response it sends to client."),
+    /**
+     * Whether server will decompress request from client or not.
+     */
+    DECOMPRESS("decompress", false, "Whether the server will decompress request from client."),
+    /**
+     * Compression algorithm server will use to compress response, when
+     * {@link #COMPRESS} is {@code true}.
+     */
+    COMPRESS_ALGORITHM("compress_alogrithm", ClickHouseCompression.LZ4, "Algorithm used for compressing response."),
+    /**
+     * Compression algorithm server will use to decompress request, when
+     * {@link #DECOMPRESS} is {@code true}.
+     */
+    DECOMPRESS_ALGORITHM("decompress_alogrithm", ClickHouseCompression.GZIP, "Algorithm for decompressing request."),
+    /**
+     * Compression level for compressing server response.
+     */
+    COMPRESS_LEVEL("compress_level", 3, "Compression level for response, from 0 to 9(low to high)"),
+    /**
+     * Compression level for decompress client request.
+     */
+    DECOMPRESS_LEVEL("decompress_level", 3, "Compression level for request, from 0 to 9(low to high)"),
+
     /**
      * Connection timeout in milliseconds.
      */
@@ -43,13 +66,24 @@ public enum ClickHouseClientOption implements ClickHouseConfigOption {
      */
     FORMAT("format", ClickHouseFormat.TabSeparated, "Default format."),
     /**
+     * Whether to log leading comment(as log_comment in system.query_log) of the
+     * query.
+     */
+    LOG_LEADING_COMMENT("log_leading_comment", false,
+            "Whether to log leading comment(as log_comment in system.query_log) of the query."),
+    /**
      * Maximum buffer size in byte used for streaming.
      */
     MAX_BUFFER_SIZE("max_buffer_size", 8 * 1024, "Maximum buffer size in byte used for streaming."),
     /**
+     * Maximum comression block size in byte, only useful when {@link #DECOMPRESS}
+     * is {@code true}.
+     */
+    MAX_COMPRESS_BLOCK_SIZE("max_compress_block_size", 1024 * 1024, "Maximum comression block size in byte."),
+    /**
      * Maximum query execution time in seconds.
      */
-    MAX_EXECUTION_TIME("max_execution_time", 0, "Maximum query execution time in seconds."),
+    MAX_EXECUTION_TIME("max_execution_time", 0, "Maximum query execution time in seconds, 0 means no limit."),
     /**
      * Maximum queued in-memory buffers.
      */
@@ -76,26 +110,36 @@ public enum ClickHouseClientOption implements ClickHouseConfigOption {
      */
     RETRY("retry", true, "Whether to retry when there's connection issue."),
     /**
-     * Whether to reuse wrapper of value.
+     * Whether to reuse wrapper of value(e.g. ClickHouseValue or
+     * ClickHouseRecord) for memory efficiency.
      */
-    REUSE_VALUE_WRAPPER("reuse_value_wrapper", true, "Whether to reuse value-wrapper for memory efficiency."),
+    REUSE_VALUE_WRAPPER("reuse_value_wrapper", true,
+            "Whether to reuse wrapper of value(e.g. ClickHouseValue or ClickHouseRecord) for memory efficiency."),
     /**
-     * Socket timeout in milliseconds.
+     * Server timezone.
      */
-    SOCKET_TIMEOUT("socket_timeout", 30 * 1000, "Socket timeout in milliseconds."),
+    SERVER_TIME_ZONE("server_time_zone", "", "Server timezone."),
+    /**
+     * Server version.
+     */
+    SERVER_VERSION("server_version", "", "Server version."),
     /**
      * Whether to check if session id is validate.
      */
-    SESSION_CHECK("session_check", false, "Whether to check if session id is validate."),
+    SESSION_CHECK("session_check", false, "Whether to check if existence of session id."),
     /**
      * Session timeout in milliseconds.
      */
     SESSION_TIMEOUT("session_timeout", 0,
             "Session timeout in milliseconds. 0 or negative number means same as server default."),
     /**
+     * Socket timeout in milliseconds.
+     */
+    SOCKET_TIMEOUT("socket_timeout", 30 * 1000, "Socket timeout in milliseconds."),
+    /**
      * Whether to enable SSL for the connection.
      */
-    SSL("ssl", false, "enable SSL/TLS for the connection"),
+    SSL("ssl", false, "Whether to enable SSL/TLS for the connection."),
     /**
      * SSL mode.
      */
@@ -103,24 +147,25 @@ public enum ClickHouseClientOption implements ClickHouseConfigOption {
     /**
      * SSL root certificiate.
      */
-    SSL_ROOT_CERTIFICATE("sslrootcert", "", "SSL/TLS root certificate"),
+    SSL_ROOT_CERTIFICATE("sslrootcert", "", "SSL/TLS root certificate."),
     /**
      * SSL certificiate.
      */
-    SSL_CERTIFICATE("sslcert", "", "SSL/TLS certificate"),
+    SSL_CERTIFICATE("sslcert", "", "SSL/TLS certificate."),
     /**
      * SSL key.
      */
-    SSL_KEY("sslkey", "", "SSL/TLS key"),
+    SSL_KEY("sslkey", "", "SSL/TLS key."),
     /**
      * Whether to use objects in array or not.
      */
-    USE_OBJECTS_IN_ARRAYS("use_objects_in_arrays", false, "Whether Object[] should be used instead primitive arrays."),
+    USE_OBJECTS_IN_ARRAYS("use_objects_in_arrays", false,
+            "Whether Object[] should be used instead of primitive arrays."),
     /**
      * Whether to use server time zone.
      */
     USE_SERVER_TIME_ZONE("use_server_time_zone", true,
-            "Whether to use time zone from server. On connection init select timezone() will be executed"),
+            "Whether to use server time zone. On connection init select timezone() will be executed"),
     /**
      * Whether to use time zone from server for Date.
      */
@@ -132,7 +177,7 @@ public enum ClickHouseClientOption implements ClickHouseConfigOption {
      * Custom time zone. Only works when {@code use_server_time_zone} is set to
      * false.
      */
-    USE_TIME_ZONE("use_time_zone", "", "Which time zone to use");
+    USE_TIME_ZONE("use_time_zone", "", "Which time zone to use. Only works when use_server_time_zone is false.");
 
     private final String key;
     private final Serializable defaultValue;

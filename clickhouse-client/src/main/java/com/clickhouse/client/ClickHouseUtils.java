@@ -7,12 +7,20 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.lang.reflect.Array;
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Deque;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -206,6 +214,268 @@ public final class ClickHouseUtils {
         return String.format(Locale.ROOT, template, args);
     }
 
+    private static int readJsonArray(String json, List<Object> array, int startIndex, int len) {
+        StringBuilder builder = new StringBuilder();
+
+        // skip the first bracket
+        for (int i = startIndex + 1; i < len; i++) {
+            char ch = json.charAt(i);
+            if (Character.isWhitespace(ch) || ch == ',' || ch == ':') {
+                continue;
+            } else if (ch == '"') {
+                i = readUnescapedJsonString(json, builder, i, len) - 1;
+                array.add(builder.toString());
+                builder.setLength(0);
+            } else if (ch == '-' || (ch >= '0' && ch <= '9')) {
+                List<Object> list = new ArrayList<>(1);
+                i = readJsonNumber(json, list, i, len) - 1;
+                array.add(list.get(0));
+                builder.setLength(0);
+            } else if (ch == '{') {
+                Map<String, Object> map = new LinkedHashMap<>();
+                i = readJsonObject(json, map, i, len) - 1;
+                array.add(map);
+            } else if (ch == '[') {
+                List<Object> list = new LinkedList<>();
+                i = readJsonArray(json, list, i, len) - 1;
+                array.add(list.toArray(new Object[0]));
+            } else if (ch == ']') {
+                return i + 1;
+            } else {
+                List<Object> list = new ArrayList<>(1);
+                i = readJsonConstants(json, list, i, len) - 1;
+                array.add(list.get(0));
+            }
+        }
+
+        return len;
+    }
+
+    private static int readJsonConstants(String json, List<Object> value, int startIndex, int len) {
+        String c = "null";
+        if (json.indexOf(c, startIndex) == startIndex) {
+            value.add(null);
+        } else if (json.indexOf(c = "false", startIndex) == startIndex) {
+            value.add(Boolean.FALSE);
+        } else if (json.indexOf(c = "true", startIndex) == startIndex) {
+            value.add(Boolean.TRUE);
+        } else {
+            throw new IllegalArgumentException(format("Expect one of 'null', 'false', 'true' but we got '%s'",
+                    json.substring(startIndex, Math.min(startIndex + 5, len))));
+        }
+
+        return startIndex + c.length();
+    }
+
+    private static int readJsonNumber(String json, List<Object> value, int startIndex, int len) {
+        int endIndex = len;
+
+        StringBuilder builder = new StringBuilder().append(json.charAt(startIndex));
+
+        boolean hasDot = false;
+        boolean hasExp = false;
+        // add first digit
+        for (int i = startIndex + 1; i < len; i++) {
+            char n = json.charAt(i);
+            if (n >= '0' && n <= '9') {
+                builder.append(n);
+            } else if (!hasDot && n == '.') {
+                hasDot = true;
+                builder.append(n);
+            } else if (!hasExp && (n == 'e' || n == 'E')) {
+                hasDot = true;
+                hasExp = true;
+                builder.append(n);
+                if (i + 1 < len) {
+                    char next = json.charAt(i + 1);
+                    if (next == '+' || next == '-') {
+                        builder.append(next);
+                        i++;
+                    }
+                }
+
+                boolean hasNum = false;
+                for (int j = i + 1; j < len; j++) {
+                    char next = json.charAt(j);
+                    if (next >= '0' && next <= '9') {
+                        hasNum = true;
+                        builder.append(next);
+                    } else {
+                        if (!hasNum) {
+                            throw new IllegalArgumentException("Expect number after exponent at " + i);
+                        }
+                        endIndex = j + 1;
+                        break;
+                    }
+                }
+                break;
+            } else {
+                endIndex = i;
+                break;
+            }
+        }
+
+        if (hasDot) {
+            if (hasExp || builder.length() >= 21) {
+                value.add(new BigDecimal(builder.toString()));
+            } else if (builder.length() >= 11) {
+                value.add(Double.parseDouble(builder.toString()));
+            } else {
+                value.add(Float.parseFloat(builder.toString()));
+            }
+        } else {
+            if (hasExp || builder.length() >= 19) {
+                value.add(new BigInteger(builder.toString()));
+            } else if (builder.length() >= 10) {
+                value.add(Long.parseLong(builder.toString()));
+            } else {
+                value.add(Integer.parseInt(builder.toString()));
+            }
+        }
+
+        return endIndex;
+    }
+
+    private static int readJsonObject(String json, Map<String, Object> object, int startIndex, int len) {
+        StringBuilder builder = new StringBuilder();
+
+        String key = null;
+        // skip the first bracket
+        for (int i = startIndex + 1; i < len; i++) {
+            char ch = json.charAt(i);
+            if (Character.isWhitespace(ch) || ch == ',' || ch == ':') {
+                continue;
+            } else if (ch == '"') {
+                i = readUnescapedJsonString(json, builder, i, len) - 1;
+                if (key != null) {
+                    object.put(key, builder.toString());
+                    key = null;
+                } else {
+                    key = builder.toString();
+                }
+                builder.setLength(0);
+            } else if (ch == '-' || (ch >= '0' && ch <= '9')) {
+                if (key == null) {
+                    throw new IllegalArgumentException("Key is not available");
+                }
+                List<Object> list = new ArrayList<>(1);
+                i = readJsonNumber(json, list, i, len) - 1;
+                object.put(key, list.get(0));
+                key = null;
+                builder.setLength(0);
+            } else if (ch == '{') {
+                if (key == null) {
+                    throw new IllegalArgumentException("Key is not available");
+                }
+                Map<String, Object> map = new LinkedHashMap<>();
+                i = readJsonObject(json, map, i, len) - 1;
+                object.put(key, map);
+                key = null;
+                builder.setLength(0);
+            } else if (ch == '[') {
+                if (key == null) {
+                    throw new IllegalArgumentException("Key is not available");
+                }
+
+                List<Object> list = new LinkedList<>();
+                i = readJsonArray(json, list, i, len) - 1;
+                key = null;
+                object.put(key, list.toArray(new Object[0]));
+            } else if (ch == '}') {
+                return i + 1;
+            } else {
+                if (key == null) {
+                    throw new IllegalArgumentException("Key is not available");
+                }
+                List<Object> list = new ArrayList<>(1);
+                i = readJsonConstants(json, list, i, len) - 1;
+                object.put(key, list.get(0));
+                key = null;
+            }
+        }
+
+        return len;
+    }
+
+    private static int readUnescapedJsonString(String json, StringBuilder builder, int startIndex, int len) {
+        // skip the first double quote
+        for (int i = startIndex + 1; i < len; i++) {
+            char c = json.charAt(i);
+            if (c == '\\') {
+                if (++i < len) {
+                    builder.append(json.charAt(i));
+                }
+            } else if (c == '"') {
+                return i + 1;
+            } else {
+                builder.append(c);
+            }
+        }
+
+        return len;
+    }
+
+    /**
+     * Simple and un-protected JSON parser.
+     *
+     * @param json non-empty JSON string
+     * @return object array, Boolean, Number, null, String, or Map
+     * @throws IllegalArgumentException when JSON string is null or empty
+     */
+    public static Object parseJson(String json) {
+        if (json == null || json.isEmpty()) {
+            throw new IllegalArgumentException("Non-empty JSON string is required");
+        }
+
+        boolean hasValue = false;
+        Object value = null;
+        StringBuilder builder = new StringBuilder();
+        for (int i = 0, len = json.length(); i < len; i++) {
+            char ch = json.charAt(i);
+            if (Character.isWhitespace(ch)) {
+                continue;
+            } else if (ch == '{') {
+                // read object
+                Map<String, Object> map = new LinkedHashMap<>();
+                i = readJsonObject(json, map, i, len) - 1;
+                hasValue = true;
+                value = map;
+            } else if (ch == '[') {
+                // read array
+                List<Object> list = new LinkedList<>();
+                i = readJsonArray(json, list, i, len) - 1;
+                hasValue = true;
+                value = list.toArray(new Object[0]);
+            } else if (ch == '"') {
+                // read string
+                i = readUnescapedJsonString(json, builder, i, len) - 1;
+                hasValue = true;
+                value = builder.toString();
+            } else if (ch == '-' || (ch >= '0' && ch <= '9')) {
+                // read number
+                List<Object> list = new ArrayList<>(1);
+                i = readJsonNumber(json, list, i, len) - 1;
+                hasValue = true;
+                value = list.get(0);
+            } else {
+                List<Object> list = new ArrayList<>(1);
+                i = readJsonConstants(json, list, i, len) - 1;
+                hasValue = true;
+                value = list.get(0);
+            }
+
+            if (hasValue) {
+                break;
+            }
+        }
+
+        if (!hasValue) {
+            throw new IllegalArgumentException("No value extracted from given JSON string");
+        }
+
+        return value;
+    }
+
     public static char getCloseBracket(char openBracket) {
         char closeBracket;
         if (openBracket == '(') {
@@ -342,6 +612,91 @@ public final class ClickHouseUtils {
         return new FileOutputStream(file, false);
     }
 
+    /**
+     * Extracts key value pairs from the given string.
+     * 
+     * @param str string
+     * @return non-null map containing extracted key value pairs
+     */
+    public static Map<String, String> getKeyValuePairs(String str) {
+        if (str == null || str.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        Map<String, String> map = new LinkedHashMap<>();
+        String key = null;
+        StringBuilder builder = new StringBuilder();
+        for (int i = 0, len = str.length(); i < len; i++) {
+            char ch = str.charAt(i);
+            if (ch == '\\' && i + 1 < len) {
+                ch = str.charAt(++i);
+                builder.append(ch);
+                continue;
+            }
+
+            if (Character.isWhitespace(ch)) {
+                if (builder.length() > 0) {
+                    builder.append(ch);
+                }
+            } else if (ch == '=' && key == null) {
+                key = builder.toString().trim();
+                builder.setLength(0);
+            } else if (ch == ',' && key != null) {
+                String value = builder.toString().trim();
+                builder.setLength(0);
+                if (!key.isEmpty() && !value.isEmpty()) {
+                    map.put(key, value);
+                }
+                key = null;
+            } else {
+                builder.append(ch);
+            }
+        }
+
+        if (key != null && builder.length() > 0) {
+            String value = builder.toString().trim();
+            if (!key.isEmpty() && !value.isEmpty()) {
+                map.put(key, value);
+            }
+        }
+
+        return Collections.unmodifiableMap(map);
+    }
+
+    public static String getLeadingComment(String sql) {
+        if (sql == null || sql.isEmpty()) {
+            return "";
+        }
+
+        StringBuilder builder = new StringBuilder();
+        for (int i = 0, len = sql.length(); i + 1 < len; i++) {
+            char ch = sql.charAt(i);
+            char nextCh = sql.charAt(i + 1);
+
+            if (ch == '-' && nextCh == '-') {
+                int index = skipSingleLineComment(sql, i, len);
+                if (index > i + 2) {
+                    builder.append(sql.substring(i + 2, index).trim());
+                }
+                i = index - 1;
+            } else if (ch == '/' && nextCh == '*') {
+                int index = skipMultiLineComment(sql, i + 2, len);
+                if (index > i + 4) {
+                    builder.append(sql.substring(i + 2, index - 2).trim());
+                }
+                i = index - 1;
+            } else if (!Character.isWhitespace(ch)) {
+                break;
+            }
+
+            if (builder.length() > 0) {
+                break;
+            }
+        }
+
+        return builder.toString();
+    }
+
     public static String getProperty(String key, Properties... props) {
         return getProperty(key, null, props);
     }
@@ -457,6 +812,9 @@ public final class ClickHouseUtils {
      */
     public static int skipMultiLineComment(String args, int startIndex, int len) {
         int openIndex = args.indexOf("/*", startIndex);
+        if (openIndex == startIndex) {
+            openIndex = args.indexOf("/*", startIndex + 2);
+        }
         int closeIndex = args.indexOf("*/", startIndex);
 
         if (closeIndex < startIndex) {
@@ -468,22 +826,32 @@ public final class ClickHouseUtils {
     }
 
     /**
-     * Skip quoted string, comments, and brackets until seeing {@code endChar} or
-     * reaching end of the given string.
+     * Skip quoted string, comments, and brackets until seeing one of
+     * {@code endChars} or reaching end of the given string.
      *
      * @param args       non-null string to scan
      * @param startIndex start index
      * @param len        end index, usually length of the given string
-     * @param endChar    skip characters until seeing this or reaching end of the
-     *                   string
+     * @param endChars   skip characters until seeing one of the specified
+     *                   characters or reaching end of the string; '\0' is used when
+     *                   it's null or empty
      * @return index of {@code endChar} or {@code len}
      */
-    public static int skipContentsUntil(String args, int startIndex, int len, char endChar) {
+    public static int skipContentsUntil(String args, int startIndex, int len, char... endChars) {
+        int charLen = endChars != null ? endChars.length : 0;
+        if (charLen == 0) {
+            endChars = new char[] { '\0' };
+            charLen = 1;
+        }
         for (int i = startIndex; i < len; i++) {
             char ch = args.charAt(i);
-            if (ch == endChar) {
-                return i + 1;
-            } else if (isQuote(ch)) {
+            for (int j = 0; j < charLen; j++) {
+                if (ch == endChars[j]) {
+                    return i + 1;
+                }
+            }
+
+            if (isQuote(ch)) {
                 i = skipQuotedString(args, i, len, ch) - 1;
             } else if (isOpenBracket(ch)) {
                 i = skipBrackets(args, i, len, ch) - 1;
@@ -498,6 +866,113 @@ public final class ClickHouseUtils {
         }
 
         return len;
+    }
+
+    /**
+     * Skip quoted string, comments, and brackets until seeing the {@code keyword}
+     * or reaching end of the given string.
+     *
+     * @param args          non-null string to scan
+     * @param startIndex    start index
+     * @param len           end index, usually length of the given string
+     * @param keyword       keyword, null or empty string means any character
+     * @param caseSensitive whether keyword is case sensitive or not
+     * @return index of {@code endChar} or {@code len}
+     */
+    public static int skipContentsUntil(String args, int startIndex, int len, String keyword, boolean caseSensitive) {
+        if (keyword == null || keyword.isEmpty()) {
+            return Math.min(startIndex + 1, len);
+        }
+
+        int k = keyword.length();
+        if (k == 1) {
+            return skipContentsUntil(args, startIndex, len, keyword.charAt(0));
+        }
+
+        for (int i = startIndex; i < len; i++) {
+            char ch = args.charAt(i);
+
+            if (isQuote(ch)) {
+                i = skipQuotedString(args, i, len, ch) - 1;
+            } else if (isOpenBracket(ch)) {
+                i = skipBrackets(args, i, len, ch) - 1;
+            } else if (i + 1 < len) {
+                char nextCh = args.charAt(i + 1);
+                if (ch == '-' && nextCh == '-') {
+                    i = skipSingleLineComment(args, i + 2, len) - 1;
+                } else if (ch == '/' && nextCh == '*') {
+                    i = skipMultiLineComment(args, i + 2, len) - 1;
+                } else if (i + k < len) {
+                    int endIndex = i + k;
+                    String s = args.substring(i, endIndex);
+                    if ((caseSensitive && s.equals(keyword)) || (!caseSensitive && s.equalsIgnoreCase(keyword))) {
+                        return endIndex;
+                    }
+                }
+            }
+        }
+
+        return len;
+    }
+
+    /**
+     * Skip quoted string, comments, and brackets until seeing all the given
+     * {@code keywords}(with only whitespaces or comments in between) or reaching
+     * end of the given string.
+     *
+     * @param args          non-null string to scan
+     * @param startIndex    start index
+     * @param len           end index, usually length of the given string
+     * @param keywords      keywords, null or empty one means any character
+     * @param caseSensitive whether keyword is case sensitive or not
+     * @return index of {@code endChar} or {@code len}
+     */
+    public static int skipContentsUntil(String args, int startIndex, int len, String[] keywords,
+            boolean caseSensitive) {
+        int k = keywords != null ? keywords.length : 0;
+        if (k == 0) {
+            return Math.min(startIndex + 1, len);
+        }
+
+        int index = skipContentsUntil(args, startIndex, len, keywords[0], caseSensitive);
+        for (int j = 1; j < k; j++) {
+            String keyword = keywords[j];
+            if (keyword == null || keyword.isEmpty()) {
+                index++;
+                continue;
+            } else {
+                int klen = keyword.length();
+                if (index + klen >= len) {
+                    return len;
+                }
+
+                for (int i = index; i < len; i++) {
+                    String s = args.substring(i, i + klen);
+                    if ((caseSensitive && s.equals(keyword)) || (!caseSensitive && s.equalsIgnoreCase(keyword))) {
+                        index = i + klen;
+                        break;
+                    } else {
+                        char ch = args.charAt(i);
+                        if (Character.isWhitespace(ch)) {
+                            continue;
+                        } else if (i + 1 < len) {
+                            char nextCh = args.charAt(i + 1);
+                            if (ch == '-' && nextCh == '-') {
+                                i = skipSingleLineComment(args, i + 2, len) - 1;
+                            } else if (ch == '/' && nextCh == '*') {
+                                i = skipMultiLineComment(args, i + 2, len) - 1;
+                            } else {
+                                return len;
+                            }
+                        } else {
+                            return len;
+                        }
+                    }
+                }
+            }
+        }
+
+        return index;
     }
 
     public static int readNameOrQuotedString(String args, int startIndex, int len, StringBuilder builder) {
@@ -523,8 +998,9 @@ public final class ClickHouseUtils {
                 } else {
                     builder.append(ch);
                 }
-            } else if (quote == '\0'
-                    && (Character.isWhitespace(ch) || isOpenBracket(ch) || isCloseBracket(ch) || isSeparator(ch))) {
+            } else if (quote == '\0' && (Character.isWhitespace(ch) || isOpenBracket(ch) || isCloseBracket(ch)
+                    || isSeparator(ch) || (i + 1 < len && ((ch == '-' && args.charAt(i + 1) == '-')
+                            || (ch == '/' && args.charAt(i + 1) == '*'))))) {
                 if (builder.length() > 0) {
                     len = i;
                     break;
@@ -586,9 +1062,33 @@ public final class ClickHouseUtils {
         char closeBracket = ')'; // startIndex points to the openning bracket
         Deque<Character> stack = new ArrayDeque<>();
         StringBuilder builder = new StringBuilder();
+
         for (int i = startIndex; i < len; i++) {
             char ch = args.charAt(i);
-            if ((i == startIndex && ch == '(') || Character.isWhitespace(ch)) {
+            if (ch == '(') {
+                startIndex = i + 1;
+                break;
+            } else if (Character.isWhitespace(ch)) {
+                continue;
+            } else if (i + 1 < len) {
+                char nextCh = args.charAt(i + 1);
+                if (ch == '-' && nextCh == '-') {
+                    i = skipSingleLineComment(args, i + 2, len) - 1;
+                } else if (ch == '/' && nextCh == '*') {
+                    i = skipMultiLineComment(args, i + 2, len) - 1;
+                } else {
+                    startIndex = i;
+                    break;
+                }
+            } else {
+                startIndex = i;
+                break;
+            }
+        }
+
+        for (int i = startIndex; i < len; i++) {
+            char ch = args.charAt(i);
+            if (Character.isWhitespace(ch)) {
                 continue;
             } else if (isQuote(ch)) {
                 builder.append(ch);
@@ -623,6 +1123,15 @@ public final class ClickHouseUtils {
                 } else {
                     params.add(builder.toString());
                     builder.setLength(0);
+                }
+            } else if (i + 1 < len) {
+                char nextCh = args.charAt(i + 1);
+                if (ch == '-' && nextCh == '-') {
+                    i = skipSingleLineComment(args, i + 2, len) - 1;
+                } else if (ch == '/' && nextCh == '*') {
+                    i = skipMultiLineComment(args, i + 2, len) - 1;
+                } else {
+                    builder.append(ch);
                 }
             } else {
                 builder.append(ch);
