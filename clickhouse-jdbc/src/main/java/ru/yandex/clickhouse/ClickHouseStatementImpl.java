@@ -23,6 +23,7 @@ import java.util.UUID;
 import com.clickhouse.client.data.JsonStreamUtils;
 import com.clickhouse.client.logging.Logger;
 import com.clickhouse.client.logging.LoggerFactory;
+import com.clickhouse.jdbc.parser.ClickHouseSqlParser;
 import com.clickhouse.jdbc.parser.ClickHouseSqlStatement;
 import com.clickhouse.jdbc.parser.StatementType;
 
@@ -47,7 +48,6 @@ import ru.yandex.clickhouse.domain.ClickHouseCompression;
 import ru.yandex.clickhouse.domain.ClickHouseFormat;
 import ru.yandex.clickhouse.except.ClickHouseException;
 import ru.yandex.clickhouse.except.ClickHouseExceptionSpecifier;
-import ru.yandex.clickhouse.jdbc.parser.ClickHouseSqlParser;
 import ru.yandex.clickhouse.response.ClickHouseLZ4Stream;
 import ru.yandex.clickhouse.response.ClickHouseResponse;
 import ru.yandex.clickhouse.response.ClickHouseResponseSummary;
@@ -170,7 +170,7 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
     }
 
     protected ClickHouseSqlStatement[] parseSqlStatements(String sql) throws SQLException {
-        parsedStmts = ClickHouseSqlParser.parse(sql, properties);
+        parsedStmts = ClickHouseSqlParser.parse(sql, null);
 
         if (parsedStmts == null || parsedStmts.length == 0) {
             // should never happen
@@ -578,7 +578,7 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
 
     @Override
     public void addBatch(String sql) throws SQLException {
-        for (ClickHouseSqlStatement s : ClickHouseSqlParser.parse(sql, properties)) {
+        for (ClickHouseSqlStatement s : ClickHouseSqlParser.parse(sql, null)) {
             this.batchStmts.add(s);
         }
     }
