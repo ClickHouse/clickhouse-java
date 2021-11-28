@@ -72,7 +72,7 @@ public class ClickHouseHttpClientTest extends BaseIntegrationTest {
         ClickHouseNode server = getServer(ClickHouseProtocol.HTTP);
         try (ClickHouseClient client = ClickHouseClient.newInstance();
                 ClickHouseResponse resp = client.connect(server).format(ClickHouseFormat.RowBinaryWithNamesAndTypes)
-                        .query("select * from system.query_log where query_id not in (select query_id from ext_table) limit 10")
+                        .query("select toString(number) as query_id from numbers(100) where query_id not in (select query_id from ext_table) limit 10")
                         .external(ClickHouseExternalTable.builder().name("ext_table")
                                 .columns("query_id String, a_num Nullable(Int32)").format(ClickHouseFormat.CSV)
                                 .content(new ByteArrayInputStream("\"1,2,3\",\\N\n2,333".getBytes())).build())
