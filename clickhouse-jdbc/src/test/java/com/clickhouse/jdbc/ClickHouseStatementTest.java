@@ -21,7 +21,7 @@ import org.testng.Assert;
 import org.testng.annotations.Test;
 
 public class ClickHouseStatementTest extends JdbcIntegrationTest {
-    @Test(groups = "integration")
+    @Test(groups = "local")
     public void testLogComment() throws SQLException {
         Properties props = new Properties();
         props.setProperty(ClickHouseClientOption.LOG_LEADING_COMMENT.getKey(), "true");
@@ -60,7 +60,7 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
         try (ClickHouseConnection conn = newConnection(new Properties())) {
             ClickHouseStatement stmt = conn.createStatement();
             stmt.setMaxRows(10);
-            ResultSet rs = stmt.executeQuery("select * from system.query_log");
+            ResultSet rs = stmt.executeQuery("select * from numbers(100)");
 
             try (ResultSet colRs = conn.getMetaData().getColumns(null, "system", "query_log", "")) {
                 while (colRs.next()) {

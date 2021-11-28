@@ -61,8 +61,8 @@ public class ClickHouseHttpClient extends AbstractClient<ClickHouseHttpConnectio
 
         StringBuilder builder = new StringBuilder();
         for (Map.Entry<String, String> entry : params.entrySet()) {
-            builder.append(URLEncoder.encode(entry.getKey(), StandardCharsets.UTF_8)).append('=')
-                    .append(URLEncoder.encode(entry.getValue(), StandardCharsets.UTF_8)).append('&');
+            builder.append(ClickHouseHttpConnection.urlEncode(entry.getKey(), StandardCharsets.UTF_8)).append('=')
+                    .append(ClickHouseHttpConnection.urlEncode(entry.getValue(), StandardCharsets.UTF_8)).append('&');
         }
 
         if (builder.length() > 0) {

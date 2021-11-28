@@ -56,10 +56,9 @@ public class ClickHouseHttpClientTest extends BaseIntegrationTest {
         try (ClickHouseClient client = ClickHouseClient.newInstance()) {
             ClickHouseRequest<?> req = client.connect(server).format(ClickHouseFormat.RowBinaryWithNamesAndTypes);
 
-            ClickHouseResponse queryResp = req.copy().query("select * from system.query_log").execute().get();
+            ClickHouseResponse queryResp = req.copy().query("select 1").execute().get();
 
-            try (ClickHouseResponse resp = req.copy().query("select 1").execute().get()) {
-
+            try (ClickHouseResponse resp = req.copy().query("select 2").execute().get()) {
             }
 
             for (ClickHouseRecord r : queryResp.records()) {

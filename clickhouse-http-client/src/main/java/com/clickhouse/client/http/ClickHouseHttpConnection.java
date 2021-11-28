@@ -3,7 +3,9 @@ package com.clickhouse.client.http;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -30,9 +32,18 @@ import com.clickhouse.client.http.config.ClickHouseHttpOption;
 public abstract class ClickHouseHttpConnection implements AutoCloseable {
     protected static final int DEFAULT_BUFFER_SIZE = 8192;
 
+    static String urlEncode(String str, Charset charset) {
+        try {
+            return URLEncoder.encode(str, StandardCharsets.UTF_8.name());
+        } catch (UnsupportedEncodingException e) {
+            // should not happen
+            throw new IllegalArgumentException(e);
+        }
+    }
+
     private static StringBuilder appendQueryParameter(StringBuilder builder, String key, String value) {
-        return builder.append(URLEncoder.encode(key, StandardCharsets.UTF_8)).append('=')
-                .append(URLEncoder.encode(value, StandardCharsets.UTF_8)).append('&');
+        return builder.append(urlEncode(key, StandardCharsets.UTF_8)).append('=')
+                .append(urlEncode(value, StandardCharsets.UTF_8)).append('&');
     }
 
     static String buildQueryParams(ClickHouseRequest<?> request) {
@@ -207,15 +218,15 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
         // TODO support more algorithms
         ClickHouseCompression algorithm = config.getDecompressAlgorithmForClientRequest();
         switch (algorithm) {
-        case GZIP:
-            out = new GZIPOutputStream(out, (int) config.getOption(ClickHouseClientOption.MAX_COMPRESS_BLOCK_SIZE));
-            break;
-        case LZ4:
-            out = new ClickHouseLZ4OutputStream(out,
-                    (int) config.getOption(ClickHouseClientOption.MAX_COMPRESS_BLOCK_SIZE));
-            break;
-        default:
-            throw new UnsupportedOperationException("Unsupported compression algorithm: " + algorithm);
+            case GZIP:
+                out = new GZIPOutputStream(out, (int) config.getOption(ClickHouseClientOption.MAX_COMPRESS_BLOCK_SIZE));
+                break;
+            case LZ4:
+                out = new ClickHouseLZ4OutputStream(out,
+                        (int) config.getOption(ClickHouseClientOption.MAX_COMPRESS_BLOCK_SIZE));
+                break;
+            default:
+                throw new UnsupportedOperationException("Unsupported compression algorithm: " + algorithm);
         }
         return out;
     }
@@ -228,14 +239,14 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
         // TODO support more algorithms
         ClickHouseCompression algorithm = config.getCompressAlgorithmForServerResponse();
         switch (algorithm) {
-        case GZIP:
-            in = new GZIPInputStream(in);
-            break;
-        case LZ4:
-            in = new ClickHouseLZ4InputStream(in);
-            break;
-        default:
-            throw new UnsupportedOperationException("Unsupported compression algorithm: " + algorithm);
+            case GZIP:
+                in = new GZIPInputStream(in);
+                break;
+            case LZ4:
+                in = new ClickHouseLZ4InputStream(in);
+                break;
+            default:
+                throw new UnsupportedOperationException("Unsupported compression algorithm: " + algorithm);
         }
         return in;
     }
