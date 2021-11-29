@@ -5,6 +5,7 @@ import java.sql.Driver;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Properties;
+
 import org.openjdk.jmh.annotations.Level;
 import org.openjdk.jmh.annotations.Param;
 import org.openjdk.jmh.annotations.Scope;
@@ -18,7 +19,7 @@ import com.clickhouse.benchmark.ServerState;
 @State(Scope.Thread)
 public class DriverState extends BaseState {
     @Param(value = { "clickhouse4j", "clickhouse-http-jdbc", "clickhouse-grpc-jdbc", "clickhouse-jdbc",
-            "clickhouse-native-jdbc-shaded", "mariadb-java-client", "mysql-connector-java", "postgresql-jdbc" })
+            "clickhouse-native-jdbc", "mariadb-java-client", "mysql-connector-java", "postgresql-jdbc" })
     private String client;
 
     @Param(value = { Constants.REUSE_CONNECTION, Constants.NEW_CONNECTION })
@@ -26,6 +27,9 @@ public class DriverState extends BaseState {
 
     @Param(value = { Constants.NORMAL_STATEMENT, Constants.PREPARED_STATEMENT })
     private String statement;
+
+    @Param(value = { "default", "string", "object" })
+    private String type;
 
     private Driver driver;
     private String url;
@@ -112,5 +116,17 @@ public class DriverState extends BaseState {
 
     public boolean usePreparedStatement() {
         return Constants.PREPARED_STATEMENT.equalsIgnoreCase(this.statement);
+    }
+
+    public ConsumeValueFunction getConsumeFunction(ConsumeValueFunction defaultFunc) {
+        if ("string".equals(type)) {
+            return (b, r, i) -> b.consume(r.getString(i));
+        } else if ("object".equals(type)) {
+            return (b, r, i) -> b.consume(r.getObject(i));
+        } else if (defaultFunc == null) {
+            return (b, r, i) -> b.consume(i);
+        } else {
+            return defaultFunc;
+        }
     }
 }
