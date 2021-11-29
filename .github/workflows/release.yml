@@ -34,7 +34,7 @@ jobs:
                 <version>11</version>
               </provides>
               <configuration>
-                <jdkHome>${env.JDK11_HOME}</jdkHome>
+                <jdkHome>${{ env.JDK11_HOME }}</jdkHome>
               </configuration>
             </toolchain>
           </toolchains>
