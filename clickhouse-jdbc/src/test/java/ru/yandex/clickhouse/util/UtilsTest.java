@@ -39,7 +39,7 @@ public class UtilsTest {
             buffer = ByteBuffer.allocate(8);
             Utils.writeVarInt(i, buffer);
             Utils.writeVarInt(0 - i, buffer);
-            buffer = (ByteBuffer) ((Buffer) buffer.flip());
+            buffer = (ByteBuffer) ((Buffer) buffer).flip();
             assertEquals(Utils.readVarInt(buffer), i);
             assertEquals(Utils.readVarInt(buffer), 0 - i);
         }
