@@ -42,6 +42,7 @@ jobs:
       - name: Install JDK 8 and Maven
         uses: actions/setup-java@v2
         with:
+          distribution: 'temurin'
           java-version: 8
       - name: Update Configuration
         run: |
