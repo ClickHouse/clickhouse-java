@@ -56,6 +56,11 @@ public class DriverState extends BaseState {
                 s.execute(
                         "create table if not exists system.test_insert(i Nullable(UInt64), s Nullable(String), t Nullable(DateTime))engine=Memory");
             }
+
+            if (!Constants.REUSE_CONNECTION.equalsIgnoreCase(connection)) {
+                conn.close();
+                conn = null;
+            }
         } catch (SQLException e) {
             e.printStackTrace();
             throw new RuntimeException(e);
@@ -68,6 +73,7 @@ public class DriverState extends BaseState {
 
         if (conn != null) {
             conn.close();
+            conn = null;
         }
     }
 
