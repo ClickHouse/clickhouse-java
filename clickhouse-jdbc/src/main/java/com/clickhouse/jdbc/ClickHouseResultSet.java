@@ -23,6 +23,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.Calendar;
+import java.util.GregorianCalendar;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -49,6 +50,7 @@ public class ClickHouseResultSet extends AbstractResultSet {
 
     protected final ClickHouseConfig config;
     protected final List<ClickHouseColumn> columns;
+    protected final Calendar defaultCalendar;
     protected final TimeZone tsTimeZone;
     protected final TimeZone dateTimeZone;
     protected final int maxRows;
@@ -62,7 +64,8 @@ public class ClickHouseResultSet extends AbstractResultSet {
         this.response = response;
 
         this.config = null;
-        this.tsTimeZone = TimeZone.getDefault();
+        this.defaultCalendar = new GregorianCalendar(TimeZone.getTimeZone("UTC"));
+        this.tsTimeZone = null; // TimeZone.getDefault();
         this.dateTimeZone = this.tsTimeZone;
 
         this.currentRow = null;
@@ -95,7 +98,8 @@ public class ClickHouseResultSet extends AbstractResultSet {
 
         ClickHouseConnection conn = statement.getConnection();
         this.config = statement.getConfig();
-        this.tsTimeZone = conn.getEffectiveTimeZone();
+        this.defaultCalendar = conn.getDefaultCalendar();
+        this.tsTimeZone = conn.getEffectiveTimeZone().orElse(null);
         this.dateTimeZone = this.tsTimeZone;
 
         this.currentRow = null;
@@ -567,17 +571,10 @@ public class ClickHouseResultSet extends AbstractResultSet {
         // unfortunately java.sql.Time does not support fractional seconds
         LocalTime lt = value.asTime();
 
-        Time t;
-        if (cal == null) {
-            t = Time.valueOf(lt);
-        } else {
-            Calendar c = (Calendar) cal.clone();
-            c.clear();
-            c.set(1970, 0, 1, lt.getHour(), lt.getMinute(), lt.getSecond());
-            t = new Time(c.getTimeInMillis());
-        }
-
-        return t;
+        Calendar c = (Calendar) (cal != null ? cal : defaultCalendar).clone();
+        c.clear();
+        c.set(1970, 0, 1, lt.getHour(), lt.getMinute(), lt.getSecond());
+        return new Time(c.getTimeInMillis());
     }
 
     @Override
@@ -607,16 +604,11 @@ public class ClickHouseResultSet extends AbstractResultSet {
         LocalDateTime dt = tz == null ? value.asDateTime(column.getScale())
                 : value.asOffsetDateTime(column.getScale()).toLocalDateTime();
 
-        Timestamp timestamp;
-        if (cal == null) {
-            timestamp = Timestamp.valueOf(dt);
-        } else {
-            Calendar c = (Calendar) cal.clone();
-            c.set(dt.getYear(), dt.getMonthValue() - 1, dt.getDayOfMonth(), dt.getHour(), dt.getMinute(),
-                    dt.getSecond());
-            timestamp = new Timestamp(c.getTimeInMillis());
-            timestamp.setNanos(dt.getNano());
-        }
+        Calendar c = (Calendar) (cal != null ? cal : defaultCalendar).clone();
+        c.set(dt.getYear(), dt.getMonthValue() - 1, dt.getDayOfMonth(), dt.getHour(), dt.getMinute(),
+                dt.getSecond());
+        Timestamp timestamp = new Timestamp(c.getTimeInMillis());
+        timestamp.setNanos(dt.getNano());
 
         return timestamp;
     }

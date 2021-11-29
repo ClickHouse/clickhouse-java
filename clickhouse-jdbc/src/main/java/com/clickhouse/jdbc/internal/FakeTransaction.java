@@ -14,6 +14,11 @@ import com.clickhouse.client.logging.Logger;
 import com.clickhouse.jdbc.SqlExceptionUtils;
 
 public final class FakeTransaction {
+    static final String ACTION_COMMITTED = "committed";
+    static final String ACTION_ROLLBACK = "rolled back";
+
+    static final String ERROR_TX_NOT_STARTED = "Transaction not started";
+
     static final int DEFAULT_TX_ISOLATION_LEVEL = Connection.TRANSACTION_READ_UNCOMMITTED;
 
     static final class FakeSavepoint implements Savepoint {

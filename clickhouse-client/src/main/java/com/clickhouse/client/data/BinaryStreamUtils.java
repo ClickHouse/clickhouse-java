@@ -23,6 +23,7 @@ import java.util.TimeZone;
 import java.util.concurrent.TimeUnit;
 import com.clickhouse.client.ClickHouseChecker;
 import com.clickhouse.client.ClickHouseDataType;
+import com.clickhouse.client.ClickHouseInputStream;
 import com.clickhouse.client.ClickHouseUtils;
 import com.clickhouse.client.ClickHouseValues;
 
@@ -136,41 +137,6 @@ public final class BinaryStreamUtils {
     }
 
     /**
-     * Read an unsigned byte from given input stream.
-     *
-     * @param input non-null input stream
-     * @return unnsigned byte which is always greater than or equal to zero
-     * @throws IOException when failed to read value from input stream or reached
-     *                     end of the stream
-     */
-    public static int readUnsignedByte(InputStream input) throws IOException {
-        int value = input.read();
-        if (value == -1) {
-            try {
-                input.close();
-            } catch (IOException e) {
-                // ignore
-            }
-
-            throw new EOFException();
-        }
-
-        return value;
-    }
-
-    /**
-     * Read a byte from given input stream.
-     *
-     * @param input non-null input stream
-     * @return byte
-     * @throws IOException when failed to read value from input stream or reached
-     *                     end of the stream
-     */
-    public static byte readByte(InputStream input) throws IOException {
-        return (byte) readUnsignedByte(input);
-    }
-
-    /**
      * Reads {@code length} bytes from given input stream. It behaves in the same
      * way as {@link java.io.DataInput#readFully(byte[])}.
      *
@@ -180,7 +146,7 @@ public final class BinaryStreamUtils {
      * @throws IOException when failed to read value from input stream, not able to
      *                     retrieve all bytes, or reached end of the stream
      */
-    public static byte[] readBytes(InputStream input, int length) throws IOException {
+    public static byte[] readBytes(ClickHouseInputStream input, int length) throws IOException {
         int count = 0;
         byte[] bytes = new byte[length];
         while (count < length) {
@@ -225,7 +191,8 @@ public final class BinaryStreamUtils {
      * @throws IOException when failed to read value from input stream, not able to
      *                     retrieve all bytes, or reached end of the stream
      */
-    public static ClickHouseBitmap readBitmap(InputStream input, ClickHouseDataType dataType) throws IOException {
+    public static ClickHouseBitmap readBitmap(ClickHouseInputStream input, ClickHouseDataType dataType)
+            throws IOException {
         return ClickHouseBitmap.deserialize(input, dataType);
     }
 
@@ -286,7 +253,8 @@ public final class BinaryStreamUtils {
     }
 
     /**
-     * Read boolean from given input stream. It uses {@link #readByte(InputStream)}
+     * Read boolean from given input stream. It uses
+     * {@link ClickHouseInputStream#readByte()}
      * to get value and return {@code true} only when the value is {@code 1}.
      *
      * @param input non-null input stream
@@ -294,8 +262,8 @@ public final class BinaryStreamUtils {
      * @throws IOException when failed to read value from input stream or reached
      *                     end of the stream
      */
-    public static boolean readBoolean(InputStream input) throws IOException {
-        return ClickHouseChecker.between(readByte(input), ClickHouseValues.TYPE_BOOLEAN, 0, 1) == 1;
+    public static boolean readBoolean(ClickHouseInputStream input) throws IOException {
+        return ClickHouseChecker.between(input.readByte(), ClickHouseValues.TYPE_BOOLEAN, 0, 1) == 1;
     }
 
     /**
@@ -333,20 +301,20 @@ public final class BinaryStreamUtils {
      * @throws IOException when failed to read value from input stream or reached
      *                     end of the stream
      */
-    public static <T extends Enum<T>> T readEnum8(InputStream input, Class<T> enumType) throws IOException {
+    public static <T extends Enum<T>> T readEnum8(ClickHouseInputStream input, Class<T> enumType) throws IOException {
         return toEnum(readEnum8(input), enumType);
     }
 
     /**
      * Read enum value from given input stream. Same as
-     * {@link #readInt8(InputStream)}.
+     * {@link #readInt8(ClickHouseInputStream)}.
      *
      * @param input non-null input stream
      * @return enum value
      * @throws IOException when failed to read value from input stream or reached
      *                     end of the stream
      */
-    public static byte readEnum8(InputStream input) throws IOException {
+    public static byte readEnum8(ClickHouseInputStream input) throws IOException {
         return readInt8(input);
     }
 
@@ -386,20 +354,20 @@ public final class BinaryStreamUtils {
      * @throws IOException when failed to read value from input stream or reached
      *                     end of the stream
      */
-    public static <T extends Enum<T>> T readEnum16(InputStream input, Class<T> enumType) throws IOException {
+    public static <T extends Enum<T>> T readEnum16(ClickHouseInputStream input, Class<T> enumType) throws IOException {
         return toEnum(readEnum16(input), enumType);
     }
 
     /**
      * Read enum value from given input stream. Same as
-     * {@link #readInt16(InputStream)}.
+     * {@link #readInt16(ClickHouseInputStream)}.
      *
      * @param input non-null input stream
      * @return enum value
      * @throws IOException when failed to read value from input stream or reached
      *                     end of the stream
      */
-    public static short readEnum16(InputStream input) throws IOException {
+    public static short readEnum16(ClickHouseInputStream input) throws IOException {
         return readInt16(input);
     }
 
@@ -437,7 +405,7 @@ public final class BinaryStreamUtils {
      * @throws IOException when failed to read value from input stream or reached
      *                     end of the stream
      */
-    public static double[] readGeoPoint(InputStream input) throws IOException {
+    public static double[] readGeoPoint(ClickHouseInputStream input) throws IOException {
         return new double[] { readFloat64(input), readFloat64(input) };
     }
 
@@ -479,7 +447,7 @@ public final class BinaryStreamUtils {
      * @throws IOException when failed to read value from input stream or reached
      *                     end of the stream
      */
-    public static double[][] readGeoRing(InputStream input) throws IOException {
+    public static double[][] readGeoRing(ClickHouseInputStream input) throws IOException {
         int count = readVarInt(input);
         double[][] value = new double[count][2];
         for (int i = 0; i < count; i++) {
@@ -511,7 +479,7 @@ public final class BinaryStreamUtils {
      * @throws IOException when failed to read value from input stream or reached
      *                     end of the stream
      */
-    public static double[][][] readGeoPolygon(InputStream input) throws IOException {
+    public static double[][][] readGeoPolygon(ClickHouseInputStream input) throws IOException {
         int count = readVarInt(input);
         double[][][] value = new double[count][][];
         for (int i = 0; i < count; i++) {
@@ -543,7 +511,7 @@ public final class BinaryStreamUtils {
      * @throws IOException when failed to read value from input stream or reached
      *                     end of the stream
      */
-    public static double[][][][] readGeoMultiPolygon(InputStream input) throws IOException {
+    public static double[][][][] readGeoMultiPolygon(ClickHouseInputStream input) throws IOException {
         int count = readVarInt(input);
         double[][][][] value = new double[count][][][];
         for (int i = 0; i < count; i++) {
@@ -569,14 +537,14 @@ public final class BinaryStreamUtils {
 
     /**
      * Read null marker from input stream. Same as
-     * {@link #readBoolean(InputStream)}.
+     * {@link #readBoolean(ClickHouseInputStream)}.
      * 
      * @param input non-null input stream
      * @return true if it's null; false otherwise
      * @throws IOException when failed to read value from input stream or reached
      *                     end of the stream
      */
-    public static boolean readNull(InputStream input) throws IOException {
+    public static boolean readNull(ClickHouseInputStream input) throws IOException {
         return readBoolean(input);
     }
 
@@ -610,7 +578,7 @@ public final class BinaryStreamUtils {
      * @throws IOException when failed to read value from input stream or reached
      *                     end of the stream
      */
-    public static Inet4Address readInet4Address(InputStream input) throws IOException {
+    public static Inet4Address readInet4Address(ClickHouseInputStream input) throws IOException {
         return (Inet4Address) InetAddress.getByAddress(reverse(readBytes(input, 4)));
     }
 
@@ -634,7 +602,7 @@ public final class BinaryStreamUtils {
      * @throws IOException when failed to read value from input stream or reached
      *                     end of the stream
      */
-    public static Inet6Address readInet6Address(InputStream input) throws IOException {
+    public static Inet6Address readInet6Address(ClickHouseInputStream input) throws IOException {
         return Inet6Address.getByAddress(null, readBytes(input, 16), null);
     }
 
@@ -651,15 +619,16 @@ public final class BinaryStreamUtils {
     }
 
     /**
-     * Read a byte from given input stream. Same as {@link #readByte(InputStream)}.
+     * Read a byte from given input stream. Same as
+     * {@link ClickHouseInputStream#readByte()}.
      *
      * @param input non-null input stream
      * @return byte
      * @throws IOException when failed to read value from input stream or reached
      *                     end of the stream
      */
-    public static byte readInt8(InputStream input) throws IOException {
-        return readByte(input);
+    public static byte readInt8(ClickHouseInputStream input) throws IOException {
+        return input.readByte();
     }
 
     /**
@@ -694,8 +663,8 @@ public final class BinaryStreamUtils {
      * @throws IOException when failed to read value from input stream or reached
      *                     end of the stream
      */
-    public static short readUnsignedInt8(InputStream input) throws IOException {
-        return (short) (readByte(input) & 0xFFL);
+    public static short readUnsignedInt8(ClickHouseInputStream input) throws IOException {
+        return (short) (input.readByte() & 0xFF);
     }
 
     /**
@@ -718,7 +687,7 @@ public final class BinaryStreamUtils {
      * @throws IOException when failed to read value from input stream or reached
      *                     end of the stream
      */
-    public static short readInt16(InputStream input) throws IOException {
+    public static short readInt16(ClickHouseInputStream input) throws IOException {
         byte[] bytes = readBytes(input, 2);
         return (short) ((0xFF & bytes[0]) | (bytes[1] << 8));
     }
@@ -756,8 +725,8 @@ public final class BinaryStreamUtils {
      * @throws IOException when failed to read value from input stream or reached
      *                     end of the stream
      */
-    public static int readUnsignedInt16(InputStream input) throws IOException {
-        return (int) (readInt16(input) & 0xFFFFL);
+    public static int readUnsignedInt16(ClickHouseInputStream input) throws IOException {
+        return (int) (readInt16(input) & 0xFFFF);
     }
 
     /**
@@ -781,7 +750,7 @@ public final class BinaryStreamUtils {
      * @throws IOException when failed to read value from input stream or reached
      *                     end of the stream
      */
-    public static int readInt32(InputStream input) throws IOException {
+    public static int readInt32(ClickHouseInputStream input) throws IOException {
         byte[] bytes = readBytes(input, 4);
 
         return (0xFF & bytes[0]) | ((0xFF & bytes[1]) << 8) | ((0xFF & bytes[2]) << 16) | (bytes[3] << 24);
@@ -808,8 +777,8 @@ public final class BinaryStreamUtils {
      * @throws IOException when failed to read value from input stream or reached
      *                     end of the stream
      */
-    public static long readUnsignedInt32(InputStream input) throws IOException {
-        return readInt32(input) & 0xFFFFFFFFL;
+    public static long readUnsignedInt32(ClickHouseInputStream input) throws IOException {
+        return 0xFFFFFFFFL & readInt32(input);
     }
 
     /**
@@ -833,7 +802,7 @@ public final class BinaryStreamUtils {
      * @throws IOException when failed to read value from input stream or reached
      *                     end of the stream
      */
-    public static long readInt64(InputStream input) throws IOException {
+    public static long readInt64(ClickHouseInputStream input) throws IOException {
         byte[] bytes = readBytes(input, 8);
 
         return (0xFFL & bytes[0]) | ((0xFFL & bytes[1]) << 8) | ((0xFFL & bytes[2]) << 16) | ((0xFFL & bytes[3]) << 24)
@@ -869,7 +838,7 @@ public final class BinaryStreamUtils {
      * @throws IOException when failed to read value from input stream or reached
      *                     end of the stream
      */
-    public static BigInteger readUnsignedInt64(InputStream input) throws IOException {
+    public static BigInteger readUnsignedInt64(ClickHouseInputStream input) throws IOException {
         return new BigInteger(1, reverse(readBytes(input, 8)));
     }
 
@@ -909,7 +878,7 @@ public final class BinaryStreamUtils {
      * @throws IOException when failed to read value from input stream or reached
      *                     end of the stream
      */
-    public static BigInteger readInt128(InputStream input) throws IOException {
+    public static BigInteger readInt128(ClickHouseInputStream input) throws IOException {
         return new BigInteger(reverse(readBytes(input, 16)));
     }
 
@@ -933,7 +902,7 @@ public final class BinaryStreamUtils {
      * @throws IOException when failed to read value from input stream or reached
      *                     end of the stream
      */
-    public static BigInteger readUnsignedInt128(InputStream input) throws IOException {
+    public static BigInteger readUnsignedInt128(ClickHouseInputStream input) throws IOException {
         return new BigInteger(1, reverse(readBytes(input, 16)));
     }
 
@@ -958,7 +927,7 @@ public final class BinaryStreamUtils {
      * @throws IOException when failed to read value from input stream or reached
      *                     end of the stream
      */
-    public static BigInteger readInt256(InputStream input) throws IOException {
+    public static BigInteger readInt256(ClickHouseInputStream input) throws IOException {
         return new BigInteger(reverse(readBytes(input, 32)));
     }
 
@@ -982,7 +951,7 @@ public final class BinaryStreamUtils {
      * @throws IOException when failed to read value from input stream or reached
      *                     end of the stream
      */
-    public static BigInteger readUnsignedInt256(InputStream input) throws IOException {
+    public static BigInteger readUnsignedInt256(ClickHouseInputStream input) throws IOException {
         return new BigInteger(1, reverse(readBytes(input, 32)));
     }
 
@@ -1007,7 +976,7 @@ public final class BinaryStreamUtils {
      * @throws IOException when failed to read value from input stream or reached
      *                     end of the stream
      */
-    public static float readFloat32(InputStream input) throws IOException {
+    public static float readFloat32(ClickHouseInputStream input) throws IOException {
         return Float.intBitsToFloat(readInt32(input));
     }
 
@@ -1031,7 +1000,7 @@ public final class BinaryStreamUtils {
      * @throws IOException when failed to read value from input stream or reached
      *                     end of the stream
      */
-    public static double readFloat64(InputStream input) throws IOException {
+    public static double readFloat64(ClickHouseInputStream input) throws IOException {
         return Double.longBitsToDouble(readInt64(input));
     }
 
@@ -1055,7 +1024,7 @@ public final class BinaryStreamUtils {
      * @throws IOException when failed to read value from input stream or reached
      *                     end of the stream
      */
-    public static java.util.UUID readUuid(InputStream input) throws IOException {
+    public static java.util.UUID readUuid(ClickHouseInputStream input) throws IOException {
         return new java.util.UUID(readInt64(input), readInt64(input));
     }
 
@@ -1109,7 +1078,7 @@ public final class BinaryStreamUtils {
      * @throws IOException when failed to read value from input stream or reached
      *                     end of the stream
      */
-    public static BigDecimal readDecimal(InputStream input, int precision, int scale) throws IOException {
+    public static BigDecimal readDecimal(ClickHouseInputStream input, int precision, int scale) throws IOException {
         BigDecimal v;
 
         if (precision <= ClickHouseDataType.Decimal32.getMaxScale()) {
@@ -1158,7 +1127,7 @@ public final class BinaryStreamUtils {
      * @throws IOException when failed to read value from input stream or reached
      *                     end of the stream
      */
-    public static BigDecimal readDecimal32(InputStream input, int scale) throws IOException {
+    public static BigDecimal readDecimal32(ClickHouseInputStream input, int scale) throws IOException {
         return BigDecimal.valueOf(readInt32(input), ClickHouseChecker.between(scale, ClickHouseValues.PARAM_SCALE, 0,
                 ClickHouseDataType.Decimal32.getMaxScale()));
     }
@@ -1190,7 +1159,7 @@ public final class BinaryStreamUtils {
      * @throws IOException when failed to read value from input stream or reached
      *                     end of the stream
      */
-    public static BigDecimal readDecimal64(InputStream input, int scale) throws IOException {
+    public static BigDecimal readDecimal64(ClickHouseInputStream input, int scale) throws IOException {
         return BigDecimal.valueOf(readInt64(input), ClickHouseChecker.between(scale, ClickHouseValues.PARAM_SCALE, 0,
                 ClickHouseDataType.Decimal64.getMaxScale()));
     }
@@ -1223,7 +1192,7 @@ public final class BinaryStreamUtils {
      * @throws IOException when failed to read value from input stream or reached
      *                     end of the stream
      */
-    public static BigDecimal readDecimal128(InputStream input, int scale) throws IOException {
+    public static BigDecimal readDecimal128(ClickHouseInputStream input, int scale) throws IOException {
         return new BigDecimal(readInt128(input), ClickHouseChecker.between(scale, ClickHouseValues.PARAM_SCALE, 0,
                 ClickHouseDataType.Decimal128.getMaxScale()));
     }
@@ -1256,7 +1225,7 @@ public final class BinaryStreamUtils {
      * @throws IOException when failed to read value from input stream or reached
      *                     end of the stream
      */
-    public static BigDecimal readDecimal256(InputStream input, int scale) throws IOException {
+    public static BigDecimal readDecimal256(ClickHouseInputStream input, int scale) throws IOException {
         return new BigDecimal(readInt256(input), ClickHouseChecker.between(scale, ClickHouseValues.PARAM_SCALE, 0,
                 ClickHouseDataType.Decimal256.getMaxScale()));
     }
@@ -1289,7 +1258,7 @@ public final class BinaryStreamUtils {
      * @throws IOException when failed to read value from input stream or reached
      *                     end of the stream
      */
-    public static LocalDate readDate(InputStream input, TimeZone tz) throws IOException {
+    public static LocalDate readDate(ClickHouseInputStream input, TimeZone tz) throws IOException {
         return LocalDate.ofEpochDay(readUnsignedInt16(input));
     }
 
@@ -1316,7 +1285,7 @@ public final class BinaryStreamUtils {
      * @throws IOException when failed to read value from input stream or reached
      *                     end of the stream
      */
-    public static LocalDate readDate32(InputStream input, TimeZone tz) throws IOException {
+    public static LocalDate readDate32(ClickHouseInputStream input, TimeZone tz) throws IOException {
         return LocalDate.ofEpochDay(readInt32(input));
     }
 
@@ -1343,7 +1312,7 @@ public final class BinaryStreamUtils {
      * @throws IOException when failed to read value from input stream or reached
      *                     end of the stream
      */
-    public static LocalDateTime readDateTime(InputStream input, TimeZone tz) throws IOException {
+    public static LocalDateTime readDateTime(ClickHouseInputStream input, TimeZone tz) throws IOException {
         return readDateTime(input, 0, tz);
     }
 
@@ -1357,7 +1326,7 @@ public final class BinaryStreamUtils {
      * @throws IOException when failed to read value from input stream or reached
      *                     end of the stream
      */
-    public static LocalDateTime readDateTime(InputStream input, int scale, TimeZone tz) throws IOException {
+    public static LocalDateTime readDateTime(ClickHouseInputStream input, int scale, TimeZone tz) throws IOException {
         return ClickHouseChecker.between(scale, ClickHouseValues.PARAM_SCALE, 0,
                 ClickHouseDataType.DateTime64.getMaxScale()) == 0 ? readDateTime32(input, tz)
                         : readDateTime64(input, scale, tz);
@@ -1405,7 +1374,7 @@ public final class BinaryStreamUtils {
      * @throws IOException when failed to read value from input stream or reached
      *                     end of the stream
      */
-    public static LocalDateTime readDateTime32(InputStream input, TimeZone tz) throws IOException {
+    public static LocalDateTime readDateTime32(ClickHouseInputStream input, TimeZone tz) throws IOException {
         long time = readUnsignedInt32(input);
 
         return LocalDateTime.ofInstant(Instant.ofEpochSecond(time < 0L ? 0L : time),
@@ -1438,7 +1407,7 @@ public final class BinaryStreamUtils {
      * @throws IOException when failed to read value from input stream or reached
      *                     end of the stream
      */
-    public static LocalDateTime readDateTime64(InputStream input, TimeZone tz) throws IOException {
+    public static LocalDateTime readDateTime64(ClickHouseInputStream input, TimeZone tz) throws IOException {
         return readDateTime64(input, 3, tz);
     }
 
@@ -1452,7 +1421,7 @@ public final class BinaryStreamUtils {
      * @throws IOException when failed to read value from input stream or reached
      *                     end of the stream
      */
-    public static LocalDateTime readDateTime64(InputStream input, int scale, TimeZone tz) throws IOException {
+    public static LocalDateTime readDateTime64(ClickHouseInputStream input, int scale, TimeZone tz) throws IOException {
         long value = readInt64(input);
         int nanoSeconds = 0;
         if (ClickHouseChecker.between(scale, ClickHouseValues.PARAM_SCALE, 0, 9) > 0) {
@@ -1533,7 +1502,7 @@ public final class BinaryStreamUtils {
      * @throws IOException when failed to read value from input stream or reached
      *                     end of the stream
      */
-    public static String readFixedString(InputStream input, int length) throws IOException {
+    public static String readFixedString(ClickHouseInputStream input, int length) throws IOException {
         return readFixedString(input, length, null);
     }
 
@@ -1547,7 +1516,7 @@ public final class BinaryStreamUtils {
      * @throws IOException when failed to read value from input stream or reached
      *                     end of the stream
      */
-    public static String readFixedString(InputStream input, int length, Charset charset) throws IOException {
+    public static String readFixedString(ClickHouseInputStream input, int length, Charset charset) throws IOException {
         byte[] bytes = readBytes(input, length);
 
         return new String(bytes, charset == null ? StandardCharsets.UTF_8 : charset);
@@ -1595,7 +1564,7 @@ public final class BinaryStreamUtils {
      * @throws IOException when failed to read value from input stream or reached
      *                     end of the stream
      */
-    public static String readString(InputStream input) throws IOException {
+    public static String readString(ClickHouseInputStream input) throws IOException {
         return readString(input, readVarInt(input), null);
     }
 
@@ -1608,7 +1577,7 @@ public final class BinaryStreamUtils {
      * @throws IOException when failed to read value from input stream or reached
      *                     end of the stream
      */
-    public static String readString(InputStream input, Charset charset) throws IOException {
+    public static String readString(ClickHouseInputStream input, Charset charset) throws IOException {
         return readString(input, readVarInt(input), charset);
     }
 
@@ -1622,7 +1591,7 @@ public final class BinaryStreamUtils {
      * @throws IOException when failed to read value from input stream or reached
      *                     end of the stream
      */
-    public static String readString(InputStream input, int length, Charset charset) throws IOException {
+    public static String readString(ClickHouseInputStream input, int length, Charset charset) throws IOException {
         return new String(readBytes(input, length), charset == null ? StandardCharsets.UTF_8 : charset);
     }
 
@@ -1675,13 +1644,38 @@ public final class BinaryStreamUtils {
      * @throws IOException when failed to read value from input stream or reached
      *                     end of the stream
      */
+    public static int readVarInt(ClickHouseInputStream input) throws IOException {
+        // https://github.com/ClickHouse/ClickHouse/blob/abe314feecd1647d7c2b952a25da7abf5c19f352/src/IO/VarInt.h#L126
+        long result = 0L;
+        int shift = 0;
+        for (int i = 0; i < 9; i++) {
+            // gets 7 bits from next byte
+            int b = input.readUnsignedByte();
+            result |= (b & 0x7F) << shift;
+            if ((b & 0x80) == 0) {
+                break;
+            }
+            shift += 7;
+        }
+
+        return (int) result;
+    }
+
     public static int readVarInt(InputStream input) throws IOException {
         // https://github.com/ClickHouse/ClickHouse/blob/abe314feecd1647d7c2b952a25da7abf5c19f352/src/IO/VarInt.h#L126
         long result = 0L;
         int shift = 0;
         for (int i = 0; i < 9; i++) {
             // gets 7 bits from next byte
-            int b = readUnsignedByte(input);
+            int b = input.read();
+            if (b == -1) {
+                try {
+                    input.close();
+                } catch (IOException e) {
+                    // ignore error
+                }
+                throw new EOFException();
+            }
             result |= (b & 0x7F) << shift;
             if ((b & 0x80) == 0) {
                 break;

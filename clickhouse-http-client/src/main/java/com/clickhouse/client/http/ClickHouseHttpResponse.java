@@ -1,5 +1,6 @@
 package com.clickhouse.client.http;
 
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.Serializable;
@@ -10,13 +11,14 @@ import java.util.TimeZone;
 import com.clickhouse.client.ClickHouseChecker;
 import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseFormat;
+import com.clickhouse.client.ClickHouseInputStream;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseResponseSummary;
 import com.clickhouse.client.ClickHouseUtils;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.config.ClickHouseOption;
 
-public class ClickHouseHttpResponse extends InputStream {
+public class ClickHouseHttpResponse extends ClickHouseInputStream {
     private static long getLongValue(Map<String, String> map, String key) {
         String value = map.get(key);
         if (value != null) {
@@ -38,6 +40,8 @@ public class ClickHouseHttpResponse extends InputStream {
     protected final TimeZone timeZone;
 
     protected final ClickHouseResponseSummary summary;
+
+    private boolean closed;
 
     protected ClickHouseConfig getConfig(ClickHouseRequest<?> request) {
         ClickHouseConfig config = request.getConfig();
@@ -86,6 +90,19 @@ public class ClickHouseHttpResponse extends InputStream {
             this.timeZone = !ClickHouseChecker.isNullOrEmpty(value) ? TimeZone.getTimeZone(value)
                     : connection.config.getServerTimeZone();
         }
+
+        closed = false;
+    }
+
+    @Override
+    public byte readByte() throws IOException {
+        int v = input.read();
+        if (v == -1) {
+            close();
+            throw new EOFException();
+        }
+
+        return (byte) v;
     }
 
     @Override
@@ -99,6 +116,11 @@ public class ClickHouseHttpResponse extends InputStream {
     }
 
     @Override
+    public boolean isClosed() {
+        return closed;
+    }
+
+    @Override
     public void close() throws IOException {
         IOException error = null;
 
@@ -107,6 +129,7 @@ public class ClickHouseHttpResponse extends InputStream {
         } catch (IOException e) {
             error = e;
         }
+        closed = true;
 
         if (!connection.isReusable()) {
             try {

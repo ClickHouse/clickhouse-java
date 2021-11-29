@@ -174,6 +174,11 @@ public class ClickHouseStringValue implements ClickHouseValue {
     }
 
     @Override
+    public String asString() {
+        return value;
+    }
+
+    @Override
     public String asString(int length, Charset charset) {
         if (value != null && length > 0) {
             ClickHouseChecker.notWithDifferentLength(value.getBytes(charset == null ? StandardCharsets.UTF_8 : charset),

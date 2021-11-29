@@ -1,9 +1,12 @@
 package com.clickhouse.jdbc;
 
+import java.math.BigDecimal;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Properties;
 
 import com.clickhouse.client.ClickHouseColumn;
 import com.clickhouse.client.data.ClickHouseSimpleResponse;
@@ -12,28 +15,39 @@ import org.testng.Assert;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
-public class CombinedResultSetTest {
+public class CombinedResultSetTest extends JdbcIntegrationTest {
     @DataProvider(name = "multipleResultSetsProvider")
     private Object[][] getMultipleResultSets() {
         return new Object[][] {
                 { new CombinedResultSet(null, new ClickHouseResultSet("", "",
                         ClickHouseSimpleResponse.of(ClickHouseColumn.parse("s String"),
-                                new Object[][] { new Object[] { "a" }, new Object[] { "b" } })),
+                                new Object[][] { new Object[] { "a" },
+                                        new Object[] { "b" } })),
                         new ClickHouseResultSet("", "",
-                                ClickHouseSimpleResponse.of(ClickHouseColumn.parse("s String"),
-                                        new Object[][] { new Object[] { "c" }, new Object[] { "d" },
+                                ClickHouseSimpleResponse.of(
+                                        ClickHouseColumn.parse("s String"),
+                                        new Object[][] { new Object[] { "c" },
+                                                new Object[] { "d" },
                                                 new Object[] { "e" } }))) },
                 { new CombinedResultSet(Arrays.asList(null, null,
                         new ClickHouseResultSet("", "",
                                 ClickHouseSimpleResponse.of(
-                                        ClickHouseColumn.parse("s String"), new Object[][] { new Object[] { "a" } })),
+                                        ClickHouseColumn.parse("s String"),
+                                        new Object[][] { new Object[] {
+                                                "a" } })),
                         null,
                         new ClickHouseResultSet("", "",
-                                ClickHouseSimpleResponse.of(ClickHouseColumn.parse("s String"),
-                                        new Object[][] { new Object[] { "b" } })),
+                                ClickHouseSimpleResponse.of(
+                                        ClickHouseColumn.parse("s String"),
+                                        new Object[][] { new Object[] {
+                                                "b" } })),
                         new ClickHouseResultSet("", "",
-                                ClickHouseSimpleResponse.of(ClickHouseColumn.parse("s String"), new Object[][] {
-                                        new Object[] { "c" }, new Object[] { "d" }, new Object[] { "e" } })))) } };
+                                ClickHouseSimpleResponse.of(
+                                        ClickHouseColumn.parse("s String"),
+                                        new Object[][] {
+                                                new Object[] { "c" },
+                                                new Object[] { "d" },
+                                                new Object[] { "e" } })))) } };
     }
 
     @DataProvider(name = "nullOrEmptyResultSetProvider")
@@ -51,10 +65,13 @@ public class CombinedResultSetTest {
         return new Object[][] {
                 { new CombinedResultSet(new ClickHouseResultSet("", "",
                         ClickHouseSimpleResponse.of(ClickHouseColumn.parse("s String"),
-                                new Object[][] { new Object[] { "a" }, new Object[] { "b" } }))) },
+                                new Object[][] { new Object[] { "a" },
+                                        new Object[] { "b" } }))) },
                 { new CombinedResultSet(Collections.singleton(
-                        new ClickHouseResultSet("", "", ClickHouseSimpleResponse.of(ClickHouseColumn.parse("s String"),
-                                new Object[][] { new Object[] { "a" }, new Object[] { "b" } })))) } };
+                        new ClickHouseResultSet("", "", ClickHouseSimpleResponse.of(
+                                ClickHouseColumn.parse("s String"),
+                                new Object[][] { new Object[] { "a" },
+                                        new Object[] { "b" } })))) } };
     }
 
     @Test(dataProvider = "multipleResultSetsProvider", groups = "unit")
@@ -111,5 +128,19 @@ public class CombinedResultSetTest {
         Assert.assertEquals(combined.getRow(), 2);
         combined.close();
         Assert.assertTrue(combined.isClosed());
+    }
+
+    @Test(groups = "integration")
+    public void testBigDecimal() throws SQLException {
+        try (ClickHouseConnection conn = newConnection(new Properties());
+                Statement stmt = conn.createStatement()) {
+            ResultSet rs = stmt.executeQuery("select toDecimal64(number / 10, 1) from numbers(10)");
+            BigDecimal v = BigDecimal.valueOf(0L).setScale(1);
+            while (rs.next()) {
+                Assert.assertEquals(rs.getBigDecimal(1), v);
+                Assert.assertEquals(rs.getObject(1), v);
+                v = v.add(new BigDecimal("0.1"));
+            }
+        }
     }
 }

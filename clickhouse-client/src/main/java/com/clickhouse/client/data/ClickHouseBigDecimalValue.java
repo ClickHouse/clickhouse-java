@@ -2,6 +2,7 @@ package com.clickhouse.client.data;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.math.RoundingMode;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.time.LocalDate;
@@ -115,8 +116,18 @@ public class ClickHouseBigDecimalValue extends ClickHouseObjectValue<BigDecimal>
     }
 
     @Override
+    public BigDecimal asBigDecimal() {
+        return getValue();
+    }
+
+    @Override
     public BigDecimal asBigDecimal(int scale) {
-        return getValue().setScale(scale);
+        BigDecimal v = getValue();
+        if (v != null && v.scale() != scale) {
+            v = v.setScale(scale, RoundingMode.DOWN);
+        }
+
+        return v;
     }
 
     @Override
