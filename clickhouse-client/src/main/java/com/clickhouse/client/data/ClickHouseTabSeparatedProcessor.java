@@ -1,7 +1,6 @@
 package com.clickhouse.client.data;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -14,6 +13,7 @@ import com.clickhouse.client.ClickHouseColumn;
 import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseDataProcessor;
 import com.clickhouse.client.ClickHouseFormat;
+import com.clickhouse.client.ClickHouseInputStream;
 import com.clickhouse.client.ClickHouseRecord;
 import com.clickhouse.client.ClickHouseUtils;
 import com.clickhouse.client.ClickHouseValue;
@@ -111,15 +111,15 @@ public class ClickHouseTabSeparatedProcessor extends ClickHouseDataProcessor {
         }
 
         switch (config.getFormat()) {
-        case TSVWithNames:
-        case TSVWithNamesAndTypes:
-        case TabSeparatedWithNames:
-        case TabSeparatedWithNamesAndTypes:
-            colDelimitter = (byte) 0x09;
-            break;
-        default:
-            colDelimitter = (byte) 0;
-            break;
+            case TSVWithNames:
+            case TSVWithNamesAndTypes:
+            case TabSeparatedWithNames:
+            case TabSeparatedWithNamesAndTypes:
+                colDelimitter = (byte) 0x09;
+                break;
+            default:
+                colDelimitter = (byte) 0;
+                break;
         }
 
         this.splitter = new StreamSplitter(input, rowDelimitter, config.getMaxBufferSize());
@@ -153,7 +153,7 @@ public class ClickHouseTabSeparatedProcessor extends ClickHouseDataProcessor {
         return list;
     }
 
-    public ClickHouseTabSeparatedProcessor(ClickHouseConfig config, InputStream input, OutputStream output,
+    public ClickHouseTabSeparatedProcessor(ClickHouseConfig config, ClickHouseInputStream input, OutputStream output,
             List<ClickHouseColumn> columns, Map<String, Object> settings) throws IOException {
         super(config, input, output, columns, settings);
 

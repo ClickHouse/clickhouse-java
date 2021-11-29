@@ -18,7 +18,7 @@ public enum JdbcDriver {
             "jdbc:clickhouse://%s:%s/%s?ssl=false&user=%s&password=%s&use_server_time_zone=false&use_time_zone=UTC&compress=%s",
             Constants.HTTP_PORT),
     // ClickHouse Native JDBC Driver
-    ClickhouseNativeJdbcShaded("com.github.housepower.jdbc.ClickHouseDriver",
+    ClickhouseNativeJdbc("com.github.housepower.jdbc.ClickHouseDriver",
             "jdbc:clickhouse://%s:%s/%s?ssl=false&user=%s&password=%s&use_server_time_zone=false&use_time_zone=UTC&compress=%s",
             Constants.NATIVE_PORT),
 

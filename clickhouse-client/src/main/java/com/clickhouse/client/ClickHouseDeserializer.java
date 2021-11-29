@@ -1,7 +1,6 @@
 package com.clickhouse.client;
 
 import java.io.IOException;
-import java.io.InputStream;
 
 /**
  * Functional interface for deserialization.
@@ -19,5 +18,6 @@ public interface ClickHouseDeserializer<T extends ClickHouseValue> {
      * @return deserialized value which might be the same instance as {@code ref}
      * @throws IOException when failed to read data from input stream
      */
-    T deserialize(T ref, ClickHouseConfig config, ClickHouseColumn column, InputStream input) throws IOException;
+    T deserialize(T ref, ClickHouseConfig config, ClickHouseColumn column, ClickHouseInputStream input)
+            throws IOException;
 }

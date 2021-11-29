@@ -2,7 +2,6 @@ package com.clickhouse.client.data;
 
 import java.io.EOFException;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
@@ -24,6 +23,7 @@ import com.clickhouse.client.ClickHouseDataProcessor;
 import com.clickhouse.client.ClickHouseDataType;
 import com.clickhouse.client.ClickHouseDeserializer;
 import com.clickhouse.client.ClickHouseFormat;
+import com.clickhouse.client.ClickHouseInputStream;
 import com.clickhouse.client.ClickHouseRecord;
 import com.clickhouse.client.ClickHouseSerializer;
 import com.clickhouse.client.ClickHouseUtils;
@@ -103,7 +103,7 @@ public class ClickHouseRowBinaryProcessor extends ClickHouseDataProcessor {
         }
 
         private ClickHouseValue readArray(ClickHouseValue ref, ClickHouseConfig config, ClickHouseColumn nestedColumn,
-                ClickHouseColumn baseColumn, InputStream input, int length, int level) throws IOException {
+                ClickHouseColumn baseColumn, ClickHouseInputStream input, int length, int level) throws IOException {
             Class<?> javaClass = baseColumn.getDataType().getPrimitiveClass();
             if (level > 1 || !javaClass.isPrimitive()) {
                 Object[] array = (Object[]) ClickHouseValues.createPrimitiveArray(javaClass, length, level);
@@ -411,7 +411,7 @@ public class ClickHouseRowBinaryProcessor extends ClickHouseDataProcessor {
 
         @SuppressWarnings("unchecked")
         public ClickHouseValue deserialize(ClickHouseValue ref, ClickHouseConfig config, ClickHouseColumn column,
-                InputStream input) throws IOException {
+                ClickHouseInputStream input) throws IOException {
             if (column.isNullable() && BinaryStreamUtils.readNull(input)) {
                 return ref == null ? ClickHouseValues.newValue(column) : ref.resetToNullOrEmpty();
             }
@@ -540,7 +540,7 @@ public class ClickHouseRowBinaryProcessor extends ClickHouseDataProcessor {
         return columns;
     }
 
-    public ClickHouseRowBinaryProcessor(ClickHouseConfig config, InputStream input, OutputStream output,
+    public ClickHouseRowBinaryProcessor(ClickHouseConfig config, ClickHouseInputStream input, OutputStream output,
             List<ClickHouseColumn> columns, Map<String, Object> settings) throws IOException {
         super(config, input, output, columns, settings);
     }

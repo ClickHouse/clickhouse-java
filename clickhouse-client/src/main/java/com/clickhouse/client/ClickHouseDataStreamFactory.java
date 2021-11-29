@@ -1,7 +1,6 @@
 package com.clickhouse.client;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.List;
 import java.util.Map;
@@ -40,8 +39,8 @@ public class ClickHouseDataStreamFactory {
      * @return data processor
      * @throws IOException when failed to read columns from input stream
      */
-    public ClickHouseDataProcessor getProcessor(ClickHouseConfig config, InputStream input, OutputStream output,
-            Map<String, Object> settings, List<ClickHouseColumn> columns) throws IOException {
+    public ClickHouseDataProcessor getProcessor(ClickHouseConfig config, ClickHouseInputStream input,
+            OutputStream output, Map<String, Object> settings, List<ClickHouseColumn> columns) throws IOException {
         ClickHouseFormat format = ClickHouseChecker.nonNull(config, "config").getFormat();
         ClickHouseDataProcessor processor;
         if (ClickHouseFormat.RowBinary == format || ClickHouseFormat.RowBinaryWithNamesAndTypes == format) {

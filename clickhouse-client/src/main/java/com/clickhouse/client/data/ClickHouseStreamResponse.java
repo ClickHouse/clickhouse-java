@@ -11,6 +11,7 @@ import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseDataProcessor;
 import com.clickhouse.client.ClickHouseDataStreamFactory;
 import com.clickhouse.client.ClickHouseFormat;
+import com.clickhouse.client.ClickHouseInputStream;
 import com.clickhouse.client.ClickHouseRecord;
 import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.ClickHouseResponseSummary;
@@ -28,27 +29,28 @@ public class ClickHouseStreamResponse implements ClickHouseResponse {
     protected static final List<ClickHouseColumn> defaultTypes = Collections
             .singletonList(ClickHouseColumn.of("results", "Nullable(String)"));
 
-    public static ClickHouseResponse of(ClickHouseConfig config, InputStream input) throws IOException {
+    public static ClickHouseResponse of(ClickHouseConfig config, ClickHouseInputStream input) throws IOException {
         return of(config, input, null, null, null);
     }
 
-    public static ClickHouseResponse of(ClickHouseConfig config, InputStream input, Map<String, Object> settings)
-            throws IOException {
+    public static ClickHouseResponse of(ClickHouseConfig config, ClickHouseInputStream input,
+            Map<String, Object> settings) throws IOException {
         return of(config, input, settings, null, null);
     }
 
-    public static ClickHouseResponse of(ClickHouseConfig config, InputStream input, List<ClickHouseColumn> columns)
-            throws IOException {
+    public static ClickHouseResponse of(ClickHouseConfig config, ClickHouseInputStream input,
+            List<ClickHouseColumn> columns) throws IOException {
         return of(config, input, null, columns, null);
     }
 
-    public static ClickHouseResponse of(ClickHouseConfig config, InputStream input, Map<String, Object> settings,
-            List<ClickHouseColumn> columns) throws IOException {
+    public static ClickHouseResponse of(ClickHouseConfig config, ClickHouseInputStream input,
+            Map<String, Object> settings, List<ClickHouseColumn> columns) throws IOException {
         return of(config, input, settings, columns, null);
     }
 
-    public static ClickHouseResponse of(ClickHouseConfig config, InputStream input, Map<String, Object> settings,
-            List<ClickHouseColumn> columns, ClickHouseResponseSummary summary) throws IOException {
+    public static ClickHouseResponse of(ClickHouseConfig config, ClickHouseInputStream input,
+            Map<String, Object> settings, List<ClickHouseColumn> columns, ClickHouseResponseSummary summary)
+            throws IOException {
         return new ClickHouseStreamResponse(config, input, settings, columns, summary);
     }
 
@@ -60,8 +62,9 @@ public class ClickHouseStreamResponse implements ClickHouseResponse {
 
     private boolean isClosed;
 
-    protected ClickHouseStreamResponse(ClickHouseConfig config, InputStream input, Map<String, Object> settings,
-            List<ClickHouseColumn> columns, ClickHouseResponseSummary summary) throws IOException {
+    protected ClickHouseStreamResponse(ClickHouseConfig config, ClickHouseInputStream input,
+            Map<String, Object> settings, List<ClickHouseColumn> columns, ClickHouseResponseSummary summary)
+            throws IOException {
         if (config == null || input == null) {
             throw new IllegalArgumentException("Non-null configuration and input stream are required");
         }

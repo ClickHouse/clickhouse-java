@@ -64,6 +64,27 @@ public final class ClickHouseChecker {
      * @throws IllegalArgumentException if the {@code value} is NOT between
      *                                  {@code minValue} and {@code maxValue}
      */
+    public static int between(byte value, String name, byte minValue, byte maxValue) {
+        if (value < minValue || value > maxValue) {
+            throw newException(ERR_SHOULD_BETWEEN, name, value, minValue, maxValue);
+        }
+
+        return value;
+    }
+
+    /**
+     * Checks if the given {@code value} is between {@code minValue} and
+     * {@code maxValue} inclusive and throws a customized
+     * {@link IllegalArgumentException} if it is NOT.
+     *
+     * @param value    the value to check
+     * @param name     name of the value
+     * @param minValue minimum value to compare with
+     * @param maxValue maximum value to compare with
+     * @return the exact same value
+     * @throws IllegalArgumentException if the {@code value} is NOT between
+     *                                  {@code minValue} and {@code maxValue}
+     */
     public static int between(int value, String name, int minValue, int maxValue) {
         if (value < minValue || value > maxValue) {
             throw newException(ERR_SHOULD_BETWEEN, name, value, minValue, maxValue);

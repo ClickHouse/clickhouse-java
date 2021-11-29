@@ -1,7 +1,7 @@
 package com.clickhouse.client.data;
 
+import java.io.EOFException;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.Buffer;
 import java.nio.ByteBuffer;
@@ -9,6 +9,8 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeUnit;
+
+import com.clickhouse.client.ClickHouseInputStream;
 import com.clickhouse.client.ClickHouseUtils;
 
 /**
@@ -20,7 +22,7 @@ import com.clickhouse.client.ClickHouseUtils;
 public class ClickHousePipedStream extends OutputStream {
     protected static final ByteBuffer EMPTY = ByteBuffer.wrap(new byte[0]);
 
-    static class Input extends InputStream {
+    static class Input extends ClickHouseInputStream {
         private final BlockingQueue<ByteBuffer> queue;
         private final int timeout;
 
@@ -81,11 +83,34 @@ public class ClickHousePipedStream extends OutputStream {
         }
 
         @Override
+        public boolean isClosed() {
+            return this.closed;
+        }
+
+        @Override
         public void close() throws IOException {
             // it's caller's responsiblity to consume all data in the queue, which will
             // unblock writer
             this.closed = true;
             this.buffer = null;
+        }
+
+        @Override
+        public byte readByte() throws IOException {
+            ensureOpen();
+
+            if (buffer == EMPTY || buffer.limit() == 0) {
+                close();
+                throw new EOFException();
+            }
+
+            if (buffer.hasRemaining()) {
+                return buffer.get();
+            } else {
+                updateBuffer();
+
+                return readByte();
+            }
         }
 
         @Override
@@ -210,7 +235,7 @@ public class ClickHousePipedStream extends OutputStream {
         }
     }
 
-    public InputStream getInput() {
+    public ClickHouseInputStream getInput() {
         return new Input(queue, timeout);
     }
 

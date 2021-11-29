@@ -22,6 +22,7 @@ import java.sql.Time;
 import java.sql.Timestamp;
 import java.sql.Types;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.GregorianCalendar;
@@ -29,6 +30,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.TimeZone;
 
+import com.clickhouse.client.ClickHouseInputStream;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseUtils;
 import com.clickhouse.client.ClickHouseValue;
@@ -47,6 +49,8 @@ public class SqlBasedPreparedStatement extends ClickHouseStatementImpl implement
     private static final Logger log = LoggerFactory.getLogger(SqlBasedPreparedStatement.class);
 
     private final Calendar defaultCalendar;
+    private final ZoneId jvmZoneId;
+
     private final JdbcParameterizedQuery preparedQuery;
     private final ClickHouseValue[] templates;
     private final String[] values;
@@ -57,8 +61,8 @@ public class SqlBasedPreparedStatement extends ClickHouseStatementImpl implement
             throws SQLException {
         super(connection, request, resultSetType, resultSetConcurrency, resultSetHoldability);
 
-        defaultCalendar = new GregorianCalendar();
-        defaultCalendar.setTimeZone(connection.getEffectiveTimeZone());
+        defaultCalendar = connection.getDefaultCalendar();
+        jvmZoneId = connection.getJvmTimeZone().toZoneId();
 
         this.preparedQuery = preparedQuery;
 
@@ -268,7 +272,7 @@ public class SqlBasedPreparedStatement extends ClickHouseStatementImpl implement
         String s = null;
         if (x != null) {
             try {
-                s = BinaryStreamUtils.readFixedString(x, length, StandardCharsets.US_ASCII);
+                s = BinaryStreamUtils.readFixedString(ClickHouseInputStream.of(x), length, StandardCharsets.US_ASCII);
             } catch (Throwable e) { // IOException and potentially OOM error
                 throw SqlExceptionUtils.clientError(e);
             }
@@ -282,7 +286,7 @@ public class SqlBasedPreparedStatement extends ClickHouseStatementImpl implement
         String s = null;
         if (x != null) {
             try {
-                s = BinaryStreamUtils.readFixedString(x, length, StandardCharsets.UTF_8);
+                s = BinaryStreamUtils.readFixedString(ClickHouseInputStream.of(x), length, StandardCharsets.UTF_8);
             } catch (Throwable e) { // IOException and potentially OOM error
                 throw SqlExceptionUtils.clientError(e);
             }
@@ -465,7 +469,7 @@ public class SqlBasedPreparedStatement extends ClickHouseStatementImpl implement
 
         LocalDateTime dt = null;
         if (cal != null) {
-            dt = x.toLocalDateTime().atZone(TimeZone.getDefault().toZoneId())
+            dt = x.toLocalDateTime().atZone(jvmZoneId)
                     .withZoneSameInstant(cal.getTimeZone().toZoneId()).toLocalDateTime();
         } else {
             dt = x.toLocalDateTime();

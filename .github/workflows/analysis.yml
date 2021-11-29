@@ -53,15 +53,6 @@ jobs:
           path: ~/.m2
           key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
           restore-keys: ${{ runner.os }}-m2
-      - name: Check style and spell
-        uses: zhicwu/checkstyle-action@master
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          reporter: 'github-pr-check'
-          # added,diff_context,file,nofilter
-          filter_mode: 'added'
-        if: github.event_name == 'pull_request_target' || github.event.inputs.pr != ''
-        continue-on-error: true
       - name: Update sonar config
         run: |
           sed -i -e 's|^\(.*<sonar.projectKey>\).*\(</sonar.projectKey>\)$|\1ClickHouse_clickhouse-jdbc\2|' \

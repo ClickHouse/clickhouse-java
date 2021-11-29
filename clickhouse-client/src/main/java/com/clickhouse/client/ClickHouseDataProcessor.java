@@ -1,7 +1,6 @@
 package com.clickhouse.client;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -34,7 +33,7 @@ public abstract class ClickHouseDataProcessor {
     }
 
     protected final ClickHouseConfig config;
-    protected final InputStream input;
+    protected final ClickHouseInputStream input;
     protected final OutputStream output;
     protected final List<ClickHouseColumn> columns;
     protected final Map<String, Object> settings;
@@ -60,7 +59,7 @@ public abstract class ClickHouseDataProcessor {
      * @param settings nullable settings
      * @throws IOException when failed to read columns from input stream
      */
-    protected ClickHouseDataProcessor(ClickHouseConfig config, InputStream input, OutputStream output,
+    protected ClickHouseDataProcessor(ClickHouseConfig config, ClickHouseInputStream input, OutputStream output,
             List<ClickHouseColumn> columns, Map<String, Object> settings) throws IOException {
         this.config = ClickHouseChecker.nonNull(config, "config");
         if (input == null && output == null) {

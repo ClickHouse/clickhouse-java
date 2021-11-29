@@ -18,10 +18,13 @@ import java.sql.SQLXML;
 import java.sql.Savepoint;
 import java.sql.Struct;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.Collections;
+import java.util.GregorianCalendar;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.TimeZone;
 import java.util.UUID;
@@ -87,8 +90,10 @@ public class ClickHouseConnectionImpl extends Wrapper implements ClickHouseConne
     private int rsHoldability;
     private int txIsolation;
 
+    private final Optional<TimeZone> clientTimeZone;
+    private final Calendar defaultCalendar;
+    private final TimeZone jvmTimeZone;
     private final TimeZone serverTimeZone;
-    private final TimeZone clientTimeZone;
     private final ClickHouseVersion serverVersion;
     private final String user;
 
@@ -163,6 +168,8 @@ public class ClickHouseConnectionImpl extends Wrapper implements ClickHouseConne
         ClickHouseNode node = connInfo.getServer();
         log.debug("Target node: %s", node);
 
+        jvmTimeZone = TimeZone.getDefault();
+
         client = ClickHouseClient.builder().options(connInfo.getProperties())
                 .nodeSelector(ClickHouseNodeSelector.of(node.getProtocol())).build();
         clientRequest = client.connect(node);
@@ -214,9 +221,16 @@ public class ClickHouseConnectionImpl extends Wrapper implements ClickHouseConne
 
         this.user = currentUser != null ? currentUser : node.getCredentials(config).getUserName();
         this.serverTimeZone = timeZone;
-        // cannot compare two timezone without giving a specific timestamp
-        this.clientTimeZone = config.isUseServerTimeZone() ? serverTimeZone
-                : TimeZone.getTimeZone(config.getUseTimeZone());
+        if (config.isUseServerTimeZone()) {
+            clientTimeZone = Optional.empty();
+            // with respect of default locale
+            defaultCalendar = new GregorianCalendar();
+        } else {
+            clientTimeZone = Optional
+                    .of(ClickHouseChecker.isNullOrBlank(config.getUseTimeZone()) ? TimeZone.getDefault()
+                            : TimeZone.getTimeZone(config.getUseTimeZone()));
+            defaultCalendar = new GregorianCalendar(clientTimeZone.get());
+        }
         this.serverVersion = version;
         this.typeMap = new HashMap<>();
         this.fakeTransaction = new AtomicReference<>();
@@ -242,7 +256,7 @@ public class ClickHouseConnectionImpl extends Wrapper implements ClickHouseConne
         if (this.autoCommit = autoCommit) { // commit
             FakeTransaction tx = fakeTransaction.getAndSet(null);
             if (tx != null) {
-                tx.logTransactionDetails(log, "committed");
+                tx.logTransactionDetails(log, FakeTransaction.ACTION_COMMITTED);
                 tx.clear();
             }
         } else { // start new transaction
@@ -272,9 +286,9 @@ public class ClickHouseConnectionImpl extends Wrapper implements ClickHouseConne
         FakeTransaction tx = fakeTransaction.getAndSet(new FakeTransaction());
         if (tx == null) {
             // invalid transaction state
-            throw new SQLException("Transaction not started", SqlExceptionUtils.SQL_STATE_INVALID_TX_STATE);
+            throw new SQLException(FakeTransaction.ERROR_TX_NOT_STARTED, SqlExceptionUtils.SQL_STATE_INVALID_TX_STATE);
         } else {
-            tx.logTransactionDetails(log, "committed");
+            tx.logTransactionDetails(log, FakeTransaction.ACTION_COMMITTED);
             tx.clear();
         }
     }
@@ -292,9 +306,9 @@ public class ClickHouseConnectionImpl extends Wrapper implements ClickHouseConne
         FakeTransaction tx = fakeTransaction.getAndSet(new FakeTransaction());
         if (tx == null) {
             // invalid transaction state
-            throw new SQLException("Transaction not started", SqlExceptionUtils.SQL_STATE_INVALID_TX_STATE);
+            throw new SQLException(FakeTransaction.ERROR_TX_NOT_STARTED, SqlExceptionUtils.SQL_STATE_INVALID_TX_STATE);
         } else {
-            tx.logTransactionDetails(log, "rolled back");
+            tx.logTransactionDetails(log, FakeTransaction.ACTION_ROLLBACK);
             tx.clear();
         }
     }
@@ -312,7 +326,7 @@ public class ClickHouseConnectionImpl extends Wrapper implements ClickHouseConne
 
         FakeTransaction tx = fakeTransaction.getAndSet(null);
         if (tx != null) {
-            tx.logTransactionDetails(log, "committed");
+            tx.logTransactionDetails(log, FakeTransaction.ACTION_COMMITTED);
             tx.clear();
         }
     }
@@ -460,10 +474,10 @@ public class ClickHouseConnectionImpl extends Wrapper implements ClickHouseConne
         FakeTransaction tx = fakeTransaction.get();
         if (tx == null) {
             // invalid transaction state
-            throw new SQLException("Transaction not started", SqlExceptionUtils.SQL_STATE_INVALID_TX_STATE);
+            throw new SQLException(FakeTransaction.ERROR_TX_NOT_STARTED, SqlExceptionUtils.SQL_STATE_INVALID_TX_STATE);
         } else {
             FakeSavepoint s = (FakeSavepoint) savepoint;
-            tx.logSavepointDetails(log, s, "rolled back");
+            tx.logSavepointDetails(log, s, FakeTransaction.ACTION_ROLLBACK);
             tx.toSavepoint(s);
         }
     }
@@ -487,7 +501,7 @@ public class ClickHouseConnectionImpl extends Wrapper implements ClickHouseConne
         FakeTransaction tx = fakeTransaction.get();
         if (tx == null) {
             // invalid transaction state
-            throw new SQLException("Transaction not started", SqlExceptionUtils.SQL_STATE_INVALID_TX_STATE);
+            throw new SQLException(FakeTransaction.ERROR_TX_NOT_STARTED, SqlExceptionUtils.SQL_STATE_INVALID_TX_STATE);
         } else {
             FakeSavepoint s = (FakeSavepoint) savepoint;
             tx.logSavepointDetails(log, s, "released");
@@ -764,8 +778,18 @@ public class ClickHouseConnectionImpl extends Wrapper implements ClickHouseConne
     }
 
     @Override
-    public TimeZone getEffectiveTimeZone() {
+    public Calendar getDefaultCalendar() {
+        return defaultCalendar;
+    }
+
+    @Override
+    public Optional<TimeZone> getEffectiveTimeZone() {
         return clientTimeZone;
+    }
+
+    @Override
+    public TimeZone getJvmTimeZone() {
+        return jvmTimeZone;
     }
 
     @Override

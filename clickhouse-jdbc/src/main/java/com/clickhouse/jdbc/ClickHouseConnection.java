@@ -7,6 +7,8 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.Calendar;
+import java.util.Optional;
 import java.util.TimeZone;
 
 import com.clickhouse.client.ClickHouseVersion;
@@ -94,8 +96,38 @@ public interface ClickHouseConnection extends Connection {
      */
     String getCurrentUser();
 
-    TimeZone getEffectiveTimeZone();
+    /**
+     * Gets default calendar which can be used to create timestamp.
+     *
+     * @return non-null calendar
+     */
+    Calendar getDefaultCalendar();
 
+    /**
+     * Gets effective time zone. When
+     * {@link com.clickhouse.client.ClickHouseConfig#isUseServerTimeZone()} returns
+     * {@code true}, {@link com.clickhouse.client.ClickHouseConfig#getUseTimeZone()}
+     * will be used as effective time zone, which will be used for reading and
+     * writing timestamp values.
+     *
+     * @return effective time zone
+     */
+    Optional<TimeZone> getEffectiveTimeZone();
+
+    /**
+     * Gets cached value of {@code TimeZone.getDefault()}.
+     *
+     * @return non-null cached JVM time zone
+     */
+    TimeZone getJvmTimeZone();
+
+    /**
+     * Gets server time zone, which is either same as result of
+     * {@code select timezone()}, or the overrided value from
+     * {@link com.clickhouse.client.ClickHouseConfig#getServerTimeZone()}.
+     *
+     * @return non-null server time zone
+     */
     TimeZone getServerTimeZone();
 
     ClickHouseVersion getServerVersion();
