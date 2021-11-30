@@ -363,7 +363,7 @@ public abstract class ClickHouseBitmap {
                 }
                 // replace the last 5 bytes to flag(boolean for signed/unsigned) and map
                 // size(integer)
-                buffer.position(buffer.position() - 5);
+                ((Buffer) buffer).position(buffer.position() - 5);
                 // always unsigned due to limit of CRoaring
                 buffer.put((byte) 0);
                 // big-endian -> little-endian
@@ -371,7 +371,7 @@ public abstract class ClickHouseBitmap {
                     buffer.put(bitmaps[i]);
                 }
 
-                buffer.position(buffer.position() - 5);
+                ((Buffer) buffer).position(buffer.position() - 5);
                 bitmaps = new byte[buffer.remaining()];
                 buffer.get(bitmaps);
                 Roaring64NavigableMap b = new Roaring64NavigableMap();
