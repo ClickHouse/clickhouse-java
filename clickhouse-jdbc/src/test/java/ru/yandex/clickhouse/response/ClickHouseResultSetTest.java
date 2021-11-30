@@ -167,6 +167,7 @@ public class ClickHouseResultSetTest {
         assertEquals(70511139L, rs.getLong(2));
     }
 
+    @Test
     public void withTotalsAndEmptyStrings() throws Exception {
         String response = "SiteName\tCountry\n" +
           "String\tString\n" +
@@ -259,6 +260,60 @@ public class ClickHouseResultSetTest {
 
         rs.next();
         assertEquals(3L, rs.getLong(1));
+
+        assertFalse(rs.next());
+
+        rs.getTotals();
+        assertEquals(0L, rs.getLong(1));
+    }
+
+    @Test
+    public void withTotalsSingleFloatColumn() throws Exception {
+        String response =
+                "Code\n"
+                        + "Float32\n"
+                        + "1.0\n"
+                        + "NaN\n"
+                        + "nan\n"
+                        + "Infinity\n"
+                        + "+Infinity\n"
+                        + "-Infinity\n"
+                        + "inf\n"
+                        + "+inf\n"
+                        + "-inf\n"
+                        + "\n"  // with totals separator row
+                        + "0"; // with totals values row
+
+        ByteArrayInputStream is = new ByteArrayInputStream(response.getBytes("UTF-8"));
+
+        ClickHouseResultSet rs = buildResultSet(is, 1024, "db", "table", true, null, null, props);
+
+        rs.next();
+        assertEquals(1f, rs.getObject(1));
+
+        rs.next();
+        assertTrue(Float.isNaN((Float) rs.getObject(1)));
+
+        rs.next();
+        assertTrue(Float.isNaN((Float) rs.getObject(1)));
+
+        rs.next();
+        assertEquals(Float.POSITIVE_INFINITY, rs.getObject(1));
+
+        rs.next();
+        assertEquals(Float.POSITIVE_INFINITY, rs.getObject(1));
+
+        rs.next();
+        assertEquals(Float.NEGATIVE_INFINITY, rs.getObject(1));
+
+        rs.next();
+        assertEquals(Float.POSITIVE_INFINITY, rs.getObject(1));
+
+        rs.next();
+        assertEquals(Float.POSITIVE_INFINITY, rs.getObject(1));
+
+        rs.next();
+        assertEquals(Float.NEGATIVE_INFINITY, rs.getObject(1));
 
         assertFalse(rs.next());
 
