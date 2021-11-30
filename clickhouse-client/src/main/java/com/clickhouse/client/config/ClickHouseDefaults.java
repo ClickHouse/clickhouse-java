@@ -3,7 +3,6 @@ package com.clickhouse.client.config;
 import java.io.Serializable;
 
 import com.clickhouse.client.ClickHouseChecker;
-import com.clickhouse.client.ClickHouseCompression;
 import com.clickhouse.client.ClickHouseFormat;
 import com.clickhouse.client.ClickHouseProtocol;
 
@@ -87,7 +86,7 @@ public enum ClickHouseDefaults implements ClickHouseOption {
 
     private final String key;
     private final Serializable defaultValue;
-    private final Class<?> clazz;
+    private final Class<? extends Serializable> clazz;
     private final String description;
 
     <T extends Serializable> ClickHouseDefaults(String key, T defaultValue, String description) {
@@ -118,7 +117,7 @@ public enum ClickHouseDefaults implements ClickHouseOption {
     }
 
     @Override
-    public Class<?> getValueType() {
+    public Class<? extends Serializable> getValueType() {
         return clazz;
     }
 }

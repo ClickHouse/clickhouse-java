@@ -1,5 +1,6 @@
 package com.clickhouse.jdbc;
 
+import java.io.Serializable;
 import java.sql.Driver;
 import java.sql.DriverManager;
 import java.sql.DriverPropertyInfo;
@@ -7,11 +8,13 @@ import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.ServiceLoader;
-import java.util.WeakHashMap;
+import java.util.Map.Entry;
 
 import com.clickhouse.client.ClickHouseClient;
 import com.clickhouse.client.ClickHouseVersion;
@@ -38,6 +41,8 @@ import com.clickhouse.jdbc.internal.ClickHouseJdbcUrlParser;
 public class ClickHouseDriver implements Driver {
     private static final Logger log = LoggerFactory.getLogger(ClickHouseDriver.class);
 
+    private static final Map<Object, ClickHouseOption> clientSpecificOptions;
+
     static final String driverVersionString;
     static final ClickHouseVersion driverVersion;
     static final ClickHouseVersion specVersion;
@@ -56,6 +61,50 @@ public class ClickHouseDriver implements Driver {
         }
 
         log.debug("ClickHouse Driver %s(JDBC: %s) registered", driverVersion, specVersion);
+
+        // client-specific options
+        Map<Object, ClickHouseOption> m = new LinkedHashMap<>();
+        try {
+            for (ClickHouseClient c : ServiceLoader.load(ClickHouseClient.class,
+                    Thread.currentThread().getContextClassLoader())) {
+                Class<? extends ClickHouseOption> clazz = c.getOptionClass();
+                if (clazz == null || clazz == ClickHouseClientOption.class) {
+                    continue;
+                }
+                for (ClickHouseOption o : clazz.getEnumConstants()) {
+                    m.put(o.getKey(), o);
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Failed to load client-specific options", e);
+        }
+
+        clientSpecificOptions = Collections.unmodifiableMap(m);
+    }
+
+    public static Map<ClickHouseOption, Serializable> toClientOptions(Properties props) {
+        if (props == null || props.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        Map<ClickHouseOption, Serializable> options = new HashMap<>();
+        for (Entry<Object, Object> e : props.entrySet()) {
+            if (e.getKey() == null || e.getValue() == null) {
+                continue;
+            }
+
+            String key = e.getKey().toString();
+            ClickHouseOption o = ClickHouseClientOption.fromKey(key);
+            if (o == null) {
+                o = clientSpecificOptions.get(key);
+            }
+
+            if (o != null) {
+                options.put(o, ClickHouseOption.fromString(e.getValue().toString(), o.getValueType()));
+            }
+        }
+
+        return options;
     }
 
     private DriverPropertyInfo create(ClickHouseOption option, Properties props) {
@@ -109,19 +158,9 @@ public class ClickHouseDriver implements Driver {
             result.add(create(option, info));
         }
 
-        // client-specific configuration
-        try {
-            for (ClickHouseClient c : ServiceLoader.load(ClickHouseClient.class, getClass().getClassLoader())) {
-                Class<? extends ClickHouseOption> clazz = c.getOptionClass();
-                if (clazz == null || clazz == ClickHouseClientOption.class) {
-                    continue;
-                }
-                for (ClickHouseOption option : clazz.getEnumConstants()) {
-                    result.add(create(option, info));
-                }
-            }
-        } catch (Exception e) {
-            log.warn("Failed to load client-specific configuration", e);
+        // and then client-specific options
+        for (ClickHouseOption option : clientSpecificOptions.values()) {
+            result.add(create(option, info));
         }
 
         DriverPropertyInfo custom = new DriverPropertyInfo(ClickHouseJdbcUrlParser.PROP_JDBC_COMPLIANT, "true");
