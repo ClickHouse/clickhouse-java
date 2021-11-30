@@ -57,19 +57,19 @@ public class ClickHouseGrpcClient extends AbstractClient<ManagedChannel> {
         CompressionAlgorithm algorithm = CompressionAlgorithm.DEFLATE;
         CompressionLevel level = CompressionLevel.COMPRESSION_MEDIUM;
         switch (config.getDecompressAlgorithmForClientRequest()) {
-        case NONE:
-            algorithm = CompressionAlgorithm.NO_COMPRESSION;
-            break;
-        case DEFLATE:
-            break;
-        case GZIP:
-            algorithm = CompressionAlgorithm.GZIP;
-            break;
-        // case STREAM_GZIP:
-        default:
-            log.warn("Unsupported algorithm [%s], change to [%s]", config.getDecompressAlgorithmForClientRequest(),
-                    algorithm);
-            break;
+            case NONE:
+                algorithm = CompressionAlgorithm.NO_COMPRESSION;
+                break;
+            case DEFLATE:
+                break;
+            case GZIP:
+                algorithm = CompressionAlgorithm.GZIP;
+                break;
+            // case STREAM_GZIP:
+            default:
+                log.warn("Unsupported algorithm [%s], change to [%s]", config.getDecompressAlgorithmForClientRequest(),
+                        algorithm);
+                break;
         }
 
         int l = config.getDecompressLevelForClientRequest();
@@ -269,7 +269,8 @@ public class ClickHouseGrpcClient extends AbstractClient<ManagedChannel> {
                     sealedRequest.getSettings(), result);
 
             return result.hasException()
-                    ? failedResponse(ClickHouseException.of(result.getException().getDisplayText(), server))
+                    ? failedResponse(new ClickHouseException(result.getException().getCode(),
+                            result.getException().getDisplayText(), server))
                     : CompletableFuture.completedFuture(response);
         } catch (IOException e) {
             throw new CompletionException(ClickHouseException.of(e, server));

@@ -278,6 +278,19 @@ public class ClickHouseGrpcClientTest extends BaseIntegrationTest {
     }
 
     @Test(groups = "integration")
+    public void testDropNonExistDb() throws Exception {
+        ClickHouseNode server = getServer(ClickHouseProtocol.GRPC);
+
+        try {
+            ClickHouseClient.send(server, "drop database non_exist_db").get();
+            Assert.fail("Exception is excepted");
+        } catch (ExecutionException e) {
+            ClickHouseException ce = (ClickHouseException) e.getCause();
+            Assert.assertEquals(ce.getErrorCode(), 81);
+        }
+    }
+
+    @Test(groups = "integration")
     public void testReadWriteDomains() throws Exception {
         ClickHouseNode server = getServer(ClickHouseProtocol.GRPC);
 
