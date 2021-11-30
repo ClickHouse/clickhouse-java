@@ -4,13 +4,10 @@ import java.io.Serializable;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Properties;
 import java.util.ServiceLoader;
-import java.util.Map.Entry;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ForkJoinPool;
 
-import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.config.ClickHouseOption;
 import com.clickhouse.client.config.ClickHouseDefaults;
 
@@ -180,33 +177,6 @@ public class ClickHouseClientBuilder {
     public ClickHouseClientBuilder options(Map<ClickHouseOption, Serializable> options) {
         if (options != null && !options.isEmpty()) {
             this.options.putAll(options);
-            resetConfig();
-        }
-
-        return this;
-    }
-
-    /**
-     * Sets options.
-     *
-     * @param options options
-     * @return this builder
-     */
-    public ClickHouseClientBuilder options(Properties options) {
-        if (options != null && !options.isEmpty()) {
-            for (Entry<Object, Object> e : options.entrySet()) {
-                Object key = e.getKey();
-                Object value = e.getValue();
-                if (key == null || value == null) {
-                    continue;
-                }
-
-                ClickHouseClientOption o = ClickHouseClientOption.fromKey(key.toString());
-                if (o != null) {
-                    this.options.put(o, ClickHouseOption.fromString(value.toString(), o.getValueType()));
-                }
-            }
-
             resetConfig();
         }
 

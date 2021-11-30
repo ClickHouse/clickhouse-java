@@ -44,7 +44,7 @@ public enum ClickHouseHttpOption implements ClickHouseOption {
 
     private final String key;
     private final Serializable defaultValue;
-    private final Class<?> clazz;
+    private final Class<? extends Serializable> clazz;
     private final String description;
 
     <T extends Serializable> ClickHouseHttpOption(String key, T defaultValue, String description) {
@@ -70,7 +70,7 @@ public enum ClickHouseHttpOption implements ClickHouseOption {
     }
 
     @Override
-    public Class<?> getValueType() {
+    public Class<? extends Serializable> getValueType() {
         return clazz;
     }
 }

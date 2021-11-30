@@ -12,7 +12,7 @@ public enum JdbcDriver {
             "jdbc:ch://%s:%s/%s?ssl=false&user=%s&password=%s&use_server_time_zone=false&use_time_zone=UTC&compress=%s",
             Constants.HTTP_PORT),
     ClickhouseGrpcJdbc("com.clickhouse.jdbc.ClickHouseDriver",
-            "jdbc:ch:grpc://%s:%s/%s?ssl=false&user=%s&password=%s&use_server_time_zone=false&use_time_zone=UTC&compress=%s",
+            "jdbc:ch:grpc://%s:%s/%s?ssl=false&user=%s&password=%s&use_server_time_zone=false&use_time_zone=UTC&max_inbound_message_size=2147483647&compress=%s",
             Constants.GRPC_PORT),
     ClickhouseJdbc("ru.yandex.clickhouse.ClickHouseDriver",
             "jdbc:clickhouse://%s:%s/%s?ssl=false&user=%s&password=%s&use_server_time_zone=false&use_time_zone=UTC&compress=%s",

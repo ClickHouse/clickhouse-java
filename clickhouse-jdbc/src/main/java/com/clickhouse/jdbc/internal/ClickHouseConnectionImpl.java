@@ -54,6 +54,7 @@ import com.clickhouse.jdbc.ClickHouseBlob;
 import com.clickhouse.jdbc.ClickHouseClob;
 import com.clickhouse.jdbc.ClickHouseConnection;
 import com.clickhouse.jdbc.ClickHouseDatabaseMetaData;
+import com.clickhouse.jdbc.ClickHouseDriver;
 import com.clickhouse.jdbc.ClickHouseStatement;
 import com.clickhouse.jdbc.ClickHouseXml;
 import com.clickhouse.jdbc.JdbcParameterizedQuery;
@@ -170,7 +171,7 @@ public class ClickHouseConnectionImpl extends Wrapper implements ClickHouseConne
 
         jvmTimeZone = TimeZone.getDefault();
 
-        client = ClickHouseClient.builder().options(connInfo.getProperties())
+        client = ClickHouseClient.builder().options(ClickHouseDriver.toClientOptions(connInfo.getProperties()))
                 .nodeSelector(ClickHouseNodeSelector.of(node.getProtocol())).build();
         clientRequest = client.connect(node);
         ClickHouseConfig config = clientRequest.getConfig();

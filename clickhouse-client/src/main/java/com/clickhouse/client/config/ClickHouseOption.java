@@ -164,7 +164,7 @@ public interface ClickHouseOption extends Serializable {
      *
      * @return value type of the option, defaults to String
      */
-    Class<?> getValueType();
+    Class<? extends Serializable> getValueType();
 
     /**
      * Gets name of the option.
