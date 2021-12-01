@@ -2,7 +2,7 @@
 <project xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd" xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>tech.clickhouse</groupId>
+    <groupId>com.clickhouse</groupId>
     <artifactId>clickhouse-java</artifactId>
     <version>${revision}</version>
     <packaging>pom</packaging>
@@ -13,8 +13,8 @@
     <inceptionYear>2015</inceptionYear>
 
     <organization>
-        <name>ClickHouse</name>
-        <url>https://clickhouse.tech/</url>
+        <name>ClickHouse, Inc.</name>
+        <url>https://clickhouse.com/</url>
     </organization>
 
     <licenses>
@@ -38,7 +38,7 @@
         <module>clickhouse-client</module>
         <module>clickhouse-grpc-client</module>
         <module>clickhouse-http-client</module>
-        <module>clickhouse-native-client</module>
+        <module>clickhouse-tcp-client</module>
         <module>clickhouse-jdbc</module>
         <module>clickhouse-benchmark</module>
     </modules>
@@ -76,32 +76,53 @@
         <project.current.year>2021</project.current.year>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
-        <jdk.version>1.8</jdk.version>
-        <caffeine.version>3.0.0</caffeine.version>
-        <disruptor.version>3.4.2</disruptor.version>
-        <dnsjava.version>3.3.1</dnsjava.version>
+
+        <annotations-api.version>6.0.53</annotations-api.version>
+        <asm.version>9.2</asm.version>
+        <caffeine.version>3.0.4</caffeine.version>
+        <disruptor.version>3.4.4</disruptor.version>
+        <dnsjava.version>3.4.2</dnsjava.version>
+        <fastutil.version>8.5.4</fastutil.version>
+        <grpc.version>1.40.1</grpc.version>
+        <gson.version>2.8.8</gson.version>
+        <httpclient.version>4.5.13</httpclient.version>
+        <protobuf.version>3.17.3</protobuf.version>
         <lz4.version>1.8.0</lz4.version>
-        <jackson.version>2.12.3</jackson.version>
-        <roaring-bitmap.version>0.9.15</roaring-bitmap.version>
-        <slf4j.version>1.7.31</slf4j.version>
-        <mockito.version>1.10.19</mockito.version>
-        <wiremock.version>2.27.2</wiremock.version>
-        <testcontainers.version>1.15.3</testcontainers.version>
-        <testng.version>6.14.3</testng.version>
+        <roaring-bitmap.version>0.9.21</roaring-bitmap.version>
+        <slf4j.version>1.8.0-beta4</slf4j.version>
+        <mockito.version>3.12.4</mockito.version>
+        <wiremock.version>2.31.0</wiremock.version>
+        <testcontainers.version>1.16.0</testcontainers.version>
+        <testng.version>7.4.0</testng.version>
+
+        <mariadb-driver.version>2.7.4</mariadb-driver.version>
+        <mysql-driver.version>8.0.27</mysql-driver.version>
+        <postgresql-driver.version>42.3.1</postgresql-driver.version>
+
+        <repackaged.version>1.1.0</repackaged.version>
+
         <assembly-plugin.version>3.3.0</assembly-plugin.version>
-        <deploy-plugin.version>3.0.0-M1</deploy-plugin.version>
-        <flatten-plugin.version>1.2.7</flatten-plugin.version>
-        <staging-plugin.version>1.6.8</staging-plugin.version>
-        <gpg-plugin.version>1.6</gpg-plugin.version>
         <compiler-plugin.version>3.8.1</compiler-plugin.version>
-        <shade-plugin.version>3.2.4</shade-plugin.version>
-        <source-plugin.version>3.2.1</source-plugin.version>
+        <deploy-plugin.version>3.0.0-M1</deploy-plugin.version>
+        <enforcer-plugin.version>3.0.0-M3</enforcer-plugin.version>
+        <failsafe-plugin.version>3.0.0-M5</failsafe-plugin.version>
+        <flatten-plugin.version>1.2.7</flatten-plugin.version>
+        <git-plugin.version>4.9.9</git-plugin.version>
+        <gpg-plugin.version>1.6</gpg-plugin.version>
+        <helper-plugin.version>3.2.0</helper-plugin.version>
         <jacoco-plugin.version>0.8.6</jacoco-plugin.version>
         <jar-plugin.version>3.2.0</jar-plugin.version>
         <javadoc-plugin.version>3.2.0</javadoc-plugin.version>
+        <os-plugin.version>1.7.0</os-plugin.version>
+        <protobuf-plugin.version>0.6.1</protobuf-plugin.version>
+        <shade-plugin.version>3.2.4</shade-plugin.version>
+        <source-plugin.version>3.2.1</source-plugin.version>
+        <staging-plugin.version>1.6.8</staging-plugin.version>
         <surefire-plugin.version>3.0.0-M5</surefire-plugin.version>
-        <failsafe-plugin.version>3.0.0-M5</failsafe-plugin.version>
-        <assembly-plugin.version>3.3.0</assembly-plugin.version>
+        <toolchains-plugin.version>3.0.0</toolchains-plugin.version>
+        <versions-plugin.version>2.8.1</versions-plugin.version>
+
+        <minJdk>1.8</minJdk>
         <skipTests>false</skipTests>
         <skipITs>${skipTests}</skipITs>
         <skipUTs>${skipTests}</skipUTs>
@@ -116,14 +137,20 @@
     <dependencyManagement>
         <dependencies>
             <dependency>
-                <groupId>com.fasterxml.jackson.core</groupId>
-                <artifactId>jackson-core</artifactId>
-                <version>${jackson.version}</version>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>io.grpc</artifactId>
+                <version>${repackaged.version}</version>
             </dependency>
             <dependency>
-                <groupId>com.fasterxml.jackson.core</groupId>
-                <artifactId>jackson-databind</artifactId>
-                <version>${jackson.version}</version>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>org.roaringbitmap</artifactId>
+                <version>${repackaged.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.google.code.gson</groupId>
+                <artifactId>gson</artifactId>
+                <version>${gson.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.github.ben-manes.caffeine</groupId>
@@ -141,9 +168,61 @@
                 <version>${dnsjava.version}</version>
             </dependency>
             <dependency>
+                <groupId>io.grpc</groupId>
+                <artifactId>grpc-netty-shaded</artifactId>
+                <version>${grpc.version}</version>
+            </dependency>
+            <!-- separate classifier did not work well with flatten plugin -->
+            <dependency>
+                <groupId>io.grpc</groupId>
+                <artifactId>grpc-okhttp</artifactId>
+                <version>${grpc.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.grpc</groupId>
+                <!-- grpc-protobuf-lite is not compatible with v3 -->
+                <artifactId>grpc-protobuf</artifactId>
+                <version>${grpc.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.grpc</groupId>
+                <artifactId>grpc-stub</artifactId>
+                <version>${grpc.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>it.unimi.dsi</groupId>
+                <artifactId>fastutil</artifactId>
+                <version>${fastutil.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.httpcomponents</groupId>
+                <artifactId>httpclient</artifactId>
+                <version>${httpclient.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.httpcomponents</groupId>
+                <artifactId>httpmime</artifactId>
+                <version>${httpclient.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.tomcat</groupId>
+                <artifactId>annotations-api</artifactId>
+                <version>${annotations-api.version}</version>
+            </dependency>
+            <dependency>
                 <groupId>org.lz4</groupId>
                 <artifactId>lz4-java</artifactId>
                 <version>${lz4.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.ow2.asm</groupId>
+                <artifactId>asm</artifactId>
+                <version>${asm.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.ow2.asm</groupId>
+                <artifactId>asm-util</artifactId>
+                <version>${asm.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.roaringbitmap</groupId>
@@ -162,7 +241,7 @@
             </dependency>
             <dependency>
                 <groupId>org.mockito</groupId>
-                <artifactId>mockito-all</artifactId>
+                <artifactId>mockito-core</artifactId>
                 <version>${mockito.version}</version>
             </dependency>
             <dependency>
@@ -180,12 +259,51 @@
                 <artifactId>testng</artifactId>
                 <version>${testng.version}</version>
             </dependency>
+
+            <dependency>
+                <groupId>org.mariadb.jdbc</groupId>
+                <artifactId>mariadb-java-client</artifactId>
+                <version>${mariadb-driver.version}</version>
+                <exclusions>
+                    <exclusion>
+                        <groupId>*</groupId>
+                        <artifactId>*</artifactId>
+                    </exclusion>
+                </exclusions>
+            </dependency>
+            <dependency>
+                <groupId>mysql</groupId>
+                <artifactId>mysql-connector-java</artifactId>
+                <version>${mysql-driver.version}</version>
+                <exclusions>
+                    <exclusion>
+                        <groupId>*</groupId>
+                        <artifactId>*</artifactId>
+                    </exclusion>
+                </exclusions>
+            </dependency>
+            <dependency>
+                <groupId>org.postgresql</groupId>
+                <artifactId>postgresql</artifactId>
+                <version>${postgresql-driver.version}</version>
+                <exclusions>
+                    <exclusion>
+                        <groupId>*</groupId>
+                        <artifactId>*</artifactId>
+                    </exclusion>
+                </exclusions>
+            </dependency>
         </dependencies>
     </dependencyManagement>
 
     <build>
         <pluginManagement>
             <plugins>
+                <plugin>
+                    <groupId>kr.motd.maven</groupId>
+                    <artifactId>os-maven-plugin</artifactId>
+                    <version>${os-plugin.version}</version>
+                </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-assembly-plugin</artifactId>
@@ -195,22 +313,16 @@
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-compiler-plugin</artifactId>
                     <version>${compiler-plugin.version}</version>
-                    <!--
-                    <configuration>
-                        <source>${jdk.version}</source>
-                        <target>${jdk.version}</target>
-                        <showWarnings>true</showWarnings>
-                        <compilerArgs>
-                            <arg>-Xlint:all</arg>
-                            <arg>-Werror</arg>
-                        </compilerArgs>
-                    </configuration>
-                    -->
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-deploy-plugin</artifactId>
                     <version>${deploy-plugin.version}</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-enforcer-plugin</artifactId>
+                    <version>${enforcer-plugin.version}</version>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
@@ -238,9 +350,9 @@
                     <version>${source-plugin.version}</version>
                 </plugin>
                 <plugin>
-                    <groupId>org.sonatype.plugins</groupId>
-                    <artifactId>nexus-staging-maven-plugin</artifactId>
-                    <version>${staging-plugin.version}</version>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-toolchains-plugin</artifactId>
+                    <version>${toolchains-plugin.version}</version>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
@@ -248,10 +360,11 @@
                     <version>${failsafe-plugin.version}</version>
                     <configuration>
                         <includes>**/*.java</includes>
-                        <!-- groups>integration</groups -->
+                        <groups>integration</groups>
                         <skipTests>${skipTests}</skipTests>
                         <skipITs>${skipITs}</skipITs>
-                        <useSystemClassLoader>false</useSystemClassLoader>
+                        <useSystemClassLoader>true</useSystemClassLoader>
+                        <useModulePath>false</useModulePath>
                     </configuration>
                     <executions>
                         <execution>
@@ -269,11 +382,16 @@
                     <artifactId>maven-surefire-plugin</artifactId>
                     <version>${surefire-plugin.version}</version>
                     <configuration>
-                        <!-- argLine>-agentpath:/usr/local/async-profiler/build/libasyncProfiler.so=start,event=cpu,file=profile.html</argLine -->
-                        <!-- groups>unit</groups -->
+                        <excludedGroups>${excludedGroups}</excludedGroups>
+                        <groups>unit</groups>
                         <skipTests>${skipUTs}</skipTests>
-                        <useSystemClassLoader>false</useSystemClassLoader>
+                        <useModulePath>false</useModulePath>
                     </configuration>
+                </plugin>
+                <plugin>
+                    <groupId>org.codehaus.mojo</groupId>
+                    <artifactId>build-helper-maven-plugin</artifactId>
+                    <version>${helper-plugin.version}</version>
                 </plugin>
                 <plugin>
                     <groupId>org.codehaus.mojo</groupId>
@@ -300,9 +418,130 @@
                         </execution>
                     </executions>
                 </plugin>
+                <plugin>
+                    <groupId>org.codehaus.mojo</groupId>
+                    <artifactId>versions-maven-plugin</artifactId>
+                    <version>${versions-plugin.version}</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.sonatype.plugins</groupId>
+                    <artifactId>nexus-staging-maven-plugin</artifactId>
+                    <version>${staging-plugin.version}</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.xolstice.maven.plugins</groupId>
+                    <artifactId>protobuf-maven-plugin</artifactId>
+                    <version>${protobuf-plugin.version}</version>
+                    <configuration>
+                        <protocArtifact>com.google.protobuf:protoc:${protobuf.version}:exe:${os.detected.classifier}</protocArtifact>
+                        <pluginId>grpc-java</pluginId>
+                        <pluginArtifact>io.grpc:protoc-gen-grpc-java:${grpc.version}:exe:${os.detected.classifier}</pluginArtifact>
+                    </configuration>
+                    <executions>
+                        <execution>
+                            <goals>
+                                <goal>compile</goal>
+                                <goal>compile-custom</goal>
+                            </goals>
+                        </execution>
+                    </executions>
+                </plugin>
+                <plugin>
+                    <groupId>io.github.git-commit-id</groupId>
+                    <artifactId>git-commit-id-maven-plugin</artifactId>
+                    <version>${git-plugin.version}</version>
+                    <executions>
+                        <execution>
+                            <id>get-the-git-infos</id>
+                            <goals>
+                                <goal>revision</goal>
+                            </goals>
+                            <phase>initialize</phase>
+                        </execution>
+                    </executions>
+                    <configuration>
+                        <commitIdGenerationMode>full</commitIdGenerationMode>
+                        <generateGitPropertiesFile>false</generateGitPropertiesFile>
+                        <includeOnlyProperties>
+                            <includeOnlyProperty>^git.build.(time|version)$</includeOnlyProperty>
+                            <includeOnlyProperty>^git.commit.id.(abbrev|full)$</includeOnlyProperty>
+                        </includeOnlyProperties>
+                        <offline>true</offline>
+                    </configuration>
+                </plugin>
             </plugins>
         </pluginManagement>
         <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <source>${minJdk}</source>
+                    <target>${minJdk}</target>
+                    <showWarnings>true</showWarnings>
+                    <compilerArgs>
+                        <arg>-Xlint:all</arg>
+                        <!-- arg>-Werror</arg -->
+                    </compilerArgs>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>java9</id>
+                        <phase>none</phase>
+                        <goals>
+                            <goal>compile</goal>
+                        </goals>
+                        <configuration>
+                            <release>9</release>
+                            <jdkToolchain>
+                                <version>9</version>
+                            </jdkToolchain>
+                            <compileSourceRoots>
+                                <compileSourceRoot>${project.basedir}/src/main/java9</compileSourceRoot>
+                            </compileSourceRoots>
+                            <multiReleaseOutput>true</multiReleaseOutput>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>java11</id>
+                        <phase>none</phase>
+                        <goals>
+                            <goal>compile</goal>
+                        </goals>
+                        <configuration>
+                            <release>11</release>
+                            <jdkToolchain>
+                                <version>11</version>
+                            </jdkToolchain>
+                            <compileSourceRoots>
+                                <compileSourceRoot>${project.basedir}/src/main/java11</compileSourceRoot>
+                            </compileSourceRoots>
+                            <multiReleaseOutput>true</multiReleaseOutput>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-enforcer-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>enforce-maven</id>
+                        <goals>
+                            <goal>enforce</goal>
+                        </goals>
+                        <configuration>
+                            <rules>
+                                <requireMavenVersion>
+                                    <version>(,2.1.0),(2.1.0,2.2.0),(2.2.0,)
+                                    </version>
+                                    <message>Maven 2.1.0 and 2.2.0 produce incorrect GPG signatures and checksums respectively.</message>
+                                </requireMavenVersion>
+                            </rules>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>flatten-maven-plugin</artifactId>
@@ -362,9 +601,114 @@
             </build>
         </profile>
         <profile>
+            <id>compile-java8</id>
+            <activation>
+                <jdk>(,8]</jdk>
+            </activation>
+            <properties>
+                <caffeine.version>2.9.2</caffeine.version>
+            </properties>
+        </profile>
+        <profile>
+            <id>compile-java9</id>
+            <activation>
+                <jdk>[9,)</jdk>
+            </activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-compiler-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>java9</id>
+                                <phase>compile</phase>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+        <profile>
+            <id>compile-java11</id>
+            <activation>
+                <jdk>[11,)</jdk>
+            </activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-compiler-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>java11</id>
+                                <phase>compile</phase>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+        <profile>
             <id>release</id>
             <build>
                 <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-toolchains-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <goals>
+                                    <goal>toolchain</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                        <configuration>
+                            <toolchains>
+                                <jdk>
+                                    <version>9</version>
+                                </jdk>
+                                <jdk>
+                                    <version>11</version>
+                                </jdk>
+                            </toolchains>
+                        </configuration>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-compiler-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>java9</id>
+                                <phase>compile</phase>
+                            </execution>
+                            <execution>
+                                <id>java11</id>
+                                <phase>compile</phase>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>io.github.git-commit-id</groupId>
+                        <artifactId>git-commit-id-maven-plugin</artifactId>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-jar-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>default-jar</id>
+                                <configuration>
+                                    <archive>
+                                        <manifestEntries>
+                                            <Multi-Release>true</Multi-Release>
+                                            <SCM-Revision>${git.commit.id.full}</SCM-Revision>
+                                        </manifestEntries>
+                                    </archive>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-source-plugin</artifactId>
@@ -380,6 +724,9 @@
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-javadoc-plugin</artifactId>
+                        <configuration>
+                            <source>${minJdk}</source>
+                        </configuration>
                         <executions>
                             <execution>
                                 <id>attach-javadocs</id>
@@ -432,6 +779,145 @@
                             <serverId>ossrh</serverId>
                             <nexusUrl>https://s01.oss.sonatype.org/</nexusUrl>
                         </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+        <profile>
+            <id>update</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>versions-maven-plugin</artifactId>
+                        <configuration>
+                            <allowSnapshots>false</allowSnapshots>
+                            <excludes>
+                                <exclude>org.slf4j:*</exclude>
+                            </excludes>
+                        </configuration>
+                        <executions>
+                            <execution>
+                                <phase>initialize</phase>
+                                <goals>
+                                    <goal>update-properties</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+        <profile>
+            <id>build8</id>
+            <activation>
+                <property>
+                    <name>!release</name>
+                </property>
+            </activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-compiler-plugin</artifactId>
+                        <configuration>
+                            <source>${minJdk}</source>
+                            <target>${minJdk}</target>
+                            <showWarnings>true</showWarnings>
+                            <compilerArgs>
+                                <arg>-Xlint:all</arg>
+                            </compilerArgs>
+                        </configuration>
+                    </plugin>
+                    <plugin>
+                        <artifactId>maven-surefire-plugin</artifactId>
+                        <configuration>
+                            <jvm>${env.JAVA_HOME}/bin/java</jvm>
+                        </configuration>
+                    </plugin>
+                    <plugin>
+                        <artifactId>maven-failsafe-plugin</artifactId>
+                        <configuration>
+                            <jvm>${env.JAVA_HOME}/bin/java</jvm>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+        <profile>
+            <id>build9</id>
+            <activation>
+                <property>
+                    <name>release</name>
+                </property>
+            </activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-toolchains-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <goals>
+                                    <goal>toolchain</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                        <configuration>
+                            <toolchains>
+                                <jdk>
+                                    <version>9</version>
+                                </jdk>
+                                <jdk>
+                                    <version>11</version>
+                                </jdk>
+                            </toolchains>
+                        </configuration>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-compiler-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>java9</id>
+                                <phase>compile</phase>
+                            </execution>
+                            <execution>
+                                <id>java11</id>
+                                <phase>compile</phase>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-jar-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>default-jar</id>
+                                <configuration>
+                                    <archive>
+                                        <manifestEntries>
+                                            <Multi-Release>true</Multi-Release>
+                                        </manifestEntries>
+                                    </archive>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-javadoc-plugin</artifactId>
+                        <configuration>
+                            <source>${minJdk}</source>
+                        </configuration>
+                        <executions>
+                            <execution>
+                                <id>attach-javadocs</id>
+                                <goals>
+                                    <goal>jar</goal>
+                                </goals>
+                            </execution>
+                        </executions>
                     </plugin>
                 </plugins>
             </build>

@@ -55,7 +55,7 @@ public class ClickHouseResultSetTest {
 
     private ClickHouseProperties props;
 
-    @BeforeMethod
+    @BeforeMethod(groups = "unit")
     public void setUp() {
         props = Mockito.mock(ClickHouseProperties.class);
     }
@@ -69,7 +69,7 @@ public class ClickHouseResultSetTest {
         };
     }
 
-    @Test(dataProvider = "longArrays")
+    @Test(groups = "unit", dataProvider = "longArrays")
     public void toLongArrayTest(String str, long[] expected) throws Exception {
         Assert.assertEquals(
                 ClickHouseResultSet.toLongArray(
@@ -80,7 +80,7 @@ public class ClickHouseResultSetTest {
     }
 
 
-    @Test
+    @Test(groups = "unit")
     public void withoutTotals() throws Exception {
         String response =
           "SiteName\tcount()\n" +
@@ -103,7 +103,7 @@ public class ClickHouseResultSetTest {
         assertFalse(rs.next());
     }
 
-    @Test
+    @Test(groups = "unit")
     public void withoutTotalsSingleColumn() throws Exception {
         String response =
           "SiteName\n" +
@@ -139,7 +139,7 @@ public class ClickHouseResultSetTest {
         assertFalse(rs.next());
     }
 
-    @Test
+    @Test(groups = "unit")
     public void withTotals() throws Exception {
         String response = "SiteName\tcount()\n" +
           "String\tUInt64\n" +
@@ -206,7 +206,7 @@ public class ClickHouseResultSetTest {
         assertEquals(70511139L, rs.getLong(2));
     }
 
-    @Test
+    @Test(groups = "unit")
     public void withTotalsSingleColumn() throws Exception {
         String response =
           "SiteName\n" +
@@ -237,7 +237,7 @@ public class ClickHouseResultSetTest {
         assertFalse(rs.next());
     }
 
-    @Test
+    @Test(groups = "unit")
     public void withTotalsSingleIntColumn() throws Exception {
         String response =
           "Code\n" +
@@ -321,7 +321,8 @@ public class ClickHouseResultSetTest {
         assertEquals(0L, rs.getLong(1));
     }
 
-    @Test
+
+    @Test(groups = "unit")
     public void withTotalsSingleNullableColumn() throws Exception {
         String response =
           "SiteName\n" +
@@ -359,7 +360,7 @@ public class ClickHouseResultSetTest {
         assertNull(rs.getString(1));
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testIsLast() throws Exception {
         String response =
                 "SiteName\tcount()\n" +
@@ -379,7 +380,7 @@ public class ClickHouseResultSetTest {
         assertFalse(rs.next());
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testIsFirst() throws Exception {
         String response =
                 "SiteName\tcount()\n" +
@@ -398,7 +399,7 @@ public class ClickHouseResultSetTest {
         assertFalse(rs.isFirst());
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testBeforeFirst() throws Exception {
         String response =
                 "SiteName\tcount()\n" +
@@ -416,7 +417,7 @@ public class ClickHouseResultSetTest {
         is.close();
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testIsAfterLast() throws Exception {
         String response =
                 "SiteName\tcount()\n" +
@@ -437,7 +438,7 @@ public class ClickHouseResultSetTest {
         assertTrue(rs.isAfterLast());
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testDecimalMetadata() throws Exception {
         String response =
             "sum(myMoney)\n" +
@@ -454,7 +455,7 @@ public class ClickHouseResultSetTest {
         assertEquals(rs.getMetaData().getPrecision(1), 38);
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testArrayString() throws Exception {
         String response =
             "FOO\n"
@@ -473,7 +474,7 @@ public class ClickHouseResultSetTest {
         assertEquals("bar", s[1]);
     }
 
-    @Test
+    @Test(groups = "unit")
     public void test3dArrayString() throws Exception {
         String response =
             "FOO\n"
@@ -501,7 +502,7 @@ public class ClickHouseResultSetTest {
         }
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testClassNamesObjects() throws Exception {
         String testData = ClickHouseTypesTestData.buildTestString();
         ByteArrayInputStream is = new ByteArrayInputStream(testData.getBytes("UTF-8"));
@@ -535,7 +536,7 @@ public class ClickHouseResultSetTest {
         }
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testGetColumnNames() throws Exception {
         String response = "SiteName\tCountry\n" +
                 "String\tString\n" +
@@ -576,7 +577,7 @@ public class ClickHouseResultSetTest {
      * {@link java.sql.ResultSet#getURL(int)} unsupported now
      * {@link java.sql.ResultSet#getAsciiStream(int)} unsupported now
      */
-    @Test
+    @Test(groups = "unit")
     public void testNulls() throws Exception {
         String response =
                 "Type\n" +
@@ -611,7 +612,7 @@ public class ClickHouseResultSetTest {
 
     // this test checks mapping of SQL type to Java class
     // according to spec appendix table B-3
-    @Test
+    @Test(groups = "unit")
     public void testJDBCTableB3() throws Exception {
         String testData = ClickHouseTypesTestData.buildTestString();
         ByteArrayInputStream is = new ByteArrayInputStream(testData.getBytes("UTF-8"));
@@ -639,7 +640,7 @@ public class ClickHouseResultSetTest {
         }
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testFindColumn() throws Exception {
 
         /*
@@ -683,7 +684,7 @@ public class ClickHouseResultSetTest {
 
     // this test checks mapping of SQL type to Java class
     // according to spec appendix table B-1
-    @Test
+    @Test(groups = "unit")
     public void testJDBCTableB1() throws Exception {
         String testData = ClickHouseTypesTestData.buildTestString();
         ByteArrayInputStream is = new ByteArrayInputStream(testData.getBytes("UTF-8"));
@@ -729,7 +730,7 @@ public class ClickHouseResultSetTest {
         }
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testGetDateCalendarJVMTime() throws Exception {
         String testData = "column\nDateTime\n2020-02-08 01:02:03";
         ByteArrayInputStream is = new ByteArrayInputStream(testData.getBytes("UTF-8"));
@@ -752,7 +753,7 @@ public class ClickHouseResultSetTest {
                 .toEpochSecond());
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testGetDateCalendarServerTime() throws Exception {
         Mockito
             .when(props.isUseServerTimeZoneForDates())
@@ -778,7 +779,7 @@ public class ClickHouseResultSetTest {
                 .toEpochSecond());
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testLocalDateTime() throws Exception {
         String response =
                 "SiteName\n" +

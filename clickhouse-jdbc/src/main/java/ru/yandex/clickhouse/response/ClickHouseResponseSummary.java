@@ -1,40 +1,38 @@
 package ru.yandex.clickhouse.response;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
-
 public class ClickHouseResponseSummary {
-    final private long readRows; // number of read rows for selects (may be more than rows in result set)
-    final private long writtenRows; // number of written rows for inserts
-    final private long readBytes;
-    final private long writtenBytes;
-    final private long totalRowsToRead;
+    private final long read_rows; // number of read rows for selects (may be more than rows in result set)
+    private final long written_rows; // number of written rows for inserts
+    private final long read_bytes;
+    private final long written_bytes;
+    private final long total_rows_to_read;
 
-    public ClickHouseResponseSummary(@JsonProperty("read_rows") long readRows, @JsonProperty("written_rows") long writtenRows, @JsonProperty("read_bytes") long readBytes,
-                                     @JsonProperty("written_bytes") long writtenBytes, @JsonProperty("total_rows_to_read") long totalRowsToRead) {
-        this.readRows = readRows;
-        this.writtenRows = writtenRows;
-        this.readBytes = readBytes;
-        this.writtenBytes = writtenBytes;
-        this.totalRowsToRead = totalRowsToRead;
+    public ClickHouseResponseSummary(long read_rows, long written_rows, long read_bytes, long written_bytes,
+            long total_rows_to_read) {
+        this.read_rows = read_rows;
+        this.written_rows = written_rows;
+        this.read_bytes = read_bytes;
+        this.written_bytes = written_bytes;
+        this.total_rows_to_read = total_rows_to_read;
     }
 
     public long getReadRows() {
-        return readRows;
+        return read_rows;
     }
 
     public long getWrittenRows() {
-        return writtenRows;
+        return written_rows;
     }
 
     public long getReadBytes() {
-        return readBytes;
+        return read_bytes;
     }
 
     public long getWrittenBytes() {
-        return writtenBytes;
+        return written_bytes;
     }
 
     public long getTotalRowsToRead() {
-        return totalRowsToRead;
+        return total_rows_to_read;
     }
 }

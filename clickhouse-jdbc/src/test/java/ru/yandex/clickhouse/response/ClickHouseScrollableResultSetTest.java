@@ -34,7 +34,7 @@ public class ClickHouseScrollableResultSetTest extends ClickHouseResultSetTest {
     }
 
     @Override
-    @Test
+    @Test(groups = "unit")
     public void testIsLast() throws Exception {
         String response =
                 "SiteName\tcount()\n" +
@@ -53,7 +53,7 @@ public class ClickHouseScrollableResultSetTest extends ClickHouseResultSetTest {
         assertFalse(rs.next());
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testPrevious() throws Exception {
         String response =
                 "SiteName\tcount()\n" +
@@ -78,7 +78,7 @@ public class ClickHouseScrollableResultSetTest extends ClickHouseResultSetTest {
               assertEquals(21209048L, rs.getLong(2));
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testAbsolute() throws Exception {
         String response =
                 "SiteName\tcount()\n" +
@@ -147,7 +147,7 @@ public class ClickHouseScrollableResultSetTest extends ClickHouseResultSetTest {
 
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testRelative() throws Exception {
         String response =
                 "SiteName\tcount()\n" +
@@ -180,7 +180,7 @@ public class ClickHouseScrollableResultSetTest extends ClickHouseResultSetTest {
 
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testBeforeFirst() throws Exception {
         String response =
                 "SiteName\tcount()\n" +

@@ -151,6 +151,7 @@ public class ClickHouseHttpClientBuilder {
             TimeUnit.MILLISECONDS
         );
 
+        connectionManager.setValidateAfterInactivity(properties.getValidateAfterInactivityMillis());
         connectionManager.setDefaultMaxPerRoute(properties.getDefaultMaxPerRoute());
         connectionManager.setMaxTotal(properties.getMaxTotal());
         connectionManager.setDefaultConnectionConfig(getConnectionConfig());

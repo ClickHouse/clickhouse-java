@@ -27,21 +27,21 @@ import java.util.Objects;
 import java.util.TimeZone;
 import java.util.UUID;
 
-import org.testng.annotations.AfterTest;
-import org.testng.annotations.BeforeTest;
+import org.testng.annotations.AfterClass;
+import org.testng.annotations.BeforeClass;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 import ru.yandex.clickhouse.ClickHouseArray;
 import ru.yandex.clickhouse.ClickHouseConnection;
-import ru.yandex.clickhouse.ClickHouseContainerForTest;
 import ru.yandex.clickhouse.ClickHouseDataSource;
+import ru.yandex.clickhouse.JdbcIntegrationTest;
 import ru.yandex.clickhouse.except.ClickHouseException;
 import ru.yandex.clickhouse.response.ClickHouseColumnInfo;
 import ru.yandex.clickhouse.response.parser.ClickHouseValueParser;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
 
-public class ClickHouseDataTypeTest {
+public class ClickHouseDataTypeTest extends JdbcIntegrationTest {
     private ClickHouseConnection conn;
 
     private LocalDate instantToLocalDate(Instant instant, ZoneId zone) {
@@ -64,13 +64,13 @@ public class ClickHouseDataTypeTest {
         return LocalTime.ofNanoOfDay(secsOfDay * 1000_000_000L + instant.getNano());
     }
 
-    @BeforeTest
+    @BeforeClass(groups = "integration")
     public void setUp() throws Exception {
-        ClickHouseDataSource dataSource = ClickHouseContainerForTest.newDataSource();
+        ClickHouseDataSource dataSource = newDataSource();
         conn = (ClickHouseConnection) dataSource.getConnection();
     }
 
-    @AfterTest
+    @AfterClass(groups = "integration")
     public void tearDown() throws Exception {
         conn.close();
     }
@@ -92,7 +92,7 @@ public class ClickHouseDataTypeTest {
                 new String[] { "Asia/Chongqing", "Asia/Chongqing", "Asia/Chongqing" } };
     }
 
-    @Test(groups = { "sit", "timezone" }, dataProvider = "testTimeZones")
+    @Test(groups = { "integration", "timezone" }, dataProvider = "testTimeZones")
     public void testDateTimeWithTimeZone(String d1TimeZone, String d2TimeZone, String testTimeZone) throws Exception {
         try (Statement s = conn.createStatement()) {
             s.execute("DROP TABLE IF EXISTS test_datetime_with_timezone");
@@ -118,12 +118,9 @@ public class ClickHouseDataTypeTest {
 
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
         long timestamp = 1546300800L; // '2019-01-01 00:00:00' in GMT
-        try (ClickHouseConnection connDefaultTz = (ClickHouseConnection) ClickHouseContainerForTest
-                .newDataSource(props1).getConnection();
-                ClickHouseConnection connServerTz = (ClickHouseConnection) ClickHouseContainerForTest
-                        .newDataSource(props2).getConnection();
-                ClickHouseConnection connCustomTz = (ClickHouseConnection) ClickHouseContainerForTest
-                        .newDataSource(props3).getConnection();
+        try (ClickHouseConnection connDefaultTz = (ClickHouseConnection) newDataSource(props1).getConnection();
+                ClickHouseConnection connServerTz = (ClickHouseConnection) newDataSource(props2).getConnection();
+                ClickHouseConnection connCustomTz = (ClickHouseConnection) newDataSource(props3).getConnection();
                 Statement stmt = conn.createStatement()) {
             stmt.execute("insert into test_datetime_with_timezone values (" + timestamp + ", " + timestamp + ", "
                     + timestamp + ")");
@@ -583,7 +580,7 @@ public class ClickHouseDataTypeTest {
         }
     }
 
-    @Test(groups = { "sit", "timezone" }, dataProvider = "uniqTimeZones")
+    @Test(groups = { "integration", "timezone" }, dataProvider = "uniqTimeZones")
     public void testDateWithTimeZone(String testTimeZone) throws Exception {
         try (Statement s = conn.createStatement()) {
             s.execute("DROP TABLE IF EXISTS test_date_with_timezone");
@@ -608,12 +605,9 @@ public class ClickHouseDataTypeTest {
 
         long timestamp = 1546300800L; // '2019-01-01 00:00:00' in GMT
         int date = (int) timestamp / 24 / 3600; // '2019-01-01' in GMT
-        try (ClickHouseConnection connDefaultTz = (ClickHouseConnection) ClickHouseContainerForTest
-                .newDataSource(props1).getConnection();
-                ClickHouseConnection connServerTz = (ClickHouseConnection) ClickHouseContainerForTest
-                        .newDataSource(props2).getConnection();
-                ClickHouseConnection connCustomTz = (ClickHouseConnection) ClickHouseContainerForTest
-                        .newDataSource(props3).getConnection();
+        try (ClickHouseConnection connDefaultTz = (ClickHouseConnection) newDataSource(props1).getConnection();
+                ClickHouseConnection connServerTz = (ClickHouseConnection) newDataSource(props2).getConnection();
+                ClickHouseConnection connCustomTz = (ClickHouseConnection) newDataSource(props3).getConnection();
                 Statement stmt = conn.createStatement()) {
             stmt.execute("insert into test_date_with_timezone values (" + date + ")");
 
@@ -881,7 +875,7 @@ public class ClickHouseDataTypeTest {
         }
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testUUID() throws Exception {
         try (Statement s = conn.createStatement()) {
             s.execute("DROP TABLE IF EXISTS test_uuid");
@@ -922,7 +916,7 @@ public class ClickHouseDataTypeTest {
         }
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testDateTime64() throws Exception {
         try (Statement s = conn.createStatement()) {
             s.execute("DROP TABLE IF EXISTS test_datetime64");
@@ -952,7 +946,7 @@ public class ClickHouseDataTypeTest {
         }
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testDateTimes() throws Exception {
         try (Statement s = conn.createStatement()) {
             s.execute("DROP TABLE IF EXISTS test_datetimes");
@@ -1060,7 +1054,7 @@ public class ClickHouseDataTypeTest {
         }
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testIPs() throws Exception {
         try (Statement s = conn.createStatement()) {
             s.execute("DROP TABLE IF EXISTS test_ips");

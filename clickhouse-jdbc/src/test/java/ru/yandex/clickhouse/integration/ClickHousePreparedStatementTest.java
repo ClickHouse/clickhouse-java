@@ -17,16 +17,15 @@ import java.util.Map;
 import java.util.UUID;
 
 import org.testng.Assert;
-import org.testng.annotations.AfterTest;
-import org.testng.annotations.BeforeTest;
+import org.testng.annotations.AfterClass;
+import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
 import ru.yandex.clickhouse.ClickHouseArray;
 import ru.yandex.clickhouse.ClickHouseConnection;
-import ru.yandex.clickhouse.ClickHouseContainerForTest;
-import ru.yandex.clickhouse.ClickHouseDataSource;
 import ru.yandex.clickhouse.ClickHousePreparedStatement;
 import ru.yandex.clickhouse.ClickHousePreparedStatementImpl;
+import ru.yandex.clickhouse.JdbcIntegrationTest;
 import ru.yandex.clickhouse.domain.ClickHouseDataType;
 import ru.yandex.clickhouse.response.ClickHouseResponse;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
@@ -37,34 +36,28 @@ import static org.testng.Assert.assertFalse;
 import static org.testng.Assert.assertNotNull;
 import static org.testng.Assert.assertTrue;
 
-public class ClickHousePreparedStatementTest {
-
-    private ClickHouseDataSource dataSource;
+public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
     private Connection connection;
 
-    @BeforeTest
+    @BeforeClass(groups = "integration")
     public void setUp() throws Exception {
-        dataSource = ClickHouseContainerForTest.newDataSource();
-        connection = dataSource.getConnection();
-        connection.createStatement().execute("CREATE DATABASE IF NOT EXISTS test");
+        connection = newConnection();
     }
 
-    @AfterTest
+    @AfterClass(groups = "integration")
     public void tearDown() throws Exception {
-        if (connection != null) {
-            connection.close();
-        }
+        closeConnection(connection);
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testArrayTest() throws Exception {
 
-        connection.createStatement().execute("DROP TABLE IF EXISTS test.array_test");
+        connection.createStatement().execute("DROP TABLE IF EXISTS array_test");
         connection.createStatement().execute(
-                "CREATE TABLE IF NOT EXISTS test.array_test (i Int32, a Array(Int32)) ENGINE = TinyLog"
+                "CREATE TABLE IF NOT EXISTS array_test (i Int32, a Array(Int32)) ENGINE = TinyLog"
         );
 
-        PreparedStatement statement = connection.prepareStatement("INSERT INTO test.array_test (i, a) VALUES (?, ?)");
+        PreparedStatement statement = connection.prepareStatement("INSERT INTO array_test (i, a) VALUES (?, ?)");
 
         statement.setInt(1, 1);
         statement.setArray(2, new ClickHouseArray(ClickHouseDataType.Int32, new int[]{1, 2, 3}));
@@ -75,18 +68,18 @@ public class ClickHousePreparedStatementTest {
         statement.addBatch();
         statement.executeBatch();
 
-        ResultSet rs = connection.createStatement().executeQuery("SELECT count() as cnt from test.array_test");
+        ResultSet rs = connection.createStatement().executeQuery("SELECT count() as cnt from array_test");
         rs.next();
 
         Assert.assertEquals(rs.getInt("cnt"), 2);
         Assert.assertFalse(rs.next());
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testArrayOfNullable() throws Exception {
-        connection.createStatement().execute("DROP TABLE IF EXISTS test.array_of_nullable");
+        connection.createStatement().execute("DROP TABLE IF EXISTS array_of_nullable");
         connection.createStatement().execute(
-                "CREATE TABLE IF NOT EXISTS test.array_of_nullable (" +
+                "CREATE TABLE IF NOT EXISTS array_of_nullable (" +
                         "str Nullable(String), " +
                         "int Nullable(Int32), " +
                         "strs Array(Nullable(String)), " +
@@ -94,7 +87,7 @@ public class ClickHousePreparedStatementTest {
         );
 
         PreparedStatement statement = connection.prepareStatement(
-                "INSERT INTO test.array_of_nullable (str, int, strs, ints) VALUES (?, ?, ?, ?)"
+                "INSERT INTO array_of_nullable (str, int, strs, ints) VALUES (?, ?, ?, ?)"
         );
 
         statement.setObject(1, null);
@@ -104,7 +97,7 @@ public class ClickHousePreparedStatementTest {
         statement.addBatch();
         statement.executeBatch();
 
-        ResultSet rs = connection.createStatement().executeQuery("SELECT * FROM test.array_of_nullable");
+        ResultSet rs = connection.createStatement().executeQuery("SELECT * FROM array_of_nullable");
 
         Assert.assertTrue(rs.next());
         Assert.assertNull(rs.getObject("str"));
@@ -115,11 +108,10 @@ public class ClickHousePreparedStatementTest {
 
         ClickHouseProperties properties = new ClickHouseProperties();
         properties.setUseObjectsInArrays(true);
-        ClickHouseDataSource configuredDataSource = new ClickHouseDataSource(dataSource.getUrl(), properties);
-        ClickHouseConnection configuredConnection = configuredDataSource.getConnection();
+        ClickHouseConnection configuredConnection = newConnection(properties);
 
         try {
-            rs = configuredConnection.createStatement().executeQuery("SELECT * FROM test.array_of_nullable");
+            rs = configuredConnection.createStatement().executeQuery("SELECT * FROM array_of_nullable");
             rs.next();
 
             Assert.assertEquals(rs.getArray("ints").getArray(), new Integer[]{1, null, 3});
@@ -128,14 +120,14 @@ public class ClickHousePreparedStatementTest {
         }
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testArrayFixedStringTest() throws Exception {
-        connection.createStatement().execute("DROP TABLE IF EXISTS test.array_fixed_string_test");
+        connection.createStatement().execute("DROP TABLE IF EXISTS array_fixed_string_test");
         connection.createStatement().execute(
-                "CREATE TABLE IF NOT EXISTS test.array_fixed_string_test (i Int32, a Array(FixedString(16))) ENGINE = TinyLog"
+                "CREATE TABLE IF NOT EXISTS array_fixed_string_test (i Int32, a Array(FixedString(16))) ENGINE = TinyLog"
         );
 
-        PreparedStatement statement = connection.prepareStatement("INSERT INTO test.array_fixed_string_test (i, a) VALUES (?, ?)");
+        PreparedStatement statement = connection.prepareStatement("INSERT INTO array_fixed_string_test (i, a) VALUES (?, ?)");
 
         statement.setInt(1, 1);
         statement.setArray(2, new ClickHouseArray(ClickHouseDataType.FixedString, new byte[][]{randomEncodedUUID(), randomEncodedUUID()}));
@@ -146,25 +138,25 @@ public class ClickHousePreparedStatementTest {
         statement.addBatch();
         statement.executeBatch();
 
-        ResultSet rs = connection.createStatement().executeQuery("SELECT count() as cnt from test.array_fixed_string_test");
+        ResultSet rs = connection.createStatement().executeQuery("SELECT count() as cnt from array_fixed_string_test");
         rs.next();
 
         Assert.assertEquals(rs.getInt("cnt"), 2);
         Assert.assertFalse(rs.next());
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testInsertUInt() throws SQLException {
-        connection.createStatement().execute("DROP TABLE IF EXISTS test.unsigned_insert");
+        connection.createStatement().execute("DROP TABLE IF EXISTS unsigned_insert");
         connection.createStatement().execute(
-                "CREATE TABLE IF NOT EXISTS test.unsigned_insert (ui32 UInt32, ui64 UInt64) ENGINE = TinyLog"
+                "CREATE TABLE IF NOT EXISTS unsigned_insert (ui32 UInt32, ui64 UInt64) ENGINE = TinyLog"
         );
-        PreparedStatement stmt = connection.prepareStatement("insert into test.unsigned_insert (ui32, ui64) values (?, ?)");
+        PreparedStatement stmt = connection.prepareStatement("insert into unsigned_insert (ui32, ui64) values (?, ?)");
         stmt.setObject(1, 4294967286L);
         stmt.setObject(2, new BigInteger("18446744073709551606"));
         stmt.execute();
         Statement select = connection.createStatement();
-        ResultSet rs = select.executeQuery("select ui32, ui64 from test.unsigned_insert");
+        ResultSet rs = select.executeQuery("select ui32, ui64 from unsigned_insert");
         rs.next();
         Object bigUInt32 = rs.getObject(1);
         Assert.assertTrue(bigUInt32 instanceof Long);
@@ -174,18 +166,18 @@ public class ClickHousePreparedStatementTest {
         Assert.assertEquals(bigUInt64, new BigInteger("18446744073709551606"));
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testInsertUUID() throws SQLException {
-        connection.createStatement().execute("DROP TABLE IF EXISTS test.uuid_insert");
+        connection.createStatement().execute("DROP TABLE IF EXISTS uuid_insert");
         connection.createStatement().execute(
-                "CREATE TABLE IF NOT EXISTS test.uuid_insert (ui32 UInt32, uuid UUID) ENGINE = TinyLog"
+                "CREATE TABLE IF NOT EXISTS uuid_insert (ui32 UInt32, uuid UUID) ENGINE = TinyLog"
         );
-        PreparedStatement stmt = connection.prepareStatement("insert into test.uuid_insert (ui32, uuid) values (?, ?)");
+        PreparedStatement stmt = connection.prepareStatement("insert into uuid_insert (ui32, uuid) values (?, ?)");
         stmt.setObject(1, Long.valueOf(4294967286L));
         stmt.setObject(2, UUID.fromString("bef35f40-3b03-45b0-b1bd-8ec6593dcaaa"));
         stmt.execute();
         Statement select = connection.createStatement();
-        ResultSet rs = select.executeQuery("select ui32, uuid from test.uuid_insert");
+        ResultSet rs = select.executeQuery("select ui32, uuid from uuid_insert");
         rs.next();
         Object bigUInt32 = rs.getObject(1);
         Assert.assertTrue(bigUInt32 instanceof Long);
@@ -195,19 +187,19 @@ public class ClickHousePreparedStatementTest {
         Assert.assertEquals(uuid, UUID.fromString("bef35f40-3b03-45b0-b1bd-8ec6593dcaaa"));
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testInsertUUIDBatch() throws SQLException {
-        connection.createStatement().execute("DROP TABLE IF EXISTS test.uuid_insert");
+        connection.createStatement().execute("DROP TABLE IF EXISTS uuid_insert");
         connection.createStatement().execute(
-                "CREATE TABLE IF NOT EXISTS test.uuid_insert (ui32 UInt32, uuid UUID) ENGINE = TinyLog"
+                "CREATE TABLE IF NOT EXISTS uuid_insert (ui32 UInt32, uuid UUID) ENGINE = TinyLog"
         );
-        PreparedStatement stmt = connection.prepareStatement("insert into test.uuid_insert (ui32, uuid) values (?, ?)");
+        PreparedStatement stmt = connection.prepareStatement("insert into uuid_insert (ui32, uuid) values (?, ?)");
         stmt.setObject(1, 4294967286L);
         stmt.setObject(2, UUID.fromString("bef35f40-3b03-45b0-b1bd-8ec6593dcaaa"));
         stmt.addBatch();
         stmt.executeBatch();
         Statement select = connection.createStatement();
-        ResultSet rs = select.executeQuery("select ui32, uuid from test.uuid_insert");
+        ResultSet rs = select.executeQuery("select ui32, uuid from uuid_insert");
         rs.next();
         Object bigUInt32 = rs.getObject(1);
         Assert.assertTrue(bigUInt32 instanceof Long);
@@ -217,32 +209,32 @@ public class ClickHousePreparedStatementTest {
         Assert.assertEquals(uuid, UUID.fromString("bef35f40-3b03-45b0-b1bd-8ec6593dcaaa"));
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testInsertStringContainsKeyword() throws SQLException {
-        connection.createStatement().execute("DROP TABLE IF EXISTS test.keyword_insert");
+        connection.createStatement().execute("DROP TABLE IF EXISTS keyword_insert");
         connection.createStatement().execute(
-                "CREATE TABLE test.keyword_insert(a String,b String)ENGINE = MergeTree() ORDER BY a SETTINGS index_granularity = 8192"
+                "CREATE TABLE keyword_insert(a String,b String)ENGINE = MergeTree() ORDER BY a SETTINGS index_granularity = 8192"
         );
 
-        PreparedStatement stmt = connection.prepareStatement("insert into test.keyword_insert(a,b) values('values(',',')");
+        PreparedStatement stmt = connection.prepareStatement("insert into keyword_insert(a,b) values('values(',',')");
         stmt.execute();
         
         Statement select = connection.createStatement();
-        ResultSet rs = select.executeQuery("select * from test.keyword_insert");
+        ResultSet rs = select.executeQuery("select * from keyword_insert");
         Assert.assertTrue(rs.next());
         Assert.assertEquals(rs.getString(1), "values(");
         Assert.assertEquals(rs.getString(2), ",");
         Assert.assertFalse(rs.next());
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testInsertNullString() throws SQLException {
-        connection.createStatement().execute("DROP TABLE IF EXISTS test.null_insert");
+        connection.createStatement().execute("DROP TABLE IF EXISTS null_insert");
         connection.createStatement().execute(
-                "CREATE TABLE IF NOT EXISTS test.null_insert (val Nullable(String)) ENGINE = TinyLog"
+                "CREATE TABLE IF NOT EXISTS null_insert (val Nullable(String)) ENGINE = TinyLog"
         );
 
-        PreparedStatement stmt = connection.prepareStatement("insert into test.null_insert (val) values (?)");
+        PreparedStatement stmt = connection.prepareStatement("insert into null_insert (val) values (?)");
         stmt.setNull(1, Types.VARCHAR);
         stmt.execute();
         stmt.setNull(1, Types.VARCHAR);
@@ -262,21 +254,21 @@ public class ClickHousePreparedStatementTest {
         stmt.executeBatch();
 
         Statement select = connection.createStatement();
-        ResultSet rs = select.executeQuery("select count(*), val from test.null_insert group by val");
+        ResultSet rs = select.executeQuery("select count(*), val from null_insert group by val");
         rs.next();
         Assert.assertEquals(rs.getInt(1), 6);
         Assert.assertNull(rs.getString(2));
         Assert.assertFalse(rs.next());
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testSelectNullableTypes() throws SQLException {
-        connection.createStatement().execute("DROP TABLE IF EXISTS test.select_nullable");
+        connection.createStatement().execute("DROP TABLE IF EXISTS select_nullable");
         connection.createStatement().execute(
-                "CREATE TABLE IF NOT EXISTS test.select_nullable (idx Int32, i Nullable(Int32), ui Nullable(UInt64), f Nullable(Float32), s Nullable(String)) ENGINE = TinyLog"
+                "CREATE TABLE IF NOT EXISTS select_nullable (idx Int32, i Nullable(Int32), ui Nullable(UInt64), f Nullable(Float32), s Nullable(String)) ENGINE = TinyLog"
         );
 
-        PreparedStatement stmt = connection.prepareStatement("insert into test.select_nullable (idx, i, ui, f, s) values (?, ?, ?, ?, ?)");
+        PreparedStatement stmt = connection.prepareStatement("insert into select_nullable (idx, i, ui, f, s) values (?, ?, ?, ?, ?)");
         stmt.setInt(1, 1);
         stmt.setObject(2, null);
         stmt.setObject(3, null);
@@ -292,7 +284,7 @@ public class ClickHousePreparedStatementTest {
         stmt.executeBatch();
 
         Statement select = connection.createStatement();
-        ResultSet rs = select.executeQuery("select i, ui, f, s from test.select_nullable order by idx");
+        ResultSet rs = select.executeQuery("select i, ui, f, s from select_nullable order by idx");
         rs.next();
         Assert.assertEquals(rs.getMetaData().getColumnType(1), Types.INTEGER);
         Assert.assertEquals(rs.getMetaData().getColumnType(2), Types.BIGINT);
@@ -322,17 +314,17 @@ public class ClickHousePreparedStatementTest {
 
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testInsertBatchNullValues() throws Exception {
         connection.createStatement().execute(
-            "DROP TABLE IF EXISTS test.prep_nullable_value");
+            "DROP TABLE IF EXISTS prep_nullable_value");
         connection.createStatement().execute(
-            "CREATE TABLE IF NOT EXISTS test.prep_nullable_value "
+            "CREATE TABLE IF NOT EXISTS prep_nullable_value "
           + "(idx Int32, s Nullable(String), i Nullable(Int32), f Nullable(Float32)) "
           + "ENGINE = TinyLog"
         );
         PreparedStatement stmt = connection.prepareStatement(
-            "INSERT INTO test.prep_nullable_value (idx, s, i, f) VALUES "
+            "INSERT INTO prep_nullable_value (idx, s, i, f) VALUES "
           + "(1, ?, ?, NULL), (2, NULL, NULL, ?)");
         stmt.setString(1, "foo");
         stmt.setInt(2, 42);
@@ -342,7 +334,7 @@ public class ClickHousePreparedStatementTest {
         Assert.assertEquals(updateCount.length, 2);
 
         ResultSet rs = connection.createStatement().executeQuery(
-            "SELECT s, i, f FROM test.prep_nullable_value "
+            "SELECT s, i, f FROM prep_nullable_value "
           + "ORDER BY idx ASC");
         rs.next();
         Assert.assertEquals(rs.getString(1), "foo");
@@ -354,7 +346,7 @@ public class ClickHousePreparedStatementTest {
         Assert.assertEquals(rs.getFloat(3), 42.0f);
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testSelectDouble() throws SQLException {
         Statement select = connection.createStatement();
         ResultSet rs = select.executeQuery("select toFloat64(0.1) ");
@@ -364,7 +356,7 @@ public class ClickHousePreparedStatementTest {
         Assert.assertEquals(rs.getDouble(1), 0.1);
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testExecuteQueryClickhouseResponse() throws SQLException {
         ClickHousePreparedStatement sth = (ClickHousePreparedStatement) connection.prepareStatement("select ? limit 5");
         sth.setObject(1, 314);
@@ -372,7 +364,7 @@ public class ClickHousePreparedStatementTest {
         Assert.assertEquals(resp.getData(), singletonList(singletonList("314")));
     }
 
-    @Test
+    @Test(groups = "integration")
     public void clickhouseJdbcFailsBecauseOfCommentInStart() throws Exception {
         String sqlStatement = "/*comment*/ select * from system.numbers limit 3";
         Statement stmt = connection.createStatement();
@@ -384,7 +376,7 @@ public class ClickHousePreparedStatementTest {
         }
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testTrailingParameterOrderBy() throws Exception {
         String sqlStatement =
             "SELECT 42 AS foo, 23 AS bar from numbers(100) "
@@ -396,7 +388,7 @@ public class ClickHousePreparedStatementTest {
         Assert.assertTrue(rs.next());
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testSetTime() throws Exception {
         ClickHousePreparedStatement stmt = (ClickHousePreparedStatement)
             connection.prepareStatement("SELECT ?");
@@ -406,9 +398,9 @@ public class ClickHousePreparedStatementTest {
         Assert.assertEquals(rs.getTime(1), Time.valueOf("13:37:42"));
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testAsSql() throws Exception {
-        String unbindedStatement = "SELECT test.example WHERE id IN (?, ?)";
+        String unbindedStatement = "SELECT example WHERE id IN (?, ?)";
         ClickHousePreparedStatement statement = (ClickHousePreparedStatement)
             connection.prepareStatement(unbindedStatement);
         Assert.assertEquals(statement.asSql(), unbindedStatement);
@@ -417,25 +409,25 @@ public class ClickHousePreparedStatementTest {
         Assert.assertEquals(statement.asSql(), unbindedStatement);
 
         statement.setInt(2, 456);
-        Assert.assertEquals(statement.asSql(), "SELECT test.example WHERE id IN (123, 456)");
+        Assert.assertEquals(statement.asSql(), "SELECT example WHERE id IN (123, 456)");
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testMetadataOnlySelect() throws Exception {
         connection.createStatement().execute(
-            "DROP TABLE IF EXISTS test.mymetadata");
+            "DROP TABLE IF EXISTS mymetadata");
         connection.createStatement().execute(
-            "CREATE TABLE IF NOT EXISTS test.mymetadata "
+            "CREATE TABLE IF NOT EXISTS mymetadata "
           + "(idx Int32, s String) "
           + "ENGINE = TinyLog"
         );
         PreparedStatement insertStmt = connection.prepareStatement(
-            "INSERT INTO test.mymetadata (idx, s) VALUES (?, ?)");
+            "INSERT INTO mymetadata (idx, s) VALUES (?, ?)");
         insertStmt.setInt(1, 42);
         insertStmt.setString(2, "foo");
         insertStmt.executeUpdate();
         PreparedStatement metaStmt = connection.prepareStatement(
-            "SELECT idx, s FROM test.mymetadata WHERE idx = ?");
+            "SELECT idx, s FROM mymetadata WHERE idx = ?");
         metaStmt.setInt(1, 42);
         ResultSetMetaData metadata = metaStmt.getMetaData();
         Assert.assertEquals(metadata.getColumnCount(), 2);
@@ -443,22 +435,22 @@ public class ClickHousePreparedStatementTest {
         Assert.assertEquals(metadata.getColumnName(2), "s");
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testMetadataOnlySelectAfterExecution() throws Exception {
         connection.createStatement().execute(
-            "DROP TABLE IF EXISTS test.mymetadata");
+            "DROP TABLE IF EXISTS mymetadata");
         connection.createStatement().execute(
-            "CREATE TABLE IF NOT EXISTS test.mymetadata "
+            "CREATE TABLE IF NOT EXISTS mymetadata "
           + "(idx Int32, s String) "
           + "ENGINE = TinyLog"
         );
         PreparedStatement insertStmt = connection.prepareStatement(
-            "INSERT INTO test.mymetadata (idx, s) VALUES (?, ?)");
+            "INSERT INTO mymetadata (idx, s) VALUES (?, ?)");
         insertStmt.setInt(1, 42);
         insertStmt.setString(2, "foo");
         insertStmt.executeUpdate();
         PreparedStatement metaStmt = connection.prepareStatement(
-            "SELECT idx, s FROM test.mymetadata WHERE idx = ?");
+            "SELECT idx, s FROM mymetadata WHERE idx = ?");
         metaStmt.setInt(1, 42);
         metaStmt.executeQuery();
         ResultSetMetaData metadata = metaStmt.getMetaData();
@@ -467,22 +459,22 @@ public class ClickHousePreparedStatementTest {
         Assert.assertEquals(metadata.getColumnName(2), "s");
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testMetadataExecutionAfterMeta() throws Exception {
         connection.createStatement().execute(
-            "DROP TABLE IF EXISTS test.mymetadata");
+            "DROP TABLE IF EXISTS mymetadata");
         connection.createStatement().execute(
-            "CREATE TABLE IF NOT EXISTS test.mymetadata "
+            "CREATE TABLE IF NOT EXISTS mymetadata "
           + "(idx Int32, s String) "
           + "ENGINE = TinyLog"
         );
         PreparedStatement insertStmt = connection.prepareStatement(
-            "INSERT INTO test.mymetadata (idx, s) VALUES (?, ?)");
+            "INSERT INTO mymetadata (idx, s) VALUES (?, ?)");
         insertStmt.setInt(1, 42);
         insertStmt.setString(2, "foo");
         insertStmt.executeUpdate();
         PreparedStatement metaStmt = connection.prepareStatement(
-            "SELECT idx, s FROM test.mymetadata WHERE idx = ?");
+            "SELECT idx, s FROM mymetadata WHERE idx = ?");
         metaStmt.setInt(1, 42);
         ResultSetMetaData metadata = metaStmt.getMetaData();
         Assert.assertEquals(metadata.getColumnCount(), 2);
@@ -499,22 +491,22 @@ public class ClickHousePreparedStatementTest {
         Assert.assertEquals(metadata.getColumnName(2), "s");
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testMetadataOnlyUpdate() throws Exception {
         connection.createStatement().execute(
-            "DROP TABLE IF EXISTS test.mymetadata");
+            "DROP TABLE IF EXISTS mymetadata");
         connection.createStatement().execute(
-            "CREATE TABLE IF NOT EXISTS test.mymetadata "
+            "CREATE TABLE IF NOT EXISTS mymetadata "
           + "(idx Int32, s String) "
           + "ENGINE = TinyLog"
         );
         PreparedStatement insertStmt = connection.prepareStatement(
-            "INSERT INTO test.mymetadata (idx, s) VALUES (?, ?)");
+            "INSERT INTO mymetadata (idx, s) VALUES (?, ?)");
         insertStmt.setInt(1, 42);
         insertStmt.setString(2, "foo");
         insertStmt.executeUpdate();
         PreparedStatement metaStmt = connection.prepareStatement(
-            "UPDATE test.mymetadata SET s = ? WHERE idx = ?");
+            "UPDATE mymetadata SET s = ? WHERE idx = ?");
         metaStmt.setString(1, "foo");
         metaStmt.setInt(2, 42);
         ResultSetMetaData metadata = metaStmt.getMetaData();
@@ -522,16 +514,16 @@ public class ClickHousePreparedStatementTest {
         metaStmt.close();
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testInsertWithFunctions() throws Exception {
         connection.createStatement().execute(
-            "DROP TABLE IF EXISTS test.insertfunctions");
+            "DROP TABLE IF EXISTS insertfunctions");
         connection.createStatement().execute(
-            "CREATE TABLE IF NOT EXISTS test.insertfunctions "
+            "CREATE TABLE IF NOT EXISTS insertfunctions "
           + "(id UInt32, foo String, bar String) "
           + "ENGINE = TinyLog");
         PreparedStatement stmt = connection.prepareStatement(
-            "INSERT INTO test.insertfunctions(id, foo, bar) VALUES "
+            "INSERT INTO insertfunctions(id, foo, bar) VALUES "
           + "(?, lower(reverse(?)), upper(reverse(?)))");
         stmt.setInt(1, 42);
         stmt.setString(2, "Foo");
@@ -539,12 +531,12 @@ public class ClickHousePreparedStatementTest {
         String sql = stmt.unwrap(ClickHousePreparedStatementImpl.class).asSql();
         Assert.assertEquals(
             sql,
-            "INSERT INTO test.insertfunctions(id, foo, bar) VALUES "
+            "INSERT INTO insertfunctions(id, foo, bar) VALUES "
           + "(42, lower(reverse('Foo')), upper(reverse('Bar')))");
         // make sure that there is no exception
         stmt.execute();
         ResultSet rs = connection.createStatement().executeQuery(
-            "SELECT id, foo, bar FROM test.insertfunctions");
+            "SELECT id, foo, bar FROM insertfunctions");
         rs.next();
         Assert.assertEquals(rs.getInt(1), 42);
         Assert.assertEquals(rs.getString(2), "oof");
@@ -554,19 +546,19 @@ public class ClickHousePreparedStatementTest {
 
     public void testBytes() throws Exception {
         connection.createStatement().execute(
-            "DROP TABLE IF EXISTS test.strings_versus_bytes");
+            "DROP TABLE IF EXISTS strings_versus_bytes");
         connection.createStatement().execute(
-            "CREATE TABLE IF NOT EXISTS test.strings_versus_bytes"
+            "CREATE TABLE IF NOT EXISTS strings_versus_bytes"
           + "(s String, fs FixedString(8)) "
           + "ENGINE = TinyLog"
         );
         PreparedStatement insertStmt = connection.prepareStatement(
-            "INSERT INTO test.strings_versus_bytes (s, fs) VALUES (?, ?)");
+            "INSERT INTO strings_versus_bytes (s, fs) VALUES (?, ?)");
         insertStmt.setBytes(1, "foo".getBytes(Charset.forName("UTF-8")));
         insertStmt.setBytes(2, "bar".getBytes(Charset.forName("UTF-8")));
         insertStmt.executeUpdate();
         ResultSet rs = connection.createStatement().executeQuery(
-            "SELECT s, fs FROM test.strings_versus_bytes");
+            "SELECT s, fs FROM strings_versus_bytes");
         rs.next();
         Assert.assertEquals(rs.getString(1), "foo");
         // TODO: The actual String returned by our ResultSet is rather strange
@@ -574,16 +566,16 @@ public class ClickHousePreparedStatementTest {
         Assert.assertEquals(rs.getString(2).trim(), "bar");
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testInsertWithFunctionsAddBatch() throws Exception {
         connection.createStatement().execute(
-            "DROP TABLE IF EXISTS test.insertfunctions");
+            "DROP TABLE IF EXISTS insertfunctions");
         connection.createStatement().execute(
-            "CREATE TABLE IF NOT EXISTS test.insertfunctions "
+            "CREATE TABLE IF NOT EXISTS insertfunctions "
           + "(id UInt32, foo String, bar String) "
           + "ENGINE = TinyLog");
         PreparedStatement stmt = connection.prepareStatement(
-            "INSERT INTO test.insertfunctions(id, foo, bar) VALUES "
+            "INSERT INTO insertfunctions(id, foo, bar) VALUES "
           + "(?, lower(reverse(?)), upper(reverse(?)))");
         stmt.setInt(1, 42);
         stmt.setString(2, "Foo");
@@ -595,17 +587,17 @@ public class ClickHousePreparedStatementTest {
     }
 
     @SuppressWarnings("boxing")
-    @Test
+    @Test(groups = "integration")
     public void testMultiLineValues() throws Exception {
         connection.createStatement().execute(
-            "DROP TABLE IF EXISTS test.multiline");
+            "DROP TABLE IF EXISTS multiline");
         connection.createStatement().execute(
-            "CREATE TABLE IF NOT EXISTS test.multiline"
+            "CREATE TABLE IF NOT EXISTS multiline"
           + "(foo Int32, bar String) "
           + "ENGINE = TinyLog"
         );
         PreparedStatement insertStmt = connection.prepareStatement(
-            "INSERT INTO test.multiline\n"
+            "INSERT INTO multiline\n"
           + "\t(foo, bar)\r\n"
           + "\t\tVALUES\n"
           + "(?, ?) , \n\r"
@@ -622,7 +614,7 @@ public class ClickHousePreparedStatementTest {
         insertStmt.executeUpdate();
 
         ResultSet rs = connection.createStatement().executeQuery(
-            "SELECT * FROM test.multiline ORDER BY foo");
+            "SELECT * FROM multiline ORDER BY foo");
         rs.next();
         Assert.assertEquals(rs.getInt(1), 23);
         Assert.assertEquals(rs.getString(2), "baz");
@@ -638,14 +630,14 @@ public class ClickHousePreparedStatementTest {
     // Issue 153
     public void testArrayDateTime() throws Exception {
         connection.createStatement().execute(
-            "DROP TABLE IF EXISTS test.date_time_array");
+            "DROP TABLE IF EXISTS date_time_array");
         connection.createStatement().execute(
-            "CREATE TABLE IF NOT EXISTS test.date_time_array"
+            "CREATE TABLE IF NOT EXISTS date_time_array"
           + "(foo Array(DateTime)) "
           + "ENGINE = TinyLog"
         );
         PreparedStatement stmt = connection.prepareStatement(
-            "INSERT INTO test.date_time_array (foo) VALUES (?)");
+            "INSERT INTO date_time_array (foo) VALUES (?)");
         stmt.setArray(1, connection.createArrayOf("DateTime",
             new Timestamp[] {
                 new Timestamp(1557136800000L),
@@ -654,28 +646,28 @@ public class ClickHousePreparedStatementTest {
         stmt.execute();
 
         ResultSet rs = connection.createStatement().executeQuery(
-            "SELECT foo FROM test.date_time_array");
+            "SELECT foo FROM date_time_array");
         rs.next();
         Timestamp[] result = (Timestamp[]) rs.getArray(1).getArray();
         Assert.assertEquals(result[0].getTime(), 1557136800000L);
         Assert.assertEquals(result[1].getTime(), 1560698526598L);
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testStaticNullValue() throws Exception {
         connection.createStatement().execute(
-            "DROP TABLE IF EXISTS test.static_null_value");
+            "DROP TABLE IF EXISTS static_null_value");
         connection.createStatement().execute(
-            "CREATE TABLE IF NOT EXISTS test.static_null_value"
+            "CREATE TABLE IF NOT EXISTS static_null_value"
           + "(foo Nullable(String), bar Nullable(String)) "
           + "ENGINE = TinyLog"
         );
         PreparedStatement ps0 = connection.prepareStatement(
-            "INSERT INTO test.static_null_value(foo) VALUES (null)");
+            "INSERT INTO static_null_value(foo) VALUES (null)");
         ps0.executeUpdate();
 
         ps0 = connection.prepareStatement(
-            "INSERT INTO test.static_null_value(foo, bar) VALUES (null, ?)");
+            "INSERT INTO static_null_value(foo, bar) VALUES (null, ?)");
         ps0.setNull(1, Types.VARCHAR);
         ps0.executeUpdate();
     }
@@ -696,10 +688,10 @@ public class ClickHousePreparedStatementTest {
         }
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testBatchProcess() throws Exception {
         try (PreparedStatement s = connection.prepareStatement(
-            "create table if not exists test.batch_update(k UInt8, v String) engine=MergeTree order by k")) {
+            "create table if not exists batch_update(k UInt8, v String) engine=MergeTree order by k")) {
             s.execute();
         }
 
@@ -710,7 +702,7 @@ public class ClickHousePreparedStatementTest {
         };
 
         // insert
-        try (PreparedStatement s = connection.prepareStatement("insert into table test.batch_update values(?,?)")) {
+        try (PreparedStatement s = connection.prepareStatement("insert into table batch_update values(?,?)")) {
             for (int i = 0; i < data.length; i++) {
                 Object[] row = data[i];
                 s.setInt(1, (int) row[0]);
@@ -724,7 +716,7 @@ public class ClickHousePreparedStatementTest {
 
         // select
         try (PreparedStatement s = connection.prepareStatement(
-            "select * from test.batch_update where k in (?, ?) order by k, v")) {
+            "select * from batch_update where k in (?, ?) order by k, v")) {
             s.setInt(1, 1);
             s.setInt(2, 3);
             ResultSet rs = s.executeQuery();
@@ -739,7 +731,7 @@ public class ClickHousePreparedStatementTest {
 
         // update
         try (PreparedStatement s = connection.prepareStatement(
-            "alter table test.batch_update update v = ? where k = ?")) {
+            "alter table batch_update update v = ? where k = ?")) {
             s.setString(1, "x");
             s.setInt(2, 1);
             s.addBatch();
@@ -752,7 +744,7 @@ public class ClickHousePreparedStatementTest {
         }
 
         // delete
-        try (PreparedStatement s = connection.prepareStatement("alter table test.batch_update delete where k = ?")) {
+        try (PreparedStatement s = connection.prepareStatement("alter table batch_update delete where k = ?")) {
             s.setInt(1, 1);
             s.addBatch();
             s.setInt(1, 3);
@@ -762,7 +754,7 @@ public class ClickHousePreparedStatementTest {
             assertEquals(results.length, 2);
         }
 
-        try (PreparedStatement s = connection.prepareStatement("drop table if exists test.batch_update")) {
+        try (PreparedStatement s = connection.prepareStatement("drop table if exists batch_update")) {
             s.execute();
         }
     }

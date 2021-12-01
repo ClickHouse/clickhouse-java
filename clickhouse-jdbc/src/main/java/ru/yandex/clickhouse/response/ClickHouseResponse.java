@@ -1,7 +1,5 @@
 package ru.yandex.clickhouse.response;
 
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
-
 import java.util.List;
 
 /**
@@ -9,9 +7,7 @@ import java.util.List;
  */
 public class ClickHouseResponse {
     private List<Meta> meta;
-    @JsonDeserialize(contentUsing = ArrayToStringDeserializer.class)
     private List<List<String>> data;
-    @JsonDeserialize(using = ArrayToStringDeserializer.class)
     private List<String> totals;
     private Extremes extremes;
     private int rows;
@@ -19,9 +15,7 @@ public class ClickHouseResponse {
 
 
     public static class Extremes {
-        @JsonDeserialize(using = ArrayToStringDeserializer.class)
         private List<String> min;
-        @JsonDeserialize(using = ArrayToStringDeserializer.class)
         private List<String> max;
 
         public List<String> getMin() {

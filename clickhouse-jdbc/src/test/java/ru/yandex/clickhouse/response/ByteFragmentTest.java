@@ -24,21 +24,21 @@ public class ByteFragmentTest {
         };
     }
 
-    @Test(dataProvider = "stringEscape")
+    @Test(groups = "unit", dataProvider = "stringEscape")
     public void testEscape(String str, String escapedStr) throws IOException {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         ByteFragment.escape(str.getBytes(StandardCharsets.UTF_8), out);
         assertEquals(out.toString(StandardCharsets.UTF_8.name()), escapedStr);
     }
 
-    @Test(dataProvider = "stringEscape")
+    @Test(groups = "unit", dataProvider = "stringEscape")
     public void testUnescape(String str, String escapedStr) throws IOException {
         byte[] bytes = escapedStr.getBytes(StandardCharsets.UTF_8);
         ByteFragment byteFragment = new ByteFragment(bytes, 0, bytes.length);
         assertEquals(new String(byteFragment.unescape(), StandardCharsets.UTF_8.name()), str);
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testIsEmpty() {
         ByteFragment byteFragment = new ByteFragment(new byte[0], 0, 0);
         assertTrue(byteFragment.isEmpty());

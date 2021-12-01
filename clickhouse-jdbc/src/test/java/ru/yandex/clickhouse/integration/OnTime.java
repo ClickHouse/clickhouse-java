@@ -1,10 +1,10 @@
 package ru.yandex.clickhouse.integration;
 
-import org.testng.annotations.BeforeTest;
+import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
-import ru.yandex.clickhouse.ClickHouseContainerForTest;
 import ru.yandex.clickhouse.ClickHouseDataSource;
+import ru.yandex.clickhouse.JdbcIntegrationTest;
 
 import java.sql.Connection;
 import java.sql.ResultSet;
@@ -15,19 +15,19 @@ import java.sql.Statement;
  * Here it is assumed the connection to a ClickHouse instance with flights example data it available at localhost:8123
  * For ClickHouse quickstart and example dataset see <a href="https://clickhouse.yandex/tutorial.html">https://clickhouse.yandex/tutorial.html</a>
  */
-public class OnTime {
+public class OnTime extends JdbcIntegrationTest {
 
     private ClickHouseDataSource dataSource;
     private Connection connection;
 
-    @BeforeTest
+    @BeforeClass(groups = "integration")
     public void setUp() throws Exception {
-        dataSource = ClickHouseContainerForTest.newDataSource();
+        dataSource = newDataSource();
         connection = dataSource.getConnection();
         connection.createStatement().execute("CREATE DATABASE IF NOT EXISTS test");
     }
 
-    @Test(enabled = false)
+    @Test(groups = "integration", enabled = false)
     public void simpleSelect() throws SQLException {
         Statement statement = connection.createStatement();
         ResultSet rs = statement.executeQuery("select FlightDate, AirlineID, FlightNum from ontime limit 10");
@@ -37,7 +37,7 @@ public class OnTime {
         statement.close();
     }
 
-    @Test(enabled = false)
+    @Test(groups = "integration", enabled = false)
     public void mostTrendingDestinationTest() throws SQLException {
         String query =
             "SELECT \n" +

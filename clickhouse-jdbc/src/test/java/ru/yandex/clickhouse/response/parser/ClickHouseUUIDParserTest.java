@@ -17,24 +17,24 @@ public class ClickHouseUUIDParserTest {
 
     private ClickHouseValueParser<UUID> parser;
 
-    @BeforeClass
+    @BeforeClass(groups = "unit")
     public void setUp() throws Exception {
         parser = ClickHouseValueParser.getParser(UUID.class);
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testNullValue() throws Exception {
         assertNull(parser.parse(
             ByteFragment.fromString("\\N"), null, null));
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testEmptyValue() throws Exception {
         assertNull(parser.parse(
             ByteFragment.fromString(""), null, null));
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testSimpleUUID() throws Exception {
         UUID uuid = UUID.randomUUID();
         assertEquals(
@@ -47,7 +47,7 @@ public class ClickHouseUUIDParserTest {
             UUID.randomUUID());
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testBrokenUUID() throws Exception {
         try {
             parser.parse(

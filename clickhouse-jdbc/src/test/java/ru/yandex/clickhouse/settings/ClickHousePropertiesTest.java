@@ -21,7 +21,7 @@ public class ClickHousePropertiesTest {
      * of {@link Properties} with defaults. These defaults may be missed if method
      * {@link java.util.Hashtable#get(Object)} is used for {@code Properties}.
      */
-    @Test
+    @Test(groups = "unit")
     public void constructorShouldNotIgnoreDefaults() {
         Properties defaults = new Properties();
         String expectedUsername = "superuser";
@@ -32,7 +32,7 @@ public class ClickHousePropertiesTest {
         Assert.assertEquals(clickHouseProperties.getUser(), expectedUsername);
     }
 
-    @Test
+    @Test(groups = "unit")
     public void constructorShouldNotIgnoreClickHouseProperties() {
         int expectedConnectionTimeout = 1000;
         boolean isCompress = false;
@@ -95,7 +95,7 @@ public class ClickHousePropertiesTest {
         );
     }
 
-    @Test
+    @Test(groups = "unit")
     public void additionalParametersTest_clickhouse_datasource() {
         ClickHouseDataSource clickHouseDataSource = new ClickHouseDataSource("jdbc:clickhouse://localhost:1234/ppc?compress=1&decompress=1&user=root");
 
@@ -104,7 +104,7 @@ public class ClickHousePropertiesTest {
         assertEquals("root", clickHouseDataSource.getProperties().getUser());
     }
 
-    @Test
+    @Test(groups = "unit")
     public void additionalParametersTest_balanced_clickhouse_datasource() {
         BalancedClickhouseDataSource clickHouseDataSource = new BalancedClickhouseDataSource("jdbc:clickhouse://localhost:1234,another.host.com:4321/ppc?compress=1&decompress=1&user=root");
 
@@ -113,21 +113,21 @@ public class ClickHousePropertiesTest {
         assertEquals("root", clickHouseDataSource.getProperties().getUser());
     }
 
-    @Test
+    @Test(groups = "unit")
     public void booleanParamCanBeParsedAsZeroAndOne() throws Exception {
         Assert.assertTrue(new ClickHouseProperties().isCompress());
         Assert.assertFalse(new ClickHouseProperties(new Properties(){{setProperty("compress", "0");}}).isCompress());
         Assert.assertTrue(new ClickHouseProperties(new Properties(){{setProperty("compress", "1");}}).isCompress());
     }
 
-    @Test
+    @Test(groups = "unit")
     public void clickHouseQueryParamContainsMaxMemoryUsage() throws Exception {
         final ClickHouseProperties clickHouseProperties = new ClickHouseProperties();
         clickHouseProperties.setMaxMemoryUsage(43L);
         Assert.assertEquals(clickHouseProperties.asProperties().getProperty("max_memory_usage"), "43");
     }
 
-    @Test
+    @Test(groups = "unit")
     public void maxMemoryUsageParamShouldBeParsed() throws Exception {
         final Properties driverProperties = new Properties();
         driverProperties.setProperty("max_memory_usage", "42");
@@ -136,7 +136,7 @@ public class ClickHousePropertiesTest {
         Assert.assertEquals(ds.getProperties().getMaxMemoryUsage(), Long.valueOf(42L), "max_memory_usage is missing");
     }
 
-    @Test
+    @Test(groups = "unit")
     public void buildQueryParamsTest() {
         ClickHouseProperties clickHouseProperties = new ClickHouseProperties();
         clickHouseProperties.setInsertQuorumTimeout(1000L);
@@ -159,7 +159,7 @@ public class ClickHousePropertiesTest {
         assertFalse(clickHouseQueryParams.containsKey(ClickHouseQueryParam.PASSWORD));
     }
 
-    @Test
+    @Test(groups = "unit")
     public void mergeClickHousePropertiesTest() {
         ClickHouseProperties clickHouseProperties1 = new ClickHouseProperties();
         ClickHouseProperties clickHouseProperties2 = new ClickHouseProperties();
@@ -176,7 +176,7 @@ public class ClickHousePropertiesTest {
         Assert.assertEquals(merged.getUser(),"readonly"); // using properties2
     }
 
-    @Test
+    @Test(groups = "unit")
     public void mergePropertiesTest() {
         ClickHouseProperties clickHouseProperties1 = new ClickHouseProperties();
         Properties properties2 = new Properties();

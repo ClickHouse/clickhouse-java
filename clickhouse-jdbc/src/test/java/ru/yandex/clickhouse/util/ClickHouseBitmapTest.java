@@ -10,7 +10,7 @@ import org.testng.annotations.Test;
 import ru.yandex.clickhouse.domain.ClickHouseDataType;
 
 public class ClickHouseBitmapTest {
-    @Test
+    @Test(groups = "unit")
     public void testEmptyRoaringBitmap() {
         byte[] expectedBytes = new byte[] { 0, 0 };
 

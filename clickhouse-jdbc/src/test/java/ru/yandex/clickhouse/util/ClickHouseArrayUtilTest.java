@@ -27,7 +27,7 @@ import static org.testng.Assert.assertTrue;
  */
 public class ClickHouseArrayUtilTest {
 
-    @Test
+    @Test(groups = "unit")
     public void testArrayToString() throws Exception {
         assertEquals(
             ClickHouseArrayUtil.arrayToString(new String[]{"a", "b"}),
@@ -101,7 +101,7 @@ public class ClickHouseArrayUtilTest {
 
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testCollectionToString() throws Exception {
         assertEquals(
                 ClickHouseArrayUtil.toString(new ArrayList<Object>(Arrays.asList("a", "b"))),
@@ -215,7 +215,7 @@ public class ClickHouseArrayUtilTest {
         );
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testArrayDateTimeDefaultTimeZone() {
         Timestamp ts0 = new Timestamp(1557136800000L);
         Timestamp ts1 = new Timestamp(1560698526598L);
@@ -227,7 +227,7 @@ public class ClickHouseArrayUtilTest {
             "['" + sdf.format(ts0) + "',NULL,'" + sdf.format(ts1) + "']");
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testArrayDateTimeOtherTimeZone() {
         TimeZone tzTokyo = TimeZone.getTimeZone("Asia/Tokyo");
         Timestamp ts0 = new Timestamp(1557136800000L);
@@ -241,7 +241,7 @@ public class ClickHouseArrayUtilTest {
     }
 
 
-    @Test(dataProvider = "doubleArrayWithNan")
+    @Test(groups = "unit", dataProvider = "doubleArrayWithNan")
     public void testDoubleNan(String[] source, double[] expected) throws Exception
     {
         StringBuilder sb = new StringBuilder();
@@ -269,7 +269,7 @@ public class ClickHouseArrayUtilTest {
         }
     }
 
-    @Test(dataProvider = "floatArrayWithNan")
+    @Test(groups = "unit", dataProvider = "floatArrayWithNan")
     public void testFloatNan(String[] source, float[] expected) throws Exception
     {
         StringBuilder sb = new StringBuilder();
@@ -296,7 +296,7 @@ public class ClickHouseArrayUtilTest {
         }
     }
 
-    @Test(dataProvider = "stringArray")
+    @Test(groups = "unit", dataProvider = "stringArray")
     public void testParseArray(String[] array) throws Exception {
         StringBuilder sb = new StringBuilder();
         for (String s : array) {
@@ -319,7 +319,7 @@ public class ClickHouseArrayUtilTest {
         }
     }
 
-    @Test(dataProvider = "intBoxedArray")
+    @Test(groups = "unit", dataProvider = "intBoxedArray")
     public void testParseBoxedArray(Integer[] array) throws Exception {
         StringBuilder sb = new StringBuilder();
         for (Integer i : array) {
@@ -341,7 +341,7 @@ public class ClickHouseArrayUtilTest {
         }
     }
 
-    @Test(dataProvider = "longArray")
+    @Test(groups = "unit", dataProvider = "longArray")
     public void testParseArray(long[] array) throws Exception {
         StringBuilder sb = new StringBuilder();
         for (long l : array) {
@@ -363,7 +363,7 @@ public class ClickHouseArrayUtilTest {
         }
     }
 
-    @Test(dataProvider = "floatArray")
+    @Test(groups = "unit", dataProvider = "floatArray")
     public void testParseArray(float[] array) throws Exception {
         StringBuilder sb = new StringBuilder();
         for (float f : array) {
@@ -385,7 +385,7 @@ public class ClickHouseArrayUtilTest {
         }
     }
 
-    @Test(dataProvider = "doubleArray")
+    @Test(groups = "unit", dataProvider = "doubleArray")
     public void testParseArray(double[] array) throws Exception {
         StringBuilder sb = new StringBuilder();
         for (double d : array) {
@@ -407,7 +407,7 @@ public class ClickHouseArrayUtilTest {
         }
     }
 
-    @Test(dataProvider = "booleanArray")
+    @Test(groups = "unit", dataProvider = "booleanArray")
     public void testParseArray(String[] input, boolean[] array) throws Exception {
         String sourceString = "[" + String.join(",", input) + "]";
         byte[] bytes = sourceString.getBytes(StandardCharsets.UTF_8);
@@ -421,7 +421,7 @@ public class ClickHouseArrayUtilTest {
     }
 
 
-    @Test(dataProvider = "dateArray")
+    @Test(groups = "unit", dataProvider = "dateArray")
     public void testParseArray(Date[] array) throws Exception {
         final SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd");
         dateFormat.setTimeZone(TimeZone.getTimeZone("UTC"));
@@ -445,7 +445,7 @@ public class ClickHouseArrayUtilTest {
         }
     }
 
-    @Test(dataProvider = "decimalArray")
+    @Test(groups = "unit", dataProvider = "decimalArray")
     public void testParseArray(BigDecimal[] array) throws Exception {
         StringBuilder sb = new StringBuilder();
         for (BigDecimal d : array) {
@@ -467,7 +467,7 @@ public class ClickHouseArrayUtilTest {
         }
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testParseArrayThreeLevels() throws Exception {
         int[][][] expected  =  {{{10,11,12},{13,14,15}},{{20,21,22},{23,24,25}},{{30,31,32},{33,34,35}}};
         String sourceString = "[[[10,11,12],[13,14,15]],[[20,21,22],[23,24,25]],[[30,31,32],[33,34,35]]]";
@@ -486,7 +486,7 @@ public class ClickHouseArrayUtilTest {
         }
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testParseArrayTwoLevelsEmpty() throws Exception {
         String sourceString = "[[]]";
         byte[] bytes = sourceString.getBytes(StandardCharsets.UTF_8);
@@ -497,7 +497,7 @@ public class ClickHouseArrayUtilTest {
         assertEquals(0, actual[0].length);
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testParseSparseArray() throws Exception {
         String sourceString = "[[],[NULL],['a','b',NULL]]";
         byte[] bytes = sourceString.getBytes(StandardCharsets.UTF_8);
@@ -514,7 +514,7 @@ public class ClickHouseArrayUtilTest {
         assertNull(actual[2][2]);
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testParseArrayOf32Levels() throws Exception {
         String sourceString = "[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[32]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]";
         byte[] bytes = sourceString.getBytes(StandardCharsets.UTF_8);
@@ -526,7 +526,7 @@ public class ClickHouseArrayUtilTest {
         assertEquals(actual[0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0][0], 32);
     }
 
-    @Test(expectedExceptions = IllegalArgumentException.class, expectedExceptionsMessageRegExp = "Maximum parse depth exceeded")
+    @Test(groups = "unit", expectedExceptions = IllegalArgumentException.class, expectedExceptionsMessageRegExp = "Maximum parse depth exceeded")
     public void testParseArrayMaximumDepthExceeded() throws SQLException {
         String sourceString = "[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[33]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]";
         byte[] bytes = sourceString.getBytes(StandardCharsets.UTF_8);
@@ -536,6 +536,7 @@ public class ClickHouseArrayUtilTest {
 
 
     @Test(
+            groups = "unit", 
             dataProvider = "invalidArray",
             expectedExceptions = IllegalArgumentException.class,
             expectedExceptionsMessageRegExp = "not an array.*"

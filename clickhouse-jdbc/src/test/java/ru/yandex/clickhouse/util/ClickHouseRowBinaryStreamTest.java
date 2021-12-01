@@ -16,7 +16,7 @@ import java.util.UUID;
  */
 public class ClickHouseRowBinaryStreamTest {
 
-    @Test
+    @Test(groups = "unit")
     public void testUInt8() throws Exception {
         check(
             new StreamWriter() {
@@ -34,7 +34,7 @@ public class ClickHouseRowBinaryStreamTest {
         );
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testUInt16() throws Exception {
         check(
             new StreamWriter() {
@@ -49,7 +49,7 @@ public class ClickHouseRowBinaryStreamTest {
         );
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testFloat64() throws Exception {
         check(
             new StreamWriter() {
@@ -63,7 +63,7 @@ public class ClickHouseRowBinaryStreamTest {
     }
 
 
-    @Test
+    @Test(groups = "unit")
     public void testUInt64() throws Exception {
         check(
             new StreamWriter() {
@@ -77,7 +77,7 @@ public class ClickHouseRowBinaryStreamTest {
         );
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testDecimal32() throws Exception {
         check(
                 new StreamWriter() {
@@ -91,7 +91,7 @@ public class ClickHouseRowBinaryStreamTest {
         );
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testDecimal64() throws Exception {
         check(
                 new StreamWriter() {
@@ -105,7 +105,7 @@ public class ClickHouseRowBinaryStreamTest {
         );
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testDecimal128() throws Exception {
         check(
                 new StreamWriter() {
@@ -122,7 +122,7 @@ public class ClickHouseRowBinaryStreamTest {
         );
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testDecimal256() throws Exception {
         check(
                 new StreamWriter() {
@@ -141,7 +141,7 @@ public class ClickHouseRowBinaryStreamTest {
         );
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testOne() throws Exception {
 
         check(
@@ -162,7 +162,7 @@ public class ClickHouseRowBinaryStreamTest {
 
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testUnsignedLeb128() throws Exception {
         check(
             new StreamWriter() {
@@ -182,7 +182,7 @@ public class ClickHouseRowBinaryStreamTest {
     }
 
 
-    @Test
+    @Test(groups = "unit")
     public void testNative() throws Exception {
         check(
             new StreamWriter() {
@@ -213,7 +213,7 @@ public class ClickHouseRowBinaryStreamTest {
     }
 
 
-    @Test
+    @Test(groups = "unit")
     public void testStringArray() throws Exception {
         check(
             new StreamWriter() {
@@ -228,7 +228,7 @@ public class ClickHouseRowBinaryStreamTest {
         );
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testUInt64Array() throws Exception {
         check(
             new StreamWriter() {
@@ -243,7 +243,7 @@ public class ClickHouseRowBinaryStreamTest {
         );
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testString() throws Exception {
         check(
             new StreamWriter() {
@@ -262,7 +262,7 @@ public class ClickHouseRowBinaryStreamTest {
         );
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testFixedString() throws Exception {
         check(
                 new StreamWriter() {
@@ -281,7 +281,7 @@ public class ClickHouseRowBinaryStreamTest {
         );
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testFixedStringLen() throws Exception {
         check(
                 new StreamWriter() {
@@ -300,7 +300,7 @@ public class ClickHouseRowBinaryStreamTest {
         );
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testFixedStringLen1() throws Exception {
         check(
                 new StreamWriter() {
@@ -318,7 +318,7 @@ public class ClickHouseRowBinaryStreamTest {
         );
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testFixedStringLen2() throws Exception {
         check(
                 new StreamWriter() {
@@ -336,7 +336,7 @@ public class ClickHouseRowBinaryStreamTest {
         );
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testUUID() throws Exception {
         check(
                 new StreamWriter() {
@@ -351,7 +351,7 @@ public class ClickHouseRowBinaryStreamTest {
         );
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testUUIDArray() throws Exception {
         check(
                 new StreamWriter() {
@@ -370,7 +370,7 @@ public class ClickHouseRowBinaryStreamTest {
         );
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testWriteNullableInt32() throws Exception {
         check(
             new StreamWriter() {
@@ -387,7 +387,7 @@ public class ClickHouseRowBinaryStreamTest {
         // clickhouse-client -q "SELECT CAST(1 AS Nullable(Int32)) Format RowBinary"  | od -vAn -td1
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testWriteNull() throws Exception {
         check(
             new StreamWriter() {

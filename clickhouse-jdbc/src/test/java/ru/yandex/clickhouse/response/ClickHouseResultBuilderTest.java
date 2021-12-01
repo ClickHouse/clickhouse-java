@@ -8,7 +8,7 @@ import org.testng.annotations.Test;
 
 public class ClickHouseResultBuilderTest {
 
-    @Test
+    @Test(groups = "unit")
     public void testBuild() throws Exception {
         ClickHouseResultSet resultSet = ClickHouseResultBuilder.builder(2)
             .names("string", "int")

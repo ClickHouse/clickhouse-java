@@ -48,7 +48,7 @@ public class ClickHouseValueParserTest {
         };
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testParseInt() throws Exception {
         ClickHouseColumnInfo columnInfo = ClickHouseColumnInfo.parse("Int64", "columnName", null);
         assertEquals(ClickHouseValueParser.parseInt(ByteFragment.fromString("42"), columnInfo), 42);
@@ -91,7 +91,7 @@ public class ClickHouseValueParserTest {
         }
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testParseLong() throws Exception {
         ClickHouseColumnInfo columnInfo = ClickHouseColumnInfo.parse("Int64", "columnName", null);
         assertEquals(ClickHouseValueParser.parseLong(ByteFragment.fromString("42"), columnInfo), 42);
@@ -135,7 +135,7 @@ public class ClickHouseValueParserTest {
         }
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testParseShort() throws Exception {
         ClickHouseColumnInfo columnInfo = ClickHouseColumnInfo.parse("UInt16", "columnName", null);
         assertEquals(ClickHouseValueParser.parseShort(ByteFragment.fromString("42"), columnInfo), 42);
@@ -178,7 +178,7 @@ public class ClickHouseValueParserTest {
         }
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testParseBoolean() throws SQLException {
         ClickHouseColumnInfo columnInfo = ClickHouseColumnInfo.parse("UInt8", "columnName", null);
         assertFalse(ClickHouseValueParser.parseBoolean(ByteFragment.fromString(""), columnInfo));

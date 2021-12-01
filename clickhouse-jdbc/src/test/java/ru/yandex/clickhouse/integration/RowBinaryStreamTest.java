@@ -18,89 +18,67 @@ import java.time.ZoneId;
 import java.util.Calendar;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
+
+import com.clickhouse.client.ClickHouseVersion;
+
 import org.roaringbitmap.RoaringBitmap;
 import org.roaringbitmap.buffer.ImmutableRoaringBitmap;
 import org.roaringbitmap.buffer.MutableRoaringBitmap;
 import org.roaringbitmap.longlong.Roaring64Bitmap;
 import org.roaringbitmap.longlong.Roaring64NavigableMap;
 import org.testng.Assert;
-import org.testng.annotations.BeforeTest;
+import org.testng.annotations.AfterClass;
+import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 import ru.yandex.clickhouse.ClickHouseConnection;
-import ru.yandex.clickhouse.ClickHouseContainerForTest;
-import ru.yandex.clickhouse.ClickHouseDataSource;
 import ru.yandex.clickhouse.ClickHouseStatement;
+import ru.yandex.clickhouse.JdbcIntegrationTest;
 import ru.yandex.clickhouse.domain.ClickHouseDataType;
 import ru.yandex.clickhouse.util.ClickHouseBitmap;
 import ru.yandex.clickhouse.util.ClickHouseRowBinaryInputStream;
 import ru.yandex.clickhouse.util.ClickHouseRowBinaryStream;
 import ru.yandex.clickhouse.util.ClickHouseStreamCallback;
-import ru.yandex.clickhouse.util.ClickHouseVersionNumberUtil;
 
 /**
  * @author Dmitry Andreev <a href="mailto:AndreevDm@yandex-team.ru"></a>
  */
-public class RowBinaryStreamTest {
-
-    private ClickHouseDataSource dataSource;
+public class RowBinaryStreamTest extends JdbcIntegrationTest {
     private ClickHouseConnection connection;
 
-    @BeforeTest
+    @BeforeClass(groups = "integration")
     public void setUp() throws Exception {
-        dataSource = ClickHouseContainerForTest.newDataSource();
-        connection = dataSource.getConnection();
-        connection.createStatement().execute("CREATE DATABASE IF NOT EXISTS test");
+        connection = newConnection();
+    }
+
+    @AfterClass(groups = "integration")
+    public void tearDown() throws Exception {
+        closeConnection(connection);
     }
 
     private void createTable(String table) throws SQLException {
         connection.createStatement().execute("DROP TABLE IF EXISTS " + table);
-        connection.createStatement().execute(
-                "CREATE TABLE " + table + " (" +
-                        "date Date, " +
-                        "dateTime DateTime, " +
-                        "string String, " +
-                        "int8 Int8, " +
-                        "uInt8 UInt8, " +
-                        "int16 Int16, " +
-                        "uInt16 UInt16, " +
-                        "int32 Int32, " +
-                        "uInt32 UInt32, " +
-                        "int64 Int64, " +
-                        "uInt64 UInt64, " +
-                        "float32 Float32, " +
-                        "float64 Float64, " +
-                        "dateArray Array(Date), " +
-                        "dateTimeArray Array(DateTime), " +
-                        "stringArray Array(String), " +
-                        "int8Array Array(Int8), " +
-                        "uInt8Array Array(UInt8), " +
-                        "int16Array Array(Int16), " +
-                        "uInt16Array Array(UInt16), " +
-                        "int32Array Array(Int32), " +
-                        "uInt32Array Array(UInt32), " +
-                        "int64Array Array(Int64), " +
-                        "uInt64Array Array(UInt64), " +
-                        "float32Array Array(Float32), " +
-                        "float64Array Array(Float64), " +
-                        "uuid UUID," +
-                        "lowCardinality LowCardinality(String)," +
-                        "fixedString FixedString(15)" +
-                        ") ENGINE = MergeTree partition by toYYYYMM(date) order by date"
-        );
+        connection.createStatement()
+                .execute("CREATE TABLE " + table + " (" + "date Date, " + "dateTime DateTime, " + "string String, "
+                        + "int8 Int8, " + "uInt8 UInt8, " + "int16 Int16, " + "uInt16 UInt16, " + "int32 Int32, "
+                        + "uInt32 UInt32, " + "int64 Int64, " + "uInt64 UInt64, " + "float32 Float32, "
+                        + "float64 Float64, " + "dateArray Array(Date), " + "dateTimeArray Array(DateTime), "
+                        + "stringArray Array(String), " + "int8Array Array(Int8), " + "uInt8Array Array(UInt8), "
+                        + "int16Array Array(Int16), " + "uInt16Array Array(UInt16), " + "int32Array Array(Int32), "
+                        + "uInt32Array Array(UInt32), " + "int64Array Array(Int64), " + "uInt64Array Array(UInt64), "
+                        + "float32Array Array(Float32), " + "float64Array Array(Float64), " + "uuid UUID,"
+                        + "lowCardinality LowCardinality(String)," + "fixedString FixedString(15)"
+                        + ") ENGINE = MergeTree partition by toYYYYMM(date) order by date");
     }
 
-    @Test
+    @Test(groups = "integration")
     public void multiRowTest() throws SQLException {
-        connection.createStatement().execute("DROP TABLE IF EXISTS test.big_data");
-        connection.createStatement().execute(
-                "CREATE TABLE test.big_data (value Int32) ENGINE = TinyLog()"
-        );
+        connection.createStatement().execute("DROP TABLE IF EXISTS big_data");
+        connection.createStatement().execute("CREATE TABLE big_data (value Int32) ENGINE = TinyLog()");
 
         final int count = 1000000;
         final AtomicLong sum = new AtomicLong();
 
-        connection.createStatement().sendRowBinaryStream(
-                "INSERT INTO test.big_data (value)",
+        connection.createStatement().sendRowBinaryStream("INSERT INTO big_data (value)",
                 new ClickHouseStreamCallback() {
                     @Override
                     public void writeTo(ClickHouseRowBinaryStream stream) throws IOException {
@@ -109,23 +87,22 @@ public class RowBinaryStreamTest {
                             sum.addAndGet(i);
                         }
                     }
-                }
-        );
+                });
 
-        ResultSet rs = connection.createStatement().executeQuery("SELECT count() AS cnt, sum(value) AS sum FROM test.big_data");
+        ResultSet rs = connection.createStatement()
+                .executeQuery("SELECT count() AS cnt, sum(value) AS sum FROM big_data");
 
         Assert.assertTrue(rs.next());
         assertEquals(rs.getInt("cnt"), count);
         assertEquals(rs.getLong("sum"), sum.get());
     }
 
-
-    @Test
+    @Test(groups = "integration")
     public void testRowBinaryStream() throws Exception {
         testRowBinaryStream(false);
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testRowBinaryInputStream() throws Exception {
         testRowBinaryStream(true);
     }
@@ -136,8 +113,8 @@ public class RowBinaryStreamTest {
         String rbTypeName = "AggregateFunction(groupBitmap, " + innerType.name() + ")";
         try (ClickHouseStatement statement = connection.createStatement()) {
             statement.execute("DROP TABLE IF EXISTS " + tableName);
-            statement.execute("CREATE TABLE IF NOT EXISTS " + tableName + 
-                "(i UInt8, a " + arrType + ", b " + rbTypeName + ") engine=Memory");
+            statement.execute("CREATE TABLE IF NOT EXISTS " + tableName + "(i UInt8, a " + arrType + ", b " + rbTypeName
+                    + ") engine=Memory");
         }
 
         return tableName;
@@ -163,8 +140,8 @@ public class RowBinaryStreamTest {
         return values;
     }
 
-    private void writeValues(ClickHouseRowBinaryStream stream,
-        int [] values, ClickHouseDataType innerType) throws IOException {
+    private void writeValues(ClickHouseRowBinaryStream stream, int[] values, ClickHouseDataType innerType)
+            throws IOException {
         switch (innerType) {
             case Int8:
             case UInt8:
@@ -203,16 +180,17 @@ public class RowBinaryStreamTest {
             });
 
             for (int i = 0; i < 3; i++) {
-                String sql = "select b = bitmapBuild(a) ? 1 : 0 from " + tableName + " where i = " + (i+1);
+                String sql = "select b = bitmapBuild(a) ? 1 : 0 from " + tableName + " where i = " + (i + 1);
                 try (ResultSet rs = statement.executeQuery(sql)) {
                     assertTrue(rs.next());
                     assertEquals(rs.getInt(1), 1);
                     assertFalse(rs.next());
                 }
 
-                sql = "select b from " + tableName + " where i = " + (i+1);
+                sql = "select b from " + tableName + " where i = " + (i + 1);
                 try (ClickHouseRowBinaryInputStream in = statement.executeQueryClickhouseRowBinaryStream(sql)) {
-                    assertEquals(in.readBitmap(innerType), ClickHouseBitmap.wrap(RoaringBitmap.bitmapOf(values), innerType));
+                    assertEquals(in.readBitmap(innerType),
+                            ClickHouseBitmap.wrap(RoaringBitmap.bitmapOf(values), innerType));
                 }
             }
 
@@ -230,10 +208,12 @@ public class RowBinaryStreamTest {
                 public void writeTo(ClickHouseRowBinaryStream stream) throws IOException {
                     stream.writeByte((byte) 1);
                     stream.writeUInt64Array(values);
-                    stream.writeBitmap(ClickHouseBitmap.wrap(Roaring64NavigableMap.bitmapOf(values), ClickHouseDataType.UInt64));
+                    stream.writeBitmap(
+                            ClickHouseBitmap.wrap(Roaring64NavigableMap.bitmapOf(values), ClickHouseDataType.UInt64));
                     stream.writeByte((byte) 2);
                     stream.writeUInt64Array(values);
-                    stream.writeBitmap(ClickHouseBitmap.wrap(Roaring64Bitmap.bitmapOf(values), ClickHouseDataType.UInt64));
+                    stream.writeBitmap(
+                            ClickHouseBitmap.wrap(Roaring64Bitmap.bitmapOf(values), ClickHouseDataType.UInt64));
                 }
             });
 
@@ -248,14 +228,15 @@ public class RowBinaryStreamTest {
 
             sql = "select b from " + tableName + " order by i";
             try (ClickHouseRowBinaryInputStream in = statement.executeQueryClickhouseRowBinaryStream(sql)) {
-                assertEquals(in.readBitmap(innerType), ClickHouseBitmap.wrap(Roaring64NavigableMap.bitmapOf(values), innerType));
+                assertEquals(in.readBitmap(innerType),
+                        ClickHouseBitmap.wrap(Roaring64NavigableMap.bitmapOf(values), innerType));
             }
 
             statement.execute("drop table if exists " + tableName);
         }
     }
-    
-    @Test
+
+    @Test(groups = "integration")
     public void testBitmap() throws Exception {
         // TODO seems Int8, Int16 and Int32 are still not supported in ClickHouse
         testBitmap(ClickHouseDataType.UInt8, 32);
@@ -268,31 +249,25 @@ public class RowBinaryStreamTest {
         testBitmap64(32, 0L, 1L);
         testBitmap64(32, Long.MAX_VALUE, -1L);
 
-        String versionNumber = connection.getServerVersion();
-        int majorVersion = ClickHouseVersionNumberUtil.getMajorVersion(versionNumber);
-        int minorVersion = ClickHouseVersionNumberUtil.getMinorVersion(versionNumber);
-        if (majorVersion > 20 || (majorVersion == 20 && minorVersion > 8)) {
+        if (ClickHouseVersion.check(connection.getServerVersion(), "(20.8,]")) {
             testBitmap64(65537, 100000L, 1L); // highToBitmap.size() == 1
             testBitmap64(65537, 9223372036854775807L, -1000000000L); // highToBitmap.size() > 1
         }
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testBigDecimals() throws Exception {
         try (ClickHouseStatement statement = connection.createStatement()) {
             statement.execute("set allow_experimental_bigint_types=1;"
-                + "create table if not exists test.test_big_decimals(d128 Decimal128(6), d256 Decimal256(12)) engine=Memory");
+                    + "create table if not exists test_big_decimals(d128 Decimal128(6), d256 Decimal256(12)) engine=Memory");
         } catch (SQLException e) {
             return;
         }
 
         try (ClickHouseStatement statement = connection.createStatement()) {
-            BigDecimal[] values = new BigDecimal[] {
-                BigDecimal.valueOf(-123.123456789D),
-                BigDecimal.ZERO,
-                BigDecimal.valueOf(123.123456789D)
-            };
-            statement.sendRowBinaryStream("insert into table test.test_big_decimals", new ClickHouseStreamCallback() {
+            BigDecimal[] values = new BigDecimal[] { BigDecimal.valueOf(-123.123456789D), BigDecimal.ZERO,
+                    BigDecimal.valueOf(123.123456789D) };
+            statement.sendRowBinaryStream("insert into table test_big_decimals", new ClickHouseStreamCallback() {
                 @Override
                 public void writeTo(ClickHouseRowBinaryStream stream) throws IOException {
                     for (int i = 0; i < values.length; i++) {
@@ -302,7 +277,7 @@ public class RowBinaryStreamTest {
                 }
             });
 
-            try (ResultSet rs = statement.executeQuery("select * from test.test_big_decimals order by d128")) {
+            try (ResultSet rs = statement.executeQuery("select * from test_big_decimals order by d128")) {
                 int rowCounter = 0;
                 while (rs.next()) {
                     rowCounter++;
@@ -313,39 +288,37 @@ public class RowBinaryStreamTest {
                 assertEquals(rowCounter, values.length);
             }
 
-            statement.execute("drop table if exists test.test_big_decimals");
+            statement.execute("drop table if exists test_big_decimals");
         }
     }
 
     private void testRowBinaryStream(boolean rowBinaryResult) throws Exception {
-        createTable("test.raw_binary");
+        createTable("raw_binary");
         ClickHouseStatement statement = connection.createStatement();
-        final long timestamp = 1483230102000L; //2017-01-01 03:21:42
+        final long timestamp = 1483230102000L; // 2017-01-01 03:21:42
         final Date date1 = new Date(timestamp);
-        final Date date2 = new Date(1494321702000L); //2017-05-09 12:21:42
-        final Date[] dates1 = {new Date(1263945600000L)};
-        final Timestamp[] dateTimes1 = {new Timestamp(1483230102000L)};
-        final String[] strings1 = {"test", "test2"};
-        final byte[] int8s1 = {Byte.MIN_VALUE};
-        final int[] uint8s1 = {0};
-        final short[] int16s1 = {Short.MIN_VALUE};
-        final int[] uint16s1 = {0};
-        final int[] int32s1 = {Integer.MIN_VALUE};
-        final long[] uint32s1 = {0};
-        final long[] int64s1 = {Long.MIN_VALUE};
-        final long[] uint64s1 = {0};
-        final float[] float32s1 = {Float.MIN_VALUE};
-        final double[] float64s1 = {Double.MIN_VALUE};
+        final Date date2 = new Date(1494321702000L); // 2017-05-09 12:21:42
+        final Date[] dates1 = { new Date(1263945600000L) };
+        final Timestamp[] dateTimes1 = { new Timestamp(1483230102000L) };
+        final String[] strings1 = { "test", "test2" };
+        final byte[] int8s1 = { Byte.MIN_VALUE };
+        final int[] uint8s1 = { 0 };
+        final short[] int16s1 = { Short.MIN_VALUE };
+        final int[] uint16s1 = { 0 };
+        final int[] int32s1 = { Integer.MIN_VALUE };
+        final long[] uint32s1 = { 0 };
+        final long[] int64s1 = { Long.MIN_VALUE };
+        final long[] uint64s1 = { 0 };
+        final float[] float32s1 = { Float.MIN_VALUE };
+        final double[] float64s1 = { Double.MIN_VALUE };
         final UUID uuid1 = UUID.fromString("123e4567-e89b-12d3-a456-426655440000");
         final UUID uuid2 = UUID.fromString("789e0123-e89b-12d3-a456-426655444444");
 
-        statement.sendRowBinaryStream(
-                "INSERT INTO test.raw_binary " +
-                        "(date, dateTime, string, int8, uInt8, int16, uInt16, int32, uInt32, int64, uInt64, float32, " +
-                        "float64, dateArray, dateTimeArray, stringArray, int8Array, uInt8Array, int16Array, uInt16Array, " +
-                        "int32Array, uInt32Array, int64Array, uInt64Array, float32Array, float64Array, uuid, lowCardinality, " +
-                        "fixedString)",
-                new ClickHouseStreamCallback() {
+        statement.sendRowBinaryStream("INSERT INTO raw_binary "
+                + "(date, dateTime, string, int8, uInt8, int16, uInt16, int32, uInt32, int64, uInt64, float32, "
+                + "float64, dateArray, dateTimeArray, stringArray, int8Array, uInt8Array, int16Array, uInt16Array, "
+                + "int32Array, uInt32Array, int64Array, uInt64Array, float32Array, float64Array, uuid, lowCardinality, "
+                + "fixedString)", new ClickHouseStreamCallback() {
                     @Override
                     public void writeTo(ClickHouseRowBinaryStream stream) throws IOException {
 
@@ -392,33 +365,32 @@ public class RowBinaryStreamTest {
                         stream.writeUInt64(new BigInteger(Long.toUnsignedString(-1L)));
                         stream.writeFloat32((float) 21.21);
                         stream.writeFloat64(77.77);
-                        stream.writeDateArray(new Date[]{date2});
-                        stream.writeDateTimeArray(new Date[]{date2});
-                        stream.writeStringArray(new String[]{});
-                        stream.writeInt8Array(new byte[]{});
-                        stream.writeUInt8Array(new int[]{});
-                        stream.writeInt16Array(new short[]{});
-                        stream.writeUInt16Array(new int[]{});
-                        stream.writeInt32Array(new int[]{});
-                        stream.writeUInt32Array(new long[]{});
-                        stream.writeInt64Array(new long[]{});
-                        stream.writeUInt64Array(new long[]{});
-                        stream.writeFloat32Array(new float[]{});
-                        stream.writeFloat64Array(new double[]{});
+                        stream.writeDateArray(new Date[] { date2 });
+                        stream.writeDateTimeArray(new Date[] { date2 });
+                        stream.writeStringArray(new String[] {});
+                        stream.writeInt8Array(new byte[] {});
+                        stream.writeUInt8Array(new int[] {});
+                        stream.writeInt16Array(new short[] {});
+                        stream.writeUInt16Array(new int[] {});
+                        stream.writeInt32Array(new int[] {});
+                        stream.writeUInt32Array(new long[] {});
+                        stream.writeInt64Array(new long[] {});
+                        stream.writeUInt64Array(new long[] {});
+                        stream.writeFloat32Array(new float[] {});
+                        stream.writeFloat64Array(new double[] {});
                         stream.writeUUID(uuid2);
                         stream.writeString("lowCardinality\n2");
                         stream.writeFixedString("fixedString2", 15);
                     }
-                }
-        );
+                });
 
         if (!rowBinaryResult) {
-            ResultSet rs = connection.createStatement().executeQuery("SELECT * FROM test.raw_binary ORDER BY date");
+            ResultSet rs = connection.createStatement().executeQuery("SELECT * FROM raw_binary ORDER BY date");
 
             Assert.assertTrue(rs.next());
-            assertEquals(rs.getString("date"), 
-                Instant.ofEpochMilli(timestamp).atZone(connection.getTimeZone().toZoneId())
-                    .withZoneSameInstant(ZoneId.systemDefault()).toLocalDate().toString());
+            assertEquals(rs.getString("date"),
+                    Instant.ofEpochMilli(timestamp).atZone(connection.getTimeZone().toZoneId())
+                            .withZoneSameInstant(ZoneId.systemDefault()).toLocalDate().toString());
             assertEquals(rs.getTimestamp("dateTime").getTime(), date1.getTime());
             assertEquals(rs.getString("string"), "string\n1");
             assertEquals(rs.getInt("int8"), Byte.MIN_VALUE);
@@ -481,8 +453,8 @@ public class RowBinaryStreamTest {
 
             Assert.assertFalse(rs.next());
         } else {
-            ClickHouseRowBinaryInputStream is = connection.createStatement().executeQueryClickhouseRowBinaryStream(
-                "SELECT * FROM test.raw_binary ORDER BY date");
+            ClickHouseRowBinaryInputStream is = connection.createStatement()
+                    .executeQueryClickhouseRowBinaryStream("SELECT * FROM raw_binary ORDER BY date");
 
             assertEquals(is.readDate(), withTimeAtStartOfDay(date1));
             assertEquals(is.readDateTime(), new Timestamp(timestamp));
@@ -571,32 +543,25 @@ public class RowBinaryStreamTest {
         }
     }
 
-
-    @Test
-    public void testTimeZone() throws Exception{
+    @Test(groups = "integration")
+    public void testTimeZone() throws Exception {
         final ClickHouseStatement statement = connection.createStatement();
-        connection.createStatement().execute("DROP TABLE IF EXISTS test.binary_tz");
+        connection.createStatement().execute("DROP TABLE IF EXISTS binary_tz");
         connection.createStatement().execute(
-            "CREATE TABLE test.binary_tz (date Date, dateTime DateTime) ENGINE = MergeTree(date, (date), 8192)"
-        );
+                "CREATE TABLE binary_tz (date Date, dateTime DateTime) ENGINE = MergeTree(date, (date), 8192)");
 
         //
         final Date date1 = new Date(1497474018000L);
 
-        statement.sendRowBinaryStream(
-            "INSERT INTO test.binary_tz (date, dateTime)",
-            new ClickHouseStreamCallback() {
-                @Override
-                public void writeTo(ClickHouseRowBinaryStream stream) throws IOException {
-                    stream.writeDate(date1);
-                    stream.writeDateTime(date1);
-                }
+        statement.sendRowBinaryStream("INSERT INTO binary_tz (date, dateTime)", new ClickHouseStreamCallback() {
+            @Override
+            public void writeTo(ClickHouseRowBinaryStream stream) throws IOException {
+                stream.writeDate(date1);
+                stream.writeDateTime(date1);
             }
-        );
+        });
 
-        ResultSet rs = connection.createStatement().executeQuery(
-            "SELECT date, dateTime from test.binary_tz"
-        );
+        ResultSet rs = connection.createStatement().executeQuery("SELECT date, dateTime from binary_tz");
 
         Assert.assertTrue(rs.next());
 
@@ -604,19 +569,16 @@ public class RowBinaryStreamTest {
          * The following, commented-out assertion would be nice, but against the
          * definition of the Time class:
          *
-         * "The date components should be set to the "zero epoch" value of
-         * January 1, 1970 and should not be accessed."
+         * "The date components should be set to the "zero epoch" value of January 1,
+         * 1970 and should not be accessed."
          *
          * assertEquals(rs.getTime("dateTime"), new Time(date1.getTime()));
          *
-         * The original timestamp is 2017-06-14 21:00:18 (UTC), so we expect
-         * 21:00:18 as the local time, regardless of a different DST offset
+         * The original timestamp is 2017-06-14 21:00:18 (UTC), so we expect 21:00:18 as
+         * the local time, regardless of a different DST offset
          */
-        assertEquals(
-            Instant.ofEpochMilli(rs.getTime("dateTime").getTime())
-                .atZone(ZoneId.of("UTC"))
-                .toLocalTime(),
-            LocalTime.of(21, 0, 18));
+        assertEquals(Instant.ofEpochMilli(rs.getTime("dateTime").getTime()).atZone(ZoneId.of("UTC")).toLocalTime(),
+                LocalTime.of(21, 0, 18));
 
         Date expectedDate = withTimeAtStartOfDay(date1); // expected start of the day in local timezone
         assertEquals(rs.getDate("date"), expectedDate);

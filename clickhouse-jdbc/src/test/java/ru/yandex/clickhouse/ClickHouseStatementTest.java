@@ -21,7 +21,7 @@ import static org.testng.Assert.assertNull;
 import static org.testng.Assert.assertTrue;
 
 public class ClickHouseStatementTest {
-    @Test
+    @Test(groups = "unit")
     public void testClickhousify() throws Exception {
         ClickHouseStatementImpl s = new ClickHouseStatementImpl(null, null, null, ResultSet.TYPE_FORWARD_ONLY);
         String sql = "SELECT ololo FROM ololoed;";
@@ -74,7 +74,7 @@ public class ClickHouseStatementTest {
 
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testCredentials() throws SQLException, URISyntaxException {
         ClickHouseProperties properties = new ClickHouseProperties(new Properties());
         ClickHouseProperties withCredentials = properties.withCredentials("test_user", "test_password");
@@ -95,7 +95,7 @@ public class ClickHouseStatementTest {
         assertFalse(query.contains("user=test_user"));
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testMaxExecutionTime() throws Exception {
         ClickHouseProperties properties = new ClickHouseProperties();
         properties.setMaxExecutionTime(20);
@@ -111,7 +111,7 @@ public class ClickHouseStatementTest {
         assertTrue(query.contains("max_execution_time=10"), "max_execution_time param is missing in URL");
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testMaxMemoryUsage() throws Exception {
         ClickHouseProperties properties = new ClickHouseProperties();
         properties.setMaxMemoryUsage(41L);
@@ -123,7 +123,7 @@ public class ClickHouseStatementTest {
         assertTrue(query.contains("max_memory_usage=41"), "max_memory_usage param is missing in URL");
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testAdditionalRequestParams() {
         ClickHouseProperties properties = new ClickHouseProperties();
         ClickHouseStatementImpl statement = new ClickHouseStatementImpl(
@@ -158,7 +158,7 @@ public class ClickHouseStatementTest {
         assertEquals(statement.write().getRequestParams().get("cache_namespace"), "aaaa");
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testAdditionalDBParams() {
         ClickHouseProperties properties = new ClickHouseProperties();
         properties.setMaxThreads(1);
@@ -187,7 +187,7 @@ public class ClickHouseStatementTest {
         assertEquals(statement.write().getAdditionalDBParams().get(ClickHouseQueryParam.MAX_THREADS), "2");
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testIsSelect() throws SQLException {
         ClickHouseStatementImpl s = new ClickHouseStatementImpl(null, null, null, ResultSet.TYPE_FORWARD_ONLY);
         assertTrue(s.parseSqlStatements("SELECT 42")[0].isQuery());

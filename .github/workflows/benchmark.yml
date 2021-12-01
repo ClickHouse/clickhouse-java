@@ -61,8 +61,8 @@ jobs:
         run: |
           mvn --batch-mode --update-snapshots -q -DskipTests install
           cd clickhouse-benchmark
-          mvn --batch-mode --update-snapshots install
-          java -DclickhouseVersion="21.8" -jar target/benchmarks.jar -rf text -p client=clickhouse-jdbc Basic
+          java -DclickhouseVersion="21.8" -jar target/benchmarks.jar -rf text \
+            -p client=clickhouse-http-jdbc -p client=clickhouse-grpc-jdbc -p type=default Basic
           echo "BENCHMARK_REPORT<<EOF" >> $GITHUB_ENV
           cat jmh-result.text >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
@@ -97,9 +97,9 @@ jobs:
         continue-on-error: true
       - name: Update version and group id
         run: |
-          find . -type f -name "pom.xml" -exec sed -i -e 's|${revision}|${{ github.event.inputs.version }}|g' \
+          find . -type f -name "pom.xml" -exec sed -i -e 's|${revision}|${{ github.event.inputs.driver }}|g' \
             -e 's|^\(    <version>\).*\(</version>\)$|\1${{ github.event.inputs.driver }}\2|' \
-            -e 's|${parent.groupId}|com.clickhouse|g' '{}' \;
+            -e 's|${parent.groupId}|com.clickhouse|g' -e 's|${project.parent.groupId}|com.clickhouse|g' '{}' \;
           find . -type f -name "log4j.*" -exec rm -fv '{}' \;
         continue-on-error: true
       - name: Install driver as needed
