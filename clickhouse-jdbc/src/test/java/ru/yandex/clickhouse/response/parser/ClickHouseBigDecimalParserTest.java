@@ -19,13 +19,13 @@ public class ClickHouseBigDecimalParserTest {
     private ClickHouseValueParser<BigDecimal> parser;
     private ClickHouseColumnInfo columnInfo;
 
-    @BeforeClass
+    @BeforeClass(groups = "unit")
     public void setUp() throws Exception {
         parser = ClickHouseValueParser.getParser(BigDecimal.class);
         columnInfo = ClickHouseColumnInfo.parse("Float64", "column_name", null);
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testParseBigDecimal() throws Exception {
         assertNull(parser.parse(ByteFragment.fromString("\\N"), columnInfo, null));
         assertNull(parser.parse(ByteFragment.fromString(""), columnInfo, null));

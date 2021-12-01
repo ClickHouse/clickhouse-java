@@ -14,13 +14,13 @@ public class ClickHouseStringParserTest {
     private ClickHouseStringParser parser;
     private ClickHouseColumnInfo columnInfo;
 
-    @BeforeClass
+    @BeforeClass(groups = "unit")
     public void setUp() {
         parser = ClickHouseStringParser.getInstance();
         columnInfo = ClickHouseColumnInfo.parse("String", "column_name", null);
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testParseString() throws Exception {
         assertNull(parser.parse(ByteFragment.fromString("\\N"), columnInfo, null));
         assertEquals(parser.parse(ByteFragment.fromString(""), columnInfo, null), "");

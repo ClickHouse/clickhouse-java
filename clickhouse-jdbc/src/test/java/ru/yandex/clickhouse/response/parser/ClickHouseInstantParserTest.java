@@ -21,14 +21,14 @@ public class ClickHouseInstantParserTest {
     private TimeZone tzBerlin;
     private ClickHouseInstantParser parser;
 
-    @BeforeClass
+    @BeforeClass(groups = "unit")
     public void setUp() {
         parser = ClickHouseInstantParser.getInstance();
         tzLosAngeles = TimeZone.getTimeZone("America/Los_Angeles");
         tzBerlin = TimeZone.getTimeZone("Europe/Berlin");
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testParseInstantDateTime() throws Exception {
         Instant inst = parser.parse(
             ByteFragment.fromString("2020-01-20 22:23:24"),
@@ -44,7 +44,7 @@ public class ClickHouseInstantParserTest {
             1579587804);
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testParseInstantDateTimeColumnOverride() throws Exception {
         ClickHouseColumnInfo columnInfo = ClickHouseColumnInfo.parse(
             "DateTime(Europe/Berlin)", "col", TimeZone.getTimeZone("Asia/Chongqing"));
@@ -55,7 +55,7 @@ public class ClickHouseInstantParserTest {
             1579555404);
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testParseInstantDate() throws Exception {
         ClickHouseColumnInfo columnInfo = ClickHouseColumnInfo.parse(
             "Date", "col", null);
@@ -67,6 +67,7 @@ public class ClickHouseInstantParserTest {
     }
 
     @Test(
+        groups = "unit", 
         dataProvider = ClickHouseTimeParserTestDataProvider.OTHER_DATA_TYPES,
         dataProviderClass = ClickHouseTimeParserTestDataProvider.class)
     public void testParseInstantTimestampSeconds(ClickHouseDataType dataType) throws Exception {
@@ -85,6 +86,7 @@ public class ClickHouseInstantParserTest {
     }
 
     @Test(
+        groups = "unit", 
         dataProvider = ClickHouseTimeParserTestDataProvider.OTHER_DATA_TYPES,
         dataProviderClass = ClickHouseTimeParserTestDataProvider.class)
     public void parseInstantTimestampMillis(ClickHouseDataType dataType) throws Exception {
@@ -102,7 +104,7 @@ public class ClickHouseInstantParserTest {
             1579507200);
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testParseInstantString() throws Exception {
         ClickHouseColumnInfo columnInfo = ClickHouseColumnInfo.parse(
             "String", "col", null);
@@ -118,7 +120,7 @@ public class ClickHouseInstantParserTest {
             1579555404);
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testParseInstantUInt64Overflow() throws Exception {
         ClickHouseColumnInfo columnInfo = ClickHouseColumnInfo.parse(
             "UInt64", "col", null);
@@ -135,7 +137,7 @@ public class ClickHouseInstantParserTest {
                 2262, 4, 11, 23, 47, 16, 988000000, ZoneId.of("UTC")));
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testParseInstantUInt64Millis() throws Exception {
         ClickHouseColumnInfo columnInfo = ClickHouseColumnInfo.parse(
             "UInt64", "col", null);

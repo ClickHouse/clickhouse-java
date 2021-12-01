@@ -1,6 +1,5 @@
 package ru.yandex.clickhouse.integration;
 
-import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
@@ -8,47 +7,41 @@ import java.sql.Timestamp;
 import java.sql.Types;
 import java.util.TimeZone;
 
+import com.clickhouse.client.ClickHouseVersion;
+
 import org.mockito.Mockito;
 import org.testng.Assert;
-import org.testng.annotations.AfterTest;
-import org.testng.annotations.BeforeTest;
+import org.testng.annotations.AfterClass;
+import org.testng.annotations.BeforeClass;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 import ru.yandex.clickhouse.ClickHouseConnection;
-import ru.yandex.clickhouse.ClickHouseContainerForTest;
-import ru.yandex.clickhouse.ClickHouseDataSource;
 import ru.yandex.clickhouse.ClickHouseDatabaseMetadata;
-import ru.yandex.clickhouse.util.ClickHouseVersionNumberUtil;
+import ru.yandex.clickhouse.JdbcIntegrationTest;
 
-public class ClickHouseDatabaseMetadataTest {
-
-    private ClickHouseDataSource dataSource;
+public class ClickHouseDatabaseMetadataTest extends JdbcIntegrationTest {
     private ClickHouseConnection connection;
 
-    @BeforeTest
+    @BeforeClass(groups = "integration")
     public void setUp() throws Exception {
-        dataSource = ClickHouseContainerForTest.newDataSource();
-        connection = dataSource.getConnection();
-        connection.createStatement().execute("CREATE DATABASE IF NOT EXISTS test");
+        connection = newConnection();
     }
 
-    @AfterTest
+    @AfterClass(groups = "integration")
     public void tearDown() throws Exception {
-        if (connection != null) {
-            connection.close();
-        }
+        closeConnection(connection);
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testMetadata() throws Exception {
         connection.createStatement().executeQuery(
-            "DROP TABLE IF EXISTS test.testMetadata");
+            "DROP TABLE IF EXISTS testMetadata");
         connection.createStatement().executeQuery(
-            "CREATE TABLE test.testMetadata("
+            "CREATE TABLE testMetadata("
           + "foo Nullable(UInt32), bar UInt64) ENGINE = TinyLog");
         ResultSet columns = connection.getMetaData().getColumns(
-            null, "test", "testMetaData", null);
+            null, dbName, "testMetaData", null);
         while (columns.next()) {
             String colName = columns.getString("COLUMN_NAME");
             if ("foo".equals(colName)) {
@@ -62,21 +55,21 @@ public class ClickHouseDatabaseMetadataTest {
         }
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testMetadataColumns() throws Exception {
-        boolean supportComment = ClickHouseVersionNumberUtil.compare(connection.getServerVersion(), "18.16") >= 0;
+        boolean supportComment = ClickHouseVersion.check(connection.getServerVersion(), "[18.16,)");
         connection.createStatement().executeQuery(
-            "DROP TABLE IF EXISTS test.testMetadata");
+            "DROP TABLE IF EXISTS testMetadata");
         connection.createStatement().executeQuery(
-            "CREATE TABLE test.testMetadata("
+            "CREATE TABLE testMetadata("
           + "foo Float32, bar UInt8"
           + (supportComment ? " DEFAULT 42 COMMENT 'baz'" : "")
           + ") ENGINE = TinyLog");
         ResultSet columns = connection.getMetaData().getColumns(
-            null, "test", "testMetadata", null);
+            null, dbName, "testMetadata", null);
         columns.next();
         Assert.assertEquals(columns.getString("TABLE_CAT"), "default");
-        Assert.assertEquals(columns.getString("TABLE_SCHEM"), "test");
+        Assert.assertEquals(columns.getString("TABLE_SCHEM"), dbName);
         Assert.assertEquals(columns.getString("TABLE_NAME"), "testMetadata");
         Assert.assertEquals(columns.getString("COLUMN_NAME"), "foo");
         Assert.assertEquals(columns.getInt("DATA_TYPE"), Types.REAL);
@@ -106,7 +99,7 @@ public class ClickHouseDatabaseMetadataTest {
         }
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testDriverVersion() throws Exception {
         DatabaseMetaData metaData = new ClickHouseDatabaseMetadata(
             "url", Mockito.mock(ClickHouseConnection.class));
@@ -115,7 +108,7 @@ public class ClickHouseDatabaseMetadataTest {
         Assert.assertEquals(metaData.getDriverMinorVersion(), 1);
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testDatabaseVersion() throws Exception {
         String dbVersion = connection.getMetaData().getDatabaseProductVersion();
         Assert.assertFalse(dbVersion == null || dbVersion.isEmpty());
@@ -127,48 +120,45 @@ public class ClickHouseDatabaseMetadataTest {
         Assert.assertEquals(connection.getMetaData().getDatabaseMinorVersion(), dbMinor);
     }
 
-    @Test(dataProvider = "tableEngines")
+    @Test(groups = "integration", dataProvider = "tableEngines")
     public void testGetTablesEngines(String engine) throws Exception {
         connection.createStatement().executeQuery(
-            "DROP TABLE IF EXISTS test.testMetadata");
+            "DROP TABLE IF EXISTS testMetadata");
         connection.createStatement().executeQuery(
-            "CREATE TABLE test.testMetadata("
+            "CREATE TABLE testMetadata("
           + "foo Date) ENGINE = "
           + engine);
-        ResultSet tableMeta = connection.getMetaData().getTables(null, "test", "testMetadata", null);
+        ResultSet tableMeta = connection.getMetaData().getTables(null, dbName, "testMetadata", null);
         tableMeta.next();
         Assert.assertEquals("TABLE", tableMeta.getString("TABLE_TYPE"));
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testGetTablesViews() throws Exception {
         connection.createStatement().executeQuery(
-            "DROP TABLE IF EXISTS test.testMetadataView");
+            "DROP TABLE IF EXISTS testMetadataView");
         connection.createStatement().executeQuery(
-            "CREATE VIEW test.testMetadataView AS SELECT 1 FROM system.tables");
+            "CREATE VIEW testMetadataView AS SELECT 1 FROM system.tables");
         ResultSet tableMeta = connection.getMetaData().getTables(
-            null, "test", "testMetadataView", null);
+            null, dbName, "testMetadataView", null);
         tableMeta.next();
         Assert.assertEquals("VIEW", tableMeta.getString("TABLE_TYPE"));
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testToDateTimeTZ() throws Exception {
         connection.createStatement().executeQuery(
-            "DROP TABLE IF EXISTS test.testDateTimeTZ");
+            "DROP TABLE IF EXISTS testDateTimeTZ");
         connection.createStatement().executeQuery(
-            "CREATE TABLE test.testDateTimeTZ (foo DateTime) Engine = Memory");
+            "CREATE TABLE testDateTimeTZ (foo DateTime) Engine = Memory");
         connection.createStatement().execute(
-            "INSERT INTO test.testDateTimeTZ (foo) VALUES('2019-04-12 13:37:00')");
+            "INSERT INTO testDateTimeTZ (foo) VALUES('2019-04-12 13:37:00')");
         ResultSet rs = connection.createStatement().executeQuery(
-            "SELECT toDateTime(foo) FROM test.testDateTimeTZ");
+            "SELECT toDateTime(foo) FROM testDateTimeTZ");
         ResultSetMetaData meta = rs.getMetaData();
         Assert.assertEquals(meta.getColumnClassName(1), Timestamp.class.getCanonicalName());
         TimeZone timezone = ((ClickHouseConnection) connection).getTimeZone();
-        String version = ((ClickHouseConnection) connection).getServerVersion();
-        int majorVersion = ClickHouseVersionNumberUtil.getMajorVersion(version);
-        int minorVersion = ClickHouseVersionNumberUtil.getMinorVersion(version);
-        if (majorVersion > 21 || (majorVersion == 21 && minorVersion >= 6)) {
+        if (ClickHouseVersion.check(connection.getServerVersion(), "[21.6,)")) {
             Assert.assertEquals(meta.getColumnTypeName(1), "DateTime");
         } else {
             Assert.assertEquals(meta.getColumnTypeName(1), "DateTime('" + timezone.getID() + "')");

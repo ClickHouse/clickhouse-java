@@ -11,7 +11,7 @@ import org.testng.annotations.Test;
  */
 public class PreparedStatementParserTest {
 
-    @Test
+    @Test(groups = "unit")
     public void testNullSafety() {
         try {
             PreparedStatementParser.parse(null);
@@ -19,98 +19,98 @@ public class PreparedStatementParserTest {
         } catch (IllegalArgumentException iae) { /* expected */ }
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testParseSimple() {
         PreparedStatementParser s = PreparedStatementParser.parse(
             "INSERT INTO t (a, b) VALUES (?, ?)");
         assertMatchParams(new String[][] {{"?", "?"}}, s);
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testParseConstantSimple() {
         PreparedStatementParser s = PreparedStatementParser.parse(
             "INSERT INTO t (a, b) VALUES (?, 'foo')");
         assertMatchParams(new String[][] {{"?", "'foo'"}}, s);
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testParseSimpleWhitespaceValueMode() {
         PreparedStatementParser s = PreparedStatementParser.parse(
             "    INSERT\t INTO t(a, b)    VALUES(?, ?)");
         assertMatchParams(new String[][] {{"?", "?"}}, s);
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testParseConstantSimpleInt() {
         PreparedStatementParser s = PreparedStatementParser.parse(
             "INSERT INTO t (a, b) VALUES (?, 42)");
         assertMatchParams(new String[][] {{"?", "42"}}, s);
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testParseConstantSimpleIntTrailingWhitespace() {
         PreparedStatementParser s = PreparedStatementParser.parse(
             "INSERT INTO t (a, b) VALUES (?,42 )");
         assertMatchParams(new String[][] {{"?", "42"}}, s);
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testParseConstantSimpleIntTrailingLeadingWhitespace() {
         PreparedStatementParser s = PreparedStatementParser.parse(
             "INSERT INTO t (a, b) VALUES (?, 42 )");
         assertMatchParams(new String[][] {{"?", "42"}}, s);
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testParseParentheses() {
         PreparedStatementParser s = PreparedStatementParser.parse(
             "INSERT INTO t (a, b) VALUES ((?), ('foo'))");
         assertMatchParams(new String[][] {{"?", "'foo'"}}, s);
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testParseParenthesesInQuotes() {
         PreparedStatementParser s = PreparedStatementParser.parse(
             "INSERT INTO t (a, b) VALUES ((?), ('foo)))'))");
         assertMatchParams(new String[][] {{"?", "'foo)))'"}}, s);
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testParseEscapedQuote() {
         PreparedStatementParser s = PreparedStatementParser.parse(
             "INSERT INTO t (a, b) VALUES (?, 'foo\\'bar')");
         assertMatchParams(new String[][] {{"?", "'foo\\'bar'"}}, s);
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testParseEscapedQuoteBroken() {
         PreparedStatementParser s = PreparedStatementParser.parse(
             "INSERT INTO t (a, b) VALUES (?, 'foo\'bar')");
         Assert.assertTrue(s.getParameters().isEmpty()); // Is this expected?
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testParseQuestionMarkInQuotes() {
         PreparedStatementParser s = PreparedStatementParser.parse(
             "INSERT INTO t (a, b) VALUES ('?', 'foo')");
         assertMatchParams(new String[][] {{"'?'", "'foo'"}}, s);
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testParseQuestionMarkAndMoreInQuotes() {
         PreparedStatementParser s = PreparedStatementParser.parse(
             "INSERT INTO t (a, b) VALUES ('? foo ?', 'bar')");
         assertMatchParams(new String[][] {{"'? foo ?'", "'bar'"}}, s);
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testParseEscapedQuestionMark() {
         PreparedStatementParser s = PreparedStatementParser.parse(
             "INSERT INTO t (a, b) VALUES (\\?, 'foo')");
         assertMatchParams(new String[][] {{"'foo'"}}, s);
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testNoCommasQuestionMarks() {
         PreparedStatementParser s = PreparedStatementParser.parse(
             "INSERT INTO t (a, b) VALUES (foo ? bar ?)");
@@ -119,42 +119,42 @@ public class PreparedStatementParserTest {
         Assert.assertEquals(matrix.get(0).size(), 1);
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testParseIgnoreInsert() {
         PreparedStatementParser s = PreparedStatementParser.parse(
             "INSERT INTO t (foo, ?) VALUES (?, 'bar')");
         assertMatchParams(new String[][] {{"?", "'bar'"}}, s);
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testDoubleComma() {
         PreparedStatementParser s = PreparedStatementParser.parse(
             "INSERT INTO t (a, b) VALUES (?, 'bar',, ?, , ?)");
         assertMatchParams(new String[][] {{"?", "'bar'", "?", "?"}}, s);
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testDoubleSingleQuote() {
         PreparedStatementParser s = PreparedStatementParser.parse(
             "INSERT INTO t (a) VALUES ('')");
         assertMatchParams(new String[][] {{"''"}}, s);
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testInsertNumbers() {
         PreparedStatementParser s = PreparedStatementParser.parse(
             "INSERT INTO t (foo, bar, baz) VALUES (42, 23, '42')");
         assertMatchParams(new String[][] {{"42", "23", "'42'"}}, s);
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testInsertBoolean() {
         PreparedStatementParser s = PreparedStatementParser.parse(
             "INSERT INTO t (foo, bar) VALUES (TRUE, false)");
         assertMatchParams(new String[][] {{"1", "0"}}, s);
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testMultiParams() {
         PreparedStatementParser s = PreparedStatementParser.parse(
             "INSERT INTO t (a, b) VALUES (?, ?), (?, ?)");
@@ -166,7 +166,7 @@ public class PreparedStatementParserTest {
             s);
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testMultiParamsWithConstants() {
         PreparedStatementParser s = PreparedStatementParser.parse(
             "INSERT INTO t (a, b) VALUES (?, 'foo'), ('bar', ?)");
@@ -178,7 +178,7 @@ public class PreparedStatementParserTest {
             s);
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testValuesModeDoubleQuotes() {
         PreparedStatementParser s = PreparedStatementParser.parse(
             "INSERT INTO t (\"foo.bar\") VALUES (?)");
@@ -186,7 +186,7 @@ public class PreparedStatementParserTest {
         Assert.assertEquals(s.getParts().get(0), "INSERT INTO t (\"foo.bar\") VALUES (");
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testValuesModeDoubleQuotesValues() {
         PreparedStatementParser s = PreparedStatementParser.parse(
             "INSERT INTO t (\"foo.bar\") VALUES (\"baz\")");
@@ -194,7 +194,7 @@ public class PreparedStatementParserTest {
         Assert.assertEquals(s.getParts().get(0), "INSERT INTO t (\"foo.bar\") VALUES (");
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testValuesModeSingleQuotes() {
         PreparedStatementParser s = PreparedStatementParser.parse(
             "INSERT INTO t ('foo.bar') VALUES (?)");
@@ -202,7 +202,7 @@ public class PreparedStatementParserTest {
         Assert.assertEquals(s.getParts().get(0), "INSERT INTO t ('foo.bar') VALUES (");
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testValuesModeSingleQuotesValues() {
         PreparedStatementParser s = PreparedStatementParser.parse(
             "INSERT INTO t ('foo.bar') VALUES ('baz')");
@@ -210,7 +210,7 @@ public class PreparedStatementParserTest {
         Assert.assertEquals(s.getParts().get(0), "INSERT INTO t ('foo.bar') VALUES (");
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testParseInsertSelect() {
         PreparedStatementParser s = PreparedStatementParser.parse(
             "INSERT INTO t (a, b) SELECT x, y");
@@ -218,7 +218,7 @@ public class PreparedStatementParserTest {
         Assert.assertTrue(s.getParameters().isEmpty());
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testParseInsertSelectParams() {
         PreparedStatementParser s = PreparedStatementParser.parse(
             "INSERT INTO t (a, b) SELECT x FROM u WHERE y = ? AND z = ?");
@@ -228,7 +228,7 @@ public class PreparedStatementParserTest {
         assertMatchParams(new String[][] {{"?",  "?"}}, s);
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testParseSelectGroupBy() {
         PreparedStatementParser s = PreparedStatementParser.parse(
             "SELECT SUM(x) FROM t WHERE y = ? GROUP BY ? HAVING COUNT(z) > ? ORDER BY z DESC");
@@ -240,7 +240,7 @@ public class PreparedStatementParserTest {
         assertMatchParams(new String[][] {{"?", "?", "?"}}, s);
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testParseWithComment1() {
         PreparedStatementParser s = PreparedStatementParser.parse(
             "select a --what is it?\nfrom t where a = ? and b = 1");
@@ -249,7 +249,7 @@ public class PreparedStatementParserTest {
         assertMatchParams(new String[][] {{"?"}}, s);
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testParseWithComment2() {
         PreparedStatementParser s = PreparedStatementParser.parse(
             "select a /*what is it?*/ from t where a = ? and b = 1");
@@ -260,7 +260,7 @@ public class PreparedStatementParserTest {
         assertMatchParams(new String[][] {{"?"}}, s);
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testParseSelectStar() {
         PreparedStatementParser s = PreparedStatementParser.parse(
             "SELECT * FROM tbl");
@@ -268,7 +268,7 @@ public class PreparedStatementParserTest {
         Assert.assertTrue(s.getParameters().isEmpty());
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testParseSelectStarParam() {
         PreparedStatementParser s = PreparedStatementParser.parse(
             "SELECT * FROM tbl WHERE t = ?");
@@ -276,7 +276,7 @@ public class PreparedStatementParserTest {
         assertMatchParams(new String[][] {{"?"}}, s);
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testParseSelectEscapedGarbage() {
         PreparedStatementParser s = PreparedStatementParser.parse(
             "SELECT 'a\\'\\\\sdfasdf?adsf\\\\' as `sadf\\`?` FROM tbl WHERE t = ? AND r = ? ORDER BY 1");
@@ -288,7 +288,7 @@ public class PreparedStatementParserTest {
         assertMatchParams(new String[][] {{"?", "?"}}, s);
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testRegularParam() throws Exception {
         // Test inspired by MetaBase test cases
         PreparedStatementParser s = PreparedStatementParser.parse(
@@ -306,7 +306,7 @@ public class PreparedStatementParserTest {
             "))");
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testRegularParamWhitespace() throws Exception {
         PreparedStatementParser s = PreparedStatementParser.parse(
             "SELECT count(*) AS `count` FROM `foo`.`bar` "
@@ -323,7 +323,7 @@ public class PreparedStatementParserTest {
             "   ))");
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testRegularParamInFunction() throws Exception {
         PreparedStatementParser s = PreparedStatementParser.parse(
             "SELECT count(*) AS `count` FROM `foo`.`bar` "
@@ -338,7 +338,7 @@ public class PreparedStatementParserTest {
             ")");
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testNullValuesSelect() throws Exception {
         PreparedStatementParser s = PreparedStatementParser.parse(
             "SELECT 1 FROM foo WHERE bar IN (?, NULL)");
@@ -348,7 +348,7 @@ public class PreparedStatementParserTest {
         Assert.assertEquals(params.get(0).get(0), "?");
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testNullValuesInsert() throws Exception {
         PreparedStatementParser s = PreparedStatementParser.parse(
             "INSERT INTO test.prep_nullable_value (s, i, f) VALUES "
@@ -359,7 +359,7 @@ public class PreparedStatementParserTest {
             s);
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testParamLastCharacter() throws Exception {
         PreparedStatementParser s = PreparedStatementParser.parse(
             "SELECT * FROM decisions "
@@ -377,7 +377,7 @@ public class PreparedStatementParserTest {
         Assert.assertEquals(s.getParts().get(5), "");
     }
     
-    @Test
+    @Test(groups = "unit")
     public void testSingleAndBackMixedQuotes() {
         PreparedStatementParser s = PreparedStatementParser.parse(
             "SELECT '`' as `'` WHERE 0 = ?");
@@ -386,7 +386,7 @@ public class PreparedStatementParserTest {
     }
 
 
-    @Test
+    @Test(groups = "unit")
     public void testInsertValuesFunctions() throws Exception {
         PreparedStatementParser s = PreparedStatementParser.parse(
             "INSERT INTO foo(id, src, dst) "
@@ -399,7 +399,7 @@ public class PreparedStatementParserTest {
             ")))"}, s);
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testMultiLineValues() {
         PreparedStatementParser s = PreparedStatementParser.parse(
             "INSERT INTO table1\n"

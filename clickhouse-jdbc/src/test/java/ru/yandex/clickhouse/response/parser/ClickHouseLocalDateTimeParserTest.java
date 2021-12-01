@@ -24,14 +24,14 @@ public class ClickHouseLocalDateTimeParserTest {
     private TimeZone tzBerlin;
     private ClickHouseLocalDateTimeParser parser;
 
-    @BeforeClass
+    @BeforeClass(groups = "unit")
     public void setUp() {
         tzLosAngeles = TimeZone.getTimeZone("America/Los_Angeles");
         tzBerlin = TimeZone.getTimeZone("Europe/Berlin");
         parser = ClickHouseLocalDateTimeParser.getInstance();
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testParseLocalDateTimeNull() throws Exception {
         ClickHouseColumnInfo columnInfo =
             ClickHouseColumnInfo.parse("Date", "col", null);
@@ -44,7 +44,7 @@ public class ClickHouseLocalDateTimeParserTest {
         }
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testParseLocalDateTimeDate() throws Exception {
         ClickHouseColumnInfo columnInfo =
             ClickHouseColumnInfo.parse("Date", "col", null);
@@ -66,7 +66,7 @@ public class ClickHouseLocalDateTimeParserTest {
                 ByteFragment.fromString("0000-00-00"), columnInfo, tzLosAngeles));
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testParseLocalDateTimeDateTimeNullable() throws Exception {
         ClickHouseColumnInfo columnInfo =
             ClickHouseColumnInfo.parse("Nullable(DateTime)", "col", null);
@@ -75,7 +75,7 @@ public class ClickHouseLocalDateTimeParserTest {
                 ByteFragment.fromString("0000-00-00 00:00:00"), columnInfo, tzLosAngeles));
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testParseLocalDateTimeDateTime() throws Exception {
         ClickHouseColumnInfo columnInfo =
             ClickHouseColumnInfo.parse("DateTime", "col", null);
@@ -99,7 +99,7 @@ public class ClickHouseLocalDateTimeParserTest {
     /*
      * No automatic conversion into any time zone, simply local date time
      */
-    @Test
+    @Test(groups = "unit")
     public void testParseLocalDateTimeDateTimeTZColumn() throws Exception {
         ClickHouseColumnInfo columnInfo =
             ClickHouseColumnInfo.parse("DateTime(Europe/Berlin)", "col", null);
@@ -121,6 +121,7 @@ public class ClickHouseLocalDateTimeParserTest {
     }
 
     @Test(
+        groups = "unit", 
         dataProvider = ClickHouseTimeParserTestDataProvider.OTHER_DATA_TYPES,
         dataProviderClass = ClickHouseTimeParserTestDataProvider.class)
     public void testParseLocalDateTimeNumber(ClickHouseDataType dataType) throws Exception {
@@ -180,7 +181,7 @@ public class ClickHouseLocalDateTimeParserTest {
             ByteFragment.fromString(String.valueOf(0)), columnInfo, tzBerlin));
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testParseLocalDateTimeNumberNegative() throws Exception {
         ClickHouseColumnInfo columnInfo =
             ClickHouseColumnInfo.parse(ClickHouseDataType.Int64.name(), "col", null);
@@ -190,7 +191,7 @@ public class ClickHouseLocalDateTimeParserTest {
             LocalDate.of(1957, 10, 4).atStartOfDay());
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testParseLocalDateTimeOtherLikeDate() throws Exception {
         ClickHouseColumnInfo columnInfo =
             ClickHouseColumnInfo.parse(ClickHouseDataType.Unknown.name(), "col", null);
@@ -214,7 +215,7 @@ public class ClickHouseLocalDateTimeParserTest {
         }
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testParseLocalDateTimeOtherLikeDateTime() throws Exception {
         ClickHouseColumnInfo columnInfo =
             ClickHouseColumnInfo.parse(ClickHouseDataType.Unknown.name(), "col", null);

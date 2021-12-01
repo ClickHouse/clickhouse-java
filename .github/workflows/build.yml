@@ -32,11 +32,10 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        java: [8, 11, 17]
         # most recent LTS releases as well as latest stable builds
         clickhouse: ["21.3", "21.8", "latest"]
       fail-fast: false
-    name: Build using JDK ${{ matrix.java }} against ClickHouse ${{ matrix.clickhouse }}
+    name: Build against ClickHouse ${{ matrix.clickhouse }}
     steps:
       - name: Check out Git repository
         uses: actions/checkout@v2
@@ -45,10 +44,34 @@ jobs:
           git fetch --no-tags --prune --progress --no-recurse-submodules --depth=1 \
             origin pull/${{ github.event.inputs.pr }}/merge:merged-pr && git checkout merged-pr
         if: github.event.inputs.pr != ''
-      - name: Set up JDK ${{ matrix.java }}
-        uses: actions/setup-java@v1
+      - name: Install JDK 11
+        uses: AdoptOpenJDK/install-jdk@v1
         with:
-          java-version: ${{ matrix.java }}
+          version: '11'
+          targets: 'JDK11_HOME'
+      - name: Setup Toolchain
+        shell: bash
+        run: |
+          mkdir -p $HOME/.m2 \
+          && cat << EOF > $HOME/.m2/toolchains.xml
+          <?xml version="1.0" encoding="UTF8"?>
+          <toolchains>
+            <toolchain>
+              <type>jdk</type>
+              <provides>
+                <version>11</version>
+              </provides>
+              <configuration>
+                <jdkHome>${{ env.JDK11_HOME }}</jdkHome>
+              </configuration>
+            </toolchain>
+          </toolchains>
+          EOF
+      - name: Install JDK 8 and Maven
+        uses: actions/setup-java@v2
+        with:
+          distribution: 'temurin'
+          java-version: 8
       # Step that does that actual cache save and restore
       - name: Cache maven dependencies
         uses: actions/cache@v2
@@ -57,6 +80,6 @@ jobs:
           key: ${{ runner.os }}-build-${{ hashFiles('**/pom.xml') }}
           restore-keys: |
             ${{ runner.os }}-build-
-      - name: Build with Maven
+      - name: Build
         run: |
           mvn --batch-mode --update-snapshots -Drelease -DclickhouseVersion=${{ matrix.clickhouse }} verify

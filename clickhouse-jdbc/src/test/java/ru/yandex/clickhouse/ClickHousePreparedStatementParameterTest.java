@@ -10,7 +10,7 @@ import static org.testng.Assert.assertSame;
 
 public class ClickHousePreparedStatementParameterTest {
 
-    @Test
+    @Test(groups = "unit")
     public void testNullParam() {
         ClickHousePreparedStatementParameter p0 =
             ClickHousePreparedStatementParameter.nullParameter();
@@ -23,7 +23,7 @@ public class ClickHousePreparedStatementParameterTest {
         assertSame(p1, p0);
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testArrayAndCollectionParam() {
         ClickHousePreparedStatementParameter p0 =
                 ClickHousePreparedStatementParameter.fromObject(Arrays.asList("A", "B", "C"), TimeZone.getDefault(), TimeZone.getDefault());
@@ -33,7 +33,7 @@ public class ClickHousePreparedStatementParameterTest {
         assertEquals(p0.getBatchValue(), p1.getBatchValue());
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testBooleanParam() {
         assertEquals(ClickHousePreparedStatementParameter.fromObject(Boolean.TRUE,
             TimeZone.getDefault(), TimeZone.getDefault()).getRegularValue(), "1");
@@ -41,7 +41,7 @@ public class ClickHousePreparedStatementParameterTest {
             TimeZone.getDefault(), TimeZone.getDefault()).getRegularValue(), "0");
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testNumberParam() {
         assertEquals(ClickHousePreparedStatementParameter.fromObject(10,
             TimeZone.getDefault(), TimeZone.getDefault()).getRegularValue(), "10");
@@ -49,7 +49,7 @@ public class ClickHousePreparedStatementParameterTest {
             TimeZone.getDefault(), TimeZone.getDefault()).getRegularValue(), "10.5");
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testStringParam() {
         assertEquals(ClickHousePreparedStatementParameter.fromObject("someString",
             TimeZone.getDefault(), TimeZone.getDefault()).getRegularValue(), "'someString'");

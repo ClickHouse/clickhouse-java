@@ -1,17 +1,19 @@
 package ru.yandex.clickhouse;
 
-import org.slf4j.LoggerFactory;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
-import ru.yandex.clickhouse.util.apache.StringUtils;
 
 import javax.sql.DataSource;
+
+import com.clickhouse.client.ClickHouseChecker;
+import com.clickhouse.client.logging.Logger;
+import com.clickhouse.client.logging.LoggerFactory;
+
 import java.io.PrintWriter;
 import java.net.URISyntaxException;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
-import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -25,7 +27,7 @@ import static ru.yandex.clickhouse.ClickhouseJdbcUrlParser.JDBC_CLICKHOUSE_PREFI
  * which test hosts for availability. By default, this option is turned off.
  */
 public class BalancedClickhouseDataSource implements DataSource {
-    private static final org.slf4j.Logger log = LoggerFactory.getLogger(BalancedClickhouseDataSource.class);
+    private static final Logger log = LoggerFactory.getLogger(BalancedClickhouseDataSource.class);
     private static final Pattern URL_TEMPLATE = Pattern.compile(JDBC_CLICKHOUSE_PREFIX + "" +
             "//([a-zA-Z0-9_\\[\\]:,.-]+)" +
             "(/[a-zA-Z0-9_]+" +
@@ -106,7 +108,7 @@ public class BalancedClickhouseDataSource implements DataSource {
                 if (driver.acceptsURL(url)) {
                     allUrls.add(url);
                 } else {
-                    log.error("that url is has not correct format: {}", url);
+                    log.error("that url is has not correct format: %s", url);
                 }
             } catch (SQLException e) {
                 throw new IllegalArgumentException("error while checking url: " + url, e);
@@ -144,7 +146,7 @@ public class BalancedClickhouseDataSource implements DataSource {
             driver.connect(url, properties).createStatement().execute("SELECT 1");
             return true;
         } catch (Exception e) {
-            log.debug("Unable to connect using {}", url, e);
+            log.debug("Unable to connect using %s", url, e);
             return false;
         }
     }
@@ -158,12 +160,12 @@ public class BalancedClickhouseDataSource implements DataSource {
         List<String> enabledUrls = new ArrayList<String>(allUrls.size());
 
         for (String url : allUrls) {
-            log.debug("Pinging disabled url: {}", url);
+            log.debug("Pinging disabled url: %s", url);
             if (ping(url)) {
-                log.debug("Url is alive now: {}", url);
+                log.debug("Url is alive now: %s", url);
                 enabledUrls.add(url);
             } else {
-                log.debug("Url is dead now: {}", url);
+                log.debug("Url is dead now: %s", url);
             }
         }
 
@@ -258,7 +260,7 @@ public class BalancedClickhouseDataSource implements DataSource {
     /**
      * {@inheritDoc}
      */
-    public Logger getParentLogger() throws SQLFeatureNotSupportedException {
+    public java.util.logging.Logger getParentLogger() throws SQLFeatureNotSupportedException {
         throw new SQLFeatureNotSupportedException();
     }
 
@@ -328,7 +330,7 @@ public class BalancedClickhouseDataSource implements DataSource {
     }
 
     private static Properties getFromUrlWithoutDefault(String url) {
-        if (StringUtils.isBlank(url))
+        if (ClickHouseChecker.isNullOrBlank(url))
             return new Properties();
 
         int index = url.indexOf("?");

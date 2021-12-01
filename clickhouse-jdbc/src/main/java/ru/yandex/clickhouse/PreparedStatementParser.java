@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import ru.yandex.clickhouse.util.apache.StringUtils;
+import com.clickhouse.client.ClickHouseChecker;
 
 /**
  * Parser for JDBC SQL Strings.
@@ -37,7 +37,7 @@ final class PreparedStatementParser  {
 
     @Deprecated
     static PreparedStatementParser parse(String sql, int valuesEndPosition) {
-        if (StringUtils.isBlank(sql)) {
+        if (ClickHouseChecker.isNullOrBlank(sql)) {
             throw new IllegalArgumentException("SQL may not be blank");
         }
         PreparedStatementParser parser = new PreparedStatementParser();

@@ -4,9 +4,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
 
-import ru.yandex.clickhouse.util.apache.StringUtils;
-
-
+import com.clickhouse.client.ClickHouseChecker;
+import com.clickhouse.client.ClickHouseProtocol;
 
 public class ClickHouseProperties {
 
@@ -16,6 +15,7 @@ public class ClickHouseProperties {
     private int apacheBufferSize;
     private int socketTimeout;
     private int connectionTimeout;
+    private int dataTransferTimeout;
     private int timeToLiveMillis;
     private int validateAfterInactivityMillis;
     private int defaultMaxPerRoute;
@@ -23,6 +23,7 @@ public class ClickHouseProperties {
     private int maxRetries;
     private String host;
     private int port;
+    private ClickHouseProtocol protocol;
     private boolean usePathAsDb;
     private String path;
     private boolean ssl;
@@ -110,6 +111,7 @@ public class ClickHouseProperties {
         this.apacheBufferSize = (Integer)getSetting(info, ClickHouseConnectionSettings.APACHE_BUFFER_SIZE);
         this.socketTimeout = (Integer)getSetting(info, ClickHouseConnectionSettings.SOCKET_TIMEOUT);
         this.connectionTimeout = (Integer)getSetting(info, ClickHouseConnectionSettings.CONNECTION_TIMEOUT);
+        this.dataTransferTimeout = (Integer)getSetting(info, ClickHouseConnectionSettings.DATA_TRANSFER_TIMEOUT);
         this.timeToLiveMillis = (Integer)getSetting(info, ClickHouseConnectionSettings.TIME_TO_LIVE_MILLIS);
         this.validateAfterInactivityMillis = (Integer)getSetting(info, ClickHouseConnectionSettings.VALIDATE_AFTER_INACTIVITY_MILLIS);
         this.defaultMaxPerRoute = (Integer)getSetting(info, ClickHouseConnectionSettings.DEFAULT_MAX_PER_ROUTE);
@@ -121,6 +123,7 @@ public class ClickHouseProperties {
         this.sslMode = (String) getSetting(info, ClickHouseConnectionSettings.SSL_MODE);
         this.usePathAsDb = (Boolean) getSetting(info, ClickHouseConnectionSettings.USE_PATH_AS_DB);
         this.path = (String) getSetting(info, ClickHouseConnectionSettings.PATH);
+        this.protocol = ClickHouseProtocol.valueOf(((String) getSetting(info, ClickHouseConnectionSettings.PROTOCOL)).toUpperCase());
         this.maxRedirects = (Integer) getSetting(info, ClickHouseConnectionSettings.MAX_REDIRECTS);
         this.checkForRedirects = (Boolean) getSetting(info, ClickHouseConnectionSettings.CHECK_FOR_REDIRECTS);
         this.useServerTimeZone = (Boolean)getSetting(info, ClickHouseConnectionSettings.USE_SERVER_TIME_ZONE);
@@ -136,6 +139,7 @@ public class ClickHouseProperties {
         this.quotaKey = getSetting(info, ClickHouseQueryParam.QUOTA_KEY);
         this.priority = getSetting(info, ClickHouseQueryParam.PRIORITY);
         this.database = getSetting(info, ClickHouseQueryParam.DATABASE);
+        this.protocol = ClickHouseProtocol.valueOf(((String)getSetting(info, ClickHouseConnectionSettings.PROTOCOL)).toUpperCase());
         this.compress = (Boolean)getSetting(info, ClickHouseQueryParam.COMPRESS);
         this.decompress = (Boolean)getSetting(info, ClickHouseQueryParam.DECOMPRESS);
         this.extremes = (Boolean)getSetting(info, ClickHouseQueryParam.EXTREMES);
@@ -178,6 +182,7 @@ public class ClickHouseProperties {
         ret.put(ClickHouseConnectionSettings.APACHE_BUFFER_SIZE.getKey(), String.valueOf(apacheBufferSize));
         ret.put(ClickHouseConnectionSettings.SOCKET_TIMEOUT.getKey(), String.valueOf(socketTimeout));
         ret.put(ClickHouseConnectionSettings.CONNECTION_TIMEOUT.getKey(), String.valueOf(connectionTimeout));
+        ret.put(ClickHouseConnectionSettings.DATA_TRANSFER_TIMEOUT.getKey(), String.valueOf(dataTransferTimeout));
         ret.put(ClickHouseConnectionSettings.TIME_TO_LIVE_MILLIS.getKey(), String.valueOf(timeToLiveMillis));
         ret.put(ClickHouseConnectionSettings.VALIDATE_AFTER_INACTIVITY_MILLIS.getKey(), String.valueOf(validateAfterInactivityMillis));
         ret.put(ClickHouseConnectionSettings.DEFAULT_MAX_PER_ROUTE.getKey(), String.valueOf(defaultMaxPerRoute));
@@ -189,6 +194,7 @@ public class ClickHouseProperties {
         ret.put(ClickHouseConnectionSettings.SSL_MODE.getKey(), String.valueOf(sslMode));
         ret.put(ClickHouseConnectionSettings.USE_PATH_AS_DB.getKey(), String.valueOf(usePathAsDb));
         ret.put(ClickHouseConnectionSettings.PATH.getKey(), String.valueOf(path));
+        ret.put(ClickHouseConnectionSettings.PROTOCOL.getKey(), String.valueOf(protocol.name().toLowerCase()));
         ret.put(ClickHouseConnectionSettings.MAX_REDIRECTS.getKey(), String.valueOf(maxRedirects));
         ret.put(ClickHouseConnectionSettings.CHECK_FOR_REDIRECTS.getKey(), String.valueOf(checkForRedirects));
         ret.put(ClickHouseConnectionSettings.USE_SERVER_TIME_ZONE.getKey(), String.valueOf(useServerTimeZone));
@@ -249,6 +255,7 @@ public class ClickHouseProperties {
         setApacheBufferSize(properties.apacheBufferSize);
         setSocketTimeout(properties.socketTimeout);
         setConnectionTimeout(properties.connectionTimeout);
+        setDataTransferTimeout(properties.dataTransferTimeout);
         setTimeToLiveMillis(properties.timeToLiveMillis);
         setValidateAfterInactivityMillis(properties.validateAfterInactivityMillis);
         setDefaultMaxPerRoute(properties.defaultMaxPerRoute);
@@ -260,6 +267,7 @@ public class ClickHouseProperties {
         setSslMode(properties.sslMode);
         setUsePathAsDb(properties.usePathAsDb);
         setPath(properties.path);
+        setProtocol(properties.protocol);
         setMaxRedirects(properties.maxRedirects);
         setCheckForRedirects(properties.checkForRedirects);
         setUseServerTimeZone(properties.useServerTimeZone);
@@ -331,7 +339,7 @@ public class ClickHouseProperties {
             params.put(ClickHouseQueryParam.PRIORITY, String.valueOf(priority));
         }
 
-        if (!StringUtils.isBlank(database) && !ignoreDatabase) {
+        if (!ClickHouseChecker.isNullOrBlank(database) && !ignoreDatabase) {
             params.put(ClickHouseQueryParam.DATABASE, getDatabase());
         }
 
@@ -347,7 +355,7 @@ public class ClickHouseProperties {
             params.put(ClickHouseQueryParam.EXTREMES, "1");
         }
 
-        if (StringUtils.isBlank(profile)) {
+        if (ClickHouseChecker.isNullOrBlank(profile)) {
             if (getMaxThreads() != null) {
                 params.put(ClickHouseQueryParam.MAX_THREADS, String.valueOf(maxThreads));
             }
@@ -552,6 +560,14 @@ public class ClickHouseProperties {
 
     public void setConnectionTimeout(int connectionTimeout) {
         this.connectionTimeout = connectionTimeout;
+    }
+
+    public int getDataTransferTimeout() {
+        return dataTransferTimeout;
+    }
+
+    public void setDataTransferTimeout(int dataTransferTimeout) {
+        this.dataTransferTimeout = dataTransferTimeout;
     }
 
     public String getUser() {
@@ -799,6 +815,14 @@ public class ClickHouseProperties {
 
     public void setPort(int port) {
         this.port = port;
+    }
+
+    public ClickHouseProtocol getProtocol() {
+        return this.protocol;
+    }
+
+    public void setProtocol(ClickHouseProtocol protocol) {
+        this.protocol = protocol;
     }
 
     public boolean isUsePathAsDb() {

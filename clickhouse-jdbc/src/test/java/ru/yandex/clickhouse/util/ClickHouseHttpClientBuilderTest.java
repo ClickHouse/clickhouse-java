@@ -36,36 +36,36 @@ public class ClickHouseHttpClientBuilderTest {
 
     private static WireMockServer mockServer;
 
-    @BeforeClass
+    @BeforeClass(groups = "unit")
     public static void beforeAll() {
         mockServer = new WireMockServer(
             WireMockConfiguration.wireMockConfig().dynamicPort());
         mockServer.start();
     }
 
-    @AfterMethod
+    @AfterMethod(groups = "unit")
     public void afterTest() {
         mockServer.resetAll();
     }
 
-    @AfterClass
+    @AfterClass(groups = "unit")
     public static void afterAll() {
         mockServer.stop();
         mockServer = null;
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testCreateClientContextNull() {
         assertNull(ClickHouseHttpClientBuilder.createClientContext(null).getAuthCache());
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testCreateClientContextNoUserNoPass() {
         assertNull(ClickHouseHttpClientBuilder.createClientContext(new ClickHouseProperties())
             .getAuthCache());
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testCreateClientContextNoHost() {
         ClickHouseProperties props = new ClickHouseProperties();
         props.setUser("myUser");
@@ -73,7 +73,7 @@ public class ClickHouseHttpClientBuilderTest {
         assertNull(ClickHouseHttpClientBuilder.createClientContext(props).getAuthCache());
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testCreateClientContextUserPass() {
         ClickHouseProperties props = new ClickHouseProperties();
         props.setUser("myUser");
@@ -85,7 +85,7 @@ public class ClickHouseHttpClientBuilderTest {
             "basic");
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testCreateClientContextOnlyUser() {
         ClickHouseProperties props = new ClickHouseProperties();
         props.setUser("myUser");
@@ -96,7 +96,7 @@ public class ClickHouseHttpClientBuilderTest {
             "basic");
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testCreateClientContextOnlyPass() {
         ClickHouseProperties props = new ClickHouseProperties();
         props.setPassword("myPass");
@@ -107,7 +107,7 @@ public class ClickHouseHttpClientBuilderTest {
             "basic");
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testHttpClientsWithSharedCookie() throws Exception {
         ClickHouseProperties props = new ClickHouseProperties();
         props.setHost("localhost");
@@ -133,7 +133,7 @@ public class ClickHouseHttpClientBuilderTest {
         mockServer.verify(getRequestedFor(WireMock.urlEqualTo("/cookie/check")).withHeader("cookie", equalTo(cookie)));
     }
 
-    @Test(dataProvider = "authUserPassword")
+    @Test(groups = "unit", dataProvider = "authUserPassword")
     public void testHttpAuthParametersCombination(String authorization, String user,
         String password, String expectedAuthHeader) throws Exception
     {
