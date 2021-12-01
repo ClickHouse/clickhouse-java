@@ -31,6 +31,7 @@ public enum ClickHouseConnectionSettings implements DriverPropertyCreator {
     /**
      * for ConnectionManager
      */
+    VALIDATE_AFTER_INACTIVITY_MILLIS("validateAfterInactivityMillis", 3 * 1000, "period of inactivity in milliseconds after which persistent connections must be re-validated, this check helps detect connections that have become stale (half-closed) while kept inactive in the pool. "),
     TIME_TO_LIVE_MILLIS("timeToLiveMillis", 60 * 1000, ""),
     DEFAULT_MAX_PER_ROUTE("defaultMaxPerRoute", 500, ""),
     MAX_TOTAL("maxTotal", 10000, ""),
