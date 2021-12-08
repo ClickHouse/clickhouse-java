@@ -8,6 +8,9 @@ import java.nio.Buffer;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+
+import com.clickhouse.client.ClickHouseInputStream;
+
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
@@ -47,16 +50,16 @@ public class ClickHousePipedStreamTest {
         }
 
         stream.queue.clear();
-        stream.queue.put(ClickHousePipedStream.EMPTY);
+        stream.queue.put(ClickHouseInputStream.EMPTY);
         Assert.assertEquals(stream.queue.size(), 1);
         try (InputStream in = stream.getInput()) {
             Assert.assertEquals(in.read(), -1);
         }
 
         stream.queue.put((ByteBuffer) ((Buffer) buf).rewind());
-        stream.queue.put(buf);
-        stream.queue.put(ClickHousePipedStream.EMPTY);
-        Assert.assertEquals(stream.queue.size(), 3);
+        // stream.queue.put(buf);
+        stream.queue.put(ClickHouseInputStream.EMPTY);
+        Assert.assertEquals(stream.queue.size(), 2);
         try (InputStream in = stream.getInput()) {
             Assert.assertEquals(in.read(), 3);
             Assert.assertEquals(in.read(), 4);
@@ -119,7 +122,7 @@ public class ClickHousePipedStreamTest {
 
         buf = ByteBuffer.allocate(2).put(new byte[] { (byte) 3, (byte) 4 });
         stream.queue.put((ByteBuffer) ((Buffer) buf).rewind());
-        stream.queue.put(ClickHousePipedStream.EMPTY);
+        stream.queue.put(ClickHouseInputStream.EMPTY);
         Assert.assertEquals(stream.queue.size(), 2);
         try (InputStream in = stream.getInput()) {
             Assert.assertEquals(in.read(bytes, 0, 3), 2);

@@ -8,7 +8,7 @@ import java.util.List;
 import com.clickhouse.client.ClickHouseColumn;
 import com.clickhouse.client.ClickHouseUtils;
 
-public class ClickHouseResultSetMetaData extends Wrapper implements ResultSetMetaData {
+public class ClickHouseResultSetMetaData extends JdbcWrapper implements ResultSetMetaData {
     public static ResultSetMetaData of(String database, String table, List<ClickHouseColumn> columns)
             throws SQLException {
         if (database == null || table == null || columns == null) {

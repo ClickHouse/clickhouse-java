@@ -1,5 +1,7 @@
 package com.clickhouse.client.http;
 
+import com.clickhouse.client.ClickHouseChecker;
+import com.clickhouse.client.ClickHouseFormat;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseSslContextProvider;
@@ -23,6 +25,7 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
+import java.util.TimeZone;
 import java.util.UUID;
 import java.util.Map.Entry;
 
@@ -34,6 +37,33 @@ public class DefaultHttpConnection extends ClickHouseHttpConnection {
     private static final Logger log = LoggerFactory.getLogger(DefaultHttpConnection.class);
 
     private final HttpURLConnection conn;
+
+    private ClickHouseHttpResponse buildResponse() throws IOException {
+        // X-ClickHouse-Server-Display-Name: xxx
+        // X-ClickHouse-Query-Id: xxx
+        // X-ClickHouse-Format: RowBinaryWithNamesAndTypes
+        // X-ClickHouse-Timezone: UTC
+        // X-ClickHouse-Summary:
+        // {"read_rows":"0","read_bytes":"0","written_rows":"0","written_bytes":"0","total_rows_to_read":"0"}
+        String displayName = getResponseHeader("X-ClickHouse-Server-Display-Name", server.getHost());
+        String queryId = getResponseHeader("X-ClickHouse-Query-Id", "");
+        String summary = getResponseHeader("X-ClickHouse-Summary", "{}");
+
+        ClickHouseFormat format = config.getFormat();
+        TimeZone timeZone = config.getServerTimeZone();
+        // queryId, format and timeZone are only available for queries
+        if (!ClickHouseChecker.isNullOrEmpty(queryId)) {
+            String value = getResponseHeader("X-ClickHouse-Format", "");
+            format = !ClickHouseChecker.isNullOrEmpty(value) ? ClickHouseFormat.valueOf(value)
+                    : format;
+            value = getResponseHeader("X-ClickHouse-Timezone", "");
+            timeZone = !ClickHouseChecker.isNullOrEmpty(value) ? TimeZone.getTimeZone(value)
+                    : timeZone;
+        }
+
+        return new ClickHouseHttpResponse(this, getResponseInputStream(conn.getInputStream()),
+                displayName, queryId, summary, format, timeZone);
+    }
 
     private HttpURLConnection newConnection(String url, boolean post) throws IOException {
         HttpURLConnection newConn = (HttpURLConnection) new URL(url).openConnection();
@@ -62,6 +92,11 @@ public class DefaultHttpConnection extends ClickHouseHttpConnection {
         newConn.setReadTimeout(config.getSocketTimeout());
 
         return newConn;
+    }
+
+    private String getResponseHeader(String header, String defaultValue) {
+        String value = conn.getHeaderField(header);
+        return value != null ? value : defaultValue;
     }
 
     private void setHeaders(HttpURLConnection conn, Map<String, String> headers) {
@@ -104,12 +139,6 @@ public class DefaultHttpConnection extends ClickHouseHttpConnection {
     @Override
     protected boolean isReusable() {
         return false;
-    }
-
-    @Override
-    protected String getResponseHeader(String header, String defaultValue) {
-        String value = conn.getHeaderField(header);
-        return value != null ? value : defaultValue;
     }
 
     @Override
@@ -168,14 +197,7 @@ public class DefaultHttpConnection extends ClickHouseHttpConnection {
 
         checkResponse(conn);
 
-        // X-ClickHouse-Server-Display-Name: xxx
-        // X-ClickHouse-Query-Id: xxx
-        // X-ClickHouse-Format: RowBinaryWithNamesAndTypes
-        // X-ClickHouse-Timezone: UTC
-        // X-ClickHouse-Summary:
-        // {"read_rows":"0","read_bytes":"0","written_rows":"0","written_bytes":"0","total_rows_to_read":"0"}
-
-        return new ClickHouseHttpResponse(this, getResponseInputStream(conn.getInputStream()));
+        return buildResponse();
     }
 
     @Override

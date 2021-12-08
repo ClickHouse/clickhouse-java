@@ -2,6 +2,7 @@ package com.clickhouse.jdbc;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import com.clickhouse.client.ClickHouseChecker;
 import com.clickhouse.jdbc.parser.ClickHouseSqlStatement;
@@ -37,7 +38,7 @@ public class JdbcParseHandler extends ParseHandler {
 
     private ClickHouseSqlStatement handleDelete(String sql, StatementType stmtType, String cluster, String database,
             String table, String input, String format, String outfile, List<Integer> parameters,
-            Map<String, Integer> positions, Map<String, String> settings) {
+            Map<String, Integer> positions, Map<String, String> settings, Set<String> tempTables) {
         StringBuilder builder = new StringBuilder();
         int index = positions.get("DELETE");
         if (index > 0) {
@@ -56,12 +57,12 @@ public class JdbcParseHandler extends ParseHandler {
             builder.append("TRUNCATE TABLE").append(sql.substring(index + 4));
         }
         return new ClickHouseSqlStatement(builder.toString(), stmtType, cluster, database, table, input, format,
-                outfile, parameters, null, settings);
+                outfile, parameters, null, settings, null);
     }
 
     private ClickHouseSqlStatement handleUpdate(String sql, StatementType stmtType, String cluster, String database,
             String table, String input, String format, String outfile, List<Integer> parameters,
-            Map<String, Integer> positions, Map<String, String> settings) {
+            Map<String, Integer> positions, Map<String, String> settings, Set<String> tempTables) {
         StringBuilder builder = new StringBuilder();
         int index = positions.get("UPDATE");
         if (index > 0) {
@@ -75,20 +76,20 @@ public class JdbcParseHandler extends ParseHandler {
         builder.append('`').append(table).append('`').append(" UPDATE"); // .append(sql.substring(index + 3));
         addMutationSetting(sql, builder, positions, settings, index + 3);
         return new ClickHouseSqlStatement(builder.toString(), stmtType, cluster, database, table, input, format,
-                outfile, parameters, null, settings);
+                outfile, parameters, null, settings, null);
     }
 
     @Override
     public ClickHouseSqlStatement handleStatement(String sql, StatementType stmtType, String cluster, String database,
             String table, String input, String format, String outfile, List<Integer> parameters,
-            Map<String, Integer> positions, Map<String, String> settings) {
+            Map<String, Integer> positions, Map<String, String> settings, Set<String> tempTables) {
         ClickHouseSqlStatement s = null;
         if (stmtType == StatementType.DELETE) {
             s = handleDelete(sql, stmtType, cluster, database, table, input, format, outfile, parameters, positions,
-                    settings);
+                    settings, tempTables);
         } else if (stmtType == StatementType.UPDATE) {
             s = handleUpdate(sql, stmtType, cluster, database, table, input, format, outfile, parameters, positions,
-                    settings);
+                    settings, tempTables);
         }
         return s;
     }

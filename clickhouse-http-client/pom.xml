@@ -116,10 +116,10 @@
                                         <exclude>**/darwin/**</exclude>
                                         <exclude>**/linux/**</exclude>
                                         <exclude>**/win32/**</exclude>
+                                        <exclude>**/module-info.class</exclude>
                                         <exclude>META-INF/MANIFEST.MF</exclude>
                                         <exclude>META-INF/maven/**</exclude>
                                         <exclude>META-INF/native-image/**</exclude>
-                                        <exclude>META-INF/versions/**</exclude>
                                     </excludes>
                                 </filter>
                             </filters>

@@ -238,6 +238,7 @@
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer" />
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                                     <manifestEntries>
+                                        <Automatic-Module-Name>com.clickhouse.jdbc</Automatic-Module-Name>
                                         <!-- https://docs.oracle.com/en/java/javase/11/docs/api/java.sql/java/sql/package-summary.html -->
                                         <Specification-Title>${spec.title}</Specification-Title>
                                         <Specification-Version>${spec.version}</Specification-Version>
@@ -261,11 +262,11 @@
                                         <exclude>**/darwin/**</exclude>
                                         <exclude>**/linux/**</exclude>
                                         <exclude>**/win32/**</exclude>
+                                        <exclude>**/module-info.class</exclude>
                                         <exclude>META-INF/DEPENDENCIES</exclude>
                                         <exclude>META-INF/MANIFEST.MF</exclude>
                                         <exclude>META-INF/maven/**</exclude>
                                         <exclude>META-INF/native-image/**</exclude>
-                                        <exclude>META-INF/versions/**</exclude>
                                         <exclude>META-INF/*.xml</exclude>
                                     </excludes>
                                 </filter>
@@ -303,6 +304,7 @@
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer" />
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                                     <manifestEntries>
+                                        <Automatic-Module-Name>com.clickhouse.jdbc</Automatic-Module-Name>
                                         <!-- https://docs.oracle.com/en/java/javase/11/docs/api/java.sql/java/sql/package-summary.html -->
                                         <Specification-Title>${spec.title}</Specification-Title>
                                         <Specification-Version>${spec.version}</Specification-Version>
@@ -320,11 +322,11 @@
                                         <exclude>**/darwin/**</exclude>
                                         <exclude>**/linux/**</exclude>
                                         <exclude>**/win32/**</exclude>
+                                        <exclude>**/module-info.class</exclude>
                                         <exclude>META-INF/DEPENDENCIES</exclude>
                                         <exclude>META-INF/MANIFEST.MF</exclude>
                                         <exclude>META-INF/maven/**</exclude>
                                         <exclude>META-INF/native-image/**</exclude>
-                                        <exclude>META-INF/versions/**</exclude>
                                         <exclude>META-INF/*.xml</exclude>
                                     </excludes>
                                 </filter>
@@ -358,6 +360,7 @@
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer" />
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                                     <manifestEntries>
+                                        <Automatic-Module-Name>com.clickhouse.jdbc</Automatic-Module-Name>
                                         <!-- https://docs.oracle.com/en/java/javase/11/docs/api/java.sql/java/sql/package-summary.html -->
                                         <Specification-Title>${spec.title}</Specification-Title>
                                         <Specification-Version>${spec.version}</Specification-Version>
@@ -387,11 +390,11 @@
                                         <exclude>**/darwin/**</exclude>
                                         <exclude>**/linux/**</exclude>
                                         <exclude>**/win32/**</exclude>
+                                        <exclude>**/module-info.class</exclude>
                                         <exclude>META-INF/DEPENDENCIES</exclude>
                                         <exclude>META-INF/MANIFEST.MF</exclude>
                                         <exclude>META-INF/maven/**</exclude>
                                         <exclude>META-INF/native-image/**</exclude>
-                                        <exclude>META-INF/versions/**</exclude>
                                         <exclude>META-INF/*.xml</exclude>
                                     </excludes>
                                 </filter>
@@ -415,6 +418,7 @@
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer" />
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                                     <manifestEntries>
+                                        <Automatic-Module-Name>com.clickhouse.jdbc</Automatic-Module-Name>
                                         <!-- https://docs.oracle.com/en/java/javase/11/docs/api/java.sql/java/sql/package-summary.html -->
                                         <Specification-Title>${spec.title}</Specification-Title>
                                         <Specification-Version>${spec.version}</Specification-Version>
@@ -458,11 +462,11 @@
                                         <exclude>**/darwin/**</exclude>
                                         <exclude>**/linux/**</exclude>
                                         <exclude>**/win32/**</exclude>
+                                        <exclude>**/module-info.class</exclude>
                                         <exclude>META-INF/DEPENDENCIES</exclude>
                                         <exclude>META-INF/MANIFEST.MF</exclude>
                                         <exclude>META-INF/maven/**</exclude>
                                         <exclude>META-INF/native-image/**</exclude>
-                                        <exclude>META-INF/versions/**</exclude>
                                         <exclude>META-INF/*.xml</exclude>
                                     </excludes>
                                 </filter>

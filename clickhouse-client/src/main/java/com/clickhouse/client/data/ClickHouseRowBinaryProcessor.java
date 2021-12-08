@@ -293,7 +293,7 @@ public class ClickHouseRowBinaryProcessor extends ClickHouseDataProcessor {
                             c.getPrecision()),
                     ClickHouseDataType.FixedString);
             buildMappings(deserializers, serializers,
-                    (r, f, c, i) -> ClickHouseStringValue.of(r, BinaryStreamUtils.readString(i)),
+                    (r, f, c, i) -> ClickHouseStringValue.of(r, i.readUnicodeString()),
                     (v, f, c, o) -> BinaryStreamUtils.writeString(o, v.asString()), ClickHouseDataType.String);
             buildMappings(deserializers, serializers,
                     (r, f, c, i) -> ClickHouseUuidValue.of(r, BinaryStreamUtils.readUuid(i)),
@@ -521,7 +521,7 @@ public class ClickHouseRowBinaryProcessor extends ClickHouseDataProcessor {
 
         int size = 0;
         try {
-            size = BinaryStreamUtils.readVarInt(input);
+            size = input.readVarInt();
         } catch (EOFException e) {
             // no result returned
             return Collections.emptyList();
@@ -529,12 +529,13 @@ public class ClickHouseRowBinaryProcessor extends ClickHouseDataProcessor {
 
         String[] names = new String[ClickHouseChecker.between(size, "size", 0, Integer.MAX_VALUE)];
         for (int i = 0; i < size; i++) {
-            names[i] = BinaryStreamUtils.readString(input);
+            names[i] = input.readUnicodeString();
         }
 
         List<ClickHouseColumn> columns = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
-            columns.add(ClickHouseColumn.of(names[i], BinaryStreamUtils.readString(input)));
+            // a bit risky here - what if ClickHouse support user type?
+            columns.add(ClickHouseColumn.of(names[i], input.readAsciiString()));
         }
 
         return columns;

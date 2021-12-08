@@ -10,9 +10,9 @@ import com.clickhouse.client.ClickHouseColumn;
 import com.clickhouse.client.ClickHouseUtils;
 import com.clickhouse.jdbc.JdbcTypeMapping;
 import com.clickhouse.jdbc.SqlExceptionUtils;
-import com.clickhouse.jdbc.Wrapper;
+import com.clickhouse.jdbc.JdbcWrapper;
 
-public class ClickHouseParameterMetaData extends Wrapper implements ParameterMetaData {
+public class ClickHouseParameterMetaData extends JdbcWrapper implements ParameterMetaData {
     protected final List<ClickHouseColumn> params;
 
     protected ClickHouseParameterMetaData(List<ClickHouseColumn> params) {

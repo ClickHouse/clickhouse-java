@@ -24,7 +24,7 @@ import com.clickhouse.client.data.ClickHouseSimpleResponse;
 import com.clickhouse.client.logging.Logger;
 import com.clickhouse.client.logging.LoggerFactory;
 
-public class ClickHouseDatabaseMetaData extends Wrapper implements DatabaseMetaData {
+public class ClickHouseDatabaseMetaData extends JdbcWrapper implements DatabaseMetaData {
     private static final Logger log = LoggerFactory.getLogger(ClickHouseDatabaseMetaData.class);
 
     private static final String DATABASE_NAME = "ClickHouse";
@@ -657,12 +657,13 @@ public class ClickHouseDatabaseMetaData extends Wrapper implements DatabaseMetaD
 
     @Override
     public int getDefaultTransactionIsolation() throws SQLException {
-        return connection.isJdbcCompliant() ? Connection.TRANSACTION_READ_COMMITTED : Connection.TRANSACTION_NONE;
+        return connection.getJdbcConfig().isJdbcCompliant() ? Connection.TRANSACTION_READ_COMMITTED
+                : Connection.TRANSACTION_NONE;
     }
 
     @Override
     public boolean supportsTransactions() throws SQLException {
-        return connection.isJdbcCompliant();
+        return connection.getJdbcConfig().isJdbcCompliant();
     }
 
     @Override
@@ -674,7 +675,7 @@ public class ClickHouseDatabaseMetaData extends Wrapper implements DatabaseMetaD
             throw SqlExceptionUtils.clientError("Unknown isolation level: " + level);
         }
 
-        return connection.isJdbcCompliant();
+        return connection.getJdbcConfig().isJdbcCompliant();
     }
 
     @Override
@@ -684,7 +685,7 @@ public class ClickHouseDatabaseMetaData extends Wrapper implements DatabaseMetaD
 
     @Override
     public boolean supportsDataManipulationTransactionsOnly() throws SQLException {
-        return connection.isJdbcCompliant();
+        return connection.getJdbcConfig().isJdbcCompliant();
     }
 
     @Override
@@ -753,7 +754,7 @@ public class ClickHouseDatabaseMetaData extends Wrapper implements DatabaseMetaD
             params.put("table", ClickHouseChecker.isNullOrEmpty(tableNamePattern) ? "'%'"
                     : ClickHouseValues.convertToQuotedString(tableNamePattern));
             params.put("types", builder.toString());
-            String sql = JdbcParameterizedQuery
+            String sql = ClickHouseParameterizedQuery
                     .apply("select null as TABLE_CAT, t.database as TABLE_SCHEM, t.name as TABLE_NAME, "
                             + "case when t.engine like '%Log' then 'LOG TABLE' "
                             + "when t.engine in ('Buffer', 'Memory', 'Set') then 'MEMORY TABLE' "
@@ -807,7 +808,7 @@ public class ClickHouseDatabaseMetaData extends Wrapper implements DatabaseMetaD
         params.put("defaultNullable", String.valueOf(DatabaseMetaData.typeNullable));
         params.put("defaultNonNull", String.valueOf(DatabaseMetaData.typeNoNulls));
         params.put("defaultType", String.valueOf(Types.OTHER));
-        String sql = JdbcParameterizedQuery
+        String sql = ClickHouseParameterizedQuery
                 .apply("select null as TABLE_CAT, database as TABLE_SCHEM, table as TABLE_NAME, "
                         + "name as COLUMN_NAME, toInt32(:defaultType) as DATA_TYPE, type as TYPE_NAME, toInt32(0) as COLUMN_SIZE, "
                         + "0 as BUFFER_LENGTH, toInt32(null) as DECIMAL_DIGITS, 10 as NUM_PREC_RADIX, "
@@ -924,43 +925,43 @@ public class ClickHouseDatabaseMetaData extends Wrapper implements DatabaseMetaD
                 : DatabaseMetaData.typePredBasic;
         int money = 0;
         switch (type) {
-        case Date:
-        case Date32:
-        case DateTime:
-        case DateTime32:
-        case DateTime64:
-        case Enum:
-        case Enum8:
-        case Enum16:
-        case String:
-        case FixedString:
-        case UUID:
-            prefix = "'";
-            suffix = "'";
-            break;
-        case Array:
-        case Nested:
-        case Ring:
-        case Polygon:
-        case MultiPolygon:
-            prefix = "[";
-            suffix = "]";
-            nullable = DatabaseMetaData.typeNoNulls;
-            break;
-        case AggregateFunction:
-        case Tuple:
-        case Point:
-            prefix = "(";
-            suffix = ")";
-            nullable = DatabaseMetaData.typeNoNulls;
-            break;
-        case Map:
-            prefix = "{";
-            suffix = "}";
-            nullable = DatabaseMetaData.typeNoNulls;
-            break;
-        default:
-            break;
+            case Date:
+            case Date32:
+            case DateTime:
+            case DateTime32:
+            case DateTime64:
+            case Enum:
+            case Enum8:
+            case Enum16:
+            case String:
+            case FixedString:
+            case UUID:
+                prefix = "'";
+                suffix = "'";
+                break;
+            case Array:
+            case Nested:
+            case Ring:
+            case Polygon:
+            case MultiPolygon:
+                prefix = "[";
+                suffix = "]";
+                nullable = DatabaseMetaData.typeNoNulls;
+                break;
+            case AggregateFunction:
+            case Tuple:
+            case Point:
+                prefix = "(";
+                suffix = ")";
+                nullable = DatabaseMetaData.typeNoNulls;
+                break;
+            case Map:
+                prefix = "{";
+                suffix = "}";
+                nullable = DatabaseMetaData.typeNoNulls;
+                break;
+            default:
+                break;
         }
         return new Object[] { typeName,
                 JdbcTypeMapping.toJdbcType(ClickHouseColumn.of("", type, false, false, new String[0])),
@@ -1005,21 +1006,21 @@ public class ClickHouseDatabaseMetaData extends Wrapper implements DatabaseMetaD
                         + "NON_UNIQUE UInt8, INDEX_QUALIFIER Nullable(String), INDEX_NAME Nullable(String), "
                         + "TYPE Int16, ORDINAL_POSITION Int16, COLUMN_NAME Nullable(String), ASC_OR_DESC Nullable(String), "
                         + "CARDINALITY Int64, PAGES Int64, FILTER_CONDITION Nullable(String)"),
-                query(JdbcParameterizedQuery.apply(
+                query(ClickHouseParameterizedQuery.apply(
                         "select null as TABLE_CAT, database as TABLE_SCHEM, table as TABLE_NAME, toUInt8(0) as NON_UNIQUE, "
                                 + "null as INDEX_QUALIFIER, null as INDEX_NAME, toInt16(:statIndex) as TYPE, "
                                 + "toInt16(0) as ORDINAL_POSITION, null as COLUMN_NAME, null as ASC_OR_DESC, "
                                 + "sum(rows) as CARDINALITY, uniqExact(name) as PAGES, null as FILTER_CONDITION from system.parts "
                                 + "where active = 1 and database like :database and table like :table group by database, table",
                         params), true),
-                query(JdbcParameterizedQuery.apply(
+                query(ClickHouseParameterizedQuery.apply(
                         "select null as TABLE_CAT, database as TABLE_SCHEM, table as TABLE_NAME, toUInt8(1) as NON_UNIQUE, "
                                 + "type as INDEX_QUALIFIER, name as INDEX_NAME, toInt16(:otherIndex) as TYPE, "
                                 + "toInt16(1) as ORDINAL_POSITION, expr as COLUMN_NAME, null as ASC_OR_DESC, "
                                 + "0 as CARDINALITY, 0 as PAGES, null as FILTER_CONDITION "
                                 + "from system.data_skipping_indices where database like :database and table like :table",
                         params), true),
-                query(JdbcParameterizedQuery.apply(
+                query(ClickHouseParameterizedQuery.apply(
                         "select null as TABLE_CAT, database as TABLE_SCHEM, table as TABLE_NAME, toUInt8(1) as NON_UNIQUE, "
                                 + "null as INDEX_QUALIFIER, name as INDEX_NAME, toInt16(:otherIndex) as TYPE, "
                                 + "column_position as ORDINAL_POSITION, column as COLUMN_NAME, null as ASC_OR_DESC, "
@@ -1201,9 +1202,9 @@ public class ClickHouseDatabaseMetaData extends Wrapper implements DatabaseMetaD
                 ClickHouseChecker.isNullOrEmpty(schemaPattern) ? "'%'"
                         : ClickHouseValues.convertToQuotedString(schemaPattern));
         return new CombinedResultSet(
-                query(JdbcParameterizedQuery.apply("select name as TABLE_SCHEM, null as TABLE_CATALOG "
+                query(ClickHouseParameterizedQuery.apply("select name as TABLE_SCHEM, null as TABLE_CATALOG "
                         + "from system.databases where name like :pattern order by name", params)),
-                query(JdbcParameterizedQuery.apply(
+                query(ClickHouseParameterizedQuery.apply(
                         "select concat('jdbc(''', name, ''')') as TABLE_SCHEM, null as TABLE_CATALOG "
                                 + "from jdbc('', 'SHOW DATASOURCES') where TABLE_SCHEM like :pattern order by name",
                         params), true));
@@ -1221,14 +1222,25 @@ public class ClickHouseDatabaseMetaData extends Wrapper implements DatabaseMetaD
 
     @Override
     public ResultSet getClientInfoProperties() throws SQLException {
-        // TODO Auto-generated method stub
-        return null;
+        ClickHouseParameterizedQuery q = ClickHouseParameterizedQuery
+                .of("select :name as NAME, toInt32(0) as MAX_LEN, :default as DEFAULT_VALUE, :desc as DESCRIPTION");
+        StringBuilder builder = new StringBuilder();
+        builder.append(q.apply(ClickHouseConnection.PROP_APPLICATION_NAME,
+                connection.getClientInfo(ClickHouseConnection.PROP_APPLICATION_NAME), "Application name"))
+                .append(" union all ");
+        builder.append(q.apply(ClickHouseConnection.PROP_CUSTOM_HTTP_HEADERS,
+                connection.getClientInfo(ClickHouseConnection.PROP_CUSTOM_HTTP_HEADERS), "Custom HTTP headers"))
+                .append(" union all ");
+        builder.append(q.apply(ClickHouseConnection.PROP_CUSTOM_HTTP_PARAMS,
+                connection.getClientInfo(ClickHouseConnection.PROP_CUSTOM_HTTP_PARAMS),
+                "Customer HTTP query parameters"));
+        return query(builder.toString());
     }
 
     @Override
     public ResultSet getFunctions(String catalog, String schemaPattern, String functionNamePattern)
             throws SQLException {
-        String sql = JdbcParameterizedQuery.apply(
+        String sql = ClickHouseParameterizedQuery.apply(
                 "select null as FUNCTION_CAT, null as FUNCTION_SCHEM, name as FUNCTION_NAME,\n"
                         + "concat('case-', case_insensitive ? 'in' : '', 'sensitive function', is_aggregate ? ' for aggregation' : '') as REMARKS,"
                         + "1 as FUNCTION_TYPE, name as SPECIFIC_NAME from system.functions\n"

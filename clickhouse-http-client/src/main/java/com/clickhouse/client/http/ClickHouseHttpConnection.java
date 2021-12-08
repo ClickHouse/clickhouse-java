@@ -20,6 +20,7 @@ import com.clickhouse.client.ClickHouseChecker;
 import com.clickhouse.client.ClickHouseCompression;
 import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseCredentials;
+import com.clickhouse.client.ClickHouseInputStream;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseUtils;
@@ -231,27 +232,24 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
         return out;
     }
 
-    protected InputStream getResponseInputStream(InputStream in) throws IOException {
-        if (!config.isCompressServerResponse()) {
-            return in;
+    protected ClickHouseInputStream getResponseInputStream(InputStream in) throws IOException {
+        if (config.isCompressServerResponse()) {
+            // TODO support more algorithms
+            ClickHouseCompression algorithm = config.getCompressAlgorithmForServerResponse();
+            switch (algorithm) {
+                case GZIP:
+                    in = ClickHouseInputStream.of(new GZIPInputStream(in));
+                    break;
+                case LZ4:
+                    in = new ClickHouseLZ4InputStream(in);
+                    break;
+                default:
+                    throw new UnsupportedOperationException("Unsupported compression algorithm: " + algorithm);
+            }
         }
 
-        // TODO support more algorithms
-        ClickHouseCompression algorithm = config.getCompressAlgorithmForServerResponse();
-        switch (algorithm) {
-            case GZIP:
-                in = new GZIPInputStream(in);
-                break;
-            case LZ4:
-                in = new ClickHouseLZ4InputStream(in);
-                break;
-            default:
-                throw new UnsupportedOperationException("Unsupported compression algorithm: " + algorithm);
-        }
-        return in;
+        return in instanceof ClickHouseInputStream ? (ClickHouseInputStream) in : ClickHouseInputStream.of(in);
     }
-
-    protected abstract String getResponseHeader(String header, String defaultValue);
 
     /**
      * Creates a merged map.

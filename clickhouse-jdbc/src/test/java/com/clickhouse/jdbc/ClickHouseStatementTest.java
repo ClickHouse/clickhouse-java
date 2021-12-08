@@ -5,7 +5,12 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.sql.Time;
 import java.sql.Timestamp;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.OffsetDateTime;
 import java.util.Calendar;
 import java.util.GregorianCalendar;
 import java.util.Locale;
@@ -21,6 +26,21 @@ import org.testng.Assert;
 import org.testng.annotations.Test;
 
 public class ClickHouseStatementTest extends JdbcIntegrationTest {
+    @Test(groups = "integration")
+    public void testJdbcEscapeSyntax() throws SQLException {
+        try (ClickHouseConnection conn = newConnection(new Properties());
+                ClickHouseStatement stmt = conn.createStatement()) {
+            ResultSet rs = stmt.executeQuery(
+                    "select * from (select {d '2021-11-01'} as D, {t '12:34:56'} as T, "
+                            + "{ts '2021-11-01 12:34:56'} as TS) as {tt 'temp_table'}");
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getObject("ts", LocalDateTime.class), LocalDateTime.of(2021, 11, 1, 12, 34, 56));
+            Assert.assertEquals(rs.getTime("t"), Time.valueOf(LocalTime.of(12, 34, 56)));
+            Assert.assertEquals(rs.getObject("d"), LocalDate.of(2021, 11, 1));
+            Assert.assertFalse(rs.next());
+        }
+    }
+
     @Test(groups = "local")
     public void testLogComment() throws SQLException {
         Properties props = new Properties();
@@ -71,6 +91,22 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
             while (rs.next()) {
                 continue;
             }
+        }
+    }
+
+    @Test(groups = "integration")
+    public void testTimestamp() throws SQLException {
+        try (ClickHouseConnection conn = newConnection(new Properties());
+                ClickHouseStatement stmt = conn.createStatement()) {
+            ResultSet rs = stmt.executeQuery("select now(), now('Asia/Chongqing')");
+            Assert.assertTrue(rs.next());
+            LocalDateTime dt1 = (LocalDateTime) rs.getObject(1);
+            LocalDateTime dt2 = rs.getObject(1, LocalDateTime.class);
+            Assert.assertTrue(dt1 == dt2);
+            OffsetDateTime ot1 = (OffsetDateTime) rs.getObject(2);
+            OffsetDateTime ot2 = rs.getObject(2, OffsetDateTime.class);
+            Assert.assertTrue(ot1 == ot2);
+            Assert.assertFalse(rs.next());
         }
     }
 

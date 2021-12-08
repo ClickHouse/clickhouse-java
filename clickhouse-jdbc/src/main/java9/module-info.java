@@ -1,7 +1,9 @@
 /**
  * Declares ru.yandex.clickhouse module.
  */
-module ru.yandex.clickhouse {
+module com.clickhouse.jdbc {
+    exports com.clickhouse.jdbc;
+    
     exports ru.yandex.clickhouse;
     exports ru.yandex.clickhouse.domain;
     exports ru.yandex.clickhouse.except;

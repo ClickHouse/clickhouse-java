@@ -73,19 +73,19 @@ public abstract class JdbcIntegrationTest extends BaseIntegrationTest {
                 .append(':').append(server.getPort()).toString();
     }
 
-    public ClickHouseDataSource newDataSource() {
+    public ClickHouseDataSource newDataSource() throws SQLException {
         return newDataSource(null, new Properties());
     }
 
-    public ClickHouseDataSource newDataSource(Properties properties) {
+    public ClickHouseDataSource newDataSource(Properties properties) throws SQLException {
         return newDataSource(null, properties);
     }
 
-    public ClickHouseDataSource newDataSource(String url) {
+    public ClickHouseDataSource newDataSource(String url) throws SQLException {
         return newDataSource(url, new Properties());
     }
 
-    public ClickHouseDataSource newDataSource(String url, Properties properties) {
+    public ClickHouseDataSource newDataSource(String url, Properties properties) throws SQLException {
         return new ClickHouseDataSource(buildJdbcUrl(ClickHouseProtocol.HTTP, null, url), properties);
     }
 

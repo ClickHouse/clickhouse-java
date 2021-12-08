@@ -81,8 +81,7 @@ public class ClickHouseTupleValue extends ClickHouseObjectValue<List<Object>> {
             return ClickHouseValues.EMPTY_OBJECT_ARRAY;
         }
 
-        List<Object> value = getValue();
-        return value.toArray(new Object[value.size()]);
+        return getValue().toArray(new Object[0]);
     }
 
     @Override

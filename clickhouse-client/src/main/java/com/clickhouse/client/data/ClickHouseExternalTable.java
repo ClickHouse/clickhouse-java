@@ -21,6 +21,7 @@ public class ClickHouseExternalTable {
         private CompletableFuture<InputStream> content;
         private ClickHouseFormat format;
         private List<ClickHouseColumn> columns;
+        private boolean asTempTable;
 
         protected Builder() {
             columns = new LinkedList<>();
@@ -88,8 +89,18 @@ public class ClickHouseExternalTable {
             return this;
         }
 
+        public Builder asTempTable() {
+            asTempTable = true;
+            return this;
+        }
+
+        public Builder asExternalTable() {
+            asTempTable = false;
+            return this;
+        }
+
         public ClickHouseExternalTable build() {
-            return new ClickHouseExternalTable(name, content, format, columns);
+            return new ClickHouseExternalTable(name, content, format, columns, asTempTable);
         }
     }
 
@@ -101,11 +112,12 @@ public class ClickHouseExternalTable {
     private final CompletableFuture<InputStream> content;
     private final ClickHouseFormat format;
     private final List<ClickHouseColumn> columns;
+    private final boolean asTempTable;
 
     private final String structure;
 
     protected ClickHouseExternalTable(String name, CompletableFuture<InputStream> content, ClickHouseFormat format,
-            Collection<ClickHouseColumn> columns) {
+            Collection<ClickHouseColumn> columns, boolean asTempTable) {
         this.name = name == null ? "" : name.trim();
         this.content = ClickHouseChecker.nonNull(content, "content");
         this.format = format == null ? ClickHouseFormat.TabSeparated : format;
@@ -124,6 +136,8 @@ public class ClickHouseExternalTable {
             this.columns = Collections.unmodifiableList(list);
             this.structure = builder.deleteCharAt(builder.length() - 1).toString();
         }
+
+        this.asTempTable = asTempTable;
     }
 
     public boolean hasName() {
@@ -151,6 +165,10 @@ public class ClickHouseExternalTable {
 
     public List<ClickHouseColumn> getColumns() {
         return columns;
+    }
+
+    public boolean isTempTable() {
+        return asTempTable;
     }
 
     public String getStructure() {

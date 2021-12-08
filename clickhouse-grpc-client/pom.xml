@@ -138,10 +138,10 @@
                                         <exclude>google/**</exclude>
                                         <exclude>javax/**</exclude>
                                         <exclude>org/**</exclude>
+                                        <exclude>**/module-info.class</exclude>
                                         <exclude>META-INF/MANIFEST.MF</exclude>
                                         <exclude>META-INF/maven/**</exclude>
                                         <exclude>META-INF/native-image/**</exclude>
-                                        <exclude>META-INF/versions/**</exclude>
                                     </excludes>
                                 </filter>
                             </filters>
@@ -192,10 +192,10 @@
                                         <exclude>javax/**</exclude>
                                         <exclude>okio/**</exclude>
                                         <exclude>org/**</exclude>
+                                        <exclude>**/module-info.class</exclude>
                                         <exclude>META-INF/MANIFEST.MF</exclude>
                                         <exclude>META-INF/maven/**</exclude>
                                         <exclude>META-INF/native-image/**</exclude>
-                                        <exclude>META-INF/versions/**</exclude>
                                     </excludes>
                                 </filter>
                             </filters>
@@ -252,11 +252,11 @@
                                         <exclude>io/grpc/netty/**</exclude>
                                         <exclude>javax/**</exclude>
                                         <exclude>org/**</exclude>
+                                        <exclude>**/module-info.class</exclude>
                                         <exclude>META-INF/MANIFEST.MF</exclude>
                                         <exclude>META-INF/maven/**</exclude>
                                         <exclude>META-INF/native/**</exclude>
                                         <exclude>META-INF/native-image/**</exclude>
-                                        <exclude>META-INF/versions/**</exclude>
                                     </excludes>
                                 </filter>
                             </filters>

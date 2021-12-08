@@ -1,9 +1,9 @@
 package com.clickhouse.jdbc;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Map;
 
-import com.clickhouse.client.ClickHouseColumn;
 import com.clickhouse.client.ClickHouseParameterizedQuery;
 import com.clickhouse.client.ClickHouseUtils;
 
@@ -38,7 +38,8 @@ public final class JdbcParameterizedQuery extends ClickHouseParameterizedQuery {
                 i = ClickHouseUtils.skipQuotedString(originalQuery, i, len, ch) - 1;
             } else if (ch == '?') {
                 int idx = ClickHouseUtils.skipContentsUntil(originalQuery, i + 2, len, '?', ':');
-                if (idx < len && originalQuery.charAt(idx - 1) == ':' && originalQuery.charAt(idx) != ':') {
+                if (idx < len && originalQuery.charAt(idx - 1) == ':' && originalQuery.charAt(idx) != ':'
+                        && originalQuery.charAt(idx - 2) != ':') {
                     i = idx - 1;
                 } else {
                     addPart(originalQuery.substring(partIndex, i), paramIndex++, null);

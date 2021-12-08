@@ -229,14 +229,6 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
         return client;
     }
 
-    protected ClickHouseParameterizedQuery getPreparedQuery() {
-        if (preparedQuery == null) {
-            preparedQuery = ClickHouseParameterizedQuery.of(getQuery());
-        }
-
-        return preparedQuery;
-    }
-
     /**
      * Gets query, either set by {@code query()} or {@code table()}.
      *
@@ -365,6 +357,20 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
      */
     public Optional<String> getQueryId() {
         return ClickHouseChecker.isNullOrEmpty(queryId) ? Optional.empty() : Optional.of(queryId);
+    }
+
+    /**
+     * Gets prepared query, which is a loosely parsed query with the origianl query
+     * and list of parameters.
+     *
+     * @return prepared query
+     */
+    public ClickHouseParameterizedQuery getPreparedQuery() {
+        if (preparedQuery == null) {
+            preparedQuery = ClickHouseParameterizedQuery.of(getQuery());
+        }
+
+        return preparedQuery;
     }
 
     /**
@@ -731,7 +737,7 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
         namedParameters.clear();
 
         if (values != null && !values.isEmpty()) {
-            List<String> names = getPreparedQuery().getNamedParameters();
+            List<String> names = getPreparedQuery().getParameters();
             int size = names.size();
             int index = 0;
             for (String v : values) {
@@ -763,7 +769,7 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
         namedParameters.clear();
 
         if (value != null) { // it doesn't make sense to pass null as first parameter
-            List<String> names = getPreparedQuery().getNamedParameters();
+            List<String> names = getPreparedQuery().getParameters();
             int size = names.size();
             int index = 0;
 
@@ -800,7 +806,7 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
         namedParameters.clear();
 
         if (values != null && values.length > 0) {
-            List<String> names = getPreparedQuery().getNamedParameters();
+            List<String> names = getPreparedQuery().getParameters();
             int size = names.size();
             int index = 0;
             for (ClickHouseValue v : values) {
@@ -832,7 +838,7 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
 
         namedParameters.clear();
 
-        List<String> names = getPreparedQuery().getNamedParameters();
+        List<String> names = getPreparedQuery().getParameters();
         int size = names.size();
         int index = 0;
         namedParameters.put(names.get(index++), value);
@@ -867,7 +873,7 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
         namedParameters.clear();
 
         if (values != null && values.length > 0) {
-            List<String> names = getPreparedQuery().getNamedParameters();
+            List<String> names = getPreparedQuery().getParameters();
             int size = names.size();
             int index = 0;
             for (String v : values) {
@@ -899,7 +905,7 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
 
         namedParameters.clear();
 
-        List<String> names = getPreparedQuery().getNamedParameters();
+        List<String> names = getPreparedQuery().getParameters();
         int size = names.size();
         int index = 0;
         namedParameters.put(names.get(index++), ClickHouseValues.convertToSqlExpression(value));
@@ -934,7 +940,7 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
         namedParameters.clear();
 
         if (values != null && values.length > 0) {
-            List<String> names = getPreparedQuery().getNamedParameters();
+            List<String> names = getPreparedQuery().getParameters();
             int size = names.size();
             int index = 0;
             for (Object v : values) {

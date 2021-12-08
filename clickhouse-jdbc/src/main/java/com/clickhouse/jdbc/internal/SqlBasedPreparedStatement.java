@@ -1,72 +1,63 @@
 package com.clickhouse.jdbc.internal;
 
-import java.io.InputStream;
-import java.io.Reader;
 import java.math.BigDecimal;
-import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.sql.Array;
-import java.sql.Blob;
-import java.sql.Clob;
 import java.sql.Date;
-import java.sql.NClob;
 import java.sql.ParameterMetaData;
-import java.sql.PreparedStatement;
-import java.sql.Ref;
 import java.sql.ResultSet;
-import java.sql.ResultSetMetaData;
-import java.sql.RowId;
 import java.sql.SQLException;
-import java.sql.SQLXML;
 import java.sql.Time;
 import java.sql.Timestamp;
-import java.sql.Types;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Calendar;
-import java.util.GregorianCalendar;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.TimeZone;
 
-import com.clickhouse.client.ClickHouseInputStream;
+import com.clickhouse.client.ClickHouseParameterizedQuery;
 import com.clickhouse.client.ClickHouseRequest;
+import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.ClickHouseUtils;
 import com.clickhouse.client.ClickHouseValue;
 import com.clickhouse.client.ClickHouseValues;
-import com.clickhouse.client.data.BinaryStreamUtils;
 import com.clickhouse.client.data.ClickHouseDateTimeValue;
+import com.clickhouse.client.data.ClickHouseDateValue;
 import com.clickhouse.client.logging.Logger;
 import com.clickhouse.client.logging.LoggerFactory;
-import com.clickhouse.jdbc.ClickHouseConnection;
-import com.clickhouse.jdbc.JdbcParameterizedQuery;
+import com.clickhouse.jdbc.ClickHousePreparedStatement;
 import com.clickhouse.jdbc.JdbcTypeMapping;
 import com.clickhouse.jdbc.SqlExceptionUtils;
 import com.clickhouse.jdbc.parser.ClickHouseSqlStatement;
 
-public class SqlBasedPreparedStatement extends ClickHouseStatementImpl implements PreparedStatement {
+public class SqlBasedPreparedStatement extends ClickHouseStatementImpl implements ClickHousePreparedStatement {
     private static final Logger log = LoggerFactory.getLogger(SqlBasedPreparedStatement.class);
 
     private final Calendar defaultCalendar;
     private final ZoneId jvmZoneId;
 
-    private final JdbcParameterizedQuery preparedQuery;
+    private final ClickHouseSqlStatement parsedStmt;
+    private final ClickHouseParameterizedQuery preparedQuery;
     private final ClickHouseValue[] templates;
     private final String[] values;
     private final List<String[]> batch;
 
-    protected SqlBasedPreparedStatement(ClickHouseConnection connection, ClickHouseRequest<?> request,
-            JdbcParameterizedQuery preparedQuery, int resultSetType, int resultSetConcurrency, int resultSetHoldability)
+    protected SqlBasedPreparedStatement(ClickHouseConnectionImpl connection, ClickHouseRequest<?> request,
+            ClickHouseSqlStatement parsedStmt, int resultSetType, int resultSetConcurrency, int resultSetHoldability)
             throws SQLException {
         super(connection, request, resultSetType, resultSetConcurrency, resultSetHoldability);
 
         defaultCalendar = connection.getDefaultCalendar();
         jvmZoneId = connection.getJvmTimeZone().toZoneId();
 
-        this.preparedQuery = preparedQuery;
+        this.parsedStmt = parsedStmt;
 
-        templates = new ClickHouseValue[preparedQuery.getNamedParameters().size()];
+        preparedQuery = request.getPreparedQuery();
+
+        templates = preparedQuery.getParameterTemplates();
+        
         values = new String[templates.length];
         batch = new LinkedList<>();
     }
@@ -97,6 +88,7 @@ public class SqlBasedPreparedStatement extends ClickHouseStatementImpl implement
     public ResultSet executeQuery() throws SQLException {
         ensureParams();
 
+        // FIXME ResultSet should never be null
         return executeQuery(preparedQuery.apply(values));
     }
 
@@ -105,25 +97,6 @@ public class SqlBasedPreparedStatement extends ClickHouseStatementImpl implement
         ensureParams();
 
         return executeUpdate(preparedQuery.apply(values));
-    }
-
-    @Override
-    public void setNull(int parameterIndex, int sqlType) throws SQLException {
-        setNull(parameterIndex, sqlType, null);
-    }
-
-    @Override
-    public void setBoolean(int parameterIndex, boolean x) throws SQLException {
-        ensureOpen();
-
-        int idx = toArrayIndex(parameterIndex);
-        ClickHouseValue value = templates[idx];
-        if (value != null) {
-            value.update(x);
-            values[idx] = value.toSqlExpression();
-        } else {
-            values[idx] = x ? "1" : "0";
-        }
     }
 
     @Override
@@ -253,65 +226,12 @@ public class SqlBasedPreparedStatement extends ClickHouseStatementImpl implement
     }
 
     @Override
-    public void setDate(int parameterIndex, Date x) throws SQLException {
-        setDate(parameterIndex, x, null);
-    }
-
-    @Override
-    public void setTime(int parameterIndex, Time x) throws SQLException {
-        setTime(parameterIndex, x, null);
-    }
-
-    @Override
-    public void setTimestamp(int parameterIndex, Timestamp x) throws SQLException {
-        setTimestamp(parameterIndex, x, null);
-    }
-
-    @Override
-    public void setAsciiStream(int parameterIndex, InputStream x, int length) throws SQLException {
-        String s = null;
-        if (x != null) {
-            try {
-                s = BinaryStreamUtils.readFixedString(ClickHouseInputStream.of(x), length, StandardCharsets.US_ASCII);
-            } catch (Throwable e) { // IOException and potentially OOM error
-                throw SqlExceptionUtils.clientError(e);
-            }
-        }
-
-        setString(parameterIndex, s);
-    }
-
-    @Override
-    public void setUnicodeStream(int parameterIndex, InputStream x, int length) throws SQLException {
-        String s = null;
-        if (x != null) {
-            try {
-                s = BinaryStreamUtils.readFixedString(ClickHouseInputStream.of(x), length, StandardCharsets.UTF_8);
-            } catch (Throwable e) { // IOException and potentially OOM error
-                throw SqlExceptionUtils.clientError(e);
-            }
-        }
-
-        setString(parameterIndex, s);
-    }
-
-    @Override
-    public void setBinaryStream(int parameterIndex, InputStream x, int length) throws SQLException {
-        setUnicodeStream(parameterIndex, x, length);
-    }
-
-    @Override
     public void clearParameters() throws SQLException {
         ensureOpen();
 
         for (int i = 0, len = values.length; i < len; i++) {
             values[i] = null;
         }
-    }
-
-    @Override
-    public void setObject(int parameterIndex, Object x, int targetSqlType) throws SQLException {
-        setObject(parameterIndex, x, targetSqlType, 0);
     }
 
     @Override
@@ -342,14 +262,6 @@ public class SqlBasedPreparedStatement extends ClickHouseStatementImpl implement
     }
 
     @Override
-    public void addBatch(String sql) throws SQLException {
-        ensureOpen();
-
-        throw SqlExceptionUtils
-                .unsupportedError("addBatch(String) cannot be called in PreparedStatement or CallableStatement!");
-    }
-
-    @Override
     public void addBatch() throws SQLException {
         ensureOpen();
 
@@ -375,9 +287,8 @@ public class SqlBasedPreparedStatement extends ClickHouseStatementImpl implement
         int[] results = new int[len];
         int counter = 0;
         for (String[] params : batch) {
-            try {
-                results[counter] = executeStatement(new ClickHouseSqlStatement(preparedQuery.apply(params)), null, null,
-                        null);
+            try (ClickHouseResponse r = executeStatement(preparedQuery.apply(params), null, null, null)) {
+                results[counter] = (int) r.getSummary().getWrittenRows();
             } catch (Exception e) {
                 results[counter] = EXECUTE_FAILED;
                 log.error("Failed to execute task %d of %d", counter + 1, len, e);
@@ -398,63 +309,43 @@ public class SqlBasedPreparedStatement extends ClickHouseStatementImpl implement
     }
 
     @Override
-    public void setCharacterStream(int parameterIndex, Reader reader, int length) throws SQLException {
-        String s = null;
-        if (reader != null) {
-            try {
-                s = BinaryStreamUtils.readString(reader, length);
-            } catch (Throwable e) { // IOException and potentially OOM error
-                throw SqlExceptionUtils.clientError(e);
-            }
-        }
-
-        setString(parameterIndex, s);
-    }
-
-    @Override
-    public void setRef(int parameterIndex, Ref x) throws SQLException {
-        // TODO Auto-generated method stub
-
-    }
-
-    @Override
-    public void setBlob(int parameterIndex, Blob x) throws SQLException {
-        if (x != null) {
-            setBinaryStream(parameterIndex, x.getBinaryStream());
-        } else {
-            setNull(parameterIndex, Types.BINARY);
-        }
-    }
-
-    @Override
-    public void setClob(int parameterIndex, Clob x) throws SQLException {
-        // TODO Auto-generated method stub
-
-    }
-
-    @Override
     public void setArray(int parameterIndex, Array x) throws SQLException {
-        // TODO Auto-generated method stub
+        ensureOpen();
 
-    }
-
-    @Override
-    public ResultSetMetaData getMetaData() throws SQLException {
-        ResultSet currentResult = getResultSet();
-
-        return currentResult != null ? currentResult.getMetaData() : null;
+        int idx = toArrayIndex(parameterIndex);
+        Object array = x != null ? x.getArray() : x;
+        values[idx] = array != null ? ClickHouseValues.convertToSqlExpression(array)
+                : ClickHouseValues.EMPTY_ARRAY_EXPR;
     }
 
     @Override
     public void setDate(int parameterIndex, Date x, Calendar cal) throws SQLException {
-        // TODO Auto-generated method stub
+        ensureOpen();
 
+        int idx = toArrayIndex(parameterIndex);
+        if (x == null) {
+            values[idx] = ClickHouseValues.NULL_EXPR;
+            return;
+        }
+
+        LocalDate d = null;
+        if (cal != null) {
+            d = x.toLocalDate().atStartOfDay(jvmZoneId)
+                    .withZoneSameInstant(cal.getTimeZone().toZoneId()).toLocalDate();
+        } else {
+            d = x.toLocalDate();
+        }
+
+        ClickHouseValue value = templates[idx];
+        if (value == null) {
+            value = ClickHouseDateValue.ofNull();
+        }
+        values[idx] = value.update(d).toSqlExpression();
     }
 
     @Override
     public void setTime(int parameterIndex, Time x, Calendar cal) throws SQLException {
-        // TODO Auto-generated method stub
-
+        throw SqlExceptionUtils.clientError("setTime not implemented");
     }
 
     @Override
@@ -497,74 +388,9 @@ public class SqlBasedPreparedStatement extends ClickHouseStatementImpl implement
     }
 
     @Override
-    public void setURL(int parameterIndex, URL x) throws SQLException {
-        setString(parameterIndex, String.valueOf(x));
-    }
-
-    @Override
     public ParameterMetaData getParameterMetaData() throws SQLException {
         // TODO Auto-generated method stub
         return null;
-    }
-
-    @Override
-    public void setRowId(int parameterIndex, RowId x) throws SQLException {
-        ensureOpen();
-
-        toArrayIndex(parameterIndex);
-
-        throw SqlExceptionUtils.unsupportedError("setRowId not implemented");
-    }
-
-    @Override
-    public void setNString(int parameterIndex, String value) throws SQLException {
-        setString(parameterIndex, value);
-    }
-
-    @Override
-    public void setNCharacterStream(int parameterIndex, Reader value, long length) throws SQLException {
-        setCharacterStream(parameterIndex, value, length);
-    }
-
-    @Override
-    public void setNClob(int parameterIndex, NClob value) throws SQLException {
-        ensureOpen();
-
-        toArrayIndex(parameterIndex);
-
-        throw SqlExceptionUtils.unsupportedError("setNClob not implemented");
-    }
-
-    @Override
-    public void setClob(int parameterIndex, Reader reader, long length) throws SQLException {
-        ensureOpen();
-
-        toArrayIndex(parameterIndex);
-
-        throw SqlExceptionUtils.unsupportedError("setClob not implemented");
-    }
-
-    @Override
-    public void setBlob(int parameterIndex, InputStream inputStream, long length) throws SQLException {
-        ensureOpen();
-
-        toArrayIndex(parameterIndex);
-
-        throw SqlExceptionUtils.unsupportedError("setBlob not implemented");
-    }
-
-    @Override
-    public void setNClob(int parameterIndex, Reader reader, long length) throws SQLException {
-        setClob(parameterIndex, reader, length);
-    }
-
-    @Override
-    public void setSQLXML(int parameterIndex, SQLXML xmlObject) throws SQLException {
-        ensureOpen();
-
-        toArrayIndex(parameterIndex);
-
-        throw SqlExceptionUtils.unsupportedError("setSQLXML not implemented");
     }
 
     @Override
@@ -580,72 +406,5 @@ public class SqlBasedPreparedStatement extends ClickHouseStatementImpl implement
 
         value.update(x);
         values[idx] = value.toSqlExpression();
-    }
-
-    @Override
-    public void setAsciiStream(int parameterIndex, InputStream x, long length) throws SQLException {
-        ensureOpen();
-
-        toArrayIndex(parameterIndex);
-
-        throw SqlExceptionUtils.unsupportedError("setAsciiStream not implemented");
-    }
-
-    @Override
-    public void setBinaryStream(int parameterIndex, InputStream x, long length) throws SQLException {
-        ensureOpen();
-
-        toArrayIndex(parameterIndex);
-
-        throw SqlExceptionUtils.unsupportedError("setBinaryStream not implemented");
-    }
-
-    @Override
-    public void setCharacterStream(int parameterIndex, Reader reader, long length) throws SQLException {
-        ensureOpen();
-
-        toArrayIndex(parameterIndex);
-
-        throw SqlExceptionUtils.unsupportedError("setCharacterStream not implemented");
-    }
-
-    @Override
-    public void setAsciiStream(int parameterIndex, InputStream x) throws SQLException {
-        // TODO Auto-generated method stub
-
-    }
-
-    @Override
-    public void setBinaryStream(int parameterIndex, InputStream x) throws SQLException {
-        // TODO Auto-generated method stub
-
-    }
-
-    @Override
-    public void setCharacterStream(int parameterIndex, Reader reader) throws SQLException {
-        // TODO Auto-generated method stub
-
-    }
-
-    @Override
-    public void setNCharacterStream(int parameterIndex, Reader value) throws SQLException {
-        setCharacterStream(parameterIndex, value);
-    }
-
-    @Override
-    public void setClob(int parameterIndex, Reader reader) throws SQLException {
-        // TODO Auto-generated method stub
-
-    }
-
-    @Override
-    public void setBlob(int parameterIndex, InputStream inputStream) throws SQLException {
-        // TODO Auto-generated method stub
-
-    }
-
-    @Override
-    public void setNClob(int parameterIndex, Reader reader) throws SQLException {
-        setClob(parameterIndex, reader);
     }
 }

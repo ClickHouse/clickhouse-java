@@ -49,6 +49,7 @@ public class ClickHouseResultSet extends AbstractResultSet {
     protected final ClickHouseResponse response;
 
     protected final ClickHouseConfig config;
+    protected final boolean wrapObject;
     protected final List<ClickHouseColumn> columns;
     protected final Calendar defaultCalendar;
     protected final TimeZone tsTimeZone;
@@ -64,6 +65,7 @@ public class ClickHouseResultSet extends AbstractResultSet {
         this.response = response;
 
         this.config = null;
+        this.wrapObject = false;
         this.defaultCalendar = new GregorianCalendar(TimeZone.getTimeZone("UTC"));
         this.tsTimeZone = null; // TimeZone.getDefault();
         this.dateTimeZone = this.tsTimeZone;
@@ -98,6 +100,7 @@ public class ClickHouseResultSet extends AbstractResultSet {
 
         ClickHouseConnection conn = statement.getConnection();
         this.config = statement.getConfig();
+        this.wrapObject = statement.getConnection().getJdbcConfig().useWrapperObject();
         this.defaultCalendar = conn.getDefaultCalendar();
         this.tsTimeZone = conn.getEffectiveTimeZone().orElse(null);
         this.dateTimeZone = this.tsTimeZone;
@@ -445,11 +448,15 @@ public class ClickHouseResultSet extends AbstractResultSet {
 
     @Override
     public Object getObject(int columnIndex) throws SQLException {
+        if (!wrapObject) {
+            return getValue(columnIndex).asObject();
+        }
+
         ClickHouseValue v = getValue(columnIndex);
         ClickHouseColumn c = columns.get(columnIndex - 1);
         if (c.isArray()) {
             return new ClickHouseArray(this, columnIndex);
-        } else if (c.isNested()) {
+        } else if (c.isTuple() || c.isNested()) {
             return new ClickHouseStruct(c.getDataType().name(), v.asArray());
         } else {
             return v.asObject();
@@ -714,5 +721,15 @@ public class ClickHouseResultSet extends AbstractResultSet {
         } catch (Exception e) {
             throw SqlExceptionUtils.handle(e);
         }
+    }
+
+    @Override
+    public boolean isWrapperFor(Class<?> iface) throws SQLException {
+        return iface == ClickHouseResponse.class || super.isWrapperFor(iface);
+    }
+
+    @Override
+    public <T> T unwrap(Class<T> iface) throws SQLException {
+        return iface == ClickHouseResponse.class ? iface.cast(response) : super.unwrap(iface);
     }
 }

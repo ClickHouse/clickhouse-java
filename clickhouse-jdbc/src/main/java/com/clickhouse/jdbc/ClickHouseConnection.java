@@ -8,12 +8,62 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Calendar;
+import java.util.Collections;
 import java.util.Optional;
 import java.util.TimeZone;
 
+import com.clickhouse.client.ClickHouseColumn;
+import com.clickhouse.client.ClickHouseConfig;
+import com.clickhouse.client.ClickHouseValue;
+import com.clickhouse.client.ClickHouseValues;
 import com.clickhouse.client.ClickHouseVersion;
+import com.clickhouse.client.data.ClickHouseSimpleResponse;
+import com.clickhouse.jdbc.parser.ClickHouseSqlStatement;
 
 public interface ClickHouseConnection extends Connection {
+    // The name of the application currently utilizing the connection
+    static final String PROP_APPLICATION_NAME = "ApplicationName";
+    static final String PROP_CUSTOM_HTTP_HEADERS = "CustomHttpHeaders";
+    static final String PROP_CUSTOM_HTTP_PARAMS = "CustomHttpParameters";
+    // The name of the user that the application using the connection is performing
+    // work for. This may not be the same as the user name that was used in
+    // establishing the connection.
+    // private static final String PROP_CLIENT_USER = "ClientUser";
+    // The hostname of the computer the application using the connection is running
+    // on.
+    // private static final String PROP_CLIENT_HOST = "ClientHostname";
+
+    @Override
+    default ClickHouseArray createArrayOf(String typeName, Object[] elements) throws SQLException {
+        ClickHouseColumn column = ClickHouseColumn.of("", typeName);
+        ClickHouseValue v = ClickHouseValues.newValue(column).update(elements);
+        ClickHouseResultSet rs = new ClickHouseResultSet("", "", createStatement(),
+                ClickHouseSimpleResponse.of(Collections.singletonList(column),
+                        new Object[][] { new Object[] { v.asObject() } }));
+        rs.next();
+        return new ClickHouseArray(rs, 1);
+    }
+
+    @Override
+    default ClickHouseBlob createBlob() throws SQLException {
+        return new ClickHouseBlob();
+    }
+
+    @Override
+    default ClickHouseClob createClob() throws SQLException {
+        return new ClickHouseClob();
+    }
+
+    @Override
+    default ClickHouseStruct createStruct(String typeName, Object[] attributes) throws SQLException {
+        return new ClickHouseStruct(typeName, attributes);
+    }
+
+    @Override
+    default ClickHouseXml createSQLXML() throws SQLException {
+        return new ClickHouseXml();
+    }
+
     @Override
     default ClickHouseStatement createStatement() throws SQLException {
         return createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY,
@@ -130,11 +180,40 @@ public interface ClickHouseConnection extends Connection {
      */
     TimeZone getServerTimeZone();
 
+    /**
+     * Gets server version.
+     *
+     * @return non-null server version
+     */
     ClickHouseVersion getServerVersion();
 
+    /**
+     * Gets URI of the connection.
+     *
+     * @return URI of the connection
+     */
     URI getUri();
 
-    boolean isJdbcCompliant();
+    /**
+     * Gets JDBC-specific configuration.
+     *
+     * @return non-null JDBC-specific configuration
+     */
+    JdbcConfig getJdbcConfig();
 
+    /**
+     * Creates a new query ID.
+     *
+     * @return universal unique query ID
+     */
     String newQueryId();
+
+    /**
+     * Parses the given sql.
+     *
+     * @param sql    sql to parse
+     * @param config configuration which might be used for parsing, could be null
+     * @return non-null parsed sql statements
+     */
+    ClickHouseSqlStatement[] parse(String sql, ClickHouseConfig config);
 }

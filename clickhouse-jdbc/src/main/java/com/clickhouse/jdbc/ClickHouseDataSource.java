@@ -4,6 +4,7 @@ import javax.sql.DataSource;
 
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.config.ClickHouseDefaults;
+import com.clickhouse.jdbc.internal.ClickHouseConnectionImpl;
 import com.clickhouse.jdbc.internal.ClickHouseJdbcUrlParser;
 import com.clickhouse.jdbc.internal.ClickHouseJdbcUrlParser.ConnectionInfo;
 
@@ -15,41 +16,32 @@ import java.sql.SQLFeatureNotSupportedException;
 import java.util.Properties;
 import java.util.logging.Logger;
 
-public class ClickHouseDataSource extends Wrapper implements DataSource {
+public class ClickHouseDataSource extends JdbcWrapper implements DataSource {
     private final String url;
 
-    protected final ClickHouseDriver driver = new ClickHouseDriver();
-
-    protected final Properties properties;
-    protected final ClickHouseNode server;
-    protected final URI uri;
+    protected final ClickHouseDriver driver;
+    protected final ConnectionInfo connInfo;
 
     protected PrintWriter printWriter;
     protected int loginTimeoutSeconds = 0;
 
-    public ClickHouseDataSource(String url) {
+    public ClickHouseDataSource(String url) throws SQLException {
         this(url, new Properties());
     }
 
-    public ClickHouseDataSource(String url, Properties properties) {
+    public ClickHouseDataSource(String url, Properties properties) throws SQLException {
         if (url == null) {
             throw new IllegalArgumentException("Incorrect ClickHouse jdbc url. It must be not null");
         }
         this.url = url;
 
-        try {
-            ConnectionInfo connInfo = ClickHouseJdbcUrlParser.parse(url, properties);
-            this.properties = connInfo.getProperties();
-            this.server = connInfo.getServer();
-            this.uri = connInfo.getUri();
-        } catch (URISyntaxException e) {
-            throw new IllegalArgumentException(e);
-        }
+        this.driver = new ClickHouseDriver();
+        this.connInfo = ClickHouseJdbcUrlParser.parse(url, properties);
     }
 
     @Override
     public ClickHouseConnection getConnection() throws SQLException {
-        return driver.connect(url, properties);
+        return new ClickHouseConnectionImpl(connInfo);
     }
 
     @Override
@@ -62,31 +54,32 @@ public class ClickHouseDataSource extends Wrapper implements DataSource {
             password = "";
         }
 
-        Properties props = new Properties(properties);
+        Properties props = new Properties(connInfo.getProperties());
         props.setProperty(ClickHouseDefaults.USER.getKey(), username);
         props.setProperty(ClickHouseDefaults.PASSWORD.getKey(), password);
         return driver.connect(url, props);
     }
 
     public String getHost() {
-        return server.getHost();
+        return connInfo.getServer().getHost();
     }
 
     public int getPort() {
-        return server.getPort();
+        return connInfo.getServer().getPort();
     }
 
     public String getDatabase() {
-        return server.getDatabase().orElse((String) ClickHouseDefaults.DATABASE.getEffectiveDefaultValue());
+        return connInfo.getServer().getDatabase()
+                .orElse((String) ClickHouseDefaults.DATABASE.getEffectiveDefaultValue());
     }
 
     // public String getUrl() {
     // return url;
     // }
 
-    public Properties getProperties() {
-        return properties;
-    }
+    // public Properties getProperties() {
+    // return connInfo.getProperties();
+    // }
 
     @Override
     public PrintWriter getLogWriter() throws SQLException {

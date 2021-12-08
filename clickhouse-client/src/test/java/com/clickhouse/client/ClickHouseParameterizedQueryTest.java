@@ -1,5 +1,7 @@
 package com.clickhouse.client;
 
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -148,7 +150,7 @@ public class ClickHouseParameterizedQueryTest {
         Assert.assertTrue(q.apply("test") == query);
         Assert.assertTrue(q.apply("test1", "test2") == query);
         Assert.assertFalse(q.hasParameter());
-        Assert.assertTrue((Object) q.getNamedParameters() == Collections.emptyList());
+        Assert.assertTrue((Object) q.getParameters() == Collections.emptyList());
         Assert.assertEquals(q.getQueryParts().toArray(new String[0][]),
                 new String[][] { new String[] { query, null } });
     }
@@ -181,5 +183,19 @@ public class ClickHouseParameterizedQueryTest {
 
         Assert.assertEquals(ClickHouseParameterizedQuery.apply(sql, params),
                 "select 2>1?3:2, name, value, value::Decimal64(3) from my_table where value != ':ccc' and num in (1,2,3 ) and value = 's t r'");
+    }
+
+    @Test(groups = { "unit" })
+    public void testApplyTypedParameters() {
+        LocalDateTime ts = LocalDateTime.ofEpochSecond(10000, 123456789, ZoneOffset.UTC);
+        String sql = "select :ts1 ts1, :ts2(DateTime32) ts2, :ts2 ts3";
+        ClickHouseParameterizedQuery pq = ClickHouseParameterizedQuery.of(sql);
+        ClickHouseValue[] templates = pq.getParameterTemplates();
+        Assert.assertEquals(templates.length, pq.getParameters().size());
+        Assert.assertNull(templates[0]);
+        Assert.assertTrue(templates[1] instanceof ClickHouseDateTimeValue);
+        Assert.assertEquals(((ClickHouseDateTimeValue) templates[1]).getScale(), 0);
+        Assert.assertEquals(pq.apply(ts, ts, ts), // shoud support only two parameters
+                "select '1970-01-01 02:46:40.123456789' ts1, '1970-01-01 02:46:40' ts2, '1970-01-01 02:46:40' ts3");
     }
 }

@@ -2,6 +2,7 @@ package com.clickhouse.jdbc.internal;
 
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.sql.SQLException;
 import java.util.Properties;
 
 import com.clickhouse.client.ClickHouseCredentials;
@@ -31,23 +32,23 @@ public class ClickHouseJdbcUrlParserTest {
 
     @Test(groups = "unit")
     public void testParseInvalidUri() {
-        Assert.assertThrows(IllegalArgumentException.class, () -> ClickHouseJdbcUrlParser.parse(null, null));
-        Assert.assertThrows(IllegalArgumentException.class, () -> ClickHouseJdbcUrlParser.parse("", null));
-        Assert.assertThrows(URISyntaxException.class, () -> ClickHouseJdbcUrlParser.parse("some_invalid_uri", null));
-        Assert.assertThrows(URISyntaxException.class, () -> ClickHouseJdbcUrlParser.parse("jdbc:clickhouse:.", null));
-        Assert.assertThrows(URISyntaxException.class, () -> ClickHouseJdbcUrlParser.parse("jdbc:clickhouse://", null));
-        Assert.assertThrows(IllegalArgumentException.class,
+        Assert.assertThrows(SQLException.class, () -> ClickHouseJdbcUrlParser.parse(null, null));
+        Assert.assertThrows(SQLException.class, () -> ClickHouseJdbcUrlParser.parse("", null));
+        Assert.assertThrows(SQLException.class, () -> ClickHouseJdbcUrlParser.parse("some_invalid_uri", null));
+        Assert.assertThrows(SQLException.class, () -> ClickHouseJdbcUrlParser.parse("jdbc:clickhouse:.", null));
+        Assert.assertThrows(SQLException.class, () -> ClickHouseJdbcUrlParser.parse("jdbc:clickhouse://", null));
+        Assert.assertThrows(SQLException.class,
                 () -> ClickHouseJdbcUrlParser.parse("jdbc:clickhouse:///db", null));
-        Assert.assertThrows(URISyntaxException.class,
+        Assert.assertThrows(SQLException.class,
                 () -> ClickHouseJdbcUrlParser.parse("jdbc:clickhouse://server/ ", null));
-        Assert.assertThrows(URISyntaxException.class,
+        Assert.assertThrows(SQLException.class,
                 () -> ClickHouseJdbcUrlParser.parse("clickhouse://a:b:c@aaa", null));
-        Assert.assertThrows(URISyntaxException.class,
+        Assert.assertThrows(SQLException.class,
                 () -> ClickHouseJdbcUrlParser.parse("clickhouse://::1:1234/a", null));
     }
 
     @Test(groups = "unit")
-    public void testParseIpv6() throws URISyntaxException {
+    public void testParseIpv6() throws SQLException, URISyntaxException {
         ConnectionInfo info = ClickHouseJdbcUrlParser.parse("jdbc:clickhouse://[::1]:1234", null);
         Assert.assertEquals(info.getUri(), new URI("jdbc:clickhouse:http://[::1]:1234/default"));
         Assert.assertEquals(info.getServer(),
@@ -60,7 +61,7 @@ public class ClickHouseJdbcUrlParserTest {
     }
 
     @Test(groups = "unit")
-    public void testParseAbbrevation() throws URISyntaxException {
+    public void testParseAbbrevation() throws SQLException, URISyntaxException {
         ConnectionInfo info = ClickHouseJdbcUrlParser.parse("jdbc:ch://localhost", null);
         Assert.assertEquals(info.getUri(), new URI("jdbc:clickhouse:http://localhost:8123/default"));
         Assert.assertEquals(info.getServer(),
@@ -89,7 +90,7 @@ public class ClickHouseJdbcUrlParserTest {
     }
 
     @Test(groups = "unit")
-    public void testParse() throws URISyntaxException {
+    public void testParse() throws SQLException, URISyntaxException {
         ConnectionInfo info = ClickHouseJdbcUrlParser.parse("jdbc:ch://localhost", null);
         Assert.assertEquals(info.getUri(), new URI("jdbc:clickhouse:http://localhost:8123/default"));
         Assert.assertEquals(info.getServer(),
@@ -120,7 +121,7 @@ public class ClickHouseJdbcUrlParserTest {
     }
 
     @Test(groups = "unit")
-    public void testParseWithProperties() throws URISyntaxException {
+    public void testParseWithProperties() throws SQLException, URISyntaxException {
         ConnectionInfo info = ClickHouseJdbcUrlParser.parse("jdbc:clickhouse://localhost/", null);
         Assert.assertEquals(info.getUri(), new URI("jdbc:clickhouse:http://localhost:8123/default"));
         Assert.assertEquals(info.getServer(),
