@@ -15,6 +15,7 @@ import org.openjdk.jmh.annotations.TearDown;
 import com.clickhouse.benchmark.BaseState;
 import com.clickhouse.benchmark.Constants;
 import com.clickhouse.benchmark.ServerState;
+// import com.github.housepower.settings.ClickHouseDefines;
 
 @State(Scope.Thread)
 public class DriverState extends BaseState {
@@ -49,6 +50,8 @@ public class DriverState extends BaseState {
             url = String.format(jdbcDriver.getUrlTemplate(), serverState.getHost(),
                     serverState.getPort(jdbcDriver.getDefaultPort()), serverState.getDatabase(), serverState.getUser(),
                     serverState.getPassword(), compression);
+            // ClickHouseDefines.WRITE_COMPRESS = false;
+            // ClickHouseDefines.READ_DECOMPRESS = Boolean.parseBoolean(compression);
             conn = driver.connect(url, new Properties());
 
             try (Statement s = conn.createStatement()) {

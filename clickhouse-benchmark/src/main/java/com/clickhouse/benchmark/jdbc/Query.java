@@ -7,7 +7,7 @@ import org.openjdk.jmh.infra.Blackhole;
 
 public class Query extends DriverBenchmark {
     @Benchmark
-    public void selectArrayOfInts(Blackhole blackhole, DriverState state) throws Throwable {
+    public void selectArrayOfUInt16(Blackhole blackhole, DriverState state) throws Throwable {
         int num = state.getRandomNumber();
         int rows = state.getSampleSize() + num;
         ConsumeValueFunction func = state.getConsumeFunction((b, r, i) -> b.consume(r.getArray(i)));
@@ -21,7 +21,7 @@ public class Query extends DriverBenchmark {
     }
 
     @Benchmark
-    public void selectMapOfInts(Blackhole blackhole, DriverState state) throws Throwable {
+    public void selectMapOfInt32(Blackhole blackhole, DriverState state) throws Throwable {
         int num = state.getRandomNumber();
         int rows = state.getSampleSize() + num;
         ConsumeValueFunction func = state.getConsumeFunction((b, r, i) -> b.consume(r.getObject(i)));
@@ -36,12 +36,12 @@ public class Query extends DriverBenchmark {
     }
 
     @Benchmark
-    public void selectTupleOfInts(Blackhole blackhole, DriverState state) throws Throwable {
+    public void selectTupleOfInt16(Blackhole blackhole, DriverState state) throws Throwable {
         int num = state.getRandomNumber();
         int rows = state.getSampleSize() + num;
-        ConsumeValueFunction func = state.getConsumeFunction((b, r, i) -> b.consume(r.getArray(i)));
+        ConsumeValueFunction func = state.getConsumeFunction((b, r, i) -> b.consume(r.getObject(i)));
         try (Statement stmt = executeQuery(state,
-                "select tuple(range(100, number % 600)) as v from numbers(?)", rows)) {
+                "select tuple(arrayMap(x -> cast(x as Int16), range(100, number % 600))) as v from numbers(?)", rows)) {
             ResultSet rs = stmt.getResultSet();
             while (rs.next()) {
                 func.consume(blackhole, rs, 1);
@@ -96,6 +96,19 @@ public class Query extends DriverBenchmark {
         int rows = state.getSampleSize() + num;
         ConsumeValueFunction func = state.getConsumeFunction((b, r, i) -> b.consume(r.getShort(i)));
         try (Statement stmt = executeQuery(state, "select toUInt8(number % 256) as v from numbers(?)", rows)) {
+            ResultSet rs = stmt.getResultSet();
+            while (rs.next()) {
+                func.consume(blackhole, rs, 1);
+            }
+        }
+    }
+
+    @Benchmark
+    public void selectUuid(Blackhole blackhole, DriverState state) throws Throwable {
+        int num = state.getRandomNumber();
+        int rows = state.getSampleSize() + num;
+        ConsumeValueFunction func = state.getConsumeFunction((b, r, i) -> b.consume(r.getString(i)));
+        try (Statement stmt = executeQuery(state, "select generateUUIDv4() as v from numbers(?)", rows)) {
             ResultSet rs = stmt.getResultSet();
             while (rs.next()) {
                 func.consume(blackhole, rs, 1);

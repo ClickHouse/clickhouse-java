@@ -1,7 +1,6 @@
 package com.clickhouse.client;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.lang.reflect.Array;
 import java.math.BigDecimal;
 import java.math.BigInteger;

@@ -209,7 +209,7 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
 
             sql = new StringBuilder(sql).append("\nFORMAT ").append(format).toString();
             stmt = new ClickHouseSqlStatement(sql, stmt.getStatementType(), stmt.getCluster(), stmt.getDatabase(),
-                    stmt.getTable(), stmt.getInput(), format, stmt.getOutfile(), stmt.getParameters(), positions, null);
+                    stmt.getTable(), stmt.getInput(), format, stmt.getOutfile(), stmt.getParameters(), positions, null, null);
         }
 
         return stmt;

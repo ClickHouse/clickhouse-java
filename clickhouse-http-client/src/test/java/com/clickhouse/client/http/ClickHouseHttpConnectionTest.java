@@ -35,11 +35,6 @@ public class ClickHouseHttpConnectionTest {
         @Override
         public void close() throws Exception {
         }
-
-        @Override
-        protected String getResponseHeader(String header, String defaultValue) {
-            return defaultValue;
-        }
     }
 
     @Test(groups = { "unit" })

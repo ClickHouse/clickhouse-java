@@ -32,9 +32,11 @@ import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.logging.Logger;
@@ -145,6 +147,7 @@ TOKEN_MGR_DECLS: {
     final List<Integer> parameters = new ArrayList<>();
     final Map<String, Integer> positions = new HashMap<>();
     final Map<String, String> settings = new LinkedHashMap<>();
+    final Set<String> tempTables = new LinkedHashSet<>();
 
     public void CommonTokenAction(Token t) {
         if (t.kind != ClickHouseSqlParserConstants.SEMICOLON) {
@@ -221,6 +224,7 @@ TOKEN_MGR_DECLS: {
         parameters.clear();
         positions.clear();
         settings.clear();
+        tempTables.clear();
     }
 
     ClickHouseSqlStatement build(ParseHandler handler) {
@@ -228,12 +232,12 @@ TOKEN_MGR_DECLS: {
         ClickHouseSqlStatement s = null;
         if (handler != null) {
             s = handler.handleStatement(
-                sqlStmt, stmtType, cluster, database, table, input, format, outfile, parameters, positions, settings);
+                sqlStmt, stmtType, cluster, database, table, input, format, outfile, parameters, positions, settings, tempTables);
         }
 
         if (s == null) {
             s = new ClickHouseSqlStatement(
-                sqlStmt, stmtType, cluster, database, table, input, format, outfile, parameters, positions, settings);
+                sqlStmt, stmtType, cluster, database, table, input, format, outfile, parameters, positions, settings, tempTables);
         }
         
         // reset variables
@@ -247,22 +251,12 @@ TOKEN_MGR_DECLS: {
     }
 
     void addPosition(Token t) {
-        if (t == null) {
+        String keyword = null;
+        if (t == null || (keyword = t.image) == null || keyword.isEmpty()) {
             return;
         }
 
-        addPosition(t.image, t.beginLine == 1 ? t.beginColumn - 1 : -1);
-    }
-
-    void addPosition(String keyword, int startIndex) {
-        if (keyword == null || keyword.isEmpty()) {
-            return;
-        }
-
-        if (startIndex < 0) {
-            startIndex = builder.lastIndexOf(keyword);
-        }
-        this.positions.put(keyword.toUpperCase(Locale.ROOT), startIndex);
+        this.positions.put(keyword.toUpperCase(Locale.ROOT), builder.lastIndexOf(keyword));
     }
 
     void addSetting(String key, String value) {
@@ -279,6 +273,42 @@ SKIP: {
         | "\u2000" | "\u200a" | "\u200b" | "\u200c" | "\u200d" 
         | "\u2028" | "\u2029" | "\u202f" | "\u205f" | "\u2060" | "\u3000" | "\ufeff">
     { append(image); }
+    | <JDBC_LITERAL: ("{d" | "{t" | "{ts" | "{tt") (~["}"])* "}"> {
+        int startIndex = image.indexOf("\'");
+        int endIndex = image.lastIndexOf("\'");
+        if (startIndex < 0 || endIndex < 0 || endIndex <= startIndex) {
+            // skip invalid content
+        } else if (image.charAt(1) == 'd') { // date
+            builder.append("date")
+                .append(image.substring(startIndex, endIndex + 1));
+        } else {
+            char ch = image.charAt(2);
+            if (ch == 's') { // timestamp
+                int scale = image.lastIndexOf(".");
+                if (scale > 0) {
+                    scale = endIndex - scale - 1;
+                } else {
+                    scale = 0;
+                }
+
+                if (scale > 0) {
+                    // or downgrade to DateTime32 for better compatibility?
+                    builder.append("toDateTime64(")
+                        .append(image.substring(startIndex, endIndex + 1)).append(',').append(scale).append(')');
+                } else {
+                    builder.append("timestamp")
+                        .append(image.substring(startIndex, endIndex + 1));
+                }
+            } else if (ch == 't') { // temp table, either session-level temporary table or external table
+                String tableName = ClickHouseSqlUtils.unescape(image.substring(startIndex, endIndex + 1));
+                builder.append('`').append(tableName).append('`');
+                tempTables.add(tableName);
+            } else {
+                builder.append("timestamp'1970-01-01 ")
+                    .append(image.substring(startIndex + 1, endIndex + 1));
+            }
+        }
+    }
     | <SINGLE_LINE_COMMENT: ("--" | "//") (~["\r", "\n"])*> { append(image); }
     | "/*" { commentNestingDepth = 1; append(image); }: MULTI_LINE_COMMENT
 }
@@ -476,7 +506,7 @@ void dataClause(): {} {
                 <LPAREN> columnExprList() <RPAREN>
             )*
         | (LOOKAHEAD(2) (<SELECT> { token_source.addPosition(token); } columnExprList() <FROM> 
-            <INPUT> <LPAREN> <STRING_LITERAL> { token_source.format = ClickHouseSqlUtils.unescape(token.image); } <RPAREN>)?
+            <INPUT> <LPAREN> <STRING_LITERAL> { token_source.input = ClickHouseSqlUtils.unescape(token.image); } <RPAREN>)?
             <FORMAT> <IDENTIFIER> { token_source.format = token.image; })? (anyExprList())?
     } catch (ParseException e) {
         // FIXME introduce a lexical state in next release with consideration of delimiter from the context
@@ -805,7 +835,7 @@ void interval(): {} {
     <SECOND> | <MINUTE> | <HOUR> | <DAY> | <WEEK> | <MONTH> | <QUARTER> | <YEAR>
 }
 
-Token literal(): { Token t; } {
+Token literal(): { Token t = null; } {
     (
         t = dateLiteral()
         | t = numberLiteral()

@@ -11,6 +11,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.regex.Matcher;
@@ -265,13 +266,14 @@ public class ClickHouseSqlParserTest {
         String sql;
 
         assertEquals(parse(sql = "select\n1"), new ClickHouseSqlStatement[] { new ClickHouseSqlStatement(sql,
-                StatementType.SELECT, null, null, "unknown", null, null, null, null, null, null) });
+                StatementType.SELECT, null, null, "unknown", null, null, null, null, null, null, null) });
         assertEquals(parse(sql = "select\r\n1"), new ClickHouseSqlStatement[] { new ClickHouseSqlStatement(sql,
-                StatementType.SELECT, null, null, "unknown", null, null, null, null, null, null) });
+                StatementType.SELECT, null, null, "unknown", null, null, null, null, null, null, null) });
 
         assertEquals(parse(sql = "select 314 limit 5\nFORMAT JSONCompact;"),
                 new ClickHouseSqlStatement[] { new ClickHouseSqlStatement("select 314 limit 5\nFORMAT JSONCompact",
-                        StatementType.SELECT, null, null, "unknown", null, "JSONCompact", null, null, null, null) });
+                        StatementType.SELECT, null, null, "unknown", null, "JSONCompact", null, null, null, null,
+                        null) });
 
         checkSingleStatement(parse(sql = "select (())"), sql, StatementType.SELECT);
         checkSingleStatement(parse(sql = "select []"), sql, StatementType.SELECT);
@@ -311,13 +313,13 @@ public class ClickHouseSqlParserTest {
                             {
                                 put("TOTALS", 208);
                             }
-                        }, null) });
+                        }, null, null) });
         assertEquals(parse(sql = loadSql("issue-555_custom-format.sql")),
                 new ClickHouseSqlStatement[] { new ClickHouseSqlStatement(sql, StatementType.SELECT, null, null, "wrd",
-                        null, "CSVWithNames", null, null, null, null) });
+                        null, "CSVWithNames", null, null, null, null, null) });
         assertEquals(parse(sql = loadSql("with-clause.sql")),
                 new ClickHouseSqlStatement[] { new ClickHouseSqlStatement(sql, StatementType.SELECT, null, null,
-                        "unknown", null, null, null, null, null, null) });
+                        "unknown", null, null, null, null, null, null, null) });
     }
 
     @Test(groups = "unit")
@@ -394,12 +396,12 @@ public class ClickHouseSqlParserTest {
     public void testMultipleStatements() throws ParseException {
         assertEquals(parse("use ab;;;select 1; ;\t;\r;\n"),
                 new ClickHouseSqlStatement[] { new ClickHouseSqlStatement("use ab", StatementType.USE, null, "ab", null,
-                        null, null, null, null, null, null),
+                        null, null, null, null, null, null, null),
                         new ClickHouseSqlStatement("select 1", StatementType.SELECT) });
         assertEquals(parse("select * from \"a;1\".`b;c`;;;select 1 as `a ; a`; ;\t;\r;\n"),
                 new ClickHouseSqlStatement[] {
                         new ClickHouseSqlStatement("select * from \"a;1\".`b;c`", StatementType.SELECT, null, "a;1",
-                                "b;c", null, null, null, null, null, null),
+                                "b;c", null, null, null, null, null, null, null),
                         new ClickHouseSqlStatement("select 1 as `a ; a`", StatementType.SELECT) });
     }
 
@@ -588,6 +590,45 @@ public class ClickHouseSqlParserTest {
                 StatementType.SELECT, "system", ".inner.a");
         checkSingleStatement(parse(sql = " SELECT fromUnixTimestamp64Milli(time)from db.`.inner.a`"), sql,
                 StatementType.SELECT, "db", ".inner.a");
+    }
+
+    @Test(groups = "unit")
+    public void testJdbcEscapeSyntax() {
+        String sql = "select {d '123'}";
+        ClickHouseSqlStatement[] stmts = parse(sql);
+        assertEquals(stmts.length, 1);
+        assertEquals(stmts[0].getSQL(), "select date'123'");
+        assertEquals(stmts[0].hasTempTable(), false);
+
+        sql = "select {t '123'}";
+        stmts = parse(sql);
+        assertEquals(stmts.length, 1);
+        assertEquals(stmts[0].getSQL(), "select timestamp'1970-01-01 123'");
+        assertEquals(stmts[0].hasTempTable(), false);
+
+        sql = "select {ts '123'}";
+        stmts = parse(sql);
+        assertEquals(stmts.length, 1);
+        assertEquals(stmts[0].getSQL(), "select timestamp'123'");
+        assertEquals(stmts[0].hasTempTable(), false);
+
+        sql = "select {ts '123.1'}";
+        stmts = parse(sql);
+        assertEquals(stmts.length, 1);
+        assertEquals(stmts[0].getSQL(), "select toDateTime64('123.1',1)");
+        assertEquals(stmts[0].hasTempTable(), false);
+
+        sql = "select {tt '1''2\\'3'}";
+        stmts = parse(sql);
+        assertEquals(stmts.length, 1);
+        assertEquals(stmts[0].getSQL(), "select `1'2'3`");
+        assertEquals(stmts[0].hasTempTable(), true);
+        assertEquals(stmts[0].getTempTables(), Collections.singleton("1'2'3"));
+
+        sql = "select {d 1} {t} {tt} {ts 123.1'}";
+        stmts = parse(sql);
+        assertEquals(stmts.length, 1);
+        assertEquals(stmts[0].getSQL(), "select    ");
     }
 
     // known issue

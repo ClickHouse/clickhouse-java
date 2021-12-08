@@ -2,16 +2,14 @@ package com.clickhouse.client;
 
 import java.io.Serializable;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
-import java.util.LinkedHashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * A parameterized query is a parsed query with parameters being extracted for
@@ -30,17 +28,23 @@ public class ClickHouseParameterizedQuery implements Serializable {
      * A part of query.
      */
     protected static class QueryPart implements Serializable {
-        protected final String part;
-        protected final int paramIndex;
-        protected final String paramName;
-        protected final ClickHouseColumn paramType;
+        public final String part;
+        public final int paramIndex;
+        public final String paramName;
+        public final ClickHouseColumn paramType;
 
-        protected QueryPart(String part, int paramIndex, String paramName, String paramType) {
+        protected QueryPart(String part, int paramIndex, String paramName, String paramType,
+                Map<String, ClickHouseValue> map) {
             this.part = part;
             this.paramIndex = paramIndex;
             this.paramName = paramName != null ? paramName : String.valueOf(paramIndex);
-            // what should be default? ClickHouseAnyValue(simply convert object to string)?
-            this.paramType = paramType != null ? ClickHouseColumn.of("", paramType) : null;
+            if (paramType != null) {
+                this.paramType = ClickHouseColumn.of("", paramType);
+                map.put(paramName, ClickHouseValues.newValue(this.paramType));
+            } else {
+                this.paramType = null;
+                map.putIfAbsent(paramName, null);
+            }
         }
 
         @Override
@@ -74,7 +78,8 @@ public class ClickHouseParameterizedQuery implements Serializable {
      * Substitute named parameters in given SQL.
      *
      * @param sql    SQL containing named parameters
-     * @param params mapping between parameter name and correspoding SQL expression
+     * @param params mapping between parameter name and correspoding SQL
+     *               expression(NOT raw value)
      * @return substituted SQL, or the given sql if one of {@code sql} and
      *         {@code params} is null or empty
      */
@@ -152,7 +157,7 @@ public class ClickHouseParameterizedQuery implements Serializable {
     protected final String originalQuery;
 
     private final List<QueryPart> parts;
-    private final Set<String> names;
+    private final Map<String, ClickHouseValue> names;
     private final String lastPart;
 
     /**
@@ -164,7 +169,7 @@ public class ClickHouseParameterizedQuery implements Serializable {
         originalQuery = ClickHouseChecker.nonBlank(query, "query");
 
         parts = new LinkedList<>();
-        names = new LinkedHashSet<>();
+        names = new LinkedHashMap<>();
         lastPart = parse();
     }
 
@@ -193,8 +198,8 @@ public class ClickHouseParameterizedQuery implements Serializable {
         if (paramName == null) {
             paramName = String.valueOf(paramIndex);
         }
-        parts.add(new QueryPart(part, paramIndex, paramName, paramType));
-        names.add(paramName);
+
+        parts.add(new QueryPart(part, paramIndex, paramName, paramType, names));
     }
 
     /**
@@ -252,18 +257,31 @@ public class ClickHouseParameterizedQuery implements Serializable {
 
                         if (builder.length() > 0) {
                             paramName = builder.toString();
-                            if (names.add(paramName)) {
+                            if (!names.containsKey(paramName)) {
                                 paramIndex++;
                             }
                         }
 
-                        parts.add(new QueryPart(part, paramIndex, paramName, paramType));
+                        parts.add(new QueryPart(part, paramIndex, paramName, paramType, names));
                     }
                 }
             }
         }
 
         return partIndex < len ? originalQuery.substring(partIndex, len) : null;
+    }
+
+    /**
+     * Converts given raw value to SQL expression.
+     *
+     * @param paramName name of the parameter
+     * @param value     raw value, could be null
+     * @return non-null SQL expression
+     */
+    protected String toSqlExpression(String paramName, Object value) {
+        ClickHouseValue template = names.get(paramName);
+        return template != null ? template.update(value).toSqlExpression()
+                : ClickHouseValues.convertToSqlExpression(value);
     }
 
     /**
@@ -341,7 +359,7 @@ public class ClickHouseParameterizedQuery implements Serializable {
             if (index > 0) {
                 param = index < len ? more[index - 1] : null;
             }
-            builder.append(ClickHouseValues.convertToSqlExpression(param));
+            builder.append(toSqlExpression(p.paramName, param));
             index++;
         }
 
@@ -370,7 +388,7 @@ public class ClickHouseParameterizedQuery implements Serializable {
         for (QueryPart p : parts) {
             builder.append(p.part);
             builder.append(
-                    index < len ? ClickHouseValues.convertToSqlExpression(values[index]) : ClickHouseValues.NULL_EXPR);
+                    index < len ? toSqlExpression(p.paramName, values[index]) : ClickHouseValues.NULL_EXPR);
             index++;
         }
 
@@ -441,8 +459,16 @@ public class ClickHouseParameterizedQuery implements Serializable {
      *
      * @return list of named parameters
      */
-    public List<String> getNamedParameters() {
-        return names.isEmpty() ? Collections.emptyList() : Arrays.asList(names.toArray(new String[0]));
+    public List<String> getParameters() {
+        if (names.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        List<String> list = new ArrayList<>(names.size());
+        for (String n : names.keySet()) {
+            list.add(n);
+        }
+        return Collections.unmodifiableList(list);
     }
 
     /**
@@ -472,6 +498,20 @@ public class ClickHouseParameterizedQuery implements Serializable {
         }
 
         return queryParts;
+    }
+
+    /**
+     * Gets parameter templates for converting value to SQL expression.
+     *
+     * @return parameter templates
+     */
+    public ClickHouseValue[] getParameterTemplates() {
+        int i = 0;
+        ClickHouseValue[] tempaltes = new ClickHouseValue[names.size()];
+        for (ClickHouseValue v : names.values()) {
+            tempaltes[i++] = v;
+        }
+        return tempaltes;
     }
 
     /**

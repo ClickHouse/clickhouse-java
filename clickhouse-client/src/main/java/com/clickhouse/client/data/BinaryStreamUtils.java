@@ -20,6 +20,7 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneOffset;
 import java.util.TimeZone;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import com.clickhouse.client.ClickHouseChecker;
 import com.clickhouse.client.ClickHouseDataType;
@@ -86,6 +87,18 @@ public final class BinaryStreamUtils {
                 ClickHouseUtils.format("Enum [%s] does not contain value [%d]", enumType, value));
     }
 
+    public static int toInt32(byte[] bytes, int offset) {
+        return (0xFF & bytes[offset]) | ((0xFF & bytes[offset + 1]) << 8) | ((0xFF & bytes[offset + 2]) << 16)
+                | ((0xFF & bytes[offset + 3]) << 24);
+    }
+
+    public static long toInt64(byte[] bytes, int offset) {
+        return (0xFFL & bytes[offset]) | ((0xFFL & bytes[offset + 1]) << 8) | ((0xFFL & bytes[offset + 2]) << 16)
+                | ((0xFFL & bytes[offset + 3]) << 24) | ((0xFFL & bytes[offset + 4]) << 32)
+                | ((0xFFL & bytes[offset + 5]) << 40) | ((0xFFL & bytes[offset + 6]) << 48)
+                | ((0xFFL & bytes[offset + 7]) << 56);
+    }
+
     /**
      * Reverse the given byte array.
      * 
@@ -93,11 +106,13 @@ public final class BinaryStreamUtils {
      * @return same byte array but reserved
      */
     public static byte[] reverse(byte[] bytes) {
-        if (bytes != null && bytes.length > 1) {
-            for (int i = 0, len = bytes.length / 2; i < len; i++) {
+        int l = bytes != null ? bytes.length : 0;
+        if (l > 1) {
+            for (int i = 0, len = l / 2; i < len; i++) {
                 byte b = bytes[i];
-                bytes[i] = bytes[bytes.length - 1 - i];
-                bytes[bytes.length - 1 - i] = b;
+                --l;
+                bytes[i] = bytes[l];
+                bytes[l] = b;
             }
         }
 
@@ -134,38 +149,6 @@ public final class BinaryStreamUtils {
         } while (value != 0);
 
         return result;
-    }
-
-    /**
-     * Reads {@code length} bytes from given input stream. It behaves in the same
-     * way as {@link java.io.DataInput#readFully(byte[])}.
-     *
-     * @param input  non-null input stream
-     * @param length number of bytes to read
-     * @return byte array and its length should be {@code length}
-     * @throws IOException when failed to read value from input stream, not able to
-     *                     retrieve all bytes, or reached end of the stream
-     */
-    public static byte[] readBytes(ClickHouseInputStream input, int length) throws IOException {
-        int count = 0;
-        byte[] bytes = new byte[length];
-        while (count < length) {
-            int n = input.read(bytes, count, length - count);
-            if (n < 0) {
-                try {
-                    input.close();
-                } catch (IOException e) {
-                    // ignore
-                }
-
-                throw count == 0 ? new EOFException()
-                        : new IOException(ClickHouseUtils
-                                .format("Reached end of input stream after reading %d of %d bytes", count, length));
-            }
-            count += n;
-        }
-
-        return bytes;
     }
 
     /**
@@ -579,7 +562,7 @@ public final class BinaryStreamUtils {
      *                     end of the stream
      */
     public static Inet4Address readInet4Address(ClickHouseInputStream input) throws IOException {
-        return (Inet4Address) InetAddress.getByAddress(reverse(readBytes(input, 4)));
+        return (Inet4Address) InetAddress.getByAddress(reverse(input.readBytes(4)));
     }
 
     /**
@@ -603,7 +586,7 @@ public final class BinaryStreamUtils {
      *                     end of the stream
      */
     public static Inet6Address readInet6Address(ClickHouseInputStream input) throws IOException {
-        return Inet6Address.getByAddress(null, readBytes(input, 16), null);
+        return Inet6Address.getByAddress(null, input.readBytes(16), null);
     }
 
     /**
@@ -688,8 +671,7 @@ public final class BinaryStreamUtils {
      *                     end of the stream
      */
     public static short readInt16(ClickHouseInputStream input) throws IOException {
-        byte[] bytes = readBytes(input, 2);
-        return (short) ((0xFF & bytes[0]) | (bytes[1] << 8));
+        return (short) (input.readUnsignedByte() | (input.readByte() << 8));
     }
 
     /**
@@ -751,9 +733,8 @@ public final class BinaryStreamUtils {
      *                     end of the stream
      */
     public static int readInt32(ClickHouseInputStream input) throws IOException {
-        byte[] bytes = readBytes(input, 4);
-
-        return (0xFF & bytes[0]) | ((0xFF & bytes[1]) << 8) | ((0xFF & bytes[2]) << 16) | (bytes[3] << 24);
+        return input.readUnsignedByte() | (input.readUnsignedByte() << 8) | (input.readUnsignedByte() << 16)
+                | (input.readByte() << 24);
     }
 
     /**
@@ -803,11 +784,7 @@ public final class BinaryStreamUtils {
      *                     end of the stream
      */
     public static long readInt64(ClickHouseInputStream input) throws IOException {
-        byte[] bytes = readBytes(input, 8);
-
-        return (0xFFL & bytes[0]) | ((0xFFL & bytes[1]) << 8) | ((0xFFL & bytes[2]) << 16) | ((0xFFL & bytes[3]) << 24)
-                | ((0xFFL & bytes[4]) << 32) | ((0xFFL & bytes[5]) << 40) | ((0xFFL & bytes[6]) << 48)
-                | ((0xFFL & bytes[7]) << 56);
+        return toInt64(input.readBytes(8), 0);
     }
 
     /**
@@ -839,7 +816,7 @@ public final class BinaryStreamUtils {
      *                     end of the stream
      */
     public static BigInteger readUnsignedInt64(ClickHouseInputStream input) throws IOException {
-        return new BigInteger(1, reverse(readBytes(input, 8)));
+        return new BigInteger(1, reverse(input.readBytes(8)));
     }
 
     /**
@@ -879,7 +856,7 @@ public final class BinaryStreamUtils {
      *                     end of the stream
      */
     public static BigInteger readInt128(ClickHouseInputStream input) throws IOException {
-        return new BigInteger(reverse(readBytes(input, 16)));
+        return new BigInteger(reverse(input.readBytes(16)));
     }
 
     /**
@@ -903,7 +880,7 @@ public final class BinaryStreamUtils {
      *                     end of the stream
      */
     public static BigInteger readUnsignedInt128(ClickHouseInputStream input) throws IOException {
-        return new BigInteger(1, reverse(readBytes(input, 16)));
+        return new BigInteger(1, reverse(input.readBytes(16)));
     }
 
     /**
@@ -928,7 +905,7 @@ public final class BinaryStreamUtils {
      *                     end of the stream
      */
     public static BigInteger readInt256(ClickHouseInputStream input) throws IOException {
-        return new BigInteger(reverse(readBytes(input, 32)));
+        return new BigInteger(reverse(input.readBytes(32)));
     }
 
     /**
@@ -952,7 +929,7 @@ public final class BinaryStreamUtils {
      *                     end of the stream
      */
     public static BigInteger readUnsignedInt256(ClickHouseInputStream input) throws IOException {
-        return new BigInteger(1, reverse(readBytes(input, 32)));
+        return new BigInteger(1, reverse(input.readBytes(32)));
     }
 
     /**
@@ -1024,8 +1001,9 @@ public final class BinaryStreamUtils {
      * @throws IOException when failed to read value from input stream or reached
      *                     end of the stream
      */
-    public static java.util.UUID readUuid(ClickHouseInputStream input) throws IOException {
-        return new java.util.UUID(readInt64(input), readInt64(input));
+    public static UUID readUuid(ClickHouseInputStream input) throws IOException {
+        byte[] bytes = input.readBytes(16);
+        return new UUID(toInt64(bytes, 0), toInt64(bytes, 8));
     }
 
     /**
@@ -1517,7 +1495,7 @@ public final class BinaryStreamUtils {
      *                     end of the stream
      */
     public static String readFixedString(ClickHouseInputStream input, int length, Charset charset) throws IOException {
-        byte[] bytes = readBytes(input, length);
+        byte[] bytes = input.readBytes(length);
 
         return new String(bytes, charset == null ? StandardCharsets.UTF_8 : charset);
     }
@@ -1554,45 +1532,6 @@ public final class BinaryStreamUtils {
         System.arraycopy(src, 0, bytes, 0, src.length);
 
         output.write(bytes);
-    }
-
-    /**
-     * Read string from given input stream.
-     *
-     * @param input non-null input stream
-     * @return string value
-     * @throws IOException when failed to read value from input stream or reached
-     *                     end of the stream
-     */
-    public static String readString(ClickHouseInputStream input) throws IOException {
-        return readString(input, readVarInt(input), null);
-    }
-
-    /**
-     * Read string from given input stream.
-     *
-     * @param input   non-null input stream
-     * @param charset charset used to convert byte array to string, null means UTF-8
-     * @return string value
-     * @throws IOException when failed to read value from input stream or reached
-     *                     end of the stream
-     */
-    public static String readString(ClickHouseInputStream input, Charset charset) throws IOException {
-        return readString(input, readVarInt(input), charset);
-    }
-
-    /**
-     * Reads fixed string from given input stream.
-     *
-     * @param input   non-null input stream
-     * @param length  length in byte
-     * @param charset charset used to convert byte array to string, null means UTF-8
-     * @return string value
-     * @throws IOException when failed to read value from input stream or reached
-     *                     end of the stream
-     */
-    public static String readString(ClickHouseInputStream input, int length, Charset charset) throws IOException {
-        return new String(readBytes(input, length), charset == null ? StandardCharsets.UTF_8 : charset);
     }
 
     /**
@@ -1644,23 +1583,6 @@ public final class BinaryStreamUtils {
      * @throws IOException when failed to read value from input stream or reached
      *                     end of the stream
      */
-    public static int readVarInt(ClickHouseInputStream input) throws IOException {
-        // https://github.com/ClickHouse/ClickHouse/blob/abe314feecd1647d7c2b952a25da7abf5c19f352/src/IO/VarInt.h#L126
-        long result = 0L;
-        int shift = 0;
-        for (int i = 0; i < 9; i++) {
-            // gets 7 bits from next byte
-            int b = input.readUnsignedByte();
-            result |= (b & 0x7F) << shift;
-            if ((b & 0x80) == 0) {
-                break;
-            }
-            shift += 7;
-        }
-
-        return (int) result;
-    }
-
     public static int readVarInt(InputStream input) throws IOException {
         // https://github.com/ClickHouse/ClickHouse/blob/abe314feecd1647d7c2b952a25da7abf5c19f352/src/IO/VarInt.h#L126
         long result = 0L;
@@ -1697,7 +1619,7 @@ public final class BinaryStreamUtils {
         int shift = 0;
         for (int i = 0; i < 9; i++) {
             // gets 7 bits from next byte
-            int b = buffer.get();
+            byte b = buffer.get();
             result |= (b & 0x7F) << shift;
             if ((b & 0x80) == 0) {
                 break;

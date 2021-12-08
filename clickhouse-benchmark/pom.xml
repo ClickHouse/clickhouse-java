@@ -17,7 +17,7 @@
 
     <properties>
         <clickhouse4j-driver.version>1.4.4</clickhouse4j-driver.version>
-        <native-driver.version>2.6.0</native-driver.version>
+        <native-driver.version>2.6.1</native-driver.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <jmh.version>1.33</jmh.version>
         <shade.name>benchmarks</shade.name>
@@ -138,7 +138,7 @@
                                 <filter>
                                     <artifact>*:*</artifact>
                                     <excludes>
-                                        <exclude>module-info.class</exclude>
+                                        <exclude>**/module-info.class</exclude>
                                         <exclude>META-INF/MANIFEST.MF</exclude>
                                         <exclude>META-INF/*.SF</exclude>
                                         <exclude>META-INF/*.DSA</exclude>

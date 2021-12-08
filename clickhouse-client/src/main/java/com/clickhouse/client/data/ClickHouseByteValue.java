@@ -84,7 +84,7 @@ public class ClickHouseByteValue implements ClickHouseValue {
 
     protected ClickHouseByteValue set(boolean isNull, byte value) {
         this.isNull = isNull;
-        this.value = isNull ? 0 : value;
+        this.value = isNull ? (byte) 0 : value;
 
         return this;
     }

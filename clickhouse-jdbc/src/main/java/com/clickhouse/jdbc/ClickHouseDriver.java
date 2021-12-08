@@ -66,7 +66,7 @@ public class ClickHouseDriver implements Driver {
         Map<Object, ClickHouseOption> m = new LinkedHashMap<>();
         try {
             for (ClickHouseClient c : ServiceLoader.load(ClickHouseClient.class,
-                    Thread.currentThread().getContextClassLoader())) {
+                    ClickHouseDriver.class.getClassLoader())) {
                 Class<? extends ClickHouseOption> clazz = c.getOptionClass();
                 if (clazz == null || clazz == ClickHouseClientOption.class) {
                     continue;
@@ -163,10 +163,7 @@ public class ClickHouseDriver implements Driver {
             result.add(create(option, info));
         }
 
-        DriverPropertyInfo custom = new DriverPropertyInfo(ClickHouseJdbcUrlParser.PROP_JDBC_COMPLIANT, "true");
-        custom.choices = new String[] { "true", "false" };
-        custom.description = "Whether to enable JDBC-compliant features like fake transaction and standard UPDATE and DELETE statements.";
-        result.add(custom);
+        result.addAll(JdbcConfig.getDriverProperties());
         return result.toArray(new DriverPropertyInfo[0]);
     }
 

@@ -8,6 +8,7 @@ import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.net.InetAddress;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -1875,6 +1876,13 @@ public class BinaryStreamUtilsTest {
                                         0xC0, 0xA8, 5, 1),
                                 null))),
                 generateBytes(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xFF, 0xFF, 0xC0, 0xA8, 5, 1));
+    }
+
+    @Test(groups = { "unit" })
+    public void testReadString() throws IOException {
+        Assert.assertEquals(new String(new byte[0]), "");
+        Assert.assertEquals(new String(new byte[0], StandardCharsets.UTF_8), "");
+        Assert.assertEquals(new String(new byte[0], StandardCharsets.UTF_16), "");
     }
 
     @Test(groups = { "unit" })

@@ -5,6 +5,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.sql.SQLException;
 import java.util.Properties;
 
 import com.clickhouse.client.ClickHouseChecker;
@@ -17,15 +18,16 @@ import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.config.ClickHouseDefaults;
 import com.clickhouse.client.logging.Logger;
 import com.clickhouse.client.logging.LoggerFactory;
+import com.clickhouse.jdbc.JdbcConfig;
+import com.clickhouse.jdbc.SqlExceptionUtils;
 
 public class ClickHouseJdbcUrlParser {
     private static final Logger log = LoggerFactory.getLogger(ClickHouseJdbcUrlParser.class);
 
-    public static final String PROP_JDBC_COMPLIANT = "jdbc_compliant";
-
     public static class ConnectionInfo {
         private final URI uri;
         private final ClickHouseNode server;
+        private final JdbcConfig jdbcConf;
         private final Properties props;
 
         protected ConnectionInfo(URI uri, ClickHouseNode server, Properties props) throws URISyntaxException {
@@ -33,6 +35,7 @@ public class ClickHouseJdbcUrlParser {
                     server.getPort(), "/" + server.getDatabase().orElse(""),
                     removeCredentialsFromQuery(uri.getRawQuery()), null);
             this.server = server;
+            this.jdbcConf = new JdbcConfig(props);
             this.props = props;
         }
 
@@ -42,6 +45,10 @@ public class ClickHouseJdbcUrlParser {
 
         public ClickHouseNode getServer() {
             return server;
+        }
+
+        public JdbcConfig getJdbcConfig() {
+            return jdbcConf;
         }
 
         public Properties getProperties() {
@@ -178,32 +185,42 @@ public class ClickHouseJdbcUrlParser {
         return props;
     }
 
-    public static ConnectionInfo parse(String jdbcUrl, Properties defaults) throws URISyntaxException {
+    public static ConnectionInfo parse(String jdbcUrl, Properties defaults) throws SQLException {
         if (defaults == null) {
             defaults = new Properties();
         }
 
-        if (ClickHouseChecker.nonBlank(jdbcUrl, "JDBC URL").startsWith(JDBC_CLICKHOUSE_PREFIX)) {
+        if (ClickHouseChecker.isNullOrBlank(jdbcUrl)) {
+            throw SqlExceptionUtils.clientError("Non-blank JDBC URL is required");
+        }
+
+        if (jdbcUrl.startsWith(JDBC_CLICKHOUSE_PREFIX)) {
             jdbcUrl = jdbcUrl.substring(JDBC_CLICKHOUSE_PREFIX.length());
         } else if (jdbcUrl.startsWith(JDBC_ABBREVIATION_PREFIX)) {
             jdbcUrl = jdbcUrl.substring(JDBC_ABBREVIATION_PREFIX.length());
         } else {
-            throw new URISyntaxException(jdbcUrl, ClickHouseUtils.format("'%s' or '%s' prefix is mandatory",
-                    JDBC_CLICKHOUSE_PREFIX, JDBC_ABBREVIATION_PREFIX));
+            throw SqlExceptionUtils.clientError(
+                    new URISyntaxException(jdbcUrl, ClickHouseUtils.format("'%s' or '%s' prefix is mandatory",
+                            JDBC_CLICKHOUSE_PREFIX, JDBC_ABBREVIATION_PREFIX)));
         }
 
         int index = jdbcUrl.indexOf("//");
         if (index == -1) {
-            throw new URISyntaxException(jdbcUrl, "Missing '//' from the given JDBC URL");
+            throw SqlExceptionUtils
+                    .clientError(new URISyntaxException(jdbcUrl, "Missing '//' from the given JDBC URL"));
         } else if (index == 0) {
             jdbcUrl = "http:" + jdbcUrl;
         }
 
-        URI uri = new URI(jdbcUrl);
-        Properties props = newProperties();
-        props.putAll(defaults);
-        parseParams(uri.getQuery(), props);
-        return new ConnectionInfo(uri, parseNode(uri, props), props);
+        try {
+            URI uri = new URI(jdbcUrl);
+            Properties props = newProperties();
+            props.putAll(defaults);
+            parseParams(uri.getQuery(), props);
+            return new ConnectionInfo(uri, parseNode(uri, props), props);
+        } catch (URISyntaxException | IllegalArgumentException e) {
+            throw SqlExceptionUtils.clientError(e);
+        }
     }
 
     private ClickHouseJdbcUrlParser() {

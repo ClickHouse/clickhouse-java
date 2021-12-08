@@ -97,7 +97,7 @@ public class ClickHouseClientBuilder {
 
         boolean noSelector = nodeSelector == null || nodeSelector == ClickHouseNodeSelector.EMPTY;
         int counter = 0;
-        for (ClickHouseClient c : ServiceLoader.load(ClickHouseClient.class)) {
+        for (ClickHouseClient c : ServiceLoader.load(ClickHouseClient.class, getClass().getClassLoader())) {
             counter++;
             if (noSelector || nodeSelector.match(c)) {
                 client = c;

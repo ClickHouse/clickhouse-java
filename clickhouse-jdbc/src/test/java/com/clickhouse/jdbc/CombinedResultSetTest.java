@@ -15,7 +15,7 @@ import org.testng.Assert;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
-public class CombinedResultSetTest extends JdbcIntegrationTest {
+public class CombinedResultSetTest {
     @DataProvider(name = "multipleResultSetsProvider")
     private Object[][] getMultipleResultSets() {
         return new Object[][] {
@@ -128,19 +128,5 @@ public class CombinedResultSetTest extends JdbcIntegrationTest {
         Assert.assertEquals(combined.getRow(), 2);
         combined.close();
         Assert.assertTrue(combined.isClosed());
-    }
-
-    @Test(groups = "integration")
-    public void testBigDecimal() throws SQLException {
-        try (ClickHouseConnection conn = newConnection(new Properties());
-                Statement stmt = conn.createStatement()) {
-            ResultSet rs = stmt.executeQuery("select toDecimal64(number / 10, 1) from numbers(10)");
-            BigDecimal v = BigDecimal.valueOf(0L).setScale(1);
-            while (rs.next()) {
-                Assert.assertEquals(rs.getBigDecimal(1), v);
-                Assert.assertEquals(rs.getObject(1), v);
-                v = v.add(new BigDecimal("0.1"));
-            }
-        }
     }
 }

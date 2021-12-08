@@ -84,7 +84,7 @@ public class ClickHouseShortValue implements ClickHouseValue {
 
     protected ClickHouseShortValue set(boolean isNull, short value) {
         this.isNull = isNull;
-        this.value = isNull ? 0 : value;
+        this.value = isNull ? (short) 0 : value;
 
         return this;
     }

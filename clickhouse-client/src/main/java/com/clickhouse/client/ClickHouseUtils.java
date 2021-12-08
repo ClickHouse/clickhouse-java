@@ -99,7 +99,7 @@ public final class ClickHouseUtils {
 
         T service = null;
 
-        for (T s : ServiceLoader.load(serviceInterface)) {
+        for (T s : ServiceLoader.load(serviceInterface, ClickHouseUtils.class.getClassLoader())) {
             if (s != null) {
                 service = s;
                 break;

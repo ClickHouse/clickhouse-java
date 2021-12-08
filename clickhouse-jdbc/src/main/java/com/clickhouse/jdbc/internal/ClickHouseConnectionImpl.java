@@ -1,11 +1,7 @@
 package com.clickhouse.jdbc.internal;
 
 import java.net.URI;
-import java.net.URISyntaxException;
-import java.sql.Array;
-import java.sql.Blob;
 import java.sql.ClientInfoStatus;
-import java.sql.Clob;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.NClob;
@@ -14,15 +10,10 @@ import java.sql.ResultSet;
 import java.sql.SQLClientInfoException;
 import java.sql.SQLException;
 import java.sql.SQLWarning;
-import java.sql.SQLXML;
 import java.sql.Savepoint;
-import java.sql.Struct;
-import java.util.ArrayList;
 import java.util.Calendar;
-import java.util.Collections;
 import java.util.GregorianCalendar;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
@@ -40,45 +31,35 @@ import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseFormat;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseNodeSelector;
+import com.clickhouse.client.ClickHouseParameterizedQuery;
 import com.clickhouse.client.ClickHouseRecord;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseResponse;
-import com.clickhouse.client.ClickHouseUtils;
 import com.clickhouse.client.ClickHouseValues;
 import com.clickhouse.client.ClickHouseVersion;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.http.config.ClickHouseHttpOption;
 import com.clickhouse.client.logging.Logger;
 import com.clickhouse.client.logging.LoggerFactory;
-import com.clickhouse.jdbc.ClickHouseBlob;
-import com.clickhouse.jdbc.ClickHouseClob;
 import com.clickhouse.jdbc.ClickHouseConnection;
 import com.clickhouse.jdbc.ClickHouseDatabaseMetaData;
 import com.clickhouse.jdbc.ClickHouseDriver;
 import com.clickhouse.jdbc.ClickHouseStatement;
-import com.clickhouse.jdbc.ClickHouseXml;
+import com.clickhouse.jdbc.JdbcConfig;
 import com.clickhouse.jdbc.JdbcParameterizedQuery;
+import com.clickhouse.jdbc.JdbcParseHandler;
 import com.clickhouse.jdbc.SqlExceptionUtils;
-import com.clickhouse.jdbc.Wrapper;
+import com.clickhouse.jdbc.JdbcWrapper;
 import com.clickhouse.jdbc.internal.ClickHouseJdbcUrlParser.ConnectionInfo;
 import com.clickhouse.jdbc.internal.FakeTransaction.FakeSavepoint;
+import com.clickhouse.jdbc.parser.ClickHouseSqlParser;
+import com.clickhouse.jdbc.parser.ClickHouseSqlStatement;
+import com.clickhouse.jdbc.parser.StatementType;
 
-public class ClickHouseConnectionImpl extends Wrapper implements ClickHouseConnection {
+public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseConnection {
     private static final Logger log = LoggerFactory.getLogger(ClickHouseConnectionImpl.class);
 
-    // The name of the application currently utilizing the connection
-    private static final String PROP_APPLICATION_NAME = "ApplicationName";
-    private static final String PROP_CUSTOM_HTTP_HEADERS = "CustomHttpHeaders";
-    private static final String PROP_CUSTOM_HTTP_PARAMS = "CustomHttpParameters";
-    // The name of the user that the application using the connection is performing
-    // work for. This may not be the same as the user name that was used in
-    // establishing the connection.
-    // private static final String PROP_CLIENT_USER = "ClientUser";
-    // The hostname of the computer the application using the connection is running
-    // on.
-    // private static final String PROP_CLIENT_HOST = "ClientHostname";
-
-    private final boolean jdbcCompliant;
+    private final JdbcConfig jdbcConf;
 
     private final ClickHouseClient client;
     private final ClickHouseRequest<?> clientRequest;
@@ -126,13 +107,13 @@ public class ClickHouseConnectionImpl extends Wrapper implements ClickHouseConne
     protected void ensureSupport(String feature, boolean silent) throws SQLException {
         String msg = feature + " is not supported";
 
-        if (isJdbcCompliant()) {
+        if (jdbcConf.isJdbcCompliant()) {
             if (silent) {
                 log.debug("[JDBC Compliant Mode] %s. Change %s to false to throw SQLException instead.", msg,
-                        ClickHouseJdbcUrlParser.PROP_JDBC_COMPLIANT);
+                        JdbcConfig.PROP_JDBC_COMPLIANT);
             } else {
                 log.warn("[JDBC Compliant Mode] %s. Change %s to false to throw SQLException instead.", msg,
-                        ClickHouseJdbcUrlParser.PROP_JDBC_COMPLIANT);
+                        JdbcConfig.PROP_JDBC_COMPLIANT);
             }
         } else if (!silent) {
             throw SqlExceptionUtils.unsupportedError(msg);
@@ -153,19 +134,19 @@ public class ClickHouseConnectionImpl extends Wrapper implements ClickHouseConne
     }
 
     public ClickHouseConnectionImpl(String url, Properties properties) throws SQLException {
-        ConnectionInfo connInfo;
-        try {
-            connInfo = ClickHouseJdbcUrlParser.parse(url, properties);
-        } catch (URISyntaxException | IllegalArgumentException e) {
-            throw SqlExceptionUtils.clientError(e);
-        }
+        this(ClickHouseJdbcUrlParser.parse(url, properties));
+    }
 
-        this.jdbcCompliant = Boolean.parseBoolean(
-                connInfo.getProperties().getProperty(ClickHouseJdbcUrlParser.PROP_JDBC_COMPLIANT, "true"));
-        connInfo.getProperties().remove(ClickHouseJdbcUrlParser.PROP_JDBC_COMPLIANT);
+    public ClickHouseConnectionImpl(ConnectionInfo connInfo) throws SQLException {
+        Properties properties = connInfo.getProperties();
+
+        jdbcConf = connInfo.getJdbcConfig();
+
+        autoCommit = !jdbcConf.isJdbcCompliant() || jdbcConf.isAutoCommit();
+
         this.uri = connInfo.getUri();
 
-        log.debug("Creating a new connection to %s", url);
+        log.debug("Creating a new connection to %s", connInfo.getUri());
         ClickHouseNode node = connInfo.getServer();
         log.debug("Target node: %s", node);
 
@@ -218,7 +199,8 @@ public class ClickHouseConnectionImpl extends Wrapper implements ClickHouseConne
         this.readOnly = false;
         this.networkTimeout = 0;
         this.rsHoldability = ResultSet.HOLD_CURSORS_OVER_COMMIT;
-        this.txIsolation = jdbcCompliant ? Connection.TRANSACTION_READ_COMMITTED : Connection.TRANSACTION_NONE;
+        this.txIsolation = jdbcConf.isJdbcCompliant() ? Connection.TRANSACTION_READ_COMMITTED
+                : Connection.TRANSACTION_NONE;
 
         this.user = currentUser != null ? currentUser : node.getCredentials(config).getUserName();
         this.serverTimeZone = timeZone;
@@ -448,7 +430,7 @@ public class ClickHouseConnectionImpl extends Wrapper implements ClickHouseConne
             throw SqlExceptionUtils.clientError("Cannot set savepoint in auto-commit mode");
         }
 
-        if (!isJdbcCompliant()) {
+        if (!jdbcConf.isJdbcCompliant()) {
             throw SqlExceptionUtils.unsupportedError("setSavepoint not implemented");
         }
 
@@ -464,7 +446,7 @@ public class ClickHouseConnectionImpl extends Wrapper implements ClickHouseConne
             throw SqlExceptionUtils.clientError("Cannot rollback to savepoint in auto-commit mode");
         }
 
-        if (!isJdbcCompliant()) {
+        if (!jdbcConf.isJdbcCompliant()) {
             throw SqlExceptionUtils.unsupportedError("rollback not implemented");
         }
 
@@ -491,7 +473,7 @@ public class ClickHouseConnectionImpl extends Wrapper implements ClickHouseConne
             throw SqlExceptionUtils.clientError("Cannot release savepoint in auto-commit mode");
         }
 
-        if (!isJdbcCompliant()) {
+        if (!jdbcConf.isJdbcCompliant()) {
             throw SqlExceptionUtils.unsupportedError("rollback not implemented");
         }
 
@@ -524,62 +506,59 @@ public class ClickHouseConnectionImpl extends Wrapper implements ClickHouseConne
             int resultSetHoldability) throws SQLException {
         ensureOpen();
 
-        JdbcParameterizedQuery preparedQuery;
+        // TODO remove the extra parsing
+        ClickHouseSqlStatement[] stmts = parse(sql, clientRequest.getConfig());
+        if (stmts.length != 1) {
+            throw SqlExceptionUtils
+                    .clientError("Prepared statement only supports one query but we got: " + stmts.length);
+        }
+        ClickHouseSqlStatement parsedStmt = stmts[0];
+
+        ClickHouseParameterizedQuery preparedQuery;
         try {
-            preparedQuery = JdbcParameterizedQuery.of(sql);
+            preparedQuery = jdbcConf.useNamedParameter() ? ClickHouseParameterizedQuery.of(parsedStmt.getSQL())
+                    : JdbcParameterizedQuery.of(parsedStmt.getSQL());
         } catch (RuntimeException e) {
             throw SqlExceptionUtils.clientError(e);
         }
 
         PreparedStatement ps = null;
-        if (!preparedQuery.hasParameter()) {
-            // is it insert statement using input function?
-            int index = 0;
-            int len = sql.length();
-            List<ClickHouseColumn> columns = Collections.emptyList();
-            index = ClickHouseUtils.skipContentsUntil(sql, index, len, new String[] { "insert", "into" }, false);
-            if (index < len) { // insert statement
-                index = ClickHouseUtils.skipContentsUntil(sql, index, len, new String[] { "from", "input" }, false);
-                List<String> params = new ArrayList<>();
-                index = ClickHouseUtils.readParameters(sql, index, len, params);
+        if (preparedQuery.hasParameter()) {
+            if (parsedStmt.hasTempTable() || parsedStmt.hasInput()) {
+                throw SqlExceptionUtils
+                        .clientError(
+                                "External table, input function, and query parameter cannot be used together in PreparedStatement.");
+            }
+            if (parsedStmt.hasValues()) { // consolidate multiple inserts into one
 
-                if (params.size() == 1) {
-                    ps = new StreamBasedPreparedStatement(this, clientRequest.write().query(sql, newQueryId()),
-                            ClickHouseColumn.parse(ClickHouseUtils.unescape(params.get(0))), resultSetType,
-                            resultSetConcurrency, resultSetHoldability);
-                }
+            }
+        } else {
+            if (parsedStmt.hasTempTable()) {
+                // non-insert queries using temp table
+                ps = new TableBasedPreparedStatement(this,
+                        clientRequest.write().query(parsedStmt.getSQL(), newQueryId()),
+                        parsedStmt.getTempTables(), resultSetType,
+                        resultSetConcurrency, resultSetHoldability);
+            } else if (parsedStmt.getStatementType() == StatementType.INSERT
+                    && !ClickHouseChecker.isNullOrBlank(parsedStmt.getInput())) {
+                // insert query using input function
+                ps = new InputBasedPreparedStatement(this,
+                        clientRequest.write().query(parsedStmt.getSQL(), newQueryId()),
+                        ClickHouseColumn.parse(parsedStmt.getInput()), resultSetType,
+                        resultSetConcurrency, resultSetHoldability);
             }
         }
 
         return ps != null ? ps
                 : new SqlBasedPreparedStatement(this, clientRequest.copy().query(preparedQuery, newQueryId()),
-                        preparedQuery, resultSetType, resultSetConcurrency, resultSetHoldability);
-    }
-
-    @Override
-    public Clob createClob() throws SQLException {
-        return createNClob();
-    }
-
-    @Override
-    public Blob createBlob() throws SQLException {
-        ensureOpen();
-
-        return new ClickHouseBlob();
+                        stmts[0], resultSetType, resultSetConcurrency, resultSetHoldability);
     }
 
     @Override
     public NClob createNClob() throws SQLException {
         ensureOpen();
 
-        return new ClickHouseClob();
-    }
-
-    @Override
-    public SQLXML createSQLXML() throws SQLException {
-        ensureOpen();
-
-        return new ClickHouseXml();
+        return createClob();
     }
 
     @Override
@@ -693,21 +672,6 @@ public class ClickHouseConnectionImpl extends Wrapper implements ClickHouseConne
     }
 
     @Override
-    public Array createArrayOf(String typeName, Object[] elements) throws SQLException {
-        // TODO Auto-generated method stub
-        // return new
-        // ClickHouseArray(ClickHouseDataType.resolveDefaultArrayDataType(typeName),
-        // elements);
-        return null;
-    }
-
-    @Override
-    public Struct createStruct(String typeName, Object[] attributes) throws SQLException {
-        // TODO Auto-generated method stub
-        return null;
-    }
-
-    @Override
     public void setSchema(String schema) throws SQLException {
         ensureOpen();
 
@@ -809,13 +773,36 @@ public class ClickHouseConnectionImpl extends Wrapper implements ClickHouseConne
     }
 
     @Override
-    public boolean isJdbcCompliant() {
-        return jdbcCompliant;
+    public JdbcConfig getJdbcConfig() {
+        return jdbcConf;
     }
 
     @Override
     public String newQueryId() {
         FakeTransaction tx = fakeTransaction.get();
         return tx != null ? tx.newQuery(null) : UUID.randomUUID().toString();
+    }
+
+    @Override
+    public ClickHouseSqlStatement[] parse(String sql, ClickHouseConfig config) {
+        return ClickHouseSqlParser.parse(sql, config != null ? config : clientRequest.getConfig(),
+                jdbcConf.isJdbcCompliant() ? JdbcParseHandler.INSTANCE : null);
+    }
+
+    @Override
+    public boolean isWrapperFor(Class<?> iface) throws SQLException {
+        return iface == ClickHouseClient.class || iface == ClickHouseRequest.class
+                || super.isWrapperFor(iface);
+    }
+
+    @Override
+    public <T> T unwrap(Class<T> iface) throws SQLException {
+        if (iface == ClickHouseClient.class) {
+            return iface.cast(client);
+        } else if (iface == ClickHouseRequest.class) {
+            return iface.cast(clientRequest);
+        }
+
+        return super.unwrap(iface);
     }
 }

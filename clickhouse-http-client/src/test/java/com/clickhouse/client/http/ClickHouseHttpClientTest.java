@@ -198,7 +198,8 @@ public class ClickHouseHttpClientTest extends BaseIntegrationTest {
         try (ClickHouseClient client = ClickHouseClient.builder()
                 .defaultCredentials(ClickHouseCredentials.fromUserAndPassword("foo", "bar")).build()) {
             // why no detailed error message for this: "select 1，2"
-            try (ClickHouseResponse resp = client.connect(server).format(ClickHouseFormat.RowBinaryWithNamesAndTypes)
+            try (ClickHouseResponse resp = client.connect(server).compressServerResponse(false)
+                    .format(ClickHouseFormat.RowBinaryWithNamesAndTypes)
                     .query("select 1,2").execute().get()) {
                 int count = 0;
                 for (ClickHouseRecord r : resp.records()) {

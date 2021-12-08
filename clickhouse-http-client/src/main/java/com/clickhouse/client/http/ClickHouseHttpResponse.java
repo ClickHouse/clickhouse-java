@@ -1,9 +1,8 @@
 package com.clickhouse.client.http;
 
-import java.io.EOFException;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.Serializable;
+import java.nio.charset.Charset;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.TimeZone;
@@ -32,7 +31,7 @@ public class ClickHouseHttpResponse extends ClickHouseInputStream {
     }
 
     private final ClickHouseHttpConnection connection;
-    private final InputStream input;
+    private final ClickHouseInputStream input;
 
     protected final String serverDisplayName;
     protected final String queryId;
@@ -55,7 +54,8 @@ public class ClickHouseHttpResponse extends ClickHouseInputStream {
         return config;
     }
 
-    public ClickHouseHttpResponse(ClickHouseHttpConnection connection, InputStream input) {
+    public ClickHouseHttpResponse(ClickHouseHttpConnection connection, ClickHouseInputStream input,
+            String serverDisplayName, String queryId, String summary, ClickHouseFormat format, TimeZone timeZone) {
         if (connection == null || input == null) {
             throw new IllegalArgumentException("Non-null connection and input stream are required");
         }
@@ -63,13 +63,12 @@ public class ClickHouseHttpResponse extends ClickHouseInputStream {
         this.connection = connection;
         this.input = input;
 
-        this.serverDisplayName = connection.getResponseHeader("X-ClickHouse-Server-Display-Name",
-                connection.server.getHost());
-        // queryId, format and timeZone are only available for queries
-        this.queryId = connection.getResponseHeader("X-ClickHouse-Query-Id", "");
+        this.serverDisplayName = !ClickHouseChecker.isNullOrEmpty(serverDisplayName) ? serverDisplayName
+                : connection.server.getHost();
+        this.queryId = !ClickHouseChecker.isNullOrEmpty(queryId) ? queryId : "";
         // {"read_rows":"0","read_bytes":"0","written_rows":"0","written_bytes":"0","total_rows_to_read":"0"}
         Map<String, String> map = (Map<String, String>) ClickHouseUtils
-                .parseJson(connection.getResponseHeader("X-ClickHouse-Summary", "{}"));
+                .parseJson(!ClickHouseChecker.isNullOrEmpty(summary) ? summary : "{}");
         // discard those X-ClickHouse-Progress headers
         this.summary = new ClickHouseResponseSummary(
                 new ClickHouseResponseSummary.Progress(getLongValue(map, "read_rows"), getLongValue(map, "read_bytes"),
@@ -77,32 +76,15 @@ public class ClickHouseHttpResponse extends ClickHouseInputStream {
                         getLongValue(map, "written_bytes")),
                 null);
 
-        if (ClickHouseChecker.isNullOrEmpty(this.queryId)) {
-            this.format = connection.config.getFormat();
-            this.timeZone = connection.config.getServerTimeZone();
-            // better to close input stream since there's no response to read?
-            // input.close();
-        } else {
-            String value = connection.getResponseHeader("X-ClickHouse-Format", "");
-            this.format = !ClickHouseChecker.isNullOrEmpty(value) ? ClickHouseFormat.valueOf(value)
-                    : connection.config.getFormat();
-            value = connection.getResponseHeader("X-ClickHouse-Timezone", "");
-            this.timeZone = !ClickHouseChecker.isNullOrEmpty(value) ? TimeZone.getTimeZone(value)
-                    : connection.config.getServerTimeZone();
-        }
+        this.format = format != null ? format : connection.config.getFormat();
+        this.timeZone = timeZone != null ? timeZone : connection.config.getServerTimeZone();
 
         closed = false;
     }
 
     @Override
     public byte readByte() throws IOException {
-        int v = input.read();
-        if (v == -1) {
-            close();
-            throw new EOFException();
-        }
-
-        return (byte) v;
+        return input.readByte();
     }
 
     @Override
@@ -157,5 +139,15 @@ public class ClickHouseHttpResponse extends ClickHouseInputStream {
     @Override
     public long skip(long n) throws IOException {
         return input.skip(n);
+    }
+
+    @Override
+    public byte[] readBytes(int length) throws IOException {
+        return input.readBytes(length);
+    }
+
+    @Override
+    public String readString(int byteLength, Charset charset) throws IOException {
+        return input.readString(byteLength, charset);
     }
 }

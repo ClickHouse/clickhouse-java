@@ -2,7 +2,7 @@ package com.clickhouse.jdbc;
 
 import java.sql.SQLException;
 
-public abstract class Wrapper {
+public abstract class JdbcWrapper {
     public <T> T unwrap(Class<T> iface) throws SQLException {
         if (iface.isAssignableFrom(getClass())) {
             return iface.cast(this);

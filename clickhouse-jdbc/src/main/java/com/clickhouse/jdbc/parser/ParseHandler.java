@@ -2,6 +2,7 @@ package com.clickhouse.jdbc.parser;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public abstract class ParseHandler {
     /**
@@ -42,11 +43,12 @@ public abstract class ParseHandler {
      * @param parameters positions of parameters
      * @param positions  keyword positions
      * @param settings   settings
+     * @param tempTables temporary tables
      * @return sql statement, or null means no change
      */
     public ClickHouseSqlStatement handleStatement(String sql, StatementType stmtType, String cluster, String database,
             String table, String input, String format, String outfile, List<Integer> parameters,
-            Map<String, Integer> positions, Map<String, String> settings) {
+            Map<String, Integer> positions, Map<String, String> settings, Set<String> tempTables) {
         return null;
     }
 }

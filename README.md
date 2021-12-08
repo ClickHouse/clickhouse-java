@@ -1,86 +1,96 @@
 # ClickHouse Java Client & JDBC Driver
 
-[![clickhouse-jdbc](https://maven-badges.herokuapp.com/maven-central/ru.yandex.clickhouse/clickhouse-jdbc/badge.svg)](https://maven-badges.herokuapp.com/maven-central/ru.yandex.clickhouse/clickhouse-jdbc) ![Build Status(https://github.com/ClickHouse/clickhouse-jdbc/workflows/Build/badge.svg)](https://github.com/ClickHouse/clickhouse-jdbc/workflows/Build/badge.svg) [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=ClickHouse_clickhouse-jdbc&metric=coverage)](https://sonarcloud.io/dashboard?id=ClickHouse_clickhouse-jdbc)
+[![clickhouse-jdbc](https://maven-badges.herokuapp.com/maven-central/com.clickhouse/clickhouse-jdbc/badge.svg)](https://maven-badges.herokuapp.com/maven-central/com.clickhouse/clickhouse-jdbc) ![Build Status(https://github.com/ClickHouse/clickhouse-jdbc/workflows/Build/badge.svg)](https://github.com/ClickHouse/clickhouse-jdbc/workflows/Build/badge.svg) [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=ClickHouse_clickhouse-jdbc&metric=coverage)](https://sonarcloud.io/dashboard?id=ClickHouse_clickhouse-jdbc)
 
-Java client and JDBC driver for ClickHouse.
+Java client and JDBC driver for ClickHouse. Java client is async and light weight library for accessing ClickHouse in Java; while JDBC driver is built on top of the Java client with more dependencies and extensions for JDBC-compliance.
 
 ## Usage
 
 ### Java Client
 
-Use Java client when you prefer async and more "direct" way to communicate with ClickHouse. JDBC driver is actually a thin wrapper of the Java client.
-
 ```xml
 <dependency>
     <groupId>com.clickhouse</groupId>
-    <!-- you'll be able to use clickhouse-http-client and clickhouse-tcp-client as well in the near future -->
-    <artifactId>clickhouse-grpc-client</artifactId>
+    <!-- or clickhouse-grpc-client if you prefer gRPC -->
+    <artifactId>clickhouse-http-client</artifactId>
     <version>0.3.2</version>
 </dependency>
 ```
 
-Example:
+<details>
+    <summary>Expand to see example...</summary>
 
-```Java
-// declare a server to connect to
-ClickHouseNode server = ClickHouseNode.of("server.domain", ClickHouseProtocol.GRPC, 9100, "my_db");
+    ```Java
+    // declare a server to connect to
+    ClickHouseNode server = ClickHouseNode.of("server.domain", ClickHouseProtocol.HTTP, 8123, "my_db");
 
-// run multiple queries in one go and wait until it's finished
-ClickHouseClient.send(server,
-    "create database if not exists test",
-    "use test", // change current database from my_db to test
-    "create table if not exists test_table(s String) engine=Memory",
-    "insert into test_table values('1')('2')('3')",
-    "select * from test_table limit 1",
-    "truncate table test_table",
-    "drop table if exists test_table").get();
+    // run multiple queries in one go and wait until they're completed
+    ClickHouseClient.send(server, "create database if not exists test",
+        "use test", // change current database from my_db to test
+        "create table if not exists test_table(s String) engine=Memory",
+        "insert into test_table values('1')('2')('3')",
+        "select * from test_table limit 1",
+        "truncate table test_table",
+        "drop table if exists test_table").get();
 
-// query with named parameters
-try (ClickHouseClient client = ClickHouseClient.newInstance(ClickHouseProtocol.GRPC);
-    ClickHouseResponse resp = client.connect(server)
-        .format(ClickHouseFormat.RowBinaryWithNamesAndTypes).set("send_logs_level", "trace")
-        .query("select id, name from some_table where id in :ids and name like :name").params(Arrays.asList(1,2,3), "%key%").execute().get()) {
-    // you can also use resp.stream() as well
-    for (ClickHouseRecord record : resp.records()) {
-        int id = record.getValue(0).asInteger();
-        String name = record.getValue(1).asString();
+    // query with named parameters
+    try (ClickHouseClient client = ClickHouseClient.newInstance(ClickHouseProtocol.GRPC);
+        ClickHouseResponse resp = client.connect(server)
+            .format(ClickHouseFormat.RowBinaryWithNamesAndTypes).set("send_logs_level", "trace")
+            .query("select id, name from some_table where id in :ids and name like :name").params(Arrays.asList(1,2,3), "%key%").execute().get()) {
+        // you can also use resp.stream() as well
+        for (ClickHouseRecord record : resp.records()) {
+            int id = record.getValue(0).asInteger();
+            String name = record.getValue(1).asString();
+        }
+
+        ClickHouseResponseSummary summary = resp.getSummary();
+        long totalRows = summary.getRows();
     }
 
-    ClickHouseResponseSummary summary = resp.getSummary();
-    long totalRows = summary.getRows();
-}
+    // load data with custom writer
+    ClickHouseClient.load(server, "target_table", ClickHouseFormat.TabSeparated,
+        ClickHouseCompression.NONE, new ClickHouseWriter() {
+            @Override
+            public void write(OutputStream output) throws IOException {
+                output.write("1\t\\N\n".getBytes());
+                output.write("2\t123".getBytes());
+            }
+        }).get();
+    ```
+</details>
 
-// load data with custom writer
-ClickHouseClient.load(server, "target_table", ClickHouseFormat.TabSeparated,
-    ClickHouseCompression.NONE, new ClickHouseWriter() {
-        @Override
-        public void write(OutputStream output) throws IOException {
-            output.write("1\t\\N\n".getBytes());
-            output.write("2\t123".getBytes());
-        }
-    }).get();
-```
 
 ### JDBC Driver
 
 ```xml
 <dependency>
-    <!-- groupId and package name will be changed to com.clickhouse starting from 0.4.0 -->
-    <groupId>ru.yandex.clickhouse</groupId>
+    <!-- ru.yandex.clickhouse will be retired starting from 0.4.0 -->
+    <groupId>com.clickhouse</groupId>
     <artifactId>clickhouse-jdbc</artifactId>
     <version>0.3.2</version>
+    <!-- below is only needed when all you want is a shaded jar -->
+    <classifier>http</classifier>
+    <exclusions>
+        <exclusion>
+            <groupId>*</groupId>
+            <artifactId>*</artifactId>
+        </exclusion>
+    </exclusions>
 </dependency>
 ```
 
-URL syntax: `jdbc:clickhouse://<host>:<port>[/<database>[?param1=value1&param2=value2]]`, e.g. `jdbc:clickhouse://localhost:8123/test?socket_timeout=120000`
+URL Syntax: `jdbc:(clickhouse|ch)[:(grpc|http)]://<host>:[<port>][/<database>[?param1=value1&param2=value2]]`
+  - `jdbc:ch:grpc://localhost` is same as `jdbc:clickhouse:grpc://localhost:9100`
+  - `jdbc:ch://localhost/test?socket_timeout=120000` is same as `jdbc:clickhouse:http://localhost:8123/test?socket_timeout=120000`
 
-JDBC Driver Class: `ru.yandex.clickhouse.ClickHouseDriver` (will be changed to `com.clickhouse.jdbc.ClickHouseDriver` starting from 0.4.0)
+JDBC Driver Class: `com.clickhouse.jdbc.ClickHouseDriver` (will remove `ru.yandex.clickhouse.ClickHouseDriver` starting from 0.4.0)
 
 For example:
 
 ```java
-String url = "jdbc:clickhouse://localhost:8123/test";
-ClickHouseProperties properties = new ClickHouseProperties();
+String url = "jdbc:ch://localhost/test";
+Properties properties = new Properties();
 // set connection options - see more defined in ClickHouseConnectionSettings
 properties.setClientName("Agent #1");
 ...
@@ -96,12 +106,10 @@ additionalDBParams.put(ClickHouseQueryParam.SESSION_ID, "new-session-id");
 ...
 try (ClickHouseConnection conn = dataSource.getConnection();
     ClickHouseStatement stmt = conn.createStatement();
-    ResultSet rs = stmt.executeQuery(sql, additionalDBParams)) {
+    ResultSet rs = stmt.executeQuery(sql)) {
     ...
 }
 ```
-
-Additionally, if you have a few instances, you can use `BalancedClickhouseDataSource`.
 
 ### Extended API
 
@@ -174,7 +182,7 @@ Java 8 or higher is required in order to use Java client and/or JDBC driver.
 | \*String           | Y           | Y           |                                                                       |
 | UUID               | Y           | Y           |                                                                       |
 | AggregatedFunction | N           | N           | Partially supported                                                   |
-| Array              | Y           | N           |                                                                       |
+| Array              | Y           | Y           |                                                                       |
 | Map                | Y           | Y           |                                                                       |
 | Nested             | Y           | N           |                                                                       |
 | Tuple              | Y           | N           |                                                                       |
