@@ -129,11 +129,11 @@ public class DriverState extends BaseState {
 
     public ConsumeValueFunction getConsumeFunction(ConsumeValueFunction defaultFunc) {
         if ("string".equals(type)) {
-            return (b, r, i) -> b.consume(r.getString(i));
+            return (b, r, l, i) -> b.consume(r.getString(i));
         } else if ("object".equals(type)) {
-            return (b, r, i) -> b.consume(r.getObject(i));
+            return (b, r, l, i) -> b.consume(r.getObject(i));
         } else if (defaultFunc == null) {
-            return (b, r, i) -> b.consume(i);
+            return (b, r, l, i) -> b.consume(i);
         } else {
             return defaultFunc;
         }
