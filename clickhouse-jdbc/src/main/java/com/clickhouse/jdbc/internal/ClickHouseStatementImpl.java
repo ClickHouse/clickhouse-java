@@ -119,7 +119,7 @@ public class ClickHouseStatementImpl extends JdbcWrapper implements ClickHouseSt
                 request.options(options);
             }
             if (settings != null && !settings.isEmpty()) {
-                if (request.getSessionId().isEmpty()) {
+                if (!request.getSessionId().isPresent()) {
                     request.session(UUID.randomUUID().toString());
                 }
                 for (Entry<String, String> e : settings.entrySet()) {
@@ -130,7 +130,7 @@ public class ClickHouseStatementImpl extends JdbcWrapper implements ClickHouseSt
                 List<ClickHouseExternalTable> list = new ArrayList<>(tables.size());
                 for (ClickHouseExternalTable t : tables) {
                     if (t.isTempTable()) {
-                        if (request.getSessionId().isEmpty()) {
+                        if (!request.getSessionId().isPresent()) {
                             request.session(UUID.randomUUID().toString());
                         }
                         request.query("drop temporary table if exists `" + t.getName() + "`").execute().get();
