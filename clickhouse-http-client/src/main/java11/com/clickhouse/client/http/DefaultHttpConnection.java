@@ -183,14 +183,15 @@ public class DefaultHttpConnection extends ClickHouseHttpConnection {
         reqBuilder.POST(HttpRequest.BodyPublishers.ofString(sql));
         HttpResponse<InputStream> r;
         try {
-            // r = httpClient.send(reqBuilder.build(), responseInfo -> new
-            // ExtendedResponseInputStream());
-            r = httpClient.send(reqBuilder.build(),
+            CompletableFuture<HttpResponse<InputStream>> f = httpClient.sendAsync(reqBuilder.build(),
                     responseInfo -> new ClickHouseResponseHandler(config.getMaxBufferSize(),
                             config.getSocketTimeout()));
+            r = f.get();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new IOException("Thread was interrupted when posting request or receiving response", e);
+        } catch (ExecutionException e) {
+            throw new IOException("Failed to post query", e);
         }
         return buildResponse(r);
     }

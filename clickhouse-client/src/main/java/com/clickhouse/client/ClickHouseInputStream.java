@@ -40,7 +40,7 @@ public abstract class ClickHouseInputStream extends InputStream {
                 throw new IOException("Stream has been closed");
             }
 
-            if (buffer == null || (buffer != EMPTY && buffer.limit() > 0 && !buffer.hasRemaining())) {
+            if (buffer == null || (buffer != EMPTY && !buffer.hasRemaining())) {
                 updateBuffer();
             }
         }
@@ -65,17 +65,9 @@ public abstract class ClickHouseInputStream extends InputStream {
 
         @Override
         public int available() throws IOException {
-            if (closed || buffer == EMPTY) {
-                return 0;
-            }
+            ensureOpen();
 
-            int available = 0;
-            if (buffer == null || (buffer.limit() > 0 && !buffer.hasRemaining())) {
-                available = updateBuffer();
-            } else {
-                available = buffer.remaining();
-            }
-            return available;
+            return buffer.remaining();
         }
 
         @Override
@@ -95,7 +87,7 @@ public abstract class ClickHouseInputStream extends InputStream {
         public byte readByte() throws IOException {
             ensureOpen();
 
-            if (buffer == EMPTY || buffer.limit() == 0) {
+            if (buffer == EMPTY) {
                 close();
                 throw new EOFException();
             }
@@ -107,7 +99,7 @@ public abstract class ClickHouseInputStream extends InputStream {
         public int read() throws IOException {
             ensureOpen();
 
-            if (buffer == EMPTY || buffer.limit() == 0) {
+            if (buffer == EMPTY) {
                 return -1;
             }
 
@@ -120,7 +112,7 @@ public abstract class ClickHouseInputStream extends InputStream {
 
             int counter = 0;
             while (len > 0) {
-                if (buffer == EMPTY || buffer.limit() == 0) {
+                if (buffer == EMPTY) {
                     return counter > 0 ? counter : -1;
                 }
 

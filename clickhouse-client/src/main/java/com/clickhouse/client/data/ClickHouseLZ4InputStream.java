@@ -28,10 +28,10 @@ public class ClickHouseLZ4InputStream extends ClickHouseInputStream {
     private boolean closed;
 
     private boolean checkNext() throws IOException {
-        if (currentBlock == null) {
+        if (currentBlock == null || !currentBlock.hasRemaining()) {
             currentBlock = readNextBlock();
         }
-        return currentBlock != null && currentBlock.hasRemaining();
+        return currentBlock != null;
     }
 
     // every block is:
