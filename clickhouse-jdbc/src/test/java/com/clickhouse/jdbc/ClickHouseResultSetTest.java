@@ -33,7 +33,7 @@ public class ClickHouseResultSetTest extends JdbcIntegrationTest {
         try (ClickHouseConnection conn = newConnection(new Properties());
                 Statement stmt = conn.createStatement()) {
             ResultSet rs = stmt.executeQuery(
-                    "select [1,2,3] v1, ['a','b', 'c'] v2, arrayZip(v1, v2) v3, ['2021-11-01 01:02:03', '2021-11-02 02:03:04']::Array(DateTime32) as v4");
+                    "select [1,2,3] v1, ['a','b', 'c'] v2, arrayZip(v1, v2) v3, cast(['2021-11-01 01:02:03', '2021-11-02 02:03:04'] as Array(DateTime32)) v4");
             Assert.assertTrue(rs.next());
 
             Assert.assertEquals(rs.getObject(1), new short[] { 1, 2, 3 });
@@ -66,7 +66,7 @@ public class ClickHouseResultSetTest extends JdbcIntegrationTest {
                 Statement stmt = conn.createStatement()) {
             ResultSet rs = stmt
                     .executeQuery(
-                            "select (1::Int16, 'a', 1.2::Float32, [1,2]::Array(Nullable(UInt8)), map(toUInt32(1),'a')) v");
+                            "select (toInt16(1), 'a', toFloat32(1.2), cast([1,2] as Array(Nullable(UInt8))), map(toUInt32(1),'a')) v");
             Assert.assertTrue(rs.next());
             List<?> v = rs.getObject(1, List.class);
             Assert.assertEquals(v.size(), 5);

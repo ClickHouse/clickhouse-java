@@ -65,7 +65,11 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
                 stmt.setObject(4, v[3]);
                 stmt.addBatch();
             }
-            stmt.executeBatch();
+            int[] results = stmt.executeBatch();
+            Assert.assertEquals(results.length, objs.length);
+            for (int result : results) {
+                Assert.assertNotEquals(result, PreparedStatement.EXECUTE_FAILED);
+            }
 
             try (ResultSet rs = s.executeQuery("select * from test_batch_input order by id")) {
                 Object[][] values = new Object[objs.length][];
@@ -126,6 +130,10 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
     public void testArrayParameter(String t, Object v) throws SQLException {
         try (ClickHouseConnection conn = newConnection(new Properties());
                 PreparedStatement stmt = conn.prepareStatement("select ?::?")) {
+            if (conn.getServerVersion().check("(,21.3]")) {
+                return;
+            }
+
             stmt.setObject(1, v);
             // stmt.setString(2, t) or stmt.setObject(2, t) will result in quoted string
             stmt.setObject(2, new StringBuilder(t));
