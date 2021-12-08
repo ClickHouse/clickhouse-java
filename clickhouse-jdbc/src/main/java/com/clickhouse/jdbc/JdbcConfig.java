@@ -20,7 +20,7 @@ public class JdbcConfig {
     private static final String DEFAULT_FETCH_SIZE = "0";
     private static final String DEFAULT_JDBC_COMPLIANT = BOOLEAN_TRUE;
     private static final String DEFAULT_NAMED_PARAM = BOOLEAN_FALSE;
-    private static final String DEFAULT_WRAPPER_OBJ = BOOLEAN_TRUE;
+    private static final String DEFAULT_WRAPPER_OBJ = BOOLEAN_FALSE;
 
     static boolean extractBooleanValue(Properties props, String key, String defaultValue) {
         if (props == null || props.isEmpty() || key == null || key.isEmpty()) {
@@ -45,21 +45,26 @@ public class JdbcConfig {
         DriverPropertyInfo info = new DriverPropertyInfo(PROP_AUTO_COMMIT, DEFAULT_AUTO_COMMIT);
         info.choices = new String[] { BOOLEAN_TRUE, BOOLEAN_FALSE };
         info.description = "Whether to enable auto commit when connection is created.";
+        list.add(info);
 
         info = new DriverPropertyInfo(PROP_FETCH_SIZE, DEFAULT_FETCH_SIZE);
         info.description = "Default fetch size, negative or zero means no preferred option.";
+        list.add(info);
 
         info = new DriverPropertyInfo(PROP_JDBC_COMPLIANT, DEFAULT_JDBC_COMPLIANT);
         info.choices = new String[] { BOOLEAN_TRUE, BOOLEAN_FALSE };
         info.description = "Whether to enable JDBC-compliant features like fake transaction and standard UPDATE and DELETE statements.";
+        list.add(info);
 
         info = new DriverPropertyInfo(PROP_NAMED_PARAM, DEFAULT_NAMED_PARAM);
         info.choices = new String[] { BOOLEAN_TRUE, BOOLEAN_FALSE };
         info.description = "Whether to use named parameter(e.g. :ts(DateTime64(6)) or :value etc.) instead of standard JDBC question mark placeholder.";
+        list.add(info);
 
         info = new DriverPropertyInfo(PROP_WRAPPER_OBJ, DEFAULT_WRAPPER_OBJ);
         info.choices = new String[] { BOOLEAN_TRUE, BOOLEAN_FALSE };
         info.description = "Whether to return wrapper object like Array or Struct in ResultSet.getObject method.";
+        list.add(info);
 
         return Collections.unmodifiableList(list);
     }
