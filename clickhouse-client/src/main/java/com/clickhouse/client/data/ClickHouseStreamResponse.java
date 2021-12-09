@@ -60,7 +60,7 @@ public class ClickHouseStreamResponse implements ClickHouseResponse {
     protected final List<ClickHouseColumn> columns;
     protected final ClickHouseResponseSummary summary;
 
-    private boolean isClosed;
+    private boolean closed;
 
     protected ClickHouseStreamResponse(ClickHouseConfig config, ClickHouseInputStream input,
             Map<String, Object> settings, List<ClickHouseColumn> columns, ClickHouseResponseSummary summary)
@@ -91,30 +91,28 @@ public class ClickHouseStreamResponse implements ClickHouseResponse {
             }
         }
         this.summary = summary != null ? summary : ClickHouseResponseSummary.EMPTY;
-        this.isClosed = hasError;
+        this.closed = hasError;
     }
 
     @Override
     public boolean isClosed() {
-        return isClosed;
+        return closed;
     }
 
     @Override
     public void close() {
-        if (input != null) {
+        try {
+            log.debug("%d bytes skipped before closing input stream", input.skip(Long.MAX_VALUE));
+        } catch (Exception e) {
+            // ignore
+            log.debug("Failed to skip reading input stream due to: %s", e.getMessage());
+        } finally {
             try {
-                log.debug("%d bytes skipped before closing input stream", input.skip(Long.MAX_VALUE));
+                input.close();
             } catch (Exception e) {
-                // ignore
-                log.debug("Failed to skip reading input stream due to: %s", e.getMessage());
-            } finally {
-                try {
-                    input.close();
-                } catch (Exception e) {
-                    log.warn("Failed to close input stream", e);
-                }
-                isClosed = true;
+                log.warn("Failed to close input stream", e);
             }
+            closed = true;
         }
     }
 
