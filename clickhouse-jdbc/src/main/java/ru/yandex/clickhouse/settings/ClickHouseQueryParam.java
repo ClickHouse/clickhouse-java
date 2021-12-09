@@ -155,6 +155,10 @@ public enum ClickHouseQueryParam implements DriverPropertyCreator {
 
     MAX_AST_ELEMENTS("max_ast_elements", null, Long.class, "Maximum number of elements in a query syntactic tree"),
 
+    MAX_EXPANDED_AST_ELEMENTS("max_expanded_ast_elements", null, Long.class, "Maximum size of query syntax tree in number of nodes after expansion of aliases and the asterisk"),
+
+    MAX_AST_DEPTH("max_ast_depth", null, Long.class, "Maximum depth of query syntax tree"),
+
     MEMORY_TRACKER_FAULT_PROBABILITY("memory_tracker_fault_probability", null, Double.class, ""),
 
     MERGE_TREE_COARSE_INDEX_GRANULARITY("merge_tree_coarse_index_granularity", null, Long.class, ""),

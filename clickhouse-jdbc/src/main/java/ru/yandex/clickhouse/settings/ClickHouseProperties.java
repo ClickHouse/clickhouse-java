@@ -83,6 +83,8 @@ public class ClickHouseProperties {
     private Long    preferredBlockSizeBytes;
     private Long    maxQuerySize;
     private Long    maxAstElements;
+    private Long    maxExpandedAstElements;
+    private Long    maxAstDepth;
     private boolean sessionCheck;
     private String  sessionId;
     private Long    sessionTimeout;
@@ -154,6 +156,8 @@ public class ClickHouseProperties {
         this.preferredBlockSizeBytes = getSetting(info, ClickHouseQueryParam.PREFERRED_BLOCK_SIZE_BYTES);
         this.maxQuerySize = getSetting(info, ClickHouseQueryParam.MAX_QUERY_SIZE);
         this.maxAstElements = getSetting(info, ClickHouseQueryParam.MAX_AST_ELEMENTS);
+        this.maxExpandedAstElements = getSetting(info, ClickHouseQueryParam.MAX_EXPANDED_AST_ELEMENTS);
+        this.maxAstDepth = getSetting(info, ClickHouseQueryParam.MAX_AST_DEPTH);
         this.sessionCheck = (Boolean) getSetting(info, ClickHouseQueryParam.SESSION_CHECK);
         this.sessionId = getSetting(info, ClickHouseQueryParam.SESSION_ID);
         this.sessionTimeout = getSetting(info, ClickHouseQueryParam.SESSION_TIMEOUT);
@@ -221,6 +225,8 @@ public class ClickHouseProperties {
         ret.put(ClickHouseQueryParam.PREFERRED_BLOCK_SIZE_BYTES.getKey(), preferredBlockSizeBytes);
         ret.put(ClickHouseQueryParam.MAX_QUERY_SIZE.getKey(), maxQuerySize);
         ret.put(ClickHouseQueryParam.MAX_AST_ELEMENTS.getKey(), maxAstElements);
+        ret.put(ClickHouseQueryParam.MAX_EXPANDED_AST_ELEMENTS.getKey(), maxExpandedAstElements);
+        ret.put(ClickHouseQueryParam.MAX_AST_DEPTH.getKey(), maxAstDepth);
         ret.put(ClickHouseQueryParam.SESSION_CHECK.getKey(), String.valueOf(sessionCheck));
         ret.put(ClickHouseQueryParam.SESSION_ID.getKey(), sessionId);
         ret.put(ClickHouseQueryParam.SESSION_TIMEOUT.getKey(), sessionTimeout);
@@ -387,6 +393,14 @@ public class ClickHouseProperties {
         }
         if (maxAstElements != null) {
             params.put(ClickHouseQueryParam.MAX_AST_ELEMENTS, String.valueOf(maxAstElements));
+        }
+
+        if (maxExpandedAstElements != null) {
+            params.put(ClickHouseQueryParam.MAX_EXPANDED_AST_ELEMENTS, String.valueOf(maxExpandedAstElements));
+        }
+
+        if (maxAstDepth != null) {
+            params.put(ClickHouseQueryParam.MAX_AST_DEPTH, String.valueOf(maxAstDepth));
         }
 
         if (sessionCheck) {
@@ -875,6 +889,22 @@ public class ClickHouseProperties {
 
     public Long getMaxAstElements() {
         return this.maxAstElements;
+    }
+
+    public void setMaxExpandedAstElements(Long maxExpandedAstElements) {
+        this.maxExpandedAstElements = maxExpandedAstElements;
+    }
+
+    public Long getMaxExpandedAstElements() {
+        return this.maxExpandedAstElements;
+    }
+
+    public void setMaxAstDepth(Long maxAstDepth) {
+        this.maxAstDepth = maxAstDepth;
+    }
+
+    public Long getMaxAstDepth() {
+        return this.maxAstDepth;
     }
 
     public boolean isSessionCheck() { return sessionCheck; }
