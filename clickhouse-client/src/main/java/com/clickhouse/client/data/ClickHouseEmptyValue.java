@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 
 import com.clickhouse.client.ClickHouseValue;
+import com.clickhouse.client.ClickHouseValues;
 
 /**
  * Wrapper class of Nothing.
@@ -26,27 +27,27 @@ public final class ClickHouseEmptyValue implements ClickHouseValue {
 
     @Override
     public byte asByte() {
-        throw new IllegalStateException("Empty value cannot be converted to byte");
+        return (byte) 0;
     }
 
     @Override
     public double asDouble() {
-        throw new IllegalStateException("Empty value cannot be converted to double");
+        return 0D;
     }
 
     @Override
     public float asFloat() {
-        throw new IllegalStateException("Empty value cannot be converted to float");
+        return 0F;
     }
 
     @Override
     public int asInteger() {
-        throw new IllegalStateException("Empty value cannot be converted to int");
+        return 0;
     }
 
     @Override
     public long asLong() {
-        throw new IllegalStateException("Empty value cannot be converted to long");
+        return 0L;
     }
 
     @Override
@@ -56,7 +57,7 @@ public final class ClickHouseEmptyValue implements ClickHouseValue {
 
     @Override
     public short asShort() {
-        throw new IllegalStateException("Empty value cannot be converted to short");
+        return (short) 0;
     }
 
     @Override
@@ -76,7 +77,7 @@ public final class ClickHouseEmptyValue implements ClickHouseValue {
 
     @Override
     public String toSqlExpression() {
-        return toString();
+        return ClickHouseValues.NULL_EXPR;
     }
 
     @Override
