@@ -1,7 +1,7 @@
 package ru.yandex.clickhouse.response.parser;
 
 import java.sql.SQLException;
-
+import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 import ru.yandex.clickhouse.response.ByteFragment;
@@ -13,6 +13,40 @@ import static org.testng.Assert.assertTrue;
 import static org.testng.Assert.fail;
 
 public class ClickHouseValueParserTest {
+    /**
+     * Generates test data for floats.
+     */
+    @DataProvider(name = "float_test_data")
+    public Object[][] floatTestData() {
+        return new Object [][] {
+                {"100.0", 100.0f},
+                {"NaN", Float.NaN},
+                {"Infinity", Float.POSITIVE_INFINITY},
+                {"+Infinity", Float.POSITIVE_INFINITY},
+                {"-Infinity", Float.NEGATIVE_INFINITY},
+                {"nan", Float.NaN},
+                {"inf", Float.POSITIVE_INFINITY},
+                {"+inf", Float.POSITIVE_INFINITY},
+                {"-inf", Float.NEGATIVE_INFINITY}
+        };
+    }
+
+    /**
+     * Generates test data for doubles.
+     */
+    @DataProvider(name = "double_test_data")
+    public Object[][] doubleTestData() {
+        return new Object [][] {
+                {"100.0", 100.0d},
+                {"Infinity", Double.POSITIVE_INFINITY},
+                {"+Infinity", Double.POSITIVE_INFINITY},
+                {"-Infinity", Double.NEGATIVE_INFINITY},
+                {"nan", Double.NaN},
+                {"inf", Double.POSITIVE_INFINITY},
+                {"+inf", Double.POSITIVE_INFINITY},
+                {"-inf", Double.NEGATIVE_INFINITY}
+        };
+    }
 
     @Test(groups = "unit")
     public void testParseInt() throws Exception {
@@ -161,4 +195,65 @@ public class ClickHouseValueParserTest {
         assertFalse(ClickHouseValueParser.parseBoolean(ByteFragment.fromString(" true"), columnInfo));
     }
 
+    @Test (dataProvider = "float_test_data")
+    public void testParseFloat(String byteFragmentString, Float expectedValue) throws SQLException {
+        ClickHouseColumnInfo columnInfo = ClickHouseColumnInfo.parse("Float32", "columnName", null);
+        float floatDelta = 0.001f;
+        if (expectedValue.isNaN()) {
+            assertTrue(Float.isNaN(ClickHouseValueParser.parseFloat(
+                    ByteFragment.fromString(byteFragmentString), columnInfo)
+            ));
+        } else {
+            assertEquals(ClickHouseValueParser.parseFloat(
+                    ByteFragment.fromString(byteFragmentString), columnInfo), expectedValue, floatDelta
+            );
+        }
+    }
+
+    @Test (dataProvider = "double_test_data")
+    public void testParseDouble(String byteFragmentString, Double expectedValue) throws SQLException {
+        ClickHouseColumnInfo columnInfo = ClickHouseColumnInfo.parse("Float64", "columnName", null);
+        double doubleDelta = 0.001;
+        if (expectedValue.isNaN()) {
+            assertTrue(Double.isNaN(ClickHouseValueParser.parseDouble(
+                    ByteFragment.fromString(byteFragmentString), columnInfo)
+            ));
+        } else {
+            assertEquals(ClickHouseValueParser.parseDouble(
+                    ByteFragment.fromString(byteFragmentString), columnInfo), expectedValue, doubleDelta
+            );
+        }
+    }
+
+    @Test (dataProvider = "float_test_data")
+    public void testGetParserFloat(String byteFragmentString, Float expectedValue) throws SQLException {
+        ClickHouseColumnInfo columnInfo = ClickHouseColumnInfo.parse("Float32", "columnName", null);
+        float floatDelta = 0.001f;
+
+        if (expectedValue.isNaN()) {
+            assertTrue(Float.isNaN(ClickHouseValueParser.getParser(Float.class).parse(
+                    ByteFragment.fromString(byteFragmentString), columnInfo, null)
+            ));
+        } else {
+            assertEquals(ClickHouseValueParser.getParser(Float.class).parse(
+                    ByteFragment.fromString(byteFragmentString), columnInfo, null), expectedValue, floatDelta
+            );
+        }
+    }
+
+    @Test (dataProvider = "double_test_data")
+    public void testGetParserDouble(String byteFragmentString, Double expectedValue) throws SQLException {
+        ClickHouseColumnInfo columnInfo = ClickHouseColumnInfo.parse("Float64", "columnName", null);
+        double doubleDelta = 0.001d;
+
+        if (expectedValue.isNaN()) {
+            assertTrue(Double.isNaN(ClickHouseValueParser.getParser(Double.class).parse(
+                    ByteFragment.fromString(byteFragmentString), columnInfo, null)
+            ));
+        } else {
+            assertEquals(ClickHouseValueParser.getParser(Double.class).parse(
+                    ByteFragment.fromString(byteFragmentString), columnInfo, null), expectedValue, doubleDelta
+            );
+        }
+    }
 }
