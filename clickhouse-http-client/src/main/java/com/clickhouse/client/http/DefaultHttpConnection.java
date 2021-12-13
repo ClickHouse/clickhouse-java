@@ -28,6 +28,7 @@ import java.util.Map;
 import java.util.TimeZone;
 import java.util.UUID;
 import java.util.Map.Entry;
+import java.util.concurrent.ExecutorService;
 
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.HttpsURLConnection;
@@ -130,7 +131,8 @@ public class DefaultHttpConnection extends ClickHouseHttpConnection {
         }
     }
 
-    protected DefaultHttpConnection(ClickHouseNode server, ClickHouseRequest<?> request) throws IOException {
+    protected DefaultHttpConnection(ClickHouseNode server, ClickHouseRequest<?> request, ExecutorService executor)
+            throws IOException {
         super(server, request);
 
         conn = newConnection(url, true);

@@ -22,7 +22,7 @@ public class DefaultHttpConnectionTest extends BaseIntegrationTest {
         try (ClickHouseClient client = ClickHouseClient.newInstance()) {
             ClickHouseRequest<?> req = client.connect(server);
 
-            DefaultHttpConnection conn = new DefaultHttpConnection(server, req);
+            DefaultHttpConnection conn = new DefaultHttpConnection(server, req, null);
         }
     }
 }

@@ -76,6 +76,9 @@ public final class BinaryStreamUtils {
 
     public static final BigDecimal NANOS = new BigDecimal(BigInteger.TEN.pow(9));
 
+    private static final int[] BASES = new int[] { 1, 10, 100, 1000, 10000, 100000, 1000000, 10000000, 100000000,
+            1000000000 };
+
     private static <T extends Enum<T>> T toEnum(int value, Class<T> enumType) {
         for (T t : ClickHouseChecker.nonNull(enumType, "enumType").getEnumConstants()) {
             if (t.ordinal() == value) {
@@ -1403,11 +1406,7 @@ public final class BinaryStreamUtils {
         long value = readInt64(input);
         int nanoSeconds = 0;
         if (ClickHouseChecker.between(scale, ClickHouseValues.PARAM_SCALE, 0, 9) > 0) {
-            int factor = 1;
-            for (int i = 0; i < scale; i++) {
-                factor *= 10;
-            }
-
+            int factor = BASES[scale];
             nanoSeconds = (int) (value % factor);
             value /= factor;
             if (nanoSeconds < 0) {
@@ -1415,9 +1414,7 @@ public final class BinaryStreamUtils {
                 value--;
             }
             if (nanoSeconds > 0L) {
-                for (int i = 9 - scale; i > 0; i--) {
-                    nanoSeconds *= 10;
-                }
+                nanoSeconds *= BASES[9 - scale];
             }
         }
 
@@ -1456,15 +1453,10 @@ public final class BinaryStreamUtils {
                         : value.atZone(tz.toZoneId()).toEpochSecond(),
                 ClickHouseValues.TYPE_DATE_TIME, DATETIME64_MIN, DATETIME64_MAX);
         if (ClickHouseChecker.between(scale, ClickHouseValues.PARAM_SCALE, 0, 9) > 0) {
-            for (int i = 0; i < scale; i++) {
-                v *= 10;
-            }
+            v *= BASES[scale];
             int nanoSeconds = value.getNano();
             if (nanoSeconds > 0L) {
-                for (int i = 9 - scale; i > 0; i--) {
-                    nanoSeconds /= 10;
-                }
-                v += nanoSeconds;
+                v += nanoSeconds / BASES[9 - scale];
             }
         }
 

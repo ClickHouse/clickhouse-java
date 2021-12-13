@@ -11,13 +11,17 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Extended input stream.
+ * Extended input stream for read optimization.
  */
 public abstract class ClickHouseInputStream extends InputStream {
     /**
+     * Empty byte array.
+     */
+    public static final byte[] EMPTY_BYTES = new byte[0];
+    /**
      * Empty and read-only byte buffer.
      */
-    public static final ByteBuffer EMPTY = ByteBuffer.wrap(new byte[0]).asReadOnlyBuffer();
+    public static final ByteBuffer EMPTY_BUFFER = ByteBuffer.wrap(EMPTY_BYTES).asReadOnlyBuffer();
 
     static final class BlockingInputStream extends ClickHouseInputStream {
         private final BlockingQueue<ByteBuffer> queue;
@@ -28,7 +32,7 @@ public abstract class ClickHouseInputStream extends InputStream {
         private boolean closed;
 
         BlockingInputStream(BlockingQueue<ByteBuffer> queue, int timeout) {
-            this.queue = queue;
+            this.queue = ClickHouseChecker.nonNull(queue, "Queue");
             this.timeout = timeout;
 
             this.buffer = null;
@@ -37,10 +41,12 @@ public abstract class ClickHouseInputStream extends InputStream {
 
         private void ensureOpen() throws IOException {
             if (closed) {
-                throw new IOException("Stream has been closed");
+                throw new IOException(
+                        ClickHouseUtils.format("Blocking stream(queue: %d, buffer: %d) has been closed",
+                                queue.size(), buffer != null ? buffer.remaining() : 0));
             }
 
-            if (buffer == null || (buffer != EMPTY && !buffer.hasRemaining())) {
+            if (buffer == null || (buffer != EMPTY_BUFFER && !buffer.hasRemaining())) {
                 updateBuffer();
             }
         }
@@ -65,9 +71,11 @@ public abstract class ClickHouseInputStream extends InputStream {
 
         @Override
         public int available() throws IOException {
-            ensureOpen();
+            if (closed || buffer == EMPTY_BUFFER) {
+                return 0;
+            }
 
-            return buffer.remaining();
+            return (buffer == null || !buffer.hasRemaining()) ? updateBuffer() : buffer.remaining();
         }
 
         @Override
@@ -87,7 +95,7 @@ public abstract class ClickHouseInputStream extends InputStream {
         public byte readByte() throws IOException {
             ensureOpen();
 
-            if (buffer == EMPTY) {
+            if (buffer == EMPTY_BUFFER) {
                 close();
                 throw new EOFException();
             }
@@ -99,7 +107,7 @@ public abstract class ClickHouseInputStream extends InputStream {
         public int read() throws IOException {
             ensureOpen();
 
-            if (buffer == EMPTY) {
+            if (buffer == EMPTY_BUFFER) {
                 return -1;
             }
 
@@ -112,7 +120,7 @@ public abstract class ClickHouseInputStream extends InputStream {
 
             int counter = 0;
             while (len > 0) {
-                if (buffer == EMPTY) {
+                if (buffer == EMPTY_BUFFER) {
                     return counter > 0 ? counter : -1;
                 }
 
@@ -162,7 +170,7 @@ public abstract class ClickHouseInputStream extends InputStream {
             // peforms better but this is a bit tricky
             if (n == Long.MAX_VALUE) {
                 long counter = buffer.remaining();
-                while (buffer != EMPTY && buffer.limit() > 0) {
+                while (buffer != EMPTY_BUFFER && buffer.limit() > 0) {
                     counter += buffer.limit();
                     updateBuffer();
                 }
@@ -184,6 +192,12 @@ public abstract class ClickHouseInputStream extends InputStream {
             closed = false;
         }
 
+        private void ensureOpen() throws IOException {
+            if (closed) {
+                throw new IOException(ClickHouseUtils.format("Wrapped stream(%s) has been closed", in));
+            }
+        }
+
         @Override
         public int available() throws IOException {
             return !closed ? in.available() : 0;
@@ -191,13 +205,19 @@ public abstract class ClickHouseInputStream extends InputStream {
 
         @Override
         public byte readByte() throws IOException {
+            ensureOpen();
+
             int v = in.read();
-            if (v == -1) {
-                close();
-                throw new EOFException();
+            if (v != -1) {
+                return (byte) v;
             }
 
-            return (byte) v;
+            try {
+                close();
+            } catch (IOException e) {
+                // ignore
+            }
+            throw new EOFException();
         }
 
         @Override
@@ -207,25 +227,30 @@ public abstract class ClickHouseInputStream extends InputStream {
 
         @Override
         public void close() throws IOException {
-            try {
-                in.close();
-            } finally {
-                closed = true;
+            if (!closed) {
+                try {
+                    in.close();
+                } finally {
+                    closed = true;
+                }
             }
         }
 
         @Override
         public int read() throws IOException {
+            ensureOpen();
             return in.read();
         }
 
         @Override
         public int read(byte[] b, int off, int len) throws IOException {
+            ensureOpen();
             return in.read(b, off, len);
         }
 
         @Override
         public long skip(long n) throws IOException {
+            ensureOpen();
             return in.skip(n);
         }
     }
@@ -238,21 +263,23 @@ public abstract class ClickHouseInputStream extends InputStream {
      * @return wrapped input
      */
     public static ClickHouseInputStream of(BlockingQueue<ByteBuffer> queue, int timeout) {
-        return new BlockingInputStream(ClickHouseChecker.nonNull(queue, "queue"), timeout);
+        return new BlockingInputStream(queue, timeout);
     }
 
     /**
      * Wraps the given input stream.
      *
      * @param input non-null input stream
-     * @return wrapped input
+     * @return wrapped input, or the same input if it's instance of
+     *         {@link ClickHouseInputStream}
      */
     public static ClickHouseInputStream of(InputStream input) {
         return input instanceof ClickHouseInputStream ? (ClickHouseInputStream) input : new WrappedInputStream(input);
     }
 
     /**
-     * Reads an unsigned byte from the input stream.
+     * Reads an unsigned byte from the input stream. Unlike {@link #read()}, it will
+     * throw {@link IOException} if the input stream has been closed.
      *
      * @return unsigned byte
      * @throws IOException when failed to read value from input stream or reached
@@ -263,8 +290,10 @@ public abstract class ClickHouseInputStream extends InputStream {
     }
 
     /**
-     * Reads one single byte from the input stream. It's supposed to be faster than
-     * {@link #read()}.
+     * Reads one single byte from the input stream. Unlike {@link #read()}, it will
+     * throw {@link IOException} if the input stream has been closed. In general,
+     * this method should be faster than {@link #read()}, especially when it's an
+     * input stream backed by byte[] or {@link java.nio.ByteBuffer}.
      *
      * @return byte value if present
      * @throws IOException when failed to read value from input stream or reached
@@ -274,7 +303,8 @@ public abstract class ClickHouseInputStream extends InputStream {
 
     /**
      * Reads {@code length} bytes from the input stream. It behaves in the same
-     * way as {@link java.io.DataInput#readFully(byte[])}.
+     * way as {@link java.io.DataInput#readFully(byte[])}, and it will throw
+     * {@link IOException} when the input stream has been closed.
      *
      * @param length number of bytes to read
      * @return byte array and its length should be {@code length}
@@ -282,6 +312,10 @@ public abstract class ClickHouseInputStream extends InputStream {
      *                     retrieve all bytes, or reached end of the stream
      */
     public byte[] readBytes(int length) throws IOException {
+        if (length <= 0) {
+            return EMPTY_BYTES;
+        }
+
         byte[] bytes = new byte[length];
 
         for (int l = length, c = 0, n = 0; l > 0; l -= n) {

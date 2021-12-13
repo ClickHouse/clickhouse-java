@@ -81,7 +81,7 @@ public class ClickHousePipedStream extends OutputStream {
 
         flush();
 
-        buffer = ClickHouseInputStream.EMPTY;
+        buffer = ClickHouseInputStream.EMPTY_BUFFER;
         try {
             if (timeout > 0) {
                 if (!queue.offer(buffer, timeout, TimeUnit.MILLISECONDS)) {

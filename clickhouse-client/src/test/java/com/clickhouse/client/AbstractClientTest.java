@@ -19,7 +19,7 @@ public class AbstractClientTest {
             if (connection != null) {
                 closeConnection(connection, false);
             }
-            
+
             return new Object[] { request.getConfig(), server };
         }
 
@@ -124,7 +124,11 @@ public class AbstractClientTest {
 
         ClickHouseConfig config = new ClickHouseConfig();
         sc.init(config);
-        Assert.assertEquals(sc.getExecutor(), ClickHouseClient.getExecutorService());
+        if (config.getMaxThreadsPerClient() > 0) {
+            Assert.assertNotEquals(sc.getExecutor(), ClickHouseClient.getExecutorService());
+        } else {
+            Assert.assertEquals(sc.getExecutor(), ClickHouseClient.getExecutorService());
+        }
         Assert.assertTrue(sc.isInitialized());
         Assert.assertTrue(sc.getConfig() == config);
         Assert.assertNull(sc.getServer());
@@ -133,7 +137,11 @@ public class AbstractClientTest {
 
         ClickHouseConfig newConfig = new ClickHouseConfig();
         sc.init(newConfig);
-        Assert.assertEquals(sc.getExecutor(), ClickHouseClient.getExecutorService());
+        if (config.getMaxThreadsPerClient() > 0) {
+            Assert.assertNotEquals(sc.getExecutor(), ClickHouseClient.getExecutorService());
+        } else {
+            Assert.assertEquals(sc.getExecutor(), ClickHouseClient.getExecutorService());
+        }
         Assert.assertTrue(sc.isInitialized());
         Assert.assertTrue(sc.getConfig() != config);
         Assert.assertEquals(sc.getConnection(req), new Object[] { req.getConfig(), req.getServer() });

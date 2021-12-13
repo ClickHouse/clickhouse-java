@@ -36,13 +36,18 @@ import java.util.UUID;
 import java.util.Map.Entry;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.function.Function;
 
 import javax.net.ssl.SSLContext;
 
 public class DefaultHttpConnection extends ClickHouseHttpConnection {
     private static final Logger log = LoggerFactory.getLogger(DefaultHttpConnection.class);
 
+    private static final int MAX_RETRIES = 1;
+
     private final HttpClient httpClient;
+    private final HttpRequest pingRequest;
 
     private ClickHouseHttpResponse buildResponse(HttpResponse<InputStream> r) throws IOException {
         HttpHeaders headers = r.headers();
@@ -93,15 +98,16 @@ public class DefaultHttpConnection extends ClickHouseHttpConnection {
                 .timeout(Duration.ofMillis(config.getSocketTimeout())).build();
     }
 
-    protected DefaultHttpConnection(ClickHouseNode server, ClickHouseRequest<?> request) throws IOException {
+    protected DefaultHttpConnection(ClickHouseNode server, ClickHouseRequest<?> request, ExecutorService executor)
+            throws IOException {
         super(server, request);
 
         HttpClient.Builder builder = HttpClient.newBuilder()
+                .version(Version.HTTP_1_1)
                 .connectTimeout(Duration.ofMillis(config.getConnectionTimeout()))
-                .followRedirects(Redirect.ALWAYS)
-                .version(Version.HTTP_1_1);
-        if (config.isAsync()) {
-            builder.executor(ClickHouseClient.getExecutorService());
+                .followRedirects(Redirect.NORMAL);
+        if (executor != null) {
+            builder.executor(executor);
         }
         if (config.isSsl()) {
             builder.sslContext(ClickHouseSslContextProvider.getProvider().getSslContext(SSLContext.class, config)
@@ -109,6 +115,7 @@ public class DefaultHttpConnection extends ClickHouseHttpConnection {
         }
 
         httpClient = builder.build();
+        pingRequest = newRequest(getBaseUrl() + "ping");
     }
 
     @Override
@@ -116,15 +123,51 @@ public class DefaultHttpConnection extends ClickHouseHttpConnection {
         return true;
     }
 
+    private CompletableFuture<HttpResponse<Void>> retry(Throwable firstError, int retry) {
+        if (retry >= MAX_RETRIES) {
+            final CompletableFuture<HttpResponse<Void>> failure = new CompletableFuture<>();
+            failure.completeExceptionally(firstError);
+            return failure;
+        }
+
+        return httpClient.sendAsync(pingRequest, HttpResponse.BodyHandlers.discarding())
+                .thenApply(CompletableFuture::completedFuture)
+                .exceptionally(t -> {
+                    firstError.addSuppressed(t);
+                    return retry(firstError, retry + 1);
+                })
+                .thenCompose(Function.identity());
+    }
+
+    private CompletableFuture<HttpResponse<InputStream>> postRequest(HttpRequest request) {
+        CompletableFuture<HttpResponse<InputStream>> f;
+        // either change system property jdk.httpclient.keepalive.timeout or increase
+        // keep_alive_timeout on server
+        boolean retry = false; // config.isRetry()
+        if (retry) {
+            f = httpClient
+                    .sendAsync(pingRequest, HttpResponse.BodyHandlers.discarding())
+                    .thenApply(CompletableFuture::completedFuture)
+                    .exceptionally(t -> retry(t, 0))
+                    .thenCompose(t -> httpClient.sendAsync(request,
+                            responseInfo -> new ClickHouseResponseHandler(config.getMaxQueuedBuffers(),
+                                    config.getSocketTimeout())));
+        } else {
+            f = httpClient.sendAsync(request,
+                    responseInfo -> new ClickHouseResponseHandler(config.getMaxQueuedBuffers(),
+                            config.getSocketTimeout()));
+        }
+        return f;
+    }
+
     private ClickHouseHttpResponse postStream(HttpRequest.Builder reqBuilder, String boundary, String sql,
             InputStream data, List<ClickHouseExternalTable> tables) throws IOException {
         ClickHousePipedStream stream = new ClickHousePipedStream(config.getMaxBufferSize(),
                 config.getMaxQueuedBuffers(), config.getSocketTimeout());
         reqBuilder.POST(HttpRequest.BodyPublishers.ofInputStream(stream::getInput));
+
         // running in async is necessary to avoid deadlock of the piped stream
-        CompletableFuture<HttpResponse<InputStream>> f = httpClient.sendAsync(reqBuilder.build(),
-                responseInfo -> new ClickHouseResponseHandler(config.getMaxBufferSize(),
-                        config.getSocketTimeout()));
+        CompletableFuture<HttpResponse<InputStream>> f = postRequest(reqBuilder.build());
         try (BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(stream, StandardCharsets.UTF_8))) {
             if (boundary != null) {
                 String line = "\r\n--" + boundary + "\r\n";
@@ -183,10 +226,7 @@ public class DefaultHttpConnection extends ClickHouseHttpConnection {
         reqBuilder.POST(HttpRequest.BodyPublishers.ofString(sql));
         HttpResponse<InputStream> r;
         try {
-            CompletableFuture<HttpResponse<InputStream>> f = httpClient.sendAsync(reqBuilder.build(),
-                    responseInfo -> new ClickHouseResponseHandler(config.getMaxBufferSize(),
-                            config.getSocketTimeout()));
-            r = f.get();
+            r = postRequest(reqBuilder.build()).get();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new IOException("Thread was interrupted when posting request or receiving response", e);
@@ -225,13 +265,8 @@ public class DefaultHttpConnection extends ClickHouseHttpConnection {
     public boolean ping(int timeout) {
         String response = (String) config.getOption(ClickHouseHttpOption.DEFAULT_RESPONSE);
         try {
-            HttpResponse<String> r = httpClient.send(newRequest(getBaseUrl() + "ping"),
-                    HttpResponse.BodyHandlers.ofString());
-            if (r.statusCode() != HttpURLConnection.HTTP_OK) {
-                throw new IOException(r.body());
-            }
-
-            return response.equals(r.body());
+            HttpResponse<String> r = httpClient.send(pingRequest, HttpResponse.BodyHandlers.ofString());
+            return r.statusCode() == HttpURLConnection.HTTP_OK && response.equals(r.body());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         } catch (IOException e) {

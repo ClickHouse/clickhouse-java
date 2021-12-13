@@ -14,11 +14,9 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Deque;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -30,7 +28,6 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.function.Supplier;
@@ -109,19 +106,22 @@ public final class ClickHouseUtils {
         return service;
     }
 
-    public static ExecutorService newThreadPool(String owner, int maxThreads, int maxRequests) {
+    public static ExecutorService newThreadPool(Object owner, int maxThreads, int maxRequests) {
+        return newThreadPool(owner, maxThreads, 0, maxRequests, 0L);
+    }
+
+    public static ExecutorService newThreadPool(Object owner, int coreThreads, int maxThreads, int maxRequests,
+            long keepAliveTimeoutMs) {
         BlockingQueue<Runnable> queue = maxRequests > 0 ? new ArrayBlockingQueue<>(maxRequests)
                 : new LinkedBlockingQueue<>();
-
-        return new ThreadPoolExecutor(1, maxThreads < 1 ? 1 : maxThreads, 0L, TimeUnit.MILLISECONDS, queue,
-                new ThreadFactory() {
-                    @Override
-                    public Thread newThread(Runnable r) {
-                        Thread thread = new Thread(r, owner);
-                        thread.setUncaughtExceptionHandler(null);
-                        return thread;
-                    }
-                }, new ThreadPoolExecutor.AbortPolicy());
+        if (coreThreads < 2) {
+            coreThreads = 2;
+        }
+        if (maxThreads < coreThreads) {
+            maxThreads = coreThreads;
+        }
+        return new ThreadPoolExecutor(coreThreads, maxThreads, keepAliveTimeoutMs < 0L ? 0L : keepAliveTimeoutMs,
+                TimeUnit.MILLISECONDS, queue, new ClickHouseThreadFactory(owner), new ThreadPoolExecutor.AbortPolicy());
     }
 
     public static boolean isCloseBracket(char ch) {

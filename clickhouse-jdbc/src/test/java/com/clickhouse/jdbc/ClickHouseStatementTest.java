@@ -95,6 +95,26 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
     }
 
     @Test(groups = "integration")
+    public void testMultiStatementQuery() throws SQLException {
+        try (ClickHouseConnection conn = newConnection(new Properties())) {
+            ClickHouseStatement stmt = conn.createStatement();
+            ResultSet rs = stmt.executeQuery("set join_use_nulls=1;\n"
+                    + "select a.k, b.m from ( "
+                    + "    select 1 k, null v union all select 2 k, 'a' v "
+                    + ") a left outer join ( select 1 f, 2 m ) b on a.k = b.f "
+                    + "order by a.k");
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getInt(1), 1);
+            Assert.assertEquals(rs.getInt(2), 2);
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getInt(1), 2);
+            Assert.assertEquals(rs.getInt(2), 0);
+            Assert.assertEquals(rs.getObject(2), null);
+            Assert.assertFalse(rs.next());
+        }
+    }
+
+    @Test(groups = "integration")
     public void testTimestamp() throws SQLException {
         try (ClickHouseConnection conn = newConnection(new Properties());
                 ClickHouseStatement stmt = conn.createStatement()) {
