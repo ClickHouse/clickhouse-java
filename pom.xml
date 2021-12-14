@@ -89,7 +89,7 @@
         <protobuf.version>3.17.3</protobuf.version>
         <lz4.version>1.8.0</lz4.version>
         <roaring-bitmap.version>0.9.21</roaring-bitmap.version>
-        <slf4j.version>1.8.0-beta4</slf4j.version>
+        <slf4j.version>2.0.0-alpha5</slf4j.version>
         <mockito.version>3.12.4</mockito.version>
         <wiremock.version>2.31.0</wiremock.version>
         <testcontainers.version>1.16.0</testcontainers.version>
@@ -236,7 +236,7 @@
             </dependency>
             <dependency>
                 <groupId>org.slf4j</groupId>
-                <artifactId>slf4j-log4j12</artifactId>
+                <artifactId>slf4j-simple</artifactId>
                 <version>${slf4j.version}</version>
             </dependency>
             <dependency>

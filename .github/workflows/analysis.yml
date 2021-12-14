@@ -63,7 +63,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
-          find . -type f -name "log4j.*" -exec rm -fv '{}' \;
+          find . -type f -name "simplelogger.*" -exec rm -fv '{}' \;
           mvn -q --batch-mode --global-toolchains .github/toolchains.xml -Drelease \
             -Panalysis verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar
         continue-on-error: true
