@@ -505,11 +505,11 @@ public class ClickHouseRowBinaryProcessor extends ClickHouseDataProcessor {
 
         @Override
         public ClickHouseRecord next() {
-            if (!hasNext()) {
+            ClickHouseRecord r = readNextRow();
+            if (r == null) {
                 throw new NoSuchElementException("No more record");
             }
-
-            return readNextRow();
+            return r;
         }
     }
 

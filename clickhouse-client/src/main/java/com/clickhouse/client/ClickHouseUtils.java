@@ -107,11 +107,11 @@ public final class ClickHouseUtils {
     }
 
     public static ExecutorService newThreadPool(Object owner, int maxThreads, int maxRequests) {
-        return newThreadPool(owner, maxThreads, 0, maxRequests, 0L);
+        return newThreadPool(owner, maxThreads, 0, maxRequests, 0L, true);
     }
 
     public static ExecutorService newThreadPool(Object owner, int coreThreads, int maxThreads, int maxRequests,
-            long keepAliveTimeoutMs) {
+            long keepAliveTimeoutMs, boolean allowCoreThreadTimeout) {
         BlockingQueue<Runnable> queue = maxRequests > 0 ? new ArrayBlockingQueue<>(maxRequests)
                 : new LinkedBlockingQueue<>();
         if (coreThreads < 2) {
@@ -120,8 +120,16 @@ public final class ClickHouseUtils {
         if (maxThreads < coreThreads) {
             maxThreads = coreThreads;
         }
-        return new ThreadPoolExecutor(coreThreads, maxThreads, keepAliveTimeoutMs < 0L ? 0L : keepAliveTimeoutMs,
+        if (keepAliveTimeoutMs <= 0L) {
+            keepAliveTimeoutMs = allowCoreThreadTimeout ? 1000L : 0L;
+        }
+
+        ThreadPoolExecutor pool = new ThreadPoolExecutor(coreThreads, maxThreads, keepAliveTimeoutMs,
                 TimeUnit.MILLISECONDS, queue, new ClickHouseThreadFactory(owner), new ThreadPoolExecutor.AbortPolicy());
+        if (allowCoreThreadTimeout) {
+            pool.allowCoreThreadTimeOut(true);
+        }
+        return pool;
     }
 
     public static boolean isCloseBracket(char ch) {

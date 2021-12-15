@@ -41,8 +41,8 @@ import java.util.function.Function;
 
 import javax.net.ssl.SSLContext;
 
-public class DefaultHttpConnection extends ClickHouseHttpConnection {
-    private static final Logger log = LoggerFactory.getLogger(DefaultHttpConnection.class);
+public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
+    private static final Logger log = LoggerFactory.getLogger(HttpClientConnectionImpl.class);
 
     private static final int MAX_RETRIES = 1;
 
@@ -98,7 +98,7 @@ public class DefaultHttpConnection extends ClickHouseHttpConnection {
                 .timeout(Duration.ofMillis(config.getSocketTimeout())).build();
     }
 
-    protected DefaultHttpConnection(ClickHouseNode server, ClickHouseRequest<?> request, ExecutorService executor)
+    protected HttpClientConnectionImpl(ClickHouseNode server, ClickHouseRequest<?> request, ExecutorService executor)
             throws IOException {
         super(server, request);
 

@@ -11,6 +11,7 @@ import com.clickhouse.client.http.config.ClickHouseHttpOption;
 import com.clickhouse.client.logging.Logger;
 import com.clickhouse.client.logging.LoggerFactory;
 
+import java.io.BufferedInputStream;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.ByteArrayOutputStream;
@@ -34,8 +35,8 @@ import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLContext;
 
-public class DefaultHttpConnection extends ClickHouseHttpConnection {
-    private static final Logger log = LoggerFactory.getLogger(DefaultHttpConnection.class);
+public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
+    private static final Logger log = LoggerFactory.getLogger(HttpUrlConnectionImpl.class);
 
     private final HttpURLConnection conn;
 
@@ -62,7 +63,8 @@ public class DefaultHttpConnection extends ClickHouseHttpConnection {
                     : timeZone;
         }
 
-        return new ClickHouseHttpResponse(this, getResponseInputStream(conn.getInputStream()),
+        return new ClickHouseHttpResponse(this,
+                getResponseInputStream(new BufferedInputStream(conn.getInputStream(), config.getMaxBufferSize())),
                 displayName, queryId, summary, format, timeZone);
     }
 
@@ -131,7 +133,7 @@ public class DefaultHttpConnection extends ClickHouseHttpConnection {
         }
     }
 
-    protected DefaultHttpConnection(ClickHouseNode server, ClickHouseRequest<?> request, ExecutorService executor)
+    protected HttpUrlConnectionImpl(ClickHouseNode server, ClickHouseRequest<?> request, ExecutorService executor)
             throws IOException {
         super(server, request);
 

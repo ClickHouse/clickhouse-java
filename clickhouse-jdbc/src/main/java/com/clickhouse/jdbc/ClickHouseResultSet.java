@@ -2,6 +2,7 @@ package com.clickhouse.jdbc;
 
 import java.io.InputStream;
 import java.io.Reader;
+import java.io.UncheckedIOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.MalformedURLException;
@@ -695,7 +696,11 @@ public class ClickHouseResultSet extends AbstractResultSet {
         lastReadColumn = 0;
         boolean hasNext = true;
         if (hasNext()) {
-            currentRow = rowCursor.next();
+            try {
+                currentRow = rowCursor.next();
+            } catch (UncheckedIOException e) {
+                throw SqlExceptionUtils.handle(e);
+            }
             rowNumber++;
         } else {
             currentRow = null;

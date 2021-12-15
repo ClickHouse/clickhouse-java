@@ -1,11 +1,11 @@
 package com.clickhouse.jdbc;
 
 import java.util.Collection;
-import java.util.Collections;
-import java.util.Map;
+import java.util.Iterator;
 
 import com.clickhouse.client.ClickHouseParameterizedQuery;
 import com.clickhouse.client.ClickHouseUtils;
+import com.clickhouse.client.ClickHouseValues;
 
 /**
  * A parameterized query is a parsed query with parameters being extracted for
@@ -60,5 +60,102 @@ public final class JdbcParameterizedQuery extends ClickHouseParameterizedQuery {
         }
 
         return partIndex < len ? originalQuery.substring(partIndex, len) : null;
+    }
+
+    @Override
+    public String apply(Collection<String> params) {
+        if (!hasParameter()) {
+            return originalQuery;
+        }
+
+        StringBuilder builder = new StringBuilder();
+        Iterator<String> it = params == null ? null : params.iterator();
+        boolean hasMore = it != null && it.hasNext();
+        for (QueryPart p : getParts()) {
+            builder.append(p.part);
+            builder.append(hasMore ? it.next() : ClickHouseValues.NULL_EXPR);
+            hasMore = hasMore && it.hasNext();
+        }
+
+        return appendLastPartIfExists(builder).toString();
+    }
+
+    @Override
+    public String apply(Object param, Object... more) {
+        if (!hasParameter()) {
+            return originalQuery;
+        }
+
+        int len = more == null ? 0 : more.length + 1;
+        StringBuilder builder = new StringBuilder();
+        int index = 0;
+        for (QueryPart p : getParts()) {
+            builder.append(p.part);
+            if (index > 0) {
+                param = index < len ? more[index - 1] : null;
+            }
+            builder.append(toSqlExpression(p.paramName, param));
+            index++;
+        }
+
+        return appendLastPartIfExists(builder).toString();
+    }
+
+    @Override
+    public String apply(Object[] values) {
+        if (!hasParameter()) {
+            return originalQuery;
+        }
+
+        int len = values == null ? 0 : values.length;
+        StringBuilder builder = new StringBuilder();
+        int index = 0;
+        for (QueryPart p : getParts()) {
+            builder.append(p.part);
+            builder.append(
+                    index < len ? toSqlExpression(p.paramName, values[index]) : ClickHouseValues.NULL_EXPR);
+            index++;
+        }
+
+        return appendLastPartIfExists(builder).toString();
+    }
+
+    @Override
+    public String apply(String param, String... more) {
+        if (!hasParameter()) {
+            return originalQuery;
+        }
+
+        int len = more == null ? 0 : more.length + 1;
+        StringBuilder builder = new StringBuilder();
+        int index = 0;
+        for (QueryPart p : getParts()) {
+            builder.append(p.part);
+            if (index > 0) {
+                param = index < len ? more[index - 1] : ClickHouseValues.NULL_EXPR;
+            }
+            builder.append(param);
+            index++;
+        }
+
+        return appendLastPartIfExists(builder).toString();
+    }
+
+    @Override
+    public String apply(String[] values) {
+        if (!hasParameter()) {
+            return originalQuery;
+        }
+
+        int len = values == null ? 0 : values.length;
+        StringBuilder builder = new StringBuilder();
+        int index = 0;
+        for (QueryPart p : getParts()) {
+            builder.append(p.part);
+            builder.append(index < len ? values[index] : ClickHouseValues.NULL_EXPR);
+            index++;
+        }
+
+        return appendLastPartIfExists(builder).toString();
     }
 }

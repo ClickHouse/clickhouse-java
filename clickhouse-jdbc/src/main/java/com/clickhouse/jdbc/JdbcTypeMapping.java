@@ -1,6 +1,8 @@
 package com.clickhouse.jdbc;
 
 import java.sql.Types;
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 
 import com.clickhouse.client.ClickHouseColumn;
 import com.clickhouse.client.ClickHouseDataType;
@@ -98,6 +100,22 @@ public final class JdbcTypeMapping {
         }
 
         return sqlType;
+    }
+
+    public static Class<?> toJavaClass(ClickHouseColumn column) {
+        Class<?> clazz;
+        ClickHouseDataType type = column.getDataType();
+        switch (type) {
+            case DateTime:
+            case DateTime32:
+            case DateTime64:
+                clazz = column.getTimeZone() != null ? OffsetDateTime.class : LocalDateTime.class;
+                break;
+            default:
+                clazz = type.getObjectClass();
+                break;
+        }
+        return clazz;
     }
 
     public static ClickHouseColumn fromJdbcType(int jdbcType, int scaleOrLength) {

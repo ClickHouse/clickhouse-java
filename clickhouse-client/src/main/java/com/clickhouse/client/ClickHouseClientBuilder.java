@@ -32,7 +32,7 @@ public class ClickHouseClientBuilder {
         }
 
         defaultExecutor = ClickHouseUtils.newThreadPool(ClickHouseClient.class.getSimpleName(), maxThreads,
-                maxThreads * 2, maxRequests, keepAliveTimeoutMs);
+                maxThreads * 2, maxRequests, keepAliveTimeoutMs, false);
     }
 
     protected ClickHouseConfig config;

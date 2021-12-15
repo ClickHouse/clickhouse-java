@@ -38,7 +38,7 @@ public class ClickHouseHttpClient extends AbstractClient<ClickHouseHttpConnectio
         }
 
         try {
-            return new DefaultHttpConnection(server, request, getExecutor());
+            return ClickHouseHttpConnectionFactory.createConnection(server, request, getExecutor());
         } catch (IOException e) {
             throw new CompletionException(e);
         }

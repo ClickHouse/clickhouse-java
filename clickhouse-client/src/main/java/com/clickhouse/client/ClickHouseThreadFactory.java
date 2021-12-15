@@ -12,7 +12,7 @@ public class ClickHouseThreadFactory implements ThreadFactory {
     private final AtomicInteger threadNumber;
 
     public ClickHouseThreadFactory(Object owner) {
-        this(owner, false, Thread.NORM_PRIORITY);
+        this(owner, true, Thread.NORM_PRIORITY);
     }
 
     public ClickHouseThreadFactory(Object owner, boolean daemon, int priority) {

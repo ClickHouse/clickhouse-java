@@ -2,7 +2,6 @@ package com.clickhouse.jdbc;
 
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
-import java.sql.Types;
 import java.util.List;
 
 import com.clickhouse.client.ClickHouseColumn;
@@ -142,6 +141,6 @@ public class ClickHouseResultSetMetaData extends JdbcWrapper implements ResultSe
 
     @Override
     public String getColumnClassName(int column) throws SQLException {
-        return getColumn(column).getDataType().getObjectClass().getCanonicalName();
+        return JdbcTypeMapping.toJavaClass(getColumn(column)).getCanonicalName();
     }
 }
