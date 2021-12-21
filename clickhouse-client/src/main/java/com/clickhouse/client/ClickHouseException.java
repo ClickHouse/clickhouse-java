@@ -37,7 +37,7 @@ public class ClickHouseException extends Exception {
         }
 
         if (server != null) {
-            builder.append(" on server ").append(server);
+            builder.append(", server ").append(server);
         }
 
         return builder.toString();

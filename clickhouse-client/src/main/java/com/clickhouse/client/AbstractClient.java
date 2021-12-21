@@ -170,9 +170,8 @@ public abstract class AbstractClient<T> implements ClickHouseClient {
             this.config = config;
             if (this.executor == null) { // only initialize once
                 int threads = config.getMaxThreadsPerClient();
-                this.executor = threads <= 0 ? ClickHouseClient.getExecutorService()
-                        : ClickHouseUtils.newThreadPool(getClass().getSimpleName(), threads,
-                                config.getMaxQueuedRequests());
+                this.executor = threads < 1 ? ClickHouseClient.getExecutorService()
+                        : ClickHouseUtils.newThreadPool(this, threads, config.getMaxQueuedRequests());
             }
 
             initialized = true;
@@ -196,27 +195,16 @@ public abstract class AbstractClient<T> implements ClickHouseClient {
         try {
             server = null;
 
-            if (executor != null) {
-                executor.shutdown();
-            }
-
             if (connection != null) {
                 closeConnection(connection, false);
+                connection = null;
             }
 
-            // shutdown* won't shutdown commonPool, so awaitTermination will always time out
-            // on the other hand, for a client-specific thread pool, we'd better shut it
-            // down for real
-            if (executor != null && config.getMaxThreadsPerClient() > 0
-                    && !executor.awaitTermination(config.getConnectionTimeout(), TimeUnit.MILLISECONDS)) {
-                executor.shutdownNow();
+            // avoid shutting down shared thread pool
+            if (executor != null && config.getMaxThreadsPerClient() > 0 && !executor.isTerminated()) {
+                executor.shutdown();
             }
-
             executor = null;
-            connection = null;
-        } catch (InterruptedException e) {
-            log.warn("Got interrupted when closing client", e);
-            Thread.currentThread().interrupt();
         } catch (Exception e) {
             log.warn("Exception occurred when closing client", e);
         } finally {
@@ -226,7 +214,7 @@ public abstract class AbstractClient<T> implements ClickHouseClient {
                     closeConnection(connection, true);
                 }
 
-                if (executor != null) {
+                if (executor != null && config.getMaxThreadsPerClient() > 0) {
                     executor.shutdownNow();
                 }
             } finally {

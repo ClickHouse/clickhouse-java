@@ -12,7 +12,7 @@ public class ClickHouseDataTypeTest {
         }
 
         for (ClickHouseDataType t : ClickHouseDataType.values()) {
-            Assert.assertFalse(ClickHouseDataType.isAlias(t.name()));
+            Assert.assertFalse(ClickHouseDataType.isAlias(t.name()), t.name() + " should not be an alias");
         }
     }
 

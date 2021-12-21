@@ -39,7 +39,8 @@ public class ClickHouseArray implements Array {
     public int getBaseType() throws SQLException {
         ensureValid();
 
-        return JdbcTypeMapping.toJdbcType(getBaseColumn());
+        // don't really want to pass type mapping to Array object...
+        return JdbcTypeMapping.toJdbcType(null, getBaseColumn());
     }
 
     @Override

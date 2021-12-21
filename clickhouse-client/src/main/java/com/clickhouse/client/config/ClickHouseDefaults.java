@@ -70,6 +70,11 @@ public enum ClickHouseDefaults implements ClickHouseOption {
      */
     MAX_REQUESTS("max_requests", 0, "Maximum size of shared thread pool, 0 means no limit."),
     /**
+     * Thread keep alive timeout in milliseconds.
+     */
+    THREAD_KEEPALIVE_TIMEOUT("thread_keepalive_timeout", 0L,
+            "Thread keep alive timeout in milliseconds. 0 or negative number means additional thread will be closed immediately after execution completed."),
+    /**
      * Server time zone, defaults to {@code UTC}.
      */
     SERVER_TIME_ZONE("time_zone", "UTC", "Server time zone."),

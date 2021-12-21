@@ -2,15 +2,26 @@ package com.clickhouse.jdbc;
 
 import java.sql.DriverPropertyInfo;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
+import java.util.Map.Entry;
+
+import com.clickhouse.client.ClickHouseChecker;
+import com.clickhouse.client.ClickHouseUtils;
+import com.clickhouse.client.logging.Logger;
+import com.clickhouse.client.logging.LoggerFactory;
 
 public class JdbcConfig {
+    private static final Logger log = LoggerFactory.getLogger(JdbcConfig.class);
+
     public static final String PROP_AUTO_COMMIT = "autoCommit";
     public static final String PROP_FETCH_SIZE = "fetchSize";
     public static final String PROP_JDBC_COMPLIANT = "jdbcCompliant";
     public static final String PROP_NAMED_PARAM = "namedParameter";
+    public static final String PROP_TYPE_MAP = "typeMappings";
     public static final String PROP_WRAPPER_OBJ = "wrapperObject";
 
     private static final String BOOLEAN_FALSE = "false";
@@ -20,6 +31,7 @@ public class JdbcConfig {
     private static final String DEFAULT_FETCH_SIZE = "0";
     private static final String DEFAULT_JDBC_COMPLIANT = BOOLEAN_TRUE;
     private static final String DEFAULT_NAMED_PARAM = BOOLEAN_FALSE;
+    private static final String DEFAULT_TYPE_MAP = "";
     private static final String DEFAULT_WRAPPER_OBJ = BOOLEAN_FALSE;
 
     static boolean extractBooleanValue(Properties props, String key, String defaultValue) {
@@ -38,6 +50,36 @@ public class JdbcConfig {
 
         Object value = props.remove(key);
         return Integer.parseInt(value != null ? value.toString() : defaultValue);
+    }
+
+    static Map<String, Class<?>> extractTypeMapValue(Properties props, String key, String defaultValue) {
+        String value = null;
+        if (props == null || props.isEmpty() || key == null || key.isEmpty()) {
+            value = defaultValue;
+        } else {
+            Object v = props.remove(key);
+            value = v != null ? v.toString() : defaultValue;
+        }
+
+        if (ClickHouseChecker.isNullOrBlank(value)) {
+            return Collections.emptyMap();
+        }
+
+        Map<String, Class<?>> map = new LinkedHashMap<>();
+        ClassLoader loader = JdbcConfig.class.getClassLoader();
+        for (Entry<String, String> e : ClickHouseUtils.getKeyValuePairs(value).entrySet()) {
+            Class<?> clazz = null;
+            try {
+                clazz = loader.loadClass(e.getValue());
+            } catch (Throwable t) {
+                log.warn("Failed to add mapping [%s]=[%s], due to: %s", e.getKey(), e.getValue(), t.getMessage());
+            }
+            if (clazz != null) {
+                map.put(e.getKey(), clazz);
+            }
+        }
+
+        return Collections.unmodifiableMap(map);
     }
 
     public static List<DriverPropertyInfo> getDriverProperties() {
@@ -61,6 +103,10 @@ public class JdbcConfig {
         info.description = "Whether to use named parameter(e.g. :ts(DateTime64(6)) or :value etc.) instead of standard JDBC question mark placeholder.";
         list.add(info);
 
+        info = new DriverPropertyInfo(PROP_TYPE_MAP, DEFAULT_TYPE_MAP);
+        info.description = "Default type mappings between ClickHouse data type and Java class. You can define multiple mappings using comma as separator.";
+        list.add(info);
+
         info = new DriverPropertyInfo(PROP_WRAPPER_OBJ, DEFAULT_WRAPPER_OBJ);
         info.choices = new String[] { BOOLEAN_TRUE, BOOLEAN_FALSE };
         info.description = "Whether to return wrapper object like Array or Struct in ResultSet.getObject method.";
@@ -73,6 +119,7 @@ public class JdbcConfig {
     private final int fetchSize;
     private final boolean jdbcCompliant;
     private final boolean namedParameter;
+    private final Map<String, Class<?>> typeMap;
     private final boolean wrapperObject;
 
     public JdbcConfig() {
@@ -88,6 +135,7 @@ public class JdbcConfig {
         this.fetchSize = extractIntValue(props, PROP_FETCH_SIZE, DEFAULT_FETCH_SIZE);
         this.jdbcCompliant = extractBooleanValue(props, PROP_JDBC_COMPLIANT, DEFAULT_JDBC_COMPLIANT);
         this.namedParameter = extractBooleanValue(props, PROP_NAMED_PARAM, DEFAULT_NAMED_PARAM);
+        this.typeMap = extractTypeMapValue(props, PROP_TYPE_MAP, DEFAULT_TYPE_MAP);
         this.wrapperObject = extractBooleanValue(props, PROP_WRAPPER_OBJ, DEFAULT_WRAPPER_OBJ);
     }
 
@@ -108,6 +156,15 @@ public class JdbcConfig {
      */
     public int getFetchSize() {
         return fetchSize;
+    }
+
+    /**
+     * Gets custom type map.
+     *
+     * @return non-null custom type map
+     */
+    public Map<String, Class<?>> getTypeMap() {
+        return typeMap;
     }
 
     /**

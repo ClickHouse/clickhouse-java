@@ -7,6 +7,7 @@ import java.sql.SQLException;
 import java.sql.SQLWarning;
 import java.sql.Statement;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -86,25 +87,6 @@ public class ClickHouseStatementImpl extends JdbcWrapper implements ClickHouseSt
         return response;
     }
 
-    protected ClickHouseSqlStatement applyFormat(ClickHouseSqlStatement stmt, ClickHouseFormat preferredFormat) {
-        /*
-         * if (ClickHouseChecker.nonNull(stmt, "ParsedStatement").isQuery() &&
-         * !stmt.hasFormat()) { String sql = stmt.getSQL(); String format =
-         * ClickHouseChecker.nonNull(preferredFormat, "Format").name();
-         * 
-         * Map<String, Integer> positions = new HashMap<>();
-         * positions.putAll(stmt.getPositions());
-         * positions.put(ClickHouseSqlStatement.KEYWORD_FORMAT, sql.length());
-         * 
-         * sql = new StringBuilder(sql).append("\nFORMAT ").append(format).toString();
-         * stmt = new ClickHouseSqlStatement(sql, stmt.getStatementType(),
-         * stmt.getCluster(), stmt.getDatabase(), stmt.getTable(), format,
-         * stmt.getOutfile(), stmt.getParameters(), positions); }
-         */
-
-        return stmt;
-    }
-
     protected void ensureOpen() throws SQLException {
         if (closed) {
             throw SqlExceptionUtils.clientError("Cannot operate on a closed statement");
@@ -160,7 +142,6 @@ public class ClickHouseStatementImpl extends JdbcWrapper implements ClickHouseSt
     protected ClickHouseResponse executeStatement(ClickHouseSqlStatement stmt,
             Map<ClickHouseOption, Serializable> options, List<ClickHouseExternalTable> tables,
             Map<String, String> settings) throws SQLException {
-        // stmt = applyFormat(stmt, request.getFormat());
         return executeStatement(stmt.getSQL(), options, tables, settings);
     }
 
@@ -205,13 +186,7 @@ public class ClickHouseStatementImpl extends JdbcWrapper implements ClickHouseSt
             throw new IllegalArgumentException("Failed to parse given SQL: " + sql);
         }
 
-        ClickHouseSqlStatement lastStmt = getLastStatement();
-        ClickHouseSqlStatement formattedStmt = applyFormat(lastStmt, request.getFormat());
-        if (formattedStmt != lastStmt) {
-            setLastStatement(lastStmt = formattedStmt);
-        }
-
-        return lastStmt;
+        return getLastStatement();
     }
 
     protected ResultSet updateResult(ClickHouseSqlStatement stmt, ClickHouseResponse response) throws SQLException {

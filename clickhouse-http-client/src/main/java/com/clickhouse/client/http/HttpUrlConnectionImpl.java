@@ -11,6 +11,7 @@ import com.clickhouse.client.http.config.ClickHouseHttpOption;
 import com.clickhouse.client.logging.Logger;
 import com.clickhouse.client.logging.LoggerFactory;
 
+import java.io.BufferedInputStream;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.ByteArrayOutputStream;
@@ -28,13 +29,14 @@ import java.util.Map;
 import java.util.TimeZone;
 import java.util.UUID;
 import java.util.Map.Entry;
+import java.util.concurrent.ExecutorService;
 
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLContext;
 
-public class DefaultHttpConnection extends ClickHouseHttpConnection {
-    private static final Logger log = LoggerFactory.getLogger(DefaultHttpConnection.class);
+public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
+    private static final Logger log = LoggerFactory.getLogger(HttpUrlConnectionImpl.class);
 
     private final HttpURLConnection conn;
 
@@ -61,8 +63,8 @@ public class DefaultHttpConnection extends ClickHouseHttpConnection {
                     : timeZone;
         }
 
-        return new ClickHouseHttpResponse(this, getResponseInputStream(conn.getInputStream()),
-                displayName, queryId, summary, format, timeZone);
+        return new ClickHouseHttpResponse(this, getResponseInputStream(conn.getInputStream()), displayName, queryId,
+                summary, format, timeZone);
     }
 
     private HttpURLConnection newConnection(String url, boolean post) throws IOException {
@@ -130,7 +132,8 @@ public class DefaultHttpConnection extends ClickHouseHttpConnection {
         }
     }
 
-    protected DefaultHttpConnection(ClickHouseNode server, ClickHouseRequest<?> request) throws IOException {
+    protected HttpUrlConnectionImpl(ClickHouseNode server, ClickHouseRequest<?> request, ExecutorService executor)
+            throws IOException {
         super(server, request);
 
         conn = newConnection(url, true);

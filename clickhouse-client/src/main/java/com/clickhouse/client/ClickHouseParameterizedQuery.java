@@ -4,22 +4,24 @@ import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Map.Entry;
 
 /**
  * A parameterized query is a parsed query with parameters being extracted for
  * substitution.
  * <p>
  * Here parameter is define in the format of {@code :<name>[(<type>)]}. It
- * starts with colon, followed by name, and then optionally type within
- * brackets. For example: in query "select :no as no, :name(String) as name",
- * both {@code no} and {@code name} are parameters. Moreover, type of the last
- * parameter is {@code String}.
+ * starts with colon, immediately followed by name, and then optionally type
+ * within brackets. For example: in query "select :no as no, :name(String) as
+ * name", we have two parameters: {@code no} and {@code name}. Moreover, type of
+ * the last parameter is {@code String}.
  */
 public class ClickHouseParameterizedQuery implements Serializable {
     private static final long serialVersionUID = 8108887349618342152L;
@@ -272,6 +274,19 @@ public class ClickHouseParameterizedQuery implements Serializable {
     }
 
     /**
+     * Appends last part of the query if it exists.
+     *
+     * @param builder non-null string builder
+     * @return the builder
+     */
+    protected StringBuilder appendLastPartIfExists(StringBuilder builder) {
+        if (lastPart != null) {
+            builder.append(lastPart);
+        }
+        return builder;
+    }
+
+    /**
      * Converts given raw value to SQL expression.
      *
      * @param paramName name of the parameter
@@ -305,10 +320,7 @@ public class ClickHouseParameterizedQuery implements Serializable {
             builder.append(params.getOrDefault(p.paramName, ClickHouseValues.NULL_EXPR));
         }
 
-        if (lastPart != null) {
-            builder.append(lastPart);
-        }
-        return builder.toString();
+        return appendLastPartIfExists(builder).toString();
     }
 
     /**
@@ -318,23 +330,25 @@ public class ClickHouseParameterizedQuery implements Serializable {
      * @return substituted query
      */
     public String apply(Collection<String> params) {
-        if (!hasParameter()) {
-            return originalQuery;
+        if (params == null || params.isEmpty()) {
+            return apply(Collections.emptyMap());
         }
 
-        StringBuilder builder = new StringBuilder();
-        Iterator<String> it = params == null ? null : params.iterator();
-        boolean hasMore = it != null && it.hasNext();
-        for (QueryPart p : parts) {
-            builder.append(p.part);
-            builder.append(hasMore ? it.next() : ClickHouseValues.NULL_EXPR);
-            hasMore = hasMore && it.hasNext();
+        Map<String, String> map = null;
+        Iterator<String> it = params.iterator();
+        if (it.hasNext()) {
+            map = new HashMap<>();
+            for (String n : names.keySet()) {
+                String v = it.next();
+                if (v != null) {
+                    map.put(n, v);
+                }
+                if (!it.hasNext()) {
+                    break;
+                }
+            }
         }
-
-        if (lastPart != null) {
-            builder.append(lastPart);
-        }
-        return builder.toString();
+        return apply(map);
     }
 
     /**
@@ -351,22 +365,24 @@ public class ClickHouseParameterizedQuery implements Serializable {
             return originalQuery;
         }
 
-        int len = more == null ? 0 : more.length + 1;
-        StringBuilder builder = new StringBuilder();
-        int index = 0;
-        for (QueryPart p : parts) {
-            builder.append(p.part);
-            if (index > 0) {
-                param = index < len ? more[index - 1] : null;
+        int len = more == null ? 0 : more.length;
+        Map<String, String> map = new HashMap<>();
+        int index = -1;
+        for (Entry<String, ClickHouseValue> e : names.entrySet()) {
+            ClickHouseValue v = e.getValue();
+            if (index < 0) {
+                map.put(e.getKey(),
+                        v != null ? v.update(param).toSqlExpression() : ClickHouseValues.convertToSqlExpression(param));
+            } else if (index < len) {
+                map.put(e.getKey(), v != null ? v.update(more[index]).toSqlExpression()
+                        : ClickHouseValues.convertToSqlExpression(more[index]));
+            } else {
+                break;
             }
-            builder.append(toSqlExpression(p.paramName, param));
             index++;
         }
 
-        if (lastPart != null) {
-            builder.append(lastPart);
-        }
-        return builder.toString();
+        return apply(map);
     }
 
     /**
@@ -378,24 +394,25 @@ public class ClickHouseParameterizedQuery implements Serializable {
      * @return substituted query
      */
     public String apply(Object[] values) {
-        if (!hasParameter()) {
-            return originalQuery;
+        int len = values == null ? 0 : values.length;
+        if (len == 0) {
+            return apply(Collections.emptyMap());
         }
 
-        int len = values == null ? 0 : values.length;
-        StringBuilder builder = new StringBuilder();
+        Map<String, String> map = new HashMap<>();
         int index = 0;
-        for (QueryPart p : parts) {
-            builder.append(p.part);
-            builder.append(
-                    index < len ? toSqlExpression(p.paramName, values[index]) : ClickHouseValues.NULL_EXPR);
+        for (Entry<String, ClickHouseValue> e : names.entrySet()) {
+            ClickHouseValue v = e.getValue();
+            if (index < len) {
+                map.put(e.getKey(), v != null ? v.update(values[index]).toSqlExpression()
+                        : ClickHouseValues.convertToSqlExpression(values[index]));
+            } else {
+                break;
+            }
             index++;
         }
 
-        if (lastPart != null) {
-            builder.append(lastPart);
-        }
-        return builder.toString();
+        return apply(map);
     }
 
     /**
@@ -410,22 +427,21 @@ public class ClickHouseParameterizedQuery implements Serializable {
             return originalQuery;
         }
 
-        int len = more == null ? 0 : more.length + 1;
-        StringBuilder builder = new StringBuilder();
-        int index = 0;
-        for (QueryPart p : parts) {
-            builder.append(p.part);
-            if (index > 0) {
-                param = index < len ? more[index - 1] : ClickHouseValues.NULL_EXPR;
+        int len = more == null ? 0 : more.length;
+        Map<String, String> map = new HashMap<>();
+        int index = -1;
+        for (String n : names.keySet()) {
+            if (index < 0) {
+                map.put(n, param);
+            } else if (index < len) {
+                map.put(n, more[index]);
+            } else {
+                break;
             }
-            builder.append(param);
             index++;
         }
 
-        if (lastPart != null) {
-            builder.append(lastPart);
-        }
-        return builder.toString();
+        return apply(map);
     }
 
     /**
@@ -435,23 +451,23 @@ public class ClickHouseParameterizedQuery implements Serializable {
      * @return substituted query
      */
     public String apply(String[] values) {
-        if (!hasParameter()) {
-            return originalQuery;
+        int len = values == null ? 0 : values.length;
+        if (len == 0) {
+            return apply(Collections.emptyMap());
         }
 
-        int len = values == null ? 0 : values.length;
-        StringBuilder builder = new StringBuilder();
+        Map<String, String> map = new HashMap<>();
         int index = 0;
-        for (QueryPart p : parts) {
-            builder.append(p.part);
-            builder.append(index < len ? values[index] : ClickHouseValues.NULL_EXPR);
+        for (String n : names.keySet()) {
+            if (index < len) {
+                map.put(n, values[index]);
+            } else {
+                break;
+            }
             index++;
         }
 
-        if (lastPart != null) {
-            builder.append(lastPart);
-        }
-        return builder.toString();
+        return apply(map);
     }
 
     /**

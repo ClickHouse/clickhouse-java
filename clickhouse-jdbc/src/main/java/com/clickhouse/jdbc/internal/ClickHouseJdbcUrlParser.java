@@ -6,6 +6,7 @@ import java.net.URISyntaxException;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.sql.SQLException;
+import java.util.Locale;
 import java.util.Properties;
 
 import com.clickhouse.client.ClickHouseChecker;
@@ -31,8 +32,8 @@ public class ClickHouseJdbcUrlParser {
         private final Properties props;
 
         protected ConnectionInfo(URI uri, ClickHouseNode server, Properties props) throws URISyntaxException {
-            this.uri = new URI("jdbc:clickhouse:" + server.getProtocol().name().toLowerCase(), null, server.getHost(),
-                    server.getPort(), "/" + server.getDatabase().orElse(""),
+            this.uri = new URI("jdbc:clickhouse:" + server.getProtocol().name().toLowerCase(Locale.ROOT), null,
+                    server.getHost(), server.getPort(), "/" + server.getDatabase().orElse(""),
                     removeCredentialsFromQuery(uri.getRawQuery()), null);
             this.server = server;
             this.jdbcConf = new JdbcConfig(props);

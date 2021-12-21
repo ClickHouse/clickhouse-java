@@ -1,7 +1,6 @@
 package com.clickhouse.client.http;
 
 import java.io.IOException;
-import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
@@ -39,7 +38,7 @@ public class ClickHouseHttpClient extends AbstractClient<ClickHouseHttpConnectio
         }
 
         try {
-            return new DefaultHttpConnection(server, request);
+            return ClickHouseHttpConnectionFactory.createConnection(server, request, getExecutor());
         } catch (IOException e) {
             throw new CompletionException(e);
         }

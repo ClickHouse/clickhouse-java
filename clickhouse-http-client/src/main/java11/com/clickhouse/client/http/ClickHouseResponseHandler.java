@@ -8,7 +8,8 @@ import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
-import java.util.concurrent.LinkedBlockingDeque;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.Flow.Subscription;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -16,14 +17,14 @@ import com.clickhouse.client.ClickHouseInputStream;
 
 public class ClickHouseResponseHandler implements BodySubscriber<InputStream> {
     // An immutable ByteBuffer sentinel to mark that the last byte was received.
-    private static final List<ByteBuffer> LAST_LIST = List.of(ClickHouseInputStream.EMPTY);
+    private static final List<ByteBuffer> LAST_LIST = List.of(ClickHouseInputStream.EMPTY_BUFFER);
 
     private final BlockingQueue<ByteBuffer> buffers;
     private final ClickHouseInputStream in;
     private final AtomicBoolean subscribed;
 
-    ClickHouseResponseHandler(int bufferSize, int timeout) {
-        buffers = new LinkedBlockingDeque<>();
+    ClickHouseResponseHandler(int queueLength, int timeout) {
+        buffers = queueLength > 1 ? new ArrayBlockingQueue<>(queueLength) : new LinkedBlockingQueue<>();
         in = ClickHouseInputStream.of(buffers, timeout);
         subscribed = new AtomicBoolean();
     }
@@ -71,7 +72,7 @@ public class ClickHouseResponseHandler implements BodySubscriber<InputStream> {
 
     @Override
     public void onError(Throwable throwable) {
-        buffers.offer(ClickHouseInputStream.EMPTY);
+        buffers.offer(ClickHouseInputStream.EMPTY_BUFFER);
     }
 
     @Override

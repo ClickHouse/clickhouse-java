@@ -30,17 +30,17 @@ public class ClickhouseLZ4InputStreamTest {
         return new ByteArrayInputStream(result);
     }
 
-    @DataProvider(name = "prefixes")
-    private Object[][] getPrefixes() {
-        return new Object[][] { { "test" }, { "萌萌哒" },
-                { "1😂2萌🥘" } };
+    @DataProvider(name = "samples")
+    private Object[][] getSamples() {
+        return new Object[][] { { "", 0 }, { "test", 100000 }, { "萌萌哒", 1024 * 1024 },
+                { "1😂2萌🥘", 2500000 } };
     };
 
-    @Test(dataProvider = "prefixes", groups = { "unit" })
-    public void testReadByte(String prefix) throws IOException {
+    @Test(dataProvider = "samples", groups = { "unit" })
+    public void testReadByte(String prefix, int samples) throws IOException {
         StringBuilder builder = new StringBuilder();
         boolean readAll = false;
-        try (InputStream in = generateInputStream(prefix, 10000, builder);
+        try (InputStream in = generateInputStream(prefix, samples, builder);
                 ClickHouseLZ4InputStream lz4In = new ClickHouseLZ4InputStream(in);
                 ByteArrayOutputStream out = new ByteArrayOutputStream();) {
             try {
@@ -58,11 +58,34 @@ public class ClickhouseLZ4InputStreamTest {
         Assert.assertTrue(readAll, "All bytes should have read without any issue");
     }
 
-    @Test(dataProvider = "prefixes", groups = { "unit" })
-    public void testRead(String prefix) throws IOException {
+    @Test(dataProvider = "samples", groups = { "unit" })
+    public void testReadByteWithAvailable(String prefix, int samples) throws IOException {
         StringBuilder builder = new StringBuilder();
         boolean readAll = false;
-        try (InputStream in = generateInputStream(prefix, 10000, builder);
+        try (InputStream in = generateInputStream(prefix, samples, builder);
+                ClickHouseLZ4InputStream lz4In = new ClickHouseLZ4InputStream(in);
+                ByteArrayOutputStream out = new ByteArrayOutputStream();) {
+            while (true) {
+                if (lz4In.available() == 0) {
+                    readAll = true;
+                    break;
+                }
+
+                out.write(0xFF & lz4In.readByte());
+            }
+
+            out.flush();
+
+            Assert.assertEquals(new String(out.toByteArray(), StandardCharsets.UTF_8), builder.toString());
+        }
+        Assert.assertTrue(readAll, "All bytes should have read without any issue");
+    }
+
+    @Test(dataProvider = "samples", groups = { "unit" })
+    public void testRead(String prefix, int samples) throws IOException {
+        StringBuilder builder = new StringBuilder();
+        boolean readAll = false;
+        try (InputStream in = generateInputStream(prefix, samples, builder);
                 ClickHouseLZ4InputStream lz4In = new ClickHouseLZ4InputStream(in);
                 ByteArrayOutputStream out = new ByteArrayOutputStream();) {
             int result = 0;
@@ -77,17 +100,57 @@ public class ClickhouseLZ4InputStreamTest {
         Assert.assertTrue(readAll, "All bytes should have read without any issue");
     }
 
-    @Test(dataProvider = "prefixes", groups = { "unit" })
-    public void testReadBytes(String prefix) throws IOException {
+    @Test(dataProvider = "samples", groups = { "unit" })
+    public void testReadWithAvailable(String prefix, int samples) throws IOException {
         StringBuilder builder = new StringBuilder();
         boolean readAll = false;
-        for (int i = 1; i < 1025; i++) {
+        try (InputStream in = generateInputStream(prefix, samples, builder);
+                ClickHouseLZ4InputStream lz4In = new ClickHouseLZ4InputStream(in);
+                ByteArrayOutputStream out = new ByteArrayOutputStream();) {
+            while (lz4In.available() > 0) {
+                out.write(lz4In.read());
+            }
+            out.flush();
+            readAll = true;
+
+            Assert.assertEquals(new String(out.toByteArray(), StandardCharsets.UTF_8), builder.toString());
+        }
+        Assert.assertTrue(readAll, "All bytes should have read without any issue");
+    }
+
+    @Test(dataProvider = "samples", groups = { "unit" })
+    public void testReadBytes(String prefix, int samples) throws IOException {
+        StringBuilder builder = new StringBuilder();
+        boolean readAll = false;
+        for (int i : new int[] { 1, 2, 3, 11, 1025 }) {
             byte[] bytes = new byte[i];
-            try (InputStream in = generateInputStream(prefix, 10000, builder);
+            try (InputStream in = generateInputStream(prefix, samples, builder);
                     ClickHouseLZ4InputStream lz4In = new ClickHouseLZ4InputStream(in);
                     ByteArrayOutputStream out = new ByteArrayOutputStream();) {
                 int result = 0;
                 while ((result = lz4In.read(bytes)) != -1) {
+                    out.write(bytes, 0, result);
+                }
+                out.flush();
+                readAll = true;
+
+                Assert.assertEquals(new String(out.toByteArray(), StandardCharsets.UTF_8), builder.toString());
+            }
+            Assert.assertTrue(readAll, "All bytes should have read without any issue");
+        }
+    }
+
+    @Test(dataProvider = "samples", groups = { "unit" })
+    public void testReadBytesWithAvailable(String prefix, int samples) throws IOException {
+        StringBuilder builder = new StringBuilder();
+        boolean readAll = false;
+        for (int i : new int[] { 1, 2, 3, 11, 1025 }) {
+            byte[] bytes = new byte[i];
+            try (InputStream in = generateInputStream(prefix, samples, builder);
+                    ClickHouseLZ4InputStream lz4In = new ClickHouseLZ4InputStream(in);
+                    ByteArrayOutputStream out = new ByteArrayOutputStream();) {
+                while (lz4In.available() > 0) {
+                    int result = lz4In.read(bytes);
                     out.write(bytes, 0, result);
                 }
                 out.flush();

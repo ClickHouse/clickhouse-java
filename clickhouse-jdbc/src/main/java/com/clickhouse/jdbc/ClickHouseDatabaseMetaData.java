@@ -11,6 +11,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import com.clickhouse.client.ClickHouseChecker;
@@ -34,6 +35,7 @@ public class ClickHouseDatabaseMetaData extends JdbcWrapper implements DatabaseM
             "REMOTE TABLE", "TABLE", "VIEW", "SYSTEM TABLE", "TEMPORARY TABLE" };
 
     private final ClickHouseConnection connection;
+    private final Map<String, Class<?>> typeMaps;
 
     protected ResultSet empty(String columns) throws SQLException {
         return fixed(columns, null);
@@ -77,8 +79,9 @@ public class ClickHouseDatabaseMetaData extends JdbcWrapper implements DatabaseM
         }
     }
 
-    public ClickHouseDatabaseMetaData(ClickHouseConnection connection) {
+    public ClickHouseDatabaseMetaData(ClickHouseConnection connection) throws SQLException {
         this.connection = ClickHouseChecker.nonNull(connection, "Connection");
+        this.typeMaps = connection.getTypeMap();
     }
 
     @Override
@@ -749,7 +752,7 @@ public class ClickHouseDatabaseMetaData extends JdbcWrapper implements DatabaseM
         List<ResultSet> results = new ArrayList<>(databases.size());
         for (String database : databases) {
             Map<String, String> params = new HashMap<>();
-            params.put("comment", connection.getServerVersion().check("[18.16,)") ? "t.comment" : "''");
+            params.put("comment", connection.getServerVersion().check("[20.8,)") ? "t.comment" : "''");
             params.put("database", ClickHouseValues.convertToQuotedString(database));
             params.put("table", ClickHouseChecker.isNullOrEmpty(tableNamePattern) ? "'%'"
                     : ClickHouseValues.convertToQuotedString(tableNamePattern));
@@ -760,7 +763,7 @@ public class ClickHouseDatabaseMetaData extends JdbcWrapper implements DatabaseM
                             + "when t.engine in ('Buffer', 'Memory', 'Set') then 'MEMORY TABLE' "
                             + "when t.is_temporary != 0 then 'TEMPORARY TABLE' "
                             + "when t.engine like '%View' then 'VIEW' when t.engine = 'Dictionary' then 'DICTIONARY' "
-                            + "when t.engine like 'System%' then 'SYSTEM TABLE' "
+                            + "when t.engine like 'Async%' or t.engine like 'System%' then 'SYSTEM TABLE' "
                             + "when empty(t.data_paths) then 'REMOTE TABLE' else 'TABLE' end as TABLE_TYPE, "
                             + ":comment as REMARKS, null as TYPE_CAT, d.engine as TYPE_SCHEM, "
                             + "t.engine as TYPE_NAME, null as SELF_REFERENCING_COL_NAME, null as REF_GENERATION\n"
@@ -821,7 +824,7 @@ public class ClickHouseDatabaseMetaData extends JdbcWrapper implements DatabaseM
             String typeName = r.getValue("TYPE_NAME").asString();
             try {
                 ClickHouseColumn column = ClickHouseColumn.of("", typeName);
-                r.getValue("DATA_TYPE").update(JdbcTypeMapping.toJdbcType(column));
+                r.getValue("DATA_TYPE").update(JdbcTypeMapping.toJdbcType(typeMaps, column));
                 r.getValue("COLUMN_SIZE").update(column.getDataType().getByteLength());
                 if (column.isNullable()) {
                     r.getValue("NULLABLE").update(DatabaseMetaData.typeNullable);
@@ -964,7 +967,7 @@ public class ClickHouseDatabaseMetaData extends JdbcWrapper implements DatabaseM
                 break;
         }
         return new Object[] { typeName,
-                JdbcTypeMapping.toJdbcType(ClickHouseColumn.of("", type, false, false, new String[0])),
+                JdbcTypeMapping.toJdbcType(typeMaps, ClickHouseColumn.of("", type, false, false, new String[0])),
                 type.getMaxPrecision(), prefix, suffix, params, nullable, type.isCaseSensitive() ? 1 : 0, searchable,
                 type.getMaxPrecision() > 0 && !type.isSigned() ? 1 : 0, money, 0,
                 aliasTo == null || aliasTo.isEmpty() ? type.name() : aliasTo, type.getMinScale(), type.getMaxScale(), 0,
@@ -1240,17 +1243,21 @@ public class ClickHouseDatabaseMetaData extends JdbcWrapper implements DatabaseM
     @Override
     public ResultSet getFunctions(String catalog, String schemaPattern, String functionNamePattern)
             throws SQLException {
+        Map<String, String> params = new HashMap<>();
+        params.put("filter", ClickHouseChecker.isNullOrEmpty(schemaPattern)
+                || "system".contains(schemaPattern.toLowerCase(Locale.ROOT)) ? "1" : "0");
+        params.put("pattern", ClickHouseChecker.isNullOrEmpty(functionNamePattern) ? "'%'"
+                : ClickHouseValues.convertToQuotedString(functionNamePattern));
+
         String sql = ClickHouseParameterizedQuery.apply(
-                "select null as FUNCTION_CAT, null as FUNCTION_SCHEM, name as FUNCTION_NAME,\n"
+                "select * from (select null as FUNCTION_CAT, 'system' as FUNCTION_SCHEM, name as FUNCTION_NAME,\n"
                         + "concat('case-', case_insensitive ? 'in' : '', 'sensitive function', is_aggregate ? ' for aggregation' : '') as REMARKS,"
                         + "1 as FUNCTION_TYPE, name as SPECIFIC_NAME from system.functions\n"
                         + "where alias_to = '' and name like :pattern order by name union all\n"
-                        + "select null as FUNCTION_CAT, null as FUNCTION_SCHEM, name as FUNCTION_NAME,\n"
+                        + "select null as FUNCTION_CAT, 'system' as FUNCTION_SCHEM, name as FUNCTION_NAME,\n"
                         + "'case-sensistive table function' as REMARKS, 2 as FUNCTION_TYPE, name as SPECIFIC_NAME from system.table_functions\n"
-                        + "order by name",
-                Collections.singletonMap("pattern", ClickHouseChecker.isNullOrEmpty(functionNamePattern) ? "'%'"
-                        : ClickHouseValues.convertToQuotedString(functionNamePattern)));
-
+                        + "order by name) where :filter",
+                params);
         return query(sql);
     }
 

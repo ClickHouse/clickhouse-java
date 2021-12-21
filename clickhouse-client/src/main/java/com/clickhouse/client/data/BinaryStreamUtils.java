@@ -76,6 +76,9 @@ public final class BinaryStreamUtils {
 
     public static final BigDecimal NANOS = new BigDecimal(BigInteger.TEN.pow(9));
 
+    private static final int[] BASES = new int[] { 1, 10, 100, 1000, 10000, 100000, 1000000, 10000000, 100000000,
+            1000000000 };
+
     private static <T extends Enum<T>> T toEnum(int value, Class<T> enumType) {
         for (T t : ClickHouseChecker.nonNull(enumType, "enumType").getEnumConstants()) {
             if (t.ordinal() == value) {
@@ -88,15 +91,33 @@ public final class BinaryStreamUtils {
     }
 
     public static int toInt32(byte[] bytes, int offset) {
-        return (0xFF & bytes[offset]) | ((0xFF & bytes[offset + 1]) << 8) | ((0xFF & bytes[offset + 2]) << 16)
-                | ((0xFF & bytes[offset + 3]) << 24);
+        return (0xFF & bytes[offset++]) | ((0xFF & bytes[offset++]) << 8) | ((0xFF & bytes[offset++]) << 16)
+                | ((0xFF & bytes[offset]) << 24);
     }
 
     public static long toInt64(byte[] bytes, int offset) {
-        return (0xFFL & bytes[offset]) | ((0xFFL & bytes[offset + 1]) << 8) | ((0xFFL & bytes[offset + 2]) << 16)
-                | ((0xFFL & bytes[offset + 3]) << 24) | ((0xFFL & bytes[offset + 4]) << 32)
-                | ((0xFFL & bytes[offset + 5]) << 40) | ((0xFFL & bytes[offset + 6]) << 48)
-                | ((0xFFL & bytes[offset + 7]) << 56);
+        return (0xFFL & bytes[offset++]) | ((0xFFL & bytes[offset++]) << 8) | ((0xFFL & bytes[offset++]) << 16)
+                | ((0xFFL & bytes[offset++]) << 24) | ((0xFFL & bytes[offset++]) << 32)
+                | ((0xFFL & bytes[offset++]) << 40) | ((0xFFL & bytes[offset++]) << 48)
+                | ((0xFFL & bytes[offset]) << 56);
+    }
+
+    public static void setInt32(byte[] bytes, int offset, int value) {
+        bytes[offset++] = (byte) (0xFF & value);
+        bytes[offset++] = (byte) (0xFF & (value >> 8));
+        bytes[offset++] = (byte) (0xFF & (value >> 16));
+        bytes[offset] = (byte) (0xFF & (value >> 24));
+    }
+
+    public static void setInt64(byte[] bytes, int offset, long value) {
+        bytes[offset++] = (byte) (0xFF & value);
+        bytes[offset++] = (byte) (0xFF & (value >> 8));
+        bytes[offset++] = (byte) (0xFF & (value >> 16));
+        bytes[offset++] = (byte) (0xFF & (value >> 24));
+        bytes[offset++] = (byte) (0xFF & (value >> 32));
+        bytes[offset++] = (byte) (0xFF & (value >> 40));
+        bytes[offset++] = (byte) (0xFF & (value >> 48));
+        bytes[offset] = (byte) (0xFF & (value >> 56));
     }
 
     /**
@@ -659,7 +680,7 @@ public final class BinaryStreamUtils {
      *                     end of the stream
      */
     public static void writeUnsignedInt8(OutputStream output, int value) throws IOException {
-        output.write((byte) (ClickHouseChecker.between(value, ClickHouseValues.TYPE_INT, 0, U_INT8_MAX) & 0xFFL));
+        output.write((byte) (0xFF & ClickHouseChecker.between(value, ClickHouseValues.TYPE_INT, 0, U_INT8_MAX)));
     }
 
     /**
@@ -683,7 +704,7 @@ public final class BinaryStreamUtils {
      *                     end of the stream
      */
     public static void writeInt16(OutputStream output, short value) throws IOException {
-        output.write(new byte[] { (byte) (0xFFL & value), (byte) (0xFFL & (value >> 8)) });
+        output.write(new byte[] { (byte) (0xFF & value), (byte) (0xFF & (value >> 8)) });
     }
 
     /**
@@ -746,8 +767,8 @@ public final class BinaryStreamUtils {
      *                     end of the stream
      */
     public static void writeInt32(OutputStream output, int value) throws IOException {
-        output.write(new byte[] { (byte) (0xFFL & value), (byte) (0xFFL & (value >> 8)), (byte) (0xFFL & (value >> 16)),
-                (byte) (0xFFL & (value >> 24)) });
+        output.write(new byte[] { (byte) (0xFF & value), (byte) (0xFF & (value >> 8)), (byte) (0xFF & (value >> 16)),
+                (byte) (0xFF & (value >> 24)) });
     }
 
     /**
@@ -796,14 +817,8 @@ public final class BinaryStreamUtils {
      *                     end of the stream
      */
     public static void writeInt64(OutputStream output, long value) throws IOException {
-        value = Long.reverseBytes(value);
-
         byte[] bytes = new byte[8];
-        for (int i = 7; i >= 0; i--) {
-            bytes[i] = (byte) (value & 0xFFL);
-            value >>= 8;
-        }
-
+        setInt64(bytes, 0, value);
         output.write(bytes);
     }
 
@@ -1403,11 +1418,7 @@ public final class BinaryStreamUtils {
         long value = readInt64(input);
         int nanoSeconds = 0;
         if (ClickHouseChecker.between(scale, ClickHouseValues.PARAM_SCALE, 0, 9) > 0) {
-            int factor = 1;
-            for (int i = 0; i < scale; i++) {
-                factor *= 10;
-            }
-
+            int factor = BASES[scale];
             nanoSeconds = (int) (value % factor);
             value /= factor;
             if (nanoSeconds < 0) {
@@ -1415,9 +1426,7 @@ public final class BinaryStreamUtils {
                 value--;
             }
             if (nanoSeconds > 0L) {
-                for (int i = 9 - scale; i > 0; i--) {
-                    nanoSeconds *= 10;
-                }
+                nanoSeconds *= BASES[9 - scale];
             }
         }
 
@@ -1456,15 +1465,10 @@ public final class BinaryStreamUtils {
                         : value.atZone(tz.toZoneId()).toEpochSecond(),
                 ClickHouseValues.TYPE_DATE_TIME, DATETIME64_MIN, DATETIME64_MAX);
         if (ClickHouseChecker.between(scale, ClickHouseValues.PARAM_SCALE, 0, 9) > 0) {
-            for (int i = 0; i < scale; i++) {
-                v *= 10;
-            }
+            v *= BASES[scale];
             int nanoSeconds = value.getNano();
             if (nanoSeconds > 0L) {
-                for (int i = 9 - scale; i > 0; i--) {
-                    nanoSeconds /= 10;
-                }
-                v += nanoSeconds;
+                v += nanoSeconds / BASES[9 - scale];
             }
         }
 

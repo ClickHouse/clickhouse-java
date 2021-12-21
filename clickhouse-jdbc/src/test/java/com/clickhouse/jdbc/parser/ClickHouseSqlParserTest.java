@@ -66,9 +66,11 @@ public class ClickHouseSqlParserTest {
         String sql;
 
         assertEquals(parse(sql = null),
-                new ClickHouseSqlStatement[] { new ClickHouseSqlStatement(sql, StatementType.UNKNOWN) });
+                new ClickHouseSqlStatement[] {
+                        new ClickHouseSqlStatement(sql, StatementType.UNKNOWN) });
         assertEquals(parse(sql = ""),
-                new ClickHouseSqlStatement[] { new ClickHouseSqlStatement(sql, StatementType.UNKNOWN) });
+                new ClickHouseSqlStatement[] {
+                        new ClickHouseSqlStatement(sql, StatementType.UNKNOWN) });
 
         checkSingleStatement(parse(sql = "invalid sql"), sql);
         checkSingleStatement(parse(sql = "-- some comments"), sql);
@@ -86,14 +88,16 @@ public class ClickHouseSqlParserTest {
     public void testAlterStatement() {
         String sql;
 
-        checkSingleStatement(parse(sql = "ALTER TABLE alter_test ADD COLUMN Added0 UInt32"), sql, StatementType.ALTER,
+        checkSingleStatement(parse(sql = "ALTER TABLE alter_test ADD COLUMN Added0 UInt32"), sql,
+                StatementType.ALTER,
                 "system", "alter_test");
         checkSingleStatement(
                 parse(sql = "ALTER TABLE test_db.test_table UPDATE a = 1, \"b\" = '2', `c`=3.3 WHERE d=123 and e=456"),
                 sql, StatementType.ALTER_UPDATE, "test_db", "test_table");
         checkSingleStatement(parse(sql = "ALTER TABLE tTt on cluster 'cc' delete WHERE d=123 and e=456"), sql,
                 StatementType.ALTER_DELETE, "system", "tTt");
-        checkSingleStatement(parse(sql = "ALTER USER user DEFAULT ROLE role1, role2"), sql, StatementType.ALTER);
+        checkSingleStatement(parse(sql = "ALTER USER user DEFAULT ROLE role1, role2"), sql,
+                StatementType.ALTER);
     }
 
     @Test(groups = "unit")
@@ -124,7 +128,8 @@ public class ClickHouseSqlParserTest {
         String sql;
 
         checkSingleStatement(parse(sql = "delete from a"), sql, StatementType.DELETE, "system", "a");
-        checkSingleStatement(parse(sql = "delete from c.a where upper(a)=upper(lower(b))"), sql, StatementType.DELETE,
+        checkSingleStatement(parse(sql = "delete from c.a where upper(a)=upper(lower(b))"), sql,
+                StatementType.DELETE,
                 "c", "a");
     }
 
@@ -139,7 +144,8 @@ public class ClickHouseSqlParserTest {
         // fix issue #614
         checkSingleStatement(parse(sql = "desc t1 t2"), sql, StatementType.DESCRIBE, "system", "columns");
         checkSingleStatement(parse(sql = "desc table t1 t2"), sql, StatementType.DESCRIBE, "system", "columns");
-        checkSingleStatement(parse(sql = "desc table t1 as `t2`"), sql, StatementType.DESCRIBE, "system", "columns");
+        checkSingleStatement(parse(sql = "desc table t1 as `t2`"), sql, StatementType.DESCRIBE, "system",
+                "columns");
     }
 
     @Test(groups = "unit")
@@ -147,7 +153,8 @@ public class ClickHouseSqlParserTest {
         String sql;
 
         checkSingleStatement(parse(sql = "detach TABLE t"), sql, StatementType.DETACH);
-        checkSingleStatement(parse(sql = "detach TABLE if exists t.t on cluster 'cc'"), sql, StatementType.DETACH);
+        checkSingleStatement(parse(sql = "detach TABLE if exists t.t on cluster 'cc'"), sql,
+                StatementType.DETACH);
     }
 
     @Test(groups = "unit")
@@ -205,20 +212,24 @@ public class ClickHouseSqlParserTest {
         }
         assertEquals(s.getStartPosition("values"), valuePosition);
 
-        checkSingleStatement(parse(sql = "insert into function null('a UInt8') values(1)"), sql, StatementType.INSERT);
+        checkSingleStatement(parse(sql = "insert into function null('a UInt8') values(1)"), sql,
+                StatementType.INSERT);
         checkSingleStatement(parse(sql = "insert into function null('a UInt8') values(1)(2)"), sql,
                 StatementType.INSERT);
         checkSingleStatement(parse(sql = "insert into function null('a UInt8') select * from number(10)"), sql,
                 StatementType.INSERT);
-        checkSingleStatement(parse(sql = "insert into test2(a,b) values('values(',',')"), sql, StatementType.INSERT,
+        checkSingleStatement(parse(sql = "insert into test2(a,b) values('values(',',')"), sql,
+                StatementType.INSERT,
                 "system", "test2");
         checkSingleStatement(parse(sql = "INSERT INTO table t(a, b, c) values('1', ',', 'ccc')"), sql,
                 StatementType.INSERT, "system", "t");
         checkSingleStatement(parse(sql = "INSERT INTO table t(a, b, c) values('1', 2, 'ccc') (3,2,1)"), sql,
                 StatementType.INSERT, "system", "t");
-        checkSingleStatement(parse(sql = "INSERT INTO table s.t select * from ttt"), sql, StatementType.INSERT, "s",
+        checkSingleStatement(parse(sql = "INSERT INTO table s.t select * from ttt"), sql, StatementType.INSERT,
+                "s",
                 "t");
-        checkSingleStatement(parse(sql = "INSERT INTO insert_select_testtable (* EXCEPT(b)) Values (2, 2)"), sql,
+        checkSingleStatement(parse(sql = "INSERT INTO insert_select_testtable (* EXCEPT(b)) Values (2, 2)"),
+                sql,
                 StatementType.INSERT, "system", "insert_select_testtable");
 
     }
@@ -238,7 +249,9 @@ public class ClickHouseSqlParserTest {
     public void testOptimizeStatement() {
         String sql;
 
-        checkSingleStatement(parse(sql = "OPTIMIZE TABLE a ON CLUSTER cluster PARTITION ID 'partition_id' FINAL"), sql,
+        checkSingleStatement(
+                parse(sql = "OPTIMIZE TABLE a ON CLUSTER cluster PARTITION ID 'partition_id' FINAL"),
+                sql,
                 StatementType.OPTIMIZE);
     }
 
@@ -246,7 +259,8 @@ public class ClickHouseSqlParserTest {
     public void testRenameStatement() {
         String sql;
 
-        checkSingleStatement(parse(sql = "RENAME TABLE table1 TO table2, table3 TO table4 ON CLUSTER cluster"), sql,
+        checkSingleStatement(parse(sql = "RENAME TABLE table1 TO table2, table3 TO table4 ON CLUSTER cluster"),
+                sql,
                 StatementType.RENAME);
         checkSingleStatement(parse(
                 sql = "RENAME TABLE db1.table1 TO db2.table2, db2.table3 to db2.table4, db3.table5 to db2.table6 ON CLUSTER 'c'"),
@@ -258,7 +272,8 @@ public class ClickHouseSqlParserTest {
         String sql;
 
         checkSingleStatement(parse(sql = "REVOKE SELECT ON accounts.* FROM john"), sql, StatementType.REVOKE);
-        checkSingleStatement(parse(sql = "REVOKE SELECT(wage) ON accounts.staff FROM mira"), sql, StatementType.REVOKE);
+        checkSingleStatement(parse(sql = "REVOKE SELECT(wage) ON accounts.staff FROM mira"), sql,
+                StatementType.REVOKE);
     }
 
     @Test(groups = "unit")
@@ -266,14 +281,18 @@ public class ClickHouseSqlParserTest {
         String sql;
 
         assertEquals(parse(sql = "select\n1"), new ClickHouseSqlStatement[] { new ClickHouseSqlStatement(sql,
-                StatementType.SELECT, null, null, "unknown", null, null, null, null, null, null, null) });
+                StatementType.SELECT, null, null, "unknown", null, null, null, null, null, null,
+                null) });
         assertEquals(parse(sql = "select\r\n1"), new ClickHouseSqlStatement[] { new ClickHouseSqlStatement(sql,
-                StatementType.SELECT, null, null, "unknown", null, null, null, null, null, null, null) });
+                StatementType.SELECT, null, null, "unknown", null, null, null, null, null, null,
+                null) });
 
         assertEquals(parse(sql = "select 314 limit 5\nFORMAT JSONCompact;"),
-                new ClickHouseSqlStatement[] { new ClickHouseSqlStatement("select 314 limit 5\nFORMAT JSONCompact",
-                        StatementType.SELECT, null, null, "unknown", null, "JSONCompact", null, null, null, null,
-                        null) });
+                new ClickHouseSqlStatement[] {
+                        new ClickHouseSqlStatement("select 314 limit 5\nFORMAT JSONCompact",
+                                StatementType.SELECT, null, null, "unknown", null,
+                                "JSONCompact", null, null, null, null,
+                                null) });
 
         checkSingleStatement(parse(sql = "select (())"), sql, StatementType.SELECT);
         checkSingleStatement(parse(sql = "select []"), sql, StatementType.SELECT);
@@ -281,15 +300,19 @@ public class ClickHouseSqlParserTest {
         checkSingleStatement(parse(sql = "select *"), sql, StatementType.SELECT);
         checkSingleStatement(parse(sql = "select timezone()"), sql, StatementType.SELECT);
         checkSingleStatement(parse(sql = "select @@version, $version"), sql, StatementType.SELECT);
-        checkSingleStatement(parse(sql = "select * from jdbc('db', 'schema', 'select 1')"), sql, StatementType.SELECT,
+        checkSingleStatement(parse(sql = "select * from jdbc('db', 'schema', 'select 1')"), sql,
+                StatementType.SELECT,
                 "system", "jdbc");
-        checkSingleStatement(parse(sql = "select 1 as a1, a.a as a2, aa(a1, a2) a3, length(a3) as a4 from x"), sql,
+        checkSingleStatement(parse(sql = "select 1 as a1, a.a as a2, aa(a1, a2) a3, length(a3) as a4 from x"),
+                sql,
                 StatementType.SELECT, "system", "x");
         checkSingleStatement(parse(sql = "select x.* from (select [1,2] a, (1,2,3) b, a[1], b.2) x"), sql,
                 StatementType.SELECT, "system", "x");
-        checkSingleStatement(parse(sql = "select (3, [[1,2],[3,4]]) as a, (a.2)[2][1]"), sql, StatementType.SELECT);
+        checkSingleStatement(parse(sql = "select (3, [[1,2],[3,4]]) as a, (a.2)[2][1]"), sql,
+                StatementType.SELECT);
         checkSingleStatement(
-                parse(sql = "select 1,1.1,'\"''`a' a, \"'`\"\"a\" as b, (1 + `a`.a) c, null, inf i, nan as n"), sql,
+                parse(sql = "select 1,1.1,'\"''`a' a, \"'`\"\"a\" as b, (1 + `a`.a) c, null, inf i, nan as n"),
+                sql,
                 StatementType.SELECT);
         checkSingleStatement(parse(sql = "select 1 as select"), sql, StatementType.SELECT);
         checkSingleStatement(parse(sql = "select 1, 2 a, 3 as b, 1+1-2*3/4, *, c.* from c a"), sql,
@@ -298,43 +321,51 @@ public class ClickHouseSqlParserTest {
         checkSingleStatement(parse(
                 sql = "   -- cc\nselect 1 as `a.b`, a, 1+1, b from \"a\".`b` inner join a on a.abb/* \n\r\n1*/\n=2 and a.abb = c.a and a=1 and (k is null and j not in(1,2))"),
                 sql, StatementType.SELECT, "a", "b");
-        checkSingleStatement(parse(sql = "SELECT idx, s FROM test.mymetadata WHERE idx = ?"), sql, StatementType.SELECT,
+        checkSingleStatement(parse(sql = "SELECT idx, s FROM test.mymetadata WHERE idx = ?"), sql,
+                StatementType.SELECT,
                 "test", "mymetadata");
         checkSingleStatement(parse(sql = "WITH 2 AS two SELECT two * two"), sql, StatementType.SELECT);
         checkSingleStatement(parse(
                 sql = "SELECT i, array(toUnixTimestamp(dt_server[1])), array(toUnixTimestamp(dt_berlin[1])), array(toUnixTimestamp(dt_lax[1])) FROM test.fun_with_timezones_array"),
                 sql, StatementType.SELECT, "test", "fun_with_timezones_array");
-        checkSingleStatement(parse(sql = "SELECT SUM(x) FROM t WHERE y = ? GROUP BY ?"), sql, StatementType.SELECT,
+        checkSingleStatement(parse(sql = "SELECT SUM(x) FROM t WHERE y = ? GROUP BY ?"), sql,
+                StatementType.SELECT,
                 "system", "t");
 
         assertEquals(parse(sql = loadSql("issue-441_with-totals.sql")),
-                new ClickHouseSqlStatement[] { new ClickHouseSqlStatement(sql, StatementType.SELECT, null, null,
+                new ClickHouseSqlStatement[] { new ClickHouseSqlStatement(sql, StatementType.SELECT,
+                        null, null,
                         "unknown", null, null, null, null, new HashMap<String, Integer>() {
                             {
                                 put("TOTALS", 208);
                             }
                         }, null, null) });
         assertEquals(parse(sql = loadSql("issue-555_custom-format.sql")),
-                new ClickHouseSqlStatement[] { new ClickHouseSqlStatement(sql, StatementType.SELECT, null, null, "wrd",
-                        null, "CSVWithNames", null, null, null, null, null) });
+                new ClickHouseSqlStatement[] {
+                        new ClickHouseSqlStatement(sql, StatementType.SELECT, null, null, "wrd",
+                                null, "CSVWithNames", null, null, null, null, null) });
         assertEquals(parse(sql = loadSql("with-clause.sql")),
-                new ClickHouseSqlStatement[] { new ClickHouseSqlStatement(sql, StatementType.SELECT, null, null,
-                        "unknown", null, null, null, null, null, null, null) });
+                new ClickHouseSqlStatement[] {
+                        new ClickHouseSqlStatement(sql, StatementType.SELECT, null, null,
+                                "unknown", null, null, null, null, null, null, null) });
     }
 
     @Test(groups = "unit")
     public void testSetStatement() {
         String sql;
 
-        checkSingleStatement(parse(sql = "SET profile = 'my-profile', mutations_sync=1"), sql, StatementType.SET);
-        checkSingleStatement(parse(sql = "SET DEFAULT ROLE role1, role2, role3 TO user"), sql, StatementType.SET);
+        checkSingleStatement(parse(sql = "SET profile = 'my-profile', mutations_sync=1"), sql,
+                StatementType.SET);
+        checkSingleStatement(parse(sql = "SET DEFAULT ROLE role1, role2, role3 TO user"), sql,
+                StatementType.SET);
     }
 
     @Test(groups = "unit")
     public void testShowStatement() {
         String sql;
 
-        checkSingleStatement(parse(sql = "SHOW DATABASES LIKE '%de%'"), sql, StatementType.SHOW, "system", "databases");
+        checkSingleStatement(parse(sql = "SHOW DATABASES LIKE '%de%'"), sql, StatementType.SHOW, "system",
+                "databases");
         checkSingleStatement(parse(sql = "show tables from db"), sql, StatementType.SHOW, "system", "tables");
         checkSingleStatement(parse(sql = "show dictionaries from db"), sql, StatementType.SHOW, "system",
                 "dictionaries");
@@ -344,9 +375,12 @@ public class ClickHouseSqlParserTest {
     public void testSystemStatement() {
         String sql;
 
-        checkSingleStatement(parse(sql = "SYSTEM DROP REPLICA 'replica_name' FROM ZKPATH '/path/to/table/in/zk'"), sql,
+        checkSingleStatement(
+                parse(sql = "SYSTEM DROP REPLICA 'replica_name' FROM ZKPATH '/path/to/table/in/zk'"),
+                sql,
                 StatementType.SYSTEM);
-        checkSingleStatement(parse(sql = "SYSTEM RESTART REPLICA db.replicated_merge_tree_family_table_name"), sql,
+        checkSingleStatement(parse(sql = "SYSTEM RESTART REPLICA db.replicated_merge_tree_family_table_name"),
+                sql,
                 StatementType.SYSTEM);
     }
 
@@ -382,27 +416,33 @@ public class ClickHouseSqlParserTest {
     @Test(groups = "unit")
     public void testComments() throws ParseException {
         String sql;
-        checkSingleStatement(parse(sql = "select\n--something\n//else\n1/*2*/ from a.b"), sql, StatementType.SELECT,
+        checkSingleStatement(parse(sql = "select\n--something\n//else\n1/*2*/ from a.b"), sql,
+                StatementType.SELECT,
                 "a", "b");
 
         checkSingleStatement(parse(sql = "select 1/*/**/*/ from a.b"), sql, StatementType.SELECT, "a", "b");
         checkSingleStatement(parse(sql = "select 1/*/1/**/*2*/ from a.b"), sql, StatementType.SELECT, "a", "b");
         checkSingleStatement(parse(sql = "SELECT /*/**/*/ 1 from a.b"), sql, StatementType.SELECT, "a", "b");
         checkSingleStatement(parse(sql = "SELECT /*a/*b*/c*/ 1 from a.b"), sql, StatementType.SELECT, "a", "b");
-        checkSingleStatement(parse(sql = "SELECT /*ab/*cd*/ef*/ 1 from a.b"), sql, StatementType.SELECT, "a", "b");
+        checkSingleStatement(parse(sql = "SELECT /*ab/*cd*/ef*/ 1 from a.b"), sql, StatementType.SELECT, "a",
+                "b");
     }
 
     @Test(groups = "unit")
     public void testMultipleStatements() throws ParseException {
         assertEquals(parse("use ab;;;select 1; ;\t;\r;\n"),
-                new ClickHouseSqlStatement[] { new ClickHouseSqlStatement("use ab", StatementType.USE, null, "ab", null,
-                        null, null, null, null, null, null, null),
+                new ClickHouseSqlStatement[] {
+                        new ClickHouseSqlStatement("use ab", StatementType.USE, null, "ab",
+                                null,
+                                null, null, null, null, null, null, null),
                         new ClickHouseSqlStatement("select 1", StatementType.SELECT) });
         assertEquals(parse("select * from \"a;1\".`b;c`;;;select 1 as `a ; a`; ;\t;\r;\n"),
                 new ClickHouseSqlStatement[] {
-                        new ClickHouseSqlStatement("select * from \"a;1\".`b;c`", StatementType.SELECT, null, "a;1",
+                        new ClickHouseSqlStatement("select * from \"a;1\".`b;c`",
+                                StatementType.SELECT, null, "a;1",
                                 "b;c", null, null, null, null, null, null, null),
-                        new ClickHouseSqlStatement("select 1 as `a ; a`", StatementType.SELECT) });
+                        new ClickHouseSqlStatement("select 1 as `a ; a`",
+                                StatementType.SELECT) });
     }
 
     @Test(groups = "unit")
@@ -411,8 +451,10 @@ public class ClickHouseSqlParserTest {
         checkSingleStatement(parse(sql = "select 1 as c, 2 b"), sql, StatementType.SELECT);
         checkSingleStatement(parse(sql = "select 1 from a.b c"), sql, StatementType.SELECT, "a", "b");
         checkSingleStatement(parse(sql = "select 1 select from a.b c"), sql, StatementType.SELECT, "a", "b");
-        checkSingleStatement(parse(sql = "select 1 from (select 2) b"), sql, StatementType.SELECT, "system", "b");
-        checkSingleStatement(parse(sql = "select 1 from (select 2) as from"), sql, StatementType.SELECT, "system",
+        checkSingleStatement(parse(sql = "select 1 from (select 2) b"), sql, StatementType.SELECT, "system",
+                "b");
+        checkSingleStatement(parse(sql = "select 1 from (select 2) as from"), sql, StatementType.SELECT,
+                "system",
                 "from");
         checkSingleStatement(parse(sql = "select 1 from a.b c1, b.a c2"), sql, StatementType.SELECT, "a", "b");
     }
@@ -421,14 +463,17 @@ public class ClickHouseSqlParserTest {
     public void testExpression() throws ParseException {
         String sql;
         checkSingleStatement(parse(sql = "SELECT a._ from a.b"), sql, StatementType.SELECT, "a", "b");
-        checkSingleStatement(parse(sql = "SELECT 2 BETWEEN 1 + 1 AND 3 - 1 from a.b"), sql, StatementType.SELECT, "a",
+        checkSingleStatement(parse(sql = "SELECT 2 BETWEEN 1 + 1 AND 3 - 1 from a.b"), sql,
+                StatementType.SELECT, "a",
                 "b");
         checkSingleStatement(parse(sql = "SELECT CASE WHEN 1 THEN 2 WHEN 3 THEN  4 ELSE 5 END from a.b"), sql,
                 StatementType.SELECT, "a", "b");
-        checkSingleStatement(parse(sql = "select (1,2) a1, a1.1, a1 .1, a1 . 1 from a.b"), sql, StatementType.SELECT,
+        checkSingleStatement(parse(sql = "select (1,2) a1, a1.1, a1 .1, a1 . 1 from a.b"), sql,
+                StatementType.SELECT,
                 "a", "b");
         checkSingleStatement(parse(sql = "select -.0, +.0, -a from a.b"), sql, StatementType.SELECT, "a", "b");
-        checkSingleStatement(parse(sql = "select 1 and `a`.\"b\" c1, c1 or (c2 and c3), c4 ? c5 : c6 from a.b"), sql,
+        checkSingleStatement(parse(sql = "select 1 and `a`.\"b\" c1, c1 or (c2 and c3), c4 ? c5 : c6 from a.b"),
+                sql,
                 StatementType.SELECT, "a", "b");
         checkSingleStatement(parse(sql = "select [[[1,2],[3,4],[5,6]]] a, a[1][1][2] from a.b"), sql,
                 StatementType.SELECT, "a", "b");
@@ -437,21 +482,28 @@ public class ClickHouseSqlParserTest {
                 sql, StatementType.SELECT, "a", "b");
         checkSingleStatement(parse(sql = "select c.c1, c.c2 c, c.c3 as cc, c.c4.1.2 from a.b"), sql,
                 StatementType.SELECT, "a", "b");
-        checkSingleStatement(parse(sql = "select - (select (1,).1) from a.b"), sql, StatementType.SELECT, "a", "b");
-        checkSingleStatement(parse(sql = "select 1.1e1,(1) . 1 , ((1,2)).1 .2 . 3 from a.b"), sql, StatementType.SELECT,
+        checkSingleStatement(parse(sql = "select - (select (1,).1) from a.b"), sql, StatementType.SELECT, "a",
+                "b");
+        checkSingleStatement(parse(sql = "select 1.1e1,(1) . 1 , ((1,2)).1 .2 . 3 from a.b"), sql,
+                StatementType.SELECT,
                 "a", "b");
-        checkSingleStatement(parse(sql = "select a.b.c1, c1, b.c1 from a.b"), sql, StatementType.SELECT, "a", "b");
+        checkSingleStatement(parse(sql = "select a.b.c1, c1, b.c1 from a.b"), sql, StatementType.SELECT, "a",
+                "b");
         checkSingleStatement(parse(sql = "select date'2020-02-04', timestamp '2020-02-04' from a.b"), sql,
                 StatementType.SELECT, "a", "b");
         checkSingleStatement(parse(sql = "select count (), sum(c1), fake(a1, count(), (1+1)) from a.b"), sql,
                 StatementType.SELECT, "a", "b");
-        checkSingleStatement(parse(sql = "select {}, {'a':'b', 'c':'1'} from a.b"), sql, StatementType.SELECT, "a",
+        checkSingleStatement(parse(sql = "select {}, {'a':'b', 'c':'1'} from a.b"), sql, StatementType.SELECT,
+                "a",
                 "b");
-        checkSingleStatement(parse(sql = "select [], [1,2], [ [1,2], [3,4] ] from a.b"), sql, StatementType.SELECT, "a",
+        checkSingleStatement(parse(sql = "select [], [1,2], [ [1,2], [3,4] ] from a.b"), sql,
+                StatementType.SELECT, "a",
                 "b");
         checkSingleStatement(parse(sql = "select 1+1-1*1/1 from a.b"), sql, StatementType.SELECT, "a", "b");
-        checkSingleStatement(parse(sql = "select (1+(1-1)*1/1)-1 from a.b"), sql, StatementType.SELECT, "a", "b");
-        checkSingleStatement(parse(sql = "select (1+(1+(-1))*1/1)-(select (1,).1) from a.b"), sql, StatementType.SELECT,
+        checkSingleStatement(parse(sql = "select (1+(1-1)*1/1)-1 from a.b"), sql, StatementType.SELECT, "a",
+                "b");
+        checkSingleStatement(parse(sql = "select (1+(1+(-1))*1/1)-(select (1,).1) from a.b"), sql,
+                StatementType.SELECT,
                 "a", "b");
     }
 
@@ -556,35 +608,46 @@ public class ClickHouseSqlParserTest {
         String sql;
 
         checkSingleStatement(parse(sql = "SELECT 1 from table"), sql, StatementType.SELECT, "system", "table");
-        checkSingleStatement(parse(sql = "SELECT 1 from table a"), sql, StatementType.SELECT, "system", "table");
-        checkSingleStatement(parse(sql = "SELECT 1 from\ntable a"), sql, StatementType.SELECT, "system", "table");
-        checkSingleStatement(parse(sql = "SELECT 1\nfrom\ntable a"), sql, StatementType.SELECT, "system", "table");
-        checkSingleStatement(parse(sql = "SELECT 1\nFrom\ntable a"), sql, StatementType.SELECT, "system", "table");
+        checkSingleStatement(parse(sql = "SELECT 1 from table a"), sql, StatementType.SELECT, "system",
+                "table");
+        checkSingleStatement(parse(sql = "SELECT 1 from\ntable a"), sql, StatementType.SELECT, "system",
+                "table");
+        checkSingleStatement(parse(sql = "SELECT 1\nfrom\ntable a"), sql, StatementType.SELECT, "system",
+                "table");
+        checkSingleStatement(parse(sql = "SELECT 1\nFrom\ntable a"), sql, StatementType.SELECT, "system",
+                "table");
         checkSingleStatement(parse(sql = "SELECT 1 from db.table a"), sql, StatementType.SELECT, "db", "table");
         checkSingleStatement(parse(sql = " SELECT 1 from \"db.table\" a"), sql, StatementType.SELECT, "system",
                 "db.table");
         checkSingleStatement(parse(sql = "SELECT 1 from `db.table` a"), sql, StatementType.SELECT, "system",
                 "db.table");
         checkSingleStatement(parse(sql = "from `db.table` a"), sql, StatementType.UNKNOWN, "system", "unknown");
-        checkSingleStatement(parse(sql = " from `db.table` a"), sql, StatementType.UNKNOWN, "system", "unknown");
-        checkSingleStatement(parse(sql = "ELECT from `db.table` a"), sql, StatementType.UNKNOWN, "system", "unknown");
+        checkSingleStatement(parse(sql = " from `db.table` a"), sql, StatementType.UNKNOWN, "system",
+                "unknown");
+        checkSingleStatement(parse(sql = "ELECT from `db.table` a"), sql, StatementType.UNKNOWN, "system",
+                "unknown");
         checkSingleStatement(parse(sql = "SHOW tables"), sql, StatementType.SHOW, "system", "tables");
         checkSingleStatement(parse(sql = "desc table1"), sql, StatementType.DESCRIBE, "system", "columns");
         checkSingleStatement(parse(sql = "DESC table1"), sql, StatementType.DESCRIBE, "system", "columns");
-        checkSingleStatement(parse(sql = "SELECT 'from db.table a' from tab"), sql, StatementType.SELECT, "system",
+        checkSingleStatement(parse(sql = "SELECT 'from db.table a' from tab"), sql, StatementType.SELECT,
+                "system",
                 "tab");
         checkSingleStatement(parse(sql = "SELECT"), sql, StatementType.UNKNOWN, "system", "unknown");
         checkSingleStatement(parse(sql = "S"), sql, StatementType.UNKNOWN, "system", "unknown");
         checkSingleStatement(parse(sql = ""), sql, StatementType.UNKNOWN, "system", "unknown");
-        checkSingleStatement(parse(sql = " SELECT 1 from table from"), sql, StatementType.SELECT, "system", "table");
-        checkSingleStatement(parse(sql = " SELECT 1 from table from"), sql, StatementType.SELECT, "system", "table");
+        checkSingleStatement(parse(sql = " SELECT 1 from table from"), sql, StatementType.SELECT, "system",
+                "table");
+        checkSingleStatement(parse(sql = " SELECT 1 from table from"), sql, StatementType.SELECT, "system",
+                "table");
         checkSingleStatement(parse(sql = "SELECT fromUnixTimestamp64Milli(time) as x from table"), sql,
                 StatementType.SELECT, "system", "table");
-        checkSingleStatement(parse(sql = " SELECT fromUnixTimestamp64Milli(time)from table"), sql, StatementType.SELECT,
+        checkSingleStatement(parse(sql = " SELECT fromUnixTimestamp64Milli(time)from table"), sql,
+                StatementType.SELECT,
                 "system", "table");
         checkSingleStatement(parse(sql = "/*qq*/ SELECT fromUnixTimestamp64Milli(time)from table"), sql,
                 StatementType.SELECT, "system", "table");
-        checkSingleStatement(parse(sql = " SELECTfromUnixTimestamp64Milli(time)from table"), sql, StatementType.UNKNOWN,
+        checkSingleStatement(parse(sql = " SELECTfromUnixTimestamp64Milli(time)from table"), sql,
+                StatementType.UNKNOWN,
                 "system", "unknown");
         checkSingleStatement(parse(sql = " SELECT fromUnixTimestamp64Milli(time)from \".inner.a\""), sql,
                 StatementType.SELECT, "system", ".inner.a");
@@ -629,6 +692,15 @@ public class ClickHouseSqlParserTest {
         stmts = parse(sql);
         assertEquals(stmts.length, 1);
         assertEquals(stmts[0].getSQL(), "select    ");
+    }
+
+    @Test(groups = "unit")
+    public void testNewParameterSyntax() {
+        String sql = "select {column_a:String}";
+        ClickHouseSqlStatement[] stmts = parse(sql);
+        assertEquals(stmts.length, 1);
+        assertEquals(stmts[0].isQuery(), true);
+        assertEquals(stmts[0].getSQL(), sql);
     }
 
     // known issue

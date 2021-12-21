@@ -4,6 +4,7 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.Locale;
 import java.util.Properties;
 
 import com.clickhouse.client.BaseIntegrationTest;
@@ -52,7 +53,7 @@ public abstract class JdbcIntegrationTest extends BaseIntegrationTest {
             className = className.substring(0, className.length() - CLASS_SUFFIX.length());
         }
 
-        this.dbName = "test_" + className.toLowerCase();
+        this.dbName = "test_" + className.toLowerCase(Locale.ROOT);
     }
 
     public String getServerAddress(ClickHouseProtocol protocol) {

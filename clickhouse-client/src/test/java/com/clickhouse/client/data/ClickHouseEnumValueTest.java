@@ -9,31 +9,38 @@ import com.clickhouse.client.ClickHouseFormat;
 public class ClickHouseEnumValueTest extends BaseClickHouseValueTest {
     @Test(groups = { "unit" })
     public void testCopy() {
-        sameValue(ClickHouseEnumValue.ofNull(), ClickHouseEnumValue.ofNull(), 3, 9, Object.class,
+        sameValue(ClickHouseEnumValue.ofNull(ClickHouseDataType.class),
+                ClickHouseEnumValue.ofNull(ClickHouseDataType.class), 3, 9, Object.class,
                 ClickHouseDataType.class, Object.class, Object.class);
-        sameValue(ClickHouseEnumValue.of(ClickHouseDataType.String), ClickHouseEnumValue.of(ClickHouseDataType.String),
+        sameValue(ClickHouseEnumValue.of(ClickHouseDataType.String),
+                ClickHouseEnumValue.of(ClickHouseDataType.String),
                 3, 9, Object.class, ClickHouseDataType.class, Object.class, Object.class);
-        ClickHouseEnumValue<ClickHouseDataType> v = ClickHouseEnumValue.of(ClickHouseDataType.Array);
+        ClickHouseEnumValue v = ClickHouseEnumValue.of(ClickHouseDataType.Array);
         sameValue(v, v.copy(), 3, 9, Object.class, ClickHouseDataType.class, Object.class, Object.class);
     }
 
     @Test(groups = { "unit" })
     public void testUpdate() {
-        sameValue(ClickHouseEnumValue.ofNull(),
-                ClickHouseEnumValue.ofNull().update(ClickHouseDataType.Date32).set(null), 3, 9, Object.class,
+        sameValue(ClickHouseEnumValue.ofNull(ClickHouseDataType.class),
+                ClickHouseEnumValue.ofNull(ClickHouseDataType.class).update(ClickHouseDataType.Date32).set(true, 0), 3,
+                9,
+                Object.class,
                 ClickHouseDataType.class, Object.class, Object.class);
         sameValue(ClickHouseEnumValue.of(ClickHouseDataType.Date32),
-                ClickHouseEnumValue.ofNull().update(ClickHouseDataType.Date32), 3, 9, Object.class,
+                ClickHouseEnumValue.ofNull(ClickHouseDataType.class).update(ClickHouseDataType.Date32), 3, 9,
+                Object.class,
                 ClickHouseDataType.class, Object.class, Object.class);
         sameValue(ClickHouseEnumValue.of(ClickHouseDataType.Date32),
-                ClickHouseEnumValue.of(ClickHouseFormat.Arrow).update(ClickHouseDataType.Date32), 3, 9, Object.class,
+                ClickHouseEnumValue.of(ClickHouseDataType.Array).update(ClickHouseDataType.Date32), 3, 9,
+                Object.class,
                 ClickHouseDataType.class, Object.class, Object.class);
 
         sameValue(ClickHouseEnumValue.of(ClickHouseDataType.IntervalYear),
                 ClickHouseEnumValue.of(ClickHouseDataType.String).update(false), 3, 9, Object.class,
                 ClickHouseDataType.class, Object.class, Object.class);
         sameValue(ClickHouseEnumValue.of(ClickHouseDataType.IntervalYear),
-                ClickHouseEnumValue.of(ClickHouseDataType.String).update(new boolean[] { false }), 3, 9, Object.class,
+                ClickHouseEnumValue.of(ClickHouseDataType.String).update(new boolean[] { false }), 3, 9,
+                Object.class,
                 ClickHouseDataType.class, Object.class, Object.class);
         sameValue(ClickHouseEnumValue.of(ClickHouseDataType.IntervalYear),
                 ClickHouseEnumValue.of(ClickHouseDataType.String).update('\0'), 3, 9, Object.class,
@@ -51,7 +58,8 @@ public class ClickHouseEnumValueTest extends BaseClickHouseValueTest {
                 ClickHouseEnumValue.of(ClickHouseDataType.String).update(0L), 3, 9, Object.class,
                 ClickHouseDataType.class, Object.class, Object.class);
         sameValue(ClickHouseEnumValue.of(ClickHouseDataType.IntervalYear),
-                ClickHouseEnumValue.of(ClickHouseDataType.String).update("IntervalYear"), 3, 9, Object.class,
+                ClickHouseEnumValue.of(ClickHouseDataType.String).update("IntervalYear"), 3, 9,
+                Object.class,
                 ClickHouseDataType.class, Object.class, Object.class);
     }
 }

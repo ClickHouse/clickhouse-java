@@ -115,11 +115,6 @@ public abstract class ClickHouseObjectValue<T> implements ClickHouseValue {
     }
 
     @Override
-    public <E> E asObject(Class<E> clazz) {
-        return ClickHouseChecker.nonNull(clazz, ClickHouseValues.TYPE_CLASS).cast(getValue());
-    }
-
-    @Override
     public String asString(int length, Charset charset) {
         if (isNullOrEmpty()) {
             return null;

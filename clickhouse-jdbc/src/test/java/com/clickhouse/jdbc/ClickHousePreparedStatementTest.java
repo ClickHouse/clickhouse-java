@@ -151,13 +151,31 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
         LocalDateTime ts = LocalDateTime.ofEpochSecond(10000, 123456789, ZoneOffset.UTC);
         try (ClickHouseConnection conn = newConnection(props);
                 PreparedStatement stmt = conn
-                        .prepareStatement("select :ts1 ts1, :ts2(DateTime32) ts2")) {
+                        .prepareStatement("select :ts1 ts1, :ts2(DateTime32) ts2, :ts2 ts3")) {
+            // just two parameters here - ts2 is referenced twice
             stmt.setObject(1, ts);
             stmt.setObject(2, ts);
             ResultSet rs = stmt.executeQuery();
             Assert.assertTrue(rs.next());
             Assert.assertEquals(rs.getString(1), "1970-01-01 02:46:40.123456789");
             Assert.assertEquals(rs.getString(2), "1970-01-01 02:46:40");
+            Assert.assertEquals(rs.getString(3), "1970-01-01 02:46:40");
+            Assert.assertFalse(rs.next());
+        }
+
+        // try again using JDBC standard question mark placeholder
+        try (ClickHouseConnection conn = newConnection();
+                PreparedStatement stmt = conn
+                        .prepareStatement("select ? ts1, ? ts2, ? ts3")) {
+            // unlike above, this time we have 3 parameters
+            stmt.setObject(1, "1970-01-01 02:46:40.123456789");
+            stmt.setObject(2, "1970-01-01 02:46:40");
+            stmt.setObject(3, "1970-01-01 02:46:40");
+            ResultSet rs = stmt.executeQuery();
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getString(1), "1970-01-01 02:46:40.123456789");
+            Assert.assertEquals(rs.getString(2), "1970-01-01 02:46:40");
+            Assert.assertEquals(rs.getString(3), "1970-01-01 02:46:40");
             Assert.assertFalse(rs.next());
         }
     }

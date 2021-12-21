@@ -6,7 +6,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.ServiceLoader;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.ForkJoinPool;
 
 import com.clickhouse.client.config.ClickHouseOption;
 import com.clickhouse.client.config.ClickHouseDefaults;
@@ -23,23 +22,17 @@ public class ClickHouseClientBuilder {
     static {
         int maxThreads = (int) ClickHouseDefaults.MAX_THREADS.getEffectiveDefaultValue();
         int maxRequests = (int) ClickHouseDefaults.MAX_REQUESTS.getEffectiveDefaultValue();
+        long keepAliveTimeoutMs = (long) ClickHouseDefaults.THREAD_KEEPALIVE_TIMEOUT.getEffectiveDefaultValue();
 
-        if (maxThreads <= 0 && maxRequests <= 0) {
-            // java -XX:+UnlockDiagnosticVMOptions -XX:NativeMemoryTracking=summary
-            // -XX:+PrintNMTStatistics -version
-            defaultExecutor = ForkJoinPool.commonPool();
-        } else {
-            if (maxThreads <= 0) {
-                maxThreads = Runtime.getRuntime().availableProcessors();
-            }
-
-            if (maxRequests <= 0) {
-                maxRequests = 0;
-            }
-
-            defaultExecutor = ClickHouseUtils.newThreadPool(ClickHouseClient.class.getSimpleName(), maxThreads,
-                    maxRequests);
+        if (maxThreads <= 0) {
+            maxThreads = Runtime.getRuntime().availableProcessors();
         }
+        if (maxRequests <= 0) {
+            maxRequests = 0;
+        }
+
+        defaultExecutor = ClickHouseUtils.newThreadPool(ClickHouseClient.class.getSimpleName(), maxThreads,
+                maxThreads * 2, maxRequests, keepAliveTimeoutMs, false);
     }
 
     protected ClickHouseConfig config;

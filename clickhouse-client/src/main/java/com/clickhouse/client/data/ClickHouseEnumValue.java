@@ -5,132 +5,220 @@ import java.math.BigInteger;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import com.clickhouse.client.ClickHouseChecker;
+import com.clickhouse.client.ClickHouseEnum;
+import com.clickhouse.client.ClickHouseUtils;
 import com.clickhouse.client.ClickHouseValue;
 import com.clickhouse.client.ClickHouseValues;
 
 /**
  * Wraper class of enum.
  */
-public class ClickHouseEnumValue<T extends Enum<T>> extends ClickHouseObjectValue<T> {
-    static final String ERROR_NO_ENUM_TYPE = "Failed to convert value due to lack of enum type: ";
+public class ClickHouseEnumValue implements ClickHouseValue {
+    /**
+     * Create a new instance representing null value.
+     *
+     * @param clazz enum class
+     * @return new instance representing null value
+     */
+    public static ClickHouseEnumValue ofNull(Class<? extends Enum> clazz) {
+        return ofNull(null, ClickHouseEnum.of(clazz));
+    }
 
     /**
      * Create a new instance representing null value.
      *
-     * @param <T> enum type
+     * @param type enum type, null is same as {@link ClickHouseEnum#EMPTY}
      * @return new instance representing null value
      */
-    public static <T extends Enum<T>> ClickHouseEnumValue<T> ofNull() {
-        return ofNull(null);
+    public static ClickHouseEnumValue ofNull(ClickHouseEnum type) {
+        return ofNull(null, type);
     }
 
     /**
      * Update given value to null or create a new instance if {@code ref} is null.
      * 
-     * @param <T> enum type
-     * @param ref object to update, could be null
+     * @param ref   object to update, could be null
+     * @param clazz enum class
      * @return same object as {@code ref} or a new instance if it's null
      */
-    @SuppressWarnings("unchecked")
-    public static <T extends Enum<T>> ClickHouseEnumValue<T> ofNull(ClickHouseValue ref) {
-        return ref instanceof ClickHouseEnumValue ? (ClickHouseEnumValue<T>) ((ClickHouseEnumValue<T>) ref).set(null)
-                : new ClickHouseEnumValue<>(null);
+    public static ClickHouseEnumValue ofNull(ClickHouseValue ref, Class<? extends Enum> clazz) {
+        return ref instanceof ClickHouseEnumValue ? ((ClickHouseEnumValue) ref).set(true, 0)
+                : new ClickHouseEnumValue(ClickHouseEnum.of(clazz), true, 0);
+    }
+
+    /**
+     * Update given value to null or create a new instance if {@code ref} is null.
+     * 
+     * @param ref  object to update, could be null
+     * @param type enum type, null is same as {@link ClickHouseEnum#EMPTY}
+     * @return same object as {@code ref} or a new instance if it's null
+     */
+    public static ClickHouseEnumValue ofNull(ClickHouseValue ref, ClickHouseEnum type) {
+        return ref instanceof ClickHouseEnumValue ? ((ClickHouseEnumValue) ref).set(true, 0)
+                : new ClickHouseEnumValue(type, true, 0);
     }
 
     /**
      * Wrap the given value.
      *
-     * @param <T>   enum type
      * @param value value
      * @return object representing the value
      */
-    public static <T extends Enum<T>> ClickHouseEnumValue<T> of(T value) {
+    public static ClickHouseEnumValue of(Enum<?> value) {
         return of(null, value);
+    }
+
+    /**
+     * Wrap the given value.
+     *
+     * @param value value
+     * @param type  enum type
+     * @return object representing the value
+     */
+    public static ClickHouseEnumValue of(ClickHouseEnum type, int value) {
+        return of(null, type, value);
+    }
+
+    /**
+     * Wrap the given value.
+     *
+     * @param value value
+     * @param type  enum type
+     * @return object representing the value
+     */
+    public static ClickHouseEnumValue of(ClickHouseEnum type, Number value) {
+        return value == null ? ofNull(null, type) : of(null, type, value.intValue());
     }
 
     /**
      * Update value of the given object or create a new instance if {@code ref} is
      * null.
      *
-     * @param <T>   enum type
      * @param ref   object to update, could be null
      * @param value value
      * @return same object as {@code ref} or a new instance if it's null
      */
-    @SuppressWarnings("unchecked")
-    public static <T extends Enum<T>> ClickHouseEnumValue<T> of(ClickHouseValue ref, T value) {
-        return ref instanceof ClickHouseEnumValue
-                ? (ClickHouseEnumValue<T>) ((ClickHouseEnumValue<T>) ref).update(value)
-                : new ClickHouseEnumValue<>(value);
+    public static ClickHouseEnumValue of(ClickHouseValue ref, Enum<?> value) {
+        ClickHouseEnumValue v;
+        if (ref instanceof ClickHouseEnumValue) {
+            v = (ClickHouseEnumValue) ref;
+            if (value != null) {
+                v.set(false, value.ordinal());
+            } else {
+                v.resetToNullOrEmpty();
+            }
+        } else {
+            if (value != null) {
+                v = new ClickHouseEnumValue(ClickHouseEnum.of(value.getClass()), false, value.ordinal());
+            } else {
+                v = new ClickHouseEnumValue(ClickHouseEnum.EMPTY, true, 0);
+            }
+        }
+        return v;
     }
 
-    protected ClickHouseEnumValue(T value) {
-        super(value);
+    /**
+     * Update value of the given object or create a new instance if {@code ref} is
+     * null.
+     *
+     * @param ref   object to update, could be null
+     * @param type  enum type, null is same as {@link ClickHouseEnum#EMPTY}
+     * @param value value
+     * @return same object as {@code ref} or a new instance if it's null
+     */
+    public static ClickHouseEnumValue of(ClickHouseValue ref, ClickHouseEnum type, int value) {
+        return ref instanceof ClickHouseEnumValue ? ((ClickHouseEnumValue) ref).set(false, value)
+                : new ClickHouseEnumValue(type, false, value);
+    }
+
+    private final ClickHouseEnum type;
+
+    private boolean isNull;
+    private int value;
+
+    protected ClickHouseEnumValue(ClickHouseEnum type, boolean isNull, int value) {
+        this.type = type != null ? type : ClickHouseEnum.EMPTY;
+
+        set(isNull, value);
+    }
+
+    protected ClickHouseEnumValue set(boolean isNull, int value) {
+        this.isNull = isNull;
+        this.value = isNull ? 0 : type.validate(value);
+        return this;
+    }
+
+    /**
+     * Gets value.
+     *
+     * @return value
+     */
+    public int getValue() {
+        return value;
     }
 
     @Override
-    public ClickHouseEnumValue<T> copy(boolean deep) {
-        return new ClickHouseEnumValue<>(getValue());
+    public ClickHouseEnumValue copy(boolean deep) {
+        return new ClickHouseEnumValue(type, isNull, value);
+    }
+
+    @Override
+    public boolean isNullOrEmpty() {
+        return isNull;
     }
 
     @Override
     public byte asByte() {
-        return isNullOrEmpty() ? (byte) 0 : (byte) getValue().ordinal();
+        return (byte) value;
     }
 
     @Override
     public short asShort() {
-        return isNullOrEmpty() ? (short) 0 : (short) getValue().ordinal();
+        return (short) value;
     }
 
     @Override
     public int asInteger() {
-        return isNullOrEmpty() ? 0 : getValue().ordinal();
+        return value;
     }
 
     @Override
     public long asLong() {
-        return isNullOrEmpty() ? 0L : getValue().ordinal();
+        return value;
     }
 
     @Override
     public BigInteger asBigInteger() {
-        return isNullOrEmpty() ? null : BigInteger.valueOf(getValue().ordinal());
+        return isNull ? null : BigInteger.valueOf(value);
     }
 
     @Override
     public float asFloat() {
-        return isNullOrEmpty() ? 0F : getValue().ordinal();
+        return value;
     }
 
     @Override
     public double asDouble() {
-        return isNullOrEmpty() ? 0D : getValue().ordinal();
+        return value;
     }
 
     @Override
     public BigDecimal asBigDecimal(int scale) {
-        return isNullOrEmpty() ? null : BigDecimal.valueOf(getValue().ordinal(), scale);
-    }
-
-    @Override
-    @SuppressWarnings("unchecked")
-    public <E extends Enum<E>> E asEnum(Class<E> enumType) {
-        return (E) getValue();
+        return isNull ? null : BigDecimal.valueOf(value, scale);
     }
 
     @Override
     public Object asObject() {
-        return getValue();
+        return isNull ? null : type.name(value);
     }
 
     @Override
     public String asString(int length, Charset charset) {
-        if (isNullOrEmpty()) {
+        if (isNull) {
             return null;
         }
 
-        String str = String.valueOf(getValue().name());
+        String str = type.name(value);
         if (length > 0) {
             ClickHouseChecker.notWithDifferentLength(str.getBytes(charset == null ? StandardCharsets.UTF_8 : charset),
                     length);
@@ -140,130 +228,115 @@ public class ClickHouseEnumValue<T extends Enum<T>> extends ClickHouseObjectValu
     }
 
     @Override
+    public ClickHouseEnumValue resetToNullOrEmpty() {
+        return set(true, (byte) 0);
+    }
+
+    @Override
     public String toSqlExpression() {
-        return ClickHouseValues.convertToQuotedString(asString(0, null));
+        return isNull ? ClickHouseValues.NULL_EXPR
+                : new StringBuilder().append('\'').append(ClickHouseUtils.escape(type.name(value), '\'')).append('\'')
+                        .toString();
     }
 
     @Override
-    public ClickHouseEnumValue<T> update(boolean value) {
-        return update(value ? 1 : 0);
+    public ClickHouseEnumValue update(char value) {
+        return set(false, value);
     }
 
     @Override
-    public ClickHouseEnumValue<T> update(char value) {
-        return update((int) value);
+    public ClickHouseEnumValue update(byte value) {
+        return set(false, value);
     }
 
     @Override
-    public ClickHouseEnumValue<T> update(byte value) {
-        return update((int) value);
+    public ClickHouseEnumValue update(short value) {
+        return set(false, value);
     }
 
     @Override
-    public ClickHouseEnumValue<T> update(short value) {
-        return update((int) value);
+    public ClickHouseEnumValue update(int value) {
+        return set(false, value);
     }
 
     @Override
-    @SuppressWarnings("unchecked")
-    public ClickHouseEnumValue<T> update(int value) {
-        if (isNullOrEmpty()) {
-            throw new IllegalArgumentException(ERROR_NO_ENUM_TYPE + value);
+    public ClickHouseEnumValue update(long value) {
+        return set(false, (int) value);
+    }
+
+    @Override
+    public ClickHouseEnumValue update(float value) {
+        return set(false, (int) value);
+    }
+
+    @Override
+    public ClickHouseEnumValue update(double value) {
+        return set(false, (int) value);
+    }
+
+    @Override
+    public ClickHouseEnumValue update(BigInteger value) {
+        return value == null ? resetToNullOrEmpty() : set(false, value.intValueExact());
+    }
+
+    @Override
+    public ClickHouseEnumValue update(BigDecimal value) {
+        return value == null ? resetToNullOrEmpty() : set(false, value.intValueExact());
+    }
+
+    @Override
+    public ClickHouseEnumValue update(Enum<?> value) {
+        return value == null ? resetToNullOrEmpty() : set(false, value.ordinal());
+    }
+
+    @Override
+    public ClickHouseEnumValue update(String value) {
+        return value == null ? resetToNullOrEmpty() : set(false, type.value(value));
+    }
+
+    @Override
+    public ClickHouseEnumValue update(ClickHouseValue value) {
+        return value == null ? resetToNullOrEmpty() : set(false, value.asInteger());
+    }
+
+    @Override
+    public ClickHouseEnumValue update(Object value) {
+        if (value instanceof Number) {
+            return set(false, ((Number) value).intValue());
+        } else if (value instanceof String) {
+            return set(false, type.value((String) value));
+        } else if (value instanceof ClickHouseValue) {
+            return set(false, ((ClickHouseValue) value).asInteger());
         }
 
-        Class<T> clazz = (Class<T>) getValue().getClass();
-        for (T t : clazz.getEnumConstants()) {
-            if (t.ordinal() == value) {
-                return update(t);
-            }
-        }
-
-        throw new IllegalArgumentException();
-    }
-
-    @Override
-    public ClickHouseEnumValue<T> update(long value) {
-        return update((int) value);
-    }
-
-    @Override
-    public ClickHouseEnumValue<T> update(float value) {
-        return update((int) value);
-    }
-
-    @Override
-    public ClickHouseEnumValue<T> update(double value) {
-        return update((int) value);
-    }
-
-    @Override
-    public ClickHouseEnumValue<T> update(BigInteger value) {
-        if (value == null) {
-            resetToNullOrEmpty();
-            return this;
-        }
-
-        return update(value.intValueExact());
-    }
-
-    @Override
-    public ClickHouseEnumValue<T> update(BigDecimal value) {
-        if (value == null) {
-            resetToNullOrEmpty();
-            return this;
-        }
-
-        return update(value.intValueExact());
-    }
-
-    @Override
-    @SuppressWarnings("unchecked")
-    public ClickHouseEnumValue<T> update(Enum<?> value) {
-        set((T) value);
+        ClickHouseValue.super.update(value);
         return this;
     }
 
     @Override
-    @SuppressWarnings("unchecked")
-    public ClickHouseEnumValue<T> update(ClickHouseValue value) {
-        if (value == null || value.isNullOrEmpty()) {
-            resetToNullOrEmpty();
-        } else if (value instanceof ClickHouseEnumValue) {
-            set(((ClickHouseEnumValue<T>) value).getValue());
-        } else if (isNullOrEmpty()) {
-            throw new IllegalArgumentException(ERROR_NO_ENUM_TYPE + value);
-        } else {
-            set(value.asEnum(isNullOrEmpty() ? null : (Class<T>) getValue().getClass()));
+    public boolean equals(Object obj) {
+        if (this == obj) { // too bad this is a mutable class :<
+            return true;
+        } else if (obj == null || getClass() != obj.getClass()) {
+            return false;
         }
-        return this;
+
+        ClickHouseEnumValue v = (ClickHouseEnumValue) obj;
+        return isNull == v.isNull && value == v.value && type.equals(v.type);
     }
 
     @Override
-    @SuppressWarnings("unchecked")
-    public ClickHouseEnumValue<T> update(String value) {
-        if (value == null) {
-            resetToNullOrEmpty();
-        } else if (isNullOrEmpty()) {
-            throw new IllegalArgumentException(ERROR_NO_ENUM_TYPE + value);
-        } else {
-            set((T) Enum.valueOf(getValue().getClass(), value));
-        }
-
-        return this;
+    public int hashCode() {
+        // not going to use Objects.hash(isNull, value) due to autoboxing
+        final int prime = 31;
+        int result = prime + (isNull ? 1231 : 1237);
+        result = prime * result + value;
+        result = prime * result + type.hashCode();
+        return result;
     }
 
     @Override
-    @SuppressWarnings("unchecked")
-    public ClickHouseEnumValue<T> update(Object value) {
-        if (value instanceof Enum) {
-            set((T) value);
-            return this;
-        } else if (value instanceof ClickHouseEnumValue) {
-            set(((ClickHouseEnumValue<T>) value).getValue());
-            return this;
-        }
-
-        super.update(value);
-        return this;
+    public String toString() {
+        return ClickHouseValues.convertToString(this);
     }
 }

@@ -2,6 +2,7 @@ package com.clickhouse.jdbc;
 
 import java.io.InputStream;
 import java.io.Reader;
+import java.io.UncheckedIOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.MalformedURLException;
@@ -23,6 +24,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.Calendar;
+import java.util.Collections;
 import java.util.GregorianCalendar;
 import java.util.Iterator;
 import java.util.List;
@@ -57,6 +59,8 @@ public class ClickHouseResultSet extends AbstractResultSet {
     protected final int maxRows;
     protected final ClickHouseResultSetMetaData metaData;
 
+    protected final Map<String, Class<?>> defaultTypeMap;
+
     // only for testing purpose
     ClickHouseResultSet(String database, String table, ClickHouseResponse response) {
         this.database = database;
@@ -70,10 +74,11 @@ public class ClickHouseResultSet extends AbstractResultSet {
         this.tsTimeZone = null; // TimeZone.getDefault();
         this.dateTimeZone = this.tsTimeZone;
 
+        this.defaultTypeMap = Collections.emptyMap();
         this.currentRow = null;
         try {
             this.columns = response.getColumns();
-            this.metaData = new ClickHouseResultSetMetaData(database, table, columns);
+            this.metaData = new ClickHouseResultSetMetaData(database, table, columns, defaultTypeMap);
 
             this.rowCursor = response.records().iterator();
         } catch (Exception e) {
@@ -105,10 +110,13 @@ public class ClickHouseResultSet extends AbstractResultSet {
         this.tsTimeZone = conn.getEffectiveTimeZone().orElse(null);
         this.dateTimeZone = this.tsTimeZone;
 
+        Map<String, Class<?>> typeMap = conn.getTypeMap();
+        this.defaultTypeMap = typeMap != null && !typeMap.isEmpty() ? Collections.unmodifiableMap(typeMap)
+                : Collections.emptyMap();
         this.currentRow = null;
         try {
             this.columns = response.getColumns();
-            this.metaData = new ClickHouseResultSetMetaData(database, table, columns);
+            this.metaData = new ClickHouseResultSetMetaData(database, table, columns, defaultTypeMap);
 
             this.rowCursor = response.records().iterator();
         } catch (Exception e) {
@@ -448,34 +456,45 @@ public class ClickHouseResultSet extends AbstractResultSet {
 
     @Override
     public Object getObject(int columnIndex) throws SQLException {
-        if (!wrapObject) {
-            return getValue(columnIndex).asObject();
-        }
-
-        ClickHouseValue v = getValue(columnIndex);
-        ClickHouseColumn c = columns.get(columnIndex - 1);
-        if (c.isArray()) {
-            return new ClickHouseArray(this, columnIndex);
-        } else if (c.isTuple() || c.isNested()) {
-            return new ClickHouseStruct(c.getDataType().name(), v.asArray());
-        } else {
-            return v.asObject();
-        }
+        return getObject(columnIndex, defaultTypeMap);
     }
 
     @Override
     public Object getObject(String columnLabel) throws SQLException {
-        return getObject(findColumn(columnLabel));
+        return getObject(findColumn(columnLabel), defaultTypeMap);
     }
 
     @Override
     public Object getObject(int columnIndex, Map<String, Class<?>> map) throws SQLException {
-        return getObject(columnIndex);
+        if (map == null) {
+            map = defaultTypeMap;
+        }
+
+        ClickHouseValue v = getValue(columnIndex);
+        ClickHouseColumn c = columns.get(columnIndex - 1);
+
+        Class<?> javaType = null;
+        if (!map.isEmpty() && (javaType = map.get(c.getOriginalTypeName())) == null) {
+            javaType = map.get(c.getDataType().name());
+        }
+
+        Object value;
+        if (!wrapObject) {
+            value = javaType != null ? v.asObject(javaType) : v.asObject();
+        } else if (c.isArray()) {
+            value = new ClickHouseArray(this, columnIndex);
+        } else if (c.isTuple() || c.isNested()) {
+            value = new ClickHouseStruct(c.getDataType().name(), v.asArray());
+        } else {
+            value = javaType != null ? v.asObject(javaType) : v.asObject();
+        }
+
+        return value;
     }
 
     @Override
     public Object getObject(String columnLabel, Map<String, Class<?>> map) throws SQLException {
-        return getObject(columnLabel);
+        return getObject(findColumn(columnLabel), map);
     }
 
     @Override
@@ -695,7 +714,11 @@ public class ClickHouseResultSet extends AbstractResultSet {
         lastReadColumn = 0;
         boolean hasNext = true;
         if (hasNext()) {
-            currentRow = rowCursor.next();
+            try {
+                currentRow = rowCursor.next();
+            } catch (UncheckedIOException e) {
+                throw SqlExceptionUtils.handle(e);
+            }
             rowNumber++;
         } else {
             currentRow = null;

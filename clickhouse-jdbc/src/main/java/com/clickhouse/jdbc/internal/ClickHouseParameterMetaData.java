@@ -64,7 +64,7 @@ public class ClickHouseParameterMetaData extends JdbcWrapper implements Paramete
     @Override
     public int getParameterType(int param) throws SQLException {
         ClickHouseColumn p = getParameter(param);
-        return p != null ? JdbcTypeMapping.toJdbcType(p) : Types.OTHER;
+        return p != null ? JdbcTypeMapping.toJdbcType(null, p) : Types.OTHER;
     }
 
     @Override

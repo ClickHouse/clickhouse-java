@@ -8,8 +8,11 @@ public enum JdbcDriver {
             "jdbc:clickhouse://%s:%s/%s?ssl=false&user=%s&password=%s&use_server_time_zone=false&use_time_zone=UTC&compress=%s",
             Constants.HTTP_PORT),
     // ClickHouse JDBC Driver
-    ClickhouseHttpJdbc("com.clickhouse.jdbc.ClickHouseDriver",
-            "jdbc:ch://%s:%s/%s?ssl=false&user=%s&password=%s&use_server_time_zone=false&use_time_zone=UTC&compress=%s",
+    ClickhouseHttpJdbc1("com.clickhouse.jdbc.ClickHouseDriver",
+            "jdbc:ch://%s:%s/%s?http_connection_provider=HTTP_URL_CONNECTION&ssl=false&user=%s&password=%s&use_server_time_zone=false&use_time_zone=UTC&compress=%s",
+            Constants.HTTP_PORT),
+    ClickhouseHttpJdbc2("com.clickhouse.jdbc.ClickHouseDriver",
+            "jdbc:ch://%s:%s/%s?http_connection_provider=HTTP_CLIENT&ssl=false&user=%s&password=%s&use_server_time_zone=false&use_time_zone=UTC&compress=%s",
             Constants.HTTP_PORT),
     ClickhouseGrpcJdbc("com.clickhouse.jdbc.ClickHouseDriver",
             "jdbc:ch:grpc://%s:%s/%s?ssl=false&user=%s&password=%s&use_server_time_zone=false&use_time_zone=UTC&max_inbound_message_size=2147483647&compress=%s",

@@ -4,9 +4,14 @@ import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import org.testng.Assert;
+import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 public class ClickHouseColumnTest {
+    @DataProvider(name = "enumTypesProvider")
+    private Object[][] getEnumTypes() {
+        return new Object[][] { { "Enum" }, { "Enum8" }, { "Enum16" } };
+    }
 
     @Test(groups = { "unit" })
     public void testReadColumn() {
@@ -147,5 +152,21 @@ public class ClickHouseColumnTest {
         Assert.assertEquals(c.getArrayNestedLevel(), 1);
         Assert.assertEquals(c.getArrayBaseColumn().getOriginalTypeName(), "LowCardinality(Nullable(String))");
         Assert.assertFalse(c.getArrayBaseColumn().isArray());
+    }
+
+    @Test(dataProvider = "enumTypesProvider", groups = { "unit" })
+    public void testEnum(String typeName) throws Exception {
+        Assert.assertThrows(IllegalArgumentException.class,
+                () -> ClickHouseColumn.of("e", typeName + "('Query''Start' = a)"));
+        Assert.assertThrows(IllegalArgumentException.class, () -> ClickHouseColumn.of("e", typeName + "(aa,1)"));
+        ClickHouseColumn column = ClickHouseColumn.of("e", typeName + "('Query''Start' = 1, 'Query\\'Finish' = 10)");
+        Assert.assertTrue(column.isEnum());
+        Assert.assertEquals(column.getDataType(), ClickHouseDataType.of(typeName));
+        Assert.assertThrows(IllegalArgumentException.class, () -> column.getEnumConstants().name(2));
+        Assert.assertThrows(IllegalArgumentException.class, () -> column.getEnumConstants().value(""));
+        Assert.assertEquals(column.getEnumConstants().name(1), "Query'Start");
+        Assert.assertEquals(column.getEnumConstants().name(10), "Query'Finish");
+        Assert.assertEquals(column.getEnumConstants().value("Query'Start"), 1);
+        Assert.assertEquals(column.getEnumConstants().value("Query'Finish"), 10);
     }
 }

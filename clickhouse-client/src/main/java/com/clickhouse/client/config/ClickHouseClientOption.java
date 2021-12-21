@@ -24,7 +24,6 @@ public enum ClickHouseClientOption implements ClickHouseOption {
      */
     CLIENT_NAME("client_name", "ClickHouse Java Client",
             "Client name, which is either 'client_name' or 'http_user_agent' shows up in system.query_log table."),
-
     /**
      * Whether server will compress response to client or not.
      */
@@ -42,7 +41,8 @@ public enum ClickHouseClientOption implements ClickHouseOption {
      * Compression algorithm server will use to decompress request, when
      * {@link #DECOMPRESS} is {@code true}.
      */
-    DECOMPRESS_ALGORITHM("decompress_alogrithm", ClickHouseCompression.GZIP, "Algorithm for decompressing request."),
+    DECOMPRESS_ALGORITHM("decompress_alogrithm", ClickHouseCompression.GZIP,
+            "Algorithm for decompressing request."),
     /**
      * Compression level for compressing server response.
      */
@@ -143,7 +143,8 @@ public enum ClickHouseClientOption implements ClickHouseOption {
     /**
      * SSL mode.
      */
-    SSL_MODE("sslmode", ClickHouseSslMode.STRICT, "verify or not certificate: none (don't verify), strict (verify)"),
+    SSL_MODE("sslmode", ClickHouseSslMode.STRICT,
+            "verify or not certificate: none (don't verify), strict (verify)"),
     /**
      * SSL root certificiate.
      */

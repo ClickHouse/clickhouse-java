@@ -28,6 +28,7 @@ import org.openjdk.jmh.annotations.Threads;
 import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
 import com.clickhouse.benchmark.BaseState;
+import com.clickhouse.client.ClickHouseEnum;
 import com.clickhouse.client.ClickHouseValue;
 import com.clickhouse.client.data.ClickHouseBigDecimalValue;
 import com.clickhouse.client.data.ClickHouseBigIntegerValue;
@@ -82,7 +83,7 @@ public class FactoryBenchmark {
             add(map, list, Double.class, () -> ClickHouseDoubleValue.ofNull());
             add(map, list, BigInteger.class, () -> ClickHouseBigIntegerValue.ofNull());
             add(map, list, BigDecimal.class, () -> ClickHouseBigDecimalValue.ofNull());
-            add(map, list, Enum.class, () -> ClickHouseEnumValue.ofNull());
+            add(map, list, Enum.class, () -> ClickHouseEnumValue.ofNull(ClickHouseEnum.EMPTY));
             add(map, list, Inet4Address.class, () -> ClickHouseIpv4Value.ofNull());
             add(map, list, Inet6Address.class, () -> ClickHouseIpv6Value.ofNull());
 
@@ -121,7 +122,7 @@ public class FactoryBenchmark {
             } else if (BigDecimal.class.equals(clazz)) {
                 return ClickHouseBigDecimalValue.ofNull();
             } else if (Enum.class.equals(clazz)) {
-                return ClickHouseEnumValue.ofNull();
+                return ClickHouseEnumValue.ofNull(ClickHouseEnum.EMPTY);
             } else if (Inet4Address.class.equals(clazz)) {
                 return ClickHouseIpv4Value.ofNull();
             } else if (Inet6Address.class.equals(clazz)) {
