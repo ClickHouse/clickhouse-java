@@ -6,7 +6,7 @@ import org.openjdk.jmh.annotations.Benchmark;
 
 public class Insertion extends DriverBenchmark {
     @Benchmark
-    public int insert10kUInt64Rows(DriverState state) throws Throwable {
+    public int insertUInt64(DriverState state) throws Throwable {
         final int range = state.getRandomNumber();
         final int rows = state.getSampleSize() + range;
 
@@ -26,7 +26,7 @@ public class Insertion extends DriverBenchmark {
     }
 
     @Benchmark
-    public int insert10kStringRows(DriverState state) throws Throwable {
+    public int insertString(DriverState state) throws Throwable {
         final int range = state.getRandomNumber();
         final int rows = state.getSampleSize() + range;
 
@@ -46,7 +46,7 @@ public class Insertion extends DriverBenchmark {
     }
 
     @Benchmark
-    public int insert10kTimestampRows(DriverState state) throws Throwable {
+    public int insertTimestamp(DriverState state) throws Throwable {
         final int range = state.getRandomNumber();
         final int rows = state.getSampleSize() + range;
 
