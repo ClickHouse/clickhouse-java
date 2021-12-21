@@ -1,30 +1,92 @@
 package com.clickhouse.jdbc;
 
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.sql.Date;
+import java.sql.Time;
+import java.sql.Timestamp;
 import java.sql.Types;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.OffsetDateTime;
+import java.time.ZonedDateTime;
+import java.util.Map;
 
 import com.clickhouse.client.ClickHouseColumn;
 import com.clickhouse.client.ClickHouseDataType;
 
 public final class JdbcTypeMapping {
     /**
+     * Gets corresponding JDBC type for the given Java class.
+     *
+     * @param javaClass non-null Java class
+     * @return JDBC type
+     */
+    public static int toJdbcType(Class<?> javaClass) {
+        int sqlType = Types.OTHER;
+        if (javaClass == boolean.class || javaClass == Boolean.class) {
+            sqlType = Types.BOOLEAN;
+        } else if (javaClass == byte.class || javaClass == Byte.class) {
+            sqlType = Types.TINYINT;
+        } else if (javaClass == short.class || javaClass == Short.class) {
+            sqlType = Types.SMALLINT;
+        } else if (javaClass == int.class || javaClass == Integer.class) {
+            sqlType = Types.INTEGER;
+        } else if (javaClass == long.class || javaClass == Long.class) {
+            sqlType = Types.BIGINT;
+        } else if (javaClass == float.class || javaClass == Float.class) {
+            sqlType = Types.FLOAT;
+        } else if (javaClass == double.class || javaClass == Double.class) {
+            sqlType = Types.DOUBLE;
+        } else if (javaClass == BigInteger.class) {
+            sqlType = Types.NUMERIC;
+        } else if (javaClass == BigDecimal.class) {
+            sqlType = Types.DECIMAL;
+        } else if (javaClass == Date.class || javaClass == LocalDate.class) {
+            sqlType = Types.DATE;
+        } else if (javaClass == Time.class || javaClass == LocalTime.class) {
+            sqlType = Types.TIME;
+        } else if (javaClass == Timestamp.class || javaClass == LocalDateTime.class) {
+            sqlType = Types.TIMESTAMP;
+        } else if (javaClass == OffsetDateTime.class || javaClass == ZonedDateTime.class) {
+            sqlType = Types.TIMESTAMP_WITH_TIMEZONE;
+        } else if (javaClass == String.class || javaClass == byte[].class || Enum.class.isAssignableFrom(javaClass)) {
+            sqlType = Types.VARCHAR;
+        } else if (javaClass.isArray()) {
+            sqlType = Types.ARRAY;
+        }
+        return sqlType;
+    }
+
+    /**
      * Gets corresponding JDBC type for the given column.
      *
      * @param column non-null column definition
      * @return JDBC type
      */
-    public static int toJdbcType(ClickHouseColumn column) {
+    public static int toJdbcType(Map<String, Class<?>> typeMap, ClickHouseColumn column) {
+        if (typeMap != null && !typeMap.isEmpty()) {
+            Class<?> javaClass = typeMap.get(column.getOriginalTypeName());
+            if (javaClass == null) {
+                javaClass = typeMap.get(column.getDataType().name());
+            }
+
+            if (javaClass != null) {
+                return toJdbcType(javaClass);
+            }
+        }
+
         int sqlType = Types.OTHER;
 
         switch (column.getDataType()) {
-            case Enum:
-            case Enum8:
+            case Bool:
+                sqlType = Types.BOOLEAN;
+                break;
             case Int8:
                 sqlType = Types.TINYINT;
                 break;
             case UInt8:
-            case Enum16:
             case Int16:
                 sqlType = Types.SMALLINT;
                 break;
@@ -73,6 +135,9 @@ public final class JdbcTypeMapping {
             case DateTime64:
                 sqlType = column.getTimeZone() != null ? Types.TIMESTAMP_WITH_TIMEZONE : Types.TIMESTAMP;
                 break;
+            case Enum:
+            case Enum8:
+            case Enum16:
             case IPv4:
             case IPv6:
             case FixedString:

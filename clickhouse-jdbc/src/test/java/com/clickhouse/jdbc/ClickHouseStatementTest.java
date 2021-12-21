@@ -18,6 +18,7 @@ import java.util.Properties;
 import java.util.TimeZone;
 import java.util.UUID;
 
+import com.clickhouse.client.ClickHouseDataType;
 import com.clickhouse.client.ClickHouseValues;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.data.ClickHouseDateTimeValue;
@@ -51,7 +52,8 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
             String sql = "-- select something " + uuid + "\nselect 12345";
             stmt.execute(sql + "; system flush logs;");
             ResultSet rs = stmt.executeQuery(
-                    "select distinct query from system.query_log where log_comment = 'select something " + uuid + "'");
+                    "select distinct query, type from system.query_log where log_comment = 'select something " + uuid
+                            + "'");
             Assert.assertTrue(rs.next());
             Assert.assertEquals(rs.getString(1), sql);
             Assert.assertFalse(rs.next());
@@ -126,6 +128,35 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
             OffsetDateTime ot1 = (OffsetDateTime) rs.getObject(2);
             OffsetDateTime ot2 = rs.getObject(2, OffsetDateTime.class);
             Assert.assertTrue(ot1 == ot2);
+            Assert.assertFalse(rs.next());
+        }
+    }
+
+    @Test(groups = "integration")
+    public void testCustomTypeMappings() throws SQLException {
+        Properties props = new Properties();
+        try (ClickHouseConnection conn = newConnection(props);
+                ClickHouseStatement stmt = conn.createStatement()) {
+            ResultSet rs = stmt.executeQuery("select cast('a' as Enum('a'=1,'b'=2))");
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getObject(1), "a");
+            Assert.assertEquals(rs.getString(1), "a");
+            Assert.assertEquals(rs.getInt(1), 1);
+            Assert.assertFalse(rs.next());
+        }
+
+        props.setProperty("typeMappings",
+                "Enum8=java.lang.Byte,DateTime64=java.lang.String, String=com.clickhouse.client.ClickHouseDataType");
+        try (ClickHouseConnection conn = newConnection(props);
+                ClickHouseStatement stmt = conn.createStatement()) {
+            ResultSet rs = stmt.executeQuery(
+                    "select cast('a' as Enum('a'=1,'b'=2)), toDateTime64('2021-12-21 12:34:56.789',3), 'Float64'");
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getObject(1), (byte) 1);
+            Assert.assertEquals(rs.getObject(2), "2021-12-21 12:34:56.789");
+            Assert.assertEquals(rs.getObject(3), ClickHouseDataType.Float64);
+            Assert.assertEquals(rs.getString(1), "a");
+            Assert.assertEquals(rs.getInt(1), 1);
             Assert.assertFalse(rs.next());
         }
     }

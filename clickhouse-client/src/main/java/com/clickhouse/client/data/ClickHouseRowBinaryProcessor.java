@@ -163,18 +163,27 @@ public class ClickHouseRowBinaryProcessor extends ClickHouseDataProcessor {
             deserializers = new EnumMap<>(ClickHouseDataType.class);
             serializers = new EnumMap<>(ClickHouseDataType.class);
 
-            // enum and numbers
+            // enums
+            buildMappings(deserializers, serializers,
+                    (r, f, c, i) -> ClickHouseEnumValue.of(r, c.getEnumConstants(), BinaryStreamUtils.readInt8(i)),
+                    (v, f, c, o) -> BinaryStreamUtils.writeInt8(o, v.asByte()), ClickHouseDataType.Enum,
+                    ClickHouseDataType.Enum8);
+            buildMappings(deserializers, serializers,
+                    (r, f, c, i) -> ClickHouseEnumValue.of(r, c.getEnumConstants(), BinaryStreamUtils.readInt16(i)),
+                    (v, f, c, o) -> BinaryStreamUtils.writeInt16(o, v.asShort()), ClickHouseDataType.Enum16);
+            // bool and numbers
+            buildMappings(deserializers, serializers,
+                    (r, f, c, i) -> ClickHouseBoolValue.of(r, BinaryStreamUtils.readBoolean(i)),
+                    (v, f, c, o) -> BinaryStreamUtils.writeBoolean(o, v.asBoolean()), ClickHouseDataType.Bool);
             buildMappings(deserializers, serializers,
                     (r, f, c, i) -> ClickHouseByteValue.of(r, BinaryStreamUtils.readInt8(i)),
-                    (v, f, c, o) -> BinaryStreamUtils.writeInt8(o, v.asByte()), ClickHouseDataType.Enum,
-                    ClickHouseDataType.Enum8, ClickHouseDataType.Int8);
+                    (v, f, c, o) -> BinaryStreamUtils.writeInt8(o, v.asByte()), ClickHouseDataType.Int8);
             buildMappings(deserializers, serializers,
                     (r, f, c, i) -> ClickHouseShortValue.of(r, BinaryStreamUtils.readUnsignedInt8(i)),
                     (v, f, c, o) -> BinaryStreamUtils.writeUnsignedInt8(o, v.asInteger()), ClickHouseDataType.UInt8);
             buildMappings(deserializers, serializers,
                     (r, f, c, i) -> ClickHouseShortValue.of(r, BinaryStreamUtils.readInt16(i)),
-                    (v, f, c, o) -> BinaryStreamUtils.writeInt16(o, v.asShort()), ClickHouseDataType.Enum16,
-                    ClickHouseDataType.Int16);
+                    (v, f, c, o) -> BinaryStreamUtils.writeInt16(o, v.asShort()), ClickHouseDataType.Int16);
             buildMappings(deserializers, serializers,
                     (r, f, c, i) -> ClickHouseIntegerValue.of(r, BinaryStreamUtils.readUnsignedInt16(i)),
                     (v, f, c, o) -> BinaryStreamUtils.writeUnsignedInt16(o, v.asInteger()), ClickHouseDataType.UInt16);

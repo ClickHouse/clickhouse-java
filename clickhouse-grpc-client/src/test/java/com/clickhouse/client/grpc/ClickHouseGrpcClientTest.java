@@ -51,9 +51,9 @@ public class ClickHouseGrpcClientTest extends BaseIntegrationTest {
     @DataProvider(name = "simpleTypeProvider")
     public Object[][] getSimpleTypes() {
         return new Object[][] {
-                { ClickHouseDataType.Enum.name() + "('v-1' = -1, 'v0' = 0, 'v+1' = 1)", "0", "-1", "1" },
-                { ClickHouseDataType.Enum8.name() + "('v-1' = -1, 'v0' = 0, 'v+1' = 1)", "0", "-1", "1" },
-                { ClickHouseDataType.Enum16.name() + "('v-1' = -1, 'v0' = 0, 'v+1' = 1)", "0", "-1", "1" },
+                { ClickHouseDataType.Enum.name() + "('v-1' = -1, 'v0' = 0, 'v+1' = 1)", "v0", "v-1", "v+1" },
+                { ClickHouseDataType.Enum8.name() + "('v-1' = -1, 'v0' = 0, 'v+1' = 1)", "v0", "v-1", "v+1" },
+                { ClickHouseDataType.Enum16.name() + "('v-1' = -1, 'v0' = 0, 'v+1' = 1)", "v0", "v-1", "v+1" },
                 { ClickHouseDataType.Int8.name(), "0", "-1", "1" },
                 { ClickHouseDataType.UInt8.name(), "0", "255", "1" },
                 { ClickHouseDataType.Int16.name(), "0", "-1", "1" },

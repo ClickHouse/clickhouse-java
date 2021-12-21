@@ -167,7 +167,8 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
             try (ClickHouseResponse response = clientRequest.copy().option(ClickHouseClientOption.ASYNC, false)
                     .option(ClickHouseClientOption.COMPRESS, false).option(ClickHouseClientOption.DECOMPRESS, false)
                     .option(ClickHouseClientOption.FORMAT, ClickHouseFormat.RowBinaryWithNamesAndTypes)
-                    .query("select currentDatabase(), currentUser(), timezone(), version()").execute().get()) {
+                    .query("select currentDatabase(), currentUser(), timezone(), version() FORMAT RowBinaryWithNamesAndTypes")
+                    .execute().get()) {
                 ClickHouseRecord r = response.firstRecord();
                 currentDb = r.getValue(0).asString();
                 currentUser = r.getValue(1).asString();
@@ -215,7 +216,7 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
             defaultCalendar = new GregorianCalendar(clientTimeZone.get());
         }
         this.serverVersion = version;
-        this.typeMap = new HashMap<>();
+        this.typeMap = new HashMap<>(jdbcConf.getTypeMap());
         this.fakeTransaction = new AtomicReference<>();
     }
 

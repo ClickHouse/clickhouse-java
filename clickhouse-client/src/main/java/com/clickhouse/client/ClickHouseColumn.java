@@ -36,69 +36,76 @@ public final class ClickHouseColumn implements Serializable {
     private int scale;
     private List<ClickHouseColumn> nested;
     private List<String> parameters;
+    private ClickHouseEnum enumConstants;
 
     private int arrayLevel;
     private ClickHouseColumn arrayBaseColumn;
 
     private static ClickHouseColumn update(ClickHouseColumn column) {
+        column.enumConstants = ClickHouseEnum.EMPTY;
         int size = column.parameters.size();
         switch (column.dataType) {
-        case Array:
-            column.arrayLevel = 1;
-            column.arrayBaseColumn = column.nested.get(0);
-            while (column.arrayLevel < 255) {
-                if (column.arrayBaseColumn.dataType == ClickHouseDataType.Array) {
-                    column.arrayLevel++;
-                    column.arrayBaseColumn = column.arrayBaseColumn.nested.get(0);
-                } else {
-                    break;
+            case Array:
+                column.arrayLevel = 1;
+                column.arrayBaseColumn = column.nested.get(0);
+                while (column.arrayLevel < 255) {
+                    if (column.arrayBaseColumn.dataType == ClickHouseDataType.Array) {
+                        column.arrayLevel++;
+                        column.arrayBaseColumn = column.arrayBaseColumn.nested.get(0);
+                    } else {
+                        break;
+                    }
                 }
-            }
-            break;
-        case DateTime:
-            if (size >= 2) { // same as DateTime64
+                break;
+            case Enum:
+            case Enum8:
+            case Enum16:
+                column.enumConstants = new ClickHouseEnum(column.parameters);
+                break;
+            case DateTime:
+                if (size >= 2) { // same as DateTime64
+                    column.scale = Integer.parseInt(column.parameters.get(0));
+                    column.timeZone = TimeZone.getTimeZone(column.parameters.get(1).replace("'", ""));
+                } else if (size == 1) { // same as DateTime32
+                    // unfortunately this will fall back to GMT if the time zone
+                    // cannot be resolved
+                    TimeZone tz = TimeZone.getTimeZone(column.parameters.get(0).replace("'", ""));
+                    column.timeZone = tz;
+                }
+                break;
+            case DateTime32:
+                if (size > 0) {
+                    // unfortunately this will fall back to GMT if the time zone
+                    // cannot be resolved
+                    TimeZone tz = TimeZone.getTimeZone(column.parameters.get(0).replace("'", ""));
+                    column.timeZone = tz;
+                }
+                break;
+            case DateTime64:
+                if (size > 0) {
+                    column.scale = Integer.parseInt(column.parameters.get(0));
+                }
+                if (size > 1) {
+                    column.timeZone = TimeZone.getTimeZone(column.parameters.get(1).replace("'", ""));
+                }
+                break;
+            case Decimal:
+                if (size >= 2) {
+                    column.precision = Integer.parseInt(column.parameters.get(0));
+                    column.scale = Integer.parseInt(column.parameters.get(1));
+                }
+                break;
+            case Decimal32:
+            case Decimal64:
+            case Decimal128:
+            case Decimal256:
                 column.scale = Integer.parseInt(column.parameters.get(0));
-                column.timeZone = TimeZone.getTimeZone(column.parameters.get(1).replace("'", ""));
-            } else if (size == 1) { // same as DateTime32
-                // unfortunately this will fall back to GMT if the time zone
-                // cannot be resolved
-                TimeZone tz = TimeZone.getTimeZone(column.parameters.get(0).replace("'", ""));
-                column.timeZone = tz;
-            }
-            break;
-        case DateTime32:
-            if (size > 0) {
-                // unfortunately this will fall back to GMT if the time zone
-                // cannot be resolved
-                TimeZone tz = TimeZone.getTimeZone(column.parameters.get(0).replace("'", ""));
-                column.timeZone = tz;
-            }
-            break;
-        case DateTime64:
-            if (size > 0) {
-                column.scale = Integer.parseInt(column.parameters.get(0));
-            }
-            if (size > 1) {
-                column.timeZone = TimeZone.getTimeZone(column.parameters.get(1).replace("'", ""));
-            }
-            break;
-        case Decimal:
-            if (size >= 2) {
+                break;
+            case FixedString:
                 column.precision = Integer.parseInt(column.parameters.get(0));
-                column.scale = Integer.parseInt(column.parameters.get(1));
-            }
-            break;
-        case Decimal32:
-        case Decimal64:
-        case Decimal128:
-        case Decimal256:
-            column.scale = Integer.parseInt(column.parameters.get(0));
-            break;
-        case FixedString:
-            column.precision = Integer.parseInt(column.parameters.get(0));
-            break;
-        default:
-            break;
+                break;
+            default:
+                break;
         }
 
         return column;
@@ -395,6 +402,11 @@ public final class ClickHouseColumn implements Serializable {
         return dataType == ClickHouseDataType.Array;
     }
 
+    public boolean isEnum() {
+        return dataType == ClickHouseDataType.Enum || dataType == ClickHouseDataType.Enum8
+                || dataType == ClickHouseDataType.Enum16;
+    }
+
     public boolean isMap() {
         return dataType == ClickHouseDataType.Map;
     }
@@ -417,6 +429,10 @@ public final class ClickHouseColumn implements Serializable {
 
     public ClickHouseDataType getDataType() {
         return dataType;
+    }
+
+    public ClickHouseEnum getEnumConstants() {
+        return enumConstants;
     }
 
     public String getOriginalTypeName() {

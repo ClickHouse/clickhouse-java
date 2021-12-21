@@ -74,16 +74,16 @@ public class ClickHouseResultSet extends AbstractResultSet {
         this.tsTimeZone = null; // TimeZone.getDefault();
         this.dateTimeZone = this.tsTimeZone;
 
+        this.defaultTypeMap = Collections.emptyMap();
         this.currentRow = null;
         try {
             this.columns = response.getColumns();
-            this.metaData = new ClickHouseResultSetMetaData(database, table, columns);
+            this.metaData = new ClickHouseResultSetMetaData(database, table, columns, defaultTypeMap);
 
             this.rowCursor = response.records().iterator();
         } catch (Exception e) {
             throw new IllegalStateException(e);
         }
-        this.defaultTypeMap = Collections.emptyMap();
 
         this.rowNumber = 0; // before the first row
         this.lastReadColumn = 0;
@@ -110,18 +110,18 @@ public class ClickHouseResultSet extends AbstractResultSet {
         this.tsTimeZone = conn.getEffectiveTimeZone().orElse(null);
         this.dateTimeZone = this.tsTimeZone;
 
+        Map<String, Class<?>> typeMap = conn.getTypeMap();
+        this.defaultTypeMap = typeMap != null && !typeMap.isEmpty() ? Collections.unmodifiableMap(typeMap)
+                : Collections.emptyMap();
         this.currentRow = null;
         try {
             this.columns = response.getColumns();
-            this.metaData = new ClickHouseResultSetMetaData(database, table, columns);
+            this.metaData = new ClickHouseResultSetMetaData(database, table, columns, defaultTypeMap);
 
             this.rowCursor = response.records().iterator();
         } catch (Exception e) {
             throw SqlExceptionUtils.handle(e);
         }
-        Map<String, Class<?>> typeMap = conn.getTypeMap();
-        this.defaultTypeMap = typeMap != null && !typeMap.isEmpty() ? Collections.unmodifiableMap(typeMap)
-                : Collections.emptyMap();
 
         this.rowNumber = 0; // before the first row
         this.lastReadColumn = 0;

@@ -454,11 +454,60 @@ public interface ClickHouseValue extends Serializable {
      * Gets value as a typed object.
      *
      * @param <T>   type of the object
+     * @param <E>   type of the enum
      * @param clazz class of the object
      * @return a typed object representing the value, could be null
      */
-    default <T> T asObject(Class<T> clazz) {
-        return isNullOrEmpty() ? null : ClickHouseChecker.nonNull(clazz, ClickHouseValues.TYPE_CLASS).cast(asObject());
+    default <T, E extends Enum<E>> T asObject(Class<T> clazz) {
+        if (clazz == null) {
+            return null;
+        } else if (clazz == boolean.class || clazz == Boolean.class) {
+            return clazz.cast(asBoolean());
+        } else if (clazz == byte.class || clazz == Byte.class) {
+            return clazz.cast(asByte());
+        } else if (clazz == char.class || clazz == Character.class) {
+            return clazz.cast(asCharacter());
+        } else if (clazz == short.class || clazz == Short.class) {
+            return clazz.cast(asShort());
+        } else if (clazz == int.class || clazz == Integer.class) {
+            return clazz.cast(asInteger());
+        } else if (clazz == long.class || clazz == Long.class) {
+            return clazz.cast(asLong());
+        } else if (clazz == float.class || clazz == Float.class) {
+            return clazz.cast(asFloat());
+        } else if (clazz == double.class || clazz == Double.class) {
+            return clazz.cast(asDouble());
+        } else if (clazz == String.class) {
+            return clazz.cast(asString());
+        } else if (clazz == LocalDate.class) {
+            return clazz.cast(asDate());
+        } else if (clazz == LocalDateTime.class) {
+            return clazz.cast(asDateTime());
+        } else if (clazz == OffsetDateTime.class) {
+            return clazz.cast(asOffsetDateTime());
+        } else if (clazz == ZonedDateTime.class) {
+            return clazz.cast(asZonedDateTime());
+        } else if (clazz == LocalTime.class) {
+            return clazz.cast(asTime());
+        } else if (clazz == BigInteger.class) {
+            return clazz.cast(asBigInteger());
+        } else if (clazz == BigDecimal.class) {
+            return clazz.cast(asBigDecimal());
+        } else if (clazz == Inet4Address.class) {
+            return clazz.cast(asInet4Address());
+        } else if (clazz == Inet6Address.class) {
+            return clazz.cast(asInet6Address());
+        } else if (clazz == UUID.class) {
+            return clazz.cast(asUuid());
+        } else if (Array.class.isAssignableFrom(clazz)) {
+            return clazz.cast(asArray());
+        } else if (List.class.isAssignableFrom(clazz)) {
+            return clazz.cast(asTuple());
+        } else if (Enum.class.isAssignableFrom(clazz)) {
+            return clazz.cast(asEnum((Class<E>) clazz));
+        } else {
+            return clazz.cast(asObject());
+        }
     }
 
     /**

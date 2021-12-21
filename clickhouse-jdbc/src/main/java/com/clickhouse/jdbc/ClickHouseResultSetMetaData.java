@@ -3,28 +3,33 @@ package com.clickhouse.jdbc;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.util.List;
+import java.util.Map;
 
 import com.clickhouse.client.ClickHouseColumn;
 import com.clickhouse.client.ClickHouseUtils;
 
 public class ClickHouseResultSetMetaData extends JdbcWrapper implements ResultSetMetaData {
-    public static ResultSetMetaData of(String database, String table, List<ClickHouseColumn> columns)
+    public static ResultSetMetaData of(String database, String table, List<ClickHouseColumn> columns,
+            Map<String, Class<?>> typeMap)
             throws SQLException {
         if (database == null || table == null || columns == null) {
             throw SqlExceptionUtils.clientError("Non-null database, table, and column list are required");
         }
 
-        return new ClickHouseResultSetMetaData(database, table, columns);
+        return new ClickHouseResultSetMetaData(database, table, columns, typeMap);
     }
 
     private final String database;
     private final String table;
     private final List<ClickHouseColumn> columns;
+    private final Map<String, Class<?>> typeMap;
 
-    protected ClickHouseResultSetMetaData(String database, String table, List<ClickHouseColumn> columns) {
+    protected ClickHouseResultSetMetaData(String database, String table, List<ClickHouseColumn> columns,
+            Map<String, Class<?>> typeMap) {
         this.database = database;
         this.table = table;
         this.columns = columns;
+        this.typeMap = typeMap;
     }
 
     protected List<ClickHouseColumn> getColumns() {
@@ -116,7 +121,7 @@ public class ClickHouseResultSetMetaData extends JdbcWrapper implements ResultSe
 
     @Override
     public int getColumnType(int column) throws SQLException {
-        return JdbcTypeMapping.toJdbcType(getColumn(column));
+        return JdbcTypeMapping.toJdbcType(typeMap, getColumn(column));
     }
 
     @Override
