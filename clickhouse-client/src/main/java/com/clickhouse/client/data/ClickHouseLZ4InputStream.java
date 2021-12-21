@@ -3,13 +3,12 @@ package com.clickhouse.client.data;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.Buffer;
-import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 
 import com.clickhouse.client.ClickHouseChecker;
 import com.clickhouse.client.ClickHouseInputStream;
+import com.clickhouse.client.ClickHouseUtils;
 
 import net.jpountz.lz4.LZ4Factory;
 import net.jpountz.lz4.LZ4FastDecompressor;
@@ -20,95 +19,84 @@ import net.jpountz.lz4.LZ4FastDecompressor;
 public class ClickHouseLZ4InputStream extends ClickHouseInputStream {
     private static final LZ4Factory factory = LZ4Factory.fastestInstance();
 
-    static final int MAGIC = 0x82;
+    static final byte MAGIC = (byte) 0x82;
+    static final int HEADER_LENGTH = 25;
 
+    private final LZ4FastDecompressor decompressor;
     private final InputStream stream;
+    private final byte[] header;
 
-    private ByteBuffer currentBlock;
+    private byte[] currentBlock;
+    private int position;
     private boolean closed;
 
     private boolean checkNext() throws IOException {
-        if (currentBlock == null || !currentBlock.hasRemaining()) {
+        if (!closed && position >= currentBlock.length) {
             currentBlock = readNextBlock();
         }
-        return currentBlock != null;
+        return currentBlock.length > 0;
     }
 
     // every block is:
-    private ByteBuffer readNextBlock() throws IOException {
-        int read = stream.read();
-        if (read < 0) {
-            return null;
+    private byte[] readNextBlock() throws IOException {
+        position = 0;
+
+        // checksum(16 bytes) + 1 magic byte + header(8 bytes)
+        if (!readFully(header, 0, HEADER_LENGTH)) {
+            return EMPTY_BYTES;
+        } else if (header[16] != MAGIC) {
+            // 1 byte - 0x82 (shows this is LZ4)
+            throw new IOException(
+                    ClickHouseUtils.format("Magic is not correct - expect [%d] but got [%d]", MAGIC, header[16]));
         }
 
-        byte[] bytes = new byte[16];
-        bytes[0] = (byte) read;
-        // checksum - 16 bytes.
-        readFully(bytes, 1, 15);
-        ClickHouseBlockChecksum expected = ClickHouseBlockChecksum.fromBytes(bytes);
-        // header:
-        // 1 byte - 0x82 (shows this is LZ4)
-        int magic = readUnsignedByteFromInput();
-        if (magic != MAGIC) {
-            throw new IOException("Magic is not correct: " + magic);
-        }
-
-        readFully(bytes, 0, 8);
         // 4 bytes - size of the compressed data including 9 bytes of the header
-        int compressedSizeWithHeader = BinaryStreamUtils.toInt32(bytes, 0);
+        int compressedSizeWithHeader = BinaryStreamUtils.toInt32(header, 17);
         // 4 bytes - size of uncompressed data
-        int uncompressedSize = BinaryStreamUtils.toInt32(bytes, 4);
-        int compressedSize = compressedSizeWithHeader - 9; // header
-        byte[] block = new byte[compressedSize];
-        // compressed data: compressed_size - 9 байт.
-        readFully(block, 0, block.length);
+        int uncompressedSize = BinaryStreamUtils.toInt32(header, 21);
+        int offset = 9;
+        byte[] block = new byte[compressedSizeWithHeader];
+        block[0] = header[16];
+        BinaryStreamUtils.setInt32(block, 1, compressedSizeWithHeader);
+        BinaryStreamUtils.setInt32(block, 5, uncompressedSize);
+        // compressed data: compressed_size - 9 bytes
+        if (!readFully(block, offset, compressedSizeWithHeader - offset)) {
+            throw new EOFException();
+        }
 
-        ClickHouseBlockChecksum real = ClickHouseBlockChecksum.calculateForBlock((byte) magic, compressedSizeWithHeader,
-                uncompressedSize, block, compressedSize);
-        if (!real.equals(expected)) {
+        long[] real = ClickHouseCityHash.cityHash128(block, 0, block.length);
+        if (real[0] != BinaryStreamUtils.toInt64(header, 0) || real[1] != BinaryStreamUtils.toInt64(header, 8)) {
             throw new IllegalArgumentException("Checksum doesn't match: corrupted data.");
         }
 
         byte[] decompressed = new byte[uncompressedSize];
-        LZ4FastDecompressor decompressor = factory.fastDecompressor();
-        decompressor.decompress(block, 0, decompressed, 0, uncompressedSize);
-        return ByteBuffer.wrap(decompressed);
+        decompressor.decompress(block, offset, decompressed, 0, uncompressedSize);
+        return decompressed;
     }
 
-    private void readFully(byte b[], int off, int len) throws IOException {
-        if (len < 0) {
-            throw new IndexOutOfBoundsException();
-        }
+    private boolean readFully(byte[] b, int off, int len) throws IOException {
         int n = 0;
         while (n < len) {
             int count = stream.read(b, off + n, len - n);
             if (count < 0) {
-                try {
-                    close();
-                } catch (IOException e) {
-                    // ignore
+                if (n == 0) {
+                    return false;
                 }
                 throw new EOFException();
             }
             n += count;
         }
-    }
 
-    private int readUnsignedByteFromInput() throws IOException {
-        int ch = stream.read();
-        if (ch < 0) {
-            try {
-                close();
-            } catch (IOException e) {
-                // ignore
-            }
-            throw new EOFException();
-        }
-        return ch;
+        return true;
     }
 
     public ClickHouseLZ4InputStream(InputStream stream) {
+        this.decompressor = factory.fastDecompressor();
         this.stream = ClickHouseChecker.nonNull(stream, "InputStream");
+        this.header = new byte[HEADER_LENGTH];
+
+        this.currentBlock = EMPTY_BYTES;
+        this.position = 0;
         this.closed = false;
     }
 
@@ -123,7 +111,7 @@ public class ClickHouseLZ4InputStream extends ClickHouseInputStream {
             throw new EOFException();
         }
 
-        return currentBlock.get();
+        return currentBlock[position++];
     }
 
     @Override
@@ -132,16 +120,16 @@ public class ClickHouseLZ4InputStream extends ClickHouseInputStream {
             return 0;
         }
 
-        int estimated = stream.available();
+        int estimated = currentBlock.length - position;
         if (estimated == 0 && checkNext()) {
-            estimated = currentBlock.remaining();
+            estimated = currentBlock.length - position;
         }
         return estimated;
     }
 
     @Override
     public int read() throws IOException {
-        return checkNext() ? 0xFF & currentBlock.get() : -1;
+        return checkNext() ? 0xFF & currentBlock[position++] : -1;
     }
 
     @Override
@@ -160,15 +148,15 @@ public class ClickHouseLZ4InputStream extends ClickHouseInputStream {
 
         int copied = 0;
         while (copied != len) {
-            int toCopy = Math.min(currentBlock.remaining(), len - copied);
-            currentBlock.get(b, off, toCopy);
+            int toCopy = Math.min(currentBlock.length - position, len - copied);
+            System.arraycopy(currentBlock, position, b, off, toCopy);
+            position += toCopy;
             off += toCopy;
             copied += toCopy;
 
             if (!checkNext()) {
                 break;
             }
-
         }
 
         return copied;
@@ -205,10 +193,10 @@ public class ClickHouseLZ4InputStream extends ClickHouseInputStream {
             charset = StandardCharsets.UTF_8;
         }
 
-        if (byteLength > 8 && currentBlock.remaining() > byteLength) {
-            int pos = currentBlock.position();
-            ((Buffer) currentBlock).position(pos + byteLength);
-            return charset.decode(ByteBuffer.wrap(currentBlock.array(), pos, byteLength)).toString();
+        if (currentBlock.length - position > byteLength) {
+            int offset = position;
+            position += byteLength;
+            return new String(currentBlock, offset, byteLength, charset);
         }
 
         return new String(readBytes(byteLength), charset);

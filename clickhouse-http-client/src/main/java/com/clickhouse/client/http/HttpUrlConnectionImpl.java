@@ -63,9 +63,8 @@ public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
                     : timeZone;
         }
 
-        return new ClickHouseHttpResponse(this,
-                getResponseInputStream(new BufferedInputStream(conn.getInputStream(), config.getMaxBufferSize())),
-                displayName, queryId, summary, format, timeZone);
+        return new ClickHouseHttpResponse(this, getResponseInputStream(conn.getInputStream()), displayName, queryId,
+                summary, format, timeZone);
     }
 
     private HttpURLConnection newConnection(String url, boolean post) throws IOException {

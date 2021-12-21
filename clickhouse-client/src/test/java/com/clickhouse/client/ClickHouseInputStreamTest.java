@@ -89,7 +89,8 @@ public class ClickHouseInputStreamTest {
 
     @Test(groups = { "unit" })
     public void testNullOrEmptyBlockingInput() throws IOException {
-        Assert.assertThrows(IllegalArgumentException.class, () -> ClickHouseInputStream.of(null, 0));
+        Assert.assertThrows(IllegalArgumentException.class,
+                () -> ClickHouseInputStream.of((BlockingQueue<ByteBuffer>) null, 0));
         Assert.assertThrows(IllegalArgumentException.class,
                 () -> ClickHouseInputStream.of(new ArrayBlockingQueue<>(0), -1));
 
@@ -179,5 +180,32 @@ public class ClickHouseInputStreamTest {
         in.close();
         Assert.assertTrue(in.available() == 0, "Should have all bytes read");
         Assert.assertTrue(in.isClosed(), "Should have been closed");
+    }
+
+    @Test(groups = { "unit" })
+    public void testSkipInput() throws IOException {
+        Assert.assertEquals(ClickHouseInputStream.of(generateInputStream(new byte[0])).skip(0L), 0L);
+        Assert.assertEquals(ClickHouseInputStream.of(generateInputStream(new byte[0])).skip(1L), 0L);
+        Assert.assertEquals(ClickHouseInputStream.of(generateInputStream(new byte[0])).skip(Long.MAX_VALUE), 0L);
+
+        Assert.assertEquals(ClickHouseInputStream.of(generateInputStream(new byte[1])).skip(0L), 0L);
+        Assert.assertEquals(ClickHouseInputStream.of(generateInputStream(new byte[1])).skip(1L), 1L);
+        Assert.assertEquals(ClickHouseInputStream.of(generateInputStream(new byte[1])).skip(Long.MAX_VALUE), 1L);
+
+        Assert.assertEquals(ClickHouseInputStream.of(generateInputStream(new byte[2])).skip(0L), 0L);
+        Assert.assertEquals(ClickHouseInputStream.of(generateInputStream(new byte[2])).skip(1L), 1L);
+        Assert.assertEquals(ClickHouseInputStream.of(generateInputStream(new byte[2])).skip(Long.MAX_VALUE), 2L);
+
+        Assert.assertEquals(ClickHouseInputStream.of(generateInputStream(new byte[3]), 2).skip(0L), 0L);
+        Assert.assertEquals(ClickHouseInputStream.of(generateInputStream(new byte[3]), 2).skip(1L), 1L);
+        Assert.assertEquals(ClickHouseInputStream.of(generateInputStream(new byte[3]), 2).skip(2L), 2L);
+        Assert.assertEquals(ClickHouseInputStream.of(generateInputStream(new byte[3]), 2).skip(Long.MAX_VALUE), 3L);
+
+        ClickHouseInputStream in = ClickHouseInputStream.of(new ByteArrayInputStream(new byte[] { 1, 2, 3, 4, 5 }), 2);
+        Assert.assertEquals(in.read(), 1);
+        Assert.assertEquals(in.skip(1L), 1L);
+        Assert.assertEquals(in.read(), 3);
+        Assert.assertEquals(in.skip(2L), 2L);
+        Assert.assertEquals(in.read(), -1);
     }
 }

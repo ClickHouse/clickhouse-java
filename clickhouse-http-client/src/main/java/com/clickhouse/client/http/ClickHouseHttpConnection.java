@@ -248,7 +248,7 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
             }
         }
 
-        return ClickHouseInputStream.of(in);
+        return ClickHouseInputStream.of(in, config.getMaxBufferSize());
     }
 
     /**

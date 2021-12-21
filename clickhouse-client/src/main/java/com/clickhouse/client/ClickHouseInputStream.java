@@ -10,6 +10,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
 
+import com.clickhouse.client.config.ClickHouseClientOption;
+
 /**
  * Extended input stream for read optimization.
  */
@@ -184,11 +186,17 @@ public abstract class ClickHouseInputStream extends InputStream {
 
     static final class WrappedInputStream extends ClickHouseInputStream {
         private final InputStream in;
+        private final byte[] buffer;
 
+        private int position;
+        private int limit;
         private boolean closed;
 
-        WrappedInputStream(InputStream input) {
+        WrappedInputStream(InputStream input, int bufferSize) {
             in = ClickHouseChecker.nonNull(input, "InputStream");
+            buffer = new byte[bufferSize];
+            position = 0;
+            limit = 0;
             closed = false;
         }
 
@@ -198,26 +206,34 @@ public abstract class ClickHouseInputStream extends InputStream {
             }
         }
 
+        private int updateBuffer() throws IOException {
+            if (closed) {
+                return -1;
+            }
+
+            position = 0;
+            int count = in.read(buffer);
+            limit = count > 0 ? count : 0;
+            return count;
+        }
+
         @Override
         public int available() throws IOException {
-            return !closed ? in.available() : 0;
+            return !closed && (position < limit || updateBuffer() > 0) ? limit - position : 0;
         }
 
         @Override
         public byte readByte() throws IOException {
-            ensureOpen();
-
-            int v = in.read();
-            if (v != -1) {
-                return (byte) v;
+            if (position >= limit && updateBuffer() < 0) {
+                try {
+                    close();
+                } catch (IOException e) {
+                    // ignore
+                }
+                throw new EOFException();
             }
 
-            try {
-                close();
-            } catch (IOException e) {
-                // ignore
-            }
-            throw new EOFException();
+            return buffer[position++];
         }
 
         @Override
@@ -232,6 +248,8 @@ public abstract class ClickHouseInputStream extends InputStream {
                     in.close();
                 } finally {
                     closed = true;
+                    position = 0;
+                    limit = 0;
                 }
             }
         }
@@ -239,19 +257,116 @@ public abstract class ClickHouseInputStream extends InputStream {
         @Override
         public int read() throws IOException {
             ensureOpen();
-            return in.read();
+
+            int value = -1;
+            if (position < limit || updateBuffer() > 0) {
+                value = 0xFF & buffer[position++];
+            }
+            return value;
         }
 
         @Override
         public int read(byte[] b, int off, int len) throws IOException {
+            if (position >= limit && updateBuffer() < 0) {
+                return -1;
+            }
+
             ensureOpen();
-            return in.read(b, off, len);
+
+            int counter = 0;
+            while (counter < len) {
+                int size = Math.min(limit - position, len - counter);
+                System.arraycopy(buffer, position, b, off, size);
+                position += size;
+                off += size;
+                counter += size;
+
+                if (position >= limit && updateBuffer() < 0) {
+                    break;
+                }
+            }
+
+            return counter;
+        }
+
+        @Override
+        public byte[] readBytes(int length) throws IOException {
+            if (length <= 0) {
+                return EMPTY_BYTES;
+            }
+
+            ensureOpen();
+
+            byte[] bytes = new byte[length];
+            int offset = 0;
+            int counter = 0;
+            while (counter < length) {
+                if (position >= limit && updateBuffer() < 0) {
+                    try {
+                        close();
+                    } catch (IOException e) {
+                        // ignore
+                    }
+                    throw counter == 0 ? new EOFException()
+                            : new IOException(ClickHouseUtils
+                                    .format("Reached end of input stream after reading %d of %d bytes", counter,
+                                            bytes.length));
+                }
+
+                int size = Math.min(limit - position, length - counter);
+                System.arraycopy(buffer, position, bytes, offset, size);
+                position += size;
+                offset += size;
+                counter += size;
+            }
+
+            return bytes;
+        }
+
+        @Override
+        public String readString(int byteLength, Charset charset) throws IOException {
+            ensureOpen();
+
+            if (byteLength < 1) {
+                return "";
+            }
+
+            if (charset == null) {
+                charset = StandardCharsets.UTF_8;
+            }
+
+            if (limit - position > byteLength) {
+                int offset = position;
+                position += byteLength;
+                return new String(buffer, offset, byteLength, charset);
+            }
+
+            return new String(readBytes(byteLength), charset);
         }
 
         @Override
         public long skip(long n) throws IOException {
             ensureOpen();
-            return in.skip(n);
+
+            long counter = 0L;
+            while (n > 0L) {
+                if (position >= limit && updateBuffer() < 0) {
+                    break;
+                } else {
+                    int remain = limit - position;
+                    if (n > remain) {
+                        n -= remain;
+                        counter += remain;
+                        position = limit;
+                    } else {
+                        counter += n;
+                        position += n;
+                        n = 0L;
+                    }
+                }
+            }
+
+            return counter;
         }
     }
 
@@ -274,7 +389,21 @@ public abstract class ClickHouseInputStream extends InputStream {
      *         {@link ClickHouseInputStream}
      */
     public static ClickHouseInputStream of(InputStream input) {
-        return input instanceof ClickHouseInputStream ? (ClickHouseInputStream) input : new WrappedInputStream(input);
+        return of(input, (int) ClickHouseClientOption.MAX_BUFFER_SIZE.getDefaultValue());
+    }
+
+    /**
+     * Wraps the given input stream.
+     *
+     * @param input      non-null input stream
+     * @param bufferSize buffer size which is always greater than zero(usually 4096
+     *                   or larger)
+     * @return wrapped input, or the same input if it's instance of
+     *         {@link ClickHouseInputStream}
+     */
+    public static ClickHouseInputStream of(InputStream input, int bufferSize) {
+        return input instanceof ClickHouseInputStream ? (ClickHouseInputStream) input
+                : new WrappedInputStream(input, bufferSize);
     }
 
     /**
