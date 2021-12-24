@@ -146,6 +146,6 @@ public class ClickHouseResultSetMetaData extends JdbcWrapper implements ResultSe
 
     @Override
     public String getColumnClassName(int column) throws SQLException {
-        return JdbcTypeMapping.toJavaClass(getColumn(column)).getCanonicalName();
+        return JdbcTypeMapping.toJavaClass(typeMap, getColumn(column)).getCanonicalName();
     }
 }
