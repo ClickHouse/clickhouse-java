@@ -46,7 +46,10 @@ public class ClickHouseDriver implements Driver {
         } catch (SQLException e) {
             throw new RuntimeException(e);
         }
-        log.info("Driver registered");
+        log.warn("******************************************************************************************");
+        log.warn("* This driver is DEPRECATED. Please use [com.clickhouse.jdbc.ClickHouseDriver] instead.  *");
+        log.warn("* Also everything in package [ru.yandex.clickhouse] will be removed starting from 0.4.0. *");
+        log.warn("******************************************************************************************");
     }
 
     @Override

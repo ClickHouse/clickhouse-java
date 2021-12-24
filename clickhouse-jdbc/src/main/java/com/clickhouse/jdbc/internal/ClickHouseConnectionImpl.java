@@ -138,8 +138,6 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
     }
 
     public ClickHouseConnectionImpl(ConnectionInfo connInfo) throws SQLException {
-        Properties properties = connInfo.getProperties();
-
         jdbcConf = connInfo.getJdbcConfig();
 
         autoCommit = !jdbcConf.isJdbcCompliant() || jdbcConf.isAutoCommit();
@@ -175,6 +173,11 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
                 String tz = r.getValue(2).asString();
                 String ver = r.getValue(3).asString();
                 version = ClickHouseVersion.of(ver);
+                // https://github.com/ClickHouse/ClickHouse/commit/486d63864bcc6e15695cd3e9f9a3f83a84ec4009
+                if (version.check("(,20.7)")) {
+                    throw SqlExceptionUtils
+                            .unsupportedError("Sorry this driver only supports ClickHouse server 20.7 or above");
+                }
                 if (ClickHouseChecker.isNullOrBlank(tz)) {
                     tz = "UTC";
                 }
