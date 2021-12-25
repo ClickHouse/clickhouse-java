@@ -156,13 +156,43 @@ public class ClickHouseRowBinaryProcessor extends ClickHouseDataProcessor {
             return ref;
         }
 
+        private final Map<ClickHouseAggregateFunction, ClickHouseDeserializer<ClickHouseValue>> aggDeserializers;
+        private final Map<ClickHouseAggregateFunction, ClickHouseSerializer<ClickHouseValue>> aggSerializers;
+
         private final Map<ClickHouseDataType, ClickHouseDeserializer<? extends ClickHouseValue>> deserializers;
         private final Map<ClickHouseDataType, ClickHouseSerializer<? extends ClickHouseValue>> serializers;
 
-        private MappedFunctions() {
-            deserializers = new EnumMap<>(ClickHouseDataType.class);
-            serializers = new EnumMap<>(ClickHouseDataType.class);
+        private void buildMappingsForAggregateFunctions() {
+            // aggregate functions
+            // buildAggMappings(aggDeserializers, aggSerializers,
+            // (r, f, c, i) -> {
+            // BinaryStreamUtils.readInt8(i); // always 1?
+            // return deserialize(r, f, c.getNestedColumns().get(0), i);
+            // },
+            // (v, f, c, o) -> {
+            // // no that simple:
+            // // * select anyState(n) from (select '5' where 0) => FFFF
+            // // * select anyState(n) from (select '5') => 0200 0000 3500
+            // BinaryStreamUtils.writeInt8(o, (byte) 1);
+            // serialize(v, f, c.getNestedColumns().get(0), o);
+            // }, ClickHouseAggregateFunction.any);
+            buildAggMappings(aggDeserializers, aggSerializers,
+                    (r, f, c, i) -> ClickHouseBitmapValue
+                            .of(BinaryStreamUtils.readBitmap(i, c.getNestedColumns().get(0).getDataType())),
+                    (v, f, c, o) -> BinaryStreamUtils.writeBitmap(o, v.asObject(ClickHouseBitmap.class)),
+                    ClickHouseAggregateFunction.groupBitmap);
 
+            // now the data type
+            buildMappings(deserializers, serializers, (r, f, c, i) -> aggDeserializers
+                    .getOrDefault(c.getAggregateFunction(), ClickHouseDeserializer.NOT_SUPPORTED)
+                    .deserialize(r, f, c, i),
+                    (v, f, c, o) -> aggSerializers
+                            .getOrDefault(c.getAggregateFunction(), ClickHouseSerializer.NOT_SUPPORTED)
+                            .serialize(v, f, c, o),
+                    ClickHouseDataType.AggregateFunction);
+        }
+
+        private void buildMappingsForDataTypes() {
             // enums
             buildMappings(deserializers, serializers,
                     (r, f, c, i) -> ClickHouseEnumValue.of(r, c.getEnumConstants(), BinaryStreamUtils.readInt8(i)),
@@ -328,17 +358,6 @@ public class ClickHouseRowBinaryProcessor extends ClickHouseDataProcessor {
 
             // advanced types
             buildMappings(deserializers, serializers, (r, f, c, i) -> {
-                if (c.getAggregateFunction() == ClickHouseAggregateFunction.groupBitmap) {
-                    return ClickHouseBitmapValue
-                            .of(BinaryStreamUtils.readBitmap(i, c.getNestedColumns().get(0).getDataType()));
-                }
-                return null;
-            }, (v, f, c, o) -> {
-                if (c.getAggregateFunction() == ClickHouseAggregateFunction.groupBitmap) {
-                    BinaryStreamUtils.writeBitmap(o, v.asObject(ClickHouseBitmap.class));
-                }
-            }, ClickHouseDataType.AggregateFunction);
-            buildMappings(deserializers, serializers, (r, f, c, i) -> {
                 int length = BinaryStreamUtils.readVarInt(i);
                 if (r == null) {
                     r = ClickHouseValues.newValue(c);
@@ -416,6 +435,17 @@ public class ClickHouseRowBinaryProcessor extends ClickHouseDataProcessor {
                     }
                 }
             }, ClickHouseDataType.Tuple);
+        }
+
+        private MappedFunctions() {
+            aggDeserializers = new EnumMap<>(ClickHouseAggregateFunction.class);
+            aggSerializers = new EnumMap<>(ClickHouseAggregateFunction.class);
+
+            deserializers = new EnumMap<>(ClickHouseDataType.class);
+            serializers = new EnumMap<>(ClickHouseDataType.class);
+
+            buildMappingsForAggregateFunctions();
+            buildMappingsForDataTypes();
         }
 
         @SuppressWarnings("unchecked")

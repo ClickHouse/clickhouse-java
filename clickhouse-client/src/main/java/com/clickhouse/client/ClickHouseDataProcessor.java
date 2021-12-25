@@ -18,11 +18,27 @@ public abstract class ClickHouseDataProcessor {
 
     protected static final String ERROR_UNKNOWN_DATA_TYPE = "Unsupported data type: ";
 
-    protected static <T extends ClickHouseValue> void buildMappings(
-            Map<ClickHouseDataType, ClickHouseDeserializer<? extends ClickHouseValue>> deserializers,
-            Map<ClickHouseDataType, ClickHouseSerializer<? extends ClickHouseValue>> serializers,
-            ClickHouseDeserializer<T> d, ClickHouseSerializer<T> s, ClickHouseDataType... types) {
-        for (ClickHouseDataType t : types) {
+    // not a fan of Java generics :<
+    protected static void buildAggMappings(
+            Map<ClickHouseAggregateFunction, ClickHouseDeserializer<ClickHouseValue>> deserializers,
+            Map<ClickHouseAggregateFunction, ClickHouseSerializer<ClickHouseValue>> serializers,
+            ClickHouseDeserializer<ClickHouseValue> d, ClickHouseSerializer<ClickHouseValue> s,
+            ClickHouseAggregateFunction... types) {
+        for (ClickHouseAggregateFunction t : types) {
+            if (deserializers.put(t, d) != null) {
+                throw new IllegalArgumentException("Duplicated deserializer of AggregateFunction - " + t.name());
+            }
+            if (serializers.put(t, s) != null) {
+                throw new IllegalArgumentException("Duplicated serializer of AggregateFunction - " + t.name());
+            }
+        }
+    }
+
+    protected static <E extends Enum<E>, T extends ClickHouseValue> void buildMappings(
+            Map<E, ClickHouseDeserializer<? extends ClickHouseValue>> deserializers,
+            Map<E, ClickHouseSerializer<? extends ClickHouseValue>> serializers,
+            ClickHouseDeserializer<T> d, ClickHouseSerializer<T> s, E... types) {
+        for (E t : types) {
             if (deserializers.put(t, d) != null) {
                 throw new IllegalArgumentException("Duplicated deserializer of: " + t.name());
             }

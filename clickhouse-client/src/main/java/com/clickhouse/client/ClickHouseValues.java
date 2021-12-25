@@ -998,9 +998,17 @@ public final class ClickHouseValues {
                 value = ClickHouseGeoMultiPolygonValue.ofEmpty();
                 break;
             case AggregateFunction:
+                value = ClickHouseEmptyValue.INSTANCE;
                 if (column != null) {
-                    if (column.getAggregateFunction() == ClickHouseAggregateFunction.groupBitmap) {
-                        value = ClickHouseBitmapValue.ofEmpty(column.getNestedColumns().get(0).getDataType());
+                    switch (column.getAggregateFunction()) {
+                        case any:
+                            value = newValue(column.getNestedColumns().get(0));
+                            break;
+                        case groupBitmap:
+                            value = ClickHouseBitmapValue.ofEmpty(column.getNestedColumns().get(0).getDataType());
+                            break;
+                        default:
+                            break;
                     }
                 }
                 break;

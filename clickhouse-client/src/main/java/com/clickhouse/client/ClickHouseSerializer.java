@@ -9,6 +9,20 @@ import java.io.OutputStream;
 @FunctionalInterface
 public interface ClickHouseSerializer<T extends ClickHouseValue> {
     /**
+     * Default serializer simply does nothing.
+     */
+    ClickHouseSerializer<ClickHouseValue> DO_NOTHING = (v, f, c, o) -> {
+    };
+
+    /**
+     * Default deserializer throws IOException to inform caller serialization is
+     * not supported.
+     */
+    ClickHouseSerializer<ClickHouseValue> NOT_SUPPORTED = (v, f, c, o) -> {
+        throw new IOException(c.getOriginalTypeName() + " is not supported");
+    };
+
+    /**
      * Writes serialized value to output stream.
      *
      * @param value  non-null value to be serialized
