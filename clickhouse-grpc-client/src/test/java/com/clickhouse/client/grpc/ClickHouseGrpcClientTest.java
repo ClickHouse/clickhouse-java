@@ -33,6 +33,7 @@ import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.ClickHouseResponseSummary;
 import com.clickhouse.client.ClickHouseUtils;
 import com.clickhouse.client.ClickHouseValue;
+import com.clickhouse.client.ClickHouseValues;
 import com.clickhouse.client.ClickHouseVersion;
 import com.clickhouse.client.ClickHouseWriter;
 import com.clickhouse.client.config.ClickHouseClientOption;
@@ -259,8 +260,10 @@ public class ClickHouseGrpcClientTest extends BaseIntegrationTest {
                 "create table test_datetime_types(no UInt8, d0 DateTime32, d1 DateTime64(5), d2 DateTime(3)) engine=Memory")
                 .get();
         ClickHouseClient.send(server, "insert into test_datetime_types values(:no, :d0, :d1, :d2)",
-                new ClickHouseValue[] { ClickHouseIntegerValue.ofNull(), ClickHouseDateTimeValue.ofNull(0),
-                        ClickHouseDateTimeValue.ofNull(3), ClickHouseDateTimeValue.ofNull(9) },
+                new ClickHouseValue[] { ClickHouseIntegerValue.ofNull(),
+                        ClickHouseDateTimeValue.ofNull(0, ClickHouseValues.UTC_TIMEZONE),
+                        ClickHouseDateTimeValue.ofNull(3, ClickHouseValues.UTC_TIMEZONE),
+                        ClickHouseDateTimeValue.ofNull(9, ClickHouseValues.UTC_TIMEZONE) },
                 new Object[] { 0, "1970-01-01 00:00:00", "1970-01-01 00:00:00.123456",
                         "1970-01-01 00:00:00.123456789" },
                 new Object[] { 1, -1, -1, -1 }, new Object[] { 2, 1, 1, 1 }, new Object[] { 3, 2.1, 2.1, 2.1 }).get();

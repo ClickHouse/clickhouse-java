@@ -16,7 +16,9 @@ import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.TimeZone;
 
+import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseParameterizedQuery;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseResponse;
@@ -37,6 +39,7 @@ public class SqlBasedPreparedStatement extends ClickHouseStatementImpl implement
 
     private final Calendar defaultCalendar;
     private final ZoneId jvmZoneId;
+    private final TimeZone serverTimeZone;
 
     private final ClickHouseSqlStatement parsedStmt;
     private final ClickHouseParameterizedQuery preparedQuery;
@@ -51,13 +54,14 @@ public class SqlBasedPreparedStatement extends ClickHouseStatementImpl implement
 
         defaultCalendar = connection.getDefaultCalendar();
         jvmZoneId = connection.getJvmTimeZone().toZoneId();
+        serverTimeZone = connection.getServerTimeZone();
 
         this.parsedStmt = parsedStmt;
 
         preparedQuery = request.getPreparedQuery();
 
         templates = preparedQuery.getParameterTemplates();
-        
+
         values = new String[templates.length];
         batch = new LinkedList<>();
     }
@@ -368,7 +372,7 @@ public class SqlBasedPreparedStatement extends ClickHouseStatementImpl implement
 
         ClickHouseValue value = templates[idx];
         if (value == null) {
-            value = ClickHouseDateTimeValue.ofNull(dt.getNano() > 0 ? 9 : 0);
+            value = ClickHouseDateTimeValue.ofNull(dt.getNano() > 0 ? 9 : 0, serverTimeZone);
         }
         values[idx] = value.update(dt).toSqlExpression();
     }
@@ -400,7 +404,7 @@ public class SqlBasedPreparedStatement extends ClickHouseStatementImpl implement
         int idx = toArrayIndex(parameterIndex);
         ClickHouseValue value = templates[idx];
         if (value == null) {
-            value = ClickHouseValues.newValue(JdbcTypeMapping.fromJdbcType(targetSqlType, scaleOrLength));
+            value = ClickHouseValues.newValue(getConfig(), JdbcTypeMapping.fromJdbcType(targetSqlType, scaleOrLength));
             templates[idx] = value;
         }
 

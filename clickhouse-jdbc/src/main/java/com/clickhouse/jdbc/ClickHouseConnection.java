@@ -35,10 +35,11 @@ public interface ClickHouseConnection extends Connection {
 
     @Override
     default ClickHouseArray createArrayOf(String typeName, Object[] elements) throws SQLException {
+        ClickHouseConfig config = getConfig();
         ClickHouseColumn column = ClickHouseColumn.of("", typeName);
-        ClickHouseValue v = ClickHouseValues.newValue(column).update(elements);
+        ClickHouseValue v = ClickHouseValues.newValue(config, column).update(elements);
         ClickHouseResultSet rs = new ClickHouseResultSet("", "", createStatement(),
-                ClickHouseSimpleResponse.of(Collections.singletonList(column),
+                ClickHouseSimpleResponse.of(config, Collections.singletonList(column),
                         new Object[][] { new Object[] { v.asObject() } }));
         rs.next();
         return new ClickHouseArray(rs, 1);
@@ -132,6 +133,13 @@ public interface ClickHouseConnection extends Connection {
     }
 
     /**
+     * Gets configuration tied to this connection.
+     *
+     * @return non-null configuration
+     */
+    ClickHouseConfig getConfig();
+
+    /**
      * Gets current database. {@link #getSchema()} is similar but it will check if
      * connection is closed or not hence may throw {@link SQLException}.
      *
@@ -156,7 +164,8 @@ public interface ClickHouseConnection extends Connection {
     /**
      * Gets effective time zone. When
      * {@link com.clickhouse.client.ClickHouseConfig#isUseServerTimeZone()} returns
-     * {@code true}, {@link com.clickhouse.client.ClickHouseConfig#getUseTimeZone()}
+     * {@code false},
+     * {@link com.clickhouse.client.ClickHouseConfig#getUseTimeZone()}
      * will be used as effective time zone, which will be used for reading and
      * writing timestamp values.
      *

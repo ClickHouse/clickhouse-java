@@ -8,7 +8,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 
 import com.clickhouse.client.AbstractClient;
-import com.clickhouse.client.ClickHouseCluster;
+// import com.clickhouse.client.ClickHouseCluster;
 import com.clickhouse.client.ClickHouseException;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseProtocol;
@@ -127,7 +127,7 @@ public class ClickHouseHttpClient extends AbstractClient<ClickHouseHttpConnectio
     @Override
     public boolean ping(ClickHouseNode server, int timeout) {
         if (server != null) {
-            server = ClickHouseCluster.probe(server, timeout);
+            // server = ClickHouseCluster.probe(server, timeout);
             return getConnection(connect(server)).ping(timeout);
         }
 

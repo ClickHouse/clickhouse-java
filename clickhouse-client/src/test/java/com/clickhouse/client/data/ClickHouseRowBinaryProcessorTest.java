@@ -23,6 +23,17 @@ public class ClickHouseRowBinaryProcessorTest {
                 null, Collections.emptyList(), null);
     }
 
+    // @Test(groups = { "unit" })
+    // public void testDeserializeAggregateFunction() throws IOException {
+    // ClickHouseConfig config = new ClickHouseConfig();
+    // ClickHouseValue value =
+    // ClickHouseRowBinaryProcessor.getMappedFunctions().deserialize(null, config,
+    // ClickHouseColumn.of("a", "AggregateFunction(any, String)"),
+    // BinaryStreamUtilsTest.generateInput(0xFF, 0xFF));
+    // Assert.assertTrue(value instanceof ClickHouseStringValue);
+    // Assert.assertEquals(value.asObject(), null);
+    // }
+
     @Test(groups = { "unit" })
     public void testDeserializeArray() throws IOException {
         ClickHouseConfig config = new ClickHouseConfig();

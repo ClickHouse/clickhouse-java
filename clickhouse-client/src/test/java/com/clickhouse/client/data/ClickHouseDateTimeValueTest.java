@@ -15,34 +15,42 @@ import org.testng.Assert;
 import org.testng.annotations.Test;
 import com.clickhouse.client.BaseClickHouseValueTest;
 import com.clickhouse.client.ClickHouseDataType;
+import com.clickhouse.client.ClickHouseValues;
 
 public class ClickHouseDateTimeValueTest extends BaseClickHouseValueTest {
     @Test(groups = { "unit" })
     public void testUpdate() {
-        Assert.assertEquals(ClickHouseDateTimeValue.ofNull(0).update(-1L).getValue(),
+        Assert.assertEquals(ClickHouseDateTimeValue.ofNull(0, ClickHouseValues.UTC_TIMEZONE).update(-1L).getValue(),
                 LocalDateTime.ofEpochSecond(-1L, 0, ZoneOffset.UTC));
-        Assert.assertEquals(ClickHouseDateTimeValue.ofNull(0).update(-1.1F).getValue(),
+        Assert.assertEquals(ClickHouseDateTimeValue.ofNull(0, ClickHouseValues.UTC_TIMEZONE).update(-1.1F).getValue(),
                 LocalDateTime.ofEpochSecond(-1L, 0, ZoneOffset.UTC));
-        Assert.assertEquals(ClickHouseDateTimeValue.ofNull(3).update(-1L).getValue(),
+        Assert.assertEquals(ClickHouseDateTimeValue.ofNull(3, ClickHouseValues.UTC_TIMEZONE).update(-1L).getValue(),
                 LocalDateTime.ofEpochSecond(-1L, 999000000, ZoneOffset.UTC));
-        Assert.assertEquals(ClickHouseDateTimeValue.ofNull(3).update(-1.1F).getValue(),
+        Assert.assertEquals(ClickHouseDateTimeValue.ofNull(3, ClickHouseValues.UTC_TIMEZONE).update(-1.1F).getValue(),
                 LocalDateTime.ofEpochSecond(-2L, 900000000, ZoneOffset.UTC));
 
-        Assert.assertEquals(ClickHouseDateTimeValue.ofNull(9).update(new BigDecimal(BigInteger.ONE, 9)).getValue(),
+        Assert.assertEquals(
+                ClickHouseDateTimeValue.ofNull(9, ClickHouseValues.UTC_TIMEZONE)
+                        .update(new BigDecimal(BigInteger.ONE, 9)).getValue(),
                 LocalDateTime.ofEpochSecond(0L, 1, ZoneOffset.UTC));
         Assert.assertEquals(
-                ClickHouseDateTimeValue.ofNull(9).update(new BigDecimal(BigInteger.valueOf(-1L), 9)).getValue(),
+                ClickHouseDateTimeValue.ofNull(9, ClickHouseValues.UTC_TIMEZONE)
+                        .update(new BigDecimal(BigInteger.valueOf(-1L), 9)).getValue(),
                 LocalDateTime.ofEpochSecond(-1L, 999999999, ZoneOffset.UTC));
     }
 
     @Test(groups = { "unit" })
     public void testValueWithoutScale() throws Exception {
         // null value
-        checkNull(ClickHouseDateTimeValue.ofNull(0));
-        checkNull(ClickHouseDateTimeValue.of(LocalDateTime.now(), 0).resetToNullOrEmpty());
+        checkNull(ClickHouseDateTimeValue.ofNull(0, ClickHouseValues.UTC_TIMEZONE));
+        checkNull(
+                ClickHouseDateTimeValue.of(LocalDateTime.now(), 0, ClickHouseValues.UTC_TIMEZONE).resetToNullOrEmpty());
 
         // non-null
-        checkValue(ClickHouseDateTimeValue.of(LocalDateTime.ofEpochSecond(0L, 0, ZoneOffset.UTC), 0), false, // isInfinity
+        checkValue(
+                ClickHouseDateTimeValue.of(LocalDateTime.ofEpochSecond(0L, 0, ZoneOffset.UTC), 0,
+                        ClickHouseValues.UTC_TIMEZONE),
+                false, // isInfinity
                 false, // isNan
                 false, // isNull
                 false, // boolean
@@ -77,7 +85,10 @@ public class ClickHouseDateTimeValueTest extends BaseClickHouseValueTest {
                                                                                                      // Map
                 Arrays.asList(LocalDateTime.ofEpochSecond(0L, 0, ZoneOffset.UTC)) // Tuple
         );
-        checkValue(ClickHouseDateTimeValue.of(LocalDateTime.ofEpochSecond(1L, 0, ZoneOffset.UTC), 0), false, // isInfinity
+        checkValue(
+                ClickHouseDateTimeValue.of(LocalDateTime.ofEpochSecond(1L, 0, ZoneOffset.UTC), 0,
+                        ClickHouseValues.UTC_TIMEZONE),
+                false, // isInfinity
                 false, // isNan
                 false, // isNull
                 true, // boolean
@@ -112,7 +123,10 @@ public class ClickHouseDateTimeValueTest extends BaseClickHouseValueTest {
                                                                                                      // Map
                 Arrays.asList(LocalDateTime.ofEpochSecond(1L, 0, ZoneOffset.UTC)) // Tuple
         );
-        checkValue(ClickHouseDateTimeValue.of(LocalDateTime.ofEpochSecond(2L, 0, ZoneOffset.UTC), 0), false, // isInfinity
+        checkValue(
+                ClickHouseDateTimeValue.of(LocalDateTime.ofEpochSecond(2L, 0, ZoneOffset.UTC), 0,
+                        ClickHouseValues.UTC_TIMEZONE),
+                false, // isInfinity
                 false, // isNan
                 false, // isNull
                 IllegalArgumentException.class, // boolean
@@ -152,12 +166,13 @@ public class ClickHouseDateTimeValueTest extends BaseClickHouseValueTest {
     @Test(groups = { "unit" })
     public void testValueWithScale() throws Exception {
         // null value
-        checkNull(ClickHouseDateTimeValue.ofNull(3));
-        checkNull(ClickHouseDateTimeValue.of(LocalDateTime.now(), 9).resetToNullOrEmpty());
+        checkNull(ClickHouseDateTimeValue.ofNull(3, ClickHouseValues.UTC_TIMEZONE));
+        checkNull(
+                ClickHouseDateTimeValue.of(LocalDateTime.now(), 9, ClickHouseValues.UTC_TIMEZONE).resetToNullOrEmpty());
 
         // non-null
         LocalDateTime dateTime = LocalDateTime.ofEpochSecond(0L, 123456789, ZoneOffset.UTC);
-        checkValue(ClickHouseDateTimeValue.of(dateTime, 3), false, // isInfinity
+        checkValue(ClickHouseDateTimeValue.of(dateTime, 3, ClickHouseValues.UTC_TIMEZONE), false, // isInfinity
                 false, // isNan
                 false, // isNull
                 false, // boolean
@@ -190,6 +205,7 @@ public class ClickHouseDateTimeValueTest extends BaseClickHouseValueTest {
                                                                                 // Map
                 Arrays.asList(dateTime) // Tuple
         );
-        Assert.assertEquals(ClickHouseDateTimeValue.of(dateTime, 3).asBigDecimal(4), BigDecimal.valueOf(0.1235D));
+        Assert.assertEquals(ClickHouseDateTimeValue.of(dateTime, 3, ClickHouseValues.UTC_TIMEZONE).asBigDecimal(4),
+                BigDecimal.valueOf(0.1235D));
     }
 }

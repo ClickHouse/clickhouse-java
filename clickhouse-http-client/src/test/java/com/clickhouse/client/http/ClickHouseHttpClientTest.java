@@ -128,7 +128,7 @@ public class ClickHouseHttpClientTest extends BaseIntegrationTest {
             try (ClickHouseResponse resp = request
                     .option(ClickHouseClientOption.LOG_LEADING_COMMENT, true)
                     .query(ClickHouseParameterizedQuery
-                            .of("select log_comment from system.query_log where query_id = :qid"))
+                            .of(request.getConfig(), "select log_comment from system.query_log where query_id = :qid"))
                     .params(ClickHouseStringValue.of(uuid)).execute().get()) {
                 int counter = 0;
                 for (ClickHouseRecord r : resp.records()) {

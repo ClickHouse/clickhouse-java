@@ -367,7 +367,7 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
      */
     public ClickHouseParameterizedQuery getPreparedQuery() {
         if (preparedQuery == null) {
-            preparedQuery = ClickHouseParameterizedQuery.of(getQuery());
+            preparedQuery = ClickHouseParameterizedQuery.of(getConfig(), getQuery());
         }
 
         return preparedQuery;

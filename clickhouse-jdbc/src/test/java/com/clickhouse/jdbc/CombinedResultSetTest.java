@@ -9,6 +9,7 @@ import java.util.Collections;
 import java.util.Properties;
 
 import com.clickhouse.client.ClickHouseColumn;
+import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.data.ClickHouseSimpleResponse;
 
 import org.testng.Assert;
@@ -18,31 +19,32 @@ import org.testng.annotations.Test;
 public class CombinedResultSetTest {
     @DataProvider(name = "multipleResultSetsProvider")
     private Object[][] getMultipleResultSets() {
+        ClickHouseConfig config = new ClickHouseConfig();
         return new Object[][] {
                 { new CombinedResultSet(null, new ClickHouseResultSet("", "",
-                        ClickHouseSimpleResponse.of(ClickHouseColumn.parse("s String"),
+                        ClickHouseSimpleResponse.of(config, ClickHouseColumn.parse("s String"),
                                 new Object[][] { new Object[] { "a" },
                                         new Object[] { "b" } })),
                         new ClickHouseResultSet("", "",
-                                ClickHouseSimpleResponse.of(
+                                ClickHouseSimpleResponse.of(config,
                                         ClickHouseColumn.parse("s String"),
                                         new Object[][] { new Object[] { "c" },
                                                 new Object[] { "d" },
                                                 new Object[] { "e" } }))) },
                 { new CombinedResultSet(Arrays.asList(null, null,
                         new ClickHouseResultSet("", "",
-                                ClickHouseSimpleResponse.of(
+                                ClickHouseSimpleResponse.of(config,
                                         ClickHouseColumn.parse("s String"),
                                         new Object[][] { new Object[] {
                                                 "a" } })),
                         null,
                         new ClickHouseResultSet("", "",
-                                ClickHouseSimpleResponse.of(
+                                ClickHouseSimpleResponse.of(config,
                                         ClickHouseColumn.parse("s String"),
                                         new Object[][] { new Object[] {
                                                 "b" } })),
                         new ClickHouseResultSet("", "",
-                                ClickHouseSimpleResponse.of(
+                                ClickHouseSimpleResponse.of(config,
                                         ClickHouseColumn.parse("s String"),
                                         new Object[][] {
                                                 new Object[] { "c" },
@@ -62,13 +64,14 @@ public class CombinedResultSetTest {
 
     @DataProvider(name = "singleResultSetProvider")
     private Object[][] getSingleResultSet() {
+        ClickHouseConfig config = new ClickHouseConfig();
         return new Object[][] {
                 { new CombinedResultSet(new ClickHouseResultSet("", "",
-                        ClickHouseSimpleResponse.of(ClickHouseColumn.parse("s String"),
+                        ClickHouseSimpleResponse.of(config, ClickHouseColumn.parse("s String"),
                                 new Object[][] { new Object[] { "a" },
                                         new Object[] { "b" } }))) },
                 { new CombinedResultSet(Collections.singleton(
-                        new ClickHouseResultSet("", "", ClickHouseSimpleResponse.of(
+                        new ClickHouseResultSet("", "", ClickHouseSimpleResponse.of(config,
                                 ClickHouseColumn.parse("s String"),
                                 new Object[][] { new Object[] { "a" },
                                         new Object[] { "b" } })))) } };

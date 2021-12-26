@@ -10,9 +10,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.TimeZone;
 
 import com.clickhouse.client.ClickHouseChecker;
@@ -20,11 +18,9 @@ import com.clickhouse.client.ClickHouseValue;
 import com.clickhouse.client.ClickHouseValues;
 
 /**
- * Wraper class of LocalDateTime.
+ * Wraper class of Instant.
  */
-public class ClickHouseDateTimeValue extends ClickHouseObjectValue<LocalDateTime> {
-    static final DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
-
+public class ClickHouseInstantValue extends ClickHouseObjectValue<Instant> {
     /**
      * Create a new instance representing null getValue().
      *
@@ -32,7 +28,7 @@ public class ClickHouseDateTimeValue extends ClickHouseObjectValue<LocalDateTime
      * @param tz    time zone, null is treated as {@code UTC}
      * @return new instance representing null value
      */
-    public static ClickHouseDateTimeValue ofNull(int scale, TimeZone tz) {
+    public static ClickHouseInstantValue ofNull(int scale, TimeZone tz) {
         return ofNull(null, scale, tz);
     }
 
@@ -44,10 +40,10 @@ public class ClickHouseDateTimeValue extends ClickHouseObjectValue<LocalDateTime
      * @param tz    time zone, null is treated as {@code UTC}
      * @return same object as {@code ref} or a new instance if it's null
      */
-    public static ClickHouseDateTimeValue ofNull(ClickHouseValue ref, int scale, TimeZone tz) {
-        return ref instanceof ClickHouseDateTimeValue
-                ? (ClickHouseDateTimeValue) ((ClickHouseDateTimeValue) ref).set(null)
-                : new ClickHouseDateTimeValue(null, scale, tz);
+    public static ClickHouseInstantValue ofNull(ClickHouseValue ref, int scale, TimeZone tz) {
+        return ref instanceof ClickHouseInstantValue
+                ? (ClickHouseInstantValue) ((ClickHouseInstantValue) ref).set(null)
+                : new ClickHouseInstantValue(null, scale, tz);
     }
 
     /**
@@ -58,7 +54,7 @@ public class ClickHouseDateTimeValue extends ClickHouseObjectValue<LocalDateTime
      * @param tz    time zone, null is treated as {@code UTC}
      * @return object representing the value
      */
-    public static ClickHouseDateTimeValue of(LocalDateTime value, int scale, TimeZone tz) {
+    public static ClickHouseInstantValue of(Instant value, int scale, TimeZone tz) {
         return of(null, value, scale, tz);
     }
 
@@ -70,7 +66,7 @@ public class ClickHouseDateTimeValue extends ClickHouseObjectValue<LocalDateTime
      * @param tz    time zone, null is treated as {@code UTC}
      * @return object representing the value
      */
-    public static ClickHouseDateTimeValue of(String value, int scale, TimeZone tz) {
+    public static ClickHouseInstantValue of(String value, int scale, TimeZone tz) {
         return of(null, value, scale, tz);
     }
 
@@ -84,10 +80,10 @@ public class ClickHouseDateTimeValue extends ClickHouseObjectValue<LocalDateTime
      * @param tz    time zone, null is treated as {@code UTC}
      * @return same object as {@code ref} or a new instance if it's null
      */
-    public static ClickHouseDateTimeValue of(ClickHouseValue ref, LocalDateTime value, int scale, TimeZone tz) {
-        return ref instanceof ClickHouseDateTimeValue
-                ? (ClickHouseDateTimeValue) ((ClickHouseDateTimeValue) ref).set(value)
-                : new ClickHouseDateTimeValue(value, scale, tz);
+    public static ClickHouseInstantValue of(ClickHouseValue ref, Instant value, int scale, TimeZone tz) {
+        return ref instanceof ClickHouseInstantValue
+                ? (ClickHouseInstantValue) ((ClickHouseInstantValue) ref).set(value)
+                : new ClickHouseInstantValue(value, scale, tz);
     }
 
     /**
@@ -100,16 +96,16 @@ public class ClickHouseDateTimeValue extends ClickHouseObjectValue<LocalDateTime
      * @param tz    time zone, null is treated as {@code UTC}
      * @return same object as {@code ref} or a new instance if it's null
      */
-    public static ClickHouseDateTimeValue of(ClickHouseValue ref, String value, int scale, TimeZone tz) {
-        LocalDateTime dateTime = value == null || value.isEmpty() ? null
-                : LocalDateTime.parse(value, ClickHouseValues.DATETIME_FORMATTER);
+    public static ClickHouseInstantValue of(ClickHouseValue ref, String value, int scale, TimeZone tz) {
+        Instant dateTime = value == null || value.isEmpty() ? null
+                : LocalDateTime.parse(value, ClickHouseValues.DATETIME_FORMATTER).atZone(tz.toZoneId()).toInstant();
         return of(ref, dateTime, scale, tz);
     }
 
     private final int scale;
     private final TimeZone tz;
 
-    protected ClickHouseDateTimeValue(LocalDateTime value, int scale, TimeZone tz) {
+    protected ClickHouseInstantValue(Instant value, int scale, TimeZone tz) {
         super(value);
         this.scale = ClickHouseChecker.between(scale, ClickHouseValues.PARAM_SCALE, 0, 9);
         this.tz = tz != null ? tz : ClickHouseValues.UTC_TIMEZONE;
@@ -120,55 +116,55 @@ public class ClickHouseDateTimeValue extends ClickHouseObjectValue<LocalDateTime
     }
 
     @Override
-    public ClickHouseDateTimeValue copy(boolean deep) {
-        return new ClickHouseDateTimeValue(getValue(), scale, tz);
+    public ClickHouseInstantValue copy(boolean deep) {
+        return new ClickHouseInstantValue(getValue(), scale, tz);
     }
 
     @Override
     public byte asByte() {
-        return isNullOrEmpty() ? (byte) 0 : (byte) getValue().toEpochSecond(ZoneOffset.UTC);
+        return isNullOrEmpty() ? (byte) 0 : (byte) getValue().getEpochSecond();
     }
 
     @Override
     public short asShort() {
-        return isNullOrEmpty() ? (short) 0 : (short) getValue().toEpochSecond(ZoneOffset.UTC);
+        return isNullOrEmpty() ? (short) 0 : (short) getValue().getEpochSecond();
     }
 
     @Override
     public int asInteger() {
-        return isNullOrEmpty() ? 0 : (int) getValue().toEpochSecond(ZoneOffset.UTC);
+        return isNullOrEmpty() ? 0 : (int) getValue().getEpochSecond();
     }
 
     @Override
     public long asLong() {
-        return isNullOrEmpty() ? 0L : getValue().toEpochSecond(ZoneOffset.UTC);
+        return isNullOrEmpty() ? 0L : getValue().getEpochSecond();
     }
 
     @Override
     public float asFloat() {
         return isNullOrEmpty() ? 0F
-                : getValue().toEpochSecond(ZoneOffset.UTC) + getValue().getNano() / ClickHouseValues.NANOS.floatValue();
+                : getValue().getEpochSecond() + getValue().getNano() / ClickHouseValues.NANOS.floatValue();
     }
 
     @Override
     public double asDouble() {
         return isNullOrEmpty() ? 0D
-                : getValue().toEpochSecond(ZoneOffset.UTC)
+                : getValue().getEpochSecond()
                         + getValue().getNano() / ClickHouseValues.NANOS.doubleValue();
     }
 
     @Override
     public BigInteger asBigInteger() {
-        return isNullOrEmpty() ? null : BigInteger.valueOf(getValue().toEpochSecond(ZoneOffset.UTC));
+        return isNullOrEmpty() ? null : BigInteger.valueOf(getValue().getEpochSecond());
     }
 
     @Override
     public BigDecimal asBigDecimal(int scale) {
-        LocalDateTime value = getValue();
+        Instant value = getValue();
         BigDecimal v = null;
         if (value != null) {
             int nanoSeconds = value.getNano();
-            v = new BigDecimal(BigInteger.valueOf(value.toEpochSecond(ZoneOffset.UTC)), scale);
+            v = new BigDecimal(BigInteger.valueOf(value.getEpochSecond()), scale);
             if (scale != 0 && nanoSeconds != 0) {
                 v = v.add(BigDecimal.valueOf(nanoSeconds).divide(ClickHouseValues.NANOS).setScale(scale,
                         RoundingMode.HALF_UP));
@@ -184,12 +180,16 @@ public class ClickHouseDateTimeValue extends ClickHouseObjectValue<LocalDateTime
 
     @Override
     public LocalDateTime asDateTime(int scale) {
-        return getValue();
+        if (isNullOrEmpty()) {
+            return null;
+        }
+
+        return LocalDateTime.ofInstant(getValue(), tz.toZoneId());
     }
 
     @Override
     public Instant asInstant(int scale) {
-        return isNullOrEmpty() ? null : getValue().atZone(tz.toZoneId()).toInstant();
+        return getValue();
     }
 
     @Override
@@ -198,7 +198,7 @@ public class ClickHouseDateTimeValue extends ClickHouseObjectValue<LocalDateTime
             return null;
         }
 
-        return getValue().atZone(tz.toZoneId()).toOffsetDateTime();
+        return OffsetDateTime.ofInstant(getValue(), tz.toZoneId());
     }
 
     @Override
@@ -222,7 +222,8 @@ public class ClickHouseDateTimeValue extends ClickHouseObjectValue<LocalDateTime
         }
 
         // different formatter for each scale?
-        String str = getValue().format(scale > 0 ? ClickHouseValues.DATETIME_FORMATTER : dateTimeFormatter);
+        String str = asDateTime()
+                .format(scale > 0 ? ClickHouseValues.DATETIME_FORMATTER : ClickHouseDateTimeValue.dateTimeFormatter);
         if (length > 0) {
             ClickHouseChecker.notWithDifferentLength(str.getBytes(charset == null ? StandardCharsets.UTF_8 : charset),
                     length);
@@ -238,67 +239,68 @@ public class ClickHouseDateTimeValue extends ClickHouseObjectValue<LocalDateTime
         }
 
         return new StringBuilder().append('\'')
-                .append(getValue().format(scale > 0 ? ClickHouseValues.DATETIME_FORMATTER : dateTimeFormatter))
+                .append(asDateTime().format(
+                        scale > 0 ? ClickHouseValues.DATETIME_FORMATTER : ClickHouseDateTimeValue.dateTimeFormatter))
                 .append('\'').toString();
     }
 
     @Override
-    public ClickHouseDateTimeValue update(byte value) {
+    public ClickHouseInstantValue update(byte value) {
         return update(BigInteger.valueOf(value));
     }
 
     @Override
-    public ClickHouseDateTimeValue update(short value) {
+    public ClickHouseInstantValue update(short value) {
         return update(BigInteger.valueOf(value));
     }
 
     @Override
-    public ClickHouseDateTimeValue update(int value) {
+    public ClickHouseInstantValue update(int value) {
         return update(BigInteger.valueOf(value));
     }
 
     @Override
-    public ClickHouseDateTimeValue update(long value) {
+    public ClickHouseInstantValue update(long value) {
         return update(BigInteger.valueOf(value));
     }
 
     @Override
-    public ClickHouseDateTimeValue update(float value) {
+    public ClickHouseInstantValue update(float value) {
         return update(BigDecimal.valueOf(value));
     }
 
     @Override
-    public ClickHouseDateTimeValue update(double value) {
+    public ClickHouseInstantValue update(double value) {
         return update(BigDecimal.valueOf(value));
     }
 
     @Override
-    public ClickHouseDateTimeValue update(BigInteger value) {
+    public ClickHouseInstantValue update(BigInteger value) {
         if (value == null) {
             resetToNullOrEmpty();
         } else if (scale == 0) {
-            set(ClickHouseValues.convertToDateTime(new BigDecimal(value, 0)));
+            set(ClickHouseValues.convertToInstant(new BigDecimal(value, 0)));
         } else {
-            set(ClickHouseValues.convertToDateTime(new BigDecimal(value, scale)));
+            set(ClickHouseValues.convertToInstant(new BigDecimal(value, scale)));
         }
         return this;
     }
 
     @Override
-    public ClickHouseDateTimeValue update(BigDecimal value) {
+    public ClickHouseInstantValue update(BigDecimal value) {
         if (value == null) {
             resetToNullOrEmpty();
         } else {
             if (value.scale() != scale) {
                 value = value.setScale(scale, RoundingMode.HALF_UP);
             }
-            set(ClickHouseValues.convertToDateTime(value));
+            set(ClickHouseValues.convertToInstant(value));
         }
         return this;
     }
 
     @Override
-    public ClickHouseDateTimeValue update(Enum<?> value) {
+    public ClickHouseInstantValue update(Enum<?> value) {
         if (value == null) {
             resetToNullOrEmpty();
         } else {
@@ -308,75 +310,85 @@ public class ClickHouseDateTimeValue extends ClickHouseObjectValue<LocalDateTime
     }
 
     @Override
-    public ClickHouseDateTimeValue update(LocalDate value) {
+    public ClickHouseInstantValue update(LocalDate value) {
         if (value == null) {
             resetToNullOrEmpty();
         } else {
-            set(LocalDateTime.of(value, LocalTime.MIN));
+            set(LocalDateTime.of(value, LocalTime.MIN).atZone(tz.toZoneId()).toInstant());
         }
         return this;
     }
 
     @Override
-    public ClickHouseDateTimeValue update(LocalTime value) {
+    public ClickHouseInstantValue update(LocalTime value) {
         if (value == null) {
             resetToNullOrEmpty();
         } else {
-            set(LocalDateTime.of(LocalDate.now(), value));
+            set(LocalDateTime.of(LocalDate.now(), value).atZone(tz.toZoneId()).toInstant());
         }
         return this;
     }
 
     @Override
-    public ClickHouseDateTimeValue update(LocalDateTime value) {
+    public ClickHouseInstantValue update(LocalDateTime value) {
+        if (value == null) {
+            resetToNullOrEmpty();
+        } else {
+            set(value.atZone(tz.toZoneId()).toInstant());
+        }
+        return this;
+    }
+
+    @Override
+    public ClickHouseInstantValue update(Instant value) {
         set(value);
         return this;
     }
 
     @Override
-    public ClickHouseDateTimeValue update(Instant value) {
+    public ClickHouseInstantValue update(OffsetDateTime value) {
         if (value == null) {
             resetToNullOrEmpty();
         } else {
-            set(LocalDateTime.ofInstant(value, tz.toZoneId()));
+            set(value.toInstant());
         }
         return this;
     }
 
     @Override
-    public ClickHouseValue update(OffsetDateTime value) {
-        return update(value != null ? value.atZoneSameInstant(tz.toZoneId()).toLocalDateTime() : null);
-    }
-
-    @Override
-    public ClickHouseValue update(ZonedDateTime value) {
-        return update(value != null ? LocalDateTime.ofInstant(value.toInstant(), tz.toZoneId()) : null);
-    }
-
-    @Override
-    public ClickHouseDateTimeValue update(String value) {
+    public ClickHouseInstantValue update(ZonedDateTime value) {
         if (value == null) {
             resetToNullOrEmpty();
         } else {
-            set(LocalDateTime.parse(value, ClickHouseValues.DATETIME_FORMATTER));
+            set(value.toInstant());
         }
         return this;
     }
 
     @Override
-    public ClickHouseDateTimeValue update(ClickHouseValue value) {
+    public ClickHouseInstantValue update(String value) {
         if (value == null) {
             resetToNullOrEmpty();
         } else {
-            set(value.asDateTime(scale));
+            set(LocalDateTime.parse(value, ClickHouseValues.DATETIME_FORMATTER).atZone(tz.toZoneId()).toInstant());
         }
         return this;
     }
 
     @Override
-    public ClickHouseDateTimeValue update(Object value) {
-        if (value instanceof LocalDateTime) {
-            set((LocalDateTime) value);
+    public ClickHouseInstantValue update(ClickHouseValue value) {
+        if (value == null) {
+            resetToNullOrEmpty();
+        } else {
+            set(value.asInstant(scale));
+        }
+        return this;
+    }
+
+    @Override
+    public ClickHouseInstantValue update(Object value) {
+        if (value instanceof Instant) {
+            update((Instant) value);
         } else if (value instanceof String) {
             update((String) value);
         } else {

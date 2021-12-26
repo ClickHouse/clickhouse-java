@@ -37,6 +37,7 @@ import com.clickhouse.client.ClickHouseRecord;
 import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.ClickHouseUtils;
 import com.clickhouse.client.ClickHouseValue;
+import com.clickhouse.client.ClickHouseValues;
 
 public class ClickHouseResultSet extends AbstractResultSet {
     private ClickHouseRecord currentRow;
@@ -71,7 +72,7 @@ public class ClickHouseResultSet extends AbstractResultSet {
         this.config = null;
         this.wrapObject = false;
         this.defaultCalendar = new GregorianCalendar(TimeZone.getTimeZone("UTC"));
-        this.tsTimeZone = null; // TimeZone.getDefault();
+        this.tsTimeZone = defaultCalendar.getTimeZone();
         this.dateTimeZone = this.tsTimeZone;
 
         this.defaultTypeMap = Collections.emptyMap();
@@ -584,7 +585,7 @@ public class ClickHouseResultSet extends AbstractResultSet {
 
     @Override
     public Time getTime(String columnLabel) throws SQLException {
-        return getTime(findColumn(columnLabel));
+        return getTime(findColumn(columnLabel), null);
     }
 
     @Override

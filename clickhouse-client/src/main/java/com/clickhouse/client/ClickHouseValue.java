@@ -15,6 +15,7 @@ import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -288,6 +289,16 @@ public interface ClickHouseValue extends Serializable {
     }
 
     /**
+     * Gets value as {@link java.time.Instant}, using default scale(usually
+     * 0).
+     *
+     * @return date time, could be null
+     */
+    default Instant asInstant() {
+        return asInstant(0);
+    }
+
+    /**
      * Gets value as {@link java.time.OffsetDateTime}, using default scale(usually
      * 0).
      *
@@ -320,6 +331,21 @@ public interface ClickHouseValue extends Serializable {
 
         return ClickHouseValues
                 .convertToDateTime(asBigDecimal(ClickHouseChecker.between(scale, ClickHouseValues.PARAM_SCALE, 0, 9)));
+    }
+
+    /**
+     * Gets value as {@link java.time.Instant}.
+     *
+     * @param scale scale of the date time, between 0 (second) and 9 (nano second)
+     * @return instant, could be null
+     */
+    default Instant asInstant(int scale) {
+        if (isNullOrEmpty()) {
+            return null;
+        }
+
+        return ClickHouseValues
+                .convertToInstant(asBigDecimal(ClickHouseChecker.between(scale, ClickHouseValues.PARAM_SCALE, 0, 9)));
     }
 
     /**
@@ -483,6 +509,8 @@ public interface ClickHouseValue extends Serializable {
             return clazz.cast(asDate());
         } else if (clazz == LocalDateTime.class) {
             return clazz.cast(asDateTime());
+        } else if (clazz == Instant.class) {
+            return clazz.cast(asInstant());
         } else if (clazz == OffsetDateTime.class) {
             return clazz.cast(asOffsetDateTime());
         } else if (clazz == ZonedDateTime.class) {
@@ -933,7 +961,35 @@ public interface ClickHouseValue extends Serializable {
      * @param value value to update
      * @return this object
      */
+    default ClickHouseValue update(Instant value) {
+        if (value == null) {
+            return resetToNullOrEmpty();
+        }
+
+        long seconds = value.getEpochSecond();
+        int nanos = value.getNano();
+        return nanos > 0
+                ? update(BigDecimal.valueOf(seconds).add(BigDecimal.valueOf(nanos, 9).divide(ClickHouseValues.NANOS)))
+                : update(seconds);
+    }
+
+    /**
+     * Updates value.
+     *
+     * @param value value to update
+     * @return this object
+     */
     default ClickHouseValue update(OffsetDateTime value) {
+        return update(value != null ? value.toLocalDateTime() : null);
+    }
+
+    /**
+     * Updates value.
+     *
+     * @param value value to update
+     * @return this object
+     */
+    default ClickHouseValue update(ZonedDateTime value) {
         return update(value != null ? value.toLocalDateTime() : null);
     }
 
@@ -1126,8 +1182,12 @@ public interface ClickHouseValue extends Serializable {
             return update((LocalTime) value);
         } else if (value instanceof LocalDateTime) {
             return update((LocalDateTime) value);
+        } else if (value instanceof Instant) {
+            return update((Instant) value);
         } else if (value instanceof OffsetDateTime) {
             return update((OffsetDateTime) value);
+        } else if (value instanceof ZonedDateTime) {
+            return update((ZonedDateTime) value);
         } else if (value instanceof Collection) {
             return update((Collection<?>) value);
         } else if (value instanceof Enumeration) {

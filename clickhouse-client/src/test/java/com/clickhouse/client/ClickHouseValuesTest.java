@@ -23,23 +23,29 @@ import org.testng.annotations.Test;
 public class ClickHouseValuesTest extends BaseClickHouseValueTest {
     @Test(groups = { "unit" })
     public void testCreateArray() {
-        Class<?>[] primitiveTypes = new Class<?>[] { boolean.class, byte.class, char.class, short.class, int.class,
+        Class<?>[] primitiveTypes = new Class<?>[] { boolean.class, byte.class, char.class, short.class,
+                int.class,
                 long.class, float.class, double.class };
         Class<?>[] wrapperTypes = new Class<?>[] { Boolean.class, Byte.class, Character.class, Short.class,
                 Integer.class, Long.class, Float.class, Double.class };
         Class<?>[] miscTypes = new Class<?>[] { Object.class, Map.class, Collection.class, Class.class };
         for (Class<?> c : primitiveTypes) {
-            Assert.assertEquals(ClickHouseValues.createObjectArray(c, 0, 1), ClickHouseValues.EMPTY_OBJECT_ARRAY);
+            Assert.assertEquals(ClickHouseValues.createObjectArray(c, 0, 1),
+                    ClickHouseValues.EMPTY_OBJECT_ARRAY);
         }
         for (Class<?> c : wrapperTypes) {
-            Assert.assertEquals(ClickHouseValues.createObjectArray(c, 0, 1), ClickHouseValues.EMPTY_OBJECT_ARRAY);
+            Assert.assertEquals(ClickHouseValues.createObjectArray(c, 0, 1),
+                    ClickHouseValues.EMPTY_OBJECT_ARRAY);
         }
         for (Class<?> c : miscTypes) {
-            Assert.assertEquals(ClickHouseValues.createObjectArray(c, 0, 1), ClickHouseValues.EMPTY_OBJECT_ARRAY);
+            Assert.assertEquals(ClickHouseValues.createObjectArray(c, 0, 1),
+                    ClickHouseValues.EMPTY_OBJECT_ARRAY);
         }
 
-        Object[] expectedValues = new Object[] { ClickHouseValues.EMPTY_BYTE_ARRAY, ClickHouseValues.EMPTY_BYTE_ARRAY,
-                ClickHouseValues.EMPTY_INT_ARRAY, ClickHouseValues.EMPTY_SHORT_ARRAY, ClickHouseValues.EMPTY_INT_ARRAY,
+        Object[] expectedValues = new Object[] { ClickHouseValues.EMPTY_BYTE_ARRAY,
+                ClickHouseValues.EMPTY_BYTE_ARRAY,
+                ClickHouseValues.EMPTY_INT_ARRAY, ClickHouseValues.EMPTY_SHORT_ARRAY,
+                ClickHouseValues.EMPTY_INT_ARRAY,
                 ClickHouseValues.EMPTY_LONG_ARRAY, ClickHouseValues.EMPTY_FLOAT_ARRAY,
                 ClickHouseValues.EMPTY_DOUBLE_ARRAY };
         int index = 0;
@@ -52,7 +58,8 @@ public class ClickHouseValuesTest extends BaseClickHouseValueTest {
         }
         index = 0;
         for (Class<?> c : miscTypes) {
-            Assert.assertEquals(ClickHouseValues.createPrimitiveArray(c, 0, 1), ClickHouseValues.EMPTY_OBJECT_ARRAY);
+            Assert.assertEquals(ClickHouseValues.createPrimitiveArray(c, 0, 1),
+                    ClickHouseValues.EMPTY_OBJECT_ARRAY);
         }
 
         int[][] intArray = (int[][]) ClickHouseValues.createPrimitiveArray(int.class, 3, 2);
@@ -61,13 +68,15 @@ public class ClickHouseValuesTest extends BaseClickHouseValueTest {
 
     @Test(groups = { "unit" })
     public void testNewArray() {
-        ClickHouseValue v = ClickHouseValues.newValue(ClickHouseColumn.of("a", "Array(UInt32)"));
+        ClickHouseConfig config = new ClickHouseConfig();
+        ClickHouseValue v = ClickHouseValues.newValue(config, ClickHouseColumn.of("a", "Array(UInt32)"));
         Assert.assertEquals(v.asObject(), new long[0]);
-        v = ClickHouseValues.newValue(ClickHouseColumn.of("a", "Array(Array(UInt16))"));
+        v = ClickHouseValues.newValue(config, ClickHouseColumn.of("a", "Array(Array(UInt16))"));
         Assert.assertEquals(v.asObject(), new int[0][]);
-        v = ClickHouseValues.newValue(ClickHouseColumn.of("a", "Array(Array(Array(Nullable(UInt8))))"));
+        v = ClickHouseValues.newValue(config, ClickHouseColumn.of("a", "Array(Array(Array(Nullable(UInt8))))"));
         Assert.assertEquals(v.asObject(), new short[0][][]);
-        v = ClickHouseValues.newValue(ClickHouseColumn.of("a", "Array(Array(Array(Array(LowCardinality(String)))))"));
+        v = ClickHouseValues.newValue(config,
+                ClickHouseColumn.of("a", "Array(Array(Array(Array(LowCardinality(String)))))"));
         Assert.assertEquals(v.asObject(), new String[0][][][]);
     }
 
@@ -81,8 +90,10 @@ public class ClickHouseValuesTest extends BaseClickHouseValueTest {
         for (int i = 1; i < 9; i++) {
             BigDecimal d = BigDecimal.TEN.pow(i);
             Assert.assertEquals(
-                    ClickHouseValues.convertToDateTime(BigDecimal.valueOf(1L).add(BigDecimal.valueOf(1L).divide(d))),
-                    LocalDateTime.ofEpochSecond(1L, BigDecimal.TEN.pow(9 - i).intValueExact(), ZoneOffset.UTC));
+                    ClickHouseValues.convertToDateTime(
+                            BigDecimal.valueOf(1L).add(BigDecimal.valueOf(1L).divide(d))),
+                    LocalDateTime.ofEpochSecond(1L, BigDecimal.TEN.pow(9 - i).intValueExact(),
+                            ZoneOffset.UTC));
         }
 
         Assert.assertEquals(ClickHouseValues.convertToDateTime(BigDecimal.valueOf(-1L)),
@@ -90,9 +101,11 @@ public class ClickHouseValuesTest extends BaseClickHouseValueTest {
         for (int i = 1; i < 9; i++) {
             BigDecimal d = BigDecimal.TEN.pow(i);
             Assert.assertEquals(
-                    ClickHouseValues.convertToDateTime(BigDecimal.valueOf(-1L).add(BigDecimal.valueOf(-1L).divide(d))),
+                    ClickHouseValues.convertToDateTime(
+                            BigDecimal.valueOf(-1L).add(BigDecimal.valueOf(-1L).divide(d))),
                     LocalDateTime.ofEpochSecond(-1L, 0, ZoneOffset.UTC)
-                            .minus(BigDecimal.TEN.pow(9 - i).longValueExact(), ChronoUnit.NANOS));
+                            .minus(BigDecimal.TEN.pow(9 - i).longValueExact(),
+                                    ChronoUnit.NANOS));
         }
     }
 
@@ -105,18 +118,26 @@ public class ClickHouseValuesTest extends BaseClickHouseValueTest {
         Assert.assertEquals(ClickHouseValues.convertToSqlExpression(false), String.valueOf(0));
         Assert.assertEquals(ClickHouseValues.convertToSqlExpression('\0'), String.valueOf(0));
         Assert.assertEquals(ClickHouseValues.convertToSqlExpression('a'), String.valueOf(97));
-        Assert.assertEquals(ClickHouseValues.convertToSqlExpression(Byte.MAX_VALUE), String.valueOf(Byte.MAX_VALUE));
-        Assert.assertEquals(ClickHouseValues.convertToSqlExpression(Byte.MIN_VALUE), String.valueOf(Byte.MIN_VALUE));
-        Assert.assertEquals(ClickHouseValues.convertToSqlExpression(Short.MAX_VALUE), String.valueOf(Short.MAX_VALUE));
-        Assert.assertEquals(ClickHouseValues.convertToSqlExpression(Short.MIN_VALUE), String.valueOf(Short.MIN_VALUE));
+        Assert.assertEquals(ClickHouseValues.convertToSqlExpression(Byte.MAX_VALUE),
+                String.valueOf(Byte.MAX_VALUE));
+        Assert.assertEquals(ClickHouseValues.convertToSqlExpression(Byte.MIN_VALUE),
+                String.valueOf(Byte.MIN_VALUE));
+        Assert.assertEquals(ClickHouseValues.convertToSqlExpression(Short.MAX_VALUE),
+                String.valueOf(Short.MAX_VALUE));
+        Assert.assertEquals(ClickHouseValues.convertToSqlExpression(Short.MIN_VALUE),
+                String.valueOf(Short.MIN_VALUE));
         Assert.assertEquals(ClickHouseValues.convertToSqlExpression(Integer.MAX_VALUE),
                 String.valueOf(Integer.MAX_VALUE));
         Assert.assertEquals(ClickHouseValues.convertToSqlExpression(Integer.MIN_VALUE),
                 String.valueOf(Integer.MIN_VALUE));
-        Assert.assertEquals(ClickHouseValues.convertToSqlExpression(Long.MAX_VALUE), String.valueOf(Long.MAX_VALUE));
-        Assert.assertEquals(ClickHouseValues.convertToSqlExpression(Long.MIN_VALUE), String.valueOf(Long.MIN_VALUE));
-        Assert.assertEquals(ClickHouseValues.convertToSqlExpression(Float.MAX_VALUE), String.valueOf(Float.MAX_VALUE));
-        Assert.assertEquals(ClickHouseValues.convertToSqlExpression(Float.MIN_VALUE), String.valueOf(Float.MIN_VALUE));
+        Assert.assertEquals(ClickHouseValues.convertToSqlExpression(Long.MAX_VALUE),
+                String.valueOf(Long.MAX_VALUE));
+        Assert.assertEquals(ClickHouseValues.convertToSqlExpression(Long.MIN_VALUE),
+                String.valueOf(Long.MIN_VALUE));
+        Assert.assertEquals(ClickHouseValues.convertToSqlExpression(Float.MAX_VALUE),
+                String.valueOf(Float.MAX_VALUE));
+        Assert.assertEquals(ClickHouseValues.convertToSqlExpression(Float.MIN_VALUE),
+                String.valueOf(Float.MIN_VALUE));
         Assert.assertEquals(ClickHouseValues.convertToSqlExpression(Double.MAX_VALUE),
                 String.valueOf(Double.MAX_VALUE));
         Assert.assertEquals(ClickHouseValues.convertToSqlExpression(Double.MIN_VALUE),
@@ -128,13 +149,18 @@ public class ClickHouseValuesTest extends BaseClickHouseValueTest {
         Assert.assertEquals(ClickHouseValues.convertToSqlExpression("'萌\\'\\\'萌哒'"),
                 String.valueOf("'\\'萌\\\\\\'\\\\\\'萌哒\\''"));
         Assert.assertEquals(
-                ClickHouseValues.convertToSqlExpression(UUID.fromString("00000000-0000-0000-0000-000000000000")),
+                ClickHouseValues.convertToSqlExpression(
+                        UUID.fromString("00000000-0000-0000-0000-000000000000")),
                 "'00000000-0000-0000-0000-000000000000'");
-        Assert.assertEquals(ClickHouseValues.convertToSqlExpression(InetAddress.getByName("localhost")), "'127.0.0.1'");
-        Assert.assertEquals(
-                ClickHouseValues.convertToSqlExpression((Inet4Address) InetAddress.getAllByName("127.0.0.1")[0]),
+        Assert.assertEquals(ClickHouseValues.convertToSqlExpression(InetAddress.getByName("localhost")),
                 "'127.0.0.1'");
-        Assert.assertEquals(ClickHouseValues.convertToSqlExpression((Inet6Address) InetAddress.getAllByName("::1")[0]),
+        Assert.assertEquals(
+                ClickHouseValues.convertToSqlExpression(
+                        (Inet4Address) InetAddress.getAllByName("127.0.0.1")[0]),
+                "'127.0.0.1'");
+        Assert.assertEquals(
+                ClickHouseValues.convertToSqlExpression(
+                        (Inet6Address) InetAddress.getAllByName("::1")[0]),
                 "'0:0:0:0:0:0:0:1'");
 
         // enum, big integer and decimals
@@ -145,33 +171,43 @@ public class ClickHouseValuesTest extends BaseClickHouseValueTest {
                 "123456789.12345679");
 
         // date, time and date time
-        Assert.assertEquals(ClickHouseValues.convertToSqlExpression(LocalDate.of(2021, 11, 12)), "'2021-11-12'");
+        Assert.assertEquals(ClickHouseValues.convertToSqlExpression(LocalDate.of(2021, 11, 12)),
+                "'2021-11-12'");
         Assert.assertEquals(ClickHouseValues.convertToSqlExpression(LocalTime.of(11, 12, 13, 123456789)),
                 "'11:12:13.123456789'");
         Assert.assertEquals(
                 ClickHouseValues.convertToSqlExpression(
-                        LocalDateTime.of(LocalDate.of(2021, 11, 12), LocalTime.of(11, 12, 13, 123456789))),
+                        LocalDateTime.of(LocalDate.of(2021, 11, 12),
+                                LocalTime.of(11, 12, 13, 123456789))),
                 "'2021-11-12 11:12:13.123456789'");
 
         // arrays
         Assert.assertEquals(ClickHouseValues.convertToSqlExpression(new Object[0]), "[]");
-        Assert.assertEquals(ClickHouseValues.convertToSqlExpression(new boolean[] { true, false, true }), "[1,0,1]");
+        Assert.assertEquals(ClickHouseValues.convertToSqlExpression(new boolean[] { true, false, true }),
+                "[1,0,1]");
         Assert.assertEquals(
-                ClickHouseValues.convertToSqlExpression(new boolean[][] { new boolean[] { true, false, true } }),
+                ClickHouseValues.convertToSqlExpression(
+                        new boolean[][] { new boolean[] { true, false, true } }),
                 "[[1,0,1]]");
-        Assert.assertEquals(ClickHouseValues.convertToSqlExpression(new char[] { 'a', '\0', '囧' }), "[97,0,22247]");
-        Assert.assertEquals(ClickHouseValues.convertToSqlExpression(new byte[] { (byte) 11, (byte) -12, (byte) 127 }),
+        Assert.assertEquals(ClickHouseValues.convertToSqlExpression(new char[] { 'a', '\0', '囧' }),
+                "[97,0,22247]");
+        Assert.assertEquals(
+                ClickHouseValues.convertToSqlExpression(
+                        new byte[] { (byte) 11, (byte) -12, (byte) 127 }),
                 "[11,-12,127]");
         Assert.assertEquals(
-                ClickHouseValues.convertToSqlExpression(new short[] { (short) 11, (short) -22247, (short) 25534 }),
+                ClickHouseValues.convertToSqlExpression(
+                        new short[] { (short) 11, (short) -22247, (short) 25534 }),
                 "[11,-22247,25534]");
         Assert.assertEquals(ClickHouseValues.convertToSqlExpression(new int[] { 233, -122247, 165535 }),
                 "[233,-122247,165535]");
-        Assert.assertEquals(ClickHouseValues.convertToSqlExpression(new long[] { 233333333L, -122247L, 165535L }),
+        Assert.assertEquals(
+                ClickHouseValues.convertToSqlExpression(new long[] { 233333333L, -122247L, 165535L }),
                 "[233333333,-122247,165535]");
         Assert.assertEquals(ClickHouseValues.convertToSqlExpression(new float[] { 2.33F, -1.22247F, 165535F }),
                 "[2.33,-1.22247,165535.0]");
-        Assert.assertEquals(ClickHouseValues.convertToSqlExpression(new double[] { 2.33333D, -1.22247D, 165535D }),
+        Assert.assertEquals(
+                ClickHouseValues.convertToSqlExpression(new double[] { 2.33333D, -1.22247D, 165535D }),
                 "[2.33333,-1.22247,165535.0]");
 
         // tuple
@@ -182,16 +218,21 @@ public class ClickHouseValuesTest extends BaseClickHouseValueTest {
         // map
         Assert.assertEquals(ClickHouseValues.convertToSqlExpression(new HashMap<>()), "{}");
         Assert.assertEquals(ClickHouseValues.convertToSqlExpression(
-                buildMap(new Integer[] { 2, 3 }, new String[] { "two", "three" })), "{2 : 'two',3 : 'three'}");
+                buildMap(new Integer[] { 2, 3 }, new String[] { "two", "three" })),
+                "{2 : 'two',3 : 'three'}");
 
         // mixed
         Assert.assertEquals(
-                ClickHouseValues.convertToSqlExpression(new Object[] { true, 'a', (byte) 1, (short) 2, 3, 4L, 5.555F,
-                        6.666666D, "'x'", UUID.fromString("00000000-0000-0000-0000-000000000002"),
-                        InetAddress.getByName("127.0.0.1"), InetAddress.getByName("::1"), ClickHouseDataType.Decimal256,
+                ClickHouseValues.convertToSqlExpression(new Object[] { true, 'a', (byte) 1, (short) 2,
+                        3, 4L, 5.555F,
+                        6.666666D, "'x'",
+                        UUID.fromString("00000000-0000-0000-0000-000000000002"),
+                        InetAddress.getByName("127.0.0.1"), InetAddress.getByName("::1"),
+                        ClickHouseDataType.Decimal256,
                         BigInteger.valueOf(123456789L), BigDecimal.valueOf(1.23456789D), null,
                         LocalDate.of(2021, 11, 12), LocalTime.of(11, 12, 13, 123456789),
-                        LocalDateTime.of(LocalDate.of(2021, 11, 12), LocalTime.of(11, 12, 13, 123456789)),
+                        LocalDateTime.of(LocalDate.of(2021, 11, 12),
+                                LocalTime.of(11, 12, 13, 123456789)),
                         new boolean[] { false, true } }),
                 "[1,97,1,2,3,4,5.555,6.666666,'\\'x\\'','00000000-0000-0000-0000-000000000002','127.0.0.1','0:0:0:0:0:0:0:1',30,123456789,1.23456789,NULL,'2021-11-12','11:12:13.123456789','2021-11-12 11:12:13.123456789',[0,1]]");
     }

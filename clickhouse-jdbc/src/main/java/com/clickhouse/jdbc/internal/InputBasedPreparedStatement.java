@@ -55,6 +55,7 @@ public class InputBasedPreparedStatement extends ClickHouseStatementImpl impleme
             throw SqlExceptionUtils.clientError("Non-null column list is required");
         }
 
+        ClickHouseConfig config = getConfig();
         defaultCalendar = connection.getDefaultCalendar();
         jvmZoneId = connection.getJvmTimeZone().toZoneId();
 
@@ -63,11 +64,10 @@ public class InputBasedPreparedStatement extends ClickHouseStatementImpl impleme
         int i = 0;
         values = new ClickHouseValue[size];
         for (ClickHouseColumn col : columns) {
-            values[i++] = ClickHouseValues.newValue(col);
+            values[i++] = ClickHouseValues.newValue(config, col);
         }
         flags = new boolean[size];
 
-        ClickHouseConfig config = request.getConfig();
         stream = new ClickHousePipedStream(config.getMaxBufferSize(), 0, config.getSocketTimeout());
         batch = new LinkedList<>();
     }

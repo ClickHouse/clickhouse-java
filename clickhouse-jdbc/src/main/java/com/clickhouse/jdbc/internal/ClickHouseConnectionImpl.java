@@ -213,9 +213,7 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
             // with respect of default locale
             defaultCalendar = new GregorianCalendar();
         } else {
-            clientTimeZone = Optional
-                    .of(ClickHouseChecker.isNullOrBlank(config.getUseTimeZone()) ? TimeZone.getDefault()
-                            : TimeZone.getTimeZone(config.getUseTimeZone()));
+            clientTimeZone = Optional.of(config.getUseTimeZone());
             defaultCalendar = new GregorianCalendar(clientTimeZone.get());
         }
         this.serverVersion = version;
@@ -510,8 +508,9 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
             int resultSetHoldability) throws SQLException {
         ensureOpen();
 
+        ClickHouseConfig config = clientRequest.getConfig();
         // TODO remove the extra parsing
-        ClickHouseSqlStatement[] stmts = parse(sql, clientRequest.getConfig());
+        ClickHouseSqlStatement[] stmts = parse(sql, config);
         if (stmts.length != 1) {
             throw SqlExceptionUtils
                     .clientError("Prepared statement only supports one query but we got: " + stmts.length);
@@ -520,8 +519,9 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
 
         ClickHouseParameterizedQuery preparedQuery;
         try {
-            preparedQuery = jdbcConf.useNamedParameter() ? ClickHouseParameterizedQuery.of(parsedStmt.getSQL())
-                    : JdbcParameterizedQuery.of(parsedStmt.getSQL());
+            preparedQuery = jdbcConf.useNamedParameter()
+                    ? ClickHouseParameterizedQuery.of(clientRequest.getConfig(), parsedStmt.getSQL())
+                    : JdbcParameterizedQuery.of(config, parsedStmt.getSQL());
         } catch (RuntimeException e) {
             throw SqlExceptionUtils.clientError(e);
         }
@@ -734,6 +734,11 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
         ensureOpen();
 
         return networkTimeout;
+    }
+
+    @Override
+    public ClickHouseConfig getConfig() {
+        return clientRequest.getConfig();
     }
 
     @Override

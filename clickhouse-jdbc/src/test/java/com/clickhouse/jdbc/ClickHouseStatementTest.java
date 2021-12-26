@@ -7,10 +7,15 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Time;
 import java.sql.Timestamp;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
+import java.util.Arrays;
 import java.util.Calendar;
 import java.util.GregorianCalendar;
 import java.util.Locale;
@@ -36,8 +41,9 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
                             + "{ts '2021-11-01 12:34:56'} as TS) as {tt 'temp_table'}");
             Assert.assertTrue(rs.next());
             Assert.assertEquals(rs.getObject("ts", LocalDateTime.class), LocalDateTime.of(2021, 11, 1, 12, 34, 56));
-            Assert.assertEquals(rs.getTime("t"), Time.valueOf(LocalTime.of(12, 34, 56)));
+            Assert.assertEquals(rs.getObject("t", LocalTime.class), LocalTime.of(12, 34, 56));
             Assert.assertEquals(rs.getObject("d"), LocalDate.of(2021, 11, 1));
+            Assert.assertEquals(rs.getTime("t"), Time.valueOf(LocalTime.of(12, 34, 56)));
             Assert.assertFalse(rs.next());
         }
     }
@@ -118,8 +124,11 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
 
     @Test(groups = "integration")
     public void testTimestamp() throws SQLException {
-        try (ClickHouseConnection conn = newConnection(new Properties());
+        Properties props = new Properties();
+        TimeZone serverTimeZone = TimeZone.getDefault();
+        try (ClickHouseConnection conn = newConnection(props);
                 ClickHouseStatement stmt = conn.createStatement()) {
+            serverTimeZone = conn.getServerTimeZone();
             ResultSet rs = stmt.executeQuery("select now(), now('Asia/Chongqing')");
             Assert.assertTrue(rs.next());
             LocalDateTime dt1 = (LocalDateTime) rs.getObject(1);
@@ -130,7 +139,50 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
             Assert.assertTrue(ot1 == ot2);
             Assert.assertFalse(rs.next());
         }
+
+        String tz = "America/Los_Angeles";
+        String sql = "SELECT toDateTime(1616633456), toDateTime(1616633456, 'Etc/UTC'), "
+                + "toDateTime(1616633456, 'America/Los_Angeles'),  toDateTime(1616633456, 'Asia/Chongqing'), "
+                + "toDateTime(1616633456, 'Europe/Berlin'), toUInt32(toDateTime('2021-03-25 08:50:56')), "
+                + "toUInt32(toDateTime('2021-03-25 08:50:56', 'Asia/Chongqing'))";
+        props.setProperty("use_time_zone", tz);
+        props.setProperty("use_server_time_zone", "false");
+        props.setProperty("time_zone_for_date", "CLIENT");
+        LocalDateTime dt = LocalDateTime.ofInstant(Instant.ofEpochSecond(1616633456L), serverTimeZone.toZoneId());
+        try (ClickHouseConnection conn = newConnection(props);
+                ClickHouseStatement stmt = conn.createStatement()) {
+            ResultSet rs = stmt.executeQuery(sql);
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getObject(1),
+                    ZonedDateTime.ofInstant(Instant.ofEpochSecond(1616633456L), ZoneId.of(tz))
+                            .toLocalDateTime());
+            Assert.assertFalse(rs.next());
+        }
     }
+
+    // @Test(groups = "integration")
+    // public void testAggregateFunction() throws SQLException {
+    // Properties props = new Properties();
+    // try (ClickHouseConnection conn = newConnection(props);
+    // ClickHouseStatement stmt = conn.createStatement()) {
+    // ResultSet rs = stmt.executeQuery("select anyState(n) from (select
+    // toInt32(number + 5) n from numbers(3))");
+    // Assert.assertTrue(rs.next());
+    // Assert.assertEquals(rs.getObject(1), 5);
+    // Assert.assertFalse(rs.next());
+
+    // rs = stmt.executeQuery("select anyState(null)");
+    // Assert.assertTrue(rs.next());
+    // Assert.assertNull(rs.getObject(1));
+    // Assert.assertFalse(rs.next());
+
+    // rs = stmt.executeQuery("select anyState(n) from (select toString(number) n
+    // from numbers(0))");
+    // Assert.assertTrue(rs.next());
+    // Assert.assertNull(rs.getObject(1));
+    // Assert.assertFalse(rs.next());
+    // }
+    // }
 
     @Test(groups = "integration")
     public void testCustomTypeMappings() throws SQLException {
@@ -162,10 +214,34 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
     }
 
     @Test(groups = "integration")
+    public void testNestedDataTypes() throws SQLException {
+        Properties props = new Properties();
+        try (ClickHouseConnection conn = newConnection(props);
+                ClickHouseStatement stmt = conn.createStatement()) {
+            ResultSet rs = stmt.executeQuery("select (1,2) as t, [3,4] as a");
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getObject(1), Arrays.asList((short) 1, (short) 2));
+            Assert.assertEquals(rs.getObject(2), new short[] { (short) 3, (short) 4 });
+            Assert.assertFalse(rs.next());
+        }
+
+        props.setProperty("wrapperObject", "true");
+        try (ClickHouseConnection conn = newConnection(props);
+                ClickHouseStatement stmt = conn.createStatement()) {
+            ResultSet rs = stmt.executeQuery("select (1,2) as t, [3,4] as a");
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(((ClickHouseStruct) rs.getObject(1)).getAttributes(),
+                    new Object[] { (short) 1, (short) 2 });
+            Assert.assertEquals(((ClickHouseArray) rs.getObject(2)).getArray(), rs.getArray(2).getArray());
+            Assert.assertFalse(rs.next());
+        }
+    }
+
+    @Test(groups = "integration")
     public void testTimeZone() throws SQLException {
         String dateType = "DateTime32";
         String dateValue = "2020-02-11 00:23:33";
-        ClickHouseDateTimeValue v = ClickHouseDateTimeValue.of(dateValue, 0);
+        ClickHouseDateTimeValue v = ClickHouseDateTimeValue.of(dateValue, 0, ClickHouseValues.UTC_TIMEZONE);
 
         Properties props = new Properties();
         String[] timeZones = new String[] { "Asia/Chongqing", "America/Los_Angeles", "Europe/Moscow", "Etc/UTC",

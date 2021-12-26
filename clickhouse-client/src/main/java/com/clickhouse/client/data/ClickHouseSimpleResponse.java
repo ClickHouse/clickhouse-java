@@ -7,6 +7,7 @@ import java.util.LinkedList;
 import java.util.List;
 
 import com.clickhouse.client.ClickHouseColumn;
+import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseRecord;
 import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.ClickHouseResponseSummary;
@@ -23,22 +24,24 @@ public class ClickHouseSimpleResponse implements ClickHouseResponse {
     /**
      * Creates a response object using columns definition and raw values.
      *
+     * @param config  non-null config
      * @param columns list of columns
      * @param values  raw values, which may or may not be null
      * @return response object
      */
-    public static ClickHouseResponse of(List<ClickHouseColumn> columns, Object[][] values) {
-        return of(columns, values, null);
+    public static ClickHouseResponse of(ClickHouseConfig config, List<ClickHouseColumn> columns, Object[][] values) {
+        return of(config, columns, values, null);
     }
 
     /**
      * Creates a response object using columns definition and raw values.
      *
+     * @param config  non-null config
      * @param columns list of columns
      * @param values  raw values, which may or may not be null
      * @return response object
      */
-    public static ClickHouseResponse of(List<ClickHouseColumn> columns, Object[][] values,
+    public static ClickHouseResponse of(ClickHouseConfig config, List<ClickHouseColumn> columns, Object[][] values,
             ClickHouseResponseSummary summary) {
         if (columns == null || columns.isEmpty()) {
             return EMPTY;
@@ -51,7 +54,7 @@ public class ClickHouseSimpleResponse implements ClickHouseResponse {
         if (len > 0) {
             ClickHouseValue[] templates = new ClickHouseValue[size];
             for (int i = 0; i < size; i++) {
-                templates[i] = ClickHouseValues.newValue(columns.get(i));
+                templates[i] = ClickHouseValues.newValue(config, columns.get(i));
             }
 
             for (int i = 0; i < len; i++) {

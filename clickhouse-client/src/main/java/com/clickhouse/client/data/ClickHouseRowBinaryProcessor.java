@@ -46,14 +46,14 @@ public class ClickHouseRowBinaryProcessor extends ClickHouseDataProcessor {
             Class<?> javaClass = baseColumn.getDataType().getPrimitiveClass();
             if (level > 1 || !javaClass.isPrimitive()) {
                 Object[] array = value.asArray();
-                ClickHouseValue v = ClickHouseValues.newValue(nestedColumn);
+                ClickHouseValue v = ClickHouseValues.newValue(config, nestedColumn);
                 int length = array.length;
                 BinaryStreamUtils.writeVarInt(output, length);
                 for (int i = 0; i < length; i++) {
                     serialize(v.update(array[i]), config, nestedColumn, output);
                 }
             } else {
-                ClickHouseValue v = ClickHouseValues.newValue(baseColumn);
+                ClickHouseValue v = ClickHouseValues.newValue(config, baseColumn);
                 if (byte.class == javaClass) {
                     byte[] array = (byte[]) value.asObject();
                     int length = array.length;
@@ -279,41 +279,47 @@ public class ClickHouseRowBinaryProcessor extends ClickHouseDataProcessor {
 
             // date, time, datetime and IPs
             buildMappings(deserializers, serializers,
-                    (r, f, c, i) -> ClickHouseDateValue.of(r, BinaryStreamUtils.readDate(i, f.getServerTimeZone())),
-                    (v, f, c, o) -> BinaryStreamUtils.writeDate(o, v.asDate(), f.getServerTimeZone()),
+                    (r, f, c, i) -> ClickHouseDateValue.of(r,
+                            BinaryStreamUtils.readDate(i, f.getServerTimeZone(), f.getTimeZoneForDate())),
+                    (v, f, c, o) -> BinaryStreamUtils.writeDate(o, v.asDate(), f.getServerTimeZone(),
+                            f.getTimeZoneForDate()),
                     ClickHouseDataType.Date);
             buildMappings(deserializers, serializers,
-                    (r, f, c, i) -> ClickHouseDateValue.of(r, BinaryStreamUtils.readDate32(i, f.getServerTimeZone())),
-                    (v, f, c, o) -> BinaryStreamUtils.writeDate(o, v.asDate(), f.getServerTimeZone()),
+                    (r, f, c, i) -> ClickHouseDateValue.of(r,
+                            BinaryStreamUtils.readDate32(i, f.getServerTimeZone(), f.getTimeZoneForDate())),
+                    (v, f, c, o) -> BinaryStreamUtils.writeDate(o, v.asDate(), f.getServerTimeZone(),
+                            f.getTimeZoneForDate()),
                     ClickHouseDataType.Date32);
             buildMappings(deserializers, serializers, (r, f, c, i) -> c.getTimeZone() == null
                     ? ClickHouseDateTimeValue.of(r,
-                            (c.getScale() > 0 ? BinaryStreamUtils.readDateTime64(i, c.getScale(), f.getServerTimeZone())
-                                    : BinaryStreamUtils.readDateTime(i, f.getServerTimeZone())),
-                            c.getScale())
+                            (c.getScale() > 0 ? BinaryStreamUtils.readDateTime64(i, c.getScale(), f.getUseTimeZone())
+                                    : BinaryStreamUtils.readDateTime(i, f.getUseTimeZone())),
+                            c.getScale(), f.getUseTimeZone())
                     : ClickHouseOffsetDateTimeValue.of(r,
                             (c.getScale() > 0 ? BinaryStreamUtils.readDateTime64(i, c.getScale(), c.getTimeZone())
                                     : BinaryStreamUtils.readDateTime(i, c.getTimeZone())),
                             c.getScale(), c.getTimeZone()),
                     (v, f, c, o) -> BinaryStreamUtils.writeDateTime(o, v.asDateTime(), c.getScale(),
-                            c.getTimeZoneOrDefault(f.getServerTimeZone())),
+                            c.getTimeZoneOrDefault(f.getUseTimeZone())),
                     ClickHouseDataType.DateTime);
             buildMappings(deserializers, serializers,
                     (r, f, c, i) -> c.getTimeZone() == null
-                            ? ClickHouseDateTimeValue.of(r, BinaryStreamUtils.readDateTime(i, f.getServerTimeZone()), 0)
+                            ? ClickHouseDateTimeValue.of(r, BinaryStreamUtils.readDateTime(i, f.getUseTimeZone()), 0,
+                                    f.getUseTimeZone())
                             : ClickHouseOffsetDateTimeValue.of(r, BinaryStreamUtils.readDateTime(i, c.getTimeZone()), 0,
                                     c.getTimeZone()),
                     (v, f, c, o) -> BinaryStreamUtils.writeDateTime32(o, v.asDateTime(),
-                            c.getTimeZoneOrDefault(f.getServerTimeZone())),
+                            c.getTimeZoneOrDefault(f.getUseTimeZone())),
                     ClickHouseDataType.DateTime32);
             buildMappings(deserializers, serializers,
                     (r, f, c, i) -> c.getTimeZone() == null ? ClickHouseDateTimeValue.of(r,
-                            BinaryStreamUtils.readDateTime64(i, c.getScale(), f.getServerTimeZone()), c.getScale())
+                            BinaryStreamUtils.readDateTime64(i, c.getScale(), f.getUseTimeZone()), c.getScale(),
+                            f.getUseTimeZone())
                             : ClickHouseOffsetDateTimeValue.of(r,
                                     BinaryStreamUtils.readDateTime64(i, c.getScale(), c.getTimeZone()), c.getScale(),
                                     c.getTimeZone()),
                     (v, f, c, o) -> BinaryStreamUtils.writeDateTime64(o, v.asDateTime(), c.getScale(),
-                            c.getTimeZoneOrDefault(f.getServerTimeZone())),
+                            c.getTimeZoneOrDefault(f.getUseTimeZone())),
                     ClickHouseDataType.DateTime64);
 
             buildMappings(deserializers, serializers,
@@ -360,7 +366,7 @@ public class ClickHouseRowBinaryProcessor extends ClickHouseDataProcessor {
             buildMappings(deserializers, serializers, (r, f, c, i) -> {
                 int length = BinaryStreamUtils.readVarInt(i);
                 if (r == null) {
-                    r = ClickHouseValues.newValue(c);
+                    r = ClickHouseValues.newValue(f, c);
                 }
                 return readArray(r, f, c.getNestedColumns().get(0), c.getArrayBaseColumn(), i, length,
                         c.getArrayNestedLevel());
@@ -380,8 +386,8 @@ public class ClickHouseRowBinaryProcessor extends ClickHouseDataProcessor {
                 if (!map.isEmpty()) {
                     ClickHouseColumn keyCol = c.getKeyInfo();
                     ClickHouseColumn valCol = c.getValueInfo();
-                    ClickHouseValue kVal = ClickHouseValues.newValue(keyCol);
-                    ClickHouseValue vVal = ClickHouseValues.newValue(valCol);
+                    ClickHouseValue kVal = ClickHouseValues.newValue(f, keyCol);
+                    ClickHouseValue vVal = ClickHouseValues.newValue(f, valCol);
                     for (Entry<Object, Object> e : map.entrySet()) {
                         serialize(kVal.update(e.getKey()), f, keyCol, o);
                         serialize(vVal.update(e.getValue()), f, valCol, o);
@@ -409,7 +415,7 @@ public class ClickHouseRowBinaryProcessor extends ClickHouseDataProcessor {
                 for (ClickHouseColumn col : c.getNestedColumns()) {
                     Object[] nvalues = values[l++];
                     int k = nvalues.length;
-                    ClickHouseValue nv = ClickHouseValues.newValue(col);
+                    ClickHouseValue nv = ClickHouseValues.newValue(f, col);
                     BinaryStreamUtils.writeVarInt(o, k);
                     for (int j = 0; j < k; j++) {
                         serialize(nv.update(nvalues[j]), f, col, o);
@@ -427,7 +433,7 @@ public class ClickHouseRowBinaryProcessor extends ClickHouseDataProcessor {
                 Iterator<Object> tupleIterator = tupleValues.iterator();
                 for (ClickHouseColumn col : c.getNestedColumns()) {
                     // FIXME tooooo slow
-                    ClickHouseValue tv = ClickHouseValues.newValue(col);
+                    ClickHouseValue tv = ClickHouseValues.newValue(f, col);
                     if (tupleIterator.hasNext()) {
                         serialize(tv.update(tupleIterator.next()), f, col, o);
                     } else {
@@ -452,7 +458,7 @@ public class ClickHouseRowBinaryProcessor extends ClickHouseDataProcessor {
         public ClickHouseValue deserialize(ClickHouseValue ref, ClickHouseConfig config, ClickHouseColumn column,
                 ClickHouseInputStream input) throws IOException {
             if (column.isNullable() && BinaryStreamUtils.readNull(input)) {
-                return ref == null ? ClickHouseValues.newValue(column) : ref.resetToNullOrEmpty();
+                return ref == null ? ClickHouseValues.newValue(config, column) : ref.resetToNullOrEmpty();
             }
 
             ClickHouseDeserializer<ClickHouseValue> func = (ClickHouseDeserializer<ClickHouseValue>) deserializers

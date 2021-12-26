@@ -17,6 +17,8 @@ import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 public class ClickHouseParameterizedQueryTest {
+    private final ClickHouseConfig config = new ClickHouseConfig();
+
     @DataProvider(name = "queryWithoutParameterProvider")
     private Object[][] getQueriesWithoutAnyParameter() {
         return new Object[][] { { "1" }, { "select 1" }, { "select 1::Float32" } };
@@ -25,7 +27,7 @@ public class ClickHouseParameterizedQueryTest {
     @Test(groups = { "unit" })
     public void testApplyCollection() {
         String query = "select :param1::String";
-        ClickHouseParameterizedQuery q = ClickHouseParameterizedQuery.of(query);
+        ClickHouseParameterizedQuery q = ClickHouseParameterizedQuery.of(config, query);
         Assert.assertTrue(q.getOriginalQuery() == query);
         Assert.assertEquals(q.apply((Collection<String>) null), "select NULL::String");
         Assert.assertEquals(q.apply(Collections.emptyList()), "select NULL::String");
@@ -33,7 +35,7 @@ public class ClickHouseParameterizedQueryTest {
         Assert.assertEquals(q.apply(Arrays.asList(new String[] { "first", "last" })), "select first::String");
 
         query = "select :param1::String,:param2 + 1 as result";
-        q = ClickHouseParameterizedQuery.of(query);
+        q = ClickHouseParameterizedQuery.of(config, query);
         Assert.assertTrue(q.getOriginalQuery() == query);
         Assert.assertEquals(q.apply((Collection<String>) null), "select NULL::String,NULL + 1 as result");
         Assert.assertEquals(q.apply(Collections.emptyList()), "select NULL::String,NULL + 1 as result");
@@ -46,7 +48,7 @@ public class ClickHouseParameterizedQueryTest {
                 "select first::String,last + 1 as result");
 
         query = "select :p1 p1, :p2 p2, :p1 p3";
-        q = ClickHouseParameterizedQuery.of(query);
+        q = ClickHouseParameterizedQuery.of(config, query);
         Assert.assertTrue(q.getOriginalQuery() == query);
         Assert.assertEquals(q.apply((Collection<String>) null), "select NULL p1, NULL p2, NULL p3");
         Assert.assertEquals(q.apply(Collections.emptyList()), "select NULL p1, NULL p2, NULL p3");
@@ -62,7 +64,7 @@ public class ClickHouseParameterizedQueryTest {
     @Test(groups = { "unit" })
     public void testApplyObjects() {
         String query = "select :param1::String";
-        ClickHouseParameterizedQuery q = ClickHouseParameterizedQuery.of(query);
+        ClickHouseParameterizedQuery q = ClickHouseParameterizedQuery.of(config, query);
         Assert.assertTrue(q.getOriginalQuery() == query);
         Assert.assertEquals(q.apply((Object) null), "select NULL::String");
         Assert.assertEquals(q.apply((Object) null, (Object) null), "select NULL::String");
@@ -72,40 +74,47 @@ public class ClickHouseParameterizedQueryTest {
         Assert.assertEquals(q.apply(Arrays.asList(1, null)), "select (1,NULL)::String");
 
         query = "select :param1::String,:param2 + 1 as result";
-        q = ClickHouseParameterizedQuery.of(query);
+        q = ClickHouseParameterizedQuery.of(config, query);
         Assert.assertTrue(q.getOriginalQuery() == query);
         Assert.assertEquals(q.apply((Object) null), "select NULL::String,NULL + 1 as result");
         Assert.assertEquals(q.apply((Object) null, (Object) null), "select NULL::String,NULL + 1 as result");
         Assert.assertEquals(q.apply('a'), "select 97::String,NULL + 1 as result");
         Assert.assertEquals(q.apply(1, (Object) null), "select 1::String,NULL + 1 as result");
-        Assert.assertEquals(q.apply(ClickHouseDateTimeValue.ofNull(3).update(1), (Object) null),
+        Assert.assertEquals(
+                q.apply(ClickHouseDateTimeValue.ofNull(3, ClickHouseValues.UTC_TIMEZONE).update(1), (Object) null),
                 "select '1970-01-01 00:00:00.001'::String,NULL + 1 as result");
         Assert.assertEquals(q.apply(Collections.singletonList('a')), "select (97)::String,NULL + 1 as result");
         Assert.assertEquals(q.apply(Arrays.asList(1, null)), "select (1,NULL)::String,NULL + 1 as result");
-        Assert.assertEquals(q.apply(Arrays.asList(ClickHouseDateTimeValue.ofNull(3).update(1), null)),
+        Assert.assertEquals(
+                q.apply(Arrays.asList(ClickHouseDateTimeValue.ofNull(3, ClickHouseValues.UTC_TIMEZONE).update(1),
+                        null)),
                 "select ('1970-01-01 00:00:00.001',NULL)::String,NULL + 1 as result");
 
         query = "select :p1 p1, :p2 p2, :p1 p3";
-        q = ClickHouseParameterizedQuery.of(query);
+        q = ClickHouseParameterizedQuery.of(config, query);
         Assert.assertTrue(q.getOriginalQuery() == query);
         Assert.assertEquals(q.apply((Object) null), "select NULL p1, NULL p2, NULL p3");
         Assert.assertEquals(q.apply((Object) null, (Object) null), "select NULL p1, NULL p2, NULL p3");
         Assert.assertEquals(q.apply('a'), "select 97 p1, NULL p2, 97 p3");
         Assert.assertEquals(q.apply(1, (Object) null), "select 1 p1, NULL p2, 1 p3");
-        Assert.assertEquals(q.apply(ClickHouseDateTimeValue.ofNull(3).update(1), (Object) null),
+        Assert.assertEquals(
+                q.apply(ClickHouseDateTimeValue.ofNull(3, ClickHouseValues.UTC_TIMEZONE).update(1), (Object) null),
                 "select '1970-01-01 00:00:00.001' p1, NULL p2, '1970-01-01 00:00:00.001' p3");
         Assert.assertEquals(q.apply(Collections.singletonList('a')), "select (97) p1, NULL p2, (97) p3");
         Assert.assertEquals(q.apply(Arrays.asList(1, null)), "select (1,NULL) p1, NULL p2, (1,NULL) p3");
-        Assert.assertEquals(q.apply(Arrays.asList(ClickHouseDateTimeValue.ofNull(3).update(1), null)),
+        Assert.assertEquals(
+                q.apply(Arrays.asList(ClickHouseDateTimeValue.ofNull(3, ClickHouseValues.UTC_TIMEZONE).update(1),
+                        null)),
                 "select ('1970-01-01 00:00:00.001',NULL) p1, NULL p2, ('1970-01-01 00:00:00.001',NULL) p3");
-        Assert.assertEquals(q.apply(new StringBuilder("321"), new StringBuilder("123"), new StringBuilder("456")),
+        Assert.assertEquals(
+                q.apply(new StringBuilder("321"), new StringBuilder("123"), new StringBuilder("456")),
                 "select 321 p1, 123 p2, 321 p3");
     }
 
     @Test(groups = { "unit" })
     public void testApplyMap() {
         String query = "select :param1::String";
-        ClickHouseParameterizedQuery q = ClickHouseParameterizedQuery.of(query);
+        ClickHouseParameterizedQuery q = ClickHouseParameterizedQuery.of(config, query);
         Assert.assertTrue(q.getOriginalQuery() == query);
         Assert.assertEquals(q.apply((Map<String, String>) null), "select NULL::String");
         Assert.assertEquals(q.apply(Collections.emptyMap()), "select NULL::String");
@@ -113,7 +122,7 @@ public class ClickHouseParameterizedQueryTest {
         Assert.assertEquals(q.apply(Collections.singletonMap("param1", "value")), "select value::String");
 
         query = "select :param1::String,:param2 + 1 as result";
-        q = ClickHouseParameterizedQuery.of(query);
+        q = ClickHouseParameterizedQuery.of(config, query);
         Assert.assertTrue(q.getOriginalQuery() == query);
         Assert.assertEquals(q.apply((Map<String, String>) null), "select NULL::String,NULL + 1 as result");
         Assert.assertEquals(q.apply(Collections.emptyMap()), "select NULL::String,NULL + 1 as result");
@@ -131,7 +140,7 @@ public class ClickHouseParameterizedQueryTest {
     @Test(groups = { "unit" })
     public void testApplyStrings() {
         String query = "select :param1::String";
-        ClickHouseParameterizedQuery q = ClickHouseParameterizedQuery.of(query);
+        ClickHouseParameterizedQuery q = ClickHouseParameterizedQuery.of(config, query);
         Assert.assertTrue(q.getOriginalQuery() == query);
         Assert.assertEquals(q.apply((String) null), "select null::String");
         Assert.assertEquals(q.apply((String) null, (String) null), "select null::String");
@@ -139,7 +148,7 @@ public class ClickHouseParameterizedQueryTest {
         Assert.assertEquals(q.apply("1", (String) null), "select 1::String");
 
         query = "select :param1::String,:param2 + 1 as result";
-        q = ClickHouseParameterizedQuery.of(query);
+        q = ClickHouseParameterizedQuery.of(config, query);
         Assert.assertTrue(q.getOriginalQuery() == query);
         Assert.assertEquals(q.apply((String) null), "select null::String,NULL + 1 as result");
         Assert.assertEquals(q.apply((String) null, (String) null), "select null::String,null + 1 as result");
@@ -147,7 +156,7 @@ public class ClickHouseParameterizedQueryTest {
         Assert.assertEquals(q.apply("1", (String) null), "select 1::String,null + 1 as result");
 
         query = "select :p1 p1, :p2 p2, :p1 p3";
-        q = ClickHouseParameterizedQuery.of(query);
+        q = ClickHouseParameterizedQuery.of(config, query);
         Assert.assertTrue(q.getOriginalQuery() == query);
         Assert.assertEquals(q.apply((String) null), "select null p1, NULL p2, null p3");
         Assert.assertEquals(q.apply((String) null, (String) null), "select null p1, null p2, null p3");
@@ -158,13 +167,13 @@ public class ClickHouseParameterizedQueryTest {
 
     @Test(groups = { "unit" })
     public void testInvalidQuery() {
-        Assert.assertThrows(IllegalArgumentException.class, () -> ClickHouseParameterizedQuery.of(null));
-        Assert.assertThrows(IllegalArgumentException.class, () -> ClickHouseParameterizedQuery.of(""));
+        Assert.assertThrows(IllegalArgumentException.class, () -> ClickHouseParameterizedQuery.of(config, null));
+        Assert.assertThrows(IllegalArgumentException.class, () -> ClickHouseParameterizedQuery.of(config, ""));
     }
 
     @Test(dataProvider = "queryWithoutParameterProvider", groups = { "unit" })
     public void testQueryWithoutAnyParameter(String query) {
-        ClickHouseParameterizedQuery q = ClickHouseParameterizedQuery.of(query);
+        ClickHouseParameterizedQuery q = ClickHouseParameterizedQuery.of(config, query);
         Assert.assertTrue(q.getOriginalQuery() == query);
         Assert.assertTrue(q.apply((String) null) == query);
         Assert.assertTrue(q.apply((Object) null) == query);
@@ -196,7 +205,7 @@ public class ClickHouseParameterizedQueryTest {
     @Test(groups = { "unit" })
     public void testQueryWithParameters() {
         String query = "select 2>1?3:2, name, value, value::Decimal64(3) from my_table where value != ':ccc' and num in (:no ) and value = :v(String)";
-        ClickHouseParameterizedQuery q = ClickHouseParameterizedQuery.of(query);
+        ClickHouseParameterizedQuery q = ClickHouseParameterizedQuery.of(config, query);
         Assert.assertTrue(q.getOriginalQuery() == query);
         Assert.assertTrue(q.hasParameter());
         Assert.assertEquals(q.getQueryParts().toArray(new String[0][]), new String[][] { new String[] {
@@ -227,7 +236,7 @@ public class ClickHouseParameterizedQueryTest {
     public void testApplyTypedParameters() {
         LocalDateTime ts = LocalDateTime.ofEpochSecond(10000, 123456789, ZoneOffset.UTC);
         String sql = "select :ts1 ts1, :ts2(DateTime32) ts2, :ts2 ts3";
-        ClickHouseParameterizedQuery pq = ClickHouseParameterizedQuery.of(sql);
+        ClickHouseParameterizedQuery pq = ClickHouseParameterizedQuery.of(config, sql);
         ClickHouseValue[] templates = pq.getParameterTemplates();
         Assert.assertEquals(templates.length, pq.getParameters().size());
         Assert.assertNull(templates[0]);

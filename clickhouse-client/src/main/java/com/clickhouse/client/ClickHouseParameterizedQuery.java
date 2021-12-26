@@ -35,14 +35,14 @@ public class ClickHouseParameterizedQuery implements Serializable {
         public final String paramName;
         public final ClickHouseColumn paramType;
 
-        protected QueryPart(String part, int paramIndex, String paramName, String paramType,
+        protected QueryPart(ClickHouseConfig config, String part, int paramIndex, String paramName, String paramType,
                 Map<String, ClickHouseValue> map) {
             this.part = part;
             this.paramIndex = paramIndex;
             this.paramName = paramName != null ? paramName : String.valueOf(paramIndex);
             if (paramType != null) {
                 this.paramType = ClickHouseColumn.of("", paramType);
-                map.put(paramName, ClickHouseValues.newValue(this.paramType));
+                map.put(paramName, ClickHouseValues.newValue(config, this.paramType));
             } else {
                 this.paramType = null;
                 map.putIfAbsent(paramName, null);
@@ -148,14 +148,16 @@ public class ClickHouseParameterizedQuery implements Serializable {
     /**
      * Creates an instance by parsing the given query.
      *
-     * @param query non-empty SQL query
+     * @param config non-null config
+     * @param query  non-empty SQL query
      * @return parameterized query
      */
-    public static ClickHouseParameterizedQuery of(String query) {
+    public static ClickHouseParameterizedQuery of(ClickHouseConfig config, String query) {
         // cache if query.length() is greater than 1024?
-        return new ClickHouseParameterizedQuery(query);
+        return new ClickHouseParameterizedQuery(config, query);
     }
 
+    protected final ClickHouseConfig config;
     protected final String originalQuery;
 
     private final List<QueryPart> parts;
@@ -165,9 +167,11 @@ public class ClickHouseParameterizedQuery implements Serializable {
     /**
      * Default constructor.
      *
-     * @param query non-blank query
+     * @param config non-null config
+     * @param query  non-blank query
      */
-    protected ClickHouseParameterizedQuery(String query) {
+    protected ClickHouseParameterizedQuery(ClickHouseConfig config, String query) {
+        this.config = ClickHouseChecker.nonNull(config, "config");
         originalQuery = ClickHouseChecker.nonBlank(query, "query");
 
         parts = new LinkedList<>();
@@ -201,7 +205,7 @@ public class ClickHouseParameterizedQuery implements Serializable {
             paramName = String.valueOf(paramIndex);
         }
 
-        parts.add(new QueryPart(part, paramIndex, paramName, paramType, names));
+        parts.add(new QueryPart(config, part, paramIndex, paramName, paramType, names));
     }
 
     /**
@@ -264,7 +268,7 @@ public class ClickHouseParameterizedQuery implements Serializable {
                             }
                         }
 
-                        parts.add(new QueryPart(part, paramIndex, paramName, paramType, names));
+                        parts.add(new QueryPart(config, part, paramIndex, paramName, paramType, names));
                     }
                 }
             }

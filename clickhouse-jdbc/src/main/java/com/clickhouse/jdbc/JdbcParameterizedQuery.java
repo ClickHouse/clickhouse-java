@@ -3,6 +3,7 @@ package com.clickhouse.jdbc;
 import java.util.Collection;
 import java.util.Iterator;
 
+import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseParameterizedQuery;
 import com.clickhouse.client.ClickHouseUtils;
 import com.clickhouse.client.ClickHouseValues;
@@ -15,16 +16,17 @@ public final class JdbcParameterizedQuery extends ClickHouseParameterizedQuery {
     /**
      * Creates an instance by parsing the given query.
      *
-     * @param query non-empty SQL query
+     * @param config non-null configuration
+     * @param query  non-empty SQL query
      * @return parameterized query
      */
-    public static JdbcParameterizedQuery of(String query) {
+    public static JdbcParameterizedQuery of(ClickHouseConfig config, String query) {
         // cache if query.length() is greater than 1024?
-        return new JdbcParameterizedQuery(query);
+        return new JdbcParameterizedQuery(config, query);
     }
 
-    private JdbcParameterizedQuery(String query) {
-        super(query);
+    private JdbcParameterizedQuery(ClickHouseConfig config, String query) {
+        super(config, query);
     }
 
     @Override
