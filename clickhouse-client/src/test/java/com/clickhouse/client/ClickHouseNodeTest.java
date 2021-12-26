@@ -116,6 +116,7 @@ public class ClickHouseNodeTest {
         node = ClickHouseNode.builder().database("123").build();
         Assert.assertEquals(node.hasPreferredDatabase(), true);
         Assert.assertEquals(node.getDatabase().orElse(null), "123");
-        Assert.assertEquals(node.getDatabase(config), "123");
+        Assert.assertEquals(node.getDatabase(config), "ttt");
+        Assert.assertEquals(node.getDatabase(new ClickHouseConfig()), "123");
     }
 }

@@ -11,6 +11,8 @@ import java.util.Set;
 import java.util.TimeZone;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
+
+import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.config.ClickHouseDefaults;
 
 /**
@@ -524,7 +526,8 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
      * @return database of the node
      */
     public String getDatabase(ClickHouseConfig config) {
-        return hasPreferredDatabase() ? database : ClickHouseChecker.nonNull(config, "config").getDatabase();
+        return !ClickHouseChecker.nonNull(config, "config").hasOption(ClickHouseClientOption.DATABASE)
+                && hasPreferredDatabase() ? database : config.getDatabase();
     }
 
     /**

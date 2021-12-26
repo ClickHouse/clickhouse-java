@@ -13,10 +13,10 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
-import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.Calendar;
+import java.util.Collections;
 import java.util.GregorianCalendar;
 import java.util.Locale;
 import java.util.Properties;
@@ -24,6 +24,7 @@ import java.util.TimeZone;
 import java.util.UUID;
 
 import com.clickhouse.client.ClickHouseDataType;
+import com.clickhouse.client.ClickHouseParameterizedQuery;
 import com.clickhouse.client.ClickHouseValues;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.data.ClickHouseDateTimeValue;
@@ -44,6 +45,35 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
             Assert.assertEquals(rs.getObject("t", LocalTime.class), LocalTime.of(12, 34, 56));
             Assert.assertEquals(rs.getObject("d"), LocalDate.of(2021, 11, 1));
             Assert.assertEquals(rs.getTime("t"), Time.valueOf(LocalTime.of(12, 34, 56)));
+            Assert.assertFalse(rs.next());
+        }
+    }
+
+    @Test(groups = "integration")
+    public void testSwitchSchema() throws SQLException {
+        Properties props = new Properties();
+        props.setProperty("database", "system");
+        try (ClickHouseConnection conn = newConnection(props);
+                ClickHouseStatement stmt = conn.createStatement()) {
+            String dbName = "test_switch_schema";
+            stmt.execute(
+                    ClickHouseParameterizedQuery.apply("drop database if exists :db; "
+                            + "create database :db; "
+                            + "create table :db.:db (a Int32) engine=Memory",
+                            Collections.singletonMap("db", dbName)));
+            ResultSet rs = stmt.executeQuery("select currentDatabase()");
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getString(1), "system");
+            Assert.assertFalse(rs.next());
+            Assert.assertThrows(SQLException.class, () -> stmt.executeQuery("select * from test_switch_schema"));
+            conn.setSchema(dbName);
+            rs = stmt.executeQuery("select currentDatabase()");
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getString(1), "system");
+            Assert.assertFalse(rs.next());
+            rs = conn.createStatement().executeQuery("select currentDatabase()");
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getString(1), dbName);
             Assert.assertFalse(rs.next());
         }
     }
