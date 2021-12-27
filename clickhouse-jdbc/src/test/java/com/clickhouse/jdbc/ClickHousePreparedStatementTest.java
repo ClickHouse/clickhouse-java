@@ -34,9 +34,14 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
         LocalDate d = LocalDate.of(2021, 3, 25);
         Date x = Date.valueOf(d);
         try (ClickHouseConnection conn = newConnection(new Properties());
+                Statement s = conn.createStatement();
                 PreparedStatement stmt = conn.prepareStatement("insert into test_read_write_date values(?,?,?)")) {
-            conn.createStatement().execute("drop table if exists test_read_write_date;"
-                    + "create table test_read_write_date(id Int32, d1 Date, d2 Date32)engine=Memory");
+            s.execute("drop table if exists test_read_write_date");
+            try {
+                s.execute("create table test_read_write_date(id Int32, d1 Date, d2 Date32)engine=Memory");
+            } catch (SQLException e) {
+                s.execute("create table test_read_write_date(id Int32, d1 Date, d2 Nullable(Date))engine=Memory");
+            }
             stmt.setInt(1, 1);
             stmt.setObject(2, d);
             stmt.setObject(3, d);
@@ -75,9 +80,14 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
         LocalDate d = LocalDate.of(2021, 3, 25);
         Date x = Date.valueOf(d);
         try (ClickHouseConnection conn = newConnection(props);
+                Statement s = conn.createStatement();
                 PreparedStatement stmt = conn.prepareStatement("insert into test_read_write_date_cz values(?,?,?)")) {
-            conn.createStatement().execute("drop table if exists test_read_write_date_cz;"
-                    + "create table test_read_write_date_cz(id Int32, d1 Date, d2 Date32)engine=Memory");
+            s.execute("drop table if exists test_read_write_date_cz");
+            try {
+                s.execute("create table test_read_write_date_cz(id Int32, d1 Date, d2 Date32)engine=Memory");
+            } catch (SQLException e) {
+                s.execute("create table test_read_write_date_cz(id Int32, d1 Date, d2 Nullable(Date))engine=Memory");
+            }
             stmt.setInt(1, 1);
             stmt.setObject(2, d);
             stmt.setObject(3, d);
