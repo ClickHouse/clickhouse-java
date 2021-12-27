@@ -33,7 +33,7 @@ import com.clickhouse.client.logging.LoggerFactory;
  * also try to probe the protocol by sending a packet to the port and analyze
  * response from server.
  */
-public class ClickHouseCluster implements Function<ClickHouseNodeSelector, ClickHouseNode>, Serializable {
+class ClickHouseCluster implements Function<ClickHouseNodeSelector, ClickHouseNode>, Serializable {
     private static final long serialVersionUID = 8684489015067906319L;
 
     private static final Logger log = LoggerFactory.getLogger(ClickHouseCluster.class);
