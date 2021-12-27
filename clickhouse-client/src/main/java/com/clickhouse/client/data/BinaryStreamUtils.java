@@ -1256,8 +1256,7 @@ public final class BinaryStreamUtils {
             throws IOException {
         LocalDate d = readDate(input);
         if (tz != null) {
-            d = d.atStartOfDay(serverTimeZone.toZoneId()).toOffsetDateTime().atZoneSameInstant(tz.toZoneId())
-                    .toLocalDate();
+            d = d.atStartOfDay(serverTimeZone.toZoneId()).withZoneSameInstant(tz.toZoneId()).toLocalDate();
         }
         return d;
     }
@@ -1288,8 +1287,7 @@ public final class BinaryStreamUtils {
     public static void writeDate(OutputStream output, LocalDate value, TimeZone serverTimeZone, TimeZone tz)
             throws IOException {
         if (tz != null) {
-            value = value.atStartOfDay(tz.toZoneId()).toOffsetDateTime().atZoneSameInstant(serverTimeZone.toZoneId())
-                    .toLocalDate();
+            value = value.atStartOfDay(tz.toZoneId()).withZoneSameInstant(serverTimeZone.toZoneId()).toLocalDate();
         }
         writeDate(output, value);
     }
@@ -1322,8 +1320,7 @@ public final class BinaryStreamUtils {
             throws IOException {
         LocalDate d = readDate32(input);
         if (tz != null) {
-            d = d.atStartOfDay(serverTimeZone.toZoneId()).toOffsetDateTime().atZoneSameInstant(tz.toZoneId())
-                    .toLocalDate();
+            d = d.atStartOfDay(serverTimeZone.toZoneId()).withZoneSameInstant(tz.toZoneId()).toLocalDate();
         }
         return d;
     }
@@ -1354,8 +1351,7 @@ public final class BinaryStreamUtils {
     public static void writeDate32(OutputStream output, LocalDate value, TimeZone serverTimeZone, TimeZone tz)
             throws IOException {
         if (tz != null) {
-            value = value.atStartOfDay(tz.toZoneId()).toOffsetDateTime().atZoneSameInstant(serverTimeZone.toZoneId())
-                    .toLocalDate();
+            value = value.atStartOfDay(tz.toZoneId()).withZoneSameInstant(serverTimeZone.toZoneId()).toLocalDate();
         }
         writeDate32(output, value);
     }

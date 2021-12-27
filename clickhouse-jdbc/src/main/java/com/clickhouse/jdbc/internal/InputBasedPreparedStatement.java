@@ -13,6 +13,7 @@ import java.sql.Time;
 import java.sql.Timestamp;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Calendar;
@@ -37,7 +38,8 @@ public class InputBasedPreparedStatement extends ClickHouseStatementImpl impleme
     private static final Logger log = LoggerFactory.getLogger(InputBasedPreparedStatement.class);
 
     private final Calendar defaultCalendar;
-    private final ZoneId jvmZoneId;
+    private final ZoneId timeZoneForDate;
+    private final ZoneId timeZoneForTs;
 
     private final List<ClickHouseColumn> columns;
     private final ClickHouseValue[] values;
@@ -57,7 +59,9 @@ public class InputBasedPreparedStatement extends ClickHouseStatementImpl impleme
 
         ClickHouseConfig config = getConfig();
         defaultCalendar = connection.getDefaultCalendar();
-        jvmZoneId = connection.getJvmTimeZone().toZoneId();
+        timeZoneForDate = (config.isUseServerTimeZoneForDate() ? connection.getServerTimeZone()
+                : config.getTimeZoneForDate()).toZoneId();
+        timeZoneForTs = config.getUseTimeZone().toZoneId();
 
         this.columns = columns;
         int size = columns.size();
@@ -302,12 +306,17 @@ public class InputBasedPreparedStatement extends ClickHouseStatementImpl impleme
 
         int idx = toArrayIndex(parameterIndex);
         if (x != null) {
-            LocalDate d = null;
-            if (cal != null) {
-                d = x.toLocalDate().atStartOfDay(jvmZoneId)
-                        .withZoneSameInstant(cal.getTimeZone().toZoneId()).toLocalDate();
-            } else {
+            LocalDate d;
+            if (cal == null) {
+                cal = defaultCalendar;
+            }
+            ZoneId tz = cal.getTimeZone().toZoneId();
+            if (tz.equals(timeZoneForDate)) {
                 d = x.toLocalDate();
+            } else {
+                Calendar c = (Calendar) cal.clone();
+                c.setTime(x);
+                d = c.toInstant().atZone(tz).withZoneSameInstant(timeZoneForDate).toLocalDate();
             }
             values[idx].update(d);
         } else {
@@ -318,7 +327,27 @@ public class InputBasedPreparedStatement extends ClickHouseStatementImpl impleme
 
     @Override
     public void setTime(int parameterIndex, Time x, Calendar cal) throws SQLException {
-        throw SqlExceptionUtils.clientError("setTime not implemented");
+        ensureOpen();
+
+        int idx = toArrayIndex(parameterIndex);
+        if (x != null) {
+            LocalTime t;
+            if (cal == null) {
+                cal = defaultCalendar;
+            }
+            ZoneId tz = cal.getTimeZone().toZoneId();
+            if (tz.equals(timeZoneForTs)) {
+                t = x.toLocalTime();
+            } else {
+                Calendar c = (Calendar) cal.clone();
+                c.setTime(x);
+                t = c.toInstant().atZone(tz).withZoneSameInstant(timeZoneForTs).toLocalTime();
+            }
+            values[idx].update(t);
+        } else {
+            values[idx].resetToNullOrEmpty();
+        }
+        flags[idx] = true;
     }
 
     @Override
@@ -326,21 +355,23 @@ public class InputBasedPreparedStatement extends ClickHouseStatementImpl impleme
         ensureOpen();
 
         int idx = toArrayIndex(parameterIndex);
-        if (x == null) {
-            values[idx].resetToNullOrEmpty();
-            flags[idx] = true;
-            return;
-        }
-
-        LocalDateTime dt = null;
-        if (cal != null) {
-            dt = x.toLocalDateTime().atZone(jvmZoneId)
-                    .withZoneSameInstant(cal.getTimeZone().toZoneId()).toLocalDateTime();
+        if (x != null) {
+            LocalDateTime dt;
+            if (cal == null) {
+                cal = defaultCalendar;
+            }
+            ZoneId tz = cal.getTimeZone().toZoneId();
+            if (tz.equals(timeZoneForTs)) {
+                dt = x.toLocalDateTime();
+            } else {
+                Calendar c = (Calendar) cal.clone();
+                c.setTime(x);
+                dt = c.toInstant().atZone(tz).withZoneSameInstant(timeZoneForTs).toLocalDateTime();
+            }
+            values[idx].update(dt);
         } else {
-            dt = x.toLocalDateTime();
+            values[idx].resetToNullOrEmpty();
         }
-
-        values[idx].update(dt);
         flags[idx] = true;
     }
 

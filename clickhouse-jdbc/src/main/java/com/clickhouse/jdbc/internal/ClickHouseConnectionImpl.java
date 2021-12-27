@@ -14,6 +14,7 @@ import java.sql.Savepoint;
 import java.util.Calendar;
 import java.util.GregorianCalendar;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
@@ -35,6 +36,7 @@ import com.clickhouse.client.ClickHouseParameterizedQuery;
 import com.clickhouse.client.ClickHouseRecord;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseResponse;
+import com.clickhouse.client.ClickHouseUtils;
 import com.clickhouse.client.ClickHouseValues;
 import com.clickhouse.client.ClickHouseVersion;
 import com.clickhouse.client.config.ClickHouseClientOption;
@@ -122,6 +124,35 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
 
     protected void ensureTransactionSupport() throws SQLException {
         ensureSupport("Transaction", false);
+    }
+
+    protected List<ClickHouseColumn> getTableColumns(String dbName, String tableName, String columns)
+            throws SQLException {
+        if (tableName == null || columns == null) {
+            throw SqlExceptionUtils.clientError("Failed to extract table and columns from the query");
+        }
+
+        if (columns.isEmpty()) {
+            columns = "*";
+        } else {
+            columns = columns.substring(1); // remove the leading bracket
+        }
+        StringBuilder builder = new StringBuilder();
+        builder.append("SELECT ").append(columns).append(" FROM ");
+        if (!ClickHouseChecker.isNullOrEmpty(dbName)) {
+            builder.append('`').append(ClickHouseUtils.escape(dbName, '`')).append('`').append('.');
+        }
+        builder.append('`').append(ClickHouseUtils.escape(tableName, '`')).append('`').append(" WHERE 0");
+        List<ClickHouseColumn> list;
+        try (ClickHouseResponse resp = clientRequest.copy().query(builder.toString()).execute().get()) {
+            list = resp.getColumns();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw SqlExceptionUtils.forCancellation(e);
+        } catch (Exception e) {
+            throw SqlExceptionUtils.handle(e);
+        }
+        return list;
     }
 
     // for testing only
@@ -533,9 +564,6 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
                         .clientError(
                                 "External table, input function, and query parameter cannot be used together in PreparedStatement.");
             }
-            if (parsedStmt.hasValues()) { // consolidate multiple inserts into one
-
-            }
         } else {
             if (parsedStmt.hasTempTable()) {
                 // non-insert queries using temp table
@@ -543,13 +571,23 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
                         clientRequest.write().query(parsedStmt.getSQL(), newQueryId()),
                         parsedStmt.getTempTables(), resultSetType,
                         resultSetConcurrency, resultSetHoldability);
-            } else if (parsedStmt.getStatementType() == StatementType.INSERT
-                    && !ClickHouseChecker.isNullOrBlank(parsedStmt.getInput())) {
-                // insert query using input function
-                ps = new InputBasedPreparedStatement(this,
-                        clientRequest.write().query(parsedStmt.getSQL(), newQueryId()),
-                        ClickHouseColumn.parse(parsedStmt.getInput()), resultSetType,
-                        resultSetConcurrency, resultSetHoldability);
+            } else if (parsedStmt.getStatementType() == StatementType.INSERT) {
+                if (!ClickHouseChecker.isNullOrBlank(parsedStmt.getInput())) {
+                    // insert query using input function
+                    ps = new InputBasedPreparedStatement(this,
+                            clientRequest.write().query(parsedStmt.getSQL(), newQueryId()),
+                            ClickHouseColumn.parse(parsedStmt.getInput()), resultSetType,
+                            resultSetConcurrency, resultSetHoldability);
+                } else if (!parsedStmt.containsKeyword("SELECT") &&
+                        (!parsedStmt.hasFormat() || clientRequest.getFormat().name().equals(parsedStmt.getFormat()))) {
+                    ps = new InputBasedPreparedStatement(this,
+                            clientRequest.write().query(parsedStmt.getSQL(), newQueryId()),
+                            getTableColumns(parsedStmt.getDatabase(), parsedStmt.getTable(),
+                                    parsedStmt.getContentBetweenKeywords(
+                                            ClickHouseSqlStatement.KEYWORD_TABLE_COLUMNS_START,
+                                            ClickHouseSqlStatement.KEYWORD_TABLE_COLUMNS_END)),
+                            resultSetType, resultSetConcurrency, resultSetHoldability);
+                }
             }
         }
 

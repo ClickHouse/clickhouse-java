@@ -1,5 +1,6 @@
 package com.clickhouse.jdbc.parser;
 
+import org.testng.Assert;
 import org.testng.annotations.Test;
 
 import static org.testng.Assert.assertEquals;
@@ -40,17 +41,19 @@ public class ClickHouseSqlParserTest {
         return sql.toString();
     }
 
-    private void checkSingleStatement(ClickHouseSqlStatement[] stmts, String sql) {
-        checkSingleStatement(stmts, sql, StatementType.UNKNOWN, ClickHouseSqlStatement.DEFAULT_DATABASE,
+    private ClickHouseSqlStatement checkSingleStatement(ClickHouseSqlStatement[] stmts, String sql) {
+        return checkSingleStatement(stmts, sql, StatementType.UNKNOWN, ClickHouseSqlStatement.DEFAULT_DATABASE,
                 ClickHouseSqlStatement.DEFAULT_TABLE);
     }
 
-    private void checkSingleStatement(ClickHouseSqlStatement[] stmts, String sql, StatementType stmtType) {
-        checkSingleStatement(stmts, sql, stmtType, ClickHouseSqlStatement.DEFAULT_DATABASE,
+    private ClickHouseSqlStatement checkSingleStatement(ClickHouseSqlStatement[] stmts, String sql,
+            StatementType stmtType) {
+        return checkSingleStatement(stmts, sql, stmtType, ClickHouseSqlStatement.DEFAULT_DATABASE,
                 ClickHouseSqlStatement.DEFAULT_TABLE);
     }
 
-    private void checkSingleStatement(ClickHouseSqlStatement[] stmts, String sql, StatementType stmtType,
+    private ClickHouseSqlStatement checkSingleStatement(ClickHouseSqlStatement[] stmts, String sql,
+            StatementType stmtType,
             String database, String table) {
         assertEquals(stmts.length, 1);
 
@@ -59,6 +62,8 @@ public class ClickHouseSqlParserTest {
         assertEquals(s.getStatementType(), stmtType);
         assertEquals(s.getDatabaseOrDefault(null), database);
         assertEquals(s.getTable(), table);
+
+        return stmts[0];
     }
 
     @Test(groups = "unit")
@@ -212,26 +217,41 @@ public class ClickHouseSqlParserTest {
         }
         assertEquals(s.getStartPosition("values"), valuePosition);
 
-        checkSingleStatement(parse(sql = "insert into function null('a UInt8') values(1)"), sql,
+        s = checkSingleStatement(parse(sql = "insert into function null('a UInt8') values(1)"), sql,
                 StatementType.INSERT);
-        checkSingleStatement(parse(sql = "insert into function null('a UInt8') values(1)(2)"), sql,
+        Assert.assertEquals(s.getContentBetweenKeywords(ClickHouseSqlStatement.KEYWORD_VALUES_START,
+                ClickHouseSqlStatement.KEYWORD_VALUES_END, 1), "1");
+        s = checkSingleStatement(parse(sql = "insert into function null('a UInt8') values(1)(2)"), sql,
                 StatementType.INSERT);
+        Assert.assertEquals(s.getContentBetweenKeywords(ClickHouseSqlStatement.KEYWORD_VALUES_START,
+                ClickHouseSqlStatement.KEYWORD_VALUES_END, 1), "");
         checkSingleStatement(parse(sql = "insert into function null('a UInt8') select * from number(10)"), sql,
                 StatementType.INSERT);
         checkSingleStatement(parse(sql = "insert into test2(a,b) values('values(',',')"), sql,
-                StatementType.INSERT,
-                "system", "test2");
+                StatementType.INSERT, "system", "test2");
         checkSingleStatement(parse(sql = "INSERT INTO table t(a, b, c) values('1', ',', 'ccc')"), sql,
                 StatementType.INSERT, "system", "t");
         checkSingleStatement(parse(sql = "INSERT INTO table t(a, b, c) values('1', 2, 'ccc') (3,2,1)"), sql,
                 StatementType.INSERT, "system", "t");
         checkSingleStatement(parse(sql = "INSERT INTO table s.t select * from ttt"), sql, StatementType.INSERT,
-                "s",
-                "t");
+                "s", "t");
         checkSingleStatement(parse(sql = "INSERT INTO insert_select_testtable (* EXCEPT(b)) Values (2, 2)"),
-                sql,
-                StatementType.INSERT, "system", "insert_select_testtable");
-
+                sql, StatementType.INSERT, "system", "insert_select_testtable");
+        checkSingleStatement(
+                parse(sql = "insert into `test` (num) values (?) SETTINGS input_format_null_as_default = 1"),
+                sql, StatementType.INSERT, "system", "test");
+        checkSingleStatement(
+                parse(sql = "insert into `test` (id, name) values (1,2)(3,4),(5,6) SETTINGS input_format_null_as_default = 1"),
+                sql, StatementType.INSERT, "system", "test");
+        s = checkSingleStatement(
+                parse(sql = "insert into `test`"), sql, StatementType.INSERT, "system", "test");
+        Assert.assertEquals(s.getContentBetweenKeywords(ClickHouseSqlStatement.KEYWORD_TABLE_COLUMNS_START,
+                ClickHouseSqlStatement.KEYWORD_TABLE_COLUMNS_END, 1), "");
+        s = checkSingleStatement(
+                parse(sql = "insert into `test` (id, name) format RowBinary"),
+                sql, StatementType.INSERT, "system", "test");
+        Assert.assertEquals(s.getContentBetweenKeywords(ClickHouseSqlStatement.KEYWORD_TABLE_COLUMNS_START,
+                ClickHouseSqlStatement.KEYWORD_TABLE_COLUMNS_END, 1), "id, name");
     }
 
     @Test(groups = "unit")
@@ -698,6 +718,12 @@ public class ClickHouseSqlParserTest {
     public void testNewParameterSyntax() {
         String sql = "select {column_a:String}";
         ClickHouseSqlStatement[] stmts = parse(sql);
+        assertEquals(stmts.length, 1);
+        assertEquals(stmts[0].isQuery(), true);
+        assertEquals(stmts[0].getSQL(), sql);
+
+        sql = "select :column_a(String)";
+        stmts = parse(sql);
         assertEquals(stmts.length, 1);
         assertEquals(stmts[0].isQuery(), true);
         assertEquals(stmts[0].getSQL(), sql);

@@ -8,7 +8,6 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Time;
 import java.sql.Timestamp;
-import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
@@ -32,9 +31,6 @@ public class TableBasedPreparedStatement extends ClickHouseStatementImpl impleme
 
     private static final String ERROR_SET_TABLE = "Please use setObject(ClickHouseExternalTable) method instead";
 
-    private final Calendar defaultCalendar;
-    private final ZoneId jvmZoneId;
-
     private final List<String> tables;
     private final ClickHouseExternalTable[] values;
 
@@ -48,9 +44,6 @@ public class TableBasedPreparedStatement extends ClickHouseStatementImpl impleme
         if (tables == null) {
             throw SqlExceptionUtils.clientError("Non-null table list is required");
         }
-
-        defaultCalendar = connection.getDefaultCalendar();
-        jvmZoneId = connection.getJvmTimeZone().toZoneId();
 
         int size = tables.size();
         this.tables = new ArrayList<>(size);

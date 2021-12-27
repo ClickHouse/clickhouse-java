@@ -215,17 +215,11 @@ public class ClickHouseConfig implements Serializable {
         this.useServerTimeZone = (boolean) getOption(ClickHouseClientOption.USE_SERVER_TIME_ZONE);
         this.useServerTimeZoneForDate = (boolean) getOption(ClickHouseClientOption.USE_SERVER_TIME_ZONE_FOR_DATE);
 
-        if (this.useServerTimeZone) {
-            this.useTimeZone = this.serverTimeZone;
-        } else {
-            String timeZone = (String) getOption(ClickHouseClientOption.USE_TIME_ZONE);
-            TimeZone tz = ClickHouseChecker.isNullOrBlank(timeZone) ? TimeZone.getDefault()
-                    : TimeZone.getTimeZone(timeZone);
-            this.useTimeZone = this.serverTimeZone.equals(tz) ? this.serverTimeZone : tz;
-        }
-
-        this.timeZoneForDate = this.useServerTimeZoneForDate || this.serverTimeZone.equals(this.useTimeZone) ? null
-                : this.useTimeZone;
+        String timeZone = (String) getOption(ClickHouseClientOption.USE_TIME_ZONE);
+        TimeZone tz = ClickHouseChecker.isNullOrBlank(timeZone) ? TimeZone.getDefault()
+                : TimeZone.getTimeZone(timeZone);
+        this.useTimeZone = this.useServerTimeZone ? this.serverTimeZone : tz;
+        this.timeZoneForDate = this.useServerTimeZoneForDate ? null : tz;
 
         if (credentials == null) {
             this.credentials = ClickHouseCredentials.fromUserAndPassword((String) getOption(ClickHouseDefaults.USER),
@@ -368,6 +362,10 @@ public class ClickHouseConfig implements Serializable {
 
     public boolean isUseServerTimeZone() {
         return useServerTimeZone;
+    }
+
+    public boolean isUseServerTimeZoneForDate() {
+        return useServerTimeZoneForDate;
     }
 
     /**

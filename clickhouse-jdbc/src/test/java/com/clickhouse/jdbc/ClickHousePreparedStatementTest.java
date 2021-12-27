@@ -1,13 +1,17 @@
 package com.clickhouse.jdbc;
 
 import java.io.ByteArrayInputStream;
+import java.sql.Date;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.sql.Timestamp;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.Properties;
+import java.util.TimeZone;
 
 import com.clickhouse.client.ClickHouseFormat;
 import com.clickhouse.client.data.ClickHouseBitmap;
@@ -26,11 +30,200 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
     }
 
     @Test(groups = "integration")
+    public void testReadWriteDate() throws SQLException {
+        LocalDate d = LocalDate.of(2021, 3, 25);
+        Date x = Date.valueOf(d);
+        try (ClickHouseConnection conn = newConnection(new Properties());
+                PreparedStatement stmt = conn.prepareStatement("insert into test_read_write_date values(?,?,?)")) {
+            conn.createStatement().execute("drop table if exists test_read_write_date;"
+                    + "create table test_read_write_date(id Int32, d1 Date, d2 Date32)engine=Memory");
+            stmt.setInt(1, 1);
+            stmt.setObject(2, d);
+            stmt.setObject(3, d);
+            stmt.addBatch();
+            stmt.setInt(1, 2);
+            stmt.setDate(2, x);
+            stmt.setDate(3, x);
+            stmt.addBatch();
+            int[] results = stmt.executeBatch();
+            Assert.assertEquals(results, new int[] { 0, 0 });
+
+            LocalDate dx = d.atStartOfDay(TimeZone.getDefault().toZoneId())
+                    .withZoneSameInstant(conn.getServerTimeZone().toZoneId()).toLocalDate();
+            Date xx = Date.valueOf(dx);
+            ResultSet rs = conn.createStatement().executeQuery("select * from test_read_write_date order by id");
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getInt(1), 1);
+            Assert.assertEquals(rs.getObject(2), d);
+            Assert.assertEquals(rs.getDate(2), x);
+            Assert.assertEquals(rs.getObject(3), d);
+            Assert.assertEquals(rs.getDate(3), x);
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getInt(1), 2);
+            Assert.assertEquals(rs.getObject(2), dx);
+            Assert.assertEquals(rs.getDate(2), xx);
+            Assert.assertEquals(rs.getObject(3), dx);
+            Assert.assertEquals(rs.getDate(3), xx);
+            Assert.assertFalse(rs.next());
+        }
+    }
+
+    @Test(groups = "integration")
+    public void testReadWriteDateWithClientTimeZone() throws SQLException {
+        Properties props = new Properties();
+        props.setProperty("use_server_time_zone_for_date", "false");
+        LocalDate d = LocalDate.of(2021, 3, 25);
+        Date x = Date.valueOf(d);
+        try (ClickHouseConnection conn = newConnection(props);
+                PreparedStatement stmt = conn.prepareStatement("insert into test_read_write_date_cz values(?,?,?)")) {
+            conn.createStatement().execute("drop table if exists test_read_write_date_cz;"
+                    + "create table test_read_write_date_cz(id Int32, d1 Date, d2 Date32)engine=Memory");
+            stmt.setInt(1, 1);
+            stmt.setObject(2, d);
+            stmt.setObject(3, d);
+            stmt.addBatch();
+            stmt.setInt(1, 2);
+            stmt.setDate(2, x);
+            stmt.setDate(3, x);
+            stmt.addBatch();
+            int[] results = stmt.executeBatch();
+            Assert.assertEquals(results, new int[] { 0, 0 });
+
+            ResultSet rs = conn.createStatement().executeQuery("select * from test_read_write_date_cz order by id");
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getInt(1), 1);
+            Assert.assertEquals(rs.getObject(2), d);
+            Assert.assertEquals(rs.getDate(2), x);
+            Assert.assertEquals(rs.getObject(3), d);
+            Assert.assertEquals(rs.getDate(3), x);
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getInt(1), 2);
+            Assert.assertEquals(rs.getObject(2), d);
+            Assert.assertEquals(rs.getDate(2), x);
+            Assert.assertEquals(rs.getObject(3), d);
+            Assert.assertEquals(rs.getDate(3), x);
+            Assert.assertFalse(rs.next());
+        }
+    }
+
+    @Test(groups = "integration")
+    public void testReadWriteDateTime() throws SQLException {
+        LocalDateTime dt = LocalDateTime.of(2021, 3, 25, 8, 50, 56);
+        Timestamp x = Timestamp.valueOf(dt);
+        try (ClickHouseConnection conn = newConnection(new Properties());
+                PreparedStatement stmt = conn.prepareStatement("insert into test_read_write_datetime values(?,?,?)")) {
+            conn.createStatement().execute("drop table if exists test_read_write_datetime;"
+                    + "create table test_read_write_datetime(id Int32, d1 DateTime32, d2 DateTime64(3))engine=Memory");
+            stmt.setInt(1, 1);
+            stmt.setObject(2, dt);
+            stmt.setObject(3, dt);
+            stmt.addBatch();
+            stmt.setInt(1, 2);
+            stmt.setTimestamp(2, x);
+            stmt.setTimestamp(3, x);
+            stmt.addBatch();
+            int[] results = stmt.executeBatch();
+            Assert.assertEquals(results, new int[] { 0, 0 });
+
+            LocalDateTime dx = dt.atZone(TimeZone.getDefault().toZoneId())
+                    .withZoneSameInstant(conn.getServerTimeZone().toZoneId()).toLocalDateTime();
+            Timestamp xx = Timestamp.valueOf(dx);
+            ResultSet rs = conn.createStatement().executeQuery("select * from test_read_write_datetime order by id");
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getInt(1), 1);
+            Assert.assertEquals(rs.getObject(2), dt);
+            Assert.assertEquals(rs.getTimestamp(2), x);
+            Assert.assertEquals(rs.getObject(3), dt);
+            Assert.assertEquals(rs.getTimestamp(3), x);
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getInt(1), 2);
+            Assert.assertEquals(rs.getObject(2), dx);
+            Assert.assertEquals(rs.getTimestamp(2), xx);
+            Assert.assertEquals(rs.getObject(3), dx);
+            Assert.assertEquals(rs.getTimestamp(3), xx);
+            Assert.assertFalse(rs.next());
+        }
+    }
+
+    @Test(groups = "integration")
+    public void testReadWriteDateTimeWithClientTimeZone() throws SQLException {
+        Properties props = new Properties();
+        props.setProperty("use_server_time_zone_for_date", "false");
+        LocalDateTime dt = LocalDateTime.of(2021, 3, 25, 8, 50, 56);
+        Timestamp x = Timestamp.valueOf(dt);
+        try (ClickHouseConnection conn = newConnection(props);
+                PreparedStatement stmt = conn
+                        .prepareStatement("insert into test_read_write_datetime_cz values(?,?,?)")) {
+            conn.createStatement().execute("drop table if exists test_read_write_datetime_cz;"
+                    + "create table test_read_write_datetime_cz(id Int32, d1 DateTime32, d2 DateTime64(3))engine=Memory");
+            stmt.setInt(1, 1);
+            stmt.setObject(2, dt);
+            stmt.setObject(3, dt);
+            stmt.addBatch();
+            stmt.setInt(1, 2);
+            stmt.setTimestamp(2, x);
+            stmt.setTimestamp(3, x);
+            stmt.addBatch();
+            int[] results = stmt.executeBatch();
+            Assert.assertEquals(results, new int[] { 0, 0 });
+
+            LocalDateTime dx = dt.atZone(TimeZone.getDefault().toZoneId())
+                    .withZoneSameInstant(conn.getServerTimeZone().toZoneId()).toLocalDateTime();
+            Timestamp xx = Timestamp.valueOf(dx);
+            ResultSet rs = conn.createStatement().executeQuery("select * from test_read_write_datetime_cz order by id");
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getInt(1), 1);
+            Assert.assertEquals(rs.getObject(2), dt);
+            Assert.assertEquals(rs.getTimestamp(2), x);
+            Assert.assertEquals(rs.getObject(3), dt);
+            Assert.assertEquals(rs.getTimestamp(3), x);
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getInt(1), 2);
+            Assert.assertEquals(rs.getObject(2), dx);
+            Assert.assertEquals(rs.getTimestamp(2), xx);
+            Assert.assertEquals(rs.getObject(3), dx);
+            Assert.assertEquals(rs.getTimestamp(3), xx);
+            Assert.assertFalse(rs.next());
+        }
+    }
+
+    @Test(groups = "integration")
     public void testBatchInsert() throws SQLException {
         try (ClickHouseConnection conn = newConnection(new Properties());
                 PreparedStatement stmt = conn.prepareStatement("insert into test_batch_insert values(?,?)")) {
             conn.createStatement().execute("drop table if exists test_batch_insert;"
                     + "create table test_batch_insert(id Int32, name Nullable(String))engine=Memory");
+            stmt.setInt(1, 1);
+            stmt.setString(2, "a");
+            stmt.addBatch();
+            stmt.setInt(1, 2);
+            stmt.setString(2, "b");
+            stmt.addBatch();
+            stmt.setInt(1, 3);
+            stmt.setString(2, null);
+            stmt.addBatch();
+            int[] results = stmt.executeBatch();
+            Assert.assertEquals(results, new int[] { 0, 0, 0 });
+        }
+
+        // try with only one column
+        try (ClickHouseConnection conn = newConnection(new Properties());
+                PreparedStatement stmt = conn.prepareStatement("insert into test_batch_insert(id)")) {
+            conn.createStatement().execute("truncate table test_batch_insert");
+            stmt.setInt(1, 1);
+            stmt.addBatch();
+            stmt.setInt(1, 2);
+            stmt.addBatch();
+            stmt.setInt(1, 3);
+            stmt.addBatch();
+            int[] results = stmt.executeBatch();
+            Assert.assertEquals(results, new int[] { 0, 0, 0 });
+        }
+
+        // now without specifying any column
+        try (ClickHouseConnection conn = newConnection(new Properties());
+                PreparedStatement stmt = conn.prepareStatement("insert into test_batch_insert")) {
+            conn.createStatement().execute("truncate table test_batch_insert");
             stmt.setInt(1, 1);
             stmt.setString(2, "a");
             stmt.addBatch();

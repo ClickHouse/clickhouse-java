@@ -11,13 +11,16 @@ import java.sql.Time;
 import java.sql.Timestamp;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.TimeZone;
+import java.util.function.Function;
 
+import com.clickhouse.client.ClickHouseChecker;
 import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseParameterizedQuery;
 import com.clickhouse.client.ClickHouseRequest;
@@ -30,6 +33,7 @@ import com.clickhouse.client.data.ClickHouseDateValue;
 import com.clickhouse.client.logging.Logger;
 import com.clickhouse.client.logging.LoggerFactory;
 import com.clickhouse.jdbc.ClickHousePreparedStatement;
+import com.clickhouse.jdbc.JdbcParameterizedQuery;
 import com.clickhouse.jdbc.JdbcTypeMapping;
 import com.clickhouse.jdbc.SqlExceptionUtils;
 import com.clickhouse.jdbc.parser.ClickHouseSqlStatement;
@@ -38,10 +42,12 @@ public class SqlBasedPreparedStatement extends ClickHouseStatementImpl implement
     private static final Logger log = LoggerFactory.getLogger(SqlBasedPreparedStatement.class);
 
     private final Calendar defaultCalendar;
-    private final ZoneId jvmZoneId;
-    private final TimeZone serverTimeZone;
+    private final TimeZone preferredTimeZone;
+    private final ZoneId timeZoneForDate;
+    private final ZoneId timeZoneForTs;
 
     private final ClickHouseSqlStatement parsedStmt;
+    private final String insertValuesQuery;
     private final ClickHouseParameterizedQuery preparedQuery;
     private final ClickHouseValue[] templates;
     private final String[] values;
@@ -52,18 +58,46 @@ public class SqlBasedPreparedStatement extends ClickHouseStatementImpl implement
             throws SQLException {
         super(connection, request, resultSetType, resultSetConcurrency, resultSetHoldability);
 
+        ClickHouseConfig config = getConfig();
         defaultCalendar = connection.getDefaultCalendar();
-        jvmZoneId = connection.getJvmTimeZone().toZoneId();
-        serverTimeZone = connection.getServerTimeZone();
+        preferredTimeZone = config.getUseTimeZone();
+        timeZoneForDate = (config.isUseServerTimeZoneForDate() ? connection.getServerTimeZone()
+                : config.getTimeZoneForDate()).toZoneId();
+        timeZoneForTs = preferredTimeZone.toZoneId();
 
         this.parsedStmt = parsedStmt;
+        String valuesExpr = null;
+        ClickHouseParameterizedQuery parsedValuesExpr = null;
+        String prefix = null;
+        if (parsedStmt.hasValues()) { // consolidate multiple inserts into one
+            valuesExpr = parsedStmt.getContentBetweenKeywords(ClickHouseSqlStatement.KEYWORD_VALUES_START,
+                    ClickHouseSqlStatement.KEYWORD_VALUES_END);
+            if (ClickHouseChecker.isNullOrBlank(valuesExpr)) {
+                log.warn(
+                        "Please consider to use one and only one values expression, for example: use 'values(?)' instead of 'values(?),(?)'.");
+            } else {
+                valuesExpr += ")";
+                prefix = parsedStmt.getSQL().substring(0,
+                        parsedStmt.getPositions().get(ClickHouseSqlStatement.KEYWORD_VALUES_START));
+                if (connection.getJdbcConfig().useNamedParameter()) {
+                    parsedValuesExpr = ClickHouseParameterizedQuery.of(config, valuesExpr);
+                } else {
+                    parsedValuesExpr = JdbcParameterizedQuery.of(config, valuesExpr);
+                }
+            }
+        }
 
-        preparedQuery = request.getPreparedQuery();
+        insertValuesQuery = prefix;
+        preparedQuery = parsedValuesExpr == null ? request.getPreparedQuery() : parsedValuesExpr;
 
         templates = preparedQuery.getParameterTemplates();
 
         values = new String[templates.length];
         batch = new LinkedList<>();
+    }
+
+    protected String buildInsertValuesSql(String[] params) {
+        return new StringBuilder().append(insertValuesQuery).append(preparedQuery.apply(params)).toString();
     }
 
     protected void ensureParams() throws SQLException {
@@ -289,15 +323,31 @@ public class SqlBasedPreparedStatement extends ClickHouseStatementImpl implement
 
         int len = batch.size();
         int[] results = new int[len];
-        int counter = 0;
-        for (String[] params : batch) {
-            try (ClickHouseResponse r = executeStatement(preparedQuery.apply(params), null, null, null)) {
-                results[counter] = (int) r.getSummary().getWrittenRows();
-            } catch (Exception e) {
-                results[counter] = EXECUTE_FAILED;
-                log.error("Failed to execute task %d of %d", counter + 1, len, e);
+        if (insertValuesQuery != null) {
+            StringBuilder builder = new StringBuilder().append(insertValuesQuery);
+            for (String[] params : batch) {
+                builder.append(preparedQuery.apply(params));
             }
-            counter++;
+            try (ClickHouseResponse r = executeStatement(builder.toString(), null, null, null)) {
+                // nothing to read
+            } catch (Exception e) {
+                // actually we don't know which ones failed
+                for (int i = 0; i < len; i++) {
+                    results[i] = EXECUTE_FAILED;
+                }
+                log.error("Failed to execute batch insertion of %d records", len, e);
+            }
+        } else {
+            int counter = 0;
+            for (String[] params : batch) {
+                try (ClickHouseResponse r = executeStatement(preparedQuery.apply(params), null, null, null)) {
+                    results[counter] = (int) r.getSummary().getWrittenRows();
+                } catch (Exception e) {
+                    results[counter] = EXECUTE_FAILED;
+                    log.error("Failed to execute task %d of %d", counter + 1, len, e);
+                }
+                counter++;
+            }
         }
 
         clearBatch();
@@ -332,12 +382,17 @@ public class SqlBasedPreparedStatement extends ClickHouseStatementImpl implement
             return;
         }
 
-        LocalDate d = null;
-        if (cal != null) {
-            d = x.toLocalDate().atStartOfDay(jvmZoneId)
-                    .withZoneSameInstant(cal.getTimeZone().toZoneId()).toLocalDate();
-        } else {
+        LocalDate d;
+        if (cal == null) {
+            cal = defaultCalendar;
+        }
+        ZoneId tz = cal.getTimeZone().toZoneId();
+        if (tz.equals(timeZoneForDate)) {
             d = x.toLocalDate();
+        } else {
+            Calendar c = (Calendar) cal.clone();
+            c.setTime(x);
+            d = c.toInstant().atZone(tz).withZoneSameInstant(timeZoneForDate).toLocalDate();
         }
 
         ClickHouseValue value = templates[idx];
@@ -349,7 +404,32 @@ public class SqlBasedPreparedStatement extends ClickHouseStatementImpl implement
 
     @Override
     public void setTime(int parameterIndex, Time x, Calendar cal) throws SQLException {
-        throw SqlExceptionUtils.clientError("setTime not implemented");
+        ensureOpen();
+
+        int idx = toArrayIndex(parameterIndex);
+        if (x == null) {
+            values[idx] = ClickHouseValues.NULL_EXPR;
+            return;
+        }
+
+        LocalTime t;
+        if (cal == null) {
+            cal = defaultCalendar;
+        }
+        ZoneId tz = cal.getTimeZone().toZoneId();
+        if (tz.equals(timeZoneForTs)) {
+            t = x.toLocalTime();
+        } else {
+            Calendar c = (Calendar) cal.clone();
+            c.setTime(x);
+            t = c.toInstant().atZone(tz).withZoneSameInstant(timeZoneForTs).toLocalTime();
+        }
+
+        ClickHouseValue value = templates[idx];
+        if (value == null) {
+            value = ClickHouseDateValue.ofNull();
+        }
+        values[idx] = value.update(t).toSqlExpression();
     }
 
     @Override
@@ -362,17 +442,22 @@ public class SqlBasedPreparedStatement extends ClickHouseStatementImpl implement
             return;
         }
 
-        LocalDateTime dt = null;
-        if (cal != null) {
-            dt = x.toLocalDateTime().atZone(jvmZoneId)
-                    .withZoneSameInstant(cal.getTimeZone().toZoneId()).toLocalDateTime();
-        } else {
+        LocalDateTime dt;
+        if (cal == null) {
+            cal = defaultCalendar;
+        }
+        ZoneId tz = cal.getTimeZone().toZoneId();
+        if (tz.equals(timeZoneForTs)) {
             dt = x.toLocalDateTime();
+        } else {
+            Calendar c = (Calendar) cal.clone();
+            c.setTime(x);
+            dt = c.toInstant().atZone(tz).withZoneSameInstant(timeZoneForTs).toLocalDateTime();
         }
 
         ClickHouseValue value = templates[idx];
         if (value == null) {
-            value = ClickHouseDateTimeValue.ofNull(dt.getNano() > 0 ? 9 : 0, serverTimeZone);
+            value = ClickHouseDateTimeValue.ofNull(dt.getNano() > 0 ? 9 : 0, preferredTimeZone);
         }
         values[idx] = value.update(dt).toSqlExpression();
     }
