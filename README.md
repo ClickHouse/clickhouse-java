@@ -6,7 +6,6 @@ Java client and JDBC driver for ClickHouse. Java client is async, lightweight, a
 
 Java 8 or higher is required in order to use Java client([clickhouse-client](https://github.com/ClickHouse/clickhouse-jdbc/clickhouse-client)) and/or JDBC driver([clickhouse-jdbc](https://github.com/ClickHouse/clickhouse-jdbc/clickhouse-jdbc)). In addition, starting from 0.3.2, JDBC driver only works on ClickHouse 20.7 or above, so please consider to either downgrade the driver to 0.3.1-patch or upgrade server to one of [active releases](https://github.com/ClickHouse/ClickHouse/pulls?q=is%3Aopen+is%3Apr+label%3Arelease).
 
-
 ## Feature Matrix
 
 | Category      | Feature                                                      | Supported          | Remark                                                                                                                                       |
@@ -33,62 +32,63 @@ Java 8 or higher is required in order to use Java client([clickhouse-client](htt
 | Format        | RowBinary                                                    | :white_check_mark: | `RowBinaryWithNamesAndTypes` for query and `RowBinary` for insertion                                                                         |
 |               | TabSeparated                                                 | :white_check_mark: | Does not support as many data types as RowBinary                                                                                             |
 
-
 ## Configuration
 
 - Client option, server setting, and default value
 
-    You can pass any client option([common](https://github.com/ClickHouse/clickhouse-jdbc/blob/master/clickhouse-client/src/main/java/com/clickhouse/client/config/ClickHouseClientOption.java), [http](https://github.com/ClickHouse/clickhouse-jdbc/blob/master/clickhouse-http-client/src/main/java/com/clickhouse/client/http/config/ClickHouseHttpOption.java) and [grpc](https://github.com/ClickHouse/clickhouse-jdbc/blob/master/clickhouse-grpc-client/src/main/java/com/clickhouse/client/grpc/config/ClickHouseGrpcOption.java)) to `ClickHouseRequest.option()` and [server setting](https://clickhouse.com/docs/en/operations/settings/) to `ClickHouseRequest.set()` before execution, for instance:
-    
-    ```java
-    ClickHouseRequest<?> request = client.connect(myServer);
-    request
-        .query("select 1")
-        // short version of option(ClickHouseClientOption.FORMAT, ClickHouseFormat.RowBinaryWithNamesAndTypes)
-        .format(ClickHouseFormat.RowBinaryWithNamesAndTypes)
-        .option(ClickHouseClientOption.SOCKET_TIMEOUT, 30000 * 2)
-        .set("max_rows_to_read", 100)
-        .set("read_overflow_mode", "throw")
-        .execute()
-        .whenComplete((r, t) -> {
-            if (t != null) {
-                log.error("Unexpected error", t);
-            } else {
-                try {
-                    for (ClickHouseRecord r : r.records()) {
-                        // ...
-                    }
-                } finally {
-                    r.close();
-                }
-            }
-        });
-    ```
+  You can pass any client option([common](https://github.com/ClickHouse/clickhouse-jdbc/blob/master/clickhouse-client/src/main/java/com/clickhouse/client/config/ClickHouseClientOption.java), [http](https://github.com/ClickHouse/clickhouse-jdbc/blob/master/clickhouse-http-client/src/main/java/com/clickhouse/client/http/config/ClickHouseHttpOption.java) and [grpc](https://github.com/ClickHouse/clickhouse-jdbc/blob/master/clickhouse-grpc-client/src/main/java/com/clickhouse/client/grpc/config/ClickHouseGrpcOption.java)) to `ClickHouseRequest.option()` and [server setting](https://clickhouse.com/docs/en/operations/settings/) to `ClickHouseRequest.set()` before execution, for instance:
 
-    [Default value](https://github.com/ClickHouse/clickhouse-jdbc/blob/master/clickhouse-client/src/main/java/com/clickhouse/client/config/ClickHouseDefaults.java) can be either configured via system property or environment variable. 
+  ```java
+  ClickHouseRequest<?> request = client.connect(myServer);
+  request
+      .query("select 1")
+      // short version of option(ClickHouseClientOption.FORMAT, ClickHouseFormat.RowBinaryWithNamesAndTypes)
+      .format(ClickHouseFormat.RowBinaryWithNamesAndTypes)
+      .option(ClickHouseClientOption.SOCKET_TIMEOUT, 30000 * 2)
+      .set("max_rows_to_read", 100)
+      .set("read_overflow_mode", "throw")
+      .execute()
+      .whenComplete((r, t) -> {
+          if (t != null) {
+              log.error("Unexpected error", t);
+          } else {
+              try {
+                  for (ClickHouseRecord r : r.records()) {
+                      // ...
+                  }
+              } finally {
+                  r.close();
+              }
+          }
+      });
+  ```
+
+  [Default value](https://github.com/ClickHouse/clickhouse-jdbc/blob/master/clickhouse-client/src/main/java/com/clickhouse/client/config/ClickHouseDefaults.java) can be either configured via system property or environment variable.
 
 - JDBC configuration
 
-    **Driver Class**: `com.clickhouse.jdbc.ClickHouseDriver`
-    
-    Note: `ru.yandex.clickhouse.ClickHouseDriver` and everything under `ru.yandex.clickhouse` will be removed starting from 0.4.0.
+  **Driver Class**: `com.clickhouse.jdbc.ClickHouseDriver`
 
-    **URL Syntax**: `jdbc:<prefix>[:<protocol>]://<host>:[<port>][/<database>[?param1=value1&param2=value2]]`, for examples:
+  Note: `ru.yandex.clickhouse.ClickHouseDriver` and everything under `ru.yandex.clickhouse` will be removed starting from 0.4.0.
 
-    - `jdbc:ch:grpc://localhost` is same as `jdbc:clickhouse:grpc://localhost:9100`
-    - `jdbc:ch:grpc://localhost` is same as `jdbc:clickhouse:grpc://localhost:9100`)
-    - `jdbc:ch://localhost/test?socket_timeout=120000`
+  **URL Syntax**: `jdbc:<prefix>[:<protocol>]://<host>:[<port>][/<database>[?param1=value1&param2=value2]]`, for examples:
 
-    **Connection Properties**:
+  - `jdbc:ch://localhost` is same as `jdbc:clickhouse:http://localhost:8123`
+  - `jdbc:ch:grpc://localhost` is same as `jdbc:clickhouse:grpc://localhost:9100`
+  - `jdbc:ch://localhost/test?socket_timeout=120000`
 
-  | Property       | Default | Description                                                                                                                                                                                                                                                                                                                                                                                                                |
-  | -------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-  | jdbcCompliance | `true`  | Whether to support standard synchronous UPDATE/DELETE and fake transaction                                                                                                                                                                                                                                                                                                                                                 |
-  | typeMappings   |         | Customize mapping between ClickHouse data type and Java class, which will affect result of both [getColumnType()](https://docs.oracle.com/javase/8/docs/api/java/sql/ResultSetMetaData.html#getColumnType-int-) and [getObject(Class<?>)](https://docs.oracle.com/javase/8/docs/api/java/sql/ResultSet.html#getObject-java.lang.String-java.lang.Class-). For example: `UInt128=java.lang.String,UInt256=java.lang.String` |
-  | wrapperObject  | `false` | Whether [getObject()](https://docs.oracle.com/javase/8/docs/api/java/sql/ResultSet.html#getObject-int-) should return java.sql.Array / java.sql.Struct for Array / Tuple.                                                                                                                                                                                                                                                  |
+  **Connection Properties**:
+
+  | Property             | Default | Description                                                                                                                                                                                                                                                                                                                                                                                                                |
+  | -------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+  | continueBatchOnError | `true`  | Whether to continue batch processing when error occurred                                                                                                                                                                                                                                                                                                                                                                   |
+  | custom_http_headers  |         | comma separated custom http headers, for example: `User-Agent=client1,X-Gateway-Id=123`                                                                                                                                                                                                                                                                                                                                    |
+  | custom_http_params   |         | comma separated custom http query parameters, for example: `extremes=0,max_result_rows=100`                                                                                                                                                                                                                                                                                                                                |
+  | jdbcCompliance       | `true`  | Whether to support standard synchronous UPDATE/DELETE and fake transaction                                                                                                                                                                                                                                                                                                                                                 |
+  | typeMappings         |         | Customize mapping between ClickHouse data type and Java class, which will affect result of both [getColumnType()](https://docs.oracle.com/javase/8/docs/api/java/sql/ResultSetMetaData.html#getColumnType-int-) and [getObject(Class<?>)](https://docs.oracle.com/javase/8/docs/api/java/sql/ResultSet.html#getObject-java.lang.String-java.lang.Class-). For example: `UInt128=java.lang.String,UInt256=java.lang.String` |
+  | wrapperObject        | `false` | Whether [getObject()](https://docs.oracle.com/javase/8/docs/api/java/sql/ResultSet.html#getObject-int-) should return java.sql.Array / java.sql.Struct for Array / Tuple.                                                                                                                                                                                                                                                  |
 
   Note: please refer to [JDBC specific configuration](https://github.com/ClickHouse/clickhouse-jdbc/blob/master/clickhouse-jdbc/src/main/java/com/clickhouse/jdbc/JdbcConfig.java) and client options([common](https://github.com/ClickHouse/clickhouse-jdbc/blob/master/clickhouse-client/src/main/java/com/clickhouse/client/config/ClickHouseClientOption.java), [http](https://github.com/ClickHouse/clickhouse-jdbc/blob/master/clickhouse-http-client/src/main/java/com/clickhouse/client/http/config/ClickHouseHttpOption.java) and [grpc](https://github.com/ClickHouse/clickhouse-jdbc/blob/master/clickhouse-grpc-client/src/main/java/com/clickhouse/client/grpc/config/ClickHouseGrpcOption.java)) for more.
-
 
 ## Examples
 
@@ -162,7 +162,6 @@ try (Connection conn = dataSource.getConnection();
 }
 ```
 
-
 ## Build with Maven
 
 Use `mvn clean verify` to compile, test and generate shaded packages if you're using JDK 8. To create a multi-release jar file(see [JEP-238](https://openjdk.java.net/jeps/238)), please use JDK 11 or above and follow instructions below:
@@ -186,8 +185,7 @@ Use `mvn clean verify` to compile, test and generate shaded packages if you're u
 
 - run `mvn -Drelease clean install` to build and install the artificat to local repository
 
-    Note: if you need to build modules separately, please start with `clickhouse-client`, followed by `clickhouse-http-client` and `clickhouse-grpc-client`, and then `clickhouse-jdbc` and `clickhouse-benchmark`.
-
+  Note: if you need to build modules separately, please start with `clickhouse-client`, followed by `clickhouse-http-client` and `clickhouse-grpc-client`, and then `clickhouse-jdbc` and `clickhouse-benchmark`.
 
 ## Benchmark
 
@@ -199,8 +197,8 @@ mvn -Drelease clean package
 # single thread mode
 java -DdbHost=localhost -jar target/benchmarks.jar -t 1 -p client=clickhouse-http-jdbc1 -p connection=reuse -p statement=prepared Query.selectInt8
 ```
-Note: it's time consuming to run all benchmarks against all drivers using different parameters for comparison. If you just need some numbers to understand performance, please refer to early test results against [0.3.2-test3](https://github.com/ClickHouse/clickhouse-jdbc/issues/768)(still have plenty of room to improve according to ranking at [here](https://github.com/go-faster/ch-bench)).
 
+Note: it's time consuming to run all benchmarks against all drivers using different parameters for comparison. If you just need some numbers to understand performance, please refer to early test results against [0.3.2-test3](https://github.com/ClickHouse/clickhouse-jdbc/issues/768)(still have plenty of room to improve according to ranking at [here](https://github.com/go-faster/ch-bench)).
 
 ## Testing
 

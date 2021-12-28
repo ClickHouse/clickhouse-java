@@ -1,7 +1,6 @@
 package com.clickhouse.jdbc.internal;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.sql.Array;
@@ -16,8 +15,8 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Calendar;
-import java.util.LinkedList;
 import java.util.List;
 
 import com.clickhouse.client.ClickHouseColumn;
@@ -45,8 +44,8 @@ public class InputBasedPreparedStatement extends ClickHouseStatementImpl impleme
     private final ClickHouseValue[] values;
     private final boolean[] flags;
 
+    private int counter;
     private ClickHousePipedStream stream;
-    private final List<InputStream> batch;
 
     protected InputBasedPreparedStatement(ClickHouseConnectionImpl connection, ClickHouseRequest<?> request,
             List<ClickHouseColumn> columns, int resultSetType, int resultSetConcurrency, int resultSetHoldability)
@@ -72,8 +71,9 @@ public class InputBasedPreparedStatement extends ClickHouseStatementImpl impleme
         }
         flags = new boolean[size];
 
+        counter = 0;
+        // it's important to make sure the queue has unlimited length
         stream = new ClickHousePipedStream(config.getMaxBufferSize(), 0, config.getSocketTimeout());
-        batch = new LinkedList<>();
     }
 
     protected void ensureParams() throws SQLException {
@@ -196,19 +196,7 @@ public class InputBasedPreparedStatement extends ClickHouseStatementImpl impleme
     public void clearParameters() throws SQLException {
         ensureOpen();
 
-        ClickHouseConfig config = getConfig();
-        if (stream != null) {
-            try {
-                stream.close();
-            } catch (IOException e) {
-                // should not happen
-                throw SqlExceptionUtils.handle(e);
-            }
-        }
-        stream = new ClickHousePipedStream(config.getMaxBufferSize(), 0, config.getSocketTimeout());
-
         for (int i = 0, len = values.length; i < len; i++) {
-            values[i].resetToNullOrEmpty();
             flags[i] = false;
         }
     }
@@ -243,21 +231,21 @@ public class InputBasedPreparedStatement extends ClickHouseStatementImpl impleme
     public void addBatch() throws SQLException {
         ensureOpen();
 
+        ClickHouseConfig config = getConfig();
         MappedFunctions functions = ClickHouseRowBinaryProcessor.getMappedFunctions();
         for (int i = 0, len = values.length; i < len; i++) {
             if (!flags[i]) {
                 throw SqlExceptionUtils.clientError(ClickHouseUtils.format("Missing value for parameter #%d", i + 1));
             }
             try {
-                functions.serialize(values[i], getConfig(), columns.get(i), stream);
+                functions.serialize(values[i], config, columns.get(i), stream);
             } catch (IOException e) {
                 // should not happen
                 throw SqlExceptionUtils.handle(e);
             }
         }
 
-        batch.add(stream.getInput());
-        // stream.close();
+        counter++;
         clearParameters();
     }
 
@@ -265,20 +253,24 @@ public class InputBasedPreparedStatement extends ClickHouseStatementImpl impleme
     public int[] executeBatch() throws SQLException {
         ensureOpen();
 
-        int len = batch.size();
-        int[] results = new int[len];
-        int counter = 0;
-        for (InputStream input : batch) {
-            try {
-                results[counter] = executeInsert(getRequest().getStatements(false).get(0), input);
-            } catch (Exception e) {
-                results[counter] = EXECUTE_FAILED;
-                log.error("Failed to execute task %d of %d", counter + 1, len, e);
+        boolean continueOnError = getConnection().getJdbcConfig().isContinueBatchOnError();
+        int[] results = new int[counter];
+        int result = 0;
+        try {
+            stream.close();
+            result = executeInsert(getRequest().getStatements(false).get(0), stream.getInput());
+        } catch (Exception e) {
+            if (!continueOnError) {
+                throw SqlExceptionUtils.handle(e);
             }
-            counter++;
+
+            result = EXECUTE_FAILED;
+            log.error("Failed to execute batch insert of %d records", counter + 1, e);
+        } finally {
+            clearBatch();
         }
 
-        clearBatch();
+        Arrays.fill(results, result);
 
         return results;
     }
@@ -287,7 +279,9 @@ public class InputBasedPreparedStatement extends ClickHouseStatementImpl impleme
     public void clearBatch() throws SQLException {
         ensureOpen();
 
-        this.batch.clear();
+        counter = 0;
+        ClickHouseConfig config = getConfig();
+        stream = new ClickHousePipedStream(config.getMaxBufferSize(), 0, config.getSocketTimeout());
     }
 
     @Override

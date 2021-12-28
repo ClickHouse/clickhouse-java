@@ -14,11 +14,11 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Calendar;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.TimeZone;
-import java.util.function.Function;
 
 import com.clickhouse.client.ClickHouseChecker;
 import com.clickhouse.client.ClickHouseConfig;
@@ -52,6 +52,9 @@ public class SqlBasedPreparedStatement extends ClickHouseStatementImpl implement
     private final ClickHouseValue[] templates;
     private final String[] values;
     private final List<String[]> batch;
+    private final StringBuilder builder;
+
+    private int counter;
 
     protected SqlBasedPreparedStatement(ClickHouseConnectionImpl connection, ClickHouseRequest<?> request,
             ClickHouseSqlStatement parsedStmt, int resultSetType, int resultSetConcurrency, int resultSetHoldability)
@@ -87,17 +90,18 @@ public class SqlBasedPreparedStatement extends ClickHouseStatementImpl implement
             }
         }
 
-        insertValuesQuery = prefix;
         preparedQuery = parsedValuesExpr == null ? request.getPreparedQuery() : parsedValuesExpr;
 
         templates = preparedQuery.getParameterTemplates();
 
         values = new String[templates.length];
         batch = new LinkedList<>();
-    }
+        builder = new StringBuilder();
+        if ((insertValuesQuery = prefix) != null) {
+            builder.append(insertValuesQuery);
+        }
 
-    protected String buildInsertValuesSql(String[] params) {
-        return new StringBuilder().append(insertValuesQuery).append(preparedQuery.apply(params)).toString();
+        counter = 0;
     }
 
     protected void ensureParams() throws SQLException {
@@ -127,14 +131,18 @@ public class SqlBasedPreparedStatement extends ClickHouseStatementImpl implement
         ensureParams();
 
         // FIXME ResultSet should never be null
-        return executeQuery(preparedQuery.apply(values));
+        StringBuilder builder = new StringBuilder();
+        preparedQuery.apply(builder, values);
+        return executeQuery(builder.toString());
     }
 
     @Override
     public int executeUpdate() throws SQLException {
         ensureParams();
 
-        return executeUpdate(preparedQuery.apply(values));
+        StringBuilder builder = new StringBuilder();
+        preparedQuery.apply(builder, values);
+        return executeUpdate(builder.toString());
     }
 
     @Override
@@ -296,24 +304,40 @@ public class SqlBasedPreparedStatement extends ClickHouseStatementImpl implement
     public boolean execute() throws SQLException {
         ensureParams();
 
-        return execute(preparedQuery.apply(values));
+        StringBuilder builder = new StringBuilder();
+        preparedQuery.apply(builder, values);
+        return execute(builder.toString());
     }
 
     @Override
     public void addBatch() throws SQLException {
         ensureOpen();
 
-        int len = values.length;
-        String[] newValues = new String[len];
-        for (int i = 0; i < len; i++) {
-            String v = values[i];
-            if (v == null) {
-                throw SqlExceptionUtils.clientError(ClickHouseUtils.format("Missing value for parameter #%d", i + 1));
-            } else {
-                newValues[i] = v;
+        if (builder.length() > 0) {
+            int index = 1;
+            for (String v : values) {
+                if (v == null) {
+                    throw SqlExceptionUtils
+                            .clientError(ClickHouseUtils.format("Missing value for parameter #%d", index));
+                }
+                index++;
             }
+            preparedQuery.apply(builder, values);
+        } else {
+            int len = values.length;
+            String[] newValues = new String[len];
+            for (int i = 0; i < len; i++) {
+                String v = values[i];
+                if (v == null) {
+                    throw SqlExceptionUtils
+                            .clientError(ClickHouseUtils.format("Missing value for parameter #%d", i + 1));
+                } else {
+                    newValues[i] = v;
+                }
+            }
+            batch.add(newValues);
         }
-        batch.add(newValues);
+        counter++;
         clearParameters();
     }
 
@@ -321,36 +345,51 @@ public class SqlBasedPreparedStatement extends ClickHouseStatementImpl implement
     public int[] executeBatch() throws SQLException {
         ensureOpen();
 
-        int len = batch.size();
-        int[] results = new int[len];
-        if (insertValuesQuery != null) {
-            StringBuilder builder = new StringBuilder().append(insertValuesQuery);
-            for (String[] params : batch) {
-                builder.append(preparedQuery.apply(params));
-            }
+        boolean continueOnError = getConnection().getJdbcConfig().isContinueBatchOnError();
+        int[] results = new int[counter];
+        if (builder.length() > 0) { // insert ... values
+            int result = 0;
             try (ClickHouseResponse r = executeStatement(builder.toString(), null, null, null)) {
-                // nothing to read
+                long rows = r.getSummary().getWrittenRows();
+                if (rows > 0 && rows != counter) {
+                    log.warn("Expect %d rows being inserted but got %d", counter, rows);
+                }
+
+                result = 1;
             } catch (Exception e) {
+                if (!continueOnError) {
+                    throw SqlExceptionUtils.handle(e);
+                }
                 // actually we don't know which ones failed
-                for (int i = 0; i < len; i++) {
-                    results[i] = EXECUTE_FAILED;
-                }
-                log.error("Failed to execute batch insertion of %d records", len, e);
+                result = EXECUTE_FAILED;
+                log.error("Failed to execute batch insertion of %d records", counter, e);
+            } finally {
+                clearBatch();
             }
+
+            Arrays.fill(results, result);
         } else {
-            int counter = 0;
-            for (String[] params : batch) {
-                try (ClickHouseResponse r = executeStatement(preparedQuery.apply(params), null, null, null)) {
-                    results[counter] = (int) r.getSummary().getWrittenRows();
-                } catch (Exception e) {
-                    results[counter] = EXECUTE_FAILED;
-                    log.error("Failed to execute task %d of %d", counter + 1, len, e);
+            int index = 0;
+            StringBuilder builder = new StringBuilder();
+            try {
+                for (String[] params : batch) {
+                    builder.setLength(0);
+                    preparedQuery.apply(builder, params);
+                    try (ClickHouseResponse r = executeStatement(builder.toString(), null, null, null)) {
+                        results[index] = (int) r.getSummary().getWrittenRows();
+                    } catch (Exception e) {
+                        if (!continueOnError) {
+                            throw SqlExceptionUtils.handle(e);
+                        }
+                        results[index] = EXECUTE_FAILED;
+                        log.error("Failed to execute batch insert at %d of %d", index + 1, counter, e);
+                    }
+                    index++;
                 }
-                counter++;
+            } finally {
+                clearBatch();
             }
         }
-
-        clearBatch();
 
         return results;
     }
@@ -360,6 +399,12 @@ public class SqlBasedPreparedStatement extends ClickHouseStatementImpl implement
         ensureOpen();
 
         this.batch.clear();
+        this.builder.setLength(0);
+        if (insertValuesQuery != null) {
+            this.builder.append(insertValuesQuery);
+        }
+
+        this.counter = 0;
     }
 
     @Override

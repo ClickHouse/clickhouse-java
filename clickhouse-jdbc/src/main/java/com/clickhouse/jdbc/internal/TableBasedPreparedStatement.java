@@ -192,20 +192,29 @@ public class TableBasedPreparedStatement extends ClickHouseStatementImpl impleme
     public int[] executeBatch() throws SQLException {
         ensureOpen();
 
+        boolean continueOnError = getConnection().getJdbcConfig().isContinueBatchOnError();
         int len = batch.size();
         int[] results = new int[len];
         int counter = 0;
-        for (List<ClickHouseExternalTable> list : batch) {
-            try (ClickHouseResponse r = executeStatement(getRequest().getStatements(false).get(0), null, list, null)) {
-                results[counter] = (int) r.getSummary().getWrittenRows();
-            } catch (Exception e) {
-                results[counter] = EXECUTE_FAILED;
-                log.error("Failed to execute task %d of %d", counter + 1, len, e);
-            }
-            counter++;
-        }
+        try {
+            for (List<ClickHouseExternalTable> list : batch) {
+                try (ClickHouseResponse r = executeStatement(getRequest().getStatements(false).get(0), null, list,
+                        null)) {
+                    int rows = (int) r.getSummary().getWrittenRows();
+                    results[counter] = rows > 0 ? rows : 1;
+                } catch (Exception e) {
+                    if (!continueOnError) {
+                        throw SqlExceptionUtils.handle(e);
+                    }
 
-        clearBatch();
+                    results[counter] = EXECUTE_FAILED;
+                    log.error("Failed to execute batch insert at %d of %d", counter + 1, len, e);
+                }
+                counter++;
+            }
+        } finally {
+            clearBatch();
+        }
 
         return results;
     }

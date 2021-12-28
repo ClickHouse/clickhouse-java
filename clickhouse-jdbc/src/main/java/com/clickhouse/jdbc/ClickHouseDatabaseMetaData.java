@@ -1229,15 +1229,15 @@ public class ClickHouseDatabaseMetaData extends JdbcWrapper implements DatabaseM
                 .of(connection.getConfig(),
                         "select :name as NAME, toInt32(0) as MAX_LEN, :default as DEFAULT_VALUE, :desc as DESCRIPTION");
         StringBuilder builder = new StringBuilder();
-        builder.append(q.apply(ClickHouseConnection.PROP_APPLICATION_NAME,
-                connection.getClientInfo(ClickHouseConnection.PROP_APPLICATION_NAME), "Application name"))
-                .append(" union all ");
-        builder.append(q.apply(ClickHouseConnection.PROP_CUSTOM_HTTP_HEADERS,
-                connection.getClientInfo(ClickHouseConnection.PROP_CUSTOM_HTTP_HEADERS), "Custom HTTP headers"))
-                .append(" union all ");
-        builder.append(q.apply(ClickHouseConnection.PROP_CUSTOM_HTTP_PARAMS,
+        q.apply(builder, ClickHouseConnection.PROP_APPLICATION_NAME,
+                connection.getClientInfo(ClickHouseConnection.PROP_APPLICATION_NAME), "Application name");
+        builder.append(" union all ");
+        q.apply(builder, ClickHouseConnection.PROP_CUSTOM_HTTP_HEADERS,
+                connection.getClientInfo(ClickHouseConnection.PROP_CUSTOM_HTTP_HEADERS), "Custom HTTP headers");
+        builder.append(" union all ");
+        q.apply(builder, ClickHouseConnection.PROP_CUSTOM_HTTP_PARAMS,
                 connection.getClientInfo(ClickHouseConnection.PROP_CUSTOM_HTTP_PARAMS),
-                "Customer HTTP query parameters"));
+                "Customer HTTP query parameters");
         return query(builder.toString());
     }
 

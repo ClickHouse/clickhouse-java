@@ -192,7 +192,8 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
         if (config.isCompressServerResponse()) {
             map.put("Accept-Encoding", config.getCompressAlgorithmForServerResponse().encoding());
         }
-        if (config.isDecompressClientRequet()) {
+        if (config.isDecompressClientRequet()
+                && config.getDecompressAlgorithmForClientRequest() != ClickHouseCompression.LZ4) {
             map.put("Content-Encoding", config.getDecompressAlgorithmForClientRequest().encoding());
         }
 

@@ -10,7 +10,7 @@ public class Basic extends DriverBenchmark {
     public int insertOneRandomNumber(DriverState state) throws Throwable {
         final int num = state.getRandomSample();
 
-        return executeInsert(state, "insert into test_insert(i) values(?)",
+        return executeInsert(state, "insert into test_insert(i) values(?)", (p, v, l, i) -> p.setObject(i, v),
                 Collections.enumeration(Collections.singletonList(new Object[] { num })));
     }
 

@@ -371,8 +371,8 @@ public class ClickHouseConfig implements Serializable {
     /**
      * Gets time zone for date values.
      *
-     * @return time zone, could be null when {@code time_zone_for_date} is set to
-     *         {@code NONE}.
+     * @return time zone, could be null when {@code use_server_time_zone_for_date}
+     *         is set to {@code true}.
      */
     public TimeZone getTimeZoneForDate() {
         return timeZoneForDate;

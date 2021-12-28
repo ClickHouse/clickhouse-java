@@ -542,8 +542,11 @@ public interface ClickHouseClient extends AutoCloseable {
                 // format doesn't matter here as we only need a summary
                 ClickHouseRequest<?> request = client.connect(theServer).format(ClickHouseFormat.RowBinary);
                 ClickHouseParameterizedQuery query = ClickHouseParameterizedQuery.of(request.getConfig(), sql);
+                StringBuilder builder = new StringBuilder();
                 for (String[] p : params) {
-                    try (ClickHouseResponse resp = request.query(query.apply(p)).execute().get()) {
+                    builder.setLength(0);
+                    query.apply(builder, p);
+                    try (ClickHouseResponse resp = request.query(builder.toString()).execute().get()) {
                         list.add(resp.getSummary());
                     }
                 }

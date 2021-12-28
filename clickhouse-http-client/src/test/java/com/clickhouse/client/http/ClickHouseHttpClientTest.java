@@ -24,9 +24,37 @@ import com.clickhouse.client.data.ClickHouseExternalTable;
 import com.clickhouse.client.data.ClickHouseStringValue;
 
 import org.testng.Assert;
+import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 public class ClickHouseHttpClientTest extends BaseIntegrationTest {
+    @DataProvider(name = "compressionMatrix")
+    private Object[][] getCompressionMatrix() {
+        return new Object[][] {
+                new Object[] { false, false },
+                new Object[] { true, false },
+                new Object[] { true, true },
+                new Object[] { false, true } };
+    }
+
+    @Test(dataProvider = "compressionMatrix", groups = { "integration" })
+    public void testCompression(boolean compressRequest, boolean compressResponse) throws Exception {
+        ClickHouseNode server = getServer(ClickHouseProtocol.HTTP);
+        String uuid = UUID.randomUUID().toString();
+        try (ClickHouseClient client = ClickHouseClient.newInstance()) {
+            ClickHouseRequest<?> request = client.connect(server).format(ClickHouseFormat.RowBinaryWithNamesAndTypes);
+            boolean hasResult = false;
+            try (ClickHouseResponse resp = request
+                    .compressServerResponse(compressResponse)
+                    .decompressClientRequest(compressRequest)
+                    .query("select :uuid").params(ClickHouseStringValue.of(uuid)).execute().get()) {
+                Assert.assertEquals(resp.firstRecord().getValue(0).asString(), uuid);
+                hasResult = true;
+            }
+            Assert.assertTrue(hasResult, "Should have at least one result");
+        }
+    }
+
     @Test(groups = { "integration" })
     public void testPing() throws Exception {
         ClickHouseNode server = getServer(ClickHouseProtocol.HTTP);

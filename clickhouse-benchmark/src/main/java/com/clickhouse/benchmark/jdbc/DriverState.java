@@ -5,6 +5,7 @@ import java.sql.Driver;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Properties;
+import java.util.UUID;
 
 import org.openjdk.jmh.annotations.Level;
 import org.openjdk.jmh.annotations.Param;
@@ -44,20 +45,22 @@ public class DriverState extends BaseState {
         JdbcDriver jdbcDriver = JdbcDriver.from(client);
 
         String compression = String.valueOf(Boolean.parseBoolean(System.getProperty("compression", "true")));
+        String additional = System.getProperty("additional", "");
 
         try {
             driver = (java.sql.Driver) Class.forName(jdbcDriver.getClassName()).getDeclaredConstructor().newInstance();
             url = String.format(jdbcDriver.getUrlTemplate(), serverState.getHost(),
                     serverState.getPort(jdbcDriver.getDefaultPort()), serverState.getDatabase(), serverState.getUser(),
-                    serverState.getPassword(), compression);
+                    serverState.getPassword(), compression, additional);
             // ClickHouseDefines.WRITE_COMPRESS = false;
             // ClickHouseDefines.READ_DECOMPRESS = Boolean.parseBoolean(compression);
             conn = driver.connect(url, new Properties());
 
             try (Statement s = conn.createStatement()) {
+                // s.execute("drop table if exists system.test_insert");
                 s.execute("truncate table if exists system.test_insert");
                 s.execute(
-                        "create table if not exists system.test_insert(i Nullable(UInt64), s Nullable(String), t Nullable(DateTime))engine=Memory");
+                        "create table if not exists system.test_insert(b String, i Nullable(UInt64), s Nullable(String), t Nullable(DateTime))engine=Memory");
             }
 
             if (!Constants.REUSE_CONNECTION.equalsIgnoreCase(connection)) {
@@ -134,6 +137,18 @@ public class DriverState extends BaseState {
             return (b, r, l, i) -> b.consume(r.getObject(i));
         } else if (defaultFunc == null) {
             return (b, r, l, i) -> b.consume(i);
+        } else {
+            return defaultFunc;
+        }
+    }
+
+    public SupplyValueFunction getSupplyFunction(SupplyValueFunction defaultFunc) {
+        if ("string".equals(type)) {
+            return (p, v, l, i) -> p.setString(i, v != null ? v.toString() : null);
+        } else if ("object".equals(type)) {
+            return (p, v, l, i) -> p.setObject(i, v);
+        } else if (defaultFunc == null) {
+            return (p, v, l, i) -> p.setObject(i, v);
         } else {
             return defaultFunc;
         }

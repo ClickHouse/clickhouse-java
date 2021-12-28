@@ -32,8 +32,11 @@ public abstract class DriverBenchmark {
     private final int BATCH_SIZE = Integer.parseInt(System.getProperty("batchSize", "5000"));
     // fetch size for query
     private final int FETCH_SIZE = Integer.parseInt(System.getProperty("fetchSize", "1000"));
+    // insert mode: 1) values; 2) table; 3) input
+    private final String INSERT_MODE = System.getProperty("insertMode", "values").toLowerCase();
 
-    protected PreparedStatement setParameters(PreparedStatement s, Object... values) throws SQLException {
+    protected PreparedStatement setParameters(PreparedStatement s, Object... values)
+            throws SQLException {
         if (values != null && values.length > 0) {
             int index = 1;
             for (Object v : values) {
@@ -66,14 +69,22 @@ public abstract class DriverBenchmark {
         return sql;
     }
 
-    private int processBatch(Statement s, String sql, Enumeration<Object[]> generator) throws SQLException {
+    private int processBatch(Statement s, String sql, SupplyValueFunction func, Enumeration<Object[]> generator)
+            throws SQLException {
         int rows = 0;
         int counter = 0;
         PreparedStatement ps = s instanceof PreparedStatement ? (PreparedStatement) s : null;
         while (generator.hasMoreElements()) {
             Object[] values = generator.nextElement();
             if (ps != null) {
-                setParameters(ps, values);
+                int colIndex = 1;
+                for (Object v : values) {
+                    if (colIndex == 1 && v instanceof String) {
+                        ps.setString(colIndex++, (String) v);
+                    } else {
+                        func.set(ps, v, rows, colIndex++);
+                    }
+                }
 
                 if (BATCH_SIZE > 0) {
                     ps.addBatch();
@@ -103,19 +114,26 @@ public abstract class DriverBenchmark {
         return rows;
     }
 
-    protected int executeInsert(DriverState state, String sql, Enumeration<Object[]> generator) throws SQLException {
+    protected int executeInsert(DriverState state, String sql, SupplyValueFunction func,
+            Enumeration<Object[]> generator) throws SQLException {
         Objects.requireNonNull(generator);
 
         final Connection conn = state.getConnection();
         int rows = 0;
 
+        if ("table".equals(INSERT_MODE)) {
+            sql = sql.substring(0, sql.indexOf('\n') + 1);
+        } else if ("input".equals(INSERT_MODE)) {
+            sql = sql.substring(0, sql.indexOf('\n')).replaceFirst("--", "");
+        }
+
         if (state.usePreparedStatement()) {
             try (PreparedStatement s = conn.prepareStatement(sql)) {
-                rows = processBatch(s, sql, generator);
+                rows = processBatch(s, sql, func, generator);
             }
         } else {
             try (Statement s = conn.createStatement()) {
-                rows = processBatch(s, sql, generator);
+                rows = processBatch(s, sql, func, generator);
             }
         }
 

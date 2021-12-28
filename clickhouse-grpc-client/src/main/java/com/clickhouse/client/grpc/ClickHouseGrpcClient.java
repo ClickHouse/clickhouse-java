@@ -19,6 +19,7 @@ import io.grpc.stub.StreamObserver;
 import com.clickhouse.client.AbstractClient;
 import com.clickhouse.client.ClickHouseChecker;
 import com.clickhouse.client.ClickHouseColumn;
+import com.clickhouse.client.ClickHouseCompression;
 import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseCredentials;
 import com.clickhouse.client.ClickHouseException;
@@ -48,22 +49,40 @@ public class ClickHouseGrpcClient extends AbstractClient<ManagedChannel> {
     private static final Compression COMPRESSION_DISABLED = Compression.newBuilder()
             .setAlgorithm(CompressionAlgorithm.NO_COMPRESSION).setLevel(CompressionLevel.COMPRESSION_NONE).build();
 
+    protected static String getRequestEncoding(ClickHouseConfig config) {
+        if (config.isDecompressClientRequet()) {
+            return ClickHouseCompression.NONE.encoding();
+        }
+
+        String encoding = ClickHouseCompression.GZIP.encoding();
+        switch (config.getDecompressAlgorithmForClientRequest()) {
+            case GZIP:
+                break;
+            default:
+                log.warn("Unsupported algorithm [%s], change to [%s]", config.getDecompressAlgorithmForClientRequest(),
+                        encoding);
+                break;
+        }
+
+        return encoding;
+    }
+
     protected static Compression getResultCompression(ClickHouseConfig config) {
         if (!config.isCompressServerResponse()) {
             return COMPRESSION_DISABLED;
         }
 
         Compression.Builder builder = Compression.newBuilder();
-        CompressionAlgorithm algorithm = CompressionAlgorithm.DEFLATE;
+        CompressionAlgorithm algorithm = CompressionAlgorithm.GZIP;
         CompressionLevel level = CompressionLevel.COMPRESSION_MEDIUM;
         switch (config.getDecompressAlgorithmForClientRequest()) {
             case NONE:
                 algorithm = CompressionAlgorithm.NO_COMPRESSION;
                 break;
             case DEFLATE:
+                algorithm = CompressionAlgorithm.DEFLATE;
                 break;
             case GZIP:
-                algorithm = CompressionAlgorithm.GZIP;
                 break;
             // case STREAM_GZIP:
             default:
@@ -211,7 +230,7 @@ public class ClickHouseGrpcClient extends AbstractClient<ManagedChannel> {
             ManagedChannel channel, ClickHouseNode server) {
         // reuse stub?
         ClickHouseGrpc.ClickHouseStub stub = ClickHouseGrpc.newStub(channel);
-        stub.withCompression(sealedRequest.getConfig().getDecompressAlgorithmForClientRequest().encoding());
+        stub.withCompression(getRequestEncoding(sealedRequest.getConfig()));
 
         final ClickHouseStreamObserver responseObserver = new ClickHouseStreamObserver(sealedRequest.getConfig(),
                 server);
@@ -259,7 +278,7 @@ public class ClickHouseGrpcClient extends AbstractClient<ManagedChannel> {
     protected CompletableFuture<ClickHouseResponse> executeSync(ClickHouseRequest<?> sealedRequest,
             ManagedChannel channel, ClickHouseNode server) {
         ClickHouseGrpc.ClickHouseBlockingStub stub = ClickHouseGrpc.newBlockingStub(channel);
-        stub.withCompression(sealedRequest.getConfig().getDecompressAlgorithmForClientRequest().encoding());
+        stub.withCompression(getRequestEncoding(sealedRequest.getConfig()));
 
         // TODO not as elegant as ClickHouseImmediateFuture :<
         try {

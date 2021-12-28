@@ -36,13 +36,14 @@ public enum ClickHouseClientOption implements ClickHouseOption {
      * Compression algorithm server will use to compress response, when
      * {@link #COMPRESS} is {@code true}.
      */
-    COMPRESS_ALGORITHM("compress_alogrithm", ClickHouseCompression.LZ4, "Algorithm used for compressing response."),
+    COMPRESS_ALGORITHM("compress_alogrithm", ClickHouseCompression.LZ4,
+            "Algorithm used for server to compress response."),
     /**
      * Compression algorithm server will use to decompress request, when
      * {@link #DECOMPRESS} is {@code true}.
      */
-    DECOMPRESS_ALGORITHM("decompress_alogrithm", ClickHouseCompression.GZIP,
-            "Algorithm for decompressing request."),
+    DECOMPRESS_ALGORITHM("decompress_alogrithm", ClickHouseCompression.LZ4,
+            "Algorithm for server to decompress request."),
     /**
      * Compression level for compressing server response.
      */

@@ -51,7 +51,7 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
             stmt.setDate(3, x);
             stmt.addBatch();
             int[] results = stmt.executeBatch();
-            Assert.assertEquals(results, new int[] { 0, 0 });
+            Assert.assertEquals(results, new int[] { 1, 1 });
 
             LocalDate dx = d.atStartOfDay(TimeZone.getDefault().toZoneId())
                     .withZoneSameInstant(conn.getServerTimeZone().toZoneId()).toLocalDate();
@@ -81,7 +81,8 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
         Date x = Date.valueOf(d);
         try (ClickHouseConnection conn = newConnection(props);
                 Statement s = conn.createStatement();
-                PreparedStatement stmt = conn.prepareStatement("insert into test_read_write_date_cz values(?,?,?)")) {
+                PreparedStatement stmt = conn
+                        .prepareStatement("insert into test_read_write_date_cz values (?, ?, ?)")) {
             s.execute("drop table if exists test_read_write_date_cz");
             try {
                 s.execute("create table test_read_write_date_cz(id Int32, d1 Date, d2 Date32)engine=Memory");
@@ -97,21 +98,27 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
             stmt.setDate(3, x);
             stmt.addBatch();
             int[] results = stmt.executeBatch();
-            Assert.assertEquals(results, new int[] { 0, 0 });
+            Assert.assertEquals(results, new int[] { 1, 1 });
 
+            LocalDate dx = d.atStartOfDay(TimeZone.getDefault().toZoneId())
+                    .withZoneSameInstant(conn.getConfig().getTimeZoneForDate().toZoneId()).toLocalDate();
+            Date xx = Date.valueOf(dx);
             ResultSet rs = conn.createStatement().executeQuery("select * from test_read_write_date_cz order by id");
             Assert.assertTrue(rs.next());
             Assert.assertEquals(rs.getInt(1), 1);
-            Assert.assertEquals(rs.getObject(2), d);
-            Assert.assertEquals(rs.getDate(2), x);
-            Assert.assertEquals(rs.getObject(3), d);
-            Assert.assertEquals(rs.getDate(3), x);
+            Assert.assertEquals(rs.getObject(2), dx);
+            Assert.assertEquals(rs.getDate(2), xx);
+            Assert.assertEquals(rs.getObject(3), dx);
+            Assert.assertEquals(rs.getDate(3), xx);
             Assert.assertTrue(rs.next());
+            dx = dx.atStartOfDay(conn.getServerTimeZone().toZoneId())
+                    .withZoneSameInstant(conn.getConfig().getTimeZoneForDate().toZoneId()).toLocalDate();
+            xx = Date.valueOf(dx);
             Assert.assertEquals(rs.getInt(1), 2);
-            Assert.assertEquals(rs.getObject(2), d);
-            Assert.assertEquals(rs.getDate(2), x);
-            Assert.assertEquals(rs.getObject(3), d);
-            Assert.assertEquals(rs.getDate(3), x);
+            Assert.assertEquals(rs.getObject(2), dx);
+            Assert.assertEquals(rs.getDate(2), xx);
+            Assert.assertEquals(rs.getObject(3), dx);
+            Assert.assertEquals(rs.getDate(3), xx);
             Assert.assertFalse(rs.next());
         }
     }
@@ -133,7 +140,7 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
             stmt.setTimestamp(3, x);
             stmt.addBatch();
             int[] results = stmt.executeBatch();
-            Assert.assertEquals(results, new int[] { 0, 0 });
+            Assert.assertEquals(results, new int[] { 1, 1 });
 
             LocalDateTime dx = dt.atZone(TimeZone.getDefault().toZoneId())
                     .withZoneSameInstant(conn.getServerTimeZone().toZoneId()).toLocalDateTime();
@@ -175,7 +182,7 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
             stmt.setTimestamp(3, x);
             stmt.addBatch();
             int[] results = stmt.executeBatch();
-            Assert.assertEquals(results, new int[] { 0, 0 });
+            Assert.assertEquals(results, new int[] { 1, 1 });
 
             LocalDateTime dx = dt.atZone(TimeZone.getDefault().toZoneId())
                     .withZoneSameInstant(conn.getServerTimeZone().toZoneId()).toLocalDateTime();
@@ -200,8 +207,9 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
     @Test(groups = "integration")
     public void testBatchInsert() throws SQLException {
         try (ClickHouseConnection conn = newConnection(new Properties());
+                ClickHouseStatement s = conn.createStatement();
                 PreparedStatement stmt = conn.prepareStatement("insert into test_batch_insert values(?,?)")) {
-            conn.createStatement().execute("drop table if exists test_batch_insert;"
+            s.execute("drop table if exists test_batch_insert;"
                     + "create table test_batch_insert(id Int32, name Nullable(String))engine=Memory");
             stmt.setInt(1, 1);
             stmt.setString(2, "a");
@@ -213,13 +221,24 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
             stmt.setString(2, null);
             stmt.addBatch();
             int[] results = stmt.executeBatch();
-            Assert.assertEquals(results, new int[] { 0, 0, 0 });
+            Assert.assertEquals(results, new int[] { 1, 1, 1 });
+
+            ResultSet rs = s.executeQuery("select * from test_batch_insert order by id");
+            String[] expected = new String[] { "a", "b", null };
+            int index = 1;
+            while (rs.next()) {
+                Assert.assertEquals(rs.getInt(1), index);
+                Assert.assertEquals(rs.getString(2), expected[index - 1]);
+                index++;
+            }
+            Assert.assertEquals(index, 4);
         }
 
         // try with only one column
         try (ClickHouseConnection conn = newConnection(new Properties());
+                ClickHouseStatement s = conn.createStatement();
                 PreparedStatement stmt = conn.prepareStatement("insert into test_batch_insert(id)")) {
-            conn.createStatement().execute("truncate table test_batch_insert");
+            s.execute("truncate table test_batch_insert");
             stmt.setInt(1, 1);
             stmt.addBatch();
             stmt.setInt(1, 2);
@@ -227,13 +246,23 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
             stmt.setInt(1, 3);
             stmt.addBatch();
             int[] results = stmt.executeBatch();
-            Assert.assertEquals(results, new int[] { 0, 0, 0 });
+            Assert.assertEquals(results, new int[] { 1, 1, 1 });
+
+            ResultSet rs = s.executeQuery("select * from test_batch_insert order by id");
+            int index = 1;
+            while (rs.next()) {
+                Assert.assertEquals(rs.getInt(1), index);
+                Assert.assertEquals(rs.getString(2), null);
+                index++;
+            }
+            Assert.assertEquals(index, 4);
         }
 
         // now without specifying any column
         try (ClickHouseConnection conn = newConnection(new Properties());
+                ClickHouseStatement s = conn.createStatement();
                 PreparedStatement stmt = conn.prepareStatement("insert into test_batch_insert")) {
-            conn.createStatement().execute("truncate table test_batch_insert");
+            s.execute("truncate table test_batch_insert");
             stmt.setInt(1, 1);
             stmt.setString(2, "a");
             stmt.addBatch();
@@ -244,7 +273,17 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
             stmt.setString(2, null);
             stmt.addBatch();
             int[] results = stmt.executeBatch();
-            Assert.assertEquals(results, new int[] { 0, 0, 0 });
+            Assert.assertEquals(results, new int[] { 1, 1, 1 });
+
+            ResultSet rs = s.executeQuery("select * from test_batch_insert order by id");
+            String[] expected = new String[] { "a", "b", null };
+            int index = 1;
+            while (rs.next()) {
+                Assert.assertEquals(rs.getInt(1), index);
+                Assert.assertEquals(rs.getString(2), expected[index - 1]);
+                index++;
+            }
+            Assert.assertEquals(index, 4);
         }
     }
 
