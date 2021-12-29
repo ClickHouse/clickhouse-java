@@ -14,6 +14,7 @@ import java.sql.Savepoint;
 import java.util.Calendar;
 import java.util.GregorianCalendar;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
@@ -35,6 +36,7 @@ import com.clickhouse.client.ClickHouseParameterizedQuery;
 import com.clickhouse.client.ClickHouseRecord;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseResponse;
+import com.clickhouse.client.ClickHouseUtils;
 import com.clickhouse.client.ClickHouseValues;
 import com.clickhouse.client.ClickHouseVersion;
 import com.clickhouse.client.config.ClickHouseClientOption;
@@ -124,6 +126,35 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
         ensureSupport("Transaction", false);
     }
 
+    protected List<ClickHouseColumn> getTableColumns(String dbName, String tableName, String columns)
+            throws SQLException {
+        if (tableName == null || columns == null) {
+            throw SqlExceptionUtils.clientError("Failed to extract table and columns from the query");
+        }
+
+        if (columns.isEmpty()) {
+            columns = "*";
+        } else {
+            columns = columns.substring(1); // remove the leading bracket
+        }
+        StringBuilder builder = new StringBuilder();
+        builder.append("SELECT ").append(columns).append(" FROM ");
+        if (!ClickHouseChecker.isNullOrEmpty(dbName)) {
+            builder.append('`').append(ClickHouseUtils.escape(dbName, '`')).append('`').append('.');
+        }
+        builder.append('`').append(ClickHouseUtils.escape(tableName, '`')).append('`').append(" WHERE 0");
+        List<ClickHouseColumn> list;
+        try (ClickHouseResponse resp = clientRequest.copy().query(builder.toString()).execute().get()) {
+            list = resp.getColumns();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw SqlExceptionUtils.forCancellation(e);
+        } catch (Exception e) {
+            throw SqlExceptionUtils.handle(e);
+        }
+        return list;
+    }
+
     // for testing only
     final FakeTransaction getTransaction() {
         return fakeTransaction.get();
@@ -138,8 +169,6 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
     }
 
     public ClickHouseConnectionImpl(ConnectionInfo connInfo) throws SQLException {
-        Properties properties = connInfo.getProperties();
-
         jdbcConf = connInfo.getJdbcConfig();
 
         autoCommit = !jdbcConf.isJdbcCompliant() || jdbcConf.isAutoCommit();
@@ -175,6 +204,11 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
                 String tz = r.getValue(2).asString();
                 String ver = r.getValue(3).asString();
                 version = ClickHouseVersion.of(ver);
+                // https://github.com/ClickHouse/ClickHouse/commit/486d63864bcc6e15695cd3e9f9a3f83a84ec4009
+                if (version.check("(,20.7)")) {
+                    throw SqlExceptionUtils
+                            .unsupportedError("Sorry this driver only supports ClickHouse server 20.7 or above");
+                }
                 if (ClickHouseChecker.isNullOrBlank(tz)) {
                     tz = "UTC";
                 }
@@ -210,9 +244,7 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
             // with respect of default locale
             defaultCalendar = new GregorianCalendar();
         } else {
-            clientTimeZone = Optional
-                    .of(ClickHouseChecker.isNullOrBlank(config.getUseTimeZone()) ? TimeZone.getDefault()
-                            : TimeZone.getTimeZone(config.getUseTimeZone()));
+            clientTimeZone = Optional.of(config.getUseTimeZone());
             defaultCalendar = new GregorianCalendar(clientTimeZone.get());
         }
         this.serverVersion = version;
@@ -507,8 +539,9 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
             int resultSetHoldability) throws SQLException {
         ensureOpen();
 
+        ClickHouseConfig config = clientRequest.getConfig();
         // TODO remove the extra parsing
-        ClickHouseSqlStatement[] stmts = parse(sql, clientRequest.getConfig());
+        ClickHouseSqlStatement[] stmts = parse(sql, config);
         if (stmts.length != 1) {
             throw SqlExceptionUtils
                     .clientError("Prepared statement only supports one query but we got: " + stmts.length);
@@ -517,8 +550,9 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
 
         ClickHouseParameterizedQuery preparedQuery;
         try {
-            preparedQuery = jdbcConf.useNamedParameter() ? ClickHouseParameterizedQuery.of(parsedStmt.getSQL())
-                    : JdbcParameterizedQuery.of(parsedStmt.getSQL());
+            preparedQuery = jdbcConf.useNamedParameter()
+                    ? ClickHouseParameterizedQuery.of(clientRequest.getConfig(), parsedStmt.getSQL())
+                    : JdbcParameterizedQuery.of(config, parsedStmt.getSQL());
         } catch (RuntimeException e) {
             throw SqlExceptionUtils.clientError(e);
         }
@@ -530,9 +564,6 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
                         .clientError(
                                 "External table, input function, and query parameter cannot be used together in PreparedStatement.");
             }
-            if (parsedStmt.hasValues()) { // consolidate multiple inserts into one
-
-            }
         } else {
             if (parsedStmt.hasTempTable()) {
                 // non-insert queries using temp table
@@ -540,13 +571,23 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
                         clientRequest.write().query(parsedStmt.getSQL(), newQueryId()),
                         parsedStmt.getTempTables(), resultSetType,
                         resultSetConcurrency, resultSetHoldability);
-            } else if (parsedStmt.getStatementType() == StatementType.INSERT
-                    && !ClickHouseChecker.isNullOrBlank(parsedStmt.getInput())) {
-                // insert query using input function
-                ps = new InputBasedPreparedStatement(this,
-                        clientRequest.write().query(parsedStmt.getSQL(), newQueryId()),
-                        ClickHouseColumn.parse(parsedStmt.getInput()), resultSetType,
-                        resultSetConcurrency, resultSetHoldability);
+            } else if (parsedStmt.getStatementType() == StatementType.INSERT) {
+                if (!ClickHouseChecker.isNullOrBlank(parsedStmt.getInput())) {
+                    // insert query using input function
+                    ps = new InputBasedPreparedStatement(this,
+                            clientRequest.write().query(parsedStmt.getSQL(), newQueryId()),
+                            ClickHouseColumn.parse(parsedStmt.getInput()), resultSetType,
+                            resultSetConcurrency, resultSetHoldability);
+                } else if (!parsedStmt.containsKeyword("SELECT") &&
+                        (!parsedStmt.hasFormat() || clientRequest.getFormat().name().equals(parsedStmt.getFormat()))) {
+                    ps = new InputBasedPreparedStatement(this,
+                            clientRequest.write().query(parsedStmt.getSQL(), newQueryId()),
+                            getTableColumns(parsedStmt.getDatabase(), parsedStmt.getTable(),
+                                    parsedStmt.getContentBetweenKeywords(
+                                            ClickHouseSqlStatement.KEYWORD_TABLE_COLUMNS_START,
+                                            ClickHouseSqlStatement.KEYWORD_TABLE_COLUMNS_END)),
+                            resultSetType, resultSetConcurrency, resultSetHoldability);
+                }
             }
         }
 
@@ -731,6 +772,11 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
         ensureOpen();
 
         return networkTimeout;
+    }
+
+    @Override
+    public ClickHouseConfig getConfig() {
+        return clientRequest.getConfig();
     }
 
     @Override

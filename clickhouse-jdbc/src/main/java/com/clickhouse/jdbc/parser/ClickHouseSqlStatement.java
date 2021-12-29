@@ -22,6 +22,11 @@ public class ClickHouseSqlStatement {
     public static final String KEYWORD_TOTALS = "TOTALS";
     public static final String KEYWORD_VALUES = "VALUES";
 
+    public static final String KEYWORD_TABLE_COLUMNS_START = "ColumnsStart";
+    public static final String KEYWORD_TABLE_COLUMNS_END = "ColumnsEnd";
+    public static final String KEYWORD_VALUES_START = "ValuesStart";
+    public static final String KEYWORD_VALUES_END = "ValuesEnd";
+
     private final String sql;
     private final StatementType stmtType;
     private final String cluster;
@@ -183,6 +188,25 @@ public class ClickHouseSqlStatement {
 
     public String getOutfile() {
         return this.outfile;
+    }
+
+    public String getContentBetweenKeywords(String startKeyword, String endKeyword) {
+        return getContentBetweenKeywords(startKeyword, endKeyword, 0);
+    }
+
+    public String getContentBetweenKeywords(String startKeyword, String endKeyword, int startOffset) {
+        if (startOffset < 0) {
+            startOffset = 0;
+        }
+        Integer startPos = positions.get(startKeyword);
+        Integer endPos = positions.get(endKeyword);
+
+        String content = "";
+        if (startPos != null && endPos != null && startPos + startOffset < endPos) {
+            content = sql.substring(startPos + startOffset, endPos);
+        }
+
+        return content;
     }
 
     public boolean containsKeyword(String keyword) {

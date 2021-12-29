@@ -5,6 +5,7 @@ import java.math.BigInteger;
 import java.math.RoundingMode;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
@@ -170,6 +171,15 @@ public class ClickHouseOffsetDateTimeValue extends ClickHouseObjectValue<OffsetD
     }
 
     @Override
+    public Instant asInstant(int scale) {
+        if (isNullOrEmpty()) {
+            return null;
+        }
+
+        return getValue().toInstant();
+    }
+
+    @Override
     public OffsetDateTime asOffsetDateTime(int scale) {
         return getValue();
     }
@@ -316,8 +326,28 @@ public class ClickHouseOffsetDateTimeValue extends ClickHouseObjectValue<OffsetD
     }
 
     @Override
+    public ClickHouseOffsetDateTimeValue update(Instant value) {
+        if (value == null) {
+            resetToNullOrEmpty();
+        } else {
+            set(OffsetDateTime.ofInstant(value, tz.toZoneId()));
+        }
+        return this;
+    }
+
+    @Override
     public ClickHouseOffsetDateTimeValue update(OffsetDateTime value) {
         set(value);
+        return this;
+    }
+
+    @Override
+    public ClickHouseOffsetDateTimeValue update(ZonedDateTime value) {
+        if (value == null) {
+            resetToNullOrEmpty();
+        } else {
+            set(value.toOffsetDateTime());
+        }
         return this;
     }
 

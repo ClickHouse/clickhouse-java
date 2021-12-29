@@ -17,6 +17,19 @@ import com.clickhouse.client.ClickHouseColumn;
 import com.clickhouse.client.ClickHouseDataType;
 
 public final class JdbcTypeMapping {
+    static Class<?> getCustomJavaClass(Map<String, Class<?>> typeMap, ClickHouseColumn column) {
+        if (typeMap != null && !typeMap.isEmpty()) {
+            Class<?> javaClass = typeMap.get(column.getOriginalTypeName());
+            if (javaClass == null) {
+                javaClass = typeMap.get(column.getDataType().name());
+            }
+
+            return javaClass;
+        }
+
+        return null;
+    }
+
     /**
      * Gets corresponding JDBC type for the given Java class.
      *
@@ -62,19 +75,14 @@ public final class JdbcTypeMapping {
     /**
      * Gets corresponding JDBC type for the given column.
      *
-     * @param column non-null column definition
+     * @param typeMap type mappings, could be null
+     * @param column  non-null column definition
      * @return JDBC type
      */
     public static int toJdbcType(Map<String, Class<?>> typeMap, ClickHouseColumn column) {
-        if (typeMap != null && !typeMap.isEmpty()) {
-            Class<?> javaClass = typeMap.get(column.getOriginalTypeName());
-            if (javaClass == null) {
-                javaClass = typeMap.get(column.getDataType().name());
-            }
-
-            if (javaClass != null) {
-                return toJdbcType(javaClass);
-            }
+        Class<?> javaClass = getCustomJavaClass(typeMap, column);
+        if (javaClass != null) {
+            return toJdbcType(javaClass);
         }
 
         int sqlType = Types.OTHER;
@@ -167,8 +175,19 @@ public final class JdbcTypeMapping {
         return sqlType;
     }
 
-    public static Class<?> toJavaClass(ClickHouseColumn column) {
-        Class<?> clazz;
+    /**
+     * Gets Java class for the given column.
+     *
+     * @param typeMap type mappings, could be null
+     * @param column  non-null column definition
+     * @return Java class for the column
+     */
+    public static Class<?> toJavaClass(Map<String, Class<?>> typeMap, ClickHouseColumn column) {
+        Class<?> clazz = getCustomJavaClass(typeMap, column);
+        if (clazz != null) {
+            return clazz;
+        }
+
         ClickHouseDataType type = column.getDataType();
         switch (type) {
             case DateTime:

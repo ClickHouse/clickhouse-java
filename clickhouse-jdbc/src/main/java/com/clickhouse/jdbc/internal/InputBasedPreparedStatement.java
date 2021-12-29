@@ -1,7 +1,6 @@
 package com.clickhouse.jdbc.internal;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.sql.Array;
@@ -13,10 +12,11 @@ import java.sql.Time;
 import java.sql.Timestamp;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Calendar;
-import java.util.LinkedList;
 import java.util.List;
 
 import com.clickhouse.client.ClickHouseColumn;
@@ -37,14 +37,15 @@ public class InputBasedPreparedStatement extends ClickHouseStatementImpl impleme
     private static final Logger log = LoggerFactory.getLogger(InputBasedPreparedStatement.class);
 
     private final Calendar defaultCalendar;
-    private final ZoneId jvmZoneId;
+    private final ZoneId timeZoneForDate;
+    private final ZoneId timeZoneForTs;
 
     private final List<ClickHouseColumn> columns;
     private final ClickHouseValue[] values;
     private final boolean[] flags;
 
+    private int counter;
     private ClickHousePipedStream stream;
-    private final List<InputStream> batch;
 
     protected InputBasedPreparedStatement(ClickHouseConnectionImpl connection, ClickHouseRequest<?> request,
             List<ClickHouseColumn> columns, int resultSetType, int resultSetConcurrency, int resultSetHoldability)
@@ -55,21 +56,23 @@ public class InputBasedPreparedStatement extends ClickHouseStatementImpl impleme
             throw SqlExceptionUtils.clientError("Non-null column list is required");
         }
 
+        ClickHouseConfig config = getConfig();
         defaultCalendar = connection.getDefaultCalendar();
-        jvmZoneId = connection.getJvmTimeZone().toZoneId();
+        timeZoneForTs = config.getUseTimeZone().toZoneId();
+        timeZoneForDate = config.isUseServerTimeZoneForDates() ? timeZoneForTs : null;
 
         this.columns = columns;
         int size = columns.size();
         int i = 0;
         values = new ClickHouseValue[size];
         for (ClickHouseColumn col : columns) {
-            values[i++] = ClickHouseValues.newValue(col);
+            values[i++] = ClickHouseValues.newValue(config, col);
         }
         flags = new boolean[size];
 
-        ClickHouseConfig config = request.getConfig();
+        counter = 0;
+        // it's important to make sure the queue has unlimited length
         stream = new ClickHousePipedStream(config.getMaxBufferSize(), 0, config.getSocketTimeout());
-        batch = new LinkedList<>();
     }
 
     protected void ensureParams() throws SQLException {
@@ -192,19 +195,7 @@ public class InputBasedPreparedStatement extends ClickHouseStatementImpl impleme
     public void clearParameters() throws SQLException {
         ensureOpen();
 
-        ClickHouseConfig config = getConfig();
-        if (stream != null) {
-            try {
-                stream.close();
-            } catch (IOException e) {
-                // should not happen
-                throw SqlExceptionUtils.handle(e);
-            }
-        }
-        stream = new ClickHousePipedStream(config.getMaxBufferSize(), 0, config.getSocketTimeout());
-
         for (int i = 0, len = values.length; i < len; i++) {
-            values[i].resetToNullOrEmpty();
             flags[i] = false;
         }
     }
@@ -239,21 +230,21 @@ public class InputBasedPreparedStatement extends ClickHouseStatementImpl impleme
     public void addBatch() throws SQLException {
         ensureOpen();
 
+        ClickHouseConfig config = getConfig();
         MappedFunctions functions = ClickHouseRowBinaryProcessor.getMappedFunctions();
         for (int i = 0, len = values.length; i < len; i++) {
             if (!flags[i]) {
                 throw SqlExceptionUtils.clientError(ClickHouseUtils.format("Missing value for parameter #%d", i + 1));
             }
             try {
-                functions.serialize(values[i], getConfig(), columns.get(i), stream);
+                functions.serialize(values[i], config, columns.get(i), stream);
             } catch (IOException e) {
                 // should not happen
                 throw SqlExceptionUtils.handle(e);
             }
         }
 
-        batch.add(stream.getInput());
-        // stream.close();
+        counter++;
         clearParameters();
     }
 
@@ -261,20 +252,24 @@ public class InputBasedPreparedStatement extends ClickHouseStatementImpl impleme
     public int[] executeBatch() throws SQLException {
         ensureOpen();
 
-        int len = batch.size();
-        int[] results = new int[len];
-        int counter = 0;
-        for (InputStream input : batch) {
-            try {
-                results[counter] = executeInsert(getRequest().getStatements(false).get(0), input);
-            } catch (Exception e) {
-                results[counter] = EXECUTE_FAILED;
-                log.error("Failed to execute task %d of %d", counter + 1, len, e);
+        boolean continueOnError = getConnection().getJdbcConfig().isContinueBatchOnError();
+        int[] results = new int[counter];
+        int result = 0;
+        try {
+            stream.close();
+            result = executeInsert(getRequest().getStatements(false).get(0), stream.getInput());
+        } catch (Exception e) {
+            if (!continueOnError) {
+                throw SqlExceptionUtils.handle(e);
             }
-            counter++;
+
+            result = EXECUTE_FAILED;
+            log.error("Failed to execute batch insert of %d records", counter + 1, e);
+        } finally {
+            clearBatch();
         }
 
-        clearBatch();
+        Arrays.fill(results, result);
 
         return results;
     }
@@ -283,7 +278,9 @@ public class InputBasedPreparedStatement extends ClickHouseStatementImpl impleme
     public void clearBatch() throws SQLException {
         ensureOpen();
 
-        this.batch.clear();
+        counter = 0;
+        ClickHouseConfig config = getConfig();
+        stream = new ClickHousePipedStream(config.getMaxBufferSize(), 0, config.getSocketTimeout());
     }
 
     @Override
@@ -302,12 +299,17 @@ public class InputBasedPreparedStatement extends ClickHouseStatementImpl impleme
 
         int idx = toArrayIndex(parameterIndex);
         if (x != null) {
-            LocalDate d = null;
-            if (cal != null) {
-                d = x.toLocalDate().atStartOfDay(jvmZoneId)
-                        .withZoneSameInstant(cal.getTimeZone().toZoneId()).toLocalDate();
-            } else {
+            LocalDate d;
+            if (cal == null) {
+                cal = defaultCalendar;
+            }
+            ZoneId tz = cal.getTimeZone().toZoneId();
+            if (timeZoneForDate == null || tz.equals(timeZoneForDate)) {
                 d = x.toLocalDate();
+            } else {
+                Calendar c = (Calendar) cal.clone();
+                c.setTime(x);
+                d = c.toInstant().atZone(tz).withZoneSameInstant(timeZoneForDate).toLocalDate();
             }
             values[idx].update(d);
         } else {
@@ -318,7 +320,27 @@ public class InputBasedPreparedStatement extends ClickHouseStatementImpl impleme
 
     @Override
     public void setTime(int parameterIndex, Time x, Calendar cal) throws SQLException {
-        throw SqlExceptionUtils.clientError("setTime not implemented");
+        ensureOpen();
+
+        int idx = toArrayIndex(parameterIndex);
+        if (x != null) {
+            LocalTime t;
+            if (cal == null) {
+                cal = defaultCalendar;
+            }
+            ZoneId tz = cal.getTimeZone().toZoneId();
+            if (tz.equals(timeZoneForTs)) {
+                t = x.toLocalTime();
+            } else {
+                Calendar c = (Calendar) cal.clone();
+                c.setTime(x);
+                t = c.toInstant().atZone(tz).withZoneSameInstant(timeZoneForTs).toLocalTime();
+            }
+            values[idx].update(t);
+        } else {
+            values[idx].resetToNullOrEmpty();
+        }
+        flags[idx] = true;
     }
 
     @Override
@@ -326,21 +348,23 @@ public class InputBasedPreparedStatement extends ClickHouseStatementImpl impleme
         ensureOpen();
 
         int idx = toArrayIndex(parameterIndex);
-        if (x == null) {
-            values[idx].resetToNullOrEmpty();
-            flags[idx] = true;
-            return;
-        }
-
-        LocalDateTime dt = null;
-        if (cal != null) {
-            dt = x.toLocalDateTime().atZone(jvmZoneId)
-                    .withZoneSameInstant(cal.getTimeZone().toZoneId()).toLocalDateTime();
+        if (x != null) {
+            LocalDateTime dt;
+            if (cal == null) {
+                cal = defaultCalendar;
+            }
+            ZoneId tz = cal.getTimeZone().toZoneId();
+            if (tz.equals(timeZoneForTs)) {
+                dt = x.toLocalDateTime();
+            } else {
+                Calendar c = (Calendar) cal.clone();
+                c.setTime(x);
+                dt = c.toInstant().atZone(tz).withZoneSameInstant(timeZoneForTs).toLocalDateTime();
+            }
+            values[idx].update(dt);
         } else {
-            dt = x.toLocalDateTime();
+            values[idx].resetToNullOrEmpty();
         }
-
-        values[idx].update(dt);
         flags[idx] = true;
     }
 

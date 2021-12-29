@@ -8,7 +8,6 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Time;
 import java.sql.Timestamp;
-import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
@@ -32,9 +31,6 @@ public class TableBasedPreparedStatement extends ClickHouseStatementImpl impleme
 
     private static final String ERROR_SET_TABLE = "Please use setObject(ClickHouseExternalTable) method instead";
 
-    private final Calendar defaultCalendar;
-    private final ZoneId jvmZoneId;
-
     private final List<String> tables;
     private final ClickHouseExternalTable[] values;
 
@@ -48,9 +44,6 @@ public class TableBasedPreparedStatement extends ClickHouseStatementImpl impleme
         if (tables == null) {
             throw SqlExceptionUtils.clientError("Non-null table list is required");
         }
-
-        defaultCalendar = connection.getDefaultCalendar();
-        jvmZoneId = connection.getJvmTimeZone().toZoneId();
 
         int size = tables.size();
         this.tables = new ArrayList<>(size);
@@ -199,20 +192,29 @@ public class TableBasedPreparedStatement extends ClickHouseStatementImpl impleme
     public int[] executeBatch() throws SQLException {
         ensureOpen();
 
+        boolean continueOnError = getConnection().getJdbcConfig().isContinueBatchOnError();
         int len = batch.size();
         int[] results = new int[len];
         int counter = 0;
-        for (List<ClickHouseExternalTable> list : batch) {
-            try (ClickHouseResponse r = executeStatement(getRequest().getStatements(false).get(0), null, list, null)) {
-                results[counter] = (int) r.getSummary().getWrittenRows();
-            } catch (Exception e) {
-                results[counter] = EXECUTE_FAILED;
-                log.error("Failed to execute task %d of %d", counter + 1, len, e);
-            }
-            counter++;
-        }
+        try {
+            for (List<ClickHouseExternalTable> list : batch) {
+                try (ClickHouseResponse r = executeStatement(getRequest().getStatements(false).get(0), null, list,
+                        null)) {
+                    int rows = (int) r.getSummary().getWrittenRows();
+                    results[counter] = rows > 0 ? rows : 1;
+                } catch (Exception e) {
+                    if (!continueOnError) {
+                        throw SqlExceptionUtils.handle(e);
+                    }
 
-        clearBatch();
+                    results[counter] = EXECUTE_FAILED;
+                    log.error("Failed to execute batch insert at %d of %d", counter + 1, len, e);
+                }
+                counter++;
+            }
+        } finally {
+            clearBatch();
+        }
 
         return results;
     }

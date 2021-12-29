@@ -7,7 +7,6 @@ import java.sql.SQLException;
 import java.sql.SQLWarning;
 import java.sql.Statement;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -159,7 +158,7 @@ public class ClickHouseStatementImpl extends JdbcWrapper implements ClickHouseSt
             throw SqlExceptionUtils.handle(e);
         }
 
-        return summary != null ? (int) summary.getWrittenRows() : 1;
+        return summary != null && summary.getWrittenRows() > 0L ? (int) summary.getWrittenRows() : 1;
     }
 
     protected ClickHouseSqlStatement getLastStatement() {

@@ -14,10 +14,14 @@ import com.clickhouse.client.ClickHouseUtils;
 import com.clickhouse.client.logging.Logger;
 import com.clickhouse.client.logging.LoggerFactory;
 
+/**
+ * JDBC-specific configuration.
+ */
 public class JdbcConfig {
     private static final Logger log = LoggerFactory.getLogger(JdbcConfig.class);
 
     public static final String PROP_AUTO_COMMIT = "autoCommit";
+    public static final String PROP_CONTINUE_BATCH = "continueBatchOnError";
     public static final String PROP_FETCH_SIZE = "fetchSize";
     public static final String PROP_JDBC_COMPLIANT = "jdbcCompliant";
     public static final String PROP_NAMED_PARAM = "namedParameter";
@@ -28,6 +32,7 @@ public class JdbcConfig {
     private static final String BOOLEAN_TRUE = "true";
 
     private static final String DEFAULT_AUTO_COMMIT = BOOLEAN_TRUE;
+    private static final String DEFAULT_CONTINUE_BATCH = BOOLEAN_FALSE;
     private static final String DEFAULT_FETCH_SIZE = "0";
     private static final String DEFAULT_JDBC_COMPLIANT = BOOLEAN_TRUE;
     private static final String DEFAULT_NAMED_PARAM = BOOLEAN_FALSE;
@@ -89,6 +94,11 @@ public class JdbcConfig {
         info.description = "Whether to enable auto commit when connection is created.";
         list.add(info);
 
+        info = new DriverPropertyInfo(PROP_CONTINUE_BATCH, DEFAULT_CONTINUE_BATCH);
+        info.choices = new String[] { BOOLEAN_TRUE, BOOLEAN_FALSE };
+        info.description = "Whether to continue batch process when error occurred.";
+        list.add(info);
+
         info = new DriverPropertyInfo(PROP_FETCH_SIZE, DEFAULT_FETCH_SIZE);
         info.description = "Default fetch size, negative or zero means no preferred option.";
         list.add(info);
@@ -116,6 +126,7 @@ public class JdbcConfig {
     }
 
     private final boolean autoCommit;
+    private final boolean continueBatch;
     private final int fetchSize;
     private final boolean jdbcCompliant;
     private final boolean namedParameter;
@@ -132,6 +143,7 @@ public class JdbcConfig {
         }
 
         this.autoCommit = extractBooleanValue(props, PROP_AUTO_COMMIT, DEFAULT_AUTO_COMMIT);
+        this.continueBatch = extractBooleanValue(props, PROP_CONTINUE_BATCH, DEFAULT_CONTINUE_BATCH);
         this.fetchSize = extractIntValue(props, PROP_FETCH_SIZE, DEFAULT_FETCH_SIZE);
         this.jdbcCompliant = extractBooleanValue(props, PROP_JDBC_COMPLIANT, DEFAULT_JDBC_COMPLIANT);
         this.namedParameter = extractBooleanValue(props, PROP_NAMED_PARAM, DEFAULT_NAMED_PARAM);
@@ -147,6 +159,15 @@ public class JdbcConfig {
      */
     public boolean isAutoCommit() {
         return autoCommit;
+    }
+
+    /**
+     * Checks whether batch processing should continue when error occurred.
+     *
+     * @return true if should continue; false to throw exception and abort execution
+     */
+    public boolean isContinueBatchOnError() {
+        return continueBatch;
     }
 
     /**

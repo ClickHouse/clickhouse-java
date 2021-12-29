@@ -54,8 +54,6 @@ public class ClickHouseResultSet extends AbstractResultSet {
     protected final boolean wrapObject;
     protected final List<ClickHouseColumn> columns;
     protected final Calendar defaultCalendar;
-    protected final TimeZone tsTimeZone;
-    protected final TimeZone dateTimeZone;
     protected final int maxRows;
     protected final ClickHouseResultSetMetaData metaData;
 
@@ -71,8 +69,6 @@ public class ClickHouseResultSet extends AbstractResultSet {
         this.config = null;
         this.wrapObject = false;
         this.defaultCalendar = new GregorianCalendar(TimeZone.getTimeZone("UTC"));
-        this.tsTimeZone = null; // TimeZone.getDefault();
-        this.dateTimeZone = this.tsTimeZone;
 
         this.defaultTypeMap = Collections.emptyMap();
         this.currentRow = null;
@@ -107,8 +103,6 @@ public class ClickHouseResultSet extends AbstractResultSet {
         this.config = statement.getConfig();
         this.wrapObject = statement.getConnection().getJdbcConfig().useWrapperObject();
         this.defaultCalendar = conn.getDefaultCalendar();
-        this.tsTimeZone = conn.getEffectiveTimeZone().orElse(null);
-        this.dateTimeZone = this.tsTimeZone;
 
         Map<String, Class<?>> typeMap = conn.getTypeMap();
         this.defaultTypeMap = typeMap != null && !typeMap.isEmpty() ? Collections.unmodifiableMap(typeMap)
@@ -343,27 +337,31 @@ public class ClickHouseResultSet extends AbstractResultSet {
 
     @Override
     public Date getDate(int columnIndex) throws SQLException {
-        LocalDate date = getValue(columnIndex).asDate();
-        return date != null ? Date.valueOf(date) : null;
+        return getDate(columnIndex, null);
     }
 
     @Override
     public Date getDate(String columnLabel) throws SQLException {
-        LocalDate date = getValue(findColumn(columnLabel)).asDate();
-        return date != null ? Date.valueOf(date) : null;
+        return getDate(findColumn(columnLabel), null);
     }
 
     @Override
     public Date getDate(int columnIndex, Calendar cal) throws SQLException {
+        ClickHouseValue value = getValue(columnIndex);
+        if (value == null) {
+            return null;
+        }
 
-        // TODO Auto-generated method stub
-        return null;
+        LocalDate d = value.asDate();
+        Calendar c = (Calendar) (cal != null ? cal : defaultCalendar).clone();
+        c.clear();
+        c.set(d.getYear(), d.getMonthValue() - 1, d.getDayOfMonth(), 0, 0, 0);
+        return new Date(c.getTimeInMillis());
     }
 
     @Override
     public Date getDate(String columnLabel, Calendar cal) throws SQLException {
-        // TODO Auto-generated method stub
-        return null;
+        return getDate(findColumn(columnLabel), cal);
     }
 
     @Override
@@ -584,7 +582,7 @@ public class ClickHouseResultSet extends AbstractResultSet {
 
     @Override
     public Time getTime(String columnLabel) throws SQLException {
-        return getTime(findColumn(columnLabel));
+        return getTime(findColumn(columnLabel), null);
     }
 
     @Override

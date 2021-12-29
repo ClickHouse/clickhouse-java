@@ -11,7 +11,6 @@ import com.clickhouse.client.http.config.ClickHouseHttpOption;
 import com.clickhouse.client.logging.Logger;
 import com.clickhouse.client.logging.LoggerFactory;
 
-import java.io.BufferedInputStream;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.ByteArrayOutputStream;
@@ -164,9 +163,10 @@ public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
                 writer.write("Content-Disposition: form-data; name=\"query\"\r\n\r\n");
                 writer.write(sql);
 
+                StringBuilder builder = new StringBuilder();
                 for (ClickHouseExternalTable t : tables) {
                     String tableName = t.getName();
-                    StringBuilder builder = new StringBuilder();
+                    builder.setLength(0);
                     builder.append(line).append("Content-Disposition: form-data; name=\"").append(tableName)
                             .append("_format\"\r\n\r\n").append(t.getFormat().name());
                     builder.append(line).append("Content-Disposition: form-data; name=\"").append(tableName)

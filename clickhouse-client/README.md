@@ -2,6 +2,7 @@
 
 Async Java client for ClickHouse. `clickhouse-client` is an abstract module, so it does not work by itself until being used together with an implementation like `clickhouse-grpc-client` or `clickhouse-http-client`.
 
+
 ## Quick Start
 
 ```xml

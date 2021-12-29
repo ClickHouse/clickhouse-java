@@ -87,7 +87,9 @@ public final class ClickHouseValues {
             .appendPattern("yyyy-MM-dd HH:mm:ss").appendFraction(ChronoField.NANO_OF_SECOND, 0, 9, true).toFormatter();
 
     public static final TimeZone UTC_TIMEZONE = TimeZone.getTimeZone("UTC");
+    public static final TimeZone SYS_TIMEZONE = TimeZone.getDefault();
     public static final ZoneId UTC_ZONE = UTC_TIMEZONE.toZoneId();
+    public static final ZoneId SYS_ZONE = SYS_TIMEZONE.toZoneId();
 
     public static final String NULL_EXPR = "NULL";
     public static final String NAN_EXPR = "NaN";
@@ -179,25 +181,35 @@ public final class ClickHouseValues {
     }
 
     /**
+     * Converts big decimal to instant.
+     *
+     * @param value big decimal
+     * @return instant
+     */
+    public static Instant convertToInstant(BigDecimal value) {
+        if (value == null) {
+            return null;
+        } else if (value.scale() == 0) {
+            return Instant.ofEpochSecond(value.longValue());
+        } else if (value.signum() >= 0) {
+            return Instant.ofEpochSecond(value.longValue(),
+                    value.remainder(BigDecimal.ONE).multiply(NANOS).intValue());
+        }
+
+        long v = NANOS.add(value.remainder(BigDecimal.ONE).multiply(NANOS)).longValue();
+        int nanoSeconds = v < 1000000000L ? (int) v : 0;
+
+        return Instant.ofEpochSecond(value.longValue() - (nanoSeconds > 0 ? 1 : 0), nanoSeconds);
+    }
+
+    /**
      * Converts big decimal to date time.
      *
      * @param value big decimal
      * @return date time
      */
     public static LocalDateTime convertToDateTime(BigDecimal value) {
-        if (value == null) {
-            return null;
-        } else if (value.scale() == 0) {
-            return LocalDateTime.ofEpochSecond(value.longValue(), 0, ZoneOffset.UTC);
-        } else if (value.signum() >= 0) {
-            return LocalDateTime.ofEpochSecond(value.longValue(),
-                    value.remainder(BigDecimal.ONE).multiply(NANOS).intValue(), ZoneOffset.UTC);
-        }
-
-        long v = NANOS.add(value.remainder(BigDecimal.ONE).multiply(NANOS)).longValue();
-        int nanoSeconds = v < 1000000000L ? (int) v : 0;
-
-        return LocalDateTime.ofEpochSecond(value.longValue() - (nanoSeconds > 0 ? 1 : 0), nanoSeconds, ZoneOffset.UTC);
+        return value != null ? LocalDateTime.ofInstant(convertToInstant(value), ZoneOffset.UTC) : null;
     }
 
     /**
@@ -227,20 +239,7 @@ public final class ClickHouseValues {
             return null;
         }
 
-        if (zone == null) {
-            zone = UTC_ZONE;
-        }
-        if (value.scale() == 0) {
-            return Instant.ofEpochSecond(value.longValue(), 0L).atZone(zone);
-        } else if (value.signum() >= 0) {
-            return Instant.ofEpochSecond(value.longValue(), value.remainder(BigDecimal.ONE).multiply(NANOS).intValue())
-                    .atZone(zone);
-        }
-
-        long v = NANOS.add(value.remainder(BigDecimal.ONE).multiply(NANOS)).longValue();
-        int nanoSeconds = v < 1000000000L ? (int) v : 0;
-
-        return Instant.ofEpochSecond(value.longValue() - (nanoSeconds > 0 ? 1 : 0), nanoSeconds).atZone(zone);
+        return convertToInstant(value).atZone(zone != null ? zone : UTC_ZONE);
     }
 
     /**
@@ -255,20 +254,7 @@ public final class ClickHouseValues {
             return null;
         }
 
-        if (offset == null) {
-            offset = ZoneOffset.UTC;
-        }
-        if (value.scale() == 0) {
-            return Instant.ofEpochSecond(value.longValue(), 0L).atOffset(offset);
-        } else if (value.signum() >= 0) {
-            return Instant.ofEpochSecond(value.longValue(), value.remainder(BigDecimal.ONE).multiply(NANOS).intValue())
-                    .atOffset(offset);
-        }
-
-        long v = NANOS.add(value.remainder(BigDecimal.ONE).multiply(NANOS)).longValue();
-        int nanoSeconds = v < 1000000000L ? (int) v : 0;
-
-        return Instant.ofEpochSecond(value.longValue() - (nanoSeconds > 0 ? 1 : 0), nanoSeconds).atOffset(offset);
+        return convertToInstant(value).atOffset(offset != null ? offset : ZoneOffset.UTC);
     }
 
     /**
@@ -888,24 +874,27 @@ public final class ClickHouseValues {
     /**
      * Creates a value object based on given column.
      *
+     * @param config non-null configuration
      * @param column non-null column
      * @return value object with default value, either null or empty
      */
-    public static ClickHouseValue newValue(ClickHouseColumn column) {
-        return newValue(ClickHouseChecker.nonNull(column, "column").getDataType(), column);
+    public static ClickHouseValue newValue(ClickHouseConfig config, ClickHouseColumn column) {
+        return newValue(ClickHouseChecker.nonNull(config, "config"),
+                ClickHouseChecker.nonNull(column, "column").getDataType(), column);
     }
 
     /**
      * Creates a value object based on given data type.
      *
-     * @param type non-null data type
+     * @param config non-null configuration
+     * @param type   non-null data type
      * @return value object with default value, either null or empty
      */
-    public static ClickHouseValue newValue(ClickHouseDataType type) {
-        return newValue(ClickHouseChecker.nonNull(type, "type"), null);
+    public static ClickHouseValue newValue(ClickHouseConfig config, ClickHouseDataType type) {
+        return newValue(ClickHouseChecker.nonNull(config, "config"), ClickHouseChecker.nonNull(type, "type"), null);
     }
 
-    private static ClickHouseValue newValue(ClickHouseDataType type, ClickHouseColumn column) {
+    private static ClickHouseValue newValue(ClickHouseConfig config, ClickHouseDataType type, ClickHouseColumn column) {
         ClickHouseValue value = null;
         switch (type) { // still faster than EnumMap and with less overhead
             case Enum:
@@ -964,9 +953,9 @@ public final class ClickHouseValues {
             case DateTime32:
             case DateTime64: {
                 if (column == null) {
-                    value = ClickHouseDateTimeValue.ofNull(0);
+                    value = ClickHouseDateTimeValue.ofNull(0, config.getUseTimeZone());
                 } else if (column.getTimeZone() == null) {
-                    value = ClickHouseDateTimeValue.ofNull(column.getScale());
+                    value = ClickHouseDateTimeValue.ofNull(column.getScale(), config.getUseTimeZone());
                 } else {
                     value = ClickHouseOffsetDateTimeValue.ofNull(column.getScale(), column.getTimeZone());
                 }
@@ -998,9 +987,17 @@ public final class ClickHouseValues {
                 value = ClickHouseGeoMultiPolygonValue.ofEmpty();
                 break;
             case AggregateFunction:
+                value = ClickHouseEmptyValue.INSTANCE;
                 if (column != null) {
-                    if (column.getAggregateFunction() == ClickHouseAggregateFunction.groupBitmap) {
-                        value = ClickHouseBitmapValue.ofEmpty(column.getNestedColumns().get(0).getDataType());
+                    switch (column.getAggregateFunction()) {
+                        case any:
+                            value = newValue(config, column.getNestedColumns().get(0));
+                            break;
+                        case groupBitmap:
+                            value = ClickHouseBitmapValue.ofEmpty(column.getNestedColumns().get(0).getDataType());
+                            break;
+                        default:
+                            break;
                     }
                 }
                 break;

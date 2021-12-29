@@ -35,14 +35,14 @@ public class ClickHouseParameterizedQuery implements Serializable {
         public final String paramName;
         public final ClickHouseColumn paramType;
 
-        protected QueryPart(String part, int paramIndex, String paramName, String paramType,
+        protected QueryPart(ClickHouseConfig config, String part, int paramIndex, String paramName, String paramType,
                 Map<String, ClickHouseValue> map) {
             this.part = part;
             this.paramIndex = paramIndex;
             this.paramName = paramName != null ? paramName : String.valueOf(paramIndex);
             if (paramType != null) {
                 this.paramType = ClickHouseColumn.of("", paramType);
-                map.put(paramName, ClickHouseValues.newValue(this.paramType));
+                map.put(paramName, ClickHouseValues.newValue(config, this.paramType));
             } else {
                 this.paramType = null;
                 map.putIfAbsent(paramName, null);
@@ -86,12 +86,26 @@ public class ClickHouseParameterizedQuery implements Serializable {
      *         {@code params} is null or empty
      */
     public static String apply(String sql, Map<String, String> params) {
+        StringBuilder builder = new StringBuilder();
+        apply(builder, sql, params);
+        return builder.toString();
+    }
+
+    /**
+     * Substitute named parameters in given SQL.
+     *
+     * @param builder non-null string builder
+     * @param sql     SQL containing named parameters
+     * @param params  mapping between parameter name and correspoding SQL
+     *                expression(NOT raw value)
+     */
+    public static void apply(StringBuilder builder, String sql, Map<String, String> params) {
         int len = sql == null ? 0 : sql.length();
         if (len < 2 || params == null || params.isEmpty()) {
-            return sql;
+            builder.append(sql);
+            return;
         }
 
-        StringBuilder builder = new StringBuilder(len * 2);
         for (int i = 0; i < len; i++) {
             char ch = sql.charAt(i);
             if (ClickHouseUtils.isQuote(ch)) {
@@ -128,9 +142,7 @@ public class ClickHouseParameterizedQuery implements Serializable {
                             }
                         }
 
-                        if (sb.length() > 0) {
-                            builder.append(params.getOrDefault(sb.toString(), ClickHouseValues.NULL_EXPR));
-                        }
+                        builder.append(params.getOrDefault(sb.toString(), ClickHouseValues.NULL_EXPR));
                     } else {
                         builder.append(ch);
                     }
@@ -141,21 +153,21 @@ public class ClickHouseParameterizedQuery implements Serializable {
                 builder.append(ch);
             }
         }
-
-        return builder.toString();
     }
 
     /**
      * Creates an instance by parsing the given query.
      *
-     * @param query non-empty SQL query
+     * @param config non-null config
+     * @param query  non-empty SQL query
      * @return parameterized query
      */
-    public static ClickHouseParameterizedQuery of(String query) {
+    public static ClickHouseParameterizedQuery of(ClickHouseConfig config, String query) {
         // cache if query.length() is greater than 1024?
-        return new ClickHouseParameterizedQuery(query);
+        return new ClickHouseParameterizedQuery(config, query);
     }
 
+    protected final ClickHouseConfig config;
     protected final String originalQuery;
 
     private final List<QueryPart> parts;
@@ -165,9 +177,11 @@ public class ClickHouseParameterizedQuery implements Serializable {
     /**
      * Default constructor.
      *
-     * @param query non-blank query
+     * @param config non-null config
+     * @param query  non-blank query
      */
-    protected ClickHouseParameterizedQuery(String query) {
+    protected ClickHouseParameterizedQuery(ClickHouseConfig config, String query) {
+        this.config = ClickHouseChecker.nonNull(config, "config");
         originalQuery = ClickHouseChecker.nonBlank(query, "query");
 
         parts = new LinkedList<>();
@@ -201,7 +215,7 @@ public class ClickHouseParameterizedQuery implements Serializable {
             paramName = String.valueOf(paramIndex);
         }
 
-        parts.add(new QueryPart(part, paramIndex, paramName, paramType, names));
+        parts.add(new QueryPart(config, part, paramIndex, paramName, paramType, names));
     }
 
     /**
@@ -264,7 +278,7 @@ public class ClickHouseParameterizedQuery implements Serializable {
                             }
                         }
 
-                        parts.add(new QueryPart(part, paramIndex, paramName, paramType, names));
+                        parts.add(new QueryPart(config, part, paramIndex, paramName, paramType, names));
                     }
                 }
             }
@@ -300,38 +314,39 @@ public class ClickHouseParameterizedQuery implements Serializable {
     }
 
     /**
-     * Applies stringified parameters to the query.
+     * Applies stringified parameters to the given string builder.
      *
-     * @param params stringified parameters
-     * @return substituted query
+     * @param builder non-null string builder
+     * @param params  stringified parameters
      */
-    public String apply(Map<String, String> params) {
+    public void apply(StringBuilder builder, Map<String, String> params) {
         if (!hasParameter()) {
-            return originalQuery;
+            builder.append(originalQuery);
+            return;
         }
 
         if (params == null) {
             params = Collections.emptyMap();
         }
 
-        StringBuilder builder = new StringBuilder();
         for (QueryPart p : parts) {
             builder.append(p.part);
             builder.append(params.getOrDefault(p.paramName, ClickHouseValues.NULL_EXPR));
         }
 
-        return appendLastPartIfExists(builder).toString();
+        appendLastPartIfExists(builder);
     }
 
     /**
-     * Applies stringified parameters to the query.
+     * Applies stringified parameters to the given string builder.
      *
-     * @param params stringified parameters
-     * @return substituted query
+     * @param builder non-null string builder
+     * @param params  stringified parameters
      */
-    public String apply(Collection<String> params) {
+    public void apply(StringBuilder builder, Collection<String> params) {
         if (params == null || params.isEmpty()) {
-            return apply(Collections.emptyMap());
+            apply(builder, Collections.emptyMap());
+            return;
         }
 
         Map<String, String> map = null;
@@ -348,21 +363,22 @@ public class ClickHouseParameterizedQuery implements Serializable {
                 }
             }
         }
-        return apply(map);
+        apply(builder, map);
     }
 
     /**
-     * Applies raw parameters to the query.
+     * Applies raw parameters to the given string builder.
      * {@link ClickHouseValues#convertToSqlExpression(Object)} will be used to
      * stringify the parameters.
      *
-     * @param param raw parameter
-     * @param more  more raw parameters if any
-     * @return substituted query
+     * @param builder non-null string builder
+     * @param param   raw parameter
+     * @param more    more raw parameters if any
      */
-    public String apply(Object param, Object... more) {
+    public void apply(StringBuilder builder, Object param, Object... more) {
         if (!hasParameter()) {
-            return originalQuery;
+            builder.append(originalQuery);
+            return;
         }
 
         int len = more == null ? 0 : more.length;
@@ -382,21 +398,22 @@ public class ClickHouseParameterizedQuery implements Serializable {
             index++;
         }
 
-        return apply(map);
+        apply(builder, map);
     }
 
     /**
-     * Applies raw parameters to the query.
+     * Applies raw parameters to the given string builder.
      * {@link ClickHouseValues#convertToSqlExpression(Object)} will be used to
      * stringify the parameters.
      *
-     * @param values raw parameters
-     * @return substituted query
+     * @param builder non-null string builder
+     * @param values  raw parameters
      */
-    public String apply(Object[] values) {
+    public void apply(StringBuilder builder, Object[] values) {
         int len = values == null ? 0 : values.length;
         if (len == 0) {
-            return apply(Collections.emptyMap());
+            apply(builder, Collections.emptyMap());
+            return;
         }
 
         Map<String, String> map = new HashMap<>();
@@ -412,19 +429,20 @@ public class ClickHouseParameterizedQuery implements Serializable {
             index++;
         }
 
-        return apply(map);
+        apply(builder, map);
     }
 
     /**
-     * Applies stringified parameters to the query.
+     * Applies stringified parameters to the given string builder.
      *
-     * @param param stringified parameter
-     * @param more  more stringified parameters if any
-     * @return substituted query
+     * @param builder non-null string builder
+     * @param param   stringified parameter
+     * @param more    more stringified parameters if any
      */
-    public String apply(String param, String... more) {
+    public void apply(StringBuilder builder, String param, String... more) {
         if (!hasParameter()) {
-            return originalQuery;
+            builder.append(originalQuery);
+            return;
         }
 
         int len = more == null ? 0 : more.length;
@@ -441,19 +459,20 @@ public class ClickHouseParameterizedQuery implements Serializable {
             index++;
         }
 
-        return apply(map);
+        apply(builder, map);
     }
 
     /**
-     * Applies stringified parameters to the query.
+     * Applies stringified parameters to the given string builder.
      *
-     * @param values stringified parameters
-     * @return substituted query
+     * @param builder non-null string builder
+     * @param values  stringified parameters
      */
-    public String apply(String[] values) {
+    public void apply(StringBuilder builder, String[] values) {
         int len = values == null ? 0 : values.length;
         if (len == 0) {
-            return apply(Collections.emptyMap());
+            apply(builder, Collections.emptyMap());
+            return;
         }
 
         Map<String, String> map = new HashMap<>();
@@ -467,7 +486,7 @@ public class ClickHouseParameterizedQuery implements Serializable {
             index++;
         }
 
-        return apply(map);
+        apply(builder, map);
     }
 
     /**

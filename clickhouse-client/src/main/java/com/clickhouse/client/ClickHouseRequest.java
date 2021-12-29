@@ -367,7 +367,7 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
      */
     public ClickHouseParameterizedQuery getPreparedQuery() {
         if (preparedQuery == null) {
-            preparedQuery = ClickHouseParameterizedQuery.of(getQuery());
+            preparedQuery = ClickHouseParameterizedQuery.of(getConfig(), getQuery());
         }
 
         return preparedQuery;
@@ -427,8 +427,13 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
 
             String stmt = getQuery();
             if (!ClickHouseChecker.isNullOrEmpty(stmt)) {
-                statements.add(preparedQuery == null ? ClickHouseParameterizedQuery.apply(stmt, namedParameters)
-                        : preparedQuery.apply(namedParameters));
+                StringBuilder builder = new StringBuilder();
+                if (preparedQuery == null) {
+                    ClickHouseParameterizedQuery.apply(builder, stmt, namedParameters);
+                } else {
+                    preparedQuery.apply(builder, namedParameters);
+                }
+                statements.add(builder.toString());
             }
         }
 

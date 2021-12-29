@@ -36,13 +36,14 @@ public enum ClickHouseClientOption implements ClickHouseOption {
      * Compression algorithm server will use to compress response, when
      * {@link #COMPRESS} is {@code true}.
      */
-    COMPRESS_ALGORITHM("compress_alogrithm", ClickHouseCompression.LZ4, "Algorithm used for compressing response."),
+    COMPRESS_ALGORITHM("compress_alogrithm", ClickHouseCompression.LZ4,
+            "Algorithm used for server to compress response."),
     /**
      * Compression algorithm server will use to decompress request, when
      * {@link #DECOMPRESS} is {@code true}.
      */
-    DECOMPRESS_ALGORITHM("decompress_alogrithm", ClickHouseCompression.GZIP,
-            "Algorithm for decompressing request."),
+    DECOMPRESS_ALGORITHM("decompress_alogrithm", ClickHouseCompression.LZ4,
+            "Algorithm for server to decompress request."),
     /**
      * Compression level for compressing server response.
      */
@@ -171,14 +172,15 @@ public enum ClickHouseClientOption implements ClickHouseOption {
      * Whether to use time zone from server for Date.
      */
     USE_SERVER_TIME_ZONE_FOR_DATES("use_server_time_zone_for_dates", false,
-            "Whether to use time zone from server on Date parsing in getDate(). "
-                    + "If false, Date returned is a wrapper of a timestamp at start of the day in client time zone. "
-                    + "If true - at start of the day in server or use_timezone time zone."),
+            "Whether to use timezone from server on Date parsing in getDate(). "
+                    + "If false, Date returned is a wrapper of a timestamp at start of the day in client timezone. "
+                    + "If true - at start of the day in server or use_time_zone timezone."),
     /**
      * Custom time zone. Only works when {@code use_server_time_zone} is set to
      * false.
      */
-    USE_TIME_ZONE("use_time_zone", "", "Which time zone to use. Only works when use_server_time_zone is false.");
+    USE_TIME_ZONE("use_time_zone", "", "Time zone of all DateTime* values. "
+            + "Only used when use_server_time_zone is false. Empty value means client time zone.");
 
     private final String key;
     private final Serializable defaultValue;

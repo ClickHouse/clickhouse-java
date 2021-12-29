@@ -88,7 +88,7 @@ public class ClientState extends BaseState {
         client = createClient();
 
         String[] sqls = new String[] { "drop table if exists system.test_insert",
-                "create table if not exists system.test_insert(i Nullable(UInt64), s Nullable(String), t Nullable(DateTime))engine=Memory" };
+                "create table if not exists system.test_insert(id String, i Nullable(UInt64), s Nullable(String), t Nullable(DateTime))engine=Memory" };
 
         for (String sql : sqls) {
             try (ClickHouseResponse resp = client.connect(server).query(sql).execute().get()) {
@@ -98,10 +98,13 @@ public class ClientState extends BaseState {
     }
 
     @TearDown(Level.Trial)
-    public void doTearDown(ServerState serverState) {
+    public void doTearDown(ServerState serverState) throws Exception {
         dispose();
 
-        if (client != null) {
+        try (ClickHouseResponse resp = client.connect(server).query("truncate table system.test_insert").execute()
+                .get()) {
+
+        } finally {
             try {
                 client.close();
             } catch (Exception e) {

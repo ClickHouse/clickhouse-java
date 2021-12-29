@@ -3,6 +3,7 @@ package com.clickhouse.client;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
+
 import org.testng.Assert;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;

@@ -3,6 +3,7 @@ package com.clickhouse.jdbc;
 import java.util.Collection;
 import java.util.Iterator;
 
+import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseParameterizedQuery;
 import com.clickhouse.client.ClickHouseUtils;
 import com.clickhouse.client.ClickHouseValues;
@@ -15,16 +16,17 @@ public final class JdbcParameterizedQuery extends ClickHouseParameterizedQuery {
     /**
      * Creates an instance by parsing the given query.
      *
-     * @param query non-empty SQL query
+     * @param config non-null configuration
+     * @param query  non-empty SQL query
      * @return parameterized query
      */
-    public static JdbcParameterizedQuery of(String query) {
+    public static JdbcParameterizedQuery of(ClickHouseConfig config, String query) {
         // cache if query.length() is greater than 1024?
-        return new JdbcParameterizedQuery(query);
+        return new JdbcParameterizedQuery(config, query);
     }
 
-    private JdbcParameterizedQuery(String query) {
-        super(query);
+    private JdbcParameterizedQuery(ClickHouseConfig config, String query) {
+        super(config, query);
     }
 
     @Override
@@ -63,12 +65,12 @@ public final class JdbcParameterizedQuery extends ClickHouseParameterizedQuery {
     }
 
     @Override
-    public String apply(Collection<String> params) {
+    public void apply(StringBuilder builder, Collection<String> params) {
         if (!hasParameter()) {
-            return originalQuery;
+            builder.append(originalQuery);
+            return;
         }
 
-        StringBuilder builder = new StringBuilder();
         Iterator<String> it = params == null ? null : params.iterator();
         boolean hasMore = it != null && it.hasNext();
         for (QueryPart p : getParts()) {
@@ -77,17 +79,17 @@ public final class JdbcParameterizedQuery extends ClickHouseParameterizedQuery {
             hasMore = hasMore && it.hasNext();
         }
 
-        return appendLastPartIfExists(builder).toString();
+        appendLastPartIfExists(builder);
     }
 
     @Override
-    public String apply(Object param, Object... more) {
+    public void apply(StringBuilder builder, Object param, Object... more) {
         if (!hasParameter()) {
-            return originalQuery;
+            builder.append(originalQuery);
+            return;
         }
 
         int len = more == null ? 0 : more.length + 1;
-        StringBuilder builder = new StringBuilder();
         int index = 0;
         for (QueryPart p : getParts()) {
             builder.append(p.part);
@@ -98,17 +100,17 @@ public final class JdbcParameterizedQuery extends ClickHouseParameterizedQuery {
             index++;
         }
 
-        return appendLastPartIfExists(builder).toString();
+        appendLastPartIfExists(builder);
     }
 
     @Override
-    public String apply(Object[] values) {
+    public void apply(StringBuilder builder, Object[] values) {
         if (!hasParameter()) {
-            return originalQuery;
+            builder.append(originalQuery);
+            return;
         }
 
         int len = values == null ? 0 : values.length;
-        StringBuilder builder = new StringBuilder();
         int index = 0;
         for (QueryPart p : getParts()) {
             builder.append(p.part);
@@ -117,17 +119,17 @@ public final class JdbcParameterizedQuery extends ClickHouseParameterizedQuery {
             index++;
         }
 
-        return appendLastPartIfExists(builder).toString();
+        appendLastPartIfExists(builder);
     }
 
     @Override
-    public String apply(String param, String... more) {
+    public void apply(StringBuilder builder, String param, String... more) {
         if (!hasParameter()) {
-            return originalQuery;
+            builder.append(originalQuery);
+            return;
         }
 
         int len = more == null ? 0 : more.length + 1;
-        StringBuilder builder = new StringBuilder();
         int index = 0;
         for (QueryPart p : getParts()) {
             builder.append(p.part);
@@ -138,17 +140,17 @@ public final class JdbcParameterizedQuery extends ClickHouseParameterizedQuery {
             index++;
         }
 
-        return appendLastPartIfExists(builder).toString();
+        appendLastPartIfExists(builder);
     }
 
     @Override
-    public String apply(String[] values) {
+    public void apply(StringBuilder builder, String[] values) {
         if (!hasParameter()) {
-            return originalQuery;
+            builder.append(originalQuery);
+            return;
         }
 
         int len = values == null ? 0 : values.length;
-        StringBuilder builder = new StringBuilder();
         int index = 0;
         for (QueryPart p : getParts()) {
             builder.append(p.part);
@@ -156,6 +158,6 @@ public final class JdbcParameterizedQuery extends ClickHouseParameterizedQuery {
             index++;
         }
 
-        return appendLastPartIfExists(builder).toString();
+        appendLastPartIfExists(builder);
     }
 }
