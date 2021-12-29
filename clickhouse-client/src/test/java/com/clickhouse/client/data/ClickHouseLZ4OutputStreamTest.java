@@ -1,7 +1,12 @@
 package com.clickhouse.client.data;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+
+import com.clickhouse.client.config.ClickHouseClientOption;
+
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
@@ -18,6 +23,29 @@ public class ClickHouseLZ4OutputStreamTest {
         byte[] bytes = bas.toByteArray();
         bas.close();
         return bytes;
+    }
+
+    @Test(groups = { "unit" })
+    public void testCompressAndDecompressQuery() throws IOException {
+        ByteArrayOutputStream bas = new ByteArrayOutputStream(100);
+        String sql = "select '4d67f5c7-60ae-4a00-8ed1-701429fa2cdf'";
+        try (ClickHouseLZ4OutputStream out = new ClickHouseLZ4OutputStream(bas,
+                (int) ClickHouseClientOption.MAX_COMPRESS_BLOCK_SIZE.getDefaultValue())) {
+            out.write(sql.getBytes(StandardCharsets.UTF_8));
+            out.flush();
+        }
+
+        Assert.assertEquals(bas.toByteArray(), BinaryStreamUtilsTest.generateBytes(
+                0xD2, 0x73, 0x99, 0x63, 0xA3, 0xD0, 0xFB, 0xAD, 0x31, 0xE1, 0x9F, 0xC1, 0x5A, 0x2B, 0xB2, 0x8B,
+                0x82, 0x38, 0, 0, 0, 0x2D, 0, 0, 0, 0xF0, 0x1E, 0x73, 0x65, 0x6C, 0x65, 0x63,
+                0x74, 0x20, 0x27, 0x34, 0x64, 0x36, 0x37, 0x66, 0x35, 0x63, 0x37, 0x2D, 0x36, 0x30, 0x61, 0x65,
+                0x2D, 0x34, 0x61, 0x30, 0x30, 0x2D, 0x38, 0x65, 0x64, 0x31, 0x2D, 0x37, 0x30, 0x31, 0x34, 0x32,
+                0x39, 0x66, 0x61, 0x32, 0x63, 0x64, 0x66, 0x27));
+
+        try (ClickHouseLZ4InputStream in = new ClickHouseLZ4InputStream(new ByteArrayInputStream(bas.toByteArray()))) {
+            String s = new String(in.readAllBytes(), StandardCharsets.UTF_8);
+            Assert.assertEquals(s, sql);
+        }
     }
 
     @Test(groups = { "unit" })

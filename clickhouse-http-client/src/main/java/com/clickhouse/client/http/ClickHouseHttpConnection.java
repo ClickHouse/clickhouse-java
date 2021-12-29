@@ -297,6 +297,7 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
             while ((counter = input.read(bytes, 0, bufferSize)) >= 0) {
                 output.write(bytes, 0, counter);
             }
+            output.flush();
             input.close();
             input = null;
         } finally {
