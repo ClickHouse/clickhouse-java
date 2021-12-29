@@ -32,7 +32,7 @@ public class JdbcConfig {
     private static final String BOOLEAN_TRUE = "true";
 
     private static final String DEFAULT_AUTO_COMMIT = BOOLEAN_TRUE;
-    private static final String DEFAULT_CONTINUE_BATCH = BOOLEAN_TRUE;
+    private static final String DEFAULT_CONTINUE_BATCH = BOOLEAN_FALSE;
     private static final String DEFAULT_FETCH_SIZE = "0";
     private static final String DEFAULT_JDBC_COMPLIANT = BOOLEAN_TRUE;
     private static final String DEFAULT_NAMED_PARAM = BOOLEAN_FALSE;

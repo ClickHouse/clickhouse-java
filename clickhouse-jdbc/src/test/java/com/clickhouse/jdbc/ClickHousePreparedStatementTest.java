@@ -283,8 +283,28 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
     }
 
     @Test(groups = "integration")
-    public void testBatchInput() throws SQLException {
+    public void testQueryWithDateTime() throws SQLException {
         try (ClickHouseConnection conn = newConnection(new Properties());
+                Statement s = conn.createStatement();
+                PreparedStatement stmt = conn.prepareStatement(
+                        "select id, dt from test_query_datetime where dt > ? order by id")) {
+            s.execute("drop table if exists test_query_datetime;"
+                    + "create table test_query_datetime(id Int32, dt DateTime32)engine=Memory;"
+                    + "insert into test_query_datetime values(1, '2021-03-25 12:34:56'), (2, '2021-03-26 12:34:56')");
+            stmt.setObject(1, LocalDateTime.of(2021, 3, 25, 12, 34, 57));
+            ResultSet rs = stmt.executeQuery();
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getInt(1), 2);
+            Assert.assertEquals(rs.getObject(2), LocalDateTime.of(2021, 3, 26, 12, 34, 56));
+            Assert.assertFalse(rs.next());
+        }
+    }
+
+    @Test(groups = "integration")
+    public void testBatchInput() throws SQLException {
+        Properties props = new Properties();
+        props.setProperty("continueBatchOnError", "true");
+        try (ClickHouseConnection conn = newConnection(props);
                 Statement s = conn.createStatement();
                 PreparedStatement stmt = conn.prepareStatement(
                         "insert into test_batch_input select id, name, value from input('id Int32, name Nullable(String), desc Nullable(String), value AggregateFunction(groupBitmap, UInt32)')")) {
