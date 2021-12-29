@@ -43,7 +43,9 @@ public class ClickHouseLZ4OutputStreamTest {
                 0x39, 0x66, 0x61, 0x32, 0x63, 0x64, 0x66, 0x27));
 
         try (ClickHouseLZ4InputStream in = new ClickHouseLZ4InputStream(new ByteArrayInputStream(bas.toByteArray()))) {
-            String s = new String(in.readAllBytes(), StandardCharsets.UTF_8);
+            byte[] bytes = new byte[1024];
+            int len = in.read(bytes);
+            String s = new String(bytes, 0, len, StandardCharsets.UTF_8);
             Assert.assertEquals(s, sql);
         }
     }
