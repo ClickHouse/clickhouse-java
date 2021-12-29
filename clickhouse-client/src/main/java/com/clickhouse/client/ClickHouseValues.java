@@ -87,7 +87,9 @@ public final class ClickHouseValues {
             .appendPattern("yyyy-MM-dd HH:mm:ss").appendFraction(ChronoField.NANO_OF_SECOND, 0, 9, true).toFormatter();
 
     public static final TimeZone UTC_TIMEZONE = TimeZone.getTimeZone("UTC");
+    public static final TimeZone SYS_TIMEZONE = TimeZone.getDefault();
     public static final ZoneId UTC_ZONE = UTC_TIMEZONE.toZoneId();
+    public static final ZoneId SYS_ZONE = SYS_TIMEZONE.toZoneId();
 
     public static final String NULL_EXPR = "NULL";
     public static final String NAN_EXPR = "NaN";

@@ -58,9 +58,8 @@ public class InputBasedPreparedStatement extends ClickHouseStatementImpl impleme
 
         ClickHouseConfig config = getConfig();
         defaultCalendar = connection.getDefaultCalendar();
-        timeZoneForDate = (config.isUseServerTimeZoneForDate() ? connection.getServerTimeZone()
-                : config.getTimeZoneForDate()).toZoneId();
         timeZoneForTs = config.getUseTimeZone().toZoneId();
+        timeZoneForDate = config.isUseServerTimeZoneForDates() ? timeZoneForTs : null;
 
         this.columns = columns;
         int size = columns.size();
@@ -305,7 +304,7 @@ public class InputBasedPreparedStatement extends ClickHouseStatementImpl impleme
                 cal = defaultCalendar;
             }
             ZoneId tz = cal.getTimeZone().toZoneId();
-            if (tz.equals(timeZoneForDate)) {
+            if (timeZoneForDate == null || tz.equals(timeZoneForDate)) {
                 d = x.toLocalDate();
             } else {
                 Calendar c = (Calendar) cal.clone();

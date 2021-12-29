@@ -171,10 +171,10 @@ public enum ClickHouseClientOption implements ClickHouseOption {
     /**
      * Whether to use time zone from server for Date.
      */
-    USE_SERVER_TIME_ZONE_FOR_DATE("use_server_time_zone_for_date", true,
-            "Whether to use time zone from server to read and write Date* values. "
-                    + "If false, Date is a wrapper of a timestamp at start of the day in use_time_zone time zone. "
-                    + "If true - at start of the day in server time zone."),
+    USE_SERVER_TIME_ZONE_FOR_DATES("use_server_time_zone_for_dates", false,
+            "Whether to use timezone from server on Date parsing in getDate(). "
+                    + "If false, Date returned is a wrapper of a timestamp at start of the day in client timezone. "
+                    + "If true - at start of the day in server or use_time_zone timezone."),
     /**
      * Custom time zone. Only works when {@code use_server_time_zone} is set to
      * false.

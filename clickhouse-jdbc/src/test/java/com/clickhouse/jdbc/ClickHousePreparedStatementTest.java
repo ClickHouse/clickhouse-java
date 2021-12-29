@@ -7,6 +7,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Timestamp;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
@@ -53,9 +54,6 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
             int[] results = stmt.executeBatch();
             Assert.assertEquals(results, new int[] { 1, 1 });
 
-            LocalDate dx = d.atStartOfDay(TimeZone.getDefault().toZoneId())
-                    .withZoneSameInstant(conn.getServerTimeZone().toZoneId()).toLocalDate();
-            Date xx = Date.valueOf(dx);
             ResultSet rs = conn.createStatement().executeQuery("select * from test_read_write_date order by id");
             Assert.assertTrue(rs.next());
             Assert.assertEquals(rs.getInt(1), 1);
@@ -65,10 +63,10 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
             Assert.assertEquals(rs.getDate(3), x);
             Assert.assertTrue(rs.next());
             Assert.assertEquals(rs.getInt(1), 2);
-            Assert.assertEquals(rs.getObject(2), dx);
-            Assert.assertEquals(rs.getDate(2), xx);
-            Assert.assertEquals(rs.getObject(3), dx);
-            Assert.assertEquals(rs.getDate(3), xx);
+            Assert.assertEquals(rs.getObject(2), d);
+            Assert.assertEquals(rs.getDate(2), x);
+            Assert.assertEquals(rs.getObject(3), d);
+            Assert.assertEquals(rs.getDate(3), x);
             Assert.assertFalse(rs.next());
         }
     }
@@ -76,13 +74,15 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
     @Test(groups = "integration")
     public void testReadWriteDateWithClientTimeZone() throws SQLException {
         Properties props = new Properties();
-        props.setProperty("use_server_time_zone_for_date", "false");
-        LocalDate d = LocalDate.of(2021, 3, 25);
-        Date x = Date.valueOf(d);
+        props.setProperty("use_server_time_zone_for_date", "true");
         try (ClickHouseConnection conn = newConnection(props);
                 Statement s = conn.createStatement();
                 PreparedStatement stmt = conn
                         .prepareStatement("insert into test_read_write_date_cz values (?, ?, ?)")) {
+            TimeZone tz = conn.getServerTimeZone();
+            // 2021-03-25
+            LocalDate d = LocalDate.ofInstant(Instant.ofEpochSecond(1616630400L), tz.toZoneId());
+            Date x = Date.valueOf(d);
             s.execute("drop table if exists test_read_write_date_cz");
             try {
                 s.execute("create table test_read_write_date_cz(id Int32, d1 Date, d2 Date32)engine=Memory");
@@ -100,25 +100,20 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
             int[] results = stmt.executeBatch();
             Assert.assertEquals(results, new int[] { 1, 1 });
 
-            LocalDate dx = d.atStartOfDay(TimeZone.getDefault().toZoneId())
-                    .withZoneSameInstant(conn.getConfig().getTimeZoneForDate().toZoneId()).toLocalDate();
-            Date xx = Date.valueOf(dx);
             ResultSet rs = conn.createStatement().executeQuery("select * from test_read_write_date_cz order by id");
             Assert.assertTrue(rs.next());
             Assert.assertEquals(rs.getInt(1), 1);
-            Assert.assertEquals(rs.getObject(2), dx);
-            Assert.assertEquals(rs.getDate(2), xx);
-            Assert.assertEquals(rs.getObject(3), dx);
-            Assert.assertEquals(rs.getDate(3), xx);
+            Assert.assertEquals(rs.getObject(2), d);
+            Assert.assertEquals(rs.getDate(2), x);
+            Assert.assertEquals(rs.getObject(3), d);
+            Assert.assertEquals(rs.getDate(3), x);
             Assert.assertTrue(rs.next());
-            dx = dx.atStartOfDay(conn.getServerTimeZone().toZoneId())
-                    .withZoneSameInstant(conn.getConfig().getTimeZoneForDate().toZoneId()).toLocalDate();
-            xx = Date.valueOf(dx);
+
             Assert.assertEquals(rs.getInt(1), 2);
-            Assert.assertEquals(rs.getObject(2), dx);
-            Assert.assertEquals(rs.getDate(2), xx);
-            Assert.assertEquals(rs.getObject(3), dx);
-            Assert.assertEquals(rs.getDate(3), xx);
+            Assert.assertEquals(rs.getObject(2), d);
+            Assert.assertEquals(rs.getDate(2), x);
+            Assert.assertEquals(rs.getObject(3), d);
+            Assert.assertEquals(rs.getDate(3), x);
             Assert.assertFalse(rs.next());
         }
     }

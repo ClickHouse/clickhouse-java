@@ -1245,18 +1245,17 @@ public final class BinaryStreamUtils {
     /**
      * Read {@link java.time.LocalDate} from given input stream.
      *
-     * @param input          non-null input stream
-     * @param serverTimeZone non-null server time zone
-     * @param tz             time zone for date, could be null
+     * @param input non-null input stream
+     * @param tz    time zone for date, could be null
      * @return local date
      * @throws IOException when failed to read value from input stream or reached
      *                     end of the stream
      */
-    public static LocalDate readDate(ClickHouseInputStream input, TimeZone serverTimeZone, TimeZone tz)
+    public static LocalDate readDate(ClickHouseInputStream input, TimeZone tz)
             throws IOException {
         LocalDate d = readDate(input);
-        if (tz != null) {
-            d = d.atStartOfDay(serverTimeZone.toZoneId()).withZoneSameInstant(tz.toZoneId()).toLocalDate();
+        if (tz != null && !tz.toZoneId().equals(ClickHouseValues.SYS_ZONE)) {
+            d = d.atStartOfDay(tz.toZoneId()).withZoneSameInstant(ClickHouseValues.SYS_ZONE).toLocalDate();
         }
         return d;
     }
@@ -1277,17 +1276,16 @@ public final class BinaryStreamUtils {
     /**
      * Write a {@link java.time.LocalDate} to given output stream.
      *
-     * @param output         non-null output stream
-     * @param value          local date
-     * @param serverTimeZone non-null server time zone
-     * @param tz             time zone for date, could be null
+     * @param output non-null output stream
+     * @param value  local date
+     * @param tz     time zone for date, could be null
      * @throws IOException when failed to write value to output stream or reached
      *                     end of the stream
      */
-    public static void writeDate(OutputStream output, LocalDate value, TimeZone serverTimeZone, TimeZone tz)
+    public static void writeDate(OutputStream output, LocalDate value, TimeZone tz)
             throws IOException {
-        if (tz != null) {
-            value = value.atStartOfDay(tz.toZoneId()).withZoneSameInstant(serverTimeZone.toZoneId()).toLocalDate();
+        if (tz != null && !tz.toZoneId().equals(ClickHouseValues.SYS_ZONE)) {
+            value = value.atStartOfDay(ClickHouseValues.SYS_ZONE).withZoneSameInstant(tz.toZoneId()).toLocalDate();
         }
         writeDate(output, value);
     }
@@ -1309,18 +1307,17 @@ public final class BinaryStreamUtils {
     /**
      * Read {@link java.time.LocalDate} from given input stream.
      *
-     * @param input          non-null input stream
-     * @param serverTimeZone non-null server time zone
-     * @param tz             time zone for date, could be null
+     * @param input non-null input stream
+     * @param tz    time zone for date, could be null
      * @return local date
      * @throws IOException when failed to read value from input stream or reached
      *                     end of the stream
      */
-    public static LocalDate readDate32(ClickHouseInputStream input, TimeZone serverTimeZone, TimeZone tz)
+    public static LocalDate readDate32(ClickHouseInputStream input, TimeZone tz)
             throws IOException {
         LocalDate d = readDate32(input);
-        if (tz != null) {
-            d = d.atStartOfDay(serverTimeZone.toZoneId()).withZoneSameInstant(tz.toZoneId()).toLocalDate();
+        if (tz != null && !tz.toZoneId().equals(ClickHouseValues.SYS_ZONE)) {
+            d = d.atStartOfDay(tz.toZoneId()).withZoneSameInstant(ClickHouseValues.SYS_ZONE).toLocalDate();
         }
         return d;
     }
@@ -1341,17 +1338,16 @@ public final class BinaryStreamUtils {
     /**
      * Write a {@link java.time.LocalDate} to given output stream.
      *
-     * @param output         non-null output stream
-     * @param value          local date
-     * @param serverTimeZone non-null server time zone
-     * @param tz             time zone for date, could be null
+     * @param output non-null output stream
+     * @param value  local date
+     * @param tz     time zone for date, could be null
      * @throws IOException when failed to write value to output stream or reached
      *                     end of the stream
      */
-    public static void writeDate32(OutputStream output, LocalDate value, TimeZone serverTimeZone, TimeZone tz)
+    public static void writeDate32(OutputStream output, LocalDate value, TimeZone tz)
             throws IOException {
-        if (tz != null) {
-            value = value.atStartOfDay(tz.toZoneId()).withZoneSameInstant(serverTimeZone.toZoneId()).toLocalDate();
+        if (tz != null && !tz.toZoneId().equals(ClickHouseValues.SYS_ZONE)) {
+            value = value.atStartOfDay(ClickHouseValues.SYS_ZONE).withZoneSameInstant(tz.toZoneId()).toLocalDate();
         }
         writeDate32(output, value);
     }

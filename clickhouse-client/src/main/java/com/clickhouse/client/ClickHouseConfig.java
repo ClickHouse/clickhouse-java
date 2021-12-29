@@ -132,7 +132,7 @@ public class ClickHouseConfig implements Serializable {
     private final String sslKey;
     private final boolean useObjectsInArray;
     private final boolean useServerTimeZone;
-    private final boolean useServerTimeZoneForDate;
+    private final boolean useServerTimeZoneForDates;
     private final TimeZone timeZoneForDate;
     private final TimeZone useTimeZone;
 
@@ -213,13 +213,13 @@ public class ClickHouseConfig implements Serializable {
         this.sslKey = (String) getOption(ClickHouseClientOption.SSL_KEY);
         this.useObjectsInArray = (boolean) getOption(ClickHouseClientOption.USE_OBJECTS_IN_ARRAYS);
         this.useServerTimeZone = (boolean) getOption(ClickHouseClientOption.USE_SERVER_TIME_ZONE);
-        this.useServerTimeZoneForDate = (boolean) getOption(ClickHouseClientOption.USE_SERVER_TIME_ZONE_FOR_DATE);
+        this.useServerTimeZoneForDates = (boolean) getOption(ClickHouseClientOption.USE_SERVER_TIME_ZONE_FOR_DATES);
 
         String timeZone = (String) getOption(ClickHouseClientOption.USE_TIME_ZONE);
         TimeZone tz = ClickHouseChecker.isNullOrBlank(timeZone) ? TimeZone.getDefault()
                 : TimeZone.getTimeZone(timeZone);
         this.useTimeZone = this.useServerTimeZone ? this.serverTimeZone : tz;
-        this.timeZoneForDate = this.useServerTimeZoneForDate ? null : tz;
+        this.timeZoneForDate = this.useServerTimeZoneForDates ? this.useTimeZone : null;
 
         if (credentials == null) {
             this.credentials = ClickHouseCredentials.fromUserAndPassword((String) getOption(ClickHouseDefaults.USER),
@@ -364,15 +364,15 @@ public class ClickHouseConfig implements Serializable {
         return useServerTimeZone;
     }
 
-    public boolean isUseServerTimeZoneForDate() {
-        return useServerTimeZoneForDate;
+    public boolean isUseServerTimeZoneForDates() {
+        return useServerTimeZoneForDates;
     }
 
     /**
      * Gets time zone for date values.
      *
      * @return time zone, could be null when {@code use_server_time_zone_for_date}
-     *         is set to {@code true}.
+     *         is set to {@code false}.
      */
     public TimeZone getTimeZoneForDate() {
         return timeZoneForDate;
