@@ -1255,7 +1255,7 @@ public final class BinaryStreamUtils {
             throws IOException {
         LocalDate d = readDate(input);
         if (tz != null && !tz.toZoneId().equals(ClickHouseValues.SYS_ZONE)) {
-            d = d.atStartOfDay(tz.toZoneId()).withZoneSameInstant(ClickHouseValues.SYS_ZONE).toLocalDate();
+            d = d.atStartOfDay(ClickHouseValues.SYS_ZONE).withZoneSameInstant(tz.toZoneId()).toLocalDate();
         }
         return d;
     }
@@ -1285,7 +1285,7 @@ public final class BinaryStreamUtils {
     public static void writeDate(OutputStream output, LocalDate value, TimeZone tz)
             throws IOException {
         if (tz != null && !tz.toZoneId().equals(ClickHouseValues.SYS_ZONE)) {
-            value = value.atStartOfDay(ClickHouseValues.SYS_ZONE).withZoneSameInstant(tz.toZoneId()).toLocalDate();
+            value = value.atStartOfDay(tz.toZoneId()).withZoneSameInstant(ClickHouseValues.SYS_ZONE).toLocalDate();
         }
         writeDate(output, value);
     }
@@ -1317,7 +1317,7 @@ public final class BinaryStreamUtils {
             throws IOException {
         LocalDate d = readDate32(input);
         if (tz != null && !tz.toZoneId().equals(ClickHouseValues.SYS_ZONE)) {
-            d = d.atStartOfDay(tz.toZoneId()).withZoneSameInstant(ClickHouseValues.SYS_ZONE).toLocalDate();
+            d = d.atStartOfDay(ClickHouseValues.SYS_ZONE).withZoneSameInstant(tz.toZoneId()).toLocalDate();
         }
         return d;
     }
@@ -1347,7 +1347,7 @@ public final class BinaryStreamUtils {
     public static void writeDate32(OutputStream output, LocalDate value, TimeZone tz)
             throws IOException {
         if (tz != null && !tz.toZoneId().equals(ClickHouseValues.SYS_ZONE)) {
-            value = value.atStartOfDay(ClickHouseValues.SYS_ZONE).withZoneSameInstant(tz.toZoneId()).toLocalDate();
+            value = value.atStartOfDay(tz.toZoneId()).withZoneSameInstant(ClickHouseValues.SYS_ZONE).toLocalDate();
         }
         writeDate32(output, value);
     }
