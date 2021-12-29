@@ -81,7 +81,7 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
                         .prepareStatement("insert into test_read_write_date_cz values (?, ?, ?)")) {
             TimeZone tz = conn.getServerTimeZone();
             // 2021-03-25
-            LocalDate d = LocalDate.ofInstant(Instant.ofEpochSecond(1616630400L), tz.toZoneId());
+            LocalDate d = LocalDateTime.ofInstant(Instant.ofEpochSecond(1616630400L), tz.toZoneId()).toLocalDate();
             Date x = Date.valueOf(d);
             s.execute("drop table if exists test_read_write_date_cz");
             try {
