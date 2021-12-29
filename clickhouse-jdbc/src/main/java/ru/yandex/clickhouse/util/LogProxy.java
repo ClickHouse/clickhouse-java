@@ -1,13 +1,14 @@
 package ru.yandex.clickhouse.util;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
+import java.lang.reflect.Array;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.util.Arrays;
+
+import com.clickhouse.client.logging.Logger;
+import com.clickhouse.client.logging.LoggerFactory;
 
 
 public class LogProxy<T> implements InvocationHandler {
@@ -18,11 +19,15 @@ public class LogProxy<T> implements InvocationHandler {
     private final Class<T> clazz;
 
     public static <T> T wrap(Class<T> interfaceClass, T object) {
-        if (log.isTraceEnabled()) {
+        T[] wrapper = (T[]) Array.newInstance(interfaceClass, 1);
+        wrapper[0] = object;
+        log.trace(() -> {
             LogProxy<T> proxy = new LogProxy<T>(interfaceClass, object);
-            return proxy.getProxy();
-        }
-        return object;
+            wrapper[0] = proxy.getProxy();
+            return "Proxy enabled for class: " + interfaceClass.getName();
+        });
+
+        return wrapper[0];
     }
 
     private LogProxy(Class<T> interfaceClass, T object) {

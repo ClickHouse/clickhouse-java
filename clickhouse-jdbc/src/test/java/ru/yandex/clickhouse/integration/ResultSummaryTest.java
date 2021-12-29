@@ -1,7 +1,7 @@
 package ru.yandex.clickhouse.integration;
 
-import org.testng.annotations.AfterTest;
-import org.testng.annotations.BeforeTest;
+import org.testng.annotations.AfterClass;
+import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 import ru.yandex.clickhouse.*;
 import ru.yandex.clickhouse.settings.ClickHouseQueryParam;
@@ -15,21 +15,20 @@ import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertNull;
 import static org.testng.AssertJUnit.assertTrue;
 
-public class ResultSummaryTest {
+public class ResultSummaryTest extends JdbcIntegrationTest {
     private ClickHouseConnection connection;
 
-    @BeforeTest
+    @BeforeClass(groups = "integration")
     public void setUp() throws Exception {
-        connection = ClickHouseContainerForTest.newDataSource().getConnection();
-        connection.createStatement().execute("CREATE DATABASE IF NOT EXISTS test");
+        connection = newConnection();
     }
 
-    @AfterTest
+    @AfterClass(groups = "integration")
     public void tearDown() throws Exception {
-        connection.createStatement().execute("DROP DATABASE IF EXISTS test");
+        closeConnection(connection);
     }
 
-    @Test
+    @Test(groups = "integration")
     public void select() throws Exception {
         ClickHouseStatement st = connection.createStatement();
         st.executeQuery("SELECT * FROM numbers(10)", Collections.singletonMap(ClickHouseQueryParam.SEND_PROGRESS_IN_HTTP_HEADERS, "true"));
@@ -38,7 +37,7 @@ public class ResultSummaryTest {
         assertTrue(st.getResponseSummary().getReadBytes() > 0);
     }
 
-    @Test
+    @Test(groups = "integration")
     public void largeSelect() throws Exception {
         ClickHouseStatement st = connection.createStatement();
         st.executeQuery("SELECT * FROM numbers(10000000)", Collections.singletonMap(ClickHouseQueryParam.SEND_PROGRESS_IN_HTTP_HEADERS, "true"));
@@ -47,7 +46,7 @@ public class ResultSummaryTest {
         assertTrue(st.getResponseSummary().getReadBytes() > 0);
     }
 
-    @Test
+    @Test(groups = "integration")
     public void largeSelectWaitEndOfQuery() throws Exception {
         ClickHouseStatement st = connection.createStatement();
         st.executeQuery("SELECT * FROM numbers(10000000)", largeSelectWaitEndOfQueryParams());
@@ -63,7 +62,7 @@ public class ResultSummaryTest {
         return res;
     }
 
-    @Test
+    @Test(groups = "integration")
     public void selectWithoutParam() throws Exception {
         ClickHouseStatement st = connection.createStatement();
         st.executeQuery("SELECT * FROM numbers(10)", Collections.singletonMap(ClickHouseQueryParam.SEND_PROGRESS_IN_HTTP_HEADERS, "true"));
@@ -72,11 +71,11 @@ public class ResultSummaryTest {
         assertTrue(st.getResponseSummary().getReadBytes() > 0);
     }
 
-    @Test
+    @Test(groups = "integration")
     public void insertSingle() throws Exception {
         createInsertTestTable();
 
-        ClickHousePreparedStatement ps = (ClickHousePreparedStatement) connection.prepareStatement("INSERT INTO test.insert_test VALUES(?)");
+        ClickHousePreparedStatement ps = (ClickHousePreparedStatement) connection.prepareStatement("INSERT INTO insert_test VALUES(?)");
         ps.setLong(1, 1);
         ps.executeQuery(Collections.singletonMap(ClickHouseQueryParam.SEND_PROGRESS_IN_HTTP_HEADERS, "true"));
 
@@ -84,11 +83,11 @@ public class ResultSummaryTest {
         assertTrue(ps.getResponseSummary().getWrittenBytes() > 0);
     }
 
-    @Test
+    @Test(groups = "integration")
     public void insertBatch() throws Exception {
         createInsertTestTable();
 
-        ClickHousePreparedStatement ps = (ClickHousePreparedStatement) connection.prepareStatement("INSERT INTO test.insert_test VALUES(?)");
+        ClickHousePreparedStatement ps = (ClickHousePreparedStatement) connection.prepareStatement("INSERT INTO insert_test VALUES(?)");
         for (long i = 0; i < 10; i++) {
             ps.setLong(1, i);
             ps.addBatch();
@@ -99,29 +98,29 @@ public class ResultSummaryTest {
         assertTrue(ps.getResponseSummary().getWrittenBytes() > 0);
     }
 
-    @Test
+    @Test(groups = "integration")
     public void insertSelect() throws Exception {
         createInsertTestTable();
 
-        ClickHousePreparedStatement ps = (ClickHousePreparedStatement) connection.prepareStatement("INSERT INTO test.insert_test SELECT number FROM numbers(10)");
+        ClickHousePreparedStatement ps = (ClickHousePreparedStatement) connection.prepareStatement("INSERT INTO insert_test SELECT number FROM numbers(10)");
         ps.executeQuery(Collections.singletonMap(ClickHouseQueryParam.SEND_PROGRESS_IN_HTTP_HEADERS, "true"));
 
         assertEquals(ps.getResponseSummary().getWrittenRows(), 10);
         assertTrue(ps.getResponseSummary().getWrittenBytes() > 0);
     }
 
-    @Test
+    @Test(groups = "integration")
     public void insertLargeSelect() throws Exception {
         createInsertTestTable();
 
-        ClickHousePreparedStatement ps = (ClickHousePreparedStatement) connection.prepareStatement("INSERT INTO test.insert_test SELECT number FROM numbers(10000000)");
+        ClickHousePreparedStatement ps = (ClickHousePreparedStatement) connection.prepareStatement("INSERT INTO insert_test SELECT number FROM numbers(10000000)");
         ps.executeQuery(Collections.singletonMap(ClickHouseQueryParam.SEND_PROGRESS_IN_HTTP_HEADERS, "true"));
 
         assertEquals(ps.getResponseSummary().getWrittenRows(), 10000000);
         assertTrue(ps.getResponseSummary().getWrittenBytes() > 0);
     }
 
-    @Test
+    @Test(groups = "integration")
     public void noSummary() throws Exception {
         ClickHouseStatement st = connection.createStatement();
         st.executeQuery("SELECT * FROM numbers(10)");
@@ -130,7 +129,7 @@ public class ResultSummaryTest {
     }
 
     private void createInsertTestTable() throws SQLException {
-        connection.createStatement().execute("DROP TABLE IF EXISTS test.insert_test");
-        connection.createStatement().execute("CREATE TABLE IF NOT EXISTS test.insert_test (value UInt32) ENGINE = TinyLog");
+        connection.createStatement().execute("DROP TABLE IF EXISTS insert_test");
+        connection.createStatement().execute("CREATE TABLE IF NOT EXISTS insert_test (value UInt32) ENGINE = TinyLog");
     }
 }

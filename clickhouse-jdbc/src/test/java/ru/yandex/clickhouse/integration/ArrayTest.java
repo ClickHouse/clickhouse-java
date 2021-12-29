@@ -13,33 +13,34 @@ import java.util.ArrayList;
 import java.util.Arrays;
 
 import org.testng.Assert;
-import org.testng.annotations.BeforeTest;
+import org.testng.annotations.AfterClass;
+import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
 import ru.yandex.clickhouse.ClickHouseArray;
-import ru.yandex.clickhouse.ClickHouseContainerForTest;
 import ru.yandex.clickhouse.ClickHouseDataSource;
 import ru.yandex.clickhouse.ClickHousePreparedStatement;
+import ru.yandex.clickhouse.JdbcIntegrationTest;
 import ru.yandex.clickhouse.domain.ClickHouseDataType;
-
-import static org.testng.Assert.assertEquals;
 
 /**
  * Here it is assumed the connection to a ClickHouse instance with flights example data it available at localhost:8123
  * For ClickHouse quickstart and example dataset see <a href="https://clickhouse.yandex/tutorial.html">https://clickhouse.yandex/tutorial.html</a>
  */
-public class ArrayTest {
-
-    private ClickHouseDataSource dataSource;
+public class ArrayTest extends JdbcIntegrationTest {
     private Connection connection;
 
-    @BeforeTest
+    @BeforeClass(groups = "integration")
     public void setUp() throws Exception {
-        dataSource = ClickHouseContainerForTest.newDataSource();
-        connection = dataSource.getConnection();
+        connection = newConnection();
     }
 
-    @Test
+    @AfterClass(groups = "integration")
+    public void tearDown() throws Exception {
+        closeConnection(connection);
+    }
+
+    @Test(groups = "integration")
     public void testStringArray() throws SQLException {
         String[] array = {"a'','sadf',aa", "", ",", "юникод,'юникод'", ",2134,saldfk"};
 
@@ -57,17 +58,17 @@ public class ArrayTest {
         Statement statement = connection.createStatement();
         ResultSet rs = statement.executeQuery("select array(" + arrayString + ")");
         while (rs.next()) {
-            assertEquals(rs.getArray(1).getBaseType(), Types.VARCHAR);
+            Assert.assertEquals(rs.getArray(1).getBaseType(), Types.VARCHAR);
                     String[] stringArray = (String[]) rs.getArray(1).getArray();
-                    assertEquals(stringArray.length, array.length);
+                    Assert.assertEquals(stringArray.length, array.length);
                     for (int i = 0; i < stringArray.length; i++) {
-                        assertEquals(stringArray[i], array[i]);
+                        Assert.assertEquals(stringArray[i], array[i]);
                     }
         }
         statement.close();
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testLongArray() throws SQLException {
         Long[] array = {-12345678987654321L, 23325235235L, -12321342L};
         StringBuilder sb = new StringBuilder();
@@ -82,17 +83,17 @@ public class ArrayTest {
         Statement statement = connection.createStatement();
         ResultSet rs = statement.executeQuery("select array(" + arrayString + ")");
         while (rs.next()) {
-            assertEquals(rs.getArray(1).getBaseType(), Types.BIGINT);
+            Assert.assertEquals(rs.getArray(1).getBaseType(), Types.BIGINT);
             long[] longArray = (long[]) rs.getArray(1).getArray();
-            assertEquals(longArray.length, array.length);
+            Assert.assertEquals(longArray.length, array.length);
             for (int i = 0; i < longArray.length; i++) {
-                assertEquals(longArray[i], array[i].longValue());
+                Assert.assertEquals(longArray[i], array[i].longValue());
             }
         }
         statement.close();
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testDecimalArray() throws SQLException {
         BigDecimal[] array = {BigDecimal.valueOf(-12.345678987654321), BigDecimal.valueOf(23.325235235), BigDecimal.valueOf(-12.321342)};
         StringBuilder sb = new StringBuilder();
@@ -107,25 +108,25 @@ public class ArrayTest {
         Statement statement = connection.createStatement();
         ResultSet rs = statement.executeQuery("select array(" + arrayString + ")");
         while (rs.next()) {
-            assertEquals(rs.getArray(1).getBaseType(), Types.DECIMAL);
+            Assert.assertEquals(rs.getArray(1).getBaseType(), Types.DECIMAL);
             BigDecimal[] deciamlArray = (BigDecimal[]) rs.getArray(1).getArray();
-            assertEquals(deciamlArray.length, array.length);
+            Assert.assertEquals(deciamlArray.length, array.length);
             for (int i = 0; i < deciamlArray.length; i++) {
-                assertEquals(0, deciamlArray[i].compareTo(array[i]));
+                Assert.assertEquals(0, deciamlArray[i].compareTo(array[i]));
             }
         }
         statement.close();
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testInsertUIntArray() throws SQLException {
-        connection.createStatement().execute("DROP TABLE IF EXISTS test.unsigned_array");
+        connection.createStatement().execute("DROP TABLE IF EXISTS unsigned_array");
         connection.createStatement().execute(
-                "CREATE TABLE IF NOT EXISTS test.unsigned_array"
+                "CREATE TABLE IF NOT EXISTS unsigned_array"
                         + " (ua32 Array(UInt32), ua64 Array(UInt64), f64 Array(Float64), a32 Array(Int32)) ENGINE = TinyLog"
         );
 
-        String insertSql = "INSERT INTO test.unsigned_array (ua32, ua64, f64, a32) VALUES (?, ?, ?, ?)";
+        String insertSql = "INSERT INTO unsigned_array (ua32, ua64, f64, a32) VALUES (?, ?, ?, ?)";
 
         PreparedStatement statement = connection.prepareStatement(insertSql);
 
@@ -146,7 +147,7 @@ public class ArrayTest {
         statement.execute();
 
         Statement select = connection.createStatement();
-        ResultSet rs = select.executeQuery("select ua32, ua64, f64, a32 from test.unsigned_array");
+        ResultSet rs = select.executeQuery("select ua32, ua64, f64, a32 from unsigned_array");
         for (int i = 0; i < 2; ++i) {
             rs.next();
             Array bigUInt32 = rs.getArray(1);
@@ -172,13 +173,13 @@ public class ArrayTest {
         }
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testInsertStringArray() throws Exception {
-        connection.createStatement().execute("DROP TABLE IF EXISTS test.string_array");
+        connection.createStatement().execute("DROP TABLE IF EXISTS string_array");
         connection.createStatement().execute(
-            "CREATE TABLE IF NOT EXISTS test.string_array (foo Array(String)) ENGINE = TinyLog");
+            "CREATE TABLE IF NOT EXISTS string_array (foo Array(String)) ENGINE = TinyLog");
 
-        String insertSQL = "INSERT INTO test.string_array (foo) VALUES (?)";
+        String insertSQL = "INSERT INTO string_array (foo) VALUES (?)";
         PreparedStatement statement = connection.prepareStatement(insertSQL);
         statement.setArray(1, connection.createArrayOf(
             String.class.getCanonicalName(),
@@ -186,30 +187,49 @@ public class ArrayTest {
         statement.executeUpdate();
 
         ResultSet r = connection.createStatement().executeQuery(
-            "SELECT foo FROM test.string_array");
+            "SELECT foo FROM string_array");
         r.next();
         String[] s = (String[]) r.getArray(1).getArray();
         Assert.assertEquals(s[0], "23");
         Assert.assertEquals(s[1], "42");
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testInsertStringArrayViaUnwrap() throws Exception {
-        connection.createStatement().execute("DROP TABLE IF EXISTS test.string_array");
+        connection.createStatement().execute("DROP TABLE IF EXISTS string_array");
         connection.createStatement().execute(
-            "CREATE TABLE IF NOT EXISTS test.string_array (foo Array(String)) ENGINE = TinyLog");
+            "CREATE TABLE IF NOT EXISTS string_array (foo Array(String)) ENGINE = TinyLog");
 
-        String insertSQL = "INSERT INTO test.string_array (foo) VALUES (?)";
+        String insertSQL = "INSERT INTO string_array (foo) VALUES (?)";
         ClickHousePreparedStatement statement = connection.prepareStatement(insertSQL)
             .unwrap(ClickHousePreparedStatement.class);
         statement.setArray(1, new String[] {"23", "42"});
         statement.executeUpdate();
 
         ResultSet r = connection.createStatement().executeQuery(
-            "SELECT foo FROM test.string_array");
+            "SELECT foo FROM string_array");
         r.next();
         String[] s = (String[]) r.getArray(1).getArray();
         Assert.assertEquals(s[0], "23");
         Assert.assertEquals(s[1], "42");
+    }
+
+    // @Test(groups = "integration")
+    public void testInsertByteArray() throws Exception {
+        connection.createStatement().execute("DROP TABLE IF EXISTS int8_array");
+        connection.createStatement().execute(
+            "CREATE TABLE IF NOT EXISTS int8_array (foo Array(Int8)) ENGINE = Memory");
+
+        String insertSQL = "INSERT INTO int8_array (foo) VALUES (?)";
+        PreparedStatement statement = connection.prepareStatement(insertSQL);
+        statement.setArray(1, new ClickHouseArray(ClickHouseDataType.Int8, new byte[]{12,34}));
+        statement.executeUpdate();
+
+        ResultSet r = connection.createStatement().executeQuery(
+            "SELECT foo FROM int8_array");
+        r.next();
+        int[] bytes = (int[]) r.getArray(1).getArray();
+        Assert.assertEquals(bytes[0], 12);
+        Assert.assertEquals(bytes[1], 34);
     }
 }

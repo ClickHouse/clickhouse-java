@@ -9,8 +9,8 @@ import javax.sql.DataSource;
 
 import org.testng.annotations.Test;
 
-import ru.yandex.clickhouse.ClickHouseContainerForTest;
 import ru.yandex.clickhouse.ClickHouseDataSource;
+import ru.yandex.clickhouse.JdbcIntegrationTest;
 import ru.yandex.clickhouse.except.ClickHouseException;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
 
@@ -19,66 +19,66 @@ import static org.testng.Assert.assertFalse;
 import static org.testng.Assert.assertTrue;
 import static org.testng.Assert.fail;
 
-public class ClickHouseConnectionImplTest {
+public class ClickHouseConnectionImplTest extends JdbcIntegrationTest {
 
-    @Test
+    @Test(groups = "integration")
     public void testDefaultEmpty() throws Exception {
         assertSuccess(createDataSource(null, null));
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testDefaultUserOnly() throws Exception {
         assertSuccess(createDataSource("default", null));
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testDefaultUserEmptyPassword() throws Exception {
         assertSuccess(createDataSource("default", ""));
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testDefaultUserPass() throws Exception {
         assertFailure(createDataSource("default", "bar"));
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testDefaultPass() throws Exception {
         assertFailure(createDataSource(null, "bar"));
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testFooEmpty() throws Exception {
         assertFailure(createDataSource("foo", null));
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testFooWrongPass() throws Exception {
         assertFailure(createDataSource("foo", "baz"));
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testFooPass() throws Exception {
         assertSuccess(createDataSource("foo", "bar"));
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testFooWrongUser() throws Exception {
         assertFailure(createDataSource("baz", "bar"));
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testOofNoPassword() throws Exception {
         assertSuccess(createDataSource("oof", null));
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testOofWrongPassword() throws Exception {
         assertFailure(createDataSource("oof", "baz"));
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testDefaultDatabase() throws Exception {
-        ClickHouseDataSource ds = ClickHouseContainerForTest.newDataSource();
+        ClickHouseDataSource ds = newDataSource();
         String currentDbQuery = "select currentDatabase()";
         try (Connection conn = ds.getConnection(); Statement s = conn.createStatement()) {
             try (ResultSet rs = s.executeQuery(currentDbQuery)) {
@@ -93,10 +93,10 @@ public class ClickHouseConnectionImplTest {
                 assertEquals(rs.getString(1), "default");
                 assertFalse(rs.next());
             }
-            s.execute("create database if not exists tdb1; create database if not exists tdb2");
+            s.execute("drop database if exists tdb1; drop database if exists tdb2; create database tdb1; create database tdb2");
         }
 
-        ds = ClickHouseContainerForTest.newDataSource("tdb2");
+        ds = newDataSource("tdb2");
         try (Connection conn = ds.getConnection(); Statement s = conn.createStatement()) {
             try (ResultSet rs = s.executeQuery(currentDbQuery)) {
                 assertTrue(rs.next());
@@ -155,10 +155,10 @@ public class ClickHouseConnectionImplTest {
         }
     }
 
-    private static DataSource createDataSource(String user, String password) {
+    private DataSource createDataSource(String user, String password) {
         ClickHouseProperties props = new ClickHouseProperties();
         props.setUser(user);
         props.setPassword(password);
-        return ClickHouseContainerForTest.newDataSource(props);
+        return newDataSource(props);
     }
 }

@@ -41,10 +41,7 @@ public abstract class ClickHouseValueParser<T> {
             Boolean.FALSE);
         register(Date.class, ClickHouseSQLDateParser.getInstance());
         register(Double.class, ClickHouseDoubleParser.getInstance());
-        register(Float.class,
-            Float::valueOf,
-            Float.valueOf(0f),
-            Float.valueOf(Float.NaN));
+        register(Float.class, ClickHouseFloatParser.getInstance());
         register(Instant.class, ClickHouseInstantParser.getInstance());
         register(Integer.class, Integer::decode, Integer.valueOf(0));
         register(LocalDate.class, ClickHouseLocalDateParser.getInstance());
@@ -152,8 +149,8 @@ public abstract class ClickHouseValueParser<T> {
     public static final float parseFloat(ByteFragment value, ClickHouseColumnInfo columnInfo)
         throws SQLException
     {
-        Double d = getParser(Double.class).parse(value, columnInfo, null);
-        return d != null ? d.floatValue() : 0.0f;
+        Float f = getParser(Float.class).parse(value, columnInfo, null);
+        return f != null ? f.floatValue() : 0.0f;
     }
 
     /**

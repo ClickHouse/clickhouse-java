@@ -31,7 +31,7 @@ import static org.testng.Assert.assertNull;
 
 public class ClickHouseValueFormatterTest {
 
-    @Test
+    @Test(groups = "unit")
     public void testFormatBytesUUID() {
         UUID uuid = UUID.randomUUID();
         byte[] bytes = ByteBuffer.allocate(16)
@@ -48,7 +48,7 @@ public class ClickHouseValueFormatterTest {
         assertEquals(reparsedBytes, bytes);
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testFormatBytesHelloWorld() throws Exception {
         byte[] bytes = "HELLO WORLD".getBytes("UTF-8");
         String formattedBytes = ClickHouseValueFormatter.formatBytes(bytes);
@@ -63,23 +63,23 @@ public class ClickHouseValueFormatterTest {
             "HELLO WORLD");
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testFormatBytesNull() {
         assertNull(ClickHouseValueFormatter.formatBytes(null));
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testFormatBytesEmpty() {
         assertEquals(ClickHouseValueFormatter.formatBytes(new byte[0]), "");
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testFormatLocalTime() {
         LocalTime l = LocalTime.parse("13:37:42.023");
         assertEquals(ClickHouseValueFormatter.formatLocalTime(l), "13:37:42");
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testFormatOffsetTime() {
         OffsetTime o = OffsetTime.of(
             LocalTime.parse("13:37:42.023"),
@@ -89,19 +89,19 @@ public class ClickHouseValueFormatterTest {
             "13:37:42.023+01:07");
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testFormatLocalDate() {
         LocalDate l = LocalDate.of(2020, 1, 7);
         assertEquals(ClickHouseValueFormatter.formatLocalDate(l), "2020-01-07");
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testFormatLocalDateTime() {
         LocalDateTime l = LocalDateTime.of(2020, 1, 7, 13, 37, 42, 107);
         assertEquals(ClickHouseValueFormatter.formatLocalDateTime(l), "2020-01-07 13:37:42");
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testFormatOffsetDateTime() {
         OffsetDateTime o = OffsetDateTime.of(
             LocalDateTime.of(2020, 1, 7, 13, 37, 42, 107),
@@ -111,7 +111,7 @@ public class ClickHouseValueFormatterTest {
             "2020-01-07 14:07:42");
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testFormatZonedDateTime() {
         ZonedDateTime z = ZonedDateTime.of(
             LocalDateTime.of(2020, 1, 7, 13, 37, 42, 107),
@@ -121,7 +121,7 @@ public class ClickHouseValueFormatterTest {
             "2020-01-08 00:37:42");
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testFormatObject() throws Exception {
         TimeZone tzUTC = TimeZone.getTimeZone("UTC");
         assertEquals(ClickHouseValueFormatter.formatObject(Byte.valueOf("42"), tzUTC, tzUTC), "42");
@@ -199,7 +199,7 @@ public class ClickHouseValueFormatterTest {
             "2020-01-07 21:37:42");
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testRoundTripLocalDate() throws Exception {
         LocalDate l0 = LocalDate.of(1957, 10, 4);
         LocalDate l1 = (LocalDate) ClickHouseValueParser.getParser(LocalDate.class).parse(
@@ -212,7 +212,7 @@ public class ClickHouseValueFormatterTest {
         assertEquals(l1, l0);
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testRoundTripLocalTime() throws Exception {
         LocalTime l0 = LocalTime.of(13, 37, 42);
         LocalTime l1 = (LocalTime) ClickHouseValueParser.getParser(LocalTime.class).parse(
@@ -221,7 +221,7 @@ public class ClickHouseValueFormatterTest {
         assertEquals(l1, l0);
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testRoundTripLocalDateTime() throws Exception {
         LocalDateTime l0 = LocalDateTime.of(1957, 10, 4, 13, 37, 42);
         LocalDateTime l1 = (LocalDateTime) ClickHouseValueParser.getParser(LocalDateTime.class)
@@ -234,7 +234,7 @@ public class ClickHouseValueFormatterTest {
         assertEquals(l1, l0);
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testRoundTripOffsetTime() throws Exception {
         ZoneOffset offset = ZoneId.of("Asia/Vladivostok")
             .getRules().getOffset(Instant.now());
@@ -245,7 +245,7 @@ public class ClickHouseValueFormatterTest {
         assertEquals(ot1, ot0);
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testRoundTripOffsetDateTime() throws Exception {
         TimeZone tzBerlin = TimeZone.getTimeZone("Europe/Berlin");
         TimeZone tzLosAngeles = TimeZone.getTimeZone("America/Los_Angeles");
@@ -277,7 +277,7 @@ public class ClickHouseValueFormatterTest {
             tzLosAngeles.toZoneId().getRules().getOffset(ldt)));
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testRoundTripZonedDateTime() throws Exception {
         TimeZone tzBerlin = TimeZone.getTimeZone("Europe/Berlin");
         TimeZone tzLosAngeles = TimeZone.getTimeZone("America/Los_Angeles");
@@ -309,7 +309,7 @@ public class ClickHouseValueFormatterTest {
             tzLosAngeles.toZoneId()));
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testRoundTripSQLTimestamp() throws Exception {
         TimeZone tzLosAngeles = TimeZone.getTimeZone("America/Los_Angeles");
         TimeZone tzBerlin = TimeZone.getTimeZone("Europe/Berlin");
@@ -336,7 +336,7 @@ public class ClickHouseValueFormatterTest {
         assertEquals(t1, t2);
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testRoundTripSQLTime() throws Exception {
         TimeZone tzLosAngeles = TimeZone.getTimeZone("America/Los_Angeles");
         TimeZone tzBerlin = TimeZone.getTimeZone("Europe/Berlin");
@@ -354,7 +354,7 @@ public class ClickHouseValueFormatterTest {
             Instant.ofEpochMilli((t0.getTime() + (24 - 9) * 3600 * 1000) % (24 * 3600 * 1000)));
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testRoundTripSQLDate() throws Exception {
         TimeZone tzLosAngeles = TimeZone.getTimeZone("America/Los_Angeles");
         TimeZone tzBerlin = TimeZone.getTimeZone("Europe/Berlin");

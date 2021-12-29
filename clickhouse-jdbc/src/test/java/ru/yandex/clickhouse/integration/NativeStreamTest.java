@@ -1,12 +1,12 @@
 package ru.yandex.clickhouse.integration;
 
 import org.testng.Assert;
-import org.testng.annotations.BeforeTest;
+import org.testng.annotations.AfterClass;
+import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 import ru.yandex.clickhouse.ClickHouseConnection;
-import ru.yandex.clickhouse.ClickHouseContainerForTest;
-import ru.yandex.clickhouse.ClickHouseDataSource;
 import ru.yandex.clickhouse.ClickHouseStatement;
+import ru.yandex.clickhouse.JdbcIntegrationTest;
 import ru.yandex.clickhouse.util.ClickHouseRowBinaryStream;
 import ru.yandex.clickhouse.util.ClickHouseStreamCallback;
 
@@ -16,24 +16,25 @@ import java.sql.ResultSet;
 
 import static org.testng.Assert.assertEquals;
 
-public class NativeStreamTest {
-
-    private ClickHouseDataSource dataSource;
+public class NativeStreamTest extends JdbcIntegrationTest {
     private ClickHouseConnection connection;
 
-    @BeforeTest
+    @BeforeClass(groups = "integration")
     public void setUp() throws Exception {
-        dataSource = ClickHouseContainerForTest.newDataSource();
-        connection = dataSource.getConnection();
-        connection.createStatement().execute("CREATE DATABASE IF NOT EXISTS test");
+        connection = newConnection();
     }
 
-    @Test
+    @AfterClass(groups = "integration")
+    public void tearDown() throws Exception {
+        closeConnection(connection);
+    }
+
+    @Test(groups = "integration")
     public void testLowCardinality() throws Exception{
         final ClickHouseStatement statement = connection.createStatement();
-        connection.createStatement().execute("DROP TABLE IF EXISTS test.low_cardinality");
+        connection.createStatement().execute("DROP TABLE IF EXISTS low_cardinality");
         connection.createStatement().execute(
-            "CREATE TABLE test.low_cardinality (date Date, " +
+            "CREATE TABLE low_cardinality (date Date, " +
                     "lowCardinality LowCardinality(String), " +
                     "string String," +
                     "fixedString FixedString(3)," +
@@ -49,7 +50,7 @@ public class NativeStreamTest {
         final Date date1 = new Date(1497474018000L);
 
         statement.sendNativeStream(
-            "INSERT INTO test.low_cardinality (date, lowCardinality, string, fixedString, fixedStringLC)",
+            "INSERT INTO low_cardinality (date, lowCardinality, string, fixedString, fixedStringLC)",
             new ClickHouseStreamCallback() {
                 @Override
                 public void writeTo(ClickHouseRowBinaryStream stream) throws IOException {
@@ -79,7 +80,7 @@ public class NativeStreamTest {
             }
         );
 
-        ResultSet rs = connection.createStatement().executeQuery("SELECT * FROM test.low_cardinality");
+        ResultSet rs = connection.createStatement().executeQuery("SELECT * FROM low_cardinality");
 
         Assert.assertTrue(rs.next());
         assertEquals(rs.getString("lowCardinality"), "string");

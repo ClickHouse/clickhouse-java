@@ -15,7 +15,7 @@ import static org.mockito.Mockito.when;
 public class ClickHouseResultSetMetaDataTest {
 
 
-  @Test
+  @Test(groups = "unit")
   public void testIsNullable() throws SQLException {
 
     ClickHouseResultSet resultSet = mock(ClickHouseResultSet.class);
@@ -29,7 +29,7 @@ public class ClickHouseResultSetMetaDataTest {
     Assert.assertEquals(resultSetMetaData.isNullable(2), ResultSetMetaData.columnNullable);
   }
 
-    @Test
+    @Test(groups = "unit")
     public void testIsNullableColumnTypeName() throws SQLException {
 
         ClickHouseResultSet resultSet = mock(ClickHouseResultSet.class);
@@ -39,7 +39,7 @@ public class ClickHouseResultSetMetaDataTest {
         Assert.assertEquals(resultSetMetaData.getColumnTypeName(1), "Float64");
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testIsNullableSigned() throws SQLException {
         ClickHouseResultSet resultSet = mock(ClickHouseResultSet.class);
         ClickHouseColumnInfo[] types = new ClickHouseColumnInfo[]{
@@ -55,7 +55,7 @@ public class ClickHouseResultSetMetaDataTest {
         Assert.assertFalse(resultSetMetaData.isSigned(3));
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testDateTimeWithTimeZone() throws SQLException {
         ClickHouseResultSet resultSet = mock(ClickHouseResultSet.class);
         when(resultSet.getColumns()).thenReturn(Collections.singletonList(

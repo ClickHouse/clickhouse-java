@@ -1,8 +1,5 @@
 package ru.yandex.clickhouse;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import ru.yandex.clickhouse.settings.ClickHouseConnectionSettings;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
 import ru.yandex.clickhouse.settings.ClickHouseQueryParam;
@@ -22,6 +19,9 @@ import java.util.Properties;
 import java.util.WeakHashMap;
 import java.util.concurrent.*;
 
+import com.clickhouse.client.logging.Logger;
+import com.clickhouse.client.logging.LoggerFactory;
+
 /**
  *
  * URL Format
@@ -35,7 +35,7 @@ import java.util.concurrent.*;
  */
 public class ClickHouseDriver implements Driver {
 
-    private static final Logger logger = LoggerFactory.getLogger(ClickHouseDriver.class);
+    private static final Logger log = LoggerFactory.getLogger(ClickHouseDriver.class);
 
     private static final Map<ClickHouseConnectionImpl, Boolean> connections = Collections.synchronizedMap(new WeakHashMap<>());
 
@@ -46,7 +46,10 @@ public class ClickHouseDriver implements Driver {
         } catch (SQLException e) {
             throw new RuntimeException(e);
         }
-        logger.debug("Driver registered");
+        log.warn("******************************************************************************************");
+        log.warn("* This driver is DEPRECATED. Please use [com.clickhouse.jdbc.ClickHouseDriver] instead.  *");
+        log.warn("* Also everything in package [ru.yandex.clickhouse] will be removed starting from 0.4.0. *");
+        log.warn("******************************************************************************************");
     }
 
     @Override
@@ -58,7 +61,7 @@ public class ClickHouseDriver implements Driver {
         if (!acceptsURL(url)) {
             return null;
         }
-        logger.debug("Creating connection");
+        log.debug("Creating connection");
         ClickHouseConnectionImpl connection = new ClickHouseConnectionImpl(url, properties);
         registerConnection(connection);
         return LogProxy.wrap(ClickHouseConnection.class, connection);
@@ -81,7 +84,7 @@ public class ClickHouseDriver implements Driver {
             properties = ClickhouseJdbcUrlParser.parse(url, copy).asProperties();
         } catch (Exception ex) {
             properties = copy;
-            logger.error("could not parse url {}", url, ex);
+            log.error("could not parse url %s", url, ex);
         }
         List<DriverPropertyInfo> result = new ArrayList<DriverPropertyInfo>(ClickHouseQueryParam.values().length
                 + ClickHouseConnectionSettings.values().length);
@@ -133,7 +136,7 @@ public class ClickHouseDriver implements Driver {
                         connection.cleanConnections();
                     }
                 } catch (Exception e){
-                    logger.error("error evicting connections: " + e);
+                    log.error("error evicting connections", e);
                 }
             }
         }, 0, rate, timeUnit);

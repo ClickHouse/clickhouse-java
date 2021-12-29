@@ -16,12 +16,22 @@ public enum ClickHouseConnectionSettings implements DriverPropertyCreator {
     SSL_MODE("sslmode", "strict", "verify or not certificate: none (don't verify), strict (verify)"),
     USE_PATH_AS_DB("use_path_as_db", true, "whether URL path should be treated as database name"),
     PATH("path", "/", "URL path"),
+    PROTOCOL("protocol", "http", "protocol used to connect to server, http or grpc"),
     CHECK_FOR_REDIRECTS("check_for_redirects", false, "whether we should check for 307 redirect using GET before sending POST to given URL"),
     MAX_REDIRECTS("max_redirects", 5, "number of redirect checks before using last URL"),
+
+    /*
+    *
+    * */
+    DATA_TRANSFER_TIMEOUT( "dataTransferTimeout", 10000, "Timeout for data transfer. "
+            + " socketTimeout + dataTransferTimeout is sent to ClickHouse as max_execution_time. "
+            + " ClickHouse rejects request execution if its time exceeds max_execution_time"),
+
 
     /**
      * for ConnectionManager
      */
+    VALIDATE_AFTER_INACTIVITY_MILLIS("validateAfterInactivityMillis", 3 * 1000, "period of inactivity in milliseconds after which persistent connections must be re-validated, this check helps detect connections that have become stale (half-closed) while kept inactive in the pool. "),
     TIME_TO_LIVE_MILLIS("timeToLiveMillis", 60 * 1000, ""),
     DEFAULT_MAX_PER_ROUTE("defaultMaxPerRoute", 500, ""),
     MAX_TOTAL("maxTotal", 10000, ""),

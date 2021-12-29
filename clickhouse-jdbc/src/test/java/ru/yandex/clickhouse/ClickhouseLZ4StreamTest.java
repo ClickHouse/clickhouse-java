@@ -10,7 +10,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 
 public class ClickhouseLZ4StreamTest {
-    @Test
+    @Test(groups = "unit")
     public void testLZ4Stream() throws IOException {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         ClickHouseLZ4OutputStream outputStream = new ClickHouseLZ4OutputStream(baos,  1024*1024);

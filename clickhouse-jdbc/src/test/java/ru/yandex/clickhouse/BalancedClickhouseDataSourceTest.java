@@ -1,12 +1,13 @@
 package ru.yandex.clickhouse;
 
+import java.net.SocketException;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.Arrays;
 
-import org.testng.annotations.BeforeTest;
+import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
 import ru.yandex.clickhouse.except.ClickHouseException;
@@ -16,12 +17,12 @@ import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertTrue;
 import static org.testng.Assert.fail;
 
-public class BalancedClickhouseDataSourceTest {
+public class BalancedClickhouseDataSourceTest extends JdbcIntegrationTest {
 
     private BalancedClickhouseDataSource dataSource;
     private BalancedClickhouseDataSource doubleDataSource;
 
-    @Test
+    @Test(groups = "unit")
     public void testUrlSplit() throws Exception {
         assertEquals(Arrays.asList("jdbc:clickhouse://localhost:1234/ppc"),
                 BalancedClickhouseDataSource.splitUrl("jdbc:clickhouse://localhost:1234/ppc"));
@@ -36,7 +37,7 @@ public class BalancedClickhouseDataSourceTest {
     }
 
 
-    @Test
+    @Test(groups = "unit")
     public void testUrlSplitValidHostName() throws Exception {
         assertEquals(Arrays.asList("jdbc:clickhouse://localhost:1234", "jdbc:clickhouse://_0another-host.com:4321"),
                 BalancedClickhouseDataSource.splitUrl("jdbc:clickhouse://localhost:1234,_0another-host.com:4321"));
@@ -44,20 +45,20 @@ public class BalancedClickhouseDataSourceTest {
     }
 
 
-    @Test(expectedExceptions = IllegalArgumentException.class)
+    @Test(groups = "unit", expectedExceptions = IllegalArgumentException.class)
     public void testUrlSplitInvalidHostName() throws Exception {
         BalancedClickhouseDataSource.splitUrl("jdbc:clickhouse://localhost:1234,_0ano^ther-host.com:4321");
 
     }
 
-    @BeforeTest
+    @BeforeClass(groups = "integration")
     public void setUp() throws Exception {
-        dataSource = ClickHouseContainerForTest.newBalancedDataSource();
-        String address = ClickHouseContainerForTest.getClickHouseHttpAddress();
-        doubleDataSource = ClickHouseContainerForTest.newBalancedDataSource(address, address);
+        dataSource = newBalancedDataSource();
+        String address = getClickHouseHttpAddress();
+        doubleDataSource = newBalancedDataSource(address, address);
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testSingleDatabaseConnection() throws Exception {
         Connection connection = dataSource.getConnection();
         connection.createStatement().execute("CREATE DATABASE IF NOT EXISTS test");
@@ -79,7 +80,7 @@ public class BalancedClickhouseDataSourceTest {
         assertEquals(42, rs.getInt("i"));
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testDoubleDatabaseConnection() throws Exception {
         Connection connection = doubleDataSource.getConnection();
         connection.createStatement().execute("CREATE DATABASE IF NOT EXISTS test");
@@ -117,16 +118,16 @@ public class BalancedClickhouseDataSourceTest {
 
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testCorrectActualizationDatabaseConnection() throws Exception {
         dataSource.actualize();
         Connection connection = dataSource.getConnection();
     }
 
 
-    @Test
+    @Test(groups = "integration")
     public void testDisableConnection() throws Exception {
-        BalancedClickhouseDataSource badDatasource = ClickHouseContainerForTest.newBalancedDataSource("not.existed.url:8123");
+        BalancedClickhouseDataSource badDatasource = newBalancedDataSource("not.existed.url:8123");
         badDatasource.actualize();
         try {
             Connection connection = badDatasource.getConnection();
@@ -137,9 +138,9 @@ public class BalancedClickhouseDataSourceTest {
     }
 
 
-    @Test
+    @Test(groups = "integration")
     public void testWorkWithEnabledUrl() throws Exception {
-        BalancedClickhouseDataSource halfDatasource = ClickHouseContainerForTest.newBalancedDataSource("not.existed.url:8123", ClickHouseContainerForTest.getClickHouseHttpAddress());
+        BalancedClickhouseDataSource halfDatasource = newBalancedDataSource("not.existed.url:8123", getClickHouseHttpAddress());
 
         halfDatasource.actualize();
         Connection connection = halfDatasource.getConnection();
@@ -178,16 +179,16 @@ public class BalancedClickhouseDataSourceTest {
         assertEquals(42, rs.getInt("i"));
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testConstructWithClickHouseProperties() {
         final ClickHouseProperties properties = new ClickHouseProperties();
         properties.setMaxThreads(3);
         properties.setSocketTimeout(67890);
         properties.setPassword("888888");
         //without connection parameters
-        String hostAddr = ClickHouseContainerForTest.getClickHouseHttpAddress();
-        String ipAddr   = ClickHouseContainerForTest.getClickHouseHttpAddress(true);
-        BalancedClickhouseDataSource dataSource = ClickHouseContainerForTest.newBalancedDataSourceWithSuffix(
+        String hostAddr = getClickHouseHttpAddress();
+        String ipAddr   = getClickHouseHttpAddress(true);
+        BalancedClickhouseDataSource dataSource = newBalancedDataSourceWithSuffix(
             "click", properties, hostAddr, ipAddr);
         ClickHouseProperties dataSourceProperties = dataSource.getProperties();
         assertEquals(dataSourceProperties.getMaxThreads().intValue(), 3);
@@ -198,7 +199,7 @@ public class BalancedClickhouseDataSourceTest {
         assertEquals(dataSource.getAllClickhouseUrls().get(0), "jdbc:clickhouse://" + hostAddr + "/click");
         assertEquals(dataSource.getAllClickhouseUrls().get(1), "jdbc:clickhouse://" + ipAddr + "/click");
         // with connection parameters
-        dataSource = ClickHouseContainerForTest.newBalancedDataSourceWithSuffix(
+        dataSource = newBalancedDataSourceWithSuffix(
                 "click?socket_timeout=12345&user=readonly", properties, hostAddr, ipAddr);
         dataSourceProperties = dataSource.getProperties();
         assertEquals(dataSourceProperties.getMaxThreads().intValue(), 3);
@@ -212,22 +213,20 @@ public class BalancedClickhouseDataSourceTest {
         assertEquals(dataSource.getAllClickhouseUrls().get(1), "jdbc:clickhouse://" + ipAddr + "/click?socket_timeout=12345&user=readonly");
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testConnectionWithAuth() throws SQLException {
         final ClickHouseProperties properties = new ClickHouseProperties();
-        final String hostAddr = ClickHouseContainerForTest.getClickHouseHttpAddress();
-        final String ipAddr = ClickHouseContainerForTest.getClickHouseHttpAddress(true);
+        final String hostAddr = getClickHouseHttpAddress();
+        final String ipAddr = getClickHouseHttpAddress(true);
 
-        final BalancedClickhouseDataSource dataSource0 = ClickHouseContainerForTest
-            .newBalancedDataSourceWithSuffix(
+        final BalancedClickhouseDataSource dataSource0 = newBalancedDataSourceWithSuffix(
                 "default?user=foo&password=bar",
                 properties,
                 hostAddr,
                 ipAddr);
         assertTrue(dataSource0.getConnection().createStatement().execute("SELECT 1"));
 
-        final BalancedClickhouseDataSource dataSource1 = ClickHouseContainerForTest
-            .newBalancedDataSourceWithSuffix(
+        final BalancedClickhouseDataSource dataSource1 = newBalancedDataSourceWithSuffix(
                 "default?user=foo",
                 properties,
                 hostAddr,
@@ -236,8 +235,7 @@ public class BalancedClickhouseDataSourceTest {
         //    () -> dataSource1.getConnection().createStatement().execute("SELECT 1"));
 
 
-        final BalancedClickhouseDataSource dataSource2 = ClickHouseContainerForTest
-            .newBalancedDataSourceWithSuffix(
+        final BalancedClickhouseDataSource dataSource2 = newBalancedDataSourceWithSuffix(
                 "default?user=oof",
                 properties,
                 hostAddr,
@@ -246,8 +244,7 @@ public class BalancedClickhouseDataSourceTest {
 
         properties.setUser("foo");
         properties.setPassword("bar");
-        final BalancedClickhouseDataSource dataSource3 = ClickHouseContainerForTest
-            .newBalancedDataSourceWithSuffix(
+        final BalancedClickhouseDataSource dataSource3 = newBalancedDataSourceWithSuffix(
                 "default",
                 properties,
                 hostAddr,
@@ -255,8 +252,7 @@ public class BalancedClickhouseDataSourceTest {
         assertTrue(dataSource3.getConnection().createStatement().execute("SELECT 1"));
 
         properties.setPassword("bar");
-        final BalancedClickhouseDataSource dataSource4 = ClickHouseContainerForTest
-            .newBalancedDataSourceWithSuffix(
+        final BalancedClickhouseDataSource dataSource4 = newBalancedDataSourceWithSuffix(
                 "default?user=oof",
                 properties,
                 hostAddr,
@@ -273,8 +269,7 @@ public class BalancedClickhouseDataSourceTest {
 
         // it is not allowed to have query parameters per host
         try {
-            ClickHouseContainerForTest
-            .newBalancedDataSourceWithSuffix(
+            newBalancedDataSourceWithSuffix(
                 "default?user=oof",
                 properties,
                 hostAddr + "/default?user=foo&password=bar",
@@ -286,8 +281,7 @@ public class BalancedClickhouseDataSourceTest {
 
         // the following behavior is quite unexpected, honestly
         // but query params always have precedence over properties
-        final BalancedClickhouseDataSource dataSource5 = ClickHouseContainerForTest
-            .newBalancedDataSourceWithSuffix(
+        final BalancedClickhouseDataSource dataSource5 = newBalancedDataSourceWithSuffix(
                 "default?user=foo&password=bar",
                 properties,
                 hostAddr,
@@ -296,8 +290,7 @@ public class BalancedClickhouseDataSourceTest {
             dataSource5.getConnection("broken", "hacker").createStatement().execute("SELECT 1"));
 
         // now the other way round, also strange
-        final BalancedClickhouseDataSource dataSource6 = ClickHouseContainerForTest
-            .newBalancedDataSourceWithSuffix(
+        final BalancedClickhouseDataSource dataSource6 = newBalancedDataSourceWithSuffix(
                 "default?user=broken&password=hacker",
                 properties,
                 hostAddr,
@@ -313,7 +306,7 @@ public class BalancedClickhouseDataSourceTest {
         }
     }
 
-    @Test
+    @Test(groups = "integration")
     public void testIPv6() throws Exception {
         // dedup is not supported at all :<
         assertEquals(Arrays.asList("jdbc:clickhouse://[::1]:12345", "jdbc:clickhouse://[0:0:0:0:0:0:0:1]:12345"),
@@ -322,9 +315,17 @@ public class BalancedClickhouseDataSourceTest {
                 BalancedClickhouseDataSource.splitUrl("jdbc:clickhouse://[192:168:0:0:0:0:0:1]:12345,[192:168:0:0:0:0:0:2]:12345"));
         
         ClickHouseProperties properties = new ClickHouseProperties();
-        String hostAddr = ClickHouseContainerForTest.getClickHouseHttpAddress();
-        String ipAddr = ClickHouseContainerForTest.getClickHouseHttpAddress("[::1]");
-        assertEquals(ClickHouseContainerForTest.newBalancedDataSource(properties, ipAddr).getConnection().getServerVersion(),
-            ClickHouseContainerForTest.newBalancedDataSource(properties, hostAddr).getConnection().getServerVersion());
+        String hostAddr = getClickHouseHttpAddress();
+        String ipAddr = getClickHouseHttpAddress("[::1]");
+
+        try {
+            assertEquals(newBalancedDataSource(properties, ipAddr).getConnection().getServerVersion(),
+                newBalancedDataSource(properties, hostAddr).getConnection().getServerVersion());
+        } catch (SQLException e) {
+            // acceptable if IPv6 is not enabled
+            Throwable cause = e.getCause();
+            assertTrue(cause instanceof SocketException);
+            assertTrue("Protocol family unavailable".equals(cause.getMessage()) || cause.getMessage().contains("Connection refused"));
+        }
     }
 }

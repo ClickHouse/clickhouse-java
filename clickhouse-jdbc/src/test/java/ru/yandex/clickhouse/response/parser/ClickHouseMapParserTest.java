@@ -14,7 +14,7 @@ import ru.yandex.clickhouse.util.Utils;
 import static org.testng.Assert.assertEquals;
 
 public class ClickHouseMapParserTest {
-    @Test
+    @Test(groups = "unit")
     public void testReadPart() throws Exception {
         ClickHouseMapParser parser = ClickHouseMapParser.getInstance();
         String s;
@@ -101,7 +101,7 @@ public class ClickHouseMapParserTest {
         assertEquals(sb.toString(), s);
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testParse() throws Exception {
         ClickHouseMapParser parser = ClickHouseMapParser.getInstance();
         Map<?, ?> result = parser.parse(ByteFragment.fromString("{'a': 1, 'a''\\\\\\'b':2}"),

@@ -6,7 +6,7 @@ import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.fail;
 
 public class ClickHouseDataSourceTest {
-    @Test
+    @Test(groups = "unit")
     public void testConstructor() throws Exception {
         ClickHouseDataSource ds = new ClickHouseDataSource("jdbc:clickhouse://localhost:1234/ppc");
         assertEquals("localhost", ds.getHost());
@@ -40,7 +40,7 @@ public class ClickHouseDataSourceTest {
         }
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testIPv6Constructor() throws Exception {
         ClickHouseDataSource ds = new ClickHouseDataSource("jdbc:clickhouse://[::1]:5324");
         assertEquals(ds.getHost(), "[::1]");

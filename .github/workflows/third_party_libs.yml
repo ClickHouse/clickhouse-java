@@ -19,19 +19,18 @@ jobs:
       - name: Install Java and Maven
         uses: actions/setup-java@v1
         with:
-          java-version: 9
+          java-version: 11
       - name: Update pom files and reduce logs
         run: |
           find . -type f -name "pom.xml" -exec sed -i -e 's|${revision}|${{ github.event.inputs.version }}|g' \
             -e 's|^\(    <version>\).*\(</version>\)$|\1${{ github.event.inputs.version }}\2|' \
-            -e 's|${parent.groupId}|com.clickhouse|g' '{}' \;
-          find . -type f -name "log4j.*" -exec rm -fv '{}' \;
+            -e 's|${parent.groupId}|com.clickhouse|g' -e 's|${project.parent.groupId}|com.clickhouse|g' '{}' \;
+          find . -type f -name "simplelogger.*" -exec rm -fv '{}' \;
       - name: Release Maven package
         uses: samuelmeuli/action-maven-publish@v1
         with:
-          directory: third-party-libraries
+          directory: ./third-party-libraries/
           maven_profiles: release
-          maven_args: -q --batch-mode
           gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
           gpg_passphrase: ${{ secrets.GPG_PASSPHRASE }}
           nexus_username: ${{ secrets.SONATYPE_USER }}

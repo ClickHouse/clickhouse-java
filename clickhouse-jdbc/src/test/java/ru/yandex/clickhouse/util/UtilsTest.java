@@ -11,7 +11,7 @@ import java.nio.charset.Charset;
 import org.testng.annotations.Test;
 
 public class UtilsTest {
-    @Test
+    @Test(groups = "unit")
     public void testUnsignedLeb128() throws Exception {
         DataInputStream input = prepareStream(new byte[] { 0 });
         assertEquals(Utils.readUnsignedLeb128(input), 0);
@@ -23,7 +23,7 @@ public class UtilsTest {
         assertEquals(Utils.readUnsignedLeb128(input), 100000000);
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testString() {
         Charset charset = Charset.forName("ISO-8859-15");
         byte[] b1 = new byte[] { (byte) 127, (byte) 128 };
@@ -32,14 +32,14 @@ public class UtilsTest {
         assertEquals(b2, b1);
     }
 
-    @Test
+    @Test(groups = "unit")
     public void testVarInt() {
         ByteBuffer buffer;
         for (int i : new int[] { 0, 128, 255, 65535, 1023 * 1024 }) {
             buffer = ByteBuffer.allocate(8);
             Utils.writeVarInt(i, buffer);
             Utils.writeVarInt(0 - i, buffer);
-            buffer = (ByteBuffer) ((Buffer) buffer.flip());
+            buffer = (ByteBuffer) ((Buffer) buffer).flip();
             assertEquals(Utils.readVarInt(buffer), i);
             assertEquals(Utils.readVarInt(buffer), 0 - i);
         }
