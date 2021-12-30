@@ -123,6 +123,12 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
     @Test(groups = "integration")
     public void testAsyncInsert() throws SQLException {
         Properties props = new Properties();
+        try (ClickHouseConnection conn = newConnection(props)) {
+            if (conn.getServerVersion().check("(,21.12)")) {
+                return;
+            }
+        }
+
         props.setProperty(ClickHouseHttpOption.CUSTOM_PARAMS.getKey(), "async_insert=1,wait_for_async_insert=1");
         try (ClickHouseConnection conn = newConnection(props);
                 ClickHouseStatement stmt = conn.createStatement();) {
