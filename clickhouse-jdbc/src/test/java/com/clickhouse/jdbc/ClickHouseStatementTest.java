@@ -1,10 +1,12 @@
 package com.clickhouse.jdbc;
 
+import java.sql.Array;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.sql.Struct;
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.time.Instant;
@@ -18,16 +20,21 @@ import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Collections;
 import java.util.GregorianCalendar;
+import java.util.List;
 import java.util.Locale;
 import java.util.Properties;
 import java.util.TimeZone;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
+import com.clickhouse.client.ClickHouseClient;
 import com.clickhouse.client.ClickHouseDataType;
 import com.clickhouse.client.ClickHouseParameterizedQuery;
 import com.clickhouse.client.ClickHouseValues;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.data.ClickHouseDateTimeValue;
+import com.clickhouse.client.http.config.ClickHouseHttpOption;
 
 import org.testng.Assert;
 import org.testng.annotations.Test;
@@ -114,6 +121,103 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
     }
 
     @Test(groups = "integration")
+    public void testAsyncInsert() throws SQLException {
+        Properties props = new Properties();
+        props.setProperty(ClickHouseHttpOption.CUSTOM_PARAMS.getKey(), "async_insert=1,wait_for_async_insert=1");
+        try (ClickHouseConnection conn = newConnection(props);
+                ClickHouseStatement stmt = conn.createStatement();) {
+            stmt.execute("drop table if exists test_async_insert; "
+                    + "create table test_async_insert(id UInt32, s String) ENGINE = Memory; "
+                    + "INSERT INTO test_async_insert VALUES(1, 'a'); "
+                    + "select * from test_async_insert");
+            ResultSet rs = stmt.getResultSet();
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getInt(1), 1);
+            Assert.assertEquals(rs.getString(2), "a");
+            Assert.assertFalse(rs.next());
+        }
+
+        props.setProperty(ClickHouseHttpOption.CUSTOM_PARAMS.getKey(), "async_insert=1,wait_for_async_insert=0");
+        try (ClickHouseConnection conn = newConnection(props);
+                ClickHouseStatement stmt = conn.createStatement();) {
+            stmt.execute("truncate table test_async_insert; "
+                    + "INSERT INTO test_async_insert VALUES(1, 'a'); "
+                    + "select * from test_async_insert");
+            ResultSet rs = stmt.getResultSet();
+            Assert.assertFalse(rs.next());
+        }
+    }
+
+    @Test(groups = "integration")
+    public void testCancelQuery() throws Exception {
+        try (ClickHouseConnection conn = newConnection(new Properties());
+                ClickHouseStatement stmt = conn.createStatement();) {
+            CountDownLatch c = new CountDownLatch(1);
+            ClickHouseClient.submit(() -> stmt.executeQuery("select * from numbers(100000000)")).whenComplete(
+                    (rs, e) -> {
+                        int index = 0;
+
+                        try {
+                            while (rs.next()) {
+                                if (index++ < 1) {
+                                    c.countDown();
+                                }
+                            }
+                        } catch (SQLException ex) {
+                            // ignore
+                        }
+                    });
+            try {
+                c.await(5, TimeUnit.SECONDS);
+            } finally {
+                stmt.cancel();
+            }
+        }
+    }
+
+    @Test(groups = "integration")
+    public void testSimpleAggregateFunction() throws SQLException {
+        try (ClickHouseConnection conn = newConnection(new Properties());
+                ClickHouseStatement stmt = conn.createStatement();) {
+            stmt.execute("drop table if exists test_simple_agg_func; "
+                    + "CREATE TABLE test_simple_agg_func (x SimpleAggregateFunction(max, UInt64)) ENGINE=AggregatingMergeTree ORDER BY tuple(); "
+                    + "INSERT INTO test_simple_agg_func VALUES(1)");
+
+            ResultSet rs = stmt.executeQuery("select * from test_simple_agg_func");
+            // sorry, not supported at this point
+            Assert.assertThrows(IllegalArgumentException.class, () -> rs.next());
+        }
+    }
+
+    @Test(groups = "integration")
+    public void testWrapperObject() throws SQLException {
+        String sql = "SELECT CAST('[(''a'',''b'')]' AS Array(Tuple(String, String))), ('a', 'b')";
+        List<?> expectedTuple = Arrays.asList("a", "b");
+        Object expectedArray = new List[] { expectedTuple };
+        Properties props = new Properties();
+        try (ClickHouseConnection conn = newConnection(props);
+                ClickHouseStatement stmt = conn.createStatement();) {
+            ResultSet rs = stmt.executeQuery(sql);
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getArray(1).getArray(), expectedArray);
+            Assert.assertEquals(rs.getObject(1), expectedArray);
+            Assert.assertEquals(rs.getObject(2), expectedTuple);
+            Assert.assertFalse(rs.next());
+        }
+
+        props.setProperty(JdbcConfig.PROP_WRAPPER_OBJ, "true");
+        try (ClickHouseConnection conn = newConnection(props);
+                ClickHouseStatement stmt = conn.createStatement();) {
+            ResultSet rs = stmt.executeQuery(sql);
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getArray(1).getArray(), expectedArray);
+            Assert.assertEquals(((Array) rs.getObject(1)).getArray(), expectedArray);
+            Assert.assertEquals(((Struct) rs.getObject(2)).getAttributes(), expectedTuple.toArray(new String[0]));
+            Assert.assertFalse(rs.next());
+        }
+    }
+
+    @Test(groups = "integration")
     public void testQuery() throws SQLException {
         try (ClickHouseConnection conn = newConnection(new Properties())) {
             ClickHouseStatement stmt = conn.createStatement();
@@ -129,6 +233,13 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
             while (rs.next()) {
                 continue;
             }
+
+            // batch query
+            stmt.addBatch("select 1");
+            stmt.addBatch("select 2");
+            stmt.addBatch("select 3");
+            int[] results = stmt.executeBatch();
+            Assert.assertEquals(results, new int[] { 0, 0, 0 });
         }
     }
 
@@ -155,10 +266,8 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
     @Test(groups = "integration")
     public void testTimestamp() throws SQLException {
         Properties props = new Properties();
-        TimeZone serverTimeZone = TimeZone.getDefault();
         try (ClickHouseConnection conn = newConnection(props);
                 ClickHouseStatement stmt = conn.createStatement()) {
-            serverTimeZone = conn.getServerTimeZone();
             ResultSet rs = stmt.executeQuery("select now(), now('Asia/Chongqing')");
             Assert.assertTrue(rs.next());
             LocalDateTime dt1 = (LocalDateTime) rs.getObject(1);
@@ -177,8 +286,6 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
                 + "toUInt32(toDateTime('2021-03-25 08:50:56', 'Asia/Chongqing'))";
         props.setProperty("use_time_zone", tz);
         props.setProperty("use_server_time_zone", "false");
-        props.setProperty("time_zone_for_date", "CLIENT");
-        LocalDateTime dt = LocalDateTime.ofInstant(Instant.ofEpochSecond(1616633456L), serverTimeZone.toZoneId());
         try (ClickHouseConnection conn = newConnection(props);
                 ClickHouseStatement stmt = conn.createStatement()) {
             ResultSet rs = stmt.executeQuery(sql);

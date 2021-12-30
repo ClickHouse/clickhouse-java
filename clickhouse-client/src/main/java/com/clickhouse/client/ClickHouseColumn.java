@@ -19,6 +19,7 @@ public final class ClickHouseColumn implements Serializable {
     private static final String KEYWORD_NULLABLE = "Nullable";
     private static final String KEYWORD_LOW_CARDINALITY = "LowCardinality";
     private static final String KEYWORD_AGGREGATE_FUNCTION = ClickHouseDataType.AggregateFunction.name();
+    private static final String KEYWORD_SIMPLE_AGGREGATE_FUNCTION = ClickHouseDataType.SimpleAggregateFunction.name();
     private static final String KEYWORD_ARRAY = ClickHouseDataType.Array.name();
     private static final String KEYWORD_TUPLE = ClickHouseDataType.Tuple.name();
     private static final String KEYWORD_MAP = ClickHouseDataType.Map.name();
@@ -140,8 +141,10 @@ public final class ClickHouseColumn implements Serializable {
             brackets++;
         }
 
-        if (args.startsWith(KEYWORD_AGGREGATE_FUNCTION, i)) {
-            int index = args.indexOf('(', i + KEYWORD_AGGREGATE_FUNCTION.length());
+        String matchedKeyword;
+        if (args.startsWith((matchedKeyword = KEYWORD_AGGREGATE_FUNCTION), i)
+                || args.startsWith((matchedKeyword = KEYWORD_SIMPLE_AGGREGATE_FUNCTION), i)) {
+            int index = args.indexOf('(', i + matchedKeyword.length());
             if (index < i) {
                 throw new IllegalArgumentException("Missing function parameters");
             }
@@ -160,8 +163,8 @@ public final class ClickHouseColumn implements Serializable {
                     nestedColumns.add(ClickHouseColumn.of("", p));
                 }
             }
-            column = new ClickHouseColumn(ClickHouseDataType.AggregateFunction, name, args.substring(startIndex, i),
-                    nullable, lowCardinality, params, nestedColumns);
+            column = new ClickHouseColumn(ClickHouseDataType.valueOf(matchedKeyword), name,
+                    args.substring(startIndex, i), nullable, lowCardinality, params, nestedColumns);
             column.aggFuncType = aggFunc;
         } else if (args.startsWith(KEYWORD_ARRAY, i)) {
             int index = args.indexOf('(', i + KEYWORD_ARRAY.length());
@@ -395,7 +398,9 @@ public final class ClickHouseColumn implements Serializable {
     }
 
     public boolean isAggregateFunction() {
+        // || dataType == ClickHouseDataType.SimpleAggregateFunction;
         return dataType == ClickHouseDataType.AggregateFunction;
+
     }
 
     public boolean isArray() {

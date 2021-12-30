@@ -1,6 +1,8 @@
 package com.clickhouse.jdbc;
 
 import java.io.ByteArrayInputStream;
+import java.net.Inet4Address;
+import java.net.Inet6Address;
 import java.sql.Date;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -13,8 +15,10 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.Properties;
 import java.util.TimeZone;
+import java.util.UUID;
 
 import com.clickhouse.client.ClickHouseFormat;
+import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.data.ClickHouseBitmap;
 import com.clickhouse.client.data.ClickHouseExternalTable;
 
@@ -74,7 +78,7 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
     @Test(groups = "integration")
     public void testReadWriteDateWithClientTimeZone() throws SQLException {
         Properties props = new Properties();
-        props.setProperty("use_server_time_zone_for_date", "true");
+        props.setProperty(ClickHouseClientOption.USE_SERVER_TIME_ZONE_FOR_DATES.getKey(), "false");
         try (ClickHouseConnection conn = newConnection(props);
                 Statement s = conn.createStatement();
                 PreparedStatement stmt = conn
@@ -160,29 +164,28 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
     @Test(groups = "integration")
     public void testReadWriteDateTimeWithClientTimeZone() throws SQLException {
         Properties props = new Properties();
-        props.setProperty("use_server_time_zone_for_date", "false");
+        props.setProperty(ClickHouseClientOption.USE_SERVER_TIME_ZONE.getKey(), "false");
         LocalDateTime dt = LocalDateTime.of(2021, 3, 25, 8, 50, 56);
         Timestamp x = Timestamp.valueOf(dt);
         try (ClickHouseConnection conn = newConnection(props);
-                PreparedStatement stmt = conn
-                        .prepareStatement("insert into test_read_write_datetime_cz values(?,?,?)")) {
-            conn.createStatement().execute("drop table if exists test_read_write_datetime_cz;"
+                Statement s = conn.createStatement()) {
+            s.execute("drop table if exists test_read_write_datetime_cz;"
                     + "create table test_read_write_datetime_cz(id Int32, d1 DateTime32, d2 DateTime64(3))engine=Memory");
-            stmt.setInt(1, 1);
-            stmt.setObject(2, dt);
-            stmt.setObject(3, dt);
-            stmt.addBatch();
-            stmt.setInt(1, 2);
-            stmt.setTimestamp(2, x);
-            stmt.setTimestamp(3, x);
-            stmt.addBatch();
-            int[] results = stmt.executeBatch();
-            Assert.assertEquals(results, new int[] { 1, 1 });
+            try (PreparedStatement stmt = conn
+                    .prepareStatement("insert into test_read_write_datetime_cz")) {
+                stmt.setInt(1, 1);
+                stmt.setObject(2, dt);
+                stmt.setObject(3, dt);
+                stmt.addBatch();
+                stmt.setInt(1, 2);
+                stmt.setTimestamp(2, x);
+                stmt.setTimestamp(3, x);
+                stmt.addBatch();
+                int[] results = stmt.executeBatch();
+                Assert.assertEquals(results, new int[] { 1, 1 });
+            }
 
-            LocalDateTime dx = dt.atZone(TimeZone.getDefault().toZoneId())
-                    .withZoneSameInstant(conn.getServerTimeZone().toZoneId()).toLocalDateTime();
-            Timestamp xx = Timestamp.valueOf(dx);
-            ResultSet rs = conn.createStatement().executeQuery("select * from test_read_write_datetime_cz order by id");
+            ResultSet rs = s.executeQuery("select * from test_read_write_datetime_cz order by id");
             Assert.assertTrue(rs.next());
             Assert.assertEquals(rs.getInt(1), 1);
             Assert.assertEquals(rs.getObject(2), dt);
@@ -191,11 +194,48 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
             Assert.assertEquals(rs.getTimestamp(3), x);
             Assert.assertTrue(rs.next());
             Assert.assertEquals(rs.getInt(1), 2);
-            Assert.assertEquals(rs.getObject(2), dx);
-            Assert.assertEquals(rs.getTimestamp(2), xx);
-            Assert.assertEquals(rs.getObject(3), dx);
-            Assert.assertEquals(rs.getTimestamp(3), xx);
+            Assert.assertEquals(rs.getObject(2), dt);
+            Assert.assertEquals(rs.getTimestamp(2), x);
+            Assert.assertEquals(rs.getObject(3), dt);
+            Assert.assertEquals(rs.getTimestamp(3), x);
             Assert.assertFalse(rs.next());
+        }
+    }
+
+    @Test(groups = "integration")
+    public void testInsertQueryDateTime64() throws SQLException {
+        try (ClickHouseConnection conn = newConnection(new Properties());
+                ClickHouseStatement s = conn.createStatement();) {
+            s.execute("drop table if exists test_issue_612;"
+                    + "CREATE TABLE IF NOT EXISTS test_issue_612 (id UUID, date DateTime64(6)) ENGINE = MergeTree() ORDER BY (id, date)");
+            UUID id = UUID.randomUUID();
+            long value = 1617359745321000L;
+            try (PreparedStatement ps = conn.prepareStatement("insert into test_issue_612 values(?,?)")) {
+                ps.setLong(2, value);
+                ps.setObject(1, id);
+                ps.execute();
+                ps.setObject(1, UUID.randomUUID());
+                ps.setString(2, "2021-09-01 00:00:00.123456");
+                ps.executeUpdate();
+            }
+
+            try (PreparedStatement ps = conn.prepareStatement("select * from test_issue_612 where id = ?")) {
+                ps.setObject(1, id);
+                ResultSet rs = ps.executeQuery();
+                Assert.assertTrue(rs.next());
+                Assert.assertEquals(rs.getObject(1), id);
+                Assert.assertEquals(rs.getObject(2), LocalDateTime.of(2021, 4, 2, 10, 35, 45, 321000000));
+                Assert.assertEquals(rs.getLong(2), 1617359745L);
+                Assert.assertFalse(rs.next());
+            }
+
+            try (PreparedStatement ps = conn.prepareStatement("select * from test_issue_612 where id != ?")) {
+                ps.setObject(1, id);
+                ResultSet rs = ps.executeQuery();
+                Assert.assertTrue(rs.next());
+                Assert.assertEquals(rs.getObject(2), LocalDateTime.of(2021, 9, 1, 0, 0, 0, 123456000));
+                Assert.assertFalse(rs.next());
+            }
         }
     }
 
@@ -397,6 +437,41 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
             ResultSet rs = stmt.executeQuery();
             Assert.assertTrue(rs.next());
             Assert.assertEquals(rs.getObject(1), v);
+            Assert.assertFalse(rs.next());
+        }
+    }
+
+    @Test(groups = "integration")
+    public void testInsertWithFunction() throws Exception {
+        try (ClickHouseConnection conn = newConnection(new Properties());
+                Statement s = conn.createStatement();
+                PreparedStatement stmt = conn.prepareStatement(
+                        "insert into test_issue_315(id, src, dst) values (?,IPv4ToIPv6(toIPv4(?)),IPv4ToIPv6(toIPv4(?)))")) {
+            s.execute("drop table if exists test_issue_315;"
+                    + "create table test_issue_315(id Int32, src IPv6, dst IPv6)engine=Memory");
+
+            stmt.setObject(1, 1);
+            stmt.setString(2, "127.0.0.1");
+            stmt.setString(3, "127.0.0.2");
+            Assert.assertEquals(stmt.executeUpdate(), 1);
+
+            // omitted '(id, src, dst)' in the query for simplicity
+            try (PreparedStatement ps = conn.prepareStatement("insert into test_issue_315")) {
+                stmt.setObject(1, 2);
+                stmt.setObject(2, Inet4Address.getByName("127.0.0.2"));
+                stmt.setObject(3, Inet6Address.getByName("::1"));
+                Assert.assertEquals(stmt.executeUpdate(), 1);
+            }
+
+            ResultSet rs = s.executeQuery("select * from test_issue_315 order by id");
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getInt(1), 1);
+            Assert.assertEquals(rs.getString(2), "0:0:0:0:0:ffff:7f00:1");
+            Assert.assertEquals(rs.getString(3), "0:0:0:0:0:ffff:7f00:2");
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getInt(1), 2);
+            Assert.assertEquals(rs.getString(2), "0:0:0:0:0:ffff:7f00:2");
+            Assert.assertEquals(rs.getString(3), "0:0:0:0:0:ffff:0:0");
             Assert.assertFalse(rs.next());
         }
     }

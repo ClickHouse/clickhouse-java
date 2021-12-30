@@ -107,7 +107,8 @@ public class InputBasedPreparedStatement extends ClickHouseStatementImpl impleme
         ensureParams();
 
         addBatch();
-        return executeBatch()[0];
+        int row = getUpdateCount();
+        return row > 0 ? row : 0;
     }
 
     @Override

@@ -11,10 +11,10 @@ import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Set;
 
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseResponse;
@@ -31,23 +31,27 @@ public class TableBasedPreparedStatement extends ClickHouseStatementImpl impleme
 
     private static final String ERROR_SET_TABLE = "Please use setObject(ClickHouseExternalTable) method instead";
 
+    private final ClickHouseSqlStatement parsedStmt;
     private final List<String> tables;
     private final ClickHouseExternalTable[] values;
 
     private final List<List<ClickHouseExternalTable>> batch;
 
     protected TableBasedPreparedStatement(ClickHouseConnectionImpl connection, ClickHouseRequest<?> request,
-            Collection<String> tables, int resultSetType, int resultSetConcurrency, int resultSetHoldability)
+            ClickHouseSqlStatement parsedStmt, int resultSetType, int resultSetConcurrency,
+            int resultSetHoldability)
             throws SQLException {
         super(connection, request, resultSetType, resultSetConcurrency, resultSetHoldability);
 
-        if (tables == null) {
+        Set<String> set = parsedStmt != null ? parsedStmt.getTempTables() : null;
+        if (set == null) {
             throw SqlExceptionUtils.clientError("Non-null table list is required");
         }
 
-        int size = tables.size();
+        this.parsedStmt = parsedStmt;
+        int size = set.size();
         this.tables = new ArrayList<>(size);
-        this.tables.addAll(tables);
+        this.tables.addAll(set);
         values = new ClickHouseExternalTable[size];
         batch = new LinkedList<>();
     }
@@ -65,6 +69,12 @@ public class TableBasedPreparedStatement extends ClickHouseStatementImpl impleme
         }
     }
 
+    protected String getSql() {
+        // why? because request can be modified so it might not always same as
+        // parsedStmt.getSQL()
+        return getRequest().getStatements(false).get(0);
+    }
+
     protected int toArrayIndex(int parameterIndex) throws SQLException {
         if (parameterIndex < 1 || parameterIndex > values.length) {
             throw SqlExceptionUtils.clientError(ClickHouseUtils
@@ -78,17 +88,17 @@ public class TableBasedPreparedStatement extends ClickHouseStatementImpl impleme
     public ResultSet executeQuery() throws SQLException {
         ensureParams();
 
-        ClickHouseSqlStatement stmt = new ClickHouseSqlStatement(getRequest().getStatements(false).get(0));
-        return updateResult(stmt, executeStatement(stmt, null, Arrays.asList(values), null));
+        ClickHouseSqlStatement stmt = new ClickHouseSqlStatement(getSql());
+        return updateResult(parsedStmt, executeStatement(stmt, null, Arrays.asList(values), null));
     }
 
     @Override
     public int executeUpdate() throws SQLException {
         ensureParams();
 
-        try (ClickHouseResponse r = executeStatement(getRequest().getStatements(false).get(0), null,
-                Arrays.asList(values), null)) {
-            return (int) r.getSummary().getWrittenRows();
+        try (ClickHouseResponse r = executeStatement(getSql(), null, Arrays.asList(values), null)) {
+            updateResult(parsedStmt, r);
+            return getUpdateCount();
         }
     }
 
@@ -162,9 +172,9 @@ public class TableBasedPreparedStatement extends ClickHouseStatementImpl impleme
     public boolean execute() throws SQLException {
         ensureParams();
 
-        ClickHouseSqlStatement stmt = new ClickHouseSqlStatement(getRequest().getStatements(false).get(0));
+        ClickHouseSqlStatement stmt = new ClickHouseSqlStatement(getSql());
         ClickHouseResponse r = executeStatement(stmt, null, Arrays.asList(values), null);
-        return updateResult(stmt, r) != null;
+        return updateResult(parsedStmt, r) != null;
     }
 
     @Override
@@ -197,11 +207,12 @@ public class TableBasedPreparedStatement extends ClickHouseStatementImpl impleme
         int[] results = new int[len];
         int counter = 0;
         try {
+            String sql = getSql();
             for (List<ClickHouseExternalTable> list : batch) {
-                try (ClickHouseResponse r = executeStatement(getRequest().getStatements(false).get(0), null, list,
-                        null)) {
-                    int rows = (int) r.getSummary().getWrittenRows();
-                    results[counter] = rows > 0 ? rows : 1;
+                try (ClickHouseResponse r = executeStatement(sql, null, list, null)) {
+                    updateResult(parsedStmt, r);
+                    int rows = getUpdateCount();
+                    results[counter] = rows > 0 ? rows : 0;
                 } catch (Exception e) {
                     if (!continueOnError) {
                         throw SqlExceptionUtils.handle(e);

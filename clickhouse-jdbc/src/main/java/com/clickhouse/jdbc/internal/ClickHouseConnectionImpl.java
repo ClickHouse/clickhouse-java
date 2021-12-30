@@ -568,9 +568,8 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
             if (parsedStmt.hasTempTable()) {
                 // non-insert queries using temp table
                 ps = new TableBasedPreparedStatement(this,
-                        clientRequest.write().query(parsedStmt.getSQL(), newQueryId()),
-                        parsedStmt.getTempTables(), resultSetType,
-                        resultSetConcurrency, resultSetHoldability);
+                        clientRequest.write().query(parsedStmt.getSQL(), newQueryId()), parsedStmt,
+                        resultSetType, resultSetConcurrency, resultSetHoldability);
             } else if (parsedStmt.getStatementType() == StatementType.INSERT) {
                 if (!ClickHouseChecker.isNullOrBlank(parsedStmt.getInput())) {
                     // insert query using input function
