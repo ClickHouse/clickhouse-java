@@ -167,7 +167,7 @@ public class ClickHouseResultSetTest {
         assertEquals(70511139L, rs.getLong(2));
     }
 
-    @Test
+    @Test(groups = "unit")
     public void withTotalsAndEmptyStrings() throws Exception {
         String response = "SiteName\tCountry\n" +
           "String\tString\n" +
@@ -203,7 +203,7 @@ public class ClickHouseResultSetTest {
 
         rs.getTotals();
         assertEquals("", rs.getString(1));
-        assertEquals(70511139L, rs.getLong(2));
+        assertEquals(0L, rs.getLong(2));
     }
 
     @Test(groups = "unit")
@@ -267,7 +267,7 @@ public class ClickHouseResultSetTest {
         assertEquals(0L, rs.getLong(1));
     }
 
-    @Test
+    @Test(groups = "unit")
     public void withTotalsSingleFloatColumn() throws Exception {
         String response =
                 "Code\n"
