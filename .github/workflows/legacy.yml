@@ -1,0 +1,41 @@
+name: Legacy
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Legacy driver version"
+        required: true
+        default: "0.3.2-SNAPSHOT"
+
+jobs:
+  release:
+    name: "Build and Publish Artifact"
+    runs-on: "ubuntu-latest"
+
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v2
+      - name: Install JDK 8 and Maven
+        uses: actions/setup-java@v2
+        with:
+          distribution: 'temurin'
+          java-version: 8
+      - name: Update Configuration
+        run: |
+          rm -fv clickhouse-jdbc/pom.xml;
+          mv -fv clickhouse-jdbc/legacy.xml clickhouse-jdbc/pom.xml;
+          find . -type f -name "pom.xml" -exec sed -i -e 's|${revision}|${{ github.event.inputs.version }}|g' \
+            -e 's|^\(    <version>\).*\(</version>\)$|\1${{ github.event.inputs.version }}\2|' \
+            -e 's|${parent.groupId}|com.clickhouse|g' -e 's|${project.parent.groupId}|com.clickhouse|g' '{}' \;
+          find . -type f -name "simplelogger.*" -exec rm -fv '{}' \;
+      - name: Release Maven package
+        uses: samuelmeuli/action-maven-publish@v1
+        with:
+          directory: clickhouse-jdbc
+          maven_profiles: release
+          maven_args: -q --batch-mode
+          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
+          gpg_passphrase: ${{ secrets.GPG_PASSPHRASE }}
+          nexus_username: ${{ secrets.SONATYPE_USER }}
+          nexus_password: ${{ secrets.SONATYPE_PASSWD }}
