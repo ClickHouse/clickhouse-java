@@ -76,6 +76,7 @@ public enum ClickHouseDataType {
             "NATIONAL CHARACTER", "NATIONAL CHARACTER LARGE OBJECT", "NATIONAL CHARACTER VARYING", "NCHAR",
             "NCHAR LARGE OBJECT", "NCHAR VARYING", "NVARCHAR", "TEXT", "TINYBLOB", "TINYTEXT", "VARCHAR", "VARCHAR2"),
     AggregateFunction(String.class, true, true, false, 0, 0, 0, 0, 0), // implementation-defined intermediate state
+    SimpleAggregateFunction(String.class, true, true, false, 0, 0, 0, 0, 0),
     Array(Object.class, true, true, false, 0, 0, 0, 0, 0), Map(Map.class, true, true, false, 0, 0, 0, 0, 0),
     Nested(Object.class, true, true, false, 0, 0, 0, 0, 0), Tuple(List.class, true, true, false, 0, 0, 0, 0, 0),
     Point(Object.class, false, true, true, 33, 0, 0, 0, 0), // same as Tuple(Float64, Float64)

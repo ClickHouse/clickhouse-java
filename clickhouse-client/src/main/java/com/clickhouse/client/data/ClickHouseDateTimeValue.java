@@ -10,7 +10,6 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.TimeZone;
@@ -126,40 +125,41 @@ public class ClickHouseDateTimeValue extends ClickHouseObjectValue<LocalDateTime
 
     @Override
     public byte asByte() {
-        return isNullOrEmpty() ? (byte) 0 : (byte) getValue().toEpochSecond(ZoneOffset.UTC);
+        return isNullOrEmpty() ? (byte) 0 : (byte) getValue().atZone(tz.toZoneId()).toEpochSecond();
     }
 
     @Override
     public short asShort() {
-        return isNullOrEmpty() ? (short) 0 : (short) getValue().toEpochSecond(ZoneOffset.UTC);
+        return isNullOrEmpty() ? (short) 0 : (short) getValue().atZone(tz.toZoneId()).toEpochSecond();
     }
 
     @Override
     public int asInteger() {
-        return isNullOrEmpty() ? 0 : (int) getValue().toEpochSecond(ZoneOffset.UTC);
+        return isNullOrEmpty() ? 0 : (int) getValue().atZone(tz.toZoneId()).toEpochSecond();
     }
 
     @Override
     public long asLong() {
-        return isNullOrEmpty() ? 0L : getValue().toEpochSecond(ZoneOffset.UTC);
+        return isNullOrEmpty() ? 0L : getValue().atZone(tz.toZoneId()).toEpochSecond();
     }
 
     @Override
     public float asFloat() {
         return isNullOrEmpty() ? 0F
-                : getValue().toEpochSecond(ZoneOffset.UTC) + getValue().getNano() / ClickHouseValues.NANOS.floatValue();
+                : getValue().atZone(tz.toZoneId()).toEpochSecond()
+                        + getValue().getNano() / ClickHouseValues.NANOS.floatValue();
     }
 
     @Override
     public double asDouble() {
         return isNullOrEmpty() ? 0D
-                : getValue().toEpochSecond(ZoneOffset.UTC)
+                : getValue().atZone(tz.toZoneId()).toEpochSecond()
                         + getValue().getNano() / ClickHouseValues.NANOS.doubleValue();
     }
 
     @Override
     public BigInteger asBigInteger() {
-        return isNullOrEmpty() ? null : BigInteger.valueOf(getValue().toEpochSecond(ZoneOffset.UTC));
+        return isNullOrEmpty() ? null : BigInteger.valueOf(getValue().atZone(tz.toZoneId()).toEpochSecond());
     }
 
     @Override
@@ -168,7 +168,7 @@ public class ClickHouseDateTimeValue extends ClickHouseObjectValue<LocalDateTime
         BigDecimal v = null;
         if (value != null) {
             int nanoSeconds = value.getNano();
-            v = new BigDecimal(BigInteger.valueOf(value.toEpochSecond(ZoneOffset.UTC)), scale);
+            v = new BigDecimal(BigInteger.valueOf(value.atZone(tz.toZoneId()).toEpochSecond()), scale);
             if (scale != 0 && nanoSeconds != 0) {
                 v = v.add(BigDecimal.valueOf(nanoSeconds).divide(ClickHouseValues.NANOS).setScale(scale,
                         RoundingMode.HALF_UP));

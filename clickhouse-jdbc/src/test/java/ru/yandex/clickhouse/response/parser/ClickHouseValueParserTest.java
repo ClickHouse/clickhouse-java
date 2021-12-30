@@ -195,7 +195,7 @@ public class ClickHouseValueParserTest {
         assertFalse(ClickHouseValueParser.parseBoolean(ByteFragment.fromString(" true"), columnInfo));
     }
 
-    @Test (dataProvider = "float_test_data")
+    @Test (dataProvider = "float_test_data", groups = "unit")
     public void testParseFloat(String byteFragmentString, Float expectedValue) throws SQLException {
         ClickHouseColumnInfo columnInfo = ClickHouseColumnInfo.parse("Float32", "columnName", null);
         float floatDelta = 0.001f;
@@ -210,7 +210,7 @@ public class ClickHouseValueParserTest {
         }
     }
 
-    @Test (dataProvider = "double_test_data")
+    @Test (dataProvider = "double_test_data", groups = "unit")
     public void testParseDouble(String byteFragmentString, Double expectedValue) throws SQLException {
         ClickHouseColumnInfo columnInfo = ClickHouseColumnInfo.parse("Float64", "columnName", null);
         double doubleDelta = 0.001;
@@ -241,7 +241,7 @@ public class ClickHouseValueParserTest {
         }
     }
 
-    @Test (dataProvider = "double_test_data")
+    @Test (dataProvider = "double_test_data", groups = "unit")
     public void testGetParserDouble(String byteFragmentString, Double expectedValue) throws SQLException {
         ClickHouseColumnInfo columnInfo = ClickHouseColumnInfo.parse("Float64", "columnName", null);
         double doubleDelta = 0.001d;
