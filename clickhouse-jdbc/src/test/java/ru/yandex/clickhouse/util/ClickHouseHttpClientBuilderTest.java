@@ -1,6 +1,7 @@
 package ru.yandex.clickhouse.util;
 
 import org.apache.http.HttpHost;
+import org.apache.http.HttpResponse;
 import org.apache.http.NoHttpResponseException;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
@@ -8,6 +9,7 @@ import org.apache.http.conn.HttpHostConnectException;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.protocol.BasicHttpContext;
 import org.apache.http.protocol.HttpContext;
+import org.apache.http.util.EntityUtils;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeClass;
@@ -176,7 +178,7 @@ public class ClickHouseHttpClientBuilderTest {
         };
     }
 
-    private static WireMockServer newServer() {
+    private static WireMockServer newServer(int delayMillis) {
         WireMockServer server = new WireMockServer(
             WireMockConfiguration.wireMockConfig().dynamicPort());
         server.start();
@@ -184,8 +186,12 @@ public class ClickHouseHttpClientBuilderTest {
                 .willReturn(WireMock.aResponse().withStatus(200).withHeader("Connection", "Keep-Alive")
                         .withHeader("Content-Type", "text/plain; charset=UTF-8")
                         .withHeader("Transfer-Encoding", "chunked").withHeader("Keep-Alive", "timeout=3")
-                        .withBody("OK.........................").withFixedDelay(2)));
+                        .withBody("OK.........................").withFixedDelay(delayMillis)));
         return server;
+    }
+
+    private static WireMockServer newServer() {
+        return newServer(2);
     }
 
     private static void shutDownServerWithDelay(final WireMockServer server, final long delayMs) {
@@ -203,38 +209,104 @@ public class ClickHouseHttpClientBuilderTest {
         }.start();
     }
 
-    // @Test(groups = "unit", dependsOnMethods = { "testWithRetry" }, expectedExceptions = { NoHttpResponseException.class })
-    public void testWithoutRetry() throws Exception {
-        final WireMockServer server = newServer();
+    @Test(expectedExceptions = { NoHttpResponseException.class })
+    public void testReproduceFailedToResponseProblem() throws Exception {
+        final WireMockServer server = newServer(2);
 
         ClickHouseProperties props = new ClickHouseProperties();
+        // Disable retry when "failed to respond" occurs.
         props.setMaxRetries(0);
+        // Disable validation to reproduce "failed to respond" problem
+        props.setValidateAfterInactivityMillis(0);
+        // Ensure there is exactly one TCP connection in connection pool and therefore be re-used between
+        // multiple http requests.
+        props.setMaxTotal(1);
+        props.setDefaultMaxPerRoute(1);
+
         ClickHouseHttpClientBuilder builder = new ClickHouseHttpClientBuilder(props);
         CloseableHttpClient client = builder.buildClient();
         HttpPost post = new HttpPost("http://localhost:" + server.port() + "/?db=system&query=select%201");
 
-        shutDownServerWithDelay(server, 500);
-
         try {
-            client.execute(post);
+            // Make the 1st http request to establish one tcp connection and keep it in the pool.
+            {
+                HttpResponse response = client.execute(post);
+                EntityUtils.consume(response.getEntity());
+            }
+
+            // Close the server, now the pooling tcp connection is half closed.
+            server.shutdownServer();
+            server.stop();
+
+            // The 2nd http request will re-use the pooling tcp connection which is stale
+            // and "failed to respond" occurs.
+            {
+                HttpResponse response = client.execute(post);
+                EntityUtils.consume(response.getEntity());
+            }
         } finally {
             client.close();
         }
     }
 
-    // @Test(groups = "unit", expectedExceptions = { HttpHostConnectException.class })
-    public void testWithRetry() throws Exception {
-        final WireMockServer server = newServer();
+    @Test(expectedExceptions = { HttpHostConnectException.class })
+    public void testEnableValidation() throws Exception {
+        final WireMockServer server = newServer(2);
 
         ClickHouseProperties props = new ClickHouseProperties();
-        // props.setMaxRetries(3);
+        // Disable retry when "failed to respond" occurs.
+        props.setMaxRetries(0);
+        // Disable validation to reproduce "failed to respond" problem
+        props.setValidateAfterInactivityMillis(1);
+        // Ensure there is exactly one TCP connection in connection pool and therefore be re-used between
+        // multiple http requests.
+        props.setMaxTotal(1);
+        props.setDefaultMaxPerRoute(1);
+
+        ClickHouseHttpClientBuilder builder = new ClickHouseHttpClientBuilder(props);
+        CloseableHttpClient client = builder.buildClient();
+        HttpPost post = new HttpPost("http://localhost:" + server.port() + "/?db=system&query=select%201");
+
+        try {
+            // Make the 1st http request to establish one tcp connection and keep it in the pool.
+            {
+                HttpResponse response = client.execute(post);
+                EntityUtils.consume(response.getEntity());
+            }
+
+            // Sleep a while to wait for the validation reaches inactivity timeout.
+            Thread.sleep(5);
+
+            // Close the server, now the pooling tcp connection is half closed.
+            server.shutdownServer();
+            server.stop();
+
+            // The 2nd http request re-uses the pooling tcp connection.
+            // But the validation checks that the connection has been stale, thus a
+            // new tcp connection is attempted to establish to the closed server
+            // which leads to HttpHostConnectException.
+            {
+                HttpResponse response = client.execute(post);
+                EntityUtils.consume(response.getEntity());
+            }
+        } finally {
+            client.close();
+        }
+    }
+
+     @Test(expectedExceptions = { HttpHostConnectException.class })
+    public void testWithRetry() throws Exception {
+        final WireMockServer server = newServer(500);
+
+        ClickHouseProperties props = new ClickHouseProperties();
+        props.setMaxRetries(3);
         ClickHouseHttpClientBuilder builder = new ClickHouseHttpClientBuilder(props);
         CloseableHttpClient client = builder.buildClient();
         HttpContext context = new BasicHttpContext();
         context.setAttribute("is_idempotent", Boolean.TRUE);
         HttpPost post = new HttpPost("http://localhost:" + server.port() + "/?db=system&query=select%202");
-        
-        shutDownServerWithDelay(server, 500);
+
+        shutDownServerWithDelay(server, 100);
 
         try {
             client.execute(post, context);
