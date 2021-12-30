@@ -116,6 +116,72 @@ public class SqlBasedPreparedStatement extends ClickHouseStatementImpl implement
         }
     }
 
+    protected int[] executeBatch(boolean keepLastResponse) throws SQLException {
+        ensureOpen();
+
+        boolean continueOnError = getConnection().getJdbcConfig().isContinueBatchOnError();
+        int[] results = new int[counter];
+        ClickHouseResponse r = null;
+        if (builder.length() > 0) { // insert ... values
+            int result = 0;
+            try {
+                r = executeStatement(builder.toString(), null, null, null);
+                updateResult(parsedStmt, r);
+                long rows = r.getSummary().getWrittenRows();
+                if (rows > 0 && rows != counter) {
+                    log.warn("Expect %d rows being inserted but got %d", counter, rows);
+                }
+
+                result = 1;
+            } catch (Exception e) {
+                if (!continueOnError) {
+                    throw SqlExceptionUtils.handle(e);
+                }
+                // actually we don't know which ones failed
+                result = EXECUTE_FAILED;
+                log.error("Failed to execute batch insertion of %d records", counter, e);
+            } finally {
+                if (!keepLastResponse && r != null) {
+                    r.close();
+                }
+                clearBatch();
+            }
+
+            Arrays.fill(results, result);
+        } else {
+            int index = 0;
+            try {
+                for (String[] params : batch) {
+                    builder.setLength(0);
+                    preparedQuery.apply(builder, params);
+                    try {
+                        r = executeStatement(builder.toString(), null, null, null);
+                        updateResult(parsedStmt, r);
+                        int count = getUpdateCount();
+                        results[index] = count > 0 ? count : 0;
+                    } catch (Exception e) {
+                        if (!continueOnError) {
+                            throw SqlExceptionUtils.handle(e);
+                        }
+                        results[index] = EXECUTE_FAILED;
+                        log.error("Failed to execute batch insert at %d of %d", index + 1, counter, e);
+                    } finally {
+                        index++;
+                        if (!keepLastResponse || index < counter || results[index - 1] == EXECUTE_FAILED) {
+                            if (r != null) {
+                                r.close();
+                            }
+                        }
+                    }
+                }
+            } finally {
+                clearBatch();
+            }
+        }
+
+        return results;
+    }
+
     protected int toArrayIndex(int parameterIndex) throws SQLException {
         if (parameterIndex < 1 || parameterIndex > templates.length) {
             throw SqlExceptionUtils.clientError(ClickHouseUtils
@@ -129,19 +195,28 @@ public class SqlBasedPreparedStatement extends ClickHouseStatementImpl implement
     public ResultSet executeQuery() throws SQLException {
         ensureParams();
 
-        // FIXME ResultSet should never be null
-        StringBuilder builder = new StringBuilder();
-        preparedQuery.apply(builder, values);
-        return executeQuery(builder.toString());
+        addBatch();
+        int[] results = executeBatch(true);
+        for (int i = 0; i < results.length; i++) {
+            if (results[i] == EXECUTE_FAILED) {
+                throw new SQLException("Query failed", SqlExceptionUtils.SQL_STATE_SQL_ERROR);
+            }
+        }
+        return getResultSet();
     }
 
     @Override
     public int executeUpdate() throws SQLException {
         ensureParams();
 
-        StringBuilder builder = new StringBuilder();
-        preparedQuery.apply(builder, values);
-        return executeUpdate(builder.toString());
+        addBatch();
+        int[] results = executeBatch(false);
+        for (int i = 0; i < results.length; i++) {
+            if (results[i] == EXECUTE_FAILED) {
+                throw new SQLException("Update failed", SqlExceptionUtils.SQL_STATE_SQL_ERROR);
+            }
+        }
+        return getUpdateCount();
     }
 
     @Override
@@ -303,9 +378,9 @@ public class SqlBasedPreparedStatement extends ClickHouseStatementImpl implement
     public boolean execute() throws SQLException {
         ensureParams();
 
-        StringBuilder builder = new StringBuilder();
-        preparedQuery.apply(builder, values);
-        return execute(builder.toString());
+        addBatch();
+        executeBatch(true);
+        return getResultSet() != null;
     }
 
     @Override
@@ -342,55 +417,7 @@ public class SqlBasedPreparedStatement extends ClickHouseStatementImpl implement
 
     @Override
     public int[] executeBatch() throws SQLException {
-        ensureOpen();
-
-        boolean continueOnError = getConnection().getJdbcConfig().isContinueBatchOnError();
-        int[] results = new int[counter];
-        if (builder.length() > 0) { // insert ... values
-            int result = 0;
-            try (ClickHouseResponse r = executeStatement(builder.toString(), null, null, null)) {
-                long rows = r.getSummary().getWrittenRows();
-                if (rows > 0 && rows != counter) {
-                    log.warn("Expect %d rows being inserted but got %d", counter, rows);
-                }
-
-                result = 1;
-            } catch (Exception e) {
-                if (!continueOnError) {
-                    throw SqlExceptionUtils.handle(e);
-                }
-                // actually we don't know which ones failed
-                result = EXECUTE_FAILED;
-                log.error("Failed to execute batch insertion of %d records", counter, e);
-            } finally {
-                clearBatch();
-            }
-
-            Arrays.fill(results, result);
-        } else {
-            int index = 0;
-            StringBuilder builder = new StringBuilder();
-            try {
-                for (String[] params : batch) {
-                    builder.setLength(0);
-                    preparedQuery.apply(builder, params);
-                    try (ClickHouseResponse r = executeStatement(builder.toString(), null, null, null)) {
-                        results[index] = (int) r.getSummary().getWrittenRows();
-                    } catch (Exception e) {
-                        if (!continueOnError) {
-                            throw SqlExceptionUtils.handle(e);
-                        }
-                        results[index] = EXECUTE_FAILED;
-                        log.error("Failed to execute batch insert at %d of %d", index + 1, counter, e);
-                    }
-                    index++;
-                }
-            } finally {
-                clearBatch();
-            }
-        }
-
-        return results;
+        return executeBatch(false);
     }
 
     @Override

@@ -13,6 +13,7 @@ import java.util.UUID;
 import java.util.Map.Entry;
 
 import com.clickhouse.client.ClickHouseChecker;
+import com.clickhouse.client.ClickHouseClient;
 import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseFormat;
 import com.clickhouse.client.ClickHouseRequest;
@@ -30,6 +31,7 @@ import com.clickhouse.jdbc.ClickHouseStatement;
 import com.clickhouse.jdbc.SqlExceptionUtils;
 import com.clickhouse.jdbc.JdbcWrapper;
 import com.clickhouse.jdbc.parser.ClickHouseSqlStatement;
+import com.clickhouse.jdbc.parser.StatementType;
 
 public class ClickHouseStatementImpl extends JdbcWrapper implements ClickHouseStatement {
     private static final Logger log = LoggerFactory.getLogger(ClickHouseStatementImpl.class);
@@ -50,7 +52,7 @@ public class ClickHouseStatementImpl extends JdbcWrapper implements ClickHouseSt
     private int maxFieldSize;
     private int maxRows;
     private boolean poolable;
-    private String queryId;
+    private volatile String queryId;
     private int queryTimeout;
 
     private ClickHouseResultSet currentResult;
@@ -149,6 +151,7 @@ public class ClickHouseStatementImpl extends JdbcWrapper implements ClickHouseSt
         try (ClickHouseResponse resp = request.write().query(sql, queryId = connection.newQueryId())
                 .format(ClickHouseFormat.RowBinary).data(input).execute()
                 .get()) {
+            updateResult(new ClickHouseSqlStatement(sql, StatementType.INSERT), resp);
             summary = resp.getSummary();
         } catch (InterruptedException e) {
             log.error("can not close stream: %s", e.getMessage());
@@ -197,6 +200,9 @@ public class ClickHouseStatementImpl extends JdbcWrapper implements ClickHouseSt
             rs = currentResult;
         } else {
             currentUpdateCount = response.getSummary().getUpdateCount();
+            if (currentUpdateCount <= 0) {
+                currentUpdateCount = 1;
+            }
             response.close();
         }
 
@@ -362,11 +368,19 @@ public class ClickHouseStatementImpl extends JdbcWrapper implements ClickHouseSt
 
     @Override
     public void cancel() throws SQLException {
-        if (this.queryId == null || isClosed()) {
+        final String qid;
+        if ((qid = this.queryId) == null || isClosed()) {
             return;
         }
 
-        executeQuery(String.format("KILL QUERY WHERE query_id='%s'", queryId));
+        ClickHouseClient.send(request.getServer(), String.format("KILL QUERY WHERE query_id='%s'", qid))
+                .whenComplete((summary, exception) -> {
+                    if (exception != null) {
+                        log.warn("Failed to kill query [%s] due to: %s", qid, exception.getMessage());
+                    } else if (summary != null) {
+                        log.debug("Killed query [%s]", qid);
+                    }
+                });
     }
 
     @Override
@@ -500,8 +514,10 @@ public class ClickHouseStatementImpl extends JdbcWrapper implements ClickHouseSt
         int len = batchStmts.size();
         int[] results = new int[len];
         for (int i = 0; i < len; i++) {
-            try (ClickHouseResponse r = executeStatement(batchStmts.get(i), null, null, null)) {
-                results[i] = (int) r.getSummary().getWrittenRows();
+            ClickHouseSqlStatement s = batchStmts.get(i);
+            try (ClickHouseResponse r = executeStatement(s, null, null, null)) {
+                updateResult(s, r);
+                results[i] = currentUpdateCount <= 0 ? 0 : currentUpdateCount;
             } catch (Exception e) {
                 results[i] = EXECUTE_FAILED;
                 log.error("Faled to execute task %d of %d", i + 1, len, e);
