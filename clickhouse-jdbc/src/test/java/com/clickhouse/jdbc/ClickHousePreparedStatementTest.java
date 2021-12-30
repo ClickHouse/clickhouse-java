@@ -210,6 +210,8 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
                     + "CREATE TABLE IF NOT EXISTS test_issue_612 (id UUID, date DateTime64(6)) ENGINE = MergeTree() ORDER BY (id, date)");
             UUID id = UUID.randomUUID();
             long value = 1617359745321000L;
+            Instant i = Instant.ofEpochMilli(value / 1000L);
+            LocalDateTime dt = LocalDateTime.ofInstant(i, conn.getServerTimeZone().toZoneId());
             try (PreparedStatement ps = conn.prepareStatement("insert into test_issue_612 values(?,?)")) {
                 ps.setLong(2, value);
                 ps.setObject(1, id);
@@ -224,8 +226,8 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
                 ResultSet rs = ps.executeQuery();
                 Assert.assertTrue(rs.next());
                 Assert.assertEquals(rs.getObject(1), id);
-                Assert.assertEquals(rs.getObject(2), LocalDateTime.of(2021, 4, 2, 10, 35, 45, 321000000));
-                Assert.assertEquals(rs.getLong(2), 1617359745L);
+                Assert.assertEquals(rs.getObject(2), dt);
+                Assert.assertEquals(rs.getLong(2), dt.atZone(conn.getServerTimeZone().toZoneId()).toEpochSecond());
                 Assert.assertFalse(rs.next());
             }
 
