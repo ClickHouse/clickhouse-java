@@ -16,6 +16,29 @@ jobs:
     steps:
       - name: Check out Git repository
         uses: actions/checkout@v2
+      - name: Install JDK 11
+        uses: AdoptOpenJDK/install-jdk@v1
+        with:
+          version: '11'
+          targets: 'JDK11_HOME'
+      - name: Setup Toolchain
+        shell: bash
+        run: |
+          mkdir -p $HOME/.m2 \
+          && cat << EOF > $HOME/.m2/toolchains.xml
+          <?xml version="1.0" encoding="UTF8"?>
+          <toolchains>
+            <toolchain>
+              <type>jdk</type>
+              <provides>
+                <version>11</version>
+              </provides>
+              <configuration>
+                <jdkHome>${{ env.JDK11_HOME }}</jdkHome>
+              </configuration>
+            </toolchain>
+          </toolchains>
+          EOF
       - name: Install JDK 8 and Maven
         uses: actions/setup-java@v2
         with:

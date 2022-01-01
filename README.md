@@ -1,6 +1,6 @@
 # ClickHouse Java Client & JDBC Driver
 
-[![clickhouse-jdbc](https://maven-badges.herokuapp.com/maven-central/com.clickhouse/clickhouse-jdbc/badge.svg)](https://maven-badges.herokuapp.com/maven-central/com.clickhouse/clickhouse-jdbc) ![Build Status(https://github.com/ClickHouse/clickhouse-jdbc/workflows/Build/badge.svg)](https://github.com/ClickHouse/clickhouse-jdbc/workflows/Build/badge.svg) [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=ClickHouse_clickhouse-jdbc&metric=coverage)](https://sonarcloud.io/dashboard?id=ClickHouse_clickhouse-jdbc)
+[![GitHub release (latest SemVer including pre-releases)](https://img.shields.io/github/v/release/ClickHouse/clickhouse-jdbc?include_prereleases)](https://github.com/ClickHouse/clickhouse-jdbc/releases/) ![Build Status(https://github.com/ClickHouse/clickhouse-jdbc/workflows/Build/badge.svg)](https://github.com/ClickHouse/clickhouse-jdbc/workflows/Build/badge.svg) [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=ClickHouse_clickhouse-jdbc&metric=coverage)](https://sonarcloud.io/dashboard?id=ClickHouse_clickhouse-jdbc)
 
 Java client and JDBC driver for ClickHouse. Java client is async, lightweight, and low-overhead library for ClickHouse; while JDBC driver is built on top of the Java client with more dependencies and extensions for JDBC-compliance.
 
