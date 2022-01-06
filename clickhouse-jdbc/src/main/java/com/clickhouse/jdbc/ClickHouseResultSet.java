@@ -348,7 +348,7 @@ public class ClickHouseResultSet extends AbstractResultSet {
     @Override
     public Date getDate(int columnIndex, Calendar cal) throws SQLException {
         ClickHouseValue value = getValue(columnIndex);
-        if (value == null) {
+        if (value == null || value.isNullOrEmpty()) {
             return null;
         }
 
@@ -588,7 +588,7 @@ public class ClickHouseResultSet extends AbstractResultSet {
     @Override
     public Time getTime(int columnIndex, Calendar cal) throws SQLException {
         ClickHouseValue value = getValue(columnIndex);
-        if (value == null) {
+        if (value == null || value.isNullOrEmpty()) {
             return null;
         }
 
@@ -619,7 +619,7 @@ public class ClickHouseResultSet extends AbstractResultSet {
     @Override
     public Timestamp getTimestamp(int columnIndex, Calendar cal) throws SQLException {
         ClickHouseValue value = getValue(columnIndex);
-        if (value == null) {
+        if (value == null || value.isNullOrEmpty()) {
             return null;
         }
 
