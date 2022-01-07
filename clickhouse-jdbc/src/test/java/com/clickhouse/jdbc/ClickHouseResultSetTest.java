@@ -4,16 +4,82 @@ import java.math.BigDecimal;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Properties;
+import java.util.function.BiFunction;
+
+import com.clickhouse.client.ClickHouseDataType;
+import com.clickhouse.client.ClickHouseValues;
 
 import org.testng.Assert;
+import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 public class ClickHouseResultSetTest extends JdbcIntegrationTest {
+    @DataProvider(name = "nullableTypes")
+    private Object[][] getNullableTypes() {
+        return new Object[][] {
+                new Object[] { ClickHouseDataType.Int32, Integer.valueOf(12345),
+                        new BiFunction<ResultSet, Integer, Object>() {
+                            @Override
+                            public Object apply(ResultSet rs, Integer i) {
+                                try {
+                                    Object obj = rs.getInt(i);
+                                    if (obj != null) {
+                                        obj = rs.getFloat(i);
+                                    }
+                                    if (obj != null) {
+                                        obj = rs.getBigDecimal(i);
+                                    }
+                                    return obj;
+                                } catch (SQLException e) {
+                                    throw new IllegalArgumentException(e);
+                                }
+                            }
+                        } },
+                new Object[] { ClickHouseDataType.Date, LocalDate.of(2022, 1, 7),
+                        new BiFunction<ResultSet, Integer, Object>() {
+                            @Override
+                            public Object apply(ResultSet rs, Integer i) {
+                                try {
+                                    Object obj = rs.getDate(i);
+                                    if (obj != null) {
+                                        obj = rs.getTime(i);
+                                    }
+                                    if (obj != null) {
+                                        obj = rs.getTimestamp(i);
+                                    }
+                                    return obj;
+                                } catch (SQLException e) {
+                                    throw new IllegalArgumentException(e);
+                                }
+                            }
+                        } },
+                new Object[] { ClickHouseDataType.DateTime, LocalDateTime.of(2022, 1, 7, 19, 11, 55),
+                        new BiFunction<ResultSet, Integer, Object>() {
+                            @Override
+                            public Object apply(ResultSet rs, Integer i) {
+                                try {
+                                    Object obj = rs.getDate(i);
+                                    if (obj != null) {
+                                        obj = rs.getTime(i);
+                                    }
+                                    if (obj != null) {
+                                        obj = rs.getTimestamp(i);
+                                    }
+                                    return obj;
+                                } catch (SQLException e) {
+                                    throw new IllegalArgumentException(e);
+                                }
+                            }
+                        } }
+        };
+    }
+
     @Test(groups = "integration")
     public void testBigDecimal() throws SQLException {
         try (ClickHouseConnection conn = newConnection(new Properties());
@@ -75,6 +141,30 @@ public class ClickHouseResultSetTest extends JdbcIntegrationTest {
             Assert.assertEquals(v.get(2), Float.valueOf(1.2F));
             Assert.assertEquals(v.get(3), new Short[] { 1, 2 });
             Assert.assertEquals(v.get(4), Collections.singletonMap(1L, "a"));
+            Assert.assertFalse(rs.next());
+        }
+    }
+
+    @Test(dataProvider = "nullableTypes", groups = "integration")
+    public void testNullableValues(ClickHouseDataType type, Object value, BiFunction<ResultSet, Integer, Object> func)
+            throws SQLException {
+        try (ClickHouseConnection conn = newConnection(new Properties());
+                Statement stmt = conn.createStatement()) {
+            String table = "test_nullable_" + type.name().toLowerCase();
+            String ddl = "drop table if exists " + table + "; create table " + table + "(v1 " + type.name()
+                    + ", v2 Nullable(" + type.name() + "))engine=Memory;";
+            String insert = "insert into " + table + " values(" + ClickHouseValues.convertToSqlExpression(value)
+                    + ", null);";
+            String query = "select * from " + table;
+
+            ResultSet rs = stmt.executeQuery(ddl + insert + query);
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getObject(1), value);
+            Assert.assertNotNull(rs.getString(1));
+            Assert.assertNotNull(func.apply(rs, 1));
+            Assert.assertNull(rs.getObject(2));
+            Assert.assertNull(rs.getString(2));
+            Assert.assertNull(func.apply(rs, 2));
             Assert.assertFalse(rs.next());
         }
     }
