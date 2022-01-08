@@ -73,33 +73,33 @@
 
     <properties>
         <revision>0.3.2-SNAPSHOT</revision>
-        <project.current.year>2021</project.current.year>
+        <project.current.year>2022</project.current.year>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
         <annotations-api.version>6.0.53</annotations-api.version>
         <asm.version>9.2</asm.version>
-        <caffeine.version>3.0.4</caffeine.version>
+        <caffeine.version>3.0.5</caffeine.version>
         <disruptor.version>3.4.4</disruptor.version>
-        <dnsjava.version>3.4.2</dnsjava.version>
-        <fastutil.version>8.5.4</fastutil.version>
-        <grpc.version>1.40.1</grpc.version>
-        <gson.version>2.8.8</gson.version>
+        <dnsjava.version>3.4.3</dnsjava.version>
+        <fastutil.version>8.5.6</fastutil.version>
+        <grpc.version>1.40.2</grpc.version>
+        <gson.version>2.8.9</gson.version>
         <httpclient.version>4.5.13</httpclient.version>
         <protobuf.version>3.17.3</protobuf.version>
         <lz4.version>1.8.0</lz4.version>
-        <roaring-bitmap.version>0.9.21</roaring-bitmap.version>
+        <roaring-bitmap.version>0.9.23</roaring-bitmap.version>
         <slf4j.version>2.0.0-alpha5</slf4j.version>
         <mockito.version>3.12.4</mockito.version>
-        <wiremock.version>2.31.0</wiremock.version>
-        <testcontainers.version>1.16.0</testcontainers.version>
+        <wiremock.version>2.32.0</wiremock.version>
+        <testcontainers.version>1.16.2</testcontainers.version>
         <testng.version>7.4.0</testng.version>
 
         <mariadb-driver.version>2.7.4</mariadb-driver.version>
         <mysql-driver.version>8.0.27</mysql-driver.version>
         <postgresql-driver.version>42.3.1</postgresql-driver.version>
 
-        <repackaged.version>1.1.0</repackaged.version>
+        <repackaged.version>1.1.1</repackaged.version>
 
         <assembly-plugin.version>3.3.0</assembly-plugin.version>
         <compiler-plugin.version>3.8.1</compiler-plugin.version>

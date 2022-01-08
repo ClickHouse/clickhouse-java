@@ -99,7 +99,7 @@ Java 8 or higher is required in order to use Java client([clickhouse-client](htt
     <groupId>com.clickhouse</groupId>
     <!-- or clickhouse-grpc-client if you prefer gRPC -->
     <artifactId>clickhouse-http-client</artifactId>
-    <version>0.3.2</version>
+    <version>0.3.2-patch1</version>
 </dependency>
 ```
 
@@ -135,7 +135,7 @@ try (ClickHouseClient client = ClickHouseClient.newInstance(preferredProtocol);
     <!-- will stop using ru.yandex.clickhouse starting from 0.4.0  -->
     <groupId>com.clickhouse</groupId>
     <artifactId>clickhouse-jdbc</artifactId>
-    <version>0.3.2</version>
+    <version>0.3.2-patch1</version>
     <!-- below is only needed when all you want is a shaded jar -->
     <classifier>http</classifier>
     <exclusions>
