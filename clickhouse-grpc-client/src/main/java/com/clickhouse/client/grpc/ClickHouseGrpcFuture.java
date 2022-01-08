@@ -10,6 +10,7 @@ import io.grpc.Status;
 import io.grpc.StatusException;
 import io.grpc.stub.StreamObserver;
 import com.clickhouse.client.ClickHouseChecker;
+import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseResponse;
@@ -63,7 +64,10 @@ public class ClickHouseGrpcFuture implements Future<ClickHouseResponse> {
     @Override
     public ClickHouseResponse get() throws InterruptedException, ExecutionException {
         try {
-            return get(request.getConfig().getConnectionTimeout() / 1000 + request.getConfig().getMaxExecutionTime(),
+            ClickHouseConfig config = request.getConfig();
+            return get(
+                    config.getConnectionTimeout() / 1000
+                            + Math.max(config.getSocketTimeout() / 1000, config.getMaxExecutionTime()),
                     TimeUnit.SECONDS);
         } catch (TimeoutException e) {
             cancel(true);

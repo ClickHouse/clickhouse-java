@@ -245,8 +245,9 @@ public class ClickHouseGrpcClient extends AbstractClient<ManagedChannel> {
         // return new ClickHouseGrpcFuture(server, sealedRequest, requestObserver,
         // responseObserver);
         return CompletableFuture.supplyAsync(() -> {
-            int timeout = sealedRequest.getConfig().getConnectionTimeout() / 1000
-                    + sealedRequest.getConfig().getMaxExecutionTime();
+            ClickHouseConfig config = sealedRequest.getConfig();
+            int timeout = config.getConnectionTimeout() / 1000
+                    + Math.max(config.getSocketTimeout() / 1000, config.getMaxExecutionTime());
             try {
                 if (!responseObserver.await(timeout, TimeUnit.SECONDS)) {
                     if (!Context.current().withCancellation().cancel(new StatusException(Status.CANCELLED))) {
