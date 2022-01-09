@@ -64,7 +64,7 @@ public class ClickHouseStreamObserver implements StreamObserver<Result> {
     protected boolean updateStatus(Result result) {
         summary.update();
 
-        log.info(() -> {
+        log.debug(() -> {
             for (LogEntry e : result.getLogsList()) {
                 String logLevel = e.getLevel().name();
                 int index = logLevel.indexOf('_');
