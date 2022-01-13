@@ -267,6 +267,10 @@ public enum ClickHouseQueryParam implements DriverPropertyCreator {
     ENABLE_OPTIMIZE_PREDICATE_EXPRESSION("enable_optimize_predicate_expression", null, Boolean.class, "See Clickhouse server description for this parameter. Default value is null so that server setting is taken."),
 
     WAIT_END_OF_QUERY("wait_end_of_query", null, Boolean.class, "Buffer the response server-side before sending to client. Useful when using SEND_PROGRESS_IN_HTTP_HEADERS to get accurate stats."),
+
+    INPUT_FORMAT_ALLOW_ERRORS_NUM("input_format_allow_errors_num", null, Integer.class, "Maximum absolute amount of errors while reading text formats (like CSV, TSV). In case of error, if at least absolute or relative amount of errors is lower than corresponding value, will skip until next line and continue."),
+
+    INPUT_FORMAT_ALLOW_ERRORS_RATIO("input_format_allow_errors_ratio", null, Double.class, "Maximum relative amount of errors while reading text formats (like CSV, TSV). In case of error, if at least absolute or relative amount of errors is lower than corresponding value, will skip until next line and continue.")
     ;
 
     private final String key;

@@ -29,6 +29,8 @@ public class ClickHouseProperties {
     private boolean ssl;
     private String sslRootCertificate;
     private String sslMode;
+    private Integer inputFormatAllowErrorsNum;
+    private Double inputFormatAllowErrorsRatio;
 
     /**
      * Maximum number of allowed redirects. Active only when {@link ClickHouseProperties#checkForRedirects}
@@ -173,6 +175,8 @@ public class ClickHouseProperties {
         this.anyJoinDistinctRightTableKeys = getSetting(info, ClickHouseQueryParam.ANY_JOIN_DISTINCT_RIGHT_TABLE_KEYS);
         this.sendProgressInHttpHeaders = (Boolean)getSetting(info, ClickHouseQueryParam.SEND_PROGRESS_IN_HTTP_HEADERS);
         this.waitEndOfQuery = (Boolean)getSetting(info, ClickHouseQueryParam.WAIT_END_OF_QUERY);
+        this.inputFormatAllowErrorsNum = (Integer) getSetting(info, ClickHouseQueryParam.INPUT_FORMAT_ALLOW_ERRORS_NUM);
+        this.inputFormatAllowErrorsRatio = (Double) getSetting(info, ClickHouseQueryParam.INPUT_FORMAT_ALLOW_ERRORS_RATIO);
     }
 
     public Properties asProperties() {
@@ -243,6 +247,8 @@ public class ClickHouseProperties {
         ret.put(ClickHouseQueryParam.ANY_JOIN_DISTINCT_RIGHT_TABLE_KEYS.getKey(), anyJoinDistinctRightTableKeys);
         ret.put(ClickHouseQueryParam.SEND_PROGRESS_IN_HTTP_HEADERS.getKey(), sendProgressInHttpHeaders);
         ret.put(ClickHouseQueryParam.WAIT_END_OF_QUERY.getKey(), waitEndOfQuery);
+        ret.put(ClickHouseQueryParam.INPUT_FORMAT_ALLOW_ERRORS_NUM.getKey(), inputFormatAllowErrorsNum);
+        ret.put(ClickHouseQueryParam.INPUT_FORMAT_ALLOW_ERRORS_RATIO.getKey(), inputFormatAllowErrorsRatio);
 
         return ret.getProperties();
     }
@@ -315,6 +321,8 @@ public class ClickHouseProperties {
         setAnyJoinDistinctRightTableKeys(properties.anyJoinDistinctRightTableKeys);
         setSendProgressInHttpHeaders(properties.sendProgressInHttpHeaders);
         setWaitEndOfQuery(properties.waitEndOfQuery);
+        setInputFormatAllowErrorsNum(properties.inputFormatAllowErrorsNum);
+        setInputFormatAllowErrorsRatio(properties.inputFormatAllowErrorsRatio);
     }
 
     public Map<ClickHouseQueryParam, String> buildQueryParams(boolean ignoreDatabase){
@@ -427,6 +435,8 @@ public class ClickHouseProperties {
 
         addQueryParam(sendProgressInHttpHeaders, ClickHouseQueryParam.SEND_PROGRESS_IN_HTTP_HEADERS, params);
         addQueryParam(waitEndOfQuery, ClickHouseQueryParam.WAIT_END_OF_QUERY, params);
+        addQueryParam(inputFormatAllowErrorsNum, ClickHouseQueryParam.INPUT_FORMAT_ALLOW_ERRORS_NUM, params);
+        addQueryParam(inputFormatAllowErrorsRatio, ClickHouseQueryParam.INPUT_FORMAT_ALLOW_ERRORS_RATIO, params);
 
         return params;
     }
@@ -1005,6 +1015,18 @@ public class ClickHouseProperties {
         this.waitEndOfQuery = waitEndOfQuery;
     }
 
+    public Integer getInputFormatAllowErrorsNum() { return inputFormatAllowErrorsNum; }
+
+    public void setInputFormatAllowErrorsNum(Integer inputFormatAllowErrorsNum) {
+        this.inputFormatAllowErrorsNum = inputFormatAllowErrorsNum;
+    }
+
+    public Double getInputFormatAllowErrorsRatio() { return inputFormatAllowErrorsRatio; }
+
+    public void setInputFormatAllowErrorsRatio(Double inputFormatAllowErrorsRatio) {
+        this.inputFormatAllowErrorsRatio = inputFormatAllowErrorsRatio;
+    }
+
     private static class PropertiesBuilder {
         private final Properties properties;
         public PropertiesBuilder() {
@@ -1041,6 +1063,12 @@ public class ClickHouseProperties {
 
         public Properties getProperties() {
             return properties;
+        }
+
+        public void put(String key, Double value) {
+            if(value != null) {
+                properties.put(key, value.toString());
+            }
         }
     }
 
