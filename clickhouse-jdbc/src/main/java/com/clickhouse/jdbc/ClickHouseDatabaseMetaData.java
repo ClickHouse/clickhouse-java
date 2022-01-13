@@ -752,7 +752,7 @@ public class ClickHouseDatabaseMetaData extends JdbcWrapper implements DatabaseM
         List<ResultSet> results = new ArrayList<>(databases.size());
         for (String database : databases) {
             Map<String, String> params = new HashMap<>();
-            params.put("comment", connection.getServerVersion().check("[20.8,)") ? "t.comment" : "''");
+            params.put("comment", connection.getServerVersion().check("[21.6,)") ? "t.comment" : "''");
             params.put("database", ClickHouseValues.convertToQuotedString(database));
             params.put("table", ClickHouseChecker.isNullOrEmpty(tableNamePattern) ? "'%'"
                     : ClickHouseValues.convertToQuotedString(tableNamePattern));
