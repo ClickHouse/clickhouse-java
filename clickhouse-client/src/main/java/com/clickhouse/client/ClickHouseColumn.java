@@ -45,6 +45,7 @@ public final class ClickHouseColumn implements Serializable {
     private static ClickHouseColumn update(ClickHouseColumn column) {
         column.enumConstants = ClickHouseEnum.EMPTY;
         int size = column.parameters.size();
+        column.precision = column.dataType.getMaxPrecision();
         switch (column.dataType) {
             case Array:
                 column.arrayLevel = 1;
