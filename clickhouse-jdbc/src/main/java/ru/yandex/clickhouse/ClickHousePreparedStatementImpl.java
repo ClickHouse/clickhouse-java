@@ -493,13 +493,13 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
 
     @Override
     public void setTimestamp(int parameterIndex, Timestamp x, Calendar cal) throws SQLException {
-        if (x != null && cal != null && cal.getTimeZone() != null) {
+        if (x != null) {
             setBind(
-                parameterIndex,
-                ClickHouseValueFormatter.formatTimestamp(x, cal.getTimeZone()),
-                true);
+                    parameterIndex,
+                    ClickHouseValueFormatter.formatTimestamp64(x, dateTimeTimeZone),
+                    true);
         } else {
-            setTimestamp(parameterIndex, x);
+            setNull(parameterIndex);
         }
     }
 
