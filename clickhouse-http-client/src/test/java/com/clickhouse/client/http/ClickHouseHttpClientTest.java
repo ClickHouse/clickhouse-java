@@ -19,6 +19,7 @@ import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.ClickHouseResponseSummary;
 import com.clickhouse.client.ClickHouseUtils;
+import com.clickhouse.client.ClickHouseVersion;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.data.ClickHouseExternalTable;
 import com.clickhouse.client.data.ClickHouseStringValue;
@@ -143,6 +144,12 @@ public class ClickHouseHttpClientTest extends BaseIntegrationTest {
         String uuid = UUID.randomUUID().toString();
         try (ClickHouseClient client = ClickHouseClient.newInstance()) {
             ClickHouseRequest<?> request = client.connect(server).format(ClickHouseFormat.RowBinaryWithNamesAndTypes);
+            try (ClickHouseResponse resp = request
+                    .query("select version()").execute().get()) {
+                if (!ClickHouseVersion.of(resp.firstRecord().getValue(0).asString()).check("[21.2,)")) {
+                    return;
+                }
+            }
             try (ClickHouseResponse resp = request
                     .option(ClickHouseClientOption.LOG_LEADING_COMMENT, true)
                     .query("-- select something\r\nselect 1", uuid).execute().get()) {
