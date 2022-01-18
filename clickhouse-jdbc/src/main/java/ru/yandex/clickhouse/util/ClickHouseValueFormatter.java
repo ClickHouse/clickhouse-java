@@ -47,7 +47,12 @@ public final class ClickHouseValueFormatter {
             return new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
         }
     };
-
+private static ThreadLocal<SimpleDateFormat> dateTime64Format = new ThreadLocal<SimpleDateFormat>() {
+        @Override
+        protected SimpleDateFormat initialValue() {
+            return new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS");
+        }
+    };
     public static String formatBytes(byte[] bytes) {
         if (bytes == null) {
             return null;
@@ -135,7 +140,15 @@ public final class ClickHouseValueFormatter {
         }
         return formatted.toString();
     }
-
+    public static String formatTimestamp64(Timestamp time, TimeZone timeZone) {
+        SimpleDateFormat formatter = getDateTime64Format();
+        formatter.setTimeZone(timeZone);
+        StringBuilder formatted = new StringBuilder(formatter.format(time));
+        if (time != null && time.getNanos() % 1000000 > 0) {
+            formatted.append('.').append(time.getNanos());
+        }
+        return formatted.toString();
+    }
     public static String formatUUID(UUID x) {
         return x.toString();
     }
@@ -304,6 +317,8 @@ public final class ClickHouseValueFormatter {
     private static SimpleDateFormat getDateTimeFormat() {
         return dateTimeFormat.get();
     }
-
+    private static SimpleDateFormat getDateTime64Format() {
+        return dateTime64Format.get();
+    }
     private ClickHouseValueFormatter() { /* NOP */ }
 }
