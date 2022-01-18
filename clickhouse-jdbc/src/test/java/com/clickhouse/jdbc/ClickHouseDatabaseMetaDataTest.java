@@ -17,7 +17,7 @@ public class ClickHouseDatabaseMetaDataTest extends JdbcIntegrationTest {
     private Object[][] getSelectedColumns() {
         return new Object[][] {
                 // COLUMN_SIZE, DECIMAL_DIGITS, CHAR_OCTET_LENGTH
-                new Object[] { "Bool", 1, null, null },
+                // new Object[] { "Bool", 1, null, null }, // Bool was an alias before 21.12
                 new Object[] { "Int8", 3, null, null },
                 new Object[] { "UInt8", 3, null, null },
                 new Object[] { "FixedString(3)", 3, null, 3 },
