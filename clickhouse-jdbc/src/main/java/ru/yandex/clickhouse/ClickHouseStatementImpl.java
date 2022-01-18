@@ -720,7 +720,7 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
 
         additionalClickHouseDBParams = addQueryIdTo(
                 additionalClickHouseDBParams == null
-                        ? new EnumMap<ClickHouseQueryParam, String>(ClickHouseQueryParam.class)
+                        ? new EnumMap<>(ClickHouseQueryParam.class)
                         : additionalClickHouseDBParams);
 
         URI uri = buildRequestUri(
