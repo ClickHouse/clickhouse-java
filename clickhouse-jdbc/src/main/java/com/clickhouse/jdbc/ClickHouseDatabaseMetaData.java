@@ -814,9 +814,9 @@ public class ClickHouseDatabaseMetaData extends JdbcWrapper implements DatabaseM
         String sql = ClickHouseParameterizedQuery
                 .apply("select null as TABLE_CAT, database as TABLE_SCHEM, table as TABLE_NAME, "
                         + "name as COLUMN_NAME, toInt32(:defaultType) as DATA_TYPE, type as TYPE_NAME, toInt32(0) as COLUMN_SIZE, "
-                        + "0 as BUFFER_LENGTH, toInt32(null) as DECIMAL_DIGITS, 10 as NUM_PREC_RADIX, "
+                        + "0 as BUFFER_LENGTH, cast(null as Nullable(Int32)) as DECIMAL_DIGITS, 10 as NUM_PREC_RADIX, "
                         + "toInt32(position(type, 'Nullable(') >= 1 ? :defaultNullable : :defaultNonNull) as NULLABLE, :comment as REMARKS, default_expression as COLUMN_DEF, "
-                        + "0 as SQL_DATA_TYPE, 0 as SQL_DATETIME_SUB, toInt32(null) as CHAR_OCTET_LENGTH, position as ORDINAL_POSITION, "
+                        + "0 as SQL_DATA_TYPE, 0 as SQL_DATETIME_SUB, cast(null as Nullable(Int32)) as CHAR_OCTET_LENGTH, position as ORDINAL_POSITION, "
                         + "position(type, 'Nullable(') >= 1 ? 'YES' : 'NO' as IS_NULLABLE, null as SCOPE_CATALOG, null as SCOPE_SCHEMA, null as SCOPE_TABLE, "
                         + "null as SOURCE_DATA_TYPE, 'NO' as IS_AUTOINCREMENT, 'NO' as IS_GENERATEDCOLUMN from system.columns\n"
                         + "where database like :database and table like :table and name like :column", params);
@@ -825,7 +825,8 @@ public class ClickHouseDatabaseMetaData extends JdbcWrapper implements DatabaseM
             try {
                 ClickHouseColumn column = ClickHouseColumn.of("", typeName);
                 r.getValue("DATA_TYPE").update(JdbcTypeMapping.toJdbcType(typeMaps, column));
-                r.getValue("COLUMN_SIZE").update(column.getDataType().getByteLength());
+                r.getValue("COLUMN_SIZE").update(
+                        column.getPrecision() > 0 ? column.getPrecision() : column.getDataType().getByteLength());
                 if (column.isNullable()) {
                     r.getValue("NULLABLE").update(DatabaseMetaData.typeNullable);
                     r.getValue("IS_NULLABLE").update("YES");
@@ -838,7 +839,8 @@ public class ClickHouseDatabaseMetaData extends JdbcWrapper implements DatabaseM
                     r.getValue("CHAR_OCTET_LENGTH").update(column.getPrecision());
                 }
 
-                if (column.getScale() > 0) {
+                if (column.getScale() > 0 || column.getDataType() == ClickHouseDataType.Float32
+                        || column.getDataType() == ClickHouseDataType.Float64) {
                     r.getValue("DECIMAL_DIGITS").update(column.getScale());
                 } else {
                     r.getValue("DECIMAL_DIGITS").resetToNullOrEmpty();
