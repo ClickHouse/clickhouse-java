@@ -6,6 +6,8 @@ import java.util.TimeZone;
 
 public final class ClickHousePreparedStatementParameter {
 
+    private static final String EMPTY_STR = "";
+
     private static final ClickHousePreparedStatementParameter NULL_PARAM =
         new ClickHousePreparedStatementParameter(null, false);
 
@@ -52,6 +54,26 @@ public final class ClickHousePreparedStatementParameter {
                 ? "'" + stringValue + "'"
                 : stringValue
             : "null";
+    }
+
+    String getRegularParam(int paramIndex) {
+        if (quoteNeeded && EMPTY_STR.equals(getBatchValue())) {
+            return "''";
+        } else {
+            if (ClickHouseValueFormatter.NULL_MARKER.equals(stringValue)) {
+                return "null";
+            } else {
+                if (quoteNeeded) {
+                    return "{param" + paramIndex + ":String}";
+                } else {
+                    if (stringValue.contains(".")) {
+                        return "{param" + paramIndex + ":Float64}";
+                    } else {
+                        return "{param" + paramIndex + ":Int64}";
+                    }
+                }
+            }
+        }
     }
 
     String getBatchValue() {

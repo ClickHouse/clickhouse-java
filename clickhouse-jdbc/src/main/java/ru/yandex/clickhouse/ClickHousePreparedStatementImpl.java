@@ -27,6 +27,7 @@ import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TimeZone;
@@ -50,7 +51,7 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
 
     static final String PARAM_MARKER = "?";
     static final String NULL_MARKER = "\\N";
-
+    static final int FIRST_PARAM_INDEX = 0;
     private final TimeZone dateTimeZone;
     private final TimeZone dateTimeTimeZone;
     private final ClickHouseSqlStatement parsedStmt;
@@ -95,12 +96,12 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
 
     @Override
     public ClickHouseResponse executeQueryClickhouseResponse() throws SQLException {
-        return executeQueryClickhouseResponse(buildSql(), null, null);
+        return executeQueryClickhouseResponse(buildJdbcSql(), null, buildRequestParams());
     }
 
     @Override
     public ClickHouseResponse executeQueryClickhouseResponse(Map<ClickHouseQueryParam, String> additionalDBParams) throws SQLException {
-        return executeQueryClickhouseResponse(buildSql(), additionalDBParams, null);
+        return executeQueryClickhouseResponse(buildJdbcSql(), additionalDBParams, buildRequestParams());
     }
 
     private ClickHouseSqlStatement buildSql() throws SQLException {
@@ -124,6 +125,39 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
         return new ClickHouseSqlStatement(sb.toString(), parsedStmt.getStatementType());
     }
 
+    private ClickHouseSqlStatement buildJdbcSql() throws SQLException {
+        if (sqlParts.size() == 1) {
+            return new ClickHouseSqlStatement(sqlParts.get(0), parsedStmt.getStatementType());
+        }
+
+        checkBinded();
+        StringBuilder sb = new StringBuilder(sqlParts.get(0));
+        for (int i = 1, p = 0, paramIndex = FIRST_PARAM_INDEX; i < sqlParts.size(); i++) {
+            String pValue = getParameter(i - 1);
+            if (PARAM_MARKER.equals(pValue)) {
+                sb.append(binds[p++].getRegularParam(paramIndex));
+                paramIndex++;
+            } else if (NULL_MARKER.equals(pValue)) {
+                sb.append("NULL");
+            } else {
+                sb.append(pValue);
+            }
+            sb.append(sqlParts.get(i));
+        }
+        return new ClickHouseSqlStatement(sb.toString(), parsedStmt.getStatementType());
+    }
+
+    private Map<String, String> buildRequestParams() {
+        Map<String, String> additionalRequestParams = null;
+        if (binds.length > 0) {
+            additionalRequestParams = new HashMap<>();
+            for (int paramIndex = FIRST_PARAM_INDEX; paramIndex < binds.length; paramIndex++) {
+                additionalRequestParams.put("param_param" + paramIndex, binds[paramIndex].getBatchValue());
+            }
+        }
+        return additionalRequestParams;
+    }
+
     private void checkBinded() throws SQLException {
         int i = 0;
         for (Object b : binds) {
@@ -136,12 +170,12 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
 
     @Override
     public boolean execute() throws SQLException {
-        return executeQueryStatement(buildSql(), null, null, null) != null;
+        return executeQueryStatement(buildJdbcSql(), null, null, buildRequestParams()) != null;
     }
 
     @Override
     public ResultSet executeQuery() throws SQLException {
-        return executeQueryStatement(buildSql(), null, null, null);
+        return executeQueryStatement(buildJdbcSql(), null, null, buildRequestParams());
     }
 
     @Override
@@ -158,12 +192,12 @@ public class ClickHousePreparedStatementImpl extends ClickHouseStatementImpl imp
 
     @Override
     public ResultSet executeQuery(Map<ClickHouseQueryParam, String> additionalDBParams, List<ClickHouseExternalData> externalData) throws SQLException {
-        return executeQueryStatement(buildSql(), additionalDBParams, externalData, null);
+        return executeQueryStatement(buildJdbcSql(), additionalDBParams, externalData, buildRequestParams());
     }
 
     @Override
     public int executeUpdate() throws SQLException {
-        return executeStatement(buildSql(), null, null, null);
+        return executeStatement(buildJdbcSql(), null, null, buildRequestParams());
     }
 
     private void setBind(int parameterIndex, String bind, boolean quote) {

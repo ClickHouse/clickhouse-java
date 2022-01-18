@@ -716,9 +716,10 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
 
         log.debug("Executing SQL: %s", sql);
 
-        additionalClickHouseDBParams = addQueryIdTo(additionalClickHouseDBParams == null
-                ? new EnumMap<ClickHouseQueryParam, String>(ClickHouseQueryParam.class)
-                : additionalClickHouseDBParams);
+        additionalClickHouseDBParams = addQueryIdTo(
+                additionalClickHouseDBParams == null
+                        ? new EnumMap<>(ClickHouseQueryParam.class)
+                        : additionalClickHouseDBParams);
 
         URI uri = buildRequestUri(null, externalData, additionalClickHouseDBParams, additionalRequestParams,
                 ignoreDatabase);
