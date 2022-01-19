@@ -513,4 +513,30 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
             Assert.assertFalse(rs.next());
         }
     }
+
+    @Test(groups = "integration")
+    public void testInsertWithAndSelect() throws Exception {
+        try (ClickHouseConnection conn = newConnection(new Properties());
+                Statement s = conn.createStatement()) {
+            s.execute("drop table if exists test_insert_with_and_select; "
+                    + "CREATE TABLE test_insert_with_and_select(value String) ENGINE=Memory");
+            try (PreparedStatement ps = conn.prepareStatement(
+                    "INSERT INTO test_insert_with_and_select(value) WITH t as ( SELECT 'testValue1') SELECT * FROM t")) {
+                ps.executeUpdate();
+            }
+
+            try (PreparedStatement ps = conn.prepareStatement(
+                    "INSERT INTO test_insert_with_and_select(value) WITH t as ( SELECT 'testValue2' as value) SELECT * FROM t WHERE value != ?")) {
+                ps.setString(1, "");
+                ps.executeUpdate();
+            }
+
+            ResultSet rs = s.executeQuery("select * from test_insert_with_and_select order by value");
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getString("Value"), "testValue1");
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getString("VALUE"), "testValue2");
+            Assert.assertFalse(rs.next());
+        }
+    }
 }
