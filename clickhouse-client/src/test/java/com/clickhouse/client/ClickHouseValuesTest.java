@@ -135,13 +135,11 @@ public class ClickHouseValuesTest extends BaseClickHouseValueTest {
         Assert.assertEquals(ClickHouseValues.convertToSqlExpression(Long.MIN_VALUE),
                 String.valueOf(Long.MIN_VALUE));
         Assert.assertEquals(ClickHouseValues.convertToSqlExpression(Float.MAX_VALUE),
-                String.valueOf(Float.MAX_VALUE));
-        Assert.assertEquals(ClickHouseValues.convertToSqlExpression(Float.MIN_VALUE),
-                String.valueOf(Float.MIN_VALUE));
+                "340282346638528860000000000000000000000.0");
+        Assert.assertEquals(ClickHouseValues.convertToSqlExpression(Float.MIN_VALUE), "0.0");
         Assert.assertEquals(ClickHouseValues.convertToSqlExpression(Double.MAX_VALUE),
-                String.valueOf(Double.MAX_VALUE));
-        Assert.assertEquals(ClickHouseValues.convertToSqlExpression(Double.MIN_VALUE),
-                String.valueOf(Double.MIN_VALUE));
+                "179769313486231570000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0");
+        Assert.assertEquals(ClickHouseValues.convertToSqlExpression(Double.MIN_VALUE), "0.0");
 
         // stringlike types
         Assert.assertEquals(ClickHouseValues.convertToSqlExpression(""), String.valueOf("''"));

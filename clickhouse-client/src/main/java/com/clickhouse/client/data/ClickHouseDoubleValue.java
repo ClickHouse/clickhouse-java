@@ -13,6 +13,33 @@ import com.clickhouse.client.ClickHouseValues;
  */
 public class ClickHouseDoubleValue implements ClickHouseValue {
     /**
+     * Converts double object to SQL expression.
+     *
+     * @param v double object, could be null
+     * @return SQL expression representing the double value
+     */
+    public static String convertToSqlExpression(Double v) {
+        if (v == null) {
+            return ClickHouseValues.NULL_EXPR;
+        }
+
+        double value = v.doubleValue();
+        if (v.isNaN()) {
+            return ClickHouseValues.NAN_EXPR;
+        } else if (value == Double.POSITIVE_INFINITY) {
+            return ClickHouseValues.INF_EXPR;
+        } else if (value == Double.NEGATIVE_INFINITY) {
+            return ClickHouseValues.NINF_EXPR;
+        } else if (ClickHouseValues.REMOVE_E_NOTION
+                && ((value < 0D && value > -0.001D) || (value > 0D && value < 0.001D)
+                        || value <= -10000000D || value >= 10000000D)) {
+            return ClickHouseValues.DECIMAL_FORMATTER.get().format(value);
+        }
+
+        return Double.toString(value);
+    }
+
+    /**
      * Create a new instance representing null value.
      *
      * @return new instance representing null value
@@ -174,13 +201,17 @@ public class ClickHouseDoubleValue implements ClickHouseValue {
             return ClickHouseValues.NULL_EXPR;
         } else if (isNaN()) {
             return ClickHouseValues.NAN_EXPR;
-        } else if (value == Float.POSITIVE_INFINITY) {
+        } else if (value == Double.POSITIVE_INFINITY) {
             return ClickHouseValues.INF_EXPR;
-        } else if (value == Float.NEGATIVE_INFINITY) {
+        } else if (value == Double.NEGATIVE_INFINITY) {
             return ClickHouseValues.NINF_EXPR;
+        } else if (ClickHouseValues.REMOVE_E_NOTION
+                && ((value < 0D && value > -0.001D) || (value > 0D && value < 0.001D)
+                        || value <= -10000000D || value >= 10000000D)) {
+            return ClickHouseValues.DECIMAL_FORMATTER.get().format(value);
         }
 
-        return String.valueOf(value);
+        return Double.toString(value);
     }
 
     @Override

@@ -11,9 +11,12 @@ import java.time.LocalTime;
 import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.UUID;
+
+import org.testng.Assert;
 import org.testng.annotations.Test;
 import com.clickhouse.client.BaseClickHouseValueTest;
 import com.clickhouse.client.ClickHouseDataType;
+import com.clickhouse.client.ClickHouseValues;
 
 public class ClickHouseDoubleValueTest extends BaseClickHouseValueTest {
     @Test(groups = { "unit" })
@@ -250,5 +253,37 @@ public class ClickHouseDoubleValueTest extends BaseClickHouseValueTest {
                 buildMap(new Object[] { 1 }, new Double[] { -1D }), // typed Map
                 Arrays.asList(Double.valueOf(-1D)) // Tuple
         );
+    }
+
+    @Test(groups = { "unit" })
+    public void testToSqlExpression() throws Exception {
+        if (!ClickHouseValues.REMOVE_E_NOTION) {
+            return;
+        }
+
+        Assert.assertEquals(ClickHouseDoubleValue.of(-0.001D).toSqlExpression(), "-0.001");
+        Assert.assertEquals(ClickHouseDoubleValue.of(-0.001D - 0.0001D).toSqlExpression(), "-0.0011");
+        Assert.assertEquals(ClickHouseDoubleValue.of(-0.001D + 0.0001D).toSqlExpression(), "-0.0009");
+        Assert.assertEquals(ClickHouseDoubleValue.of(-0.001D + 0.001D).toSqlExpression(), "0.0");
+
+        Assert.assertEquals(ClickHouseDoubleValue.of(-10000000D).toSqlExpression(), "-10000000.0");
+        Assert.assertEquals(ClickHouseDoubleValue.of(-10000000D - 1D).toSqlExpression(), "-10000001.0");
+        Assert.assertEquals(ClickHouseDoubleValue.of(-10000000D + 0.1D).toSqlExpression(), "-9999999.9");
+        Assert.assertEquals(ClickHouseDoubleValue.of(-10000000D + 1D).toSqlExpression(), "-9999999.0");
+
+        Assert.assertEquals(ClickHouseDoubleValue.of(0.001D).toSqlExpression(), "0.001");
+        Assert.assertEquals(ClickHouseDoubleValue.of(0.001D - 0.0001D).toSqlExpression(), "0.0009");
+        Assert.assertEquals(ClickHouseDoubleValue.of(0.001D + 0.0001D).toSqlExpression(), "0.0011");
+        Assert.assertEquals(ClickHouseDoubleValue.of(0.001D + 0.001D).toSqlExpression(), "0.002");
+
+        Assert.assertEquals(ClickHouseDoubleValue.of(10000000D).toSqlExpression(), "10000000.0");
+        Assert.assertEquals(ClickHouseDoubleValue.of(10000000D - 1D).toSqlExpression(), "9999999.0");
+        Assert.assertEquals(ClickHouseDoubleValue.of(10000000D + 0.1D).toSqlExpression(), "10000000.1");
+        Assert.assertEquals(ClickHouseDoubleValue.of(10000000D + 1D).toSqlExpression(), "10000001.0");
+
+        Assert.assertEquals(ClickHouseDoubleValue.of(Double.MIN_VALUE).toSqlExpression(),
+                "0.0");
+        Assert.assertEquals(ClickHouseDoubleValue.of(Double.MAX_VALUE).toSqlExpression(),
+                "179769313486231570000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0");
     }
 }

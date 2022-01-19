@@ -13,6 +13,33 @@ import com.clickhouse.client.ClickHouseValues;
  */
 public class ClickHouseFloatValue implements ClickHouseValue {
     /**
+     * Converts float object to SQL expression.
+     *
+     * @param v float object, could be null
+     * @return SQL expression representing the float value
+     */
+    public static String convertToSqlExpression(Float v) {
+        if (v == null) {
+            return ClickHouseValues.NULL_EXPR;
+        }
+
+        float value = v.floatValue();
+        if (v.isNaN()) {
+            return ClickHouseValues.NAN_EXPR;
+        } else if (value == Float.POSITIVE_INFINITY) {
+            return ClickHouseValues.INF_EXPR;
+        } else if (value == Float.NEGATIVE_INFINITY) {
+            return ClickHouseValues.NINF_EXPR;
+        } else if (ClickHouseValues.REMOVE_E_NOTION
+                && ((value < 0F && value > -0.001F) || (value > 0F && value < 0.001F)
+                        || value <= -10000000F || value >= 10000000F)) {
+            return ClickHouseValues.DECIMAL_FORMATTER.get().format(value);
+        }
+
+        return Float.toString(value);
+    }
+
+    /**
      * Create a new instance representing null value.
      *
      * @return new instance representing null value
@@ -198,9 +225,13 @@ public class ClickHouseFloatValue implements ClickHouseValue {
             return ClickHouseValues.INF_EXPR;
         } else if (value == Float.NEGATIVE_INFINITY) {
             return ClickHouseValues.NINF_EXPR;
+        } else if (ClickHouseValues.REMOVE_E_NOTION
+                && ((value < 0F && value > -0.001F) || (value > 0F && value < 0.001F)
+                        || value <= -10000000F || value >= 10000000F)) {
+            return ClickHouseValues.DECIMAL_FORMATTER.get().format(value);
         }
 
-        return String.valueOf(value);
+        return Float.toString(value);
     }
 
     @Override

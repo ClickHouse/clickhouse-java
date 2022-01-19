@@ -8,6 +8,8 @@ import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.text.DecimalFormat;
+import java.text.DecimalFormatSymbols;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -19,8 +21,10 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.temporal.ChronoField;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Enumeration;
+import java.util.Locale;
 import java.util.Map;
 import java.util.TimeZone;
 import java.util.UUID;
@@ -79,6 +83,13 @@ public final class ClickHouseValues {
     public static final String EMPTY_ARRAY_EXPR = "[]";
 
     public static final BigDecimal NANOS = new BigDecimal(BigInteger.TEN.pow(9));
+
+    /**
+     * Whether E notion should be removed from float / double expression.
+     */
+    public static final boolean REMOVE_E_NOTION = true;
+    public static final ThreadLocal<DecimalFormat> DECIMAL_FORMATTER = REMOVE_E_NOTION ? ThreadLocal
+            .withInitial(() -> new DecimalFormat("#0.0#########", new DecimalFormatSymbols(Locale.ROOT))) : null;
 
     public static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
     public static final DateTimeFormatter TIME_FORMATTER = new DateTimeFormatterBuilder().appendPattern("HH:mm:ss")
@@ -501,6 +512,10 @@ public final class ClickHouseValues {
             s = String.valueOf((boolean) value ? 1 : 0);
         } else if (value instanceof Character) {
             s = String.valueOf((int) ((char) value));
+        } else if (value instanceof Float) {
+            s = ClickHouseFloatValue.convertToSqlExpression((Float) value);
+        } else if (value instanceof Double) {
+            s = ClickHouseDoubleValue.convertToSqlExpression((Double) value);
         } else if (value instanceof boolean[]) {
             s = convertToString((boolean[]) value);
         } else if (value instanceof char[]) {
