@@ -529,7 +529,7 @@ void dataClause(): {} {
                 <RPAREN> { token_source.removePosition(ClickHouseSqlStatement.KEYWORD_VALUES_END); }
             )*
             ( settingsPart() )?
-        | (LOOKAHEAD(2) (<SELECT> { token_source.addPosition(token); } columnExprList() <FROM> 
+        | (LOOKAHEAD(2) ((withClause())? <SELECT> { token_source.addPosition(token); } columnExprList() <FROM> 
             <INPUT> <LPAREN> <STRING_LITERAL> { token_source.input = ClickHouseSqlUtils.unescape(token.image); } <RPAREN>)?
             <FORMAT> <IDENTIFIER> { token_source.format = token.image; } )? (anyExprList())?
     } catch (ParseException e) {
