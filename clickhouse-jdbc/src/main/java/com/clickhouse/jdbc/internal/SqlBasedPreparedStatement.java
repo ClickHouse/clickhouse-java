@@ -341,7 +341,7 @@ public class SqlBasedPreparedStatement extends ClickHouseStatementImpl implement
             value.update(x);
             values[idx] = value.toSqlExpression();
         } else {
-            values[idx] = new String(x, StandardCharsets.UTF_8);
+            values[idx] = ClickHouseValues.convertToQuotedString(new String(x, StandardCharsets.UTF_8));
         }
     }
 

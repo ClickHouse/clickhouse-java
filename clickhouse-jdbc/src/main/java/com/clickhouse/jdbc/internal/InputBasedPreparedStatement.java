@@ -188,7 +188,7 @@ public class InputBasedPreparedStatement extends ClickHouseStatementImpl impleme
         ensureOpen();
 
         int idx = toArrayIndex(parameterIndex);
-        values[idx].update(new String(x, StandardCharsets.UTF_8));
+        values[idx].update(ClickHouseValues.convertToQuotedString(new String(x, StandardCharsets.UTF_8)));
         flags[idx] = true;
     }
 
