@@ -51,7 +51,7 @@ public class ClickHouseDatabaseMetaDataTest extends JdbcIntegrationTest {
                     + "create table " + tableName + "(x " + columnType + ") engine=Memory");
             try (ResultSet rs = conn.getMetaData().getColumns(conn.getCatalog(), conn.getSchema(), tableName, "%")) {
                 Assert.assertTrue(rs.next(), "Should have one record");
-                Assert.assertEquals(rs.getString("cOLUMN_NAME"), "x");
+                Assert.assertEquals(rs.getString("COLUMN_NAME"), "x");
                 Assert.assertEquals(rs.getObject("COLUMN_SIZE"), columnSize);
                 Assert.assertEquals(rs.getObject("DECIMAL_DIGITS"), decimalDigits);
                 Assert.assertEquals(rs.getObject("CHAR_OCTET_LENGTH"), octectLength);
