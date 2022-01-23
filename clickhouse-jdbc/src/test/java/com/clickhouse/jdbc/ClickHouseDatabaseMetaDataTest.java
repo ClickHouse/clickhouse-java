@@ -24,6 +24,7 @@ public class ClickHouseDatabaseMetaDataTest extends JdbcIntegrationTest {
                 new Object[] { "String", 0, null, null },
                 new Object[] { "Decimal64(10)", 18, 10, null },
                 new Object[] { "Decimal(10,2)", 10, 2, null },
+                new Object[] { "Decimal(10,0)", 10, 0, null },
                 new Object[] { "Float32", 12, 0, null },
                 new Object[] { "Float64", 22, 0, null } };
     }

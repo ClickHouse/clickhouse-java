@@ -839,8 +839,16 @@ public class ClickHouseDatabaseMetaData extends JdbcWrapper implements DatabaseM
                     r.getValue("CHAR_OCTET_LENGTH").update(column.getPrecision());
                 }
 
-                if (column.getScale() > 0 || column.getDataType() == ClickHouseDataType.Float32
-                        || column.getDataType() == ClickHouseDataType.Float64) {
+                if (column.getScale() > 0
+                        || column.getDataType() == ClickHouseDataType.Float32
+                        || column.getDataType() == ClickHouseDataType.Float64
+                        || column.getDataType() == ClickHouseDataType.Decimal
+                        || column.getDataType() == ClickHouseDataType.Decimal32
+                        || column.getDataType() == ClickHouseDataType.Decimal64
+                        || column.getDataType() == ClickHouseDataType.Decimal128
+                        || column.getDataType() == ClickHouseDataType.Decimal256
+                        || column.getDataType() == ClickHouseDataType.DateTime
+                        || column.getDataType() == ClickHouseDataType.DateTime64) {
                     r.getValue("DECIMAL_DIGITS").update(column.getScale());
                 } else {
                     r.getValue("DECIMAL_DIGITS").resetToNullOrEmpty();
