@@ -8,6 +8,7 @@ import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -136,6 +137,10 @@ public final class ClickHouseValues {
 
     public static final String TYPE_CLASS = "Class";
 
+    private static final byte[] HEX_ARRAY = "0123456789ABCDEF".getBytes(StandardCharsets.US_ASCII);
+    private static final byte[] UNHEX_PREFIX = "unhex('".getBytes(StandardCharsets.US_ASCII);
+    private static final byte[] UNHEX_SUFFIX = "')".getBytes(StandardCharsets.US_ASCII);
+
     /**
      * Converts IP address to big integer.
      *
@@ -180,6 +185,52 @@ public final class ClickHouseValues {
         }
 
         return low.add(high.multiply(BIGINT_HL_BOUNDARY));
+    }
+
+    /**
+     * Converts given byte array to string in hexadecimal format.
+     *
+     * @param bytes byte array
+     * @return non-null string
+     */
+    public static String convertToHexString(byte[] bytes) {
+        int len = bytes != null ? bytes.length : 0;
+        if (len == 0) {
+            return "";
+        }
+
+        byte[] hexChars = new byte[len * 2];
+        for (int i = 0; i < len; i++) {
+            int v = bytes[i] & 0xFF;
+            int j = i * 2;
+            hexChars[j] = HEX_ARRAY[v >>> 4];
+            hexChars[j + 1] = HEX_ARRAY[v & 0x0F];
+        }
+        return new String(hexChars, StandardCharsets.UTF_8);
+    }
+
+    /**
+     * Converts given byte array to unhex() expression.
+     *
+     * @param bytes byte array
+     * @return non-null expression
+     */
+    public static String convertToUnhexExpression(byte[] bytes) {
+        int len = bytes != null ? bytes.length : 0;
+        if (len == 0) {
+            return EMPTY_STRING_EXPR;
+        }
+
+        int offset = UNHEX_PREFIX.length;
+        byte[] hexChars = new byte[len * 2 + offset + UNHEX_SUFFIX.length];
+        System.arraycopy(UNHEX_PREFIX, 0, hexChars, 0, offset);
+        System.arraycopy(UNHEX_SUFFIX, 0, hexChars, hexChars.length - UNHEX_SUFFIX.length, UNHEX_SUFFIX.length);
+        for (int i = 0; i < len; i++) {
+            int v = bytes[i] & 0xFF;
+            hexChars[offset++] = HEX_ARRAY[v >>> 4];
+            hexChars[offset++] = HEX_ARRAY[v & 0x0F];
+        }
+        return new String(hexChars, StandardCharsets.UTF_8);
     }
 
     /**

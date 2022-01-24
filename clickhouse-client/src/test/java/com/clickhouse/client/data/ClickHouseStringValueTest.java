@@ -73,7 +73,7 @@ public class ClickHouseStringValueTest extends BaseClickHouseValueTest {
         Assert.assertEquals(ClickHouseStringValue.of("a").asBinary(), new byte[] { 97 });
 
         Assert.assertEquals(ClickHouseStringValue.of(new byte[0]).toSqlExpression(), "''");
-        Assert.assertEquals(ClickHouseStringValue.of(new byte[] { 97 }).toSqlExpression(), "'a'");
+        Assert.assertEquals(ClickHouseStringValue.of(new byte[] { 97, 98, 99 }).toSqlExpression(), "unhex('616263')");
     }
 
     @Test(groups = { "unit" })

@@ -1,12 +1,15 @@
 package com.clickhouse.jdbc;
 
+import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.io.Reader;
+import java.io.StringReader;
 import java.io.UncheckedIOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.sql.Array;
 import java.sql.Blob;
 import java.sql.Clob;
@@ -217,14 +220,13 @@ public class ClickHouseResultSet extends AbstractResultSet {
 
     @Override
     public InputStream getAsciiStream(int columnIndex) throws SQLException {
-        // TODO Auto-generated method stub
-        return null;
+        ClickHouseValue v = getValue(columnIndex);
+        return v.isNullOrEmpty() ? null : new ByteArrayInputStream(v.asBinary(StandardCharsets.US_ASCII));
     }
 
     @Override
     public InputStream getAsciiStream(String columnLabel) throws SQLException {
-        // TODO Auto-generated method stub
-        return null;
+        return getAsciiStream(findColumn(columnLabel));
     }
 
     @Override
@@ -249,14 +251,13 @@ public class ClickHouseResultSet extends AbstractResultSet {
 
     @Override
     public InputStream getBinaryStream(int columnIndex) throws SQLException {
-        // TODO Auto-generated method stub
-        return null;
+        ClickHouseValue v = getValue(columnIndex);
+        return v.isNullOrEmpty() ? null : new ByteArrayInputStream(v.asBinary());
     }
 
     @Override
     public InputStream getBinaryStream(String columnLabel) throws SQLException {
-        // TODO Auto-generated method stub
-        return null;
+        return getBinaryStream(findColumn(columnLabel));
     }
 
     @Override
@@ -267,8 +268,7 @@ public class ClickHouseResultSet extends AbstractResultSet {
 
     @Override
     public Blob getBlob(String columnLabel) throws SQLException {
-        // TODO Auto-generated method stub
-        return null;
+        return getBlob(findColumn(columnLabel));
     }
 
     @Override
@@ -293,26 +293,23 @@ public class ClickHouseResultSet extends AbstractResultSet {
 
     @Override
     public byte[] getBytes(int columnIndex) throws SQLException {
-        // TODO Auto-generated method stub
-        return null;
+        return getValue(columnIndex).asBinary();
     }
 
     @Override
     public byte[] getBytes(String columnLabel) throws SQLException {
-        // TODO Auto-generated method stub
-        return null;
+        return getValue(findColumn(columnLabel)).asBinary();
     }
 
     @Override
     public Reader getCharacterStream(int columnIndex) throws SQLException {
-        // TODO Auto-generated method stub
-        return null;
+        ClickHouseValue v = getValue(columnIndex);
+        return v.isNullOrEmpty() ? null : new StringReader(v.asString());
     }
 
     @Override
     public Reader getCharacterStream(String columnLabel) throws SQLException {
-        // TODO Auto-generated method stub
-        return null;
+        return getCharacterStream(findColumn(columnLabel));
     }
 
     @Override
@@ -323,8 +320,7 @@ public class ClickHouseResultSet extends AbstractResultSet {
 
     @Override
     public Clob getClob(String columnLabel) throws SQLException {
-        // TODO Auto-generated method stub
-        return null;
+        return getClob(findColumn(columnLabel));
     }
 
     @Override
@@ -420,14 +416,12 @@ public class ClickHouseResultSet extends AbstractResultSet {
 
     @Override
     public Reader getNCharacterStream(int columnIndex) throws SQLException {
-        // TODO Auto-generated method stub
-        return null;
+        return getCharacterStream(columnIndex);
     }
 
     @Override
     public Reader getNCharacterStream(String columnLabel) throws SQLException {
-        // TODO Auto-generated method stub
-        return null;
+        return getCharacterStream(findColumn(columnLabel));
     }
 
     @Override
@@ -438,8 +432,7 @@ public class ClickHouseResultSet extends AbstractResultSet {
 
     @Override
     public NClob getNClob(String columnLabel) throws SQLException {
-        // TODO Auto-generated method stub
-        return null;
+        return getNClob(findColumn(columnLabel));
     }
 
     @Override
@@ -662,14 +655,13 @@ public class ClickHouseResultSet extends AbstractResultSet {
 
     @Override
     public InputStream getUnicodeStream(int columnIndex) throws SQLException {
-        // TODO Auto-generated method stub
-        return null;
+        ClickHouseValue v = getValue(columnIndex);
+        return v.isNullOrEmpty() ? null : new ByteArrayInputStream(v.asBinary(StandardCharsets.UTF_8));
     }
 
     @Override
     public InputStream getUnicodeStream(String columnLabel) throws SQLException {
-        // TODO Auto-generated method stub
-        return null;
+        return getUnicodeStream(findColumn(columnLabel));
     }
 
     @Override

@@ -35,6 +35,25 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
     }
 
     @Test(groups = "integration")
+    public void testReadWriteBinaryString() throws SQLException {
+        Properties props = new Properties();
+        byte[] bytes = new byte[256];
+        for (int i = 0; i < 256; i++) {
+            bytes[i] = (byte) i;
+        }
+        try (ClickHouseConnection conn = newConnection(props);
+                PreparedStatement ps = conn.prepareStatement("select ?, ?")) {
+            ps.setBytes(1, bytes);
+            ps.setString(2, Integer.toString(bytes.length));
+            ResultSet rs = ps.executeQuery();
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getBytes(1), bytes);
+            Assert.assertEquals(rs.getInt(2), bytes.length);
+            Assert.assertFalse(rs.next());
+        }
+    }
+
+    @Test(groups = "integration")
     public void testReadWriteDate() throws SQLException {
         LocalDate d = LocalDate.of(2021, 3, 25);
         Date x = Date.valueOf(d);

@@ -268,19 +268,9 @@ public class ClickHouseStringValue implements ClickHouseValue {
     public String toSqlExpression() {
         if (isNullOrEmpty()) {
             return ClickHouseValues.NULL_EXPR;
+        } else if (binary) {
+            return ClickHouseValues.convertToUnhexExpression(bytes);
         }
-        // else if (binary) {
-        // int len = bytes.length;
-        // if (len == 0) {
-        // return ClickHouseValues.EMPTY_STRING_EXPR;
-        // }
-        // StringBuilder builder = new StringBuilder(len * 3 + 5).append("char(");
-        // for (byte b : bytes) {
-        // builder.append(b).append(',');
-        // }
-        // builder.setLength(builder.length() - 1);
-        // return builder.append(')').toString();
-        // }
         return ClickHouseValues.convertToQuotedString(asString());
     }
 
