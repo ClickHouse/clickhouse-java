@@ -18,12 +18,15 @@ public class ClickHouseDatabaseMetaDataTest extends JdbcIntegrationTest {
         return new Object[][] {
                 // COLUMN_SIZE, DECIMAL_DIGITS, CHAR_OCTET_LENGTH
                 // new Object[] { "Bool", 1, null, null }, // Bool was an alias before 21.12
-                new Object[] { "Int8", 3, null, null },
-                new Object[] { "UInt8", 3, null, null },
+                new Object[] { "Int8", 3, 0, null },
+                new Object[] { "UInt8", 3, 0, null },
                 new Object[] { "FixedString(3)", 3, null, 3 },
                 new Object[] { "String", 0, null, null },
+                new Object[] { "Date", 10, 0, null },
+                new Object[] { "DateTime64(5)", 29, 5, null },
                 new Object[] { "Decimal64(10)", 18, 10, null },
                 new Object[] { "Decimal(10,2)", 10, 2, null },
+                new Object[] { "Decimal(12,0)", 12, 0, null },
                 new Object[] { "Float32", 12, 0, null },
                 new Object[] { "Float64", 22, 0, null } };
     }

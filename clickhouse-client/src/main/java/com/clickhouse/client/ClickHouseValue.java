@@ -539,6 +539,55 @@ public interface ClickHouseValue extends Serializable {
     }
 
     /**
+     * Gets binary value as byte array.
+     *
+     * @return non-null byte array
+     */
+    default byte[] asBinary() {
+        return asBinary(0, null);
+    }
+
+    /**
+     * Gets binary value as fixed length byte array.
+     *
+     * @param length byte length of value, 0 or negative number means no limit
+     * @return non-null byte array
+     */
+    default byte[] asBinary(int length) {
+        return asBinary(length, null);
+    }
+
+    /**
+     * Gets binary value as byte array.
+     *
+     * @param charset charset, null is same as default(UTF-8)
+     * @return non-null byte array
+     */
+    default byte[] asBinary(Charset charset) {
+        return asBinary(0, charset);
+    }
+
+    /**
+     * Gets binary value as byte array.
+     *
+     * @param length  byte length of value, 0 or negative number means no limit
+     * @param charset charset, null is same as default(UTF-8)
+     * @return non-null byte array
+     */
+    default byte[] asBinary(int length, Charset charset) {
+        if (isNullOrEmpty()) {
+            return ClickHouseValues.EMPTY_BYTE_ARRAY;
+        }
+
+        byte[] bytes = asString().getBytes(charset == null ? StandardCharsets.UTF_8 : charset);
+        if (length > 0) {
+            ClickHouseChecker.notWithDifferentLength(bytes, length);
+        }
+
+        return bytes;
+    }
+
+    /**
      * Gets value as unbounded string, using default charset(usually UTF-8).
      *
      * @return string value, could be null

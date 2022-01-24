@@ -76,7 +76,9 @@ public final class ClickHouseValues {
     public static final long[] EMPTY_LONG_ARRAY = new long[0];
     public static final float[] EMPTY_FLOAT_ARRAY = new float[0];
     public static final double[] EMPTY_DOUBLE_ARRAY = new double[0];
+
     public static final String EMPTY_ARRAY_EXPR = "[]";
+    public static final String EMPTY_STRING_EXPR = "''";
 
     public static final BigDecimal NANOS = new BigDecimal(BigInteger.TEN.pow(9));
 

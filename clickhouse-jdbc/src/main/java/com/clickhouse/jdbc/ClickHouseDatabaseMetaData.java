@@ -6,8 +6,12 @@ import java.sql.ResultSet;
 import java.sql.RowIdLifetime;
 import java.sql.SQLException;
 import java.sql.Types;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.temporal.Temporal;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -839,8 +843,9 @@ public class ClickHouseDatabaseMetaData extends JdbcWrapper implements DatabaseM
                     r.getValue("CHAR_OCTET_LENGTH").update(column.getPrecision());
                 }
 
-                if (column.getScale() > 0 || column.getDataType() == ClickHouseDataType.Float32
-                        || column.getDataType() == ClickHouseDataType.Float64) {
+                Class<?> clazz = column.getDataType().getObjectClass();
+                if (column.getScale() > 0 || Number.class.isAssignableFrom(clazz) || Date.class.isAssignableFrom(clazz)
+                        || Temporal.class.isAssignableFrom(clazz)) {
                     r.getValue("DECIMAL_DIGITS").update(column.getScale());
                 } else {
                     r.getValue("DECIMAL_DIGITS").resetToNullOrEmpty();

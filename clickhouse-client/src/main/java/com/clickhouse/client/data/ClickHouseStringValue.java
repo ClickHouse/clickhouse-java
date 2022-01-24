@@ -35,8 +35,8 @@ public class ClickHouseStringValue implements ClickHouseValue {
      * @return same object as {@code ref} or a new instance if it's null
      */
     public static ClickHouseStringValue ofNull(ClickHouseValue ref) {
-        return ref instanceof ClickHouseStringValue ? ((ClickHouseStringValue) ref).set(null)
-                : new ClickHouseStringValue(null);
+        return ref instanceof ClickHouseStringValue ? ((ClickHouseStringValue) ref).set((String) null)
+                : new ClickHouseStringValue((String) null);
     }
 
     /**
@@ -47,6 +47,16 @@ public class ClickHouseStringValue implements ClickHouseValue {
      */
     public static ClickHouseStringValue of(String value) {
         return of(null, value);
+    }
+
+    /**
+     * Wrap the given value.
+     *
+     * @param bytes bytes
+     * @return object representing the value
+     */
+    public static ClickHouseStringValue of(byte[] bytes) {
+        return of(null, bytes);
     }
 
     /**
@@ -62,75 +72,103 @@ public class ClickHouseStringValue implements ClickHouseValue {
                 : new ClickHouseStringValue(value);
     }
 
+    /**
+     * Update value of the given object or create a new instance if {@code ref} is
+     * null.
+     *
+     * @param ref   object to update, could be null
+     * @param bytes bytes
+     * @return same object as {@code ref} or a new instance if it's null
+     */
+    public static ClickHouseStringValue of(ClickHouseValue ref, byte[] bytes) {
+        return ref instanceof ClickHouseStringValue ? ((ClickHouseStringValue) ref).set(bytes)
+                : new ClickHouseStringValue(bytes);
+    }
+
+    private boolean binary;
+    private byte[] bytes;
     private String value;
 
     protected ClickHouseStringValue(String value) {
         update(value);
     }
 
+    protected ClickHouseStringValue(byte[] bytes) {
+        update(bytes);
+    }
+
     protected ClickHouseStringValue set(String value) {
+        this.binary = false;
+        this.bytes = null;
         this.value = value;
         return this;
     }
 
-    /**
-     * Gets value.
-     *
-     * @return value
-     */
-    public String getValue() {
-        return value;
+    protected ClickHouseStringValue set(byte[] bytes) {
+        this.binary = true;
+        this.bytes = bytes;
+        this.value = null;
+        return this;
     }
 
     @Override
     public ClickHouseStringValue copy(boolean deep) {
-        return new ClickHouseStringValue(value);
+        if (bytes == null || !binary) {
+            return new ClickHouseStringValue(value);
+        }
+
+        byte[] b = bytes;
+        if (deep) {
+            b = new byte[bytes.length];
+            System.arraycopy(bytes, 0, b, 0, bytes.length);
+        }
+        return new ClickHouseStringValue(b);
     }
 
     @Override
     public boolean isNullOrEmpty() {
-        return value == null;
+        return bytes == null && value == null;
     }
 
     @Override
     public boolean asBoolean() {
         // what about Y/N, Yes/No, enabled/disabled?
-        return !isNullOrEmpty() && Boolean.parseBoolean(value);
+        return !isNullOrEmpty() && Boolean.parseBoolean(asString());
     }
 
     @Override
     public byte asByte() {
-        return isNullOrEmpty() ? (byte) 0 : Byte.parseByte(value);
+        return isNullOrEmpty() ? (byte) 0 : Byte.parseByte(asString());
     }
 
     @Override
     public short asShort() {
-        return isNullOrEmpty() ? (short) 0 : Short.parseShort(value);
+        return isNullOrEmpty() ? (short) 0 : Short.parseShort(asString());
     }
 
     @Override
     public int asInteger() {
-        return isNullOrEmpty() ? 0 : Integer.parseInt(value);
+        return isNullOrEmpty() ? 0 : Integer.parseInt(asString());
     }
 
     @Override
     public long asLong() {
-        return isNullOrEmpty() ? 0L : Long.parseLong(value);
+        return isNullOrEmpty() ? 0L : Long.parseLong(asString());
     }
 
     @Override
     public BigInteger asBigInteger() {
-        return isNullOrEmpty() ? null : new BigInteger(value);
+        return isNullOrEmpty() ? null : new BigInteger(asString());
     }
 
     @Override
     public float asFloat() {
-        return isNullOrEmpty() ? 0F : Float.parseFloat(value);
+        return isNullOrEmpty() ? 0F : Float.parseFloat(asString());
     }
 
     @Override
     public double asDouble() {
-        return isNullOrEmpty() ? 0D : Double.parseDouble(value);
+        return isNullOrEmpty() ? 0D : Double.parseDouble(asString());
     }
 
     @Override
@@ -140,49 +178,77 @@ public class ClickHouseStringValue implements ClickHouseValue {
 
     @Override
     public LocalDate asDate() {
-        return isNullOrEmpty() ? null : LocalDate.parse(value, ClickHouseValues.DATE_FORMATTER);
+        return isNullOrEmpty() ? null : LocalDate.parse(asString(), ClickHouseValues.DATE_FORMATTER);
     }
 
     @Override
     public LocalTime asTime() {
-        return isNullOrEmpty() ? null : LocalTime.parse(value, ClickHouseValues.TIME_FORMATTER);
+        return isNullOrEmpty() ? null : LocalTime.parse(asString(), ClickHouseValues.TIME_FORMATTER);
     }
 
     @Override
     public LocalDateTime asDateTime(int scale) {
-        return isNullOrEmpty() ? null : LocalDateTime.parse(value, ClickHouseValues.DATETIME_FORMATTER);
+        return isNullOrEmpty() ? null : LocalDateTime.parse(asString(), ClickHouseValues.DATETIME_FORMATTER);
     }
 
     @Override
     public <T extends Enum<T>> T asEnum(Class<T> enumType) {
-        return isNullOrEmpty() ? null : Enum.valueOf(enumType, value);
+        return isNullOrEmpty() ? null : Enum.valueOf(enumType, asString());
     }
 
     @Override
     public Inet4Address asInet4Address() {
-        return ClickHouseValues.convertToIpv4(getValue());
+        return ClickHouseValues.convertToIpv4(asString());
     }
 
     @Override
     public Inet6Address asInet6Address() {
-        return ClickHouseValues.convertToIpv6(getValue());
+        return ClickHouseValues.convertToIpv6(asString());
     }
 
     @Override
     public Object asObject() {
-        return value;
+        return asString(); // bytes != null ? bytes : value;
+    }
+
+    @Override
+    public byte[] asBinary() {
+        if (value != null && bytes == null) {
+            bytes = value.getBytes(StandardCharsets.UTF_8);
+        }
+
+        return bytes != null ? bytes : ClickHouseValues.EMPTY_BYTE_ARRAY;
+    }
+
+    @Override
+    public byte[] asBinary(int length, Charset charset) {
+        if (value != null && bytes == null) {
+            bytes = value.getBytes(charset == null ? StandardCharsets.UTF_8 : charset);
+        }
+
+        if (bytes != null && length > 0) {
+            return ClickHouseChecker.notWithDifferentLength(bytes, length);
+        } else {
+            return bytes != null ? bytes : ClickHouseValues.EMPTY_BYTE_ARRAY;
+        }
     }
 
     @Override
     public String asString() {
+        if (bytes != null && value == null) {
+            value = new String(bytes, StandardCharsets.UTF_8);
+        }
+
         return value;
     }
 
     @Override
     public String asString(int length, Charset charset) {
         if (value != null && length > 0) {
-            ClickHouseChecker.notWithDifferentLength(value.getBytes(charset == null ? StandardCharsets.UTF_8 : charset),
-                    length);
+            if (bytes == null) {
+                bytes = value.getBytes(charset == null ? StandardCharsets.UTF_8 : charset);
+            }
+            ClickHouseChecker.notWithDifferentLength(bytes, length);
         }
 
         return value;
@@ -190,17 +256,32 @@ public class ClickHouseStringValue implements ClickHouseValue {
 
     @Override
     public UUID asUuid() {
-        return isNullOrEmpty() ? null : UUID.fromString(value);
+        return isNullOrEmpty() ? null : UUID.fromString(asString());
     }
 
     @Override
     public ClickHouseStringValue resetToNullOrEmpty() {
-        return set(null);
+        return set((String) null);
     }
 
     @Override
     public String toSqlExpression() {
-        return ClickHouseValues.convertToQuotedString(value);
+        if (isNullOrEmpty()) {
+            return ClickHouseValues.NULL_EXPR;
+        }
+        // else if (binary) {
+        // int len = bytes.length;
+        // if (len == 0) {
+        // return ClickHouseValues.EMPTY_STRING_EXPR;
+        // }
+        // StringBuilder builder = new StringBuilder(len * 3 + 5).append("char(");
+        // for (byte b : bytes) {
+        // builder.append(b).append(',');
+        // }
+        // builder.setLength(builder.length() - 1);
+        // return builder.append(')').toString();
+        // }
+        return ClickHouseValues.convertToQuotedString(asString());
     }
 
     @Override
@@ -217,6 +298,11 @@ public class ClickHouseStringValue implements ClickHouseValue {
     @Override
     public ClickHouseStringValue update(byte value) {
         return set(String.valueOf(value));
+    }
+
+    @Override
+    public ClickHouseStringValue update(byte[] value) {
+        return set(value);
     }
 
     @Override
@@ -313,12 +399,12 @@ public class ClickHouseStringValue implements ClickHouseValue {
         }
 
         ClickHouseStringValue v = (ClickHouseStringValue) obj;
-        return value == v.value || (value != null && value.equals(v.value));
+        return Objects.equals(bytes, v.bytes) && Objects.equals(value, v.value);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(value);
+        return Objects.hash(bytes, value);
     }
 
     @Override
