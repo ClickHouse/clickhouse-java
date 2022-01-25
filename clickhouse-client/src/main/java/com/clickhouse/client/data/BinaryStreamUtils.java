@@ -1650,6 +1650,19 @@ public final class BinaryStreamUtils {
     }
 
     /**
+     * Writes a binary string to given output stream.
+     *
+     * @param output non-null output stream
+     * @param value  non-null byte array
+     * @throws IOException when failed to write value to output stream or reached
+     *                     end of the stream
+     */
+    public static void writeString(OutputStream output, byte[] value) throws IOException {
+        writeVarInt(output, value.length);
+        output.write(value);
+    }
+
+    /**
      * Read varint from given input stream.
      *
      * @param input non-null input stream

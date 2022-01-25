@@ -127,6 +127,21 @@ public class ClickHouseResultSetTest extends JdbcIntegrationTest {
     }
 
     @Test(groups = "integration")
+    public void testIpAddress() throws SQLException {
+        try (ClickHouseConnection conn = newConnection(new Properties());
+                Statement stmt = conn.createStatement()) {
+            ResultSet rs = stmt
+                    .executeQuery("select toIPv4('116.253.40.133'), toIPv6('2001:44c8:129:2632:33:0:252:2')");
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getString(1), "116.253.40.133");
+            Assert.assertEquals(rs.getObject(1).toString(), "/116.253.40.133");
+            Assert.assertEquals(rs.getString(2), "2001:44c8:129:2632:33:0:252:2");
+            Assert.assertEquals(rs.getObject(2).toString(), "/2001:44c8:129:2632:33:0:252:2");
+            Assert.assertFalse(rs.next());
+        }
+    }
+
+    @Test(groups = "integration")
     public void testTuple() throws SQLException {
         try (ClickHouseConnection conn = newConnection(new Properties());
                 Statement stmt = conn.createStatement()) {

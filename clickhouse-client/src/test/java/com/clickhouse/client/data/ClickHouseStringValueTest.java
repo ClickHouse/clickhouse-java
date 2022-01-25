@@ -24,15 +24,15 @@ public class ClickHouseStringValueTest extends BaseClickHouseValueTest {
         String value = null;
         ClickHouseStringValue v = ClickHouseStringValue.of(null, value);
         Assert.assertEquals(v.asString(), value);
-        Assert.assertEquals(v.getValue(), value);
+        Assert.assertEquals(v.asObject(), value);
 
         v = ClickHouseStringValue.of(null, value = "");
         Assert.assertEquals(v.asString(), value);
-        Assert.assertEquals(v.getValue(), value);
+        Assert.assertEquals(v.asObject(), value);
 
         v = ClickHouseStringValue.of(null, value = "123");
         Assert.assertEquals(v.asString(), value);
-        Assert.assertEquals(v.getValue(), value);
+        Assert.assertEquals(v.asObject(), value);
 
         // same instance but different value
         Assert.assertEquals(v, v.update("321"));
@@ -53,6 +53,27 @@ public class ClickHouseStringValueTest extends BaseClickHouseValueTest {
     public void testTypeConversion() {
         Assert.assertEquals(ClickHouseStringValue.of(null, "2021-03-04 15:06:27.123456789").asDateTime(),
                 LocalDateTime.of(2021, 3, 4, 15, 6, 27, 123456789));
+    }
+
+    @Test(groups = { "unit" })
+    public void testBinaryValue() {
+        Assert.assertEquals(ClickHouseStringValue.of((byte[]) null).asBinary(), null);
+        Assert.assertEquals(ClickHouseStringValue.of((String) null).asBinary(), null);
+        Assert.assertEquals(ClickHouseStringValue.of(new byte[0]).asBinary(), new byte[0]);
+        Assert.assertEquals(ClickHouseStringValue.of("").asBinary(), new byte[0]);
+        Assert.assertEquals(ClickHouseStringValue.of((byte[]) null).asBinary(0), null);
+        Assert.assertEquals(ClickHouseStringValue.of((String) null).asBinary(0), null);
+        Assert.assertEquals(ClickHouseStringValue.of(new byte[0]).asBinary(0), new byte[0]);
+        Assert.assertEquals(ClickHouseStringValue.of("").asBinary(0), new byte[0]);
+
+        Assert.assertThrows(IllegalArgumentException.class, () -> ClickHouseStringValue.of("").asBinary(1));
+
+        Assert.assertEquals(ClickHouseStringValue.of("a").asBinary(1), new byte[] { 97 });
+        Assert.assertEquals(ClickHouseStringValue.of("a").asBinary(0), new byte[] { 97 });
+        Assert.assertEquals(ClickHouseStringValue.of("a").asBinary(), new byte[] { 97 });
+
+        Assert.assertEquals(ClickHouseStringValue.of(new byte[0]).toSqlExpression(), "''");
+        Assert.assertEquals(ClickHouseStringValue.of(new byte[] { 97, 98, 99 }).toSqlExpression(), "unhex('616263')");
     }
 
     @Test(groups = { "unit" })

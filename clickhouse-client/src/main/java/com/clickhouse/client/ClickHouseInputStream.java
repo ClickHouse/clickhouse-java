@@ -298,7 +298,6 @@ public abstract class ClickHouseInputStream extends InputStream {
             ensureOpen();
 
             byte[] bytes = new byte[length];
-            int offset = 0;
             int counter = 0;
             while (counter < length) {
                 if (position >= limit && updateBuffer() < 0) {
@@ -314,9 +313,8 @@ public abstract class ClickHouseInputStream extends InputStream {
                 }
 
                 int size = Math.min(limit - position, length - counter);
-                System.arraycopy(buffer, position, bytes, offset, size);
+                System.arraycopy(buffer, position, bytes, counter, size);
                 position += size;
-                offset += size;
                 counter += size;
             }
 
