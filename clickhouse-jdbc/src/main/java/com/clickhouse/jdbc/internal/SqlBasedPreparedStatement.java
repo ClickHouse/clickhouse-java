@@ -1,7 +1,6 @@
 package com.clickhouse.jdbc.internal;
 
 import java.math.BigDecimal;
-import java.nio.charset.StandardCharsets;
 import java.sql.Array;
 import java.sql.Date;
 import java.sql.ParameterMetaData;
@@ -30,6 +29,7 @@ import com.clickhouse.client.ClickHouseValue;
 import com.clickhouse.client.ClickHouseValues;
 import com.clickhouse.client.data.ClickHouseDateTimeValue;
 import com.clickhouse.client.data.ClickHouseDateValue;
+import com.clickhouse.client.data.ClickHouseStringValue;
 import com.clickhouse.client.logging.Logger;
 import com.clickhouse.client.logging.LoggerFactory;
 import com.clickhouse.jdbc.ClickHousePreparedStatement;
@@ -337,12 +337,10 @@ public class SqlBasedPreparedStatement extends ClickHouseStatementImpl implement
 
         int idx = toArrayIndex(parameterIndex);
         ClickHouseValue value = templates[idx];
-        if (value != null) {
-            value.update(x);
-            values[idx] = value.toSqlExpression();
-        } else {
-            values[idx] = new String(x, StandardCharsets.UTF_8);
+        if (value == null) {
+            templates[idx] = value = ClickHouseStringValue.ofNull();
         }
+        values[idx] = value.update(x).toSqlExpression();
     }
 
     @Override
