@@ -9,6 +9,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.Arrays;
 import java.util.Objects;
 import java.util.UUID;
 import com.clickhouse.client.ClickHouseChecker;
@@ -217,7 +218,7 @@ public class ClickHouseStringValue implements ClickHouseValue {
             bytes = value.getBytes(StandardCharsets.UTF_8);
         }
 
-        return bytes != null ? bytes : ClickHouseValues.EMPTY_BYTE_ARRAY;
+        return bytes;
     }
 
     @Override
@@ -229,7 +230,7 @@ public class ClickHouseStringValue implements ClickHouseValue {
         if (bytes != null && length > 0) {
             return ClickHouseChecker.notWithDifferentLength(bytes, length);
         } else {
-            return bytes != null ? bytes : ClickHouseValues.EMPTY_BYTE_ARRAY;
+            return bytes;
         }
     }
 
@@ -381,6 +382,16 @@ public class ClickHouseStringValue implements ClickHouseValue {
     }
 
     @Override
+    public int hashCode() {
+        final int prime = 31;
+        int result = 1;
+        result = prime * result + (binary ? 1231 : 1237);
+        result = prime * result + Arrays.hashCode(bytes);
+        result = prime * result + ((value == null) ? 0 : value.hashCode());
+        return result;
+    }
+
+    @Override
     public boolean equals(Object obj) {
         if (this == obj) { // too bad this is a mutable class :<
             return true;
@@ -389,12 +400,7 @@ public class ClickHouseStringValue implements ClickHouseValue {
         }
 
         ClickHouseStringValue v = (ClickHouseStringValue) obj;
-        return Objects.equals(bytes, v.bytes) && Objects.equals(value, v.value);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(bytes, value);
+        return binary == v.binary && Objects.equals(bytes, v.bytes) && Objects.equals(value, v.value);
     }
 
     @Override

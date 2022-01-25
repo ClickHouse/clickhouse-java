@@ -541,7 +541,7 @@ public interface ClickHouseValue extends Serializable {
     /**
      * Gets binary value as byte array.
      *
-     * @return non-null byte array
+     * @return byte array which could be null
      */
     default byte[] asBinary() {
         return asBinary(0, null);
@@ -551,7 +551,7 @@ public interface ClickHouseValue extends Serializable {
      * Gets binary value as fixed length byte array.
      *
      * @param length byte length of value, 0 or negative number means no limit
-     * @return non-null byte array
+     * @return byte array which could be null
      */
     default byte[] asBinary(int length) {
         return asBinary(length, null);
@@ -561,7 +561,7 @@ public interface ClickHouseValue extends Serializable {
      * Gets binary value as byte array.
      *
      * @param charset charset, null is same as default(UTF-8)
-     * @return non-null byte array
+     * @return byte array which could be null
      */
     default byte[] asBinary(Charset charset) {
         return asBinary(0, charset);
@@ -572,11 +572,11 @@ public interface ClickHouseValue extends Serializable {
      *
      * @param length  byte length of value, 0 or negative number means no limit
      * @param charset charset, null is same as default(UTF-8)
-     * @return non-null byte array
+     * @return byte array which could be null
      */
     default byte[] asBinary(int length, Charset charset) {
         if (isNullOrEmpty()) {
-            return ClickHouseValues.EMPTY_BYTE_ARRAY;
+            return null;
         }
 
         byte[] bytes = asString().getBytes(charset == null ? StandardCharsets.UTF_8 : charset);

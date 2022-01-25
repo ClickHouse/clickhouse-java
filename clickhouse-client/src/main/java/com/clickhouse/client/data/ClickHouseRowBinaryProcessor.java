@@ -335,11 +335,7 @@ public class ClickHouseRowBinaryProcessor extends ClickHouseDataProcessor {
                     (v, f, c, o) -> o.write(v.asBinary(c.getPrecision())), ClickHouseDataType.FixedString);
             buildMappings(deserializers, serializers,
                     (r, f, c, i) -> ClickHouseStringValue.of(r, i.readBytes(i.readVarInt())),
-                    (v, f, c, o) -> {
-                        byte[] bytes = v.asBinary();
-                        BinaryStreamUtils.writeVarInt(o, bytes.length);
-                        o.write(bytes);
-                    }, ClickHouseDataType.String);
+                    (v, f, c, o) -> BinaryStreamUtils.writeString(o, v.asBinary()), ClickHouseDataType.String);
             buildMappings(deserializers, serializers,
                     (r, f, c, i) -> ClickHouseUuidValue.of(r, BinaryStreamUtils.readUuid(i)),
                     (v, f, c, o) -> BinaryStreamUtils.writeUuid(o, v.asUuid()), ClickHouseDataType.UUID);

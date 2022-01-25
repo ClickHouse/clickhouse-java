@@ -37,6 +37,13 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
     @Test(groups = "integration")
     public void testReadWriteBinaryString() throws SQLException {
         Properties props = new Properties();
+        try (ClickHouseConnection conn = newConnection(props);
+                Statement s = conn.createStatement()) {
+            s.execute("drop table if exists test_binary_string; "
+                    + "create table test_binary_string(id Int32, "
+                    + "f0 FixedString(3), f1 Nullable(FixedString(3)), s0 String, s1 Nullable(String))engine=Memory");
+        }
+
         byte[] bytes = new byte[256];
         for (int i = 0; i < 256; i++) {
             bytes[i] = (byte) i;
@@ -50,6 +57,55 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
             Assert.assertEquals(rs.getBytes(1), bytes);
             Assert.assertEquals(rs.getInt(2), bytes.length);
             Assert.assertFalse(rs.next());
+        }
+
+        bytes = new byte[] { 0x61, 0x62, 0x63 };
+        try (ClickHouseConnection conn = newConnection(props);
+                PreparedStatement ps = conn.prepareStatement("insert into test_binary_string")) {
+            ps.setInt(1, 1);
+            ps.setBytes(2, bytes);
+            ps.setBytes(3, null);
+            ps.setBytes(4, bytes);
+            ps.setBytes(5, null);
+            ps.addBatch();
+            ps.setInt(1, 2);
+            ps.setString(2, "abc");
+            ps.setString(3, null);
+            ps.setString(4, "abc");
+            ps.setString(5, null);
+            ps.addBatch();
+            ps.setInt(1, 3);
+            ps.setBytes(2, bytes);
+            ps.setBytes(3, bytes);
+            ps.setBytes(4, bytes);
+            ps.setBytes(5, bytes);
+            ps.addBatch();
+            ps.setInt(1, 4);
+            ps.setString(2, "abc");
+            ps.setString(3, "abc");
+            ps.setString(4, "abc");
+            ps.setString(5, "abc");
+            ps.addBatch();
+            ps.executeBatch();
+        }
+
+        try (ClickHouseConnection conn = newConnection(props);
+                PreparedStatement ps = conn
+                        .prepareStatement(
+                                "select distinct * except(id) from test_binary_string where f0 = ? order by id")) {
+            ps.setBytes(1, bytes);
+            ResultSet rs = ps.executeQuery();
+            Assert.assertTrue(rs.next(), "Should have at least one row");
+            Assert.assertEquals(rs.getBytes(1), bytes);
+            Assert.assertNull(rs.getBytes(2), "f1 should be null");
+            Assert.assertEquals(rs.getBytes(3), bytes);
+            Assert.assertNull(rs.getBytes(4), "s1 should be null");
+            Assert.assertTrue(rs.next(), "Should have at least two rows");
+            for (int i = 1; i <= 4; i++) {
+                Assert.assertEquals(rs.getBytes(i), bytes);
+                Assert.assertEquals(rs.getString(i), "abc");
+            }
+            Assert.assertFalse(rs.next(), "Should not have more than two rows");
         }
     }
 

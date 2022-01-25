@@ -57,12 +57,12 @@ public class ClickHouseStringValueTest extends BaseClickHouseValueTest {
 
     @Test(groups = { "unit" })
     public void testBinaryValue() {
-        Assert.assertEquals(ClickHouseStringValue.of((byte[]) null).asBinary(), new byte[0]);
-        Assert.assertEquals(ClickHouseStringValue.of((String) null).asBinary(), new byte[0]);
+        Assert.assertEquals(ClickHouseStringValue.of((byte[]) null).asBinary(), null);
+        Assert.assertEquals(ClickHouseStringValue.of((String) null).asBinary(), null);
         Assert.assertEquals(ClickHouseStringValue.of(new byte[0]).asBinary(), new byte[0]);
         Assert.assertEquals(ClickHouseStringValue.of("").asBinary(), new byte[0]);
-        Assert.assertEquals(ClickHouseStringValue.of((byte[]) null).asBinary(0), new byte[0]);
-        Assert.assertEquals(ClickHouseStringValue.of((String) null).asBinary(0), new byte[0]);
+        Assert.assertEquals(ClickHouseStringValue.of((byte[]) null).asBinary(0), null);
+        Assert.assertEquals(ClickHouseStringValue.of((String) null).asBinary(0), null);
         Assert.assertEquals(ClickHouseStringValue.of(new byte[0]).asBinary(0), new byte[0]);
         Assert.assertEquals(ClickHouseStringValue.of("").asBinary(0), new byte[0]);
 
