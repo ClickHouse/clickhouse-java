@@ -285,7 +285,8 @@ public class ClickHouseLongValueTest extends BaseClickHouseValueTest {
                 LocalDate.ofEpochDay(-1L), // Date
                 LocalDateTime.ofEpochSecond(-1L, 0, ZoneOffset.UTC), // DateTime
                 LocalDateTime.ofEpochSecond(new BigDecimal(bigInt, 9).longValue(),
-                        new BigDecimal(bigInt, 9).remainder(BigDecimal.ONE).multiply(ClickHouseValues.NANOS).intValue(),
+                        new BigDecimal(bigInt, 9).remainder(BigDecimal.ONE)
+                                .multiply(ClickHouseValues.NANOS).intValue(),
                         ZoneOffset.UTC), // DateTime(9)
                 Inet4Address.getAllByName("255.255.255.255")[0], // Inet4Address
                 Inet6Address.getAllByName("0:0:0:0:ffff:ffff:ffff:ffff")[0], // Inet6Address
@@ -301,5 +302,24 @@ public class ClickHouseLongValueTest extends BaseClickHouseValueTest {
                 buildMap(new Object[] { 1 }, new Long[] { -1L }), // typed Map
                 Arrays.asList(Long.valueOf(-1L)) // Tuple
         );
+
+        // try again using values greater than Long.MAX_VALUE - see issue #828
+        v = ClickHouseLongValue.of(-8223372036854776516L, true);
+        Assert.assertEquals(v.asLong(), -8223372036854776516L);
+        Assert.assertEquals(v.asBigInteger(), new BigInteger("10223372036854775100"));
+        Assert.assertEquals(v.asBigDecimal(), new BigDecimal("10223372036854775100"));
+        Assert.assertEquals(v.asString(), "10223372036854775100");
+
+        v.update(v.asLong() - 1L);
+        Assert.assertEquals(v.asLong(), -8223372036854776517L);
+        Assert.assertEquals(v.asBigInteger(), new BigInteger("10223372036854775099"));
+        Assert.assertEquals(v.asBigDecimal(), new BigDecimal("10223372036854775099"));
+        Assert.assertEquals(v.asString(), "10223372036854775099");
+
+        v.update("10223372036854775101");
+        Assert.assertEquals(v.asLong(), -8223372036854776515L);
+        Assert.assertEquals(v.asBigInteger(), new BigInteger("10223372036854775101"));
+        Assert.assertEquals(v.asBigDecimal(), new BigDecimal("10223372036854775101"));
+        Assert.assertEquals(v.asString(), "10223372036854775101");
     }
 }
