@@ -30,6 +30,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
@@ -1061,6 +1062,91 @@ public final class ClickHouseUtils {
             } else {
                 throw new IllegalArgumentException("Invalid enum declaration");
             }
+        }
+
+        return len;
+    }
+
+    public static List<String> readValueArray(String args, int startIndex, int len) {
+        List<String> list = new LinkedList<>();
+        readValueArray(args, startIndex, len, list::add);
+        return list.isEmpty() ? Collections.emptyList() : Collections.unmodifiableList(list);
+    }
+
+    public static int readValueArray(String args, int startIndex, int len, Consumer<String> func) {
+        char closeBracket = ']';
+        StringBuilder builder = new StringBuilder();
+        for (int i = startIndex; i < len; i++) {
+            char ch = args.charAt(i);
+            if (ch == '[') {
+                startIndex = i + 1;
+                break;
+            } else if (Character.isWhitespace(ch)) {
+                continue;
+            } else if (i + 1 < len) {
+                char nextCh = args.charAt(i + 1);
+                if (ch == '-' && nextCh == '-') {
+                    i = skipSingleLineComment(args, i + 2, len) - 1;
+                } else if (ch == '/' && nextCh == '*') {
+                    i = skipMultiLineComment(args, i + 2, len) - 1;
+                } else {
+                    startIndex = i;
+                    break;
+                }
+            } else {
+                startIndex = i;
+                break;
+            }
+        }
+
+        boolean hasNext = false;
+        for (int i = startIndex; i < len; i++) {
+            char ch = args.charAt(i);
+            if (Character.isWhitespace(ch)) {
+                continue;
+            } else if (ch == '\'') { // string
+                hasNext = false;
+                int endIndex = readNameOrQuotedString(args, i, len, builder);
+                func.accept(unescape(args.substring(i, endIndex)));
+                builder.setLength(0);
+                i = endIndex + 1;
+            } else if (ch == '[') { // array
+                hasNext = false;
+                int endIndex = skipContentsUntil(args, i + 1, len, ']');
+                func.accept(args.substring(i, endIndex));
+                builder.setLength(0);
+                i = endIndex;
+            } else if (ch == '(') { // tuple
+                hasNext = false;
+                int endIndex = skipContentsUntil(args, i + 1, len, ')');
+                func.accept(args.substring(i, endIndex));
+                builder.setLength(0);
+                i = endIndex;
+            } else if (ch == closeBracket) {
+                len = i + 1;
+                break;
+            } else if (ch == ',') {
+                hasNext = true;
+                String str = builder.toString();
+                func.accept(str.isEmpty() || ClickHouseValues.NULL_EXPR.equalsIgnoreCase(str) ? null : str);
+                builder.setLength(0);
+            } else if (i + 1 < len) {
+                char nextCh = args.charAt(i + 1);
+                if (ch == '-' && nextCh == '-') {
+                    i = skipSingleLineComment(args, i + 2, len) - 1;
+                } else if (ch == '/' && nextCh == '*') {
+                    i = skipMultiLineComment(args, i + 2, len) - 1;
+                } else {
+                    builder.append(ch);
+                }
+            } else {
+                builder.append(ch);
+            }
+        }
+
+        if (hasNext || builder.length() > 0) {
+            String str = builder.toString();
+            func.accept(str.isEmpty() || ClickHouseValues.NULL_EXPR.equalsIgnoreCase(str) ? null : str);
         }
 
         return len;

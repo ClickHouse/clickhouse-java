@@ -5,6 +5,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.Reader;
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.List;
 
@@ -185,7 +186,8 @@ public class JsonStreamUtilsTest {
                 + "\"extremes\":{\"min\":[123],\"max\":[123]},\"rows\":1,\"rows_before_limit_at_least\":1,"
                 + "\"statistics\":{\"elapsed\":0.0008974,\"rows_read\":1,\"bytes_read\":1}}";
 
-        r = JsonStreamUtils.readObject(new ByteArrayInputStream(json.getBytes()), JsonCompactResponse.class);
+        r = JsonStreamUtils.readObject(new ByteArrayInputStream(json.getBytes(StandardCharsets.US_ASCII)),
+                JsonCompactResponse.class);
         Assert.assertNotNull(r);
         Assert.assertEquals(r.getMeta().size(), 1);
         Assert.assertEquals(r.getMeta().get(0).toString(), "Meta{name='123\', type='UInt8\'}");

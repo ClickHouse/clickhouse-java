@@ -21,6 +21,7 @@ public class JdbcConfig {
     private static final Logger log = LoggerFactory.getLogger(JdbcConfig.class);
 
     public static final String PROP_AUTO_COMMIT = "autoCommit";
+    public static final String PROP_CREATE_DATABASE = "createDatabaseIfNotExist";
     public static final String PROP_CONTINUE_BATCH = "continueBatchOnError";
     public static final String PROP_FETCH_SIZE = "fetchSize";
     public static final String PROP_JDBC_COMPLIANT = "jdbcCompliant";
@@ -32,6 +33,7 @@ public class JdbcConfig {
     private static final String BOOLEAN_TRUE = "true";
 
     private static final String DEFAULT_AUTO_COMMIT = BOOLEAN_TRUE;
+    private static final String DEFAULT_CREATE_DATABASE = BOOLEAN_FALSE;
     private static final String DEFAULT_CONTINUE_BATCH = BOOLEAN_FALSE;
     private static final String DEFAULT_FETCH_SIZE = "0";
     private static final String DEFAULT_JDBC_COMPLIANT = BOOLEAN_TRUE;
@@ -94,6 +96,11 @@ public class JdbcConfig {
         info.description = "Whether to enable auto commit when connection is created.";
         list.add(info);
 
+        info = new DriverPropertyInfo(PROP_CREATE_DATABASE, DEFAULT_CREATE_DATABASE);
+        info.choices = new String[] { BOOLEAN_TRUE, BOOLEAN_FALSE };
+        info.description = "Whether to automatically create database when it does not exist.";
+        list.add(info);
+
         info = new DriverPropertyInfo(PROP_CONTINUE_BATCH, DEFAULT_CONTINUE_BATCH);
         info.choices = new String[] { BOOLEAN_TRUE, BOOLEAN_FALSE };
         info.description = "Whether to continue batch process when error occurred.";
@@ -126,6 +133,7 @@ public class JdbcConfig {
     }
 
     private final boolean autoCommit;
+    private final boolean createDb;
     private final boolean continueBatch;
     private final int fetchSize;
     private final boolean jdbcCompliant;
@@ -143,6 +151,7 @@ public class JdbcConfig {
         }
 
         this.autoCommit = extractBooleanValue(props, PROP_AUTO_COMMIT, DEFAULT_AUTO_COMMIT);
+        this.createDb = extractBooleanValue(props, PROP_CREATE_DATABASE, DEFAULT_CREATE_DATABASE);
         this.continueBatch = extractBooleanValue(props, PROP_CONTINUE_BATCH, DEFAULT_CONTINUE_BATCH);
         this.fetchSize = extractIntValue(props, PROP_FETCH_SIZE, DEFAULT_FETCH_SIZE);
         this.jdbcCompliant = extractBooleanValue(props, PROP_JDBC_COMPLIANT, DEFAULT_JDBC_COMPLIANT);
@@ -159,6 +168,16 @@ public class JdbcConfig {
      */
     public boolean isAutoCommit() {
         return autoCommit;
+    }
+
+    /**
+     * Checks whether database should be created automatically when it does not
+     * exist.
+     *
+     * @return true if database should be created automatically; false otherwise
+     */
+    public boolean isCreateDbIfNotExist() {
+        return createDb;
     }
 
     /**

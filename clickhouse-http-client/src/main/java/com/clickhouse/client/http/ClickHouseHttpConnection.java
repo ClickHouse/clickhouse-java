@@ -186,7 +186,11 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
                 map.put("X-ClickHouse-Key", credentials.getPassword());
             }
         }
-        map.put("X-ClickHouse-Database", server.getDatabase(config));
+
+        String database = server.getDatabase(config);
+        if (!ClickHouseChecker.isNullOrEmpty(database)) {
+            map.put("X-ClickHouse-Database", database);
+        }
         // Also, you can use the ‘default_format’ URL parameter
         map.put("X-ClickHouse-Format", config.getFormat().name());
         if (config.isCompressServerResponse()) {

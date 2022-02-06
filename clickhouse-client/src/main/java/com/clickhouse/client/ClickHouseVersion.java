@@ -80,6 +80,19 @@ public final class ClickHouseVersion implements Comparable<ClickHouseVersion>, S
     }
 
     /**
+     * Creates a new version object using given numbers.
+     *
+     * @param yearOrMajor year or major vrsion
+     * @param more        more version numbers if any
+     * @return version
+     */
+    public static ClickHouseVersion of(int yearOrMajor, int... more) {
+        int len = more != null ? more.length : 0;
+        return new ClickHouseVersion(false, yearOrMajor, len > 0 ? more[0] : 0, len > 1 ? more[1] : 0,
+                len > 2 ? more[2] : 0);
+    }
+
+    /**
      * Parses given version without caching.
      * 
      * @param version version, null or empty string is treated as {@code 0.0.0.0}
@@ -460,7 +473,7 @@ public final class ClickHouseVersion implements Comparable<ClickHouseVersion>, S
                     break;
                 }
 
-                result = nextCh == ')' ? isOlderThan(v2) : isOlderOrEqualTo(v2);
+                result = nextCh == ')' ? (latest || isOlderThan(v2)) : isOlderOrEqualTo(v2);
                 if (!result) {
                     break;
                 }

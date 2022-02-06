@@ -20,6 +20,7 @@ import java.sql.SQLXML;
 import java.sql.Savepoint;
 import java.sql.Statement;
 import java.sql.Struct;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Properties;
 import java.util.TimeZone;
@@ -36,6 +37,7 @@ import ru.yandex.clickhouse.domain.ClickHouseDataType;
 import ru.yandex.clickhouse.except.ClickHouseUnknownException;
 import ru.yandex.clickhouse.settings.ClickHouseConnectionSettings;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
+import ru.yandex.clickhouse.settings.ClickHouseQueryParam;
 import ru.yandex.clickhouse.util.ClickHouseHttpClientBuilder;
 import ru.yandex.clickhouse.util.LogProxy;
 import ru.yandex.clickhouse.util.Utils;
@@ -92,7 +94,9 @@ public class ClickHouseConnectionImpl implements ClickHouseConnection {
         timezone = serverTimeZone;
         serverVersion = "";
         
-        try (Statement s = createStatement(); ResultSet rs = s.executeQuery("select timezone(), version()")) {
+        try (ClickHouseStatement s = createStatement();
+            ResultSet rs = s.executeQuery("select timezone(), version()",
+                Collections.singletonMap(ClickHouseQueryParam.DATABASE, ""))) {
             if (rs.next()) {
                 serverTimeZone = TimeZone.getTimeZone(rs.getString(1));
                 serverVersion = rs.getString(2);

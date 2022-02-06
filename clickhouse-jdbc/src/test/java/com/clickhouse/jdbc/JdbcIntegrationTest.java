@@ -15,6 +15,9 @@ public abstract class JdbcIntegrationTest extends BaseIntegrationTest {
     private static final String CLASS_PREFIX = "ClickHouse";
     private static final String CLASS_SUFFIX = "Test";
 
+    protected static final ClickHouseProtocol DEFAULT_PROTOCOL = ClickHouseProtocol
+            .valueOf(System.getProperty("protocol", "http").toUpperCase());
+
     protected final String dbName;
 
     protected String buildJdbcUrl(ClickHouseProtocol protocol, String prefix, String url) {
@@ -22,9 +25,13 @@ public abstract class JdbcIntegrationTest extends BaseIntegrationTest {
             return url;
         }
 
+        if (protocol == null) {
+            protocol = DEFAULT_PROTOCOL;
+        }
+
         StringBuilder builder = new StringBuilder();
         if (prefix == null || prefix.isEmpty()) {
-            builder.append("jdbc:clickhouse://");
+            builder.append("jdbc:clickhouse:").append(protocol.name().toLowerCase()).append("://");
         } else if (!prefix.startsWith("jdbc:")) {
             builder.append("jdbc:").append(prefix);
         } else {
@@ -87,7 +94,7 @@ public abstract class JdbcIntegrationTest extends BaseIntegrationTest {
     }
 
     public ClickHouseDataSource newDataSource(String url, Properties properties) throws SQLException {
-        return new ClickHouseDataSource(buildJdbcUrl(ClickHouseProtocol.HTTP, null, url), properties);
+        return new ClickHouseDataSource(buildJdbcUrl(DEFAULT_PROTOCOL, null, url), properties);
     }
 
     public ClickHouseConnection newConnection() throws SQLException {

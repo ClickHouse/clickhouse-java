@@ -169,7 +169,7 @@ public class ClickhouseLZ4InputStreamTest {
         try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
                 ClickHouseLZ4OutputStream outputStream = new ClickHouseLZ4OutputStream(baos, 1024 * 1024)) {
             for (int i = 0; i < 100000; i++) {
-                outputStream.write(("test" + i).getBytes());
+                outputStream.write(("test" + i).getBytes(StandardCharsets.US_ASCII));
                 sb.append("test").append(i);
             }
             outputStream.flush();
