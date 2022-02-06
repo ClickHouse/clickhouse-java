@@ -1,10 +1,5 @@
 package com.clickhouse.client.http;
 
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.net.HttpURLConnection;
-import java.net.URL;
-
 import com.clickhouse.client.BaseIntegrationTest;
 import com.clickhouse.client.ClickHouseClient;
 import com.clickhouse.client.ClickHouseNode;

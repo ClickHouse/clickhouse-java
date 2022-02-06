@@ -34,7 +34,7 @@ jobs:
         serverTz: ["Asia/Chongqing", "America/Los_Angeles", "Etc/UTC", "Europe/Berlin", "Europe/Moscow"]
         clientTz: ["Asia/Chongqing", "America/Los_Angeles", "Etc/UTC", "Europe/Berlin", "Europe/Moscow"]
       fail-fast: false
-    name: "Test TimeZones - Server: ${{ matrix.serverTz }}, Client: ${{ matrix.clientTz }}"
+    name: "TimeZone(C/S): ${{ matrix.clientTz }} vs. ${{ matrix.serverTz }}"
     steps:
       - name: Check out Git repository
         uses: actions/checkout@v2

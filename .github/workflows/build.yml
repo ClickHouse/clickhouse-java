@@ -36,7 +36,7 @@ jobs:
         clickhouse: ["21.3", "21.8", "latest"]
         protocol: ["http", "grpc"]
       fail-fast: false
-    name: Build against ClickHouse ${{ matrix.clickhouse }}
+    name: Build against ClickHouse ${{ matrix.clickhouse }} (${{ matrix.protocol }})
     steps:
       - name: Check out Git repository
         uses: actions/checkout@v2

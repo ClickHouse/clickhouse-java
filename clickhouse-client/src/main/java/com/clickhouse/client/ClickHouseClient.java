@@ -76,6 +76,8 @@ public interface ClickHouseClient extends AutoCloseable {
             return (boolean) ClickHouseDefaults.ASYNC.getEffectiveDefaultValue() ? CompletableFuture.supplyAsync(() -> {
                 try {
                     return task.call();
+                } catch (ClickHouseException e) {
+                    throw new CompletionException(e);
                 } catch (CompletionException e) {
                     throw e;
                 } catch (Exception e) {
@@ -88,6 +90,8 @@ public interface ClickHouseClient extends AutoCloseable {
                     throw new CompletionException(cause);
                 }
             }, getExecutorService()) : CompletableFuture.completedFuture(task.call());
+        } catch (ClickHouseException e) {
+            throw new CompletionException(e);
         } catch (CompletionException e) {
             throw e;
         } catch (Exception e) {
