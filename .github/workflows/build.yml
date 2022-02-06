@@ -34,6 +34,7 @@ jobs:
       matrix:
         # most recent LTS releases as well as latest stable builds
         clickhouse: ["21.3", "21.8", "latest"]
+        protocol: ["http", "grpc"]
       fail-fast: false
     name: Build against ClickHouse ${{ matrix.clickhouse }}
     steps:
@@ -82,4 +83,4 @@ jobs:
             ${{ runner.os }}-build-
       - name: Build
         run: |
-          mvn --batch-mode --update-snapshots -Drelease -DclickhouseVersion=${{ matrix.clickhouse }} verify
+          mvn --batch-mode --update-snapshots -Drelease -DclickhouseVersion=${{ matrix.clickhouse }} -Dprotocol=${{ matrix.protocol }} verify
