@@ -72,7 +72,7 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
         try (ClickHouseResponse response = newReq.option(ClickHouseClientOption.ASYNC, false)
                 .option(ClickHouseClientOption.COMPRESS, false).option(ClickHouseClientOption.DECOMPRESS, false)
                 .option(ClickHouseClientOption.FORMAT, ClickHouseFormat.RowBinaryWithNamesAndTypes)
-                .query("select currentUser(), timezone(), version()")
+                .query("select currentUser(), timezone(), version() FORMAT RowBinaryWithNamesAndTypes")
                 .execute().get()) {
             return response.firstRecord();
         } catch (InterruptedException | CancellationException e) {
