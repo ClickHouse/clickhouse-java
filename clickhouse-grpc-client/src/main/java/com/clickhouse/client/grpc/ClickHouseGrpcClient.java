@@ -59,7 +59,8 @@ public class ClickHouseGrpcClient extends AbstractClient<ManagedChannel> {
             case GZIP:
                 break;
             default:
-                log.warn("Unsupported algorithm [%s], change to [%s]", config.getDecompressAlgorithmForClientRequest(),
+                log.debug("Unsupported encoding [%s], change to [%s]",
+                        config.getDecompressAlgorithmForClientRequest().encoding(),
                         encoding);
                 break;
         }
@@ -86,7 +87,7 @@ public class ClickHouseGrpcClient extends AbstractClient<ManagedChannel> {
                 break;
             // case STREAM_GZIP:
             default:
-                log.warn("Unsupported algorithm [%s], change to [%s]", config.getDecompressAlgorithmForClientRequest(),
+                log.debug("Unsupported algorithm [%s], change to [%s]", config.getDecompressAlgorithmForClientRequest(),
                         algorithm);
                 break;
         }
@@ -110,7 +111,11 @@ public class ClickHouseGrpcClient extends AbstractClient<ManagedChannel> {
         ClickHouseCredentials credentials = server.getCredentials(config);
 
         Builder builder = QueryInfo.newBuilder();
-        builder.setDatabase(server.getDatabase(config)).setUserName(credentials.getUserName())
+        String database = server.getDatabase(config);
+        if (!ClickHouseChecker.isNullOrEmpty(database)) {
+            builder.setDatabase(server.getDatabase(config));
+        }
+        builder.setUserName(credentials.getUserName())
                 .setPassword(credentials.getPassword()).setOutputFormat(request.getFormat().name());
 
         Optional<String> optionalValue = request.getSessionId();

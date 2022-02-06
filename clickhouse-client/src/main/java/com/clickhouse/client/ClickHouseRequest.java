@@ -1213,7 +1213,7 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
         checkSealed();
 
         Object oldValue = options.put(ClickHouseClientOption.DATABASE,
-                ClickHouseChecker.nonBlank(database, "database"));
+                ClickHouseChecker.nonNull(database, "database"));
         if (oldValue == null || !oldValue.equals(database)) {
             resetCache();
         }

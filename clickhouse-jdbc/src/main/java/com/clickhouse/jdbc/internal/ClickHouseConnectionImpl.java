@@ -61,6 +61,48 @@ import com.clickhouse.jdbc.parser.StatementType;
 public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseConnection {
     private static final Logger log = LoggerFactory.getLogger(ClickHouseConnectionImpl.class);
 
+    private static final String CREATE_DB = "create database if not exists `";
+
+    protected static ClickHouseRecord getServerInfo(ClickHouseNode node, ClickHouseRequest<?> request,
+            boolean createDbIfNotExist) throws SQLException {
+        ClickHouseRequest<?> newReq = request.copy();
+        if (!createDbIfNotExist) { // in case the database does not exist
+            newReq.option(ClickHouseClientOption.DATABASE, "");
+        }
+        try (ClickHouseResponse response = newReq.option(ClickHouseClientOption.ASYNC, false)
+                .option(ClickHouseClientOption.COMPRESS, false).option(ClickHouseClientOption.DECOMPRESS, false)
+                .option(ClickHouseClientOption.FORMAT, ClickHouseFormat.RowBinaryWithNamesAndTypes)
+                .query("select currentUser(), timezone(), version()")
+                .execute().get()) {
+            return response.firstRecord();
+        } catch (InterruptedException | CancellationException e) {
+            // not going to happen as it's synchronous call
+            Thread.currentThread().interrupt();
+            throw SqlExceptionUtils.forCancellation(e);
+        } catch (Exception e) {
+            SQLException sqlExp = SqlExceptionUtils.handle(e);
+            if (createDbIfNotExist && sqlExp.getErrorCode() == 81) {
+                String db = node.getDatabase(request.getConfig());
+                try (ClickHouseResponse resp = newReq.use("")
+                        .query(new StringBuilder(CREATE_DB.length() + 1 + db.length()).append(CREATE_DB).append(db)
+                                .append('`').toString())
+                        .execute().get()) {
+                    return getServerInfo(node, request, false);
+                } catch (InterruptedException | CancellationException ex) {
+                    // not going to happen as it's synchronous call
+                    Thread.currentThread().interrupt();
+                    throw SqlExceptionUtils.forCancellation(ex);
+                } catch (SQLException ex) {
+                    throw ex;
+                } catch (Exception ex) {
+                    throw SqlExceptionUtils.handle(ex);
+                }
+            } else {
+                throw sqlExp;
+            }
+        }
+    }
+
     private final JdbcConfig jdbcConf;
 
     private final ClickHouseClient client;
@@ -185,51 +227,40 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
                 .nodeSelector(ClickHouseNodeSelector.of(node.getProtocol())).build();
         clientRequest = client.connect(node);
         ClickHouseConfig config = clientRequest.getConfig();
-        String currentDb = null;
         String currentUser = null;
         TimeZone timeZone = null;
         ClickHouseVersion version = null;
         if (config.hasServerInfo()) { // when both serverTimeZone and serverVersion are configured
             timeZone = config.getServerTimeZone();
             version = config.getServerVersion();
-        } else {
-            try (ClickHouseResponse response = clientRequest.copy().option(ClickHouseClientOption.ASYNC, false)
-                    .option(ClickHouseClientOption.COMPRESS, false).option(ClickHouseClientOption.DECOMPRESS, false)
-                    .option(ClickHouseClientOption.FORMAT, ClickHouseFormat.RowBinaryWithNamesAndTypes)
-                    .query("select currentDatabase(), currentUser(), timezone(), version() FORMAT RowBinaryWithNamesAndTypes")
-                    .execute().get()) {
-                ClickHouseRecord r = response.firstRecord();
-                currentDb = r.getValue(0).asString();
-                currentUser = r.getValue(1).asString();
-                String tz = r.getValue(2).asString();
-                String ver = r.getValue(3).asString();
-                version = ClickHouseVersion.of(ver);
-                // https://github.com/ClickHouse/ClickHouse/commit/486d63864bcc6e15695cd3e9f9a3f83a84ec4009
-                if (version.check("(,20.7)")) {
-                    throw SqlExceptionUtils
-                            .unsupportedError("Sorry this driver only supports ClickHouse server 20.7 or above");
-                }
-                if (ClickHouseChecker.isNullOrBlank(tz)) {
-                    tz = "UTC";
-                }
-                // tsTimeZone.hasSameRules(ClickHouseValues.UTC_TIMEZONE)
-                timeZone = "UTC".equals(tz) ? ClickHouseValues.UTC_TIMEZONE : TimeZone.getTimeZone(tz);
-
-                // update request and corresponding config
-                clientRequest.option(ClickHouseClientOption.SERVER_TIME_ZONE, tz)
-                        .option(ClickHouseClientOption.SERVER_VERSION, ver);
-            } catch (InterruptedException | CancellationException e) {
-                // not going to happen as it's synchronous call
-                Thread.currentThread().interrupt();
-                throw SqlExceptionUtils.forCancellation(e);
-            } catch (Exception e) {
-                throw SqlExceptionUtils.handle(e);
+            if (jdbcConf.isCreateDbIfNotExist()) {
+                getServerInfo(node, clientRequest, true);
             }
+        } else {
+            ClickHouseRecord r = getServerInfo(node, clientRequest, jdbcConf.isCreateDbIfNotExist());
+            currentUser = r.getValue(0).asString();
+            String tz = r.getValue(1).asString();
+            String ver = r.getValue(2).asString();
+            version = ClickHouseVersion.of(ver);
+            // https://github.com/ClickHouse/ClickHouse/commit/486d63864bcc6e15695cd3e9f9a3f83a84ec4009
+            if (version.check("(,20.7)")) {
+                throw SqlExceptionUtils
+                        .unsupportedError("Sorry this driver only supports ClickHouse server 20.7 or above");
+            }
+            if (ClickHouseChecker.isNullOrBlank(tz)) {
+                tz = "UTC";
+            }
+            // tsTimeZone.hasSameRules(ClickHouseValues.UTC_TIMEZONE)
+            timeZone = "UTC".equals(tz) ? ClickHouseValues.UTC_TIMEZONE : TimeZone.getTimeZone(tz);
+
+            // update request and corresponding config
+            clientRequest.option(ClickHouseClientOption.SERVER_TIME_ZONE, tz)
+                    .option(ClickHouseClientOption.SERVER_VERSION, ver);
         }
 
         this.autoCommit = true;
         this.closed = false;
-        this.database = currentDb != null ? currentDb : config.getDatabase();
+        this.database = config.getDatabase();
         this.clientRequest.use(this.database);
         this.readOnly = false;
         this.networkTimeout = 0;
