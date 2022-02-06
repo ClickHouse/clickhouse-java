@@ -35,6 +35,11 @@ jobs:
         # most recent LTS releases as well as latest stable builds
         clickhouse: ["21.3", "21.8", "latest"]
         protocol: ["http", "grpc"]
+        exclude:
+          - clickhouse: "21.3"
+            protocol: grpc
+          - clickhouse: "21.8"
+            protocol: grpc
       fail-fast: false
     name: Build against ClickHouse ${{ matrix.clickhouse }} (${{ matrix.protocol }})
     steps:
