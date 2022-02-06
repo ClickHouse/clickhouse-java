@@ -105,8 +105,11 @@ public class ClickHouseClusterTest extends BaseIntegrationTest {
         // FIXME does not support ClickHouseProtocol.POSTGRESQL for now
         ClickHouseProtocol[] protocols = new ClickHouseProtocol[] { ClickHouseProtocol.GRPC, ClickHouseProtocol.HTTP,
                 ClickHouseProtocol.MYSQL, ClickHouseProtocol.TCP };
-
+        ClickHouseVersion serverVersion = ClickHouseVersion.of(System.getProperty("clickhouseVersion", "latest"));
         for (ClickHouseProtocol p : protocols) {
+            if (p == ClickHouseProtocol.GRPC && !serverVersion.check("[21.1,)")) {
+                continue;
+            }
             ClickHouseNode node = getServer(ClickHouseProtocol.ANY, p.getDefaultPort());
             ClickHouseNode probedNode = ClickHouseCluster.probe(node);
             Assert.assertNotEquals(probedNode, node);

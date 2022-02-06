@@ -4,11 +4,13 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.Statement;
+import java.util.UUID;
 
 import javax.sql.DataSource;
 
 import org.testng.annotations.Test;
 
+import ru.yandex.clickhouse.ClickHouseConnection;
 import ru.yandex.clickhouse.ClickHouseDataSource;
 import ru.yandex.clickhouse.JdbcIntegrationTest;
 import ru.yandex.clickhouse.except.ClickHouseException;
@@ -136,6 +138,20 @@ public class ClickHouseConnectionImplTest extends JdbcIntegrationTest {
                 assertEquals(rs.getString(2), "3");
                 assertFalse(rs.next());
             }
+        }
+    }
+
+    @Test(groups = "integration")
+    public void testNonExistDatabase() throws Exception {
+        String database = UUID.randomUUID().toString();
+        ClickHouseProperties props = new ClickHouseProperties();
+        props.setUser("default");
+        props.setPassword("");
+        props.setDatabase(database);
+        ClickHouseDataSource ds = newDataSource(props);
+        try (ClickHouseConnection conn = ds.getConnection()) {
+            conn.createStatement().execute("create database `" + database + "`; "
+                + "drop database `" + database + "`");
         }
     }
 

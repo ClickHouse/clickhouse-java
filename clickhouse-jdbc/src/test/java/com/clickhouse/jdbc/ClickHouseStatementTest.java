@@ -31,6 +31,7 @@ import java.util.concurrent.TimeUnit;
 import com.clickhouse.client.ClickHouseClient;
 import com.clickhouse.client.ClickHouseDataType;
 import com.clickhouse.client.ClickHouseParameterizedQuery;
+import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseValues;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.data.ClickHouseDateTimeValue;
@@ -122,6 +123,10 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
 
     @Test(groups = "integration")
     public void testAsyncInsert() throws SQLException {
+        if (DEFAULT_PROTOCOL != ClickHouseProtocol.HTTP) {
+            return;
+        }
+        
         Properties props = new Properties();
         try (ClickHouseConnection conn = newConnection(props)) {
             if (conn.getServerVersion().check("(,21.12)")) {

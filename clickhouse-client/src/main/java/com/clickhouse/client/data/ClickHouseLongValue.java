@@ -12,6 +12,8 @@ import com.clickhouse.client.ClickHouseValues;
  * Wraper class of long.
  */
 public class ClickHouseLongValue implements ClickHouseValue {
+    private static final BigInteger MASK = BigInteger.ONE.shiftLeft(Long.SIZE).subtract(BigInteger.ONE);
+
     /**
      * Create a new instance representing null value of long.
      *
@@ -135,15 +137,13 @@ public class ClickHouseLongValue implements ClickHouseValue {
     public BigInteger asBigInteger() {
         if (isNull) {
             return null;
-        } else if (!unsigned || value >= 0L) {
-            return BigInteger.valueOf(value);
         }
 
-        byte[] bytes = new byte[Long.BYTES];
-        for (int i = 1; i <= Long.BYTES; i++) {
-            bytes[Long.BYTES - i] = (byte) ((value >>> (i * Long.BYTES)) & 0xFF);
+        BigInteger v = BigInteger.valueOf(value);
+        if (unsigned && value < 0L) {
+            v = v.and(MASK);
         }
-        return new BigInteger(1, bytes);
+        return v;
     }
 
     @Override
@@ -256,7 +256,7 @@ public class ClickHouseLongValue implements ClickHouseValue {
 
     @Override
     public ClickHouseLongValue update(String value) {
-        return value == null ? resetToNullOrEmpty() : set(false, unsigned, Long.parseLong(value));
+        return value == null ? resetToNullOrEmpty() : set(false, unsigned, new BigInteger(value).longValue());
     }
 
     @Override

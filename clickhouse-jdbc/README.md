@@ -11,7 +11,7 @@ Keep in mind that `clickhouse-jdbc` is synchronous, and in general it has more o
     <!-- will stop using ru.yandex.clickhouse starting from 0.4.0 -->
     <groupId>com.clickhouse</groupId>
     <artifactId>clickhouse-jdbc</artifactId>
-    <version>0.3.2-patch3</version>
+    <version>0.3.2-patch4</version>
 </dependency>
 ```
 
@@ -29,14 +29,15 @@ Note: `ru.yandex.clickhouse.ClickHouseDriver` and everything under `ru.yandex.cl
 
 **Connection Properties**:
 
-| Property             | Default | Description                                                                                                                                                                                                                                                                                                                                                                                                                |
-| -------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| continueBatchOnError | `false`  | Whether to continue batch processing when error occurred                                                                                                                                                                                                                                                                                                                                                                   |
-| custom_http_headers  |         | comma separated custom http headers, for example: `User-Agent=client1,X-Gateway-Id=123`                                                                                                                                                                                                                                                                                                                                    |
-| custom_http_params   |         | comma separated custom http query parameters, for example: `extremes=0,max_result_rows=100`                                                                                                                                                                                                                                                                                                                                |
-| jdbcCompliance       | `true`  | Whether to support standard synchronous UPDATE/DELETE and fake transaction                                                                                                                                                                                                                                                                                                                                                 |
-| typeMappings         |         | Customize mapping between ClickHouse data type and Java class, which will affect result of both [getColumnType()](https://docs.oracle.com/javase/8/docs/api/java/sql/ResultSetMetaData.html#getColumnType-int-) and [getObject(Class<?>)](https://docs.oracle.com/javase/8/docs/api/java/sql/ResultSet.html#getObject-java.lang.String-java.lang.Class-). For example: `UInt128=java.lang.String,UInt256=java.lang.String` |
-| wrapperObject        | `false` | Whether [getObject()](https://docs.oracle.com/javase/8/docs/api/java/sql/ResultSet.html#getObject-int-) should return java.sql.Array / java.sql.Struct for Array / Tuple.                                                                                                                                                                                                                                                  |
+| Property                 | Default | Description                                                                                                                                                                                                                                                                                                                                                                                                                |
+| ------------------------ | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| continueBatchOnError     | `false` | Whether to continue batch processing when error occurred                                                                                                                                                                                                                                                                                                                                                                   |
+| createDatabaseIfNotExist | `false` | Whether to create database if it does not exist                                                                                                                                                                                                                                                                                                                                                                            |
+| custom_http_headers      |         | comma separated custom http headers, for example: `User-Agent=client1,X-Gateway-Id=123`                                                                                                                                                                                                                                                                                                                                    |
+| custom_http_params       |         | comma separated custom http query parameters, for example: `extremes=0,max_result_rows=100`                                                                                                                                                                                                                                                                                                                                |
+| jdbcCompliance           | `true`  | Whether to support standard synchronous UPDATE/DELETE and fake transaction                                                                                                                                                                                                                                                                                                                                                 |
+| typeMappings             |         | Customize mapping between ClickHouse data type and Java class, which will affect result of both [getColumnType()](https://docs.oracle.com/javase/8/docs/api/java/sql/ResultSetMetaData.html#getColumnType-int-) and [getObject(Class<?>)](https://docs.oracle.com/javase/8/docs/api/java/sql/ResultSet.html#getObject-java.lang.String-java.lang.Class-). For example: `UInt128=java.lang.String,UInt256=java.lang.String` |
+| wrapperObject            | `false` | Whether [getObject()](https://docs.oracle.com/javase/8/docs/api/java/sql/ResultSet.html#getObject-int-) should return java.sql.Array / java.sql.Struct for Array / Tuple.                                                                                                                                                                                                                                                  |
 
 Note: please refer to [JDBC specific configuration](https://github.com/ClickHouse/clickhouse-jdbc/blob/master/clickhouse-jdbc/src/main/java/com/clickhouse/jdbc/JdbcConfig.java) and client options([common](https://github.com/ClickHouse/clickhouse-jdbc/blob/master/clickhouse-client/src/main/java/com/clickhouse/client/config/ClickHouseClientOption.java), [http](https://github.com/ClickHouse/clickhouse-jdbc/blob/master/clickhouse-http-client/src/main/java/com/clickhouse/client/http/config/ClickHouseHttpOption.java) and [grpc](https://github.com/ClickHouse/clickhouse-jdbc/blob/master/clickhouse-grpc-client/src/main/java/com/clickhouse/client/grpc/config/ClickHouseGrpcOption.java)) for more.
 
@@ -63,6 +64,7 @@ try (Connection conn = dataSource.getConnection("default", "password");
     <summary>Batch insert...</summary>
 
 Tips:
+
 1. Use `PreparedStatement` instead of `Statement`
 2. Use [input function](https://clickhouse.com/docs/en/sql-reference/table-functions/input/) whenever possible
 
@@ -170,7 +172,6 @@ try (PreparedStatement stmt = conn.prepareStatement(
 
 </details>
 
-
 <details>
     <summary>Before 0.3.2...</summary>
 
@@ -206,7 +207,7 @@ Additionally, if you have a few instances, you can use `BalancedClickhouseDataSo
 In order to provide non-JDBC complaint data manipulation functionality, proprietary API exists.
 Entry point for API is `ClickHouseStatement#write()` method.
 
-1) Importing file into table
+1. Importing file into table
 
 ```java
 import ru.yandex.clickhouse.ClickHouseStatement;
@@ -219,7 +220,7 @@ sth
     .send();
 ```
 
-2) Configurable send
+2. Configurable send
 
 ```java
 import ru.yandex.clickhouse.ClickHouseStatement;
@@ -233,7 +234,7 @@ sth
     .send();
 ```
 
-3) Send data in binary formatted with custom user callback
+3. Send data in binary formatted with custom user callback
 
 ```java
 import ru.yandex.clickhouse.ClickHouseStatement;
@@ -249,4 +250,5 @@ sth.write().send("INSERT INTO test.writer", new ClickHouseStreamCallback() {
 },
 ClickHouseFormat.RowBinary); // RowBinary or Native are supported
 ```
+
 </details>

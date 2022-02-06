@@ -132,6 +132,12 @@ public class ClickHouseVersionTest {
         Assert.assertTrue(ClickHouseVersion.parseVersion("21.3").check("[21.3,21.4)"));
 
         Assert.assertTrue(ClickHouseVersion.parseVersion("21.8.8.29").check("[18.16,)"));
+
+        Assert.assertFalse(ClickHouseVersion.of("").check("[18.16,)"));
+        Assert.assertTrue(ClickHouseVersion.of("latest").check("[18.16,)"));
+
+        Assert.assertTrue(ClickHouseVersion.of("latest").check("(,)"));
+        Assert.assertTrue(ClickHouseVersion.of("latest").check("[,)"));
     }
 
     @Test(groups = { "unit" })

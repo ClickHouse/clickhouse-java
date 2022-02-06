@@ -34,8 +34,14 @@ jobs:
       matrix:
         # most recent LTS releases as well as latest stable builds
         clickhouse: ["21.3", "21.8", "latest"]
+        protocol: ["http", "grpc"]
+        exclude:
+          - clickhouse: "21.3"
+            protocol: grpc
+          - clickhouse: "21.8"
+            protocol: grpc
       fail-fast: false
-    name: Build against ClickHouse ${{ matrix.clickhouse }}
+    name: Build against ClickHouse ${{ matrix.clickhouse }} (${{ matrix.protocol }})
     steps:
       - name: Check out Git repository
         uses: actions/checkout@v2
@@ -82,4 +88,4 @@ jobs:
             ${{ runner.os }}-build-
       - name: Build
         run: |
-          mvn --batch-mode --update-snapshots -Drelease -DclickhouseVersion=${{ matrix.clickhouse }} verify
+          mvn --batch-mode --update-snapshots -Drelease -DclickhouseVersion=${{ matrix.clickhouse }} -Dprotocol=${{ matrix.protocol }} verify

@@ -851,7 +851,8 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
         }
 
         Map<ClickHouseQueryParam, String> params = properties.buildQueryParams(true);
-        if (!ignoreDatabase) {
+        String db = params.getOrDefault(ClickHouseQueryParam.DATABASE, currentDatabase);
+        if (!ignoreDatabase && !Utils.isNullOrEmptyString(db)) {
             params.put(ClickHouseQueryParam.DATABASE, currentDatabase);
         }
 

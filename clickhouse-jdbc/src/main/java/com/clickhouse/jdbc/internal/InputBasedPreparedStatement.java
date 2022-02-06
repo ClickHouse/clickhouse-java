@@ -270,7 +270,8 @@ public class InputBasedPreparedStatement extends ClickHouseStatementImpl impleme
             clearBatch();
         }
 
-        Arrays.fill(results, result);
+        // FIXME grpc and tcp by default can provides accurate result
+        Arrays.fill(results, 1);
 
         return results;
     }

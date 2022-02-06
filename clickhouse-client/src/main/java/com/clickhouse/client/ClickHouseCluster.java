@@ -5,6 +5,7 @@ import java.io.OutputStream;
 import java.io.Serializable;
 import java.net.InetSocketAddress;
 import java.net.Socket;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -176,7 +177,7 @@ class ClickHouseCluster implements Function<ClickHouseNodeSelector, ClickHouseNo
                 client.connect(address, timeout);
                 client.setSoTimeout(timeout);
                 OutputStream out = client.getOutputStream();
-                out.write("GET /ping HTTP/1.1\r\n\r\n".getBytes());
+                out.write("GET /ping HTTP/1.1\r\n\r\n".getBytes(StandardCharsets.US_ASCII));
                 out.flush();
                 byte[] buf = new byte[12]; // HTTP/1.x xxx
                 if (client.getInputStream().read(buf) == buf.length) {

@@ -92,12 +92,12 @@
         <slf4j.version>2.0.0-alpha5</slf4j.version>
         <mockito.version>3.12.4</mockito.version>
         <wiremock.version>2.32.0</wiremock.version>
-        <testcontainers.version>1.16.2</testcontainers.version>
+        <testcontainers.version>1.16.3</testcontainers.version>
         <testng.version>7.4.0</testng.version>
 
-        <mariadb-driver.version>2.7.4</mariadb-driver.version>
-        <mysql-driver.version>8.0.27</mysql-driver.version>
-        <postgresql-driver.version>42.3.1</postgresql-driver.version>
+        <mariadb-driver.version>3.0.3</mariadb-driver.version>
+        <mysql-driver.version>8.0.28</mysql-driver.version>
+        <postgresql-driver.version>42.3.2</postgresql-driver.version>
 
         <repackaged.version>1.1.1</repackaged.version>
 

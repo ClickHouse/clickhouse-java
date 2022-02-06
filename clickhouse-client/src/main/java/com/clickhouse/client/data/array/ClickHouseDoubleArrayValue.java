@@ -21,6 +21,7 @@ import java.util.UUID;
 import java.util.Map.Entry;
 
 import com.clickhouse.client.ClickHouseChecker;
+import com.clickhouse.client.ClickHouseUtils;
 import com.clickhouse.client.ClickHouseValue;
 import com.clickhouse.client.ClickHouseValues;
 import com.clickhouse.client.data.ClickHouseObjectValue;
@@ -399,7 +400,22 @@ public class ClickHouseDoubleArrayValue extends ClickHouseObjectValue<double[]> 
 
     @Override
     public ClickHouseDoubleArrayValue update(String value) {
-        return set(new double[] { Double.parseDouble(value) });
+        if (ClickHouseChecker.isNullOrBlank(value)) {
+            set(ClickHouseValues.EMPTY_DOUBLE_ARRAY);
+        } else {
+            List<String> list = ClickHouseUtils.readValueArray(value, 0, value.length());
+            if (list.isEmpty()) {
+                set(ClickHouseValues.EMPTY_DOUBLE_ARRAY);
+            } else {
+                double[] arr = new double[list.size()];
+                int index = 0;
+                for (String v : list) {
+                    arr[index++] = Double.parseDouble(v);
+                }
+                set(arr);
+            }
+        }
+        return this;
     }
 
     @Override

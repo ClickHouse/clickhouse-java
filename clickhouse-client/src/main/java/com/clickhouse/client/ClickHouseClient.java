@@ -76,6 +76,8 @@ public interface ClickHouseClient extends AutoCloseable {
             return (boolean) ClickHouseDefaults.ASYNC.getEffectiveDefaultValue() ? CompletableFuture.supplyAsync(() -> {
                 try {
                     return task.call();
+                } catch (ClickHouseException e) {
+                    throw new CompletionException(e);
                 } catch (CompletionException e) {
                     throw e;
                 } catch (Exception e) {
@@ -88,6 +90,8 @@ public interface ClickHouseClient extends AutoCloseable {
                     throw new CompletionException(cause);
                 }
             }, getExecutorService()) : CompletableFuture.completedFuture(task.call());
+        } catch (ClickHouseException e) {
+            throw new CompletionException(e);
         } catch (CompletionException e) {
             throw e;
         } catch (Exception e) {
@@ -463,9 +467,9 @@ public interface ClickHouseClient extends AutoCloseable {
      */
     static CompletableFuture<List<ClickHouseResponseSummary>> send(ClickHouseNode server, String sql,
             ClickHouseValue[] templates, Object[]... params) {
-        int len = templates == null ? 0 : templates.length;
-        int size = params == null ? 0 : params.length;
-        if (templates == null || templates.length == 0 || params == null || params.length == 0) {
+        int len = templates != null ? templates.length : 0;
+        int size = params != null ? params.length : 0;
+        if (len == 0 || size == 0) {
             throw new IllegalArgumentException("Non-empty templates and parameters are required");
         }
 
@@ -473,7 +477,7 @@ public interface ClickHouseClient extends AutoCloseable {
         final ClickHouseNode theServer = ClickHouseCluster.probe(server);
 
         return submit(() -> {
-            List<ClickHouseResponseSummary> list = new ArrayList<>(params.length);
+            List<ClickHouseResponseSummary> list = new ArrayList<>(size);
 
             // set async to false so that we don't have to create additional thread
             try (ClickHouseClient client = ClickHouseClient.builder()
@@ -484,13 +488,13 @@ public interface ClickHouseClient extends AutoCloseable {
                 for (int i = 0; i < size; i++) {
                     Object[] o = params[i];
                     String[] arr = new String[len];
-                    for (int j = 0, slen = o == null ? 0 : o.length; j < slen; j++) {
-                        if (j < len) {
-                            arr[j] = ClickHouseValues.NULL_EXPR;
-                        } else {
-                            ClickHouseValue v = templates[j];
+                    for (int j = 0, olen = o == null ? 0 : o.length; j < len; j++) {
+                        ClickHouseValue v = templates[j];
+                        if (j < olen) {
                             arr[j] = v != null ? v.update(o[j]).toSqlExpression()
                                     : ClickHouseValues.convertToSqlExpression(o[j]);
+                        } else {
+                            arr[j] = v != null ? v.resetToNullOrEmpty().toSqlExpression() : ClickHouseValues.NULL_EXPR;
                         }
                     }
                     try (ClickHouseResponse resp = request.params(arr).execute().get()) {
