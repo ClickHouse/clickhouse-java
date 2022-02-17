@@ -11,7 +11,7 @@ Keep in mind that `clickhouse-jdbc` is synchronous, and in general it has more o
     <!-- will stop using ru.yandex.clickhouse starting from 0.4.0 -->
     <groupId>com.clickhouse</groupId>
     <artifactId>clickhouse-jdbc</artifactId>
-    <version>0.3.2-patch4</version>
+    <version>0.3.2-patch5</version>
 </dependency>
 ```
 
