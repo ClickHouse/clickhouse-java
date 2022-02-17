@@ -106,18 +106,37 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
 
     @Test(groups = "integration")
     public void testMutation() throws SQLException {
-        try (ClickHouseConnection conn = newConnection(new Properties())) {
-            ClickHouseStatement stmt = conn.createStatement();
-            stmt.execute("drop table if exists test_mutation;"
-                    + "create table test_mutation(a String, b UInt32) engine=MergeTree() order by tuple()");
+        Properties props = new Properties();
+        try (ClickHouseConnection conn = newConnection(props); ClickHouseStatement stmt = conn.createStatement()) {
+            Assert.assertFalse(stmt.execute("drop table if exists test_mutation;"
+                    + "create table test_mutation(a String, b UInt32) engine=MergeTree() order by tuple()"),
+                    "Should not return result set");
             // [delete from ]tbl a [delete ]where a.b = 1[ settings mutation_async=0]
             // alter table tbl a delete where a.b = 1
-            stmt.execute("-- test\nselect 1");
-            stmt.execute("-- test\ndelete from test_mutation where b = 1");
+            Assert.assertTrue(stmt.execute("-- test\nselect 1"), "Should return a result set");
+            Assert.assertFalse(stmt.execute("-- test\ndelete from test_mutation where b = 1"),
+                    "Should not return result set");
             // [update] tbl a [set] a.b = 1 where a.b != 1[ settings mutation_async=0]
             // alter table tbl a update a.b = 1 where a.b != 1
             conn.setClientInfo("ApplicationName", "333");
-            conn.createStatement().execute("update test_mutation set b = 22 where b = 1");
+            Assert.assertEquals(conn.createStatement().executeUpdate("update test_mutation set b = 22 where b = 1"), 0);
+
+            Assert.assertThrows(SQLException.class,
+                    () -> stmt.executeUpdate("update non_exist_table set value=1 where key=1"));
+
+            stmt.addBatch("select 1");
+            stmt.addBatch("select * from non_exist_table");
+            stmt.addBatch("select 2");
+            Assert.assertThrows(SQLException.class, () -> stmt.executeBatch());
+        }
+
+        props.setProperty(JdbcConfig.PROP_CONTINUE_BATCH, "true");
+        try (ClickHouseConnection conn = newConnection(props); ClickHouseStatement stmt = conn.createStatement()) {
+            stmt.addBatch("select 1");
+            stmt.addBatch("select * from non_exist_table");
+            stmt.addBatch("insert into test_mutation values('a',1)");
+            stmt.addBatch("select 2");
+            Assert.assertEquals(stmt.executeBatch(), new int[] { 0, ClickHouseStatement.EXECUTE_FAILED, 1, 0 });
         }
     }
 
@@ -126,7 +145,7 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
         if (DEFAULT_PROTOCOL != ClickHouseProtocol.HTTP) {
             return;
         }
-        
+
         Properties props = new Properties();
         try (ClickHouseConnection conn = newConnection(props)) {
             if (conn.getServerVersion().check("(,21.12)")) {

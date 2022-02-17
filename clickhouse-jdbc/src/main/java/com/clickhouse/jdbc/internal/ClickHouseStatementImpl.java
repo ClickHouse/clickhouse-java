@@ -277,7 +277,7 @@ public class ClickHouseStatementImpl extends JdbcWrapper implements ClickHouseSt
         try (ClickHouseResponse response = getLastResponse(null, null, null)) {
             summary = response.getSummary();
         } catch (Exception e) {
-            log.error("can not close stream: %s", e.getMessage());
+            throw SqlExceptionUtils.handle(e);
         }
 
         return summary != null ? (int) summary.getWrittenRows() : 1;
@@ -511,20 +511,27 @@ public class ClickHouseStatementImpl extends JdbcWrapper implements ClickHouseSt
     public int[] executeBatch() throws SQLException {
         ensureOpen();
 
+        boolean continueOnError = getConnection().getJdbcConfig().isContinueBatchOnError();
         int len = batchStmts.size();
         int[] results = new int[len];
-        for (int i = 0; i < len; i++) {
-            ClickHouseSqlStatement s = batchStmts.get(i);
-            try (ClickHouseResponse r = executeStatement(s, null, null, null)) {
-                updateResult(s, r);
-                results[i] = currentUpdateCount <= 0 ? 0 : currentUpdateCount;
-            } catch (Exception e) {
-                results[i] = EXECUTE_FAILED;
-                log.error("Faled to execute task %d of %d", i + 1, len, e);
-            }
-        }
+        try {
+            for (int i = 0; i < len; i++) {
+                ClickHouseSqlStatement s = batchStmts.get(i);
+                try (ClickHouseResponse r = executeStatement(s, null, null, null)) {
+                    updateResult(s, r);
+                    results[i] = currentUpdateCount <= 0 ? 0 : currentUpdateCount;
+                } catch (Exception e) {
+                    if (!continueOnError) {
+                        throw SqlExceptionUtils.handle(e);
+                    }
 
-        clearBatch();
+                    results[i] = EXECUTE_FAILED;
+                    log.error("Faled to execute task %d of %d", i + 1, len, e);
+                }
+            }
+        } finally {
+            clearBatch();
+        }
 
         return results;
     }
