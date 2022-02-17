@@ -99,7 +99,7 @@ Java 8 or higher is required in order to use Java client([clickhouse-client](htt
     <groupId>com.clickhouse</groupId>
     <!-- or clickhouse-grpc-client if you prefer gRPC -->
     <artifactId>clickhouse-http-client</artifactId>
-    <version>0.3.2-patch4</version>
+    <version>0.3.2-patch5</version>
 </dependency>
 ```
 
@@ -135,7 +135,7 @@ try (ClickHouseClient client = ClickHouseClient.newInstance(preferredProtocol);
     <!-- will stop using ru.yandex.clickhouse starting from 0.4.0  -->
     <groupId>com.clickhouse</groupId>
     <artifactId>clickhouse-jdbc</artifactId>
-    <version>0.3.2-patch4</version>
+    <version>0.3.2-patch5</version>
     <!-- below is only needed when all you want is a shaded jar -->
     <classifier>http</classifier>
     <exclusions>
@@ -189,7 +189,7 @@ Use `mvn clean verify` to compile, test and generate shaded packages if you're u
 
 ## Benchmark
 
-To benchmark the driver:
+To benchmark JDBC drivers for comparison:
 
 ```bash
 cd clickhouse-benchmark
@@ -198,7 +198,10 @@ mvn -Drelease clean package
 java -DdbHost=localhost -jar target/benchmarks.jar -t 1 -p client=clickhouse-http-jdbc1 -p connection=reuse -p statement=prepared Query.selectInt8
 ```
 
-Note: it's time consuming to run all benchmarks against all drivers using different parameters for comparison. If you just need some numbers to understand performance, please refer to early test results against [0.3.2-test3](https://github.com/ClickHouse/clickhouse-jdbc/issues/768)(still have plenty of room to improve according to ranking at [here](https://github.com/go-faster/ch-bench)).
+It's time consuming to run all benchmarks against all drivers using different parameters. If you just need some numbers to understand performance, please refer to table below and some more details like CPU and memory usage mentioned at [here](https://github.com/ClickHouse/clickhouse-jdbc/issues/768)(still have plenty of room to improve according to ranking at [here](https://github.com/go-faster/ch-bench)).
+
+![image](https://user-images.githubusercontent.com/4270380/154429324-631f718d-9277-4522-b60d-13f87b2e6c31.png)
+
 
 ## Testing
 
