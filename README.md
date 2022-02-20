@@ -4,16 +4,29 @@
 
 Java client and JDBC driver for ClickHouse. Java client is async, lightweight, and low-overhead library for ClickHouse; while JDBC driver is built on top of the Java client with more dependencies and extensions for JDBC-compliance.
 
-Java 8 or higher is required in order to use Java client([clickhouse-client](https://github.com/ClickHouse/clickhouse-jdbc/clickhouse-client)) and/or JDBC driver([clickhouse-jdbc](https://github.com/ClickHouse/clickhouse-jdbc/clickhouse-jdbc)). In addition, starting from 0.3.2, JDBC driver only works on ClickHouse 20.7 or above, so please consider to either downgrade the driver to 0.3.1-patch or upgrade server to one of [active releases](https://github.com/ClickHouse/ClickHouse/pulls?q=is%3Aopen+is%3Apr+label%3Arelease).
+Java 8 or higher is required in order to use Java client([clickhouse-client](https://github.com/ClickHouse/clickhouse-jdbc/clickhouse-client)) and/or JDBC driver([clickhouse-jdbc](https://github.com/ClickHouse/clickhouse-jdbc/clickhouse-jdbc)). In addition, starting from 0.3.2, JDBC driver only works with ClickHouse 20.7 or above, so please consider to either downgrade the driver to 0.3.1-patch or upgrade server to one of [active releases](https://github.com/ClickHouse/ClickHouse/pulls?q=is%3Aopen+is%3Apr+label%3Arelease).
 
-## Feature Matrix
+---
+
+:exclamation: **IMPORTANT**
+
+Maven groupId `ru.yandex.clickhouse` and legacy JDBC driver `ru.yandex.clickhouse.ClickHouseDriver` are deprecated.
+
+Please use new groupId `com.clickhouse` and driver `com.clickhouse.jdbc.ClickHouseDriver` instead. It's highly recommended to upgrade to 0.3.2+ and start to integrate the new JDBC driver for improved performance and stability.
+
+![image](https://user-images.githubusercontent.com/4270380/154429324-631f718d-9277-4522-b60d-13f87b2e6c31.png)
+Note: in general, the new driver(v0.3.2) is a few times faster with less memory usage. More information can be found at [here](https://github.com/ClickHouse/clickhouse-jdbc/issues/768).
+
+---
+
+## Features
 
 | Category      | Feature                                                      | Supported          | Remark                                                                                                                                       |
 | ------------- | ------------------------------------------------------------ | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
 | Protocol      | [HTTP](https://clickhouse.com/docs/en/interfaces/http/)      | :white_check_mark: | recommended, defaults to `java.net.HttpURLConnection` and can be changed to `java.net.http.HttpClient`(faster but less stable)               |
 |               | [gRPC](https://clickhouse.com/docs/en/interfaces/grpc/)      | :white_check_mark: | experimental, still missing some features like LZ4 compression                                                                               |
 |               | [TCP/Native](https://clickhouse.com/docs/en/interfaces/tcp/) | :x:                | will be available in 0.3.3                                                                                                                   |
-| Compatibility | Server < 20.7                                                | :x:                | use 0.3.1-patch                                                                                                                              |
+| Compatibility | Server < 20.7                                                | :x:                | use 0.3.1-patch(or 0.2.6 if you're stuck with JDK 7)                                                                                         |
 |               | Server >= 20.7                                               | :white_check_mark: | use 0.3.2 or above. All [active releases](https://github.com/ClickHouse/ClickHouse/pulls?q=is%3Aopen+is%3Apr+label%3Arelease) are supported. |
 | Data Type     | AggregatedFunction                                           | :x:                | limited to `groupBitmap`                                                                                                                     |
 |               | Array(\*)                                                    | :white_check_mark: |                                                                                                                                              |
@@ -81,7 +94,7 @@ Java 8 or higher is required in order to use Java client([clickhouse-client](htt
 
   | Property             | Default | Description                                                                                                                                                                                                                                                                                                                                                                                                                |
   | -------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-  | continueBatchOnError | `false`  | Whether to continue batch processing when error occurred                                                                                                                                                                                                                                                                                                                                                                   |
+  | continueBatchOnError | `false` | Whether to continue batch processing when error occurred                                                                                                                                                                                                                                                                                                                                                                   |
   | custom_http_headers  |         | comma separated custom http headers, for example: `User-Agent=client1,X-Gateway-Id=123`                                                                                                                                                                                                                                                                                                                                    |
   | custom_http_params   |         | comma separated custom http query parameters, for example: `extremes=0,max_result_rows=100`                                                                                                                                                                                                                                                                                                                                |
   | jdbcCompliance       | `true`  | Whether to support standard synchronous UPDATE/DELETE and fake transaction                                                                                                                                                                                                                                                                                                                                                 |
@@ -189,7 +202,7 @@ Use `mvn clean verify` to compile, test and generate shaded packages if you're u
 
 ## Benchmark
 
-To benchmark JDBC drivers for comparison:
+To benchmark JDBC drivers:
 
 ```bash
 cd clickhouse-benchmark
@@ -198,10 +211,7 @@ mvn -Drelease clean package
 java -DdbHost=localhost -jar target/benchmarks.jar -t 1 -p client=clickhouse-http-jdbc1 -p connection=reuse -p statement=prepared Query.selectInt8
 ```
 
-It's time consuming to run all benchmarks against all drivers using different parameters. If you just need some numbers to understand performance, please refer to table below and some more details like CPU and memory usage mentioned at [here](https://github.com/ClickHouse/clickhouse-jdbc/issues/768)(still have plenty of room to improve according to ranking at [here](https://github.com/go-faster/ch-bench)).
-
-![image](https://user-images.githubusercontent.com/4270380/154429324-631f718d-9277-4522-b60d-13f87b2e6c31.png)
-
+It's time consuming to run all benchmarks against all drivers using different parameters for comparison. If you just need some numbers to understand performance, please refer to table below and some more details like CPU and memory usage mentioned at [here](https://github.com/ClickHouse/clickhouse-jdbc/issues/768)(still have plenty of room to improve according to ranking at [here](https://github.com/go-faster/ch-bench)).
 
 ## Testing
 
