@@ -76,8 +76,8 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
             appendQueryParameter(builder, settingKey, String.valueOf(config.getMaxExecutionTime()));
         }
         settingKey = "max_result_rows";
-        if (config.getMaxResultRows() > 0 && !settings.containsKey(settingKey)) {
-            appendQueryParameter(builder, settingKey, String.valueOf(config.getMaxExecutionTime()));
+        if (config.getMaxResultRows() > 0L && !settings.containsKey(settingKey)) {
+            appendQueryParameter(builder, settingKey, String.valueOf(config.getMaxResultRows()));
             appendQueryParameter(builder, "result_overflow_mode", "break");
         }
         settingKey = "log_comment";
