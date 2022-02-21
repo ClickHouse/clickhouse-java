@@ -130,7 +130,7 @@ public final class ClickHouseValueFormatter {
         formatter.setTimeZone(timeZone);
         StringBuilder formatted = new StringBuilder(formatter.format(time));
         // TODO implement a true prepared statement to format according to parameter type
-        if (time != null && time.getNanos() / 1000000 > 0) {
+        if (time != null && time.getNanos() % 1000000000 > 0) {
             formatted.append('.').append(time.getNanos());
         }
         return formatted.toString();
