@@ -1,6 +1,7 @@
 package com.clickhouse.jdbc;
 
 import java.net.ConnectException;
+import java.sql.BatchUpdateException;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 
@@ -74,6 +75,53 @@ public final class SqlExceptionUtils {
         }
 
         return new SQLException(cause);
+    }
+
+    public static BatchUpdateException batchUpdateError(Throwable e, long[] updateCounts) {
+        if (e == null) {
+            return new BatchUpdateException("Something went wrong when performing batch update", SQL_STATE_CLIENT_ERROR,
+                    0, updateCounts, null);
+        } else if (e instanceof BatchUpdateException) {
+            return (BatchUpdateException) e;
+        } else if (e instanceof ClickHouseException) {
+            return batchUpdateError(e, updateCounts);
+        } else if (e instanceof SQLException) {
+            SQLException sqlExp = (SQLException) e;
+            return new BatchUpdateException(sqlExp.getMessage(), sqlExp.getSQLState(), sqlExp.getErrorCode(),
+                    updateCounts, null);
+        }
+
+        Throwable cause = e.getCause();
+        if (e instanceof BatchUpdateException) {
+            return (BatchUpdateException) e;
+        } else if (cause instanceof ClickHouseException) {
+            return batchUpdateError(cause, updateCounts);
+        } else if (e instanceof SQLException) {
+            SQLException sqlExp = (SQLException) e;
+            return new BatchUpdateException(sqlExp.getMessage(), sqlExp.getSQLState(), sqlExp.getErrorCode(),
+                    updateCounts, null);
+        } else if (cause == null) {
+            cause = e;
+        }
+
+        return new BatchUpdateException("Unexpected error", SQL_STATE_SQL_ERROR, 0, updateCounts, cause);
+    }
+
+    public static SQLException emptyBatchError() {
+        return clientError("Please call addBatch method at least once before batch execution");
+    }
+
+    public static BatchUpdateException queryInBatchError(int[] updateCounts) {
+        return new BatchUpdateException("Query is not allow in batch update", SQL_STATE_CLIENT_ERROR, updateCounts);
+    }
+
+    public static BatchUpdateException queryInBatchError(long[] updateCounts) {
+        return new BatchUpdateException("Query is not allow in batch update", SQL_STATE_CLIENT_ERROR, 0, updateCounts,
+                null);
+    }
+
+    public static SQLException undeterminedExecutionError() {
+        return clientError("Please either call clearBatch() to clean up context first, or use executeBatch() instead");
     }
 
     public static SQLException forCancellation(Exception e) {

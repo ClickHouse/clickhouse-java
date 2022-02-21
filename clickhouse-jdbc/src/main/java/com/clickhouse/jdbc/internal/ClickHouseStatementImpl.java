@@ -7,6 +7,7 @@ import java.sql.SQLException;
 import java.sql.SQLWarning;
 import java.sql.Statement;
 import java.util.ArrayList;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -22,7 +23,6 @@ import com.clickhouse.client.ClickHouseResponseSummary;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.config.ClickHouseOption;
 import com.clickhouse.client.data.ClickHouseExternalTable;
-import com.clickhouse.client.data.ClickHouseSimpleResponse;
 import com.clickhouse.client.logging.Logger;
 import com.clickhouse.client.logging.LoggerFactory;
 import com.clickhouse.jdbc.ClickHouseConnection;
@@ -43,6 +43,8 @@ public class ClickHouseStatementImpl extends JdbcWrapper implements ClickHouseSt
     private final int resultSetConcurrency;
     private final int resultSetHoldability;
 
+    private final List<ClickHouseSqlStatement> batchStmts;
+
     private boolean closed;
     private boolean closeOnCompletion;
 
@@ -50,16 +52,15 @@ public class ClickHouseStatementImpl extends JdbcWrapper implements ClickHouseSt
     private boolean escapeScan;
     private int fetchSize;
     private int maxFieldSize;
-    private int maxRows;
+    private long maxRows;
     private boolean poolable;
     private volatile String queryId;
     private int queryTimeout;
 
     private ClickHouseResultSet currentResult;
-    private int currentUpdateCount;
+    private long currentUpdateCount;
 
     protected ClickHouseSqlStatement[] parsedStmts;
-    protected List<ClickHouseSqlStatement> batchStmts;
 
     private ClickHouseResponse getLastResponse(Map<ClickHouseOption, Serializable> options,
             List<ClickHouseExternalTable> tables, Map<String, String> settings) throws SQLException {
@@ -149,9 +150,8 @@ public class ClickHouseStatementImpl extends JdbcWrapper implements ClickHouseSt
     protected int executeInsert(String sql, InputStream input) throws SQLException {
         ClickHouseResponseSummary summary = null;
         try (ClickHouseResponse resp = request.write().query(sql, queryId = connection.newQueryId())
-                .format(ClickHouseFormat.RowBinary).data(input).execute()
-                .get()) {
-            updateResult(new ClickHouseSqlStatement(sql, StatementType.INSERT), resp);
+                .format(ClickHouseFormat.RowBinary).data(input).execute().get();
+                ResultSet rs = updateResult(new ClickHouseSqlStatement(sql, StatementType.INSERT), resp)) {
             summary = resp.getSummary();
         } catch (InterruptedException e) {
             log.error("can not close stream: %s", e.getMessage());
@@ -191,22 +191,28 @@ public class ClickHouseStatementImpl extends JdbcWrapper implements ClickHouseSt
         return getLastStatement();
     }
 
+    protected ClickHouseResultSet newEmptyResultSet() throws SQLException {
+        return new ClickHouseResultSet("", "", this, ClickHouseResponse.EMPTY);
+    }
+
     protected ResultSet updateResult(ClickHouseSqlStatement stmt, ClickHouseResponse response) throws SQLException {
         ResultSet rs = null;
         if (stmt.isQuery() || !response.getColumns().isEmpty()) {
-            currentUpdateCount = -1;
+            currentUpdateCount = -1L;
             currentResult = new ClickHouseResultSet(stmt.getDatabaseOrDefault(getConnection().getCurrentDatabase()),
                     stmt.getTable(), this, response);
             rs = currentResult;
         } else {
-            currentUpdateCount = response.getSummary().getUpdateCount();
-            if (currentUpdateCount <= 0) {
-                currentUpdateCount = 1;
+            currentUpdateCount = response.getSummary().getWrittenRows();
+            // FIXME apparently this is not always true
+            if (currentUpdateCount <= 0L) {
+                currentUpdateCount = 1L;
             }
+            currentResult = null;
             response.close();
         }
 
-        return rs;
+        return rs == null ? newEmptyResultSet() : rs;
     }
 
     protected ClickHouseStatementImpl(ClickHouseConnectionImpl connection, ClickHouseRequest<?> request,
@@ -228,29 +234,34 @@ public class ClickHouseStatementImpl extends JdbcWrapper implements ClickHouseSt
 
         this.fetchSize = connection.getJdbcConfig().getFetchSize();
         this.maxFieldSize = 0;
-        this.maxRows = 0;
+        this.maxRows = 0L;
         this.poolable = false;
         this.queryId = null;
 
         this.queryTimeout = 0;
 
         this.currentResult = null;
-        this.currentUpdateCount = -1;
+        this.currentUpdateCount = -1L;
 
-        this.batchStmts = new ArrayList<>();
+        this.batchStmts = new LinkedList<>();
 
         ClickHouseConfig c = request.getConfig();
-        setMaxRows(c.getMaxResultRows());
+        setLargeMaxRows(c.getMaxResultRows());
         setQueryTimeout(c.getMaxExecutionTime());
+    }
+
+    @Override
+    public boolean execute(String sql) throws SQLException {
+        executeQuery(sql);
+        return currentResult != null;
     }
 
     @Override
     public ResultSet executeQuery(String sql) throws SQLException {
         ensureOpen();
-        // forcibly disable extremes for ResultSet queries
-        // additionalDBParams = importAdditionalDBParameters(additionalDBParams);
-        // FIXME respect the value set in additionalDBParams?
-        // additionalDBParams.put(ClickHouseQueryParam.EXTREMES, "0");
+        if (!batchStmts.isEmpty()) {
+            throw SqlExceptionUtils.undeterminedExecutionError();
+        }
 
         parseSqlStatements(sql);
 
@@ -268,8 +279,11 @@ public class ClickHouseStatementImpl extends JdbcWrapper implements ClickHouseSt
     }
 
     @Override
-    public int executeUpdate(String sql) throws SQLException {
+    public long executeLargeUpdate(String sql) throws SQLException {
         ensureOpen();
+        if (!batchStmts.isEmpty()) {
+            throw SqlExceptionUtils.undeterminedExecutionError();
+        }
 
         parseSqlStatements(sql);
 
@@ -280,7 +294,12 @@ public class ClickHouseStatementImpl extends JdbcWrapper implements ClickHouseSt
             throw SqlExceptionUtils.handle(e);
         }
 
-        return summary != null ? (int) summary.getWrittenRows() : 1;
+        return summary != null ? summary.getWrittenRows() : 1L;
+    }
+
+    @Override
+    public int executeUpdate(String sql) throws SQLException {
+        return (int) executeLargeUpdate(sql);
     }
 
     @Override
@@ -310,21 +329,26 @@ public class ClickHouseStatementImpl extends JdbcWrapper implements ClickHouseSt
     }
 
     @Override
-    public int getMaxRows() throws SQLException {
+    public long getLargeMaxRows() throws SQLException {
         ensureOpen();
 
         return maxRows;
     }
 
     @Override
-    public void setMaxRows(int max) throws SQLException {
-        if (max < 0) {
+    public int getMaxRows() throws SQLException {
+        return (int) getLargeMaxRows();
+    }
+
+    @Override
+    public void setLargeMaxRows(long max) throws SQLException {
+        if (max < 0L) {
             throw SqlExceptionUtils.clientError("Max rows cannot be set to negative number");
         }
         ensureOpen();
 
         if (this.maxRows != max) {
-            if (max == 0) {
+            if (max == 0L) {
                 request.removeSetting("max_result_rows");
                 request.removeSetting("result_overflow_mode");
             } else {
@@ -333,6 +357,11 @@ public class ClickHouseStatementImpl extends JdbcWrapper implements ClickHouseSt
             }
             this.maxRows = max;
         }
+    }
+
+    @Override
+    public void setMaxRows(int max) throws SQLException {
+        setLargeMaxRows(max);
     }
 
     @Override
@@ -403,13 +432,6 @@ public class ClickHouseStatementImpl extends JdbcWrapper implements ClickHouseSt
     }
 
     @Override
-    public boolean execute(String sql) throws SQLException {
-        // currentResult is stored here. InputString and currentResult will be closed on
-        // this.close()
-        return executeQuery(sql) != null;
-    }
-
-    @Override
     public ResultSet getResultSet() throws SQLException {
         ensureOpen();
 
@@ -417,10 +439,15 @@ public class ClickHouseStatementImpl extends JdbcWrapper implements ClickHouseSt
     }
 
     @Override
-    public int getUpdateCount() throws SQLException {
+    public long getLargeUpdateCount() throws SQLException {
         ensureOpen();
 
         return currentUpdateCount;
+    }
+
+    @Override
+    public int getUpdateCount() throws SQLException {
+        return (int) getLargeUpdateCount();
     }
 
     @Override
@@ -431,7 +458,7 @@ public class ClickHouseStatementImpl extends JdbcWrapper implements ClickHouseSt
             currentResult.close();
             currentResult = null;
         }
-        currentUpdateCount = -1;
+        currentUpdateCount = -1L;
         return false;
     }
 
@@ -504,29 +531,46 @@ public class ClickHouseStatementImpl extends JdbcWrapper implements ClickHouseSt
     public void clearBatch() throws SQLException {
         ensureOpen();
 
-        this.batchStmts = new ArrayList<>();
+        this.batchStmts.clear();
     }
 
     @Override
     public int[] executeBatch() throws SQLException {
+        long[] largeUpdateCounts = executeLargeBatch();
+
+        int len = largeUpdateCounts.length;
+        int[] results = new int[len];
+        for (int i = 0; i < len; i++) {
+            results[i] = (int) largeUpdateCounts[i];
+        }
+        return results;
+    }
+
+    @Override
+    public long[] executeLargeBatch() throws SQLException {
         ensureOpen();
+        if (batchStmts.isEmpty()) {
+            throw SqlExceptionUtils.emptyBatchError();
+        }
 
         boolean continueOnError = getConnection().getJdbcConfig().isContinueBatchOnError();
-        int len = batchStmts.size();
-        int[] results = new int[len];
+        long[] results = new long[batchStmts.size()];
         try {
-            for (int i = 0; i < len; i++) {
-                ClickHouseSqlStatement s = batchStmts.get(i);
-                try (ClickHouseResponse r = executeStatement(s, null, null, null)) {
-                    updateResult(s, r);
-                    results[i] = currentUpdateCount <= 0 ? 0 : currentUpdateCount;
-                } catch (Exception e) {
-                    if (!continueOnError) {
-                        throw SqlExceptionUtils.handle(e);
+            int i = 0;
+            for (ClickHouseSqlStatement s : batchStmts) {
+                try (ClickHouseResponse r = executeStatement(s, null, null, null); ResultSet rs = updateResult(s, r)) {
+                    if (currentResult != null) {
+                        throw SqlExceptionUtils.queryInBatchError(results);
                     }
-
+                    results[i] = currentUpdateCount <= 0L ? 0L : currentUpdateCount;
+                } catch (Exception e) {
                     results[i] = EXECUTE_FAILED;
-                    log.error("Faled to execute task %d of %d", i + 1, len, e);
+                    if (!continueOnError) {
+                        throw SqlExceptionUtils.batchUpdateError(e, results);
+                    }
+                    log.error("Faled to execute task %d of %d", i + 1, batchStmts.size(), e);
+                } finally {
+                    i++;
                 }
             }
         } finally {
@@ -559,8 +603,7 @@ public class ClickHouseStatementImpl extends JdbcWrapper implements ClickHouseSt
     public ResultSet getGeneratedKeys() throws SQLException {
         ensureOpen();
 
-        return new ClickHouseResultSet(request.getConfig().getDatabase(), "unknown", this,
-                ClickHouseSimpleResponse.EMPTY);
+        return new ClickHouseResultSet(request.getConfig().getDatabase(), "unknown", this, ClickHouseResponse.EMPTY);
     }
 
     @Override
