@@ -1,8 +1,7 @@
 package com.clickhouse.client.http;
 
-import java.io.IOException;
+import java.io.InputStream;
 import java.io.Serializable;
-import java.nio.charset.Charset;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.TimeZone;
@@ -17,7 +16,7 @@ import com.clickhouse.client.ClickHouseUtils;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.config.ClickHouseOption;
 
-public class ClickHouseHttpResponse extends ClickHouseInputStream {
+public class ClickHouseHttpResponse {
     private static long getLongValue(Map<String, String> map, String key) {
         String value = map.get(key);
         if (value != null) {
@@ -40,7 +39,15 @@ public class ClickHouseHttpResponse extends ClickHouseInputStream {
 
     protected final ClickHouseResponseSummary summary;
 
-    private boolean closed;
+    protected void closeConnection() {
+        if (!connection.isReusable()) {
+            try {
+                connection.close();
+            } catch (Exception e) {
+                // ignore
+            }
+        }
+    }
 
     protected ClickHouseConfig getConfig(ClickHouseRequest<?> request) {
         ClickHouseConfig config = request.getConfig();
@@ -54,14 +61,14 @@ public class ClickHouseHttpResponse extends ClickHouseInputStream {
         return config;
     }
 
-    public ClickHouseHttpResponse(ClickHouseHttpConnection connection, ClickHouseInputStream input,
-            String serverDisplayName, String queryId, String summary, ClickHouseFormat format, TimeZone timeZone) {
+    public ClickHouseHttpResponse(ClickHouseHttpConnection connection, InputStream input, String serverDisplayName,
+            String queryId, String summary, ClickHouseFormat format, TimeZone timeZone) {
         if (connection == null || input == null) {
             throw new IllegalArgumentException("Non-null connection and input stream are required");
         }
 
         this.connection = connection;
-        this.input = input;
+        this.input = ClickHouseInputStream.of(input, connection.config.getMaxBufferSize(), this::closeConnection);
 
         this.serverDisplayName = !ClickHouseChecker.isNullOrEmpty(serverDisplayName) ? serverDisplayName
                 : connection.server.getHost();
@@ -78,76 +85,9 @@ public class ClickHouseHttpResponse extends ClickHouseInputStream {
 
         this.format = format != null ? format : connection.config.getFormat();
         this.timeZone = timeZone != null ? timeZone : connection.config.getServerTimeZone();
-
-        closed = false;
     }
 
-    @Override
-    public byte readByte() throws IOException {
-        return input.readByte();
-    }
-
-    @Override
-    public int read() throws IOException {
-        return input.read();
-    }
-
-    @Override
-    public int available() throws IOException {
-        return input.available();
-    }
-
-    @Override
-    public boolean isClosed() {
-        return closed;
-    }
-
-    @Override
-    public void close() throws IOException {
-        IOException error = null;
-
-        try {
-            input.close();
-        } catch (IOException e) {
-            error = e;
-        }
-        closed = true;
-
-        if (!connection.isReusable()) {
-            try {
-                connection.close();
-            } catch (Exception e) {
-                // ignore
-            }
-        }
-
-        if (error != null) {
-            throw error;
-        }
-    }
-
-    @Override
-    public boolean markSupported() {
-        return false;
-    }
-
-    @Override
-    public int read(byte[] b, int off, int len) throws IOException {
-        return input.read(b, off, len);
-    }
-
-    @Override
-    public long skip(long n) throws IOException {
-        return input.skip(n);
-    }
-
-    @Override
-    public byte[] readBytes(int length) throws IOException {
-        return input.readBytes(length);
-    }
-
-    @Override
-    public String readString(int byteLength, Charset charset) throws IOException {
-        return input.readString(byteLength, charset);
+    public ClickHouseInputStream getInputStream() {
+        return input;
     }
 }

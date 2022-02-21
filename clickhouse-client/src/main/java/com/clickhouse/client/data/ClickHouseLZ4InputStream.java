@@ -3,11 +3,11 @@ package com.clickhouse.client.data;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.charset.Charset;
-import java.nio.charset.StandardCharsets;
 
+import com.clickhouse.client.ClickHouseByteBuffer;
 import com.clickhouse.client.ClickHouseChecker;
 import com.clickhouse.client.ClickHouseInputStream;
+import com.clickhouse.client.ClickHouseOutputStream;
 import com.clickhouse.client.ClickHouseUtils;
 
 import net.jpountz.lz4.LZ4Factory;
@@ -28,7 +28,6 @@ public class ClickHouseLZ4InputStream extends ClickHouseInputStream {
 
     private byte[] currentBlock;
     private int position;
-    private boolean closed;
 
     private boolean checkNext() throws IOException {
         if (!closed && position >= currentBlock.length) {
@@ -43,7 +42,7 @@ public class ClickHouseLZ4InputStream extends ClickHouseInputStream {
 
         // checksum(16 bytes) + 1 magic byte + header(8 bytes)
         if (!readFully(header, 0, HEADER_LENGTH)) {
-            return EMPTY_BYTES;
+            return ClickHouseByteBuffer.EMPTY_BYTES;
         } else if (header[16] != MAGIC) {
             // 1 byte - 0x82 (shows this is LZ4)
             throw new IOException(
@@ -91,23 +90,48 @@ public class ClickHouseLZ4InputStream extends ClickHouseInputStream {
     }
 
     public ClickHouseLZ4InputStream(InputStream stream) {
+        super(null);
+
         this.decompressor = factory.fastDecompressor();
         this.stream = ClickHouseChecker.nonNull(stream, "InputStream");
         this.header = new byte[HEADER_LENGTH];
 
-        this.currentBlock = EMPTY_BYTES;
+        this.currentBlock = ClickHouseByteBuffer.EMPTY_BYTES;
         this.position = 0;
         this.closed = false;
     }
 
     @Override
+    public int peek() throws IOException {
+        return checkNext() ? 0xFF & currentBlock[position] : -1;
+    }
+
+    @Override
+    public long pipe(ClickHouseOutputStream output) throws IOException {
+        long count = 0L;
+        if (output == null || output.isClosed()) {
+            return count;
+        }
+
+        int remain = currentBlock.length - position;
+        if (remain > 0) {
+            output.write(currentBlock, position, remain);
+            position = currentBlock.length;
+            count += remain;
+        }
+
+        while (checkNext()) {
+            output.write(currentBlock);
+            count += currentBlock.length;
+        }
+
+        return count;
+    }
+
+    @Override
     public byte readByte() throws IOException {
         if (!checkNext()) {
-            try {
-                close();
-            } catch (IOException e) {
-                // ignore
-            }
+            closeQuietly();
             throw new EOFException();
         }
 
@@ -163,42 +187,33 @@ public class ClickHouseLZ4InputStream extends ClickHouseInputStream {
     }
 
     @Override
-    public void close() throws IOException {
-        try {
-            stream.close();
-        } finally {
-            closed = true;
-        }
-    }
-
-    @Override
-    public boolean isClosed() {
-        return closed;
-    }
-
-    @Override
-    public String readString(int byteLength, Charset charset) throws IOException {
-        if (byteLength < 1) {
-            return "";
-        } else if (!checkNext()) {
-            try {
-                close();
-            } catch (IOException e) {
-                // ignore
+    public ClickHouseByteBuffer read(int len) throws IOException {
+        if (len <= 0) {
+            byteBuffer.reset();
+        } else {
+            if (!checkNext()) {
+                throw new EOFException();
             }
-            throw new EOFException();
-        }
 
-        if (charset == null) {
-            charset = StandardCharsets.UTF_8;
+            int newLimit = position + len;
+            if (currentBlock.length >= newLimit) {
+                byteBuffer.update(currentBlock, position, len);
+                position = newLimit;
+            } else {
+                byteBuffer.update(readBytes(len));
+            }
         }
+        return byteBuffer;
+    }
 
-        if (currentBlock.length - position > byteLength) {
-            int offset = position;
-            position += byteLength;
-            return new String(currentBlock, offset, byteLength, charset);
+    @Override
+    public void close() throws IOException {
+        if (!closed) {
+            try {
+                stream.close();
+            } finally {
+                super.close();
+            }
         }
-
-        return new String(readBytes(byteLength), charset);
     }
 }

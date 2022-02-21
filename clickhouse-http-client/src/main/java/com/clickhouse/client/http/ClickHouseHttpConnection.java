@@ -20,7 +20,6 @@ import com.clickhouse.client.ClickHouseChecker;
 import com.clickhouse.client.ClickHouseCompression;
 import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseCredentials;
-import com.clickhouse.client.ClickHouseInputStream;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseUtils;
@@ -237,13 +236,13 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
         return out;
     }
 
-    protected ClickHouseInputStream getResponseInputStream(InputStream in) throws IOException {
+    protected InputStream getResponseInputStream(InputStream in) throws IOException {
         if (config.isCompressServerResponse()) {
             // TODO support more algorithms
             ClickHouseCompression algorithm = config.getCompressAlgorithmForServerResponse();
             switch (algorithm) {
                 case GZIP:
-                    in = ClickHouseInputStream.of(new GZIPInputStream(in));
+                    in = new GZIPInputStream(in);
                     break;
                 case LZ4:
                     in = new ClickHouseLZ4InputStream(in);
@@ -253,7 +252,7 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
             }
         }
 
-        return ClickHouseInputStream.of(in, config.getMaxBufferSize());
+        return in;
     }
 
     /**

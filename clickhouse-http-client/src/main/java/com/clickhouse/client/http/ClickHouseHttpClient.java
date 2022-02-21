@@ -87,9 +87,8 @@ public class ClickHouseHttpClient extends AbstractClient<ClickHouseHttpConnectio
         log.debug("Query: %s", sql);
         ClickHouseHttpResponse httpResponse = conn.post(sql, sealedRequest.getInputStream().orElse(null),
                 sealedRequest.getExternalTables(), null);
-        return ClickHouseStreamResponse.of(httpResponse.getConfig(sealedRequest), httpResponse,
-                sealedRequest.getSettings(), null,
-                httpResponse.summary);
+        return ClickHouseStreamResponse.of(httpResponse.getConfig(sealedRequest), httpResponse.getInputStream(),
+                sealedRequest.getSettings(), null, httpResponse.summary);
     }
 
     @Override
