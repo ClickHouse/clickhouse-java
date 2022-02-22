@@ -90,7 +90,11 @@ public class ClickHouseLZ4InputStream extends ClickHouseInputStream {
     }
 
     public ClickHouseLZ4InputStream(InputStream stream) {
-        super(null);
+        this(stream, null);
+    }
+
+    public ClickHouseLZ4InputStream(InputStream stream, Runnable afterClose) {
+        super(afterClose);
 
         this.decompressor = factory.fastDecompressor();
         this.stream = ClickHouseChecker.nonNull(stream, "InputStream");

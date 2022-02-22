@@ -1,6 +1,5 @@
 package com.clickhouse.client.http;
 
-import java.io.InputStream;
 import java.io.Serializable;
 import java.util.HashMap;
 import java.util.Map;
@@ -39,16 +38,6 @@ public class ClickHouseHttpResponse {
 
     protected final ClickHouseResponseSummary summary;
 
-    protected void closeConnection() {
-        if (!connection.isReusable()) {
-            try {
-                connection.close();
-            } catch (Exception e) {
-                // ignore
-            }
-        }
-    }
-
     protected ClickHouseConfig getConfig(ClickHouseRequest<?> request) {
         ClickHouseConfig config = request.getConfig();
         if (format != null && format != config.getFormat()) {
@@ -61,14 +50,14 @@ public class ClickHouseHttpResponse {
         return config;
     }
 
-    public ClickHouseHttpResponse(ClickHouseHttpConnection connection, InputStream input, String serverDisplayName,
-            String queryId, String summary, ClickHouseFormat format, TimeZone timeZone) {
+    public ClickHouseHttpResponse(ClickHouseHttpConnection connection, ClickHouseInputStream input,
+            String serverDisplayName, String queryId, String summary, ClickHouseFormat format, TimeZone timeZone) {
         if (connection == null || input == null) {
             throw new IllegalArgumentException("Non-null connection and input stream are required");
         }
 
         this.connection = connection;
-        this.input = ClickHouseInputStream.of(input, connection.config.getMaxBufferSize(), this::closeConnection);
+        this.input = input;
 
         this.serverDisplayName = !ClickHouseChecker.isNullOrEmpty(serverDisplayName) ? serverDisplayName
                 : connection.server.getHost();

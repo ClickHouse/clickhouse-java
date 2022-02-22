@@ -20,6 +20,7 @@ import com.clickhouse.client.ClickHouseChecker;
 import com.clickhouse.client.ClickHouseCompression;
 import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseCredentials;
+import com.clickhouse.client.ClickHouseInputStream;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseUtils;
@@ -203,6 +204,14 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
         this.defaultHeaders = Collections.unmodifiableMap(map);
     }
 
+    protected void closeQuietly() {
+        try {
+            close();
+        } catch (Exception e) {
+            // ignore
+        }
+    }
+
     protected String getBaseUrl() {
         String baseUrl;
         int index = url.indexOf('?');
@@ -236,23 +245,30 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
         return out;
     }
 
-    protected InputStream getResponseInputStream(InputStream in) throws IOException {
+    protected ClickHouseInputStream getResponseInputStream(InputStream in) throws IOException {
+        Runnable afterClose = null;
+        if (!isReusable()) {
+            afterClose = this::closeQuietly;
+        }
+        ClickHouseInputStream chInput;
         if (config.isCompressServerResponse()) {
             // TODO support more algorithms
             ClickHouseCompression algorithm = config.getCompressAlgorithmForServerResponse();
             switch (algorithm) {
                 case GZIP:
-                    in = new GZIPInputStream(in);
+                    chInput = ClickHouseInputStream.of(new GZIPInputStream(in), config.getMaxBufferSize(), afterClose);
                     break;
                 case LZ4:
-                    in = new ClickHouseLZ4InputStream(in);
+                    chInput = new ClickHouseLZ4InputStream(in, afterClose);
                     break;
                 default:
                     throw new UnsupportedOperationException("Unsupported compression algorithm: " + algorithm);
             }
+        } else {
+            chInput = ClickHouseInputStream.of(in, config.getMaxBufferSize(), afterClose);
         }
 
-        return in;
+        return chInput;
     }
 
     /**
