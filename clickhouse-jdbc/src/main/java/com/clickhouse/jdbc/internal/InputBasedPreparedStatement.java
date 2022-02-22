@@ -2,7 +2,6 @@ package com.clickhouse.jdbc.internal;
 
 import java.io.IOException;
 import java.math.BigDecimal;
-import java.nio.charset.StandardCharsets;
 import java.sql.Array;
 import java.sql.Date;
 import java.sql.ParameterMetaData;
@@ -33,7 +32,7 @@ import com.clickhouse.client.logging.LoggerFactory;
 import com.clickhouse.jdbc.ClickHousePreparedStatement;
 import com.clickhouse.jdbc.SqlExceptionUtils;
 
-public class InputBasedPreparedStatement extends ClickHouseStatementImpl implements ClickHousePreparedStatement {
+public class InputBasedPreparedStatement extends AbstractPreparedStatement implements ClickHousePreparedStatement {
     private static final Logger log = LoggerFactory.getLogger(InputBasedPreparedStatement.class);
 
     private final Calendar defaultCalendar;
@@ -88,6 +87,56 @@ public class InputBasedPreparedStatement extends ClickHouseStatementImpl impleme
         }
     }
 
+    @Override
+    protected long[] executeAny(boolean asBatch) throws SQLException {
+        ensureOpen();
+        boolean continueOnError = false;
+        if (asBatch) {
+            if (counter < 1) {
+                throw SqlExceptionUtils.emptyBatchError();
+            }
+            continueOnError = getConnection().getJdbcConfig().isContinueBatchOnError();
+        } else {
+            if (counter != 0) {
+                throw SqlExceptionUtils.undeterminedExecutionError();
+            }
+            addBatch();
+        }
+
+        long[] results = new long[counter];
+        long rows = 0;
+        try {
+            stream.close();
+            rows = executeInsert(getRequest().getStatements(false).get(0), stream.getInput());
+            if (asBatch && getResultSet() != null) {
+                throw SqlExceptionUtils.queryInBatchError(results);
+            }
+            // FIXME grpc and tcp by default can provides accurate result
+            Arrays.fill(results, 1);
+        } catch (Exception e) {
+            // just a wild guess...
+            if (rows < 1) {
+                results[0] = EXECUTE_FAILED;
+            } else {
+                if (rows >= counter) {
+                    rows = counter;
+                }
+                for (int i = 0, len = (int) rows - 1; i < len; i++) {
+                    results[i] = 1;
+                }
+                results[(int) rows] = EXECUTE_FAILED;
+            }
+            if (!continueOnError) {
+                throw SqlExceptionUtils.batchUpdateError(e, results);
+            }
+            log.error("Failed to execute batch insert of %d records", counter + 1, e);
+        } finally {
+            clearBatch();
+        }
+
+        return results;
+    }
+
     protected int toArrayIndex(int parameterIndex) throws SQLException {
         if (parameterIndex < 1 || parameterIndex > values.length) {
             throw SqlExceptionUtils.clientError(ClickHouseUtils
@@ -99,16 +148,32 @@ public class InputBasedPreparedStatement extends ClickHouseStatementImpl impleme
 
     @Override
     public ResultSet executeQuery() throws SQLException {
-        throw SqlExceptionUtils.clientError("Input function can be only used for insertion not query");
+        ensureParams();
+        // log.warn("Input function can be only used for insertion not query");
+        if (executeAny(false)[0] == EXECUTE_FAILED) {
+            throw new SQLException("Query failed", SqlExceptionUtils.SQL_STATE_SQL_ERROR);
+        }
+
+        ResultSet rs = getResultSet();
+        if (rs != null) { // should not happen
+            try {
+                rs.close();
+            } catch (Exception e) {
+                // ignore
+            }
+        }
+        return newEmptyResultSet();
     }
 
     @Override
-    public int executeUpdate() throws SQLException {
+    public long executeLargeUpdate() throws SQLException {
         ensureParams();
 
-        addBatch();
-        int row = getUpdateCount();
-        return row > 0 ? row : 0;
+        if (executeAny(false)[0] == EXECUTE_FAILED) {
+            throw new SQLException("Update failed", SqlExceptionUtils.SQL_STATE_SQL_ERROR);
+        }
+        long row = getLargeUpdateCount();
+        return row > 0L ? row : 0L;
     }
 
     @Override
@@ -214,17 +279,10 @@ public class InputBasedPreparedStatement extends ClickHouseStatementImpl impleme
     public boolean execute() throws SQLException {
         ensureParams();
 
-        addBatch();
-        executeBatch();
+        if (executeAny(false)[0] == EXECUTE_FAILED) {
+            throw new SQLException("Execution failed", SqlExceptionUtils.SQL_STATE_SQL_ERROR);
+        }
         return false;
-    }
-
-    @Override
-    public void addBatch(String sql) throws SQLException {
-        ensureOpen();
-
-        throw SqlExceptionUtils
-                .unsupportedError("addBatch(String) cannot be called in PreparedStatement or CallableStatement!");
     }
 
     @Override
@@ -247,33 +305,6 @@ public class InputBasedPreparedStatement extends ClickHouseStatementImpl impleme
 
         counter++;
         clearParameters();
-    }
-
-    @Override
-    public int[] executeBatch() throws SQLException {
-        ensureOpen();
-
-        boolean continueOnError = getConnection().getJdbcConfig().isContinueBatchOnError();
-        int[] results = new int[counter];
-        int result = 0;
-        try {
-            stream.close();
-            result = executeInsert(getRequest().getStatements(false).get(0), stream.getInput());
-        } catch (Exception e) {
-            if (!continueOnError) {
-                throw SqlExceptionUtils.handle(e);
-            }
-
-            result = EXECUTE_FAILED;
-            log.error("Failed to execute batch insert of %d records", counter + 1, e);
-        } finally {
-            clearBatch();
-        }
-
-        // FIXME grpc and tcp by default can provides accurate result
-        Arrays.fill(results, 1);
-
-        return results;
     }
 
     @Override

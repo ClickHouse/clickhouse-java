@@ -26,7 +26,7 @@ import com.clickhouse.jdbc.ClickHousePreparedStatement;
 import com.clickhouse.jdbc.SqlExceptionUtils;
 import com.clickhouse.jdbc.parser.ClickHouseSqlStatement;
 
-public class TableBasedPreparedStatement extends ClickHouseStatementImpl implements ClickHousePreparedStatement {
+public class TableBasedPreparedStatement extends AbstractPreparedStatement implements ClickHousePreparedStatement {
     private static final Logger log = LoggerFactory.getLogger(TableBasedPreparedStatement.class);
 
     private static final String ERROR_SET_TABLE = "Please use setObject(ClickHouseExternalTable) method instead";
@@ -69,6 +69,50 @@ public class TableBasedPreparedStatement extends ClickHouseStatementImpl impleme
         }
     }
 
+    @Override
+    public long[] executeAny(boolean asBatch) throws SQLException {
+        ensureOpen();
+        boolean continueOnError = false;
+        if (asBatch) {
+            if (batch.isEmpty()) {
+                throw SqlExceptionUtils.emptyBatchError();
+            }
+            continueOnError = getConnection().getJdbcConfig().isContinueBatchOnError();
+        } else {
+            if (!batch.isEmpty()) {
+                throw SqlExceptionUtils.undeterminedExecutionError();
+            }
+            addBatch();
+        }
+
+        long[] results = new long[batch.size()];
+        int index = 0;
+        try {
+            String sql = getSql();
+            for (List<ClickHouseExternalTable> list : batch) {
+                try (ClickHouseResponse r = executeStatement(sql, null, list, null);
+                        ResultSet rs = updateResult(parsedStmt, r)) {
+                    if (asBatch && getResultSet() != null) {
+                        throw SqlExceptionUtils.queryInBatchError(results);
+                    }
+                    long rows = getLargeUpdateCount();
+                    results[index] = rows > 0L ? rows : 0L;
+                } catch (Exception e) {
+                    results[index] = EXECUTE_FAILED;
+                    if (!continueOnError) {
+                        throw SqlExceptionUtils.batchUpdateError(e, results);
+                    }
+                    log.error("Failed to execute batch insert at %d of %d", index + 1, batch.size(), e);
+                }
+                index++;
+            }
+        } finally {
+            clearBatch();
+        }
+
+        return results;
+    }
+
     protected String getSql() {
         // why? because request can be modified so it might not always same as
         // parsedStmt.getSQL()
@@ -87,18 +131,24 @@ public class TableBasedPreparedStatement extends ClickHouseStatementImpl impleme
     @Override
     public ResultSet executeQuery() throws SQLException {
         ensureParams();
+        if (!batch.isEmpty()) {
+            throw SqlExceptionUtils.undeterminedExecutionError();
+        }
 
         ClickHouseSqlStatement stmt = new ClickHouseSqlStatement(getSql());
         return updateResult(parsedStmt, executeStatement(stmt, null, Arrays.asList(values), null));
     }
 
     @Override
-    public int executeUpdate() throws SQLException {
+    public long executeLargeUpdate() throws SQLException {
         ensureParams();
+        if (!batch.isEmpty()) {
+            throw SqlExceptionUtils.undeterminedExecutionError();
+        }
 
         try (ClickHouseResponse r = executeStatement(getSql(), null, Arrays.asList(values), null)) {
             updateResult(parsedStmt, r);
-            return getUpdateCount();
+            return getLargeUpdateCount();
         }
     }
 
@@ -171,18 +221,13 @@ public class TableBasedPreparedStatement extends ClickHouseStatementImpl impleme
     @Override
     public boolean execute() throws SQLException {
         ensureParams();
+        if (!batch.isEmpty()) {
+            throw SqlExceptionUtils.undeterminedExecutionError();
+        }
 
         ClickHouseSqlStatement stmt = new ClickHouseSqlStatement(getSql());
-        ClickHouseResponse r = executeStatement(stmt, null, Arrays.asList(values), null);
-        return updateResult(parsedStmt, r) != null;
-    }
-
-    @Override
-    public void addBatch(String sql) throws SQLException {
-        ensureOpen();
-
-        throw SqlExceptionUtils
-                .unsupportedError("addBatch(String) cannot be called in PreparedStatement or CallableStatement!");
+        updateResult(parsedStmt, executeStatement(stmt, null, Arrays.asList(values), null));
+        return getResultSet() != null;
     }
 
     @Override
@@ -196,38 +241,6 @@ public class TableBasedPreparedStatement extends ClickHouseStatementImpl impleme
         }
         batch.add(Collections.unmodifiableList(list));
         clearParameters();
-    }
-
-    @Override
-    public int[] executeBatch() throws SQLException {
-        ensureOpen();
-
-        boolean continueOnError = getConnection().getJdbcConfig().isContinueBatchOnError();
-        int len = batch.size();
-        int[] results = new int[len];
-        int counter = 0;
-        try {
-            String sql = getSql();
-            for (List<ClickHouseExternalTable> list : batch) {
-                try (ClickHouseResponse r = executeStatement(sql, null, list, null)) {
-                    updateResult(parsedStmt, r);
-                    int rows = getUpdateCount();
-                    results[counter] = rows > 0 ? rows : 0;
-                } catch (Exception e) {
-                    if (!continueOnError) {
-                        throw SqlExceptionUtils.handle(e);
-                    }
-
-                    results[counter] = EXECUTE_FAILED;
-                    log.error("Failed to execute batch insert at %d of %d", counter + 1, len, e);
-                }
-                counter++;
-            }
-        } finally {
-            clearBatch();
-        }
-
-        return results;
     }
 
     @Override

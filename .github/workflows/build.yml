@@ -34,7 +34,8 @@ jobs:
       matrix:
         # most recent LTS releases as well as latest stable builds
         clickhouse: ["21.3", "21.8", "latest"]
-        protocol: ["http", "grpc"]
+        # http2 here represents http protocol + JDK HttpClient(http_connection_provider=HTTP_CLIENT)
+        protocol: ["http", "http2", "grpc"]
         exclude:
           - clickhouse: "21.3"
             protocol: grpc

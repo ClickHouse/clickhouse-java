@@ -76,8 +76,8 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
             appendQueryParameter(builder, settingKey, String.valueOf(config.getMaxExecutionTime()));
         }
         settingKey = "max_result_rows";
-        if (config.getMaxResultRows() > 0 && !settings.containsKey(settingKey)) {
-            appendQueryParameter(builder, settingKey, String.valueOf(config.getMaxExecutionTime()));
+        if (config.getMaxResultRows() > 0L && !settings.containsKey(settingKey)) {
+            appendQueryParameter(builder, settingKey, String.valueOf(config.getMaxResultRows()));
             appendQueryParameter(builder, "result_overflow_mode", "break");
         }
         settingKey = "log_comment";
@@ -204,6 +204,14 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
         this.defaultHeaders = Collections.unmodifiableMap(map);
     }
 
+    protected void closeQuietly() {
+        try {
+            close();
+        } catch (Exception e) {
+            // ignore
+        }
+    }
+
     protected String getBaseUrl() {
         String baseUrl;
         int index = url.indexOf('?');
@@ -238,22 +246,29 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
     }
 
     protected ClickHouseInputStream getResponseInputStream(InputStream in) throws IOException {
+        Runnable afterClose = null;
+        if (!isReusable()) {
+            afterClose = this::closeQuietly;
+        }
+        ClickHouseInputStream chInput;
         if (config.isCompressServerResponse()) {
             // TODO support more algorithms
             ClickHouseCompression algorithm = config.getCompressAlgorithmForServerResponse();
             switch (algorithm) {
                 case GZIP:
-                    in = ClickHouseInputStream.of(new GZIPInputStream(in));
+                    chInput = ClickHouseInputStream.of(new GZIPInputStream(in), config.getMaxBufferSize(), afterClose);
                     break;
                 case LZ4:
-                    in = new ClickHouseLZ4InputStream(in);
+                    chInput = new ClickHouseLZ4InputStream(in, afterClose);
                     break;
                 default:
                     throw new UnsupportedOperationException("Unsupported compression algorithm: " + algorithm);
             }
+        } else {
+            chInput = ClickHouseInputStream.of(in, config.getMaxBufferSize(), afterClose);
         }
 
-        return ClickHouseInputStream.of(in, config.getMaxBufferSize());
+        return chInput;
     }
 
     /**

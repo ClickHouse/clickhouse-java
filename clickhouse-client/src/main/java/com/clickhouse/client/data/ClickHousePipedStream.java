@@ -9,6 +9,7 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeUnit;
 
+import com.clickhouse.client.ClickHouseByteBuffer;
 import com.clickhouse.client.ClickHouseInputStream;
 import com.clickhouse.client.ClickHouseUtils;
 
@@ -81,7 +82,7 @@ public class ClickHousePipedStream extends OutputStream {
 
         flush();
 
-        buffer = ClickHouseInputStream.EMPTY_BUFFER;
+        buffer = ClickHouseByteBuffer.EMPTY_BUFFER;
         try {
             if (timeout > 0) {
                 if (!queue.offer(buffer, timeout, TimeUnit.MILLISECONDS)) {

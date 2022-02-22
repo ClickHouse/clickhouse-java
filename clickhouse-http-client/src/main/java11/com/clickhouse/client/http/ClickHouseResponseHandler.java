@@ -13,11 +13,12 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.Flow.Subscription;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import com.clickhouse.client.ClickHouseByteBuffer;
 import com.clickhouse.client.ClickHouseInputStream;
 
 public class ClickHouseResponseHandler implements BodySubscriber<InputStream> {
     // An immutable ByteBuffer sentinel to mark that the last byte was received.
-    private static final List<ByteBuffer> LAST_LIST = List.of(ClickHouseInputStream.EMPTY_BUFFER);
+    private static final List<ByteBuffer> LAST_LIST = List.of(ClickHouseByteBuffer.EMPTY_BUFFER);
 
     private final BlockingQueue<ByteBuffer> buffers;
     private final ClickHouseInputStream in;
@@ -72,7 +73,7 @@ public class ClickHouseResponseHandler implements BodySubscriber<InputStream> {
 
     @Override
     public void onError(Throwable throwable) {
-        buffers.offer(ClickHouseInputStream.EMPTY_BUFFER);
+        buffers.offer(ClickHouseByteBuffer.EMPTY_BUFFER);
     }
 
     @Override

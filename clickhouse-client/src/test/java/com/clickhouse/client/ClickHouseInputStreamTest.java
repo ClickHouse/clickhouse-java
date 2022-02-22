@@ -105,7 +105,7 @@ public class ClickHouseInputStreamTest {
         Assert.assertThrows(IOException.class, () -> empty.readBytes(1));
         Assert.assertEquals(empty.isClosed(), false);
 
-        queue.offer(ClickHouseInputStream.EMPTY_BUFFER);
+        queue.offer(ClickHouseByteBuffer.EMPTY_BUFFER);
         Assert.assertEquals(empty.available(), 0);
         Assert.assertEquals(empty.read(), -1);
         Assert.assertEquals(empty.read(), -1);
@@ -132,7 +132,7 @@ public class ClickHouseInputStreamTest {
             queue.offer(ByteBuffer.wrap(bytes));
             i += bytes.length - 1;
         }
-        queue.offer(ClickHouseInputStream.EMPTY_BUFFER);
+        queue.offer(ClickHouseByteBuffer.EMPTY_BUFFER);
 
         ClickHouseInputStream in = ClickHouseInputStream.of(queue, 100);
         for (int i = 0; i < values.length; i++) {
@@ -166,7 +166,7 @@ public class ClickHouseInputStreamTest {
                 queue.offer(ByteBuffer.wrap(bytes));
                 i += bytes.length - 1;
             }
-            queue.offer(ClickHouseInputStream.EMPTY_BUFFER);
+            queue.offer(ClickHouseByteBuffer.EMPTY_BUFFER);
         }).start();
         ClickHouseInputStream in = ClickHouseInputStream.of(queue, 0);
         for (int i = 0; i < values.length; i++) {

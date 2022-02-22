@@ -5,6 +5,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.Serializable;
 import java.io.UncheckedIOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Spliterator;
@@ -28,6 +29,42 @@ import java.util.stream.StreamSupport;
  * </ul>
  */
 public interface ClickHouseResponse extends AutoCloseable, Serializable {
+    /**
+     * Empty response that can never be closed.
+     */
+    static final ClickHouseResponse EMPTY = new ClickHouseResponse() {
+        @Override
+        public List<ClickHouseColumn> getColumns() {
+            return Collections.emptyList();
+        }
+
+        @Override
+        public ClickHouseResponseSummary getSummary() {
+            return ClickHouseResponseSummary.EMPTY;
+        }
+
+        @Override
+        public InputStream getInputStream() {
+            return null;
+        }
+
+        @Override
+        public Iterable<ClickHouseRecord> records() {
+            return Collections.emptyList();
+        }
+
+        @Override
+        public void close() {
+            // do nothing
+        }
+
+        @Override
+        public boolean isClosed() {
+            // ensure the instance is "stateless"
+            return false;
+        }
+    };
+
     /**
      * Gets list of columns.
      *
