@@ -608,7 +608,7 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
                             clientRequest.write().query(parsedStmt.getSQL(), newQueryId()),
                             ClickHouseColumn.parse(parsedStmt.getInput()), resultSetType,
                             resultSetConcurrency, resultSetHoldability);
-                } else if (!parsedStmt.containsKeyword("SELECT") &&
+                } else if (!parsedStmt.containsKeyword("SELECT") && !parsedStmt.hasValues() &&
                         (!parsedStmt.hasFormat() || clientRequest.getFormat().name().equals(parsedStmt.getFormat()))) {
                     ps = new InputBasedPreparedStatement(this,
                             clientRequest.write().query(parsedStmt.getSQL(), newQueryId()),

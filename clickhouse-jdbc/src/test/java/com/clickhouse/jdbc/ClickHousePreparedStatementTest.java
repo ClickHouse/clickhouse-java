@@ -3,6 +3,8 @@ package com.clickhouse.jdbc;
 import java.io.ByteArrayInputStream;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
+import java.sql.BatchUpdateException;
+import java.sql.Connection;
 import java.sql.Date;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -22,6 +24,8 @@ import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.data.ClickHouseBitmap;
 import com.clickhouse.client.data.ClickHouseExternalTable;
+import com.clickhouse.jdbc.internal.InputBasedPreparedStatement;
+import com.clickhouse.jdbc.internal.SqlBasedPreparedStatement;
 
 import org.testng.Assert;
 import org.testng.annotations.DataProvider;
@@ -33,6 +37,51 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
         return new Object[][] {
                 new Object[] { "Array(DateTime32)", new LocalDateTime[] { LocalDateTime.of(2021, 11, 1, 1, 2, 3),
                         LocalDateTime.of(2021, 11, 2, 2, 3, 4) } } };
+    }
+
+    @DataProvider(name = "statementAndParams")
+    private Object[][] getStatementAndParameters() {
+        return new Object[][] {
+                // ddl
+                new Object[] { "ddl", "drop table if exists non_existing_table", SqlBasedPreparedStatement.class, false,
+                        null, false },
+                // query
+                new Object[] { "select1", "select 1", SqlBasedPreparedStatement.class, true, null, false },
+                new Object[] { "select_param", "select ?", SqlBasedPreparedStatement.class, true, new String[] { "1" },
+                        false },
+                // mutation
+                new Object[] { "insert_static", "insert into $table values(1)",
+                        SqlBasedPreparedStatement.class, false, null,
+                        false },
+                new Object[] { "insert_table", "insert into $table", InputBasedPreparedStatement.class, false,
+                        new String[] { "2" }, true },
+                new Object[] { "insert_param", "insert into $table values(?)", SqlBasedPreparedStatement.class,
+                        false,
+                        new String[] { "3" }, true },
+                new Object[] { "insert_input", "insert into $table select s from input('s String')",
+                        InputBasedPreparedStatement.class, false, new String[] { "4" }, true },
+        };
+    }
+
+    private void setParameters(PreparedStatement ps, String[] params) throws SQLException {
+        if (params != null) {
+            for (int i = 0; i < params.length; i++) {
+                ps.setString(i + 1, params[i]);
+            }
+        }
+    }
+
+    private void checkTable(Statement stmt, String query, String[] results) throws SQLException {
+        if (results == null) {
+            return;
+        }
+        try (ResultSet rs = stmt.executeQuery(query)) {
+            for (int i = 0; i < results.length; i++) {
+                Assert.assertTrue(rs.next(), "Should have next row");
+                Assert.assertEquals(rs.getString(1), results[i]);
+            }
+            Assert.assertFalse(rs.next(), "Should not have next row");
+        }
     }
 
     @Test(groups = "integration")
@@ -233,6 +282,34 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
             Assert.assertEquals(rs.getTimestamp(2), xx);
             Assert.assertEquals(rs.getObject(3), dx);
             Assert.assertEquals(rs.getTimestamp(3), xx);
+            Assert.assertFalse(rs.next());
+        }
+    }
+
+    @Test(groups = "integration")
+    public void testReadWriteDateTimeWithNanos() throws SQLException {
+        try (ClickHouseConnection conn = newConnection(new Properties());
+                Statement stmt = conn.createStatement()) {
+            stmt.execute("drop table if exists test_read_write_datetime_nanos;"
+                    + "CREATE TABLE test_read_write_datetime_nanos (id UUID, date DateTime64(3)) ENGINE = MergeTree() ORDER BY (id, date)");
+            UUID id = UUID.randomUUID();
+            long value = 1617359745321000L;
+            Instant i = Instant.ofEpochMilli(value / 1000L);
+            LocalDateTime dt = LocalDateTime.ofInstant(i, conn.getServerTimeZone().toZoneId());
+            try (PreparedStatement ps = conn
+                    .prepareStatement("insert into test_read_write_datetime_nanos values(?,?)")) {
+                ps.setObject(1, id);
+                ps.setObject(2, dt);
+                // below works too but too slow
+                // ps.setTimestamp(2, new Timestamp(value / 1000L));
+                ps.executeUpdate();
+            }
+
+            ResultSet rs = stmt.executeQuery("select * from test_read_write_datetime_nanos");
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getObject(1), id);
+            Assert.assertEquals(rs.getObject(2), dt);
+            // rs.getString(2) will return "2021-04-02 03:35:45.321"
             Assert.assertFalse(rs.next());
         }
     }
@@ -478,8 +555,160 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
             stmt.addBatch();
             stmt.setInt(1, 2);
             stmt.addBatch();
-            int[] results = stmt.executeBatch();
-            Assert.assertEquals(results, new int[] { 0, 0 });
+            Assert.assertThrows(BatchUpdateException.class, () -> stmt.executeBatch());
+        }
+    }
+
+    @Test(dataProvider = "statementAndParams", groups = "integration")
+    public void testExecuteWithOrWithoutParameters(String tableSuffix, String query, Class<?> clazz,
+            boolean hasResultSet, String[] params, boolean checkTable) throws SQLException {
+        String tableName = "test_execute_ps_" + tableSuffix;
+        query = query.replace("$table", tableName);
+        Properties props = new Properties();
+        try (Connection conn = newConnection(props); Statement stmt = conn.createStatement()) {
+            Assert.assertFalse(stmt.execute("drop table if exists " + tableName
+                    + "; create table " + tableName + "(s String)engine=Memory"), "Should not have result set");
+
+            try (PreparedStatement ps = conn.prepareStatement(query)) {
+                Assert.assertEquals(ps.getClass(), clazz);
+
+                // executeQuery
+                setParameters(ps, params);
+                Assert.assertNotNull(ps.executeQuery(), "executeQuery should never return null result set");
+                if (hasResultSet) {
+                    Assert.assertNotNull(ps.getResultSet(), "Should have result set");
+                    Assert.assertEquals(ps.getUpdateCount(), -1);
+                    Assert.assertEquals(ps.getLargeUpdateCount(), -1L);
+                } else {
+                    Assert.assertNull(ps.getResultSet(), "Should not have result set");
+                    Assert.assertTrue(ps.getUpdateCount() >= 0, "Should have update count");
+                    Assert.assertTrue(ps.getLargeUpdateCount() >= 0L, "Should have update count");
+                }
+                if (checkTable)
+                    checkTable(stmt, "select * from " + tableName, params);
+
+                // execute
+                Assert.assertFalse(stmt.execute("truncate table " + tableName), "Should not have result set");
+                setParameters(ps, params);
+                if (hasResultSet) {
+                    Assert.assertTrue(ps.execute(), "Should have result set");
+                    Assert.assertNotNull(ps.getResultSet(), "Should have result set");
+                    Assert.assertEquals(ps.getUpdateCount(), -1);
+                    Assert.assertEquals(ps.getLargeUpdateCount(), -1L);
+                } else {
+                    Assert.assertFalse(ps.execute(), "Should not have result set");
+                    Assert.assertNull(ps.getResultSet(), "Should not have result set");
+                    Assert.assertTrue(ps.getUpdateCount() >= 0, "Should have update count");
+                    Assert.assertTrue(ps.getLargeUpdateCount() >= 0L, "Should have update count");
+                }
+                if (checkTable)
+                    checkTable(stmt, "select * from " + tableName, params);
+
+                // executeLargeUpdate
+                Assert.assertFalse(stmt.execute("truncate table " + tableName), "Should not have result set");
+                setParameters(ps, params);
+                Assert.assertEquals(ps.executeLargeUpdate(), ps.getLargeUpdateCount());
+                if (hasResultSet) {
+                    Assert.assertNotNull(ps.getResultSet(), "Should have result set");
+                    Assert.assertEquals(ps.getUpdateCount(), -1);
+                    Assert.assertEquals(ps.getLargeUpdateCount(), -1L);
+                } else {
+                    Assert.assertNull(ps.getResultSet(), "Should not have result set");
+                    Assert.assertTrue(ps.getUpdateCount() >= 0, "Should have update count");
+                    Assert.assertTrue(ps.getLargeUpdateCount() >= 0L, "Should have update count");
+                }
+                if (checkTable)
+                    checkTable(stmt, "select * from " + tableName, params);
+
+                // executeUpdate
+                Assert.assertFalse(stmt.execute("truncate table " + tableName), "Should not have result set");
+                setParameters(ps, params);
+                Assert.assertEquals(ps.executeUpdate(), ps.getUpdateCount());
+                if (hasResultSet) {
+                    Assert.assertNotNull(ps.getResultSet(), "Should have result set");
+                    Assert.assertEquals(ps.getUpdateCount(), -1);
+                    Assert.assertEquals(ps.getLargeUpdateCount(), -1L);
+                } else {
+                    Assert.assertNull(ps.getResultSet(), "Should not have result set");
+                    Assert.assertTrue(ps.getUpdateCount() >= 0, "Should have update count");
+                    Assert.assertTrue(ps.getLargeUpdateCount() >= 0L, "Should have update count");
+                }
+                if (checkTable)
+                    checkTable(stmt, "select * from " + tableName, params);
+            }
+
+            // executeLargeBatch
+            Assert.assertFalse(stmt.execute("truncate table " + tableName), "Should not have result set");
+            try (PreparedStatement ps = conn.prepareStatement(query)) {
+                Assert.assertEquals(ps.getClass(), clazz);
+                setParameters(ps, params);
+                ps.addBatch();
+                Assert.assertThrows(SQLException.class, () -> ps.execute());
+                Assert.assertThrows(SQLException.class, () -> ps.executeQuery());
+                Assert.assertThrows(SQLException.class, () -> ps.executeUpdate());
+                if (hasResultSet) {
+                    Assert.assertThrows(SQLException.class, () -> ps.executeLargeBatch());
+                } else {
+                    Assert.assertEquals(ps.executeLargeBatch(), new long[] { 1L });
+                }
+                if (checkTable)
+                    checkTable(stmt, "select * from " + tableName, params);
+            }
+
+            // executeBatch
+            Assert.assertFalse(stmt.execute("truncate table " + tableName), "Should not have result set");
+            try (PreparedStatement ps = conn.prepareStatement(query)) {
+                Assert.assertEquals(ps.getClass(), clazz);
+                setParameters(ps, params);
+                ps.addBatch();
+                Assert.assertThrows(SQLException.class, () -> ps.execute());
+                Assert.assertThrows(SQLException.class, () -> ps.executeQuery());
+                Assert.assertThrows(SQLException.class, () -> ps.executeUpdate());
+                if (hasResultSet) {
+                    Assert.assertThrows(SQLException.class, () -> ps.executeBatch());
+                } else {
+                    Assert.assertEquals(ps.executeBatch(), new int[] { 1 });
+                }
+                if (checkTable)
+                    checkTable(stmt, "select * from " + tableName, params);
+            }
+        }
+
+        props.setProperty(JdbcConfig.PROP_CONTINUE_BATCH, "true");
+        try (Connection conn = newConnection(props);
+                Statement stmt = conn.createStatement();
+                PreparedStatement ps = conn.prepareStatement(query)) {
+            Assert.assertEquals(ps.getClass(), clazz);
+
+            // executeLargeBatch
+            Assert.assertFalse(stmt.execute("truncate table " + tableName), "Should not have result set");
+            setParameters(ps, params);
+            ps.addBatch();
+            Assert.assertThrows(SQLException.class, () -> ps.execute());
+            Assert.assertThrows(SQLException.class, () -> ps.executeQuery());
+            Assert.assertThrows(SQLException.class, () -> ps.executeUpdate());
+            if (hasResultSet) {
+                Assert.assertEquals(ps.executeLargeBatch(), new long[] { Statement.EXECUTE_FAILED });
+            } else {
+                Assert.assertEquals(ps.executeLargeBatch(), new long[] { 1L });
+            }
+            if (checkTable)
+                checkTable(stmt, "select * from " + tableName, params);
+
+            // executeBatch
+            Assert.assertFalse(stmt.execute("truncate table " + tableName), "Should not have result set");
+            setParameters(ps, params);
+            ps.addBatch();
+            Assert.assertThrows(SQLException.class, () -> ps.execute());
+            Assert.assertThrows(SQLException.class, () -> ps.executeQuery());
+            Assert.assertThrows(SQLException.class, () -> ps.executeUpdate());
+            if (hasResultSet) {
+                Assert.assertEquals(ps.executeBatch(), new int[] { Statement.EXECUTE_FAILED });
+            } else {
+                Assert.assertEquals(ps.executeBatch(), new int[] { 1 });
+            }
+            if (checkTable)
+                checkTable(stmt, "select * from " + tableName, params);
         }
     }
 

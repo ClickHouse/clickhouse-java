@@ -69,17 +69,6 @@ public interface ClickHousePreparedStatement extends PreparedStatement {
     }
 
     @Override
-    default boolean execute() throws SQLException {
-        return executeQuery() != null;
-    }
-
-    @Override
-    default void addBatch(String sql) throws SQLException {
-        throw SqlExceptionUtils
-                .unsupportedError("addBatch(String) cannot be called in PreparedStatement or CallableStatement!");
-    }
-
-    @Override
     default void setCharacterStream(int parameterIndex, Reader reader, int length) throws SQLException {
         String s = null;
         if (reader != null) {

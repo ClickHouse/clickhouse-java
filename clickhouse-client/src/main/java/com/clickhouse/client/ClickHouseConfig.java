@@ -115,7 +115,7 @@ public class ClickHouseConfig implements Serializable {
     private final int maxExecutionTime;
     private final int maxQueuedBuffers;
     private final int maxQueuedRequests;
-    private final int maxResultRows;
+    private final long maxResultRows;
     private final int maxThreads;
     private final boolean retry;
     private final boolean reuseValueWrapper;
@@ -193,7 +193,7 @@ public class ClickHouseConfig implements Serializable {
         this.maxExecutionTime = (int) getOption(ClickHouseClientOption.MAX_EXECUTION_TIME);
         this.maxQueuedBuffers = (int) getOption(ClickHouseClientOption.MAX_QUEUED_BUFFERS);
         this.maxQueuedRequests = (int) getOption(ClickHouseClientOption.MAX_QUEUED_REQUESTS);
-        this.maxResultRows = (int) getOption(ClickHouseClientOption.MAX_RESULT_ROWS);
+        this.maxResultRows = (long) getOption(ClickHouseClientOption.MAX_RESULT_ROWS);
         this.maxThreads = (int) getOption(ClickHouseClientOption.MAX_THREADS_PER_CLIENT);
         this.retry = (boolean) getOption(ClickHouseClientOption.RETRY);
         this.reuseValueWrapper = (boolean) getOption(ClickHouseClientOption.REUSE_VALUE_WRAPPER);
@@ -291,7 +291,7 @@ public class ClickHouseConfig implements Serializable {
         return maxQueuedRequests;
     }
 
-    public int getMaxResultRows() {
+    public long getMaxResultRows() {
         return maxResultRows;
     }
 

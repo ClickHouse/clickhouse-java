@@ -76,8 +76,7 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
             // TODO get exception from response header, for example:
             // X-ClickHouse-Exception-Code: 47
             StringBuilder builder = new StringBuilder();
-            try (Reader reader = new BufferedReader(
-                    new InputStreamReader(getResponseInputStream(r.body()), StandardCharsets.UTF_8))) {
+            try (Reader reader = new InputStreamReader(getResponseInputStream(r.body()), StandardCharsets.UTF_8)) {
                 int c = 0;
                 while ((c = reader.read()) != -1) {
                     builder.append((char) c);
@@ -278,5 +277,6 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
 
     @Override
     public void close() {
+        // nothing
     }
 }

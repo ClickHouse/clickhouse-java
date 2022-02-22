@@ -18,6 +18,7 @@ import com.clickhouse.client.ClickHouseValues;
  * A simple response built on top of two lists: columns and records.
  */
 public class ClickHouseSimpleResponse implements ClickHouseResponse {
+    @Deprecated
     public static final ClickHouseSimpleResponse EMPTY = new ClickHouseSimpleResponse(Collections.emptyList(),
             new ClickHouseValue[0][], ClickHouseResponseSummary.EMPTY);
 

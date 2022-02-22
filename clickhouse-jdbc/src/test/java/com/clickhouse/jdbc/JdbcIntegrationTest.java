@@ -10,13 +10,15 @@ import java.util.Properties;
 import com.clickhouse.client.BaseIntegrationTest;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseProtocol;
+import com.clickhouse.client.http.config.ClickHouseHttpOption;
 
 public abstract class JdbcIntegrationTest extends BaseIntegrationTest {
     private static final String CLASS_PREFIX = "ClickHouse";
     private static final String CLASS_SUFFIX = "Test";
 
+    protected static final String CUSTOM_PROTOCOL_NAME = System.getProperty("protocol", "http").toUpperCase();
     protected static final ClickHouseProtocol DEFAULT_PROTOCOL = ClickHouseProtocol
-            .valueOf(System.getProperty("protocol", "http").toUpperCase());
+            .valueOf(CUSTOM_PROTOCOL_NAME.startsWith("HTTP") ? "HTTP" : CUSTOM_PROTOCOL_NAME);
 
     protected final String dbName;
 
@@ -48,6 +50,9 @@ public abstract class JdbcIntegrationTest extends BaseIntegrationTest {
             builder.append(url);
         }
 
+        if ("HTTP2".equals(CUSTOM_PROTOCOL_NAME)) {
+            builder.append('?').append(ClickHouseHttpOption.CONNECTION_PROVIDER.getKey()).append("=HTTP_CLIENT");
+        }
         return builder.toString();
     }
 

@@ -1,6 +1,7 @@
 package com.clickhouse.jdbc;
 
 import java.sql.Array;
+import java.sql.BatchUpdateException;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -96,8 +97,8 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
             String sql = "-- select something " + uuid + "\nselect 12345";
             stmt.execute(sql + "; system flush logs;");
             ResultSet rs = stmt.executeQuery(
-                    "select distinct query, type from system.query_log where log_comment = 'select something " + uuid
-                            + "'");
+                    "select distinct query from system.query_log where type = 'QueryStart' and log_comment = 'select something "
+                            + uuid + "'");
             Assert.assertTrue(rs.next());
             Assert.assertEquals(rs.getString(1), sql);
             Assert.assertFalse(rs.next());
@@ -122,21 +123,22 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
             Assert.assertEquals(conn.createStatement().executeUpdate("update test_mutation set b = 22 where b = 1"), 0);
 
             Assert.assertThrows(SQLException.class,
-                    () -> stmt.executeUpdate("update non_exist_table set value=1 where key=1"));
+                    () -> stmt.executeUpdate("update non_existing_table set value=1 where key=1"));
 
-            stmt.addBatch("select 1");
-            stmt.addBatch("select * from non_exist_table");
-            stmt.addBatch("select 2");
+            stmt.addBatch("insert into test_mutation values('1',1)");
+            stmt.addBatch("drop table non_existing_table");
+            stmt.addBatch("insert into test_mutation values('2',2)");
             Assert.assertThrows(SQLException.class, () -> stmt.executeBatch());
         }
 
         props.setProperty(JdbcConfig.PROP_CONTINUE_BATCH, "true");
         try (ClickHouseConnection conn = newConnection(props); ClickHouseStatement stmt = conn.createStatement()) {
-            stmt.addBatch("select 1");
-            stmt.addBatch("select * from non_exist_table");
             stmt.addBatch("insert into test_mutation values('a',1)");
+            stmt.addBatch("drop table non_existing_table");
+            stmt.addBatch("insert into test_mutation values('b',2)");
             stmt.addBatch("select 2");
-            Assert.assertEquals(stmt.executeBatch(), new int[] { 0, ClickHouseStatement.EXECUTE_FAILED, 1, 0 });
+            Assert.assertEquals(stmt.executeBatch(),
+                    new int[] { 1, Statement.EXECUTE_FAILED, 1, Statement.EXECUTE_FAILED });
         }
     }
 
@@ -174,7 +176,8 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
                     + "INSERT INTO test_async_insert VALUES(1, 'a'); "
                     + "select * from test_async_insert");
             ResultSet rs = stmt.getResultSet();
-            Assert.assertFalse(rs.next());
+            Assert.assertFalse(rs.next(),
+                    "Server was probably busy at that time, so the row was inserted before your query");
         }
     }
 
@@ -202,6 +205,187 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
             } finally {
                 stmt.cancel();
             }
+        }
+    }
+
+    @Test(groups = "integration")
+    public void testExecute() throws SQLException {
+        try (Connection conn = newConnection(new Properties());
+                Statement stmt = conn.createStatement()) {
+            // ddl
+            Assert.assertFalse(stmt.execute("drop table if exists non_existing_table"), "Should have no result set");
+            Assert.assertEquals(stmt.getResultSet(), null);
+            Assert.assertTrue(stmt.getUpdateCount() >= 0, "Should have update count");
+            // query
+            Assert.assertTrue(stmt.execute("select 1"), "Should have result set");
+            ResultSet rs = stmt.getResultSet();
+            Assert.assertTrue(rs.next(), "Should have one record");
+            Assert.assertEquals(rs.getInt(1), 1);
+            Assert.assertFalse(rs.next(), "Should have only one record");
+            // mixed usage
+            stmt.addBatch("drop table if exists non_existing_table");
+            Assert.assertThrows(SQLException.class, () -> stmt.executeQuery("drop table if exists non_existing_table"));
+            Assert.assertThrows(SQLException.class, () -> stmt.executeQuery("select 2"));
+            stmt.clearBatch();
+            Assert.assertFalse(stmt.execute("drop table if exists non_existing_table"), "Should have no result set");
+            Assert.assertEquals(stmt.getResultSet(), null);
+            Assert.assertTrue(stmt.getUpdateCount() >= 0, "Should have update count");
+            Assert.assertTrue(stmt.execute("select 2"), "Should have result set");
+            rs = stmt.getResultSet();
+            Assert.assertTrue(rs.next(), "Should have one record");
+            Assert.assertEquals(rs.getInt(1), 2);
+            Assert.assertFalse(rs.next(), "Should have only one record");
+        }
+    }
+
+    @Test(groups = "integration")
+    public void testExecuteBatch() throws SQLException {
+        Properties props = new Properties();
+        try (Connection conn = newConnection(props); Statement stmt = conn.createStatement()) {
+            Assert.assertThrows(SQLException.class, () -> stmt.executeBatch());
+            stmt.addBatch("select 1");
+            // mixed usage
+            Assert.assertThrows(SQLException.class, () -> stmt.execute("select 2"));
+            Assert.assertThrows(SQLException.class, () -> stmt.executeQuery("select 2"));
+            Assert.assertThrows(SQLException.class,
+                    () -> stmt.executeLargeUpdate("drop table if exists non_existing_table"));
+            Assert.assertThrows(SQLException.class,
+                    () -> stmt.executeUpdate("drop table if exists non_existing_table"));
+            // query in batch
+            Assert.assertThrows(BatchUpdateException.class, () -> stmt.executeBatch());
+            stmt.addBatch("select 1");
+            Assert.assertThrows(BatchUpdateException.class, () -> stmt.executeLargeBatch());
+
+            Assert.assertFalse(stmt.execute("drop table if exists test_execute_batch; "
+                    + "create table test_execute_batch(a Int32, b String)engine=Memory"), "Should not have result set");
+            stmt.addBatch("insert into test_execute_batch values(1,'1')");
+            stmt.addBatch("insert into test_execute_batch values(2,'2')");
+            stmt.addBatch("insert into test_execute_batch values(3,'3')");
+            Assert.assertEquals(stmt.executeBatch(), new int[] { 1, 1, 1 });
+
+            Assert.assertFalse(stmt.execute("truncate table test_execute_batch"), "Should not have result set");
+            stmt.addBatch("insert into test_execute_batch values(1,'1')");
+            stmt.addBatch("insert into test_execute_batch values(2,'2')");
+            stmt.addBatch("insert into test_execute_batch values(3,'3')");
+            Assert.assertEquals(stmt.executeLargeBatch(), new long[] { 1L, 1L, 1L });
+
+            try (ResultSet rs = stmt.executeQuery("select * from test_execute_batch order by a")) {
+                int count = 0;
+                while (rs.next()) {
+                    count++;
+                    Assert.assertEquals(rs.getInt(1), count);
+                    Assert.assertEquals(rs.getString(2), String.valueOf(count));
+                }
+                Assert.assertEquals(count, 3);
+            }
+
+            Assert.assertFalse(stmt.execute("truncate table test_execute_batch"), "Should not have result set");
+            stmt.addBatch("insert into test_execute_batch values(1,'1')");
+            stmt.addBatch("drop table non_existing_table");
+            stmt.addBatch("insert into test_execute_batch values(2,'2')");
+            Assert.assertThrows(BatchUpdateException.class, () -> stmt.executeBatch());
+
+            Assert.assertFalse(stmt.execute("truncate table test_execute_batch"), "Should not have result set");
+            stmt.addBatch("insert into test_execute_batch values(1,'1')");
+            stmt.addBatch("drop table non_existing_table");
+            stmt.addBatch("insert into test_execute_batch values(2,'2')");
+            Assert.assertThrows(BatchUpdateException.class, () -> stmt.executeLargeBatch());
+        }
+
+        props.setProperty(JdbcConfig.PROP_CONTINUE_BATCH, "true");
+        try (Connection conn = newConnection(props); Statement stmt = conn.createStatement()) {
+            Assert.assertFalse(stmt.execute("truncate table test_execute_batch"), "Should not have result set");
+            stmt.addBatch("insert into test_execute_batch values(1,'1')");
+            stmt.addBatch("drop table non_existing_table");
+            stmt.addBatch("insert into test_execute_batch values(2,'2')");
+            stmt.addBatch("drop table non_existing_table");
+            Assert.assertEquals(stmt.executeBatch(),
+                    new int[] { 1, Statement.EXECUTE_FAILED, 1, Statement.EXECUTE_FAILED });
+
+            Assert.assertFalse(stmt.execute("truncate table test_execute_batch"), "Should not have result set");
+            stmt.addBatch("insert into test_execute_batch values(1,'1')");
+            stmt.addBatch("drop table non_existing_table");
+            stmt.addBatch("insert into test_execute_batch values(2,'2')");
+            stmt.addBatch("drop table non_existing_table");
+            Assert.assertEquals(stmt.executeLargeBatch(),
+                    new long[] { 1L, Statement.EXECUTE_FAILED, 1L, Statement.EXECUTE_FAILED });
+            try (ResultSet rs = stmt.executeQuery("select * from test_execute_batch order by a")) {
+                int count = 0;
+                while (rs.next()) {
+                    count++;
+                    Assert.assertEquals(rs.getInt(1), count);
+                    Assert.assertEquals(rs.getString(2), String.valueOf(count));
+                }
+                Assert.assertEquals(count, 2);
+            }
+        }
+    }
+
+    @Test(groups = "integration")
+    public void testExecuteQuery() throws SQLException {
+        try (Connection conn = newConnection(new Properties());
+                Statement stmt = conn.createStatement()) {
+            ResultSet rs = stmt.executeQuery("select 1");
+            Assert.assertTrue(rs == stmt.getResultSet(), "Should be the exact same result set");
+            Assert.assertEquals(stmt.getUpdateCount(), -1);
+            Assert.assertTrue(rs.next(), "Should have one record");
+            Assert.assertEquals(rs.getInt(1), 1);
+            Assert.assertFalse(rs.next(), "Should have only one record");
+
+            stmt.addBatch("select 1");
+            Assert.assertThrows(SQLException.class, () -> stmt.executeQuery("select 2"));
+            stmt.clearBatch();
+            rs = stmt.executeQuery("select 2");
+            Assert.assertTrue(rs == stmt.getResultSet(), "Should be the exact same result set");
+            Assert.assertEquals(stmt.getUpdateCount(), -1);
+            Assert.assertTrue(rs.next(), "Should have one record");
+            Assert.assertEquals(rs.getInt(1), 2);
+            Assert.assertFalse(rs.next(), "Should have only one record");
+
+            // never return null result set
+            rs = stmt.executeQuery("drop table if exists non_existing_table");
+            Assert.assertNotNull(rs, "Should never be null");
+            Assert.assertNull(stmt.getResultSet(), "Should be null");
+            Assert.assertEquals(stmt.getUpdateCount(), 1);
+            Assert.assertFalse(rs.next(), "Should has no row");
+        }
+    }
+
+    @Test(groups = "integration")
+    public void testExecuteUpdate() throws SQLException {
+        try (Connection conn = newConnection(new Properties());
+                Statement stmt = conn.createStatement()) {
+            Assert.assertFalse(stmt.execute("drop table if exists test_execute_query; "
+                    + "create table test_execute_query(a Int32, b String)engine=Memory"), "Should not have result set");
+
+            Assert.assertTrue(stmt.executeUpdate("insert into test_execute_query values(1,'1')") >= 0,
+                    "Should return value greater than or equal to zero");
+            Assert.assertNull(stmt.getResultSet(), "Should have no result set");
+            Assert.assertEquals(stmt.getUpdateCount(), 1);
+            Assert.assertEquals(stmt.getLargeUpdateCount(), 1L);
+            Assert.assertTrue(stmt.executeLargeUpdate("insert into test_execute_query values(1,'1')") >= 0L,
+                    "Should return value greater than or equal to zero");
+            Assert.assertNull(stmt.getResultSet(), "Should have no result set");
+            Assert.assertEquals(stmt.getUpdateCount(), 1);
+            Assert.assertEquals(stmt.getLargeUpdateCount(), 1L);
+
+            stmt.addBatch("select 1");
+            Assert.assertThrows(SQLException.class,
+                    () -> stmt.executeUpdate("insert into test_execute_query values(1,'1')"));
+            Assert.assertThrows(SQLException.class,
+                    () -> stmt.executeLargeUpdate("insert into test_execute_query values(1,'1')"));
+            stmt.clearBatch();
+
+            Assert.assertTrue(stmt.executeUpdate("insert into test_execute_query values(2,'2')") >= 0,
+                    "Should return value greater than or equal to zero");
+            Assert.assertNull(stmt.getResultSet(), "Should have no result set");
+            Assert.assertEquals(stmt.getUpdateCount(), 1);
+            Assert.assertEquals(stmt.getLargeUpdateCount(), 1L);
+            Assert.assertTrue(stmt.executeLargeUpdate("insert into test_execute_query values(2,'2')") >= 0,
+                    "Should return value greater than or equal to zero");
+            Assert.assertNull(stmt.getResultSet(), "Should have no result set");
+            Assert.assertEquals(stmt.getUpdateCount(), 1);
+            Assert.assertEquals(stmt.getLargeUpdateCount(), 1L);
         }
     }
 
@@ -248,12 +432,14 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
     }
 
     @Test(groups = "integration")
-    public void testQuery() throws SQLException {
+    public void testQuerySystemLog() throws SQLException {
         try (ClickHouseConnection conn = newConnection(new Properties())) {
             ClickHouseStatement stmt = conn.createStatement();
             stmt.setMaxRows(10);
+            stmt.setLargeMaxRows(11L);
             ResultSet rs = stmt.executeQuery("select * from numbers(100)");
 
+            int rows = 0;
             try (ResultSet colRs = conn.getMetaData().getColumns(null, "system", "query_log", "")) {
                 while (colRs.next()) {
                     continue;
@@ -261,15 +447,16 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
             }
 
             while (rs.next()) {
-                continue;
+                rows++;
             }
+            Assert.assertEquals(rows, 11);
 
             // batch query
-            stmt.addBatch("select 1");
-            stmt.addBatch("select 2");
-            stmt.addBatch("select 3");
+            stmt.addBatch("drop table if exists non_existing_table1");
+            stmt.addBatch("drop table if exists non_existing_table2");
+            stmt.addBatch("drop table if exists non_existing_table3");
             int[] results = stmt.executeBatch();
-            Assert.assertEquals(results, new int[] { 0, 0, 0 });
+            Assert.assertEquals(results, new int[] { 1, 1, 1 });
         }
     }
 
