@@ -22,6 +22,7 @@ import java.time.format.DateTimeFormatterBuilder;
 import java.time.temporal.ChronoField;
 import java.util.Collection;
 import java.util.Enumeration;
+import java.util.List;
 import java.util.Map;
 import java.util.TimeZone;
 import java.util.UUID;
@@ -512,7 +513,7 @@ public final class ClickHouseValues {
             s = new StringBuilder().append('\'').append(((InetAddress) value).getHostAddress()).append('\'').toString();
         } else if (value instanceof Enum) {
             s = String.valueOf(((Enum<?>) value).ordinal()); // faster than escaped name
-        } else if (value instanceof Object[]) { // array & nested
+        } else if (value instanceof Object[] || value instanceof List) { // array & nested
             StringBuilder builder = new StringBuilder().append('[');
             for (Object o : (Object[]) value) {
                 builder.append(convertToSqlExpression(o)).append(',');
@@ -521,7 +522,7 @@ public final class ClickHouseValues {
                 builder.setLength(builder.length() - 1);
             }
             s = builder.append(']').toString();
-        } else if (value instanceof Collection) { // treat as tuple
+        } else if (value instanceof Collection && !(value instanceof List)) { // treat as tuple
             StringBuilder builder = new StringBuilder().append('(');
             for (Object v : (Collection<Object>) value) {
                 builder.append(convertToSqlExpression(v)).append(',');
