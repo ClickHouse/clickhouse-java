@@ -1,0 +1,7 @@
+clickhouse:
+  host: localhost
+  port: 8123
+  database: clickdb
+  user: default
+  password: ""
+debug: true
