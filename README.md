@@ -4,7 +4,7 @@
 
 Java client and JDBC driver for ClickHouse. Java client is async, lightweight, and low-overhead library for ClickHouse; while JDBC driver is built on top of the Java client with more dependencies and extensions for JDBC-compliance.
 
-Java 8 or higher is required in order to use Java client([clickhouse-client](https://github.com/ClickHouse/clickhouse-jdbc/clickhouse-client)) and/or JDBC driver([clickhouse-jdbc](https://github.com/ClickHouse/clickhouse-jdbc/clickhouse-jdbc)). In addition, starting from 0.3.2, JDBC driver only works with ClickHouse 20.7 or above, so please consider to either downgrade the driver to 0.3.1-patch or upgrade server to one of [active releases](https://github.com/ClickHouse/ClickHouse/pulls?q=is%3Aopen+is%3Apr+label%3Arelease).
+Java 8 or higher is required in order to use Java client([clickhouse-client](https://github.com/ClickHouse/clickhouse-jdbc/tree/master/clickhouse-client)) and/or JDBC driver([clickhouse-jdbc](https://github.com/ClickHouse/clickhouse-jdbc/tree/master/clickhouse-jdbc)). In addition, starting from 0.3.2, JDBC driver only works with ClickHouse 20.7 or above, so please consider to either downgrade the driver to 0.3.1-patch or upgrade server to one of [active releases](https://github.com/ClickHouse/ClickHouse/pulls?q=is%3Aopen+is%3Apr+label%3Arelease).
 
 ---
 
