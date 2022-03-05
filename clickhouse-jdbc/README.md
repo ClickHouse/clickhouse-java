@@ -11,7 +11,7 @@ Keep in mind that `clickhouse-jdbc` is synchronous, and in general it has more o
     <!-- will stop using ru.yandex.clickhouse starting from 0.4.0 -->
     <groupId>com.clickhouse</groupId>
     <artifactId>clickhouse-jdbc</artifactId>
-    <version>0.3.2-patch5</version>
+    <version>0.3.2-patch6</version>
 </dependency>
 ```
 
@@ -48,6 +48,10 @@ Note: please refer to [JDBC specific configuration](https://github.com/ClickHous
 
 ```java
 String url = "jdbc:ch://my-server/system"; // use http protocol and port 8123 by default
+// String url = "jdbc:ch://my-server:8443/system"; // if you prefer https
+Properties properties = new Properties();
+// properties.setProperty("ssl", "true");
+// properties.setProperty("sslmode", "NONE"); // NONE to trust all servers; STRICT for trusted only
 ClickHouseDataSource dataSource = new ClickHouseDataSource(url, new Properties());
 try (Connection conn = dataSource.getConnection("default", "password");
     Statement stmt = conn.createStatement()) {
@@ -69,7 +73,7 @@ Tips:
 2. Use [input function](https://clickhouse.com/docs/en/sql-reference/table-functions/input/) whenever possible
 
 ```java
-// create table mytable(id String, ts DateTime64(3), desc Nullable(String)) engine=Memory
+// create table mytable(id String, timestamp DateTime64(3), description Nullable(String)) engine=Memory
 
 // 1. recommended as it performs the best
 try (PreparedStatement ps = conn.prepareStatement(
@@ -78,27 +82,27 @@ try (PreparedStatement ps = conn.prepareStatement(
     ps.setString(1, "test"); // col1
     ps.setObject(2, LocalDateTime.now()); // col2, setTimestamp is slow and not recommended
     ps.setInt(3, 123); // col3
-    ps.addBatch(); // parameters will be write into stream in binary format
+    ps.addBatch(); // parameters will be write into buffered stream immediately in binary format
     ...
     ps.executeBatch(); // stream everything on-hand into ClickHouse
 }
 
 // 2. easier to use but slower compare to input function
 try (PreparedStatement ps = conn.prepareStatement("insert into mytable(* except (desc))")) {
-    // the driver will issue query "select * except (desc) from mytable where 0" for type inferring
-    // since desc column is excluded, we know there are only two parameters: col1 and col2
-    ps.setString(1, "test"); // col1
-    ps.setObject(2, LocalDateTime.now()); // col2
-    ps.addBatch(); // parameters will be write into stream in binary format
+    // the driver will issue query "select * except (description) from mytable where 0" for type inferring
+    // since description column is excluded, we know there are only two parameters: col1 and col2
+    ps.setString(1, "test"); // id
+    ps.setObject(2, LocalDateTime.now()); // timestamp
+    ps.addBatch(); // parameters will be write into buffered stream immediately in binary format
     ...
     ps.executeBatch(); // stream everything on-hand into ClickHouse
 }
 
 // 3. not recommended as it's based on a large SQL
 try (PreparedStatement ps = conn.prepareStatement("insert into mytable values(?,?,?)")) {
-    ps.setString(1, "test"); // col1
-    ps.setObject(2, LocalDateTime.now()); // col2
-    ps.setString(3, null); // col3
+    ps.setString(1, "test"); // id
+    ps.setObject(2, LocalDateTime.now()); // timestamp
+    ps.setString(3, null); // description
     ps.addBatch(); // append parameters to the query
     ...
     ps.executeBatch(); // issue the composed query: insert into mytable values(...)(...)...(...)
