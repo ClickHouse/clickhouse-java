@@ -88,13 +88,11 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
     public void testReadWriteBool() throws SQLException {
         try (ClickHouseConnection conn = newConnection(new Properties());
                 Statement s = conn.createStatement();
-                PreparedStatement stmt = conn.prepareStatement("insert into test_read_write_bool values(?,?)")) {
-            s.execute("drop table if exists test_read_write_bool");
-            try {
-                s.execute("create table test_read_write_bool(id Int32, b Bool)engine=Memory");
-            } catch (SQLException e) {
-                s.execute("create table test_read_write_bool(id Int32, b UInt8)engine=Memory");
-            }
+                PreparedStatement stmt = conn.prepareStatement(
+                        "insert into test_read_write_bool select c1, c2 from input('c1 Int32, c2 Bool')")) {
+            s.execute("drop table if exists test_read_write_bool; "
+                    + "create table test_read_write_bool(id Int32, b Bool)engine=Memory");
+
             stmt.setInt(1, 1);
             stmt.setBoolean(2, true);
             stmt.addBatch();
