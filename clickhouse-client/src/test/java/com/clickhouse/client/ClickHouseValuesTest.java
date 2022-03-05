@@ -81,6 +81,33 @@ public class ClickHouseValuesTest extends BaseClickHouseValueTest {
     }
 
     @Test(groups = { "unit" })
+    public void testNewBasicValues() {
+        ClickHouseConfig config = new ClickHouseConfig();
+        for (ClickHouseDataType type : ClickHouseDataType.values()) {
+            // skip advanced types
+            if (type.isNested() || type == ClickHouseDataType.AggregateFunction
+                    || type == ClickHouseDataType.SimpleAggregateFunction) {
+                continue;
+            }
+
+            ClickHouseValue value = ClickHouseValues.newValue(config, type);
+            Assert.assertNotNull(value);
+
+            if (type == ClickHouseDataType.Point) {
+                Assert.assertEquals(value.asObject(), new double[] { 0D, 0D });
+            } else if (type == ClickHouseDataType.Ring) {
+                Assert.assertEquals(value.asObject(), new double[0][]);
+            } else if (type == ClickHouseDataType.Polygon) {
+                Assert.assertEquals(value.asObject(), new double[0][][]);
+            } else if (type == ClickHouseDataType.MultiPolygon) {
+                Assert.assertEquals(value.asObject(), new double[0][][][]);
+            } else {
+                Assert.assertNull(value.asObject());
+            }
+        }
+    }
+
+    @Test(groups = { "unit" })
     public void testConvertToDateTime() {
         Assert.assertEquals(ClickHouseValues.convertToDateTime(null), null);
         Assert.assertEquals(ClickHouseValues.convertToDateTime(BigDecimal.valueOf(0L)),

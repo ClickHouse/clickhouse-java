@@ -12,6 +12,8 @@ import com.clickhouse.client.ClickHouseValues;
  * Wraper class of bool.
  */
 public class ClickHouseBoolValue implements ClickHouseValue {
+    private static final String ERROR_INVALID_NUMBER = "Boolean value can be only 1(true) or 0(false).";
+
     /**
      * Create a new instance representing null value.
      *
@@ -49,7 +51,13 @@ public class ClickHouseBoolValue implements ClickHouseValue {
      * @return object representing the value
      */
     public static ClickHouseBoolValue of(int value) {
-        return of(null, value == 1);
+        if (value == 1) {
+            return new ClickHouseBoolValue(false, true);
+        } else if (value == 0) {
+            return new ClickHouseBoolValue(false, false);
+        } else {
+            throw new IllegalArgumentException(ERROR_INVALID_NUMBER);
+        }
     }
 
     /**
@@ -120,7 +128,11 @@ public class ClickHouseBoolValue implements ClickHouseValue {
 
     @Override
     public BigInteger asBigInteger() {
-        return isNull ? null : (value ? BigInteger.ONE : BigInteger.ZERO);
+        if (isNull) {
+            return null;
+        }
+
+        return value ? BigInteger.ONE : BigInteger.ZERO;
     }
 
     @Override
@@ -135,7 +147,11 @@ public class ClickHouseBoolValue implements ClickHouseValue {
 
     @Override
     public BigDecimal asBigDecimal(int scale) {
-        return isNull ? null : (value ? BigDecimal.ONE : BigDecimal.ZERO);
+        if (isNull) {
+            return null;
+        }
+
+        return BigDecimal.valueOf(value ? 1L : 0L, scale);
     }
 
     @Override
@@ -165,62 +181,123 @@ public class ClickHouseBoolValue implements ClickHouseValue {
 
     @Override
     public String toSqlExpression() {
-        return isNull ? ClickHouseValues.NULL_EXPR : String.valueOf(value ? 1 : 0);
+        if (isNull) {
+            return ClickHouseValues.NULL_EXPR;
+        }
+
+        // prefer to use number format to ensure backward compatibility
+        return value ? "1" : "0";
     }
 
     @Override
     public ClickHouseBoolValue update(char value) {
-        return set(false, value == 1);
+        return set(false, ClickHouseValues.convertToBoolean(value));
     }
 
     @Override
     public ClickHouseBoolValue update(byte value) {
-        return set(false, value == (byte) 1);
+        if (value == (byte) 1) {
+            return set(false, true);
+        } else if (value == (byte) 0) {
+            return set(false, false);
+        } else {
+            throw new IllegalArgumentException(ERROR_INVALID_NUMBER);
+        }
     }
 
     @Override
     public ClickHouseBoolValue update(short value) {
-        return set(false, value == (short) 1);
+        if (value == (short) 1) {
+            return set(false, true);
+        } else if (value == (short) 0) {
+            return set(false, false);
+        } else {
+            throw new IllegalArgumentException(ERROR_INVALID_NUMBER);
+        }
     }
 
     @Override
     public ClickHouseBoolValue update(int value) {
-        return set(false, value == 1);
+        if (value == 1) {
+            return set(false, true);
+        } else if (value == 0) {
+            return set(false, false);
+        } else {
+            throw new IllegalArgumentException(ERROR_INVALID_NUMBER);
+        }
     }
 
     @Override
     public ClickHouseBoolValue update(long value) {
-        return set(false, value == 1L);
+        if (value == 1L) {
+            return set(false, true);
+        } else if (value == 0L) {
+            return set(false, false);
+        } else {
+            throw new IllegalArgumentException(ERROR_INVALID_NUMBER);
+        }
     }
 
     @Override
     public ClickHouseBoolValue update(float value) {
-        return set(false, value == 1F);
+        if (value == 1F) {
+            return set(false, true);
+        } else if (value == 0F) {
+            return set(false, false);
+        } else {
+            throw new IllegalArgumentException(ERROR_INVALID_NUMBER);
+        }
     }
 
     @Override
     public ClickHouseBoolValue update(double value) {
-        return set(false, value == 1D);
+        if (value == 1D) {
+            return set(false, true);
+        } else if (value == 0D) {
+            return set(false, false);
+        } else {
+            throw new IllegalArgumentException(ERROR_INVALID_NUMBER);
+        }
     }
 
     @Override
     public ClickHouseBoolValue update(BigInteger value) {
-        return value == null ? resetToNullOrEmpty() : set(false, BigInteger.ONE.equals(value));
+        if (value == null) {
+            return resetToNullOrEmpty();
+        } else if (BigInteger.ONE.equals(value)) {
+            return set(false, true);
+        } else if (BigInteger.ZERO.equals(value)) {
+            return set(false, false);
+        } else {
+            throw new IllegalArgumentException(ERROR_INVALID_NUMBER);
+        }
     }
 
     @Override
     public ClickHouseBoolValue update(BigDecimal value) {
-        return value == null ? resetToNullOrEmpty() : set(false, BigDecimal.ONE.equals(value));
+        if (value == null) {
+            return resetToNullOrEmpty();
+        } else if (BigDecimal.valueOf(1L, value.scale()).equals(value)) {
+            return set(false, true);
+        } else if (BigDecimal.valueOf(0L, value.scale()).equals(value)) {
+            return set(false, false);
+        } else {
+            throw new IllegalArgumentException(ERROR_INVALID_NUMBER);
+        }
     }
 
     @Override
     public ClickHouseBoolValue update(Enum<?> value) {
-        return value == null ? resetToNullOrEmpty() : set(false, value.ordinal() == 1);
+        return value == null ? resetToNullOrEmpty() : update(value.ordinal());
     }
 
     @Override
     public ClickHouseBoolValue update(String value) {
-        return value == null ? resetToNullOrEmpty() : set(false, Boolean.parseBoolean(value) || "1".equals(value));
+        if (value == null) {
+            return resetToNullOrEmpty();
+        }
+
+        return set(false, ClickHouseValues.convertToBoolean(value));
     }
 
     @Override
@@ -233,7 +310,7 @@ public class ClickHouseBoolValue implements ClickHouseValue {
         if (value instanceof Boolean) {
             return set(false, (boolean) value);
         } else if (value instanceof Number) {
-            return set(false, ((Number) value).byteValue() == (byte) 0);
+            return update(((Number) value).byteValue());
         } else if (value instanceof ClickHouseValue) {
             return set(false, ((ClickHouseValue) value).asBoolean());
         }

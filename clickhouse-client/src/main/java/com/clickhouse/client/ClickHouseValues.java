@@ -31,6 +31,7 @@ import com.clickhouse.client.data.ClickHouseArrayValue;
 import com.clickhouse.client.data.ClickHouseBigDecimalValue;
 import com.clickhouse.client.data.ClickHouseBigIntegerValue;
 import com.clickhouse.client.data.ClickHouseBitmapValue;
+import com.clickhouse.client.data.ClickHouseBoolValue;
 import com.clickhouse.client.data.ClickHouseByteValue;
 import com.clickhouse.client.data.ClickHouseDateTimeValue;
 import com.clickhouse.client.data.ClickHouseDateValue;
@@ -185,6 +186,40 @@ public final class ClickHouseValues {
         }
 
         return low.add(high.multiply(BIGINT_HL_BOUNDARY));
+    }
+
+    /**
+     * Converts given character to boolean value.
+     *
+     * @param value character represents a boolean value
+     * @return boolean value
+     */
+    public static boolean convertToBoolean(char value) {
+        // not going to support X/V, ✓/✗ and 是/否 as they're less common
+        if (value == '1' || value == 'T' || value == 't' || value == 'Y' || value == 'y') {
+            return true;
+        } else if (value == '0' || value == 'F' || value == 'f' || value == 'N' || value == 'n') {
+            return false;
+        } else {
+            throw new IllegalArgumentException("Invalid boolean value, please use 1/0, T/F, Y/N");
+        }
+    }
+
+    /**
+     * Converts given string to boolean value.
+     *
+     * @param value string represents a boolean value
+     * @return boolean value
+     */
+    public static boolean convertToBoolean(String value) {
+        if (value == null || value.isEmpty() || "0".equals(value) || "false".equalsIgnoreCase(value)
+                || "no".equalsIgnoreCase(value)) {
+            return false;
+        } else if ("1".equals(value) || "true".equalsIgnoreCase(value) || "yes".equalsIgnoreCase(value)) {
+            return true;
+        } else {
+            throw new IllegalArgumentException("Invalid boolean value, please use 1/0, true/false, yes/no");
+        }
     }
 
     /**
@@ -950,6 +985,9 @@ public final class ClickHouseValues {
     private static ClickHouseValue newValue(ClickHouseConfig config, ClickHouseDataType type, ClickHouseColumn column) {
         ClickHouseValue value = null;
         switch (type) { // still faster than EnumMap and with less overhead
+            case Bool:
+                value = ClickHouseBoolValue.ofNull();
+                break;
             case Enum:
             case Enum8:
             case Int8:

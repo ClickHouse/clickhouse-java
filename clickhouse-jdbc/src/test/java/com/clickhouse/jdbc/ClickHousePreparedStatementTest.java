@@ -85,6 +85,49 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
     }
 
     @Test(groups = "integration")
+    public void testReadWriteBool() throws SQLException {
+        try (ClickHouseConnection conn = newConnection(new Properties());
+                Statement s = conn.createStatement();
+                PreparedStatement stmt = conn.prepareStatement("insert into test_read_write_bool values(?,?)")) {
+            s.execute("drop table if exists test_read_write_bool");
+            try {
+                s.execute("create table test_read_write_bool(id Int32, b Bool)engine=Memory");
+            } catch (SQLException e) {
+                s.execute("create table test_read_write_bool(id Int32, b UInt8)engine=Memory");
+            }
+            stmt.setInt(1, 1);
+            stmt.setBoolean(2, true);
+            stmt.addBatch();
+            stmt.setInt(1, 2);
+            stmt.setBoolean(2, false);
+            stmt.addBatch();
+            stmt.setInt(1, 3);
+            stmt.setString(2, "tRUe");
+            stmt.addBatch();
+            stmt.setInt(1, 4);
+            stmt.setString(2, "no");
+            stmt.addBatch();
+            int[] results = stmt.executeBatch();
+            Assert.assertEquals(results, new int[] { 1, 1, 1, 1 });
+
+            ResultSet rs = conn.createStatement().executeQuery("select * from test_read_write_bool order by id");
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getInt(1), 1);
+            Assert.assertEquals(rs.getBoolean(2), true);
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getInt(1), 2);
+            Assert.assertEquals(rs.getBoolean(2), false);
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getInt(1), 3);
+            Assert.assertEquals(rs.getBoolean(2), true);
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getInt(1), 4);
+            Assert.assertEquals(rs.getBoolean(2), false);
+            Assert.assertFalse(rs.next());
+        }
+    }
+
+    @Test(groups = "integration")
     public void testReadWriteBinaryString() throws SQLException {
         Properties props = new Properties();
         try (ClickHouseConnection conn = newConnection(props);
