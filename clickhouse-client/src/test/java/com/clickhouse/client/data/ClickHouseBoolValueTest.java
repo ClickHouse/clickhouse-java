@@ -82,7 +82,7 @@ public class ClickHouseBoolValueTest extends BaseClickHouseValueTest {
         Assert.assertThrows(IllegalArgumentException.class, () -> v.update(4L));
         Assert.assertThrows(IllegalArgumentException.class, () -> v.update(5F));
         Assert.assertThrows(IllegalArgumentException.class, () -> v.update(6D));
-        Assert.assertThrows(IllegalArgumentException.class, () -> v.update(BigInteger.TWO));
+        Assert.assertThrows(IllegalArgumentException.class, () -> v.update(BigInteger.TEN));
         Assert.assertThrows(IllegalArgumentException.class, () -> v.update(BigDecimal.TEN));
     }
 
