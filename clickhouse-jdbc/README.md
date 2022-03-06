@@ -192,7 +192,7 @@ properties.setClientName("Agent #1");
 properties.setSessionId("default-session-id");
 ...
 
-ClickHouseDataSource dataSource = new ClickHouseDataSource(url, properties)
+ClickHouseDataSource dataSource = new ClickHouseDataSource(url, properties);
 String sql = "select * from mytable";
 Map<ClickHouseQueryParam, String> additionalDBParams = new HashMap<>();
 // set request options, which will override the default ones in ClickHouseProperties
