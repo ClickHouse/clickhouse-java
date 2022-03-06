@@ -14,6 +14,7 @@ import java.util.TimeZone;
 
 import com.clickhouse.client.ClickHouseColumn;
 import com.clickhouse.client.ClickHouseConfig;
+import com.clickhouse.client.ClickHouseDataType;
 import com.clickhouse.client.ClickHouseValue;
 import com.clickhouse.client.ClickHouseValues;
 import com.clickhouse.client.ClickHouseVersion;
@@ -36,7 +37,8 @@ public interface ClickHouseConnection extends Connection {
     @Override
     default ClickHouseArray createArrayOf(String typeName, Object[] elements) throws SQLException {
         ClickHouseConfig config = getConfig();
-        ClickHouseColumn column = ClickHouseColumn.of("", typeName);
+        ClickHouseColumn column = ClickHouseColumn.of("", ClickHouseDataType.Array, false,
+                ClickHouseColumn.of("", typeName));
         ClickHouseValue v = ClickHouseValues.newValue(config, column).update(elements);
         ClickHouseResultSet rs = new ClickHouseResultSet("", "", createStatement(),
                 ClickHouseSimpleResponse.of(config, Collections.singletonList(column),
