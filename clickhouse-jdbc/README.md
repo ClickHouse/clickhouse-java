@@ -99,7 +99,8 @@ try (PreparedStatement ps = conn.prepareStatement("insert into mytable(* except 
 }
 
 // 3. not recommended as it's based on a large SQL
-try (PreparedStatement ps = conn.prepareStatement("insert into mytable values(?,?,?)")) {
+// Note: "insert into mytable values(?,?,?)" is treated as "insert into mytable"
+try (PreparedStatement ps = conn.prepareStatement("insert into mytable values(trim(?),?,?)")) {
     ps.setString(1, "test"); // id
     ps.setObject(2, LocalDateTime.now()); // timestamp
     ps.setString(3, null); // description
