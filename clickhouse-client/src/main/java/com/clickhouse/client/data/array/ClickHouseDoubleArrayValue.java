@@ -410,7 +410,7 @@ public class ClickHouseDoubleArrayValue extends ClickHouseObjectValue<double[]> 
                 double[] arr = new double[list.size()];
                 int index = 0;
                 for (String v : list) {
-                    arr[index++] = Double.parseDouble(v);
+                    arr[index++] = v == null ? 0D : Double.parseDouble(v);
                 }
                 set(arr);
             }

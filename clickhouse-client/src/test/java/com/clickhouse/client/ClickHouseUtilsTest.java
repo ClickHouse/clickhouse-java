@@ -375,6 +375,11 @@ public class ClickHouseUtilsTest {
                 args.lastIndexOf(']') + 1);
         Assert.assertEquals(list, Arrays.asList("1", "2", "3"));
 
+        args = "[1, null , 3,, Null]";
+        list.clear();
+        Assert.assertEquals(ClickHouseUtils.readValueArray(args, 0, args.length(), list::add), args.length());
+        Assert.assertEquals(list, Arrays.asList("1", null, "3", null, null));
+
         args = "['1\\'2', '2,3' , '3\n4\r5']";
         list.clear();
         Assert.assertEquals(ClickHouseUtils.readValueArray(args, 0, args.length(), list::add), args.length());

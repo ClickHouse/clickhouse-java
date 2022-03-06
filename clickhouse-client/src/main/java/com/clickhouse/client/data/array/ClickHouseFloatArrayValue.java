@@ -410,7 +410,7 @@ public class ClickHouseFloatArrayValue extends ClickHouseObjectValue<float[]> {
                 float[] arr = new float[list.size()];
                 int index = 0;
                 for (String v : list) {
-                    arr[index++] = Float.parseFloat(v);
+                    arr[index++] = v == null ? 0F : Float.parseFloat(v);
                 }
                 set(arr);
             }

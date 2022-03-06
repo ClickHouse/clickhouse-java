@@ -286,7 +286,7 @@ public class ClickHouseRowBinaryProcessor extends ClickHouseDataProcessor {
             buildMappings(deserializers, serializers,
                     (r, f, c, i) -> ClickHouseDateValue.of(r,
                             BinaryStreamUtils.readDate32(i, f.getTimeZoneForDate())),
-                    (v, f, c, o) -> BinaryStreamUtils.writeDate(o, v.asDate(), f.getTimeZoneForDate()),
+                    (v, f, c, o) -> BinaryStreamUtils.writeDate32(o, v.asDate(), f.getTimeZoneForDate()),
                     ClickHouseDataType.Date32);
             buildMappings(deserializers, serializers, (r, f, c, i) -> c.getTimeZone() == null
                     ? ClickHouseDateTimeValue.of(r,

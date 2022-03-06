@@ -356,7 +356,8 @@ public class ClickHouseOffsetDateTimeValue extends ClickHouseObjectValue<OffsetD
         if (value == null) {
             resetToNullOrEmpty();
         } else {
-            set(OffsetDateTime.parse(value, ClickHouseValues.DATETIME_FORMATTER));
+            set(LocalDateTime.parse(value, ClickHouseValues.DATETIME_FORMATTER).atZone(tz.toZoneId())
+                    .toOffsetDateTime());
         }
         return this;
     }

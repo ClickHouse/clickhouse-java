@@ -5,6 +5,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 
 import com.clickhouse.client.ClickHouseRequest;
+import com.clickhouse.client.ClickHouseUtils;
 import com.clickhouse.jdbc.SqlExceptionUtils;
 
 public abstract class AbstractPreparedStatement extends ClickHouseStatementImpl implements PreparedStatement {
@@ -14,6 +15,25 @@ public abstract class AbstractPreparedStatement extends ClickHouseStatementImpl 
     }
 
     protected abstract long[] executeAny(boolean asBatch) throws SQLException;
+
+    protected abstract int getMaxParameterIndex();
+
+    protected int toArrayIndex(int parameterIndex) throws SQLException {
+        int max = getMaxParameterIndex();
+        if (max < 1) {
+            String name = getConnection().getJdbcConfig().useNamedParameter() ? "named parameter"
+                    : "JDBC style '?' placeholder";
+            throw SqlExceptionUtils.clientError(ClickHouseUtils
+                    .format("Can't set parameter at index %d due to no %s found in the query",
+                            parameterIndex, name));
+        } else if (parameterIndex < 1 || parameterIndex > max) {
+            throw SqlExceptionUtils.clientError(ClickHouseUtils
+                    .format("Parameter index must between 1 and %d but we got %d", max,
+                            parameterIndex));
+        }
+
+        return parameterIndex - 1;
+    }
 
     @Override
     public final void addBatch(String sql) throws SQLException {

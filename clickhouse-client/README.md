@@ -9,7 +9,7 @@ Async Java client for ClickHouse. `clickhouse-client` is an abstract module, so 
 <dependency>
     <groupId>com.clickhouse</groupId>
     <artifactId>clickhouse-http-client</artifactId>
-    <version>0.3.2-patch5</version>
+    <version>0.3.2-patch6</version>
 </dependency>
 ```
 
