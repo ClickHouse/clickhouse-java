@@ -39,9 +39,16 @@ import com.clickhouse.client.data.ClickHouseDateTimeValue;
 import com.clickhouse.client.http.config.ClickHouseHttpOption;
 
 import org.testng.Assert;
+import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 public class ClickHouseStatementTest extends JdbcIntegrationTest {
+    @DataProvider(name = "timeZoneTestOptions")
+    private Object[][] getTimeZoneTestOptions() {
+        return new Object[][] {
+                new Object[] { true }, new Object[] { false } };
+    }
+
     @Test(groups = "integration")
     public void testJdbcEscapeSyntax() throws SQLException {
         try (ClickHouseConnection conn = newConnection(new Properties());
@@ -591,8 +598,8 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test(groups = "integration")
-    public void testTimeZone() throws SQLException {
+    @Test(dataProvider = "timeZoneTestOptions", groups = "integration")
+    public void testTimeZone(boolean useBinary) throws SQLException {
         String dateType = "DateTime32";
         String dateValue = "2020-02-11 00:23:33";
         ClickHouseDateTimeValue v = ClickHouseDateTimeValue.of(dateValue, 0, ClickHouseValues.UTC_TIMEZONE);
@@ -603,7 +610,7 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
         StringBuilder columns = new StringBuilder().append("d0 ").append(dateType);
         StringBuilder constants = new StringBuilder().append(ClickHouseValues.convertToQuotedString(dateValue));
         StringBuilder currents = new StringBuilder().append("now()");
-        StringBuilder parameters = new StringBuilder().append("?,?");
+        StringBuilder parameters = new StringBuilder().append(useBinary ? "?,?" : "trim(?),?");
         int len = timeZones.length;
         Calendar[] calendars = new Calendar[len + 1];
         for (int i = 0; i < len; i++) {
@@ -621,7 +628,7 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
                 Statement mstmt = mconn.createStatement();) {
             ClickHouseStatement stmt = conn.createStatement();
             stmt.execute("drop table if exists test_tz;" + "create table test_tz(no String," + columns.toString()
-                    + ") engine=Memory;" + "insert into test_tz values('0 - Constant'," + constants.toString() + ");"
+                    + ") engine=Memory;" + "insert into test_tz Values ('0 - Constant'," + constants.toString() + ");"
                     + "insert into test_tz values('1 - Current'," + currents.toString() + ");");
 
             String sql = "insert into test_tz values(" + parameters.toString() + ")";

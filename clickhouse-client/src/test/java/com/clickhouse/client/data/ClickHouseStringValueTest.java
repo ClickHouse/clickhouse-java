@@ -152,7 +152,7 @@ public class ClickHouseStringValueTest extends BaseClickHouseValueTest {
         checkValue(ClickHouseStringValue.of("1"), false, // isInfinity
                 false, // isNan
                 false, // isNull
-                false, // boolean
+                true, // boolean
                 (byte) 1, // byte
                 (short) 1, // short
                 1, // int
@@ -184,7 +184,7 @@ public class ClickHouseStringValueTest extends BaseClickHouseValueTest {
         checkValue(ClickHouseStringValue.of("2"), false, // isInfinity
                 false, // isNan
                 false, // isNull
-                false, // boolean
+                IllegalArgumentException.class, // boolean
                 (byte) 2, // byte
                 (short) 2, // short
                 2, // int
@@ -216,7 +216,7 @@ public class ClickHouseStringValueTest extends BaseClickHouseValueTest {
         checkValue(ClickHouseStringValue.of("-1"), false, // isInfinity
                 false, // isNan
                 false, // isNull
-                false, // boolean
+                IllegalArgumentException.class, // boolean
                 (byte) -1, // byte
                 (short) -1, // short
                 -1, // int

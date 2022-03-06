@@ -133,8 +133,7 @@ public class ClickHouseStringValue implements ClickHouseValue {
 
     @Override
     public boolean asBoolean() {
-        // what about Y/N, Yes/No, enabled/disabled?
-        return !isNullOrEmpty() && Boolean.parseBoolean(asString());
+        return ClickHouseValues.convertToBoolean(asString());
     }
 
     @Override

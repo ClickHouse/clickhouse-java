@@ -18,12 +18,17 @@ import java.time.ZoneOffset;
 import java.util.Properties;
 import java.util.TimeZone;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 
+import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseFormat;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.config.ClickHouseClientOption;
+import com.clickhouse.client.data.BinaryStreamUtils;
 import com.clickhouse.client.data.ClickHouseBitmap;
 import com.clickhouse.client.data.ClickHouseExternalTable;
+import com.clickhouse.client.data.ClickHousePipedStream;
 import com.clickhouse.jdbc.internal.InputBasedPreparedStatement;
 import com.clickhouse.jdbc.internal.SqlBasedPreparedStatement;
 
@@ -55,11 +60,12 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
                         false },
                 new Object[] { "insert_table", "insert into $table", InputBasedPreparedStatement.class, false,
                         new String[] { "2" }, true },
-                new Object[] { "insert_param", "insert into $table values(?)", SqlBasedPreparedStatement.class,
-                        false,
-                        new String[] { "3" }, true },
+                new Object[] { "insert_param", "insert into $table values(?)", InputBasedPreparedStatement.class,
+                        false, new String[] { "3" }, true },
+                new Object[] { "insert_param", "insert into $table values(trim(?))",
+                        SqlBasedPreparedStatement.class, false, new String[] { "4" }, true },
                 new Object[] { "insert_input", "insert into $table select s from input('s String')",
-                        InputBasedPreparedStatement.class, false, new String[] { "4" }, true },
+                        InputBasedPreparedStatement.class, false, new String[] { "5" }, true },
         };
     }
 
@@ -81,6 +87,72 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
                 Assert.assertEquals(rs.getString(1), results[i]);
             }
             Assert.assertFalse(rs.next(), "Should not have next row");
+        }
+    }
+
+    @Test(groups = "integration")
+    public void testQueryWithoutParameter() throws SQLException {
+        Properties props = new Properties();
+        try (ClickHouseConnection conn = newConnection(props);
+                PreparedStatement stmt = conn.prepareStatement("select 1")) {
+            ResultSet rs = stmt.executeQuery();
+            Assert.assertTrue(rs.next(), "Should have one row");
+            Assert.assertEquals(rs.getInt(1), 1);
+            Assert.assertFalse(rs.next(), "Should have only one row");
+
+            Assert.assertThrows(SQLException.class, () -> stmt.setInt(1, 2));
+        }
+
+        props.setProperty(JdbcConfig.PROP_NAMED_PARAM, "true");
+        try (ClickHouseConnection conn = newConnection(props);
+                PreparedStatement stmt = conn.prepareStatement("select 1")) {
+            ResultSet rs = stmt.executeQuery();
+            Assert.assertTrue(rs.next(), "Should have one row");
+            Assert.assertEquals(rs.getInt(1), 1);
+            Assert.assertFalse(rs.next(), "Should have only one row");
+
+            Assert.assertThrows(SQLException.class, () -> stmt.setInt(1, 2));
+        }
+    }
+
+    @Test(groups = "integration")
+    public void testReadWriteBool() throws SQLException {
+        try (ClickHouseConnection conn = newConnection(new Properties());
+                Statement s = conn.createStatement();
+                PreparedStatement stmt = conn.prepareStatement(
+                        "insert into test_read_write_bool select c1, c2 from input('c1 Int32, c2 Bool')")) {
+            s.execute("drop table if exists test_read_write_bool; "
+                    + "create table test_read_write_bool(id Int32, b Bool)engine=Memory");
+
+            stmt.setInt(1, 1);
+            stmt.setBoolean(2, true);
+            stmt.addBatch();
+            stmt.setInt(1, 2);
+            stmt.setBoolean(2, false);
+            stmt.addBatch();
+            stmt.setInt(1, 3);
+            stmt.setString(2, "tRUe");
+            stmt.addBatch();
+            stmt.setInt(1, 4);
+            stmt.setString(2, "no");
+            stmt.addBatch();
+            int[] results = stmt.executeBatch();
+            Assert.assertEquals(results, new int[] { 1, 1, 1, 1 });
+
+            ResultSet rs = conn.createStatement().executeQuery("select * from test_read_write_bool order by id");
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getInt(1), 1);
+            Assert.assertEquals(rs.getBoolean(2), true);
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getInt(1), 2);
+            Assert.assertEquals(rs.getBoolean(2), false);
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getInt(1), 3);
+            Assert.assertEquals(rs.getBoolean(2), true);
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getInt(1), 4);
+            Assert.assertEquals(rs.getBoolean(2), false);
+            Assert.assertFalse(rs.next());
         }
     }
 
@@ -165,18 +237,18 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
         Date x = Date.valueOf(d);
         try (ClickHouseConnection conn = newConnection(new Properties());
                 Statement s = conn.createStatement();
-                PreparedStatement stmt = conn.prepareStatement("insert into test_read_write_date values(?,?,?)")) {
+                PreparedStatement stmt = conn.prepareStatement("insert into test_read_write_date values(? + 1,?,?)")) {
             s.execute("drop table if exists test_read_write_date");
             try {
                 s.execute("create table test_read_write_date(id Int32, d1 Date, d2 Date32)engine=Memory");
             } catch (SQLException e) {
                 s.execute("create table test_read_write_date(id Int32, d1 Date, d2 Nullable(Date))engine=Memory");
             }
-            stmt.setInt(1, 1);
+            stmt.setInt(1, 0);
             stmt.setObject(2, d);
             stmt.setObject(3, d);
             stmt.addBatch();
-            stmt.setInt(1, 2);
+            stmt.setInt(1, 1);
             stmt.setDate(2, x);
             stmt.setDate(3, x);
             stmt.addBatch();
@@ -205,9 +277,7 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
         Properties props = new Properties();
         props.setProperty(ClickHouseClientOption.USE_SERVER_TIME_ZONE_FOR_DATES.getKey(), "false");
         try (ClickHouseConnection conn = newConnection(props);
-                Statement s = conn.createStatement();
-                PreparedStatement stmt = conn
-                        .prepareStatement("insert into test_read_write_date_cz values (?, ?, ?)")) {
+                Statement s = conn.createStatement()) {
             TimeZone tz = conn.getServerTimeZone();
             // 2021-03-25
             LocalDate d = LocalDateTime.ofInstant(Instant.ofEpochSecond(1616630400L), tz.toZoneId()).toLocalDate();
@@ -218,16 +288,19 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
             } catch (SQLException e) {
                 s.execute("create table test_read_write_date_cz(id Int32, d1 Date, d2 Nullable(Date))engine=Memory");
             }
-            stmt.setInt(1, 1);
-            stmt.setObject(2, d);
-            stmt.setObject(3, d);
-            stmt.addBatch();
-            stmt.setInt(1, 2);
-            stmt.setDate(2, x);
-            stmt.setDate(3, x);
-            stmt.addBatch();
-            int[] results = stmt.executeBatch();
-            Assert.assertEquals(results, new int[] { 1, 1 });
+            try (PreparedStatement stmt = conn
+                    .prepareStatement("insert into test_read_write_date_cz values (?, ?, ?)")) {
+                stmt.setInt(1, 1);
+                stmt.setObject(2, d);
+                stmt.setObject(3, d);
+                stmt.addBatch();
+                stmt.setInt(1, 2);
+                stmt.setDate(2, x);
+                stmt.setDate(3, x);
+                stmt.addBatch();
+                int[] results = stmt.executeBatch();
+                Assert.assertEquals(results, new int[] { 1, 1 });
+            }
 
             ResultSet rs = conn.createStatement().executeQuery("select * from test_read_write_date_cz order by id");
             Assert.assertTrue(rs.next());
@@ -252,14 +325,15 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
         LocalDateTime dt = LocalDateTime.of(2021, 3, 25, 8, 50, 56);
         Timestamp x = Timestamp.valueOf(dt);
         try (ClickHouseConnection conn = newConnection(new Properties());
-                PreparedStatement stmt = conn.prepareStatement("insert into test_read_write_datetime values(?,?,?)")) {
+                PreparedStatement stmt = conn
+                        .prepareStatement("insert into test_read_write_datetime values(?+1,?,?)")) {
             conn.createStatement().execute("drop table if exists test_read_write_datetime;"
                     + "create table test_read_write_datetime(id Int32, d1 DateTime32, d2 DateTime64(3))engine=Memory");
-            stmt.setInt(1, 1);
+            stmt.setInt(1, 0);
             stmt.setObject(2, dt);
             stmt.setObject(3, dt);
             stmt.addBatch();
-            stmt.setInt(1, 2);
+            stmt.setInt(1, 1);
             stmt.setTimestamp(2, x);
             stmt.setTimestamp(3, x);
             stmt.addBatch();
@@ -365,7 +439,7 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
             long value = 1617359745321000L;
             Instant i = Instant.ofEpochMilli(value / 1000L);
             LocalDateTime dt = LocalDateTime.ofInstant(i, conn.getServerTimeZone().toZoneId());
-            try (PreparedStatement ps = conn.prepareStatement("insert into test_issue_612 values(?,?)")) {
+            try (PreparedStatement ps = conn.prepareStatement("insert into test_issue_612 values(trim(?),?)")) {
                 ps.setLong(2, value);
                 ps.setObject(1, id);
                 ps.execute();
@@ -398,16 +472,16 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
     public void testBatchInsert() throws SQLException {
         try (ClickHouseConnection conn = newConnection(new Properties());
                 ClickHouseStatement s = conn.createStatement();
-                PreparedStatement stmt = conn.prepareStatement("insert into test_batch_insert values(?,?)")) {
+                PreparedStatement stmt = conn.prepareStatement("insert into test_batch_insert values(? + 1,?)")) {
             s.execute("drop table if exists test_batch_insert;"
                     + "create table test_batch_insert(id Int32, name Nullable(String))engine=Memory");
-            stmt.setInt(1, 1);
+            stmt.setInt(1, 0);
             stmt.setString(2, "a");
             stmt.addBatch();
-            stmt.setInt(1, 2);
+            stmt.setInt(1, 1);
             stmt.setString(2, "b");
             stmt.addBatch();
-            stmt.setInt(1, 3);
+            stmt.setInt(1, 2);
             stmt.setString(2, null);
             stmt.addBatch();
             int[] results = stmt.executeBatch();
@@ -713,6 +787,40 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
     }
 
     @Test(groups = "integration")
+    public void testLoadRawData() throws Exception {
+        try (ClickHouseConnection conn = newConnection(new Properties());
+                ClickHouseStatement stmt = conn.createStatement();
+                PreparedStatement ps = conn.prepareStatement(
+                        "insert into test_jdbc_load_raw_data select * from {tt 'raw_data'}")) {
+            Assert.assertFalse(stmt.execute("drop table if exists test_jdbc_load_raw_data; "
+                    + "create table test_jdbc_load_raw_data(s String)engine=Memory"), "Should not have result set");
+            ClickHouseConfig config = stmt.getConfig();
+            CompletableFuture<Integer> future;
+            try (ClickHousePipedStream stream = new ClickHousePipedStream(config.getMaxBufferSize(),
+                    config.getMaxQueuedRequests(), config.getSocketTimeout())) {
+                ps.setObject(1, ClickHouseExternalTable.builder().name("raw_data")
+                        .columns("s String").format(ClickHouseFormat.RowBinary)
+                        .content(stream.getInput())
+                        .build());
+                future = CompletableFuture.supplyAsync(() -> {
+                    try {
+                        return ps.executeUpdate();
+                    } catch (SQLException e) {
+                        throw new CompletionException(e);
+                    }
+                });
+
+                // write bytes into the piped stream
+                for (int i = 0; i < 101; i++) {
+                    BinaryStreamUtils.writeString(stream, Integer.toString(i));
+                }
+            }
+
+            Assert.assertTrue(future.get() >= 0);
+        }
+    }
+
+    @Test(groups = "integration")
     public void testQueryWithExternalTable() throws SQLException {
         // FIXME grpc seems has problem dealing with session
         if (DEFAULT_PROTOCOL == ClickHouseProtocol.GRPC) {
@@ -758,7 +866,7 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
         try (ClickHouseConnection conn = newConnection(new Properties());
                 Statement s = conn.createStatement();
                 PreparedStatement stmt = conn.prepareStatement(
-                        "insert into test_array_insert(id, a, b) values (?,?,?)")) {
+                        "insert into test_array_insert(id, a, b) values (toUInt32(?),?,?)")) {
             s.execute("drop table if exists test_array_insert;"
                     + "create table test_array_insert(id UInt32, a Array(Int16), b Array(Nullable(UInt32)))engine=Memory");
 
@@ -772,6 +880,27 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
             Assert.assertEquals(rs.getInt(1), 1);
             Assert.assertEquals(rs.getObject(2), new short[] { 1, 2, 3 });
             Assert.assertEquals(rs.getObject(3), new long[] { 3, 0, 1 });
+            Assert.assertFalse(rs.next());
+        }
+
+        try (ClickHouseConnection conn = newConnection(new Properties());
+                Statement s = conn.createStatement()) {
+            s.execute("drop table if exists test_string_array_insert; "
+                    + "create table test_string_array_insert(id UInt32, a Array(LowCardinality(String)), b Array(Nullable(String)))engine=Memory");
+
+            try (PreparedStatement stmt = conn.prepareStatement(
+                    "insert into test_string_array_insert(id, a, b) values (?,?,?)")) {
+                stmt.setString(1, "1");
+                stmt.setObject(2, new String[] { "1", "2", "3" });
+                stmt.setArray(3, conn.createArrayOf("String", new String[] { "3", null, "1" }));
+                Assert.assertEquals(stmt.executeUpdate(), 1);
+            }
+
+            ResultSet rs = s.executeQuery("select * from test_string_array_insert order by id");
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getInt(1), 1);
+            Assert.assertEquals(rs.getArray(2).getArray(), new String[] { "1", "2", "3" });
+            Assert.assertEquals(rs.getObject(3), new String[] { "3", null, "1" });
             Assert.assertFalse(rs.next());
         }
     }

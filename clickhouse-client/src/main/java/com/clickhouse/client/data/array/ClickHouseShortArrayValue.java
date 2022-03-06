@@ -410,7 +410,7 @@ public class ClickHouseShortArrayValue extends ClickHouseObjectValue<short[]> {
                 short[] arr = new short[list.size()];
                 int index = 0;
                 for (String v : list) {
-                    arr[index++] = Short.parseShort(v);
+                    arr[index++] = v == null ? (short) 0 : Short.parseShort(v);
                 }
                 set(arr);
             }

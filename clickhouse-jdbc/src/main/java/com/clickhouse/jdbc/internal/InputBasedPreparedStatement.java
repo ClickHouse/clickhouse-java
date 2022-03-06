@@ -137,13 +137,9 @@ public class InputBasedPreparedStatement extends AbstractPreparedStatement imple
         return results;
     }
 
-    protected int toArrayIndex(int parameterIndex) throws SQLException {
-        if (parameterIndex < 1 || parameterIndex > values.length) {
-            throw SqlExceptionUtils.clientError(ClickHouseUtils
-                    .format("Parameter index must between 1 and %d but we got %d", values.length, parameterIndex));
-        }
-
-        return parameterIndex - 1;
+    @Override
+    protected int getMaxParameterIndex() {
+        return values.length;
     }
 
     @Override

@@ -594,10 +594,35 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
                 throw SqlExceptionUtils
                         .clientError(
                                 "External table, input function, and query parameter cannot be used together in PreparedStatement.");
+            } else if (parsedStmt.getStatementType() == StatementType.INSERT &&
+                    !parsedStmt.containsKeyword("SELECT") && parsedStmt.hasValues() &&
+                    (!parsedStmt.hasFormat() || clientRequest.getFormat().name().equals(parsedStmt.getFormat()))) {
+                String query = parsedStmt.getSQL();
+                int startIndex = parsedStmt.getPositions().get(ClickHouseSqlStatement.KEYWORD_VALUES_START);
+                int endIndex = parsedStmt.getPositions().get(ClickHouseSqlStatement.KEYWORD_VALUES_END);
+                boolean useStream = true;
+                for (int i = startIndex + 1; i < endIndex; i++) {
+                    char ch = query.charAt(i);
+                    if (ch != '?' && ch != ',' && !Character.isWhitespace(ch)) {
+                        useStream = false;
+                        break;
+                    }
+                }
+
+                if (useStream) {
+                    ps = new InputBasedPreparedStatement(this,
+                            clientRequest.write().query(query.substring(0, parsedStmt.getStartPosition("VALUES")),
+                                    newQueryId()),
+                            getTableColumns(parsedStmt.getDatabase(), parsedStmt.getTable(),
+                                    parsedStmt.getContentBetweenKeywords(
+                                            ClickHouseSqlStatement.KEYWORD_TABLE_COLUMNS_START,
+                                            ClickHouseSqlStatement.KEYWORD_TABLE_COLUMNS_END)),
+                            resultSetType, resultSetConcurrency, resultSetHoldability);
+                }
             }
         } else {
             if (parsedStmt.hasTempTable()) {
-                // non-insert queries using temp table
+                // queries using external/temporary table
                 ps = new TableBasedPreparedStatement(this,
                         clientRequest.write().query(parsedStmt.getSQL(), newQueryId()), parsedStmt,
                         resultSetType, resultSetConcurrency, resultSetHoldability);
