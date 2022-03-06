@@ -48,14 +48,16 @@ public final class ClickHouseColumn implements Serializable {
         column.precision = column.dataType.getMaxPrecision();
         switch (column.dataType) {
             case Array:
-                column.arrayLevel = 1;
-                column.arrayBaseColumn = column.nested.get(0);
-                while (column.arrayLevel < 255) {
-                    if (column.arrayBaseColumn.dataType == ClickHouseDataType.Array) {
-                        column.arrayLevel++;
-                        column.arrayBaseColumn = column.arrayBaseColumn.nested.get(0);
-                    } else {
-                        break;
+                if (!column.nested.isEmpty()) {
+                    column.arrayLevel = 1;
+                    column.arrayBaseColumn = column.nested.get(0);
+                    while (column.arrayLevel < 255) {
+                        if (column.arrayBaseColumn.dataType == ClickHouseDataType.Array) {
+                            column.arrayLevel++;
+                            column.arrayBaseColumn = column.arrayBaseColumn.nested.get(0);
+                        } else {
+                            break;
+                        }
                     }
                 }
                 break;
@@ -101,10 +103,14 @@ public final class ClickHouseColumn implements Serializable {
             case Decimal64:
             case Decimal128:
             case Decimal256:
-                column.scale = Integer.parseInt(column.parameters.get(0));
+                if (size > 0) {
+                    column.scale = Integer.parseInt(column.parameters.get(0));
+                }
                 break;
             case FixedString:
-                column.precision = Integer.parseInt(column.parameters.get(0));
+                if (size > 0) {
+                    column.precision = Integer.parseInt(column.parameters.get(0));
+                }
                 break;
             default:
                 break;
@@ -307,13 +313,14 @@ public final class ClickHouseColumn implements Serializable {
 
     public static ClickHouseColumn of(String columnName, ClickHouseDataType dataType, boolean nullable,
             boolean lowCardinality, String... parameters) {
-        return new ClickHouseColumn(dataType, columnName, null, nullable, lowCardinality, Arrays.asList(parameters),
-                null);
+        return update(new ClickHouseColumn(dataType, columnName, null, nullable, lowCardinality,
+                Arrays.asList(parameters), null));
     }
 
     public static ClickHouseColumn of(String columnName, ClickHouseDataType dataType, boolean nullable,
             ClickHouseColumn... nestedColumns) {
-        return new ClickHouseColumn(dataType, columnName, null, nullable, false, null, Arrays.asList(nestedColumns));
+        return update(
+                new ClickHouseColumn(dataType, columnName, null, nullable, false, null, Arrays.asList(nestedColumns)));
     }
 
     public static ClickHouseColumn of(String columnName, String columnType) {

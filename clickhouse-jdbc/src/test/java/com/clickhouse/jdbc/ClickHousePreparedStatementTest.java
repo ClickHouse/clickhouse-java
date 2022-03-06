@@ -882,6 +882,27 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
             Assert.assertEquals(rs.getObject(3), new long[] { 3, 0, 1 });
             Assert.assertFalse(rs.next());
         }
+
+        try (ClickHouseConnection conn = newConnection(new Properties());
+                Statement s = conn.createStatement()) {
+            s.execute("drop table if exists test_string_array_insert; "
+                    + "create table test_string_array_insert(id UInt32, a Array(LowCardinality(String)), b Array(Nullable(String)))engine=Memory");
+
+            try (PreparedStatement stmt = conn.prepareStatement(
+                    "insert into test_string_array_insert(id, a, b) values (?,?,?)")) {
+                stmt.setString(1, "1");
+                stmt.setObject(2, new String[] { "1", "2", "3" });
+                stmt.setArray(3, conn.createArrayOf("String", new String[] { "3", null, "1" }));
+                Assert.assertEquals(stmt.executeUpdate(), 1);
+            }
+
+            ResultSet rs = s.executeQuery("select * from test_string_array_insert order by id");
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getInt(1), 1);
+            Assert.assertEquals(rs.getArray(2).getArray(), new String[] { "1", "2", "3" });
+            Assert.assertEquals(rs.getObject(3), new String[] { "3", null, "1" });
+            Assert.assertFalse(rs.next());
+        }
     }
 
     @Test(groups = "integration")
