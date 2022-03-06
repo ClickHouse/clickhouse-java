@@ -410,7 +410,7 @@ public class ClickHouseLongArrayValue extends ClickHouseObjectValue<long[]> {
                 long[] arr = new long[list.size()];
                 int index = 0;
                 for (String v : list) {
-                    arr[index++] = Long.parseLong(v);
+                    arr[index++] = v == null ? 0L : Long.parseLong(v);
                 }
                 set(arr);
             }

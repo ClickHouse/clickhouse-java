@@ -414,7 +414,7 @@ public class ClickHouseByteArrayValue extends ClickHouseObjectValue<byte[]> {
                 byte[] arr = new byte[list.size()];
                 int index = 0;
                 for (String v : list) {
-                    arr[index++] = Byte.parseByte(v);
+                    arr[index++] = v == null ? (byte) 0 : Byte.parseByte(v);
                 }
                 set(arr);
             }

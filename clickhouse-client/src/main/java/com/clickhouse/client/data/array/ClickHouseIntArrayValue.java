@@ -410,7 +410,7 @@ public class ClickHouseIntArrayValue extends ClickHouseObjectValue<int[]> {
                 int[] arr = new int[list.size()];
                 int index = 0;
                 for (String v : list) {
-                    arr[index++] = Integer.parseInt(v);
+                    arr[index++] = v == null ? 0 : Integer.parseInt(v);
                 }
                 set(arr);
             }
