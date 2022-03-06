@@ -30,7 +30,7 @@ CompletableFuture<List<ClickHouseResponseSummary>> future = ClickHouseClient.sen
 // block current thread until queries completed, and then retrieve summaries
 // List<ClickHouseResponseSummary> results = future.get();
 
-try (ClickHouseClient client = ClickHouseClient.newInstance(server.getProtocol)) {
+try (ClickHouseClient client = ClickHouseClient.newInstance(server.getProtocol())) {
     ClickHouseRequest<?> request = client.connect(server).format(ClickHouseFormat.RowBinaryWithNamesAndTypes);
     // load data into a table and wait until it's completed
     request.write().query("insert into my_table select c2, c3 from input('c1 UInt8, c2 String, c3 Int32')")
@@ -39,8 +39,11 @@ try (ClickHouseClient client = ClickHouseClient.newInstance(server.getProtocol))
         });
 
     // query with named parameter
-    try (ClickHouseResponse response = request.query(ClickHouseParameterizedQuery.of(
-            "select * from numbers(:limit)")).params(100000).execute().get()) {
+    try (ClickHouseResponse response = request.query(
+            ClickHouseParameterizedQuery.of(
+                request.getConfig(),
+                "select * from numbers(:limit)")
+            ).params(100000).execute().get()) {
         for (ClickHouseRecord r : response.records()) {
             // Don't cache ClickHouseValue / ClickHouseRecord as they're reused for
             // corresponding column / row

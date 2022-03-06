@@ -131,13 +131,13 @@ try (ClickHouseClient client = ClickHouseClient.newInstance(preferredProtocol);
         .query("select * from numbers(:limit)")
         .params(1000).execute().get()) {
     // or resp.stream() if you prefer stream API
-    for (ClickHouseRecord record : resp.records()) {
+    for (ClickHouseRecord record : response.records()) {
         int num = record.getValue(0).asInteger();
         String str = record.getValue(0).asString();
     }
 
-    ClickHouseResponseSummary summary = resp.getSummary();
-    long totalRows = summary.getRows();
+    ClickHouseResponseSummary summary = response.getSummary();
+    long totalRows = summary.getTotalRowsToRead();
 }
 ```
 
