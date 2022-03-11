@@ -2,8 +2,10 @@ package com.clickhouse.client.data;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.math.RoundingMode;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+
 import com.clickhouse.client.ClickHouseChecker;
 import com.clickhouse.client.ClickHouseValue;
 import com.clickhouse.client.ClickHouseValues;
@@ -22,13 +24,15 @@ public class ClickHouseDoubleValue implements ClickHouseValue {
     }
 
     /**
-     * Update given value to null or create a new instance if {@code ref} is null.
-     * 
+     * Update given value to null or create a new instance if {@code ref} is
+     * null.
+     *
      * @param ref object to update, could be null
      * @return same object as {@code ref} or a new instance if it's null
      */
     public static ClickHouseDoubleValue ofNull(ClickHouseValue ref) {
-        return ref instanceof ClickHouseDoubleValue ? ((ClickHouseDoubleValue) ref).set(true, 0D)
+        return ref instanceof ClickHouseDoubleValue ?
+                ((ClickHouseDoubleValue) ref).set(true, 0D)
                 : new ClickHouseDoubleValue(true, 0D);
     }
 
@@ -43,7 +47,8 @@ public class ClickHouseDoubleValue implements ClickHouseValue {
     }
 
     /**
-     * Update value of the given object or create a new instance if {@code ref} is
+     * Update value of the given object or create a new instance if {@code
+     * ref} is
      * null.
      *
      * @param ref   object to update, could be null
@@ -51,7 +56,8 @@ public class ClickHouseDoubleValue implements ClickHouseValue {
      * @return same object as {@code ref} or a new instance if it's null
      */
     public static ClickHouseDoubleValue of(ClickHouseValue ref, double value) {
-        return ref instanceof ClickHouseDoubleValue ? ((ClickHouseDoubleValue) ref).set(false, value)
+        return ref instanceof ClickHouseDoubleValue ?
+                ((ClickHouseDoubleValue) ref).set(false, value)
                 : new ClickHouseDoubleValue(false, value);
     }
 
@@ -128,16 +134,16 @@ public class ClickHouseDoubleValue implements ClickHouseValue {
         if (isNull) {
             return null;
         }
-
+        final RoundingMode roundingMode = RoundingMode.HALF_UP;
         BigDecimal dec = BigDecimal.valueOf(value);
         if (value == 0D || isInfinity() || isNaN()) {
-            dec = dec.setScale(scale);
+            dec = dec.setScale(scale, roundingMode);
         } else {
             int diff = scale - dec.scale();
             if (diff > 0) {
                 dec = dec.divide(BigDecimal.TEN.pow(diff + 1));
             } else if (diff < 0) {
-                dec = dec.setScale(scale);
+                dec = dec.setScale(scale, roundingMode);
             }
         }
         return dec;
@@ -156,7 +162,8 @@ public class ClickHouseDoubleValue implements ClickHouseValue {
 
         String str = String.valueOf(value);
         if (length > 0) {
-            ClickHouseChecker.notWithDifferentLength(str.getBytes(charset == null ? StandardCharsets.UTF_8 : charset),
+            ClickHouseChecker.notWithDifferentLength(str.getBytes(
+                            charset == null ? StandardCharsets.UTF_8 : charset),
                     length);
         }
 
@@ -225,27 +232,33 @@ public class ClickHouseDoubleValue implements ClickHouseValue {
 
     @Override
     public ClickHouseDoubleValue update(BigInteger value) {
-        return value == null ? resetToNullOrEmpty() : set(false, value.doubleValue());
+        return value
+               == null ? resetToNullOrEmpty() : set(false, value.doubleValue());
     }
 
     @Override
     public ClickHouseDoubleValue update(BigDecimal value) {
-        return value == null ? resetToNullOrEmpty() : set(false, value.doubleValue());
+        return value
+               == null ? resetToNullOrEmpty() : set(false, value.doubleValue());
     }
 
     @Override
     public ClickHouseDoubleValue update(Enum<?> value) {
-        return value == null ? resetToNullOrEmpty() : set(false, value.ordinal());
+        return value
+               == null ? resetToNullOrEmpty() : set(false, value.ordinal());
     }
 
     @Override
     public ClickHouseDoubleValue update(String value) {
-        return value == null ? resetToNullOrEmpty() : set(false, Double.parseDouble(value));
+        return value
+               == null ? resetToNullOrEmpty() : set(false,
+                Double.parseDouble(value));
     }
 
     @Override
     public ClickHouseDoubleValue update(ClickHouseValue value) {
-        return value == null ? resetToNullOrEmpty() : set(false, value.asDouble());
+        return value
+               == null ? resetToNullOrEmpty() : set(false, value.asDouble());
     }
 
     @Override
