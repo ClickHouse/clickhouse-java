@@ -187,7 +187,7 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
     }
 
     protected ClickHouseSqlStatement parseSqlStatements(String sql, ClickHouseFormat preferredFormat,
-                                                        Map<ClickHouseQueryParam, String> additionalDBParams) throws SQLException {
+            Map<ClickHouseQueryParam, String> additionalDBParams) throws SQLException {
         parseSqlStatements(sql);
 
         // enable session when we have more than one statement
@@ -215,8 +215,7 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
 
             sql = new StringBuilder(sql).append("\nFORMAT ").append(format).toString();
             stmt = new ClickHouseSqlStatement(sql, stmt.getStatementType(), stmt.getCluster(), stmt.getDatabase(),
-                    stmt.getTable(), stmt.getInput(), format, stmt.getOutfile(), stmt.getParameters(), positions,
-                    null, null);
+                    stmt.getTable(), stmt.getInput(), format, stmt.getOutfile(), stmt.getParameters(), positions, null, null);
         }
 
         return stmt;
@@ -260,8 +259,7 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
     }
 
     protected int executeStatement(ClickHouseSqlStatement stmt, Map<ClickHouseQueryParam, String> additionalDBParams,
-                                   List<ClickHouseExternalData> externalData,
-                                   Map<String, String> additionalRequestParams)
+            List<ClickHouseExternalData> externalData, Map<String, String> additionalRequestParams)
             throws SQLException {
         additionalDBParams = importAdditionalDBParameters(additionalDBParams);
         stmt = applyFormat(stmt, ClickHouseFormat.TabSeparatedWithNamesAndTypes);
@@ -276,9 +274,8 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
     }
 
     protected ResultSet executeQueryStatement(ClickHouseSqlStatement stmt,
-                                              Map<ClickHouseQueryParam, String> additionalDBParams,
-                                              List<ClickHouseExternalData> externalData,
-                                              Map<String, String> additionalRequestParams) throws SQLException {
+            Map<ClickHouseQueryParam, String> additionalDBParams, List<ClickHouseExternalData> externalData,
+            Map<String, String> additionalRequestParams) throws SQLException {
         additionalDBParams = importAdditionalDBParameters(additionalDBParams);
         stmt = applyFormat(stmt, ClickHouseFormat.TabSeparatedWithNamesAndTypes);
 
@@ -296,8 +293,7 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
     }
 
     protected ClickHouseResponse executeQueryClickhouseResponse(ClickHouseSqlStatement stmt,
-                                                                Map<ClickHouseQueryParam, String> additionalDBParams,
-                                                                Map<String, String> additionalRequestParams)
+            Map<ClickHouseQueryParam, String> additionalDBParams, Map<String, String> additionalRequestParams)
             throws SQLException {
         additionalDBParams = importAdditionalDBParameters(additionalDBParams);
         stmt = applyFormat(stmt, ClickHouseFormat.JSONCompact);
@@ -311,7 +307,7 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
     }
 
     public ClickHouseStatementImpl(CloseableHttpClient client, ClickHouseConnection connection,
-                                   ClickHouseProperties properties, int resultSetType) {
+            ClickHouseProperties properties, int resultSetType) {
         super(null);
         this.client = client;
         this.httpContext = ClickHouseHttpClientBuilder.createClientContext(properties);
@@ -336,14 +332,13 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
 
     @Override
     public ResultSet executeQuery(String sql, Map<ClickHouseQueryParam, String> additionalDBParams,
-                                  List<ClickHouseExternalData> externalData) throws SQLException {
+            List<ClickHouseExternalData> externalData) throws SQLException {
         return executeQuery(sql, additionalDBParams, externalData, null);
     }
 
     @Override
     public ResultSet executeQuery(String sql, Map<ClickHouseQueryParam, String> additionalDBParams,
-                                  List<ClickHouseExternalData> externalData,
-                                  Map<String, String> additionalRequestParams)
+            List<ClickHouseExternalData> externalData, Map<String, String> additionalRequestParams)
             throws SQLException {
 
         // forcibly disable extremes for ResultSet queries
@@ -375,14 +370,13 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
 
     @Override
     public ClickHouseResponse executeQueryClickhouseResponse(String sql,
-                                                             Map<ClickHouseQueryParam, String> additionalDBParams) throws SQLException {
+            Map<ClickHouseQueryParam, String> additionalDBParams) throws SQLException {
         return executeQueryClickhouseResponse(sql, additionalDBParams, null);
     }
 
     @Override
     public ClickHouseResponse executeQueryClickhouseResponse(String sql,
-                                                             Map<ClickHouseQueryParam, String> additionalDBParams,
-                                                             Map<String, String> additionalRequestParams)
+            Map<ClickHouseQueryParam, String> additionalDBParams, Map<String, String> additionalRequestParams)
             throws SQLException {
         additionalDBParams = importAdditionalDBParameters(additionalDBParams);
         parseSqlStatements(sql, ClickHouseFormat.JSONCompact, additionalDBParams);
@@ -402,13 +396,13 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
 
     @Override
     public ClickHouseRowBinaryInputStream executeQueryClickhouseRowBinaryStream(String sql,
-                                                                                Map<ClickHouseQueryParam, String> additionalDBParams) throws SQLException {
+            Map<ClickHouseQueryParam, String> additionalDBParams) throws SQLException {
         return executeQueryClickhouseRowBinaryStream(sql, additionalDBParams, null);
     }
 
     @Override
     public ClickHouseRowBinaryInputStream executeQueryClickhouseRowBinaryStream(String sql,
-                                                                                Map<ClickHouseQueryParam, String> additionalDBParams, Map<String, String> additionalRequestParams)
+            Map<ClickHouseQueryParam, String> additionalDBParams, Map<String, String> additionalRequestParams)
             throws SQLException {
         additionalDBParams = importAdditionalDBParameters(additionalDBParams);
         parseSqlStatements(sql, ClickHouseFormat.RowBinaryWithNamesAndTypes, additionalDBParams);
@@ -701,8 +695,7 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
     }
 
     private InputStream getLastInputStream(Map<ClickHouseQueryParam, String> additionalDBParams,
-                                           List<ClickHouseExternalData> externalData,
-                                           Map<String, String> additionalRequestParams)
+            List<ClickHouseExternalData> externalData, Map<String, String> additionalRequestParams)
             throws ClickHouseException {
         InputStream is = null;
         for (int i = 0, len = parsedStmts.length; i < len; i++) {
@@ -722,9 +715,8 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
     }
 
     private InputStream getInputStream(ClickHouseSqlStatement parsedStmt,
-                                       Map<ClickHouseQueryParam, String> additionalClickHouseDBParams,
-                                       List<ClickHouseExternalData> externalData,
-                                       Map<String, String> additionalRequestParams) throws ClickHouseException {
+            Map<ClickHouseQueryParam, String> additionalClickHouseDBParams, List<ClickHouseExternalData> externalData,
+            Map<String, String> additionalRequestParams) throws ClickHouseException {
         String sql = parsedStmt.getSQL();
         boolean ignoreDatabase = parsedStmt.isRecognized() && !parsedStmt.isDML()
                 && parsedStmt.containsKeyword("DATABASE");
@@ -818,9 +810,8 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
     }
 
     URI buildRequestUri(String sql, List<ClickHouseExternalData> externalData,
-                        Map<ClickHouseQueryParam, String> additionalClickHouseDBParams,
-                        Map<String, String> additionalRequestParams,
-                        boolean ignoreDatabase) {
+            Map<ClickHouseQueryParam, String> additionalClickHouseDBParams, Map<String, String> additionalRequestParams,
+            boolean ignoreDatabase) {
         try {
             List<NameValuePair> queryParams = getUrlQueryParams(sql, externalData, additionalClickHouseDBParams,
                     additionalRequestParams, ignoreDatabase);
@@ -842,9 +833,8 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
     }
 
     private List<NameValuePair> getUrlQueryParams(String sql, List<ClickHouseExternalData> externalData,
-                                                  Map<ClickHouseQueryParam, String> additionalClickHouseDBParams,
-                                                  Map<String, String> additionalRequestParams,
-                                                  boolean ignoreDatabase) {
+            Map<ClickHouseQueryParam, String> additionalClickHouseDBParams, Map<String, String> additionalRequestParams,
+            boolean ignoreDatabase) {
         List<NameValuePair> result = new ArrayList<>();
 
         if (sql != null && !sql.isEmpty()) {
@@ -908,16 +898,16 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
     }
 
     private boolean isQueryParamSet(ClickHouseQueryParam param,
-                                    Map<ClickHouseQueryParam, String> additionalClickHouseDBParams,
-                                    Map<String, String> additionalRequestParams) {
+            Map<ClickHouseQueryParam, String> additionalClickHouseDBParams,
+            Map<String, String> additionalRequestParams) {
         String value = getQueryParamValue(param, additionalClickHouseDBParams, additionalRequestParams);
 
         return "true".equals(value) || "1".equals(value);
     }
 
     private String getQueryParamValue(ClickHouseQueryParam param,
-                                      Map<ClickHouseQueryParam, String> additionalClickHouseDBParams,
-                                      Map<String, String> additionalRequestParams) {
+            Map<ClickHouseQueryParam, String> additionalClickHouseDBParams,
+            Map<String, String> additionalRequestParams) {
         if (additionalRequestParams != null && additionalRequestParams.containsKey(param.getKey())
                 && !Utils.isNullOrEmptyString(additionalRequestParams.get(param.getKey()))) {
             return additionalRequestParams.get(param.getKey());
@@ -976,7 +966,7 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
 
     @Override
     public void sendRowBinaryStream(String sql, Map<ClickHouseQueryParam, String> additionalDBParams,
-                                    ClickHouseStreamCallback callback) throws SQLException {
+            ClickHouseStreamCallback callback) throws SQLException {
         write().withDbParams(additionalDBParams).send(sql, callback, ClickHouseFormat.RowBinary);
     }
 
@@ -987,7 +977,7 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
 
     @Override
     public void sendNativeStream(String sql, Map<ClickHouseQueryParam, String> additionalDBParams,
-                                 ClickHouseStreamCallback callback) throws SQLException {
+            ClickHouseStreamCallback callback) throws SQLException {
         write().withDbParams(additionalDBParams).send(sql, callback, ClickHouseFormat.Native);
     }
 
@@ -1026,7 +1016,7 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
     }
 
     private void sendStream(HttpEntity content, String sql, ClickHouseFormat format,
-                            Map<ClickHouseQueryParam, String> additionalDBParams) throws ClickHouseException {
+            Map<ClickHouseQueryParam, String> additionalDBParams) throws ClickHouseException {
 
         Writer writer = write().format(format).withDbParams(additionalDBParams).sql(sql);
         sendStream(writer, content);
@@ -1125,8 +1115,7 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
     }
 
     private ClickHouseResultSet createResultSet(InputStream is, int bufferSize, String db, String table,
-                                                boolean usesWithTotals, ClickHouseStatement statement,
-                                                TimeZone timezone, ClickHouseProperties properties)
+            boolean usesWithTotals, ClickHouseStatement statement, TimeZone timezone, ClickHouseProperties properties)
             throws IOException {
         if (isResultSetScrollable) {
             return new ClickHouseScrollableResultSet(is, bufferSize, db, table, usesWithTotals, statement, timezone,
