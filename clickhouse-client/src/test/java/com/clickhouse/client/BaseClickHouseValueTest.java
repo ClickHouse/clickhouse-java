@@ -30,18 +30,19 @@ public abstract class BaseClickHouseValueTest {
         } else if (expected instanceof Class && Throwable.class.isAssignableFrom((Class<?>) expected)) {
             Assert.assertThrows((Class<Throwable>) expected, () -> actual.get());
         } else if (expected instanceof String) {
-            Assert.assertEquals(String.valueOf(actual.get()), (String) expected);
+            Assert.assertEquals(String.valueOf(actual.get()), (String) expected, String.class.getName());
         } else if (expected instanceof List) {
             List<?> l1 = (List<?>) actual.get();
             List<?> l2 = (List<?>) expected;
             // unfortunately TestNG 6.x didn't work
-            Assert.assertTrue(Arrays.deepEquals(l1.toArray(new Object[l1.size()]), l2.toArray(new Object[l2.size()])));
+            Assert.assertTrue(Arrays.deepEquals(l1.toArray(new Object[l1.size()]), l2.toArray(new Object[l2.size()])),
+                    List.class.getName());
             // Assert.assertEquals(l1.toArray(new Object[l1.size()]), l2.toArray(new
             // Object[l2.size()]));
         } else if (expected instanceof Map) {
-            Assert.assertEqualsDeep((Map<?, ?>) actual.get(), (Map<?, ?>) expected);
+            Assert.assertEqualsDeep((Map<?, ?>) actual.get(), (Map<?, ?>) expected, Map.class.getName());
         } else {
-            Assert.assertEquals(actual.get(), expected);
+            Assert.assertEquals(actual.get(), expected, expected == null ? null : expected.getClass().getName());
         }
     }
 

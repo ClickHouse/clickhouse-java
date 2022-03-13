@@ -2,8 +2,10 @@ package com.clickhouse.client.data;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.math.RoundingMode;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+
 import com.clickhouse.client.ClickHouseChecker;
 import com.clickhouse.client.ClickHouseValue;
 import com.clickhouse.client.ClickHouseValues;
@@ -22,13 +24,15 @@ public class ClickHouseDoubleValue implements ClickHouseValue {
     }
 
     /**
-     * Update given value to null or create a new instance if {@code ref} is null.
-     * 
+     * Update given value to null or create a new instance if {@code ref} is
+     * null.
+     *
      * @param ref object to update, could be null
      * @return same object as {@code ref} or a new instance if it's null
      */
     public static ClickHouseDoubleValue ofNull(ClickHouseValue ref) {
-        return ref instanceof ClickHouseDoubleValue ? ((ClickHouseDoubleValue) ref).set(true, 0D)
+        return ref instanceof ClickHouseDoubleValue ?
+                ((ClickHouseDoubleValue) ref).set(true, 0D)
                 : new ClickHouseDoubleValue(true, 0D);
     }
 
@@ -43,15 +47,16 @@ public class ClickHouseDoubleValue implements ClickHouseValue {
     }
 
     /**
-     * Update value of the given object or create a new instance if {@code ref} is
-     * null.
+     * Update value of the given object or create a new instance if {@code
+     * ref} is null.
      *
      * @param ref   object to update, could be null
      * @param value value
      * @return same object as {@code ref} or a new instance if it's null
      */
     public static ClickHouseDoubleValue of(ClickHouseValue ref, double value) {
-        return ref instanceof ClickHouseDoubleValue ? ((ClickHouseDoubleValue) ref).set(false, value)
+        return ref instanceof ClickHouseDoubleValue ?
+                ((ClickHouseDoubleValue) ref).set(false, value)
                 : new ClickHouseDoubleValue(false, value);
     }
 
@@ -130,14 +135,14 @@ public class ClickHouseDoubleValue implements ClickHouseValue {
         }
 
         BigDecimal dec = BigDecimal.valueOf(value);
-        if (value == 0D || isInfinity() || isNaN()) {
+        if (value == 0D) {
             dec = dec.setScale(scale);
         } else {
             int diff = scale - dec.scale();
             if (diff > 0) {
                 dec = dec.divide(BigDecimal.TEN.pow(diff + 1));
             } else if (diff < 0) {
-                dec = dec.setScale(scale);
+                dec = dec.setScale(scale, RoundingMode.DOWN);
             }
         }
         return dec;
@@ -153,13 +158,10 @@ public class ClickHouseDoubleValue implements ClickHouseValue {
         if (isNull) {
             return null;
         }
-
         String str = String.valueOf(value);
         if (length > 0) {
-            ClickHouseChecker.notWithDifferentLength(str.getBytes(charset == null ? StandardCharsets.UTF_8 : charset),
-                    length);
+            ClickHouseChecker.notWithDifferentLength(str.getBytes(charset == null ? StandardCharsets.UTF_8 : charset), length);
         }
-
         return str;
     }
 
@@ -179,7 +181,6 @@ public class ClickHouseDoubleValue implements ClickHouseValue {
         } else if (value == Float.NEGATIVE_INFINITY) {
             return ClickHouseValues.NINF_EXPR;
         }
-
         return String.valueOf(value);
     }
 
@@ -255,7 +256,6 @@ public class ClickHouseDoubleValue implements ClickHouseValue {
         } else if (value instanceof ClickHouseValue) {
             return set(false, ((ClickHouseValue) value).asDouble());
         }
-
         ClickHouseValue.super.update(value);
         return this;
     }
@@ -267,7 +267,6 @@ public class ClickHouseDoubleValue implements ClickHouseValue {
         } else if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-
         ClickHouseDoubleValue v = (ClickHouseDoubleValue) obj;
         return isNull == v.isNull && value == v.value;
     }
