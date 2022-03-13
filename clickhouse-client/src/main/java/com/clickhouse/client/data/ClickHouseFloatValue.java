@@ -2,6 +2,7 @@ package com.clickhouse.client.data;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.math.RoundingMode;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import com.clickhouse.client.ClickHouseChecker;
@@ -149,7 +150,7 @@ public class ClickHouseFloatValue implements ClickHouseValue {
             return null;
         }
 
-        BigDecimal dec = BigDecimal.valueOf(value);
+        BigDecimal dec = new BigDecimal(Float.toString(value));
         if (value == 0F) {
             dec = dec.setScale(scale);
         } else {
@@ -157,7 +158,7 @@ public class ClickHouseFloatValue implements ClickHouseValue {
             if (diff > 0) {
                 dec = dec.divide(BigDecimal.TEN.pow(diff + 1));
             } else if (diff < 0) {
-                dec = dec.setScale(scale);
+                dec = dec.setScale(scale, RoundingMode.DOWN);
             }
         }
         return dec;

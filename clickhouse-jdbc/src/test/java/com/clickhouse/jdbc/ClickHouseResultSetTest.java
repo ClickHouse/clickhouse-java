@@ -13,6 +13,7 @@ import java.util.Properties;
 import java.util.function.BiFunction;
 
 import com.clickhouse.client.ClickHouseDataType;
+import com.clickhouse.client.ClickHouseRecord;
 import com.clickhouse.client.ClickHouseValues;
 
 import org.testng.Assert;
@@ -81,10 +82,35 @@ public class ClickHouseResultSetTest extends JdbcIntegrationTest {
     }
 
     @Test(groups = "integration")
+    public void testFloatToBigDecimal() throws SQLException {
+        try (ClickHouseConnection conn = newConnection(new Properties());
+                Statement stmt = conn.createStatement();
+                ResultSet rs = stmt.executeQuery("select toFloat32(1.35) fp, toFloat32(-1.35) fn, "
+                        + "toFloat64(1.35) dp, toFloat64(-1.35) dn, "
+                        + "toDecimal64(1.35, 1) p1, toDecimal64(1.35, 2) p2, "
+                        + "toDecimal64(-1.35, 1) n1, toDecimal64(-1.35, 2) n2")) {
+            while (rs.next()) {
+                ClickHouseRecord r = rs.unwrap(ClickHouseRecord.class);
+                for (int i = 1; i <= 2; i++) {
+                    Assert.assertEquals(r.getValue("fp").asBigDecimal(i), r.getValue("p" + i).asObject());
+                    Assert.assertEquals(r.getValue("fn").asBigDecimal(i), r.getValue("n" + i).asObject());
+                    Assert.assertEquals(r.getValue("dp").asBigDecimal(i), r.getValue("p" + i).asObject());
+                    Assert.assertEquals(r.getValue("dn").asBigDecimal(i), r.getValue("n" + i).asObject());
+
+                    Assert.assertEquals(rs.getBigDecimal("fp", i), rs.getBigDecimal("p" + i));
+                    Assert.assertEquals(rs.getBigDecimal("fn", i), rs.getBigDecimal("n" + i));
+                    Assert.assertEquals(rs.getBigDecimal("dp", i), rs.getBigDecimal("p" + i));
+                    Assert.assertEquals(rs.getBigDecimal("dn", i), rs.getBigDecimal("n" + i));
+                }
+            }
+        }
+    }
+
+    @Test(groups = "integration")
     public void testBigDecimal() throws SQLException {
         try (ClickHouseConnection conn = newConnection(new Properties());
-                Statement stmt = conn.createStatement()) {
-            ResultSet rs = stmt.executeQuery("select toDecimal64(number / 10, 1) from numbers(10)");
+                Statement stmt = conn.createStatement();
+                ResultSet rs = stmt.executeQuery("select toDecimal64(number / 10, 1) from numbers(10)")) {
             BigDecimal v = BigDecimal.valueOf(0L).setScale(1);
             while (rs.next()) {
                 Assert.assertEquals(rs.getBigDecimal(1), v);

@@ -252,7 +252,7 @@ public class ClickHouseDoubleValueTest extends BaseClickHouseValueTest {
                 Arrays.asList(Double.valueOf(-1D)) // Tuple
         );
 
-        checkValue(ClickHouseDoubleValue.of(4D/3), false, // isInfinity
+        checkValue(ClickHouseDoubleValue.of(4D / 3), false, // isInfinity
                 false, // isNan
                 false, // isNull
                 true, // boolean
@@ -263,7 +263,7 @@ public class ClickHouseDoubleValueTest extends BaseClickHouseValueTest {
                 1.3333334F, // float
                 1.3333333333333333D, // double
                 BigDecimal.valueOf(1L), // BigDecimal
-                BigDecimal.valueOf(1333,3), // BigDecimal
+                BigDecimal.valueOf(1333, 3), // BigDecimal
                 BigInteger.ONE, // BigInteger
                 ClickHouseDataType.values()[1].name(), // Enum<ClickHouseDataType>
                 1.3333333333333333D, // Object
@@ -283,6 +283,38 @@ public class ClickHouseDoubleValueTest extends BaseClickHouseValueTest {
                 buildMap(new Object[] { 1 }, new Object[] { 1.3333333333333333D }), // Map
                 buildMap(new Object[] { 1 }, new Double[] { 1.3333333333333333D }), // typed Map
                 Collections.singletonList(1.3333333333333333D) // Tuple
+        );
+        checkValue(ClickHouseDoubleValue.of(-4D / 3), false, // isInfinity
+                false, // isNan
+                false, // isNull
+                IllegalArgumentException.class, // boolean
+                (byte) -1, // byte
+                (short) -1, // short
+                -1, // int
+                -1L, // long
+                -1.3333334F, // float
+                -1.3333333333333333D, // double
+                BigDecimal.valueOf(-1L), // BigDecimal
+                BigDecimal.valueOf(-1333, 3), // BigDecimal
+                BigInteger.valueOf(-1L), // BigInteger
+                IllegalArgumentException.class, // Enum<ClickHouseDataType>
+                -1.3333333333333333D, // Object
+                LocalDate.ofEpochDay(-1L), // Date
+                LocalDateTime.ofEpochSecond(-1L, 0, ZoneOffset.UTC), // DateTime
+                LocalDateTime.ofEpochSecond(-2L, 666666667, ZoneOffset.UTC), // DateTime(9)
+                Inet4Address.getAllByName("255.255.255.255")[0], // Inet4Address
+                Inet6Address.getAllByName("0:0:0:0:0:0:0:ff")[0], // Inet6Address
+                "-1.3333333333333333", // String
+                "-1.3333333333333333", // SQL Expression
+                LocalTime.of(23, 59, 59), // Time
+                UUID.fromString("00000000-0000-0000-ffff-ffffffffffff"), // UUID
+                Object.class, // Key class
+                Double.class, // Value class
+                new Object[] { -1.3333333333333333D }, // Array
+                new Double[] { -1.3333333333333333D }, // typed Array
+                buildMap(new Object[] { 1 }, new Object[] { -1.3333333333333333D }), // Map
+                buildMap(new Object[] { 1 }, new Double[] { -1.3333333333333333D }), // typed Map
+                Collections.singletonList(-1.3333333333333333D) // Tuple
         );
     }
 }

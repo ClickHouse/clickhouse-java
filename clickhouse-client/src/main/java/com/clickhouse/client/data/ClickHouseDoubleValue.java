@@ -133,16 +133,16 @@ public class ClickHouseDoubleValue implements ClickHouseValue {
         if (isNull) {
             return null;
         }
-        final RoundingMode roundingMode = RoundingMode.HALF_UP;
+
         BigDecimal dec = BigDecimal.valueOf(value);
-        if (value == 0D || isInfinity() || isNaN()) {
-            dec = dec.setScale(scale, roundingMode);
+        if (value == 0D) {
+            dec = dec.setScale(scale);
         } else {
             int diff = scale - dec.scale();
             if (diff > 0) {
                 dec = dec.divide(BigDecimal.TEN.pow(diff + 1));
             } else if (diff < 0) {
-                dec = dec.setScale(scale, roundingMode);
+                dec = dec.setScale(scale, RoundingMode.DOWN);
             }
         }
         return dec;
