@@ -18,6 +18,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Types;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.HashMap;
@@ -34,6 +35,8 @@ import org.testng.Assert;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
+
+import ru.yandex.clickhouse.response.ClickHouseResponse;
 import ru.yandex.clickhouse.settings.ClickHouseProperties;
 import ru.yandex.clickhouse.settings.ClickHouseQueryParam;
 
@@ -533,6 +536,16 @@ public class ClickHouseStatementImplTest extends JdbcIntegrationTest {
             results = s.executeBatch();
             assertNotNull(results);
             assertEquals(results.length, 0);
+        }
+    }
+
+    @Test(groups = "integration")
+    public void testJsonResponse() throws SQLException {
+        try (ClickHouseStatement s = connection.createStatement()) {
+            ClickHouseResponse response = s.executeQueryClickhouseResponse(
+                "SELECT 1 AS one, tuple(1,'hello', 'world') AS two");
+            assertNotNull(response);
+            assertEquals(response.getData(), Collections.singletonList(Arrays.asList("1", "[1,\"hello\",\"world\"]")));
         }
     }
 

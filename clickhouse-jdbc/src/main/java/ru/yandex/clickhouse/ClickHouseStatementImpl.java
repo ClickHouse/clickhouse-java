@@ -3,6 +3,7 @@ package ru.yandex.clickhouse;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URI;
@@ -26,6 +27,8 @@ import com.clickhouse.client.logging.LoggerFactory;
 import com.clickhouse.jdbc.parser.ClickHouseSqlParser;
 import com.clickhouse.jdbc.parser.ClickHouseSqlStatement;
 import com.clickhouse.jdbc.parser.StatementType;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
@@ -50,6 +53,7 @@ import ru.yandex.clickhouse.except.ClickHouseException;
 import ru.yandex.clickhouse.except.ClickHouseExceptionSpecifier;
 import ru.yandex.clickhouse.response.ClickHouseLZ4Stream;
 import ru.yandex.clickhouse.response.ClickHouseResponse;
+import ru.yandex.clickhouse.response.ClickHouseResponseGsonDeserializer;
 import ru.yandex.clickhouse.response.ClickHouseResponseSummary;
 import ru.yandex.clickhouse.response.ClickHouseResultSet;
 import ru.yandex.clickhouse.response.ClickHouseScrollableResultSet;
@@ -64,6 +68,8 @@ import ru.yandex.clickhouse.util.Utils;
 public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement> implements ClickHouseStatement {
 
     private static final Logger log = LoggerFactory.getLogger(ClickHouseStatementImpl.class);
+    private static final Gson gson = new GsonBuilder().registerTypeAdapter(ClickHouseResponse.class,
+            new ClickHouseResponseGsonDeserializer()).create();
 
     protected static class WrappedHttpEntity extends AbstractHttpEntity {
         private final String sql;
@@ -226,6 +232,10 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
         return additionalDBParams;
     }
 
+    protected <T> T readJsonResponse(InputStream input, Class<T> clazz) throws IOException {
+        return gson.fromJson(new InputStreamReader(input, StandardCharsets.UTF_8), clazz);
+    }
+
     protected ResultSet updateResult(ClickHouseSqlStatement stmt, InputStream is)
             throws IOException, ClickHouseException {
         ResultSet rs = null;
@@ -289,7 +299,7 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
         stmt = applyFormat(stmt, ClickHouseFormat.JSONCompact);
 
         try (InputStream is = getInputStream(stmt, additionalDBParams, null, additionalRequestParams)) {
-            return JsonStreamUtils.readObject(properties.isCompress() ? new ClickHouseLZ4Stream(is) : is,
+            return readJsonResponse(properties.isCompress() ? new ClickHouseLZ4Stream(is) : is,
                     ClickHouseResponse.class);
         } catch (IOException e) {
             throw new RuntimeException(e);
@@ -372,7 +382,7 @@ public class ClickHouseStatementImpl extends ConfigurableApi<ClickHouseStatement
         parseSqlStatements(sql, ClickHouseFormat.JSONCompact, additionalDBParams);
 
         try (InputStream is = getLastInputStream(additionalDBParams, null, additionalRequestParams)) {
-            return JsonStreamUtils.readObject(properties.isCompress() ? new ClickHouseLZ4Stream(is) : is,
+            return readJsonResponse(properties.isCompress() ? new ClickHouseLZ4Stream(is) : is,
                     ClickHouseResponse.class);
         } catch (IOException e) {
             throw new RuntimeException(e);
