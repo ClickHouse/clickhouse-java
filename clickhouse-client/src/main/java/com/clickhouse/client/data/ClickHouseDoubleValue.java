@@ -2,7 +2,6 @@ package com.clickhouse.client.data;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
-import java.math.RoundingMode;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 
@@ -31,8 +30,7 @@ public class ClickHouseDoubleValue implements ClickHouseValue {
      * @return same object as {@code ref} or a new instance if it's null
      */
     public static ClickHouseDoubleValue ofNull(ClickHouseValue ref) {
-        return ref instanceof ClickHouseDoubleValue ?
-                ((ClickHouseDoubleValue) ref).set(true, 0D)
+        return ref instanceof ClickHouseDoubleValue ? ((ClickHouseDoubleValue) ref).set(true, 0D)
                 : new ClickHouseDoubleValue(true, 0D);
     }
 
@@ -55,8 +53,7 @@ public class ClickHouseDoubleValue implements ClickHouseValue {
      * @return same object as {@code ref} or a new instance if it's null
      */
     public static ClickHouseDoubleValue of(ClickHouseValue ref, double value) {
-        return ref instanceof ClickHouseDoubleValue ?
-                ((ClickHouseDoubleValue) ref).set(false, value)
+        return ref instanceof ClickHouseDoubleValue ? ((ClickHouseDoubleValue) ref).set(false, value)
                 : new ClickHouseDoubleValue(false, value);
     }
 
@@ -142,7 +139,7 @@ public class ClickHouseDoubleValue implements ClickHouseValue {
             if (diff > 0) {
                 dec = dec.divide(BigDecimal.TEN.pow(diff + 1));
             } else if (diff < 0) {
-                dec = dec.setScale(scale, RoundingMode.DOWN);
+                dec = dec.setScale(scale, ClickHouseValues.ROUNDING_MODE);
             }
         }
         return dec;
@@ -160,7 +157,8 @@ public class ClickHouseDoubleValue implements ClickHouseValue {
         }
         String str = String.valueOf(value);
         if (length > 0) {
-            ClickHouseChecker.notWithDifferentLength(str.getBytes(charset == null ? StandardCharsets.UTF_8 : charset), length);
+            ClickHouseChecker.notWithDifferentLength(str.getBytes(charset == null ? StandardCharsets.UTF_8 : charset),
+                    length);
         }
         return str;
     }

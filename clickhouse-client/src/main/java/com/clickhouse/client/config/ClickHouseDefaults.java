@@ -1,6 +1,7 @@
 package com.clickhouse.client.config;
 
 import java.io.Serializable;
+import java.math.RoundingMode;
 
 import com.clickhouse.client.ClickHouseChecker;
 import com.clickhouse.client.ClickHouseFormat;
@@ -69,6 +70,10 @@ public enum ClickHouseDefaults implements ClickHouseOption {
      * Max requests.
      */
     MAX_REQUESTS("max_requests", 0, "Maximum size of shared thread pool, 0 means no limit."),
+    /**
+     * Rounding mode for type conversion.
+     */
+    ROUNDING_MODE("rounding_mode", RoundingMode.DOWN, "Default rounding mode for BigDecimal."),
     /**
      * Thread keep alive timeout in milliseconds.
      */

@@ -206,6 +206,6 @@ public class ClickHouseDateTimeValueTest extends BaseClickHouseValueTest {
                 Arrays.asList(dateTime) // Tuple
         );
         Assert.assertEquals(ClickHouseDateTimeValue.of(dateTime, 3, ClickHouseValues.UTC_TIMEZONE).asBigDecimal(4),
-                BigDecimal.valueOf(0.1235D));
+                BigDecimal.valueOf(0.1234D));
     }
 }
