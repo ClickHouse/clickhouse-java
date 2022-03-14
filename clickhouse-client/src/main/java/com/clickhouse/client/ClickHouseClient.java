@@ -4,6 +4,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
@@ -49,13 +50,12 @@ public interface ClickHouseClient extends AutoCloseable {
 
     /**
      * Gets default {@link java.util.concurrent.ExecutorService} for static methods
-     * like {@code dump()}, {@code load()}, {@code send()}, and {@code submit()}
-     * when {@link com.clickhouse.client.config.ClickHouseDefaults#ASYNC} is
-     * {@code true}. It will be shared among all client instances when
+     * like {@code dump()}, {@code load()}, {@code send()}, and {@code submit()}. It
+     * will be shared among all client instances when
      * {@link com.clickhouse.client.config.ClickHouseClientOption#MAX_THREADS_PER_CLIENT}
      * is less than or equals to zero.
      * 
-     * @return default executor service
+     * @return non-null default executor service
      */
     static ExecutorService getExecutorService() {
         return ClickHouseClientBuilder.defaultExecutor;
@@ -68,7 +68,7 @@ public interface ClickHouseClient extends AutoCloseable {
      * 
      * @param <T>  return type of the task
      * @param task non-null task
-     * @return future object to get result
+     * @return non-null future object to get result
      * @throws CompletionException when failed to complete the task
      */
     static <T> CompletableFuture<T> submit(Callable<T> task) {
@@ -114,7 +114,7 @@ public interface ClickHouseClient extends AutoCloseable {
      * @param format       output format to use
      * @param compression  compression algorithm to use
      * @param file         output file
-     * @return future object to get result
+     * @return non-null future object to get result
      * @throws IllegalArgumentException if any of server, tableOrQuery, and output
      *                                  is null
      * @throws CompletionException      when error occurred during execution
@@ -592,7 +592,8 @@ public interface ClickHouseClient extends AutoCloseable {
      * invoked(usually triggered by {@code request.execute()}).
      *
      * @param nodeFunc function to get a {@link ClickHouseNode} to connect to
-     * @return request object holding references to this client and node provider
+     * @return non-null request object holding references to this client and node
+     *         provider
      */
     default ClickHouseRequest<?> connect(Function<ClickHouseNodeSelector, ClickHouseNode> nodeFunc) {
         return new ClickHouseRequest<>(this, ClickHouseChecker.nonNull(nodeFunc, "nodeFunc"), false);
@@ -609,17 +610,47 @@ public interface ClickHouseClient extends AutoCloseable {
      *                execution, meaning you're free to make any change to this
      *                object(e.g. prepare for next call using different SQL
      *                statement) without impacting the execution
-     * @return future object to get result
+     * @return non-null future object to get result
      * @throws CompletionException when error occurred during execution
      */
     CompletableFuture<ClickHouseResponse> execute(ClickHouseRequest<?> request);
+
+    /**
+     * Synchronous version of {@link #execute(ClickHouseRequest)}.
+     *
+     * @param request request object which will be sealed(immutable copy) upon
+     *                execution
+     * @return non-null response
+     * @throws ClickHouseException when error occurred during execution
+     */
+    default ClickHouseResponse executeAndWait(ClickHouseRequest<?> request) throws ClickHouseException {
+        final ClickHouseRequest<?> sealedRequest = request.seal();
+
+        try {
+            return execute(sealedRequest).get();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw ClickHouseException.forCancellation(e, sealedRequest.getServer());
+        } catch (CancellationException e) {
+            throw ClickHouseException.forCancellation(e, sealedRequest.getServer());
+        } catch (CompletionException | ExecutionException | UncheckedIOException e) {
+            Throwable cause = e.getCause();
+            if (cause == null) {
+                cause = e;
+            }
+            throw cause instanceof ClickHouseException ? (ClickHouseException) cause
+                    : ClickHouseException.of(cause, sealedRequest.getServer());
+        } catch (RuntimeException e) { // unexpected
+            throw ClickHouseException.of(e, sealedRequest.getServer());
+        }
+    }
 
     /**
      * Gets the immutable configuration associated with this client. In most cases
      * it's the exact same one passed to {@link #init(ClickHouseConfig)} method for
      * initialization.
      *
-     * @return configuration associated with this client
+     * @return non-null configuration associated with this client
      */
     ClickHouseConfig getConfig();
 
@@ -650,25 +681,26 @@ public interface ClickHouseClient extends AutoCloseable {
     }
 
     /**
-     * Tests if the given server is alive or not. Pay attention that it's a
-     * synchronous call with minimum overhead(e.g. tiny buffer, no compression and
-     * no deserialization etc).
+     * Tests if the given server is alive or not. It always returns {@code false}
+     * when server is {@code null} or timeout is less than one. Pay attention that
+     * it's a synchronous call with minimum overhead(e.g. tiny buffer, no
+     * compression and no deserialization etc).
      *
-     * @param server  server to test
-     * @param timeout timeout in millisecond
+     * @param server  non-null server to test
+     * @param timeout timeout in millisecond, should be greater than zero
      * @return true if the server is alive; false otherwise
      */
     default boolean ping(ClickHouseNode server, int timeout) {
-        if (server != null) {
+        if (server != null && timeout > 0) {
             server = ClickHouseCluster.probe(server, timeout);
-
             try (ClickHouseResponse resp = connect(server) // create request
                     .option(ClickHouseClientOption.ASYNC, false) // use current thread
                     .option(ClickHouseClientOption.CONNECTION_TIMEOUT, timeout)
                     .option(ClickHouseClientOption.SOCKET_TIMEOUT, timeout)
                     .option(ClickHouseClientOption.MAX_BUFFER_SIZE, 8) // actually 4 bytes should be enough
                     .option(ClickHouseClientOption.MAX_QUEUED_BUFFERS, 1) // enough with only one buffer
-                    .format(ClickHouseFormat.TabSeparated).query("SELECT 1").execute()
+                    .format(ClickHouseFormat.TabSeparated)
+                    .query("SELECT 1 FORMAT TabSeparated").execute()
                     .get(timeout, TimeUnit.MILLISECONDS)) {
                 return true;
             } catch (Exception e) {

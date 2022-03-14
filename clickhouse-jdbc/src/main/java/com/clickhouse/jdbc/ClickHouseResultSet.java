@@ -738,11 +738,17 @@ public class ClickHouseResultSet extends AbstractResultSet {
 
     @Override
     public boolean isWrapperFor(Class<?> iface) throws SQLException {
-        return iface == ClickHouseResponse.class || super.isWrapperFor(iface);
+        return iface == ClickHouseResponse.class || iface == ClickHouseRecord.class || super.isWrapperFor(iface);
     }
 
     @Override
     public <T> T unwrap(Class<T> iface) throws SQLException {
-        return iface == ClickHouseResponse.class ? iface.cast(response) : super.unwrap(iface);
+        if (iface == ClickHouseResponse.class) {
+            return iface.cast(response);
+        } else if (iface == ClickHouseRecord.class) {
+            return iface.cast(currentRow);
+        } else {
+            return super.unwrap(iface);
+        }
     }
 }

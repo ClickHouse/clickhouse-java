@@ -72,7 +72,9 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
         try (ClickHouseResponse response = newReq.option(ClickHouseClientOption.ASYNC, false)
                 .option(ClickHouseClientOption.COMPRESS, false).option(ClickHouseClientOption.DECOMPRESS, false)
                 .option(ClickHouseClientOption.FORMAT, ClickHouseFormat.RowBinaryWithNamesAndTypes)
-                .query("select currentUser(), timezone(), version() FORMAT RowBinaryWithNamesAndTypes")
+                .query("select currentUser(), timezone(), version(), "
+                        + "ifnull((select toUInt8(value) from system.settings where name='readonly'),0) readonly "
+                        + "FORMAT RowBinaryWithNamesAndTypes")
                 .execute().get()) {
             return response.firstRecord();
         } catch (InterruptedException | CancellationException e) {
@@ -122,6 +124,7 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
     private final TimeZone serverTimeZone;
     private final ClickHouseVersion serverVersion;
     private final String user;
+    private final int initialReadOnly;
 
     private final Map<String, Class<?>> typeMap;
 
@@ -234,7 +237,9 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
             timeZone = config.getServerTimeZone();
             version = config.getServerVersion();
             if (jdbcConf.isCreateDbIfNotExist()) {
-                getServerInfo(node, clientRequest, true);
+                initialReadOnly = getServerInfo(node, clientRequest, true).getValue(3).asInteger();
+            } else {
+                initialReadOnly = (int) clientRequest.getSettings().getOrDefault("readonly", 0);
             }
         } else {
             ClickHouseRecord r = getServerInfo(node, clientRequest, jdbcConf.isCreateDbIfNotExist());
@@ -252,6 +257,7 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
             }
             // tsTimeZone.hasSameRules(ClickHouseValues.UTC_TIMEZONE)
             timeZone = "UTC".equals(tz) ? ClickHouseValues.UTC_TIMEZONE : TimeZone.getTimeZone(tz);
+            initialReadOnly = r.getValue(3).asInteger();
 
             // update request and corresponding config
             clientRequest.option(ClickHouseClientOption.SERVER_TIME_ZONE, tz)
@@ -262,7 +268,7 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
         this.closed = false;
         this.database = config.getDatabase();
         this.clientRequest.use(this.database);
-        this.readOnly = false;
+        this.readOnly = initialReadOnly != 0;
         this.networkTimeout = 0;
         this.rsHoldability = ResultSet.HOLD_CURSORS_OVER_COMMIT;
         this.txIsolation = jdbcConf.isJdbcCompliant() ? Connection.TRANSACTION_READ_COMMITTED
@@ -392,7 +398,18 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
     public void setReadOnly(boolean readOnly) throws SQLException {
         ensureOpen();
 
-        this.readOnly = readOnly;
+        if (initialReadOnly != 0) {
+            if (!readOnly) {
+                throw SqlExceptionUtils.clientError("Cannot change the setting on a read-only connection");
+            }
+        } else {
+            if (readOnly) {
+                clientRequest.set("readonly", 2);
+            } else {
+                clientRequest.removeSetting("readonly");
+            }
+            this.readOnly = readOnly;
+        }
     }
 
     @Override
