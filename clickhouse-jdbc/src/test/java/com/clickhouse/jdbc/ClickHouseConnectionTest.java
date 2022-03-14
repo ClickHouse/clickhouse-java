@@ -1,6 +1,7 @@
 package com.clickhouse.jdbc;
 
 import java.sql.Array;
+import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
@@ -68,5 +69,111 @@ public class ClickHouseConnectionTest extends JdbcIntegrationTest {
             }
         }
         Assert.assertNotNull(exp, "Should not have SQLException because the database has been created");
+    }
+
+    @Test(groups = "integration")
+    public void testReadOnly() throws SQLException {
+        Properties props = new Properties();
+        props.setProperty("user", "dba");
+        props.setProperty("password", "dba");
+        try (Connection conn = newConnection(props); Statement stmt = conn.createStatement()) {
+            Assert.assertFalse(conn.isReadOnly(), "Connection should NOT be readonly");
+            Assert.assertFalse(stmt.execute(
+                    "drop table if exists test_readonly; drop user if exists readonly1; drop user if exists readonly2; "
+                            + "create table test_readonly(id String)engine=Memory; "
+                            + "create user readonly1 IDENTIFIED WITH no_password SETTINGS readonly=1; "
+                            + "create user readonly2 IDENTIFIED WITH no_password SETTINGS readonly=2; "
+                            + "grant insert on test_readonly TO readonly1, readonly2"));
+            conn.setReadOnly(false);
+            Assert.assertFalse(conn.isReadOnly(), "Connection should NOT be readonly");
+            conn.setReadOnly(true);
+            Assert.assertTrue(conn.isReadOnly(), "Connection should be readonly");
+
+            try (Statement s = conn.createStatement()) {
+                SQLException exp = null;
+                try {
+                    s.execute("insert into test_readonly values('readonly1')");
+                } catch (SQLException e) {
+                    exp = e;
+                }
+                Assert.assertNotNull(exp, "Should fail with SQL exception");
+                Assert.assertEquals(exp.getErrorCode(), 164);
+            }
+
+            conn.setReadOnly(false);
+            Assert.assertFalse(conn.isReadOnly(), "Connection should NOT be readonly");
+
+            try (Statement s = conn.createStatement()) {
+                Assert.assertFalse(s.execute("insert into test_readonly values('readonly1')"));
+            }
+        }
+
+        props.clear();
+        props.setProperty("user", "readonly1");
+        try (Connection conn = newConnection(props); Statement stmt = conn.createStatement()) {
+            Assert.assertTrue(conn.isReadOnly(), "Connection should be readonly");
+            conn.setReadOnly(true);
+            Assert.assertTrue(conn.isReadOnly(), "Connection should be readonly");
+            SQLException exp = null;
+            try {
+                stmt.execute("insert into test_readonly values('readonly1')");
+            } catch (SQLException e) {
+                exp = e;
+            }
+            Assert.assertNotNull(exp, "Should fail with SQL exception");
+            Assert.assertEquals(exp.getErrorCode(), 164);
+
+            exp = null;
+            try {
+                conn.setReadOnly(true);
+                stmt.execute("set max_result_rows=5; select 1");
+            } catch (SQLException e) {
+                exp = e;
+            }
+            Assert.assertNotNull(exp, "Should fail with SQL exception");
+            Assert.assertEquals(exp.getErrorCode(), 164);
+        }
+
+        props.setProperty("user", "readonly2");
+        try (Connection conn = newConnection(props); Statement stmt = conn.createStatement()) {
+            Assert.assertTrue(conn.isReadOnly(), "Connection should be readonly");
+            Assert.assertTrue(stmt.execute("set max_result_rows=5; select 1"));
+
+            Assert.assertThrows(SQLException.class, () -> conn.setReadOnly(false));
+            Assert.assertTrue(conn.isReadOnly(), "Connection should be readonly");
+
+            SQLException exp = null;
+            try (Statement s = conn.createStatement()) {
+                Assert.assertFalse(s.execute("insert into test_readonly values('readonly2')"));
+            } catch (SQLException e) {
+                exp = e;
+            }
+            Assert.assertNotNull(exp, "Should fail with SQL exception");
+            Assert.assertEquals(exp.getErrorCode(), 164);
+
+            conn.setReadOnly(true);
+            Assert.assertTrue(conn.isReadOnly(), "Connection should be readonly");
+        }
+
+        props.setProperty(ClickHouseClientOption.SERVER_TIME_ZONE.getKey(), "UTC");
+        props.setProperty(ClickHouseClientOption.SERVER_VERSION.getKey(), "21.8");
+        try (Connection conn = newConnection(props); Statement stmt = conn.createStatement()) {
+            Assert.assertFalse(conn.isReadOnly(), "Connection should NOT be readonly");
+            Assert.assertTrue(stmt.execute("set max_result_rows=5; select 1"));
+
+            conn.setReadOnly(true);
+            Assert.assertTrue(conn.isReadOnly(), "Connection should be readonly");
+            conn.setReadOnly(false);
+            Assert.assertFalse(conn.isReadOnly(), "Connection should NOT be readonly");
+
+            SQLException exp = null;
+            try (Statement s = conn.createStatement()) {
+                Assert.assertFalse(s.execute("insert into test_readonly values('readonly2')"));
+            } catch (SQLException e) {
+                exp = e;
+            }
+            Assert.assertNotNull(exp, "Should fail with SQL exception");
+            Assert.assertEquals(exp.getErrorCode(), 164);
+        }
     }
 }
