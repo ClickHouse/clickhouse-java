@@ -20,6 +20,8 @@ public class ClickHouseColumnTest {
         List<ClickHouseColumn> list = new LinkedList<>();
         Assert.assertEquals(ClickHouseColumn.readColumn(args, 0, args.length(), null, list), args.indexOf("cc") - 2);
         Assert.assertEquals(list.size(), 1);
+        Assert.assertFalse(list.get(0).isFixedLength(), "Should not have fixed length in byte");
+        Assert.assertEquals(list.get(0).getEstimatedLength(), 1);
         list.clear();
         Assert.assertEquals(ClickHouseColumn.readColumn(args, args.indexOf("cc") + 3, args.length(), null, list),
                 args.lastIndexOf(','));
@@ -32,6 +34,8 @@ public class ClickHouseColumnTest {
         Assert.assertFalse(column.isLowCardinality());
         Assert.assertTrue(column.isNullable());
         Assert.assertEquals(column.getDataType(), ClickHouseDataType.UInt8);
+        Assert.assertFalse(column.isFixedLength(), "Should not have fixed length in byte");
+        Assert.assertEquals(column.getEstimatedLength(), 1);
         list.clear();
 
         args = "INT1 unsigned not null, b DateTime64(3) NULL";
@@ -40,6 +44,8 @@ public class ClickHouseColumnTest {
         column = list.get(0);
         Assert.assertFalse(column.isNullable());
         Assert.assertEquals(column.getDataType(), ClickHouseDataType.UInt8);
+        Assert.assertTrue(column.isFixedLength(), "Should have fixed length in byte");
+        Assert.assertEquals(column.getEstimatedLength(), 1);
         list.clear();
 
         Assert.assertEquals(ClickHouseColumn.readColumn(args, args.indexOf('D'), args.length(), null, list),
@@ -48,6 +54,8 @@ public class ClickHouseColumnTest {
         column = list.get(0);
         Assert.assertTrue(column.isNullable());
         Assert.assertEquals(column.getDataType(), ClickHouseDataType.DateTime64);
+        Assert.assertFalse(column.isFixedLength(), "Should not have fixed length in byte");
+        Assert.assertEquals(column.getEstimatedLength(), 1);
     }
 
     @Test(groups = { "unit" })
@@ -59,6 +67,8 @@ public class ClickHouseColumnTest {
         ClickHouseColumn column = list.get(0);
         Assert.assertEquals(column.getNestedColumns().size(), 1);
         Assert.assertEquals(column.getNestedColumns().get(0).getNestedColumns().size(), 1);
+        Assert.assertFalse(column.isFixedLength(), "Should not have fixed length in byte");
+        Assert.assertEquals(column.getEstimatedLength(), 1);
         list.clear();
 
         args = " Tuple(Nullable(FixedString(3)), Array(UInt8),String not null) ";
@@ -66,6 +76,8 @@ public class ClickHouseColumnTest {
         Assert.assertEquals(list.size(), 1);
         column = list.get(0);
         Assert.assertEquals(column.getOriginalTypeName(), args.trim());
+        Assert.assertFalse(column.isFixedLength(), "Should not have fixed length in byte");
+        Assert.assertEquals(column.getEstimatedLength(), 3);
         list.clear();
 
         args = "Map(UInt8 , UInt8)";
@@ -73,6 +85,8 @@ public class ClickHouseColumnTest {
         Assert.assertEquals(list.size(), 1);
         column = list.get(0);
         Assert.assertEquals(column.getOriginalTypeName(), args);
+        Assert.assertFalse(column.isFixedLength(), "Should not have fixed length in byte");
+        Assert.assertEquals(column.getEstimatedLength(), 1);
         list.clear();
 
         args = "Map(String, FixedString(233))";
@@ -80,6 +94,8 @@ public class ClickHouseColumnTest {
         Assert.assertEquals(list.size(), 1);
         column = list.get(0);
         Assert.assertEquals(column.getOriginalTypeName(), args);
+        Assert.assertFalse(column.isFixedLength(), "Should not have fixed length in byte");
+        Assert.assertEquals(column.getEstimatedLength(), 1);
         list.clear();
 
         args = "Map(String, Tuple(UInt8, Nullable(String), UInt16 null))";
@@ -91,6 +107,8 @@ public class ClickHouseColumnTest {
         Assert.assertEquals(column.getKeyInfo().getOriginalTypeName(), "String");
         Assert.assertEquals(column.getValueInfo().getOriginalTypeName(), "Tuple(UInt8, Nullable(String), UInt16 null)");
         Assert.assertEquals(column.getValueInfo().getNestedColumns().size(), 3);
+        Assert.assertFalse(column.isFixedLength(), "Should not have fixed length in byte");
+        Assert.assertEquals(column.getEstimatedLength(), 1);
         list.clear();
 
         args = "Nested(\na Array(Nullable(UInt8)), `b b` LowCardinality(Nullable(DateTime64(3))))";
@@ -98,6 +116,8 @@ public class ClickHouseColumnTest {
         Assert.assertEquals(list.size(), 1);
         column = list.get(0);
         Assert.assertEquals(column.getOriginalTypeName(), args);
+        Assert.assertFalse(column.isFixedLength(), "Should not have fixed length in byte");
+        Assert.assertEquals(column.getEstimatedLength(), 1);
     }
 
     @Test(groups = { "unit" })
@@ -123,6 +143,8 @@ public class ClickHouseColumnTest {
         Assert.assertEquals(column.getAggregateFunction(), ClickHouseAggregateFunction.groupBitmap);
         Assert.assertEquals(column.getFunction(), "groupBitmap");
         Assert.assertEquals(column.getNestedColumns(), Collections.singletonList(ClickHouseColumn.of("", "UInt32")));
+        Assert.assertFalse(column.isFixedLength(), "Should not have fixed length in byte");
+        Assert.assertEquals(column.getEstimatedLength(), 1);
 
         column = ClickHouseColumn.of("aggFunc", "AggregateFunction(quantiles(0.5, 0.9), Nullable(UInt64))");
         Assert.assertTrue(column.isAggregateFunction());
@@ -131,6 +153,8 @@ public class ClickHouseColumnTest {
         Assert.assertEquals(column.getFunction(), "quantiles(0.5,0.9)");
         Assert.assertEquals(column.getNestedColumns(),
                 Collections.singletonList(ClickHouseColumn.of("", "Nullable(UInt64)")));
+        Assert.assertFalse(column.isFixedLength(), "Should not have fixed length in byte");
+        Assert.assertEquals(column.getEstimatedLength(), 1);
     }
 
     @Test(groups = { "unit" })
@@ -146,6 +170,8 @@ public class ClickHouseColumnTest {
 
         Assert.assertEquals(column.getArrayBaseColumn().getArrayNestedLevel(), 0);
         Assert.assertEquals(column.getArrayBaseColumn().getArrayBaseColumn(), null);
+        Assert.assertFalse(column.isFixedLength(), "Should not have fixed length in byte");
+        Assert.assertEquals(column.getEstimatedLength(), 1);
 
         ClickHouseColumn c = ClickHouseColumn.of("arr", "Array(LowCardinality(Nullable(String)))");
         Assert.assertTrue(c.isArray());
@@ -153,6 +179,8 @@ public class ClickHouseColumnTest {
         Assert.assertEquals(c.getArrayNestedLevel(), 1);
         Assert.assertEquals(c.getArrayBaseColumn().getOriginalTypeName(), "LowCardinality(Nullable(String))");
         Assert.assertFalse(c.getArrayBaseColumn().isArray());
+        Assert.assertFalse(column.isFixedLength(), "Should not have fixed length in byte");
+        Assert.assertEquals(column.getEstimatedLength(), 1);
     }
 
     @Test(dataProvider = "enumTypesProvider", groups = { "unit" })
@@ -169,5 +197,7 @@ public class ClickHouseColumnTest {
         Assert.assertEquals(column.getEnumConstants().name(10), "Query'Finish");
         Assert.assertEquals(column.getEnumConstants().value("Query'Start"), 1);
         Assert.assertEquals(column.getEnumConstants().value("Query'Finish"), 10);
+        Assert.assertTrue(column.isFixedLength(), "Should have fixed length in byte");
+        Assert.assertEquals(column.getEstimatedLength(), column.getDataType().getByteLength());
     }
 }

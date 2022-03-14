@@ -42,6 +42,9 @@ public final class ClickHouseColumn implements Serializable {
     private int arrayLevel;
     private ClickHouseColumn arrayBaseColumn;
 
+    private boolean fixedByteLength;
+    private int estimatedByteLength;
+
     private static ClickHouseColumn update(ClickHouseColumn column) {
         column.enumConstants = ClickHouseEnum.EMPTY;
         int size = column.parameters.size();
@@ -70,11 +73,17 @@ public final class ClickHouseColumn implements Serializable {
                 if (size >= 2) { // same as DateTime64
                     column.scale = Integer.parseInt(column.parameters.get(0));
                     column.timeZone = TimeZone.getTimeZone(column.parameters.get(1).replace("'", ""));
+                    if (!column.nullable) {
+                        column.estimatedByteLength += ClickHouseDataType.DateTime64.getByteLength();
+                    }
                 } else if (size == 1) { // same as DateTime32
                     // unfortunately this will fall back to GMT if the time zone
                     // cannot be resolved
                     TimeZone tz = TimeZone.getTimeZone(column.parameters.get(0).replace("'", ""));
                     column.timeZone = tz;
+                    if (!column.nullable) {
+                        column.estimatedByteLength += ClickHouseDataType.DateTime32.getByteLength();
+                    }
                 }
                 break;
             case DateTime32:
@@ -97,6 +106,18 @@ public final class ClickHouseColumn implements Serializable {
                 if (size >= 2) {
                     column.precision = Integer.parseInt(column.parameters.get(0));
                     column.scale = Integer.parseInt(column.parameters.get(1));
+
+                    if (!column.nullable) {
+                        if (column.precision > ClickHouseDataType.Decimal128.getMaxScale()) {
+                            column.estimatedByteLength += ClickHouseDataType.Decimal256.getByteLength();
+                        } else if (column.precision > ClickHouseDataType.Decimal64.getMaxScale()) {
+                            column.estimatedByteLength += ClickHouseDataType.Decimal128.getByteLength();
+                        } else if (column.precision > ClickHouseDataType.Decimal32.getMaxScale()) {
+                            column.estimatedByteLength += ClickHouseDataType.Decimal64.getByteLength();
+                        } else {
+                            column.estimatedByteLength += ClickHouseDataType.Decimal32.getByteLength();
+                        }
+                    }
                 }
                 break;
             case Decimal32:
@@ -110,6 +131,15 @@ public final class ClickHouseColumn implements Serializable {
             case FixedString:
                 if (size > 0) {
                     column.precision = Integer.parseInt(column.parameters.get(0));
+                    if (!column.nullable) {
+                        column.estimatedByteLength += column.precision;
+                    }
+                }
+                break;
+            case String:
+                column.fixedByteLength = false;
+                if (!column.nullable) {
+                    column.estimatedByteLength += 1;
                 }
                 break;
             default:
@@ -128,6 +158,9 @@ public final class ClickHouseColumn implements Serializable {
         boolean nullable = false;
         boolean lowCardinality = false;
         int i = startIndex;
+
+        boolean fixedLength = true;
+        int estimatedLength = 0;
 
         if (args.startsWith(KEYWORD_LOW_CARDINALITY, i)) {
             lowCardinality = true;
@@ -173,6 +206,8 @@ public final class ClickHouseColumn implements Serializable {
             column = new ClickHouseColumn(ClickHouseDataType.valueOf(matchedKeyword), name,
                     args.substring(startIndex, i), nullable, lowCardinality, params, nestedColumns);
             column.aggFuncType = aggFunc;
+            fixedLength = false;
+            estimatedLength++;
         } else if (args.startsWith(KEYWORD_ARRAY, i)) {
             int index = args.indexOf('(', i + KEYWORD_ARRAY.length());
             if (index < i) {
@@ -188,6 +223,8 @@ public final class ClickHouseColumn implements Serializable {
             column = new ClickHouseColumn(ClickHouseDataType.Array, name, args.substring(startIndex, endIndex),
                     nullable, lowCardinality, null, nestedColumns);
             i = endIndex;
+            fixedLength = false;
+            estimatedLength++;
         } else if (args.startsWith(KEYWORD_MAP, i)) {
             int index = args.indexOf('(', i + KEYWORD_MAP.length());
             if (index < i) {
@@ -210,6 +247,8 @@ public final class ClickHouseColumn implements Serializable {
             column = new ClickHouseColumn(ClickHouseDataType.Map, name, args.substring(startIndex, endIndex), nullable,
                     lowCardinality, null, nestedColumns);
             i = endIndex;
+            fixedLength = false;
+            estimatedLength++;
         } else if (args.startsWith(KEYWORD_NESTED, i)) {
             int index = args.indexOf('(', i + KEYWORD_NESTED.length());
             if (index < i) {
@@ -223,6 +262,8 @@ public final class ClickHouseColumn implements Serializable {
             }
             column = new ClickHouseColumn(ClickHouseDataType.Nested, name, originalTypeName, nullable, lowCardinality,
                     null, nestedColumns);
+            fixedLength = false;
+            estimatedLength++;
         } else if (args.startsWith(KEYWORD_TUPLE, i)) {
             int index = args.indexOf('(', i + KEYWORD_TUPLE.length());
             if (index < i) {
@@ -243,6 +284,12 @@ public final class ClickHouseColumn implements Serializable {
             }
             column = new ClickHouseColumn(ClickHouseDataType.Tuple, name, args.substring(startIndex, endIndex),
                     nullable, lowCardinality, null, nestedColumns);
+            for (ClickHouseColumn n : nestedColumns) {
+                estimatedLength += n.estimatedByteLength;
+                if (!n.fixedByteLength) {
+                    fixedLength = false;
+                }
+            }
         }
 
         if (column == null) {
@@ -298,6 +345,16 @@ public final class ClickHouseColumn implements Serializable {
             builder.setLength(0);
         }
 
+        if (nullable) {
+            fixedLength = false;
+            estimatedLength++;
+        } else if (column.dataType.getByteLength() == 0) {
+            fixedLength = false;
+        } else {
+            estimatedLength += column.dataType.getByteLength();
+        }
+        column.fixedByteLength = fixedLength;
+        column.estimatedByteLength = estimatedLength;
         list.add(update(column));
 
         return i;
@@ -373,11 +430,6 @@ public final class ClickHouseColumn implements Serializable {
         return Collections.unmodifiableList(c);
     }
 
-    private ClickHouseColumn(String originalTypeName, String columnName) {
-        this.originalTypeName = originalTypeName;
-        this.columnName = columnName;
-    }
-
     private ClickHouseColumn(ClickHouseDataType dataType, String columnName, String originalTypeName, boolean nullable,
             boolean lowCardinality, List<String> parameters, List<ClickHouseColumn> nestedColumns) {
         this.aggFuncType = null;
@@ -403,6 +455,9 @@ public final class ClickHouseColumn implements Serializable {
             list.addAll(nestedColumns);
             this.nested = Collections.unmodifiableList(list);
         }
+
+        this.fixedByteLength = false;
+        this.estimatedByteLength = 0;
     }
 
     public boolean isAggregateFunction() {
@@ -418,6 +473,10 @@ public final class ClickHouseColumn implements Serializable {
     public boolean isEnum() {
         return dataType == ClickHouseDataType.Enum || dataType == ClickHouseDataType.Enum8
                 || dataType == ClickHouseDataType.Enum16;
+    }
+
+    public boolean isFixedLength() {
+        return fixedByteLength;
     }
 
     public boolean isMap() {
@@ -446,6 +505,10 @@ public final class ClickHouseColumn implements Serializable {
 
     public ClickHouseEnum getEnumConstants() {
         return enumConstants;
+    }
+
+    public int getEstimatedLength() {
+        return estimatedByteLength;
     }
 
     public String getOriginalTypeName() {
@@ -541,6 +604,8 @@ public final class ClickHouseColumn implements Serializable {
         result = prime * result + precision;
         result = prime * result + scale;
         result = prime * result + ((timeZone == null) ? 0 : timeZone.hashCode());
+        result = prime * result + (fixedByteLength ? 1231 : 1237);
+        result = prime * result + estimatedByteLength;
         return result;
     }
 
@@ -561,7 +626,8 @@ public final class ClickHouseColumn implements Serializable {
                 && Objects.equals(nested, other.nested) && nullable == other.nullable
                 && Objects.equals(originalTypeName, other.originalTypeName)
                 && Objects.equals(parameters, other.parameters) && precision == other.precision && scale == other.scale
-                && Objects.equals(timeZone, other.timeZone);
+                && Objects.equals(timeZone, other.timeZone) && fixedByteLength == other.fixedByteLength
+                && estimatedByteLength == other.estimatedByteLength;
     }
 
     @Override
