@@ -72,8 +72,7 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
         try (ClickHouseResponse response = newReq.option(ClickHouseClientOption.ASYNC, false)
                 .option(ClickHouseClientOption.COMPRESS, false).option(ClickHouseClientOption.DECOMPRESS, false)
                 .option(ClickHouseClientOption.FORMAT, ClickHouseFormat.RowBinaryWithNamesAndTypes)
-                .query("select currentUser(), timezone(), version(), "
-                        + "ifnull((select toUInt8(value) from system.settings where name='readonly'),0) readonly "
+                .query("select currentUser(), timezone(), version(), getSetting('readonly') readonly "
                         + "FORMAT RowBinaryWithNamesAndTypes")
                 .execute().get()) {
             return response.firstRecord();

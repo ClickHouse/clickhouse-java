@@ -25,7 +25,7 @@ on:
       driver:
         description: "Driver version"
         required: true
-        default: "0.3.2-SNAPSHOT"
+        default: "0.3.3-SNAPSHOT"
       options:
         description: "Benchmark options"
         required: true

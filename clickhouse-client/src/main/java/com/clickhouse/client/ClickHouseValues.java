@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.lang.reflect.Array;
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.math.RoundingMode;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.net.InetAddress;
@@ -27,6 +28,7 @@ import java.util.TimeZone;
 import java.util.UUID;
 import java.util.Map.Entry;
 
+import com.clickhouse.client.config.ClickHouseDefaults;
 import com.clickhouse.client.data.ClickHouseArrayValue;
 import com.clickhouse.client.data.ClickHouseBigDecimalValue;
 import com.clickhouse.client.data.ClickHouseBigIntegerValue;
@@ -83,6 +85,8 @@ public final class ClickHouseValues {
     public static final String EMPTY_STRING_EXPR = "''";
 
     public static final BigDecimal NANOS = new BigDecimal(BigInteger.TEN.pow(9));
+    public static final RoundingMode ROUNDING_MODE = (RoundingMode) ClickHouseDefaults.ROUNDING_MODE
+            .getEffectiveDefaultValue();
 
     public static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
     public static final DateTimeFormatter TIME_FORMATTER = new DateTimeFormatterBuilder().appendPattern("HH:mm:ss")

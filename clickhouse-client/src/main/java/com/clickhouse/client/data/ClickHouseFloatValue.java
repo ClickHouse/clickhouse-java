@@ -2,7 +2,6 @@ package com.clickhouse.client.data;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
-import java.math.RoundingMode;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import com.clickhouse.client.ClickHouseChecker;
@@ -158,7 +157,7 @@ public class ClickHouseFloatValue implements ClickHouseValue {
             if (diff > 0) {
                 dec = dec.divide(BigDecimal.TEN.pow(diff + 1));
             } else if (diff < 0) {
-                dec = dec.setScale(scale, RoundingMode.DOWN);
+                dec = dec.setScale(scale, ClickHouseValues.ROUNDING_MODE);
             }
         }
         return dec;

@@ -56,7 +56,7 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
-        <clickhouse-grpc.version>0.3.2-patch7</clickhouse-grpc.version>
+        <clickhouse-grpc.version>0.3.3</clickhouse-grpc.version>
 
         <compiler-plugin.version>3.8.1</compiler-plugin.version>
 

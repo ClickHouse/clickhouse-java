@@ -112,7 +112,7 @@ Note: in general, the new driver(v0.3.2) is a few times faster with less memory 
     <groupId>com.clickhouse</groupId>
     <!-- or clickhouse-grpc-client if you prefer gRPC -->
     <artifactId>clickhouse-http-client</artifactId>
-    <version>0.3.2-patch7</version>
+    <version>0.3.3</version>
 </dependency>
 ```
 
@@ -148,7 +148,7 @@ try (ClickHouseClient client = ClickHouseClient.newInstance(preferredProtocol);
     <!-- will stop using ru.yandex.clickhouse starting from 0.4.0  -->
     <groupId>com.clickhouse</groupId>
     <artifactId>clickhouse-jdbc</artifactId>
-    <version>0.3.2-patch7</version>
+    <version>0.3.3</version>
     <!-- below is only needed when all you want is a shaded jar -->
     <classifier>http</classifier>
     <exclusions>
