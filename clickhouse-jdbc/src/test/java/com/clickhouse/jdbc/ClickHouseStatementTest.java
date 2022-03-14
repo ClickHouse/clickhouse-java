@@ -113,6 +113,26 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
     }
 
     @Test(groups = "integration")
+    public void testMaxFloatValues() throws SQLException {
+        Properties props = new Properties();
+        try (ClickHouseConnection conn = newConnection(props);
+                ClickHouseStatement s = conn.createStatement()) {
+            s.execute("drop table if exists test_float_values; "
+                    + "create table test_float_values(f1 Nullable(Float64), f2 Nullable(Float64))engine=Memory");
+            try (PreparedStatement ps = conn.prepareStatement("insert into test_float_values values(?, ?)")) {
+                ps.setObject(1, Float.MAX_VALUE);
+                ps.setObject(2, Double.MAX_VALUE);
+                ps.executeUpdate();
+            }
+            ResultSet rs = s.executeQuery("select * from test_float_values");
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getFloat(1), Float.MAX_VALUE);
+            Assert.assertEquals(rs.getDouble(2), Double.MAX_VALUE);
+            Assert.assertFalse(rs.next());
+        }
+    }
+
+    @Test(groups = "integration")
     public void testMutation() throws SQLException {
         Properties props = new Properties();
         try (ClickHouseConnection conn = newConnection(props); ClickHouseStatement stmt = conn.createStatement()) {

@@ -124,11 +124,21 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
          * Sends mutation requets for execution. Same as
          * {@code client.execute(request.seal())}.
          *
-         * @return future to get response
+         * @return non-null future to get response
          * @throws CompletionException when error occurred
          */
         public CompletableFuture<ClickHouseResponse> send() {
-            return getClient().execute(isSealed() ? this : seal());
+            return execute();
+        }
+
+        /**
+         * Synchronous version of {@link #send()}.
+         *
+         * @return non-null response
+         * @throws ClickHouseException when error occurred during execution
+         */
+        public ClickHouseResponse sendAndWait() throws ClickHouseException {
+            return executeAndWait();
         }
 
         @Override
@@ -1368,10 +1378,20 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
     /**
      * Executes the request. Same as {@code client.execute(request.seal())}.
      * 
-     * @return future to get response
+     * @return non-null future to get response
      * @throws CompletionException when error occurred during execution
      */
     public CompletableFuture<ClickHouseResponse> execute() {
         return getClient().execute(isSealed() ? this : seal());
+    }
+
+    /**
+     * Synchronous version of {@link #execute()}.
+     *
+     * @return non-null response
+     * @throws ClickHouseException when error occurred during execution
+     */
+    public ClickHouseResponse executeAndWait() throws ClickHouseException {
+        return getClient().executeAndWait(isSealed() ? this : seal());
     }
 }
