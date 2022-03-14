@@ -72,7 +72,7 @@
     </distributionManagement>
 
     <properties>
-        <revision>0.3.2-SNAPSHOT</revision>
+        <revision>0.3.3-SNAPSHOT</revision>
         <project.current.year>2022</project.current.year>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
@@ -131,7 +131,7 @@
         <sonar.moduleKey>${project.artifactId}</sonar.moduleKey>
         <sonar.organization>clickhouse</sonar.organization>
         <sonar.host.url>https://sonarcloud.io</sonar.host.url>
-        <sonar.projectVersion>0.3.2</sonar.projectVersion>
+        <sonar.projectVersion>0.3.3</sonar.projectVersion>
     </properties>
 
     <dependencyManagement>
