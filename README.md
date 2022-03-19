@@ -208,7 +208,9 @@ To benchmark JDBC drivers:
 cd clickhouse-benchmark
 mvn -Drelease clean package
 # single thread mode
-java -DdbHost=localhost -jar target/benchmarks.jar -t 1 -p client=clickhouse-http-jdbc1 -p connection=reuse -p statement=prepared Query.selectInt8
+java -DdbHost=localhost -jar target/benchmarks.jar -t 1 \
+    -p client=clickhouse-http-jdbc1 -p connection=reuse \
+    -p statement=prepared Query.selectInt8
 ```
 
 It's time consuming to run all benchmarks against all drivers using different parameters for comparison. If you just need some numbers to understand performance, please refer to table below and some more details like CPU and memory usage mentioned at [here](https://github.com/ClickHouse/clickhouse-jdbc/issues/768)(still have plenty of room to improve according to ranking at [here](https://github.com/go-faster/ch-bench)).
@@ -221,8 +223,8 @@ In the case you prefer to test against an existing server, please follow instruc
 
 - make sure the server can be accessed using default account(user `default` and no password), which has both DDL and DML privileges
 - add below two configuration files to the existing server and expose all ports for external access
-  - [ports.xml](./tree/master/clickhouse-client/src/test/resources/containers/clickhouse-server/config.d/ports.xml) - enable all ports
-  - and [users.xml](./tree/master/clickhouse-client/src/test/resources/containers/clickhouse-server/users.d/users.xml) - accounts used for integration test
+  - [ports.xml](../../blob/master/clickhouse-client/src/test/resources/containers/clickhouse-server/config.d/ports.xml) - enable all ports
+  - and [users.xml](../../blob/master/clickhouse-client/src/test/resources/containers/clickhouse-server/users.d/users.xml) - accounts used for integration test
 - put `test.properties` under either `~/.clickhouse` or `src/test/resources` of your project, with content like below:
   ```properties
   clickhouseServer=x.x.x.x
