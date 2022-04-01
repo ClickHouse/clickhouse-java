@@ -374,7 +374,7 @@ public class ClickHouseRowBinaryProcessor extends ClickHouseDataProcessor {
                 for (int k = 0, len = BinaryStreamUtils.readVarInt(i); k < len; k++) {
                     map.put(deserialize(null, f, keyCol, i).asObject(), deserialize(null, f, valCol, i).asObject());
                 }
-                return ClickHouseMapValue.of(map, valCol.getDataType().getObjectClass(),
+                return ClickHouseMapValue.of(map, keyCol.getDataType().getObjectClass(),
                         valCol.getDataType().getObjectClass());
             }, (v, f, c, o) -> {
                 Map<Object, Object> map = v.asMap();
