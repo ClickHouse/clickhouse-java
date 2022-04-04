@@ -910,8 +910,10 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
         try (ClickHouseConnection conn = newConnection(new Properties());
                 Statement s = conn.createStatement();
                 PreparedStatement stmt = conn.prepareStatement(
-                        "insert into test_issue_315(id, src, dst) values (?,IPv4ToIPv6(toIPv4(?)),IPv4ToIPv6(toIPv4(?)))")) {
-            s.execute("drop table if exists test_issue_315;"
+                        conn.getServerVersion().check("[22.3,)")
+                                ? "insert into test_issue_315(id, src, dst) values (?+0,?,?)"
+                                : "insert into test_issue_315(id, src, dst) values (?,IPv4ToIPv6(toIPv4(?)),IPv4ToIPv6(toIPv4(?)))")) {
+            s.execute("drop table if exists test_issue_315; "
                     + "create table test_issue_315(id Int32, src IPv6, dst IPv6)engine=Memory");
 
             stmt.setObject(1, 1);
@@ -935,7 +937,8 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
             Assert.assertTrue(rs.next());
             Assert.assertEquals(rs.getInt(1), 2);
             Assert.assertEquals(rs.getString(2), "0:0:0:0:0:ffff:7f00:2");
-            Assert.assertEquals(rs.getString(3), "0:0:0:0:0:ffff:0:0");
+            Assert.assertEquals(rs.getString(3),
+                    conn.getServerVersion().check("[22.3,)") ? "0:0:0:0:0:0:0:1" : "0:0:0:0:0:ffff:0:0");
             Assert.assertFalse(rs.next());
         }
     }
