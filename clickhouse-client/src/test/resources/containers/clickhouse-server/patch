@@ -1,0 +1,17 @@
+#!/bin/bash
+
+set -e
+
+SERVER_CONF_DIR="/etc/clickhouse-server"
+ROOT_ELEMENT="yandex"
+REPLACE_TO="clickhouse"
+
+if [ -n "$(grep 'yandex>' /entrypoint.sh >/dev/null)" ]; then
+    ROOT_ELEMENT="clickhouse"
+    REPLACE_TO="yandex"
+fi
+
+\cp -rfv "$(dirname $0)/." $SERVER_CONF_DIR
+find $SERVER_CONF_DIR -type f -name "*.xml" -exec sed -i -e "s|$ROOT_ELEMENT>|$REPLACE_TO>|g" {} \; || true
+
+/entrypoint.sh

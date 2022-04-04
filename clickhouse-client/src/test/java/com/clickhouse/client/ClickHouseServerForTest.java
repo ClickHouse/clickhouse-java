@@ -97,23 +97,22 @@ public class ClickHouseServerForTest {
             }
 
             final String additionalPackages = customPackages;
-
+            final String customDirectory = "/custom";
             clickhouseContainer = (ClickHouseChecker.isNullOrEmpty(additionalPackages)
                     ? new GenericContainer<>(imageNameWithTag)
                     : new GenericContainer<>(new ImageFromDockerfile().withDockerfileFromBuilder(builder -> builder
                             .from(imageNameWithTag).run("apt-get update && apt-get install -y " + additionalPackages))))
-                                    .withEnv("TZ", timezone)
-                                    .withExposedPorts(ClickHouseProtocol.GRPC.getDefaultPort(),
-                                            ClickHouseProtocol.HTTP.getDefaultPort(),
-                                            ClickHouseProtocol.MYSQL.getDefaultPort(),
-                                            ClickHouseProtocol.TCP.getDefaultPort(),
-                                            ClickHouseProtocol.POSTGRESQL.getDefaultPort())
-                                    .withClasspathResourceMapping("containers/clickhouse-server/config.d",
-                                            "/etc/clickhouse-server/config.d", BindMode.READ_ONLY)
-                                    .withClasspathResourceMapping("containers/clickhouse-server/users.d",
-                                            "/etc/clickhouse-server/users.d", BindMode.READ_ONLY)
-                                    .waitingFor(Wait.forHttp("/ping").forPort(ClickHouseProtocol.HTTP.getDefaultPort())
-                                            .forStatusCode(200).withStartupTimeout(Duration.of(60, SECONDS)));
+                    .withCreateContainerCmdModifier(it -> it.withEntrypoint("/bin/sh"))
+                    .withCommand("-c", String.format("chmod +x %1$s/patch && %1$s/patch", customDirectory))
+                    .withEnv("TZ", timezone)
+                    .withExposedPorts(ClickHouseProtocol.GRPC.getDefaultPort(),
+                            ClickHouseProtocol.HTTP.getDefaultPort(),
+                            ClickHouseProtocol.MYSQL.getDefaultPort(),
+                            ClickHouseProtocol.TCP.getDefaultPort(),
+                            ClickHouseProtocol.POSTGRESQL.getDefaultPort())
+                    .withClasspathResourceMapping("containers/clickhouse-server", customDirectory, BindMode.READ_ONLY)
+                    .waitingFor(Wait.forHttp("/ping").forPort(ClickHouseProtocol.HTTP.getDefaultPort())
+                            .forStatusCode(200).withStartupTimeout(Duration.of(60, SECONDS)));
         }
     }
 
