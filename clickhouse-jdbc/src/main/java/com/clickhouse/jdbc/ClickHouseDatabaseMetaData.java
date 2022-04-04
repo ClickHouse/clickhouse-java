@@ -843,7 +843,7 @@ public class ClickHouseDatabaseMetaData extends JdbcWrapper implements DatabaseM
                     r.getValue("CHAR_OCTET_LENGTH").update(column.getPrecision());
                 }
 
-                Class<?> clazz = column.getDataType().getObjectClass();
+                Class<?> clazz = column.getObjectClass();
                 if (column.getScale() > 0 || Number.class.isAssignableFrom(clazz) || Date.class.isAssignableFrom(clazz)
                         || Temporal.class.isAssignableFrom(clazz)) {
                     r.getValue("DECIMAL_DIGITS").update(column.getScale());

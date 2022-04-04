@@ -1,6 +1,7 @@
 package com.clickhouse.client;
 
 import java.io.Serializable;
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -13,6 +14,8 @@ import java.util.TimeZone;
  * This class represents a column defined in database.
  */
 public final class ClickHouseColumn implements Serializable {
+    public static final ClickHouseColumn[] EMPTY_ARRAY = new ClickHouseColumn[0];
+
     private static final long serialVersionUID = 8228660689532259640L;
 
     private static final String ERROR_MISSING_NESTED_TYPE = "Missing nested data type";
@@ -22,6 +25,7 @@ public final class ClickHouseColumn implements Serializable {
     private static final String KEYWORD_SIMPLE_AGGREGATE_FUNCTION = ClickHouseDataType.SimpleAggregateFunction.name();
     private static final String KEYWORD_ARRAY = ClickHouseDataType.Array.name();
     private static final String KEYWORD_TUPLE = ClickHouseDataType.Tuple.name();
+    private static final String KEYWORD_OBJECT = ClickHouseDataType.Object.name();
     private static final String KEYWORD_MAP = ClickHouseDataType.Map.name();
     private static final String KEYWORD_NESTED = ClickHouseDataType.Nested.name();
 
@@ -264,26 +268,27 @@ public final class ClickHouseColumn implements Serializable {
                     null, nestedColumns);
             fixedLength = false;
             estimatedLength++;
-        } else if (args.startsWith(KEYWORD_TUPLE, i)) {
-            int index = args.indexOf('(', i + KEYWORD_TUPLE.length());
+        } else if (args.startsWith(matchedKeyword = KEYWORD_TUPLE, i)
+                || args.startsWith(matchedKeyword = KEYWORD_OBJECT, i)) {
+            int index = args.indexOf('(', i + matchedKeyword.length());
             if (index < i) {
                 throw new IllegalArgumentException(ERROR_MISSING_NESTED_TYPE);
             }
-            int endIndex = ClickHouseUtils.skipBrackets(args, index, len, '(');
+            int endIndex = ClickHouseUtils.skipBrackets(args, index, len, '(') - 1;
             List<ClickHouseColumn> nestedColumns = new LinkedList<>();
-            for (i = index + 1; i < endIndex; i++) {
+            for (i = index + 1; i <= endIndex; i++) {
                 char c = args.charAt(i);
                 if (c == ')') {
                     break;
                 } else if (c != ',' && !Character.isWhitespace(c)) {
-                    i = readColumn(args, i, endIndex, "", nestedColumns) - 1;
+                    i = readColumn(args, i, endIndex, "", nestedColumns);
                 }
             }
             if (nestedColumns.isEmpty()) {
                 throw new IllegalArgumentException("Tuple should have at least one nested column");
             }
-            column = new ClickHouseColumn(ClickHouseDataType.Tuple, name, args.substring(startIndex, endIndex),
-                    nullable, lowCardinality, null, nestedColumns);
+            column = new ClickHouseColumn(ClickHouseDataType.valueOf(matchedKeyword), name,
+                    args.substring(startIndex, endIndex + 1), nullable, lowCardinality, null, nestedColumns);
             for (ClickHouseColumn n : nestedColumns) {
                 estimatedLength += n.estimatedByteLength;
                 if (!n.fixedByteLength) {
@@ -300,10 +305,13 @@ public final class ClickHouseColumn implements Serializable {
                 if (ch == '(') {
                     i = ClickHouseUtils.readParameters(args, i, len, params) - 1;
                 } else if (ch == ')') {
-                    brackets--;
                     if (brackets <= 0) {
-                        i++;
                         break;
+                    } else {
+                        if (--brackets <= 0) {
+                            i++;
+                            break;
+                        }
                     }
                 } else if (ch == ',') {
                     break;
@@ -335,7 +343,13 @@ public final class ClickHouseColumn implements Serializable {
                         i = ClickHouseUtils.skipContentsUntil(args, i, len, ',') - 1;
                         break;
                     } else {
-                        builder.append(' ').append(modifier);
+                        if ((name == null || name.isEmpty())
+                                && !ClickHouseDataType.mayStartWith(builder.toString())) {
+                            return readColumn(args, i - modifier.length(), len, builder.toString(), list);
+                        } else {
+                            builder.append(' ');
+                        }
+                        builder.append(modifier);
                         i--;
                     }
                 }
@@ -501,6 +515,14 @@ public final class ClickHouseColumn implements Serializable {
 
     public ClickHouseDataType getDataType() {
         return dataType;
+    }
+
+    public Class<?> getObjectClass() {
+        return timeZone != null ? OffsetDateTime.class : dataType.getObjectClass();
+    }
+
+    public Class<?> getPrimitiveClass() {
+        return timeZone != null ? OffsetDateTime.class : dataType.getPrimitiveClass();
     }
 
     public ClickHouseEnum getEnumConstants() {

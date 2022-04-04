@@ -76,7 +76,7 @@ public class ClickHouseParameterMetaData extends JdbcWrapper implements Paramete
     @Override
     public String getParameterClassName(int param) throws SQLException {
         ClickHouseColumn p = getParameter(param);
-        return (p != null ? p.getDataType().getObjectClass() : Object.class).getName();
+        return (p != null ? p.getObjectClass() : Object.class).getName();
     }
 
     @Override
