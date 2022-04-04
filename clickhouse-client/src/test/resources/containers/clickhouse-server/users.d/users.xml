@@ -1,4 +1,4 @@
-<yandex>
+<clickhouse>
     <users>
         <dba>
             <access_management>1</access_management>
@@ -37,4 +37,4 @@
             </allow_databases>
         </test>
     </users>
-</yandex>
+</clickhouse>
