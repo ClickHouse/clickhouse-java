@@ -14,6 +14,18 @@ public class ClickHouseColumnTest {
         return new Object[][] { { "Enum" }, { "Enum8" }, { "Enum16" } };
     }
 
+    @DataProvider(name = "objectTypesProvider")
+    private Object[][] getObjectTypes() {
+        return new Object[][] {
+                { "Int8" }, { "TINYINT SIGNED" },
+                { "k1 Int8" }, { "k1 TINYINT SIGNED" },
+                { "k1 Nullable(Int8)" }, { "k1 Nullable( Int8 )" }, { "k1 TINYINT SIGNED null" },
+                { "k1 TINYINT SIGNED not null" },
+                { "k1 LowCardinality(Nullable(String))" },
+                { "k1 Tuple(k2 Int32, k3 Nullable(String), k4 TINYINT SIGNED not null, k5 Tuple (k6 UInt64))" }
+        };
+    }
+
     @Test(groups = { "unit" })
     public void testReadColumn() {
         String args = "AggregateFunction(max, UInt64), cc LowCardinality(Nullable(String)), a UInt8  null";
@@ -199,5 +211,26 @@ public class ClickHouseColumnTest {
         Assert.assertEquals(column.getEnumConstants().value("Query'Finish"), 10);
         Assert.assertTrue(column.isFixedLength(), "Should have fixed length in byte");
         Assert.assertEquals(column.getEstimatedLength(), column.getDataType().getByteLength());
+    }
+
+    @Test(dataProvider = "objectTypesProvider", groups = { "unit" })
+    public void testObjectType(String typeName) {
+        ClickHouseColumn.of("o", "Tuple(TINYINT SIGNED null)");
+        for (String prefix : new String[] { "Tuple(", "Tuple (", "Tuple ( " }) {
+            for (String suffix : new String[] { ")", " )", " ) " }) {
+                ClickHouseColumn innerColumn = ClickHouseColumn.of("",
+                        typeName + suffix.substring(0, suffix.lastIndexOf(')')));
+                ClickHouseColumn column = ClickHouseColumn.of("o", prefix + typeName + suffix);
+                Assert.assertTrue(column.isTuple());
+                Assert.assertEquals(column.getNestedColumns().get(0), innerColumn);
+            }
+        }
+    }
+
+    @Test(groups = { "unit" })
+    public void testSimpleAggregationFunction() throws Exception {
+        ClickHouseColumn c = ClickHouseColumn.of("a", "SimpleAggregateFunction(max, UInt64)");
+        Assert.assertEquals(c.getDataType(), ClickHouseDataType.SimpleAggregateFunction);
+        Assert.assertEquals(c.getNestedColumns().get(0).getDataType(), ClickHouseDataType.UInt64);
     }
 }

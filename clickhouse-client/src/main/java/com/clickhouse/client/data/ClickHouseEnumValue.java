@@ -209,7 +209,7 @@ public class ClickHouseEnumValue implements ClickHouseValue {
 
     @Override
     public Object asObject() {
-        return isNull ? null : type.name(value);
+        return isNull ? null : value;
     }
 
     @Override
@@ -234,9 +234,7 @@ public class ClickHouseEnumValue implements ClickHouseValue {
 
     @Override
     public String toSqlExpression() {
-        return isNull ? ClickHouseValues.NULL_EXPR
-                : new StringBuilder().append('\'').append(ClickHouseUtils.escape(type.name(value), '\'')).append('\'')
-                        .toString();
+        return isNull ? ClickHouseValues.NULL_EXPR : Integer.toString(value);
     }
 
     @Override

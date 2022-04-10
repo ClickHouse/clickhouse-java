@@ -6,15 +6,20 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
+import java.util.TimeZone;
 import java.util.function.BiFunction;
 
 import com.clickhouse.client.ClickHouseDataType;
 import com.clickhouse.client.ClickHouseRecord;
 import com.clickhouse.client.ClickHouseValues;
+import com.clickhouse.client.data.ClickHouseDateTimeValue;
+import com.clickhouse.client.data.ClickHouseOffsetDateTimeValue;
 
 import org.testng.Assert;
 import org.testng.annotations.DataProvider;
@@ -163,6 +168,38 @@ public class ClickHouseResultSetTest extends JdbcIntegrationTest {
             Assert.assertEquals(rs.getObject(1).toString(), "/116.253.40.133");
             Assert.assertEquals(rs.getString(2), "2001:44c8:129:2632:33:0:252:2");
             Assert.assertEquals(rs.getObject(2).toString(), "/2001:44c8:129:2632:33:0:252:2");
+            Assert.assertFalse(rs.next());
+        }
+    }
+
+    @Test(groups = "integration")
+    public void testMap() throws SQLException {
+        try (ClickHouseConnection conn = newConnection(new Properties());
+                Statement stmt = conn.createStatement()) {
+            stmt.execute("drop table if exists test_map_of_array; "
+                    + "create table test_map_of_array(id Int8, m0 Map(String, Array(Nullable(DateTime64(3)))), m1 Map(String, Array(Nullable(DateTime64(3, 'Asia/Shanghai'))))) ENGINE = Memory; "
+                    + "insert into test_map_of_array values(1, { 'a' : [], 'b' : [ '2022-03-30 00:00:00.123', null ] }, { 'a' : [], 'b' : [ '2022-03-30 00:00:00.123', null ] })");
+            ResultSet rs = stmt
+                    .executeQuery(
+                            "select * from test_map_of_array order by id");
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getInt(1), 1);
+            Map<?, ?> v = rs.getObject(2, Map.class);
+            Assert.assertEquals(v.size(), 2);
+            Assert.assertEquals(v.get("a"), new LocalDateTime[0]);
+            Assert.assertEquals(v.get("b"),
+                    new LocalDateTime[] {
+                            ClickHouseDateTimeValue.ofNull(3, TimeZone.getTimeZone("Asia/Shanghai"))
+                                    .update("2022-03-30 00:00:00.123").getValue(),
+                            null });
+            v = rs.getObject(3, Map.class);
+            Assert.assertEquals(v.size(), 2);
+            Assert.assertEquals(v.get("a"), new OffsetDateTime[0]);
+            Assert.assertEquals(v.get("b"),
+                    new OffsetDateTime[] {
+                            ClickHouseOffsetDateTimeValue.ofNull(3, TimeZone.getTimeZone("Asia/Shanghai"))
+                                    .update("2022-03-30 00:00:00.123").getValue(),
+                            null });
             Assert.assertFalse(rs.next());
         }
     }
