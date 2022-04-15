@@ -6,7 +6,6 @@ import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import com.clickhouse.client.ClickHouseChecker;
 import com.clickhouse.client.ClickHouseEnum;
-import com.clickhouse.client.ClickHouseUtils;
 import com.clickhouse.client.ClickHouseValue;
 import com.clickhouse.client.ClickHouseValues;
 
@@ -209,7 +208,7 @@ public class ClickHouseEnumValue implements ClickHouseValue {
 
     @Override
     public Object asObject() {
-        return isNull ? null : value;
+        return isNull ? null : type.name(value);
     }
 
     @Override
