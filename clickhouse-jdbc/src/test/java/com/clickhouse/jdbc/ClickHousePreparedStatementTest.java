@@ -1052,6 +1052,12 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
                 Assert.assertFalse(rs.next(), "Should have only 3 rows");
             }
             Assert.assertEquals(rowCount, 3);
+        } catch (SQLException e) {
+            // 'Unknown data type family' or 'Missing columns'
+            if (e.getErrorCode() == 50 || e.getErrorCode() == 47) {
+                return;
+            }
+            throw e;
         }
     }
 
