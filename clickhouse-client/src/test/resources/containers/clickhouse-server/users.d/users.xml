@@ -37,6 +37,8 @@
             </allow_databases>
         </test>
         <me>
+            <!-- unfortunately this is required for old version like 21.8 -->
+            <no_password />
             <ssl_certificates>
                 <common_name>me</common_name>
             </ssl_certificates>
