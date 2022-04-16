@@ -1,7 +1,9 @@
 package com.clickhouse.client;
 
 import java.io.ByteArrayInputStream;
+import java.io.Serializable;
 import java.math.BigInteger;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -13,7 +15,9 @@ import org.testng.Assert;
 import org.testng.annotations.Test;
 import com.clickhouse.client.ClickHouseRequest.Mutation;
 import com.clickhouse.client.config.ClickHouseClientOption;
+import com.clickhouse.client.config.ClickHouseConfigChangeListener;
 import com.clickhouse.client.config.ClickHouseDefaults;
+import com.clickhouse.client.config.ClickHouseOption;
 import com.clickhouse.client.data.ClickHouseBigIntegerValue;
 import com.clickhouse.client.data.ClickHouseByteValue;
 import com.clickhouse.client.data.ClickHouseDateTimeValue;
@@ -65,6 +69,67 @@ public class ClickHouseRequestTest {
         m.query(sql = "delete from test where id = 1");
         Assert.assertEquals(m.getStatements().size(), 1);
         Assert.assertEquals(m.getStatements().get(0), sql);
+    }
+
+    @Test(groups = { "unit" })
+    public void testChangeListener() {
+        final List<Object[]> changedOptions = new ArrayList<>();
+        // final List<Object[]> changedProperties = new ArrayList<>();
+        final List<Object[]> changedSettings = new ArrayList<>();
+        ClickHouseConfigChangeListener<ClickHouseRequest<?>> listener = new ClickHouseConfigChangeListener<ClickHouseRequest<?>>() {
+            @Override
+            public void optionChanged(ClickHouseRequest<?> source, ClickHouseOption option, Serializable oldValue,
+                    Serializable newValue) {
+                changedOptions.add(new Object[] { source, option, oldValue, newValue });
+            }
+
+            @Override
+            public void settingChanged(ClickHouseRequest<?> source, String setting, Serializable oldValue,
+                    Serializable newValue) {
+                changedSettings.add(new Object[] { source, setting, oldValue, newValue });
+            }
+        };
+        ClickHouseRequest<?> request = ClickHouseClient.newInstance().connect(ClickHouseNode.builder().build());
+        request.setChangeListener(listener);
+        Assert.assertTrue(changedOptions.isEmpty(), "Should have no option changed");
+        Assert.assertTrue(changedSettings.isEmpty(), "Should have no setting changed");
+        request.option(ClickHouseClientOption.ASYNC, false);
+        request.format(ClickHouseFormat.Arrow);
+        request.option(ClickHouseClientOption.FORMAT, ClickHouseFormat.Avro);
+        request.removeOption(ClickHouseClientOption.BUFFER_SIZE);
+        request.removeOption(ClickHouseClientOption.ASYNC);
+        request.reset();
+        request.format(ClickHouseFormat.TSV);
+        Assert.assertEquals(changedOptions.toArray(new Object[0]),
+                new Object[][] {
+                        new Object[] { request, ClickHouseClientOption.ASYNC, null, false },
+                        new Object[] { request, ClickHouseClientOption.FORMAT, null, ClickHouseFormat.Arrow },
+                        new Object[] { request, ClickHouseClientOption.FORMAT, ClickHouseFormat.Arrow,
+                                ClickHouseFormat.Avro },
+                        new Object[] { request, ClickHouseClientOption.ASYNC, false, null },
+                        new Object[] { request, ClickHouseClientOption.FORMAT, ClickHouseFormat.Avro, null } });
+        changedOptions.clear();
+
+        request.setChangeListener(listener);
+        request.set("a", 1);
+        request.set("b", "2");
+        request.set("b", 3);
+        request.removeSetting("c");
+        request.removeSetting("a");
+        request.reset();
+        request.set("a", 2);
+        Assert.assertEquals(changedSettings.toArray(new Object[0]),
+                new Object[][] {
+                        new Object[] { request, "a", null, 1 },
+                        new Object[] { request, "b", null, "2" },
+                        new Object[] { request, "b", "2", 3 },
+                        new Object[] { request, "a", 1, null },
+                        new Object[] { request, "b", 3, null } });
+        changedSettings.clear();
+
+        request.setChangeListener(listener);
+        Assert.assertNull(request.copy().changeListener, "Listener should never be copied");
+        Assert.assertNull(request.seal().changeListener, "Listener should never be copied");
     }
 
     @Test(groups = { "unit" })
@@ -125,11 +190,15 @@ public class ClickHouseRequestTest {
                 (ClickHouseFormat) ClickHouseDefaults.FORMAT.getEffectiveDefaultValue());
         request.format(ClickHouseFormat.ArrowStream);
         Assert.assertEquals(request.getFormat(), ClickHouseFormat.ArrowStream);
+        Assert.assertEquals(request.getInputFormat(), ClickHouseFormat.ArrowStream);
         request.format(null);
         Assert.assertEquals(request.getFormat(),
                 (ClickHouseFormat) ClickHouseDefaults.FORMAT.getEffectiveDefaultValue());
+        Assert.assertEquals(request.getInputFormat(),
+                ((ClickHouseFormat) ClickHouseDefaults.FORMAT.getEffectiveDefaultValue()).defaultInputFormat());
         request.format(ClickHouseFormat.Arrow);
         Assert.assertEquals(request.getFormat(), ClickHouseFormat.Arrow);
+        Assert.assertEquals(request.getInputFormat(), ClickHouseFormat.Arrow);
     }
 
     @Test(groups = { "unit" })

@@ -25,8 +25,6 @@ import com.clickhouse.client.ClickHouseUtils;
 import com.clickhouse.client.ClickHouseValue;
 import com.clickhouse.client.ClickHouseValues;
 import com.clickhouse.client.data.ClickHousePipedStream;
-import com.clickhouse.client.data.ClickHouseRowBinaryProcessor;
-import com.clickhouse.client.data.ClickHouseRowBinaryProcessor.MappedFunctions;
 import com.clickhouse.client.logging.Logger;
 import com.clickhouse.client.logging.LoggerFactory;
 import com.clickhouse.jdbc.ClickHousePreparedStatement;
@@ -71,7 +69,7 @@ public class InputBasedPreparedStatement extends AbstractPreparedStatement imple
 
         counter = 0;
         // it's important to make sure the queue has unlimited length
-        stream = new ClickHousePipedStream(config.getMaxBufferSize(), 0, config.getSocketTimeout());
+        stream = new ClickHousePipedStream(config.getWriteBufferSize(), 0, config.getSocketTimeout());
     }
 
     protected void ensureParams() throws SQLException {
@@ -114,6 +112,10 @@ public class InputBasedPreparedStatement extends AbstractPreparedStatement imple
             // FIXME grpc and tcp by default can provides accurate result
             Arrays.fill(results, 1);
         } catch (Exception e) {
+            if (!asBatch) {
+                throw SqlExceptionUtils.handle(e);
+            }
+
             // just a wild guess...
             if (rows < 1) {
                 results[0] = EXECUTE_FAILED;
@@ -126,6 +128,7 @@ public class InputBasedPreparedStatement extends AbstractPreparedStatement imple
                 }
                 results[(int) rows] = EXECUTE_FAILED;
             }
+
             if (!continueOnError) {
                 throw SqlExceptionUtils.batchUpdateError(e, results);
             }
@@ -145,9 +148,14 @@ public class InputBasedPreparedStatement extends AbstractPreparedStatement imple
     @Override
     public ResultSet executeQuery() throws SQLException {
         ensureParams();
-        // log.warn("Input function can be only used for insertion not query");
-        if (executeAny(false)[0] == EXECUTE_FAILED) {
-            throw new SQLException("Query failed", SqlExceptionUtils.SQL_STATE_SQL_ERROR);
+        try {
+            executeAny(false);
+        } catch (SQLException e) {
+            if (e.getSQLState() != null) {
+                throw e;
+            } else {
+                throw new SQLException("Query failed", SqlExceptionUtils.SQL_STATE_SQL_ERROR, e.getCause());
+            }
         }
 
         ResultSet rs = getResultSet();
@@ -164,9 +172,14 @@ public class InputBasedPreparedStatement extends AbstractPreparedStatement imple
     @Override
     public long executeLargeUpdate() throws SQLException {
         ensureParams();
-
-        if (executeAny(false)[0] == EXECUTE_FAILED) {
-            throw new SQLException("Update failed", SqlExceptionUtils.SQL_STATE_SQL_ERROR);
+        try {
+            executeAny(false);
+        } catch (SQLException e) {
+            if (e.getSQLState() != null) {
+                throw e;
+            } else {
+                throw new SQLException("Update failed", SqlExceptionUtils.SQL_STATE_SQL_ERROR, e.getCause());
+            }
         }
         long row = getLargeUpdateCount();
         return row > 0L ? row : 0L;
@@ -274,9 +287,14 @@ public class InputBasedPreparedStatement extends AbstractPreparedStatement imple
     @Override
     public boolean execute() throws SQLException {
         ensureParams();
-
-        if (executeAny(false)[0] == EXECUTE_FAILED) {
-            throw new SQLException("Execution failed", SqlExceptionUtils.SQL_STATE_SQL_ERROR);
+        try {
+            executeAny(false);
+        } catch (SQLException e) {
+            if (e.getSQLState() != null) {
+                throw e;
+            } else {
+                throw new SQLException("Execution failed", SqlExceptionUtils.SQL_STATE_SQL_ERROR, e.getCause());
+            }
         }
         return false;
     }
@@ -286,13 +304,12 @@ public class InputBasedPreparedStatement extends AbstractPreparedStatement imple
         ensureOpen();
 
         ClickHouseConfig config = getConfig();
-        MappedFunctions functions = ClickHouseRowBinaryProcessor.getMappedFunctions();
         for (int i = 0, len = values.length; i < len; i++) {
             if (!flags[i]) {
                 throw SqlExceptionUtils.clientError(ClickHouseUtils.format("Missing value for parameter #%d", i + 1));
             }
             try {
-                functions.serialize(values[i], config, columns.get(i), stream);
+                serializer.serialize(values[i], config, columns.get(i), stream);
             } catch (IOException e) {
                 // should not happen
                 throw SqlExceptionUtils.handle(e);
@@ -309,7 +326,7 @@ public class InputBasedPreparedStatement extends AbstractPreparedStatement imple
 
         counter = 0;
         ClickHouseConfig config = getConfig();
-        stream = new ClickHousePipedStream(config.getMaxBufferSize(), 0, config.getSocketTimeout());
+        stream = new ClickHousePipedStream(config.getWriteBufferSize(), 0, config.getSocketTimeout());
     }
 
     @Override

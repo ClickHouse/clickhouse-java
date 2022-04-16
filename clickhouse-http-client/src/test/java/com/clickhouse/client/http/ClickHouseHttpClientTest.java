@@ -31,6 +31,29 @@ public class ClickHouseHttpClientTest extends ClientIntegrationTest {
         return ClickHouseHttpClient.class;
     }
 
+    @Test // (groups = "integration")
+    public void testSslClientAuth() throws Exception {
+        // NPE on JDK 8:
+        // java.lang.NullPointerException
+        // at sun.security.provider.JavaKeyStore.convertToBytes(JavaKeyStore.java:822)
+        // at
+        // sun.security.provider.JavaKeyStore.engineSetKeyEntry(JavaKeyStore.java:271)
+        // at
+        // sun.security.provider.JavaKeyStore$JKS.engineSetKeyEntry(JavaKeyStore.java:57)
+        // at
+        // sun.security.provider.KeyStoreDelegator.engineSetKeyEntry(KeyStoreDelegator.java:117)
+        // at
+        // sun.security.provider.JavaKeyStore$DualFormatJKS.engineSetKeyEntry(JavaKeyStore.java:71)
+        // at java.security.KeyStore.setKeyEntry(KeyStore.java:1140)
+        // at
+        // com.clickhouse.client.config.ClickHouseDefaultSslContextProvider.getKeyStore(ClickHouseDefaultSslContextProvider.java:105)
+        ClickHouseNode server = getSecureServer(ClickHouseProtocol.HTTP);
+        try (ClickHouseClient client = getSecureClient();
+                ClickHouseResponse response = client.connect(server).query("select 123").executeAndWait()) {
+            Assert.assertEquals(response.firstRecord().getValue(0).asInteger(), 123);
+        }
+    }
+
     @Test(groups = { "integration" })
     @Override
     public void testMutation() throws Exception {

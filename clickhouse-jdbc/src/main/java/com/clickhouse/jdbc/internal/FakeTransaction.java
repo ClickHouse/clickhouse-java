@@ -34,7 +34,7 @@ public final class FakeTransaction {
         public int getSavepointId() throws SQLException {
             if (name != null) {
                 throw SqlExceptionUtils
-                        .clientError("Cannot get ID from a named savepoint, use getSavepointName instead");
+                        .clientError("Cannot get ID from a named savepoint, please use getSavepointName() instead");
             }
 
             return id;
@@ -44,7 +44,7 @@ public final class FakeTransaction {
         public String getSavepointName() throws SQLException {
             if (name == null) {
                 throw SqlExceptionUtils
-                        .clientError("Cannot get name from an un-named savepoint, use getSavepointId instead");
+                        .clientError("Cannot get name from an un-named savepoint, please use getSavepointId() instead");
             }
 
             return name;

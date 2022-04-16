@@ -1,7 +1,6 @@
 package com.clickhouse.client.data;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -55,7 +54,7 @@ public class ClickHouseStreamResponse implements ClickHouseResponse {
     }
 
     protected final ClickHouseConfig config;
-    protected final transient InputStream input;
+    protected final transient ClickHouseInputStream input;
     protected final transient ClickHouseDataProcessor processor;
     protected final List<ClickHouseColumn> columns;
     protected final ClickHouseResponseSummary summary;
@@ -101,6 +100,10 @@ public class ClickHouseStreamResponse implements ClickHouseResponse {
 
     @Override
     public void close() {
+        if (closed || input.isClosed()) {
+            return;
+        }
+
         try {
             log.debug("%d bytes skipped before closing input stream", input.skip(Long.MAX_VALUE));
         } catch (Exception e) {
@@ -131,7 +134,7 @@ public class ClickHouseStreamResponse implements ClickHouseResponse {
     }
 
     @Override
-    public InputStream getInputStream() {
+    public ClickHouseInputStream getInputStream() {
         return input;
     }
 

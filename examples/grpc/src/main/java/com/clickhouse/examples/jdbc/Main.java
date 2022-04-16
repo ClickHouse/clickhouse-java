@@ -42,7 +42,7 @@ public class Main {
             ClickHouseConfig config = request.getConfig();
             CompletableFuture<ClickHouseResponse> future;
             // back-pressuring is not supported, you can adjust the first two arguments
-            try (ClickHousePipedStream stream = new ClickHousePipedStream(config.getMaxBufferSize(),
+            try (ClickHousePipedStream stream = new ClickHousePipedStream(config.getWriteBufferSize(),
                     config.getMaxQueuedBuffers(), config.getSocketTimeout())) {
                 // in async mode, which is default, execution happens in a worker thread
                 future = request.data(stream.getInput()).execute();

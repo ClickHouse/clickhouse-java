@@ -3,6 +3,7 @@ package com.clickhouse.client.http;
 import com.clickhouse.client.ClickHouseChecker;
 import com.clickhouse.client.ClickHouseClient;
 import com.clickhouse.client.ClickHouseFormat;
+import com.clickhouse.client.ClickHouseInputStream;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseSslContextProvider;
@@ -67,7 +68,8 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
                     : timeZone;
         }
 
-        return new ClickHouseHttpResponse(this, getResponseInputStream(checkResponse(r).body()),
+        return new ClickHouseHttpResponse(this,
+                ClickHouseClient.getResponseInputStream(config, checkResponse(r).body(), this::closeQuietly),
                 displayName, queryId, summary, format, timeZone);
     }
 
@@ -76,7 +78,9 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
             // TODO get exception from response header, for example:
             // X-ClickHouse-Exception-Code: 47
             StringBuilder builder = new StringBuilder();
-            try (Reader reader = new InputStreamReader(getResponseInputStream(r.body()), StandardCharsets.UTF_8)) {
+            try (Reader reader = new InputStreamReader(
+                    ClickHouseClient.getResponseInputStream(config, r.body(), this::closeQuietly),
+                    StandardCharsets.UTF_8)) {
                 int c = 0;
                 while ((c = reader.read()) != -1) {
                     builder.append((char) c);
@@ -161,7 +165,7 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
 
     private ClickHouseHttpResponse postStream(HttpRequest.Builder reqBuilder, String boundary, String sql,
             InputStream data, List<ClickHouseExternalTable> tables) throws IOException {
-        ClickHousePipedStream stream = new ClickHousePipedStream(config.getMaxBufferSize(),
+        ClickHousePipedStream stream = new ClickHousePipedStream(config.getWriteBufferSize(),
                 config.getMaxQueuedBuffers(), config.getSocketTimeout());
         reqBuilder.POST(HttpRequest.BodyPublishers.ofInputStream(stream::getInput));
 
@@ -188,7 +192,7 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
                     writer.write(builder.toString());
                     writer.flush();
 
-                    pipe(t.getContent(), stream, DEFAULT_BUFFER_SIZE);
+                    ClickHouseInputStream.pipe(t.getContent(), stream, config.getWriteBufferSize());
                 }
 
                 writer.write("\r\n--" + boundary + "--\r\n");
@@ -203,7 +207,7 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
                         stream.write(10);
                     }
 
-                    pipe(data, stream, DEFAULT_BUFFER_SIZE);
+                    ClickHouseInputStream.pipe(data, stream, config.getWriteBufferSize());
                 }
             }
         }

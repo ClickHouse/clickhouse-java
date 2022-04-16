@@ -5,89 +5,21 @@ import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.util.zip.GZIPOutputStream;
 
 import com.clickhouse.client.config.ClickHouseClientOption;
+import com.clickhouse.client.stream.Lz4OutputStream;
+import com.clickhouse.client.stream.WrappedOutputStream;
 
+/**
+ * Extended output stream for write optimization. It also acts as a factory
+ * class providing static methods for creating output stream as needed.
+ */
 public abstract class ClickHouseOutputStream extends OutputStream {
-    static class WrappedOutputStream extends ClickHouseOutputStream {
-        private final byte[] buffer;
-        private final OutputStream out;
-
-        private int count;
-
-        private void flushBuffer() throws IOException {
-            if (count > 0) {
-                out.write(buffer, 0, count);
-                count = 0;
-            }
-        }
-
-        protected WrappedOutputStream(OutputStream out, int bufferSize, Runnable afterClose) {
-            super(afterClose);
-
-            this.buffer = new byte[bufferSize <= 0 ? 8192 : bufferSize];
-            this.out = ClickHouseChecker.nonNull(out, "OutputStream");
-
-            this.count = 0;
-        }
-
-        protected void ensureOpen() throws IOException {
-            if (closed) {
-                throw new IOException("Cannot operate on a closed output stream");
-            }
-        }
-
-        @Override
-        public void close() throws IOException {
-            if (closed) {
-                return;
-            }
-
-            try {
-                flushBuffer();
-                out.close();
-            } finally {
-                super.close();
-            }
-        }
-
-        @Override
-        public void flush() throws IOException {
-            ensureOpen();
-
-            flushBuffer();
-            out.flush();
-        }
-
-        @Override
-        public ClickHouseOutputStream writeByte(byte b) throws IOException {
-            ensureOpen();
-
-            if (count >= buffer.length) {
-                flushBuffer();
-            }
-            buffer[count++] = b;
-            return this;
-        }
-
-        @Override
-        public ClickHouseOutputStream writeBytes(byte[] bytes, int offset, int length) throws IOException {
-            ensureOpen();
-
-            int len = buffer.length;
-            if (length >= len) {
-                flushBuffer();
-                out.write(bytes, offset, length);
-            } else {
-                if (length > len - count) {
-                    flushBuffer();
-                }
-                System.arraycopy(bytes, offset, buffer, count, length);
-                count += length;
-            }
-            return this;
-        }
-    }
+    protected static final String ERROR_INCOMPLETE_READ = "Reached end of input stream after reading %d of %d bytes";
+    protected static final String ERROR_NULL_BYTES = "Non-null byte array is required";
+    protected static final String ERROR_REUSE_BUFFER = "Please pass a different byte array instead of the same internal buffer for reading";
+    protected static final String ERROR_STREAM_CLOSED = "Output stream has been closed";
 
     /**
      * Wraps the given output stream.
@@ -97,45 +29,75 @@ public abstract class ClickHouseOutputStream extends OutputStream {
      *         {@link ClickHouseOutputStream}
      */
     public static ClickHouseOutputStream of(OutputStream output) {
-        return of(output, (int) ClickHouseClientOption.MAX_BUFFER_SIZE.getDefaultValue());
+        return of(output, (int) ClickHouseClientOption.WRITE_BUFFER_SIZE.getDefaultValue(), null, null);
     }
 
     /**
      * Wraps the given output stream.
      *
      * @param output     non-null output stream
-     * @param bufferSize buffer size which is always greater than zero(usually 8192
+     * @param bufferSize buffer size which is always greater than zero(usually 4096
      *                   or larger)
      * @return wrapped output, or the same output if it's instance of
      *         {@link ClickHouseOutputStream}
      */
     public static ClickHouseOutputStream of(OutputStream output, int bufferSize) {
-        return of(output, bufferSize, null);
+        return of(output, bufferSize, null, null);
     }
 
     /**
      * Wraps the given output stream.
      *
-     * @param output     non-null output stream
-     * @param bufferSize buffer size which is always greater than zero(usually 8192
-     *                   or larger)
-     * @param afterClose custom handler will be invoked right after closing the
-     *                   output stream
+     * @param output          non-null output stream
+     * @param bufferSize      buffer size which is always greater than zero(usually
+     *                        4096 or larger)
+     * @param compression     compression algorithm, null or
+     *                        {@link ClickHouseCompression#NONE} means no
+     *                        compression
+     * @param postCloseAction custom action will be performed right after closing
+     *                        the output stream
      * @return wrapped output, or the same output if it's instance of
      *         {@link ClickHouseOutputStream}
      */
-    public static ClickHouseOutputStream of(OutputStream output, int bufferSize, Runnable afterClose) {
-        return output instanceof ClickHouseOutputStream ? (ClickHouseOutputStream) output
-                : new WrappedOutputStream(output, bufferSize, afterClose);
+    public static ClickHouseOutputStream of(OutputStream output, int bufferSize, ClickHouseCompression compression,
+            Runnable postCloseAction) {
+        ClickHouseOutputStream chOutput;
+        if (compression != null && compression != ClickHouseCompression.NONE) {
+            switch (compression) {
+                case GZIP:
+                    try {
+                        chOutput = new WrappedOutputStream(new GZIPOutputStream(output), bufferSize, postCloseAction);
+                    } catch (IOException e) {
+                        throw new IllegalArgumentException("Failed to wrap input stream", e);
+                    }
+                    break;
+                case LZ4:
+                    chOutput = new Lz4OutputStream(output, bufferSize, postCloseAction);
+                    break;
+                default:
+                    throw new UnsupportedOperationException("Unsupported compression algorithm: " + compression);
+            }
+        } else {
+            chOutput = output instanceof ClickHouseOutputStream ? (ClickHouseOutputStream) output
+                    : new WrappedOutputStream(output, bufferSize, postCloseAction);
+        }
+
+        return chOutput;
     }
 
-    protected final Runnable afterClose;
+    protected final Runnable postCloseAction;
 
     protected boolean closed;
 
-    protected ClickHouseOutputStream(Runnable afterClose) {
-        this.afterClose = afterClose;
+    protected ClickHouseOutputStream(Runnable postCloseAction) {
+        this.postCloseAction = postCloseAction;
         this.closed = false;
+    }
+
+    protected void ensureOpen() throws IOException {
+        if (closed) {
+            throw new IOException(ERROR_STREAM_CLOSED);
+        }
     }
 
     @Override
@@ -164,10 +126,16 @@ public abstract class ClickHouseOutputStream extends OutputStream {
 
     @Override
     public void close() throws IOException {
-        if (!closed) {
+        if (closed) {
+            return;
+        }
+
+        try {
+            flush();
+        } finally {
             closed = true;
-            if (afterClose != null) {
-                afterClose.run();
+            if (postCloseAction != null) {
+                postCloseAction.run();
             }
         }
     }
@@ -186,21 +154,36 @@ public abstract class ClickHouseOutputStream extends OutputStream {
      * Writes bytes into output stream.
      *
      * @param buffer non-null byte buffer
-     * @param offset relative offset of the byte buffer
      * @param length bytes to write
      * @return current output stream
      * @throws IOException when failed to write value into output stream, not able
      *                     to sent all bytes, or opereate on a closed stream
      */
-    public ClickHouseOutputStream writeBytes(ByteBuffer buffer, int offset, int length) throws IOException {
-        if (buffer == null || offset < 0 || length < 0) {
-            throw new IllegalArgumentException("Non-null ByteBuffer and positive offset and length are required");
+    public ClickHouseOutputStream writeBytes(ByteBuffer buffer, int length) throws IOException {
+        if (buffer == null || length < 0) {
+            throw new IllegalArgumentException("Non-null ByteBuffer and positive length are required");
         }
 
-        byte[] bytes = new byte[length];
-        // read-only ByteBuffer won't allow us to call its array() method for unwrapping
-        buffer.get(bytes, offset, length);
+        byte[] bytes;
+        if (buffer.hasArray()) {
+            bytes = buffer.array();
+        } else {
+            bytes = new byte[length];
+            buffer.get(bytes);
+        }
         return writeBytes(bytes, 0, length);
+    }
+
+    /**
+     * Writes bytes into output stream.
+     *
+     * @param bytes non-null byte array
+     * @return current output stream
+     * @throws IOException when failed to write value into output stream, not able
+     *                     to sent all bytes, or opereate on a closed stream
+     */
+    public final ClickHouseOutputStream writeBytes(byte[] bytes) throws IOException {
+        return writeBytes(bytes, 0, bytes.length);
     }
 
     /**
@@ -223,13 +206,22 @@ public abstract class ClickHouseOutputStream extends OutputStream {
      * @throws IOException when failed to write value into output stream, not able
      *                     to sent all bytes, or opereate on a closed stream
      */
-    public ClickHouseOutputStream writeBytes(ClickHouseByteBuffer buffer) throws IOException {
+    public ClickHouseOutputStream writeBuffer(ClickHouseByteBuffer buffer) throws IOException {
         if (buffer == null || buffer.isEmpty()) {
             return this;
         }
-
-        return writeBytes(buffer.array(), buffer.position(), buffer.limit() - buffer.position());
+        return writeBytes(buffer.array(), buffer.position(), buffer.length());
     }
+
+    /**
+     * Writes bytes using custom writer.
+     *
+     * @param writer non-null data writer
+     * @return current output stream
+     * @throws IOException when failed to write value into output stream, not able
+     *                     to sent all bytes, or opereate on a closed stream
+     */
+    public abstract ClickHouseOutputStream writeCustom(ClickHouseDataUpdater writer) throws IOException;
 
     /**
      * Writes string into the output stream. Nothing will happen when {@code value}

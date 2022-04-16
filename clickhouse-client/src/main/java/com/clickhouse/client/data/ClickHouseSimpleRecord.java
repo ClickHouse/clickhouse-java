@@ -68,8 +68,17 @@ public class ClickHouseSimpleRecord implements ClickHouseRecord {
     }
 
     @Override
-    public int size() {
-        return values.length;
+    public ClickHouseRecord copy() {
+        if (this == EMPTY) {
+            return EMPTY;
+        }
+
+        int len = values.length;
+        ClickHouseValue[] vals = new ClickHouseValue[len];
+        for (int i = 0; i < len; i++) {
+            vals[i] = values[i].copy();
+        }
+        return new ClickHouseSimpleRecord(columns, vals);
     }
 
     @Override
@@ -88,5 +97,10 @@ public class ClickHouseSimpleRecord implements ClickHouseRecord {
         }
 
         throw new IllegalArgumentException(ClickHouseUtils.format("Unable to find column [%s]", name));
+    }
+
+    @Override
+    public int size() {
+        return values.length;
     }
 }

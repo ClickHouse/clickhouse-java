@@ -112,6 +112,9 @@ public class ClickHouseConfig implements Serializable {
     private final String database;
     private final ClickHouseFormat format;
     private final int maxBufferSize;
+    private final int bufferSize;
+    private final int readBufferSize;
+    private final int writeBufferSize;
     private final int maxExecutionTime;
     private final int maxQueuedBuffers;
     private final int maxQueuedRequests;
@@ -189,7 +192,14 @@ public class ClickHouseConfig implements Serializable {
         this.connectionTimeout = (int) getOption(ClickHouseClientOption.CONNECTION_TIMEOUT);
         this.database = (String) getOption(ClickHouseClientOption.DATABASE, ClickHouseDefaults.DATABASE);
         this.format = (ClickHouseFormat) getOption(ClickHouseClientOption.FORMAT, ClickHouseDefaults.FORMAT);
-        this.maxBufferSize = (int) getOption(ClickHouseClientOption.MAX_BUFFER_SIZE);
+        this.maxBufferSize = ClickHouseUtils.getBufferSize((int) getOption(ClickHouseClientOption.MAX_BUFFER_SIZE), -1,
+                -1);
+        this.bufferSize = ClickHouseUtils.getBufferSize((int) getOption(ClickHouseClientOption.BUFFER_SIZE), -1,
+                this.maxBufferSize);
+        this.readBufferSize = ClickHouseUtils.getBufferSize((int) getOption(ClickHouseClientOption.READ_BUFFER_SIZE),
+                this.bufferSize, this.maxBufferSize);
+        this.writeBufferSize = ClickHouseUtils.getBufferSize((int) getOption(ClickHouseClientOption.WRITE_BUFFER_SIZE),
+                this.bufferSize, this.maxBufferSize);
         this.maxExecutionTime = (int) getOption(ClickHouseClientOption.MAX_EXECUTION_TIME);
         this.maxQueuedBuffers = (int) getOption(ClickHouseClientOption.MAX_QUEUED_BUFFERS);
         this.maxQueuedRequests = (int) getOption(ClickHouseClientOption.MAX_QUEUED_REQUESTS);
@@ -275,8 +285,40 @@ public class ClickHouseConfig implements Serializable {
         return format;
     }
 
+    /**
+     * Gets max buffer size in byte can be used for streaming.
+     *
+     * @return max buffer size in byte
+     */
     public int getMaxBufferSize() {
         return maxBufferSize;
+    }
+
+    /**
+     * Gets default buffer size in byte for both read and write.
+     *
+     * @return default buffer size in byte
+     */
+    public int getBufferSize() {
+        return bufferSize;
+    }
+
+    /**
+     * Gets read buffer size in byte.
+     *
+     * @return read buffer size in byte
+     */
+    public int getReadBufferSize() {
+        return readBufferSize;
+    }
+
+    /**
+     * Gets write buffer size in byte.
+     *
+     * @return write buffer size in byte
+     */
+    public int getWriteBufferSize() {
+        return writeBufferSize;
     }
 
     public int getMaxExecutionTime() {

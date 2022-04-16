@@ -24,6 +24,25 @@ public class ClickHouseUtilsTest {
     }
 
     @Test(groups = { "unit" })
+    public void testGetBufferSize() {
+        int[] values = new int[] { -1, 0 };
+        for (int i : values) {
+            for (int j : values) {
+                for (int k : values) {
+                    Assert.assertEquals(ClickHouseUtils.getBufferSize(i, j, k), ClickHouseUtils.DEFAULT_BUFFER_SIZE);
+                }
+            }
+        }
+
+        for (int i : values) {
+            Assert.assertEquals(ClickHouseUtils.getBufferSize(i, 3, 2), 2);
+        }
+        Assert.assertEquals(ClickHouseUtils.getBufferSize(1, 3, 2), 1);
+        Assert.assertEquals(ClickHouseUtils.getBufferSize(3, 2, 1), 1);
+        Assert.assertEquals(ClickHouseUtils.getBufferSize(3, 1, 2), 2);
+    }
+
+    @Test(groups = { "unit" })
     public void testGetKeyValuePair() {
         Assert.assertEquals(ClickHouseUtils.getKeyValuePairs(null), Collections.emptyMap());
         Assert.assertEquals(ClickHouseUtils.getKeyValuePairs(""), Collections.emptyMap());
@@ -407,7 +426,8 @@ public class ClickHouseUtilsTest {
 
         args = " [                              ]   ]";
         list.clear();
-        Assert.assertEquals(ClickHouseUtils.readValueArray(args, 0, args.length(), list::add), args.indexOf(']') + 1);
+        Assert.assertEquals(ClickHouseUtils.readValueArray(args, 0, args.length(), list::add),
+                args.indexOf(']') + 1);
         Assert.assertEquals(list, Collections.emptyList());
     }
 

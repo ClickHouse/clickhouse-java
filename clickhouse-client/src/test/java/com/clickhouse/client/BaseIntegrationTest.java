@@ -15,12 +15,16 @@ public abstract class BaseIntegrationTest {
         ClickHouseServerForTest.beforeSuite();
     }
 
+    protected ClickHouseNode getSecureServer(ClickHouseProtocol protocol) {
+        return ClickHouseServerForTest.getClickHouseNode(protocol, true, ClickHouseNode.builder().build());
+    }
+
     protected ClickHouseNode getServer(ClickHouseProtocol protocol) {
-        return ClickHouseServerForTest.getClickHouseNode(protocol, ClickHouseNode.builder().build());
+        return ClickHouseServerForTest.getClickHouseNode(protocol, false, ClickHouseNode.builder().build());
     }
 
     protected ClickHouseNode getServer(ClickHouseProtocol protocol, ClickHouseNode base) {
-        return ClickHouseServerForTest.getClickHouseNode(protocol, base);
+        return ClickHouseServerForTest.getClickHouseNode(protocol, false, base);
     }
 
     protected ClickHouseNode getServer(ClickHouseProtocol protocol, int port) {

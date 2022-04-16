@@ -3,6 +3,7 @@ package com.clickhouse.jdbc;
 import java.io.ByteArrayInputStream;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
+import java.nio.charset.StandardCharsets;
 import java.sql.BatchUpdateException;
 import java.sql.Connection;
 import java.sql.Date;
@@ -11,10 +12,12 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Timestamp;
+import java.sql.Types;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.Collections;
 import java.util.Properties;
 import java.util.TimeZone;
 import java.util.UUID;
@@ -23,9 +26,9 @@ import java.util.concurrent.CompletionException;
 
 import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseFormat;
+import com.clickhouse.client.ClickHouseInputStream;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.config.ClickHouseClientOption;
-import com.clickhouse.client.data.BinaryStreamUtils;
 import com.clickhouse.client.data.ClickHouseBitmap;
 import com.clickhouse.client.data.ClickHouseExternalTable;
 import com.clickhouse.client.data.ClickHousePipedStream;
@@ -37,6 +40,45 @@ import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
+    @DataProvider(name = "columnsWithDefaultValue")
+    private Object[][] getColumnsWithDefaultValue() {
+        return new Object[][] {
+                new Object[] { "Bool", "false", "false" },
+                new Object[] { "Date", "1", "1970-01-02" },
+                new Object[] { "Date32", "-1", "1969-12-31" },
+                new Object[] { "DateTime32", "'1970-01-01 00:00:01'", "1970-01-01 00:00:01" },
+                new Object[] { "DateTime64(3)", "'1969-12-31 23:59:59.123'", "1969-12-31 23:59:59.123" },
+                new Object[] { "Decimal(10,4)", "10.1234", "10.1234" },
+                new Object[] { "Enum8('x'=5,'y'=6)", "'y'", "y" },
+                new Object[] { "Enum8('x'=5,'y'=6)", "5", "x" },
+                new Object[] { "Enum16('xx'=55,'yy'=66)", "'yy'", "yy" },
+                new Object[] { "Enum16('xx'=55,'yy'=66)", "55", "xx" },
+                new Object[] { "Float32", "3.2", "3.2" },
+                new Object[] { "Float64", "6.4", "6.4" },
+                new Object[] { "Int8", "-1", "-1" },
+                new Object[] { "UInt8", "1", "1" },
+                new Object[] { "Int16", "-3", "-3" },
+                new Object[] { "UInt16", "3", "3" },
+                new Object[] { "Int32", "-5", "-5" },
+                new Object[] { "UInt32", "7", "7" },
+                new Object[] { "Int64", "-9", "-9" },
+                new Object[] { "UInt64", "11", "11" },
+                new Object[] { "Int128", "-13", "-13" },
+                new Object[] { "UInt128", "17", "17" },
+                new Object[] { "Int256", "-19", "-19" },
+                new Object[] { "UInt256", "23", "23" },
+        };
+    }
+
+    @DataProvider(name = "nonBatchQueries")
+    private Object[][] getNonBatchQueries() {
+        return new Object[][] {
+                new Object[] { "input", "insert into %s" },
+                new Object[] { "sql", "insert into %s values(?+0, ?)" },
+                new Object[] { "table", "insert into %s select * from {tt 'tbl'}" }
+        };
+    }
+
     @DataProvider(name = "typedParameters")
     private Object[][] getTypedParameters() {
         return new Object[][] {
@@ -430,6 +472,39 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
     }
 
     @Test(groups = "integration")
+    public void testReadWriteEnums() throws SQLException {
+        try (ClickHouseConnection conn = newConnection(new Properties());
+                Statement s = conn.createStatement()) {
+            s.execute("drop table if exists test_read_write_enums;"
+                    + "create table test_read_write_enums(id Int32, e1 Enum8('v1'=1,'v2'=2), e2 Enum16('v11'=11,'v22'=22))engine=Memory");
+            try (PreparedStatement stmt = conn
+                    .prepareStatement("insert into test_read_write_enums")) {
+                stmt.setInt(1, 1);
+                stmt.setString(2, "v1");
+                stmt.setObject(3, "v11");
+                stmt.addBatch();
+                stmt.setInt(1, 2);
+                stmt.setObject(2, 2);
+                stmt.setByte(3, (byte) 22);
+                stmt.addBatch();
+                int[] results = stmt.executeBatch();
+                Assert.assertEquals(results, new int[] { 1, 1 });
+            }
+
+            ResultSet rs = s.executeQuery("select * from test_read_write_enums order by id");
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getInt(1), 1);
+            Assert.assertEquals(rs.getObject(2), "v1");
+            Assert.assertEquals(rs.getString(3), "v11");
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getInt(1), 2);
+            Assert.assertEquals(rs.getByte(2), 2);
+            Assert.assertEquals(rs.getObject(3), "v22");
+            Assert.assertFalse(rs.next());
+        }
+    }
+
+    @Test(groups = "integration")
     public void testInsertQueryDateTime64() throws SQLException {
         try (ClickHouseConnection conn = newConnection(new Properties());
                 ClickHouseStatement s = conn.createStatement();) {
@@ -796,7 +871,7 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
                     + "create table test_jdbc_load_raw_data(s String)engine=Memory"), "Should not have result set");
             ClickHouseConfig config = stmt.getConfig();
             CompletableFuture<Integer> future;
-            try (ClickHousePipedStream stream = new ClickHousePipedStream(config.getMaxBufferSize(),
+            try (ClickHousePipedStream stream = new ClickHousePipedStream(config.getWriteBufferSize(),
                     config.getMaxQueuedRequests(), config.getSocketTimeout())) {
                 ps.setObject(1, ClickHouseExternalTable.builder().name("raw_data")
                         .columns("s String").format(ClickHouseFormat.RowBinary)
@@ -812,7 +887,7 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
 
                 // write bytes into the piped stream
                 for (int i = 0; i < 101; i++) {
-                    BinaryStreamUtils.writeString(stream, Integer.toString(i));
+                    stream.writeAsciiString(Integer.toString(i));
                 }
             }
 
@@ -825,6 +900,19 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
         // FIXME grpc seems has problem dealing with session
         if (DEFAULT_PROTOCOL == ClickHouseProtocol.GRPC) {
             return;
+        }
+
+        try (ClickHouseConnection conn = newConnection(new Properties());
+                PreparedStatement stmt = conn
+                        .prepareStatement("SELECT count() FROM (select 3 x) WHERE x IN {tt 'table1' }")) {
+            stmt.setObject(1, ClickHouseExternalTable.builder().name("table1").columns("id Int8")
+                    .format(ClickHouseFormat.TSV)
+                    .content(new ByteArrayInputStream("1".getBytes(StandardCharsets.US_ASCII)))
+                    .build());
+            ResultSet rs = stmt.executeQuery();
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getInt(1), 0);
+            Assert.assertFalse(rs.next());
         }
 
         try (ClickHouseConnection conn = newConnection(new Properties());
@@ -858,6 +946,108 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
             Assert.assertTrue(rs.next());
             Assert.assertEquals(rs.getObject(1), v);
             Assert.assertFalse(rs.next());
+        }
+    }
+
+    @Test(dataProvider = "nonBatchQueries", groups = "integration")
+    public void testNonBatchUpdate(String mode, String query) throws SQLException {
+        String tableName = String.format("test_non_batch_update_%s", mode);
+        try (Connection conn = newConnection(new Properties());
+                Statement stmt = conn.createStatement();) {
+            stmt.execute(String.format("drop table if exists %1$s; "
+                    + "create table %1$s (id Int32, str String)engine=Memory", tableName));
+
+            try (PreparedStatement ps = conn.prepareStatement(String.format(query, tableName))) {
+                if (query.contains("{tt ")) {
+                    ps.setObject(1,
+                            ClickHouseExternalTable.builder().name("tbl").columns("id Int32, str String")
+                                    .content(ClickHouseInputStream.of(
+                                            Collections.singleton("1\t1\n".getBytes()), byte[].class, null,
+                                            null))
+                                    .build());
+                } else {
+                    ps.setInt(1, 1);
+                    ps.setString(2, "1");
+                }
+                Assert.assertEquals(ps.executeUpdate(), 1);
+            }
+
+            // insertion was a success
+            try (ResultSet rs = stmt.executeQuery(String.format("select * from %s", tableName))) {
+                Assert.assertTrue(rs.next());
+                Assert.assertEquals(rs.getString(1), "1");
+                Assert.assertEquals(rs.getInt(2), 1);
+                Assert.assertFalse(rs.next());
+            }
+
+            // make sure it won't throw BatchUpdateException
+            try (PreparedStatement ps = conn.prepareStatement(String.format(query, tableName))) {
+                if (query.contains("{tt ")) {
+                    ps.setObject(1,
+                            ClickHouseExternalTable.builder().name("tbl").columns("id Int32, str String")
+                                    .content(ClickHouseInputStream.of(
+                                            Collections.singleton("2\t2\n".getBytes()), byte[].class, null,
+                                            null))
+                                    .build());
+                } else {
+                    ps.setInt(1, 2);
+                    ps.setString(2, "2");
+                }
+                stmt.execute(String.format("drop table %s", tableName));
+
+                SQLException exp = null;
+                try {
+                    ps.executeUpdate();
+                } catch (SQLException e) {
+                    exp = e;
+                }
+                Assert.assertTrue(exp.getClass() == SQLException.class);
+            }
+        }
+    }
+
+    @Test(dataProvider = "columnsWithDefaultValue", groups = "integration")
+    public void testInsertDefaultValue(String columnType, String defaultExpr, String defaultValue) throws Exception {
+        Properties props = new Properties();
+        props.setProperty(ClickHouseClientOption.COMPRESS.getKey(), "false");
+        props.setProperty(ClickHouseClientOption.FORMAT.getKey(),
+                ClickHouseFormat.TabSeparatedWithNamesAndTypes.name());
+        String tableName = "test_insert_default_value_" + columnType.split("\\(")[0].trim().toLowerCase();
+        try (ClickHouseConnection conn = newConnection(props); Statement s = conn.createStatement()) {
+            s.execute(String.format("drop table if exists %s; ", tableName)
+                    + String.format("create table %s(id Int8, v %s DEFAULT %s)engine=Memory", tableName, columnType,
+                            defaultExpr));
+            s.executeUpdate(String.format("insert into %s values(1, null)", tableName));
+            try (PreparedStatement stmt = conn
+                    .prepareStatement(String.format("insert into %s values(?,?)", tableName))) {
+                stmt.setInt(1, 2);
+                stmt.setObject(2, null);
+                stmt.executeUpdate();
+                stmt.setInt(1, 3);
+                stmt.setNull(2, Types.OTHER);
+                stmt.executeUpdate();
+            }
+
+            int rowCount = 0;
+            try (ResultSet rs = s.executeQuery(String.format("select * from %s order by id", tableName))) {
+                Assert.assertTrue(rs.next());
+                Assert.assertEquals(rs.getInt(1), 1);
+                Assert.assertEquals(rs.getString(2), defaultValue);
+                Assert.assertFalse(rs.wasNull(), "Should not be null");
+                rowCount++;
+                Assert.assertTrue(rs.next());
+                Assert.assertEquals(rs.getInt(1), 2);
+                Assert.assertEquals(rs.getString(2), defaultValue);
+                Assert.assertFalse(rs.wasNull(), "Should not be null");
+                rowCount++;
+                Assert.assertTrue(rs.next());
+                Assert.assertEquals(rs.getInt(1), 3);
+                Assert.assertEquals(rs.getString(2), defaultValue);
+                Assert.assertFalse(rs.wasNull(), "Should not be null");
+                rowCount++;
+                Assert.assertFalse(rs.next(), "Should have only 3 rows");
+            }
+            Assert.assertEquals(rowCount, 3);
         }
     }
 

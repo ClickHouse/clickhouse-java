@@ -243,8 +243,7 @@ public class ClickHouseCityHash {
         return new long[] { hashLen16(x + v[1], w[1]) + y, hashLen16(x + w[1], y + v[1]) };
     }
 
-    static long[] cityHash128(byte[] s, int pos, int len) {
-
+    public static long[] cityHash128(byte[] s, int pos, int len) {
         if (len >= 16) {
             return cityHash128WithSeed(s, pos + 16, len - 16, fetch64(s, pos) ^ k3, fetch64(s, pos + 8));
         } else if (len >= 8) {
@@ -253,5 +252,4 @@ public class ClickHouseCityHash {
             return cityHash128WithSeed(s, pos, len, k0, k1);
         }
     }
-
 }

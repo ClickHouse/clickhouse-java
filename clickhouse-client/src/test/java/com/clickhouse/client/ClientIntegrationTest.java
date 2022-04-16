@@ -5,7 +5,6 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.io.OutputStream;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.Inet4Address;
@@ -24,6 +23,8 @@ import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
 import com.clickhouse.client.config.ClickHouseClientOption;
+import com.clickhouse.client.config.ClickHouseSslMode;
+import com.clickhouse.client.data.BinaryStreamUtils;
 import com.clickhouse.client.data.ClickHouseBigDecimalValue;
 import com.clickhouse.client.data.ClickHouseBigIntegerValue;
 import com.clickhouse.client.data.ClickHouseByteValue;
@@ -35,6 +36,7 @@ import com.clickhouse.client.data.ClickHouseIpv4Value;
 import com.clickhouse.client.data.ClickHouseIpv6Value;
 import com.clickhouse.client.data.ClickHouseLongValue;
 import com.clickhouse.client.data.ClickHouseOffsetDateTimeValue;
+import com.clickhouse.client.data.ClickHousePipedStream;
 import com.clickhouse.client.data.ClickHouseStringValue;
 
 import org.testng.Assert;
@@ -62,8 +64,24 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
         return ClickHouseClient.newInstance(getProtocol());
     }
 
+    protected ClickHouseClient getSecureClient() {
+        return ClickHouseClient.builder()
+                .nodeSelector(ClickHouseNodeSelector.of(getProtocol()))
+                .option(ClickHouseClientOption.SSL, true)
+                .option(ClickHouseClientOption.SSL_MODE, ClickHouseSslMode.STRICT)
+                .option(ClickHouseClientOption.SSL_ROOT_CERTIFICATE, "containers/clickhouse-server/certs/myCA.crt")
+                .option(ClickHouseClientOption.SSL_CERTIFICATE, "client.crt")
+                .option(ClickHouseClientOption.SSL_KEY, "client.key")
+                .defaultCredentials(ClickHouseCredentials.fromUserAndPassword("me", ""))
+                .build();
+    }
+
     protected ClickHouseNode getServer() {
         return getServer(getProtocol());
+    }
+
+    protected ClickHouseNode getSecureServer() {
+        return getSecureServer(getProtocol());
     }
 
     @DataProvider(name = "compressionMatrix")
@@ -149,20 +167,47 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
     }
 
     @Test(dataProvider = "compressionMatrix", groups = { "integration" })
-    public void testCompression(boolean compressRequest, boolean compressResponse) throws Exception {
+    public void testCompression(boolean compressRequest, boolean compressResponse)
+            throws Exception {
         ClickHouseNode server = getServer();
         String uuid = UUID.randomUUID().toString();
-        try (ClickHouseClient client = getClient()) {
-            ClickHouseRequest<?> request = client.connect(server).format(ClickHouseFormat.RowBinaryWithNamesAndTypes);
-            boolean hasResult = false;
-            try (ClickHouseResponse resp = request
-                    .compressServerResponse(compressResponse)
-                    .decompressClientRequest(compressRequest)
-                    .query("select :uuid").params(ClickHouseStringValue.of(uuid)).execute().get()) {
-                Assert.assertEquals(resp.firstRecord().getValue(0).asString(), uuid);
-                hasResult = true;
+        for (ClickHouseFormat format : new ClickHouseFormat[] {
+                ClickHouseFormat.RowBinaryWithNamesAndTypes,
+                ClickHouseFormat.TabSeparatedWithNamesAndTypes }) {
+            try (ClickHouseClient client = getClient()) {
+                ClickHouseRequest<?> request = client.connect(server)
+                        .format(format)
+                        .compressServerResponse(compressResponse)
+                        .decompressClientRequest(compressRequest);
+                boolean hasResult = false;
+                try (ClickHouseResponse resp = request
+                        .query("select :uuid").params(ClickHouseStringValue.of(uuid)).execute().get()) {
+                    Assert.assertEquals(resp.firstRecord().getValue(0).asString(), uuid);
+                    hasResult = true;
+                }
+                Assert.assertTrue(hasResult, "Should have at least one result");
+
+                // empty results
+                try (ClickHouseResponse resp = request
+                        .query("create database if not exists system")
+                        .execute().get()) {
+                    ClickHouseResponseSummary summary = resp.getSummary();
+                    Assert.assertEquals(summary.getReadRows(), 0L);
+                    Assert.assertEquals(summary.getWrittenRows(), 0L);
+                }
+
+                // let's also check if failures can be captured successfully as well
+                Exception exp = null;
+                try (ClickHouseResponse resp = request
+                        .use(uuid)
+                        .query("select currentUser(), timezone(), version(), getSetting('readonly') readonly FORMAT RowBinaryWithNamesAndTypes")
+                        .execute().get()) {
+                    Assert.fail("Query should fail");
+                } catch (Exception e) {
+                    exp = e;
+                }
+                Assert.assertEquals(((ClickHouseException) exp.getCause()).getErrorCode(), 81);
             }
-            Assert.assertTrue(hasResult, "Should have at least one result");
         }
     }
 
@@ -499,23 +544,31 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
             int count = 0;
             for (ClickHouseRecord r : resp.records()) {
                 if (count++ == 0) {
+                    Assert.assertEquals(r.getValue(0).asShort(), (short) 0);
                     Assert.assertEquals(r.getValue(0).asString(), null);
                     Assert.assertEquals(r.getValue(0).asObject(), null);
+                    Assert.assertEquals(r.getValue(1).asInteger(), 2);
                     Assert.assertEquals(r.getValue(1).asString(), "b");
-                    Assert.assertEquals(r.getValue(1).asObject(), 2);
+                    Assert.assertEquals(r.getValue(1).asObject(), "b");
+                    Assert.assertEquals(r.getValue(2).asLong(), 0L);
                     Assert.assertEquals(r.getValue(2).asString(), null);
                     Assert.assertEquals(r.getValue(2).asObject(), null);
+                    Assert.assertEquals(r.getValue(3).asByte(), (byte) 2);
                     Assert.assertEquals(r.getValue(3).asString(), "b");
-                    Assert.assertEquals(r.getValue(3).asObject(), 2);
+                    Assert.assertEquals(r.getValue(3).asObject(), "b");
                 } else {
+                    Assert.assertEquals(r.getValue(0).asByte(), (byte) -1);
                     Assert.assertEquals(r.getValue(0).asString(), "a");
-                    Assert.assertEquals(r.getValue(0).asObject(), -1);
+                    Assert.assertEquals(r.getValue(0).asObject(), "a");
+                    Assert.assertEquals(r.getValue(1).asShort(), (short) 2);
                     Assert.assertEquals(r.getValue(1).asString(), "b");
-                    Assert.assertEquals(r.getValue(1).asObject(), 2);
+                    Assert.assertEquals(r.getValue(1).asObject(), "b");
+                    Assert.assertEquals(r.getValue(2).asInteger(), -1);
                     Assert.assertEquals(r.getValue(2).asString(), "a");
-                    Assert.assertEquals(r.getValue(2).asObject(), -1);
+                    Assert.assertEquals(r.getValue(2).asObject(), "a");
+                    Assert.assertEquals(r.getValue(3).asLong(), 2L);
                     Assert.assertEquals(r.getValue(3).asString(), "b");
-                    Assert.assertEquals(r.getValue(3).asObject(), 2);
+                    Assert.assertEquals(r.getValue(3).asObject(), "b");
                 }
             }
 
@@ -841,7 +894,7 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
         ClickHouseClient.load(server, "test_custom_load", ClickHouseFormat.TabSeparated,
                 ClickHouseCompression.NONE, new ClickHouseWriter() {
                     @Override
-                    public void write(OutputStream output) throws IOException {
+                    public void write(ClickHouseOutputStream output) throws IOException {
                         output.write("1\t\\N\n".getBytes(StandardCharsets.US_ASCII));
                         output.write("2\t123".getBytes(StandardCharsets.US_ASCII));
                     }
@@ -910,6 +963,43 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
             }
         } finally {
             Files.delete(temp);
+        }
+    }
+
+    @Test(groups = { "integration" })
+    public void testLoadRawData() throws Exception {
+        ClickHouseNode server = getServer();
+        ClickHouseClient.send(server, "drop table if exists test_load_raw_data",
+                "create table test_load_raw_data(a Int64)engine=Memory").get();
+        int rows = 10;
+
+        try (ClickHouseClient client = getClient()) {
+            ClickHouseRequest.Mutation request = client.connect(server).write()
+                    .table("test_load_raw_data")
+                    .format(ClickHouseFormat.RowBinary)
+                    // this is needed to get meaningful response summary
+                    .set("send_progress_in_http_headers", 1);
+            ClickHouseConfig config = request.getConfig();
+
+            CompletableFuture<ClickHouseResponse> future;
+            // single producer → single consumer
+            // important to close the stream *before* retrieving response
+            try (ClickHousePipedStream stream = new ClickHousePipedStream(config.getWriteBufferSize(),
+                    config.getMaxQueuedRequests(), config.getSocketTimeout())) {
+                // start the worker thread which transfer data from the input into ClickHouse
+                future = request.data(stream.getInput()).send();
+                // write bytes into the piped stream
+                for (int i = 0; i < rows; i++) {
+                    BinaryStreamUtils.writeInt64(stream, i);
+                }
+            }
+
+            ClickHouseResponseSummary summary;
+            try (ClickHouseResponse response = future.get()) {
+                summary = response.getSummary();
+            }
+
+            Assert.assertEquals(summary.getWrittenRows(), rows);
         }
     }
 
@@ -986,11 +1076,6 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
     @Test(groups = "integration")
     public void testTempTable() throws Exception {
         ClickHouseNode server = getServer();
-        // FIXME looks like grpc has problem handling session
-        if (server.getProtocol() == ClickHouseProtocol.GRPC) {
-            return;
-        }
-
         String sessionId = UUID.randomUUID().toString();
         try (ClickHouseClient client = getClient()) {
             ClickHouseRequest<?> request = client.connect(server).format(ClickHouseFormat.RowBinary)

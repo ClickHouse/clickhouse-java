@@ -20,6 +20,21 @@ public enum ClickHouseClientOption implements ClickHouseOption {
      */
     ASYNC("async", true, "Whether the client should run in async mode."),
     /**
+     * Default buffer size in byte for both read and write. It will be reset to
+     * {@link #MAX_BUFFER_SIZE} if it's too large.
+     */
+    BUFFER_SIZE("buffer_size", 4096, "Default buffer size in byte for both read and write."),
+    /**
+     * Read buffer size in byte. It defaults to {@link #BUFFER_SIZE}, and it will be
+     * reset to {@link #MAX_BUFFER_SIZE} when it's too large.
+     */
+    READ_BUFFER_SIZE("read_buffer_size", BUFFER_SIZE.getDefaultValue(), "Read buffer size in byte"),
+    /**
+     * Write buffer size in byte. It defaults to {@link #BUFFER_SIZE}, and it will
+     * be reset to {@link #MAX_BUFFER_SIZE} when it's too large.
+     */
+    WRITE_BUFFER_SIZE("write_buffer_size", BUFFER_SIZE.getDefaultValue(), "Read buffer size in byte"),
+    /**
      * Client name.
      */
     CLIENT_NAME("client_name", "ClickHouse Java Client",
@@ -73,9 +88,11 @@ public enum ClickHouseClientOption implements ClickHouseOption {
     LOG_LEADING_COMMENT("log_leading_comment", false,
             "Whether to log leading comment(as log_comment in system.query_log) of the query."),
     /**
-     * Maximum buffer size in byte used for streaming.
+     * Maximum buffer size in byte can be used for streaming. It's not supposed to
+     * be larger than {@code Integer.MAX_VALUE - 8}.
      */
-    MAX_BUFFER_SIZE("max_buffer_size", 8 * 1024, "Maximum buffer size in byte used for streaming."),
+    MAX_BUFFER_SIZE("max_buffer_size", 1024 * 1024 * 1024,
+            "Maximum buffer size in byte can be used for streaming."),
     /**
      * Maximum comression block size in byte, only useful when {@link #DECOMPRESS}
      * is {@code true}.
@@ -149,7 +166,7 @@ public enum ClickHouseClientOption implements ClickHouseOption {
     /**
      * SSL root certificiate.
      */
-    SSL_ROOT_CERTIFICATE("sslrootcert", "", "SSL/TLS root certificate."),
+    SSL_ROOT_CERTIFICATE("sslrootcert", "", "SSL/TLS root certificates."),
     /**
      * SSL certificiate.
      */
@@ -157,7 +174,7 @@ public enum ClickHouseClientOption implements ClickHouseOption {
     /**
      * SSL key.
      */
-    SSL_KEY("sslkey", "", "SSL/TLS key."),
+    SSL_KEY("sslkey", "", "RSA key in PKCS#8 format."),
     /**
      * Whether to use objects in array or not.
      */

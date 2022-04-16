@@ -98,6 +98,10 @@ public class TableBasedPreparedStatement extends AbstractPreparedStatement imple
                     long rows = getLargeUpdateCount();
                     results[index] = rows > 0L ? rows : 0L;
                 } catch (Exception e) {
+                    if (!asBatch) {
+                        throw SqlExceptionUtils.handle(e);
+                    }
+
                     results[index] = EXECUTE_FAILED;
                     if (!continueOnError) {
                         throw SqlExceptionUtils.batchUpdateError(e, results);

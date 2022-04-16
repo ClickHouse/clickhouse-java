@@ -574,9 +574,11 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
                 ClickHouseStatement stmt = conn.createStatement()) {
             ResultSet rs = stmt.executeQuery("select cast('a' as Enum('a'=1,'b'=2))");
             Assert.assertTrue(rs.next());
-            Assert.assertEquals(rs.getObject(1), 1);
-            Assert.assertEquals(rs.getString(1), "a");
+            Assert.assertEquals(rs.getByte(1), (byte) 1);
+            Assert.assertEquals(rs.getShort(1), (short) 1);
             Assert.assertEquals(rs.getInt(1), 1);
+            Assert.assertEquals(rs.getObject(1), "a");
+            Assert.assertEquals(rs.getString(1), "a");
             Assert.assertFalse(rs.next());
         }
 

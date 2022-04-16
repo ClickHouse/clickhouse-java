@@ -2,8 +2,6 @@ package com.clickhouse.client.data;
 
 import java.io.EOFException;
 import java.io.IOException;
-import java.io.OutputStream;
-import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumMap;
@@ -11,9 +9,7 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.NoSuchElementException;
 import java.util.Map.Entry;
-import java.util.function.Supplier;
 
 import com.clickhouse.client.ClickHouseAggregateFunction;
 import com.clickhouse.client.ClickHouseChecker;
@@ -24,9 +20,9 @@ import com.clickhouse.client.ClickHouseDataType;
 import com.clickhouse.client.ClickHouseDeserializer;
 import com.clickhouse.client.ClickHouseFormat;
 import com.clickhouse.client.ClickHouseInputStream;
+import com.clickhouse.client.ClickHouseOutputStream;
 import com.clickhouse.client.ClickHouseRecord;
 import com.clickhouse.client.ClickHouseSerializer;
-import com.clickhouse.client.ClickHouseUtils;
 import com.clickhouse.client.ClickHouseValue;
 import com.clickhouse.client.ClickHouseValues;
 
@@ -35,20 +31,21 @@ import com.clickhouse.client.ClickHouseValues;
  * {@link ClickHouseFormat#RowBinaryWithNamesAndTypes} two formats.
  */
 public class ClickHouseRowBinaryProcessor extends ClickHouseDataProcessor {
-    public static class MappedFunctions {
+    public static class MappedFunctions
+            implements ClickHouseDeserializer<ClickHouseValue>, ClickHouseSerializer<ClickHouseValue> {
         private static final MappedFunctions instance = new MappedFunctions();
 
         private void writeArray(ClickHouseValue value, ClickHouseConfig config, ClickHouseColumn column,
-                OutputStream output) throws IOException {
+                ClickHouseOutputStream output) throws IOException {
             ClickHouseColumn nestedColumn = column.getNestedColumns().get(0);
             ClickHouseColumn baseColumn = column.getArrayBaseColumn();
             int level = column.getArrayNestedLevel();
-            Class<?> javaClass = baseColumn.getDataType().getPrimitiveClass();
+            Class<?> javaClass = baseColumn.getPrimitiveClass();
             if (level > 1 || !javaClass.isPrimitive()) {
                 Object[] array = value.asArray();
                 ClickHouseValue v = ClickHouseValues.newValue(config, nestedColumn);
                 int length = array.length;
-                BinaryStreamUtils.writeVarInt(output, length);
+                output.writeVarInt(length);
                 for (int i = 0; i < length; i++) {
                     serialize(v.update(array[i]), config, nestedColumn, output);
                 }
@@ -57,42 +54,42 @@ public class ClickHouseRowBinaryProcessor extends ClickHouseDataProcessor {
                 if (byte.class == javaClass) {
                     byte[] array = (byte[]) value.asObject();
                     int length = array.length;
-                    BinaryStreamUtils.writeVarInt(output, length);
+                    output.writeVarInt(length);
                     for (int i = 0; i < length; i++) {
                         serialize(v.update(array[i]), config, baseColumn, output);
                     }
                 } else if (short.class == javaClass) {
                     short[] array = (short[]) value.asObject();
                     int length = array.length;
-                    BinaryStreamUtils.writeVarInt(output, length);
+                    output.writeVarInt(length);
                     for (int i = 0; i < length; i++) {
                         serialize(v.update(array[i]), config, baseColumn, output);
                     }
                 } else if (int.class == javaClass) {
                     int[] array = (int[]) value.asObject();
                     int length = array.length;
-                    BinaryStreamUtils.writeVarInt(output, length);
+                    output.writeVarInt(length);
                     for (int i = 0; i < length; i++) {
                         serialize(v.update(array[i]), config, baseColumn, output);
                     }
                 } else if (long.class == javaClass) {
                     long[] array = (long[]) value.asObject();
                     int length = array.length;
-                    BinaryStreamUtils.writeVarInt(output, length);
+                    output.writeVarInt(length);
                     for (int i = 0; i < length; i++) {
                         serialize(v.update(array[i]), config, baseColumn, output);
                     }
                 } else if (float.class == javaClass) {
                     float[] array = (float[]) value.asObject();
                     int length = array.length;
-                    BinaryStreamUtils.writeVarInt(output, length);
+                    output.writeVarInt(length);
                     for (int i = 0; i < length; i++) {
                         serialize(v.update(array[i]), config, baseColumn, output);
                     }
                 } else if (double.class == javaClass) {
                     double[] array = (double[]) value.asObject();
                     int length = array.length;
-                    BinaryStreamUtils.writeVarInt(output, length);
+                    output.writeVarInt(length);
                     for (int i = 0; i < length; i++) {
                         serialize(v.update(array[i]), config, baseColumn, output);
                     }
@@ -104,7 +101,7 @@ public class ClickHouseRowBinaryProcessor extends ClickHouseDataProcessor {
 
         private ClickHouseValue readArray(ClickHouseValue ref, ClickHouseConfig config, ClickHouseColumn nestedColumn,
                 ClickHouseColumn baseColumn, ClickHouseInputStream input, int length, int level) throws IOException {
-            Class<?> javaClass = baseColumn.getDataType().getPrimitiveClass();
+            Class<?> javaClass = baseColumn.getPrimitiveClass();
             if (level > 1 || !javaClass.isPrimitive()) {
                 Object[] array = (Object[]) ClickHouseValues.createPrimitiveArray(javaClass, length, level);
                 for (int i = 0; i < length; i++) {
@@ -195,7 +192,7 @@ public class ClickHouseRowBinaryProcessor extends ClickHouseDataProcessor {
         private void buildMappingsForDataTypes() {
             // enums
             buildMappings(deserializers, serializers,
-                    (r, f, c, i) -> ClickHouseEnumValue.of(r, c.getEnumConstants(), BinaryStreamUtils.readInt8(i)),
+                    (r, f, c, i) -> ClickHouseEnumValue.of(r, c.getEnumConstants(), i.readByte()),
                     (v, f, c, o) -> BinaryStreamUtils.writeInt8(o, v.asByte()), ClickHouseDataType.Enum,
                     ClickHouseDataType.Enum8);
             buildMappings(deserializers, serializers,
@@ -206,10 +203,10 @@ public class ClickHouseRowBinaryProcessor extends ClickHouseDataProcessor {
                     (r, f, c, i) -> ClickHouseBoolValue.of(r, BinaryStreamUtils.readBoolean(i)),
                     (v, f, c, o) -> BinaryStreamUtils.writeBoolean(o, v.asBoolean()), ClickHouseDataType.Bool);
             buildMappings(deserializers, serializers,
-                    (r, f, c, i) -> ClickHouseByteValue.of(r, BinaryStreamUtils.readInt8(i)),
+                    (r, f, c, i) -> ClickHouseByteValue.of(r, i.readByte()),
                     (v, f, c, o) -> BinaryStreamUtils.writeInt8(o, v.asByte()), ClickHouseDataType.Int8);
             buildMappings(deserializers, serializers,
-                    (r, f, c, i) -> ClickHouseShortValue.of(r, BinaryStreamUtils.readUnsignedInt8(i)),
+                    (r, f, c, i) -> ClickHouseShortValue.of(r, (short) (0xFF & i.readByte())),
                     (v, f, c, o) -> BinaryStreamUtils.writeUnsignedInt8(o, v.asInteger()), ClickHouseDataType.UInt8);
             buildMappings(deserializers, serializers,
                     (r, f, c, i) -> ClickHouseShortValue.of(r, BinaryStreamUtils.readInt16(i)),
@@ -359,6 +356,9 @@ public class ClickHouseRowBinaryProcessor extends ClickHouseDataProcessor {
                     ClickHouseDataType.MultiPolygon);
 
             // advanced types
+            buildMappings(deserializers, serializers, (r, f, c, i) -> deserialize(r, f, c.getNestedColumns().get(0), i),
+                    (v, f, c, o) -> serialize(v, f, c.getNestedColumns().get(0), o),
+                    ClickHouseDataType.SimpleAggregateFunction);
             buildMappings(deserializers, serializers, (r, f, c, i) -> {
                 int length = BinaryStreamUtils.readVarInt(i);
                 if (r == null) {
@@ -374,8 +374,7 @@ public class ClickHouseRowBinaryProcessor extends ClickHouseDataProcessor {
                 for (int k = 0, len = BinaryStreamUtils.readVarInt(i); k < len; k++) {
                     map.put(deserialize(null, f, keyCol, i).asObject(), deserialize(null, f, valCol, i).asObject());
                 }
-                return ClickHouseMapValue.of(map, keyCol.getDataType().getObjectClass(),
-                        valCol.getDataType().getObjectClass());
+                return ClickHouseMapValue.of(map, keyCol.getObjectClass(), valCol.getObjectClass());
             }, (v, f, c, o) -> {
                 Map<Object, Object> map = v.asMap();
                 BinaryStreamUtils.writeVarInt(o, map.size());
@@ -467,7 +466,7 @@ public class ClickHouseRowBinaryProcessor extends ClickHouseDataProcessor {
 
         @SuppressWarnings("unchecked")
         public void serialize(ClickHouseValue value, ClickHouseConfig config, ClickHouseColumn column,
-                OutputStream output) throws IOException {
+                ClickHouseOutputStream output) throws IOException {
             if (column.isNullable()) { // always false for geo types, and Array, Nested, Map and Tuple etc.
                 if (value.isNullOrEmpty()) {
                     BinaryStreamUtils.writeNull(output);
@@ -490,68 +489,17 @@ public class ClickHouseRowBinaryProcessor extends ClickHouseDataProcessor {
         return MappedFunctions.instance;
     }
 
-    // TODO this is where ASM should come into play...
-    private class Records implements Iterator<ClickHouseRecord> {
-        private final Supplier<ClickHouseSimpleRecord> factory;
-        private ClickHouseSimpleRecord record;
-
-        Records() {
-            int size = columns.size();
-            if (config.isReuseValueWrapper()) {
-                ClickHouseValue[] values = new ClickHouseValue[size];
-                record = new ClickHouseSimpleRecord(columns, values);
-                factory = () -> record;
-            } else {
-                factory = () -> new ClickHouseSimpleRecord(columns, new ClickHouseValue[size]);
-            }
+    @Override
+    protected void readAndFill(ClickHouseRecord r) throws IOException {
+        MappedFunctions m = getMappedFunctions();
+        for (; readPosition < columns.length; readPosition++) {
+            templates[readPosition] = m.deserialize(r.getValue(readPosition), config, columns[readPosition], input);
         }
+    }
 
-        ClickHouseRecord readNextRow() {
-            int index = 0;
-            int size = columns.size();
-            ClickHouseSimpleRecord currentRow = factory.get();
-            ClickHouseValue[] values = currentRow.getValues();
-            ClickHouseColumn column = null;
-            try {
-                MappedFunctions m = getMappedFunctions();
-                for (; index < size; index++) {
-                    column = columns.get(index);
-                    values[index] = m.deserialize(values[index], config, column, input);
-                }
-            } catch (EOFException e) {
-                if (index == 0) { // end of the stream, which is fine
-                    values = null;
-                } else {
-                    throw new UncheckedIOException(
-                            ClickHouseUtils.format("Reached end of the stream when reading column #%d(total %d): %s",
-                                    index + 1, size, column),
-                            e);
-                }
-            } catch (IOException e) {
-                throw new UncheckedIOException(
-                        ClickHouseUtils.format("Failed to read column #%d(total %d): %s", index + 1, size, column), e);
-            }
-
-            return currentRow;
-        }
-
-        @Override
-        public boolean hasNext() {
-            try {
-                return input.available() > 0;
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
-        }
-
-        @Override
-        public ClickHouseRecord next() {
-            ClickHouseRecord r = readNextRow();
-            if (r == null) {
-                throw new NoSuchElementException("No more record");
-            }
-            return r;
-        }
+    @Override
+    protected void readAndFill(ClickHouseValue value, ClickHouseColumn column) throws IOException {
+        templates[readPosition] = getMappedFunctions().deserialize(value, config, column, input);
     }
 
     @Override
@@ -582,18 +530,30 @@ public class ClickHouseRowBinaryProcessor extends ClickHouseDataProcessor {
         return columns;
     }
 
-    public ClickHouseRowBinaryProcessor(ClickHouseConfig config, ClickHouseInputStream input, OutputStream output,
-            List<ClickHouseColumn> columns, Map<String, Object> settings) throws IOException {
+    /**
+     * Default constructor.
+     *
+     * @param config   non-null confinguration contains information like format
+     * @param input    input stream for deserialization, can be null when
+     *                 {@code output} is available
+     * @param output   outut stream for serialization, can be null when
+     *                 {@code input} is available
+     * @param columns  nullable columns
+     * @param settings nullable settings
+     * @throws IOException when failed to read columns from input stream
+     */
+    public ClickHouseRowBinaryProcessor(ClickHouseConfig config, ClickHouseInputStream input,
+            ClickHouseOutputStream output, List<ClickHouseColumn> columns, Map<String, Object> settings)
+            throws IOException {
         super(config, input, output, columns, settings);
     }
 
     @Override
-    public Iterable<ClickHouseRecord> records() {
-        return columns.isEmpty() ? Collections.emptyList() : new Iterable<ClickHouseRecord>() {
-            @Override
-            public Iterator<ClickHouseRecord> iterator() {
-                return new Records();
-            }
-        };
+    public void write(ClickHouseValue value, ClickHouseColumn column) throws IOException {
+        if (output == null || column == null) {
+            throw new IllegalArgumentException("Cannot write any value when output stream or column is null");
+        }
+
+        getMappedFunctions().serialize(value, config, column, output);
     }
 }

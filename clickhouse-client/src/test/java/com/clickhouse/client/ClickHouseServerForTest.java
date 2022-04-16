@@ -107,8 +107,10 @@ public class ClickHouseServerForTest {
                     .withEnv("TZ", timezone)
                     .withExposedPorts(ClickHouseProtocol.GRPC.getDefaultPort(),
                             ClickHouseProtocol.HTTP.getDefaultPort(),
+                            ClickHouseProtocol.HTTP.getDefaultSecurePort(),
                             ClickHouseProtocol.MYSQL.getDefaultPort(),
                             ClickHouseProtocol.TCP.getDefaultPort(),
+                            ClickHouseProtocol.TCP.getDefaultSecurePort(),
                             ClickHouseProtocol.POSTGRESQL.getDefaultPort())
                     .withClasspathResourceMapping("containers/clickhouse-server", customDirectory, BindMode.READ_ONLY)
                     .waitingFor(Wait.forHttp("/ping").forPort(ClickHouseProtocol.HTTP.getDefaultPort())
@@ -146,9 +148,10 @@ public class ClickHouseServerForTest {
         return builder.toString();
     }
 
-    public static ClickHouseNode getClickHouseNode(ClickHouseProtocol protocol, ClickHouseNode template) {
+    public static ClickHouseNode getClickHouseNode(ClickHouseProtocol protocol, boolean useSecurePort,
+            ClickHouseNode template) {
         String host = clickhouseServer;
-        int port = protocol.getDefaultPort();
+        int port = useSecurePort ? protocol.getDefaultSecurePort() : protocol.getDefaultPort();
 
         if (clickhouseContainer != null) {
             host = clickhouseContainer.getContainerIpAddress();

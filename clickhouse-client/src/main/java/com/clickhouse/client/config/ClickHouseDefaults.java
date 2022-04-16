@@ -88,6 +88,18 @@ public enum ClickHouseDefaults implements ClickHouseOption {
      */
     SERVER_VERSION("version", "latest", "Server version"),
     /**
+     * SSL certificiate type.
+     */
+    SSL_CERTIFICATE_TYPE("sslcerttype", "X.509", "SSL/TLS certificate type."),
+    /**
+     * SSL key algorithm.
+     */
+    SSL_KEY_ALGORITHM("sslkeyalg", "RSA", "Key algorithm."),
+    /**
+     * SSL key.
+     */
+    SSL_PROTOCOL("sslprotocol", "TLS", "SSL protocol."),
+    /**
      * Whether to resolve DNS SRV name using
      * {@link com.clickhouse.client.naming.SrvResolver}(e.g. resolve SRV record to
      * extract both host and port from a given name).

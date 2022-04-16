@@ -43,6 +43,9 @@ public final class ClickHouseUtils {
                 : Paths.get(System.getProperty("user.home"), ".clickhouse").toFile().getAbsolutePath();
     }
 
+    public static final int DEFAULT_BUFFER_SIZE = 4096;
+    public static final int MAX_BUFFER_SIZE = Integer.MAX_VALUE - 8;
+
     public static final String VARIABLE_PREFIX = "{{";
     public static final String VARIABLE_SUFFIX = "}}";
 
@@ -483,6 +486,34 @@ public final class ClickHouseUtils {
         }
 
         return value;
+    }
+
+    /**
+     * Gets buffer size.
+     *
+     * @param bufferSize  suggested buffer size, zero or negative number is treated
+     *                    as {@code defaultSize}
+     * @param defaultSize default buffer size, zero or negative number is treated as
+     *                    {@link #DEFAULT_BUFFER_SIZE}
+     * @param maxSize     maximum buffer size, zero or negative number is treated as
+     *                    {@link #MAX_BUFFER_SIZE}
+     * @return buffer size
+     */
+    public static int getBufferSize(int bufferSize, int defaultSize, int maxSize) {
+        if (maxSize < 1 || maxSize > MAX_BUFFER_SIZE) {
+            maxSize = MAX_BUFFER_SIZE;
+        }
+        if (defaultSize < 1) {
+            defaultSize = DEFAULT_BUFFER_SIZE;
+        } else if (defaultSize > maxSize) {
+            defaultSize = maxSize;
+        }
+
+        if (bufferSize < 1) {
+            return defaultSize;
+        }
+
+        return bufferSize > maxSize ? maxSize : bufferSize;
     }
 
     public static char getCloseBracket(char openBracket) {
