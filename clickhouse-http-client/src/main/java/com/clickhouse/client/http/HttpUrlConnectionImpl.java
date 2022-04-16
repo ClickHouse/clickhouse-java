@@ -8,21 +8,23 @@ import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseOutputStream;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseSslContextProvider;
+import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.config.ClickHouseSslMode;
 import com.clickhouse.client.data.ClickHouseExternalTable;
 import com.clickhouse.client.http.config.ClickHouseHttpOption;
 import com.clickhouse.client.logging.Logger;
 import com.clickhouse.client.logging.LoggerFactory;
 
+import java.io.BufferedReader;
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.io.Reader;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -38,7 +40,17 @@ import javax.net.ssl.SSLContext;
 public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
     private static final Logger log = LoggerFactory.getLogger(HttpUrlConnectionImpl.class);
 
-    static final String CONTENT_DISPOSITION_HEADER = "Content-Disposition: form-data; name=\"";
+    private static final byte[] HEADER_CONTENT_DISPOSITION = "Content-Disposition: form-data; name=\""
+            .getBytes(StandardCharsets.US_ASCII);
+    private static final byte[] HEADER_OCTET_STREAM = "Content-Type: application/octet-stream\r\n"
+            .getBytes(StandardCharsets.US_ASCII);
+    private static final byte[] HEADER_BINARY_ENCODING = "Content-Transfer-Encoding: binary\r\n\r\n"
+            .getBytes(StandardCharsets.US_ASCII);
+
+    private static final byte[] SUFFIX_QUERY = "query\"\r\n\r\n".getBytes(StandardCharsets.US_ASCII);
+    private static final byte[] SUFFIX_FORMAT = "_format\"\r\n\r\n".getBytes(StandardCharsets.US_ASCII);
+    private static final byte[] SUFFIX_STRUCTURE = "_structure\"\r\n\r\n".getBytes(StandardCharsets.US_ASCII);
+    private static final byte[] SUFFIX_FILENAME = "\"; filename=\"".getBytes(StandardCharsets.US_ASCII);
 
     private final HttpURLConnection conn;
 
@@ -119,23 +131,28 @@ public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
     private void checkResponse(HttpURLConnection conn) throws IOException {
         if (conn.getResponseCode() != HttpURLConnection.HTTP_OK) {
             String errorCode = conn.getHeaderField("X-ClickHouse-Exception-Code");
-            String encoding = conn.getHeaderField("Content-Encoding");
+            // String encoding = conn.getHeaderField("Content-Encoding");
             String serverName = conn.getHeaderField("X-ClickHouse-Server-Display-Name");
 
-            StringBuilder builder = new StringBuilder();
-            try (Reader reader = new InputStreamReader(
-                    ClickHouseChecker.isNullOrBlank(encoding) ? ClickHouseInputStream.of(conn.getErrorStream())
-                            : ClickHouseClient.getResponseInputStream(config, conn.getErrorStream(), null),
-                    StandardCharsets.UTF_8)) {
-                int c = 0;
-                while ((c = reader.read()) != -1) {
-                    builder.append((char) c);
+            int bufferSize = (int) ClickHouseClientOption.WRITE_BUFFER_SIZE.getDefaultValue();
+            ByteArrayOutputStream output = new ByteArrayOutputStream(bufferSize);
+            ClickHouseInputStream.pipe(conn.getErrorStream(), output, bufferSize);
+            byte[] bytes = output.toByteArray();
+            String errorMsg;
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(
+                    ClickHouseClient.getResponseInputStream(config, new ByteArrayInputStream(bytes), null),
+                    StandardCharsets.UTF_8))) {
+                StringBuilder builder = new StringBuilder();
+                while ((errorMsg = reader.readLine()) != null) {
+                    builder.append(errorMsg).append('\n');
                 }
+                errorMsg = builder.toString();
             } catch (IOException e) {
                 log.warn("Error while reading error message[code=%s] from server [%s]", errorCode, serverName, e);
+                errorMsg = new String(bytes, StandardCharsets.UTF_8);
             }
 
-            throw new IOException(builder.toString());
+            throw new IOException(errorMsg);
         }
     }
 
@@ -154,10 +171,12 @@ public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
     @Override
     protected ClickHouseHttpResponse post(String sql, InputStream data, List<ClickHouseExternalTable> tables,
             Map<String, String> headers) throws IOException {
-        String boundary = null;
+        Charset charset = StandardCharsets.US_ASCII;
+        byte[] boundary = null;
         if (tables != null && !tables.isEmpty()) {
-            boundary = UUID.randomUUID().toString();
-            conn.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + boundary);
+            String uuid = UUID.randomUUID().toString();
+            conn.setRequestProperty("Content-Type", "multipart/form-data; boundary=".concat(uuid));
+            boundary = uuid.getBytes(charset);
         } else {
             conn.setRequestProperty("Content-Type", "text/plain; charset=UTF-8");
         }
@@ -165,40 +184,52 @@ public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
 
         try (ClickHouseOutputStream out = ClickHouseClient.getRequestOutputStream(config, conn.getOutputStream(),
                 null)) {
+            byte[] sqlBytes = sql.getBytes(StandardCharsets.UTF_8);
             if (boundary != null) {
-                String line = "\r\n--" + boundary + "\r\n";
-                ClickHouseInputStream.of(line, CONTENT_DISPOSITION_HEADER, "query\"\r\n\r\n", sql).pipe(out);
-
+                byte[] linePrefix = new byte[] { '\r', '\n', '-', '-' };
+                byte[] lineSuffix = new byte[] { '\r', '\n' };
+                out.writeBytes(linePrefix);
+                out.writeBytes(boundary);
+                out.writeBytes(lineSuffix);
+                out.writeBytes(HEADER_CONTENT_DISPOSITION);
+                out.writeBytes(SUFFIX_QUERY);
+                out.writeBytes(sqlBytes);
                 for (ClickHouseExternalTable t : tables) {
-                    List<String> text = new LinkedList<>();
-                    String tableName = t.getName();
-                    for (String[] pair : new String[][] {
-                            { "_format\"\r\n\r\n", t.getFormat().name() },
-                            { "_structure\"\r\n\r\n", t.getStructure() },
-                            { "\"; filename=\"", tableName + "\"\r\n" },
-                    }) {
-                        text.add(line);
-                        text.add(CONTENT_DISPOSITION_HEADER);
-                        text.add(tableName);
-                        text.add(pair[0]);
-                        text.add(pair[1]);
+                    byte[] tableName = t.getName().getBytes(StandardCharsets.UTF_8);
+                    for (int i = 0; i < 3; i++) {
+                        out.writeBytes(linePrefix);
+                        out.writeBytes(boundary);
+                        out.writeBytes(lineSuffix);
+                        out.writeBytes(HEADER_CONTENT_DISPOSITION);
+                        out.writeBytes(tableName);
+                        if (i == 0) {
+                            out.writeBytes(SUFFIX_FORMAT);
+                            out.writeBytes(t.getFormat().name().getBytes(charset));
+                        } else if (i == 1) {
+                            out.writeBytes(SUFFIX_STRUCTURE);
+                            out.writeBytes(t.getStructure().getBytes(StandardCharsets.UTF_8));
+                        } else {
+                            out.writeBytes(SUFFIX_FILENAME);
+                            out.writeBytes(tableName);
+                            out.writeBytes(new byte[] { '"', '\r', '\n' });
+                            break;
+                        }
                     }
-                    text.add("Content-Type: application/octet-stream\r\n");
-                    text.add("Content-Transfer-Encoding: binary\r\n\r\n");
-                    ClickHouseInputStream.of(text, String.class, null, null).pipe(out);
+                    out.writeBytes(HEADER_OCTET_STREAM);
+                    out.writeBytes(HEADER_BINARY_ENCODING);
                     ClickHouseInputStream.pipe(t.getContent(), out, config.getWriteBufferSize());
                 }
-
-                ClickHouseInputStream.of("\r\n--", boundary, "--\r\n").pipe(out);
+                out.writeBytes(linePrefix);
+                out.writeBytes(boundary);
+                out.writeBytes(new byte[] { '-', '-' });
+                out.writeBytes(lineSuffix);
             } else {
-                ClickHouseInputStream.of(sql).pipe(out);
-
+                out.writeBytes(sqlBytes);
                 if (data != null && data.available() > 0) {
                     // append \n
-                    if (sql.charAt(sql.length() - 1) != '\n') {
+                    if (sqlBytes[sqlBytes.length - 1] != (byte) '\n') {
                         out.write(10);
                     }
-
                     ClickHouseInputStream.pipe(data, out, config.getWriteBufferSize());
                 }
             }
