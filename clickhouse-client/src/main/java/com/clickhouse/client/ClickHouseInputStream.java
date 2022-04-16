@@ -29,7 +29,7 @@ import com.clickhouse.client.stream.WrappedInputStream;
 /**
  * Extended input stream for read optimization. Methods like
  * {@link #readBuffer(int)}, {@link #readByte()}, {@link #readBytes(int)}, and
- * {@link #readCustom(ClickHouseDataReader)} are added to reduce object
+ * {@link #readCustom(ClickHouseDataUpdater)} are added to reduce object
  * creation as well as closing the stream when it reaches end of stream. This
  * class is also responsible for creating various input stream as needed.
  */

@@ -278,6 +278,8 @@ public class ClickHouseByteBuffer implements Serializable {
     /**
      * Reverses the byte array.
      *
+     * @param offset start position
+     * @param length bytes to reserve
      * @return this byte buffer
      */
     public ClickHouseByteBuffer reverse(int offset, int length) {

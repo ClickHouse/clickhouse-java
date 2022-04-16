@@ -183,6 +183,7 @@ public enum ClickHouseDataType {
     /**
      * Checks if any alias uses the given prefix.
      *
+     * @param prefix prefix to check
      * @return true if any alias using the given prefix; false otherwise
      */
     public static boolean mayStartWith(String prefix) {

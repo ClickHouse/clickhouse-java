@@ -46,6 +46,7 @@ public class ClickHouseSimpleResponse implements ClickHouseResponse {
      * @param config  non-null config
      * @param columns list of columns
      * @param values  raw values, which may or may not be null
+     * @param summary response summary
      * @return response object
      */
     public static ClickHouseResponse of(ClickHouseConfig config, List<ClickHouseColumn> columns, Object[][] values,

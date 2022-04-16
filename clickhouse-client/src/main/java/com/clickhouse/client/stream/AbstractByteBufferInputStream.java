@@ -37,6 +37,7 @@ public abstract class AbstractByteBufferInputStream extends ClickHouseInputStrea
      * Update inner buffer as needed.
      *
      * @return remaining bytes in buffer
+     * @throws IOException when failed to update buffer
      */
     protected abstract int updateBuffer() throws IOException;
 
