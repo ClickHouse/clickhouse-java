@@ -45,6 +45,10 @@
             <artifactId>grpc-protobuf</artifactId>
             <scope>provided</scope>
         </dependency>
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-compress</artifactId>
+        </dependency>
         <!-- necessary for Java 9+ -->
         <dependency>
             <groupId>org.apache.tomcat</groupId>

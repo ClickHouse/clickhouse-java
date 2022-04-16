@@ -11,7 +11,7 @@ Keep in mind that `clickhouse-jdbc` is synchronous, and in general it has more o
     <!-- will stop using ru.yandex.clickhouse starting from 0.4.0 -->
     <groupId>com.clickhouse</groupId>
     <artifactId>clickhouse-jdbc</artifactId>
-    <version>0.3.3</version>
+    <version>0.3.2-patch8</version>
 </dependency>
 ```
 
@@ -88,7 +88,7 @@ try (PreparedStatement ps = conn.prepareStatement(
 }
 
 // 2. easier to use but slower compare to input function
-try (PreparedStatement ps = conn.prepareStatement("insert into mytable(* except (desc))")) {
+try (PreparedStatement ps = conn.prepareStatement("insert into mytable(* except (description))")) {
     // the driver will issue query "select * except (description) from mytable where 0" for type inferring
     // since description column is excluded, we know there are only two parameters: col1 and col2
     ps.setString(1, "test"); // id

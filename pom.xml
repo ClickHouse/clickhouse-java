@@ -80,6 +80,7 @@
         <annotations-api.version>6.0.53</annotations-api.version>
         <asm.version>9.2</asm.version>
         <caffeine.version>3.0.5</caffeine.version>
+        <compress.version>1.21</compress.version>
         <disruptor.version>3.4.4</disruptor.version>
         <dnsjava.version>3.5.0</dnsjava.version>
         <fastutil.version>8.5.8</fastutil.version>
@@ -193,6 +194,11 @@
                 <groupId>it.unimi.dsi</groupId>
                 <artifactId>fastutil</artifactId>
                 <version>${fastutil.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.commons</groupId>
+                <artifactId>commons-compress</artifactId>
+                <version>${compress.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.apache.httpcomponents</groupId>

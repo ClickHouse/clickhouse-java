@@ -21,29 +21,32 @@ Note: in general, the new driver(v0.3.2) is a few times faster with less memory 
 
 ## Features
 
-| Category      | Feature                                                      | Supported          | Remark                                                                                                                                       |
-| ------------- | ------------------------------------------------------------ | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| Protocol      | [HTTP](https://clickhouse.com/docs/en/interfaces/http/)      | :white_check_mark: | recommended, defaults to `java.net.HttpURLConnection` and can be changed to `java.net.http.HttpClient`(faster but less stable)               |
-|               | [gRPC](https://clickhouse.com/docs/en/interfaces/grpc/)      | :white_check_mark: | experimental, still missing some features like LZ4 compression                                                                               |
-|               | [TCP/Native](https://clickhouse.com/docs/en/interfaces/tcp/) | :x:                | will be available in 0.3.3                                                                                                                   |
-| Compatibility | Server < 20.7                                                | :x:                | use 0.3.1-patch(or 0.2.6 if you're stuck with JDK 7)                                                                                         |
-|               | Server >= 20.7                                               | :white_check_mark: | use 0.3.2 or above. All [active releases](https://github.com/ClickHouse/ClickHouse/pulls?q=is%3Aopen+is%3Apr+label%3Arelease) are supported. |
-| Data Type     | AggregatedFunction                                           | :x:                | limited to `groupBitmap`                                                                                                                     |
-|               | Array(\*)                                                    | :white_check_mark: |                                                                                                                                              |
-|               | Date\*                                                       | :white_check_mark: |                                                                                                                                              |
-|               | DateTime\*                                                   | :white_check_mark: |                                                                                                                                              |
-|               | Decimal\*                                                    | :white_check_mark: | `SET output_format_decimal_trailing_zeros=1` in 21.9+ for consistency                                                                        |
-|               | Enum\*                                                       | :white_check_mark: | can be treated as both string and integer                                                                                                    |
-|               | Geo Types                                                    | :white_check_mark: |                                                                                                                                              |
-|               | Int\*, UInt\*                                                | :white_check_mark: | UInt64 is mapped to `long`                                                                                                                   |
-|               | IPv\*                                                        | :white_check_mark: |                                                                                                                                              |
-|               | \*String                                                     | :white_check_mark: |                                                                                                                                              |
-|               | Map(\*)                                                      | :white_check_mark: |                                                                                                                                              |
-|               | Nested(\*)                                                   | :white_check_mark: |                                                                                                                                              |
-|               | Tuple(\*)                                                    | :white_check_mark: |                                                                                                                                              |
-|               | UUID                                                         | :white_check_mark: |                                                                                                                                              |
-| Format        | RowBinary                                                    | :white_check_mark: | `RowBinaryWithNamesAndTypes` for query and `RowBinary` for insertion                                                                         |
-|               | TabSeparated                                                 | :white_check_mark: | Does not support as many data types as RowBinary                                                                                             |
+| Category      | Feature                                                      | Supported          | Remark                                                                                                                                             |
+| ------------- | ------------------------------------------------------------ | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Protocol      | [HTTP](https://clickhouse.com/docs/en/interfaces/http/)      | :white_check_mark: | recommended, defaults to `java.net.HttpURLConnection` and can be changed to `java.net.http.HttpClient`(faster but less stable)                     |
+|               | [gRPC](https://clickhouse.com/docs/en/interfaces/grpc/)      | :white_check_mark: | still experimental, known to has [issue](https://github.com/ClickHouse/ClickHouse/issues/28671#issuecomment-1087049993) when using LZ4 compression |
+|               | [TCP/Native](https://clickhouse.com/docs/en/interfaces/tcp/) | :x:                | will be available in 0.3.3                                                                                                                         |
+| Compatibility | Server < 20.7                                                | :x:                | use 0.3.1-patch(or 0.2.6 if you're stuck with JDK 7)                                                                                               |
+|               | Server >= 20.7                                               | :white_check_mark: | use 0.3.2 or above. All [active releases](https://github.com/ClickHouse/ClickHouse/pulls?q=is%3Aopen+is%3Apr+label%3Arelease) are supported.       |
+| Data Type     | AggregatedFunction                                           | :x:                | limited to `groupBitmap`                                                                                                                           |
+|               | Array(\*)                                                    | :white_check_mark: |                                                                                                                                                    |
+|               | Bool                                                         | :white_check_mark: |                                                                                                                                                    |
+|               | Date\*                                                       | :white_check_mark: |                                                                                                                                                    |
+|               | DateTime\*                                                   | :white_check_mark: |                                                                                                                                                    |
+|               | Decimal\*                                                    | :white_check_mark: | `SET output_format_decimal_trailing_zeros=1` in 21.9+ for consistency                                                                              |
+|               | Enum\*                                                       | :white_check_mark: | can be treated as both string and integer                                                                                                          |
+|               | Geo Types                                                    | :white_check_mark: | Point, Ring, Polygon, and MultiPolygon                                                                                                             |
+|               | Int\*, UInt\*                                                | :white_check_mark: | UInt64 is mapped to `long`                                                                                                                         |
+|               | IPv\*                                                        | :white_check_mark: |                                                                                                                                                    |
+|               | Map(\*)                                                      | :white_check_mark: |                                                                                                                                                    |
+|               | Nested(\*)                                                   | :white_check_mark: |                                                                                                                                                    |
+|               | Object('JSON')                                               | :white_check_mark: |                                                                                                                                                    |
+|               | SimpleAggregateFunction                                      | :white_check_mark: |                                                                                                                                                    |
+|               | \*String                                                     | :white_check_mark: |                                                                                                                                                    |
+|               | Tuple(\*)                                                    | :white_check_mark: |                                                                                                                                                    |
+|               | UUID                                                         | :white_check_mark: |                                                                                                                                                    |
+| Format        | RowBinary                                                    | :white_check_mark: | `RowBinaryWithNamesAndTypes` for query and `RowBinary` for insertion                                                                               |
+|               | TabSeparated                                                 | :white_check_mark: | Does not support as many data types as RowBinary                                                                                                   |
 
 ## Configuration
 
@@ -112,7 +115,7 @@ Note: in general, the new driver(v0.3.2) is a few times faster with less memory 
     <groupId>com.clickhouse</groupId>
     <!-- or clickhouse-grpc-client if you prefer gRPC -->
     <artifactId>clickhouse-http-client</artifactId>
-    <version>0.3.3</version>
+    <version>0.3.2-patch8</version>
 </dependency>
 ```
 
@@ -129,11 +132,11 @@ try (ClickHouseClient client = ClickHouseClient.newInstance(preferredProtocol);
     ClickHouseResponse response = client.connect(server)
         .format(preferredFormat)
         .query("select * from numbers(:limit)")
-        .params(1000).execute().get()) {
+        .params(1000).executeAndWait()) {
     // or resp.stream() if you prefer stream API
-    for (ClickHouseRecord record : response.records()) {
-        int num = record.getValue(0).asInteger();
-        String str = record.getValue(0).asString();
+    for (ClickHouseRecord r : response.records()) {
+        int num = r.getValue(0).asInteger();
+        String str = r.getValue(0).asString();
     }
 
     ClickHouseResponseSummary summary = response.getSummary();
@@ -148,7 +151,7 @@ try (ClickHouseClient client = ClickHouseClient.newInstance(preferredProtocol);
     <!-- will stop using ru.yandex.clickhouse starting from 0.4.0  -->
     <groupId>com.clickhouse</groupId>
     <artifactId>clickhouse-jdbc</artifactId>
-    <version>0.3.3</version>
+    <version>0.3.2-patch8</version>
     <!-- below is only needed when all you want is a shaded jar -->
     <classifier>http</classifier>
     <exclusions>
@@ -209,7 +212,7 @@ cd clickhouse-benchmark
 mvn -Drelease clean package
 # single thread mode
 java -DdbHost=localhost -jar target/benchmarks.jar -t 1 \
-    -p client=clickhouse-http-jdbc1 -p connection=reuse \
+    -p client=clickhouse-jdbc -p connection=reuse \
     -p statement=prepared Query.selectInt8
 ```
 
@@ -225,6 +228,7 @@ In the case you prefer to test against an existing server, please follow instruc
 - add below two configuration files to the existing server and expose all ports for external access
   - [ports.xml](../../blob/master/clickhouse-client/src/test/resources/containers/clickhouse-server/config.d/ports.xml) - enable all ports
   - and [users.xml](../../blob/master/clickhouse-client/src/test/resources/containers/clickhouse-server/users.d/users.xml) - accounts used for integration test
+  Note: you may need to change root element from `clickhouse` to `yandex` when testing old version of ClickHouse.
 - put `test.properties` under either `~/.clickhouse` or `src/test/resources` of your project, with content like below:
   ```properties
   clickhouseServer=x.x.x.x
