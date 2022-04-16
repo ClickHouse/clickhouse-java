@@ -36,12 +36,12 @@
                 <database>system</database>
             </allow_databases>
         </test>
+        <!-- uncomment to test TLS client authentication
         <me>
-            <!-- unfortunately this is required for old version like 21.8 -->
-            <no_password />
             <ssl_certificates>
                 <common_name>me</common_name>
             </ssl_certificates>
         </me>
+        -->
     </users>
 </clickhouse>
