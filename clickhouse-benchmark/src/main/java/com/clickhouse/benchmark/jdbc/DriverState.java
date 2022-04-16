@@ -5,7 +5,6 @@ import java.sql.Driver;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Properties;
-import java.util.UUID;
 
 import org.openjdk.jmh.annotations.Level;
 import org.openjdk.jmh.annotations.Param;
@@ -20,7 +19,7 @@ import com.clickhouse.benchmark.ServerState;
 
 @State(Scope.Thread)
 public class DriverState extends BaseState {
-    @Param(value = { "clickhouse4j", "clickhouse-http-jdbc", "clickhouse-grpc-jdbc", "clickhouse-jdbc",
+    @Param(value = { "clickhouse-jdbc", "clickhouse-grpc-jdbc", "clickhouse-legacy-jdbc", "clickhouse4j",
             "clickhouse-native-jdbc", "mariadb-java-client", "mysql-connector-java", "postgresql-jdbc" })
     private String client;
 
@@ -54,7 +53,11 @@ public class DriverState extends BaseState {
                     serverState.getPassword(), compression, additional);
             // ClickHouseDefines.WRITE_COMPRESS = false;
             // ClickHouseDefines.READ_DECOMPRESS = Boolean.parseBoolean(compression);
-            conn = driver.connect(url, new Properties());
+            Properties props = new Properties();
+            if (jdbcDriver.getClassName().startsWith("com.clickhouse.jdbc.")) {
+                props.setProperty("format", System.getProperty("format", "RowBinaryWithNamesAndTypes"));
+            }
+            conn = driver.connect(url, props);
 
             try (Statement s = conn.createStatement()) {
                 // s.execute("drop table if exists system.test_insert");
