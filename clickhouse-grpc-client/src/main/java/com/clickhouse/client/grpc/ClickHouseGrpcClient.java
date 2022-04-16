@@ -1,7 +1,6 @@
 package com.clickhouse.client.grpc;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -23,6 +22,7 @@ import com.clickhouse.client.ClickHouseCompression;
 import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseCredentials;
 import com.clickhouse.client.ClickHouseException;
+import com.clickhouse.client.ClickHouseInputStream;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseRequest;
@@ -32,9 +32,6 @@ import com.clickhouse.client.config.ClickHouseOption;
 import com.clickhouse.client.data.ClickHouseExternalTable;
 import com.clickhouse.client.grpc.config.ClickHouseGrpcOption;
 import com.clickhouse.client.grpc.impl.ClickHouseGrpc;
-import com.clickhouse.client.grpc.impl.Compression;
-import com.clickhouse.client.grpc.impl.CompressionAlgorithm;
-import com.clickhouse.client.grpc.impl.CompressionLevel;
 import com.clickhouse.client.grpc.impl.ExternalTable;
 import com.clickhouse.client.grpc.impl.NameAndType;
 import com.clickhouse.client.grpc.impl.QueryInfo;
@@ -45,66 +42,6 @@ import com.clickhouse.client.logging.LoggerFactory;
 
 public class ClickHouseGrpcClient extends AbstractClient<ManagedChannel> {
     private static final Logger log = LoggerFactory.getLogger(ClickHouseGrpcClient.class);
-
-    private static final Compression COMPRESSION_DISABLED = Compression.newBuilder()
-            .setAlgorithm(CompressionAlgorithm.NO_COMPRESSION).setLevel(CompressionLevel.COMPRESSION_NONE).build();
-
-    protected static String getRequestEncoding(ClickHouseConfig config) {
-        if (config.isDecompressClientRequet()) {
-            return ClickHouseCompression.NONE.encoding();
-        }
-
-        String encoding = ClickHouseCompression.GZIP.encoding();
-        switch (config.getDecompressAlgorithmForClientRequest()) {
-            case GZIP:
-                break;
-            default:
-                log.debug("Unsupported encoding [%s], change to [%s]",
-                        config.getDecompressAlgorithmForClientRequest().encoding(),
-                        encoding);
-                break;
-        }
-
-        return encoding;
-    }
-
-    protected static Compression getResultCompression(ClickHouseConfig config) {
-        if (!config.isCompressServerResponse()) {
-            return COMPRESSION_DISABLED;
-        }
-
-        Compression.Builder builder = Compression.newBuilder();
-        CompressionAlgorithm algorithm = CompressionAlgorithm.GZIP;
-        CompressionLevel level = CompressionLevel.COMPRESSION_MEDIUM;
-        switch (config.getDecompressAlgorithmForClientRequest()) {
-            case NONE:
-                algorithm = CompressionAlgorithm.NO_COMPRESSION;
-                break;
-            case DEFLATE:
-                algorithm = CompressionAlgorithm.DEFLATE;
-                break;
-            case GZIP:
-                break;
-            // case STREAM_GZIP:
-            default:
-                log.debug("Unsupported algorithm [%s], change to [%s]", config.getDecompressAlgorithmForClientRequest(),
-                        algorithm);
-                break;
-        }
-
-        int l = config.getDecompressLevelForClientRequest();
-        if (l <= 0) {
-            level = CompressionLevel.COMPRESSION_NONE;
-        } else if (l < 3) {
-            level = CompressionLevel.COMPRESSION_LOW;
-        } else if (l < 7) {
-            level = CompressionLevel.COMPRESSION_MEDIUM;
-        } else {
-            level = CompressionLevel.COMPRESSION_HIGH;
-        }
-
-        return builder.setAlgorithm(algorithm).setLevel(level).build();
-    }
 
     protected static QueryInfo convert(ClickHouseNode server, ClickHouseRequest<?> request) {
         ClickHouseConfig config = request.getConfig();
@@ -134,15 +71,22 @@ public class ClickHouseGrpcClient extends AbstractClient<ManagedChannel> {
             builder.setQueryId(optionalValue.get());
         }
 
-        builder.setResultCompression(getResultCompression(config));
+        ClickHouseCompression outputCompression = config.isCompressServerResponse()
+                ? config.getCompressAlgorithmForServerResponse()
+                : ClickHouseCompression.NONE;
+        builder.setOutputCompressionType(outputCompression.encoding());
 
         // builder.setNextQueryInfo(true);
         for (Entry<String, Object> s : request.getSettings().entrySet()) {
             builder.putSettings(s.getKey(), String.valueOf(s.getValue()));
         }
 
-        Optional<InputStream> input = request.getInputStream();
+        ClickHouseCompression inputCompression = config.isDecompressClientRequet()
+                ? config.getDecompressAlgorithmForClientRequest()
+                : ClickHouseCompression.NONE;
+        Optional<ClickHouseInputStream> input = request.getInputStream();
         if (input.isPresent()) {
+            builder.setInputCompressionType(inputCompression.encoding());
             try {
                 builder.setInputData(ByteString.readFrom(input.get()));
             } catch (IOException e) {
@@ -158,6 +102,7 @@ public class ClickHouseGrpcClient extends AbstractClient<ManagedChannel> {
                     b.addColumns(NameAndType.newBuilder().setName(c.getColumnName()).setType(c.getOriginalTypeName())
                             .build());
                 }
+                b.setCompressionType(inputCompression.encoding());
                 if (external.getFormat() != null) {
                     b.setFormat(external.getFormat().name());
                 }
@@ -235,7 +180,6 @@ public class ClickHouseGrpcClient extends AbstractClient<ManagedChannel> {
             ManagedChannel channel, ClickHouseNode server) {
         // reuse stub?
         ClickHouseGrpc.ClickHouseStub stub = ClickHouseGrpc.newStub(channel);
-        stub.withCompression(getRequestEncoding(sealedRequest.getConfig()));
 
         final ClickHouseStreamObserver responseObserver = new ClickHouseStreamObserver(sealedRequest.getConfig(),
                 server);
@@ -247,8 +191,6 @@ public class ClickHouseGrpcClient extends AbstractClient<ManagedChannel> {
             fill(sealedRequest, requestObserver);
         }
 
-        // return new ClickHouseGrpcFuture(server, sealedRequest, requestObserver,
-        // responseObserver);
         return CompletableFuture.supplyAsync(() -> {
             ClickHouseConfig config = sealedRequest.getConfig();
             int timeout = config.getConnectionTimeout() / 1000
@@ -284,7 +226,6 @@ public class ClickHouseGrpcClient extends AbstractClient<ManagedChannel> {
     protected CompletableFuture<ClickHouseResponse> executeSync(ClickHouseRequest<?> sealedRequest,
             ManagedChannel channel, ClickHouseNode server) {
         ClickHouseGrpc.ClickHouseBlockingStub stub = ClickHouseGrpc.newBlockingStub(channel);
-        stub.withCompression(getRequestEncoding(sealedRequest.getConfig()));
 
         // TODO not as elegant as ClickHouseImmediateFuture :<
         try {

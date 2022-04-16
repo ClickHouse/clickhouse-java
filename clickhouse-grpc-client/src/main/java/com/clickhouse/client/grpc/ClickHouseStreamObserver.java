@@ -1,7 +1,6 @@
 package com.clickhouse.client.grpc;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import io.grpc.Status;
@@ -10,6 +9,7 @@ import io.grpc.stub.StreamObserver;
 import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseDataStreamFactory;
 import com.clickhouse.client.ClickHouseException;
+import com.clickhouse.client.ClickHouseInputStream;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseResponseSummary;
 import com.clickhouse.client.ClickHouseUtils;
@@ -31,6 +31,7 @@ public class ClickHouseStreamObserver implements StreamObserver<Result> {
     private final CountDownLatch finishLatch;
 
     private final ClickHousePipedStream stream;
+    private final ClickHouseInputStream input;
 
     private final ClickHouseResponseSummary summary;
 
@@ -43,6 +44,7 @@ public class ClickHouseStreamObserver implements StreamObserver<Result> {
         this.finishLatch = new CountDownLatch(1);
 
         this.stream = ClickHouseDataStreamFactory.getInstance().createPipedStream(config);
+        this.input = ClickHouseGrpcResponse.getInput(config, this.stream.getInput());
 
         this.summary = new ClickHouseResponseSummary(null, null);
 
@@ -197,7 +199,7 @@ public class ClickHouseStreamObserver implements StreamObserver<Result> {
         return finishLatch.await(timeout, unit);
     }
 
-    public InputStream getInputStream() {
-        return stream.getInput();
+    public ClickHouseInputStream getInputStream() {
+        return this.input;
     }
 }
