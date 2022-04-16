@@ -2,6 +2,7 @@ package com.clickhouse.client.grpc;
 
 import org.apache.commons.compress.compressors.lz4.FramedLZ4CompressorInputStream;
 import org.testng.Assert;
+import org.testng.SkipException;
 import org.testng.annotations.Test;
 
 import java.io.ByteArrayInputStream;
@@ -13,6 +14,7 @@ import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseRecord;
 import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.ClickHouseResponseSummary;
+import com.clickhouse.client.ClickHouseVersion;
 import com.clickhouse.client.ClientIntegrationTest;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.ClickHouseFormat;
@@ -21,6 +23,10 @@ import com.clickhouse.client.ClickHouseInputStream;
 public class ClickHouseGrpcClientTest extends ClientIntegrationTest {
     @Override
     protected ClickHouseProtocol getProtocol() {
+        if (!ClickHouseVersion.of(System.getProperty("clickhouseVersion", "latest")).check("[22.3,)")) {
+            throw new SkipException("Skip gRPC client testing unless ClickHouse is 22.3 or above");
+        }
+
         return ClickHouseProtocol.GRPC;
     }
 
