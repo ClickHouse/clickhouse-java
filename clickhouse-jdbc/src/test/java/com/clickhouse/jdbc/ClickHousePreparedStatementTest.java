@@ -46,8 +46,8 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
                 new Object[] { "Bool", "false", "false" },
                 new Object[] { "Date", "1", "1970-01-02" },
                 new Object[] { "Date32", "-1", "1969-12-31" },
-                new Object[] { "DateTime32", "'1970-01-01 00:00:01'", "1970-01-01 00:00:01" },
-                new Object[] { "DateTime64(3)", "'1969-12-31 23:59:59.123'", "1969-12-31 23:59:59.123" },
+                new Object[] { "DateTime32('UTC')", "'1970-01-01 00:00:01'", "1970-01-01 00:00:01" },
+                new Object[] { "DateTime64(3, 'UTC')", "'1969-12-31 23:59:59.123'", "1969-12-31 23:59:59.123" },
                 new Object[] { "Decimal(10,4)", "10.1234", "10.1234" },
                 new Object[] { "Enum8('x'=5,'y'=6)", "'y'", "y" },
                 new Object[] { "Enum8('x'=5,'y'=6)", "5", "x" },
@@ -1014,6 +1014,10 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
                 ClickHouseFormat.TabSeparatedWithNamesAndTypes.name());
         String tableName = "test_insert_default_value_" + columnType.split("\\(")[0].trim().toLowerCase();
         try (ClickHouseConnection conn = newConnection(props); Statement s = conn.createStatement()) {
+            if (conn.getUri().toString().contains(":grpc:")) {
+                // skip gRPC tests
+                return;
+            }
             s.execute(String.format("drop table if exists %s; ", tableName)
                     + String.format("create table %s(id Int8, v %s DEFAULT %s)engine=Memory", tableName, columnType,
                             defaultExpr));
