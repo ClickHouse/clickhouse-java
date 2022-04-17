@@ -321,16 +321,18 @@ public final class ClickHouseColumn implements Serializable {
                     StringBuilder sb = new StringBuilder();
                     i = ClickHouseUtils.readNameOrQuotedString(args, i, len, sb);
                     String modifier = sb.toString();
+                    String normalizedModifier = modifier.toUpperCase();
                     sb.setLength(0);
                     boolean startsWithNot = false;
-                    if ("not".equalsIgnoreCase(modifier)) {
+                    if ("NOT".equals(normalizedModifier)) {
                         startsWithNot = true;
                         i = ClickHouseUtils.readNameOrQuotedString(args, i, len, sb);
                         modifier = sb.toString();
+                        normalizedModifier = modifier.toUpperCase();
                         sb.setLength(0);
                     }
 
-                    if ("null".equalsIgnoreCase(modifier)) {
+                    if ("NULL".equals(normalizedModifier)) {
                         if (nullable) {
                             throw new IllegalArgumentException("Nullable and NULL cannot be used together");
                         }
@@ -339,14 +341,14 @@ public final class ClickHouseColumn implements Serializable {
                         break;
                     } else if (startsWithNot) {
                         throw new IllegalArgumentException("Expect keyword NULL after NOT");
-                    } else if ("alias".equalsIgnoreCase(modifier) || "codec".equalsIgnoreCase(modifier)
-                            || "default".equalsIgnoreCase(modifier) || "materialized".equalsIgnoreCase(modifier)
-                            || "ttl".equalsIgnoreCase(modifier)) { // stop words
+                    } else if ("ALIAS".equals(normalizedModifier) || "CODEC".equals(normalizedModifier)
+                            || "DEFAULT".equals(normalizedModifier) || "MATERIALIZED".equals(normalizedModifier)
+                            || "TTL".equals(normalizedModifier)) { // stop words
                         i = ClickHouseUtils.skipContentsUntil(args, i, len, ',') - 1;
                         break;
                     } else {
                         if ((name == null || name.isEmpty())
-                                && !ClickHouseDataType.mayStartWith(builder.toString())) {
+                                && !ClickHouseDataType.mayStartWith(builder.toString(), normalizedModifier)) {
                             return readColumn(args, i - modifier.length(), len, builder.toString(), list);
                         } else {
                             builder.append(' ');
