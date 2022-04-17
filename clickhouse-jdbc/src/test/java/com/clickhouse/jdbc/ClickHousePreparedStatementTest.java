@@ -36,6 +36,7 @@ import com.clickhouse.jdbc.internal.InputBasedPreparedStatement;
 import com.clickhouse.jdbc.internal.SqlBasedPreparedStatement;
 
 import org.testng.Assert;
+import org.testng.SkipException;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
@@ -1015,8 +1016,9 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
         String tableName = "test_insert_default_value_" + columnType.split("\\(")[0].trim().toLowerCase();
         try (ClickHouseConnection conn = newConnection(props); Statement s = conn.createStatement()) {
             if (conn.getUri().toString().contains(":grpc:")) {
-                // skip gRPC tests
-                return;
+                throw new SkipException("Skip gRPC test");
+            } else if (!conn.getServerVersion().check("[21.8,)")) {
+                throw new SkipException("Skip test when ClickHouse is older than 21.8");
             }
             s.execute(String.format("drop table if exists %s; ", tableName)
                     + String.format("create table %s(id Int8, v %s DEFAULT %s)engine=Memory", tableName, columnType,
@@ -1053,8 +1055,8 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
             }
             Assert.assertEquals(rowCount, 3);
         } catch (SQLException e) {
-            // 'Unknown data type family' or 'Missing columns'
-            if (e.getErrorCode() == 50 || e.getErrorCode() == 47) {
+            // 'Unknown data type family', 'Missing columns' or 'Cannot create table column'
+            if (e.getErrorCode() == 50 || e.getErrorCode() == 47 || e.getErrorCode() == 44) {
                 return;
             }
             throw e;

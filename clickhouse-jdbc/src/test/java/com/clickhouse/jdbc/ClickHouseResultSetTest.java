@@ -22,6 +22,7 @@ import com.clickhouse.client.data.ClickHouseDateTimeValue;
 import com.clickhouse.client.data.ClickHouseOffsetDateTimeValue;
 
 import org.testng.Assert;
+import org.testng.SkipException;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
@@ -176,6 +177,10 @@ public class ClickHouseResultSetTest extends JdbcIntegrationTest {
     public void testMap() throws SQLException {
         try (ClickHouseConnection conn = newConnection(new Properties());
                 Statement stmt = conn.createStatement()) {
+            if (!conn.getServerVersion().check("[21.8,)")) {
+                throw new SkipException("Skip test when ClickHouse version is older than 21.8");
+            }
+
             stmt.execute("drop table if exists test_map_of_array; "
                     + "create table test_map_of_array(id Int8, m0 Map(String, Array(Nullable(DateTime64(3)))), m1 Map(String, Array(Nullable(DateTime64(3, 'Asia/Shanghai'))))) ENGINE = Memory; "
                     + "insert into test_map_of_array values(1, { 'a' : [], 'b' : [ '2022-03-30 00:00:00.123', null ] }, { 'a' : [], 'b' : [ '2022-03-30 00:00:00.123', null ] })");
