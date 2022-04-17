@@ -64,6 +64,11 @@ public enum ClickHouseDataType {
     Decimal128(BigDecimal.class, true, false, true, 16, 38, 38, 0, 38),
     Decimal256(BigDecimal.class, true, false, true, 32, 76, 20, 0, 76),
     UUID(UUID.class, false, true, false, 16, 69, 0, 0, 0),
+    /**
+     * Enum data type.
+     *
+     * @deprecated will be removed in v0.3.3, please use {@link #Enum8} instead
+     */
     @Deprecated
     Enum(String.class, true, true, false, 1, 0, 0, 0, 0),
     Enum8(String.class, true, true, false, 1, 0, 0, 0, 0), // "ENUM"),
@@ -85,6 +90,8 @@ public enum ClickHouseDataType {
     Map(Map.class, true, true, false, 0, 0, 0, 0, 0),
     Nested(Object.class, true, true, false, 0, 0, 0, 0, 0),
     Tuple(List.class, true, true, false, 0, 0, 0, 0, 0),
+    Object(Object.class, true, true, false, 0, 0, 0, 0, 0),
+    JSON(Object.class, false, false, false, 0, 0, 0, 0, 0), // same as Object('JSON')
     Point(Object.class, false, true, true, 33, 0, 0, 0, 0), // same as Tuple(Float64, Float64)
     Polygon(Object.class, false, true, true, 0, 0, 0, 0, 0), // same as Array(Ring)
     MultiPolygon(Object.class, false, true, true, 0, 0, 0, 0, 0), // same as Array(Polygon)
@@ -171,6 +178,27 @@ public enum ClickHouseDataType {
         }
 
         return types;
+    }
+
+    /**
+     * Checks if any alias uses the given prefix.
+     *
+     * @param prefix prefix to check
+     * @return true if any alias using the given prefix; false otherwise
+     */
+    public static boolean mayStartWith(String prefix) {
+        if (prefix == null || prefix.isEmpty()) {
+            return false;
+        }
+
+        prefix = prefix.toUpperCase();
+        for (String alias : allAliases) {
+            if (alias.startsWith(prefix)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -324,7 +352,8 @@ public enum ClickHouseDataType {
      * @return true if it could be a nested structure; false otherwise
      */
     public boolean isNested() {
-        return this == AggregateFunction || this == Array || this == Map || this == Nested || this == Tuple;
+        return this == AggregateFunction || this == Array || this == Map || this == Nested || this == Tuple
+                || this == Object || this == JSON;
     }
 
     /**

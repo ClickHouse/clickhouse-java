@@ -6,7 +6,6 @@ import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import com.clickhouse.client.ClickHouseChecker;
 import com.clickhouse.client.ClickHouseEnum;
-import com.clickhouse.client.ClickHouseUtils;
 import com.clickhouse.client.ClickHouseValue;
 import com.clickhouse.client.ClickHouseValues;
 
@@ -234,9 +233,7 @@ public class ClickHouseEnumValue implements ClickHouseValue {
 
     @Override
     public String toSqlExpression() {
-        return isNull ? ClickHouseValues.NULL_EXPR
-                : new StringBuilder().append('\'').append(ClickHouseUtils.escape(type.name(value), '\'')).append('\'')
-                        .toString();
+        return isNull ? ClickHouseValues.NULL_EXPR : Integer.toString(value);
     }
 
     @Override

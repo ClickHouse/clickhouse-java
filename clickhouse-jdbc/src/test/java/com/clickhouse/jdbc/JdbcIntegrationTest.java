@@ -127,8 +127,9 @@ public abstract class JdbcIntegrationTest extends BaseIntegrationTest {
             properties.setProperty("password", "");
         }
 
-        Connection conn = DriverManager.getConnection(buildJdbcUrl(ClickHouseProtocol.MYSQL, "jdbc:mysql://", dbName),
-                properties);
+        String url = buildJdbcUrl(ClickHouseProtocol.MYSQL, "jdbc:mysql://", dbName);
+        url += url.indexOf('?') > 0 ? "&useSSL=false" : "?useSSL=false";
+        Connection conn = DriverManager.getConnection(url, properties);
 
         try (Statement stmt = conn.createStatement()) {
             stmt.execute("CREATE DATABASE IF NOT EXISTS " + dbName);

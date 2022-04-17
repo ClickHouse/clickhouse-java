@@ -1,4 +1,4 @@
-package com.clickhouse.client.data;
+package com.clickhouse.client.stream;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -6,14 +6,15 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
 import com.clickhouse.client.config.ClickHouseClientOption;
+import com.clickhouse.client.data.BinaryStreamUtilsTest;
 
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
-public class ClickHouseLZ4OutputStreamTest {
+public class Lz4OutputStreamTest {
     private byte[] genCompressedByts(int b, int length, int blockSize) throws IOException {
         ByteArrayOutputStream bas = new ByteArrayOutputStream(blockSize * 512);
-        try (ClickHouseLZ4OutputStream out = new ClickHouseLZ4OutputStream(bas, blockSize)) {
+        try (Lz4OutputStream out = new Lz4OutputStream(bas, blockSize, null)) {
             for (int i = 0; i < length; i++) {
                 out.write(b);
             }
@@ -29,8 +30,8 @@ public class ClickHouseLZ4OutputStreamTest {
     public void testCompressAndDecompressQuery() throws IOException {
         ByteArrayOutputStream bas = new ByteArrayOutputStream(100);
         String sql = "select '4d67f5c7-60ae-4a00-8ed1-701429fa2cdf'";
-        try (ClickHouseLZ4OutputStream out = new ClickHouseLZ4OutputStream(bas,
-                (int) ClickHouseClientOption.MAX_COMPRESS_BLOCK_SIZE.getDefaultValue())) {
+        try (Lz4OutputStream out = new Lz4OutputStream(bas,
+                (int) ClickHouseClientOption.MAX_COMPRESS_BLOCK_SIZE.getDefaultValue(), null)) {
             out.write(sql.getBytes(StandardCharsets.UTF_8));
             out.flush();
         }
@@ -42,7 +43,7 @@ public class ClickHouseLZ4OutputStreamTest {
                 0x2D, 0x34, 0x61, 0x30, 0x30, 0x2D, 0x38, 0x65, 0x64, 0x31, 0x2D, 0x37, 0x30, 0x31, 0x34, 0x32,
                 0x39, 0x66, 0x61, 0x32, 0x63, 0x64, 0x66, 0x27));
 
-        try (ClickHouseLZ4InputStream in = new ClickHouseLZ4InputStream(new ByteArrayInputStream(bas.toByteArray()))) {
+        try (Lz4InputStream in = new Lz4InputStream(new ByteArrayInputStream(bas.toByteArray()))) {
             byte[] bytes = new byte[1024];
             int len = in.read(bytes);
             String s = new String(bytes, 0, len, StandardCharsets.UTF_8);
@@ -54,7 +55,7 @@ public class ClickHouseLZ4OutputStreamTest {
     public void testWrite() throws IOException {
         ByteArrayOutputStream bas = new ByteArrayOutputStream(64);
 
-        try (ClickHouseLZ4OutputStream out = new ClickHouseLZ4OutputStream(bas, 2)) {
+        try (Lz4OutputStream out = new Lz4OutputStream(bas, 2, null)) {
             byte[] bytes = new byte[] { (byte) -36, (byte) -86, (byte) 31, (byte) 113, (byte) -106, (byte) 44,
                     (byte) 99, (byte) 96, (byte) 112, (byte) -7, (byte) 47, (byte) 15, (byte) -63, (byte) 39,
                     (byte) -73, (byte) -104, (byte) -126, (byte) 12, (byte) 0, (byte) 0, (byte) 0, (byte) 2, (byte) 0,
@@ -83,14 +84,14 @@ public class ClickHouseLZ4OutputStreamTest {
         Assert.assertThrows(NullPointerException.class, new Assert.ThrowingRunnable() {
             @Override
             public void run() throws Throwable {
-                try (ClickHouseLZ4OutputStream out = new ClickHouseLZ4OutputStream(new ByteArrayOutputStream(), 3)) {
+                try (Lz4OutputStream out = new Lz4OutputStream(new ByteArrayOutputStream(), 3, null)) {
                     out.write(null);
                 }
             }
         });
 
         ByteArrayOutputStream bas = new ByteArrayOutputStream(64);
-        try (ClickHouseLZ4OutputStream out = new ClickHouseLZ4OutputStream(bas, 3)) {
+        try (Lz4OutputStream out = new Lz4OutputStream(bas, 3, null)) {
             out.write(new byte[0]);
             Assert.assertEquals(bas.toByteArray(), new byte[0]);
             out.flush();
@@ -105,7 +106,7 @@ public class ClickHouseLZ4OutputStreamTest {
         }
 
         bas = new ByteArrayOutputStream(64);
-        try (ClickHouseLZ4OutputStream out = new ClickHouseLZ4OutputStream(bas, 3)) {
+        try (Lz4OutputStream out = new Lz4OutputStream(bas, 3, null)) {
             byte[] bytes = new byte[] { (byte) 13, (byte) 13, (byte) 13 };
             out.write(bytes);
             byte[] expected = genCompressedByts(13, 3, 3);
@@ -116,7 +117,7 @@ public class ClickHouseLZ4OutputStreamTest {
         }
 
         bas = new ByteArrayOutputStream(64);
-        try (ClickHouseLZ4OutputStream out = new ClickHouseLZ4OutputStream(bas, 3)) {
+        try (Lz4OutputStream out = new Lz4OutputStream(bas, 3, null)) {
             byte[] bytes = new byte[] { (byte) 13, (byte) 13, (byte) 13, (byte) 13 };
             out.write(bytes);
             Assert.assertEquals(bas.toByteArray(), genCompressedByts(13, 3, 3));
@@ -126,7 +127,7 @@ public class ClickHouseLZ4OutputStreamTest {
         }
 
         bas = new ByteArrayOutputStream(64);
-        try (ClickHouseLZ4OutputStream out = new ClickHouseLZ4OutputStream(bas, 3)) {
+        try (Lz4OutputStream out = new Lz4OutputStream(bas, 3, null)) {
             byte[] bytes = new byte[] { (byte) 13, (byte) 13, (byte) 13, (byte) 13, (byte) 13, (byte) 13 };
             out.write(bytes);
             byte[] expected = genCompressedByts(13, 6, 3);
@@ -137,7 +138,7 @@ public class ClickHouseLZ4OutputStreamTest {
         }
 
         bas = new ByteArrayOutputStream(64);
-        try (ClickHouseLZ4OutputStream out = new ClickHouseLZ4OutputStream(bas, 3)) {
+        try (Lz4OutputStream out = new Lz4OutputStream(bas, 3, null)) {
             byte[] bytes = new byte[] { (byte) 13, (byte) 13, (byte) 13, (byte) 13, (byte) 13, (byte) 13, (byte) 13 };
             out.write(bytes);
             Assert.assertEquals(bas.toByteArray(), genCompressedByts(13, 6, 3));
@@ -152,7 +153,7 @@ public class ClickHouseLZ4OutputStreamTest {
         Assert.assertThrows(NullPointerException.class, new Assert.ThrowingRunnable() {
             @Override
             public void run() throws Throwable {
-                try (ClickHouseLZ4OutputStream out = new ClickHouseLZ4OutputStream(new ByteArrayOutputStream(), 3)) {
+                try (Lz4OutputStream out = new Lz4OutputStream(new ByteArrayOutputStream(), 3, null)) {
                     out.write(null, 0, 1);
                 }
             }
@@ -160,7 +161,7 @@ public class ClickHouseLZ4OutputStreamTest {
         Assert.assertThrows(IndexOutOfBoundsException.class, new Assert.ThrowingRunnable() {
             @Override
             public void run() throws Throwable {
-                try (ClickHouseLZ4OutputStream out = new ClickHouseLZ4OutputStream(new ByteArrayOutputStream(), 3)) {
+                try (Lz4OutputStream out = new Lz4OutputStream(new ByteArrayOutputStream(), 3, null)) {
                     out.write(new byte[0], 0, 1);
                 }
             }
@@ -168,7 +169,7 @@ public class ClickHouseLZ4OutputStreamTest {
         Assert.assertThrows(IndexOutOfBoundsException.class, new Assert.ThrowingRunnable() {
             @Override
             public void run() throws Throwable {
-                try (ClickHouseLZ4OutputStream out = new ClickHouseLZ4OutputStream(new ByteArrayOutputStream(), 3)) {
+                try (Lz4OutputStream out = new Lz4OutputStream(new ByteArrayOutputStream(), 3, null)) {
                     out.write(new byte[0], -1, 0);
                 }
             }
@@ -176,7 +177,7 @@ public class ClickHouseLZ4OutputStreamTest {
         Assert.assertThrows(IndexOutOfBoundsException.class, new Assert.ThrowingRunnable() {
             @Override
             public void run() throws Throwable {
-                try (ClickHouseLZ4OutputStream out = new ClickHouseLZ4OutputStream(new ByteArrayOutputStream(), 3)) {
+                try (Lz4OutputStream out = new Lz4OutputStream(new ByteArrayOutputStream(), 3, null)) {
                     out.write(new byte[1], 1, 1);
                 }
             }
@@ -185,7 +186,7 @@ public class ClickHouseLZ4OutputStreamTest {
         final byte[] bytes = new byte[] { (byte) 0, (byte) 13, (byte) 13, (byte) 13, (byte) 13, (byte) 13, (byte) 13,
                 (byte) 13, (byte) 0 };
         ByteArrayOutputStream bas = new ByteArrayOutputStream(64);
-        try (ClickHouseLZ4OutputStream out = new ClickHouseLZ4OutputStream(bas, 3)) {
+        try (Lz4OutputStream out = new Lz4OutputStream(bas, 3, null)) {
             out.write(bytes, 1, 0);
             Assert.assertEquals(bas.toByteArray(), new byte[0]);
             out.flush();
@@ -198,7 +199,7 @@ public class ClickHouseLZ4OutputStreamTest {
         }
 
         bas = new ByteArrayOutputStream(64);
-        try (ClickHouseLZ4OutputStream out = new ClickHouseLZ4OutputStream(bas, 3)) {
+        try (Lz4OutputStream out = new Lz4OutputStream(bas, 3, null)) {
             out.write(bytes, 1, 3);
             byte[] expected = genCompressedByts(13, 3, 3);
             Assert.assertEquals(bas.toByteArray(), expected);
@@ -208,7 +209,7 @@ public class ClickHouseLZ4OutputStreamTest {
         }
 
         bas = new ByteArrayOutputStream(64);
-        try (ClickHouseLZ4OutputStream out = new ClickHouseLZ4OutputStream(bas, 3)) {
+        try (Lz4OutputStream out = new Lz4OutputStream(bas, 3, null)) {
             out.write(bytes, 1, 4);
             Assert.assertEquals(bas.toByteArray(), genCompressedByts(13, 3, 3));
             out.flush();
@@ -217,7 +218,7 @@ public class ClickHouseLZ4OutputStreamTest {
         }
 
         bas = new ByteArrayOutputStream(64);
-        try (ClickHouseLZ4OutputStream out = new ClickHouseLZ4OutputStream(bas, 3)) {
+        try (Lz4OutputStream out = new Lz4OutputStream(bas, 3, null)) {
             out.write(bytes, 1, 6);
             byte[] expected = genCompressedByts(13, 6, 3);
             Assert.assertEquals(bas.toByteArray(), expected);
@@ -227,7 +228,7 @@ public class ClickHouseLZ4OutputStreamTest {
         }
 
         bas = new ByteArrayOutputStream(64);
-        try (ClickHouseLZ4OutputStream out = new ClickHouseLZ4OutputStream(bas, 3)) {
+        try (Lz4OutputStream out = new Lz4OutputStream(bas, 3, null)) {
             out.write(bytes, 1, 7);
             Assert.assertEquals(bas.toByteArray(), genCompressedByts(13, 6, 3));
             out.flush();

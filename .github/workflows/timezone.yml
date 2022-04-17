@@ -64,6 +64,6 @@ jobs:
           mvn --batch-mode --update-snapshots \
             --projects clickhouse-jdbc \
             -DclickhouseTimezone=${{ matrix.serverTz }} \
-            -DclickhouseVersion=21.8 \
+            -DclickhouseVersion=22.3 \
             -Duser.timezone=${{ matrix.clientTz }} \
             --also-make clean verify

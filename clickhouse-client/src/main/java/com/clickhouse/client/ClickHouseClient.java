@@ -52,8 +52,8 @@ public interface ClickHouseClient extends AutoCloseable {
      * Gets default {@link java.util.concurrent.ExecutorService} for static methods
      * like {@code dump()}, {@code load()}, {@code send()}, and {@code submit()}. It
      * will be shared among all client instances when
-     * {@link com.clickhouse.client.config.ClickHouseClientOption#MAX_THREADS_PER_CLIENT}
-     * is less than or equals to zero.
+     * {@link ClickHouseClientOption#MAX_THREADS_PER_CLIENT} is less than or equals
+     * to zero.
      * 
      * @return non-null default executor service
      */
@@ -62,9 +62,61 @@ public interface ClickHouseClient extends AutoCloseable {
     }
 
     /**
-     * Submits task for execution. Depending on
-     * {@link com.clickhouse.client.config.ClickHouseDefaults#ASYNC}, it may or may
-     * not use {@link #getExecutorService()} to run the task in a separate thread.
+     * Gets wrapped output stream for writing data into request.
+     *
+     * @param config          optional configuration
+     * @param output          non-null output stream
+     * @param postCloseAction custom action will be performed right after closing
+     *                        the output stream
+     * @return wrapped output, or the same output if it's instance of
+     *         {@link ClickHouseOutputStream}
+     */
+    static ClickHouseOutputStream getRequestOutputStream(ClickHouseConfig config, OutputStream output,
+            Runnable postCloseAction) {
+        if (config == null) {
+            return ClickHouseOutputStream.of(output, (int) ClickHouseClientOption.WRITE_BUFFER_SIZE.getDefaultValue(),
+                    ClickHouseCompression.NONE, postCloseAction);
+        }
+
+        int bufferSize = config.getWriteBufferSize();
+        ClickHouseCompression compression = ClickHouseCompression.NONE;
+        if (config.isDecompressClientRequet()) {
+            bufferSize = (int) config.getOption(ClickHouseClientOption.MAX_COMPRESS_BLOCK_SIZE);
+            compression = config.getDecompressAlgorithmForClientRequest();
+        }
+        return ClickHouseOutputStream.of(output, bufferSize, compression, postCloseAction);
+    }
+
+    /**
+     * Gets wrapped input stream for reading data from response.
+     *
+     * @param config          optional configuration
+     * @param input           non-null input stream
+     * @param postCloseAction custom action will be performed right after closing
+     *                        the input stream
+     * @return wrapped input, or the same input if it's instance of
+     *         {@link ClickHouseInputStream}
+     */
+    static ClickHouseInputStream getResponseInputStream(ClickHouseConfig config, InputStream input,
+            Runnable postCloseAction) {
+        if (config == null) {
+            return ClickHouseInputStream.of(input, (int) ClickHouseClientOption.READ_BUFFER_SIZE.getDefaultValue(),
+                    ClickHouseCompression.NONE, postCloseAction);
+        }
+
+        int bufferSize = config.getReadBufferSize();
+        ClickHouseCompression compression = ClickHouseCompression.NONE;
+        if (config.isCompressServerResponse()) {
+            bufferSize = (int) config.getOption(ClickHouseClientOption.MAX_COMPRESS_BLOCK_SIZE);
+            compression = config.getCompressAlgorithmForServerResponse();
+        }
+        return ClickHouseInputStream.of(input, bufferSize, compression, postCloseAction);
+    }
+
+    /**
+     * Submits task for execution. Depending on {@link ClickHouseDefaults#ASYNC}, it
+     * may or may not use {@link #getExecutorService()} to run the task in a
+     * separate thread.
      * 
      * @param <T>  return type of the task
      * @param task non-null task
@@ -165,7 +217,7 @@ public interface ClickHouseClient extends AutoCloseable {
                 }
 
                 try (ClickHouseResponse response = request.execute().get()) {
-                    response.pipe(output, 8192);
+                    response.pipe(output, request.getConfig().getWriteBufferSize());
                     return response.getSummary();
                 }
             } catch (InterruptedException e) {
@@ -697,7 +749,7 @@ public interface ClickHouseClient extends AutoCloseable {
                     .option(ClickHouseClientOption.ASYNC, false) // use current thread
                     .option(ClickHouseClientOption.CONNECTION_TIMEOUT, timeout)
                     .option(ClickHouseClientOption.SOCKET_TIMEOUT, timeout)
-                    .option(ClickHouseClientOption.MAX_BUFFER_SIZE, 8) // actually 4 bytes should be enough
+                    .option(ClickHouseClientOption.BUFFER_SIZE, 8) // actually 4 bytes should be enough
                     .option(ClickHouseClientOption.MAX_QUEUED_BUFFERS, 1) // enough with only one buffer
                     .format(ClickHouseFormat.TabSeparated)
                     .query("SELECT 1 FORMAT TabSeparated").execute()

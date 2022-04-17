@@ -225,30 +225,31 @@ public abstract class ClickHouseBitmap {
 
         ClickHouseBitmap v;
         switch (type) {
-        case Int8:
-            v = ClickHouseBitmap.EMPTY_INT8_BITMAP;
-            break;
-        case UInt8:
-            v = ClickHouseBitmap.EMPTY_UINT8_BITMAP;
-            break;
-        case Int16:
-            v = ClickHouseBitmap.EMPTY_INT16_BITMAP;
-            break;
-        case UInt16:
-            v = ClickHouseBitmap.EMPTY_UINT16_BITMAP;
-            break;
-        case Int32:
-            v = ClickHouseBitmap.EMPTY_INT32_BITMAP;
-            break;
-        case UInt32:
-            v = ClickHouseBitmap.EMPTY_UINT32_BITMAP;
-            break;
-        case Int64:
-        case UInt64:
-            v = wrap(Roaring64NavigableMap.bitmapOf(EMPTY_LONG_ARRAY), type);
-            break;
-        default:
-            throw new IllegalArgumentException("Only native integer types are supported but we got: " + type.name());
+            case Int8:
+                v = ClickHouseBitmap.EMPTY_INT8_BITMAP;
+                break;
+            case UInt8:
+                v = ClickHouseBitmap.EMPTY_UINT8_BITMAP;
+                break;
+            case Int16:
+                v = ClickHouseBitmap.EMPTY_INT16_BITMAP;
+                break;
+            case UInt16:
+                v = ClickHouseBitmap.EMPTY_UINT16_BITMAP;
+                break;
+            case Int32:
+                v = ClickHouseBitmap.EMPTY_INT32_BITMAP;
+                break;
+            case UInt32:
+                v = ClickHouseBitmap.EMPTY_UINT32_BITMAP;
+                break;
+            case Int64:
+            case UInt64:
+                v = wrap(Roaring64NavigableMap.bitmapOf(EMPTY_LONG_ARRAY), type);
+                break;
+            default:
+                throw new IllegalArgumentException(
+                        "Only native integer types are supported but we got: " + type.name());
         }
         return v;
     }
@@ -477,18 +478,19 @@ public abstract class ClickHouseBitmap {
     private static int byteLength(ClickHouseDataType type) {
         int byteLen;
         switch (Objects.requireNonNull(type)) {
-        case Int8:
-        case UInt8:
-        case Int16:
-        case UInt16:
-        case Int32:
-        case UInt32:
-        case Int64:
-        case UInt64:
-            byteLen = type.getByteLength();
-            break;
-        default:
-            throw new IllegalArgumentException("Only native integer types are supported but we got: " + type.name());
+            case Int8:
+            case UInt8:
+            case Int16:
+            case UInt16:
+            case Int32:
+            case UInt32:
+            case Int64:
+            case UInt64:
+                byteLen = type.getByteLength();
+                break;
+            default:
+                throw new IllegalArgumentException(
+                        "Only native integer types are supported but we got: " + type.name());
         }
 
         return byteLen;

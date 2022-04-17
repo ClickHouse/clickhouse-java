@@ -16,11 +16,15 @@ import java.util.Map.Entry;
 import com.clickhouse.client.ClickHouseChecker;
 import com.clickhouse.client.ClickHouseClient;
 import com.clickhouse.client.ClickHouseConfig;
-import com.clickhouse.client.ClickHouseFormat;
+import com.clickhouse.client.ClickHouseDataStreamFactory;
+import com.clickhouse.client.ClickHouseDeserializer;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.ClickHouseResponseSummary;
+import com.clickhouse.client.ClickHouseSerializer;
+import com.clickhouse.client.ClickHouseValue;
 import com.clickhouse.client.config.ClickHouseClientOption;
+import com.clickhouse.client.config.ClickHouseConfigChangeListener;
 import com.clickhouse.client.config.ClickHouseOption;
 import com.clickhouse.client.data.ClickHouseExternalTable;
 import com.clickhouse.client.logging.Logger;
@@ -33,7 +37,8 @@ import com.clickhouse.jdbc.JdbcWrapper;
 import com.clickhouse.jdbc.parser.ClickHouseSqlStatement;
 import com.clickhouse.jdbc.parser.StatementType;
 
-public class ClickHouseStatementImpl extends JdbcWrapper implements ClickHouseStatement {
+public class ClickHouseStatementImpl extends JdbcWrapper
+        implements ClickHouseConfigChangeListener<ClickHouseRequest<?>>, ClickHouseStatement {
     private static final Logger log = LoggerFactory.getLogger(ClickHouseStatementImpl.class);
 
     private final ClickHouseConnection connection;
@@ -61,6 +66,8 @@ public class ClickHouseStatementImpl extends JdbcWrapper implements ClickHouseSt
     private long currentUpdateCount;
 
     protected ClickHouseSqlStatement[] parsedStmts;
+    protected ClickHouseDeserializer<ClickHouseValue> deserializer;
+    protected ClickHouseSerializer<ClickHouseValue> serializer;
 
     private ClickHouseResponse getLastResponse(Map<ClickHouseOption, Serializable> options,
             List<ClickHouseExternalTable> tables, Map<String, String> settings) throws SQLException {
@@ -122,8 +129,8 @@ public class ClickHouseStatementImpl extends JdbcWrapper implements ClickHouseSt
                                 .execute().get();
                         request.write()
                                 .table(t.getName())
-                                .format(t.getFormat() != null ? t.getFormat() : ClickHouseFormat.RowBinary)
-                                .data(t.getContent()).send().get();
+                                // .format(t.getFormat() != null ? t.getFormat() : ClickHouseFormat.RowBinary)
+                                .data(t.getContent()).sendAndWait();
                     } else {
                         list.add(t);
                     }
@@ -149,8 +156,8 @@ public class ClickHouseStatementImpl extends JdbcWrapper implements ClickHouseSt
 
     protected int executeInsert(String sql, InputStream input) throws SQLException {
         ClickHouseResponseSummary summary = null;
-        try (ClickHouseResponse resp = request.write().query(sql, queryId = connection.newQueryId())
-                .format(ClickHouseFormat.RowBinary).data(input).execute().get();
+        try (ClickHouseResponse resp = request.write().query(sql, queryId = connection.newQueryId()).data(input)
+                .execute().get();
                 ResultSet rs = updateResult(new ClickHouseSqlStatement(sql, StatementType.INSERT), resp)) {
             summary = resp.getSummary();
         } catch (InterruptedException e) {
@@ -222,7 +229,7 @@ public class ClickHouseStatementImpl extends JdbcWrapper implements ClickHouseSt
         }
 
         this.connection = connection;
-        this.request = request;
+        this.request = request.setChangeListener(this);
 
         // TODO validate resultSet attributes
         this.resultSetType = ResultSet.TYPE_FORWARD_ONLY;
@@ -248,6 +255,26 @@ public class ClickHouseStatementImpl extends JdbcWrapper implements ClickHouseSt
         ClickHouseConfig c = request.getConfig();
         setLargeMaxRows(c.getMaxResultRows());
         setQueryTimeout(c.getMaxExecutionTime());
+
+        optionChanged(this.request, ClickHouseClientOption.FORMAT, null, null);
+    }
+
+    @Override
+    public void optionChanged(ClickHouseRequest<?> source, ClickHouseOption option, Serializable oldValue,
+            Serializable newValue) {
+        if (source != request || option != ClickHouseClientOption.FORMAT) {
+            return;
+        }
+
+        this.deserializer = ClickHouseDataStreamFactory.getInstance().getDeserializer(request.getFormat());
+        this.serializer = ClickHouseDataStreamFactory.getInstance().getSerializer(request.getInputFormat());
+    }
+
+    @Override
+    public void settingChanged(ClickHouseRequest<?> source, String setting, Serializable oldValue,
+            Serializable newValue) {
+        // ClickHouseConfigChangeListener.super.settingChanged(source, setting,
+        // oldValue, newValue);
     }
 
     @Override
@@ -490,9 +517,9 @@ public class ClickHouseStatementImpl extends JdbcWrapper implements ClickHouseSt
             fetchSize = rows;
 
             if (rows == 0) {
-                request.removeOption(ClickHouseClientOption.MAX_BUFFER_SIZE);
+                request.removeOption(ClickHouseClientOption.READ_BUFFER_SIZE);
             } else {
-                request.option(ClickHouseClientOption.MAX_BUFFER_SIZE, rows * 1024);
+                request.option(ClickHouseClientOption.READ_BUFFER_SIZE, rows * 1024);
             }
         }
     }

@@ -155,6 +155,8 @@ public class ClickHouseException extends Exception {
 
     /**
      * Gets error code.
+     *
+     * @return error code
      */
     public int getErrorCode() {
         return errorCode;

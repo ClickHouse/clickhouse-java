@@ -9,7 +9,7 @@ Async Java client for ClickHouse. `clickhouse-client` is an abstract module, so 
 <dependency>
     <groupId>com.clickhouse</groupId>
     <artifactId>clickhouse-http-client</artifactId>
-    <version>0.3.3</version>
+    <version>0.3.2-patch8</version>
 </dependency>
 ```
 
@@ -43,7 +43,7 @@ try (ClickHouseClient client = ClickHouseClient.newInstance(server.getProtocol()
             ClickHouseParameterizedQuery.of(
                 request.getConfig(),
                 "select * from numbers(:limit)")
-            ).params(100000).execute().get()) {
+            ).params(100000).executeAndWait()) {
         for (ClickHouseRecord r : response.records()) {
             // Don't cache ClickHouseValue / ClickHouseRecord as they're reused for
             // corresponding column / row

@@ -15,11 +15,11 @@ public enum ClickHouseProtocol {
     /**
      * HTTP/HTTPS interface.
      */
-    HTTP(8123, "http", "https"),
+    HTTP(8123, 8443, "http", "https"),
     /**
      * Native interface.
      */
-    TCP(9000, "native", "tcp"),
+    TCP(9000, 9440, "native", "tcp"),
     /**
      * MySQL interface.
      */
@@ -59,10 +59,16 @@ public enum ClickHouseProtocol {
     }
 
     private final int defaultPort;
+    private final int defaultSecurePort;
     private final List<String> schemes;
 
     ClickHouseProtocol(int defaultPort, String... schemes) {
+        this(defaultPort, defaultPort, schemes);
+    }
+
+    ClickHouseProtocol(int defaultPort, int defaultSecurePort, String... schemes) {
         this.defaultPort = defaultPort;
+        this.defaultSecurePort = defaultSecurePort;
 
         int len = schemes != null ? schemes.length : 0;
         if (len > 0) {
@@ -85,6 +91,15 @@ public enum ClickHouseProtocol {
      */
     public int getDefaultPort() {
         return this.defaultPort;
+    }
+
+    /**
+     * Get default secure port used by the protocol.
+     *
+     * @return default secure port used by the protocol
+     */
+    public int getDefaultSecurePort() {
+        return this.defaultSecurePort;
     }
 
     /**

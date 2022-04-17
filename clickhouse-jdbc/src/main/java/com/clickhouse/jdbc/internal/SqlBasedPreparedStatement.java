@@ -151,6 +151,10 @@ public class SqlBasedPreparedStatement extends AbstractPreparedStatement impleme
                 // FIXME needs to enhance http client before getting back to this
                 Arrays.fill(results, 1);
             } catch (Exception e) {
+                if (!asBatch) {
+                    throw SqlExceptionUtils.handle(e);
+                }
+
                 // just a wild guess...
                 if (rows < 1) {
                     results[0] = EXECUTE_FAILED;
@@ -217,9 +221,14 @@ public class SqlBasedPreparedStatement extends AbstractPreparedStatement impleme
     @Override
     public ResultSet executeQuery() throws SQLException {
         ensureParams();
-
-        if (executeAny(false)[0] == EXECUTE_FAILED) {
-            throw new SQLException("Query failed", SqlExceptionUtils.SQL_STATE_SQL_ERROR);
+        try {
+            executeAny(false);
+        } catch (SQLException e) {
+            if (e.getSQLState() != null) {
+                throw e;
+            } else {
+                throw new SQLException("Query failed", SqlExceptionUtils.SQL_STATE_SQL_ERROR, e.getCause());
+            }
         }
         ResultSet rs = getResultSet();
         return rs == null ? newEmptyResultSet() : rs;
@@ -228,9 +237,14 @@ public class SqlBasedPreparedStatement extends AbstractPreparedStatement impleme
     @Override
     public long executeLargeUpdate() throws SQLException {
         ensureParams();
-
-        if (executeAny(false)[0] == EXECUTE_FAILED) {
-            throw new SQLException("Update failed", SqlExceptionUtils.SQL_STATE_SQL_ERROR);
+        try {
+            executeAny(false);
+        } catch (SQLException e) {
+            if (e.getSQLState() != null) {
+                throw e;
+            } else {
+                throw new SQLException("Update failed", SqlExceptionUtils.SQL_STATE_SQL_ERROR, e.getCause());
+            }
         }
         return getLargeUpdateCount();
     }
@@ -391,9 +405,14 @@ public class SqlBasedPreparedStatement extends AbstractPreparedStatement impleme
     @Override
     public boolean execute() throws SQLException {
         ensureParams();
-
-        if (executeAny(false)[0] == EXECUTE_FAILED) {
-            throw new SQLException("Execution failed", SqlExceptionUtils.SQL_STATE_SQL_ERROR);
+        try {
+            executeAny(false);
+        } catch (SQLException e) {
+            if (e.getSQLState() != null) {
+                throw e;
+            } else {
+                throw new SQLException("Execution failed", SqlExceptionUtils.SQL_STATE_SQL_ERROR, e.getCause());
+            }
         }
         return getResultSet() != null;
     }

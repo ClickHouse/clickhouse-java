@@ -1,7 +1,6 @@
 package com.clickhouse.client;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.Serializable;
 import java.io.UncheckedIOException;
@@ -12,6 +11,8 @@ import java.util.Spliterator;
 import java.util.Spliterators;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
+
+import com.clickhouse.client.config.ClickHouseClientOption;
 
 /**
  * This encapsulates a server reponse. Depending on concrete implementation, it
@@ -44,7 +45,7 @@ public interface ClickHouseResponse extends AutoCloseable, Serializable {
         }
 
         @Override
-        public InputStream getInputStream() {
+        public ClickHouseInputStream getInputStream() {
             return null;
         }
 
@@ -88,7 +89,7 @@ public interface ClickHouseResponse extends AutoCloseable, Serializable {
      *
      * @return input stream for getting raw data returned from server
      */
-    InputStream getInputStream();
+    ClickHouseInputStream getInputStream();
 
     /**
      * Gets the first record only. Please use {@link #records()} instead if you need
@@ -116,17 +117,16 @@ public interface ClickHouseResponse extends AutoCloseable, Serializable {
      * Pipes the contents of this response into the given output stream.
      *
      * @param output     non-null output stream, which will remain open
-     * @param bufferSize buffer size, 0 or negative value will be treated as 8192
+     * @param bufferSize buffer size, 0 or negative value will be treated as
+     *                   {@link ClickHouseClientOption#WRITE_BUFFER_SIZE}
      * @throws IOException when error occurred reading or writing data
      */
     default void pipe(OutputStream output, int bufferSize) throws IOException {
         ClickHouseChecker.nonNull(output, "output");
 
-        if (bufferSize <= 0) {
-            bufferSize = 8192;
-        }
-
-        byte[] buffer = new byte[bufferSize];
+        byte[] buffer = new byte[ClickHouseUtils.getBufferSize(bufferSize,
+                (int) ClickHouseClientOption.WRITE_BUFFER_SIZE.getDefaultValue(),
+                (int) ClickHouseClientOption.MAX_BUFFER_SIZE.getDefaultValue())];
         int counter = 0;
         while ((counter = getInputStream().read(buffer, 0, bufferSize)) >= 0) {
             output.write(buffer, 0, counter);

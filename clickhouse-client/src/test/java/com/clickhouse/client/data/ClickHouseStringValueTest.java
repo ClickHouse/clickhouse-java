@@ -10,6 +10,7 @@ import org.testng.Assert;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 import com.clickhouse.client.BaseClickHouseValueTest;
+import com.clickhouse.client.ClickHouseValues;
 
 public class ClickHouseStringValueTest extends BaseClickHouseValueTest {
     @DataProvider(name = "stateProvider")
@@ -102,7 +103,7 @@ public class ClickHouseStringValueTest extends BaseClickHouseValueTest {
                 DateTimeParseException.class, // DateTime
                 DateTimeParseException.class, // DateTime(9)
                 Inet4Address.getAllByName("127.0.0.1")[0], // Inet4Address
-                IllegalArgumentException.class, // Inet6Address
+                ClickHouseValues.convertToIpv6("127.0.0.1"), // Inet6Address
                 "", // String
                 "''", // SQL Expression
                 DateTimeParseException.class, // Time
@@ -136,7 +137,7 @@ public class ClickHouseStringValueTest extends BaseClickHouseValueTest {
                 DateTimeParseException.class, // DateTime
                 DateTimeParseException.class, // DateTime(9)
                 Inet4Address.getAllByName("0.0.0.0")[0], // Inet4Address
-                IllegalArgumentException.class, // Inet6Address
+                ClickHouseValues.convertToIpv6("0.0.0.0"), // Inet6Address
                 "0", // String
                 "'0'", // SQL Expression
                 DateTimeParseException.class, // Time
@@ -168,7 +169,7 @@ public class ClickHouseStringValueTest extends BaseClickHouseValueTest {
                 DateTimeParseException.class, // DateTime
                 DateTimeParseException.class, // DateTime(9)
                 Inet4Address.getAllByName("0.0.0.1")[0], // Inet4Address
-                IllegalArgumentException.class, // Inet6Address
+                ClickHouseValues.convertToIpv6("0.0.0.1"), // Inet6Address
                 "1", // String
                 "'1'", // SQL Expression
                 DateTimeParseException.class, // Time
@@ -200,7 +201,7 @@ public class ClickHouseStringValueTest extends BaseClickHouseValueTest {
                 DateTimeParseException.class, // DateTime
                 DateTimeParseException.class, // DateTime(9)
                 Inet4Address.getAllByName("0.0.0.2")[0], // Inet4Address
-                IllegalArgumentException.class, // Inet6Address
+                ClickHouseValues.convertToIpv6("0.0.0.2"), // Inet6Address
                 "2", // String
                 "'2'", // SQL Expression
                 DateTimeParseException.class, // Time

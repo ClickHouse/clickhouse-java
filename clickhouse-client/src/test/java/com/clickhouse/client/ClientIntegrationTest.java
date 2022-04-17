@@ -5,7 +5,6 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.io.OutputStream;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.Inet4Address;
@@ -17,20 +16,27 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.TimeZone;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
 import com.clickhouse.client.config.ClickHouseClientOption;
+import com.clickhouse.client.config.ClickHouseSslMode;
+import com.clickhouse.client.data.BinaryStreamUtils;
 import com.clickhouse.client.data.ClickHouseBigDecimalValue;
 import com.clickhouse.client.data.ClickHouseBigIntegerValue;
+import com.clickhouse.client.data.ClickHouseByteValue;
 import com.clickhouse.client.data.ClickHouseDateTimeValue;
+import com.clickhouse.client.data.ClickHouseEnumValue;
 import com.clickhouse.client.data.ClickHouseExternalTable;
 import com.clickhouse.client.data.ClickHouseIntegerValue;
 import com.clickhouse.client.data.ClickHouseIpv4Value;
 import com.clickhouse.client.data.ClickHouseIpv6Value;
 import com.clickhouse.client.data.ClickHouseLongValue;
+import com.clickhouse.client.data.ClickHouseOffsetDateTimeValue;
+import com.clickhouse.client.data.ClickHousePipedStream;
 import com.clickhouse.client.data.ClickHouseStringValue;
 
 import org.testng.Assert;
@@ -58,8 +64,24 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
         return ClickHouseClient.newInstance(getProtocol());
     }
 
+    protected ClickHouseClient getSecureClient() {
+        return ClickHouseClient.builder()
+                .nodeSelector(ClickHouseNodeSelector.of(getProtocol()))
+                .option(ClickHouseClientOption.SSL, true)
+                .option(ClickHouseClientOption.SSL_MODE, ClickHouseSslMode.STRICT)
+                .option(ClickHouseClientOption.SSL_ROOT_CERTIFICATE, "containers/clickhouse-server/certs/myCA.crt")
+                .option(ClickHouseClientOption.SSL_CERTIFICATE, "client.crt")
+                .option(ClickHouseClientOption.SSL_KEY, "client.key")
+                .defaultCredentials(ClickHouseCredentials.fromUserAndPassword("me", ""))
+                .build();
+    }
+
     protected ClickHouseNode getServer() {
         return getServer(getProtocol());
+    }
+
+    protected ClickHouseNode getSecureServer() {
+        return getSecureServer(getProtocol());
     }
 
     @DataProvider(name = "compressionMatrix")
@@ -145,20 +167,47 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
     }
 
     @Test(dataProvider = "compressionMatrix", groups = { "integration" })
-    public void testCompression(boolean compressRequest, boolean compressResponse) throws Exception {
+    public void testCompression(boolean compressRequest, boolean compressResponse)
+            throws Exception {
         ClickHouseNode server = getServer();
         String uuid = UUID.randomUUID().toString();
-        try (ClickHouseClient client = getClient()) {
-            ClickHouseRequest<?> request = client.connect(server).format(ClickHouseFormat.RowBinaryWithNamesAndTypes);
-            boolean hasResult = false;
-            try (ClickHouseResponse resp = request
-                    .compressServerResponse(compressResponse)
-                    .decompressClientRequest(compressRequest)
-                    .query("select :uuid").params(ClickHouseStringValue.of(uuid)).execute().get()) {
-                Assert.assertEquals(resp.firstRecord().getValue(0).asString(), uuid);
-                hasResult = true;
+        for (ClickHouseFormat format : new ClickHouseFormat[] {
+                ClickHouseFormat.RowBinaryWithNamesAndTypes,
+                ClickHouseFormat.TabSeparatedWithNamesAndTypes }) {
+            try (ClickHouseClient client = getClient()) {
+                ClickHouseRequest<?> request = client.connect(server)
+                        .format(format)
+                        .compressServerResponse(compressResponse)
+                        .decompressClientRequest(compressRequest);
+                boolean hasResult = false;
+                try (ClickHouseResponse resp = request
+                        .query("select :uuid").params(ClickHouseStringValue.of(uuid)).execute().get()) {
+                    Assert.assertEquals(resp.firstRecord().getValue(0).asString(), uuid);
+                    hasResult = true;
+                }
+                Assert.assertTrue(hasResult, "Should have at least one result");
+
+                // empty results
+                try (ClickHouseResponse resp = request
+                        .query("create database if not exists system")
+                        .execute().get()) {
+                    ClickHouseResponseSummary summary = resp.getSummary();
+                    Assert.assertEquals(summary.getReadRows(), 0L);
+                    Assert.assertEquals(summary.getWrittenRows(), 0L);
+                }
+
+                // let's also check if failures can be captured successfully as well
+                Exception exp = null;
+                try (ClickHouseResponse resp = request
+                        .use(uuid)
+                        .query("select currentUser(), timezone(), version(), getSetting('readonly') readonly FORMAT RowBinaryWithNamesAndTypes")
+                        .execute().get()) {
+                    Assert.fail("Query should fail");
+                } catch (Exception e) {
+                    exp = e;
+                }
+                Assert.assertEquals(((ClickHouseException) exp.getCause()).getErrorCode(), 81);
             }
-            Assert.assertTrue(hasResult, "Should have at least one result");
         }
     }
 
@@ -185,7 +234,7 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
                     .get()) {
                 String results = new BufferedReader(
                         new InputStreamReader(response.getInputStream(), StandardCharsets.UTF_8)).lines()
-                                .collect(Collectors.joining("\n"));
+                        .collect(Collectors.joining("\n"));
                 Assert.assertEquals(results, "1,2");
             }
 
@@ -193,7 +242,7 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
                     .execute().get()) {
                 String results = new BufferedReader(
                         new InputStreamReader(response.getInputStream(), StandardCharsets.UTF_8)).lines()
-                                .collect(Collectors.joining("\n"));
+                        .collect(Collectors.joining("\n"));
                 Assert.assertEquals(results, "{\"1\":1,\"2\":2}");
             }
         }
@@ -396,16 +445,18 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
         ClickHouseNode server = getServer();
 
         ClickHouseClient.send(server, "drop table if exists test_datetime_types",
-                "create table test_datetime_types(no UInt8, d0 DateTime32, d1 DateTime64(5), d2 DateTime(3)) engine=Memory")
+                "create table test_datetime_types(no UInt8, d0 DateTime32, d1 DateTime64(5), d2 DateTime(3), d3 DateTime64(3, 'Asia/Chongqing')) engine=Memory")
                 .get();
-        ClickHouseClient.send(server, "insert into test_datetime_types values(:no, :d0, :d1, :d2)",
+        ClickHouseClient.send(server, "insert into test_datetime_types values(:no, :d0, :d1, :d2, :d3)",
                 new ClickHouseValue[] { ClickHouseIntegerValue.ofNull(),
                         ClickHouseDateTimeValue.ofNull(0, ClickHouseValues.UTC_TIMEZONE),
                         ClickHouseDateTimeValue.ofNull(3, ClickHouseValues.UTC_TIMEZONE),
-                        ClickHouseDateTimeValue.ofNull(9, ClickHouseValues.UTC_TIMEZONE) },
+                        ClickHouseDateTimeValue.ofNull(9, ClickHouseValues.UTC_TIMEZONE),
+                        ClickHouseOffsetDateTimeValue.ofNull(3, TimeZone.getTimeZone("Asia/Chongqing")) },
                 new Object[] { 0, "1970-01-01 00:00:00", "1970-01-01 00:00:00.123456",
-                        "1970-01-01 00:00:00.123456789" },
-                new Object[] { 1, -1, -1, -1 }, new Object[] { 2, 1, 1, 1 }, new Object[] { 3, 2.1, 2.1, 2.1 }).get();
+                        "1970-01-01 00:00:00.123456789", "1970-02-01 12:34:56.789" },
+                new Object[] { 1, -1, -1, -1, -1 }, new Object[] { 2, 1, 1, 1, 1 },
+                new Object[] { 3, 2.1, 2.1, 2.1, 2.1 }).get();
 
         try (ClickHouseClient client = getClient();
                 ClickHouseResponse resp = client.connect(server).format(ClickHouseFormat.RowBinaryWithNamesAndTypes)
@@ -463,6 +514,65 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
             }
 
             Assert.assertEquals(list.size(), 2);
+        }
+    }
+
+    @Test(groups = "integration")
+    public void testReadWriteEnumTypes() throws Exception {
+        ClickHouseNode server = getServer();
+
+        ClickHouseClient.send(server, "drop table if exists test_enum_types",
+                "create table test_enum_types(no UInt8, e01 Nullable(Enum8('a'=-1,'b'=2,'c'=0)), e1 Enum8('a'=-1,'b'=2,'c'=0), "
+                        + "e02 Nullable(Enum16('a'=-1,'b'=2,'c'=0)), e2 Enum16('a'=-1,'b'=2,'c'=0)) engine=Memory")
+                .get();
+        ClickHouseClient.send(server, "insert into test_enum_types values(:no, :e01, :e1, :e02, :e2)",
+                new ClickHouseValue[] { ClickHouseByteValue.ofNull(),
+                        ClickHouseEnumValue
+                                .ofNull(ClickHouseColumn.of("column", "Enum8('dunno'=-1)").getEnumConstants()),
+                        ClickHouseEnumValue
+                                .ofNull(ClickHouseColumn.of("column", "Enum8('a'=-1,'b'=2,'c'=0)").getEnumConstants()),
+                        ClickHouseEnumValue
+                                .ofNull(ClickHouseColumn.of("column", "Enum16('a'=-1,'b'=2,'c'=0)").getEnumConstants()),
+                        ClickHouseEnumValue
+                                .ofNull(ClickHouseColumn.of("column", "Enum16('dunno'=2)").getEnumConstants()), },
+                new Object[] { 0, null, "b", null, "dunno" },
+                new Object[] { 1, "dunno", 2, "a", 2 }).get();
+
+        try (ClickHouseClient client = getClient();
+                ClickHouseResponse resp = client.connect(server).format(ClickHouseFormat.RowBinaryWithNamesAndTypes)
+                        .query("select * except(no) from test_enum_types order by no").execute().get()) {
+            int count = 0;
+            for (ClickHouseRecord r : resp.records()) {
+                if (count++ == 0) {
+                    Assert.assertEquals(r.getValue(0).asShort(), (short) 0);
+                    Assert.assertEquals(r.getValue(0).asString(), null);
+                    Assert.assertEquals(r.getValue(0).asObject(), null);
+                    Assert.assertEquals(r.getValue(1).asInteger(), 2);
+                    Assert.assertEquals(r.getValue(1).asString(), "b");
+                    Assert.assertEquals(r.getValue(1).asObject(), "b");
+                    Assert.assertEquals(r.getValue(2).asLong(), 0L);
+                    Assert.assertEquals(r.getValue(2).asString(), null);
+                    Assert.assertEquals(r.getValue(2).asObject(), null);
+                    Assert.assertEquals(r.getValue(3).asByte(), (byte) 2);
+                    Assert.assertEquals(r.getValue(3).asString(), "b");
+                    Assert.assertEquals(r.getValue(3).asObject(), "b");
+                } else {
+                    Assert.assertEquals(r.getValue(0).asByte(), (byte) -1);
+                    Assert.assertEquals(r.getValue(0).asString(), "a");
+                    Assert.assertEquals(r.getValue(0).asObject(), "a");
+                    Assert.assertEquals(r.getValue(1).asShort(), (short) 2);
+                    Assert.assertEquals(r.getValue(1).asString(), "b");
+                    Assert.assertEquals(r.getValue(1).asObject(), "b");
+                    Assert.assertEquals(r.getValue(2).asInteger(), -1);
+                    Assert.assertEquals(r.getValue(2).asString(), "a");
+                    Assert.assertEquals(r.getValue(2).asObject(), "a");
+                    Assert.assertEquals(r.getValue(3).asLong(), 2L);
+                    Assert.assertEquals(r.getValue(3).asString(), "b");
+                    Assert.assertEquals(r.getValue(3).asObject(), "b");
+                }
+            }
+
+            Assert.assertEquals(count, 2);
         }
     }
 
@@ -609,7 +719,7 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
         try {
             ClickHouseClient
                     .send(server, "drop table if exists test_map_types",
-                            "create table test_map_types(no UInt32, m Map(LowCardinality(String), Int32))engine=Memory")
+                            "create table test_map_types(no UInt32, m Map(LowCardinality(String), Int32), n Map(String, Array(Nullable(DateTime64(3, 'Asia/Chongqing')))))engine=Memory")
                     .get();
         } catch (ExecutionException e) {
             // looks like LowCardinality(String) as key is not supported even in 21.8
@@ -619,23 +729,27 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
         }
 
         // write
-        ClickHouseClient.send(server, "insert into test_map_types values (1, {'key1' : 1})").get();
-        ClickHouseClient.send(server, "insert into test_map_types values (:n,:m)",
-                new String[][] { new String[] { "-1", "{'key-1' : -1}" }, new String[] { "-2", "{'key-2' : -2}" } })
+        ClickHouseClient.send(server, "insert into test_map_types values (1, {'key1' : 1}, {'a' : [], 'b' : [null]})")
                 .get();
-        ClickHouseClient.send(server, "insert into test_map_types values (3, :m)",
+        ClickHouseClient.send(server, "insert into test_map_types values (:n,:m,:x)",
+                new String[][] {
+                        new String[] { "-1", "{'key-1' : -1}",
+                                "{'a' : [], 'b' : [ '2022-03-30 00:00:00.123', null ]}" },
+                        new String[] { "-2", "{'key-2' : -2}", "{'key-2' : [null]}" } })
+                .get();
+        ClickHouseClient.send(server, "insert into test_map_types values (3, :m, {})",
                 Collections.singletonMap("m", "{'key3' : 3}")).get();
 
         // read
         try (ClickHouseClient client = getClient();
                 ClickHouseResponse resp = client.connect(server).format(ClickHouseFormat.RowBinaryWithNamesAndTypes)
                         .query("select * except(no) from test_map_types order by no").execute().get()) {
-            List<String[]> records = new ArrayList<>();
-            for (ClickHouseRecord record : resp.records()) {
-                String[] values = new String[record.size()];
+            List<Object[]> records = new ArrayList<>();
+            for (ClickHouseRecord r : resp.records()) {
+                Object[] values = new Object[r.size()];
                 int index = 0;
-                for (ClickHouseValue v : record) {
-                    values[index++] = v.asString();
+                for (ClickHouseValue v : r) {
+                    values[index++] = v.asObject();
                 }
                 records.add(values);
             }
@@ -780,7 +894,7 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
         ClickHouseClient.load(server, "test_custom_load", ClickHouseFormat.TabSeparated,
                 ClickHouseCompression.NONE, new ClickHouseWriter() {
                     @Override
-                    public void write(OutputStream output) throws IOException {
+                    public void write(ClickHouseOutputStream output) throws IOException {
                         output.write("1\t\\N\n".getBytes(StandardCharsets.US_ASCII));
                         output.write("2\t123".getBytes(StandardCharsets.US_ASCII));
                     }
@@ -849,6 +963,43 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
             }
         } finally {
             Files.delete(temp);
+        }
+    }
+
+    @Test(groups = { "integration" })
+    public void testLoadRawData() throws Exception {
+        ClickHouseNode server = getServer();
+        ClickHouseClient.send(server, "drop table if exists test_load_raw_data",
+                "create table test_load_raw_data(a Int64)engine=Memory").get();
+        int rows = 10;
+
+        try (ClickHouseClient client = getClient()) {
+            ClickHouseRequest.Mutation request = client.connect(server).write()
+                    .table("test_load_raw_data")
+                    .format(ClickHouseFormat.RowBinary)
+                    // this is needed to get meaningful response summary
+                    .set("send_progress_in_http_headers", 1);
+            ClickHouseConfig config = request.getConfig();
+
+            CompletableFuture<ClickHouseResponse> future;
+            // single producer → single consumer
+            // important to close the stream *before* retrieving response
+            try (ClickHousePipedStream stream = new ClickHousePipedStream(config.getWriteBufferSize(),
+                    config.getMaxQueuedRequests(), config.getSocketTimeout())) {
+                // start the worker thread which transfer data from the input into ClickHouse
+                future = request.data(stream.getInput()).send();
+                // write bytes into the piped stream
+                for (int i = 0; i < rows; i++) {
+                    BinaryStreamUtils.writeInt64(stream, i);
+                }
+            }
+
+            ClickHouseResponseSummary summary;
+            try (ClickHouseResponse response = future.get()) {
+                summary = response.getSummary();
+            }
+
+            Assert.assertEquals(summary.getWrittenRows(), rows);
         }
     }
 
@@ -925,11 +1076,6 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
     @Test(groups = "integration")
     public void testTempTable() throws Exception {
         ClickHouseNode server = getServer();
-        // FIXME looks like grpc has problem handling session
-        if (server.getProtocol() == ClickHouseProtocol.GRPC) {
-            return;
-        }
-
         String sessionId = UUID.randomUUID().toString();
         try (ClickHouseClient client = getClient()) {
             ClickHouseRequest<?> request = client.connect(server).format(ClickHouseFormat.RowBinary)

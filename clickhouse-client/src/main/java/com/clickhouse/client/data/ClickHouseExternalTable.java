@@ -1,5 +1,6 @@
 package com.clickhouse.client.data;
 
+import java.io.FileNotFoundException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -7,18 +8,24 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
-import java.util.concurrent.ExecutionException;
 
 import com.clickhouse.client.ClickHouseChecker;
 import com.clickhouse.client.ClickHouseColumn;
+import com.clickhouse.client.ClickHouseCompression;
+import com.clickhouse.client.ClickHouseDeferredValue;
 import com.clickhouse.client.ClickHouseFormat;
+import com.clickhouse.client.ClickHouseUtils;
 
+/**
+ * "Attached" temporary table.
+ */
 public class ClickHouseExternalTable {
     public static class Builder {
         private String name;
-        private CompletableFuture<InputStream> content;
+        private ClickHouseDeferredValue<InputStream> content;
+        private ClickHouseCompression compression;
         private ClickHouseFormat format;
         private List<ClickHouseColumn> columns;
         private boolean asTempTable;
@@ -32,13 +39,50 @@ public class ClickHouseExternalTable {
             return this;
         }
 
-        public Builder content(InputStream content) {
-            this.content = CompletableFuture.completedFuture(ClickHouseChecker.nonNull(content, "content"));
+        public Builder compression(ClickHouseCompression compression) {
+            this.compression = compression;
             return this;
         }
 
+        public Builder content(InputStream content) {
+            this.content = ClickHouseDeferredValue.of(ClickHouseChecker.nonNull(content, "content"), InputStream.class);
+            return this;
+        }
+
+        /**
+         * Sets future content.
+         *
+         * @param content non-null future content
+         * @return this builder
+         * @deprecated will be removed in v0.3.3, please use
+         *             {@link #content(ClickHouseDeferredValue)} instead
+         */
+        @Deprecated
         public Builder content(CompletableFuture<InputStream> content) {
+            this.content = ClickHouseDeferredValue.of(ClickHouseChecker.nonNull(content, "Content"));
+            return this;
+        }
+
+        /**
+         * Sets deferred content.
+         *
+         * @param content non-null deferred content
+         * @return this builder
+         */
+        public Builder content(ClickHouseDeferredValue<InputStream> content) {
             this.content = ClickHouseChecker.nonNull(content, "Content");
+            return this;
+        }
+
+        public Builder content(String file) {
+            final String fileName = ClickHouseChecker.nonEmpty(file, "File");
+            this.content = ClickHouseDeferredValue.of(() -> {
+                try {
+                    return ClickHouseUtils.getFileInputStream(fileName);
+                } catch (FileNotFoundException e) {
+                    throw new IllegalArgumentException(e.getMessage());
+                }
+            });
             return this;
         }
 
@@ -100,7 +144,7 @@ public class ClickHouseExternalTable {
         }
 
         public ClickHouseExternalTable build() {
-            return new ClickHouseExternalTable(name, content, format, columns, asTempTable);
+            return new ClickHouseExternalTable(name, content, compression, format, columns, asTempTable);
         }
     }
 
@@ -109,17 +153,25 @@ public class ClickHouseExternalTable {
     }
 
     private final String name;
-    private final CompletableFuture<InputStream> content;
+    private final ClickHouseDeferredValue<InputStream> content;
+    private final Optional<ClickHouseCompression> compression;
     private final ClickHouseFormat format;
     private final List<ClickHouseColumn> columns;
     private final boolean asTempTable;
 
     private final String structure;
 
-    protected ClickHouseExternalTable(String name, CompletableFuture<InputStream> content, ClickHouseFormat format,
-            Collection<ClickHouseColumn> columns, boolean asTempTable) {
+    protected ClickHouseExternalTable(String name, ClickHouseDeferredValue<InputStream> content,
+            ClickHouseCompression compression, ClickHouseFormat format, Collection<ClickHouseColumn> columns,
+            boolean asTempTable) {
         this.name = name == null ? "" : name.trim();
         this.content = ClickHouseChecker.nonNull(content, "content");
+        if (compression == null) {
+            compression = ClickHouseCompression.fromFileName(this.name);
+            this.compression = Optional.ofNullable(compression == ClickHouseCompression.NONE ? null : compression);
+        } else {
+            this.compression = Optional.of(compression);
+        }
         this.format = format == null ? ClickHouseFormat.TabSeparated : format;
 
         int size = columns == null ? 0 : columns.size();
@@ -149,14 +201,11 @@ public class ClickHouseExternalTable {
     }
 
     public InputStream getContent() {
-        try {
-            return content.get();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new CompletionException(e);
-        } catch (ExecutionException e) {
-            throw new CompletionException(e.getCause());
-        }
+        return content.get();
+    }
+
+    public Optional<ClickHouseCompression> getCompression() {
+        return compression;
     }
 
     public ClickHouseFormat getFormat() {

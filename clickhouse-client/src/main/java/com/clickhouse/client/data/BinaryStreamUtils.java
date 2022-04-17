@@ -22,6 +22,8 @@ import java.time.ZoneOffset;
 import java.util.TimeZone;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+
+import com.clickhouse.client.ClickHouseByteBuffer;
 import com.clickhouse.client.ClickHouseChecker;
 import com.clickhouse.client.ClickHouseDataType;
 import com.clickhouse.client.ClickHouseInputStream;
@@ -90,9 +92,17 @@ public final class BinaryStreamUtils {
                 ClickHouseUtils.format("Enum [%s] does not contain value [%d]", enumType, value));
     }
 
+    public static int toInt32(ClickHouseByteBuffer byteBuffer) {
+        return toInt32(byteBuffer.array(), byteBuffer.position());
+    }
+
     public static int toInt32(byte[] bytes, int offset) {
         return (0xFF & bytes[offset++]) | ((0xFF & bytes[offset++]) << 8) | ((0xFF & bytes[offset++]) << 16)
                 | ((0xFF & bytes[offset]) << 24);
+    }
+
+    public static long toInt64(ClickHouseByteBuffer byteBuffer) {
+        return toInt64(byteBuffer.array(), byteBuffer.position());
     }
 
     public static long toInt64(byte[] bytes, int offset) {
@@ -754,8 +764,7 @@ public final class BinaryStreamUtils {
      *                     end of the stream
      */
     public static int readInt32(ClickHouseInputStream input) throws IOException {
-        return input.readUnsignedByte() | (input.readUnsignedByte() << 8) | (input.readUnsignedByte() << 16)
-                | (input.readByte() << 24);
+        return input.readBuffer(4).asInt32();
     }
 
     /**
@@ -805,7 +814,7 @@ public final class BinaryStreamUtils {
      *                     end of the stream
      */
     public static long readInt64(ClickHouseInputStream input) throws IOException {
-        return toInt64(input.readBytes(8), 0);
+        return input.readBuffer(8).asInt64();
     }
 
     /**
@@ -831,7 +840,7 @@ public final class BinaryStreamUtils {
      *                     end of the stream
      */
     public static BigInteger readUnsignedInt64(ClickHouseInputStream input) throws IOException {
-        return new BigInteger(1, reverse(input.readBytes(8)));
+        return input.readBuffer(8).asUnsignedInt64();
     }
 
     /**
@@ -871,7 +880,7 @@ public final class BinaryStreamUtils {
      *                     end of the stream
      */
     public static BigInteger readInt128(ClickHouseInputStream input) throws IOException {
-        return new BigInteger(reverse(input.readBytes(16)));
+        return input.readBuffer(16).asBigInteger();
     }
 
     /**
@@ -895,7 +904,7 @@ public final class BinaryStreamUtils {
      *                     end of the stream
      */
     public static BigInteger readUnsignedInt128(ClickHouseInputStream input) throws IOException {
-        return new BigInteger(1, reverse(input.readBytes(16)));
+        return input.readBuffer(16).asUnsignedBigInteger();
     }
 
     /**
@@ -920,7 +929,7 @@ public final class BinaryStreamUtils {
      *                     end of the stream
      */
     public static BigInteger readInt256(ClickHouseInputStream input) throws IOException {
-        return new BigInteger(reverse(input.readBytes(32)));
+        return input.readBuffer(32).asBigInteger();
     }
 
     /**
@@ -944,7 +953,7 @@ public final class BinaryStreamUtils {
      *                     end of the stream
      */
     public static BigInteger readUnsignedInt256(ClickHouseInputStream input) throws IOException {
-        return new BigInteger(1, reverse(input.readBytes(32)));
+        return input.readBuffer(32).asUnsignedBigInteger();
     }
 
     /**
@@ -1017,8 +1026,7 @@ public final class BinaryStreamUtils {
      *                     end of the stream
      */
     public static UUID readUuid(ClickHouseInputStream input) throws IOException {
-        byte[] bytes = input.readBytes(16);
-        return new UUID(toInt64(bytes, 0), toInt64(bytes, 8));
+        return input.readBuffer(16).asUuid();
     }
 
     /**
@@ -1569,9 +1577,7 @@ public final class BinaryStreamUtils {
      *                     end of the stream
      */
     public static String readFixedString(ClickHouseInputStream input, int length, Charset charset) throws IOException {
-        byte[] bytes = input.readBytes(length);
-
-        return new String(bytes, charset == null ? StandardCharsets.UTF_8 : charset);
+        return input.readBuffer(length).asString(charset);
     }
 
     /**

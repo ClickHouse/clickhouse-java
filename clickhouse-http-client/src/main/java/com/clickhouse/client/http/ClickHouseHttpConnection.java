@@ -2,7 +2,6 @@ package com.clickhouse.client.http;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
 import java.nio.charset.Charset;
@@ -13,29 +12,26 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Map.Entry;
-import java.util.zip.GZIPInputStream;
-import java.util.zip.GZIPOutputStream;
 
 import com.clickhouse.client.ClickHouseChecker;
 import com.clickhouse.client.ClickHouseCompression;
 import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseCredentials;
-import com.clickhouse.client.ClickHouseInputStream;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseUtils;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.data.ClickHouseExternalTable;
-import com.clickhouse.client.data.ClickHouseLZ4InputStream;
-import com.clickhouse.client.data.ClickHouseLZ4OutputStream;
 import com.clickhouse.client.http.config.ClickHouseHttpOption;
 
 public abstract class ClickHouseHttpConnection implements AutoCloseable {
-    protected static final int DEFAULT_BUFFER_SIZE = 8192;
-
     static String urlEncode(String str, Charset charset) {
+        if (charset == null) {
+            charset = StandardCharsets.UTF_8;
+        }
+
         try {
-            return URLEncoder.encode(str, StandardCharsets.UTF_8.name());
+            return URLEncoder.encode(str, charset.name());
         } catch (UnsupportedEncodingException e) {
             // should not happen
             throw new IllegalArgumentException(e);
@@ -182,7 +178,9 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
             map.put("Authorization", credentials.getAccessToken());
         } else {
             map.put("X-ClickHouse-User", credentials.getUserName());
-            if (!ClickHouseChecker.isNullOrEmpty(credentials.getPassword())) {
+            if (config.isSsl() && !ClickHouseChecker.isNullOrEmpty(config.getSslCert())) {
+                map.put("X-ClickHouse-SSL-Certificate-Auth", "on");
+            } else if (!ClickHouseChecker.isNullOrEmpty(credentials.getPassword())) {
                 map.put("X-ClickHouse-Key", credentials.getPassword());
             }
         }
@@ -224,53 +222,6 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
         return baseUrl;
     }
 
-    protected OutputStream getRequestOutputStream(OutputStream out) throws IOException {
-        if (!config.isDecompressClientRequet()) {
-            return out;
-        }
-
-        // TODO support more algorithms
-        ClickHouseCompression algorithm = config.getDecompressAlgorithmForClientRequest();
-        switch (algorithm) {
-            case GZIP:
-                out = new GZIPOutputStream(out, (int) config.getOption(ClickHouseClientOption.MAX_COMPRESS_BLOCK_SIZE));
-                break;
-            case LZ4:
-                out = new ClickHouseLZ4OutputStream(out,
-                        (int) config.getOption(ClickHouseClientOption.MAX_COMPRESS_BLOCK_SIZE));
-                break;
-            default:
-                throw new UnsupportedOperationException("Unsupported compression algorithm: " + algorithm);
-        }
-        return out;
-    }
-
-    protected ClickHouseInputStream getResponseInputStream(InputStream in) throws IOException {
-        Runnable afterClose = null;
-        if (!isReusable()) {
-            afterClose = this::closeQuietly;
-        }
-        ClickHouseInputStream chInput;
-        if (config.isCompressServerResponse()) {
-            // TODO support more algorithms
-            ClickHouseCompression algorithm = config.getCompressAlgorithmForServerResponse();
-            switch (algorithm) {
-                case GZIP:
-                    chInput = ClickHouseInputStream.of(new GZIPInputStream(in), config.getMaxBufferSize(), afterClose);
-                    break;
-                case LZ4:
-                    chInput = new ClickHouseLZ4InputStream(in, afterClose);
-                    break;
-                default:
-                    throw new UnsupportedOperationException("Unsupported compression algorithm: " + algorithm);
-            }
-        } else {
-            chInput = ClickHouseInputStream.of(in, config.getMaxBufferSize(), afterClose);
-        }
-
-        return chInput;
-    }
-
     /**
      * Creates a merged map.
      *
@@ -292,42 +243,6 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
             }
         }
         return merged;
-    }
-
-    /**
-     * Pipes data from input stream to output stream. Input stream will be closed
-     * but output stream will remain open.
-     *
-     * @param input      non-null input stream, which will be closed
-     * @param output     non-null output stream, which will remain open
-     * @param bufferSize buffer size, zero or negative number will be treated as
-     *                   {@link #DEFAULT_BUFFER_SIZE}
-     * @throws IOException when error occured reading from input stream or writing
-     *                     data to output stream
-     */
-    protected void pipe(InputStream input, OutputStream output, int bufferSize) throws IOException {
-        if (bufferSize <= 0) {
-            bufferSize = DEFAULT_BUFFER_SIZE;
-        }
-
-        byte[] bytes = new byte[bufferSize];
-        int counter = 0;
-        try {
-            while ((counter = input.read(bytes, 0, bufferSize)) >= 0) {
-                output.write(bytes, 0, counter);
-            }
-            output.flush();
-            input.close();
-            input = null;
-        } finally {
-            if (input != null) {
-                try {
-                    input.close();
-                } catch (Exception e) {
-                    // ignore
-                }
-            }
-        }
     }
 
     /**

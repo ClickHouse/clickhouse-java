@@ -424,9 +424,11 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
                     + "CREATE TABLE test_simple_agg_func (x SimpleAggregateFunction(max, UInt64)) ENGINE=AggregatingMergeTree ORDER BY tuple(); "
                     + "INSERT INTO test_simple_agg_func VALUES(1)");
 
-            ResultSet rs = stmt.executeQuery("select * from test_simple_agg_func");
-            // sorry, not supported at this point
-            Assert.assertThrows(IllegalArgumentException.class, () -> rs.next());
+            try (ResultSet rs = stmt.executeQuery("select * from test_simple_agg_func")) {
+                Assert.assertTrue(rs.next(), "Should have one row");
+                Assert.assertEquals(rs.getLong(1), 1L);
+                Assert.assertFalse(rs.next(), "Should have only one row");
+            }
         }
     }
 
@@ -572,9 +574,11 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
                 ClickHouseStatement stmt = conn.createStatement()) {
             ResultSet rs = stmt.executeQuery("select cast('a' as Enum('a'=1,'b'=2))");
             Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getByte(1), (byte) 1);
+            Assert.assertEquals(rs.getShort(1), (short) 1);
+            Assert.assertEquals(rs.getInt(1), 1);
             Assert.assertEquals(rs.getObject(1), "a");
             Assert.assertEquals(rs.getString(1), "a");
-            Assert.assertEquals(rs.getInt(1), 1);
             Assert.assertFalse(rs.next());
         }
 

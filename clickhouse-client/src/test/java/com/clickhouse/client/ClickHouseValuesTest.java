@@ -137,6 +137,23 @@ public class ClickHouseValuesTest extends BaseClickHouseValueTest {
     }
 
     @Test(groups = { "unit" })
+    public void testConvertToIpv4() throws Exception {
+        Assert.assertEquals(ClickHouseValues.convertToIpv4((String) null), null);
+        Assert.assertEquals(ClickHouseValues.convertToIpv4("127.0.0.1"), Inet4Address.getByName("127.0.0.1"));
+        Assert.assertEquals(ClickHouseValues.convertToIpv4("0:0:0:0:0:ffff:7f00:1"),
+                Inet4Address.getByName("127.0.0.1"));
+    }
+
+    @Test(groups = { "unit" })
+    public void testConvertToIpv6() throws Exception {
+        Assert.assertEquals(ClickHouseValues.convertToIpv6((String) null), null);
+        Assert.assertEquals(ClickHouseValues.convertToIpv6("::1"), Inet6Address.getByName("::1"));
+        Assert.assertEquals(ClickHouseValues.convertToIpv6("127.0.0.1").getClass(), Inet6Address.class);
+        Assert.assertEquals(ClickHouseValues.convertToIpv6("127.0.0.1").getAddress(),
+                new byte[] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, (byte) 0xFF, (byte) 0xFF, 0x7F, 0, 0, 1 });
+    }
+
+    @Test(groups = { "unit" })
     public void testConvertToSqlExpression() throws UnknownHostException {
         Assert.assertEquals(ClickHouseValues.convertToSqlExpression(null), ClickHouseValues.NULL_EXPR);
 

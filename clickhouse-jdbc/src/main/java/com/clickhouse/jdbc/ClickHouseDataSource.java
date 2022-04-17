@@ -2,15 +2,12 @@ package com.clickhouse.jdbc;
 
 import javax.sql.DataSource;
 
-import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.config.ClickHouseDefaults;
 import com.clickhouse.jdbc.internal.ClickHouseConnectionImpl;
 import com.clickhouse.jdbc.internal.ClickHouseJdbcUrlParser;
 import com.clickhouse.jdbc.internal.ClickHouseJdbcUrlParser.ConnectionInfo;
 
 import java.io.PrintWriter;
-import java.net.URI;
-import java.net.URISyntaxException;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.util.Properties;
@@ -72,14 +69,6 @@ public class ClickHouseDataSource extends JdbcWrapper implements DataSource {
         return connInfo.getServer().getDatabase()
                 .orElse((String) ClickHouseDefaults.DATABASE.getEffectiveDefaultValue());
     }
-
-    // public String getUrl() {
-    // return url;
-    // }
-
-    // public Properties getProperties() {
-    // return connInfo.getProperties();
-    // }
 
     @Override
     public PrintWriter getLogWriter() throws SQLException {

@@ -1,10 +1,10 @@
 package com.clickhouse.client;
 
 import java.io.IOException;
-import java.io.OutputStream;
 import java.util.List;
 import java.util.Map;
 
+import com.clickhouse.client.config.ClickHouseDefaults;
 import com.clickhouse.client.data.ClickHousePipedStream;
 import com.clickhouse.client.data.ClickHouseRowBinaryProcessor;
 import com.clickhouse.client.data.ClickHouseTabSeparatedProcessor;
@@ -15,6 +15,10 @@ import com.clickhouse.client.data.ClickHouseTabSeparatedProcessor;
 public class ClickHouseDataStreamFactory {
     private static final ClickHouseDataStreamFactory instance = ClickHouseUtils
             .getService(ClickHouseDataStreamFactory.class, new ClickHouseDataStreamFactory());
+
+    protected static final String ERROR_NO_DESERIALIZER = "No deserializer available because format %s does not support input";
+    protected static final String ERROR_NO_SERIALIZER = "No serializer available because format %s does not support output";
+    protected static final String ERROR_UNSUPPORTED_FORMAT = "Unsupported format: ";
 
     /**
      * Gets instance of the factory class.
@@ -40,7 +44,8 @@ public class ClickHouseDataStreamFactory {
      * @throws IOException when failed to read columns from input stream
      */
     public ClickHouseDataProcessor getProcessor(ClickHouseConfig config, ClickHouseInputStream input,
-            OutputStream output, Map<String, Object> settings, List<ClickHouseColumn> columns) throws IOException {
+            ClickHouseOutputStream output, Map<String, Object> settings, List<ClickHouseColumn> columns)
+            throws IOException {
         ClickHouseFormat format = ClickHouseChecker.nonNull(config, "config").getFormat();
         ClickHouseDataProcessor processor;
         if (ClickHouseFormat.RowBinary == format || ClickHouseFormat.RowBinaryWithNamesAndTypes == format) {
@@ -53,10 +58,62 @@ public class ClickHouseDataStreamFactory {
             processor = new ClickHouseTabSeparatedProcessor(config, input, output,
                     ClickHouseDataProcessor.DEFAULT_COLUMNS, settings);
         } else {
-            throw new IllegalArgumentException("Unsupported format: " + format);
+            throw new IllegalArgumentException(ERROR_UNSUPPORTED_FORMAT + format);
         }
 
         return processor;
+    }
+
+    /**
+     * Gets deserializer for the given data format.
+     *
+     * @param format data format, null means
+     *               {@code ClickHouseDefaults.FORMAT.getEffectiveDefaultValue()}
+     * @return deserializer for the given data format
+     */
+    public ClickHouseDeserializer<ClickHouseValue> getDeserializer(ClickHouseFormat format) {
+        if (format == null) {
+            format = (ClickHouseFormat) ClickHouseDefaults.FORMAT.getEffectiveDefaultValue();
+        }
+        if (!format.supportsInput()) {
+            throw new IllegalArgumentException(ClickHouseUtils.format(ERROR_NO_DESERIALIZER, format.name()));
+        }
+
+        ClickHouseDeserializer<ClickHouseValue> deserializer;
+        if (format.isText()) {
+            deserializer = ClickHouseTabSeparatedProcessor.getMappedFunctions(format);
+        } else if (format == ClickHouseFormat.RowBinary || format == ClickHouseFormat.RowBinaryWithNamesAndTypes) {
+            deserializer = ClickHouseRowBinaryProcessor.getMappedFunctions();
+        } else {
+            throw new IllegalArgumentException(ERROR_UNSUPPORTED_FORMAT + format);
+        }
+        return deserializer;
+    }
+
+    /**
+     * Gets serializer for the given data format.
+     *
+     * @param format data format, null means
+     *               {@code ClickHouseDefaults.FORMAT.getEffectiveDefaultValue()}
+     * @return serializer for the given data format
+     */
+    public ClickHouseSerializer<ClickHouseValue> getSerializer(ClickHouseFormat format) {
+        if (format == null) {
+            format = (ClickHouseFormat) ClickHouseDefaults.FORMAT.getEffectiveDefaultValue();
+        }
+        if (!format.supportsOutput()) {
+            throw new IllegalArgumentException(ClickHouseUtils.format(ERROR_NO_SERIALIZER, format.name()));
+        }
+
+        ClickHouseSerializer<ClickHouseValue> serializer;
+        if (format.isText()) {
+            serializer = ClickHouseTabSeparatedProcessor.getMappedFunctions(format);
+        } else if (format == ClickHouseFormat.RowBinary || format == ClickHouseFormat.RowBinaryWithNamesAndTypes) {
+            serializer = ClickHouseRowBinaryProcessor.getMappedFunctions();
+        } else {
+            throw new IllegalArgumentException(ERROR_UNSUPPORTED_FORMAT + format);
+        }
+        return serializer;
     }
 
     /**
@@ -68,7 +125,7 @@ public class ClickHouseDataStreamFactory {
     public ClickHousePipedStream createPipedStream(ClickHouseConfig config) {
         ClickHouseChecker.nonNull(config, "config");
 
-        return new ClickHousePipedStream(config.getMaxBufferSize(), config.getMaxQueuedBuffers(),
+        return new ClickHousePipedStream(config.getWriteBufferSize(), config.getMaxQueuedBuffers(),
                 config.getSocketTimeout());
     }
 }

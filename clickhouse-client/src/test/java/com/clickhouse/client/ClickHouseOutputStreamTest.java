@@ -50,7 +50,7 @@ public class ClickHouseOutputStreamTest {
         Assert.assertEquals(empty.isClosed(), false);
         empty.writeByte((byte) 1);
         empty.writeBytes(new byte[] { 1, 2, 3 }, 1, 2);
-        empty.writeBytes(ByteBuffer.wrap(new byte[] { 4, 5, 6 }).asReadOnlyBuffer(), 0, 3);
+        empty.writeBytes(ByteBuffer.wrap(new byte[] { 4, 5, 6 }).asReadOnlyBuffer(), 3);
         empty.flush();
         Assert.assertEquals(inner.toByteArray(), new byte[] { 1, 2, 3, 4, 5, 6 });
         out.close();
