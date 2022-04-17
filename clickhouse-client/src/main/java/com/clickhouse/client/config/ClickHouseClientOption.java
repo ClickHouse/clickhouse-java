@@ -142,6 +142,10 @@ public enum ClickHouseClientOption implements ClickHouseOption {
      */
     SERVER_VERSION("server_version", "", "Server version."),
     /**
+     * Session id.
+     */
+    SESSION_ID("session_id", "", "Session id"),
+    /**
      * Whether to check if session id is validate.
      */
     SESSION_CHECK("session_check", false, "Whether to check if existence of session id."),

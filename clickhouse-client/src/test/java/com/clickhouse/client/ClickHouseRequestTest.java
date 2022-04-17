@@ -8,6 +8,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.UUID;
 
@@ -73,8 +74,9 @@ public class ClickHouseRequestTest {
 
     @Test(groups = { "unit" })
     public void testChangeListener() {
+        final ClickHouseConfig config = new ClickHouseConfig();
         final List<Object[]> changedOptions = new ArrayList<>();
-        // final List<Object[]> changedProperties = new ArrayList<>();
+        final List<Object[]> changedProperties = new ArrayList<>();
         final List<Object[]> changedSettings = new ArrayList<>();
         ClickHouseConfigChangeListener<ClickHouseRequest<?>> listener = new ClickHouseConfigChangeListener<ClickHouseRequest<?>>() {
             @Override
@@ -84,20 +86,29 @@ public class ClickHouseRequestTest {
             }
 
             @Override
+            public void propertyChanged(ClickHouseRequest<?> source, String property, Object oldValue,
+                    Object newValue) {
+                changedProperties.add(new Object[] { source, property, oldValue, newValue });
+            }
+
+            @Override
             public void settingChanged(ClickHouseRequest<?> source, String setting, Serializable oldValue,
                     Serializable newValue) {
                 changedSettings.add(new Object[] { source, setting, oldValue, newValue });
             }
         };
+        final ClickHouseParameterizedQuery select3 = ClickHouseParameterizedQuery.of(config, "select 3");
         ClickHouseRequest<?> request = ClickHouseClient.newInstance().connect(ClickHouseNode.builder().build());
         request.setChangeListener(listener);
         Assert.assertTrue(changedOptions.isEmpty(), "Should have no option changed");
+        Assert.assertTrue(changedProperties.isEmpty(), "Should have no property changed");
         Assert.assertTrue(changedSettings.isEmpty(), "Should have no setting changed");
         request.option(ClickHouseClientOption.ASYNC, false);
         request.format(ClickHouseFormat.Arrow);
         request.option(ClickHouseClientOption.FORMAT, ClickHouseFormat.Avro);
         request.removeOption(ClickHouseClientOption.BUFFER_SIZE);
         request.removeOption(ClickHouseClientOption.ASYNC);
+        request.query("select 1").query("select 2", "id=2").query(select3);
         request.reset();
         request.format(ClickHouseFormat.TSV);
         Assert.assertEquals(changedOptions.toArray(new Object[0]),
@@ -108,6 +119,14 @@ public class ClickHouseRequestTest {
                                 ClickHouseFormat.Avro },
                         new Object[] { request, ClickHouseClientOption.ASYNC, false, null },
                         new Object[] { request, ClickHouseClientOption.FORMAT, ClickHouseFormat.Avro, null } });
+        Assert.assertEquals(changedProperties.toArray(new Object[0]), new Object[][] {
+                { request, ClickHouseRequest.PROP_QUERY, null, "select 1" },
+                { request, ClickHouseRequest.PROP_QUERY, "select 1", "select 2" },
+                { request, ClickHouseRequest.PROP_QUERY_ID, null, "id=2" },
+                { request, ClickHouseRequest.PROP_PREPARED_QUERY, null, select3 },
+                { request, ClickHouseRequest.PROP_QUERY, "select 2", "select 3" },
+                { request, ClickHouseRequest.PROP_QUERY_ID, "id=2", null },
+        });
         changedOptions.clear();
 
         request.setChangeListener(listener);
@@ -152,7 +171,7 @@ public class ClickHouseRequestTest {
         Assert.assertEquals(copy.namedParameters, request.namedParameters);
         Assert.assertEquals(copy.options, request.options);
         Assert.assertEquals(copy.queryId, request.queryId);
-        Assert.assertEquals(copy.sessionId, request.sessionId);
+        Assert.assertEquals(copy.getSessionId(), request.getSessionId());
         Assert.assertEquals(copy.sql, request.sql);
         Assert.assertEquals(copy.getPreparedQuery(), request.getPreparedQuery());
 
@@ -162,7 +181,7 @@ public class ClickHouseRequestTest {
         Assert.assertTrue(copy.namedParameters.isEmpty(), "Named parameters should be empty");
         Assert.assertEquals(copy.options, request.options);
         Assert.assertNull(copy.queryId, "Query ID should be null");
-        Assert.assertEquals(copy.sessionId, request.sessionId);
+        Assert.assertEquals(copy.getSessionId(), request.getSessionId());
         Assert.assertNull(copy.sql, "SQL should be null");
 
         ClickHouseRequest<?> newCopy = copy;
@@ -178,7 +197,7 @@ public class ClickHouseRequestTest {
         Assert.assertEquals(copy.namedParameters, request.namedParameters);
         Assert.assertEquals(copy.options, request.options);
         Assert.assertEquals(copy.queryId, request.queryId);
-        Assert.assertEquals(copy.sessionId, request.sessionId);
+        Assert.assertEquals(copy.getSessionId(), request.getSessionId());
         Assert.assertEquals(copy.sql, request.sql);
         Assert.assertEquals(copy.getPreparedQuery(), request.getPreparedQuery());
     }
@@ -283,7 +302,7 @@ public class ClickHouseRequestTest {
         Assert.assertEquals(sealed.namedParameters, request.namedParameters);
         Assert.assertEquals(sealed.options, request.options);
         Assert.assertEquals(sealed.queryId, request.queryId);
-        Assert.assertEquals(sealed.sessionId, request.sessionId);
+        Assert.assertEquals(sealed.getSessionId(), request.getSessionId());
         Assert.assertEquals(sealed.sql, request.sql);
         Assert.assertEquals(sealed.getPreparedQuery(), request.getPreparedQuery());
 
@@ -295,7 +314,7 @@ public class ClickHouseRequestTest {
         String sessionId = UUID.randomUUID().toString();
         ClickHouseRequest<?> request = ClickHouseClient.newInstance().connect(ClickHouseNode.builder().build());
         Assert.assertEquals(request.getSessionId().isPresent(), false);
-        Assert.assertEquals(request.sessionId, null);
+        Assert.assertEquals(request.getSessionId(), Optional.empty());
         Assert.assertEquals(request.getConfig().isSessionCheck(), false);
         Assert.assertEquals(request.getConfig().getSessionTimeout(), 0);
 
@@ -319,7 +338,7 @@ public class ClickHouseRequestTest {
         Assert.assertEquals(sealedRequest.getConfig().isSessionCheck(), true);
         Assert.assertEquals(sealedRequest.getConfig().getSessionTimeout(), 10);
         Assert.assertEquals(request.getSessionId().isPresent(), false);
-        Assert.assertEquals(request.sessionId, null);
+        Assert.assertEquals(request.getSessionId(), Optional.empty());
         Assert.assertEquals(request.getConfig().isSessionCheck(), false);
         Assert.assertEquals(request.getConfig().getSessionTimeout(), 0);
     }

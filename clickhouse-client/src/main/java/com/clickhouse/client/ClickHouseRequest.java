@@ -43,8 +43,6 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
 
             this.options.putAll(request.options);
             this.settings.putAll(request.settings);
-
-            this.sessionId = request.sessionId;
         }
 
         @Override
@@ -90,13 +88,13 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
 
             final ClickHouseRequest<?> self = this;
             final String fileName = ClickHouseChecker.nonEmpty(file, "File");
-            this.input = ClickHouseDeferredValue.of(() -> {
+            this.input = changeProperty(PROP_DATA, this.input, ClickHouseDeferredValue.of(() -> {
                 try {
                     return ClickHouseInputStream.of(new FileInputStream(fileName), 123, compression);
                 } catch (FileNotFoundException e) {
                     throw new IllegalArgumentException(e);
                 }
-            });
+            }));
             return this;
         }
 
@@ -119,7 +117,8 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
         public Mutation data(ClickHouseInputStream input) {
             checkSealed();
 
-            this.input = ClickHouseDeferredValue.of(input, ClickHouseInputStream.class);
+            this.input = changeProperty(PROP_DATA, this.input,
+                    ClickHouseDeferredValue.of(input, ClickHouseInputStream.class));
 
             return this;
         }
@@ -133,7 +132,7 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
         public Mutation data(ClickHouseDeferredValue<ClickHouseInputStream> input) {
             checkSealed();
 
-            this.input = input;
+            this.input = changeProperty(PROP_DATA, this.input, input);
 
             return this;
         }
@@ -162,16 +161,7 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
         @Override
         public Mutation table(String table, String queryId) {
             checkSealed();
-
-            this.queryId = queryId;
-
-            String sql = "INSERT INTO " + ClickHouseChecker.nonBlank(table, "table");
-            if (!sql.equals(this.sql)) {
-                this.sql = sql;
-                this.preparedQuery = null;
-                resetCache();
-            }
-
+            super.query("INSERT INTO " + ClickHouseChecker.nonBlank(table, "table"), queryId);
             return this;
         }
 
@@ -190,7 +180,6 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
 
                 req.input = input;
                 req.queryId = queryId;
-                req.sessionId = sessionId;
                 req.sql = sql;
 
                 req.preparedQuery = preparedQuery;
@@ -201,6 +190,11 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
     }
 
     private static final long serialVersionUID = 4990313525960702287L;
+
+    static final String PROP_DATA = "data";
+    static final String PROP_PREPARED_QUERY = "preparedQuery";
+    static final String PROP_QUERY = "query";
+    static final String PROP_QUERY_ID = "queryId";
 
     private final boolean sealed;
 
@@ -216,7 +210,6 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
 
     protected transient ClickHouseDeferredValue<ClickHouseInputStream> input;
     protected String queryId;
-    protected String sessionId;
     protected String sql;
     protected ClickHouseParameterizedQuery preparedQuery;
 
@@ -243,6 +236,13 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
         this.settings = new LinkedHashMap<>();
 
         this.namedParameters = new HashMap<>();
+    }
+
+    protected <T> T changeProperty(String property, T oldValue, T newValue) {
+        if (changeListener != null && !Objects.equals(oldValue, newValue)) {
+            changeListener.propertyChanged(this, property, oldValue, newValue);
+        }
+        return newValue;
     }
 
     protected void checkSealed() {
@@ -291,7 +291,6 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
         req.namedParameters.putAll(namedParameters);
         req.input = input;
         req.queryId = queryId;
-        req.sessionId = sessionId;
         req.sql = sql;
         req.preparedQuery = preparedQuery;
         return req;
@@ -412,7 +411,8 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
      */
     public ClickHouseParameterizedQuery getPreparedQuery() {
         if (preparedQuery == null) {
-            preparedQuery = ClickHouseParameterizedQuery.of(getConfig(), getQuery());
+            preparedQuery = changeProperty(PROP_PREPARED_QUERY, preparedQuery,
+                    ClickHouseParameterizedQuery.of(getConfig(), getQuery()));
         }
 
         return preparedQuery;
@@ -433,6 +433,7 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
      * @return session id
      */
     public Optional<String> getSessionId() {
+        String sessionId = (String) getConfig().getOption(ClickHouseClientOption.SESSION_ID);
         return ClickHouseChecker.isNullOrEmpty(sessionId) ? Optional.empty() : Optional.of(sessionId);
     }
 
@@ -681,12 +682,7 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
     @SuppressWarnings("unchecked")
     public SelfT format(ClickHouseFormat format) {
         checkSealed();
-
-        if (format == null) {
-            removeOption(ClickHouseClientOption.FORMAT);
-        } else {
-            option(ClickHouseClientOption.FORMAT, format);
-        }
+        option(ClickHouseClientOption.FORMAT, format);
         return (SelfT) this;
     }
 
@@ -739,11 +735,7 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
             m.putAll(this.options);
             if (options != null) {
                 for (Entry<ClickHouseOption, Serializable> e : options.entrySet()) {
-                    if (e.getValue() == null) {
-                        removeOption(e.getKey());
-                    } else {
-                        option(e.getKey(), e.getValue());
-                    }
+                    option(e.getKey(), e.getValue());
                     m.remove(e.getKey());
                 }
             }
@@ -1078,13 +1070,13 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
     public SelfT query(ClickHouseParameterizedQuery query, String queryId) {
         checkSealed();
 
-        if (!ClickHouseChecker.nonNull(query, "query").equals(this.preparedQuery)) {
-            this.preparedQuery = query;
-            this.sql = query.getOriginalQuery();
+        if (!ClickHouseChecker.nonNull(query, PROP_QUERY).equals(this.preparedQuery)) {
+            this.preparedQuery = changeProperty(PROP_PREPARED_QUERY, this.preparedQuery, query);
+            this.sql = changeProperty(PROP_QUERY, this.sql, query.getOriginalQuery());
             resetCache();
         }
 
-        this.queryId = queryId;
+        this.queryId = changeProperty(PROP_QUERY_ID, this.queryId, queryId);
 
         return (SelfT) this;
     }
@@ -1092,21 +1084,21 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
     /**
      * Sets query and optinally query id.
      *
-     * @param sql     non-empty query
+     * @param query   non-empty query
      * @param queryId query id, null means no query id
      * @return the request itself
      */
     @SuppressWarnings("unchecked")
-    public SelfT query(String sql, String queryId) {
+    public SelfT query(String query, String queryId) {
         checkSealed();
 
-        if (!ClickHouseChecker.nonBlank(sql, "sql").equals(this.sql)) {
-            this.sql = sql;
-            this.preparedQuery = null;
+        if (!ClickHouseChecker.nonBlank(query, PROP_QUERY).equals(this.sql)) {
+            this.sql = changeProperty(PROP_QUERY, this.sql, query);
+            this.preparedQuery = changeProperty(PROP_PREPARED_QUERY, this.preparedQuery, null);
             resetCache();
         }
 
-        this.queryId = queryId;
+        this.queryId = changeProperty(PROP_QUERY_ID, this.queryId, queryId);
 
         return (SelfT) this;
     }
@@ -1121,12 +1113,9 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
     public SelfT clearSession() {
         checkSealed();
 
+        removeOption(ClickHouseClientOption.SESSION_ID);
         removeOption(ClickHouseClientOption.SESSION_CHECK);
         removeOption(ClickHouseClientOption.SESSION_TIMEOUT);
-        if (this.sessionId != null) {
-            this.sessionId = null;
-            resetCache();
-        }
 
         return (SelfT) this;
     }
@@ -1178,12 +1167,9 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
     public SelfT session(String sessionId, Boolean check, Integer timeout) {
         checkSealed();
 
+        option(ClickHouseClientOption.SESSION_ID, sessionId);
         option(ClickHouseClientOption.SESSION_CHECK, check);
         option(ClickHouseClientOption.SESSION_TIMEOUT, timeout);
-        if (!Objects.equals(this.sessionId, sessionId)) {
-            this.sessionId = sessionId;
-            resetCache();
-        }
 
         return (SelfT) this;
     }
@@ -1263,12 +1249,7 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
     @SuppressWarnings("unchecked")
     public SelfT use(String database) {
         checkSealed();
-
-        if (database == null) {
-            removeOption(ClickHouseClientOption.DATABASE);
-        } else {
-            option(ClickHouseClientOption.DATABASE, database);
-        }
+        option(ClickHouseClientOption.DATABASE, database);
         return (SelfT) this;
     }
 
@@ -1384,11 +1365,10 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
         }
         this.namedParameters.clear();
 
-        this.input = null;
-        this.sql = null;
-        this.preparedQuery = null;
-        this.queryId = null;
-        this.sessionId = null;
+        this.input = changeProperty(PROP_DATA, this.input, null);
+        this.sql = changeProperty(PROP_QUERY, this.sql, null);
+        this.preparedQuery = changeProperty(PROP_PREPARED_QUERY, this.preparedQuery, null);
+        this.queryId = changeProperty(PROP_QUERY_ID, this.queryId, null);
 
         resetCache();
 
@@ -1414,7 +1394,6 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
 
             req.input = input;
             req.queryId = queryId;
-            req.sessionId = sessionId;
             req.sql = sql;
             req.preparedQuery = preparedQuery;
         }

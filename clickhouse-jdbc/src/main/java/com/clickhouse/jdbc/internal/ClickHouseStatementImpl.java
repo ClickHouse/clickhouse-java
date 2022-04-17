@@ -262,12 +262,14 @@ public class ClickHouseStatementImpl extends JdbcWrapper
     @Override
     public void optionChanged(ClickHouseRequest<?> source, ClickHouseOption option, Serializable oldValue,
             Serializable newValue) {
-        if (source != request || option != ClickHouseClientOption.FORMAT) {
+        if (source != request) {
             return;
         }
 
-        this.deserializer = ClickHouseDataStreamFactory.getInstance().getDeserializer(request.getFormat());
-        this.serializer = ClickHouseDataStreamFactory.getInstance().getSerializer(request.getInputFormat());
+        if (option == ClickHouseClientOption.FORMAT) {
+            this.deserializer = ClickHouseDataStreamFactory.getInstance().getDeserializer(request.getFormat());
+            this.serializer = ClickHouseDataStreamFactory.getInstance().getSerializer(request.getInputFormat());
+        }
     }
 
     @Override
