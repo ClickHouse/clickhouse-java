@@ -1,6 +1,7 @@
 package com.clickhouse.client.config;
 
 import java.io.Serializable;
+import java.math.RoundingMode;
 
 import com.clickhouse.client.ClickHouseChecker;
 import com.clickhouse.client.ClickHouseFormat;
@@ -70,6 +71,10 @@ public enum ClickHouseDefaults implements ClickHouseOption {
      */
     MAX_REQUESTS("max_requests", 0, "Maximum size of shared thread pool, 0 means no limit."),
     /**
+     * Rounding mode for type conversion.
+     */
+    ROUNDING_MODE("rounding_mode", RoundingMode.DOWN, "Default rounding mode for BigDecimal."),
+    /**
      * Thread keep alive timeout in milliseconds.
      */
     THREAD_KEEPALIVE_TIMEOUT("thread_keepalive_timeout", 0L,
@@ -82,6 +87,18 @@ public enum ClickHouseDefaults implements ClickHouseOption {
      * Server version, defaults to {@code latest}.
      */
     SERVER_VERSION("version", "latest", "Server version"),
+    /**
+     * SSL certificiate type.
+     */
+    SSL_CERTIFICATE_TYPE("sslcerttype", "X.509", "SSL/TLS certificate type."),
+    /**
+     * SSL key algorithm.
+     */
+    SSL_KEY_ALGORITHM("sslkeyalg", "RSA", "Key algorithm."),
+    /**
+     * SSL key.
+     */
+    SSL_PROTOCOL("sslprotocol", "TLS", "SSL protocol."),
     /**
      * Whether to resolve DNS SRV name using
      * {@link com.clickhouse.client.naming.SrvResolver}(e.g. resolve SRV record to

@@ -17,6 +17,11 @@ import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.ClickHouseUtils;
 import com.clickhouse.client.grpc.impl.QueryInfo;
 
+/**
+ * Custom future object for gRPC.
+ *
+ * @deprecated will be removed in v0.3.3
+ */
 @Deprecated
 public class ClickHouseGrpcFuture implements Future<ClickHouseResponse> {
     private final ClickHouseNode server;

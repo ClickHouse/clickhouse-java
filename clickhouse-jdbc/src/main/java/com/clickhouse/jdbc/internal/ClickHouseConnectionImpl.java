@@ -72,8 +72,7 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
         try (ClickHouseResponse response = newReq.option(ClickHouseClientOption.ASYNC, false)
                 .option(ClickHouseClientOption.COMPRESS, false).option(ClickHouseClientOption.DECOMPRESS, false)
                 .option(ClickHouseClientOption.FORMAT, ClickHouseFormat.RowBinaryWithNamesAndTypes)
-                .query("select currentUser(), timezone(), version(), "
-                        + "ifnull((select toUInt8(value) from system.settings where name='readonly'),0) readonly "
+                .query("select currentUser(), timezone(), version(), getSetting('readonly') readonly "
                         + "FORMAT RowBinaryWithNamesAndTypes")
                 .execute().get()) {
             return response.firstRecord();
@@ -156,10 +155,10 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
 
         if (jdbcConf.isJdbcCompliant()) {
             if (silent) {
-                log.debug("[JDBC Compliant Mode] %s. Change %s to false to throw SQLException instead.", msg,
+                log.debug("[JDBC Compliant Mode] %s. You may change %s to false to throw SQLException instead.", msg,
                         JdbcConfig.PROP_JDBC_COMPLIANT);
             } else {
-                log.warn("[JDBC Compliant Mode] %s. Change %s to false to throw SQLException instead.", msg,
+                log.warn("[JDBC Compliant Mode] %s. You may change %s to false to throw SQLException instead.", msg,
                         JdbcConfig.PROP_JDBC_COMPLIANT);
             }
         } else if (!silent) {
@@ -189,7 +188,8 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
         }
         builder.append('`').append(ClickHouseUtils.escape(tableName, '`')).append('`').append(" WHERE 0");
         List<ClickHouseColumn> list;
-        try (ClickHouseResponse resp = clientRequest.copy().query(builder.toString()).execute().get()) {
+        try (ClickHouseResponse resp = clientRequest.copy().format(ClickHouseFormat.RowBinaryWithNamesAndTypes)
+                .query(builder.toString()).execute().get()) {
             list = resp.getColumns();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();

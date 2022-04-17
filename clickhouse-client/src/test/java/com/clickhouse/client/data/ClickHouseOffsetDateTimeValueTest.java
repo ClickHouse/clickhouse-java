@@ -203,7 +203,7 @@ public class ClickHouseOffsetDateTimeValueTest extends BaseClickHouseValueTest {
                 Arrays.asList(dateTime) // Tuple
         );
         Assert.assertEquals(ClickHouseOffsetDateTimeValue.of(dateTime.toLocalDateTime(), 3, null).asBigDecimal(4),
-                BigDecimal.valueOf(0.1235D));
+                BigDecimal.valueOf(0.1234D));
     }
 
     @Test(groups = { "unit" })

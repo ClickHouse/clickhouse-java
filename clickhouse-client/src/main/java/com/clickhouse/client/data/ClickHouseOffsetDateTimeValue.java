@@ -2,7 +2,6 @@ package com.clickhouse.client.data;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
-import java.math.RoundingMode;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
@@ -145,7 +144,7 @@ public class ClickHouseOffsetDateTimeValue extends ClickHouseObjectValue<OffsetD
             v = new BigDecimal(BigInteger.valueOf(value.toEpochSecond()), scale);
             if (scale != 0 && nanoSeconds != 0) {
                 v = v.add(BigDecimal.valueOf(nanoSeconds).divide(ClickHouseValues.NANOS).setScale(scale,
-                        RoundingMode.HALF_UP));
+                        ClickHouseValues.ROUNDING_MODE));
             }
         }
         return v;
@@ -275,7 +274,7 @@ public class ClickHouseOffsetDateTimeValue extends ClickHouseObjectValue<OffsetD
             resetToNullOrEmpty();
         } else {
             if (value.scale() != scale) {
-                value = value.setScale(scale, RoundingMode.HALF_UP);
+                value = value.setScale(scale, ClickHouseValues.ROUNDING_MODE);
             }
             set(ClickHouseValues.convertToDateTime(value, tz).toOffsetDateTime());
         }

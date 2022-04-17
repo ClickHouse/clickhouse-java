@@ -78,8 +78,10 @@ public class ClickHouseResponseGsonDeserializer implements JsonDeserializer<Clic
             valueStr = value.getAsString();
         } else if (value.isJsonArray()) {
             valueStr = arrayToString(value);
+        } else if (value.isJsonNull()){
+            valueStr = null;
         } else {
-            throw new IllegalArgumentException("unexpected jsonElementType: " + value.toString());
+            valueStr = value.toString();
         }
         return valueStr;
     }

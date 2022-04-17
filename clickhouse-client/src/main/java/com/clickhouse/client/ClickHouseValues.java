@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.lang.reflect.Array;
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.math.RoundingMode;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.net.InetAddress;
@@ -27,6 +28,7 @@ import java.util.TimeZone;
 import java.util.UUID;
 import java.util.Map.Entry;
 
+import com.clickhouse.client.config.ClickHouseDefaults;
 import com.clickhouse.client.data.ClickHouseArrayValue;
 import com.clickhouse.client.data.ClickHouseBigDecimalValue;
 import com.clickhouse.client.data.ClickHouseBigIntegerValue;
@@ -37,6 +39,7 @@ import com.clickhouse.client.data.ClickHouseDateTimeValue;
 import com.clickhouse.client.data.ClickHouseDateValue;
 import com.clickhouse.client.data.ClickHouseDoubleValue;
 import com.clickhouse.client.data.ClickHouseEmptyValue;
+import com.clickhouse.client.data.ClickHouseEnumValue;
 import com.clickhouse.client.data.ClickHouseFloatValue;
 import com.clickhouse.client.data.ClickHouseGeoMultiPolygonValue;
 import com.clickhouse.client.data.ClickHouseGeoPointValue;
@@ -79,10 +82,14 @@ public final class ClickHouseValues {
     public static final float[] EMPTY_FLOAT_ARRAY = new float[0];
     public static final double[] EMPTY_DOUBLE_ARRAY = new double[0];
 
+    public static final ClickHouseValue[] EMPTY_VALUES = new ClickHouseValue[0];
+
     public static final String EMPTY_ARRAY_EXPR = "[]";
     public static final String EMPTY_STRING_EXPR = "''";
 
     public static final BigDecimal NANOS = new BigDecimal(BigInteger.TEN.pow(9));
+    public static final RoundingMode ROUNDING_MODE = (RoundingMode) ClickHouseDefaults.ROUNDING_MODE
+            .getEffectiveDefaultValue();
 
     public static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
     public static final DateTimeFormatter TIME_FORMATTER = new DateTimeFormatterBuilder().appendPattern("HH:mm:ss")
@@ -416,6 +423,8 @@ public final class ClickHouseValues {
             for (InetAddress addr : InetAddress.getAllByName(value)) {
                 if (addr instanceof Inet4Address) {
                     return (Inet4Address) addr;
+                } else if (addr instanceof Inet6Address) {
+                    return convertToIpv4((Inet6Address) addr);
                 }
             }
         } catch (UnknownHostException e) {
@@ -499,6 +508,8 @@ public final class ClickHouseValues {
             for (InetAddress addr : InetAddress.getAllByName(value)) {
                 if (addr instanceof Inet6Address) {
                     return (Inet6Address) addr;
+                } else if (addr instanceof Inet4Address) {
+                    return convertToIpv6((Inet4Address) addr);
                 }
             }
         } catch (UnknownHostException e) {
@@ -990,11 +1001,17 @@ public final class ClickHouseValues {
                 break;
             case Enum:
             case Enum8:
+                value = column != null ? ClickHouseEnumValue.ofNull(column.getEnumConstants())
+                        : ClickHouseByteValue.ofNull();
+                break;
+            case Enum16:
+                value = column != null ? ClickHouseEnumValue.ofNull(column.getEnumConstants())
+                        : ClickHouseShortValue.ofNull();
+                break;
             case Int8:
                 value = ClickHouseByteValue.ofNull();
                 break;
             case UInt8:
-            case Enum16:
             case Int16:
                 value = ClickHouseShortValue.ofNull();
                 break;
@@ -1077,6 +1094,9 @@ public final class ClickHouseValues {
             case MultiPolygon:
                 value = ClickHouseGeoMultiPolygonValue.ofEmpty();
                 break;
+            case SimpleAggregateFunction:
+                column = column.getNestedColumns().get(0);
+                return newValue(config, column.getDataType(), column);
             case AggregateFunction:
                 value = ClickHouseEmptyValue.INSTANCE;
                 if (column != null) {
@@ -1098,10 +1118,10 @@ public final class ClickHouseValues {
                 } else if (column.getArrayNestedLevel() > 1) {
                     value = ClickHouseArrayValue.of(
                             (Object[]) createPrimitiveArray(
-                                    column.getArrayBaseColumn().getDataType().getPrimitiveClass(),
+                                    column.getArrayBaseColumn().getPrimitiveClass(),
                                     0, column.getArrayNestedLevel()));
                 } else {
-                    Class<?> javaClass = column.getArrayBaseColumn().getDataType().getPrimitiveClass();
+                    Class<?> javaClass = column.getArrayBaseColumn().getPrimitiveClass();
                     if (byte.class == javaClass) {
                         value = ClickHouseByteArrayValue.ofEmpty();
                     } else if (short.class == javaClass) {
@@ -1123,8 +1143,8 @@ public final class ClickHouseValues {
                 if (column == null) {
                     throw new IllegalArgumentException("column types for key and value are required");
                 }
-                value = ClickHouseMapValue.ofEmpty(column.getKeyInfo().getDataType().getObjectClass(),
-                        column.getValueInfo().getDataType().getObjectClass());
+                value = ClickHouseMapValue.ofEmpty(column.getKeyInfo().getObjectClass(),
+                        column.getValueInfo().getObjectClass());
                 break;
             case Nested:
                 if (column == null) {
@@ -1132,6 +1152,8 @@ public final class ClickHouseValues {
                 }
                 value = ClickHouseNestedValue.ofEmpty(column.getNestedColumns());
                 break;
+            case Object:
+            case JSON:
             case Tuple:
                 value = ClickHouseTupleValue.of();
                 break;

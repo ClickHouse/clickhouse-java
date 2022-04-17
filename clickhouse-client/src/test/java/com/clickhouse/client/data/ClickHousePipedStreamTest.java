@@ -147,7 +147,7 @@ public class ClickHousePipedStreamTest {
             out.write(5);
             Assert.assertEquals(stream.queue.size(), 0);
             out.write(6);
-            Assert.assertEquals(stream.queue.size(), 0);
+            Assert.assertEquals(stream.queue.size(), 1);
             out.write(7);
             Assert.assertEquals(stream.queue.size(), 1);
             out.flush();
@@ -160,10 +160,8 @@ public class ClickHousePipedStreamTest {
         Assert.assertEquals(stream.queue.size(), 0);
         try (OutputStream out = stream) {
             out.write(5);
-            Assert.assertEquals(stream.queue.size(), 0);
-            out.write(6);
             Assert.assertEquals(stream.queue.size(), 1);
-            out.write(7);
+            out.write(6);
             Assert.fail("Write should be timed out");
         } catch (IOException e) {
             Assert.assertTrue(e.getMessage().indexOf("Write timed out") == 0);
@@ -187,7 +185,7 @@ public class ClickHousePipedStreamTest {
         Assert.assertEquals(stream.queue.size(), 0);
         try (OutputStream out = stream) {
             out.write(new byte[] { (byte) 9, (byte) 10 });
-            Assert.assertEquals(stream.queue.size(), 0);
+            Assert.assertEquals(stream.queue.size(), 1);
             out.flush();
             Assert.assertEquals(stream.queue.size(), 1);
             out.write(new byte[] { (byte) 11, (byte) 12 }, 1, 1);

@@ -1,7 +1,6 @@
 package com.clickhouse.client;
 
 import java.io.IOException;
-import java.io.OutputStream;
 
 @FunctionalInterface
 public interface ClickHouseWriter {
@@ -11,5 +10,5 @@ public interface ClickHouseWriter {
      * @param output non-null output stream
      * @throws IOException when failed to write data to output stream
      */
-    void write(OutputStream output) throws IOException;
+    void write(ClickHouseOutputStream output) throws IOException;
 }

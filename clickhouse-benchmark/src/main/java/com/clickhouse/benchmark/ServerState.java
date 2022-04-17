@@ -73,15 +73,15 @@ public class ServerState {
             imageTag = ":" + imageTag;
         }
 
-        final String imageNameWithTag = "yandex/clickhouse-server" + imageTag;
+        final String imageNameWithTag = "clickhouse/clickhouse-server" + imageTag;
 
         container = new GenericContainer<>(new ImageFromDockerfile().withDockerfileFromBuilder(builder -> builder
                 .from(imageNameWithTag)
-                .run("echo '<yandex><listen_host>0.0.0.0</listen_host><http_port>8123</http_port>"
+                .run("echo '<clickhouse><listen_host>0.0.0.0</listen_host><http_port>8123</http_port>"
                         + "<tcp_port>9000</tcp_port><mysql_port>9004</mysql_port>"
                         + "<postgresql_port>9005</postgresql_port>"
                         + "<interserver_http_port>9009</interserver_http_port>"
-                        + "<grpc_port>9100</grpc_port></yandex>' > /etc/clickhouse-server/config.d/custom.xml")))
+                        + "<grpc_port>9100</grpc_port></clickhouse>' > /etc/clickhouse-server/config.d/custom.xml")))
                                 .withExposedPorts(Constants.GRPC_PORT, Constants.HTTP_PORT, Constants.MYSQL_PORT,
 
                                         Constants.NATIVE_PORT)

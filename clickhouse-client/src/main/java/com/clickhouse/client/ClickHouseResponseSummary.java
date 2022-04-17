@@ -78,11 +78,11 @@ public class ClickHouseResponseSummary implements Serializable {
         /**
          * Default constructor.
          *
-         * @param rows              The total number of output rows
-         * @param blocks
-         * @param allocated_bytes
-         * @param applied_limit
-         * @param rows_before_limit The minimal number of rows there would have been
+         * @param rows              total number of output rows
+         * @param blocks            total number of blocks
+         * @param allocated_bytes   allocated bytes
+         * @param applied_limit     whether limit was applied or not
+         * @param rows_before_limit minimal number of rows there would have been
          *                          without LIMIT
          */
         public Statistics(long rows, long blocks, long allocated_bytes, boolean applied_limit, long rows_before_limit) {

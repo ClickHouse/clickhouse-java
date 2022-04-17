@@ -32,7 +32,7 @@ public abstract class BaseState {
     }
 
     protected int getRandomNumber(int bound) {
-        return random.nextInt(bound);
+        return bound < 1 ? 0 : random.nextInt(bound);
     }
 
     protected void consume(Blackhole blackhole, Callable<?> task) throws InterruptedException {

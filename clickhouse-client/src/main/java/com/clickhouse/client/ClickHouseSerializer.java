@@ -1,7 +1,6 @@
 package com.clickhouse.client;
 
 import java.io.IOException;
-import java.io.OutputStream;
 
 /**
  * Functional interface for serializtion.
@@ -31,5 +30,6 @@ public interface ClickHouseSerializer<T extends ClickHouseValue> {
      * @param output non-null output stream
      * @throws IOException when failed to write data to output stream
      */
-    void serialize(T value, ClickHouseConfig config, ClickHouseColumn column, OutputStream output) throws IOException;
+    void serialize(T value, ClickHouseConfig config, ClickHouseColumn column, ClickHouseOutputStream output)
+            throws IOException;
 }

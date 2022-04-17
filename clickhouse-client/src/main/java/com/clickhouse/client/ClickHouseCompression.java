@@ -4,9 +4,15 @@ package com.clickhouse.client;
  * Supported compression algoritms.
  */
 public enum ClickHouseCompression {
-    NONE("", "", ""), BROTLI("application/x-brotli", "br", "br"), DEFLATE("application/deflate", "deflate", "zz"),
-    GZIP("application/gzip", "gzip", "gz"), LZ4("application/x-lz4", "lz4", "lz4"),
-    ZIP("application/zip", "zip", "zip"), ZSTD("application/zstd", "zstd", "zst");
+    NONE("", "", ""),
+    BROTLI("application/x-brotli", "br", "br"),
+    BZ2("application/x-bzip2", "bz2", "bz2"),
+    DEFLATE("application/deflate", "deflate", "zz"),
+    GZIP("application/gzip", "gzip", "gz"),
+    LZMA("application/x-lzma", "lzma", "xz"),
+    LZ4("application/x-lz4", "lz4", "lz4"),
+    ZIP("application/zip", "zip", "zip"),
+    ZSTD("application/zstd", "zstd", "zst");
 
     private String mimeType;
     private String encoding;
@@ -82,8 +88,8 @@ public enum ClickHouseCompression {
     public static ClickHouseCompression fromFileName(String file) {
         ClickHouseCompression compression = NONE;
 
-        int index = file == null ? -1 : file.lastIndexOf('.');
-        if (index > 0) {
+        int index = 0;
+        if (file != null && (index = file.lastIndexOf('.')) > 0) {
             String ext = file.substring(index + 1).toLowerCase();
             for (ClickHouseCompression c : values()) {
                 if (c.fileExt.equals(ext)) {

@@ -549,6 +549,16 @@ public class ClickHouseStatementImplTest extends JdbcIntegrationTest {
         }
     }
 
+    @Test(groups = "integration")
+    public void testJsonResponseWithNull() throws SQLException {
+        try (ClickHouseStatement s = connection.createStatement()) {
+            ClickHouseResponse response = s.executeQueryClickhouseResponse(
+                    "SELECT 1 AS one, 0/0 AS n");
+            assertNotNull(response);
+            assertEquals(response.getData(), Collections.singletonList(Arrays.asList("1", null)));
+        }
+    }
+
     private static String readQueryId(ClickHouseStatementImpl stmt, long timeoutSecs) {
         long start = System.currentTimeMillis();
         String value;

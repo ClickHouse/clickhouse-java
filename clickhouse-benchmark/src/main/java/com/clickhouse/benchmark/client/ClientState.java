@@ -57,7 +57,7 @@ public class ClientState extends BaseState {
 
         ClickHouseClientBuilder builder = ClickHouseClient.builder();
         if (bufferSize != null && !bufferSize.isEmpty()) {
-            builder.option(ClickHouseClientOption.MAX_BUFFER_SIZE, Integer.parseInt(bufferSize));
+            builder.option(ClickHouseClientOption.BUFFER_SIZE, Integer.parseInt(bufferSize));
         }
         if (compression != null && !compression.isEmpty()) {
             // builder.option(ClickHouseClientOption.COMPRESSION,

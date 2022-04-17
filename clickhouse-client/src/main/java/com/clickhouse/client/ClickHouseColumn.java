@@ -1,6 +1,7 @@
 package com.clickhouse.client;
 
 import java.io.Serializable;
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -13,6 +14,8 @@ import java.util.TimeZone;
  * This class represents a column defined in database.
  */
 public final class ClickHouseColumn implements Serializable {
+    public static final ClickHouseColumn[] EMPTY_ARRAY = new ClickHouseColumn[0];
+
     private static final long serialVersionUID = 8228660689532259640L;
 
     private static final String ERROR_MISSING_NESTED_TYPE = "Missing nested data type";
@@ -22,11 +25,14 @@ public final class ClickHouseColumn implements Serializable {
     private static final String KEYWORD_SIMPLE_AGGREGATE_FUNCTION = ClickHouseDataType.SimpleAggregateFunction.name();
     private static final String KEYWORD_ARRAY = ClickHouseDataType.Array.name();
     private static final String KEYWORD_TUPLE = ClickHouseDataType.Tuple.name();
+    private static final String KEYWORD_OBJECT = ClickHouseDataType.Object.name();
     private static final String KEYWORD_MAP = ClickHouseDataType.Map.name();
     private static final String KEYWORD_NESTED = ClickHouseDataType.Nested.name();
 
-    private String originalTypeName;
+    private int columnCount;
+    private int columnIndex;
     private String columnName;
+    private String originalTypeName;
 
     private ClickHouseAggregateFunction aggFuncType;
     private ClickHouseDataType dataType;
@@ -264,26 +270,27 @@ public final class ClickHouseColumn implements Serializable {
                     null, nestedColumns);
             fixedLength = false;
             estimatedLength++;
-        } else if (args.startsWith(KEYWORD_TUPLE, i)) {
-            int index = args.indexOf('(', i + KEYWORD_TUPLE.length());
+        } else if (args.startsWith(matchedKeyword = KEYWORD_TUPLE, i)
+                || args.startsWith(matchedKeyword = KEYWORD_OBJECT, i)) {
+            int index = args.indexOf('(', i + matchedKeyword.length());
             if (index < i) {
                 throw new IllegalArgumentException(ERROR_MISSING_NESTED_TYPE);
             }
-            int endIndex = ClickHouseUtils.skipBrackets(args, index, len, '(');
+            int endIndex = ClickHouseUtils.skipBrackets(args, index, len, '(') - 1;
             List<ClickHouseColumn> nestedColumns = new LinkedList<>();
-            for (i = index + 1; i < endIndex; i++) {
+            for (i = index + 1; i <= endIndex; i++) {
                 char c = args.charAt(i);
                 if (c == ')') {
                     break;
                 } else if (c != ',' && !Character.isWhitespace(c)) {
-                    i = readColumn(args, i, endIndex, "", nestedColumns) - 1;
+                    i = readColumn(args, i, endIndex, "", nestedColumns);
                 }
             }
             if (nestedColumns.isEmpty()) {
                 throw new IllegalArgumentException("Tuple should have at least one nested column");
             }
-            column = new ClickHouseColumn(ClickHouseDataType.Tuple, name, args.substring(startIndex, endIndex),
-                    nullable, lowCardinality, null, nestedColumns);
+            column = new ClickHouseColumn(ClickHouseDataType.valueOf(matchedKeyword), name,
+                    args.substring(startIndex, endIndex + 1), nullable, lowCardinality, null, nestedColumns);
             for (ClickHouseColumn n : nestedColumns) {
                 estimatedLength += n.estimatedByteLength;
                 if (!n.fixedByteLength) {
@@ -300,10 +307,13 @@ public final class ClickHouseColumn implements Serializable {
                 if (ch == '(') {
                     i = ClickHouseUtils.readParameters(args, i, len, params) - 1;
                 } else if (ch == ')') {
-                    brackets--;
                     if (brackets <= 0) {
-                        i++;
                         break;
+                    } else {
+                        if (--brackets <= 0) {
+                            i++;
+                            break;
+                        }
                     }
                 } else if (ch == ',') {
                     break;
@@ -335,7 +345,13 @@ public final class ClickHouseColumn implements Serializable {
                         i = ClickHouseUtils.skipContentsUntil(args, i, len, ',') - 1;
                         break;
                     } else {
-                        builder.append(' ').append(modifier);
+                        if ((name == null || name.isEmpty())
+                                && !ClickHouseDataType.mayStartWith(builder.toString())) {
+                            return readColumn(args, i - modifier.length(), len, builder.toString(), list);
+                        } else {
+                            builder.append(' ');
+                        }
+                        builder.append(modifier);
                         i--;
                     }
                 }
@@ -435,6 +451,8 @@ public final class ClickHouseColumn implements Serializable {
         this.aggFuncType = null;
         this.dataType = ClickHouseChecker.nonNull(dataType, "dataType");
 
+        this.columnCount = 1;
+        this.columnIndex = 0;
         this.columnName = columnName == null ? "" : columnName;
         this.originalTypeName = originalTypeName == null ? dataType.name() : originalTypeName;
         this.nullable = nullable;
@@ -460,8 +478,18 @@ public final class ClickHouseColumn implements Serializable {
         this.estimatedByteLength = 0;
     }
 
+    /**
+     * Sets zero-based column index and column count.
+     * 
+     * @param index zero-based column index, negative number is treated as zero
+     * @param count column count, should be always greater than one
+     */
+    protected void setColumnIndex(int index, int count) {
+        this.columnCount = count < 2 ? 1 : count;
+        this.columnIndex = index < 1 ? 0 : (index < count ? index : count - 1);
+    }
+
     public boolean isAggregateFunction() {
-        // || dataType == ClickHouseDataType.SimpleAggregateFunction;
         return dataType == ClickHouseDataType.AggregateFunction;
 
     }
@@ -503,6 +531,14 @@ public final class ClickHouseColumn implements Serializable {
         return dataType;
     }
 
+    public Class<?> getObjectClass() {
+        return timeZone != null ? OffsetDateTime.class : dataType.getObjectClass();
+    }
+
+    public Class<?> getPrimitiveClass() {
+        return timeZone != null ? OffsetDateTime.class : dataType.getPrimitiveClass();
+    }
+
     public ClickHouseEnum getEnumConstants() {
         return enumConstants;
     }
@@ -511,12 +547,28 @@ public final class ClickHouseColumn implements Serializable {
         return estimatedByteLength;
     }
 
-    public String getOriginalTypeName() {
-        return originalTypeName;
+    public int getColumnCount() {
+        return columnCount;
+    }
+
+    public int getColumnIndex() {
+        return columnIndex;
     }
 
     public String getColumnName() {
         return columnName;
+    }
+
+    public String getOriginalTypeName() {
+        return originalTypeName;
+    }
+
+    public boolean isFirstColumn() {
+        return columnCount == 0;
+    }
+
+    public boolean isLastColumn() {
+        return columnCount - columnIndex == 1;
     }
 
     public boolean isNullable() {
@@ -594,12 +646,14 @@ public final class ClickHouseColumn implements Serializable {
         result = prime * result + ((arrayBaseColumn == null) ? 0 : arrayBaseColumn.hashCode());
         result = prime * result + ((aggFuncType == null) ? 0 : aggFuncType.hashCode());
         result = prime * result + arrayLevel;
+        result = prime * result + columnCount;
+        result = prime * result + columnIndex;
         result = prime * result + ((columnName == null) ? 0 : columnName.hashCode());
+        result = prime * result + ((originalTypeName == null) ? 0 : originalTypeName.hashCode());
         result = prime * result + ((dataType == null) ? 0 : dataType.hashCode());
         result = prime * result + (lowCardinality ? 1231 : 1237);
         result = prime * result + ((nested == null) ? 0 : nested.hashCode());
         result = prime * result + (nullable ? 1231 : 1237);
-        result = prime * result + ((originalTypeName == null) ? 0 : originalTypeName.hashCode());
         result = prime * result + ((parameters == null) ? 0 : parameters.hashCode());
         result = prime * result + precision;
         result = prime * result + scale;
@@ -621,7 +675,8 @@ public final class ClickHouseColumn implements Serializable {
 
         ClickHouseColumn other = (ClickHouseColumn) obj;
         return Objects.equals(arrayBaseColumn, other.arrayBaseColumn) && aggFuncType == other.aggFuncType
-                && arrayLevel == other.arrayLevel && Objects.equals(columnName, other.columnName)
+                && arrayLevel == other.arrayLevel && columnCount == other.columnCount
+                && columnIndex == other.columnIndex && Objects.equals(columnName, other.columnName)
                 && dataType == other.dataType && lowCardinality == other.lowCardinality
                 && Objects.equals(nested, other.nested) && nullable == other.nullable
                 && Objects.equals(originalTypeName, other.originalTypeName)
@@ -632,7 +687,12 @@ public final class ClickHouseColumn implements Serializable {
 
     @Override
     public String toString() {
-        return new StringBuilder().append(columnName == null || columnName.isEmpty() ? "column" : columnName)
-                .append(' ').append(originalTypeName).toString();
+        StringBuilder builder = new StringBuilder();
+        if (columnName == null || columnName.isEmpty()) {
+            builder.append("column").append(columnIndex);
+        } else {
+            builder.append(columnName);
+        }
+        return builder.append(' ').append(originalTypeName).toString();
     }
 }
