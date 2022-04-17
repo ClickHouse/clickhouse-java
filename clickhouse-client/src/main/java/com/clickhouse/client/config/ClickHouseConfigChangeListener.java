@@ -19,6 +19,17 @@ public interface ClickHouseConfigChangeListener<T> {
     }
 
     /**
+     * Triggered when property of {@code source} was changed.
+     *
+     * @param source   source of the event
+     * @param property name of the changed property, which should never be null
+     * @param oldValue old option value, which could be null
+     * @param newValue new option value, which could be null
+     */
+    default void propertyChanged(T source, String property, Object oldValue, Object newValue) {
+    }
+
+    /**
      * Triggered when ClickHouse setting(declared on client-side) was changed.
      * Removing a setting is same as reseting its value to {@code null}.
      *
@@ -29,16 +40,4 @@ public interface ClickHouseConfigChangeListener<T> {
      */
     default void settingChanged(T source, String setting, Serializable oldValue, Serializable newValue) {
     }
-
-    /**
-     * Triggered when property of {@code source} was changed.
-     *
-     * @param source   source of the event
-     * @param property name of the changed property, which should never be null
-     * @param oldValue old option value, which could be null
-     * @param newValue new option value, which could be null
-     */
-    // default void propertyChanged(T source, String property, Object oldValue,
-    // Object newValue) {
-    // }
 }
