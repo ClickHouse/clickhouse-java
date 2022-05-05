@@ -114,6 +114,24 @@ public interface ClickHouseResponse extends AutoCloseable, Serializable {
     Iterable<ClickHouseRecord> records();
 
     /**
+     * Returns record with totals values.
+     * Might be not initialized before records read.
+     * @return nullable record
+     */
+    default ClickHouseRecord totals() {
+        return null;
+    }
+
+    /**
+     * Returns records with extremes values.
+     * Might be not initialized before records read.
+     * @return nullable array
+     */
+    default ClickHouseRecord[] extremes() {
+        return null;
+    }
+
+    /**
      * Pipes the contents of this response into the given output stream. Keep in
      * mind that it's caller's responsibility to flush and close the output stream.
      *

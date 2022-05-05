@@ -233,6 +233,14 @@ public class ClickHouseTabSeparatedProcessor extends ClickHouseDataProcessor {
 
     @Override
     protected void readAndFill(ClickHouseRecord r) throws IOException {
+        readAndFillInternal(r);
+
+        if (isNextLineEmpty()) {
+            readExtremesAndTotals();
+        }
+    }
+
+    protected void readAndFillInternal(ClickHouseRecord r) throws IOException {
         ClickHouseByteBuffer buf = input.readCustom(getTextHandler()::readLine);
         if (buf.isEmpty() && input.available() < 1) {
             throw new EOFException();
@@ -251,6 +259,49 @@ public class ClickHouseTabSeparatedProcessor extends ClickHouseDataProcessor {
         for (; readPosition < columns.length; readPosition++) {
             r.getValue(readPosition).update(currentCols[readPosition - index].asString(true));
         }
+    }
+
+    private void readExtremesAndTotals() throws IOException {
+        skipEmptyLine();
+        readPosition = 0;
+
+        ClickHouseRecord first = createRecord().copy();
+        ClickHouseRecord second = createRecord().copy();
+        ClickHouseRecord third = createRecord().copy();
+
+        readAndFillInternal(first);
+        readPosition = 0;
+
+        if (input.available() <= 0) {
+            // then response has only totals
+            totals = first;
+            return;
+        }
+
+        if (!isNextLineEmpty()) {
+            // then response has only extremes
+            readAndFillInternal(second);
+            extremes = new ClickHouseRecord[] {first, second};
+            return;
+        }
+
+        totals = first;
+        skipEmptyLine();
+
+        readAndFillInternal(second);
+        readPosition = 0;
+
+        readAndFillInternal(third);
+
+        extremes = new ClickHouseRecord[] {second, third};
+    }
+
+    private void skipEmptyLine() throws IOException {
+        input.read();
+    }
+
+    private boolean isNextLineEmpty() throws IOException {
+        return input.peek() == '\n';
     }
 
     @Override

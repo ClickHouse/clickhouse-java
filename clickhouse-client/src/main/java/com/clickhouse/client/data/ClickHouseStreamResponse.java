@@ -147,4 +147,14 @@ public class ClickHouseStreamResponse implements ClickHouseResponse {
 
         return processor.records();
     }
+
+    @Override
+    public ClickHouseRecord totals() {
+        return processor.totals();
+    }
+
+    @Override
+    public ClickHouseRecord[] extremes() {
+        return processor.extremes();
+    }
 }

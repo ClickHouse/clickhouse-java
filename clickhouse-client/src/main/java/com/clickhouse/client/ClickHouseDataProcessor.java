@@ -105,6 +105,9 @@ public abstract class ClickHouseDataProcessor {
     protected final Iterator<ClickHouseValue> values;
     // protected final Object writer;
 
+    protected static ClickHouseRecord totals;
+    protected static ClickHouseRecord[] extremes;
+
     /**
      * Column index shared by {@link #read(ClickHouseValue, ClickHouseColumn)},
      * {@link #records()}, and {@link #values()}.
@@ -351,6 +354,24 @@ public abstract class ClickHouseDataProcessor {
         }
 
         return () -> records;
+    }
+
+    /**
+     * Returns record with totals values.
+     * Might be not initialized.
+     * @return nullable record
+     */
+    public final ClickHouseRecord totals() {
+        return totals;
+    }
+
+    /**
+     * Returns records with extremes values.
+     * Might be not initialized.
+     * @return nullable array
+     */
+    public final ClickHouseRecord[] extremes() {
+        return extremes;
     }
 
     /**
