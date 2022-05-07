@@ -108,6 +108,7 @@ public final class ClickHouseValues {
     public static final String INF_EXPR = "Inf";
     public static final String NINF_EXPR = "-Inf";
 
+    public static final String ERROR_INF_OR_NAN = "Infinite or NaN";
     public static final String ERROR_INVALID_POINT = "A point should have two and only two double values, but we got: ";
     public static final String ERROR_SINGLETON_ARRAY = "Only singleton array is allowed, but we got: ";
     public static final String ERROR_SINGLETON_COLLECTION = "Only singleton collection is allowed, but we got: ";
