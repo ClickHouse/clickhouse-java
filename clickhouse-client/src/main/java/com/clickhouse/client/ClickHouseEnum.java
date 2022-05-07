@@ -1,10 +1,13 @@
 package com.clickhouse.client;
 
+import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 
-public class ClickHouseEnum {
+public class ClickHouseEnum implements Serializable {
+    private static final long serialVersionUID = -978231193821209918L;
+
     public static final ClickHouseEnum EMPTY = new ClickHouseEnum(Collections.emptyList());
 
     public static ClickHouseEnum of(Class<? extends Enum> clazz) {
