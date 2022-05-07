@@ -23,6 +23,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
 import com.clickhouse.client.config.ClickHouseClientOption;
+import com.clickhouse.client.config.ClickHouseRenameMethod;
 import com.clickhouse.client.config.ClickHouseSslMode;
 import com.clickhouse.client.data.BinaryStreamUtils;
 import com.clickhouse.client.data.ClickHouseBigDecimalValue;
@@ -91,6 +92,18 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
                 new Object[] { true, false },
                 new Object[] { true, true },
                 new Object[] { false, true } };
+    }
+
+    @DataProvider(name = "renameMethods")
+    protected Object[][] getRenameMethods() {
+        return new Object[][] {
+                new Object[] { null, "a b c", " ", "d.E_f" },
+                new Object[] { ClickHouseRenameMethod.NONE, "a b c", " ", "d.E_f" },
+                new Object[] { ClickHouseRenameMethod.REMOVE_PREFIX, "a b c", " ", "E_f" },
+                new Object[] { ClickHouseRenameMethod.TO_CAMELCASE, "aBC", "", "d.EF" },
+                new Object[] { ClickHouseRenameMethod.TO_CAMELCASE_WITHOUT_PREFIX, "aBC", "", "EF" },
+                new Object[] { ClickHouseRenameMethod.TO_UNDERSCORE, "a_b_c", "", "d._e_f" },
+                new Object[] { ClickHouseRenameMethod.TO_UNDERSCORE_WITHOUT_PREFIX, "a_b_c", "", "E_f" }, };
     }
 
     @DataProvider(name = "simpleTypeProvider")
@@ -1070,6 +1083,21 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
             }
             Assert.assertEquals(values.toArray(new Object[0][]),
                     new Object[][] { new Object[] { "2\t33" }, new Object[] { "3\t333" } });
+        }
+    }
+
+    @Test(dataProvider = "renameMethods", groups = "integration")
+    public void testRenameResponseColumns(ClickHouseRenameMethod m, String col1, String col2, String col3)
+            throws Exception {
+        ClickHouseNode server = getServer();
+        try (ClickHouseClient client = getClient();
+                ClickHouseResponse resp = client.connect(server)
+                        .format(ClickHouseFormat.RowBinaryWithNamesAndTypes)
+                        .option(ClickHouseClientOption.RENAME_RESPONSE_COLUMN, m)
+                        .query("select 1 `a b c`, 2 ` `, 3 `d.E_f`").execute().get()) {
+            Assert.assertEquals(resp.getColumns().get(0).getColumnName(), col1);
+            Assert.assertEquals(resp.getColumns().get(1).getColumnName(), col2);
+            Assert.assertEquals(resp.getColumns().get(2).getColumnName(), col3);
         }
     }
 
