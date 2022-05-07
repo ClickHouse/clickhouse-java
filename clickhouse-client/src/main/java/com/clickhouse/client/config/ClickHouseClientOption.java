@@ -124,6 +124,11 @@ public enum ClickHouseClientOption implements ClickHouseOption {
     MAX_THREADS_PER_CLIENT("max_threads_per_client", 0,
             "Size of thread pool for each client instance, 0 or negative number means the client will use shared thread pool."),
     /**
+     * Method to rename response columns.
+     */
+    RENAME_RESPONSE_COLUMN("rename_response_column", ClickHouseRenameMethod.NONE,
+            "Method to rename response columns."),
+    /**
      * Whether to enable retry.
      */
     RETRY("retry", true, "Whether to retry when there's connection issue."),

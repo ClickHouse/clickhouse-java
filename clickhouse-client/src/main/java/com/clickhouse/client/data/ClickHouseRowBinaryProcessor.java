@@ -25,6 +25,8 @@ import com.clickhouse.client.ClickHouseRecord;
 import com.clickhouse.client.ClickHouseSerializer;
 import com.clickhouse.client.ClickHouseValue;
 import com.clickhouse.client.ClickHouseValues;
+import com.clickhouse.client.config.ClickHouseClientOption;
+import com.clickhouse.client.config.ClickHouseRenameMethod;
 
 /**
  * Data processor for handling {@link ClickHouseFormat#RowBinary} and
@@ -521,10 +523,12 @@ public class ClickHouseRowBinaryProcessor extends ClickHouseDataProcessor {
             names[i] = input.readUnicodeString();
         }
 
+        ClickHouseRenameMethod m = (ClickHouseRenameMethod) config
+                .getOption(ClickHouseClientOption.RENAME_RESPONSE_COLUMN);
         List<ClickHouseColumn> columns = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             // a bit risky here - what if ClickHouse support user type?
-            columns.add(ClickHouseColumn.of(names[i], input.readAsciiString()));
+            columns.add(ClickHouseColumn.of(m.rename(names[i]), input.readAsciiString()));
         }
 
         return columns;
