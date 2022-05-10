@@ -51,7 +51,7 @@ public class ClickHouseDataStreamFactory {
             ClickHouseOutputStream output, Map<String, Object> settings, List<ClickHouseColumn> columns)
             throws IOException {
         ClickHouseFormat format = ClickHouseChecker.nonNull(config, "config").getFormat();
-        ClickHouseDataProcessor processor;
+        ClickHouseDataProcessor processor = null;
         if (ClickHouseFormat.RowBinary == format || ClickHouseFormat.RowBinaryWithNamesAndTypes == format) {
             processor = new ClickHouseRowBinaryProcessor(config, input, output, columns, settings);
         } else if (ClickHouseFormat.TSVWithNames == format || ClickHouseFormat.TSVWithNamesAndTypes == format
@@ -61,10 +61,7 @@ public class ClickHouseDataStreamFactory {
         } else if (format != null && format.isText()) {
             processor = new ClickHouseTabSeparatedProcessor(config, input, output,
                     ClickHouseDataProcessor.DEFAULT_COLUMNS, settings);
-        } else {
-            throw new IllegalArgumentException(ERROR_UNSUPPORTED_FORMAT + format);
         }
-
         return processor;
     }
 
