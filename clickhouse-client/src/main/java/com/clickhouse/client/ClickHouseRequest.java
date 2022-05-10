@@ -48,7 +48,50 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
         @Override
         protected String getQuery() {
             if (input != null && sql != null) {
-                return new StringBuilder().append(sql).append(" FORMAT ").append(getInputFormat().name()).toString();
+                int tmp = 0;
+                int len = sql.length();
+                int index = len;
+                while ((tmp = ClickHouseUtils.skipContentsUntil(sql, tmp, sql.length(), "format", false)) < len) {
+                    index = tmp;
+                }
+
+                StringBuilder builder = new StringBuilder();
+                boolean spaces = false;
+                for (; index < len; index++) {
+                    char ch = sql.charAt(index);
+                    if (ClickHouseUtils.isQuote(ch) || ClickHouseUtils.isOpenBracket(ch)) {
+                        break;
+                    } else if (Character.isWhitespace(ch)) {
+                        if (builder.length() > 0) {
+                            spaces = true;
+                        }
+                    } else if (index + 1 < len) {
+                        char nextCh = sql.charAt(index + 1);
+                        if (ch == '-' && nextCh == '-') {
+                            index = ClickHouseUtils.skipSingleLineComment(sql, index + 2, len) - 1;
+                        } else if (ch == '/' && nextCh == '*') {
+                            index = ClickHouseUtils.skipMultiLineComment(sql, index + 2, len) - 1;
+                        } else if (ch == '\\') {
+                            index++;
+                        } else {
+                            if (spaces) {
+                                break;
+                            } else {
+                                builder.append(ch);
+                            }
+                        }
+                    } else {
+                        if (spaces) {
+                            break;
+                        } else {
+                            builder.append(ch);
+                        }
+                    }
+                }
+
+                return builder.length() > 0 && index == len ? sql
+                        : new StringBuilder().append(sql).append("\n FORMAT ").append(getInputFormat().name())
+                                .toString();
             }
 
             return super.getQuery();

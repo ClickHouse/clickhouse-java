@@ -360,11 +360,39 @@ public class ClickHouseRequestTest {
         Mutation request = ClickHouseClient.newInstance().connect(ClickHouseNode.builder().build()).write();
         request.table("test_table").format(ClickHouseFormat.Arrow).data(new ByteArrayInputStream(new byte[0]));
 
-        String expectedSql = "INSERT INTO test_table FORMAT Arrow";
+        String expectedSql = "INSERT INTO test_table\n FORMAT Arrow";
         Assert.assertEquals(request.getQuery(), expectedSql);
         Assert.assertEquals(request.getStatements().get(0), expectedSql);
 
-        request = request.seal();
+        ClickHouseRequest<?> sealedRequest = request.seal();
+        Assert.assertEquals(sealedRequest.getQuery(), expectedSql);
+        Assert.assertEquals(sealedRequest.getStatements().get(0), expectedSql);
+
+        request.query(expectedSql = "select 1 format CSV");
+        Assert.assertEquals(request.getQuery(), expectedSql);
+        Assert.assertEquals(request.getStatements().get(0), expectedSql);
+
+        request.query(expectedSql = "select format tsv from table format CSV ");
+        Assert.assertEquals(request.getQuery(), expectedSql);
+        Assert.assertEquals(request.getStatements().get(0), expectedSql);
+
+        request.query(expectedSql = "select 1 -- format CSV ");
+        expectedSql += "\n FORMAT Arrow";
+        Assert.assertEquals(request.getQuery(), expectedSql);
+        Assert.assertEquals(request.getStatements().get(0), expectedSql);
+
+        request.query(expectedSql = "select format CSV from table /* ccc */");
+        expectedSql += "\n FORMAT Arrow";
+        Assert.assertEquals(request.getQuery(), expectedSql);
+        Assert.assertEquals(request.getStatements().get(0), expectedSql);
+
+        request.query(expectedSql = "select /* format CSV */");
+        expectedSql += "\n FORMAT Arrow";
+        Assert.assertEquals(request.getQuery(), expectedSql);
+        Assert.assertEquals(request.getStatements().get(0), expectedSql);
+
+        request.query(expectedSql = "select 1 format CSV a");
+        expectedSql += "\n FORMAT Arrow";
         Assert.assertEquals(request.getQuery(), expectedSql);
         Assert.assertEquals(request.getStatements().get(0), expectedSql);
     }

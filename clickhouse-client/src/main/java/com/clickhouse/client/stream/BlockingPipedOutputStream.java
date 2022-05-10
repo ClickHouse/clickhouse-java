@@ -102,7 +102,10 @@ public class BlockingPipedOutputStream extends ClickHousePipedOutputStream {
             Thread.currentThread().interrupt();
             throw new IOException("Thread was interrupted when putting EMPTY buffer into queue", e);
         } finally {
-            super.close();
+            closed = true;
+            if (postCloseAction != null) {
+                postCloseAction.run();
+            }
         }
     }
 
