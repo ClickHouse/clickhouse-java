@@ -116,7 +116,11 @@ public class NonBlockingPipedOutputStream extends ClickHousePipedOutputStream {
             for (int i = 0, len = buckets.length; i < len; i++) {
                 buckets[i] = null;
             }
-            super.close();
+
+            closed = true;
+            if (postCloseAction != null) {
+                postCloseAction.run();
+            }
         }
     }
 
