@@ -8,16 +8,17 @@ import java.util.concurrent.ExecutionException;
 import com.clickhouse.client.ClickHouseClient;
 import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseCredentials;
+import com.clickhouse.client.ClickHouseDataStreamFactory;
 import com.clickhouse.client.ClickHouseException;
 import com.clickhouse.client.ClickHouseFormat;
 import com.clickhouse.client.ClickHouseNode;
+import com.clickhouse.client.ClickHousePipedOutputStream;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseRecord;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.ClickHouseResponseSummary;
 import com.clickhouse.client.data.BinaryStreamUtils;
-import com.clickhouse.client.data.ClickHousePipedStream;
 
 public class Main {
     static void dropAndCreateTable(ClickHouseNode server, String table) throws ClickHouseException {
@@ -42,10 +43,10 @@ public class Main {
             ClickHouseConfig config = request.getConfig();
             CompletableFuture<ClickHouseResponse> future;
             // back-pressuring is not supported, you can adjust the first two arguments
-            try (ClickHousePipedStream stream = new ClickHousePipedStream(config.getWriteBufferSize(),
-                    config.getMaxQueuedBuffers(), config.getSocketTimeout())) {
+            try (ClickHousePipedOutputStream stream = ClickHouseDataStreamFactory.getInstance()
+                    .createPipedOutputStream(config, null)) {
                 // in async mode, which is default, execution happens in a worker thread
-                future = request.data(stream.getInput()).execute();
+                future = request.data(stream.getInputStream()).execute();
 
                 // writing happens in main thread
                 for (int i = 0; i < 1000000; i++) {

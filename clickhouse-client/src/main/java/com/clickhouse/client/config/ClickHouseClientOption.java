@@ -20,20 +20,30 @@ public enum ClickHouseClientOption implements ClickHouseOption {
      */
     ASYNC("async", true, "Whether the client should run in async mode."),
     /**
-     * Default buffer size in byte for both read and write. It will be reset to
-     * {@link #MAX_BUFFER_SIZE} if it's too large.
+     * Default buffer size in byte for both request and response. It will be reset
+     * to {@link #MAX_BUFFER_SIZE} if it's too large.
      */
-    BUFFER_SIZE("buffer_size", 4096, "Default buffer size in byte for both read and write."),
+    BUFFER_SIZE("buffer_size", 8192, "Default buffer size in byte for both request and response."),
     /**
-     * Read buffer size in byte. It defaults to {@link #BUFFER_SIZE}, and it will be
+     * Read buffer size in byte. It's mainly for input stream(e.g. reading data from
+     * server response). Its value defaults to {@link #BUFFER_SIZE}, and it will be
      * reset to {@link #MAX_BUFFER_SIZE} when it's too large.
      */
     READ_BUFFER_SIZE("read_buffer_size", BUFFER_SIZE.getDefaultValue(), "Read buffer size in byte"),
     /**
-     * Write buffer size in byte. It defaults to {@link #BUFFER_SIZE}, and it will
+     * Write buffer size in byte. It's mainly for output stream(e.g. writing data
+     * into request). Its value defaults to {@link #BUFFER_SIZE}, and it will
      * be reset to {@link #MAX_BUFFER_SIZE} when it's too large.
      */
-    WRITE_BUFFER_SIZE("write_buffer_size", BUFFER_SIZE.getDefaultValue(), "Read buffer size in byte"),
+    WRITE_BUFFER_SIZE("write_buffer_size", BUFFER_SIZE.getDefaultValue(), "Write buffer size in byte"),
+    /**
+     * Request buffering mode.
+     */
+    REQUEST_BUFFERING("request_buffering", ClickHouseDefaults.BUFFERING, "Request buffering mode"),
+    /**
+     * Response buffering mode.
+     */
+    RESPONSE_BUFFERING("response_buffering", ClickHouseDefaults.BUFFERING, "Response buffering mode."),
     /**
      * Client name.
      */
@@ -96,7 +106,10 @@ public enum ClickHouseClientOption implements ClickHouseOption {
     /**
      * Maximum comression block size in byte, only useful when {@link #DECOMPRESS}
      * is {@code true}.
+     *
+     * @deprecated will be removed in v0.3.3
      */
+    @Deprecated
     MAX_COMPRESS_BLOCK_SIZE("max_compress_block_size", 1024 * 1024, "Maximum comression block size in byte."),
     /**
      * Maximum query execution time in seconds.
@@ -105,7 +118,7 @@ public enum ClickHouseClientOption implements ClickHouseOption {
     /**
      * Maximum queued in-memory buffers.
      */
-    MAX_QUEUED_BUFFERS("max_queued_buffers", 0,
+    MAX_QUEUED_BUFFERS("max_queued_buffers", 512,
             "Maximum queued in-memory buffers, 0 or negative number means no limit."),
     /**
      * Maxium queued requests. When {@link #MAX_THREADS_PER_CLIENT} is greater than
@@ -184,6 +197,10 @@ public enum ClickHouseClientOption implements ClickHouseOption {
      * SSL key.
      */
     SSL_KEY("sslkey", "", "RSA key in PKCS#8 format."),
+    /**
+     * Whether to use blocking queue for buffering.
+     */
+    USE_BLOCKING_QUEUE("use_blocking_queue", true, "Whether to use blocking queue for buffering"),
     /**
      * Whether to use objects in array or not.
      */

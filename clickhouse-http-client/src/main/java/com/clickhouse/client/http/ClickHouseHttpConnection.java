@@ -58,10 +58,12 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
             appendQueryParameter(builder, cp.getKey(), cp.getValue());
         }
 
-        if (config.isCompressServerResponse()) {
+        if (config.isResponseCompressed()) {
+            // request server to compress response
             appendQueryParameter(builder, "compress", "1");
         }
-        if (config.isDecompressClientRequet()) {
+        if (config.isRequestCompressed()) {
+            // inform server that client's request is compressed
             appendQueryParameter(builder, "decompress", "1");
         }
 
@@ -191,12 +193,12 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
         }
         // Also, you can use the ‘default_format’ URL parameter
         map.put("X-ClickHouse-Format", config.getFormat().name());
-        if (config.isCompressServerResponse()) {
-            map.put("Accept-Encoding", config.getCompressAlgorithmForServerResponse().encoding());
+        if (config.isResponseCompressed()) {
+            map.put("Accept-Encoding", config.getResponseCompressAlgorithm().encoding());
         }
-        if (config.isDecompressClientRequet()
-                && config.getDecompressAlgorithmForClientRequest() != ClickHouseCompression.LZ4) {
-            map.put("Content-Encoding", config.getDecompressAlgorithmForClientRequest().encoding());
+        if (config.isRequestCompressed()
+                && config.getRequestCompressAlgorithm() != ClickHouseCompression.LZ4) {
+            map.put("Content-Encoding", config.getRequestCompressAlgorithm().encoding());
         }
 
         this.defaultHeaders = Collections.unmodifiableMap(map);

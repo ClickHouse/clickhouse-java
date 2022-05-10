@@ -15,6 +15,7 @@ import com.clickhouse.benchmark.ServerState;
 import com.clickhouse.client.ClickHouseClient;
 import com.clickhouse.client.ClickHouseClientBuilder;
 import com.clickhouse.client.ClickHouseCredentials;
+import com.clickhouse.client.ClickHouseException;
 import com.clickhouse.client.ClickHouseCompression;
 import com.clickhouse.client.ClickHouseFormat;
 import com.clickhouse.client.ClickHouseNode;
@@ -79,7 +80,7 @@ public class ClientState extends BaseState {
     }
 
     @Setup(Level.Trial)
-    public void doSetup(ServerState serverState) throws Exception {
+    public void doSetup(ServerState serverState) throws ClickHouseException {
         server = ClickHouseNode.builder().host(serverState.getHost()).port(ClickHouseProtocol.valueOf(protocol))
                 .database(serverState.getDatabase())
                 .credentials(
@@ -91,18 +92,18 @@ public class ClientState extends BaseState {
                 "create table if not exists system.test_insert(id String, i Nullable(UInt64), s Nullable(String), t Nullable(DateTime))engine=Memory" };
 
         for (String sql : sqls) {
-            try (ClickHouseResponse resp = client.connect(server).query(sql).execute().get()) {
+            try (ClickHouseResponse resp = client.connect(server).query(sql).executeAndWait()) {
 
             }
         }
     }
 
     @TearDown(Level.Trial)
-    public void doTearDown(ServerState serverState) throws Exception {
+    public void doTearDown(ServerState serverState) throws ClickHouseException {
         dispose();
 
-        try (ClickHouseResponse resp = client.connect(server).query("truncate table system.test_insert").execute()
-                .get()) {
+        try (ClickHouseResponse resp = client.connect(server).query("truncate table system.test_insert")
+                .executeAndWait()) {
 
         } finally {
             try {

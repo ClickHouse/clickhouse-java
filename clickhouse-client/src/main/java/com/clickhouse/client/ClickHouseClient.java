@@ -14,14 +14,16 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
+
+import com.clickhouse.client.config.ClickHouseBufferingMode;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.config.ClickHouseDefaults;
 import com.clickhouse.client.config.ClickHouseOption;
-import com.clickhouse.client.data.ClickHousePipedStream;
 
 /**
  * A unified interface defines Java client for ClickHouse. A client can only
@@ -78,13 +80,62 @@ public interface ClickHouseClient extends AutoCloseable {
                     ClickHouseCompression.NONE, postCloseAction);
         }
 
-        int bufferSize = config.getWriteBufferSize();
-        ClickHouseCompression compression = ClickHouseCompression.NONE;
-        if (config.isDecompressClientRequet()) {
-            bufferSize = (int) config.getOption(ClickHouseClientOption.MAX_COMPRESS_BLOCK_SIZE);
-            compression = config.getDecompressAlgorithmForClientRequest();
+        return ClickHouseOutputStream.of(output, config.getWriteBufferSize(), config.getRequestCompressAlgorithm(),
+                postCloseAction);
+    }
+
+    /**
+     * Gets piped output stream for writing data into request asynchronously. When
+     * {@code config} is null or {@code config.isAsync()} is false, this method is
+     * same as
+     * {@link #getRequestOutputStream(ClickHouseConfig, OutputStream, Runnable)}.
+     *
+     * @param config          optional configuration
+     * @param output          non-null output stream
+     * @param postCloseAction custom action will be performed right after closing
+     *                        the output stream
+     * @return wrapped output, or the same output if it's instance of
+     *         {@link ClickHouseOutputStream}
+     */
+    static ClickHouseOutputStream getAsyncRequestOutputStream(ClickHouseConfig config, OutputStream output,
+            Runnable postCloseAction) {
+        if (config == null || !config.isAsync()
+                || config.getRequestBuffering() == ClickHouseBufferingMode.RESOURCE_EFFICIENT) {
+            return getRequestOutputStream(config, output, postCloseAction);
         }
-        return ClickHouseOutputStream.of(output, bufferSize, compression, postCloseAction);
+
+        final CountDownLatch latch = new CountDownLatch(1);
+        final ClickHousePipedOutputStream stream = ClickHouseDataStreamFactory.getInstance()
+                .createPipedOutputStream(config, () -> {
+                    long timeout = config.getSocketTimeout();
+                    try {
+                        if (timeout > 0L) {
+                            if (!latch.await(timeout, TimeUnit.MILLISECONDS)) {
+                                throw new IllegalStateException(
+                                        ClickHouseUtils.format("Async write timed out after %d ms", timeout));
+                            }
+                        } else {
+                            latch.await();
+                        }
+
+                        if (postCloseAction != null) {
+                            postCloseAction.run();
+                        }
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        throw new IllegalStateException("Stopped waiting for writes", e);
+                    }
+                });
+        submit(() -> {
+            try (ClickHouseInputStream in = stream.getInputStream();
+                    ClickHouseOutputStream out = getRequestOutputStream(config, output, postCloseAction)) {
+                in.pipe(out);
+            } finally {
+                latch.countDown();
+            }
+            return null;
+        });
+        return stream;
     }
 
     /**
@@ -104,13 +155,57 @@ public interface ClickHouseClient extends AutoCloseable {
                     ClickHouseCompression.NONE, postCloseAction);
         }
 
-        int bufferSize = config.getReadBufferSize();
-        ClickHouseCompression compression = ClickHouseCompression.NONE;
-        if (config.isCompressServerResponse()) {
-            bufferSize = (int) config.getOption(ClickHouseClientOption.MAX_COMPRESS_BLOCK_SIZE);
-            compression = config.getCompressAlgorithmForServerResponse();
+        return ClickHouseInputStream.of(input, config.getReadBufferSize(), config.getResponseCompressAlgorithm(),
+                postCloseAction);
+    }
+
+    /**
+     * Gets piped input stream for reading data from response asynchronously. When
+     * {@code config} is null or {@code config.isAsync()} is faluse, this method is
+     * same as
+     * {@link #getResponseInputStream(ClickHouseConfig, InputStream, Runnable)}.
+     *
+     * @param config          optional configuration
+     * @param input           non-null input stream
+     * @param postCloseAction custom action will be performed right after closing
+     *                        the input stream
+     * @return wrapped input, or the same input if it's instance of
+     *         {@link ClickHouseInputStream}
+     */
+    @SuppressWarnings("squid:S2095")
+    static ClickHouseInputStream getAsyncResponseInputStream(ClickHouseConfig config, InputStream input,
+            Runnable postCloseAction) {
+        if (config == null || !config.isAsync()
+                || config.getResponseBuffering() == ClickHouseBufferingMode.RESOURCE_EFFICIENT) {
+            return getResponseInputStream(config, input, postCloseAction);
         }
-        return ClickHouseInputStream.of(input, bufferSize, compression, postCloseAction);
+
+        // raw response -> input
+        final ClickHousePipedOutputStream stream = ClickHouseDataStreamFactory.getInstance()
+                .createPipedOutputStream(config, null);
+        final ClickHouseInputStream wrappedInput;
+        // raw response -> decompressed response -> input
+        if (config.isResponseCompressed()) { // one more thread for decompression?
+            final ClickHousePipedOutputStream decompressedStream = ClickHouseDataStreamFactory.getInstance()
+                    .createPipedOutputStream(config, null);
+            wrappedInput = getResponseInputStream(config, decompressedStream.getInputStream(), postCloseAction);
+            submit(() -> {
+                try (ClickHouseInputStream in = ClickHouseInputStream.of(input, config.getReadBufferSize());
+                        ClickHouseOutputStream out = decompressedStream) {
+                    in.pipe(out);
+                }
+                return null;
+            });
+        } else {
+            wrappedInput = getResponseInputStream(config, input, postCloseAction);
+        }
+        submit(() -> {
+            try (ClickHouseInputStream in = wrappedInput; ClickHouseOutputStream out = stream) {
+                in.pipe(out);
+            }
+            return null;
+        });
+        return stream.getInputStream();
     }
 
     /**
@@ -216,17 +311,10 @@ public interface ClickHouseClient extends AutoCloseable {
                     request.query(theQuery);
                 }
 
-                try (ClickHouseResponse response = request.execute().get()) {
+                try (ClickHouseResponse response = request.executeAndWait()) {
                     response.pipe(output, request.getConfig().getWriteBufferSize());
                     return response.getSummary();
                 }
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw ClickHouseException.forCancellation(e, theServer);
-            } catch (CancellationException e) {
-                throw ClickHouseException.forCancellation(e, theServer);
-            } catch (ExecutionException e) {
-                throw ClickHouseException.of(e, theServer);
             } finally {
                 try {
                     output.close();
@@ -284,13 +372,13 @@ public interface ClickHouseClient extends AutoCloseable {
             try (ClickHouseClient client = ClickHouseClient.builder()
                     .nodeSelector(ClickHouseNodeSelector.of(theServer.getProtocol()))
                     .option(ClickHouseClientOption.ASYNC, true).build()) {
-                ClickHousePipedStream stream = ClickHouseDataStreamFactory.getInstance()
-                        .createPipedStream(client.getConfig());
+                ClickHousePipedOutputStream stream = ClickHouseDataStreamFactory.getInstance()
+                        .createPipedOutputStream(client.getConfig(), null);
                 // execute query in a separate thread(because async is explicitly set to true)
                 CompletableFuture<ClickHouseResponse> future = client.connect(theServer).write().table(table)
                         .decompressClientRequest(compression != null && compression != ClickHouseCompression.NONE,
                                 compression)
-                        .format(format).data(input = stream.getInput()).execute();
+                        .format(format).data(input = stream.getInputStream()).execute();
                 try {
                     // write data into stream in current thread
                     writer.write(stream);
@@ -348,15 +436,8 @@ public interface ClickHouseClient extends AutoCloseable {
                     ClickHouseResponse response = client.connect(theServer).write().table(table)
                             .decompressClientRequest(compression != null && compression != ClickHouseCompression.NONE,
                                     compression)
-                            .format(format).data(input).execute().get()) {
+                            .format(format).data(input).executeAndWait()) {
                 return response.getSummary();
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw ClickHouseException.forCancellation(e, theServer);
-            } catch (CancellationException e) {
-                throw ClickHouseException.forCancellation(e, theServer);
-            } catch (ExecutionException e) {
-                throw ClickHouseException.of(e, theServer);
             } finally {
                 try {
                     input.close();
@@ -418,17 +499,10 @@ public interface ClickHouseClient extends AutoCloseable {
                     request.session(UUID.randomUUID().toString(), false);
                 }
                 for (String query : queries) {
-                    try (ClickHouseResponse resp = request.query(query).execute().get()) {
+                    try (ClickHouseResponse resp = request.query(query).executeAndWait()) {
                         list.add(resp.getSummary());
                     }
                 }
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw ClickHouseException.forCancellation(e, theServer);
-            } catch (CancellationException e) {
-                throw ClickHouseException.forCancellation(e, theServer);
-            } catch (ExecutionException e) {
-                throw ClickHouseException.of(e, theServer);
             }
 
             return list;
@@ -460,15 +534,8 @@ public interface ClickHouseClient extends AutoCloseable {
                     .nodeSelector(ClickHouseNodeSelector.of(theServer.getProtocol()))
                     .option(ClickHouseClientOption.ASYNC, false).build();
                     ClickHouseResponse resp = client.connect(theServer).format(ClickHouseFormat.RowBinary).query(sql)
-                            .params(params).execute().get()) {
+                            .params(params).executeAndWait()) {
                 return resp.getSummary();
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw ClickHouseException.forCancellation(e, theServer);
-            } catch (CancellationException e) {
-                throw ClickHouseException.forCancellation(e, theServer);
-            } catch (ExecutionException e) {
-                throw ClickHouseException.of(e, theServer);
             }
         });
     }
@@ -549,17 +616,10 @@ public interface ClickHouseClient extends AutoCloseable {
                             arr[j] = v != null ? v.resetToNullOrEmpty().toSqlExpression() : ClickHouseValues.NULL_EXPR;
                         }
                     }
-                    try (ClickHouseResponse resp = request.params(arr).execute().get()) {
+                    try (ClickHouseResponse resp = request.params(arr).executeAndWait()) {
                         list.add(resp.getSummary());
                     }
                 }
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw ClickHouseException.forCancellation(e, theServer);
-            } catch (CancellationException e) {
-                throw ClickHouseException.forCancellation(e, theServer);
-            } catch (ExecutionException e) {
-                throw ClickHouseException.of(e, theServer);
             }
 
             return list;
@@ -602,17 +662,10 @@ public interface ClickHouseClient extends AutoCloseable {
                 for (String[] p : params) {
                     builder.setLength(0);
                     query.apply(builder, p);
-                    try (ClickHouseResponse resp = request.query(builder.toString()).execute().get()) {
+                    try (ClickHouseResponse resp = request.query(builder.toString()).executeAndWait()) {
                         list.add(resp.getSummary());
                     }
                 }
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw ClickHouseException.forCancellation(e, theServer);
-            } catch (CancellationException e) {
-                throw ClickHouseException.forCancellation(e, theServer);
-            } catch (ExecutionException e) {
-                throw ClickHouseException.of(e, theServer);
             }
 
             return list;

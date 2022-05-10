@@ -1155,7 +1155,7 @@ public final class ClickHouseValues {
                 }
                 break;
             case Array:
-                if (column == null) {
+                if (column == null || column.getArrayBaseColumn().isNullable()) {
                     value = ClickHouseArrayValue.ofEmpty();
                 } else if (column.getArrayNestedLevel() > 1) {
                     value = ClickHouseArrayValue.of(

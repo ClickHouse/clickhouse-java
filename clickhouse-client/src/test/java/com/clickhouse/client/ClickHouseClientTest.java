@@ -2,9 +2,36 @@ package com.clickhouse.client;
 
 import org.testng.Assert;
 import org.testng.annotations.Test;
+
+import java.io.ByteArrayOutputStream;
+
 import com.clickhouse.client.ClickHouseRequest.Mutation;
 
 public class ClickHouseClientTest {
+    @Test(groups = { "unit" })
+    public void testGetAsyncRequestOutputStream() throws Exception {
+        ClickHouseConfig config = new ClickHouseConfig();
+        for (int i = 0; i < 256; i++) {
+            ByteArrayOutputStream bas = new ByteArrayOutputStream();
+            try (ClickHouseOutputStream chOut = ClickHouseClient.getAsyncRequestOutputStream(config, bas, null)) {
+                chOut.write(i);
+            }
+            Assert.assertEquals(bas.toByteArray(), new byte[] { (byte) i });
+        }
+    }
+
+    @Test(groups = { "unit" })
+    public void testGetRequestOutputStream() throws Exception {
+        ClickHouseConfig config = new ClickHouseConfig();
+        for (int i = 0; i < 256; i++) {
+            ByteArrayOutputStream bas = new ByteArrayOutputStream();
+            try (ClickHouseOutputStream chOut = ClickHouseClient.getRequestOutputStream(config, bas, null)) {
+                chOut.write(i);
+            }
+            Assert.assertEquals(bas.toByteArray(), new byte[] { (byte) i });
+        }
+    }
+
     @Test(groups = { "unit" })
     public void testQuery() throws Exception {
         ClickHouseClient client = ClickHouseClient.builder().build();

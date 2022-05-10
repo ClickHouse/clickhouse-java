@@ -108,84 +108,351 @@ public class ClickHouseByteBuffer implements Serializable {
         this.length = length;
     }
 
-    // public byte[] toInt8Array()
-
     /**
-     * Converts 4 bytes to Int32. Same as {@code getInt32(0)}.
+     * Converts 4 bytes(little-endian) to Int32. Same as {@code getInteger(0)}.
      *
      * @return Int32 value
+     * @deprecated will be removed in v0.3.3, please use {@link #asInteger()}
+     *             instead
      */
+    @Deprecated
     public int asInt32() {
-        return getInt32(0);
-    }
-
-    public long asUnsignedInt32() {
-        return getUnsignedInt32(0);
+        return getInteger(0);
     }
 
     /**
-     * Converts 4 bytes starting from {@code position() + offset} to Int32.
+     * Converts 4 bytes(little-endian) to UInt32. Same as
+     * {@code getUnsignedInteger(0)}.
+     *
+     * @return UInt32 value
+     * @deprecated will be removed in v0.3.3, please use
+     *             {@link #asUnsignedInteger()} instead
+     */
+    @Deprecated
+    public long asUnsignedInt32() {
+        return getUnsignedInteger(0);
+    }
+
+    /**
+     * Converts 4 bytes(little-endian) starting from {@code position() + offset} to
+     * Int32.
      *
      * @param offset zero-based relative offset, 1 means the second byte starting
      *               from {@link #position()}
      * @return Int32 value
+     * @deprecated will be removed in v0.3.3, please use {@link #getInteger(int)}
+     *             instead
      */
+    @Deprecated
     public int getInt32(int offset) {
-        offset += position;
-        return (0xFF & array[offset++]) | ((0xFF & array[offset++]) << 8) | ((0xFF & array[offset++]) << 16)
-                | ((0xFF & array[offset]) << 24);
-    }
-
-    public long getUnsignedInt32(int offset) {
-        return 0xFFFFFFFFL & getInt32(offset);
+        return getInteger(offset);
     }
 
     /**
-     * Converts 8 bytes to Int64. Same as {@code getInt64(0)}.
+     * Converts 4 bytes(little-endian) starting from {@code position() + offset} to
+     * UInt32.
      *
-     * @return Int64 value
+     * @param offset zero-based relative offset, 1 means the second byte starting
+     *               from {@link #position()}
+     * @return UInt32 value
+     * @deprecated will be removed in v0.3.3, please use
+     *             {@link #getUnsignedInteger(int)} instead
      */
-    public long asInt64() {
-        return getInt64(0);
+    @Deprecated
+    public long getUnsignedInt32(int offset) {
+        return getUnsignedInteger(offset);
     }
 
+    /**
+     * Converts 8 bytes(little-endian) to Int64. Same as {@code getLong(0)}.
+     *
+     * @return Int64 value
+     * @deprecated will be removed in v0.3.3, please use {@link #asLong()} instead
+     */
+    @Deprecated
+    public long asInt64() {
+        return asLong();
+    }
+
+    /**
+     * Converts 8 bytes(little-endian) to unsigned Int64. Same as
+     * {@code getBigInteger(0, 8, true)}.
+     *
+     * @return unsigned Int64 value
+     * @deprecated will be removed in v0.3.3, please use {@link #asUnsignedLong()}
+     *             instead
+     */
+    @Deprecated
     public BigInteger asUnsignedInt64() {
         return getBigInteger(0, 8, true);
     }
 
     /**
-     * Converts 8 bytes starting from {@code position() + offset} to Int64.
+     * Converts 8 bytes(little-endian) starting from {@code position() + offset} to
+     * Int64.
      *
      * @param offset zero-based relative offset, 1 means the second byte starting
      *               from {@link #position()}
      * @return Int64 value
+     * @deprecated will be removed in v0.3.3, please use {@link #getLong(int)}
+     *             instead
      */
+    @Deprecated
     public long getInt64(int offset) {
-        offset += position;
-        return (0xFFL & array[offset++]) | ((0xFFL & array[offset++]) << 8) | ((0xFFL & array[offset++]) << 16)
-                | ((0xFFL & array[offset++]) << 24) | ((0xFFL & array[offset++]) << 32)
-                | ((0xFFL & array[offset++]) << 40) | ((0xFFL & array[offset++]) << 48)
-                | ((0xFFL & array[offset]) << 56);
+        return getLong(offset);
     }
 
+    /**
+     * Converts all bytes(little-endian) to signed big integer. Same as
+     * {@code getBigInteger(0, length(), false)}.
+     *
+     * @return non-null signed big integer
+     */
     public BigInteger asBigInteger() {
         return getBigInteger(0, length, false);
     }
 
+    public double asDouble() {
+        return getDouble(0);
+    }
+
+    public double[] asDoubleArray() {
+        int step = 8;
+        int len = length / step;
+        double[] values = new double[len];
+        for (int i = 0, offset = 0; i < len; i++, offset += step) {
+            values[i] = getDouble(offset);
+        }
+        return values;
+    }
+
+    public float asFloat() {
+        return getFloat(0);
+    }
+
+    public float[] asFloatArray() {
+        int step = 4;
+        int len = length / step;
+        float[] values = new float[len];
+        for (int i = 0, offset = 0; i < len; i++, offset += step) {
+            values[i] = getFloat(offset);
+        }
+        return values;
+    }
+
+    /**
+     * Converts all bytes(little-endian) to unsigned big integer. Same as
+     * {@code getBigInteger(0, length(), true)}.
+     *
+     * @return non-null unsigned big integer
+     */
     public BigInteger asUnsignedBigInteger() {
         return getBigInteger(0, length, true);
     }
 
+    /**
+     * Converts {@code byteLength} bytes(little-endian) starting from
+     * {@code position() + offset} to big integer.
+     *
+     * @param offset     zero-based relative offset, 1 means the second byte
+     *                   starting from {@link #position()}
+     * @param byteLength bytes to convert
+     * @param unsigned   true if it's unsigned big integer; false otherwise
+     * @return non-null big integer
+     */
     public BigInteger getBigInteger(int offset, int byteLength, boolean unsigned) {
-        reverse(offset, byteLength);
-        // return new BigInteger(1, array, offset + position, byteLength);
-        // just for supporting JDK 8 :<
-        byte[] bytes = array;
-        if (offset != 0 || array.length != byteLength) {
-            bytes = new byte[byteLength];
-            System.arraycopy(array, offset + position, bytes, 0, byteLength);
+        byte[] bytes = new byte[byteLength];
+        int startIndex = offset + position;
+        for (int i = startIndex + byteLength - 1, j = 0; i >= startIndex; i--, j++) {
+            bytes[j] = array[i];
         }
         return unsigned ? new BigInteger(1, bytes) : new BigInteger(bytes);
+    }
+
+    /**
+     * Converts 8 bytes(little-endian) starting from {@code position() + offset} to
+     * double.
+     *
+     * @param offset zero-based relative offset, 1 means the second byte
+     *               starting from {@link #position()}
+     * @return double
+     */
+    public double getDouble(int offset) {
+        return Double.longBitsToDouble(getLong(offset));
+    }
+
+    /**
+     * Converts 4 bytes(little-endian) starting from {@code position() + offset} to
+     * float.
+     *
+     * @param offset zero-based relative offset, 1 means the second byte
+     *               starting from {@link #position()}
+     * @return float
+     */
+    public float getFloat(int offset) {
+        return Float.intBitsToFloat(getInteger(offset));
+    }
+
+    /**
+     * Converts 4 bytes(little-endian) starting from {@code position() + offset} to
+     * signed integer.
+     *
+     * @param offset zero-based relative offset, 1 means the second byte
+     *               starting from {@link #position()}
+     * @return signed integer
+     */
+    public int getInteger(int offset) {
+        int i = offset + position;
+        return (0xFF & array[i]) | ((0xFF & array[i + 1]) << 8) | ((0xFF & array[i + 2]) << 16)
+                | ((0xFF & array[i + 3]) << 24);
+    }
+
+    /**
+     * Converts 8 bytes(little-endian) starting from {@code position() + offset} to
+     * signed long.
+     *
+     * @param offset zero-based relative offset, 1 means the second byte
+     *               starting from {@link #position()}
+     * @return signed long
+     */
+    public long getLong(int offset) {
+        int i = offset + position;
+        return (0xFFL & array[i]) | ((0xFFL & array[i + 1]) << 8) | ((0xFFL & array[i + 2]) << 16)
+                | ((0xFFL & array[i + 3]) << 24) | ((0xFFL & array[i + 4]) << 32)
+                | ((0xFFL & array[i + 5]) << 40) | ((0xFFL & array[i + 6]) << 48)
+                | ((0xFFL & array[i + 7]) << 56);
+    }
+
+    /**
+     * Converts 2 bytes(little-endian) starting from {@code position() + offset} to
+     * signed short.
+     *
+     * @param offset zero-based relative offset, 1 means the second byte
+     *               starting from {@link #position()}
+     * @return signed short
+     */
+    public short getShort(int offset) {
+        int i = offset + position;
+        return (short) ((0xFF & array[i]) | (array[i + 1] << 8));
+    }
+
+    /**
+     * Converts 4 bytes(little-endian) starting from {@code position() + offset} to
+     * unsigned integer.
+     *
+     * @param offset zero-based relative offset, 1 means the second byte
+     *               starting from {@link #position()}
+     * @return unsigned integer
+     */
+    public long getUnsignedInteger(int offset) {
+        return 0xFFFFFFFFL & getInteger(offset);
+    }
+
+    /**
+     * Converts 8 bytes(little-endian) starting from {@code position() + offset} to
+     * unsigned long.
+     *
+     * @param offset zero-based relative offset, 1 means the second byte
+     *               starting from {@link #position()}
+     * @return non-null unsigned long
+     */
+    public BigInteger getUnsignedLong(int offset) {
+        return getBigInteger(0, 8, true);
+    }
+
+    /**
+     * Converts 2 bytes(little-endian) starting from {@code position() + offset} to
+     * unsigned short.
+     *
+     * @param offset zero-based relative offset, 1 means the second byte
+     *               starting from {@link #position()}
+     * @return unsigned short
+     */
+    public int getUnsignedShort(int offset) {
+        return 0xFFFF & getShort(offset);
+    }
+
+    public BigInteger[] asBigIntegerArray(int byteLength, boolean unsigned) {
+        int len = length / byteLength;
+        BigInteger[] values = new BigInteger[len];
+        for (int i = 0, offset = 0; i < len; i++, offset += byteLength) {
+            values[i] = getBigInteger(offset, byteLength, unsigned);
+        }
+        return values;
+    }
+
+    public int asInteger() {
+        return getInteger(0);
+    }
+
+    public long asLong() {
+        return getLong(0);
+    }
+
+    public short asShort() {
+        return getShort(0);
+    }
+
+    public int[] asIntegerArray() {
+        int step = 4;
+        int len = length / step;
+        int[] values = new int[len];
+        for (int i = 0, offset = 0; i < len; i++, offset += step) {
+            values[i] = getInteger(offset);
+        }
+        return values;
+    }
+
+    public long[] asLongArray() {
+        int step = 8;
+        int len = length / step;
+        long[] values = new long[len];
+        for (int i = 0, offset = 0; i < len; i++, offset += step) {
+            values[i] = getLong(offset);
+        }
+        return values;
+    }
+
+    public short[] asShortArray() {
+        int step = 2;
+        int len = length / step;
+        short[] values = new short[len];
+        for (int i = 0, offset = 0; i < len; i++, offset += step) {
+            values[i] = getShort(offset);
+        }
+        return values;
+    }
+
+    public long asUnsignedInteger() {
+        return getUnsignedInteger(0);
+    }
+
+    public BigInteger asUnsignedLong() {
+        return getUnsignedLong(0);
+    }
+
+    public int asUnsignedShort() {
+        return getUnsignedShort(0);
+    }
+
+    public long[] asUnsignedIntegerArray() {
+        int step = 4;
+        int len = length / step;
+        long[] values = new long[len];
+        for (int i = 0, offset = 0; i < len; i++, offset += step) {
+            values[i] = getUnsignedInteger(offset);
+        }
+        return values;
+    }
+
+    public int[] asUnsignedShortArray() {
+        int step = 2;
+        int len = length / step;
+        int[] values = new int[len];
+        for (int i = 0, offset = 0; i < len; i++, offset += step) {
+            values[i] = getUnsignedShort(offset);
+        }
+        return values;
     }
 
     public UUID asUuid() {
@@ -193,7 +460,7 @@ public class ClickHouseByteBuffer implements Serializable {
     }
 
     public UUID getUuid(int offset) {
-        return new UUID(getInt64(offset), getInt64(offset + 8));
+        return new UUID(getLong(offset), getLong(offset + 8));
     }
 
     /**
@@ -213,6 +480,9 @@ public class ClickHouseByteBuffer implements Serializable {
      * @return non-null string
      */
     public String asString(Charset charset) {
+        if (length < 1) {
+            return "";
+        }
         return new String(array, position, length, charset != null ? charset : StandardCharsets.UTF_8);
     }
 
@@ -241,6 +511,17 @@ public class ClickHouseByteBuffer implements Serializable {
         }
 
         return this;
+    }
+
+    /**
+     * Checks whether the buffer is compact or not. A buffer is compact when
+     * {@code position} points to zero and {@code length} equals to
+     * {@code array().length}.
+     *
+     * @return true if the buffer is compact; false otherwise
+     */
+    public boolean isCompact() {
+        return position == 0 && array.length == length;
     }
 
     /**
@@ -323,9 +604,8 @@ public class ClickHouseByteBuffer implements Serializable {
         if (bytes == null || bytes.length == 0) {
             reset();
         } else {
-            array = bytes;
             position = 0;
-            length = bytes.length;
+            length = (array = bytes).length;
         }
 
         return this;
@@ -346,7 +626,9 @@ public class ClickHouseByteBuffer implements Serializable {
             validate(bytes, offset, length);
         }
 
-        this.array = bytes;
+        if (bytes != this.array) {
+            this.array = bytes;
+        }
         this.position = offset;
         this.length = length;
         return this;

@@ -27,6 +27,10 @@ public enum ClickHouseDefaults implements ClickHouseOption {
      */
     AUTO_SESSION("auto_session", true, "Whether to create session automatically when there are multiple queries."),
     /**
+     * Default buffering mode.
+     */
+    BUFFERING("buffering", ClickHouseBufferingMode.RESOURCE_EFFICIENT, "Buffering mode."),
+    /**
      * Default cluster.
      */
     CLUSTER("cluster", "", "Cluster name."),

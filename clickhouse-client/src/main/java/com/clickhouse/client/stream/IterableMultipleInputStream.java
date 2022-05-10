@@ -51,14 +51,16 @@ public final class IterableMultipleInputStream<T> extends AbstractByteArrayInput
                 len -= read;
             }
         }
-
+        if (copyTo != null) {
+            copyTo.write(buffer, 0, off);
+        }
         limit = off;
         return limit - position;
     }
 
     public IterableMultipleInputStream(Iterable<T> source, Function<T, InputStream> converter,
             Runnable postCloseAction) {
-        super(postCloseAction);
+        super(null, postCloseAction);
 
         func = ClickHouseChecker.nonNull(converter, "Converter");
         it = ClickHouseChecker.nonNull(source, "Source").iterator();
@@ -77,27 +79,30 @@ public final class IterableMultipleInputStream<T> extends AbstractByteArrayInput
             return;
         }
 
-        LinkedList<String> errors = new LinkedList<>();
         try {
-            in.close();
-        } catch (Exception e) {
-            errors.add(e.getMessage());
-        }
-
-        while (it.hasNext()) {
+            LinkedList<String> errors = new LinkedList<>();
             try {
-                InputStream i = func.apply(it.next());
-                if (i != null) {
-                    i.close();
-                }
+                in.close();
             } catch (Exception e) {
                 errors.add(e.getMessage());
             }
-        }
 
-        closed = true;
-        if (!errors.isEmpty()) {
-            throw new IOException("Failed to close input stream: " + String.join("\n", errors));
+            while (it.hasNext()) {
+                try {
+                    InputStream i = func.apply(it.next());
+                    if (i != null) {
+                        i.close();
+                    }
+                } catch (Exception e) {
+                    errors.add(e.getMessage());
+                }
+            }
+
+            if (!errors.isEmpty()) {
+                throw new IOException("Failed to close input stream: " + String.join("\n", errors));
+            }
+        } finally {
+            super.close();
         }
     }
 
@@ -146,12 +151,11 @@ public final class IterableMultipleInputStream<T> extends AbstractByteArrayInput
         if (output == null || output.isClosed()) {
             return count;
         }
-
         ensureOpen();
 
         int remain = limit - position;
         if (remain > 0) {
-            output.write(buffer, position, remain);
+            output.transferBytes(buffer, position, remain);
             count += remain;
             position = limit;
         }

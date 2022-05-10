@@ -1,11 +1,9 @@
-package com.clickhouse.client.data;
+package com.clickhouse.client.stream;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
-import java.nio.ByteBuffer;
-import java.nio.Buffer;
 import java.util.Arrays;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -18,22 +16,22 @@ import com.clickhouse.client.ClickHouseByteBuffer;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
-public class ClickHousePipedStreamTest {
+public class NonBlockingPipedOutputStreamTest {
     @Test(groups = { "unit" })
     public void testRead() throws Exception {
-        ClickHousePipedStream stream = new ClickHousePipedStream(4, 3, 1);
+        NonBlockingPipedOutputStream stream = new NonBlockingPipedOutputStream(4, 3, 1, CapacityPolicy.fixedCapacity(3),
+                null);
         Assert.assertEquals(stream.queue.size(), 0);
-        try (InputStream in = stream.getInput()) {
+        try (InputStream in = stream.getInputStream()) {
             in.read();
             Assert.fail("Read should be timed out");
         } catch (IOException e) {
             Assert.assertTrue(e.getMessage().indexOf("Read timed out") == 0);
         }
 
-        ByteBuffer buf = ByteBuffer.allocate(1).put(new byte[] { (byte) 3 });
-        stream.queue.put((ByteBuffer) ((Buffer) buf).rewind());
+        stream.queue.add(new byte[] { (byte) 3 });
         Assert.assertEquals(stream.queue.size(), 1);
-        try (InputStream in = stream.getInput()) {
+        try (InputStream in = stream.getInputStream()) {
             Assert.assertEquals(in.read(), 3);
             in.read();
             Assert.fail("Read should be timed out");
@@ -41,10 +39,9 @@ public class ClickHousePipedStreamTest {
             Assert.assertTrue(e.getMessage().indexOf("Read timed out") == 0);
         }
 
-        buf = ByteBuffer.allocate(2).put(new byte[] { (byte) 3, (byte) 4 });
-        stream.queue.put((ByteBuffer) ((Buffer) buf).rewind());
+        stream.queue.add(new byte[] { (byte) 3, (byte) 4 });
         Assert.assertEquals(stream.queue.size(), 1);
-        try (InputStream in = stream.getInput()) {
+        try (InputStream in = stream.getInputStream()) {
             Assert.assertEquals(in.read(), 3);
             Assert.assertEquals(in.read(), 4);
             in.read();
@@ -54,23 +51,23 @@ public class ClickHousePipedStreamTest {
         }
 
         stream.queue.clear();
-        stream.queue.put(ClickHouseByteBuffer.EMPTY_BUFFER);
+        stream.queue.add(ClickHouseByteBuffer.EMPTY_BYTES);
         Assert.assertEquals(stream.queue.size(), 1);
-        try (InputStream in = stream.getInput()) {
+        try (InputStream in = stream.getInputStream()) {
             Assert.assertEquals(in.read(), -1);
         }
 
-        stream.queue.put((ByteBuffer) ((Buffer) buf).rewind());
+        stream.queue.add(new byte[] { (byte) 3, (byte) 4 });
         // stream.queue.put(buf);
-        stream.queue.put(ClickHouseByteBuffer.EMPTY_BUFFER);
+        stream.queue.add(ClickHouseByteBuffer.EMPTY_BYTES);
         Assert.assertEquals(stream.queue.size(), 2);
-        try (InputStream in = stream.getInput()) {
+        try (InputStream in = stream.getInputStream()) {
             Assert.assertEquals(in.read(), 3);
             Assert.assertEquals(in.read(), 4);
             Assert.assertEquals(in.read(), -1);
         }
 
-        try (InputStream in = stream.getInput()) {
+        try (InputStream in = stream.getInputStream()) {
             in.close();
             in.read();
             Assert.fail("Read should fail");
@@ -81,60 +78,59 @@ public class ClickHousePipedStreamTest {
 
     @Test(groups = { "unit" })
     public void testReadBytes() throws Exception {
-        ClickHousePipedStream stream = new ClickHousePipedStream(4, 3, 1);
+        NonBlockingPipedOutputStream stream = new NonBlockingPipedOutputStream(4, 3, 1, CapacityPolicy.fixedCapacity(3),
+                null);
         Assert.assertEquals(stream.queue.size(), 0);
         byte[] bytes = new byte[3];
-        try (InputStream in = stream.getInput()) {
+        try (InputStream in = stream.getInputStream()) {
             in.read(bytes);
             Assert.fail("Read should be timed out");
         } catch (IOException e) {
             Assert.assertTrue(e.getMessage().indexOf("Read timed out") == 0);
         }
-        try (InputStream in = stream.getInput()) {
+        try (InputStream in = stream.getInputStream()) {
             in.read(bytes, 0, 1);
             Assert.fail("Read should be timed out");
         } catch (IOException e) {
             Assert.assertTrue(e.getMessage().indexOf("Read timed out") == 0);
         }
 
-        ByteBuffer buf = ByteBuffer.allocate(2).put(new byte[] { (byte) 3, (byte) 4 });
-        stream.queue.put((ByteBuffer) ((Buffer) buf).rewind());
+        stream.queue.add(new byte[] { (byte) 3, (byte) 4 });
         Assert.assertEquals(stream.queue.size(), 1);
-        try (InputStream in = stream.getInput()) {
+        try (InputStream in = stream.getInputStream()) {
             in.read(bytes);
             Assert.fail("Read should be timed out");
         } catch (IOException e) {
             Assert.assertTrue(e.getMessage().indexOf("Read timed out") == 0);
         }
-        stream.queue.put((ByteBuffer) ((Buffer) buf).rewind());
+        stream.queue.add(new byte[] { (byte) 3, (byte) 4 });
         Assert.assertEquals(stream.queue.size(), 1);
-        try (InputStream in = stream.getInput()) {
+        try (InputStream in = stream.getInputStream()) {
             Assert.assertEquals(in.read(bytes, 0, 2), 2);
             in.read(bytes, 0, 1);
             Assert.fail("Read should be timed out");
         } catch (IOException e) {
             Assert.assertTrue(e.getMessage().indexOf("Read timed out") == 0);
         }
-        stream.queue.put((ByteBuffer) ((Buffer) buf).rewind());
+        stream.queue.add(new byte[] { (byte) 3, (byte) 4 });
         Assert.assertEquals(stream.queue.size(), 1);
-        try (InputStream in = stream.getInput()) {
+        try (InputStream in = stream.getInputStream()) {
             in.read(bytes, 0, 3);
             Assert.fail("Read should be timed out");
         } catch (IOException e) {
             Assert.assertTrue(e.getMessage().indexOf("Read timed out") == 0);
         }
 
-        buf = ByteBuffer.allocate(2).put(new byte[] { (byte) 3, (byte) 4 });
-        stream.queue.put((ByteBuffer) ((Buffer) buf).rewind());
-        stream.queue.put(ClickHouseByteBuffer.EMPTY_BUFFER);
+        stream.queue.add(new byte[] { (byte) 3, (byte) 4 });
+        stream.queue.add(ClickHouseByteBuffer.EMPTY_BYTES);
         Assert.assertEquals(stream.queue.size(), 2);
-        try (InputStream in = stream.getInput()) {
+        try (InputStream in = stream.getInputStream()) {
             Assert.assertEquals(in.read(bytes, 0, 3), 2);
             Assert.assertEquals(in.read(bytes, 0, 1), -1);
             Assert.assertEquals(in.read(bytes, 0, 2), -1);
         }
 
-        try (InputStream in = stream.getInput()) {
+        try (InputStream in = stream.getInputStream()) {
             in.close();
             in.read(bytes, 0, 3);
             Assert.fail("Read should fail");
@@ -145,7 +141,8 @@ public class ClickHousePipedStreamTest {
 
     @Test(groups = { "unit" })
     public void testWrite() throws Exception {
-        ClickHousePipedStream stream = new ClickHousePipedStream(2, 3, 2);
+        NonBlockingPipedOutputStream stream = new NonBlockingPipedOutputStream(2, 3, 2, CapacityPolicy.fixedCapacity(3),
+                null);
         Assert.assertEquals(stream.queue.size(), 0);
         try (OutputStream out = stream) {
             out.write(5);
@@ -156,11 +153,11 @@ public class ClickHousePipedStreamTest {
             Assert.assertEquals(stream.queue.size(), 1);
             out.flush();
             Assert.assertEquals(stream.queue.size(), 2);
-            Assert.assertEquals(stream.queue.take().array(), new byte[] { (byte) 5, (byte) 6 });
-            Assert.assertEquals(stream.queue.take().array(), new byte[] { (byte) 7, (byte) 0 });
+            Assert.assertEquals(stream.queue.poll(), new byte[] { (byte) 5, (byte) 6 });
+            Assert.assertEquals(stream.queue.poll(), new byte[] { (byte) 7 });
         }
 
-        stream = new ClickHousePipedStream(1, 1, 2);
+        stream = new NonBlockingPipedOutputStream(1, 1, 2, CapacityPolicy.fixedCapacity(1), null);
         Assert.assertEquals(stream.queue.size(), 0);
         try (OutputStream out = stream) {
             out.write(5);
@@ -171,7 +168,7 @@ public class ClickHousePipedStreamTest {
             Assert.assertTrue(e.getMessage().indexOf("Write timed out") == 0);
         }
 
-        Assert.assertEquals(stream.queue.size(), 1);
+        Assert.assertEquals(stream.queue.size(), 2);
         stream.queue.clear();
         Assert.assertEquals(stream.queue.size(), 0);
         try (OutputStream out = stream) {
@@ -185,7 +182,8 @@ public class ClickHousePipedStreamTest {
 
     @Test(groups = { "unit" })
     public void testWriteBytes() throws Exception {
-        ClickHousePipedStream stream = new ClickHousePipedStream(2, 3, 2);
+        NonBlockingPipedOutputStream stream = new NonBlockingPipedOutputStream(2, 3, 2, CapacityPolicy.fixedCapacity(3),
+                null);
         Assert.assertEquals(stream.queue.size(), 0);
         try (OutputStream out = stream) {
             out.write(new byte[] { (byte) 9, (byte) 10 });
@@ -196,8 +194,8 @@ public class ClickHousePipedStreamTest {
             Assert.assertEquals(stream.queue.size(), 1);
             out.flush();
             Assert.assertEquals(stream.queue.size(), 2);
-            Assert.assertEquals(stream.queue.take().array(), new byte[] { (byte) 9, (byte) 10 });
-            Assert.assertEquals(stream.queue.take().array(), new byte[] { (byte) 12, (byte) 0 });
+            Assert.assertEquals(stream.queue.poll(), new byte[] { (byte) 9, (byte) 10 });
+            Assert.assertEquals(stream.queue.poll(), new byte[] { (byte) 12 });
         }
 
         try (OutputStream out = stream) {
@@ -215,8 +213,9 @@ public class ClickHousePipedStreamTest {
         ExecutorService executor = Executors.newFixedThreadPool(2);
         for (int bufferSize = -1; bufferSize < 10; bufferSize++) {
             for (int queueLength = -1; queueLength < 10; queueLength++) {
-                ClickHousePipedStream stream = new ClickHousePipedStream(bufferSize, queueLength, timeout);
-                try (InputStream in = stream.getInput(); OutputStream out = stream) {
+                final NonBlockingPipedOutputStream stream = new NonBlockingPipedOutputStream(bufferSize, queueLength,
+                        timeout, CapacityPolicy.fixedCapacity(queueLength), null);
+                try (InputStream in = stream.getInputStream(); OutputStream out = stream) {
                     final int count = 10000;
                     final AtomicInteger p = new AtomicInteger(0);
                     final AtomicInteger n = new AtomicInteger(0);
@@ -228,14 +227,18 @@ public class ClickHousePipedStreamTest {
                             try {
                                 out.write(bytes);
                             } catch (IOException e) {
-                                Assert.fail("Failed to write", e);
+                                Thread.currentThread().interrupt();
+                                throw new UncheckedIOException(e);
+                                // Assert.fail("Failed to write", e);
                             }
                         }
 
                         try {
                             out.close();
                         } catch (IOException e) {
-                            Assert.fail("Failed to write", e);
+                            Thread.currentThread().interrupt();
+                            throw new UncheckedIOException(e);
+                            // Assert.fail("Failed to write", e);
                         }
                     });
 

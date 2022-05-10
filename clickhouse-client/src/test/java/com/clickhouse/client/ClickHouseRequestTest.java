@@ -80,8 +80,8 @@ public class ClickHouseRequestTest {
         final List<Object[]> changedSettings = new ArrayList<>();
         ClickHouseConfigChangeListener<ClickHouseRequest<?>> listener = new ClickHouseConfigChangeListener<ClickHouseRequest<?>>() {
             @Override
-            public void optionChanged(ClickHouseRequest<?> source, ClickHouseOption option, Serializable oldValue,
-                    Serializable newValue) {
+            public void optionChanged(ClickHouseRequest<?> source, ClickHouseOption option,
+                    Serializable oldValue, Serializable newValue) {
                 changedOptions.add(new Object[] { source, option, oldValue, newValue });
             }
 

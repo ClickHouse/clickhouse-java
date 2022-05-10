@@ -11,6 +11,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.TimeZone;
 
+import com.clickhouse.client.config.ClickHouseBufferingMode;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.config.ClickHouseOption;
 import com.clickhouse.client.config.ClickHouseDefaults;
@@ -102,10 +103,10 @@ public class ClickHouseConfig implements Serializable {
     // common options optimized for read
     private final boolean async;
     private final String clientName;
-    private final boolean compressServerResponse;
+    private final boolean compressRequest;
     private final ClickHouseCompression compressAlgorithm;
     private final int compressLevel;
-    private final boolean decompressClientRequest;
+    private final boolean decompressResponse;
     private final ClickHouseCompression decompressAlgorithm;
     private final int decompressLevel;
     private final int connectionTimeout;
@@ -115,6 +116,8 @@ public class ClickHouseConfig implements Serializable {
     private final int bufferSize;
     private final int readBufferSize;
     private final int writeBufferSize;
+    private final ClickHouseBufferingMode requestBuffering;
+    private final ClickHouseBufferingMode responseBuffering;
     private final int maxExecutionTime;
     private final int maxQueuedBuffers;
     private final int maxQueuedRequests;
@@ -133,6 +136,7 @@ public class ClickHouseConfig implements Serializable {
     private final String sslRootCert;
     private final String sslCert;
     private final String sslKey;
+    private final boolean useBlockingQueue;
     private final boolean useObjectsInArray;
     private final boolean useServerTimeZone;
     private final boolean useServerTimeZoneForDates;
@@ -183,12 +187,12 @@ public class ClickHouseConfig implements Serializable {
 
         this.async = (boolean) getOption(ClickHouseClientOption.ASYNC, ClickHouseDefaults.ASYNC);
         this.clientName = (String) getOption(ClickHouseClientOption.CLIENT_NAME);
-        this.compressServerResponse = (boolean) getOption(ClickHouseClientOption.COMPRESS);
-        this.compressAlgorithm = (ClickHouseCompression) getOption(ClickHouseClientOption.COMPRESS_ALGORITHM);
-        this.compressLevel = (int) getOption(ClickHouseClientOption.COMPRESS_LEVEL);
-        this.decompressClientRequest = (boolean) getOption(ClickHouseClientOption.DECOMPRESS);
-        this.decompressAlgorithm = (ClickHouseCompression) getOption(ClickHouseClientOption.DECOMPRESS_ALGORITHM);
-        this.decompressLevel = (int) getOption(ClickHouseClientOption.DECOMPRESS_LEVEL);
+        this.compressRequest = (boolean) getOption(ClickHouseClientOption.DECOMPRESS);
+        this.compressAlgorithm = (ClickHouseCompression) getOption(ClickHouseClientOption.DECOMPRESS_ALGORITHM);
+        this.compressLevel = (int) getOption(ClickHouseClientOption.DECOMPRESS_LEVEL);
+        this.decompressResponse = (boolean) getOption(ClickHouseClientOption.COMPRESS);
+        this.decompressAlgorithm = (ClickHouseCompression) getOption(ClickHouseClientOption.COMPRESS_ALGORITHM);
+        this.decompressLevel = (int) getOption(ClickHouseClientOption.COMPRESS_LEVEL);
         this.connectionTimeout = (int) getOption(ClickHouseClientOption.CONNECTION_TIMEOUT);
         this.database = (String) getOption(ClickHouseClientOption.DATABASE, ClickHouseDefaults.DATABASE);
         this.format = (ClickHouseFormat) getOption(ClickHouseClientOption.FORMAT, ClickHouseDefaults.FORMAT);
@@ -196,10 +200,14 @@ public class ClickHouseConfig implements Serializable {
                 -1);
         this.bufferSize = ClickHouseUtils.getBufferSize((int) getOption(ClickHouseClientOption.BUFFER_SIZE), -1,
                 this.maxBufferSize);
-        this.readBufferSize = ClickHouseUtils.getBufferSize((int) getOption(ClickHouseClientOption.READ_BUFFER_SIZE),
-                this.bufferSize, this.maxBufferSize);
-        this.writeBufferSize = ClickHouseUtils.getBufferSize((int) getOption(ClickHouseClientOption.WRITE_BUFFER_SIZE),
-                this.bufferSize, this.maxBufferSize);
+        this.readBufferSize = ClickHouseUtils.getBufferSize(
+                (int) getOption(ClickHouseClientOption.READ_BUFFER_SIZE), this.bufferSize, this.maxBufferSize);
+        this.writeBufferSize = ClickHouseUtils.getBufferSize(
+                (int) getOption(ClickHouseClientOption.WRITE_BUFFER_SIZE), this.bufferSize, this.maxBufferSize);
+        this.requestBuffering = (ClickHouseBufferingMode) getOption(ClickHouseClientOption.REQUEST_BUFFERING,
+                ClickHouseDefaults.BUFFERING);
+        this.responseBuffering = (ClickHouseBufferingMode) getOption(ClickHouseClientOption.RESPONSE_BUFFERING,
+                ClickHouseDefaults.BUFFERING);
         this.maxExecutionTime = (int) getOption(ClickHouseClientOption.MAX_EXECUTION_TIME);
         this.maxQueuedBuffers = (int) getOption(ClickHouseClientOption.MAX_QUEUED_BUFFERS);
         this.maxQueuedRequests = (int) getOption(ClickHouseClientOption.MAX_QUEUED_REQUESTS);
@@ -221,6 +229,7 @@ public class ClickHouseConfig implements Serializable {
         this.sslRootCert = (String) getOption(ClickHouseClientOption.SSL_ROOT_CERTIFICATE);
         this.sslCert = (String) getOption(ClickHouseClientOption.SSL_CERTIFICATE);
         this.sslKey = (String) getOption(ClickHouseClientOption.SSL_KEY);
+        this.useBlockingQueue = (boolean) getOption(ClickHouseClientOption.USE_BLOCKING_QUEUE);
         this.useObjectsInArray = (boolean) getOption(ClickHouseClientOption.USE_OBJECTS_IN_ARRAYS);
         this.useServerTimeZone = (boolean) getOption(ClickHouseClientOption.USE_SERVER_TIME_ZONE);
         this.useServerTimeZoneForDates = (boolean) getOption(ClickHouseClientOption.USE_SERVER_TIME_ZONE_FOR_DATES);
@@ -249,26 +258,132 @@ public class ClickHouseConfig implements Serializable {
         return clientName;
     }
 
+    /**
+     * Checks if server response is compressed or not.
+     *
+     * @return true if server response is compressed; false otherwise
+     */
+    public boolean isResponseCompressed() {
+        return decompressResponse;
+    }
+
+    /**
+     * Gets server response compress algorithm. When {@link #isResponseCompressed()}
+     * is {@code false}, this will return {@link ClickHouseCompression#NONE}.
+     *
+     * @return non-null compress algorithm
+     */
+    public ClickHouseCompression getResponseCompressAlgorithm() {
+        return decompressResponse ? decompressAlgorithm : ClickHouseCompression.NONE;
+    }
+
+    /**
+     * Gets input compress level. When {@link #isResponseCompressed()} is
+     * {@code false}, this will return {@code 0}.
+     *
+     * @return compress level
+     */
+    public int getResponseCompressLevel() {
+        return decompressResponse ? decompressLevel : 0;
+    }
+
+    /**
+     * Checks if server response should be compressed or not.
+     *
+     * @return
+     * @deprecated will be removed in v0.3.3, please use
+     *             {@link #isResponseCompressed()} instead
+     */
+    @Deprecated
     public boolean isCompressServerResponse() {
-        return compressServerResponse;
+        return decompressResponse;
     }
 
+    /**
+     * Gets compress algorithm for server response.
+     *
+     * @return compress algorithm for server response
+     * @deprecated will be removed in v0.3.3, please use
+     *             {@link #getResponseCompressAlgorithm()} instead
+     */
+    @Deprecated
     public ClickHouseCompression getCompressAlgorithmForServerResponse() {
-        return compressAlgorithm;
+        return decompressAlgorithm;
     }
 
+    /**
+     * Gets compress level for server response.
+     *
+     * @return compress level
+     * @deprecated will be removed in v0.3.3, please use
+     *             {@link #getResponseCompressLevel()} instead
+     */
+    @Deprecated
     public int getCompressLevelForServerResponse() {
-        return compressLevel;
+        return decompressLevel;
     }
 
+    /**
+     * Checks if client's output, aka. client request, should be compressed or not.
+     *
+     * @return true if client request should be compressed; false otherwise
+     */
+    public boolean isRequestCompressed() {
+        return compressRequest;
+    }
+
+    /**
+     * Gets input compress algorithm. When {@link #isRequestCompressed()} is
+     * {@code false}, this will return {@link ClickHouseCompression#NONE}.
+     *
+     * @return non-null compress algorithm
+     */
+    public ClickHouseCompression getRequestCompressAlgorithm() {
+        return compressRequest ? compressAlgorithm : ClickHouseCompression.NONE;
+    }
+
+    /**
+     * Gets input compress level. When {@link #isRequestCompressed()} is
+     * {@code false}, this will return {@code 0}.
+     *
+     * @return compress level
+     */
+    public int getRequestCompressLevel() {
+        return compressRequest ? compressLevel : 0;
+    }
+
+    /**
+     * Checks if client request should be compressed or not.
+     *
+     * @return
+     * @deprecated will be removed in v0.3.3, please use
+     *             {@link #isRequestCompressed()} instead
+     */
+    @Deprecated
     public boolean isDecompressClientRequet() {
-        return decompressClientRequest;
+        return compressRequest;
     }
 
+    /**
+     * Gets compress algorithm for client request.
+     *
+     * @return compress algorithm for client request
+     * @deprecated will be removed in v0.3.3, please use
+     *             {@link #getRequestCompressAlgorithm()} instead
+     */
+    @Deprecated
     public ClickHouseCompression getDecompressAlgorithmForClientRequest() {
         return decompressAlgorithm;
     }
 
+    /**
+     * Gets compress level for client request.
+     *
+     * @return compress level
+     * @deprecated will be removed in v0.3.3, please use
+     *             {@link #getRequestCompressLevel()} instead
+     */
+    @Deprecated
     public int getDecompressLevelForClientRequest() {
         return decompressLevel;
     }
@@ -319,6 +434,24 @@ public class ClickHouseConfig implements Serializable {
      */
     public int getWriteBufferSize() {
         return writeBufferSize;
+    }
+
+    /**
+     * Gets request buffering mode.
+     *
+     * @return request buffering mode
+     */
+    public ClickHouseBufferingMode getRequestBuffering() {
+        return requestBuffering;
+    }
+
+    /**
+     * Gets response buffering mode.
+     *
+     * @return response buffering mode
+     */
+    public ClickHouseBufferingMode getResponseBuffering() {
+        return responseBuffering;
     }
 
     public int getMaxExecutionTime() {
@@ -396,6 +529,10 @@ public class ClickHouseConfig implements Serializable {
 
     public String getSslKey() {
         return sslKey;
+    }
+
+    public boolean isUseBlockingQueue() {
+        return useBlockingQueue;
     }
 
     public boolean isUseObjectsInArray() {

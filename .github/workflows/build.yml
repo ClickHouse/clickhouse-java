@@ -42,6 +42,7 @@ jobs:
           - clickhouse: "21.8"
             protocol: grpc
       fail-fast: false
+    timeout-minutes: 45
     name: Build against ClickHouse ${{ matrix.clickhouse }} (${{ matrix.protocol }})
     steps:
       - name: Check out Git repository
@@ -90,3 +91,11 @@ jobs:
       - name: Build
         run: |
           mvn --batch-mode --update-snapshots -Drelease -DclickhouseVersion=${{ matrix.clickhouse }} -Dprotocol=${{ matrix.protocol }} verify
+      - name: Upload test results
+        uses: actions/upload-artifact@v2
+        if: failure()
+        with:
+          name: result ${{ github.job }}
+          path: |
+            **/target/failsafe-reports
+            **/target/surefire-reports

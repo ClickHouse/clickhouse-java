@@ -43,7 +43,14 @@ public final class ClickHouseUtils {
                 : Paths.get(System.getProperty("user.home"), ".clickhouse").toFile().getAbsolutePath();
     }
 
-    public static final int DEFAULT_BUFFER_SIZE = 4096;
+    /**
+     * Default buffer size.
+     */
+    public static final int DEFAULT_BUFFER_SIZE = 8192;
+
+    /**
+     * Maximum buffer size.
+     */
     public static final int MAX_BUFFER_SIZE = Integer.MAX_VALUE - 8;
 
     public static final String VARIABLE_PREFIX = "{{";

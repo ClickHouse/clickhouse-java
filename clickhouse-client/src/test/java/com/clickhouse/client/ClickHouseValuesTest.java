@@ -70,11 +70,16 @@ public class ClickHouseValuesTest extends BaseClickHouseValueTest {
     public void testNewArray() {
         ClickHouseConfig config = new ClickHouseConfig();
         ClickHouseValue v = ClickHouseValues.newValue(config, ClickHouseColumn.of("a", "Array(UInt32)"));
-        Assert.assertEquals(v.asObject(), new long[0]);
+        Assert.assertEquals(v.update(new long[] { 1L }).asObject(), new long[] { 1L });
+        v = ClickHouseValues.newValue(config, ClickHouseColumn.of("a", "Array(Nullable(UInt64))"));
+        Assert.assertEquals(v.update(new Long[] { 1L }).asObject(), new Long[] { 1L });
         v = ClickHouseValues.newValue(config, ClickHouseColumn.of("a", "Array(Array(UInt16))"));
         Assert.assertEquals(v.asObject(), new int[0][]);
-        v = ClickHouseValues.newValue(config, ClickHouseColumn.of("a", "Array(Array(Array(Nullable(UInt8))))"));
+        v = ClickHouseValues.newValue(config, ClickHouseColumn.of("a", "Array(Array(Array(UInt8)))"));
         Assert.assertEquals(v.asObject(), new short[0][][]);
+        v = ClickHouseValues.newValue(config, ClickHouseColumn.of("a", "Array(Array(Array(Nullable(UInt8))))"));
+        Assert.assertEquals(v.update(new Short[][][] { new Short[][] { new Short[] { (short) 1 } } }).asObject(),
+                new Short[][][] { new Short[][] { new Short[] { (short) 1 } } });
         v = ClickHouseValues.newValue(config,
                 ClickHouseColumn.of("a", "Array(Array(Array(Array(LowCardinality(String)))))"));
         Assert.assertEquals(v.asObject(), new String[0][][][]);
