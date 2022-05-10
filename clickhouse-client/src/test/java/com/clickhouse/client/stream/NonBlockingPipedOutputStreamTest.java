@@ -204,7 +204,7 @@ public class NonBlockingPipedOutputStreamTest {
 
     @Test(groups = { "unit" })
     public void testPipedStream() throws Exception {
-        final int timeout = 10000;
+        final int timeout = 60000;
         ExecutorService executor = Executors.newFixedThreadPool(2);
         for (int bufferSize = -1; bufferSize < 10; bufferSize++) {
             for (int queueLength = -1; queueLength < 10; queueLength++) {
