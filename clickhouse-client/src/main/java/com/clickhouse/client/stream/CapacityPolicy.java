@@ -2,6 +2,19 @@ package com.clickhouse.client.stream;
 
 @FunctionalInterface
 public interface CapacityPolicy {
+    static class FixedCapacity implements CapacityPolicy {
+        private final int capacity;
+
+        protected FixedCapacity(int capacity) {
+            this.capacity = capacity < 1 ? 0 : capacity;
+        }
+
+        @Override
+        public boolean ensureCapacity(int current) {
+            return capacity < 1 || current < capacity;
+        }
+    }
+
     static class LinearDynamicCapacity implements CapacityPolicy {
         private volatile int capacity;
         private volatile int count;
@@ -29,6 +42,10 @@ public interface CapacityPolicy {
             }
             return false;
         }
+    }
+
+    static CapacityPolicy fixedCapacity(int capacity) {
+        return new FixedCapacity(capacity);
     }
 
     static CapacityPolicy linearDynamicCapacity(int initialSize, int maxSize, int threshold) {

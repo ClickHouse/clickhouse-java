@@ -162,7 +162,7 @@ public class ClickHouseDataStreamFactory {
         }
         return blocking
                 ? new BlockingPipedOutputStream(bufferSize, queue, timeout, postCloseAction)
-                : new NonBlockingPipedOutputStream(bufferSize, queue, timeout, postCloseAction);
+                : new NonBlockingPipedOutputStream(bufferSize, queue, timeout, null, postCloseAction);
     }
 
     public ClickHousePipedOutputStream createPipedOutputStream(int writeBufferSize, int queueSize, int timeout,

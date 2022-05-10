@@ -18,9 +18,8 @@ public class ClickHouseDataStreamFactoryTest {
         // read in worker thread
         for (int i = 0; i < 256; i++) {
             CompletableFuture<Integer> future;
-            try (ClickHousePipedOutputStream out = ClickHouseDataStreamFactory.getInstance().createPipedOutputStream(
-                    config,
-                    null)) {
+            try (ClickHousePipedOutputStream out = ClickHouseDataStreamFactory.getInstance()
+                    .createPipedOutputStream(config, null)) {
                 future = ClickHouseClient.submit(() -> {
                     try (ClickHouseInputStream in = out.getInputStream()) {
                         return in.read();
@@ -33,8 +32,7 @@ public class ClickHouseDataStreamFactoryTest {
 
         // write in worker thread
         for (int i = 0; i < 256; i++) {
-            ClickHousePipedOutputStream out = ClickHouseDataStreamFactory.getInstance().createPipedOutputStream(
-                    config,
+            ClickHousePipedOutputStream out = ClickHouseDataStreamFactory.getInstance().createPipedOutputStream(config,
                     null);
             final int num = i;
             try (ClickHouseInputStream in = out.getInputStream()) {

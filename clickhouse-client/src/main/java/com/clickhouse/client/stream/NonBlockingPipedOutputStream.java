@@ -80,10 +80,12 @@ public class NonBlockingPipedOutputStream extends ClickHousePipedOutputStream {
         }
     }
 
-    public NonBlockingPipedOutputStream(int bufferSize, int queueLength, int timeout, Runnable postCloseAction) {
+    public NonBlockingPipedOutputStream(int bufferSize, int queueLength, int timeout, CapacityPolicy policy,
+            Runnable postCloseAction) {
         super(postCloseAction);
 
-        this.queue = new AdaptiveQueue<>(CapacityPolicy.linearDynamicCapacity(1, queueLength, 0));
+        this.queue = new AdaptiveQueue<>(
+                policy != null ? policy : CapacityPolicy.linearDynamicCapacity(1, queueLength, 0));
 
         // may need an initialBufferSize and a monitor to update bufferSize in runtime
         this.bufferSize = ClickHouseUtils.getBufferSize(bufferSize,
