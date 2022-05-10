@@ -94,7 +94,7 @@ public abstract class ClickHouseInputStream extends InputStream {
      *
      * @param deferredInput   non-null deferred input stream
      * @param bufferSize      buffer size which is always greater than zero(usually
-     *                        4096 or larger)
+     *                        8192 or larger)
      * @param postCloseAction custom action will be performed right after closing
      *                        the input stream
      * @return wrapped input
@@ -108,7 +108,7 @@ public abstract class ClickHouseInputStream extends InputStream {
      * Wraps the given input stream.
      *
      * @param input      input stream
-     * @param bufferSize buffer size which is always greater than zero(usually 4096
+     * @param bufferSize buffer size which is always greater than zero(usually 8192
      *                   or larger)
      * @return wrapped input, or the same input if it's instance of
      *         {@link ClickHouseInputStream}
@@ -122,7 +122,7 @@ public abstract class ClickHouseInputStream extends InputStream {
      *
      * @param input           input stream
      * @param bufferSize      buffer size which is always greater than zero(usually
-     *                        4096 or larger)
+     *                        8192 or larger)
      * @param postCloseAction custom action will be performed right after closing
      *                        the input stream
      * @return wrapped input, or the same input if it's instance of
@@ -136,7 +136,7 @@ public abstract class ClickHouseInputStream extends InputStream {
      * Wraps the given input stream.
      *
      * @param input       input stream
-     * @param bufferSize  buffer size which is always greater than zero(usually 4096
+     * @param bufferSize  buffer size which is always greater than zero(usually 8192
      *                    or larger)
      * @param compression compression algorithm, null or
      *                    {@link ClickHouseCompression#NONE} means no compression
@@ -152,7 +152,7 @@ public abstract class ClickHouseInputStream extends InputStream {
      *
      * @param input           input stream
      * @param bufferSize      buffer size which is always greater than zero(usually
-     *                        4096 or larger)
+     *                        8192 or larger)
      * @param compression     compression algorithm, null or
      *                        {@link ClickHouseCompression#NONE} means no
      *                        compression
@@ -360,8 +360,9 @@ public abstract class ClickHouseInputStream extends InputStream {
     }
 
     /**
-     * Pipes data from input stream to output stream. Input stream will be closed
-     * but output stream will remain open.
+     * Transfers data from input stream to output stream. Input stream will be
+     * closed but output stream will remain open. Please pay attention that you need
+     * to explictly call {@code output.flush()} before closing output stream.
      *
      * @param input      non-null input stream, which will be closed
      * @param output     non-null output stream, which will remain open
@@ -372,6 +373,10 @@ public abstract class ClickHouseInputStream extends InputStream {
      *                     data to output stream
      */
     public static long pipe(InputStream input, OutputStream output, int bufferSize) throws IOException {
+        if (input instanceof ClickHouseInputStream && output instanceof ClickHouseOutputStream) {
+            return ((ClickHouseInputStream) input).pipe((ClickHouseOutputStream) output);
+        }
+
         bufferSize = ClickHouseUtils.getBufferSize(bufferSize,
                 (int) ClickHouseClientOption.WRITE_BUFFER_SIZE.getDefaultValue(),
                 (int) ClickHouseClientOption.MAX_BUFFER_SIZE.getDefaultValue());
@@ -379,8 +384,9 @@ public abstract class ClickHouseInputStream extends InputStream {
     }
 
     /**
-     * Pipes data from input stream to output stream. Input stream will be closed
-     * but output stream will remain open.
+     * Transfers data from input stream to output stream. Input stream will be
+     * closed but output stream will remain open. Please pay attention that you need
+     * to explictly call {@code output.flush()} before closing output stream.
      *
      * @param input  non-null input stream, which will be closed
      * @param output non-null output stream, which will remain open
@@ -390,19 +396,20 @@ public abstract class ClickHouseInputStream extends InputStream {
      *                     data to output stream
      */
     public static long pipe(InputStream input, OutputStream output, byte[] buffer) throws IOException {
-        if (input == null || output == null || buffer == null || buffer.length < 1) {
+        if (buffer == null && input instanceof ClickHouseInputStream && output instanceof ClickHouseOutputStream) {
+            return ((ClickHouseInputStream) input).pipe((ClickHouseOutputStream) output);
+        } else if (input == null || output == null || buffer == null || buffer.length < 1) {
             throw new IllegalArgumentException("Non-null input, output, and write buffer are required");
         }
 
         int size = buffer.length;
-        long count = 0;
+        long count = 0L;
         int written = 0;
         try {
             while ((written = input.read(buffer, 0, size)) >= 0) {
                 output.write(buffer, 0, written);
                 count += written;
             }
-            output.flush();
             input.close();
             input = null;
         } finally {
@@ -427,12 +434,25 @@ public abstract class ClickHouseInputStream extends InputStream {
     protected final Runnable postCloseAction;
 
     protected boolean closed;
+    protected OutputStream copyTo;
 
-    protected ClickHouseInputStream(Runnable postCloseAction) {
+    protected ClickHouseInputStream(OutputStream copyTo, Runnable postCloseAction) {
         this.byteBuffer = ClickHouseByteBuffer.newInstance();
         this.postCloseAction = postCloseAction;
 
         this.closed = false;
+        this.copyTo = copyTo;
+    }
+
+    /**
+     * Closes the input stream quietly.
+     */
+    protected void closeQuietly() {
+        try {
+            close();
+        } catch (IOException e) {
+            // ignore
+        }
     }
 
     /**
@@ -444,17 +464,6 @@ public abstract class ClickHouseInputStream extends InputStream {
     protected void ensureOpen() throws IOException {
         if (this.closed) {
             throw new IOException(ERROR_STREAM_CLOSED);
-        }
-    }
-
-    /**
-     * Closes the input stream quietly.
-     */
-    protected void closeQuietly() {
-        try {
-            close();
-        } catch (IOException e) {
-            // ignore
         }
     }
 
@@ -645,7 +654,7 @@ public abstract class ClickHouseInputStream extends InputStream {
     }
 
     /**
-     * Read varint from input stream.
+     * Reads a varint from input stream.
      *
      * @return varint
      * @throws IOException when failed to read value from input stream or reached
@@ -653,19 +662,77 @@ public abstract class ClickHouseInputStream extends InputStream {
      */
     public int readVarInt() throws IOException {
         // https://github.com/ClickHouse/ClickHouse/blob/abe314feecd1647d7c2b952a25da7abf5c19f352/src/IO/VarInt.h#L126
-        long result = 0L;
-        int shift = 0;
-        for (int i = 0; i < 9; i++) {
-            // gets 7 bits from next byte
-            byte b = readByte();
-            result |= (b & 0x7F) << shift;
-            if ((b & 0x80) == 0) {
-                break;
-            }
-            shift += 7;
+        int b = readByte();
+        if (b >= 0) {
+            return b;
         }
 
-        return (int) result;
+        int result = b & 0x7F;
+        for (int shift = 7; shift <= 28; shift += 7) {
+            if ((b = readByte()) >= 0) {
+                result |= b << shift;
+                break;
+            } else {
+                result |= (b & 0x7F) << shift;
+            }
+        }
+        // consume a few more bytes - readVarLong() should be called instead
+        if (b < 0) {
+            for (int shift = 35; shift <= 63; shift += 7) {
+                if (peek() < 0 || readByte() >= 0) {
+                    break;
+                }
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Reads 64-bit varint as long from input stream.
+     *
+     * @return 64-bit varint
+     * @throws IOException when failed to read value from input stream or reached
+     *                     end of the stream
+     */
+    public long readVarLong() throws IOException {
+        long b = readByte();
+        if (b >= 0L) {
+            return b;
+        }
+
+        long result = b & 0x7F;
+        for (int shift = 7; shift <= 63; shift += 7) {
+            if ((b = readByte()) >= 0) {
+                result |= b << shift;
+                break;
+            } else {
+                result |= (b & 0x7F) << shift;
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Sets target output stream to copy bytes to. This is mainly used for
+     * testing, for example: dump input into a file while reading.
+     *
+     * @param out the output stream to write bytes to
+     * @throws IOException when failed to flush previous target or not able to write
+     *                     remaining bytes in buffer to the given output stream
+     */
+    public final void setCopyToTarget(OutputStream out) throws IOException {
+        if (this.copyTo != null) {
+            this.copyTo.flush();
+        } else if (out != null) {
+            // process remaining bytes in current buffer
+            readCustom((b, p, l) -> {
+                if (p < l) {
+                    out.write(b, p, l - p);
+                }
+                return 0;
+            });
+        }
+        this.copyTo = out;
     }
 
     /**

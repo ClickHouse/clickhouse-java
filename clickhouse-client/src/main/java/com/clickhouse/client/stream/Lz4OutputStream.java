@@ -31,6 +31,22 @@ public class Lz4OutputStream extends AbstractByteArrayOutputStream {
         position = 0;
     }
 
+    @Override
+    protected void flushBuffer(byte[] bytes, int offset, int length) throws IOException {
+        int maxLen = compressor.maxCompressedLength(length) + 15;
+        byte[] block = maxLen < compressedBlock.length ? compressedBlock : new byte[maxLen];
+        block[16] = Lz4InputStream.MAGIC;
+
+        int compressed = compressor.compress(bytes, offset, length, block, 25);
+        int compressedSizeWithHeader = compressed + 9;
+        BinaryStreamUtils.setInt32(block, 17, compressedSizeWithHeader);
+        BinaryStreamUtils.setInt32(block, 21, length);
+        long[] hash = ClickHouseCityHash.cityHash128(block, 16, compressedSizeWithHeader);
+        BinaryStreamUtils.setInt64(block, 0, hash[0]);
+        BinaryStreamUtils.setInt64(block, 8, hash[1]);
+        output.write(block, 0, compressed + 25);
+    }
+
     public Lz4OutputStream(OutputStream stream, int maxCompressBlockSize, Runnable postCloseAction) {
         super(maxCompressBlockSize, postCloseAction);
 

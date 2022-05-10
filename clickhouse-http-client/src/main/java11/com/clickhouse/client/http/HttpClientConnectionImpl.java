@@ -2,13 +2,14 @@ package com.clickhouse.client.http;
 
 import com.clickhouse.client.ClickHouseChecker;
 import com.clickhouse.client.ClickHouseClient;
+import com.clickhouse.client.ClickHouseDataStreamFactory;
 import com.clickhouse.client.ClickHouseFormat;
 import com.clickhouse.client.ClickHouseInputStream;
 import com.clickhouse.client.ClickHouseNode;
+import com.clickhouse.client.ClickHousePipedOutputStream;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseSslContextProvider;
 import com.clickhouse.client.data.ClickHouseExternalTable;
-import com.clickhouse.client.data.ClickHousePipedStream;
 import com.clickhouse.client.http.config.ClickHouseHttpOption;
 import com.clickhouse.client.logging.Logger;
 import com.clickhouse.client.logging.LoggerFactory;
@@ -165,9 +166,9 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
 
     private ClickHouseHttpResponse postStream(HttpRequest.Builder reqBuilder, String boundary, String sql,
             InputStream data, List<ClickHouseExternalTable> tables) throws IOException {
-        ClickHousePipedStream stream = new ClickHousePipedStream(config.getWriteBufferSize(),
-                config.getMaxQueuedBuffers(), config.getSocketTimeout());
-        reqBuilder.POST(HttpRequest.BodyPublishers.ofInputStream(stream::getInput));
+        ClickHousePipedOutputStream stream = ClickHouseDataStreamFactory.getInstance().createPipedOutputStream(config,
+                null);
+        reqBuilder.POST(HttpRequest.BodyPublishers.ofInputStream(stream::getInputStream));
 
         // running in async is necessary to avoid deadlock of the piped stream
         CompletableFuture<HttpResponse<InputStream>> f = postRequest(reqBuilder.build());

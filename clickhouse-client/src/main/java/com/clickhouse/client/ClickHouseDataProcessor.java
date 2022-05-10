@@ -3,7 +3,6 @@ package com.clickhouse.client;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -11,9 +10,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
-import java.util.function.Supplier;
-
-import com.clickhouse.client.data.ClickHouseSimpleRecord;
 
 /**
  * This defines a data processor for dealing with serialization and
@@ -23,6 +19,42 @@ import com.clickhouse.client.data.ClickHouseSimpleRecord;
  * can handle more scenarios like separator between columns and rows.
  */
 public abstract class ClickHouseDataProcessor {
+    static final class RecordsIterator implements Iterator<ClickHouseRecord> {
+        private final ClickHouseDataProcessor processor;
+
+        RecordsIterator(ClickHouseDataProcessor processor) {
+            this.processor = processor;
+        }
+
+        @Override
+        public boolean hasNext() {
+            return processor.hasNext();
+        }
+
+        @Override
+        public ClickHouseRecord next() {
+            return processor.nextRecord();
+        }
+    }
+
+    static final class ValuesIterator implements Iterator<ClickHouseValue> {
+        private final ClickHouseDataProcessor processor;
+
+        ValuesIterator(ClickHouseDataProcessor processor) {
+            this.processor = processor;
+        }
+
+        @Override
+        public boolean hasNext() {
+            return processor.hasNext();
+        }
+
+        @Override
+        public ClickHouseValue next() {
+            return processor.nextValue();
+        }
+    }
+
     public static final List<ClickHouseColumn> DEFAULT_COLUMNS = Collections
             .singletonList(ClickHouseColumn.of("results", "Nullable(String)"));
 
@@ -65,6 +97,7 @@ public abstract class ClickHouseDataProcessor {
     protected final ClickHouseInputStream input;
     protected final ClickHouseOutputStream output;
     protected final ClickHouseColumn[] columns;
+    protected final ClickHouseRecord currentRecord;
     protected final ClickHouseValue[] templates;
     protected final Map<String, Object> settings;
 
@@ -83,13 +116,88 @@ public abstract class ClickHouseDataProcessor {
     // protected int writePosition;
 
     /**
+     * Checks whether there's more to read from input stream.
+     *
+     * @return true if there's more; false otherwise
+     * @throws UncheckedIOException when failed to read columns from input stream
+     */
+    private boolean hasNext() throws UncheckedIOException {
+        try {
+            return input.available() > 0;
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    /**
+     * This method calls {@link #readAndFill(ClickHouseRecord)} and resets
+     * {@code readPosition} to zero(first column).
+     *
+     * @return non-null record
+     * @throws NoSuchElementException when no more record to read
+     * @throws UncheckedIOException   when failed to read columns from input stream
+     */
+    private ClickHouseRecord nextRecord() throws NoSuchElementException, UncheckedIOException {
+        final ClickHouseRecord r = config.isReuseValueWrapper() ? currentRecord : currentRecord.copy();
+        try {
+            readAndFill(r);
+            readPosition = 0;
+        } catch (EOFException e) {
+            if (readPosition == 0) { // end of the stream, which is fine
+                throw new NoSuchElementException("No more record");
+            } else {
+                throw new UncheckedIOException(ClickHouseUtils.format(ERROR_REACHED_END_OF_STREAM,
+                        readPosition + 1, columns.length, columns[readPosition]), e);
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException(
+                    ClickHouseUtils.format(ERROR_FAILED_TO_READ, readPosition + 1, columns.length,
+                            columns[readPosition]),
+                    e);
+        }
+        return r;
+    }
+
+    /**
+     * This method calls {@link #readAndFill(ClickHouseValue, ClickHouseColumn)} and
+     * updates {@code readPosition} to point to next column.
+     *
+     * @return non-null value
+     * @throws NoSuchElementException when no more value to read
+     * @throws UncheckedIOException   when failed to read columns from input stream
+     */
+    private ClickHouseValue nextValue() throws NoSuchElementException, UncheckedIOException {
+        ClickHouseColumn column = columns[readPosition];
+        ClickHouseValue value = templates[readPosition];
+        if (value == null || config.isReuseValueWrapper()) {
+            value = ClickHouseValues.newValue(config, column);
+        }
+        try {
+            readAndFill(value, column);
+            if (++readPosition >= columns.length) {
+                readPosition = 0;
+            }
+        } catch (EOFException e) {
+            if (readPosition == 0) { // end of the stream, which is fine
+                throw new NoSuchElementException("No more value");
+            } else {
+                throw new UncheckedIOException(ClickHouseUtils.format(ERROR_REACHED_END_OF_STREAM,
+                        readPosition + 1, columns.length, column), e);
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException(
+                    ClickHouseUtils.format(ERROR_FAILED_TO_READ, readPosition + 1, columns.length, column), e);
+        }
+
+        return value;
+    }
+
+    /**
      * Factory method to create a record.
      *
      * @return new record
      */
-    protected ClickHouseRecord createRecord() {
-        return ClickHouseSimpleRecord.of(getColumns(), templates);
-    }
+    protected abstract ClickHouseRecord createRecord();
 
     /**
      * Initializes iterator of {@link ClickHouseRecord} for reading values record by
@@ -98,46 +206,10 @@ public abstract class ClickHouseDataProcessor {
      * @return non-null iterator of {@link ClickHouseRecord}
      */
     protected Iterator<ClickHouseRecord> initRecords() {
-        final ClickHouseRecord reusableRecord = createRecord();
-        final Supplier<ClickHouseRecord> factory;
-        if (config.isReuseValueWrapper()) {
-            factory = () -> reusableRecord;
-        } else {
-            factory = reusableRecord::copy;
+        if (readPosition != 0) {
+            throw new IllegalStateException("initRecords() is supposed to be called once during instantiation");
         }
-        return new Iterator<ClickHouseRecord>() {
-            @Override
-            public boolean hasNext() {
-                try {
-                    return input.available() > 0;
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
-            }
-
-            @Override
-            public ClickHouseRecord next() {
-                ClickHouseRecord currentRecord = factory.get();
-                try {
-                    readAndFill(currentRecord);
-                    readPosition = 0;
-                } catch (EOFException e) {
-                    if (readPosition == 0) { // end of the stream, which is fine
-                        throw new NoSuchElementException("No more record");
-                    } else {
-                        throw new UncheckedIOException(ClickHouseUtils.format(ERROR_REACHED_END_OF_STREAM,
-                                readPosition + 1, columns.length, columns[readPosition]), e);
-                    }
-                } catch (IOException e) {
-                    throw new UncheckedIOException(
-                            ClickHouseUtils.format(ERROR_FAILED_TO_READ, readPosition + 1, columns.length,
-                                    columns[readPosition]),
-                            e);
-                }
-
-                return currentRecord;
-            }
-        };
+        return new RecordsIterator(this);
     }
 
     /**
@@ -148,44 +220,9 @@ public abstract class ClickHouseDataProcessor {
      */
     protected Iterator<ClickHouseValue> initValues() {
         if (readPosition != 0) {
-            throw new IllegalStateException("This method is supposed to be called once during instantiation");
+            throw new IllegalStateException("initValues() is supposed to be called once during instantiation");
         }
-
-        return new Iterator<ClickHouseValue>() {
-            @Override
-            public boolean hasNext() {
-                try {
-                    return input.available() > 0;
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
-            }
-
-            @Override
-            public ClickHouseValue next() {
-                ClickHouseColumn column = columns[readPosition];
-                ClickHouseValue value = config.isReuseValueWrapper() ? templates[readPosition]
-                        : ClickHouseValues.newValue(config, column);
-                try {
-                    templates[readPosition] = read(value, column);
-                    if (++readPosition >= columns.length) {
-                        readPosition = 0;
-                    }
-                } catch (EOFException e) {
-                    if (readPosition == 0) { // end of the stream, which is fine
-                        throw new NoSuchElementException("No more value");
-                    } else {
-                        throw new UncheckedIOException(ClickHouseUtils.format(ERROR_REACHED_END_OF_STREAM,
-                                readPosition + 1, columns.length, column), e);
-                    }
-                } catch (IOException e) {
-                    throw new UncheckedIOException(
-                            ClickHouseUtils.format(ERROR_FAILED_TO_READ, readPosition + 1, columns.length, column), e);
-                }
-
-                return value;
-            }
-        };
+        return new ValuesIterator(this);
     }
 
     // protected abstract Object initWriter();
@@ -250,9 +287,7 @@ public abstract class ClickHouseDataProcessor {
         if (settings == null || settings.isEmpty()) {
             this.settings = Collections.emptyMap();
         } else {
-            Map<String, Object> map = new HashMap<>();
-            map.putAll(settings);
-            this.settings = Collections.unmodifiableMap(map);
+            this.settings = Collections.unmodifiableMap(new HashMap<>(settings));
         }
 
         if (columns == null && input != null) {
@@ -265,23 +300,24 @@ public abstract class ClickHouseDataProcessor {
         } else {
             int len = columns.size();
             int idx = 0;
-            List<ClickHouseColumn> list = new ArrayList<>(len);
+            this.columns = new ClickHouseColumn[len];
             this.templates = new ClickHouseValue[len];
             for (ClickHouseColumn column : columns) {
                 column.setColumnIndex(idx, len);
-                list.add(column);
+                this.columns[idx] = column;
                 if (config.isReuseValueWrapper()) {
-                    templates[idx] = ClickHouseValues.newValue(config, column);
+                    this.templates[idx] = ClickHouseValues.newValue(config, column);
                 }
                 idx++;
             }
-            this.columns = list.toArray(ClickHouseColumn.EMPTY_ARRAY);
         }
 
         if (this.columns.length == 0 || input == null) {
+            this.currentRecord = ClickHouseRecord.EMPTY;
             this.records = Collections.emptyIterator();
             this.values = Collections.emptyIterator();
         } else {
+            this.currentRecord = createRecord();
             this.records = ClickHouseChecker.nonNull(initRecords(), "Records");
             this.values = ClickHouseChecker.nonNull(initValues(), "Values");
         }

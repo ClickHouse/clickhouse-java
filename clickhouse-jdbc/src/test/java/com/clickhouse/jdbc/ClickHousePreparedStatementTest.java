@@ -25,13 +25,14 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 
 import com.clickhouse.client.ClickHouseConfig;
+import com.clickhouse.client.ClickHouseDataStreamFactory;
 import com.clickhouse.client.ClickHouseFormat;
 import com.clickhouse.client.ClickHouseInputStream;
+import com.clickhouse.client.ClickHousePipedOutputStream;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.data.ClickHouseBitmap;
 import com.clickhouse.client.data.ClickHouseExternalTable;
-import com.clickhouse.client.data.ClickHousePipedStream;
 import com.clickhouse.jdbc.internal.InputBasedPreparedStatement;
 import com.clickhouse.jdbc.internal.SqlBasedPreparedStatement;
 
@@ -872,11 +873,11 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
                     + "create table test_jdbc_load_raw_data(s String)engine=Memory"), "Should not have result set");
             ClickHouseConfig config = stmt.getConfig();
             CompletableFuture<Integer> future;
-            try (ClickHousePipedStream stream = new ClickHousePipedStream(config.getWriteBufferSize(),
-                    config.getMaxQueuedRequests(), config.getSocketTimeout())) {
+            try (ClickHousePipedOutputStream stream = ClickHouseDataStreamFactory.getInstance()
+                    .createPipedOutputStream(config, null)) {
                 ps.setObject(1, ClickHouseExternalTable.builder().name("raw_data")
                         .columns("s String").format(ClickHouseFormat.RowBinary)
-                        .content(stream.getInput())
+                        .content(stream.getInputStream())
                         .build());
                 future = CompletableFuture.supplyAsync(() -> {
                     try {
@@ -1081,7 +1082,7 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
             Assert.assertTrue(rs.next());
             Assert.assertEquals(rs.getInt(1), 1);
             Assert.assertEquals(rs.getObject(2), new short[] { 1, 2, 3 });
-            Assert.assertEquals(rs.getObject(3), new long[] { 3, 0, 1 });
+            Assert.assertEquals(rs.getObject(3), new Long[] { 3L, null, 1L });
             Assert.assertFalse(rs.next());
         }
 

@@ -227,6 +227,11 @@ public class ClickHouseTabSeparatedProcessor extends ClickHouseDataProcessor {
     }
 
     @Override
+    protected ClickHouseRecord createRecord() {
+        return new ClickHouseSimpleRecord(getColumns(), templates);
+    }
+
+    @Override
     protected void readAndFill(ClickHouseRecord r) throws IOException {
         ClickHouseByteBuffer buf = input.readCustom(getTextHandler()::readLine);
         if (buf.isEmpty() && input.available() < 1) {

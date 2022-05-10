@@ -90,7 +90,8 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
             final String fileName = ClickHouseChecker.nonEmpty(file, "File");
             this.input = changeProperty(PROP_DATA, this.input, ClickHouseDeferredValue.of(() -> {
                 try {
-                    return ClickHouseInputStream.of(new FileInputStream(fileName), 123, compression);
+                    return ClickHouseInputStream.of(new FileInputStream(fileName),
+                            self.getConfig().getReadBufferSize(), compression);
                 } catch (FileNotFoundException e) {
                     throw new IllegalArgumentException(e);
                 }

@@ -4,10 +4,14 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import com.clickhouse.client.config.ClickHouseBufferingMode;
+import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.config.ClickHouseDefaults;
 import com.clickhouse.client.data.ClickHousePipedStream;
 import com.clickhouse.client.data.ClickHouseRowBinaryProcessor;
 import com.clickhouse.client.data.ClickHouseTabSeparatedProcessor;
+import com.clickhouse.client.stream.BlockingPipedOutputStream;
+import com.clickhouse.client.stream.NonBlockingPipedOutputStream;
 
 /**
  * Factory class for creating objects to handle data stream.
@@ -121,11 +125,52 @@ public class ClickHouseDataStreamFactory {
      *
      * @param config non-null configuration
      * @return piped stream
+     * @deprecated will be removed in v0.3.3, please use
+     *             {@link #createPipedOutputStream(ClickHouseConfig, Runnable)}
+     *             instead
      */
+    @Deprecated
     public ClickHousePipedStream createPipedStream(ClickHouseConfig config) {
-        ClickHouseChecker.nonNull(config, "config");
+        return config != null
+                ? new ClickHousePipedStream(config.getWriteBufferSize(), config.getMaxQueuedBuffers(),
+                        config.getSocketTimeout())
+                : new ClickHousePipedStream((int) ClickHouseClientOption.WRITE_BUFFER_SIZE.getDefaultValue(),
+                        (int) ClickHouseClientOption.MAX_QUEUED_BUFFERS.getDefaultValue(),
+                        (int) ClickHouseClientOption.SOCKET_TIMEOUT.getDefaultValue());
+    }
 
-        return new ClickHousePipedStream(config.getWriteBufferSize(), config.getMaxQueuedBuffers(),
-                config.getSocketTimeout());
+    /**
+     * Creates a piped output stream.
+     *
+     * @param config non-null configuration
+     * @return piped output stream
+     */
+    public ClickHousePipedOutputStream createPipedOutputStream(ClickHouseConfig config, Runnable postCloseAction) {
+        final int bufferSize = ClickHouseChecker.nonNull(config, "config").getWriteBufferSize();
+        final boolean blocking;
+        final int queue;
+        final int timeout;
+
+        if (config.getResponseBuffering() == ClickHouseBufferingMode.PERFORMANCE) {
+            blocking = false;
+            queue = 0;
+            timeout = 0; // questionable
+        } else {
+            blocking = config.isUseBlockingQueue();
+            queue = config.getMaxQueuedBuffers();
+            timeout = config.getSocketTimeout();
+        }
+        return blocking
+                ? new BlockingPipedOutputStream(bufferSize, queue, timeout, postCloseAction)
+                : new NonBlockingPipedOutputStream(bufferSize, queue, timeout, postCloseAction);
+    }
+
+    public ClickHousePipedOutputStream createPipedOutputStream(int writeBufferSize, int queueSize, int timeout,
+            Runnable postCloseAction) {
+        return new BlockingPipedOutputStream(
+                ClickHouseUtils.getBufferSize(writeBufferSize,
+                        (int) ClickHouseClientOption.WRITE_BUFFER_SIZE.getDefaultValue(),
+                        (int) ClickHouseClientOption.MAX_BUFFER_SIZE.getDefaultValue()),
+                queueSize, timeout, postCloseAction);
     }
 }

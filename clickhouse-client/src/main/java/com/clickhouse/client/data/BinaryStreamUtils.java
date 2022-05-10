@@ -702,7 +702,7 @@ public final class BinaryStreamUtils {
      *                     end of the stream
      */
     public static short readInt16(ClickHouseInputStream input) throws IOException {
-        return (short) (input.readUnsignedByte() | (input.readByte() << 8));
+        return input.readBuffer(2).asShort();
     }
 
     /**
@@ -739,7 +739,7 @@ public final class BinaryStreamUtils {
      *                     end of the stream
      */
     public static int readUnsignedInt16(ClickHouseInputStream input) throws IOException {
-        return (int) (readInt16(input) & 0xFFFF);
+        return input.readBuffer(2).asUnsignedShort();
     }
 
     /**
@@ -764,7 +764,7 @@ public final class BinaryStreamUtils {
      *                     end of the stream
      */
     public static int readInt32(ClickHouseInputStream input) throws IOException {
-        return input.readBuffer(4).asInt32();
+        return input.readBuffer(4).asInteger();
     }
 
     /**
@@ -789,7 +789,7 @@ public final class BinaryStreamUtils {
      *                     end of the stream
      */
     public static long readUnsignedInt32(ClickHouseInputStream input) throws IOException {
-        return 0xFFFFFFFFL & readInt32(input);
+        return input.readBuffer(4).asUnsignedInteger();
     }
 
     /**
@@ -814,7 +814,7 @@ public final class BinaryStreamUtils {
      *                     end of the stream
      */
     public static long readInt64(ClickHouseInputStream input) throws IOException {
-        return input.readBuffer(8).asInt64();
+        return input.readBuffer(8).asLong();
     }
 
     /**
@@ -840,7 +840,7 @@ public final class BinaryStreamUtils {
      *                     end of the stream
      */
     public static BigInteger readUnsignedInt64(ClickHouseInputStream input) throws IOException {
-        return input.readBuffer(8).asUnsignedInt64();
+        return input.readBuffer(8).asUnsignedLong();
     }
 
     /**

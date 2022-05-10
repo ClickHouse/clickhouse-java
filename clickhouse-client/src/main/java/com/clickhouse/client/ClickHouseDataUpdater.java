@@ -1,5 +1,7 @@
 package com.clickhouse.client;
 
+import java.io.IOException;
+
 /**
  * This class defines custom reading/writing logic, which can be used in
  * {@link ClickHouseInputStream#readCustom(ClickHouseDataUpdater)} and
@@ -17,6 +19,7 @@ public interface ClickHouseDataUpdater {
      *                 it should always greater than or equal to {@code position}
      * @return negative number, usually -1, indicates to more to update, or other
      *         number for bytes being updated
+     * @throws IOException when it failed to update
      */
-    int update(byte[] bytes, int position, int limit);
+    int update(byte[] bytes, int position, int limit) throws IOException;
 }

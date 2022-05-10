@@ -114,7 +114,8 @@ public interface ClickHouseResponse extends AutoCloseable, Serializable {
     Iterable<ClickHouseRecord> records();
 
     /**
-     * Pipes the contents of this response into the given output stream.
+     * Pipes the contents of this response into the given output stream. Keep in
+     * mind that it's caller's responsibility to flush and close the output stream.
      *
      * @param output     non-null output stream, which will remain open
      * @param bufferSize buffer size, 0 or negative value will be treated as
@@ -122,17 +123,10 @@ public interface ClickHouseResponse extends AutoCloseable, Serializable {
      * @throws IOException when error occurred reading or writing data
      */
     default void pipe(OutputStream output, int bufferSize) throws IOException {
-        ClickHouseChecker.nonNull(output, "output");
-
-        byte[] buffer = new byte[ClickHouseUtils.getBufferSize(bufferSize,
-                (int) ClickHouseClientOption.WRITE_BUFFER_SIZE.getDefaultValue(),
-                (int) ClickHouseClientOption.MAX_BUFFER_SIZE.getDefaultValue())];
-        int counter = 0;
-        while ((counter = getInputStream().read(buffer, 0, bufferSize)) >= 0) {
-            output.write(buffer, 0, counter);
-        }
-
-        // caller's responsibility to call output.flush() as needed
+        ClickHouseInputStream.pipe(getInputStream(), ClickHouseChecker.nonNull(output, "output"),
+                ClickHouseUtils.getBufferSize(bufferSize,
+                        (int) ClickHouseClientOption.WRITE_BUFFER_SIZE.getDefaultValue(),
+                        (int) ClickHouseClientOption.MAX_BUFFER_SIZE.getDefaultValue()));
     }
 
     /**

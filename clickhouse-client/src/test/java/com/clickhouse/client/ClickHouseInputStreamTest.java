@@ -65,7 +65,8 @@ public class ClickHouseInputStreamTest {
     public void testWrappedInput() throws IOException {
         int sample = 10000;
         byte[] bytes = new byte[sample];
-        try (InputStream in = generateInputStream(bytes); ClickHouseInputStream chIn = ClickHouseInputStream.of(in)) {
+        try (InputStream in = generateInputStream(bytes);
+                ClickHouseInputStream chIn = ClickHouseInputStream.of(in)) {
             for (int i = 0; i < sample; i++) {
                 Assert.assertTrue(chIn.available() > 0);
                 Assert.assertEquals(chIn.readByte(), bytes[i]);
@@ -78,7 +79,8 @@ public class ClickHouseInputStreamTest {
             Assert.assertTrue(chIn.isClosed(), "Should have been closed automatically");
         }
 
-        try (InputStream in = generateInputStream(bytes); ClickHouseInputStream chIn = ClickHouseInputStream.of(in)) {
+        try (InputStream in = generateInputStream(bytes);
+                ClickHouseInputStream chIn = ClickHouseInputStream.of(in)) {
             Assert.assertEquals(chIn.readBytes(sample), bytes);
             Assert.assertFalse(chIn.isClosed(), "Should not be closed");
             Assert.assertThrows(EOFException.class, () -> chIn.readBytes(1));
@@ -182,23 +184,111 @@ public class ClickHouseInputStreamTest {
     }
 
     @Test(groups = { "unit" })
+    public void testReadVarInt() throws IOException {
+        Assert.assertEquals(ClickHouseInputStream.of(new byte[] { 0x00 }).readVarInt(), 0);
+        Assert.assertEquals(ClickHouseInputStream.of(new byte[] { 0x01 }).readVarInt(), 1);
+        Assert.assertEquals(ClickHouseInputStream.of(new byte[] { 0x02 }).readVarInt(), 2);
+        Assert.assertEquals(ClickHouseInputStream.of(new byte[] { (byte) 0x7F }).readVarInt(), 127);
+        Assert.assertEquals(ClickHouseInputStream.of(new byte[] { (byte) 0x80, 0x01 }).readVarInt(), 128);
+        Assert.assertEquals(ClickHouseInputStream.of(new byte[] { (byte) 0xFF, 0x01 }).readVarInt(), 255);
+        Assert.assertEquals(
+                ClickHouseInputStream.of(new byte[] { (byte) 0xDD, (byte) 0xC7, 0x01 }).readVarInt(),
+                25565);
+        Assert.assertEquals(
+                ClickHouseInputStream.of(new byte[] { (byte) 0xFF, (byte) 0xFF, 0x7F }).readVarInt(),
+                2097151);
+        Assert.assertEquals(
+                ClickHouseInputStream.of(
+                        new byte[] { (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, 0x07 })
+                        .readVarInt(),
+                2147483647);
+        Assert.assertEquals(
+                ClickHouseInputStream
+                        .of(new byte[] { (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF,
+                                0x07, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0x7F })
+                        .readVarInt(),
+                2147483647);
+        Assert.assertEquals(ClickHouseInputStream
+                .of(new byte[] { (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, 0x0F })
+                .readVarInt(), -1);
+        Assert.assertEquals(
+                ClickHouseInputStream
+                        .of(new byte[] { (byte) 0x80, (byte) 0x80, (byte) 0x80, (byte) 0x80, 0x08 })
+                        .readVarInt(),
+                -2147483648);
+        Assert.assertEquals(
+                ClickHouseInputStream
+                        .of(new byte[] { (byte) 0x80, (byte) 0x80, (byte) 0x80, (byte) 0x80,
+                                0x08, (byte) 0x80, (byte) 0x80, (byte) 0x80, (byte) 0x80, 0x01 })
+                        .readVarInt(),
+                -2147483648);
+    }
+
+    @Test(groups = { "unit" })
+    public void testReadVarLong() throws IOException {
+        Assert.assertEquals(ClickHouseInputStream.of(new byte[] { 0x00 }).readVarLong(), 0L);
+        Assert.assertEquals(ClickHouseInputStream.of(new byte[] { 0x01 }).readVarLong(), 1L);
+        Assert.assertEquals(ClickHouseInputStream.of(new byte[] { 0x02 }).readVarLong(), 2L);
+        Assert.assertEquals(ClickHouseInputStream.of(new byte[] { (byte) 0x7F }).readVarLong(), 127L);
+        Assert.assertEquals(ClickHouseInputStream.of(new byte[] { (byte) 0x80, 0x01 }).readVarLong(), 128L);
+        Assert.assertEquals(ClickHouseInputStream.of(new byte[] { (byte) 0xFF, 0x01 }).readVarLong(), 255L);
+        Assert.assertEquals(
+                ClickHouseInputStream.of(new byte[] { (byte) 0xDD, (byte) 0xC7, 0x01 }).readVarLong(),
+                25565L);
+        Assert.assertEquals(
+                ClickHouseInputStream.of(new byte[] { (byte) 0xFF, (byte) 0xFF, 0x7F }).readVarLong(),
+                2097151L);
+        Assert.assertEquals(
+                ClickHouseInputStream.of(
+                        new byte[] { (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, 0x07 })
+                        .readVarLong(),
+                2147483647L);
+        Assert.assertEquals(
+                ClickHouseInputStream
+                        .of(new byte[] { (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF,
+                                (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0x7F })
+                        .readVarLong(),
+                9223372036854775807L);
+        Assert.assertEquals(ClickHouseInputStream
+                .of(new byte[] { (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF,
+                        (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0x01 })
+                .readVarLong(), -1L);
+        Assert.assertEquals(
+                ClickHouseInputStream
+                        .of(new byte[] { (byte) 0x80, (byte) 0x80, (byte) 0x80, (byte) 0x80,
+                                (byte) 0xF8, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, 0x01 })
+                        .readVarLong(),
+                -2147483648L);
+        Assert.assertEquals(
+                ClickHouseInputStream
+                        .of(new byte[] { (byte) 0x80, (byte) 0x80, (byte) 0x80, (byte) 0x80,
+                                (byte) 0x80, (byte) 0x80, (byte) 0x80, (byte) 0x80, (byte) 0x80, 0x01 })
+                        .readVarLong(),
+                -9223372036854775808L);
+    }
+
+    @Test(groups = { "unit" })
     public void testSkipInput() throws IOException {
         Assert.assertEquals(ClickHouseInputStream.of(generateInputStream(new byte[0])).skip(0L), 0L);
         Assert.assertEquals(ClickHouseInputStream.of(generateInputStream(new byte[0])).skip(1L), 0L);
-        Assert.assertEquals(ClickHouseInputStream.of(generateInputStream(new byte[0])).skip(Long.MAX_VALUE), 0L);
+        Assert.assertEquals(ClickHouseInputStream.of(generateInputStream(new byte[0])).skip(Long.MAX_VALUE),
+                0L);
 
         Assert.assertEquals(ClickHouseInputStream.of(generateInputStream(new byte[1])).skip(0L), 0L);
         Assert.assertEquals(ClickHouseInputStream.of(generateInputStream(new byte[1])).skip(1L), 1L);
-        Assert.assertEquals(ClickHouseInputStream.of(generateInputStream(new byte[1])).skip(Long.MAX_VALUE), 1L);
+        Assert.assertEquals(ClickHouseInputStream.of(generateInputStream(new byte[1])).skip(Long.MAX_VALUE),
+                1L);
 
         Assert.assertEquals(ClickHouseInputStream.of(generateInputStream(new byte[2])).skip(0L), 0L);
         Assert.assertEquals(ClickHouseInputStream.of(generateInputStream(new byte[2])).skip(1L), 1L);
-        Assert.assertEquals(ClickHouseInputStream.of(generateInputStream(new byte[2])).skip(Long.MAX_VALUE), 2L);
+        Assert.assertEquals(ClickHouseInputStream.of(generateInputStream(new byte[2])).skip(Long.MAX_VALUE),
+                2L);
 
         Assert.assertEquals(ClickHouseInputStream.of(generateInputStream(new byte[5]), 4).skip(0L), 0L);
         Assert.assertEquals(ClickHouseInputStream.of(generateInputStream(new byte[3]), 2).skip(1L), 1L);
         Assert.assertEquals(ClickHouseInputStream.of(generateInputStream(new byte[7]), 6).skip(2L), 2L);
-        Assert.assertEquals(ClickHouseInputStream.of(generateInputStream(new byte[8]), 6).skip(Long.MAX_VALUE), 8L);
+        Assert.assertEquals(ClickHouseInputStream.of(generateInputStream(new byte[8]), 6).skip(Long.MAX_VALUE),
+                8L);
 
         ClickHouseInputStream in = ClickHouseInputStream
                 .of(new ByteArrayInputStream(new byte[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 }), 8);

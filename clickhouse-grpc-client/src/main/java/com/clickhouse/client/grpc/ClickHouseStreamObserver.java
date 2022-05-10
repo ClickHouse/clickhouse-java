@@ -11,9 +11,9 @@ import com.clickhouse.client.ClickHouseDataStreamFactory;
 import com.clickhouse.client.ClickHouseException;
 import com.clickhouse.client.ClickHouseInputStream;
 import com.clickhouse.client.ClickHouseNode;
+import com.clickhouse.client.ClickHousePipedOutputStream;
 import com.clickhouse.client.ClickHouseResponseSummary;
 import com.clickhouse.client.ClickHouseUtils;
-import com.clickhouse.client.data.ClickHousePipedStream;
 import com.clickhouse.client.grpc.impl.Exception;
 import com.clickhouse.client.grpc.impl.LogEntry;
 import com.clickhouse.client.grpc.impl.Progress;
@@ -30,7 +30,7 @@ public class ClickHouseStreamObserver implements StreamObserver<Result> {
     private final CountDownLatch startLatch;
     private final CountDownLatch finishLatch;
 
-    private final ClickHousePipedStream stream;
+    private final ClickHousePipedOutputStream stream;
     private final ClickHouseInputStream input;
 
     private final ClickHouseResponseSummary summary;
@@ -43,8 +43,8 @@ public class ClickHouseStreamObserver implements StreamObserver<Result> {
         this.startLatch = new CountDownLatch(1);
         this.finishLatch = new CountDownLatch(1);
 
-        this.stream = ClickHouseDataStreamFactory.getInstance().createPipedStream(config);
-        this.input = ClickHouseGrpcResponse.getInput(config, this.stream.getInput());
+        this.stream = ClickHouseDataStreamFactory.getInstance().createPipedOutputStream(config, null);
+        this.input = ClickHouseGrpcResponse.getInput(config, this.stream.getInputStream());
 
         this.summary = new ClickHouseResponseSummary(null, null);
 
@@ -139,7 +139,7 @@ public class ClickHouseStreamObserver implements StreamObserver<Result> {
             if (updateStatus(value)) {
                 try {
                     // TODO close output stream if value.getOutput().isEmpty()?
-                    value.getOutput().writeTo(stream);
+                    stream.transferBytes(value.getOutput().toByteArray());
                 } catch (IOException e) {
                     onError(e);
                 }

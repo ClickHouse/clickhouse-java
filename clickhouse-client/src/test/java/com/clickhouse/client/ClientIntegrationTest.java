@@ -37,7 +37,6 @@ import com.clickhouse.client.data.ClickHouseIpv4Value;
 import com.clickhouse.client.data.ClickHouseIpv6Value;
 import com.clickhouse.client.data.ClickHouseLongValue;
 import com.clickhouse.client.data.ClickHouseOffsetDateTimeValue;
-import com.clickhouse.client.data.ClickHousePipedStream;
 import com.clickhouse.client.data.ClickHouseStringValue;
 
 import org.testng.Assert;
@@ -45,8 +44,8 @@ import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 public abstract class ClientIntegrationTest extends BaseIntegrationTest {
-    protected ClickHouseResponseSummary execute(ClickHouseRequest<?> request, String sql) throws Exception {
-        try (ClickHouseResponse response = request.query(sql).execute().get()) {
+    protected ClickHouseResponseSummary execute(ClickHouseRequest<?> request, String sql) throws ClickHouseException {
+        try (ClickHouseResponse response = request.query(sql).executeAndWait()) {
             for (ClickHouseRecord record : response.records()) {
                 for (ClickHouseValue value : record) {
                     Assert.assertNotNull(value, "Value should never be null");
@@ -181,7 +180,7 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
 
     @Test(dataProvider = "compressionMatrix", groups = { "integration" })
     public void testCompression(boolean compressRequest, boolean compressResponse)
-            throws Exception {
+            throws ClickHouseException {
         ClickHouseNode server = getServer();
         String uuid = UUID.randomUUID().toString();
         for (ClickHouseFormat format : new ClickHouseFormat[] {
@@ -194,7 +193,7 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
                         .decompressClientRequest(compressRequest);
                 boolean hasResult = false;
                 try (ClickHouseResponse resp = request
-                        .query("select :uuid").params(ClickHouseStringValue.of(uuid)).execute().get()) {
+                        .query("select :uuid").params(ClickHouseStringValue.of(uuid)).executeAndWait()) {
                     Assert.assertEquals(resp.firstRecord().getValue(0).asString(), uuid);
                     hasResult = true;
                 }
@@ -203,35 +202,35 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
                 // empty results
                 try (ClickHouseResponse resp = request
                         .query("create database if not exists system")
-                        .execute().get()) {
+                        .executeAndWait()) {
                     ClickHouseResponseSummary summary = resp.getSummary();
                     Assert.assertEquals(summary.getReadRows(), 0L);
                     Assert.assertEquals(summary.getWrittenRows(), 0L);
                 }
 
                 // let's also check if failures can be captured successfully as well
-                Exception exp = null;
+                ClickHouseException exp = null;
                 try (ClickHouseResponse resp = request
                         .use(uuid)
                         .query("select currentUser(), timezone(), version(), getSetting('readonly') readonly FORMAT RowBinaryWithNamesAndTypes")
-                        .execute().get()) {
+                        .executeAndWait()) {
                     Assert.fail("Query should fail");
-                } catch (Exception e) {
+                } catch (ClickHouseException e) {
                     exp = e;
                 }
-                Assert.assertEquals(((ClickHouseException) exp.getCause()).getErrorCode(), 81);
+                Assert.assertEquals(exp.getErrorCode(), 81);
             }
         }
     }
 
     @Test(groups = { "integration" })
-    public void testFormat() throws Exception {
+    public void testFormat() throws ClickHouseException {
         String sql = "select 1, 2";
         ClickHouseNode node = getServer();
 
         try (ClickHouseClient client = getClient()) {
             try (ClickHouseResponse response = client.connect(node)
-                    .format(ClickHouseFormat.RowBinaryWithNamesAndTypes).query(sql).execute().get()) {
+                    .format(ClickHouseFormat.RowBinaryWithNamesAndTypes).query(sql).executeAndWait()) {
                 Assert.assertEquals(response.getColumns().size(), 2);
                 int counter = 0;
                 for (ClickHouseRecord record : response.records()) {
@@ -243,8 +242,8 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
             }
 
             // now let's try again using unsupported formats
-            try (ClickHouseResponse response = client.connect(node).query(sql).format(ClickHouseFormat.CSV).execute()
-                    .get()) {
+            try (ClickHouseResponse response = client.connect(node).query(sql).format(ClickHouseFormat.CSV)
+                    .executeAndWait()) {
                 String results = new BufferedReader(
                         new InputStreamReader(response.getInputStream(), StandardCharsets.UTF_8)).lines()
                         .collect(Collectors.joining("\n"));
@@ -252,7 +251,7 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
             }
 
             try (ClickHouseResponse response = client.connect(node).query(sql).format(ClickHouseFormat.JSONEachRow)
-                    .execute().get()) {
+                    .executeAndWait()) {
                 String results = new BufferedReader(
                         new InputStreamReader(response.getInputStream(), StandardCharsets.UTF_8)).lines()
                         .collect(Collectors.joining("\n"));
@@ -876,6 +875,34 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
     }
 
     @Test(groups = { "integration" })
+    public void testCustomRead() throws Exception {
+        long limit = 1000L;
+        long count = 0L;
+        ClickHouseNode server = getServer();
+        try (ClickHouseClient client = getClient()) {
+            ClickHouseRequest<?> request = client.connect(server).format(ClickHouseFormat.RowBinaryWithNamesAndTypes)
+                    .query("select * from numbers(:limit)").params(String.valueOf(limit));
+            ClickHouseConfig config = request.getConfig();
+            try (ClickHouseResponse response = request.executeAndWait()) {
+                ClickHouseInputStream input = response.getInputStream();
+                List<ClickHouseColumn> list = response.getColumns();
+                ClickHouseColumn[] columns = list.toArray(new ClickHouseColumn[0]);
+                ClickHouseValue[] values = ClickHouseValues.newValues(config, columns);
+                ClickHouseDataProcessor processor = ClickHouseDataStreamFactory.getInstance()
+                        .getProcessor(config, input, null, null, list);
+                int len = columns.length;
+                while (input.available() > 0) {
+                    for (int i = 0; i < len; i++) {
+                        Assert.assertEquals(processor.read(values[i], columns[i]).asLong(), count++);
+                    }
+                }
+            }
+        }
+
+        Assert.assertEquals(count, 1000L);
+    }
+
+    @Test(groups = { "integration" })
     public void testDump() throws Exception {
         ClickHouseNode server = getServer();
 
@@ -883,7 +910,8 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
         Assert.assertEquals(Files.size(temp), 0L);
 
         int lines = 10000;
-        ClickHouseResponseSummary summary = ClickHouseClient.dump(server, "select * from system.numbers limit " + lines,
+        ClickHouseResponseSummary summary = ClickHouseClient.dump(server,
+                ClickHouseUtils.format("select * from numbers(%d)", lines),
                 ClickHouseFormat.TabSeparated, ClickHouseCompression.NONE, temp.toString()).get();
         Assert.assertNotNull(summary);
         // Assert.assertEquals(summary.getReadRows(), lines);
@@ -997,10 +1025,10 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
             CompletableFuture<ClickHouseResponse> future;
             // single producer → single consumer
             // important to close the stream *before* retrieving response
-            try (ClickHousePipedStream stream = new ClickHousePipedStream(config.getWriteBufferSize(),
-                    config.getMaxQueuedRequests(), config.getSocketTimeout())) {
+            try (ClickHousePipedOutputStream stream = ClickHouseDataStreamFactory.getInstance()
+                    .createPipedOutputStream(config, null)) {
                 // start the worker thread which transfer data from the input into ClickHouse
-                future = request.data(stream.getInput()).send();
+                future = request.data(stream.getInputStream()).send();
                 // write bytes into the piped stream
                 for (int i = 0; i < rows; i++) {
                     BinaryStreamUtils.writeInt64(stream, i);

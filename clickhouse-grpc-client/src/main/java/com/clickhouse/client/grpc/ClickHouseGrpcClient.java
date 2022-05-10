@@ -71,9 +71,7 @@ public class ClickHouseGrpcClient extends AbstractClient<ManagedChannel> {
             builder.setQueryId(optionalValue.get());
         }
 
-        ClickHouseCompression outputCompression = config.isCompressServerResponse()
-                ? config.getCompressAlgorithmForServerResponse()
-                : ClickHouseCompression.NONE;
+        ClickHouseCompression outputCompression = config.getResponseCompressAlgorithm();
         builder.setOutputCompressionType(outputCompression.encoding());
 
         // builder.setNextQueryInfo(true);
@@ -81,9 +79,7 @@ public class ClickHouseGrpcClient extends AbstractClient<ManagedChannel> {
             builder.putSettings(s.getKey(), String.valueOf(s.getValue()));
         }
 
-        ClickHouseCompression inputCompression = config.isDecompressClientRequet()
-                ? config.getDecompressAlgorithmForClientRequest()
-                : ClickHouseCompression.NONE;
+        ClickHouseCompression inputCompression = config.getRequestCompressAlgorithm();
         Optional<ClickHouseInputStream> input = request.getInputStream();
         if (input.isPresent()) {
             builder.setInputCompressionType(inputCompression.encoding());
