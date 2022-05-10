@@ -3,12 +3,15 @@ package com.clickhouse.client.data;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.Buffer;
+import java.util.Arrays;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import com.clickhouse.client.ClickHouseByteBuffer;
 
@@ -214,8 +217,10 @@ public class ClickHousePipedStreamTest {
             for (int queueLength = -1; queueLength < 10; queueLength++) {
                 ClickHousePipedStream stream = new ClickHousePipedStream(bufferSize, queueLength, timeout);
                 try (InputStream in = stream.getInput(); OutputStream out = stream) {
-                    int count = 10000;
-                    CountDownLatch latch = new CountDownLatch(count + 1);
+                    final int count = 10000;
+                    final AtomicInteger p = new AtomicInteger(0);
+                    final AtomicInteger n = new AtomicInteger(0);
+                    final CountDownLatch latch = new CountDownLatch(count + 1);
                     executor.execute(() -> {
                         for (int i = 0; i < count; i++) {
                             byte[] bytes = new byte[] { (byte) (0xFF & i), (byte) (0xFF & i + 1),
@@ -240,23 +245,39 @@ public class ClickHousePipedStreamTest {
                                     (byte) (0xFF & i + 2) };
                             byte[] b = new byte[bytes.length];
                             try {
-                                Assert.assertEquals(in.read(b), b.length);
-                                latch.countDown();
-                                Assert.assertEquals(b, bytes);
+                                if (in.read(b) == b.length && Arrays.equals(b, bytes)) {
+                                    p.incrementAndGet();
+                                } else {
+                                    n.incrementAndGet();
+                                }
                             } catch (IOException e) {
-                                Assert.fail("Failed to read", e);
+                                Thread.currentThread().interrupt();
+                                throw new UncheckedIOException(e);
+                            } finally {
+                                latch.countDown();
                             }
                         }
 
                         try {
-                            Assert.assertEquals(in.read(), -1);
-                            latch.countDown();
+                            if (in.read() == -1) {
+                                p.incrementAndGet();
+                            } else {
+                                n.incrementAndGet();
+                            }
                         } catch (IOException e) {
-                            Assert.fail("Failed to read EOF", e);
+                            Thread.currentThread().interrupt();
+                            throw new UncheckedIOException(e);
+                        } finally {
+                            latch.countDown();
                         }
                     });
 
-                    latch.await(timeout / 1000 * 3, TimeUnit.SECONDS);
+                    if (!latch.await(timeout / 1000, TimeUnit.SECONDS)) {
+                        Assert.fail(String.format("Countdown latch(%d of %d) timed out after waiting %d seconds",
+                                count + 1, latch.getCount(), timeout / 1000));
+                    }
+                    Assert.assertEquals(n.get(), 0);
+                    Assert.assertEquals(p.get(), count + 1);
                 }
             }
         }

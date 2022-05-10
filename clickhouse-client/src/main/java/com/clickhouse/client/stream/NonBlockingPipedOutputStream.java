@@ -48,14 +48,12 @@ public class NonBlockingPipedOutputStream extends ClickHousePipedOutputStream {
     }
 
     private void updateBuffer(boolean allocateNewBuffer) throws IOException {
-        if (position < 1) {
-            return;
-        }
-
         updateBuffer(buffer, 0, position);
 
         if (allocateNewBuffer) {
             buffer = allocateBuffer();
+        } else {
+            position = 0;
         }
     }
 
