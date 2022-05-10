@@ -87,7 +87,7 @@ public abstract class AbstractByteBufferInputStream extends ClickHouseInputStrea
             if (remain > 0) {
                 if (b.hasArray()) {
                     output.transferBytes(b.array(), b.position(), remain);
-                    b.limit(b.position());
+                    ((Buffer) b).limit(b.position());
                 } else {
                     byte[] bytes = new byte[remain];
                     buffer.get(bytes);
