@@ -521,6 +521,10 @@ public final class ClickHouseColumn implements Serializable {
         return dataType == ClickHouseDataType.Tuple;
     }
 
+    public boolean isNestedType() {
+        return dataType.isNested();
+    }
+
     public int getArrayNestedLevel() {
         return arrayLevel;
     }
