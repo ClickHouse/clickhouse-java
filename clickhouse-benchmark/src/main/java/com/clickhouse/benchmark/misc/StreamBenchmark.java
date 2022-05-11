@@ -63,8 +63,7 @@ public class StreamBenchmark {
 
         @Setup(Level.Trial)
         public void setupSamples() {
-            bufferSize = Integer.getInteger("buffer",
-                    (int) ClickHouseClientOption.WRITE_BUFFER_SIZE.getDefaultValue());
+            bufferSize = Integer.getInteger("buffer", (int) ClickHouseClientOption.BUFFER_SIZE.getDefaultValue());
             samples = Integer.getInteger("samples", 500000);
 
             bytes = new byte[samples];
@@ -74,7 +73,7 @@ public class StreamBenchmark {
             options.put(ClickHouseClientOption.REQUEST_BUFFERING, ClickHouseBufferingMode.valueOf(
                     System.getProperty("mode", ClickHouseClientOption.REQUEST_BUFFERING.getDefaultValue().toString())
                             .toUpperCase()));
-            options.put(ClickHouseClientOption.WRITE_BUFFER_SIZE, bufferSize);
+            options.put(ClickHouseClientOption.BUFFER_SIZE, bufferSize);
             options.put(ClickHouseClientOption.MAX_QUEUED_BUFFERS,
                     Integer.getInteger("queue", (int) ClickHouseClientOption.MAX_QUEUED_BUFFERS.getDefaultValue()));
             options.put(ClickHouseClientOption.COMPRESS, Boolean.parseBoolean(System.getProperty("compress", "false")));

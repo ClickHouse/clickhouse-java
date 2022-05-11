@@ -119,13 +119,13 @@ public interface ClickHouseResponse extends AutoCloseable, Serializable {
      *
      * @param output     non-null output stream, which will remain open
      * @param bufferSize buffer size, 0 or negative value will be treated as
-     *                   {@link ClickHouseClientOption#WRITE_BUFFER_SIZE}
+     *                   {@link ClickHouseClientOption#BUFFER_SIZE}
      * @throws IOException when error occurred reading or writing data
      */
     default void pipe(OutputStream output, int bufferSize) throws IOException {
         ClickHouseInputStream.pipe(getInputStream(), ClickHouseChecker.nonNull(output, "output"),
                 ClickHouseUtils.getBufferSize(bufferSize,
-                        (int) ClickHouseClientOption.WRITE_BUFFER_SIZE.getDefaultValue(),
+                        (int) ClickHouseClientOption.BUFFER_SIZE.getDefaultValue(),
                         (int) ClickHouseClientOption.MAX_BUFFER_SIZE.getDefaultValue()));
     }
 

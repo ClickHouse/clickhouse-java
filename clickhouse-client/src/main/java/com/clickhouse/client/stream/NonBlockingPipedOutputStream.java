@@ -82,12 +82,11 @@ public class NonBlockingPipedOutputStream extends ClickHousePipedOutputStream {
             Runnable postCloseAction) {
         super(postCloseAction);
 
-        this.queue = new AdaptiveQueue<>(
-                policy != null ? policy : CapacityPolicy.linearDynamicCapacity(1, queueLength, 0));
+        this.queue = new AdaptiveQueue<>(policy);
 
         // may need an initialBufferSize and a monitor to update bufferSize in runtime
         this.bufferSize = ClickHouseUtils.getBufferSize(bufferSize,
-                (int) ClickHouseClientOption.WRITE_BUFFER_SIZE.getDefaultValue(),
+                (int) ClickHouseClientOption.BUFFER_SIZE.getDefaultValue(),
                 (int) ClickHouseClientOption.MAX_BUFFER_SIZE.getDefaultValue());
         this.timeout = timeout;
         this.buckets = queueLength < 2 ? new byte[0][] : new byte[queueLength][];

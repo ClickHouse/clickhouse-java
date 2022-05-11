@@ -244,7 +244,7 @@ public abstract class ClickHouseInputStream extends InputStream {
         if (inputs == null || inputs.length == 0) {
             return EmptyInputStream.INSTANCE;
         } else if (inputs.length == 1) {
-            return of(inputs[0], (int) ClickHouseClientOption.READ_BUFFER_SIZE.getDefaultValue(), null, null);
+            return of(inputs[0], (int) ClickHouseClientOption.BUFFER_SIZE.getDefaultValue(), null, null);
         }
         return of(Arrays.asList(inputs), InputStream.class, null, null);
     }
@@ -367,7 +367,7 @@ public abstract class ClickHouseInputStream extends InputStream {
      * @param input      non-null input stream, which will be closed
      * @param output     non-null output stream, which will remain open
      * @param bufferSize buffer size, zero or negative number will be treated as
-     *                   {@link ClickHouseClientOption#WRITE_BUFFER_SIZE}
+     *                   {@link ClickHouseClientOption#BUFFER_SIZE}
      * @return written bytes
      * @throws IOException when error occured reading from input stream or writing
      *                     data to output stream
@@ -378,7 +378,7 @@ public abstract class ClickHouseInputStream extends InputStream {
         }
 
         bufferSize = ClickHouseUtils.getBufferSize(bufferSize,
-                (int) ClickHouseClientOption.WRITE_BUFFER_SIZE.getDefaultValue(),
+                (int) ClickHouseClientOption.BUFFER_SIZE.getDefaultValue(),
                 (int) ClickHouseClientOption.MAX_BUFFER_SIZE.getDefaultValue());
         return pipe(input, output, new byte[bufferSize]);
     }

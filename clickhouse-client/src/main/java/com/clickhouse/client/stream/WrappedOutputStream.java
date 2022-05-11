@@ -20,7 +20,7 @@ public class WrappedOutputStream extends AbstractByteArrayOutputStream {
 
     public WrappedOutputStream(OutputStream stream, int bufferSize, Runnable postCloseAction) {
         super(ClickHouseUtils.getBufferSize(bufferSize,
-                (int) ClickHouseClientOption.WRITE_BUFFER_SIZE.getDefaultValue(),
+                (int) ClickHouseClientOption.BUFFER_SIZE.getDefaultValue(),
                 (int) ClickHouseClientOption.MAX_BUFFER_SIZE.getDefaultValue()), postCloseAction);
 
         output = ClickHouseChecker.nonNull(stream, "OutputStream");

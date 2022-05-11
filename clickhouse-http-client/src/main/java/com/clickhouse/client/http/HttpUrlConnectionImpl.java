@@ -139,7 +139,7 @@ public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
             // String encoding = conn.getHeaderField("Content-Encoding");
             String serverName = conn.getHeaderField("X-ClickHouse-Server-Display-Name");
 
-            int bufferSize = (int) ClickHouseClientOption.WRITE_BUFFER_SIZE.getDefaultValue();
+            int bufferSize = (int) ClickHouseClientOption.BUFFER_SIZE.getDefaultValue();
             ByteArrayOutputStream output = new ByteArrayOutputStream(bufferSize);
             ClickHouseInputStream.pipe(conn.getErrorStream(), output, bufferSize);
             byte[] bytes = output.toByteArray();
@@ -190,7 +190,7 @@ public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
         ClickHouseConfig c = config;
         final boolean hasInput = data != null || boundary != null;
         if (hasInput) {
-            conn.setChunkedStreamingMode(config.getWriteBufferSize());
+            conn.setChunkedStreamingMode(config.getRequestChunkSize());
         } else {
             // TODO conn.setFixedLengthStreamingMode(contentLength);
         }

@@ -29,7 +29,7 @@ public abstract class ClickHouseOutputStream extends OutputStream {
      *         {@link ClickHouseOutputStream}
      */
     public static ClickHouseOutputStream of(OutputStream output) {
-        return of(output, (int) ClickHouseClientOption.WRITE_BUFFER_SIZE.getDefaultValue(), null, null);
+        return of(output, (int) ClickHouseClientOption.BUFFER_SIZE.getDefaultValue(), null, null);
     }
 
     /**

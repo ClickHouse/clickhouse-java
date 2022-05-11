@@ -20,14 +20,14 @@ public interface CapacityPolicy {
         private volatile int count;
 
         private final int maxSize;
-        private final int threshold;
+        private final int variation;
 
-        protected LinearDynamicCapacity(int initialSize, int maxSize, int threshold) {
+        protected LinearDynamicCapacity(int initialSize, int maxSize, int variation) {
             this.capacity = initialSize < 1 ? 1 : initialSize;
             this.count = 0;
 
             this.maxSize = maxSize < 1 ? Integer.MAX_VALUE : Math.max(maxSize, initialSize);
-            this.threshold = threshold < 1 ? 100 : threshold;
+            this.variation = variation < 1 ? 100 : variation;
         }
 
         @Override
@@ -35,7 +35,7 @@ public interface CapacityPolicy {
             if (current < capacity) {
                 count = 0;
                 return true;
-            } else if (capacity < maxSize && ++count >= threshold) {
+            } else if (capacity < maxSize && ++count >= variation) {
                 count = 0;
                 capacity++;
                 return true;
@@ -48,8 +48,8 @@ public interface CapacityPolicy {
         return new FixedCapacity(capacity);
     }
 
-    static CapacityPolicy linearDynamicCapacity(int initialSize, int maxSize, int threshold) {
-        return new LinearDynamicCapacity(initialSize, maxSize, threshold);
+    static CapacityPolicy linearDynamicCapacity(int initialSize, int maxSize, int variation) {
+        return new LinearDynamicCapacity(initialSize, maxSize, variation);
     }
 
     boolean ensureCapacity(int current);

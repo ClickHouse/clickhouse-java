@@ -4,7 +4,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.Map;
 
-import com.clickhouse.client.ClickHouseClient;
 import com.clickhouse.client.ClickHouseCompression;
 import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseDeferredValue;
@@ -34,7 +33,8 @@ public class ClickHouseGrpcResponse extends ClickHouseStreamResponse {
                     }),
                     config.getReadBufferSize(), null);
         } else {
-            in = ClickHouseInputStream.of(input, config.getBufferSize(), config.getResponseCompressAlgorithm(), null);
+            in = ClickHouseInputStream.of(input, config.getReadBufferSize(), config.getResponseCompressAlgorithm(),
+                    null);
         }
 
         return in;
