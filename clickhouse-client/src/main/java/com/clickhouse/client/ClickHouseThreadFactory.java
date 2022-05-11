@@ -1,9 +1,18 @@
 package com.clickhouse.client;
 
+import java.lang.Thread.UncaughtExceptionHandler;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import com.clickhouse.client.logging.Logger;
+import com.clickhouse.client.logging.LoggerFactory;
+
 public class ClickHouseThreadFactory implements ThreadFactory {
+    private static final Logger log = LoggerFactory.getLogger(ClickHouseThreadFactory.class);
+
+    private static final UncaughtExceptionHandler hanlder = (t, e) -> log.warn("Uncaught exception from thread: " + t,
+            e);
+
     private final boolean daemon;
     private final int priority;
 
@@ -43,7 +52,7 @@ public class ClickHouseThreadFactory implements ThreadFactory {
         if (priority != t.getPriority()) {
             t.setPriority(priority);
         }
-        // t.setUncaughtExceptionHandler(null);
+        t.setUncaughtExceptionHandler(hanlder);
         return t;
     }
 }

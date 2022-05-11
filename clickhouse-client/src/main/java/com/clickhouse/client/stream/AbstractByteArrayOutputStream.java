@@ -10,7 +10,12 @@ public abstract class AbstractByteArrayOutputStream extends ClickHouseOutputStre
 
     protected int position;
 
-    protected abstract void flushBuffer() throws IOException;
+    protected void flushBuffer() throws IOException {
+        flushBuffer(buffer, 0, position);
+        position = 0;
+    }
+
+    protected abstract void flushBuffer(byte[] bytes, int offset, int length) throws IOException;
 
     protected AbstractByteArrayOutputStream(int bufferSize, Runnable postCloseAction) {
         super(postCloseAction);
@@ -18,6 +23,25 @@ public abstract class AbstractByteArrayOutputStream extends ClickHouseOutputStre
         buffer = new byte[bufferSize];
 
         position = 0;
+    }
+
+    @Override
+    public ClickHouseOutputStream transferBytes(byte[] bytes, int offset, int length) throws IOException {
+        if (bytes == null) {
+            throw new NullPointerException();
+        } else if (offset < 0 || length < 0 || length > bytes.length - offset) {
+            throw new IndexOutOfBoundsException();
+        } else if (length == 0) {
+            return this;
+        }
+        ensureOpen();
+
+        if (position > 0) {
+            flushBuffer();
+        }
+        flushBuffer(bytes, offset, length);
+        position = 0;
+        return this;
     }
 
     @Override

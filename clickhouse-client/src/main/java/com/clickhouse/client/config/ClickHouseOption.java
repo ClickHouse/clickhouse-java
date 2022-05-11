@@ -113,7 +113,6 @@ public interface ClickHouseOption extends Serializable {
      *
      * @return effective default value
      */
-    @SuppressWarnings("unchecked")
     default Serializable getEffectiveDefaultValue() {
         Optional<String> value = getDefaultValueFromEnvVar();
 

@@ -76,6 +76,9 @@ public class Lz4InputStream extends AbstractByteArrayInputStream {
 
         buffer = new byte[uncompressedSize];
         decompressor.decompress(block, offset, buffer, 0, uncompressedSize);
+        if (copyTo != null) {
+            copyTo.write(buffer);
+        }
         return limit = buffer.length;
     }
 
@@ -84,7 +87,7 @@ public class Lz4InputStream extends AbstractByteArrayInputStream {
     }
 
     public Lz4InputStream(InputStream stream, Runnable postCloseAction) {
-        super(postCloseAction);
+        super(null, postCloseAction);
 
         this.decompressor = factory.fastDecompressor();
         this.stream = ClickHouseChecker.nonNull(stream, "InputStream");

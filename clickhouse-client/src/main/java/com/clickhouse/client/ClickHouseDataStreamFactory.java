@@ -4,10 +4,15 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import com.clickhouse.client.config.ClickHouseBufferingMode;
+import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.config.ClickHouseDefaults;
 import com.clickhouse.client.data.ClickHousePipedStream;
 import com.clickhouse.client.data.ClickHouseRowBinaryProcessor;
 import com.clickhouse.client.data.ClickHouseTabSeparatedProcessor;
+import com.clickhouse.client.stream.BlockingPipedOutputStream;
+import com.clickhouse.client.stream.CapacityPolicy;
+import com.clickhouse.client.stream.NonBlockingPipedOutputStream;
 
 /**
  * Factory class for creating objects to handle data stream.
@@ -40,14 +45,14 @@ public class ClickHouseDataStreamFactory {
      *                 {@code input} is null
      * @param settings nullable settings
      * @param columns  nullable list of columns
-     * @return data processor
+     * @return data processor, which might be null
      * @throws IOException when failed to read columns from input stream
      */
     public ClickHouseDataProcessor getProcessor(ClickHouseConfig config, ClickHouseInputStream input,
             ClickHouseOutputStream output, Map<String, Object> settings, List<ClickHouseColumn> columns)
             throws IOException {
         ClickHouseFormat format = ClickHouseChecker.nonNull(config, "config").getFormat();
-        ClickHouseDataProcessor processor;
+        ClickHouseDataProcessor processor = null;
         if (ClickHouseFormat.RowBinary == format || ClickHouseFormat.RowBinaryWithNamesAndTypes == format) {
             processor = new ClickHouseRowBinaryProcessor(config, input, output, columns, settings);
         } else if (ClickHouseFormat.TSVWithNames == format || ClickHouseFormat.TSVWithNamesAndTypes == format
@@ -57,10 +62,7 @@ public class ClickHouseDataStreamFactory {
         } else if (format != null && format.isText()) {
             processor = new ClickHouseTabSeparatedProcessor(config, input, output,
                     ClickHouseDataProcessor.DEFAULT_COLUMNS, settings);
-        } else {
-            throw new IllegalArgumentException(ERROR_UNSUPPORTED_FORMAT + format);
         }
-
         return processor;
     }
 
@@ -121,11 +123,56 @@ public class ClickHouseDataStreamFactory {
      *
      * @param config non-null configuration
      * @return piped stream
+     * @deprecated will be removed in v0.3.3, please use
+     *             {@link #createPipedOutputStream(ClickHouseConfig, Runnable)}
+     *             instead
      */
+    @Deprecated
     public ClickHousePipedStream createPipedStream(ClickHouseConfig config) {
-        ClickHouseChecker.nonNull(config, "config");
+        return config != null
+                ? new ClickHousePipedStream(config.getWriteBufferSize(), config.getMaxQueuedBuffers(),
+                        config.getSocketTimeout())
+                : new ClickHousePipedStream((int) ClickHouseClientOption.BUFFER_SIZE.getDefaultValue(),
+                        (int) ClickHouseClientOption.MAX_QUEUED_BUFFERS.getDefaultValue(),
+                        (int) ClickHouseClientOption.SOCKET_TIMEOUT.getDefaultValue());
+    }
 
-        return new ClickHousePipedStream(config.getWriteBufferSize(), config.getMaxQueuedBuffers(),
-                config.getSocketTimeout());
+    /**
+     * Creates a piped output stream.
+     *
+     * @param config non-null configuration
+     * @return piped output stream
+     */
+    public ClickHousePipedOutputStream createPipedOutputStream(ClickHouseConfig config, Runnable postCloseAction) {
+        final int bufferSize = ClickHouseChecker.nonNull(config, "config").getWriteBufferSize();
+        final boolean blocking;
+        final int queue;
+        final CapacityPolicy policy;
+        final int timeout;
+
+        if (config.getResponseBuffering() == ClickHouseBufferingMode.PERFORMANCE) {
+            blocking = false;
+            queue = 0;
+            policy = null;
+            timeout = 0; // questionable
+        } else {
+            blocking = config.isUseBlockingQueue();
+            queue = config.getMaxQueuedBuffers();
+            policy = config.getBufferQueueVariation() < 1 ? CapacityPolicy.fixedCapacity(queue)
+                    : CapacityPolicy.linearDynamicCapacity(1, queue, config.getBufferQueueVariation());
+            timeout = config.getSocketTimeout();
+        }
+        return blocking
+                ? new BlockingPipedOutputStream(bufferSize, queue, timeout, postCloseAction)
+                : new NonBlockingPipedOutputStream(bufferSize, queue, timeout, policy, postCloseAction);
+    }
+
+    public ClickHousePipedOutputStream createPipedOutputStream(int bufferSize, int queueSize, int timeout,
+            Runnable postCloseAction) {
+        return new BlockingPipedOutputStream(
+                ClickHouseUtils.getBufferSize(bufferSize,
+                        (int) ClickHouseClientOption.BUFFER_SIZE.getDefaultValue(),
+                        (int) ClickHouseClientOption.MAX_BUFFER_SIZE.getDefaultValue()),
+                queueSize, timeout, postCloseAction);
     }
 }

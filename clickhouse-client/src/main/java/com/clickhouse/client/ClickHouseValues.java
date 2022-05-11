@@ -23,6 +23,7 @@ import java.time.format.DateTimeFormatterBuilder;
 import java.time.temporal.ChronoField;
 import java.util.Collection;
 import java.util.Enumeration;
+import java.util.List;
 import java.util.Map;
 import java.util.TimeZone;
 import java.util.UUID;
@@ -107,6 +108,7 @@ public final class ClickHouseValues {
     public static final String INF_EXPR = "Inf";
     public static final String NINF_EXPR = "-Inf";
 
+    public static final String ERROR_INF_OR_NAN = "Infinite or NaN";
     public static final String ERROR_INVALID_POINT = "A point should have two and only two double values, but we got: ";
     public static final String ERROR_SINGLETON_ARRAY = "Only singleton array is allowed, but we got: ";
     public static final String ERROR_SINGLETON_COLLECTION = "Only singleton collection is allowed, but we got: ";
@@ -971,6 +973,46 @@ public final class ClickHouseValues {
     }
 
     /**
+     * Creates multiple values based on given columns.
+     *
+     * @param config  non-null configuration
+     * @param columns non-null columns
+     * @return non-null values with default value, either null or empty
+     */
+    public static ClickHouseValue[] newValues(ClickHouseConfig config, List<ClickHouseColumn> columns) {
+        if (columns == null || columns.isEmpty()) {
+            return EMPTY_VALUES;
+        }
+
+        ClickHouseValue[] values = new ClickHouseValue[columns.size()];
+        int index = 0;
+        for (ClickHouseColumn c : columns) {
+            values[index++] = newValue(config, c);
+        }
+        return values;
+    }
+
+    /**
+     * Creates multiple values based on given columns.
+     *
+     * @param config  non-null configuration
+     * @param columns non-null columns
+     * @return non-null values with default value, either null or empty
+     */
+    public static ClickHouseValue[] newValues(ClickHouseConfig config, ClickHouseColumn[] columns) {
+        if (columns == null || columns.length == 0) {
+            return EMPTY_VALUES;
+        }
+
+        int len = columns.length;
+        ClickHouseValue[] values = new ClickHouseValue[len];
+        for (int i = 0; i < len; i++) {
+            values[i] = newValue(config, columns[i]);
+        }
+        return values;
+    }
+
+    /**
      * Creates a value object based on given column.
      *
      * @param config non-null configuration
@@ -1113,7 +1155,7 @@ public final class ClickHouseValues {
                 }
                 break;
             case Array:
-                if (column == null) {
+                if (column == null || column.getArrayBaseColumn().isNullable()) {
                     value = ClickHouseArrayValue.ofEmpty();
                 } else if (column.getArrayNestedLevel() > 1) {
                     value = ClickHouseArrayValue.of(

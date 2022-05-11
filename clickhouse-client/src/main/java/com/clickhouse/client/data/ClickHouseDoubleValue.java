@@ -126,9 +126,25 @@ public class ClickHouseDoubleValue implements ClickHouseValue {
     }
 
     @Override
+    public BigDecimal asBigDecimal() {
+        if (isNull) {
+            return null;
+        } else if (Double.isNaN(value) || value == Double.POSITIVE_INFINITY || value == Double.NEGATIVE_INFINITY) {
+            throw new NumberFormatException(ClickHouseValues.ERROR_INF_OR_NAN);
+        } else if (value == 0D) {
+            return BigDecimal.ZERO;
+        } else if (value == 1D) {
+            return BigDecimal.ONE;
+        }
+        return new BigDecimal(Double.toString(value));
+    }
+
+    @Override
     public BigDecimal asBigDecimal(int scale) {
         if (isNull) {
             return null;
+        } else if (Double.isNaN(value) || value == Double.POSITIVE_INFINITY || value == Double.NEGATIVE_INFINITY) {
+            throw new NumberFormatException(ClickHouseValues.ERROR_INF_OR_NAN);
         }
 
         BigDecimal dec = BigDecimal.valueOf(value);

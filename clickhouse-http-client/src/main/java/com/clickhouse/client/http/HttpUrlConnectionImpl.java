@@ -2,6 +2,7 @@ package com.clickhouse.client.http;
 
 import com.clickhouse.client.ClickHouseChecker;
 import com.clickhouse.client.ClickHouseClient;
+import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseFormat;
 import com.clickhouse.client.ClickHouseInputStream;
 import com.clickhouse.client.ClickHouseNode;
@@ -25,7 +26,6 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.TimeZone;
@@ -65,20 +65,25 @@ public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
         String queryId = getResponseHeader("X-ClickHouse-Query-Id", "");
         String summary = getResponseHeader("X-ClickHouse-Summary", "{}");
 
-        ClickHouseFormat format = config.getFormat();
-        TimeZone timeZone = config.getServerTimeZone();
+        ClickHouseConfig c = config;
+        ClickHouseFormat format = c.getFormat();
+        TimeZone timeZone = c.getServerTimeZone();
+        boolean hasQueryResult = false;
         // queryId, format and timeZone are only available for queries
         if (!ClickHouseChecker.isNullOrEmpty(queryId)) {
             String value = getResponseHeader("X-ClickHouse-Format", "");
-            format = !ClickHouseChecker.isNullOrEmpty(value) ? ClickHouseFormat.valueOf(value)
-                    : format;
+            if (!ClickHouseChecker.isNullOrEmpty(value)) {
+                format = ClickHouseFormat.valueOf(value);
+                hasQueryResult = true;
+            }
             value = getResponseHeader("X-ClickHouse-Timezone", "");
             timeZone = !ClickHouseChecker.isNullOrEmpty(value) ? TimeZone.getTimeZone(value)
                     : timeZone;
         }
 
         return new ClickHouseHttpResponse(this,
-                ClickHouseClient.getResponseInputStream(config, conn.getInputStream(), null),
+                hasQueryResult ? ClickHouseClient.getAsyncResponseInputStream(c, conn.getInputStream(), null)
+                        : ClickHouseClient.getResponseInputStream(c, conn.getInputStream(), null),
                 displayName, queryId, summary, format, timeZone);
     }
 
@@ -134,7 +139,7 @@ public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
             // String encoding = conn.getHeaderField("Content-Encoding");
             String serverName = conn.getHeaderField("X-ClickHouse-Server-Display-Name");
 
-            int bufferSize = (int) ClickHouseClientOption.WRITE_BUFFER_SIZE.getDefaultValue();
+            int bufferSize = (int) ClickHouseClientOption.BUFFER_SIZE.getDefaultValue();
             ByteArrayOutputStream output = new ByteArrayOutputStream(bufferSize);
             ClickHouseInputStream.pipe(conn.getErrorStream(), output, bufferSize);
             byte[] bytes = output.toByteArray();
@@ -182,8 +187,16 @@ public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
         }
         setHeaders(conn, headers);
 
-        try (ClickHouseOutputStream out = ClickHouseClient.getRequestOutputStream(config, conn.getOutputStream(),
-                null)) {
+        ClickHouseConfig c = config;
+        final boolean hasInput = data != null || boundary != null;
+        if (hasInput) {
+            conn.setChunkedStreamingMode(config.getRequestChunkSize());
+        } else {
+            // TODO conn.setFixedLengthStreamingMode(contentLength);
+        }
+        try (ClickHouseOutputStream out = hasInput
+                ? ClickHouseClient.getAsyncRequestOutputStream(config, conn.getOutputStream(), null) // latch::countDown)
+                : ClickHouseClient.getRequestOutputStream(c, conn.getOutputStream(), null)) {
             byte[] sqlBytes = sql.getBytes(StandardCharsets.UTF_8);
             if (boundary != null) {
                 byte[] linePrefix = new byte[] { '\r', '\n', '-', '-' };
@@ -217,7 +230,7 @@ public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
                     }
                     out.writeBytes(HEADER_OCTET_STREAM);
                     out.writeBytes(HEADER_BINARY_ENCODING);
-                    ClickHouseInputStream.pipe(t.getContent(), out, config.getWriteBufferSize());
+                    ClickHouseInputStream.pipe(t.getContent(), out, c.getWriteBufferSize());
                 }
                 out.writeBytes(linePrefix);
                 out.writeBytes(boundary);
@@ -230,7 +243,7 @@ public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
                     if (sqlBytes[sqlBytes.length - 1] != (byte) '\n') {
                         out.write(10);
                     }
-                    ClickHouseInputStream.pipe(data, out, config.getWriteBufferSize());
+                    ClickHouseInputStream.pipe(data, out, c.getWriteBufferSize());
                 }
             }
         }

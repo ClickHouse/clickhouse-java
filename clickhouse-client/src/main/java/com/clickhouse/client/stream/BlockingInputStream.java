@@ -1,6 +1,7 @@
 package com.clickhouse.client.stream;
 
 import java.io.IOException;
+import java.nio.Buffer;
 import java.nio.ByteBuffer;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
@@ -21,7 +22,7 @@ public class BlockingInputStream extends AbstractByteBufferInputStream {
     private final int timeout;
 
     public BlockingInputStream(BlockingQueue<ByteBuffer> queue, int timeout, Runnable postCloseAction) {
-        super(postCloseAction);
+        super(null, postCloseAction);
 
         this.queue = ClickHouseChecker.nonNull(queue, "Queue");
         this.timeout = timeout > 0 ? timeout : 0;
@@ -38,17 +39,31 @@ public class BlockingInputStream extends AbstractByteBufferInputStream {
 
     @Override
     protected int updateBuffer() throws IOException {
+        ByteBuffer b;
         try {
             if (timeout > 0) {
-                buffer = queue.poll(timeout, TimeUnit.MILLISECONDS);
-                if (buffer == null) {
+                b = queue.poll(timeout, TimeUnit.MILLISECONDS);
+                if (b == null) {
                     throw new IOException(ClickHouseUtils.format("Read timed out after %d ms", timeout));
                 }
             } else {
-                buffer = queue.take();
+                b = queue.take();
             }
 
-            return buffer.remaining();
+            buffer = b;
+            int remain = b.remaining();
+            if (remain > 0 && copyTo != null) {
+                int position = b.position();
+                if (b.hasArray()) {
+                    copyTo.write(b.array(), position, remain);
+                } else {
+                    byte[] bytes = new byte[remain];
+                    b.get(bytes);
+                    copyTo.write(bytes);
+                    ((Buffer) b).position(position);
+                }
+            }
+            return remain;
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new IOException("Thread was interrupted when getting next buffer from queue", e);

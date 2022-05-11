@@ -14,14 +14,13 @@ public class WrappedOutputStream extends AbstractByteArrayOutputStream {
     private final OutputStream output;
 
     @Override
-    protected void flushBuffer() throws IOException {
-        output.write(buffer, 0, position);
-        position = 0;
+    protected void flushBuffer(byte[] bytes, int offset, int length) throws IOException {
+        output.write(bytes, offset, length);
     }
 
     public WrappedOutputStream(OutputStream stream, int bufferSize, Runnable postCloseAction) {
         super(ClickHouseUtils.getBufferSize(bufferSize,
-                (int) ClickHouseClientOption.WRITE_BUFFER_SIZE.getDefaultValue(),
+                (int) ClickHouseClientOption.BUFFER_SIZE.getDefaultValue(),
                 (int) ClickHouseClientOption.MAX_BUFFER_SIZE.getDefaultValue()), postCloseAction);
 
         output = ClickHouseChecker.nonNull(stream, "OutputStream");

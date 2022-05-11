@@ -49,11 +49,21 @@ public class ClickHouseRowBinaryProcessorTest {
         Assert.assertEquals(shortArray[1], Short.valueOf("2"));
 
         value = ClickHouseRowBinaryProcessor.getMappedFunctions().deserialize(null, config,
-                ClickHouseColumn.of("a", "Array(Nullable(Int8))"),
-                BinaryStreamUtilsTest.generateInput(2, 0, 1, 0, 2));
+                ClickHouseColumn.of("a", "Array(Int8)"),
+                BinaryStreamUtilsTest.generateInput(2, 1, 2));
         Assert.assertTrue(value instanceof ClickHouseByteArrayValue);
         Assert.assertEquals(value.asObject(), new byte[] { 1, 2 });
         Object[] byteArray = value.asArray();
+        Assert.assertEquals(byteArray.length, 2);
+        Assert.assertEquals(byteArray[0], Byte.valueOf("1"));
+        Assert.assertEquals(byteArray[1], Byte.valueOf("2"));
+
+        value = ClickHouseRowBinaryProcessor.getMappedFunctions().deserialize(null, config,
+                ClickHouseColumn.of("a", "Array(Nullable(Int8))"),
+                BinaryStreamUtilsTest.generateInput(2, 0, 1, 0, 2));
+        Assert.assertTrue(value instanceof ClickHouseArrayValue);
+        Assert.assertEquals(value.asObject(), new Byte[] { (byte) 1, (byte) 2 });
+        byteArray = value.asArray();
         Assert.assertEquals(byteArray.length, 2);
         Assert.assertEquals(byteArray[0], Byte.valueOf("1"));
         Assert.assertEquals(byteArray[1], Byte.valueOf("2"));

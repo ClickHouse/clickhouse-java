@@ -17,6 +17,14 @@ public class ClickHouseColumnTest {
     @DataProvider(name = "objectTypesProvider")
     private Object[][] getObjectTypes() {
         return new Object[][] {
+                { "Tuple(not NChar Large Object)" },
+                { "nchar Large Object" },
+                { "Tuple(int Int32)" },
+                { "a Tuple(i Int32)" },
+                { "b Tuple(i1 Int32)" },
+                { "Tuple(i Int32)" },
+                { "Tuple(i1 Int32)" },
+                { "Tuple(i Int32, a Array(Int32), m Map(LowCardinality(String), Int32))" },
                 { "Int8" }, { "TINYINT SIGNED" },
                 { "k1 Int8" }, { "k1 TINYINT SIGNED" },
                 { "k1 Nullable(Int8)" }, { "k1 Nullable( Int8 )" }, { "k1 TINYINT SIGNED null" },

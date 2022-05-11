@@ -36,18 +36,20 @@ public class WrappedInputStream extends AbstractByteArrayInputStream {
                 len -= read;
             }
         }
-
+        if (copyTo != null) {
+            copyTo.write(buffer, 0, off);
+        }
         limit = off;
         return limit - position;
     }
 
     public WrappedInputStream(InputStream input, int bufferSize, Runnable postCloseAction) {
-        super(postCloseAction);
+        super(null, postCloseAction);
 
         in = ClickHouseChecker.nonNull(input, "InputStream");
         // fixed buffer
         buffer = new byte[ClickHouseUtils.getBufferSize(bufferSize,
-                (int) ClickHouseClientOption.READ_BUFFER_SIZE.getDefaultValue(),
+                (int) ClickHouseClientOption.BUFFER_SIZE.getDefaultValue(),
                 (int) ClickHouseClientOption.MAX_BUFFER_SIZE.getDefaultValue())];
 
         position = 0;
@@ -112,18 +114,19 @@ public class WrappedInputStream extends AbstractByteArrayInputStream {
         if (output == null || output.isClosed()) {
             return count;
         }
-
         ensureOpen();
 
-        int remain = limit - position;
+        int l = limit;
+        int p = position;
+        int remain = l - p;
         if (remain > 0) {
-            output.write(buffer, position, remain);
+            output.writeBytes(buffer, p, remain);
             count += remain;
-            position = limit;
+            position = l;
         }
 
-        while ((remain = in.read(buffer)) != -1) {
-            output.write(buffer, 0, remain);
+        while ((remain = updateBuffer()) > 0) {
+            output.writeBytes(buffer, 0, remain);
             count += remain;
         }
         close();

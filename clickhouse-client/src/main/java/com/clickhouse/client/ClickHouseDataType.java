@@ -181,19 +181,25 @@ public enum ClickHouseDataType {
     }
 
     /**
-     * Checks if any alias uses the given prefix.
+     * Checks if any alias uses the given prefixes.
      *
-     * @param prefix prefix to check
-     * @return true if any alias using the given prefix; false otherwise
+     * @param prefixes prefixes to check
+     * @return true if any alias using the given prefixes; false otherwise
      */
-    public static boolean mayStartWith(String prefix) {
-        if (prefix == null || prefix.isEmpty()) {
+    public static boolean mayStartWith(String... prefixes) {
+        if (prefixes == null || prefixes.length == 0) {
             return false;
         }
 
-        prefix = prefix.toUpperCase();
+        StringBuilder builder = new StringBuilder();
+        for (int i = 0, len = prefixes.length; i < len; i++) {
+            builder.append(prefixes[i].toUpperCase()).append(' ');
+        }
+        String prefix = builder.toString();
+        builder.setLength(builder.length() - 1);
+        String typeName = builder.toString();
         for (String alias : allAliases) {
-            if (alias.startsWith(prefix)) {
+            if (alias.startsWith(prefix) || alias.equals(typeName)) {
                 return true;
             }
         }

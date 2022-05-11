@@ -97,6 +97,10 @@ public class ClickHouseResultSetTest extends JdbcIntegrationTest {
                         + "toDecimal64(-1.35, 1) n1, toDecimal64(-1.35, 2) n2")) {
             while (rs.next()) {
                 ClickHouseRecord r = rs.unwrap(ClickHouseRecord.class);
+                Assert.assertEquals(r.getValue("fp").asBigDecimal(), r.getValue("p2").asObject());
+                Assert.assertEquals(r.getValue("fn").asBigDecimal(), r.getValue("n2").asObject());
+                Assert.assertEquals(r.getValue("dp").asBigDecimal(), r.getValue("p2").asObject());
+                Assert.assertEquals(r.getValue("dn").asBigDecimal(), r.getValue("n2").asObject());
                 for (int i = 1; i <= 2; i++) {
                     Assert.assertEquals(r.getValue("fp").asBigDecimal(i), r.getValue("p" + i).asObject());
                     Assert.assertEquals(r.getValue("fn").asBigDecimal(i), r.getValue("n" + i).asObject());

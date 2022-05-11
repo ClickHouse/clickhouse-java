@@ -144,9 +144,25 @@ public class ClickHouseFloatValue implements ClickHouseValue {
     }
 
     @Override
+    public BigDecimal asBigDecimal() {
+        if (isNull) {
+            return null;
+        } else if (Float.isNaN(value) || value == Float.POSITIVE_INFINITY || value == Float.NEGATIVE_INFINITY) {
+            throw new NumberFormatException(ClickHouseValues.ERROR_INF_OR_NAN);
+        } else if (value == 0F) {
+            return BigDecimal.ZERO;
+        } else if (value == 1F) {
+            return BigDecimal.ONE;
+        }
+        return new BigDecimal(Float.toString(value));
+    }
+
+    @Override
     public BigDecimal asBigDecimal(int scale) {
         if (isNull) {
             return null;
+        } else if (Float.isNaN(value) || value == Float.POSITIVE_INFINITY || value == Float.NEGATIVE_INFINITY) {
+            throw new NumberFormatException(ClickHouseValues.ERROR_INF_OR_NAN);
         }
 
         BigDecimal dec = new BigDecimal(Float.toString(value));

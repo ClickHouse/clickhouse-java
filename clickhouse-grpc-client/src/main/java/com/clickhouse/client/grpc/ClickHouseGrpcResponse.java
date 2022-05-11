@@ -4,7 +4,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.Map;
 
-import com.clickhouse.client.ClickHouseClient;
 import com.clickhouse.client.ClickHouseCompression;
 import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseDeferredValue;
@@ -22,9 +21,9 @@ public class ClickHouseGrpcResponse extends ClickHouseStreamResponse {
     private final Result result;
 
     static ClickHouseInputStream getInput(ClickHouseConfig config, InputStream input) {
-        if (config.isCompressServerResponse()
-                && config.getCompressAlgorithmForServerResponse() == ClickHouseCompression.LZ4) {
-            return ClickHouseInputStream.of(
+        final ClickHouseInputStream in;
+        if (config.getResponseCompressAlgorithm() == ClickHouseCompression.LZ4) {
+            in = ClickHouseInputStream.of(
                     ClickHouseDeferredValue.of(() -> {
                         try {
                             return new FramedLZ4CompressorInputStream(input);
@@ -34,8 +33,11 @@ public class ClickHouseGrpcResponse extends ClickHouseStreamResponse {
                     }),
                     config.getReadBufferSize(), null);
         } else {
-            return ClickHouseClient.getResponseInputStream(config, input, null);
+            in = ClickHouseInputStream.of(input, config.getReadBufferSize(), config.getResponseCompressAlgorithm(),
+                    null);
         }
+
+        return in;
     }
 
     protected ClickHouseGrpcResponse(ClickHouseConfig config, Map<String, Object> settings,

@@ -14,6 +14,7 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 
@@ -184,6 +185,14 @@ public class InputStreamImplTest {
                 { ClickHouseInputStream.of(null, generateTempUrl()) },
                 { ClickHouseInputStream.of(generateTempUrl(), generateTempUrl()) },
                 { ClickHouseInputStream.of((URL) null, (URL) null) },
+                // blocking and non-blocking
+                { new BlockingInputStream(
+                        new LinkedBlockingQueue<>(Collections.singletonList(ClickHouseByteBuffer.EMPTY_BUFFER)), 0,
+                        null) },
+                { new NonBlockingInputStream(
+                        new AdaptiveQueue<>(CapacityPolicy.linearDynamicCapacity(0, 0, 0),
+                                ClickHouseByteBuffer.EMPTY_BYTES),
+                        0, null) }
         };
     }
 
@@ -252,6 +261,40 @@ public class InputStreamImplTest {
                         generateTempUrl(0x68), generateTempUrl(0x69), generateTempUrl(0x70)) },
                 { ClickHouseInputStream.of(generateTempUrl(0x65, 0x66, 0x67), generateTempUrl(0x68, 0x69),
                         generateTempUrl(0x70)) },
+                // blocking and non-blocking
+                { new BlockingInputStream(
+                        new LinkedBlockingQueue<>(
+                                Arrays.asList(ByteBuffer.wrap(new byte[] { 0x65, 0x66, 0x67, 0x68, 0x69, 0x70 }),
+                                        ClickHouseByteBuffer.EMPTY_BUFFER)),
+                        0, null) },
+                { new BlockingInputStream(
+                        new LinkedBlockingQueue<>(Arrays.asList(ByteBuffer.wrap(new byte[] { 0x65 }),
+                                ByteBuffer.wrap(new byte[] { 0x66 }), ByteBuffer.wrap(new byte[] { 0x67 }),
+                                ByteBuffer.wrap(new byte[] { 0x68 }), ByteBuffer.wrap(new byte[] { 0x69 }),
+                                ByteBuffer.wrap(new byte[] { 0x70 }), ClickHouseByteBuffer.EMPTY_BUFFER)),
+                        0, null) },
+                { new BlockingInputStream(
+                        new LinkedBlockingQueue<>(Arrays.asList(ByteBuffer.wrap(new byte[] { 0x65, 0x66 }),
+                                ByteBuffer.wrap(new byte[] { 0x67 }),
+                                ByteBuffer.wrap(new byte[] { 0x68, 0x69 }),
+                                ByteBuffer.wrap(new byte[] { 0x70 }), ClickHouseByteBuffer.EMPTY_BUFFER)),
+                        0, null) },
+                { new NonBlockingInputStream(new AdaptiveQueue<byte[]>(CapacityPolicy.linearDynamicCapacity(0, 0, 0),
+                        Arrays.asList(new byte[] { 0x65, 0x66, 0x67, 0x68, 0x69, 0x70 },
+                                ClickHouseByteBuffer.EMPTY_BYTES)),
+                        0, null) },
+                { new NonBlockingInputStream(
+                        new AdaptiveQueue<byte[]>(CapacityPolicy.linearDynamicCapacity(0, 0, 0),
+                                Arrays.asList(new byte[] { 0x65 }, new byte[] { 0x66 }, new byte[] { 0x67 },
+                                        new byte[] { 0x68 }, new byte[] { 0x69 }, new byte[] { 0x70 },
+                                        ClickHouseByteBuffer.EMPTY_BYTES)),
+                        0, null) },
+                { new NonBlockingInputStream(
+                        new AdaptiveQueue<byte[]>(CapacityPolicy.linearDynamicCapacity(0, 0, 0),
+                                Arrays.asList(new byte[] { 0x65, 0x66 }, new byte[] { 0x67 }, new byte[] { 0x68, 0x69 },
+                                        new byte[] { 0x70 }, ClickHouseByteBuffer.EMPTY_BYTES)),
+                        0, null) },
+
         };
 
     }

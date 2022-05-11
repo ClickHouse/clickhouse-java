@@ -20,11 +20,12 @@ import java.util.List;
 
 import com.clickhouse.client.ClickHouseColumn;
 import com.clickhouse.client.ClickHouseConfig;
+import com.clickhouse.client.ClickHouseDataStreamFactory;
+import com.clickhouse.client.ClickHousePipedOutputStream;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseUtils;
 import com.clickhouse.client.ClickHouseValue;
 import com.clickhouse.client.ClickHouseValues;
-import com.clickhouse.client.data.ClickHousePipedStream;
 import com.clickhouse.client.logging.Logger;
 import com.clickhouse.client.logging.LoggerFactory;
 import com.clickhouse.jdbc.ClickHousePreparedStatement;
@@ -42,7 +43,7 @@ public class InputBasedPreparedStatement extends AbstractPreparedStatement imple
     private final boolean[] flags;
 
     private int counter;
-    private ClickHousePipedStream stream;
+    private ClickHousePipedOutputStream stream;
 
     protected InputBasedPreparedStatement(ClickHouseConnectionImpl connection, ClickHouseRequest<?> request,
             List<ClickHouseColumn> columns, int resultSetType, int resultSetConcurrency, int resultSetHoldability)
@@ -69,7 +70,7 @@ public class InputBasedPreparedStatement extends AbstractPreparedStatement imple
 
         counter = 0;
         // it's important to make sure the queue has unlimited length
-        stream = new ClickHousePipedStream(config.getWriteBufferSize(), 0, config.getSocketTimeout());
+        stream = ClickHouseDataStreamFactory.getInstance().createPipedOutputStream(config, null);
     }
 
     protected void ensureParams() throws SQLException {
@@ -105,7 +106,7 @@ public class InputBasedPreparedStatement extends AbstractPreparedStatement imple
         long rows = 0;
         try {
             stream.close();
-            rows = executeInsert(getRequest().getStatements(false).get(0), stream.getInput());
+            rows = executeInsert(getRequest().getStatements(false).get(0), stream.getInputStream());
             if (asBatch && getResultSet() != null) {
                 throw SqlExceptionUtils.queryInBatchError(results);
             }
@@ -324,9 +325,14 @@ public class InputBasedPreparedStatement extends AbstractPreparedStatement imple
     public void clearBatch() throws SQLException {
         ensureOpen();
 
+        // just in case
+        try {
+            stream.close();
+        } catch (Exception e) {
+            // ignore
+        }
         counter = 0;
-        ClickHouseConfig config = getConfig();
-        stream = new ClickHousePipedStream(config.getWriteBufferSize(), 0, config.getSocketTimeout());
+        stream = ClickHouseDataStreamFactory.getInstance().createPipedOutputStream(getConfig(), null);
     }
 
     @Override

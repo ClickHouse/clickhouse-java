@@ -1,4 +1,4 @@
-package com.clickhouse.client.data;
+package com.clickhouse.client.stream;
 
 import java.io.IOException;
 import java.nio.Buffer;
@@ -21,13 +21,8 @@ import com.clickhouse.client.config.ClickHouseClientOption;
  * {@link java.io.PipedInputStream} for streaming data between server and
  * client. To avoid dead lock and high memory usage, please make sure writer and
  * reader are on two separate threads.
- *
- * @deprecated will be removed in v0.3.3, please use
- *             {@code ClickHouseDataStreamFactory.getInstance().createPipedStream()}
- *             instead
  */
-@Deprecated
-public class ClickHousePipedStream extends ClickHousePipedOutputStream {
+public class BlockingPipedOutputStream extends ClickHousePipedOutputStream {
     protected final BlockingQueue<ByteBuffer> queue;
 
     private final int bufferSize;
@@ -35,8 +30,8 @@ public class ClickHousePipedStream extends ClickHousePipedOutputStream {
 
     private ByteBuffer buffer;
 
-    public ClickHousePipedStream(int bufferSize, int queueLength, int timeout) {
-        super(null);
+    public BlockingPipedOutputStream(int bufferSize, int queueLength, int timeout, Runnable postCloseAction) {
+        super(postCloseAction);
 
         // DisruptorBlockingQueue? Did not see much difference here...
         this.queue = queueLength <= 0 ? new LinkedBlockingQueue<>() : new ArrayBlockingQueue<>(queueLength);
@@ -57,6 +52,14 @@ public class ClickHousePipedStream extends ClickHousePipedOutputStream {
         }
         ((Buffer) b).rewind();
 
+        updateBuffer(b);
+
+        if (allocateNewBuffer) {
+            buffer = ByteBuffer.allocate(bufferSize);
+        }
+    }
+
+    private void updateBuffer(ByteBuffer b) throws IOException {
         try {
             if (timeout > 0) {
                 if (!queue.offer(b, timeout, TimeUnit.MILLISECONDS)) {
@@ -69,15 +72,11 @@ public class ClickHousePipedStream extends ClickHousePipedOutputStream {
             Thread.currentThread().interrupt();
             throw new IOException("Thread was interrupted when putting buffer into queue", e);
         }
-
-        if (allocateNewBuffer) {
-            buffer = ByteBuffer.allocate(bufferSize);
-        }
     }
 
     @Override
     public ClickHouseInputStream getInputStream(Runnable postCloseAction) {
-        return ClickHouseInputStream.of(queue, timeout, postCloseAction);
+        return new BlockingInputStream(queue, timeout, postCloseAction);
     }
 
     @Override
@@ -121,7 +120,22 @@ public class ClickHousePipedStream extends ClickHousePipedOutputStream {
 
     @Override
     public ClickHouseOutputStream transferBytes(byte[] bytes, int offset, int length) throws IOException {
-        return writeBytes(bytes, offset, length);
+        if (bytes == null) {
+            throw new NullPointerException();
+        } else if (offset < 0 || length < 0 || length > bytes.length - offset) {
+            throw new IndexOutOfBoundsException();
+        } else if (length == 0) {
+            return this;
+        }
+        ensureOpen();
+
+        ByteBuffer b = buffer;
+        if (b.position() > 0) {
+            updateBuffer(true);
+        }
+        updateBuffer(ByteBuffer.wrap(bytes, offset, length));
+
+        return this;
     }
 
     @Override

@@ -2,36 +2,45 @@ package com.clickhouse.client.stream;
 
 import java.io.EOFException;
 import java.io.IOException;
-import java.io.OutputStream;
 import java.util.LinkedList;
 
 import com.clickhouse.client.ClickHouseByteBuffer;
+import com.clickhouse.client.ClickHouseChecker;
 import com.clickhouse.client.ClickHouseDataUpdater;
 import com.clickhouse.client.ClickHouseInputStream;
 import com.clickhouse.client.ClickHouseOutputStream;
 import com.clickhouse.client.ClickHouseUtils;
+import com.clickhouse.client.logging.Logger;
+import com.clickhouse.client.logging.LoggerFactory;
 
-/**
- * Byte-array backed input stream.
- */
-public abstract class AbstractByteArrayInputStream extends ClickHouseInputStream {
-    protected byte[] buffer;
-    protected int position;
-    protected int limit;
+public class NonBlockingInputStream extends ClickHouseInputStream {
+    private static final Logger log = LoggerFactory.getLogger(NonBlockingInputStream.class);
 
-    protected AbstractByteArrayInputStream(OutputStream copyTo, Runnable postCloseAction) {
-        super(copyTo, postCloseAction);
+    private final AdaptiveQueue<byte[]> queue;
+    private final int timeout;
 
-        buffer = ClickHouseByteBuffer.EMPTY_BYTES;
-        position = 0;
-        limit = buffer.length;
+    private byte[] buffer;
+    private int position;
+
+    public NonBlockingInputStream(AdaptiveQueue<byte[]> queue, int timeout, Runnable postCloseAction) {
+        super(null, postCloseAction);
+
+        this.queue = ClickHouseChecker.nonNull(queue, "Queue");
+        this.timeout = timeout > 0 ? timeout : 0;
+
+        this.buffer = null;
+        this.position = 0;
     }
 
     @Override
     protected void ensureOpen() throws IOException {
+        if (closed) {
+            log.debug("Blocking input stream(queue: %d, buffer: %d) has been closed",
+                    queue.size(), buffer != null ? buffer.length - position : 0);
+        }
         super.ensureOpen();
 
-        if (position >= limit) {
+        if (buffer == null || (buffer != ClickHouseByteBuffer.EMPTY_BYTES && position >= buffer.length)) {
             updateBuffer();
         }
     }
@@ -43,15 +52,35 @@ public abstract class AbstractByteArrayInputStream extends ClickHouseInputStream
      * @return remaining bytes in buffer
      * @throws IOException when failed to read value
      */
-    protected abstract int updateBuffer() throws IOException;
+    protected int updateBuffer() throws IOException {
+        AdaptiveQueue<byte[]> q = queue;
+        long t = timeout;
+        long startTime = t < 1L ? 0L : System.currentTimeMillis();
+        byte[] b;
+        while ((b = q.poll()) == null) {
+            if (closed) {
+                throw new IOException("Cannot operate on a closed input stream");
+            } else if (t > 0L && System.currentTimeMillis() - startTime >= t) {
+                throw new IOException(ClickHouseUtils.format("Read timed out after %d ms", t));
+            }
+        }
+
+        buffer = b;
+        position = 0;
+        int remain = b.length;
+        if (remain > 0 && copyTo != null) {
+            copyTo.write(b, 0, remain);
+        }
+        return remain;
+    }
 
     @Override
     public int available() throws IOException {
-        if (closed) {
+        if (closed || buffer == ClickHouseByteBuffer.EMPTY_BYTES) {
             return 0;
         }
 
-        int remain = limit - position;
+        int remain = buffer != null ? buffer.length - position : 0;
         return remain > 0 ? remain : updateBuffer();
     }
 
@@ -68,7 +97,7 @@ public abstract class AbstractByteArrayInputStream extends ClickHouseInputStream
     public int peek() throws IOException {
         ensureOpen();
 
-        return position < limit ? 0xFF & buffer[position] : -1;
+        return buffer != ClickHouseByteBuffer.EMPTY_BYTES ? 0xFF & buffer[position] : -1;
     }
 
     @Override
@@ -80,7 +109,7 @@ public abstract class AbstractByteArrayInputStream extends ClickHouseInputStream
         ensureOpen();
 
         byte[] b = buffer;
-        int l = limit;
+        int l = b.length;
         int p = position;
         int remain = l - p;
         if (remain > 0) {
@@ -100,7 +129,7 @@ public abstract class AbstractByteArrayInputStream extends ClickHouseInputStream
     public int read() throws IOException {
         ensureOpen();
 
-        return position < limit ? 0xFF & buffer[position++] : -1;
+        return buffer != ClickHouseByteBuffer.EMPTY_BYTES ? 0xFF & buffer[position++] : -1;
     }
 
     @Override
@@ -117,7 +146,7 @@ public abstract class AbstractByteArrayInputStream extends ClickHouseInputStream
         }
         ensureOpen();
 
-        int remain = limit - position;
+        int remain = buffer.length - position;
         if (remain < 1) {
             return -1;
         } else if (remain >= len) {
@@ -154,6 +183,7 @@ public abstract class AbstractByteArrayInputStream extends ClickHouseInputStream
         }
         ensureOpen();
 
+        int limit = buffer.length;
         if (position >= limit) {
             closeQuietly();
             throw new EOFException();
@@ -181,6 +211,7 @@ public abstract class AbstractByteArrayInputStream extends ClickHouseInputStream
         int length = 0;
         boolean more = true;
         while (more) {
+            int limit = buffer.length;
             int remain = limit - position;
             if (remain < 1) {
                 closeQuietly();
@@ -212,7 +243,7 @@ public abstract class AbstractByteArrayInputStream extends ClickHouseInputStream
     public byte readByte() throws IOException {
         ensureOpen();
 
-        if (position >= limit) {
+        if (position >= buffer.length) {
             closeQuietly();
             throw new EOFException();
         }
@@ -230,7 +261,7 @@ public abstract class AbstractByteArrayInputStream extends ClickHouseInputStream
         byte[] bytes = new byte[length];
         byte[] b = buffer;
         int count = 0;
-        int l = limit;
+        int l = buffer.length;
         int p = position;
         int remain = l - p;
         while (length > 0) {
@@ -261,11 +292,15 @@ public abstract class AbstractByteArrayInputStream extends ClickHouseInputStream
     public long skip(long n) throws IOException {
         ensureOpen();
 
+        if (buffer == ClickHouseByteBuffer.EMPTY_BYTES) {
+            return 0L;
+        }
+
         // peforms better but this is a bit tricky
         if (n == Long.MAX_VALUE) {
-            long counter = (long) limit - position;
+            long counter = (long) buffer.length - position;
             while (updateBuffer() > 0) {
-                counter += limit;
+                counter += buffer.length;
             }
 
             return counter;

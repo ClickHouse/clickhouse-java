@@ -20,6 +20,8 @@ import com.clickhouse.client.ClickHouseOutputStream;
 import com.clickhouse.client.ClickHouseRecord;
 import com.clickhouse.client.ClickHouseSerializer;
 import com.clickhouse.client.ClickHouseValue;
+import com.clickhouse.client.config.ClickHouseClientOption;
+import com.clickhouse.client.config.ClickHouseRenameMethod;
 import com.clickhouse.client.data.tsv.ByteFragment;
 
 public class ClickHouseTabSeparatedProcessor extends ClickHouseDataProcessor {
@@ -225,6 +227,11 @@ public class ClickHouseTabSeparatedProcessor extends ClickHouseDataProcessor {
     }
 
     @Override
+    protected ClickHouseRecord createRecord() {
+        return new ClickHouseSimpleRecord(getColumns(), templates);
+    }
+
+    @Override
     protected void readAndFill(ClickHouseRecord r) throws IOException {
         ClickHouseByteBuffer buf = input.readCustom(getTextHandler()::readLine);
         if (buf.isEmpty() && input.available() < 1) {
@@ -288,10 +295,12 @@ public class ClickHouseTabSeparatedProcessor extends ClickHouseDataProcessor {
                     buf.lastByte() == getTextHandler().rowDelimiter ? buf.length() - 1 : buf.length());
             types = toStringArray(typesFragment, getTextHandler().colDelimiter);
         }
-        List<ClickHouseColumn> list = new ArrayList<>(cols.length);
 
+        ClickHouseRenameMethod m = (ClickHouseRenameMethod) config
+                .getOption(ClickHouseClientOption.RENAME_RESPONSE_COLUMN);
+        List<ClickHouseColumn> list = new ArrayList<>(cols.length);
         for (int i = 0; i < cols.length; i++) {
-            list.add(ClickHouseColumn.of(cols[i], types == null ? "Nullable(String)" : types[i]));
+            list.add(ClickHouseColumn.of(m.rename(cols[i]), types == null ? "Nullable(String)" : types[i]));
         }
 
         return list;

@@ -1234,15 +1234,20 @@ public class ClickHouseDatabaseMetaData extends JdbcWrapper implements DatabaseM
                 .of(connection.getConfig(),
                         "select :name as NAME, toInt32(0) as MAX_LEN, :default as DEFAULT_VALUE, :desc as DESCRIPTION");
         StringBuilder builder = new StringBuilder();
-        q.apply(builder, ClickHouseConnection.PROP_APPLICATION_NAME,
-                connection.getClientInfo(ClickHouseConnection.PROP_APPLICATION_NAME), "Application name");
+        q.apply(builder, ClickHouseValues.convertToQuotedString(ClickHouseConnection.PROP_APPLICATION_NAME),
+                ClickHouseValues
+                        .convertToQuotedString(connection.getClientInfo(ClickHouseConnection.PROP_APPLICATION_NAME)),
+                ClickHouseValues.convertToQuotedString("Application name"));
         builder.append(" union all ");
-        q.apply(builder, ClickHouseConnection.PROP_CUSTOM_HTTP_HEADERS,
-                connection.getClientInfo(ClickHouseConnection.PROP_CUSTOM_HTTP_HEADERS), "Custom HTTP headers");
+        q.apply(builder, ClickHouseValues.convertToQuotedString(ClickHouseConnection.PROP_CUSTOM_HTTP_HEADERS),
+                ClickHouseValues
+                        .convertToQuotedString(connection.getClientInfo(ClickHouseConnection.PROP_CUSTOM_HTTP_HEADERS)),
+                ClickHouseValues.convertToQuotedString("Custom HTTP headers"));
         builder.append(" union all ");
-        q.apply(builder, ClickHouseConnection.PROP_CUSTOM_HTTP_PARAMS,
-                connection.getClientInfo(ClickHouseConnection.PROP_CUSTOM_HTTP_PARAMS),
-                "Customer HTTP query parameters");
+        q.apply(builder, ClickHouseValues.convertToQuotedString(ClickHouseConnection.PROP_CUSTOM_HTTP_PARAMS),
+                ClickHouseValues
+                        .convertToQuotedString(connection.getClientInfo(ClickHouseConnection.PROP_CUSTOM_HTTP_PARAMS)),
+                ClickHouseValues.convertToQuotedString("Customer HTTP query parameters"));
         return query(builder.toString());
     }
 

@@ -29,14 +29,14 @@ public abstract class ClickHouseOutputStream extends OutputStream {
      *         {@link ClickHouseOutputStream}
      */
     public static ClickHouseOutputStream of(OutputStream output) {
-        return of(output, (int) ClickHouseClientOption.WRITE_BUFFER_SIZE.getDefaultValue(), null, null);
+        return of(output, (int) ClickHouseClientOption.BUFFER_SIZE.getDefaultValue(), null, null);
     }
 
     /**
      * Wraps the given output stream.
      *
      * @param output     non-null output stream
-     * @param bufferSize buffer size which is always greater than zero(usually 4096
+     * @param bufferSize buffer size which is always greater than zero(usually 8192
      *                   or larger)
      * @return wrapped output, or the same output if it's instance of
      *         {@link ClickHouseOutputStream}
@@ -50,7 +50,7 @@ public abstract class ClickHouseOutputStream extends OutputStream {
      *
      * @param output          non-null output stream
      * @param bufferSize      buffer size which is always greater than zero(usually
-     *                        4096 or larger)
+     *                        8192 or larger)
      * @param compression     compression algorithm, null or
      *                        {@link ClickHouseCompression#NONE} means no
      *                        compression
@@ -99,6 +99,55 @@ public abstract class ClickHouseOutputStream extends OutputStream {
             throw new IOException(ERROR_STREAM_CLOSED);
         }
     }
+
+    /**
+     * Transfers bytes into output stream without creating a copy.
+     *
+     * @param bytes non-null byte array
+     * @return current output stream
+     * @throws IOException when failed to write value into output stream, not able
+     *                     to sent all bytes, or opereate on a closed stream
+     */
+    public final ClickHouseOutputStream transferBytes(byte[] bytes) throws IOException {
+        return transferBytes(bytes, 0, bytes.length);
+    }
+
+    /**
+     * Transfer bytes into output stream without creating a copy.
+     *
+     * @param buffer non-null byte buffer
+     * @param length bytes to write
+     * @return current output stream
+     * @throws IOException when failed to write value into output stream, not able
+     *                     to sent all bytes, or opereate on a closed stream
+     */
+    public ClickHouseOutputStream transferBytes(ByteBuffer buffer, int length) throws IOException {
+        if (buffer == null || length < 0) {
+            throw new IllegalArgumentException("Non-null ByteBuffer and positive length are required");
+        }
+
+        byte[] bytes;
+        if (buffer.hasArray()) {
+            bytes = buffer.array();
+        } else {
+            bytes = new byte[length];
+            buffer.get(bytes);
+        }
+        return transferBytes(bytes, 0, length);
+    }
+
+    /**
+     * Transfers the given bytes into output stream, without creating a copy as in
+     * {@link #writeBytes(byte[], int, int)}.
+     *
+     * @param bytes  non-null byte array
+     * @param offset offset of the byte array
+     * @param length bytes to write
+     * @return current output stream
+     * @throws IOException when failed to write value into output stream, not able
+     *                     to sent all bytes, or opereate on a closed stream
+     */
+    public abstract ClickHouseOutputStream transferBytes(byte[] bytes, int offset, int length) throws IOException;
 
     @Override
     public final void write(int b) throws IOException {
@@ -187,7 +236,7 @@ public abstract class ClickHouseOutputStream extends OutputStream {
     }
 
     /**
-     * Writes bytes into output stream.
+     * Writes copy of given bytes into output stream.
      *
      * @param bytes  non-null byte array
      * @param offset offset of the byte array

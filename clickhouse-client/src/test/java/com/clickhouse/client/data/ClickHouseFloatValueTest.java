@@ -131,7 +131,7 @@ public class ClickHouseFloatValueTest extends BaseClickHouseValueTest {
                 0L, // long
                 0F, // float
                 0D, // double
-                BigDecimal.valueOf(0L), // BigDecimal
+                BigDecimal.ZERO, // BigDecimal
                 new BigDecimal(BigInteger.ZERO, 3), // BigDecimal
                 BigInteger.ZERO, // BigInteger
                 ClickHouseDataType.values()[0].name(), // Enum<ClickHouseDataType>
@@ -163,7 +163,7 @@ public class ClickHouseFloatValueTest extends BaseClickHouseValueTest {
                 1L, // long
                 1F, // float
                 1D, // double
-                BigDecimal.valueOf(1L), // BigDecimal
+                BigDecimal.ONE, // BigDecimal
                 new BigDecimal(BigInteger.ONE, 3), // BigDecimal
                 BigInteger.ONE, // BigInteger
                 ClickHouseDataType.values()[1].name(), // Enum<ClickHouseDataType>
@@ -195,7 +195,7 @@ public class ClickHouseFloatValueTest extends BaseClickHouseValueTest {
                 2L, // long
                 2F, // float
                 2D, // double
-                BigDecimal.valueOf(2L), // BigDecimal
+                BigDecimal.valueOf(2F), // BigDecimal
                 new BigDecimal(BigInteger.valueOf(2L), 3), // BigDecimal
                 BigInteger.valueOf(2L), // BigInteger
                 ClickHouseDataType.values()[2].name(), // Enum<ClickHouseDataType>
@@ -228,7 +228,7 @@ public class ClickHouseFloatValueTest extends BaseClickHouseValueTest {
                 -1L, // long
                 -1F, // float
                 -1D, // double
-                BigDecimal.valueOf(-1L), // BigDecimal
+                BigDecimal.valueOf(-1F), // BigDecimal
                 new BigDecimal(BigInteger.valueOf(-1L), 3), // BigDecimal
                 BigInteger.valueOf(-1L), // BigInteger
                 IllegalArgumentException.class, // Enum<ClickHouseDataType>
@@ -261,7 +261,7 @@ public class ClickHouseFloatValueTest extends BaseClickHouseValueTest {
                 1L, // long
                 1.3333334F, // float
                 (double) (4F / 3), // double
-                BigDecimal.valueOf(1L), // BigDecimal
+                new BigDecimal(Float.toString(4F / 3)), // BigDecimal
                 BigDecimal.valueOf(1333, 3), // BigDecimal
                 BigInteger.ONE, // BigInteger
                 ClickHouseDataType.values()[1].name(), // Enum<ClickHouseDataType>
@@ -293,7 +293,7 @@ public class ClickHouseFloatValueTest extends BaseClickHouseValueTest {
                 -1L, // long
                 -1.3333334F, // float
                 (double) (-4F / 3), // double
-                BigDecimal.valueOf(-1L), // BigDecimal
+                new BigDecimal(Float.toString(-4F / 3)), // BigDecimal
                 BigDecimal.valueOf(-1333, 3), // BigDecimal
                 BigInteger.valueOf(-1L), // BigInteger
                 IllegalArgumentException.class, // Enum<ClickHouseDataType>
