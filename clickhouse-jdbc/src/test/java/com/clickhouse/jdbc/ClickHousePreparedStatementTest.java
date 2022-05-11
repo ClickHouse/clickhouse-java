@@ -507,6 +507,56 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
     }
 
     @Test(groups = "integration")
+    public void testReadWriteString() throws SQLException {
+        try (ClickHouseConnection conn = newConnection(new Properties());
+                Statement s = conn.createStatement()) {
+            s.execute("drop table if exists test_read_write_strings;"
+                    + "create table test_read_write_strings(id Int32, s1 String, s2 Nullable(String), s3 Array(String), s4 Array(Nullable(String)))engine=Memory");
+            try (PreparedStatement stmt = conn
+                    .prepareStatement("insert into test_read_write_strings")) {
+                stmt.setInt(1, 0);
+                stmt.setObject(2, null);
+                stmt.setObject(3, null);
+                stmt.setObject(4, new String[0]);
+                stmt.setObject(5, new String[0]);
+                Assert.assertThrows(RuntimeException.class, () -> stmt.execute());
+            }
+            try (PreparedStatement stmt = conn
+                    .prepareStatement("insert into test_read_write_strings")) {
+                stmt.setInt(1, 1);
+                stmt.setObject(2, "");
+                stmt.setString(3, "");
+                stmt.setArray(4, conn.createArrayOf("String", new String[] { "" }));
+                stmt.setObject(5, new String[] { "" });
+                stmt.addBatch();
+                stmt.setInt(1, 2);
+                stmt.setString(2, "");
+                stmt.setString(3, null);
+                stmt.setObject(4, new String[0]);
+                stmt.setArray(5, conn.createArrayOf("String", new String[] { null }));
+                stmt.addBatch();
+                int[] results = stmt.executeBatch();
+                Assert.assertEquals(results, new int[] { 1, 1 });
+            }
+
+            ResultSet rs = s.executeQuery("select * from test_read_write_strings order by id");
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getInt(1), 1);
+            Assert.assertEquals(rs.getString(2), "");
+            Assert.assertEquals(rs.getObject(3), "");
+            Assert.assertEquals(rs.getObject(4), new String[] { "" });
+            Assert.assertEquals(rs.getArray(5).getArray(), new String[] { "" });
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getInt(1), 2);
+            Assert.assertEquals(rs.getObject(2), "");
+            Assert.assertEquals(rs.getString(3), null);
+            Assert.assertEquals(rs.getArray(4).getArray(), new String[0]);
+            Assert.assertEquals(rs.getObject(5), new String[] { null });
+            Assert.assertFalse(rs.next());
+        }
+    }
+
+    @Test(groups = "integration")
     public void testInsertQueryDateTime64() throws SQLException {
         try (ClickHouseConnection conn = newConnection(new Properties());
                 ClickHouseStatement s = conn.createStatement();) {
