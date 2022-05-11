@@ -25,25 +25,40 @@ public enum ClickHouseClientOption implements ClickHouseOption {
      */
     BUFFER_SIZE("buffer_size", 8192, "Default buffer size in byte for both request and response."),
     /**
+     * Number of times the buffer queue is filled up before increasing capacity of
+     * buffer queue. Zero or negative value means the queue length is fixed.
+     */
+    BUFFER_QUEUE_VARIATION("buffer_queue_variation", 100,
+            "Number of times the buffer queue is filled up before increasing capacity of buffer queue. Zero or negative value means the queue length is fixed."),
+    /**
      * Read buffer size in byte. It's mainly for input stream(e.g. reading data from
      * server response). Its value defaults to {@link #BUFFER_SIZE}, and it will be
      * reset to {@link #MAX_BUFFER_SIZE} when it's too large.
      */
-    READ_BUFFER_SIZE("read_buffer_size", BUFFER_SIZE.getDefaultValue(), "Read buffer size in byte"),
+    READ_BUFFER_SIZE("read_buffer_size", 0,
+            "Read buffer size in byte, zero or negative value means same as buffer_size"),
     /**
      * Write buffer size in byte. It's mainly for output stream(e.g. writing data
      * into request). Its value defaults to {@link #BUFFER_SIZE}, and it will
      * be reset to {@link #MAX_BUFFER_SIZE} when it's too large.
      */
-    WRITE_BUFFER_SIZE("write_buffer_size", BUFFER_SIZE.getDefaultValue(), "Write buffer size in byte"),
+    WRITE_BUFFER_SIZE("write_buffer_size", 0,
+            "Write buffer size in byte, zero or negative value means same as buffer_size"),
+    /**
+     * Maximum request chunk size in byte.
+     */
+    REQUEST_CHUNK_SIZE("request_chunk_size", 0,
+            "Maximum request chunk size in byte, zero or negative value means same as write_buffer_size"),
     /**
      * Request buffering mode.
      */
-    REQUEST_BUFFERING("request_buffering", ClickHouseDefaults.BUFFERING, "Request buffering mode"),
+    REQUEST_BUFFERING("request_buffering", ClickHouseDefaults.BUFFERING.getDefaultValue(),
+            "Request buffering mode"),
     /**
      * Response buffering mode.
      */
-    RESPONSE_BUFFERING("response_buffering", ClickHouseDefaults.BUFFERING, "Response buffering mode."),
+    RESPONSE_BUFFERING("response_buffering", ClickHouseDefaults.BUFFERING.getDefaultValue(),
+            "Response buffering mode."),
     /**
      * Client name.
      */

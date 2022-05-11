@@ -67,7 +67,7 @@ public final class IterableMultipleInputStream<T> extends AbstractByteArrayInput
         in = EmptyInputStream.INSTANCE;
 
         // fixed buffer
-        buffer = new byte[(int) ClickHouseClientOption.READ_BUFFER_SIZE.getDefaultValue()];
+        buffer = new byte[(int) ClickHouseClientOption.BUFFER_SIZE.getDefaultValue()];
 
         position = 0;
         limit = 0;

@@ -11,6 +11,7 @@ import com.clickhouse.client.data.ClickHousePipedStream;
 import com.clickhouse.client.data.ClickHouseRowBinaryProcessor;
 import com.clickhouse.client.data.ClickHouseTabSeparatedProcessor;
 import com.clickhouse.client.stream.BlockingPipedOutputStream;
+import com.clickhouse.client.stream.CapacityPolicy;
 import com.clickhouse.client.stream.NonBlockingPipedOutputStream;
 
 /**
@@ -44,7 +45,7 @@ public class ClickHouseDataStreamFactory {
      *                 {@code input} is null
      * @param settings nullable settings
      * @param columns  nullable list of columns
-     * @return data processor
+     * @return data processor, which might be null
      * @throws IOException when failed to read columns from input stream
      */
     public ClickHouseDataProcessor getProcessor(ClickHouseConfig config, ClickHouseInputStream input,
@@ -131,7 +132,7 @@ public class ClickHouseDataStreamFactory {
         return config != null
                 ? new ClickHousePipedStream(config.getWriteBufferSize(), config.getMaxQueuedBuffers(),
                         config.getSocketTimeout())
-                : new ClickHousePipedStream((int) ClickHouseClientOption.WRITE_BUFFER_SIZE.getDefaultValue(),
+                : new ClickHousePipedStream((int) ClickHouseClientOption.BUFFER_SIZE.getDefaultValue(),
                         (int) ClickHouseClientOption.MAX_QUEUED_BUFFERS.getDefaultValue(),
                         (int) ClickHouseClientOption.SOCKET_TIMEOUT.getDefaultValue());
     }
@@ -146,27 +147,31 @@ public class ClickHouseDataStreamFactory {
         final int bufferSize = ClickHouseChecker.nonNull(config, "config").getWriteBufferSize();
         final boolean blocking;
         final int queue;
+        final CapacityPolicy policy;
         final int timeout;
 
         if (config.getResponseBuffering() == ClickHouseBufferingMode.PERFORMANCE) {
             blocking = false;
             queue = 0;
+            policy = null;
             timeout = 0; // questionable
         } else {
             blocking = config.isUseBlockingQueue();
             queue = config.getMaxQueuedBuffers();
+            policy = config.getBufferQueueVariation() < 1 ? CapacityPolicy.fixedCapacity(queue)
+                    : CapacityPolicy.linearDynamicCapacity(1, queue, config.getBufferQueueVariation());
             timeout = config.getSocketTimeout();
         }
         return blocking
                 ? new BlockingPipedOutputStream(bufferSize, queue, timeout, postCloseAction)
-                : new NonBlockingPipedOutputStream(bufferSize, queue, timeout, null, postCloseAction);
+                : new NonBlockingPipedOutputStream(bufferSize, queue, timeout, policy, postCloseAction);
     }
 
-    public ClickHousePipedOutputStream createPipedOutputStream(int writeBufferSize, int queueSize, int timeout,
+    public ClickHousePipedOutputStream createPipedOutputStream(int bufferSize, int queueSize, int timeout,
             Runnable postCloseAction) {
         return new BlockingPipedOutputStream(
-                ClickHouseUtils.getBufferSize(writeBufferSize,
-                        (int) ClickHouseClientOption.WRITE_BUFFER_SIZE.getDefaultValue(),
+                ClickHouseUtils.getBufferSize(bufferSize,
+                        (int) ClickHouseClientOption.BUFFER_SIZE.getDefaultValue(),
                         (int) ClickHouseClientOption.MAX_BUFFER_SIZE.getDefaultValue()),
                 queueSize, timeout, postCloseAction);
     }

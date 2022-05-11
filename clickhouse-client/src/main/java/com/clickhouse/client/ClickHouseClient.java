@@ -76,7 +76,7 @@ public interface ClickHouseClient extends AutoCloseable {
     static ClickHouseOutputStream getRequestOutputStream(ClickHouseConfig config, OutputStream output,
             Runnable postCloseAction) {
         if (config == null) {
-            return ClickHouseOutputStream.of(output, (int) ClickHouseClientOption.WRITE_BUFFER_SIZE.getDefaultValue(),
+            return ClickHouseOutputStream.of(output, (int) ClickHouseClientOption.BUFFER_SIZE.getDefaultValue(),
                     ClickHouseCompression.NONE, postCloseAction);
         }
 
@@ -151,7 +151,7 @@ public interface ClickHouseClient extends AutoCloseable {
     static ClickHouseInputStream getResponseInputStream(ClickHouseConfig config, InputStream input,
             Runnable postCloseAction) {
         if (config == null) {
-            return ClickHouseInputStream.of(input, (int) ClickHouseClientOption.READ_BUFFER_SIZE.getDefaultValue(),
+            return ClickHouseInputStream.of(input, (int) ClickHouseClientOption.BUFFER_SIZE.getDefaultValue(),
                     ClickHouseCompression.NONE, postCloseAction);
         }
 

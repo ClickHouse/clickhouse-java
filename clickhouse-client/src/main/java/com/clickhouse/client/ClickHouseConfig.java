@@ -114,8 +114,10 @@ public class ClickHouseConfig implements Serializable {
     private final ClickHouseFormat format;
     private final int maxBufferSize;
     private final int bufferSize;
+    private final int bufferQueueVariation;
     private final int readBufferSize;
     private final int writeBufferSize;
+    private final int requestChunkSize;
     private final ClickHouseBufferingMode requestBuffering;
     private final ClickHouseBufferingMode responseBuffering;
     private final int maxExecutionTime;
@@ -198,12 +200,11 @@ public class ClickHouseConfig implements Serializable {
         this.format = (ClickHouseFormat) getOption(ClickHouseClientOption.FORMAT, ClickHouseDefaults.FORMAT);
         this.maxBufferSize = ClickHouseUtils.getBufferSize((int) getOption(ClickHouseClientOption.MAX_BUFFER_SIZE), -1,
                 -1);
-        this.bufferSize = ClickHouseUtils.getBufferSize((int) getOption(ClickHouseClientOption.BUFFER_SIZE), -1,
-                this.maxBufferSize);
-        this.readBufferSize = ClickHouseUtils.getBufferSize(
-                (int) getOption(ClickHouseClientOption.READ_BUFFER_SIZE), this.bufferSize, this.maxBufferSize);
-        this.writeBufferSize = ClickHouseUtils.getBufferSize(
-                (int) getOption(ClickHouseClientOption.WRITE_BUFFER_SIZE), this.bufferSize, this.maxBufferSize);
+        this.bufferSize = (int) getOption(ClickHouseClientOption.BUFFER_SIZE);
+        this.bufferQueueVariation = (int) getOption(ClickHouseClientOption.BUFFER_QUEUE_VARIATION);
+        this.readBufferSize = (int) getOption(ClickHouseClientOption.READ_BUFFER_SIZE);
+        this.writeBufferSize = (int) getOption(ClickHouseClientOption.WRITE_BUFFER_SIZE);
+        this.requestChunkSize = (int) getOption(ClickHouseClientOption.REQUEST_CHUNK_SIZE);
         this.requestBuffering = (ClickHouseBufferingMode) getOption(ClickHouseClientOption.REQUEST_BUFFERING,
                 ClickHouseDefaults.BUFFERING);
         this.responseBuffering = (ClickHouseBufferingMode) getOption(ClickHouseClientOption.RESPONSE_BUFFERING,
@@ -419,12 +420,23 @@ public class ClickHouseConfig implements Serializable {
     }
 
     /**
+     * Gets number of times the buffer queue is filled up before
+     * increasing capacity of buffer queue. Zero or negative value means the queue
+     * length is fixed.
+     *
+     * @return variation
+     */
+    public int getBufferQueueVariation() {
+        return bufferQueueVariation;
+    }
+
+    /**
      * Gets read buffer size in byte.
      *
      * @return read buffer size in byte
      */
     public int getReadBufferSize() {
-        return readBufferSize;
+        return ClickHouseUtils.getBufferSize(readBufferSize, getBufferSize(), getMaxBufferSize());
     }
 
     /**
@@ -433,7 +445,16 @@ public class ClickHouseConfig implements Serializable {
      * @return write buffer size in byte
      */
     public int getWriteBufferSize() {
-        return writeBufferSize;
+        return ClickHouseUtils.getBufferSize(writeBufferSize, getBufferSize(), getMaxBufferSize());
+    }
+
+    /**
+     * Gets request chunk size.
+     *
+     * @return request chunk size
+     */
+    public int getRequestChunkSize() {
+        return ClickHouseUtils.getBufferSize(requestChunkSize, getWriteBufferSize(), getMaxBufferSize());
     }
 
     /**

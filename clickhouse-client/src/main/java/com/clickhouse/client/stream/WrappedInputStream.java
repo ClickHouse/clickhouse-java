@@ -49,7 +49,7 @@ public class WrappedInputStream extends AbstractByteArrayInputStream {
         in = ClickHouseChecker.nonNull(input, "InputStream");
         // fixed buffer
         buffer = new byte[ClickHouseUtils.getBufferSize(bufferSize,
-                (int) ClickHouseClientOption.READ_BUFFER_SIZE.getDefaultValue(),
+                (int) ClickHouseClientOption.BUFFER_SIZE.getDefaultValue(),
                 (int) ClickHouseClientOption.MAX_BUFFER_SIZE.getDefaultValue())];
 
         position = 0;
