@@ -519,7 +519,7 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
                 stmt.setObject(3, null);
                 stmt.setObject(4, new String[0]);
                 stmt.setObject(5, new String[0]);
-                Assert.assertThrows(RuntimeException.class, () -> stmt.execute());
+                Assert.assertThrows(SQLException.class, () -> stmt.execute());
             }
             try (PreparedStatement stmt = conn
                     .prepareStatement("insert into test_read_write_strings")) {

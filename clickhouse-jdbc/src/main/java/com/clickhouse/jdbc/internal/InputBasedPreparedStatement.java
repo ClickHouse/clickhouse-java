@@ -38,7 +38,7 @@ public class InputBasedPreparedStatement extends AbstractPreparedStatement imple
     private final ZoneId timeZoneForDate;
     private final ZoneId timeZoneForTs;
 
-    private final List<ClickHouseColumn> columns;
+    private final ClickHouseColumn[] columns;
     private final ClickHouseValue[] values;
     private final boolean[] flags;
 
@@ -59,12 +59,14 @@ public class InputBasedPreparedStatement extends AbstractPreparedStatement imple
         timeZoneForTs = config.getUseTimeZone().toZoneId();
         timeZoneForDate = config.isUseServerTimeZoneForDates() ? timeZoneForTs : null;
 
-        this.columns = columns;
         int size = columns.size();
+        this.columns = new ClickHouseColumn[size];
+        this.values = new ClickHouseValue[size];
         int i = 0;
-        values = new ClickHouseValue[size];
         for (ClickHouseColumn col : columns) {
-            values[i++] = ClickHouseValues.newValue(config, col);
+            this.columns[i] = col;
+            this.values[i] = ClickHouseValues.newValue(config, col);
+            i++;
         }
         flags = new boolean[size];
 
@@ -309,8 +311,14 @@ public class InputBasedPreparedStatement extends AbstractPreparedStatement imple
             if (!flags[i]) {
                 throw SqlExceptionUtils.clientError(ClickHouseUtils.format("Missing value for parameter #%d", i + 1));
             }
+            ClickHouseColumn col = columns[i];
+            ClickHouseValue val = values[i];
+            if (!col.isNestedType() && !col.isNullable() && (val == null || val.isNullOrEmpty())) {
+                throw SqlExceptionUtils.clientError(ClickHouseUtils.format(
+                        "Cannot set null to non-nullable column #%d [%s]", i + 1, col));
+            }
             try {
-                serializer.serialize(values[i], config, columns.get(i), stream);
+                serializer.serialize(val, config, col, stream);
             } catch (IOException e) {
                 // should not happen
                 throw SqlExceptionUtils.handle(e);
