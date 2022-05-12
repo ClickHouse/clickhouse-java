@@ -84,7 +84,7 @@
         <disruptor.version>3.4.4</disruptor.version>
         <dnsjava.version>3.5.0</dnsjava.version>
         <fastutil.version>8.5.8</fastutil.version>
-        <grpc.version>1.40.2</grpc.version>
+        <grpc.version>1.45.1</grpc.version>
         <gson.version>2.9.0</gson.version>
         <httpclient.version>4.5.13</httpclient.version>
         <protobuf.version>3.17.3</protobuf.version>
