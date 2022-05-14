@@ -72,7 +72,7 @@
         <project.current.year>2022</project.current.year>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
-        <grpc.version>1.40.2</grpc.version>
+        <grpc.version>1.45.1</grpc.version>
         <gson.version>2.9.0</gson.version>
         <opencensus.version>0.28.3</opencensus.version>
         <roaring-bitmap.version>0.9.25</roaring-bitmap.version>
