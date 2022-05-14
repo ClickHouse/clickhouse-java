@@ -34,6 +34,7 @@ jobs:
         serverTz: ["Asia/Chongqing", "America/Los_Angeles", "Etc/UTC", "Europe/Berlin", "Europe/Moscow"]
         clientTz: ["Asia/Chongqing", "America/Los_Angeles", "Etc/UTC", "Europe/Berlin", "Europe/Moscow"]
       fail-fast: false
+    timeout-minutes: 30
     name: "TimeZone(C/S): ${{ matrix.clientTz }} vs. ${{ matrix.serverTz }}"
     steps:
       - name: Check out Git repository
@@ -67,3 +68,12 @@ jobs:
             -DclickhouseVersion=22.3 \
             -Duser.timezone=${{ matrix.clientTz }} \
             --also-make clean verify
+      - name: Upload test results
+        uses: actions/upload-artifact@v2
+        if: failure()
+        with:
+          name: result ${{ github.job }}
+          path: |
+            **/target/failsafe-reports
+            **/target/surefire-reports
+
