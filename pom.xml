@@ -87,7 +87,7 @@
         <grpc.version>1.45.1</grpc.version>
         <gson.version>2.9.0</gson.version>
         <httpclient.version>4.5.13</httpclient.version>
-        <protobuf.version>3.17.3</protobuf.version>
+        <protobuf.version>3.19.2</protobuf.version>
         <lz4.version>1.8.0</lz4.version>
         <roaring-bitmap.version>0.9.25</roaring-bitmap.version>
         <slf4j.version>2.0.0-alpha5</slf4j.version>
@@ -100,7 +100,7 @@
         <mysql-driver.version>8.0.28</mysql-driver.version>
         <postgresql-driver.version>42.3.3</postgresql-driver.version>
 
-        <repackaged.version>1.1.2</repackaged.version>
+        <repackaged.version>1.2.0</repackaged.version>
 
         <assembly-plugin.version>3.3.0</assembly-plugin.version>
         <compiler-plugin.version>3.8.1</compiler-plugin.version>
