@@ -60,7 +60,7 @@ public final class IterableMultipleInputStream<T> extends AbstractByteArrayInput
 
     public IterableMultipleInputStream(Iterable<T> source, Function<T, InputStream> converter,
             Runnable postCloseAction) {
-        super(null, postCloseAction);
+        super(null, null, postCloseAction);
 
         func = ClickHouseChecker.nonNull(converter, "Converter");
         it = ClickHouseChecker.nonNull(source, "Source").iterator();

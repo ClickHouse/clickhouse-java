@@ -7,6 +7,7 @@ import java.util.LinkedList;
 import com.clickhouse.client.ClickHouseByteBuffer;
 import com.clickhouse.client.ClickHouseChecker;
 import com.clickhouse.client.ClickHouseDataUpdater;
+import com.clickhouse.client.ClickHouseFile;
 import com.clickhouse.client.ClickHouseOutputStream;
 import com.clickhouse.client.ClickHouseUtils;
 import com.clickhouse.client.config.ClickHouseClientOption;
@@ -43,8 +44,8 @@ public class WrappedInputStream extends AbstractByteArrayInputStream {
         return limit - position;
     }
 
-    public WrappedInputStream(InputStream input, int bufferSize, Runnable postCloseAction) {
-        super(null, postCloseAction);
+    public WrappedInputStream(ClickHouseFile file, InputStream input, int bufferSize, Runnable postCloseAction) {
+        super(file, null, postCloseAction);
 
         in = ClickHouseChecker.nonNull(input, "InputStream");
         // fixed buffer

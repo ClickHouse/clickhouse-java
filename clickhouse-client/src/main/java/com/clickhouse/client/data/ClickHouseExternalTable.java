@@ -15,6 +15,7 @@ import com.clickhouse.client.ClickHouseChecker;
 import com.clickhouse.client.ClickHouseColumn;
 import com.clickhouse.client.ClickHouseCompression;
 import com.clickhouse.client.ClickHouseDeferredValue;
+import com.clickhouse.client.ClickHouseFile;
 import com.clickhouse.client.ClickHouseFormat;
 import com.clickhouse.client.ClickHouseUtils;
 
@@ -24,6 +25,7 @@ import com.clickhouse.client.ClickHouseUtils;
 public class ClickHouseExternalTable {
     public static class Builder {
         private String name;
+        private ClickHouseFile file;
         private ClickHouseDeferredValue<InputStream> content;
         private ClickHouseCompression compression;
         private ClickHouseFormat format;
@@ -41,6 +43,16 @@ public class ClickHouseExternalTable {
 
         public Builder compression(ClickHouseCompression compression) {
             this.compression = compression;
+            return this;
+        }
+
+        public Builder content(ClickHouseFile file) {
+            this.file = ClickHouseChecker.nonNull(file, "file");
+            this.compression = file.getCompressionAlgorithm();
+            this.content = ClickHouseDeferredValue.of(file.asInputStream(), InputStream.class);
+            if (file.hasFormat()) {
+                this.format = file.getFormat();
+            }
             return this;
         }
 
@@ -144,7 +156,7 @@ public class ClickHouseExternalTable {
         }
 
         public ClickHouseExternalTable build() {
-            return new ClickHouseExternalTable(name, content, compression, format, columns, asTempTable);
+            return new ClickHouseExternalTable(name, file, content, compression, format, columns, asTempTable);
         }
     }
 
@@ -153,6 +165,7 @@ public class ClickHouseExternalTable {
     }
 
     private final String name;
+    private final ClickHouseFile file;
     private final ClickHouseDeferredValue<InputStream> content;
     private final Optional<ClickHouseCompression> compression;
     private final ClickHouseFormat format;
@@ -161,10 +174,11 @@ public class ClickHouseExternalTable {
 
     private final String structure;
 
-    protected ClickHouseExternalTable(String name, ClickHouseDeferredValue<InputStream> content,
+    protected ClickHouseExternalTable(String name, ClickHouseFile file, ClickHouseDeferredValue<InputStream> content,
             ClickHouseCompression compression, ClickHouseFormat format, Collection<ClickHouseColumn> columns,
             boolean asTempTable) {
         this.name = name == null ? "" : name.trim();
+        this.file = file != null ? file : ClickHouseFile.NULL;
         this.content = ClickHouseChecker.nonNull(content, "content");
         if (compression == null) {
             compression = ClickHouseCompression.fromFileName(this.name);
@@ -198,6 +212,10 @@ public class ClickHouseExternalTable {
 
     public String getName() {
         return name;
+    }
+
+    public ClickHouseFile getFile() {
+        return file;
     }
 
     public InputStream getContent() {

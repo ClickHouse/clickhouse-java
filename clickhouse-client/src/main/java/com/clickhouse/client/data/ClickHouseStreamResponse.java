@@ -105,7 +105,10 @@ public class ClickHouseStreamResponse implements ClickHouseResponse {
         }
 
         try {
-            log.debug("%d bytes skipped before closing input stream", input.skip(Long.MAX_VALUE));
+            long skipped = input.skip(Long.MAX_VALUE);
+            if (skipped > 0L) {
+                log.debug("%d bytes skipped before closing input stream", skipped);
+            }
         } catch (Exception e) {
             // ignore
             log.debug("Failed to skip reading input stream due to: %s", e.getMessage());

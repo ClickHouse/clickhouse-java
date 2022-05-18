@@ -3,15 +3,22 @@ package com.clickhouse.client;
 import java.io.EOFException;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.UncheckedIOException;
 import java.net.URL;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
 import java.util.zip.GZIPInputStream;
 
@@ -55,6 +62,42 @@ public abstract class ClickHouseInputStream extends InputStream {
     protected static final String ERROR_NULL_BYTES = "Non-null byte array is required";
     protected static final String ERROR_REUSE_BUFFER = "Please pass a different byte array instead of the same internal buffer for reading";
     protected static final String ERROR_STREAM_CLOSED = "Input stream has been closed";
+
+    /**
+     * Wraps the given input stream.
+     *
+     * @param file             wrapped file, could be null
+     * @param input            non-null input stream
+     * @param bufferSize       buffer size
+     * @param postCloseAction  custom action will be performed right after closing
+     *                         the wrapped input stream
+     * @param compression      compression algorithm
+     * @param compressionLevel compression level
+     * @return non-null wrapped input stream
+     */
+    static ClickHouseInputStream wrap(ClickHouseFile file, InputStream input, int bufferSize, Runnable postCloseAction,
+            ClickHouseCompression compression, int compressionLevel) {
+        final ClickHouseInputStream chInput;
+        if (compression == null || compression == ClickHouseCompression.NONE) {
+            chInput = new WrappedInputStream(file, input, bufferSize, postCloseAction);
+        } else {
+            switch (compression) {
+                case GZIP:
+                    try {
+                        chInput = new WrappedInputStream(file, new GZIPInputStream(input), bufferSize, postCloseAction);
+                    } catch (IOException e) {
+                        throw new IllegalArgumentException("Failed to wrap input stream", e);
+                    }
+                    break;
+                case LZ4:
+                    chInput = new Lz4InputStream(file, input, postCloseAction);
+                    break;
+                default:
+                    throw new UnsupportedOperationException("Unsupported compression algorithm: " + compression);
+            }
+        }
+        return chInput;
+    }
 
     /**
      * Gets an empty input stream that produces nothing and cannot be closed.
@@ -101,7 +144,19 @@ public abstract class ClickHouseInputStream extends InputStream {
      */
     public static ClickHouseInputStream of(ClickHouseDeferredValue<InputStream> deferredInput, int bufferSize,
             Runnable postCloseAction) {
-        return new WrappedInputStream(new DeferredInputStream(deferredInput), bufferSize, postCloseAction);
+        return new WrappedInputStream(null, new DeferredInputStream(deferredInput), bufferSize, postCloseAction);
+    }
+
+    public static ClickHouseInputStream of(ClickHouseFile file, int bufferSize, Runnable postCloseAction) {
+        if (file == null || !file.isAvailable()) {
+            throw new IllegalArgumentException("Non-null file required");
+        }
+        try {
+            return wrap(file, new FileInputStream(file.getFile()), bufferSize, postCloseAction,
+                    file.getCompressionAlgorithm(), file.getCompressionLevel());
+        } catch (FileNotFoundException e) {
+            throw new IllegalArgumentException(e);
+        }
     }
 
     /**
@@ -165,30 +220,10 @@ public abstract class ClickHouseInputStream extends InputStream {
             Runnable postCloseAction) {
         if (input == null) {
             return EmptyInputStream.INSTANCE;
+        } else if (input instanceof ClickHouseInputStream) {
+            return (ClickHouseInputStream) input;
         }
-
-        ClickHouseInputStream chInput;
-        if (compression != null && compression != ClickHouseCompression.NONE) {
-            switch (compression) {
-                case GZIP:
-                    try {
-                        chInput = new WrappedInputStream(new GZIPInputStream(input), bufferSize, postCloseAction);
-                    } catch (IOException e) {
-                        throw new IllegalArgumentException("Failed to wrap input stream", e);
-                    }
-                    break;
-                case LZ4:
-                    chInput = new Lz4InputStream(input, postCloseAction);
-                    break;
-                default:
-                    throw new UnsupportedOperationException("Unsupported compression algorithm: " + compression);
-            }
-        } else {
-            chInput = input instanceof ClickHouseInputStream ? (ClickHouseInputStream) input
-                    : new WrappedInputStream(input, bufferSize, postCloseAction);
-        }
-
-        return chInput;
+        return wrap(null, input, bufferSize, postCloseAction, compression, 0);
     }
 
     /**
@@ -424,10 +459,60 @@ public abstract class ClickHouseInputStream extends InputStream {
         return count;
     }
 
+    public static File save(InputStream in, int bufferSize, int timeout) {
+        return save(null, in, bufferSize, timeout, true);
+    }
+
+    public static File save(File file, InputStream in, int bufferSize, int timeout, boolean deleteOnExit) {
+        final File tmp;
+        if (file != null) {
+            tmp = file;
+            if (deleteOnExit) {
+                tmp.deleteOnExit();
+            }
+        } else {
+            try {
+                tmp = File.createTempFile("chc", "data");
+                tmp.deleteOnExit();
+            } catch (IOException e) {
+                throw new IllegalStateException("Failed to create temp file", e);
+            }
+        }
+        CompletableFuture<File> data = CompletableFuture.supplyAsync(() -> {
+            try {
+                try (OutputStream out = new FileOutputStream(tmp)) {
+                    pipe(in, out, bufferSize);
+                }
+                return tmp;
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        });
+
+        try {
+            return data.get(timeout, TimeUnit.MILLISECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(e);
+        } catch (TimeoutException e) {
+            throw new IllegalStateException(e);
+        } catch (ExecutionException e) {
+            Throwable cause = e.getCause();
+            if (cause instanceof UncheckedIOException) {
+                cause = ((UncheckedIOException) cause).getCause();
+            }
+            throw new IllegalStateException(cause);
+        }
+    }
+
     /**
      * Non-null reusable byte buffer.
      */
     protected final ClickHouseByteBuffer byteBuffer;
+    /**
+     * Underlying file.
+     */
+    protected final ClickHouseFile file;
     /**
      * Optional post close action.
      */
@@ -436,8 +521,9 @@ public abstract class ClickHouseInputStream extends InputStream {
     protected boolean closed;
     protected OutputStream copyTo;
 
-    protected ClickHouseInputStream(OutputStream copyTo, Runnable postCloseAction) {
+    protected ClickHouseInputStream(ClickHouseFile file, OutputStream copyTo, Runnable postCloseAction) {
         this.byteBuffer = ClickHouseByteBuffer.newInstance();
+        this.file = file != null ? file : ClickHouseFile.NULL;
         this.postCloseAction = postCloseAction;
 
         this.closed = false;
@@ -465,6 +551,15 @@ public abstract class ClickHouseInputStream extends InputStream {
         if (this.closed) {
             throw new IOException(ERROR_STREAM_CLOSED);
         }
+    }
+
+    /**
+     * Gets underlying file.
+     *
+     * @return non-null underlying file
+     */
+    public ClickHouseFile getUnderlyingFile() {
+        return file;
     }
 
     /**

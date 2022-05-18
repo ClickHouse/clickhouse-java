@@ -23,7 +23,7 @@ public class NonBlockingInputStream extends ClickHouseInputStream {
     private int position;
 
     public NonBlockingInputStream(AdaptiveQueue<byte[]> queue, int timeout, Runnable postCloseAction) {
-        super(null, postCloseAction);
+        super(null, null, postCloseAction);
 
         this.queue = ClickHouseChecker.nonNull(queue, "Queue");
         this.timeout = timeout > 0 ? timeout : 0;

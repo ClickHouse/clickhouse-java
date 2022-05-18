@@ -10,7 +10,7 @@ public class IterableByteArrayInputStream extends AbstractByteArrayInputStream {
     private final Iterator<byte[]> it;
 
     public IterableByteArrayInputStream(Iterable<byte[]> source, Runnable postCloseAction) {
-        super(null, postCloseAction);
+        super(null, null, postCloseAction);
 
         it = ClickHouseChecker.nonNull(source, "Source").iterator();
     }

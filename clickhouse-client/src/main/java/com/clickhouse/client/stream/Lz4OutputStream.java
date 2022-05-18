@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 
 import com.clickhouse.client.ClickHouseChecker;
+import com.clickhouse.client.ClickHouseFile;
 import com.clickhouse.client.data.BinaryStreamUtils;
 import com.clickhouse.client.data.ClickHouseCityHash;
 
@@ -48,7 +49,12 @@ public class Lz4OutputStream extends AbstractByteArrayOutputStream {
     }
 
     public Lz4OutputStream(OutputStream stream, int maxCompressBlockSize, Runnable postCloseAction) {
-        super(maxCompressBlockSize, postCloseAction);
+        this(null, stream, maxCompressBlockSize, postCloseAction);
+    }
+
+    public Lz4OutputStream(ClickHouseFile file, OutputStream stream, int maxCompressBlockSize,
+            Runnable postCloseAction) {
+        super(file, maxCompressBlockSize, postCloseAction);
 
         output = ClickHouseChecker.nonNull(stream, "OutputStream");
 

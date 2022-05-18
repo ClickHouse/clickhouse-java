@@ -78,9 +78,9 @@ public abstract class AbstractClient<T> implements ClickHouseClient {
 
     /**
      * Checks if the underlying connection can be reused. In general, new connection
-     * will be created when {@code connection} is null or {@code requestServer} is
-     * different from {@code currentServer} - the existing connection will be closed
-     * in the later case.
+     * will be created when {@code connection} is {@code null} or
+     * {@code requestServer} is different from {@code currentServer} - the existing
+     * connection will be closed in the later case.
      *
      * @param connection    existing connection which may or may not be null
      * @param requestServer non-null requested server, returned from previous call

@@ -258,6 +258,46 @@ public interface ClickHouseClient extends AutoCloseable {
      *
      * @param server       non-null server to connect to
      * @param tableOrQuery table name or a select query
+     * @param file         output file
+     * @return non-null future object to get result
+     * @throws IllegalArgumentException if any of server, tableOrQuery, and output
+     *                                  is null
+     * @throws CompletionException      when error occurred during execution
+     */
+    static CompletableFuture<ClickHouseResponseSummary> dump(ClickHouseNode server, String tableOrQuery,
+            ClickHouseFile file) {
+        if (server == null || tableOrQuery == null || file == null) {
+            throw new IllegalArgumentException("Non-null server, tableOrQuery, and file are required");
+        }
+
+        // in case the protocol is ANY
+        final ClickHouseNode theServer = ClickHouseCluster.probe(server);
+
+        final String theQuery = tableOrQuery.trim();
+
+        return submit(() -> {
+            try (ClickHouseClient client = newInstance(theServer.getProtocol())) {
+                ClickHouseRequest<?> request = client.connect(theServer).output(file);
+                // FIXME what if the table name is `try me`?
+                if (theQuery.indexOf(' ') < 0) {
+                    request.table(theQuery);
+                } else {
+                    request.query(theQuery);
+                }
+
+                try (ClickHouseResponse response = request.executeAndWait()) {
+                    return response.getSummary();
+                }
+            }
+        });
+    }
+
+    /**
+     * Dumps a table or query result from server into a file. File will be
+     * created/overwrited as needed.
+     *
+     * @param server       non-null server to connect to
+     * @param tableOrQuery table name or a select query
      * @param format       output format to use
      * @param compression  compression algorithm to use
      * @param file         output file
@@ -302,8 +342,8 @@ public interface ClickHouseClient extends AutoCloseable {
 
         return submit(() -> {
             try (ClickHouseClient client = newInstance(theServer.getProtocol())) {
-                ClickHouseRequest<?> request = client.connect(theServer).compressServerResponse(
-                        compression != null && compression != ClickHouseCompression.NONE, compression).format(format);
+                ClickHouseRequest<?> request = client.connect(theServer).compressServerResponse(compression)
+                        .format(format).output(output);
                 // FIXME what if the table name is `try me`?
                 if (theQuery.indexOf(' ') < 0) {
                     request.table(theQuery);
@@ -312,7 +352,6 @@ public interface ClickHouseClient extends AutoCloseable {
                 }
 
                 try (ClickHouseResponse response = request.executeAndWait()) {
-                    response.pipe(output, request.getConfig().getWriteBufferSize());
                     return response.getSummary();
                 }
             } finally {
@@ -321,6 +360,33 @@ public interface ClickHouseClient extends AutoCloseable {
                 } catch (Exception e) {
                     // ignore
                 }
+            }
+        });
+    }
+
+    /**
+     * Loads data from given file into a table.
+     *
+     * @param server non-null server to connect to
+     * @param table  non-null target table
+     * @param file   non-null file
+     * @return future object to get result
+     * @throws IllegalArgumentException if any of server, table, and input is null
+     * @throws CompletionException      when error occurred during execution
+     */
+    static CompletableFuture<ClickHouseResponseSummary> load(ClickHouseNode server, String table, ClickHouseFile file) {
+        if (server == null || table == null || file == null) {
+            throw new IllegalArgumentException("Non-null server, table, and file are required");
+        }
+
+        // in case the protocol is ANY
+        final ClickHouseNode theServer = ClickHouseCluster.probe(server);
+
+        return submit(() -> {
+            try (ClickHouseClient client = newInstance(theServer.getProtocol());
+                    ClickHouseResponse response = client.connect(theServer).write().table(table).data(file)
+                            .executeAndWait()) {
+                return response.getSummary();
             }
         });
     }
@@ -376,9 +442,8 @@ public interface ClickHouseClient extends AutoCloseable {
                         .createPipedOutputStream(client.getConfig(), null);
                 // execute query in a separate thread(because async is explicitly set to true)
                 CompletableFuture<ClickHouseResponse> future = client.connect(theServer).write().table(table)
-                        .decompressClientRequest(compression != null && compression != ClickHouseCompression.NONE,
-                                compression)
-                        .format(format).data(input = stream.getInputStream()).execute();
+                        .decompressClientRequest(compression).format(format).data(input = stream.getInputStream())
+                        .execute();
                 try {
                     // write data into stream in current thread
                     writer.write(stream);
@@ -434,9 +499,7 @@ public interface ClickHouseClient extends AutoCloseable {
         return submit(() -> {
             try (ClickHouseClient client = newInstance(theServer.getProtocol());
                     ClickHouseResponse response = client.connect(theServer).write().table(table)
-                            .decompressClientRequest(compression != null && compression != ClickHouseCompression.NONE,
-                                    compression)
-                            .format(format).data(input).executeAndWait()) {
+                            .decompressClientRequest(compression).format(format).data(input).executeAndWait()) {
                 return response.getSummary();
             } finally {
                 try {

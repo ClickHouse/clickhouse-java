@@ -68,6 +68,61 @@ public enum ClickHouseFormat {
     Vertical(false, true, false, false, false), // https://clickhouse.com/docs/en/interfaces/formats/#vertical
     XML(false, true, false, false, false); // https://clickhouse.com/docs/en/interfaces/formats/#xml
 
+    /**
+     * Gets format based on given file name.
+     *
+     * @param file file name
+     * @return format, could be null
+     */
+    public static ClickHouseFormat fromFileName(String file) {
+        ClickHouseCompression compression = ClickHouseCompression.fromFileName(file);
+        if (compression != ClickHouseCompression.NONE) {
+            file = file.substring(0, file.lastIndexOf('.'));
+        }
+        ClickHouseFormat format = null;
+
+        int index = 0;
+        if (file != null && (index = file.lastIndexOf('.')) > 0) {
+            String ext = file.substring(index + 1).toLowerCase();
+            switch (ext) {
+                case "arrow":
+                    format = Arrow;
+                    break;
+                case "avro":
+                    format = Avro;
+                    break;
+                case "capnp":
+                    format = CapnProto;
+                    break;
+                case "csv":
+                    format = CSV;
+                    break;
+                case "json":
+                    format = JSONEachRow;
+                    break;
+                case "msgpack":
+                    format = MsgPack;
+                    break;
+                case "orc":
+                    format = ORC;
+                    break;
+                case "parquet":
+                    format = Parquet;
+                    break;
+                case "tsv":
+                    format = TSV;
+                    break;
+                case "xml":
+                    format = XML;
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        return format;
+    }
+
     private final boolean input;
     private final boolean output;
     private final boolean binary;

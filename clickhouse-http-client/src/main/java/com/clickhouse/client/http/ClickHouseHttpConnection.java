@@ -18,6 +18,7 @@ import com.clickhouse.client.ClickHouseCompression;
 import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseCredentials;
 import com.clickhouse.client.ClickHouseNode;
+import com.clickhouse.client.ClickHouseOutputStream;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseUtils;
 import com.clickhouse.client.config.ClickHouseClientOption;
@@ -153,6 +154,8 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
     protected final ClickHouseNode server;
     protected final Map<String, String> defaultHeaders;
 
+    protected final ClickHouseOutputStream output;
+
     protected final String url;
 
     protected ClickHouseHttpConnection(ClickHouseNode server, ClickHouseRequest<?> request) {
@@ -162,6 +165,8 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
 
         this.config = request.getConfig();
         this.server = server;
+
+        this.output = request.getOutputStream().orElse(null);
 
         this.url = buildUrl(server, request);
 

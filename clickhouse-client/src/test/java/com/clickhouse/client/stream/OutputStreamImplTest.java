@@ -35,7 +35,7 @@ public class OutputStreamImplTest {
     @DataProvider(name = "streamWithData")
     private Object[][] getOutputStreamWithData() {
         return new Object[][] {
-                new Object[] { new WrappedInputStream(
+                new Object[] { new WrappedInputStream(null,
                         new ByteArrayInputStream(new byte[] { -1, 1, 2, 3, 4, 5, 6 }, 1, 5), 1,
                         null) },
                 new Object[] {
@@ -65,7 +65,7 @@ public class OutputStreamImplTest {
     @Test(dataProvider = "bufferSizeProvider", groups = { "unit" })
     public void testEmptyOrClosedOutput(int bufferSize) throws IOException {
         try (ByteArrayOutputStream bas = new ByteArrayOutputStream();
-                WrappedOutputStream out = new WrappedOutputStream(bas, bufferSize, null)) {
+                WrappedOutputStream out = new WrappedOutputStream(null, bas, bufferSize, null)) {
             Assert.assertFalse(out.isClosed());
             out.write(12);
             out.flush();
@@ -76,7 +76,7 @@ public class OutputStreamImplTest {
     @Test(dataProvider = "bufferSizeProvider", groups = { "unit" })
     public void testWriteCustom(int bufferSize) throws IOException {
         try (ByteArrayOutputStream bas = new ByteArrayOutputStream();
-                ClickHouseOutputStream out = new WrappedOutputStream(bas, bufferSize, null)) {
+                ClickHouseOutputStream out = new WrappedOutputStream(null, bas, bufferSize, null)) {
             out.writeCustom((bytes, position, limit) -> 0);
             Assert.assertEquals(bas.toByteArray(), new byte[0]);
             out.writeCustom((bytes, position, limit) -> {

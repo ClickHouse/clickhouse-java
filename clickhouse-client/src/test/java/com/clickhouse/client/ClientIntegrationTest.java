@@ -166,7 +166,7 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
 
     @Test(groups = { "integration" })
     public void testOpenCloseClient() throws Exception {
-        int count = 100;
+        int count = 10;
         int timeout = 3000;
         ClickHouseNode server = getServer();
         for (int i = 0; i < count; i++) {
@@ -900,6 +900,41 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
         }
 
         Assert.assertEquals(count, 1000L);
+    }
+
+    @Test(groups = { "integration" })
+    public void testDumpAndLoadFile() throws Exception {
+        // super.testLoadRawData();
+        ClickHouseNode server = getServer();
+        ClickHouseClient.send(server, "drop table if exists test_dump_load_file",
+                "create table test_dump_load_file(a UInt64, b Nullable(String)) engine=MergeTree() order by tuple()")
+                .get();
+
+        final int rows = 10000;
+        final Path tmp = Path.of(System.getProperty("java.io.tmpdir"), "file.json");
+        ClickHouseFile file = ClickHouseFile.of(tmp);
+        ClickHouseClient.dump(server,
+                ClickHouseUtils.format(
+                        "select number a, if(modulo(number, 2) = 0, null, toString(number)) b from numbers(%d)",
+                        rows),
+                file).get();
+        Assert.assertTrue(Files.exists(tmp), ClickHouseUtils.format("File [%s] should exist", tmp));
+        Assert.assertTrue(Files.size(tmp) > 0, ClickHouseUtils.format("File [%s] should have content", tmp));
+
+        ClickHouseClient.load(server, "test_dump_load_file", file).get();
+
+        try (ClickHouseClient client = getClient();
+                ClickHouseResponse response = client.connect(server).query("select count(1) from test_dump_load_file")
+                        .executeAndWait()) {
+            Assert.assertEquals(response.firstRecord().getValue(0).asInteger(), rows);
+        }
+
+        try (ClickHouseClient client = getClient();
+                ClickHouseResponse response = client.connect(server)
+                        .query("select count(1) from test_dump_load_file where b is null")
+                        .executeAndWait()) {
+            Assert.assertEquals(response.firstRecord().getValue(0).asInteger(), rows / 2);
+        }
     }
 
     @Test(groups = { "integration" })

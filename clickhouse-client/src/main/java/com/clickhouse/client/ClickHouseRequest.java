@@ -1,8 +1,7 @@
 package com.clickhouse.client;
 
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -113,6 +112,26 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
          *             used to determine if it's compressed or not
          * @return mutation request
          */
+        public Mutation data(ClickHouseFile file) {
+            checkSealed();
+
+            final ClickHouseRequest<?> self = this;
+            if (ClickHouseChecker.nonNull(file, "File").hasFormat()) {
+                format(file.getFormat());
+            }
+            decompressClientRequest(file.isCompressed(), file.getCompressionAlgorithm());
+            this.input = changeProperty(PROP_DATA, this.input, ClickHouseDeferredValue
+                    .of(() -> ClickHouseInputStream.of(file, self.getConfig().getReadBufferSize(), null)));
+            return this;
+        }
+
+        /**
+         * Loads data from given file which may or may not be compressed.
+         *
+         * @param file absolute or relative path of the file, file extension will be
+         *             used to determine if it's compressed or not
+         * @return mutation request
+         */
         public Mutation data(String file) {
             return data(file, ClickHouseCompression.fromFileName(file));
         }
@@ -130,15 +149,12 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
             checkSealed();
 
             final ClickHouseRequest<?> self = this;
-            final String fileName = ClickHouseChecker.nonEmpty(file, "File");
-            this.input = changeProperty(PROP_DATA, this.input, ClickHouseDeferredValue.of(() -> {
-                try {
-                    return ClickHouseInputStream.of(new FileInputStream(fileName),
-                            self.getConfig().getReadBufferSize(), compression);
-                } catch (FileNotFoundException e) {
-                    throw new IllegalArgumentException(e);
-                }
-            }));
+            final ClickHouseFile wrappedFile = ClickHouseFile.of(file, compression, 0, null);
+            if (wrappedFile.hasFormat()) {
+                format(wrappedFile.getFormat());
+            }
+            this.input = changeProperty(PROP_DATA, this.input, ClickHouseDeferredValue
+                    .of(() -> ClickHouseInputStream.of(wrappedFile, self.getConfig().getReadBufferSize(), null)));
             return this;
         }
 
@@ -236,6 +252,7 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
     private static final long serialVersionUID = 4990313525960702287L;
 
     static final String PROP_DATA = "data";
+    static final String PROP_OUTPUT = "output";
     static final String PROP_PREPARED_QUERY = "preparedQuery";
     static final String PROP_QUERY = "query";
     static final String PROP_QUERY_ID = "queryId";
@@ -253,6 +270,7 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
     protected final Map<String, String> namedParameters;
 
     protected transient ClickHouseDeferredValue<ClickHouseInputStream> input;
+    protected transient ClickHouseDeferredValue<ClickHouseOutputStream> output;
     protected String queryId;
     protected String sql;
     protected ClickHouseParameterizedQuery preparedQuery;
@@ -334,6 +352,7 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
         req.settings.putAll(settings);
         req.namedParameters.putAll(namedParameters);
         req.input = input;
+        req.output = output;
         req.queryId = queryId;
         req.sql = sql;
         req.preparedQuery = preparedQuery;
@@ -356,6 +375,17 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
      */
     public boolean hasInputStream() {
         return this.input != null || !this.externalTables.isEmpty();
+    }
+
+    /**
+     * Checks if the response should be redirected to an output stream, which was
+     * defined by one of {@code output(*)} methods.
+     *
+     * @return true if response should be redirected to an output stream; false
+     *         otherwise
+     */
+    public boolean hasOutputStream() {
+        return this.output != null;
     }
 
     /**
@@ -408,6 +438,15 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
      */
     public Optional<ClickHouseInputStream> getInputStream() {
         return input != null ? input.getOptional() : Optional.empty();
+    }
+
+    /**
+     * Gets output stream.
+     *
+     * @return output stream
+     */
+    public Optional<ClickHouseOutputStream> getOutputStream() {
+        return output != null ? output.getOptional() : Optional.empty();
     }
 
     /**
@@ -545,6 +584,21 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
 
     /**
      * Enable or disable compression of server response. Pay attention that
+     * {@link ClickHouseClientOption#COMPRESS_ALGORITHM} and
+     * {@link ClickHouseClientOption#COMPRESS_LEVEL} will be used.
+     *
+     * @param compressAlgorithm compression algorihtm, null or
+     *                          {@link ClickHouseCompression#NONE} means no
+     *                          compression
+     * @return the request itself
+     */
+    public SelfT compressServerResponse(ClickHouseCompression compressAlgorithm) {
+        return compressServerResponse(compressAlgorithm != null && compressAlgorithm != ClickHouseCompression.NONE,
+                compressAlgorithm, (int) ClickHouseClientOption.COMPRESS_LEVEL.getEffectiveDefaultValue());
+    }
+
+    /**
+     * Enable or disable compression of server response. Pay attention that
      * {@link ClickHouseClientOption#COMPRESS_LEVEL} will be used.
      *
      * @param enable            true to enable compression of server response; false
@@ -606,6 +660,21 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
     public SelfT decompressClientRequest(boolean enable) {
         return decompressClientRequest(enable, null,
                 (int) ClickHouseClientOption.DECOMPRESS_LEVEL.getEffectiveDefaultValue());
+    }
+
+    /**
+     * Enable or disable compression of client request. Pay attention that
+     * {@link ClickHouseClientOption#DECOMPRESS_LEVEL} will be used.
+     *
+     * @param compressAlgorithm compression algorithm, null is treated as
+     *                          {@link ClickHouseCompression#NONE} or
+     *                          {@link ClickHouseClientOption#DECOMPRESS_ALGORITHM}
+     *                          depending on whether enabled
+     * @return the request itself
+     */
+    public SelfT decompressClientRequest(ClickHouseCompression compressAlgorithm) {
+        return decompressClientRequest(compressAlgorithm != null && compressAlgorithm != ClickHouseCompression.NONE,
+                compressAlgorithm, (int) ClickHouseClientOption.DECOMPRESS_LEVEL.getEffectiveDefaultValue());
     }
 
     /**
@@ -824,6 +893,100 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
         for (ClickHouseOption o : m.keySet()) {
             removeOption(o);
         }
+
+        return (SelfT) this;
+    }
+
+    /**
+     * Sets output file, to which response will be redirected.
+     *
+     * @param file non-null output file
+     * @return the request itself
+     */
+    @SuppressWarnings("unchecked")
+    public SelfT output(ClickHouseFile file) {
+        checkSealed();
+
+        final int bufferSize = getConfig().getWriteBufferSize();
+        if (ClickHouseChecker.nonNull(file, "File").hasFormat()) {
+            format(file.getFormat());
+        }
+        compressServerResponse(file.isCompressed(), file.getCompressionAlgorithm());
+        this.output = changeProperty(PROP_OUTPUT, this.output, ClickHouseDeferredValue
+                .of(() -> ClickHouseOutputStream.of(file, bufferSize, null)));
+
+        return (SelfT) this;
+    }
+
+    /**
+     * Sets output file, to which response will be redirected.
+     *
+     * @param file non-empty path to the file
+     * @return the request itself
+     */
+    public SelfT output(String file) {
+        return output(file, ClickHouseCompression.fromFileName(file));
+    }
+
+    /**
+     * Sets compressed output file, to which response will be redirected.
+     *
+     * @param file        non-empty path to the file
+     * @param compression compression algorithm, {@code null} or
+     *                    {@link ClickHouseCompression#NONE} means no compression
+     * @return the request itself
+     */
+    @SuppressWarnings("unchecked")
+    public SelfT output(String file, ClickHouseCompression compression) {
+        checkSealed();
+
+        final int bufferSize = getConfig().getWriteBufferSize();
+        final ClickHouseFile wrappedFile = ClickHouseFile.of(file, compression, 0, null);
+        if (wrappedFile.hasFormat()) {
+            format(wrappedFile.getFormat());
+        }
+        this.output = changeProperty(PROP_OUTPUT, this.output, ClickHouseDeferredValue
+                .of(() -> ClickHouseOutputStream.of(wrappedFile, bufferSize, null)));
+        return (SelfT) this;
+    }
+
+    /**
+     * Sets output stream, to which response will be redirected.
+     *
+     * @param output non-null output stream
+     * @return the request itself
+     */
+    public SelfT output(OutputStream output) {
+        return output(ClickHouseOutputStream.of(output));
+    }
+
+    /**
+     * Sets output stream, to which response will be redirected.
+     *
+     * @param output non-null output stream
+     * @return the request itself
+     */
+    @SuppressWarnings("unchecked")
+    public SelfT output(ClickHouseOutputStream output) {
+        checkSealed();
+
+        this.output = changeProperty(PROP_DATA, this.output,
+                ClickHouseDeferredValue.of(output, ClickHouseOutputStream.class));
+
+        return (SelfT) this;
+    }
+
+    /**
+     * Sets output stream, to which response will be redirected.
+     *
+     * @param output non-null output stream
+     * @return the request itself
+     */
+    @SuppressWarnings("unchecked")
+    public SelfT output(ClickHouseDeferredValue<ClickHouseOutputStream> output) {
+        checkSealed();
+
+        this.output = changeProperty(PROP_OUTPUT, this.output, output);
 
         return (SelfT) this;
     }
@@ -1410,6 +1573,7 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
         this.namedParameters.clear();
 
         this.input = changeProperty(PROP_DATA, this.input, null);
+        this.output = changeProperty(PROP_OUTPUT, this.output, null);
         this.sql = changeProperty(PROP_QUERY, this.sql, null);
         this.preparedQuery = changeProperty(PROP_PREPARED_QUERY, this.preparedQuery, null);
         this.queryId = changeProperty(PROP_QUERY_ID, this.queryId, null);
@@ -1437,6 +1601,7 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
             req.namedParameters.putAll(namedParameters);
 
             req.input = input;
+            req.output = output;
             req.queryId = queryId;
             req.sql = sql;
             req.preparedQuery = preparedQuery;

@@ -233,6 +233,20 @@ public final class ClickHouseUtils {
         return String.format(Locale.ROOT, template, args);
     }
 
+    /**
+     * Normalizes given directory by appending back slash if it does exist.
+     *
+     * @param dir original directory
+     * @return normalized directory
+     */
+    public static String normalizeDirectory(String dir) {
+        if (dir == null || dir.isEmpty()) {
+            return "./";
+        }
+
+        return dir.charAt(dir.length() - 1) == '/' ? dir : dir.concat("/");
+    }
+
     private static int readJsonArray(String json, List<Object> array, int startIndex, int len) {
         StringBuilder builder = new StringBuilder();
 
