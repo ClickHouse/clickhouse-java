@@ -8,10 +8,10 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
-import java.lang.ProcessBuilder.Redirect;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedList;
@@ -60,7 +60,7 @@ public class ClickHouseCommandLine implements AutoCloseable {
         Collections.addAll(list, args);
         Process process = null;
         try {
-            process = new ProcessBuilder(list).redirectError(Redirect.DISCARD).start();
+            process = new ProcessBuilder(list).start();
             process.getOutputStream().close();
             if (process.waitFor(timeout, TimeUnit.MILLISECONDS)) {
                 int exitValue = process.exitValue();
@@ -168,7 +168,7 @@ public class ClickHouseCommandLine implements AutoCloseable {
         }
         if ((boolean) config.getOption(ClickHouseCommandLineOption.USE_CLI_CONFIG)) {
             str = (String) config.getOption(ClickHouseCommandLineOption.CLI_CONFIG_FILE);
-            if (Files.exists(Path.of(str))) {
+            if (Files.exists(Paths.get(str))) {
                 commands.add("--config-file=".concat(str));
             }
         } else {
@@ -194,13 +194,13 @@ public class ClickHouseCommandLine implements AutoCloseable {
             if (!tableFile.isAvailable() || !tableFile.getFile().getAbsolutePath().startsWith(hostDir)) {
                 // creating a hard link is faster but it's not platform-independent
                 File f = ClickHouseInputStream.save(
-                        Path.of(hostDir, "chc_".concat(UUID.randomUUID().toString())).toFile(),
+                        Paths.get(hostDir, "chc_".concat(UUID.randomUUID().toString())).toFile(),
                         table.getContent(), config.getWriteBufferSize(), config.getSocketTimeout(), true);
                 filePath = containerDir.concat(f.getName());
             } else {
                 filePath = tableFile.getFile().getAbsolutePath();
                 if (!hostDir.equals(containerDir)) {
-                    filePath = Path.of(containerDir, filePath.substring(hostDir.length())).toFile().getAbsolutePath();
+                    filePath = Paths.get(containerDir, filePath.substring(hostDir.length())).toFile().getAbsolutePath();
                 }
             }
             commands.add("--file=" + filePath);
@@ -235,7 +235,7 @@ public class ClickHouseCommandLine implements AutoCloseable {
         String workDirectory = (String) config.getOption(
                 ClickHouseCommandLineOption.CLI_WORK_DIRECTORY);
         if (!ClickHouseChecker.isNullOrBlank(workDirectory)) {
-            Path p = Path.of(workDirectory);
+            Path p = Paths.get(workDirectory);
             if (Files.isDirectory(p)) {
                 builder.directory(p.toFile());
             }
@@ -264,7 +264,7 @@ public class ClickHouseCommandLine implements AutoCloseable {
                         fileName = new StringBuilder(len + uuid.length() + 1).append(fileName).append('_')
                                 .append(UUID.randomUUID().toString()).toString();
                     }
-                    Path newPath = Path.of(hostDir, fileName);
+                    Path newPath = Paths.get(hostDir, fileName);
                     try {
                         f = Files.createLink(newPath, f.toPath()).toFile();
                     } catch (IOException e) {

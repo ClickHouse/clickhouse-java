@@ -42,7 +42,7 @@ public class ClickHouseOutputStreamTest {
 
     @Test(groups = { "unit" })
     public void testNullOrClosedOutput() throws IOException {
-        Assert.assertThrows(IllegalArgumentException.class, () -> ClickHouseOutputStream.of(null));
+        Assert.assertEquals(ClickHouseOutputStream.of(null), ClickHouseOutputStream.empty());
         ByteArrayOutputStream inner = new ByteArrayOutputStream();
         OutputStream out = new BufferedOutputStream(inner);
         ClickHouseOutputStream empty = ClickHouseOutputStream.of(out);

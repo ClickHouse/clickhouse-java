@@ -70,6 +70,17 @@ public abstract class ClickHouseOutputStream extends OutputStream {
         return EmptyOutputStream.INSTANCE;
     }
 
+    /**
+     * Wraps the given file as output stream.
+     *
+     * @param file            non-null file
+     * @param postCloseAction custom action will be performed right after closing
+     *                        the output stream
+     * @param bufferSize      buffer size which is always greater than zero(usually
+     *                        8192
+     *                        or larger)
+     * @return wrapped output
+     */
     public static ClickHouseOutputStream of(ClickHouseFile file, int bufferSize, Runnable postCloseAction) {
         if (file == null || file == ClickHouseFile.NULL) {
             throw new IllegalArgumentException("Non-null file required");
@@ -85,7 +96,7 @@ public abstract class ClickHouseOutputStream extends OutputStream {
     /**
      * Wraps the given output stream.
      *
-     * @param output non-null output stream
+     * @param output output stream
      * @return wrapped output, or the same output if it's instance of
      *         {@link ClickHouseOutputStream}
      */
@@ -96,7 +107,7 @@ public abstract class ClickHouseOutputStream extends OutputStream {
     /**
      * Wraps the given output stream.
      *
-     * @param output     non-null output stream
+     * @param output     output stream
      * @param bufferSize buffer size which is always greater than zero(usually 8192
      *                   or larger)
      * @return wrapped output, or the same output if it's instance of
@@ -109,7 +120,7 @@ public abstract class ClickHouseOutputStream extends OutputStream {
     /**
      * Wraps the given output stream.
      *
-     * @param output          non-null output stream
+     * @param output          output stream
      * @param bufferSize      buffer size which is always greater than zero(usually
      *                        8192 or larger)
      * @param compression     compression algorithm, null or
@@ -123,8 +134,11 @@ public abstract class ClickHouseOutputStream extends OutputStream {
     public static ClickHouseOutputStream of(OutputStream output, int bufferSize, ClickHouseCompression compression,
             Runnable postCloseAction) {
         final ClickHouseOutputStream chOutput;
-        if (compression == null || compression == ClickHouseCompression.NONE) {
-            chOutput = output instanceof ClickHouseOutputStream ? (ClickHouseOutputStream) output
+        if (output == null) {
+            chOutput = EmptyOutputStream.INSTANCE;
+        } else if (compression == null || compression == ClickHouseCompression.NONE) {
+            chOutput = output != EmptyOutputStream.INSTANCE && output instanceof ClickHouseOutputStream
+                    ? (ClickHouseOutputStream) output
                     : new WrappedOutputStream(null, output, bufferSize, postCloseAction);
         } else {
             chOutput = wrap(null, output, bufferSize, postCloseAction, compression, 0);

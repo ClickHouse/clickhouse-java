@@ -1,7 +1,5 @@
 package com.clickhouse.client;
 
-import java.io.FileNotFoundException;
-import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
@@ -305,12 +303,10 @@ public interface ClickHouseClient extends AutoCloseable {
      * @throws IllegalArgumentException if any of server, tableOrQuery, and output
      *                                  is null
      * @throws CompletionException      when error occurred during execution
-     * @throws IOException              when failed to create the file or its parent
-     *                                  directories
      */
     static CompletableFuture<ClickHouseResponseSummary> dump(ClickHouseNode server, String tableOrQuery,
-            ClickHouseFormat format, ClickHouseCompression compression, String file) throws IOException {
-        return dump(server, tableOrQuery, format, compression, ClickHouseUtils.getFileOutputStream(file));
+            ClickHouseFormat format, ClickHouseCompression compression, String file) {
+        return dump(server, tableOrQuery, ClickHouseFile.of(file, compression, 0, format));
     }
 
     /**
@@ -403,11 +399,10 @@ public interface ClickHouseClient extends AutoCloseable {
      * @return future object to get result
      * @throws IllegalArgumentException if any of server, table, and input is null
      * @throws CompletionException      when error occurred during execution
-     * @throws FileNotFoundException    when file not found
      */
     static CompletableFuture<ClickHouseResponseSummary> load(ClickHouseNode server, String table,
-            ClickHouseFormat format, ClickHouseCompression compression, String file) throws FileNotFoundException {
-        return load(server, table, format, compression, ClickHouseUtils.getFileInputStream(file));
+            ClickHouseFormat format, ClickHouseCompression compression, String file) {
+        return load(server, table, ClickHouseFile.of(file, compression, 0, format));
     }
 
     /**

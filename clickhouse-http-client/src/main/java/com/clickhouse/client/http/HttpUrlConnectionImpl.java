@@ -86,7 +86,7 @@ public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
         final InputStream source;
         final Runnable action;
         if (output != null) {
-            source = InputStream.nullInputStream();
+            source = ClickHouseInputStream.empty();
             action = () -> {
                 try (OutputStream o = output) {
                     ClickHouseInputStream.pipe(conn.getInputStream(), o, c.getWriteBufferSize());

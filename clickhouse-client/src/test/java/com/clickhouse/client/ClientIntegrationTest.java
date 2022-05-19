@@ -13,6 +13,7 @@ import java.net.InetAddress;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -60,12 +61,16 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
 
     protected abstract Class<? extends ClickHouseClient> getClientClass();
 
+    protected ClickHouseClientBuilder initClient(ClickHouseClientBuilder builder) {
+        return builder;
+    }
+
     protected ClickHouseClient getClient() {
-        return ClickHouseClient.newInstance(getProtocol());
+        return initClient(ClickHouseClient.builder()).nodeSelector(ClickHouseNodeSelector.of(getProtocol())).build();
     }
 
     protected ClickHouseClient getSecureClient() {
-        return ClickHouseClient.builder()
+        return initClient(ClickHouseClient.builder())
                 .nodeSelector(ClickHouseNodeSelector.of(getProtocol()))
                 .option(ClickHouseClientOption.SSL, true)
                 .option(ClickHouseClientOption.SSL_MODE, ClickHouseSslMode.STRICT)
@@ -911,7 +916,7 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
                 .get();
 
         final int rows = 10000;
-        final Path tmp = Path.of(System.getProperty("java.io.tmpdir"), "file.json");
+        final Path tmp = Paths.get(System.getProperty("java.io.tmpdir"), "file.json");
         ClickHouseFile file = ClickHouseFile.of(tmp);
         ClickHouseClient.dump(server,
                 ClickHouseUtils.format(

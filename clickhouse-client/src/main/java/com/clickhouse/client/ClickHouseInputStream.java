@@ -147,6 +147,16 @@ public abstract class ClickHouseInputStream extends InputStream {
         return new WrappedInputStream(null, new DeferredInputStream(deferredInput), bufferSize, postCloseAction);
     }
 
+    /**
+     * Wraps the given file as input stream.
+     *
+     * @param file            non-null file
+     * @param bufferSize      buffer size which is always greater than zero(usually
+     *                        8192 or larger)
+     * @param postCloseAction custom action will be performed right after closing
+     *                        the input stream
+     * @return wrapped input
+     */
     public static ClickHouseInputStream of(ClickHouseFile file, int bufferSize, Runnable postCloseAction) {
         if (file == null || !file.isAvailable()) {
             throw new IllegalArgumentException("Non-null file required");
@@ -220,7 +230,7 @@ public abstract class ClickHouseInputStream extends InputStream {
             Runnable postCloseAction) {
         if (input == null) {
             return EmptyInputStream.INSTANCE;
-        } else if (input instanceof ClickHouseInputStream) {
+        } else if (input != EmptyInputStream.INSTANCE && input instanceof ClickHouseInputStream) {
             return (ClickHouseInputStream) input;
         }
         return wrap(null, input, bufferSize, postCloseAction, compression, 0);
