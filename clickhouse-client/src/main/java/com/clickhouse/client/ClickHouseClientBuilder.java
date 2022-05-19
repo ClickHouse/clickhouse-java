@@ -90,7 +90,10 @@ public class ClickHouseClientBuilder {
 
         boolean noSelector = nodeSelector == null || nodeSelector == ClickHouseNodeSelector.EMPTY;
         int counter = 0;
+        ClickHouseConfig conf = getConfig();
         for (ClickHouseClient c : ServiceLoader.load(ClickHouseClient.class, getClass().getClassLoader())) {
+            c.init(conf);
+
             counter++;
             if (noSelector || nodeSelector.match(c)) {
                 client = c;
@@ -101,8 +104,6 @@ public class ClickHouseClientBuilder {
         if (client == null) {
             throw new IllegalStateException(
                     ClickHouseUtils.format("No suitable ClickHouse client(out of %d) found in classpath.", counter));
-        } else {
-            client.init(getConfig());
         }
 
         return client;

@@ -22,6 +22,8 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.io.UncheckedIOException;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.Charset;
@@ -81,9 +83,24 @@ public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
                     : timeZone;
         }
 
+        final InputStream source;
+        final Runnable action;
+        if (output != null) {
+            source = ClickHouseInputStream.empty();
+            action = () -> {
+                try (OutputStream o = output) {
+                    ClickHouseInputStream.pipe(conn.getInputStream(), o, c.getWriteBufferSize());
+                } catch (IOException e) {
+                    throw new UncheckedIOException("Failed to redirect response to given output stream", e);
+                }
+            };
+        } else {
+            source = conn.getInputStream();
+            action = null;
+        }
         return new ClickHouseHttpResponse(this,
-                hasQueryResult ? ClickHouseClient.getAsyncResponseInputStream(c, conn.getInputStream(), null)
-                        : ClickHouseClient.getResponseInputStream(c, conn.getInputStream(), null),
+                hasQueryResult ? ClickHouseClient.getAsyncResponseInputStream(c, source, action)
+                        : ClickHouseClient.getResponseInputStream(c, source, action),
                 displayName, queryId, summary, format, timeZone);
     }
 

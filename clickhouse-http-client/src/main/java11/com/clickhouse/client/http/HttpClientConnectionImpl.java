@@ -19,8 +19,10 @@ import java.io.BufferedWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.Reader;
+import java.io.UncheckedIOException;
 import java.net.HttpURLConnection;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -69,8 +71,24 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
                     : timeZone;
         }
 
-        return new ClickHouseHttpResponse(this,
-                ClickHouseClient.getResponseInputStream(config, checkResponse(r).body(), this::closeQuietly),
+        final InputStream source;
+        final Runnable action;
+        if (output != null) {
+            source = ClickHouseInputStream.empty();
+            action = () -> {
+                try (OutputStream o = output) {
+                    ClickHouseInputStream.pipe(checkResponse(r).body(), o, config.getWriteBufferSize());
+                } catch (IOException e) {
+                    throw new UncheckedIOException("Failed to redirect response to given output stream", e);
+                } finally {
+                    closeQuietly();
+                }
+            };
+        } else {
+            source = checkResponse(r).body();
+            action = this::closeQuietly;
+        }
+        return new ClickHouseHttpResponse(this, ClickHouseClient.getResponseInputStream(config, source, action),
                 displayName, queryId, summary, format, timeZone);
     }
 

@@ -5,7 +5,7 @@ package com.clickhouse.client;
  */
 public abstract class ClickHousePipedOutputStream extends ClickHouseOutputStream {
     protected ClickHousePipedOutputStream(Runnable postCloseAction) {
-        super(postCloseAction);
+        super(null, postCloseAction);
     }
 
     /**

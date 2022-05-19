@@ -5,6 +5,7 @@ import java.io.InputStream;
 
 import com.clickhouse.client.ClickHouseByteBuffer;
 import com.clickhouse.client.ClickHouseChecker;
+import com.clickhouse.client.ClickHouseFile;
 import com.clickhouse.client.ClickHouseUtils;
 import com.clickhouse.client.data.BinaryStreamUtils;
 import com.clickhouse.client.data.ClickHouseCityHash;
@@ -83,11 +84,11 @@ public class Lz4InputStream extends AbstractByteArrayInputStream {
     }
 
     public Lz4InputStream(InputStream stream) {
-        this(stream, null);
+        this(null, stream, null);
     }
 
-    public Lz4InputStream(InputStream stream, Runnable postCloseAction) {
-        super(null, postCloseAction);
+    public Lz4InputStream(ClickHouseFile file, InputStream stream, Runnable postCloseAction) {
+        super(file, null, postCloseAction);
 
         this.decompressor = factory.fastDecompressor();
         this.stream = ClickHouseChecker.nonNull(stream, "InputStream");

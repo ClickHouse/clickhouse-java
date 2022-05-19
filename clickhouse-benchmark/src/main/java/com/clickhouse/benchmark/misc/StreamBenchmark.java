@@ -140,7 +140,6 @@ public class StreamBenchmark {
             if ((count = in.pipe(out)) != state.samples) {
                 throw new IllegalStateException(String.format("Expect %d bytes but got %d", size, count));
             }
-            out.flush();
         }
         if (!Arrays.equals(state.bytes, bao.toByteArray())) {
             throw new IllegalStateException("Incorrect result");
@@ -157,7 +156,6 @@ public class StreamBenchmark {
             if ((count = in.pipe(out)) != state.samples) {
                 throw new IllegalStateException(String.format("Expect %d bytes but got %d", size, count));
             }
-            out.flush();
         }
         if (!Arrays.equals(state.bytes, bao.toByteArray())) {
             throw new IllegalStateException("Incorrect result");

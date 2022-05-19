@@ -3,6 +3,7 @@ package com.clickhouse.client.stream;
 import java.io.IOException;
 
 import com.clickhouse.client.ClickHouseDataUpdater;
+import com.clickhouse.client.ClickHouseFile;
 import com.clickhouse.client.ClickHouseOutputStream;
 
 public abstract class AbstractByteArrayOutputStream extends ClickHouseOutputStream {
@@ -17,8 +18,8 @@ public abstract class AbstractByteArrayOutputStream extends ClickHouseOutputStre
 
     protected abstract void flushBuffer(byte[] bytes, int offset, int length) throws IOException;
 
-    protected AbstractByteArrayOutputStream(int bufferSize, Runnable postCloseAction) {
-        super(postCloseAction);
+    protected AbstractByteArrayOutputStream(ClickHouseFile file, int bufferSize, Runnable postCloseAction) {
+        super(file, postCloseAction);
 
         buffer = new byte[bufferSize];
 

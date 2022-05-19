@@ -302,7 +302,7 @@ public class InputStreamImplTest {
     @DataProvider(name = "streamWithData")
     private Object[][] getInputStreamWithData() {
         return new Object[][] {
-                new Object[] { new WrappedInputStream(
+                new Object[] { new WrappedInputStream(null,
                         new ByteArrayInputStream(new byte[] { -1, 1, 2, 3, 4, 5, 6 }, 1, 5), 1, null) },
                 new Object[] {
                         new IterableByteArrayInputStream(

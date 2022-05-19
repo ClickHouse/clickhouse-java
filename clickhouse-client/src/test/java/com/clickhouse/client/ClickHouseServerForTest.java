@@ -48,6 +48,8 @@ public class ClickHouseServerForTest {
             // ignore
         }
 
+        final String containerName = System.getenv("CHC_TEST_CONTAINER_ID");
+
         String host = ClickHouseUtils.getProperty("clickhouseServer", properties);
         clickhouseServer = ClickHouseChecker.isNullOrEmpty(host) ? null : host;
 
@@ -102,7 +104,13 @@ public class ClickHouseServerForTest {
                     ? new GenericContainer<>(imageNameWithTag)
                     : new GenericContainer<>(new ImageFromDockerfile().withDockerfileFromBuilder(builder -> builder
                             .from(imageNameWithTag).run("apt-get update && apt-get install -y " + additionalPackages))))
-                    .withCreateContainerCmdModifier(it -> it.withEntrypoint("/bin/sh"))
+                    .withCreateContainerCmdModifier(
+                            it -> {
+                                it.withEntrypoint("/bin/sh");
+                                if (!ClickHouseChecker.isNullOrBlank(containerName)) {
+                                    it.withName(containerName);
+                                }
+                            })
                     .withCommand("-c", String.format("chmod +x %1$s/patch && %1$s/patch", customDirectory))
                     .withEnv("TZ", timezone)
                     .withExposedPorts(ClickHouseProtocol.GRPC.getDefaultPort(),
@@ -113,6 +121,8 @@ public class ClickHouseServerForTest {
                             ClickHouseProtocol.TCP.getDefaultSecurePort(),
                             ClickHouseProtocol.POSTGRESQL.getDefaultPort())
                     .withClasspathResourceMapping("containers/clickhouse-server", customDirectory, BindMode.READ_ONLY)
+                    .withFileSystemBind(System.getProperty("java.io.tmpdir"), getClickHouseContainerTmpDir(),
+                            BindMode.READ_WRITE)
                     .waitingFor(Wait.forHttp("/ping").forPort(ClickHouseProtocol.HTTP.getDefaultPort())
                             .forStatusCode(200).withStartupTimeout(Duration.of(60, SECONDS)));
         }
@@ -126,6 +136,10 @@ public class ClickHouseServerForTest {
         return clickhouseContainer;
     }
 
+    public static String getClickHouseContainerTmpDir() {
+        return "/tmp";
+    }
+
     public static String getClickHouseAddress() {
         return getClickHouseAddress(ClickHouseProtocol.ANY, false);
     }
@@ -134,7 +148,7 @@ public class ClickHouseServerForTest {
         StringBuilder builder = new StringBuilder();
 
         if (clickhouseContainer != null) {
-            builder.append(useIPaddress ? clickhouseContainer.getContainerIpAddress() : clickhouseContainer.getHost())
+            builder.append(useIPaddress ? clickhouseContainer.getHost() : clickhouseContainer.getHost())
                     .append(':').append(clickhouseContainer.getMappedPort(protocol.getDefaultPort()));
         } else {
             String port = ClickHouseUtils
@@ -154,7 +168,7 @@ public class ClickHouseServerForTest {
         int port = useSecurePort ? protocol.getDefaultSecurePort() : protocol.getDefaultPort();
 
         if (clickhouseContainer != null) {
-            host = clickhouseContainer.getContainerIpAddress();
+            host = clickhouseContainer.getHost();
             port = clickhouseContainer.getMappedPort(port);
         } else {
             String config = ClickHouseUtils
@@ -171,7 +185,7 @@ public class ClickHouseServerForTest {
         String host = clickhouseServer;
 
         if (clickhouseContainer != null) {
-            host = clickhouseContainer.getContainerIpAddress();
+            host = clickhouseContainer.getHost();
             port = clickhouseContainer.getMappedPort(port);
         }
 

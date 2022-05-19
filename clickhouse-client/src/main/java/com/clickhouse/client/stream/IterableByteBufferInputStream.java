@@ -12,7 +12,7 @@ public class IterableByteBufferInputStream extends AbstractByteBufferInputStream
     private final Iterator<ByteBuffer> it;
 
     public IterableByteBufferInputStream(Iterable<ByteBuffer> source, Runnable postCloseAction) {
-        super(null, postCloseAction);
+        super(null, null, postCloseAction);
 
         it = ClickHouseChecker.nonNull(source, "Source").iterator();
     }

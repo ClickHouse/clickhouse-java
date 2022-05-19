@@ -1266,7 +1266,7 @@ public class ClickHouseDatabaseMetaData extends JdbcWrapper implements DatabaseM
                         + "1 as FUNCTION_TYPE, name as SPECIFIC_NAME from system.functions\n"
                         + "where alias_to = '' and name like :pattern order by name union all\n"
                         + "select null as FUNCTION_CAT, 'system' as FUNCTION_SCHEM, name as FUNCTION_NAME,\n"
-                        + "'case-sensistive table function' as REMARKS, 2 as FUNCTION_TYPE, name as SPECIFIC_NAME from system.table_functions\n"
+                        + "'case-sensitive table function' as REMARKS, 2 as FUNCTION_TYPE, name as SPECIFIC_NAME from system.table_functions\n"
                         + "order by name) where :filter",
                 params);
         return query(sql);

@@ -15,7 +15,7 @@ public final class EmptyInputStream extends ClickHouseInputStream {
     public static final EmptyInputStream INSTANCE = new EmptyInputStream();
 
     private EmptyInputStream() {
-        super(null, null);
+        super(null, null, null);
     }
 
     @Override

@@ -12,7 +12,7 @@ public class IterableObjectInputStream<T> extends AbstractByteArrayInputStream {
     private final Iterator<T> it;
 
     public IterableObjectInputStream(Iterable<T> source, Function<T, byte[]> converter, Runnable postCloseAction) {
-        super(null, postCloseAction);
+        super(null, null, postCloseAction);
 
         func = ClickHouseChecker.nonNull(converter, "Converter");
         it = ClickHouseChecker.nonNull(source, "Source").iterator();

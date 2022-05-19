@@ -178,7 +178,7 @@ public class ClickHouseGrpcClient extends AbstractClient<ManagedChannel> {
         ClickHouseGrpc.ClickHouseStub stub = ClickHouseGrpc.newStub(channel);
 
         final ClickHouseStreamObserver responseObserver = new ClickHouseStreamObserver(sealedRequest.getConfig(),
-                server);
+                server, sealedRequest.getOutputStream().orElse(null));
         final StreamObserver<QueryInfo> requestObserver = stub.executeQueryWithStreamIO(responseObserver);
 
         if (sealedRequest.hasInputStream()) {
