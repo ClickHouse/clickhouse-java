@@ -1,8 +1,10 @@
 package com.clickhouse.jdbc;
 
 import java.io.ByteArrayInputStream;
+import java.math.BigDecimal;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
+import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.sql.BatchUpdateException;
 import java.sql.Connection;
@@ -1255,6 +1257,48 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
             Assert.assertTrue(rs.next());
             Assert.assertEquals(rs.getString("VALUE"), "testValue2");
             Assert.assertFalse(rs.next());
+        }
+    }
+
+    @Test(groups = "integration")
+    public void testInsertWithMultipleValues() throws Exception {
+        try (ClickHouseConnection conn = newConnection(new Properties());
+                Statement s = conn.createStatement()) {
+            s.execute("drop table if exists test_insert_with_multiple_values; "
+                    + "CREATE TABLE test_insert_with_multiple_values(a Int32, b Nullable(String)) ENGINE=Memory");
+            try (PreparedStatement ps = conn.prepareStatement(
+                    "INSERT INTO test_insert_with_multiple_values values(?, ?), (2 , ? ), ( ? , '') , (?,?) ,( ? ,? )")) {
+                ps.setInt(1, 1);
+                ps.setNull(2, Types.VARCHAR);
+                ps.setObject(3, "er");
+                ps.setInt(4, 3);
+                ps.setInt(5, 4);
+                ps.setURL(6, new URL("http://some.host"));
+                ps.setInt(7, 5);
+                ps.setString(8, null);
+                ps.executeUpdate();
+            }
+
+            try (ResultSet rs = s.executeQuery("select * from test_insert_with_multiple_values order by a")) {
+                Assert.assertTrue(rs.next());
+                Assert.assertEquals(rs.getByte(1), (byte) 1);
+                Assert.assertEquals(rs.getObject(2), null);
+                Assert.assertTrue(rs.wasNull());
+                Assert.assertTrue(rs.next());
+                Assert.assertEquals(rs.getBigDecimal(1), BigDecimal.valueOf(2L));
+                Assert.assertEquals(rs.getString(2), "er");
+                Assert.assertTrue(rs.next());
+                Assert.assertEquals(rs.getString(1), "3");
+                Assert.assertEquals(rs.getObject(2), "");
+                Assert.assertTrue(rs.next());
+                Assert.assertEquals(rs.getShort(1), (short) 4);
+                Assert.assertEquals(rs.getURL(2), new URL("http://some.host"));
+                Assert.assertTrue(rs.next());
+                Assert.assertEquals(rs.getObject(1), Integer.valueOf(5));
+                Assert.assertEquals(rs.getString(2), null);
+                Assert.assertTrue(rs.wasNull());
+                Assert.assertFalse(rs.next());
+            }
         }
     }
 }
