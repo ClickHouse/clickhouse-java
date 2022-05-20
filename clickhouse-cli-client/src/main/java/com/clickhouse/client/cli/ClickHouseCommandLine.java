@@ -158,6 +158,9 @@ public class ClickHouseCommandLine implements AutoCloseable {
             containerDir = hostDir;
         }
 
+        if (config.isSsl()) {
+            commands.add("--secure");
+        }
         commands.add("--compression=".concat(config.isResponseCompressed() ? "1" : "0"));
         commands.add("--host=".concat(server.getHost()));
         commands.add("--port=".concat(Integer.toString(server.getPort())));
@@ -166,11 +169,10 @@ public class ClickHouseCommandLine implements AutoCloseable {
         if (!ClickHouseChecker.isNullOrBlank(str)) {
             commands.add("--database=".concat(str));
         }
-        if ((boolean) config.getOption(ClickHouseCommandLineOption.USE_CLI_CONFIG)) {
-            str = (String) config.getOption(ClickHouseCommandLineOption.CLI_CONFIG_FILE);
-            if (Files.exists(Paths.get(str))) {
-                commands.add("--config-file=".concat(str));
-            }
+        str = (String) config.getOption(ClickHouseCommandLineOption.CLI_CONFIG_FILE);
+        if ((boolean) config.getOption(ClickHouseCommandLineOption.USE_CLI_CONFIG)
+                && !ClickHouseChecker.isNullOrBlank(str) && Files.exists(Paths.get(str))) {
+            commands.add("--config-file=".concat(str));
         } else {
             ClickHouseCredentials credentials = server.getCredentials(config);
             str = credentials.getUserName();
@@ -184,8 +186,11 @@ public class ClickHouseCommandLine implements AutoCloseable {
         }
         commands.add("--format=".concat(config.getFormat().name()));
 
-        str = request.getStatements(false).get(0);
-        commands.add("--query=".concat(str));
+        str = request.getQueryId().orElse("");
+        if (!ClickHouseChecker.isNullOrBlank(str)) {
+            commands.add("--query_id=".concat(str));
+        }
+        commands.add("--query=".concat(request.getStatements(false).get(0)));
 
         for (ClickHouseExternalTable table : request.getExternalTables()) {
             ClickHouseFile tableFile = table.getFile();
