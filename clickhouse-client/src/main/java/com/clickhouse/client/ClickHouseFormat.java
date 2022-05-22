@@ -7,9 +7,12 @@ package com.clickhouse.client;
 public enum ClickHouseFormat {
     // start with the most common ones
     RowBinary(true, true, true, false, true), // https://clickhouse.com/docs/en/interfaces/formats/#rowbinary
+    RowBinaryWithNames(true, true, true, true, true, RowBinary), // https://clickhouse.com/docs/en/interfaces/formats/#rowbinarywithnames
     RowBinaryWithNamesAndTypes(true, true, true, true, true, RowBinary), // https://clickhouse.com/docs/en/interfaces/formats/#rowbinarywithnamesandtypes
     TabSeparated(true, true, false, false, true), // https://clickhouse.com/docs/en/interfaces/formats/#tabseparated
     TabSeparatedRaw(true, true, false, false, true), // https://clickhouse.com/docs/en/interfaces/formats/#tabseparatedraw
+    TabSeparatedRawWithNames(true, true, false, true, true, TabSeparated), // https://clickhouse.com/docs/en/interfaces/formats/#tabseparatedrawwithnames
+    TabSeparatedRawWithNamesAndTypes(true, true, false, true, true, TabSeparated), // https://clickhouse.com/docs/en/interfaces/formats/#tabseparatedrawwithnamesandtypes
     TabSeparatedWithNames(true, true, false, true, true, TabSeparated), // https://clickhouse.com/docs/en/interfaces/formats/#tabseparatedwithnames
     TabSeparatedWithNamesAndTypes(true, true, false, true, true, TabSeparated), // https://clickhouse.com/docs/en/interfaces/formats/#tabseparatedwithnamesandtypes
     // and the rest
@@ -23,22 +26,30 @@ public enum ClickHouseFormat {
     CustomSeparated(true, true, false, false, true), // https://clickhouse.com/docs/en/interfaces/formats/#customseparated
     CustomSeparatedIgnoreSpaces(true, true, false, false, true),
     JSONCompactEachRow(true, true, false, false, true), // https://clickhouse.com/docs/en/interfaces/formats/#jsoncompacteachrow
+    JSONCompactEachRowWithNames(true, true, false, true, true), // https://clickhouse.com/docs/en/interfaces/formats/#jsoncompacteachrowwithnames
     JSONCompactEachRowWithNamesAndTypes(true, true, false, true, true), // https://clickhouse.com/docs/en/interfaces/formats/#jsoncompacteachrowwithnamesandtypes
     JSON(false, true, false, false, false, JSONCompactEachRow), // https://clickhouse.com/docs/en/interfaces/formats/#json
+    JSONAsObject(true, false, false, false, false), // https://clickhouse.com/docs/en/interfaces/formats/#jsonasobject
     JSONAsString(true, false, false, false, false), // https://clickhouse.com/docs/en/interfaces/formats/#jsonasstring
     JSONCompact(false, true, false, false, false, JSONCompactEachRow), // https://clickhouse.com/docs/en/interfaces/formats/#jsoncompact
     JSONCompactStringsEachRow(true, true, false, false, true), // https://clickhouse.com/docs/en/interfaces/formats/#jsoncompactstringeachrow
+    JSONCompactStringsEachRowWithNames(true, true, false, true, true, JSONCompactStringsEachRow), // https://clickhouse.com/docs/en/interfaces/formats/#jsoncompactstringeachrowwithnames
     JSONCompactStringsEachRowWithNamesAndTypes(true, true, false, true, true, JSONCompactStringsEachRow), // https://clickhouse.com/docs/en/interfaces/formats/#jsoncompactstringeachrowwithnamesandtypes
     JSONCompactStrings(false, true, false, false, false, JSONCompactStringsEachRow), // https://clickhouse.com/docs/en/interfaces/formats/#jsoncompactstrings
     JSONEachRow(true, true, false, false, true), // https://clickhouse.com/docs/en/interfaces/formats/#jsoneachrow
     JSONEachRowWithProgress(false, true, false, false, true, JSONEachRow), // https://clickhouse.com/docs/en/interfaces/formats/#jsoneachrowwithprogress
+    JSONLines(true, true, false, false, true), // alias of JSONEachRow
+    NDJSON(true, true, true, true, true), // alias of JSONEachRow
     JSONStringsEachRow(true, true, false, false, true), // https://clickhouse.com/docs/en/interfaces/formats/#jsonstringseachrow
     JSONStringsEachRowWithProgress(false, true, false, false, true, JSONStringsEachRow), // https://clickhouse.com/docs/en/interfaces/formats/#jsonstringseachrowwithprogress
     JSONStringEachRow(false, false, false, false, true, JSONStringsEachRow), // https://clickhouse.com/docs/en/interfaces/formats/#jsoneachrow
     JSONStrings(false, true, false, false, false, JSONStringsEachRow), // https://clickhouse.com/docs/en/interfaces/formats/#jsonstring
     LineAsString(true, false, false, false, true), // https://clickhouse.com/docs/en/interfaces/formats/#lineasstring
+    LineAsStringWithNames(false, true, false, false, true, LineAsString), // https://clickhouse.com/docs/en/interfaces/formats/#lineasstringwithnames
+    LineAsStringWithNamesAndTypes(false, true, false, false, true, LineAsString), // https://clickhouse.com/docs/en/interfaces/formats/#lineasstringwithnamesandtypes
     Markdown(false, true, false, false, true), // https://clickhouse.com/docs/en/interfaces/formats/#lineasstring
     MsgPack(true, true, true, false, false), // https://clickhouse.com/docs/en/interfaces/formats/#msgpack
+    MySQLDump(true, false, false, false, true),
     MySQLWire(false, true, true, false, false),
     Native(true, true, true, true, false), // https://clickhouse.com/docs/en/interfaces/formats/#native
     Null(false, true, false, false, false), // https://clickhouse.com/docs/en/interfaces/formats/#null
@@ -53,13 +64,17 @@ public enum ClickHouseFormat {
     PrettyNoEscapes(false, true, false, false, false), // https://clickhouse.com/docs/en/interfaces/formats/#prettynoescapes
     PrettySpace(false, true, false, false, false), // https://clickhouse.com/docs/en/interfaces/formats/#prettyspace
     PrettySpaceNoEscapes(false, true, false, false, false),
+    Prometheus(false, true, false, false, true), // https://clickhouse.com/docs/en/interfaces/formats/#prometheus
     Protobuf(true, true, true, true, false), // https://clickhouse.com/docs/en/interfaces/formats/#protobuf
+    ProtobufList(true, true, true, true, false), // https://clickhouse.com/docs/en/interfaces/formats/#protobuflist
     ProtobufSingle(true, true, true, true, false), // https://clickhouse.com/docs/en/interfaces/formats/#protobufsingle
     RawBLOB(true, true, true, false, false), // https://clickhouse.com/docs/en/interfaces/formats/#rawblob
     Regexp(true, false, false, false, false), // https://clickhouse.com/docs/en/interfaces/formats/#regexp
     TSKV(true, true, false, false, false), // https://clickhouse.com/docs/en/interfaces/formats/#tskv
     TSV(true, true, false, false, true), // alias of TabSeparated
     TSVRaw(true, true, false, false, true), // alias of TabSeparatedRaw
+    TSVRawWithNames(true, true, false, true, true, TSV), // alias of TabSeparatedRawWithNames
+    TSVRawWithNamesAndTypes(true, true, false, true, true, TSV), // alias of TabSeparatedRawWithNamesAndTypes
     TSVWithNames(true, true, false, true, true, TSV), // alias of TabSeparatedWithNames
     TSVWithNamesAndTypes(true, true, false, true, true, TSV), // alias of TabSeparatedWithNamesAndTypes
     Template(true, true, false, true, true), // https://clickhouse.com/docs/en/interfaces/formats/#template
@@ -108,6 +123,13 @@ public enum ClickHouseFormat {
                     break;
                 case "parquet":
                     format = Parquet;
+                    break;
+                case "pb":
+                case "proto":
+                    format = Protobuf;
+                    break;
+                case "sql":
+                    format = MySQLDump;
                     break;
                 case "tsv":
                     format = TSV;

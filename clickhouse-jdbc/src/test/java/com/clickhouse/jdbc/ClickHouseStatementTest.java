@@ -490,6 +490,22 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
     }
 
     @Test(groups = "integration")
+    public void testQueryWithFormat() throws SQLException {
+        try (Connection conn = newConnection(new Properties())) {
+            Statement stmt = conn.createStatement();
+
+            for (String[] pair : new String[][] { new String[] { "TSV", "1" },
+                    new String[] { "JSONEachRow", "{\"1\":1}" } }) {
+                try (ResultSet rs = stmt.executeQuery(String.format("select 1 format %s", pair[0]))) {
+                    Assert.assertTrue(rs.next(), "Should have at least one row");
+                    Assert.assertEquals(rs.getString(1), pair[1]);
+                    Assert.assertFalse(rs.next(), "Should have only one row");
+                }
+            }
+        }
+    }
+
+    @Test(groups = "integration")
     public void testMultiStatementQuery() throws SQLException {
         try (ClickHouseConnection conn = newConnection(new Properties())) {
             ClickHouseStatement stmt = conn.createStatement();

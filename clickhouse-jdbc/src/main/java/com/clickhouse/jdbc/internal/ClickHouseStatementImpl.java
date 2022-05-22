@@ -18,6 +18,7 @@ import com.clickhouse.client.ClickHouseClient;
 import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseDataStreamFactory;
 import com.clickhouse.client.ClickHouseDeserializer;
+import com.clickhouse.client.ClickHouseFormat;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.ClickHouseResponseSummary;
@@ -78,6 +79,9 @@ public class ClickHouseStatementImpl extends JdbcWrapper
         ClickHouseResponse response = null;
         for (int i = 0, len = parsedStmts.length; i < len; i++) {
             ClickHouseSqlStatement stmt = parsedStmts[i];
+            if (stmt.hasFormat()) {
+                request.format(ClickHouseFormat.valueOf(stmt.getFormat()));
+            }
             // TODO skip useless queries to reduce network calls and server load
             try {
                 response = request.query(stmt.getSQL(), queryId = connection.newQueryId()).execute().get();
