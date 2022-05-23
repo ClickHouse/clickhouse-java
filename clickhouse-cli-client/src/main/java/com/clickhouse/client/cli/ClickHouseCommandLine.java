@@ -69,7 +69,7 @@ public class ClickHouseCommandLine implements AutoCloseable {
                 }
                 return exitValue == 0;
             } else {
-                log.trace("Timed out waiting for command %s to complete", list);
+                log.trace("Timed out after waiting %d ms for command %s to complete", timeout, list);
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -358,32 +358,30 @@ public class ClickHouseCommandLine implements AutoCloseable {
                 error = "";
             }
             try {
-                if (!process.waitFor(request.getConfig().getSocketTimeout(), TimeUnit.MILLISECONDS)) {
-                    return new IOException("Timed out waiting for command to terminate");
+                int exitValue = process.waitFor();
+                if (exitValue != 0) {
+                    if (error.isEmpty()) {
+                        error = ClickHouseUtils.format("Command exited with value %d", exitValue);
+                    } else {
+                        int index = error.trim().indexOf('\n');
+                        error = index > 0 ? error.substring(index + 1) : error;
+                    }
+                } else {
+                    if (!error.isEmpty()) {
+                        // TODO update response summary
+                        log.trace(() -> {
+                            for (String line : error.split("\n")) {
+                                log.trace(line);
+                            }
+                            return "";
+                        });
+                    }
+                    error = "";
                 }
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 process.destroyForcibly();
                 throw new CompletionException(e);
-            }
-            if (process.exitValue() != 0) {
-                if (error.isEmpty()) {
-                    error = ClickHouseUtils.format("Command exited with value %d", process.exitValue());
-                } else {
-                    int index = error.trim().indexOf('\n');
-                    error = index > 0 ? error.substring(index + 1) : error;
-                }
-            } else {
-                if (!error.isEmpty()) {
-                    // TODO update response summary
-                    log.trace(() -> {
-                        for (String line : error.split("\n")) {
-                            log.trace(line);
-                        }
-                        return "";
-                    });
-                }
-                error = "";
             }
         }
         return !ClickHouseChecker.isNullOrBlank(error) ? new IOException(error) : null;

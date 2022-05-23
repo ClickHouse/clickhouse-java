@@ -105,16 +105,8 @@ public interface ClickHouseClient extends AutoCloseable {
         final CountDownLatch latch = new CountDownLatch(1);
         final ClickHousePipedOutputStream stream = ClickHouseDataStreamFactory.getInstance()
                 .createPipedOutputStream(config, () -> {
-                    long timeout = config.getSocketTimeout();
                     try {
-                        if (timeout > 0L) {
-                            if (!latch.await(timeout, TimeUnit.MILLISECONDS)) {
-                                throw new IllegalStateException(
-                                        ClickHouseUtils.format("Async write timed out after %d ms", timeout));
-                            }
-                        } else {
-                            latch.await();
-                        }
+                        latch.await();
 
                         if (postCloseAction != null) {
                             postCloseAction.run();
