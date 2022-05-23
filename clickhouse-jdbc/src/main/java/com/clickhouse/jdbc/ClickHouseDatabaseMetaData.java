@@ -22,6 +22,8 @@ import com.clickhouse.client.ClickHouseDataType;
 import com.clickhouse.client.ClickHouseParameterizedQuery;
 import com.clickhouse.client.ClickHouseUtils;
 import com.clickhouse.client.ClickHouseValues;
+import com.clickhouse.client.config.ClickHouseClientOption;
+import com.clickhouse.client.config.ClickHouseRenameMethod;
 import com.clickhouse.client.data.ClickHouseRecordTransformer;
 import com.clickhouse.client.data.ClickHouseSimpleResponse;
 import com.clickhouse.client.logging.Logger;
@@ -66,7 +68,9 @@ public class ClickHouseDatabaseMetaData extends JdbcWrapper implements DatabaseM
             ClickHouseStatement stmt = connection.createStatement();
             return new ClickHouseResultSet("", "", stmt,
                     // load everything into memory
-                    ClickHouseSimpleResponse.of(stmt.getRequest().query(sql).execute().get(), func));
+                    ClickHouseSimpleResponse.of(stmt.getRequest()
+                            .option(ClickHouseClientOption.RENAME_RESPONSE_COLUMN, ClickHouseRenameMethod.NONE)
+                            .query(sql).execute().get(), func));
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw SqlExceptionUtils.forCancellation(e);
@@ -1255,8 +1259,12 @@ public class ClickHouseDatabaseMetaData extends JdbcWrapper implements DatabaseM
     public ResultSet getFunctions(String catalog, String schemaPattern, String functionNamePattern)
             throws SQLException {
         Map<String, String> params = new HashMap<>();
-        params.put("filter", ClickHouseChecker.isNullOrEmpty(schemaPattern)
-                || "system".contains(schemaPattern.toLowerCase(Locale.ROOT)) ? "1" : "0");
+        boolean systemSchema = ClickHouseChecker.isNullOrEmpty(schemaPattern);
+        if (!systemSchema) {
+            String schemaPatternLower = schemaPattern.toLowerCase(Locale.ROOT);
+            systemSchema = "system".contains(schemaPatternLower) || "information_schema".contains(schemaPatternLower);
+        }
+        params.put("filter", systemSchema ? "1" : "0");
         params.put("pattern", ClickHouseChecker.isNullOrEmpty(functionNamePattern) ? "'%'"
                 : ClickHouseValues.convertToQuotedString(functionNamePattern));
 

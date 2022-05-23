@@ -40,6 +40,7 @@ import com.clickhouse.client.ClickHouseUtils;
 import com.clickhouse.client.ClickHouseValues;
 import com.clickhouse.client.ClickHouseVersion;
 import com.clickhouse.client.config.ClickHouseClientOption;
+import com.clickhouse.client.config.ClickHouseRenameMethod;
 import com.clickhouse.client.http.config.ClickHouseHttpOption;
 import com.clickhouse.client.logging.Logger;
 import com.clickhouse.client.logging.LoggerFactory;
@@ -65,7 +66,8 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
 
     protected static ClickHouseRecord getServerInfo(ClickHouseNode node, ClickHouseRequest<?> request,
             boolean createDbIfNotExist) throws SQLException {
-        ClickHouseRequest<?> newReq = request.copy();
+        ClickHouseRequest<?> newReq = request.copy().option(ClickHouseClientOption.RENAME_RESPONSE_COLUMN,
+                ClickHouseRenameMethod.NONE);
         if (!createDbIfNotExist) { // in case the database does not exist
             newReq.option(ClickHouseClientOption.DATABASE, "");
         }
@@ -189,6 +191,7 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
         builder.append('`').append(ClickHouseUtils.escape(tableName, '`')).append('`').append(" WHERE 0");
         List<ClickHouseColumn> list;
         try (ClickHouseResponse resp = clientRequest.copy().format(ClickHouseFormat.RowBinaryWithNamesAndTypes)
+                .option(ClickHouseClientOption.RENAME_RESPONSE_COLUMN, ClickHouseRenameMethod.NONE)
                 .query(builder.toString()).execute().get()) {
             list = resp.getColumns();
         } catch (InterruptedException e) {
