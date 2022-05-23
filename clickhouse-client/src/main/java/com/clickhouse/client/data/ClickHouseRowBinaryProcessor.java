@@ -547,8 +547,7 @@ public class ClickHouseRowBinaryProcessor extends ClickHouseDataProcessor {
                 .getOption(ClickHouseClientOption.RENAME_RESPONSE_COLUMN);
         List<ClickHouseColumn> columns = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
-            // a bit risky here - what if ClickHouse support user type?
-            columns.add(ClickHouseColumn.of(m.rename(names[i]), input.readAsciiString()));
+            columns.add(ClickHouseColumn.of(m.rename(names[i]), input.readUnicodeString()));
         }
 
         return columns;

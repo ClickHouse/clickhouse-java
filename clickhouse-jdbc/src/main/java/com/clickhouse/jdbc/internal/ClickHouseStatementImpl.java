@@ -23,6 +23,7 @@ import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.ClickHouseResponseSummary;
 import com.clickhouse.client.ClickHouseSerializer;
+import com.clickhouse.client.ClickHouseUtils;
 import com.clickhouse.client.ClickHouseValue;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.config.ClickHouseConfigChangeListener;
@@ -123,18 +124,20 @@ public class ClickHouseStatementImpl extends JdbcWrapper
             }
             if (tables != null && !tables.isEmpty()) {
                 List<ClickHouseExternalTable> list = new ArrayList<>(tables.size());
+                char quote = '`';
                 for (ClickHouseExternalTable t : tables) {
                     if (t.isTempTable()) {
                         if (!request.getSessionId().isPresent()) {
                             request.session(UUID.randomUUID().toString());
                         }
-                        request.query("drop temporary table if exists `" + t.getName() + "`").execute().get();
-                        request.query("create temporary table `" + t.getName() + "`(" + t.getStructure() + ")")
-                                .execute().get();
-                        request.write()
-                                .table(t.getName())
+                        String tableName = new StringBuilder().append(quote)
+                                .append(ClickHouseUtils.escape(t.getName(), quote)).append(quote).toString();
+                        request.query("drop temporary table if exists ".concat(tableName)).executeAndWait();
+                        request.query("create temporary table " + tableName + "(" + t.getStructure() + ")")
+                                .executeAndWait();
+                        request.write().table(tableName)
                                 // .format(t.getFormat() != null ? t.getFormat() : ClickHouseFormat.RowBinary)
-                                .data(t.getContent()).sendAndWait();
+                                .data(t.getContent()).send().get();
                     } else {
                         list.add(t);
                     }
