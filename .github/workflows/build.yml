@@ -91,7 +91,7 @@ jobs:
         run: mvn --batch-mode --update-snapshots -Drelease -DskipTests install
       - name: Build
         run: |
-          mvn --batch-mode --update-snapshots -Drelease -DclickhouseVersion=${{ matrix.clickhouse }} -Dprotocol=${{ matrix.protocol }} verify
+          mvn --batch-mode -Drelease -DclickhouseVersion=${{ matrix.clickhouse }} -Dprotocol=${{ matrix.protocol }} verify
       - name: Upload test results
         uses: actions/upload-artifact@v2
         if: failure()

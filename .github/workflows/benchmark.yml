@@ -107,7 +107,7 @@ jobs:
         continue-on-error: true
       - name: Build project
         run: |
-          mvn --batch-mode --update-snapshots -DskipTests -pl clickhouse-benchmark -am package
+          mvn --batch-mode -DskipTests -pl clickhouse-benchmark -am package
           cd clickhouse-benchmark
           java -DclickhouseVersion="21.8" -jar target/benchmarks.jar -rf json ${{ github.event.inputs.options }} > output.txt
           echo "BENCHMARK_REPORT<<EOF" >> $GITHUB_ENV

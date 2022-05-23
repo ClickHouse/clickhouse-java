@@ -61,8 +61,7 @@ jobs:
             --also-make install
       - name: Test JDBC driver
         run: |
-          mvn --batch-mode --update-snapshots \
-            --projects clickhouse-jdbc \
+          mvn --batch-mode --projects clickhouse-jdbc \
             -DclickhouseTimezone=${{ matrix.serverTz }} \
             -DclickhouseVersion=22.3 \
             -Duser.timezone=${{ matrix.clientTz }} \
