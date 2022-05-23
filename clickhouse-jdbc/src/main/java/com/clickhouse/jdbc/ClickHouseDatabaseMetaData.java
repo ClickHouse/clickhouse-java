@@ -1263,11 +1263,11 @@ public class ClickHouseDatabaseMetaData extends JdbcWrapper implements DatabaseM
         String sql = ClickHouseParameterizedQuery.apply(
                 "select * from (select null as FUNCTION_CAT, 'system' as FUNCTION_SCHEM, name as FUNCTION_NAME,\n"
                         + "concat('case-', case_insensitive ? 'in' : '', 'sensitive function', is_aggregate ? ' for aggregation' : '') as REMARKS,"
-                        + "1 as FUNCTION_TYPE, name as SPECIFIC_NAME from system.functions\n"
-                        + "where alias_to = '' and name like :pattern order by name union all\n"
+                        + "1 as FUNCTION_TYPE, name as SPECIFIC_NAME from system.functions where name like :pattern union all\n"
                         + "select null as FUNCTION_CAT, 'system' as FUNCTION_SCHEM, name as FUNCTION_NAME,\n"
                         + "'case-sensitive table function' as REMARKS, 2 as FUNCTION_TYPE, name as SPECIFIC_NAME from system.table_functions\n"
-                        + "order by name) where :filter",
+                        + "where name not in (select name from system.functions) and name like :pattern) where :filter\n"
+                        + "order by FUNCTION_CAT, FUNCTION_SCHEM, FUNCTION_NAME",
                 params);
         return query(sql);
     }
