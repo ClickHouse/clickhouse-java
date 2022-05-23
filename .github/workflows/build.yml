@@ -85,6 +85,10 @@ jobs:
           distribution: 'temurin'
           java-version: 8
           cache: 'maven'
+      # or take below workaround as mentioned at https://github.com/actions/virtual-environments/issues/1499#issuecomment-689467080
+      # -Dhttp.keepAlive=false -Dmaven.wagon.http.pool=false -Dmaven.wagon.httpconnectionManager.ttlSeconds=120
+      - name: Check
+        run: mvn --batch-mode --update-snapshots -Drelease -DskipTests install
       - name: Build
         run: |
           mvn --batch-mode --update-snapshots -Drelease -DclickhouseVersion=${{ matrix.clickhouse }} -Dprotocol=${{ matrix.protocol }} verify
