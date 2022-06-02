@@ -125,21 +125,8 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
         StringBuilder builder = new StringBuilder();
         builder.append(config.isSsl() ? "https" : "http").append("://").append(server.getHost()).append(':')
                 .append(server.getPort()).append('/');
-        String context = (String) config.getOption(ClickHouseHttpOption.WEB_CONTEXT);
-        if (context != null && !context.isEmpty()) {
-            char prev = '/';
-            for (int i = 0, len = context.length(); i < len; i++) {
-                char ch = context.charAt(i);
-                if (ch != '/' || ch != prev) {
-                    builder.append(ch);
-                }
-                prev = ch;
-            }
 
-            if (prev != '/') {
-                builder.append('/');
-            }
-        }
+        builder.append(buildUrlPath(config));
 
         String query = buildQueryParams(request);
         if (!query.isEmpty()) {
@@ -147,6 +134,33 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
         }
 
         return builder.toString();
+    }
+
+    private static String buildUrlPath(ClickHouseConfig config) {
+        StringBuilder contextBuilder = new StringBuilder();
+        String context = (String) config.getOption(ClickHouseHttpOption.WEB_CONTEXT);
+        if (context != null && !context.isEmpty()) {
+
+            char prev = '/';
+            for (int i = 0, len = context.length(); i < len; i++) {
+                char ch = context.charAt(i);
+                if (ch != '/' || ch != prev) {
+                    contextBuilder.append(ch);
+                }
+                prev = ch;
+            }
+
+            if (prev != '/') {
+                contextBuilder.append('/');
+            }
+        }
+
+        String customPath = (String) config.getOption(ClickHouseHttpOption.CUSTOM_URL_PATH);
+        if (customPath != null && !customPath.isEmpty()) {
+            contextBuilder.append(customPath);
+        }
+
+        return contextBuilder.toString();
     }
 
     protected final ClickHouseConfig config;
