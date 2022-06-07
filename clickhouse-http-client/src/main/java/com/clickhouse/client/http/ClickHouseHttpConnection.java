@@ -150,14 +150,6 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
                 prev = ch;
             }
 
-            if (prev != '/') {
-                contextBuilder.append('/');
-            }
-        }
-
-        String customPath = (String) config.getOption(ClickHouseHttpOption.CUSTOM_URL_PATH);
-        if (customPath != null && !customPath.isEmpty()) {
-            contextBuilder.append(customPath);
         }
 
         return contextBuilder.toString();
@@ -236,6 +228,17 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
         }
 
         return baseUrl;
+    }
+
+    protected String getPingUrl() {
+        StringBuilder pingUrlBuilder = new StringBuilder();
+        String baseUrl = getBaseUrl();
+        pingUrlBuilder.append(baseUrl);
+        if (!baseUrl.endsWith("/")) {
+            pingUrlBuilder.append("/");
+        }
+        pingUrlBuilder.append("ping");
+        return pingUrlBuilder.toString();
     }
 
     /**

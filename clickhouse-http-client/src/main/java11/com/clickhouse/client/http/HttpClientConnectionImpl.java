@@ -14,7 +14,6 @@ import com.clickhouse.client.http.config.ClickHouseHttpOption;
 import com.clickhouse.client.logging.Logger;
 import com.clickhouse.client.logging.LoggerFactory;
 
-import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.IOException;
 import java.io.InputStream;
@@ -119,7 +118,7 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
         }
 
         httpClient = builder.build();
-        pingRequest = newRequest(getBaseUrl() + "ping");
+        pingRequest = newRequest(getPingUrl());
     }
 
     @Override

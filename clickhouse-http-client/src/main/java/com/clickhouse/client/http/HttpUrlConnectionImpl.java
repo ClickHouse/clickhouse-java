@@ -258,7 +258,8 @@ public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
         String response = (String) config.getOption(ClickHouseHttpOption.DEFAULT_RESPONSE);
         HttpURLConnection c = null;
         try {
-            c = newConnection(getBaseUrl() + "ping", false);
+            String pingUrl = getPingUrl();
+            c = newConnection(pingUrl, false);
             c.setConnectTimeout(timeout);
             c.setReadTimeout(timeout);
 

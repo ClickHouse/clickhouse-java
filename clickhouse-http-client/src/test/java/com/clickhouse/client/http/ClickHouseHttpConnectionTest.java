@@ -65,7 +65,7 @@ public class ClickHouseHttpConnectionTest {
                 "http://localhost:8123/?compress=1&extremes=0");
         Assert.assertEquals(
                 ClickHouseHttpConnection.buildUrl(server, request.option(ClickHouseHttpOption.WEB_CONTEXT, ".")),
-                "http://localhost:8123/./?compress=1&extremes=0");
+                "http://localhost:8123/.?compress=1&extremes=0");
         Assert.assertEquals(
                 ClickHouseHttpConnection.buildUrl(server, request.option(ClickHouseHttpOption.WEB_CONTEXT, "./")),
                 "http://localhost:8123/./?compress=1&extremes=0");

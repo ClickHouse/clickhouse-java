@@ -23,10 +23,6 @@ public enum ClickHouseHttpOption implements ClickHouseOption {
      */
     CUSTOM_PARAMS("custom_http_params", "", "Custom HTTP query parameters."),
     /**
-     * Custom additional URL path.
-     */
-    CUSTOM_URL_PATH("custom_url_path", "", "Custom additional URL path."),
-    /**
      * Default server response.
      */
     DEFAULT_RESPONSE("http_server_default_response", "Ok.\n",
