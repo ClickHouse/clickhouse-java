@@ -28,6 +28,7 @@ public class StreamSplitter {
     private boolean readOnce;
 
     private boolean closed;
+    private boolean marking =false;
 
     public StreamSplitter(ByteFragment bf, byte sep) {
         this.delegate = bf.asStream();
@@ -105,9 +106,14 @@ public class StreamSplitter {
         if (posNext > 0) {
             byte[] oldBuf = buf;
             buf = new byte[buf.length];
-            System.arraycopy(oldBuf, posNext, buf, 0, oldBuf.length - posNext);
-            posRead -= posNext;
-            posNext = 0;
+            int copyOffset = (marking && markedNext < posNext) ? markedNext : posNext;
+            System.arraycopy(oldBuf, copyOffset, buf, 0, oldBuf.length - copyOffset);
+            posRead -= copyOffset;
+            posNext -= copyOffset;
+            if (marking) {
+                markedRead -= copyOffset;
+                markedNext -= copyOffset;
+            }
         } else {
             byte[] oldBuf = buf;
             int len = buf.length * 2;
