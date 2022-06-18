@@ -2,6 +2,7 @@ package com.clickhouse.client;
 
 import java.net.ConnectException;
 import java.net.SocketTimeoutException;
+import java.util.Locale;
 import java.util.concurrent.TimeoutException;
 
 /**
@@ -20,6 +21,8 @@ public class ClickHouseException extends Exception {
     public static final int ERROR_POCO = 1000;
     public static final int ERROR_TIMEOUT = 159;
     public static final int ERROR_UNKNOWN = 1002;
+
+    static final String MSG_CONNECT_TIMED_OUT = "connect timed out";
 
     private final int errorCode;
 
@@ -86,6 +89,25 @@ public class ClickHouseException extends Exception {
     }
 
     /**
+     * Checks if the given exception represents connection timeout error.
+     *
+     * @param t exception
+     * @return true if the exception represents connection timeout error; false
+     *         otherwise
+     */
+    public static boolean isConnectTimedOut(Throwable t) {
+        if (t instanceof SocketTimeoutException || t instanceof TimeoutException) {
+            String msg = t.getMessage();
+            if (msg != null && msg.length() >= MSG_CONNECT_TIMED_OUT.length()) {
+                msg = msg.substring(0, MSG_CONNECT_TIMED_OUT.length()).toLowerCase(Locale.ROOT);
+            }
+            return MSG_CONNECT_TIMED_OUT.equals(msg);
+        }
+
+        return false;
+    }
+
+    /**
      * Creates an exception to encapsulate cause of the given exception.
      *
      * @param e      exception
@@ -105,6 +127,9 @@ public class ClickHouseException extends Exception {
         }
 
         ClickHouseException exp;
+        // If we've got SocketTimeoutException, we'll say that the query is not good.
+        // This is not the same as SOCKET_TIMEOUT of clickhouse but it actually could be
+        // a failing ClickHouse
         if (cause instanceof SocketTimeoutException || cause instanceof TimeoutException) {
             exp = new ClickHouseException(ERROR_TIMEOUT, cause, server);
         } else if (cause instanceof ConnectException) {

@@ -57,14 +57,35 @@ public class ClickHouseDataSource extends JdbcWrapper implements DataSource {
         return driver.connect(url, props);
     }
 
+    /**
+     * Gets host.
+     *
+     * @return host
+     * @deprecated will be removed in v0.3.3
+     */
+    @Deprecated
     public String getHost() {
         return connInfo.getServer().getHost();
     }
 
+    /**
+     * Gets port.
+     *
+     * @return port
+     * @deprecated will be removed in v0.3.3
+     */
+    @Deprecated
     public int getPort() {
         return connInfo.getServer().getPort();
     }
 
+    /**
+     * Gets database.
+     *
+     * @return database
+     * @deprecated will be removed in v0.3.3
+     */
+    @Deprecated
     public String getDatabase() {
         return connInfo.getServer().getDatabase()
                 .orElse((String) ClickHouseDefaults.DATABASE.getEffectiveDefaultValue());

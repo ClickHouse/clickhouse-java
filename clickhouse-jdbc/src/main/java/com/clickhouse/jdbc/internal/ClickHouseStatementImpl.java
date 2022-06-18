@@ -384,7 +384,7 @@ public class ClickHouseStatementImpl extends JdbcWrapper
         ensureOpen();
 
         if (this.maxRows != max) {
-            if (max == 0L) {
+            if (max == 0L || !connection.allowCustomSetting()) {
                 request.removeSetting("max_result_rows");
                 request.removeSetting("result_overflow_mode");
             } else {

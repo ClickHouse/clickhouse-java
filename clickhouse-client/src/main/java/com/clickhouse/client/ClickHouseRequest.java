@@ -16,8 +16,10 @@ import java.util.Objects;
 import java.util.Map.Entry;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.Optional;
 import java.util.Properties;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 
 import com.clickhouse.client.config.ClickHouseClientOption;
@@ -38,9 +40,7 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
      */
     public static class Mutation extends ClickHouseRequest<Mutation> {
         protected Mutation(ClickHouseRequest<?> request, boolean sealed) {
-            super(request.getClient(), request.server, sealed);
-
-            this.options.putAll(request.options);
+            super(request.getClient(), request.server, request.serverRef, request.options, sealed);
             this.settings.putAll(request.settings);
         }
 
@@ -263,6 +263,7 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
 
     protected final ClickHouseConfig clientConfig;
     protected final Function<ClickHouseNodeSelector, ClickHouseNode> server;
+    protected final AtomicReference<ClickHouseNode> serverRef;
     protected final transient List<ClickHouseExternalTable> externalTables;
     protected final Map<ClickHouseOption, Serializable> options;
     protected final Map<String, Serializable> settings;
@@ -276,25 +277,27 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
     protected ClickHouseParameterizedQuery preparedQuery;
 
     protected transient ClickHouseConfigChangeListener<ClickHouseRequest<?>> changeListener;
+    protected transient BiConsumer<ClickHouseNode, ClickHouseNode> serverListener;
 
     // cache
     protected transient ClickHouseConfig config;
     protected transient List<String> statements;
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings("squid:S1905")
     protected ClickHouseRequest(ClickHouseClient client, Function<ClickHouseNodeSelector, ClickHouseNode> server,
-            boolean sealed) {
+            AtomicReference<ClickHouseNode> ref, Map<ClickHouseOption, Serializable> options, boolean sealed) {
         if (client == null || server == null) {
             throw new IllegalArgumentException("Non-null client and server are required");
         }
 
         this.client = client;
         this.clientConfig = client.getConfig();
-        this.server = (Function<ClickHouseNodeSelector, ClickHouseNode> & Serializable) server::apply;
+        this.server = (Function<ClickHouseNodeSelector, ClickHouseNode> & Serializable) server;
+        this.serverRef = ref == null ? new AtomicReference<>(null) : ref;
         this.sealed = sealed;
 
         this.externalTables = new LinkedList<>();
-        this.options = new HashMap<>();
+        this.options = options != null ? new HashMap<>(options) : new HashMap<>();
         this.settings = new LinkedHashMap<>();
 
         this.namedParameters = new HashMap<>();
@@ -305,6 +308,15 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
             changeListener.propertyChanged(this, property, oldValue, newValue);
         }
         return newValue;
+    }
+
+    protected ClickHouseNode changeServer(ClickHouseNode currentServer, ClickHouseNode newServer) {
+        if (!serverRef.compareAndSet(currentServer, newServer)) {
+            newServer = getServer();
+        } else if (serverListener != null) {
+            serverListener.accept(currentServer, newServer);
+        }
+        return newServer;
     }
 
     protected void checkSealed() {
@@ -341,14 +353,15 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
     }
 
     /**
-     * Creates a copy of this request object.
+     * Creates a copy of this request. Pay attention that the same node reference
+     * (returned from {@link #getServer()}) will be copied to the new request as
+     * well, meaning failover will change node for both requets.
      *
      * @return copy of this request
      */
     public ClickHouseRequest<SelfT> copy() {
-        ClickHouseRequest<SelfT> req = new ClickHouseRequest<>(getClient(), server, false);
+        ClickHouseRequest<SelfT> req = new ClickHouseRequest<>(getClient(), server, serverRef, options, false);
         req.externalTables.addAll(externalTables);
-        req.options.putAll(options);
         req.settings.putAll(settings);
         req.namedParameters.putAll(namedParameters);
         req.input = input;
@@ -389,13 +402,21 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
     }
 
     /**
-     * Depending on the {@link java.util.function.Function} passed to the
-     * constructor, this method may return different node for each call.
+     * Gets the server currently connected to. The initial value was determined by
+     * the {@link java.util.function.Function} passed to constructor, and it may be
+     * changed over time when failover is enabled.
      * 
-     * @return node defined by {@link java.util.function.Function}
+     * @return non-null node
      */
     public final ClickHouseNode getServer() {
-        return this.server.apply(getConfig().getNodeSelector());
+        ClickHouseNode node = serverRef.get();
+        if (node == null) {
+            node = server.apply(getConfig().getNodeSelector());
+            if (!serverRef.compareAndSet(null, node)) {
+                node = serverRef.get();
+            }
+        }
+        return node;
     }
 
     /**
@@ -428,6 +449,17 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
     @SuppressWarnings("unchecked")
     public final SelfT setChangeListener(ClickHouseConfigChangeListener<ClickHouseRequest<?>> listener) {
         this.changeListener = listener;
+        return (SelfT) this;
+    }
+
+    /**
+     * Sets server change listener.
+     *
+     * @param listener change listener which may or may not be null
+     * @return the request itself
+     */
+    public final SelfT setServerListener(BiConsumer<ClickHouseNode, ClickHouseNode> listener) {
+        this.serverListener = listener;
         return (SelfT) this;
     }
 
@@ -1108,15 +1140,17 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
 
         List<String> names = getPreparedQuery().getParameters();
         int size = names.size();
-        int index = 0;
-        namedParameters.put(names.get(index++), value);
+        if (size > 0) {
+            int index = 0;
+            namedParameters.put(names.get(index++), value);
 
-        if (more != null && more.length > 0) {
-            for (String v : more) {
-                if (index >= size) {
-                    break;
+            if (more != null && more.length > 0) {
+                for (String v : more) {
+                    if (index >= size) {
+                        break;
+                    }
+                    namedParameters.put(names.get(index++), v);
                 }
-                namedParameters.put(names.get(index++), v);
             }
         }
 
@@ -1444,7 +1478,7 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
      * @return the request itself
      */
     public SelfT table(String table, String queryId) {
-        return query("SELECT * FROM " + ClickHouseChecker.nonBlank(table, "table"), queryId);
+        return query("SELECT * FROM ".concat(ClickHouseChecker.nonBlank(table, "table")), queryId);
     }
 
     /**
@@ -1570,6 +1604,7 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
             }
             this.changeListener = null;
         }
+        this.serverListener = null;
         this.namedParameters.clear();
 
         this.input = changeProperty(PROP_DATA, this.input, null);
@@ -1593,9 +1628,8 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
 
         if (!isSealed()) {
             // no idea which node we'll connect to until now
-            req = new ClickHouseRequest<>(client, getServer(), true);
+            req = new ClickHouseRequest<>(client, getServer(), serverRef, options, true);
             req.externalTables.addAll(externalTables);
-            req.options.putAll(options);
             req.settings.putAll(settings);
 
             req.namedParameters.putAll(namedParameters);

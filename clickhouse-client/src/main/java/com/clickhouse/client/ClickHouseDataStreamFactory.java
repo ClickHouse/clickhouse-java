@@ -140,7 +140,9 @@ public class ClickHouseDataStreamFactory {
     /**
      * Creates a piped output stream.
      *
-     * @param config non-null configuration
+     * @param config          non-null configuration
+     * @param postCloseAction custom action will be performed right after closing
+     *                        the output stream
      * @return piped output stream
      */
     public ClickHousePipedOutputStream createPipedOutputStream(ClickHouseConfig config, Runnable postCloseAction) {

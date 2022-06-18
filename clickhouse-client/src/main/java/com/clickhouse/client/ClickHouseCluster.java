@@ -1,412 +1,141 @@
 package com.clickhouse.client;
 
-import java.io.IOException;
-import java.io.OutputStream;
-import java.io.Serializable;
-import java.net.InetSocketAddress;
-import java.net.Socket;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Function;
-import com.clickhouse.client.ClickHouseNode.Status;
-import com.clickhouse.client.logging.Logger;
-import com.clickhouse.client.logging.LoggerFactory;
 
-/**
- * List of {@link ClickHouseNode}. By default, all nodes are considered as
- * healthy. When connection issue happened, corresponding node will be moved to
- * unhealthy list, where a background thread will validate its status time from
- * time and eventually bring them back to healthy list if no issue.
- *
- * <p>
- * When a node's protocol is {@link ClickHouseProtocol#ANY}, this class will
- * also try to probe the protocol by sending a packet to the port and analyze
- * response from server.
- */
-class ClickHouseCluster implements Function<ClickHouseNodeSelector, ClickHouseNode>, Serializable {
+import com.clickhouse.client.config.ClickHouseClientOption;
+
+public class ClickHouseCluster extends ClickHouseNodes {
     private static final long serialVersionUID = 8684489015067906319L;
 
-    private static final Logger log = LoggerFactory.getLogger(ClickHouseCluster.class);
-
-    private static final String PARAM_NODES = "nodes";
-
     /**
-     * Enum of load balancing policy.
-     */
-    public enum LoadBalancingPolicy {
-        ROUND_ROBIN, // nothing fancy
-        PICK_FIRST // stick with the first healthy node
-    }
-
-    /**
-     * Builder class for creating {@link ClickHouseCluster}.
-     */
-    public static class Builder {
-        private final List<ClickHouseNode> nodes;
-        private LoadBalancingPolicy lbPolicy;
-
-        private Builder() {
-            nodes = new LinkedList<>();
-        }
-
-        /**
-         * Add node.
-         *
-         * @param node node to be added
-         * @return this builder
-         */
-        protected Builder addNode(ClickHouseNode node) {
-            if (!nodes.contains(ClickHouseChecker.nonNull(node, "node"))) {
-                nodes.add(node);
-            }
-
-            return this;
-        }
-
-        /**
-         * Add nodes.
-         *
-         * @param node node to be added
-         * @param more more nodes to be added
-         * @return this builder
-         */
-        public Builder addNodes(ClickHouseNode node, ClickHouseNode... more) {
-            addNode(node);
-
-            if (more != null) {
-                for (ClickHouseNode n : more) {
-                    addNode(n);
-                }
-            }
-
-            return this;
-        }
-
-        /**
-         * Add nodes.
-         *
-         * @param nodes list of nodes to be added
-         * @return this builder
-         */
-        public Builder addNodes(Collection<ClickHouseNode> nodes) {
-            for (ClickHouseNode node : ClickHouseChecker.nonNull(nodes, PARAM_NODES)) {
-                addNode(node);
-            }
-
-            return this;
-        }
-
-        /**
-         * Merge nodes from the given cluster.
-         *
-         * @param cluster list of nodes to merge
-         * @return this builder
-         */
-        public Builder merge(ClickHouseCluster cluster) {
-            for (ClickHouseNode node : ClickHouseChecker.nonNull(cluster, "cluster").nodes) {
-                addNode(node);
-            }
-
-            return this;
-        }
-
-        public Builder withLbPolicy(LoadBalancingPolicy policy) {
-            this.lbPolicy = policy;
-            return this;
-        }
-
-        /**
-         * Build the cluster object.
-         *
-         * @return cluster
-         */
-        public ClickHouseCluster build() {
-            return new ClickHouseCluster(lbPolicy, nodes);
-        }
-    }
-
-    /**
-     * Get builder for building cluster object.
+     * Creates cluster object from list of nodes.
      *
-     * @return builder for building cluster object
-     */
-    public static Builder builder() {
-        return new Builder();
-    }
-
-    /**
-     * Same as {@link #probe(ClickHouseNode, int)} except it uses default
-     * timeout(3000 milliseconds).
-     *
-     * @param node non-null target node
-     * @return probed node, which may or may not be the same as given node
-     */
-    public static ClickHouseNode probe(ClickHouseNode node) {
-        return probe(node, 3000);
-    }
-
-    /**
-     * Probe the node by resolving its DNS and detect protocol as needed.
-     *
-     * @param node    non-null target node
-     * @param timeout timeout in milliseconds
-     * @return probed node, which may or may not be the same as given node
-     */
-    public static ClickHouseNode probe(ClickHouseNode node, int timeout) {
-        ClickHouseDnsResolver resolver = ClickHouseDnsResolver.getInstance();
-        if (ClickHouseChecker.nonNull(node, "node").getProtocol() == ClickHouseProtocol.ANY) {
-            InetSocketAddress address = resolver != null
-                    ? resolver.resolve(ClickHouseProtocol.ANY, node.getHost(), node.getPort())
-                    : new InetSocketAddress(node.getHost(), node.getPort());
-
-            ClickHouseProtocol p = ClickHouseProtocol.HTTP;
-            // TODO needs a better way so that we can detect PostgreSQL port as well
-            try (Socket client = new Socket()) {
-                client.setKeepAlive(false);
-                client.connect(address, timeout);
-                client.setSoTimeout(timeout);
-                OutputStream out = client.getOutputStream();
-                out.write("GET /ping HTTP/1.1\r\n\r\n".getBytes(StandardCharsets.US_ASCII));
-                out.flush();
-                byte[] buf = new byte[12]; // HTTP/1.x xxx
-                if (client.getInputStream().read(buf) == buf.length) {
-                    if (buf[0] == 0) {
-                        p = ClickHouseProtocol.GRPC;
-                    } else if (buf[3] == 0) {
-                        p = ClickHouseProtocol.MYSQL;
-                    } else if (buf[0] == 72 && buf[9] == 52) {
-                        p = ClickHouseProtocol.TCP;
-                    }
-                }
-            } catch (IOException e) {
-                log.debug("Failed to probe: " + address, e);
-            }
-
-            node = ClickHouseNode.builder(node).port(p).build();
-        }
-
-        return node;
-    }
-
-    /**
-     * Create cluster object from list of nodes.
-     *
-     * @param nodes list of nodes
+     * @param node first node
+     * @param more more nodes if any
      * @return cluster object
      */
-    public static ClickHouseCluster of(ClickHouseNode... nodes) {
-        return new ClickHouseCluster(null, nodes);
+    public static ClickHouseCluster of(ClickHouseNode node, ClickHouseNode... more) {
+        return of(null, node, more);
     }
 
     /**
-     * Create cluster object from list of nodes.
+     * Creates cluster object from list of nodes.
      *
-     * @param nodes list of nodes
+     * @param cluster cluster name
+     * @param node    first node
+     * @param more    more nodes if any
      * @return cluster object
      */
-    public static ClickHouseCluster of(Collection<ClickHouseNode> nodes) {
-        return new ClickHouseCluster(null, nodes);
+    public static ClickHouseCluster of(String cluster, ClickHouseNode node, ClickHouseNode... more) {
+        if (node == null) {
+            throw new IllegalArgumentException("At least one non-null node is required");
+        }
+
+        List<ClickHouseNode> list = new LinkedList<>();
+        list.add(node);
+        if (more != null) {
+            list.addAll(Arrays.asList(more));
+        }
+        return of(cluster, list);
     }
 
-    protected static void handleUncaughtException(Thread r, Throwable t) {
-        log.warn("Exception caught from thread: " + r, t);
-    }
+    public static ClickHouseCluster of(String cluster, Collection<ClickHouseNode> nodes) {
+        if (nodes == null || nodes.isEmpty() || nodes.iterator().next() == null) {
+            throw new IllegalArgumentException("At least one non-null node is required");
+        }
 
-    private final AtomicBoolean checking;
-    private final transient ScheduledExecutorService scheduledExecutor;
-    private final List<ClickHouseNode> unhealthyNodes;
-
-    private final AtomicInteger index;
-    private final List<ClickHouseNode> nodes;
-    private final LoadBalancingPolicy lbPolicy;
-
-    /**
-     * Constructor cluster object using list of nodes.
-     *
-     * @param policy load balancing policy
-     * @param nodes  list of nodes
-     */
-    protected ClickHouseCluster(LoadBalancingPolicy policy, ClickHouseNode... nodes) {
-        this(policy, Arrays.asList(ClickHouseChecker.nonNull(nodes, PARAM_NODES)));
-    }
-
-    /**
-     * Constructor cluster object using list of nodes.
-     *
-     * @param policy load balancing policy
-     * @param nodes  list of nodes
-     */
-    protected ClickHouseCluster(LoadBalancingPolicy policy, Collection<ClickHouseNode> nodes) {
-        this.lbPolicy = policy == null ? LoadBalancingPolicy.ROUND_ROBIN : policy;
-
-        this.checking = new AtomicBoolean(false);
-        this.index = new AtomicInteger(0);
-
-        int size = ClickHouseChecker.nonNull(nodes, PARAM_NODES).size();
-
-        this.nodes = Collections.synchronizedList(new ArrayList<>(size));
-        this.unhealthyNodes = Collections.synchronizedList(new ArrayList<>(size));
-
-        // should make it a static member
-        this.scheduledExecutor = Executors.newSingleThreadScheduledExecutor(new ThreadFactory() {
-            @Override
-            public Thread newThread(Runnable r) {
-                Thread thread = new Thread(r, ClickHouseCluster.class.getSimpleName());
-                thread.setDaemon(true);
-                thread.setUncaughtExceptionHandler(ClickHouseCluster::handleUncaughtException);
-                return thread;
+        boolean autoDiscovery = false;
+        String clusterName = cluster;
+        int size = nodes.size();
+        List<ClickHouseNode> list = new ArrayList<>(size);
+        for (ClickHouseNode n : nodes) {
+            if (n == null) {
+                continue;
             }
-        });
-
-        for (ClickHouseNode node : nodes) {
-            if (node == null) {
+            autoDiscovery = autoDiscovery || (boolean) n.config.getOption(ClickHouseClientOption.AUTO_DISCOVERY);
+            String name = n.getCluster();
+            if (!ClickHouseChecker.isNullOrEmpty(name)) {
+                if (ClickHouseChecker.isNullOrEmpty(clusterName)) {
+                    clusterName = name;
+                } else if (!name.equals(clusterName)) {
+                    throw new IllegalArgumentException(
+                            ClickHouseUtils.format(
+                                    "Cluster name should be [%s] for all %d node(s), but it's [%s] for %s", clusterName,
+                                    size, name, n));
+                }
+            }
+        }
+        if (autoDiscovery && ClickHouseChecker.isNullOrEmpty(clusterName)) {
+            throw new IllegalArgumentException("Please specify non-empty cluster name in order to use auto discovery");
+        }
+        for (ClickHouseNode n : nodes) {
+            if (n == null) {
                 continue;
             }
 
-            probe(node).setManager(this::update);
-        }
-    }
-
-    protected synchronized void update(ClickHouseNode node, Status status) {
-        switch (status) {
-            case UNMANAGED:
-                nodes.remove(node);
-                unhealthyNodes.remove(node);
-                break;
-            case MANAGED:
-            case HEALTHY:
-                unhealthyNodes.remove(node);
-                if (!nodes.contains(node)) {
-                    nodes.add(node);
-                }
-                break;
-            case UNHEALTHY:
-                nodes.remove(node);
-                if (!unhealthyNodes.contains(node)) {
-                    unhealthyNodes.add(node);
-
-                    if (!checking.get()) {
-                        this.scheduledExecutor.execute(this::check);
-                    }
-                }
-                break;
-            default:
-                break;
-        }
-    }
-
-    protected void check() {
-        if (checking.compareAndSet(false, true)) {
-            return;
-        }
-
-        // detect flaky node and check it in a different way(less frequency)
-        try {
-            boolean passed = true;
-            int timeout = 5000;
-            for (int i = 0; i < unhealthyNodes.size(); i++) {
-                ClickHouseNode node = probe(unhealthyNodes.get(i), timeout);
-
-                // probe is faster than ping but it cannot tell if the server works or not
-                boolean isAlive = false;
-                try (ClickHouseClient client = ClickHouseClient.newInstance(node.getProtocol())) {
-                    isAlive = client.ping(node, timeout);
-                } catch (Exception e) {
-                    // ignore
-                }
-                if (isAlive) { // another configuration?
-                    update(node, Status.HEALTHY);
-                } else {
-                    passed = false;
-                }
+            n = clusterName.equals(n.getCluster()) ? n : ClickHouseNode.builder(n).cluster(clusterName).build();
+            if (!list.contains(n)) {
+                list.add(n);
             }
-
-            if (!passed) {
-                this.scheduledExecutor.schedule(this::check, 3L, TimeUnit.SECONDS);
-            }
-        } finally {
-            checking.set(false);
         }
+        return new ClickHouseCluster(clusterName, list);
     }
 
-    /**
-     * Get load balancing policy.
-     *
-     * @return load balancing policy
-     */
-    public LoadBalancingPolicy getLbPolicy() {
-        return lbPolicy;
-    }
+    private final String clusterName;
 
     /**
-     * Check if the cluster has any node available for access.
+     * Constructs cluster object using policy and list of nodes. It could be slow
+     * when {@link ClickHouseClientOption#AUTO_DISCOVERY} is enabled.
      *
-     * @return if there's at least one node is available for access
+     * @param cluster non-null cluster name
+     * @param nodes   list of nodes
      */
-    public boolean hasNode() {
-        return !this.nodes.isEmpty();
+    protected ClickHouseCluster(String cluster, Collection<ClickHouseNode> nodes) {
+        super(nodes);
+        this.clusterName = cluster;
     }
 
-    /**
-     * Get all available nodes in the cluster.
-     *
-     * @return unmodifible list of nodes
-     */
-    public List<ClickHouseNode> getAvailableNodes() {
-        return Collections.unmodifiableList(nodes);
+    public String getCluster() {
+        return clusterName;
     }
 
     @Override
-    public synchronized ClickHouseNode apply(ClickHouseNodeSelector t) {
-        boolean noSelector = t == null || t == ClickHouseNodeSelector.EMPTY;
+    public int hashCode() {
+        final int prime = 31;
+        int result = prime + clusterName.hashCode();
+        result = prime * result + checking.hashCode();
+        result = prime * result + index.hashCode();
+        result = prime * result + policy.hashCode();
+        result = prime * result + nodes.hashCode();
+        result = prime * result + faultyNodes.hashCode();
+        return result;
+    }
 
-        if (nodes.isEmpty()) {
-            // TODO wait until timed out?
-            throw new IllegalArgumentException("No healthy node available");
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
         }
 
-        if (lbPolicy == LoadBalancingPolicy.PICK_FIRST) {
-            return nodes.get(0);
-        }
+        ClickHouseCluster other = (ClickHouseCluster) obj;
+        // FIXME ignore order when comparing node lists
+        return clusterName.equals(other.clusterName) && policy.equals(other.policy) && nodes.equals(other.nodes)
+                && faultyNodes.equals(other.faultyNodes);
+    }
 
-        int idx = index.get();
-        ClickHouseNode matched = null;
-        for (int i = idx; i < nodes.size(); i++) {
-            ClickHouseNode node = nodes.get(i);
-            if (noSelector || t.match(node)) {
-                matched = node;
-                index.compareAndSet(idx, i + 1);
-                break;
-            }
-        }
-
-        if (matched == null && idx > 0) {
-            for (int i = 0; i < Math.min(idx, nodes.size()); i++) {
-                ClickHouseNode node = nodes.get(i);
-                if (noSelector || t.match(node)) {
-                    matched = node;
-                    index.compareAndSet(idx, i + 1);
-                    break;
-                }
-            }
-        }
-
-        if (matched == null) {
-            throw new IllegalArgumentException(ClickHouseUtils
-                    .format("No healthy node found from a list of %d(index=%d)", nodes.size(), index.get()));
-        }
-
-        return matched;
+    @Override
+    public String toString() {
+        return new StringBuilder("ClickHouseCluster [name=").append(clusterName).append(", checking=")
+                .append(checking.get()).append(", index=").append(index.get()).append(", lock=r")
+                .append(lock.getReadHoldCount()).append('w').append(lock.getWriteHoldCount()).append(", nodes=")
+                .append(nodes.size()).append(", faulty=").append(faultyNodes.size()).append(", policy=")
+                .append(policy.getClass().getSimpleName()).append(']').toString();
     }
 }

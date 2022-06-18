@@ -3,6 +3,7 @@ package com.clickhouse.client.config;
 import java.io.Serializable;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.TimeZone;
 
 /**
  * This defines a configuration option. To put it in a nutshell, an option is
@@ -47,6 +48,8 @@ public interface ClickHouseOption extends Serializable {
             result = clazz.cast(value.isEmpty() ? Double.valueOf(0D) : Double.valueOf(value));
         } else if (Enum.class.isAssignableFrom(clazz)) {
             result = (T) Enum.valueOf((Class<? extends Enum>) clazz, value);
+        } else if (TimeZone.class.isAssignableFrom(clazz)) {
+            result = (T) TimeZone.getTimeZone(value);
         } else {
             result = clazz.cast(value);
         }

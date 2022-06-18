@@ -23,9 +23,11 @@ import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.Reader;
 import java.io.UncheckedIOException;
+import java.net.ConnectException;
 import java.net.HttpURLConnection;
 import java.net.URI;
 import java.net.http.HttpClient;
+import java.net.http.HttpConnectTimeoutException;
 import java.net.http.HttpHeaders;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -238,7 +240,12 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
             Thread.currentThread().interrupt();
             throw new IOException("Thread was interrupted when posting request or receiving response", e);
         } catch (ExecutionException e) {
-            throw new IOException("Failed to post request", e);
+            Throwable cause = e.getCause();
+            if (cause instanceof HttpConnectTimeoutException) {
+                throw new ConnectException(cause.getMessage());
+            } else {
+                throw new IOException("Failed to post request", cause);
+            }
         }
 
         return buildResponse(r);
@@ -253,7 +260,12 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
             Thread.currentThread().interrupt();
             throw new IOException("Thread was interrupted when posting request or receiving response", e);
         } catch (ExecutionException e) {
-            throw new IOException("Failed to post query", e);
+            Throwable cause = e.getCause();
+            if (cause instanceof HttpConnectTimeoutException) {
+                throw new ConnectException(cause.getMessage());
+            } else {
+                throw new IOException("Failed to post query", cause);
+            }
         }
         return buildResponse(r);
     }
@@ -292,7 +304,7 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         } catch (IOException e) {
-            log.debug("Failed to ping server: ", e.getMessage());
+            log.debug("Failed to ping server: %s", e.getMessage());
         }
 
         return false;

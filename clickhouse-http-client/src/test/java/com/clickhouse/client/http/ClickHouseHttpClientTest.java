@@ -6,6 +6,7 @@ import com.clickhouse.client.ClickHouseClient;
 import com.clickhouse.client.ClickHouseCredentials;
 import com.clickhouse.client.ClickHouseFormat;
 import com.clickhouse.client.ClickHouseNode;
+import com.clickhouse.client.ClickHouseNodeSelector;
 import com.clickhouse.client.ClickHouseParameterizedQuery;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseRecord;
@@ -15,7 +16,9 @@ import com.clickhouse.client.ClickHouseResponseSummary;
 import com.clickhouse.client.ClickHouseVersion;
 import com.clickhouse.client.ClientIntegrationTest;
 import com.clickhouse.client.config.ClickHouseClientOption;
+import com.clickhouse.client.config.ClickHouseHealthCheckMethod;
 import com.clickhouse.client.data.ClickHouseStringValue;
+import com.clickhouse.client.http.config.ClickHouseHttpOption;
 
 import org.testng.Assert;
 import org.testng.annotations.Test;
@@ -29,6 +32,40 @@ public class ClickHouseHttpClientTest extends ClientIntegrationTest {
     @Override
     protected Class<? extends ClickHouseClient> getClientClass() {
         return ClickHouseHttpClient.class;
+    }
+
+    @Test(groups = { "integration" })
+    public void testPing() throws Exception {
+        try (ClickHouseClient client = ClickHouseClient.newInstance(ClickHouseProtocol.HTTP)) {
+            Assert.assertTrue(client.ping(getServer(), 3000));
+        }
+
+        try (ClickHouseClient client = ClickHouseClient.builder()
+                .nodeSelector(ClickHouseNodeSelector.of(ClickHouseProtocol.HTTP))
+                .option(ClickHouseHttpOption.WEB_CONTEXT, "a/b").build()) {
+            Assert.assertTrue(client.ping(getServer(), 3000));
+        }
+
+        try (ClickHouseClient client = ClickHouseClient.builder()
+                .nodeSelector(ClickHouseNodeSelector.of(ClickHouseProtocol.HTTP))
+                .option(ClickHouseHttpOption.WEB_CONTEXT, "a/b")
+                .option(ClickHouseClientOption.HEALTH_CHECK_METHOD, ClickHouseHealthCheckMethod.PING).build()) {
+            Assert.assertFalse(client.ping(getServer(), 3000));
+        }
+
+        try (ClickHouseClient client = ClickHouseClient.builder()
+                .nodeSelector(ClickHouseNodeSelector.of(ClickHouseProtocol.HTTP))
+                .option(ClickHouseHttpOption.WEB_CONTEXT, "/")
+                .option(ClickHouseClientOption.HEALTH_CHECK_METHOD, ClickHouseHealthCheckMethod.PING).build()) {
+            Assert.assertTrue(client.ping(getServer(), 3000));
+        }
+
+        try (ClickHouseClient client = ClickHouseClient.builder()
+                .nodeSelector(ClickHouseNodeSelector.of(ClickHouseProtocol.HTTP))
+                .option(ClickHouseClientOption.HEALTH_CHECK_METHOD, ClickHouseHealthCheckMethod.PING)
+                .removeOption(ClickHouseHttpOption.WEB_CONTEXT).build()) {
+            Assert.assertTrue(client.ping(getServer(), 3000));
+        }
     }
 
     @Test // (groups = "integration")

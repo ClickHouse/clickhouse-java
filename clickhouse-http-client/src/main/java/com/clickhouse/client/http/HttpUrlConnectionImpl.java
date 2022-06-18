@@ -9,6 +9,7 @@ import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseOutputStream;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseSslContextProvider;
+import com.clickhouse.client.ClickHouseUtils;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.config.ClickHouseSslMode;
 import com.clickhouse.client.data.ClickHouseExternalTable;
@@ -24,6 +25,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
+import java.net.ConnectException;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.Charset;
@@ -156,11 +158,19 @@ public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
             // String encoding = conn.getHeaderField("Content-Encoding");
             String serverName = conn.getHeaderField("X-ClickHouse-Server-Display-Name");
 
+            InputStream errorInput = conn.getErrorStream();
+            if (errorInput == null) {
+                // TODO follow redirects?
+                throw new ConnectException(ClickHouseUtils.format("HTTP response %d %s", conn.getResponseCode(),
+                        conn.getResponseMessage()));
+            }
+
+            String errorMsg;
             int bufferSize = (int) ClickHouseClientOption.BUFFER_SIZE.getDefaultValue();
             ByteArrayOutputStream output = new ByteArrayOutputStream(bufferSize);
-            ClickHouseInputStream.pipe(conn.getErrorStream(), output, bufferSize);
+            ClickHouseInputStream.pipe(errorInput, output, bufferSize);
             byte[] bytes = output.toByteArray();
-            String errorMsg;
+
             try (BufferedReader reader = new BufferedReader(new InputStreamReader(
                     ClickHouseClient.getResponseInputStream(config, new ByteArrayInputStream(bytes), null),
                     StandardCharsets.UTF_8))) {
@@ -273,9 +283,11 @@ public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
     @Override
     public boolean ping(int timeout) {
         String response = (String) config.getOption(ClickHouseHttpOption.DEFAULT_RESPONSE);
+        String url = null;
         HttpURLConnection c = null;
         try {
-            c = newConnection(getBaseUrl() + "ping", false);
+            url = getBaseUrl().concat("ping");
+            c = newConnection(url, false);
             c.setConnectTimeout(timeout);
             c.setReadTimeout(timeout);
 
@@ -290,7 +302,7 @@ public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
                 return response.equals(new String(out.toByteArray(), StandardCharsets.UTF_8));
             }
         } catch (IOException e) {
-            log.debug("Failed to ping server: ", e.getMessage());
+            log.debug("Failed to ping url %s due to: %s", url, e.getMessage());
         } finally {
             if (c != null) {
                 c.disconnect();

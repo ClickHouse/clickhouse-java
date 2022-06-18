@@ -521,7 +521,7 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
                 stmt.setObject(3, null);
                 stmt.setObject(4, new String[0]);
                 stmt.setObject(5, new String[0]);
-                Assert.assertThrows(RuntimeException.class, () -> stmt.execute());
+                Assert.assertThrows(SQLException.class, () -> stmt.execute());
             }
             try (PreparedStatement stmt = conn
                     .prepareStatement("insert into test_read_write_strings")) {
@@ -1194,6 +1194,32 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
             Assert.assertEquals(rs.getString(2), "0:0:0:0:0:ffff:7f00:2");
             Assert.assertEquals(rs.getString(3),
                     conn.getServerVersion().check("[22.3,)") ? "0:0:0:0:0:0:0:1" : "0:0:0:0:0:ffff:0:0");
+            Assert.assertFalse(rs.next());
+        }
+    }
+
+    @Test(groups = "integration")
+    public void testInsertWithSelect() throws Exception {
+        try (ClickHouseConnection conn = newConnection(new Properties());
+                Statement s = conn.createStatement();
+                PreparedStatement ps1 = conn
+                        .prepareStatement("insert into test_issue_402(uid,uuid) select 2,generateUUIDv4()");
+                PreparedStatement ps2 = conn.prepareStatement(
+                        "insert into test_issue_402\nselect ?, max(uuid) from test_issue_402 where uid in (?) group by uid having count(*) = 1")) {
+            s.execute("drop table if exists test_issue_402; "
+                    + "create table test_issue_402(uid Int32, uuid UUID)engine=Memory");
+            Assert.assertEquals(ps1.executeUpdate(), 1);
+            ps2.setInt(1, 1);
+            ps2.setInt(2, 2);
+            Assert.assertEquals(ps2.executeUpdate(), 1);
+
+            ResultSet rs = s.executeQuery("select * from test_issue_402 order by uid");
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getInt(1), 1);
+            String uuid = rs.getString(2);
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getInt(1), 2);
+            Assert.assertEquals(rs.getString(2), uuid);
             Assert.assertFalse(rs.next());
         }
     }

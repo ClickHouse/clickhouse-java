@@ -1,6 +1,8 @@
 package com.clickhouse.client;
 
-import java.util.concurrent.CompletableFuture;
+import java.io.IOException;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -10,8 +12,13 @@ import org.testng.annotations.Test;
 public class AbstractClientTest {
     static class SimpleClient extends AbstractClient<Object[]> {
         @Override
-        public CompletableFuture<ClickHouseResponse> execute(ClickHouseRequest<?> request) {
-            return null;
+        protected boolean checkHealth(ClickHouseNode server, int timeout) {
+            return false;
+        }
+
+        @Override
+        protected Collection<ClickHouseProtocol> getSupportedProtocols() {
+            return Collections.singletonList(ClickHouseProtocol.POSTGRESQL);
         }
 
         @Override
@@ -27,6 +34,17 @@ public class AbstractClientTest {
         protected void closeConnection(Object[] connection, boolean force) {
             connection[0] = null;
             connection[1] = null;
+        }
+
+        @Override
+        protected ClickHouseResponse sendAsync(ClickHouseRequest<?> sealedRequest, Object... args)
+                throws ClickHouseException, IOException {
+            return send(sealedRequest);
+        }
+
+        @Override
+        protected ClickHouseResponse send(ClickHouseRequest<?> sealedRequest) throws ClickHouseException, IOException {
+            return null;
         }
     }
 
@@ -100,7 +118,7 @@ public class AbstractClientTest {
         sc.init(new ClickHouseConfig());
         Assert.assertEquals(sc.getConnection(req), new Object[] { req.getConfig(), req.getServer() });
 
-        req = client.connect(ClickHouseNode.of("127.0.0.1", ClickHouseProtocol.GRPC, 9100, "test"));
+        req = client.connect(ClickHouseNode.of("127.0.0.1", ClickHouseProtocol.POSTGRESQL, 9100, "test"));
         Object[] conn = sc.getConnection(req);
         Assert.assertEquals(conn, new Object[] { req.getConfig(), req.getServer() });
         sc.close();
@@ -112,8 +130,10 @@ public class AbstractClientTest {
     public void testInit() {
         SimpleClient client = new SimpleClient();
         client.init(new ClickHouseConfig());
-        ClickHouseRequest<?> req = client.connect(ClickHouseNode.builder().build());
+        Assert.assertThrows(IllegalArgumentException.class,
+                () -> client.connect(ClickHouseNode.builder().port(ClickHouseProtocol.MYSQL).build()).getServer());
 
+        ClickHouseRequest<?> req = client.connect(ClickHouseNode.builder().build());
         SimpleClient sc = new SimpleClient();
         Assert.assertFalse(sc.isInitialized());
         Assert.assertThrows(IllegalStateException.class, () -> sc.connect(ClickHouseNode.builder().build()));
@@ -121,6 +141,8 @@ public class AbstractClientTest {
         Assert.assertThrows(IllegalStateException.class, () -> sc.getConnection(req));
         Assert.assertThrows(IllegalStateException.class, () -> sc.getExecutor());
         Assert.assertThrows(IllegalStateException.class, () -> sc.getServer());
+
+        Assert.assertNotNull(req.getServer());
 
         ClickHouseConfig config = new ClickHouseConfig();
         sc.init(config);
@@ -130,7 +152,7 @@ public class AbstractClientTest {
             Assert.assertEquals(sc.getExecutor(), ClickHouseClient.getExecutorService());
         }
         Assert.assertTrue(sc.isInitialized());
-        Assert.assertTrue(sc.getConfig() == config);
+        Assert.assertTrue(sc.getConfig() != config);
         Assert.assertNull(sc.getServer());
         Assert.assertEquals(sc.getConnection(req), new Object[] { req.getConfig(), req.getServer() });
         Assert.assertEquals(sc.getServer(), req.getServer());
@@ -155,7 +177,7 @@ public class AbstractClientTest {
         client.init(config);
         ClickHouseRequest<?> req1 = client.connect(ClickHouseNode.builder().build());
         ClickHouseRequest<?> req2 = client
-                .connect(ClickHouseNode.of("127.0.0.1", ClickHouseProtocol.GRPC, 9100, "test"));
+                .connect(ClickHouseNode.of("127.0.0.1", ClickHouseProtocol.POSTGRESQL, 9100, "test"));
 
         Object[] conn1 = client.getConnection(req1);
         CountDownLatch latch = new CountDownLatch(1);

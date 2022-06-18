@@ -261,7 +261,7 @@ public interface ClickHouseClient extends AutoCloseable {
         }
 
         // in case the protocol is ANY
-        final ClickHouseNode theServer = ClickHouseCluster.probe(server);
+        final ClickHouseNode theServer = server.probe();
 
         final String theQuery = tableOrQuery.trim();
 
@@ -324,7 +324,7 @@ public interface ClickHouseClient extends AutoCloseable {
         }
 
         // in case the protocol is ANY
-        final ClickHouseNode theServer = ClickHouseCluster.probe(server);
+        final ClickHouseNode theServer = server.probe();
 
         final String theQuery = tableOrQuery.trim();
 
@@ -368,7 +368,7 @@ public interface ClickHouseClient extends AutoCloseable {
         }
 
         // in case the protocol is ANY
-        final ClickHouseNode theServer = ClickHouseCluster.probe(server);
+        final ClickHouseNode theServer = server.probe();
 
         return submit(() -> {
             try (ClickHouseClient client = newInstance(theServer.getProtocol());
@@ -417,7 +417,7 @@ public interface ClickHouseClient extends AutoCloseable {
         }
 
         // in case the protocol is ANY
-        final ClickHouseNode theServer = ClickHouseCluster.probe(server);
+        final ClickHouseNode theServer = server.probe();
 
         return submit(() -> {
             InputStream input = null;
@@ -481,7 +481,7 @@ public interface ClickHouseClient extends AutoCloseable {
         }
 
         // in case the protocol is ANY
-        final ClickHouseNode theServer = ClickHouseCluster.probe(server);
+        final ClickHouseNode theServer = server.probe();
 
         return submit(() -> {
             try (ClickHouseClient client = newInstance(theServer.getProtocol());
@@ -526,7 +526,7 @@ public interface ClickHouseClient extends AutoCloseable {
         }
 
         // in case the protocol is ANY
-        final ClickHouseNode theServer = ClickHouseCluster.probe(server);
+        final ClickHouseNode theServer = server.probe();
 
         List<String> queries = new LinkedList<>();
         queries.add(sql);
@@ -576,7 +576,7 @@ public interface ClickHouseClient extends AutoCloseable {
         }
 
         // in case the protocol is ANY
-        final ClickHouseNode theServer = ClickHouseCluster.probe(server);
+        final ClickHouseNode theServer = server.probe();
 
         return submit(() -> {
             // set async to false so that we don't have to create additional thread
@@ -643,7 +643,7 @@ public interface ClickHouseClient extends AutoCloseable {
         }
 
         // in case the protocol is ANY
-        final ClickHouseNode theServer = ClickHouseCluster.probe(server);
+        final ClickHouseNode theServer = server.probe();
 
         return submit(() -> {
             List<ClickHouseResponseSummary> list = new ArrayList<>(size);
@@ -696,7 +696,7 @@ public interface ClickHouseClient extends AutoCloseable {
         }
 
         // in case the protocol is ANY
-        final ClickHouseNode theServer = ClickHouseCluster.probe(server);
+        final ClickHouseNode theServer = server.probe();
 
         return submit(() -> {
             List<ClickHouseResponseSummary> list = new ArrayList<>(params.length);
@@ -736,10 +736,46 @@ public interface ClickHouseClient extends AutoCloseable {
     }
 
     /**
+     * Connects to one or more ClickHouse servers. Same as
+     * {@code connect(ClickHouseNodes.of(uri))}.
+     *
+     * @param enpoints non-empty URIs separated by comman
+     * @return non-null request object holding references to this client and node
+     *         provider
+     */
+    default ClickHouseRequest<?> connect(String enpoints) {
+        return connect(ClickHouseNodes.of(enpoints));
+    }
+
+    /**
+     * Connects to a list of managed ClickHouse servers.
+     *
+     * @param nodes non-null list of servers to connect to
+     * @return non-null request object holding references to this client and node
+     *         provider
+     */
+    default ClickHouseRequest<?> connect(ClickHouseNodes nodes) {
+        return new ClickHouseRequest<>(this, ClickHouseChecker.nonNull(nodes, "Nodes"),
+                null, nodes.template.config.getAllOptions(), false);
+    }
+
+    /**
+     * Connects to a ClickHouse server.
+     *
+     * @param node non-null server to connect to
+     * @return non-null request object holding references to this client and node
+     *         provider
+     */
+    default ClickHouseRequest<?> connect(ClickHouseNode node) {
+        return new ClickHouseRequest<>(this, ClickHouseChecker.nonNull(node, "Node"), null, node.config.getAllOptions(),
+                false);
+    }
+
+    /**
      * Connects to a ClickHouse server defined by the given
      * {@link java.util.function.Function}. You can pass either
-     * {@link ClickHouseCluster} or {@link ClickHouseNode} here, as both of them
-     * implemented the same interface.
+     * {@link ClickHouseCluster}, {@link ClickHouseNodes} or {@link ClickHouseNode}
+     * here, as all of them implemented the same interface.
      *
      * <p>
      * Please be aware that this is nothing but an intention, so no network
@@ -751,7 +787,7 @@ public interface ClickHouseClient extends AutoCloseable {
      *         provider
      */
     default ClickHouseRequest<?> connect(Function<ClickHouseNodeSelector, ClickHouseNode> nodeFunc) {
-        return new ClickHouseRequest<>(this, ClickHouseChecker.nonNull(nodeFunc, "nodeFunc"), false);
+        return new ClickHouseRequest<>(this, ClickHouseChecker.nonNull(nodeFunc, "nodeFunc"), null, null, false);
     }
 
     /**
@@ -846,8 +882,13 @@ public interface ClickHouseClient extends AutoCloseable {
      * @return true if the server is alive; false otherwise
      */
     default boolean ping(ClickHouseNode server, int timeout) {
-        if (server != null && timeout > 0) {
-            server = ClickHouseCluster.probe(server, timeout);
+        if (server != null) {
+            if (timeout < 1) {
+                timeout = server.config.getConnectionTimeout();
+            }
+            if (server.getProtocol() == ClickHouseProtocol.ANY) {
+                server = ClickHouseNode.probe(server.getHost(), server.getPort(), timeout);
+            }
             try (ClickHouseResponse resp = connect(server) // create request
                     .option(ClickHouseClientOption.ASYNC, false) // use current thread
                     .option(ClickHouseClientOption.CONNECTION_TIMEOUT, timeout)
@@ -857,7 +898,7 @@ public interface ClickHouseClient extends AutoCloseable {
                     .format(ClickHouseFormat.TabSeparated)
                     .query("SELECT 1 FORMAT TabSeparated").execute()
                     .get(timeout, TimeUnit.MILLISECONDS)) {
-                return true;
+                return resp != null;
             } catch (Exception e) {
                 // ignore
             }

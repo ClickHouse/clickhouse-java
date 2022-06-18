@@ -11,7 +11,7 @@ public enum ClickHouseProtocol {
     /**
      * Protocol detection is needed when establishing connection.
      */
-    ANY(8123),
+    ANY(0, "anys"),
     /**
      * HTTP/HTTPS interface.
      */
@@ -19,11 +19,11 @@ public enum ClickHouseProtocol {
     /**
      * Native interface.
      */
-    TCP(9000, 9440, "native", "tcp"),
+    TCP(9000, 9440, "native", "tcp", "tcps"),
     /**
      * MySQL interface.
      */
-    MYSQL(9004, "mysql"),
+    MYSQL(9004, "mysql"), // ClickHouse does not support secured MySQL interface
     /**
      * PostgreSQL interface.
      */
@@ -35,7 +35,7 @@ public enum ClickHouseProtocol {
     /**
      * GRPC interface.
      */
-    GRPC(9100, "grpc");
+    GRPC(9100, "grpc", "grpcs");
 
     /**
      * Gets most suitable protocol according to given URI scheme.
