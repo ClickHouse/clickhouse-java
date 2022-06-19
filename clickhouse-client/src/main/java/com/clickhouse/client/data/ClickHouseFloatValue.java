@@ -200,6 +200,11 @@ public class ClickHouseFloatValue implements ClickHouseValue {
     }
 
     @Override
+    public ClickHouseFloatValue resetToDefault() {
+        return set(false, 0F);
+    }
+
+    @Override
     public ClickHouseFloatValue resetToNullOrEmpty() {
         return set(true, 0F);
     }

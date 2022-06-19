@@ -125,7 +125,7 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
 
         StringBuilder builder = new StringBuilder().append(baseUrl);
         String context = (String) config.getOption(ClickHouseHttpOption.WEB_CONTEXT);
-        if (context != null && !context.isEmpty()) {
+        if (!ClickHouseChecker.isNullOrEmpty(context)) {
             char prev = '/';
             for (int i = 0, len = context.length(); i < len; i++) {
                 char ch = context.charAt(i);

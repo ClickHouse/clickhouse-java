@@ -22,6 +22,11 @@ import com.clickhouse.client.ClickHouseValues;
  */
 public class ClickHouseOffsetDateTimeValue extends ClickHouseObjectValue<OffsetDateTime> {
     /**
+     * Default value.
+     */
+    public static final OffsetDateTime DEFAULT = Instant.EPOCH.atOffset(ZoneOffset.UTC);
+
+    /**
      * Create a new instance representing null getValue().
      *
      * @param scale scale
@@ -212,6 +217,12 @@ public class ClickHouseOffsetDateTimeValue extends ClickHouseObjectValue<OffsetD
         }
 
         return str;
+    }
+
+    @Override
+    public ClickHouseOffsetDateTimeValue resetToDefault() {
+        set(tz == null ? DEFAULT : Instant.EPOCH.atOffset(tz.toZoneId().getRules().getOffset(Instant.EPOCH)));
+        return this;
     }
 
     @Override

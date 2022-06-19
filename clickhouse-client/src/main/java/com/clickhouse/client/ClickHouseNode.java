@@ -4,13 +4,10 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.Serializable;
-import java.io.UnsupportedEncodingException;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.net.URLDecoder;
-import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.Collections;
@@ -469,8 +466,6 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
 
     static final ClickHouseNode DEFAULT = new ClickHouseNode("localhost", ClickHouseProtocol.ANY, 0, null, null, null);
 
-    static final String DEFAULT_CHARSET = StandardCharsets.UTF_8.name();
-
     static final int MAX_PORT_NUM = 65535;
     static final int MIN_PORT_NUM = 0;
 
@@ -486,44 +481,6 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
     static final int DEFAULT_WEIGHT = 1;
 
     public static final String SCHEME_DELIMITER = "://";
-
-    /**
-     * Decode given string using {@link URLDecoder} and
-     * {@link StandardCharsets#UTF_8}.
-     *
-     * @param encodedString encoded string
-     * @return non-null decoded string
-     */
-    static String decode(String encodedString) {
-        if (ClickHouseChecker.isNullOrEmpty(encodedString)) {
-            return "";
-        }
-
-        try {
-            return URLDecoder.decode(encodedString, DEFAULT_CHARSET);
-        } catch (UnsupportedEncodingException e) {
-            return encodedString;
-        }
-    }
-
-    /**
-     * Encode given string using {@link URLEncoder} and
-     * {@link StandardCharsets#UTF_8}.
-     *
-     * @param str string to encode
-     * @return non-null encoded string
-     */
-    static String encode(String str) {
-        if (ClickHouseChecker.isNullOrEmpty(str)) {
-            return "";
-        }
-
-        try {
-            return URLEncoder.encode(str, DEFAULT_CHARSET);
-        } catch (UnsupportedEncodingException e) {
-            return str;
-        }
-    }
 
     static void parseOptions(String query, Map<String, String> params) {
         if (ClickHouseChecker.isNullOrEmpty(query)) {
@@ -548,7 +505,7 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
             String key;
             String value;
             if (index < 0) {
-                key = decode(param);
+                key = ClickHouseUtils.decode(param);
                 if (key.charAt(0) == '!') {
                     key = key.substring(1);
                     value = Boolean.FALSE.toString();
@@ -556,8 +513,8 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
                     value = Boolean.TRUE.toString();
                 }
             } else {
-                key = decode(param.substring(0, index));
-                value = decode(param.substring(index + 1));
+                key = ClickHouseUtils.decode(param.substring(0, index));
+                value = ClickHouseUtils.decode(param.substring(index + 1));
             }
 
             // any multi-value option? cluster?
@@ -843,13 +800,13 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
         if (!ClickHouseChecker.isNullOrEmpty(auth)) {
             int index = auth.indexOf(':');
             if (index < 0) {
-                user = decode(auth);
+                user = ClickHouseUtils.decode(auth);
             } else {
-                String str = decode(auth.substring(0, index));
+                String str = ClickHouseUtils.decode(auth.substring(0, index));
                 if (!ClickHouseChecker.isNullOrEmpty(str)) {
                     user = str;
                 }
-                passwd = decode(auth.substring(index + 1));
+                passwd = ClickHouseUtils.decode(auth.substring(index + 1));
             }
         }
 
@@ -1322,7 +1279,8 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
                 db = entry.getValue();
                 continue;
             }
-            builder.append(encode(entry.getKey())).append('=').append(encode(entry.getValue())).append('&');
+            builder.append(ClickHouseUtils.encode(entry.getKey())).append('=')
+                    .append(ClickHouseUtils.encode(entry.getValue())).append('&');
         }
         String query = null;
         if (builder.length() > 0) {
@@ -1338,7 +1296,7 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
             } else {
                 builder.append(',');
             }
-            builder.append(encode(tag));
+            builder.append(ClickHouseUtils.encode(tag));
         }
 
         String p = protocol.name().toLowerCase(Locale.ROOT);

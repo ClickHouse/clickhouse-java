@@ -153,6 +153,12 @@ public class ClickHouseDateValue extends ClickHouseObjectValue<LocalDate> {
     }
 
     @Override
+    public ClickHouseDateValue resetToDefault() {
+        set(LocalDate.EPOCH);
+        return this;
+    }
+
+    @Override
     public String toSqlExpression() {
         if (isNullOrEmpty()) {
             return ClickHouseValues.NULL_EXPR;

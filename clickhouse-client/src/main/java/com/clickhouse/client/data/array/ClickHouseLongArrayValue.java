@@ -139,10 +139,14 @@ public class ClickHouseLongArrayValue extends ClickHouseObjectValue<long[]> {
     }
 
     @Override
-
-    public ClickHouseLongArrayValue resetToNullOrEmpty() {
+    public ClickHouseLongArrayValue resetToDefault() {
         set(ClickHouseValues.EMPTY_LONG_ARRAY);
         return this;
+    }
+
+    @Override
+    public ClickHouseLongArrayValue resetToNullOrEmpty() {
+        return resetToDefault();
     }
 
     @Override

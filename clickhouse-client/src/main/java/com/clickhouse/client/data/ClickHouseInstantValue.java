@@ -232,6 +232,12 @@ public class ClickHouseInstantValue extends ClickHouseObjectValue<Instant> {
     }
 
     @Override
+    public ClickHouseInstantValue resetToDefault() {
+        set(Instant.EPOCH);
+        return this;
+    }
+
+    @Override
     public String toSqlExpression() {
         if (isNullOrEmpty()) {
             return ClickHouseValues.NULL_EXPR;

@@ -139,6 +139,12 @@ public class ClickHouseBigDecimalValue extends ClickHouseObjectValue<BigDecimal>
     }
 
     @Override
+    public ClickHouseBigDecimalValue resetToDefault() {
+        set(BigDecimal.ZERO);
+        return this;
+    }
+
+    @Override
     public String toSqlExpression() {
         return isNullOrEmpty() ? ClickHouseValues.NULL_EXPR : String.valueOf(getValue());
     }

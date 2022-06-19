@@ -207,6 +207,9 @@ public class ClickHouseRequestTest {
         ClickHouseRequest<?> request = ClickHouseClient.newInstance().connect(ClickHouseNode.builder().build());
         Assert.assertEquals(request.getFormat(),
                 (ClickHouseFormat) ClickHouseDefaults.FORMAT.getEffectiveDefaultValue());
+        request.format(ClickHouseFormat.TabSeparatedRawWithNamesAndTypes);
+        Assert.assertEquals(request.getFormat(), ClickHouseFormat.TabSeparatedRawWithNamesAndTypes);
+        Assert.assertEquals(request.getInputFormat(), ClickHouseFormat.TabSeparatedRaw);
         request.format(ClickHouseFormat.ArrowStream);
         Assert.assertEquals(request.getFormat(), ClickHouseFormat.ArrowStream);
         Assert.assertEquals(request.getInputFormat(), ClickHouseFormat.ArrowStream);

@@ -4,6 +4,8 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
@@ -19,6 +21,17 @@ import com.clickhouse.client.ClickHouseValues;
  * Wraper class of Inet6Address.
  */
 public class ClickHouseIpv6Value extends ClickHouseObjectValue<Inet6Address> {
+    public static final Inet6Address DEFAULT;
+
+    static {
+        try {
+            DEFAULT = (Inet6Address) InetAddress.getByAddress("::0", new byte[16]);
+        } catch (UnknownHostException e) {
+            // should not happen
+            throw new IllegalStateException("Failed to create default Ipv6 value", e);
+        }
+    }
+
     /**
      * Create a new instance representing null value.
      *
@@ -146,6 +159,12 @@ public class ClickHouseIpv6Value extends ClickHouseObjectValue<Inet6Address> {
         }
 
         return str;
+    }
+
+    @Override
+    public ClickHouseIpv6Value resetToDefault() {
+        set(DEFAULT);
+        return this;
     }
 
     @Override

@@ -74,6 +74,34 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
         };
     }
 
+    @DataProvider(name = "columnsWithoutDefaultValue")
+    private Object[][] getColumnsWithoutDefaultValue() {
+        return new Object[][] {
+                new Object[] { "Bool", "false" },
+                new Object[] { "Date", "1970-01-01" },
+                new Object[] { "Date32", "1970-01-01" },
+                new Object[] { "DateTime32('UTC')", "1970-01-01 00:00:00" },
+                new Object[] { "DateTime64(3, 'UTC')", "1970-01-01 00:00:00" },
+                new Object[] { "Decimal(10,4)", "0" },
+                new Object[] { "Enum8('x'=0,'y'=1)", "x" },
+                new Object[] { "Enum16('xx'=1,'yy'=0)", "yy" },
+                new Object[] { "Float32", "0.0" },
+                new Object[] { "Float64", "0.0" },
+                new Object[] { "Int8", "0" },
+                new Object[] { "UInt8", "0" },
+                new Object[] { "Int16", "0" },
+                new Object[] { "UInt16", "0" },
+                new Object[] { "Int32", "0" },
+                new Object[] { "UInt32", "0" },
+                new Object[] { "Int64", "0" },
+                new Object[] { "UInt64", "0" },
+                new Object[] { "Int128", "0" },
+                new Object[] { "UInt128", "0" },
+                new Object[] { "Int256", "0" },
+                new Object[] { "UInt256", "0" },
+        };
+    }
+
     @DataProvider(name = "nonBatchQueries")
     private Object[][] getNonBatchQueries() {
         return new Object[][] {
@@ -1063,6 +1091,7 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
     @Test(dataProvider = "columnsWithDefaultValue", groups = "integration")
     public void testInsertDefaultValue(String columnType, String defaultExpr, String defaultValue) throws Exception {
         Properties props = new Properties();
+        props.setProperty(JdbcConfig.PROP_NULL_AS_DEFAULT, "1");
         props.setProperty(ClickHouseClientOption.COMPRESS.getKey(), "false");
         props.setProperty(ClickHouseClientOption.FORMAT.getKey(),
                 ClickHouseFormat.TabSeparatedWithNamesAndTypes.name());
@@ -1107,6 +1136,76 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
                 Assert.assertFalse(rs.next(), "Should have only 3 rows");
             }
             Assert.assertEquals(rowCount, 3);
+        } catch (SQLException e) {
+            // 'Unknown data type family', 'Missing columns' or 'Cannot create table column'
+            if (e.getErrorCode() == 50 || e.getErrorCode() == 47 || e.getErrorCode() == 44) {
+                return;
+            }
+            throw e;
+        }
+    }
+
+    @Test(dataProvider = "columnsWithoutDefaultValue", groups = "integration")
+    public void testInsertNullValue(String columnType, String defaultValue) throws Exception {
+        Properties props = new Properties();
+        props.setProperty(ClickHouseClientOption.FORMAT.getKey(),
+                ClickHouseFormat.TabSeparatedWithNamesAndTypes.name());
+        String tableName = "test_insert_null_value_" + columnType.split("\\(")[0].trim().toLowerCase();
+        try (ClickHouseConnection conn = newConnection(props); Statement s = conn.createStatement()) {
+            if (conn.getUri().toString().contains(":grpc:")) {
+                throw new SkipException("Skip gRPC test");
+            } else if (!conn.getServerVersion().check("[21.8,)")) {
+                throw new SkipException("Skip test when ClickHouse is older than 21.8");
+            }
+            s.execute(String.format("drop table if exists %s; ", tableName)
+                    + String.format("create table %s(id Int8, v %s)engine=Memory", tableName, columnType));
+            SQLException sqlException = null;
+            try (PreparedStatement stmt = conn
+                    .prepareStatement(String.format("insert into %s values(?,?)", tableName))) {
+                try {
+                    ((ClickHouseStatement) stmt).setNullAsDefault(0);
+                    stmt.setInt(1, 0);
+                    stmt.setObject(2, null);
+                    stmt.executeUpdate();
+                } catch (SQLException e) {
+                    sqlException = e;
+                }
+                Assert.assertNotNull(sqlException, "Should end-up with SQL exception when nullAsDefault < 1");
+
+                try {
+                    ((ClickHouseStatement) stmt).setNullAsDefault(1);
+                    stmt.setInt(1, 0);
+                    stmt.setNull(2, Types.OTHER);
+                    stmt.executeUpdate();
+                } catch (SQLException e) {
+                    sqlException = e;
+                }
+                Assert.assertNotNull(sqlException, "Should end-up with SQL exception when nullAsDefault = 1");
+
+                ((ClickHouseStatement) stmt).setNullAsDefault(2);
+                stmt.setInt(1, 1);
+                stmt.setObject(2, null);
+                stmt.executeUpdate();
+                stmt.setInt(1, 2);
+                stmt.setNull(2, Types.OTHER);
+                stmt.executeUpdate();
+            }
+
+            int rowCount = 0;
+            try (ResultSet rs = s.executeQuery(String.format("select * from %s order by id", tableName))) {
+                Assert.assertTrue(rs.next());
+                Assert.assertEquals(rs.getInt(1), 1);
+                Assert.assertEquals(rs.getString(2), defaultValue);
+                Assert.assertFalse(rs.wasNull(), "Should not be null");
+                rowCount++;
+                Assert.assertTrue(rs.next());
+                Assert.assertEquals(rs.getInt(1), 2);
+                Assert.assertEquals(rs.getString(2), defaultValue);
+                Assert.assertFalse(rs.wasNull(), "Should not be null");
+                rowCount++;
+                Assert.assertFalse(rs.next(), "Should have only 2 rows");
+            }
+            Assert.assertEquals(rowCount, 2);
         } catch (SQLException e) {
             // 'Unknown data type family', 'Missing columns' or 'Cannot create table column'
             if (e.getErrorCode() == 50 || e.getErrorCode() == 47 || e.getErrorCode() == 44) {

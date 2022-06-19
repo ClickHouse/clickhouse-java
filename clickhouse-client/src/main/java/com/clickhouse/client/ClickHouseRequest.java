@@ -505,8 +505,7 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
      * @return data format for input
      */
     public ClickHouseFormat getInputFormat() {
-        ClickHouseFormat format = getFormat();
-        return options.containsKey(ClickHouseClientOption.FORMAT) ? format : format.defaultInputFormat();
+        return getFormat().defaultInputFormat();
     }
 
     /**

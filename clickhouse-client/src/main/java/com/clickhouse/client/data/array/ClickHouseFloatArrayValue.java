@@ -139,10 +139,14 @@ public class ClickHouseFloatArrayValue extends ClickHouseObjectValue<float[]> {
     }
 
     @Override
-
-    public ClickHouseFloatArrayValue resetToNullOrEmpty() {
+    public ClickHouseFloatArrayValue resetToDefault() {
         set(ClickHouseValues.EMPTY_FLOAT_ARRAY);
         return this;
+    }
+
+    @Override
+    public ClickHouseFloatArrayValue resetToNullOrEmpty() {
+        return resetToDefault();
     }
 
     @Override

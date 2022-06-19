@@ -147,9 +147,14 @@ public class ClickHouseGeoRingValue extends ClickHouseObjectValue<double[][]> {
     }
 
     @Override
-    public ClickHouseGeoRingValue resetToNullOrEmpty() {
+    public ClickHouseGeoRingValue resetToDefault() {
         set(EMPTY_VALUE);
         return this;
+    }
+
+    @Override
+    public ClickHouseGeoRingValue resetToNullOrEmpty() {
+        return resetToDefault();
     }
 
     @Override

@@ -139,10 +139,14 @@ public class ClickHouseShortArrayValue extends ClickHouseObjectValue<short[]> {
     }
 
     @Override
-
-    public ClickHouseShortArrayValue resetToNullOrEmpty() {
+    public ClickHouseShortArrayValue resetToDefault() {
         set(ClickHouseValues.EMPTY_SHORT_ARRAY);
         return this;
+    }
+
+    @Override
+    public ClickHouseShortArrayValue resetToNullOrEmpty() {
+        return resetToDefault();
     }
 
     @Override

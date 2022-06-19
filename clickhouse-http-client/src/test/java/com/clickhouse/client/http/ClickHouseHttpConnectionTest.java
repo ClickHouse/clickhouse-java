@@ -40,7 +40,6 @@ public class ClickHouseHttpConnectionTest {
 
     @Test(groups = { "unit" })
     public void testBuildUrl() {
-        // .port(ClickHouseProtocol.HTTP)
         ClickHouseNode server = ClickHouseNode.builder().port(ClickHouseProtocol.HTTP).build();
         ClickHouseRequest<?> request = ClickHouseClient.newInstance().connect(server);
         ClickHouseNode s = request.getServer();
@@ -83,6 +82,10 @@ public class ClickHouseHttpConnectionTest {
                 ClickHouseHttpConnection.buildUrl(server.getBaseUri(),
                         request.option(ClickHouseHttpOption.WEB_CONTEXT, "/a#c")),
                 "http://localhost:8123/a?compress=1&extremes=0");
+        Assert.assertEquals(
+                ClickHouseHttpConnection.buildUrl(server.getBaseUri(),
+                        request.option(ClickHouseHttpOption.WEB_CONTEXT, "/a%20c")),
+                "http://localhost:8123/a%20c?compress=1&extremes=0");
         Assert.assertEquals(
                 ClickHouseHttpConnection.buildUrl(server.getBaseUri(),
                         request.option(ClickHouseHttpOption.WEB_CONTEXT, "///.//")),

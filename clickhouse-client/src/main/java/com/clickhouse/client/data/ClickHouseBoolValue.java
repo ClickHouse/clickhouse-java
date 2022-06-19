@@ -175,6 +175,11 @@ public class ClickHouseBoolValue implements ClickHouseValue {
     }
 
     @Override
+    public ClickHouseBoolValue resetToDefault() {
+        return set(false, false);
+    }
+
+    @Override
     public ClickHouseBoolValue resetToNullOrEmpty() {
         return set(true, false);
     }

@@ -150,9 +150,14 @@ public class ClickHouseGeoPolygonValue extends ClickHouseObjectValue<double[][][
     }
 
     @Override
-    public ClickHouseGeoPolygonValue resetToNullOrEmpty() {
+    public ClickHouseGeoPolygonValue resetToDefault() {
         set(EMPTY_VALUE);
         return this;
+    }
+
+    @Override
+    public ClickHouseGeoPolygonValue resetToNullOrEmpty() {
+        return resetToDefault();
     }
 
     @Override

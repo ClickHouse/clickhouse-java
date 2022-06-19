@@ -260,6 +260,11 @@ public class ClickHouseStringValue implements ClickHouseValue {
     }
 
     @Override
+    public ClickHouseStringValue resetToDefault() {
+        return set("");
+    }
+
+    @Override
     public ClickHouseStringValue resetToNullOrEmpty() {
         return set((String) null);
     }

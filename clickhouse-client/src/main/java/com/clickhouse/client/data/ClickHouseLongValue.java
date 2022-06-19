@@ -186,6 +186,11 @@ public class ClickHouseLongValue implements ClickHouseValue {
     }
 
     @Override
+    public ClickHouseLongValue resetToDefault() {
+        return set(false, unsigned, 0L);
+    }
+
+    @Override
     public ClickHouseLongValue resetToNullOrEmpty() {
         return set(true, false, 0L);
     }

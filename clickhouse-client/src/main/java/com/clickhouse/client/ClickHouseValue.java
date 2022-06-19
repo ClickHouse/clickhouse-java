@@ -662,6 +662,13 @@ public interface ClickHouseValue extends Serializable {
     }
 
     /**
+     * Resets to default value of corresponding data type.
+     *
+     * @return this object
+     */
+    ClickHouseValue resetToDefault();
+
+    /**
      * Resets value to null, or empty when null is not supported(e.g. Array, Tuple
      * and Map etc.).
      *

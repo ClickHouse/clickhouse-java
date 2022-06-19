@@ -4,6 +4,8 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
@@ -19,6 +21,17 @@ import com.clickhouse.client.ClickHouseValues;
  * Wraper class of Inet4Address.
  */
 public class ClickHouseIpv4Value extends ClickHouseObjectValue<Inet4Address> {
+    public static final Inet4Address DEFAULT;
+
+    static {
+        try {
+            DEFAULT = (Inet4Address) InetAddress.getByAddress("0.0.0.0", new byte[4]);
+        } catch (UnknownHostException e) {
+            // should not happen
+            throw new IllegalStateException("Failed to create default Ipv4 value", e);
+        }
+    }
+
     /**
      * Create a new instance representing null value.
      *
@@ -146,6 +159,12 @@ public class ClickHouseIpv4Value extends ClickHouseObjectValue<Inet4Address> {
         }
 
         return str;
+    }
+
+    @Override
+    public ClickHouseIpv4Value resetToDefault() {
+        set(DEFAULT);
+        return this;
     }
 
     @Override

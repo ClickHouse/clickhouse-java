@@ -58,6 +58,7 @@ public class ClickHouseResultSet extends AbstractResultSet {
     protected final List<ClickHouseColumn> columns;
     protected final Calendar defaultCalendar;
     protected final int maxRows;
+    protected final boolean nullAsDefault;
     protected final ClickHouseResultSetMetaData metaData;
 
     protected final Map<String, Class<?>> defaultTypeMap;
@@ -88,6 +89,7 @@ public class ClickHouseResultSet extends AbstractResultSet {
         this.lastReadColumn = 0;
 
         this.maxRows = 0;
+        this.nullAsDefault = false;
         this.fetchSize = 0;
     }
 
@@ -124,6 +126,7 @@ public class ClickHouseResultSet extends AbstractResultSet {
         this.lastReadColumn = 0;
 
         this.maxRows = statement.getMaxRows();
+        this.nullAsDefault = statement.getNullAsDefault() > 1;
         this.fetchSize = statement.getFetchSize();
     }
 
@@ -147,6 +150,9 @@ public class ClickHouseResultSet extends AbstractResultSet {
         ensureRead(columnIndex);
 
         ClickHouseValue v = currentRow.getValue(columnIndex - 1);
+        if (nullAsDefault && v.isNullOrEmpty()) {
+            v.resetToDefault();
+        }
         lastReadColumn = columnIndex;
         return v;
     }

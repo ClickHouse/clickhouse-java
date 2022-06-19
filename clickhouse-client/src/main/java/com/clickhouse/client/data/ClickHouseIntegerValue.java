@@ -159,6 +159,11 @@ public class ClickHouseIntegerValue implements ClickHouseValue {
     }
 
     @Override
+    public ClickHouseIntegerValue resetToDefault() {
+        return set(false, 0);
+    }
+
+    @Override
     public ClickHouseIntegerValue resetToNullOrEmpty() {
         return set(true, 0);
     }
