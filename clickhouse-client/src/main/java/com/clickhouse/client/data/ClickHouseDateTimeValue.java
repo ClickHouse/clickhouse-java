@@ -24,7 +24,7 @@ public class ClickHouseDateTimeValue extends ClickHouseObjectValue<LocalDateTime
     /**
      * Default value.
      */
-    public static final LocalDateTime DEFAULT = LocalDate.EPOCH.atStartOfDay();
+    public static final LocalDateTime DEFAULT = ClickHouseDateValue.DEFAULT.atStartOfDay();
 
     static final DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
