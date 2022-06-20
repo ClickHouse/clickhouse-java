@@ -29,40 +29,40 @@ public enum ClickHouseClientOption implements ClickHouseOption {
      * Load balancing policy.
      */
     LOAD_BALANCING_POLICY("load_balancing_policy", "",
-            "Load balancing policy, can be one of 'dummy', 'firstAlive', 'random', 'roundRobin', or full qualified class name implementing ClickHouseLoadBalancingPolicy."),
+            "Load balancing policy, can be one of '', 'firstAlive', 'random', 'roundRobin', or full qualified class name implementing ClickHouseLoadBalancingPolicy."),
     /**
      * Load balancing tags for filtering out nodes.
      */
-    LOAD_BALANCING_TAGS("load_balancing_tags", "", "Load balancing tagsfor filtering out nodes."),
+    LOAD_BALANCING_TAGS("load_balancing_tags", "", "Load balancing tags for filtering out nodes."),
     /**
      * Health check interval in milliseconds.
      */
     HEALTH_CHECK_INTERVAL("health_check_interval", 0,
-            "Health check interval in milliseconds, zero or negative means one-time."),
+            "Health check interval in milliseconds, zero or negative value means one-time."),
     /**
      * Health check method.
      */
     HEALTH_CHECK_METHOD("health_check_method", ClickHouseHealthCheckMethod.SELECT_ONE, "Health check method."),
     /**
-     * Discovery interval in milliseconds.
+     * Node discovery interval in milliseconds.
      */
     NODE_DISCOVERY_INTERVAL("node_discovery_interval", 0,
-            "Discovery interval in milliseconds, zero or negative means one-time discovery."),
+            "Node discovery interval in milliseconds, zero or negative value means one-time discovery."),
     /**
-     * Discovery interval in milliseconds.
+     * Maximum number of nodes can be discovered at a time.
      */
     NODE_DISCOVERY_LIMIT("node_discovery_limit", 100,
-            "Maximum number of nodes can be discovered in one run, zero or negative means no limit."),
+            "Maximum number of nodes can be discovered at a time, zero or negative value means no limit."),
     /**
      * Node check interval in milliseconds.
      */
     NODE_CHECK_INTERVAL("node_check_interval", 0,
-            "Node check interval in milliseconds, negative is treated as zero."),
+            "Node check interval in milliseconds, negative number is treated as zero."),
     /**
      * Maximum number of nodes can be used for operation at a time.
      */
     NODE_GROUP_SIZE("node_group_size", 50,
-            "Maximum number of nodes can be used for operation at a time, zero or negative means all."),
+            "Maximum number of nodes can be used for operation at a time, zero or negative value means all."),
     /**
      * Whether to perform health check against all nodes or just faulty ones.
      */
@@ -155,7 +155,7 @@ public enum ClickHouseClientOption implements ClickHouseOption {
      * Maximum number of times failover can happen for a request.
      */
     FAILOVER("failover", 0,
-            "Maximum number of times failover can happen for a request, zero or negative number means no failover."),
+            "Maximum number of times failover can happen for a request, zero or negative value means no failover."),
     /**
      * Default format.
      */
@@ -214,7 +214,7 @@ public enum ClickHouseClientOption implements ClickHouseOption {
      * Maximum number of times retry can happen for a request.
      */
     RETRY("retry", 0,
-            "Maximum number of times retry can happen for a request, zero or negative number means no retry."),
+            "Maximum number of times retry can happen for a request, zero or negative value means no retry."),
     /**
      * Whether to reuse wrapper of value(e.g. ClickHouseValue or
      * ClickHouseRecord) for memory efficiency.

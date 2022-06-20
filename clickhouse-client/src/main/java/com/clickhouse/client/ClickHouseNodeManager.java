@@ -27,7 +27,8 @@ public interface ClickHouseNodeManager extends Function<ClickHouseNodeSelector, 
      * Gets a copy of filtered nodes.
      *
      * @param selector  node selector for filtering out nodes, null means no filter
-     * @param groupSize maximum number of nodes to get, zero or negative means all
+     * @param groupSize maximum number of nodes to get, zero or negative value
+     *                  means all
      * @return non-null nodes
      */
     List<ClickHouseNode> getNodes(ClickHouseNodeSelector selector, int groupSize);
@@ -43,7 +44,8 @@ public interface ClickHouseNodeManager extends Function<ClickHouseNodeSelector, 
      * Gets a copy of filtered faulty nodes.
      *
      * @param selector  node selector for filtering out nodes, null means no filter
-     * @param groupSize maximum number of nodes to get, zero or negative means all
+     * @param groupSize maximum number of nodes to get, zero or negative value means
+     *                  all
      * @return non-null faulty nodes
      */
     List<ClickHouseNode> getFaultyNodes(ClickHouseNodeSelector selector, int groupSize);
