@@ -1154,8 +1154,8 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
         try (ClickHouseConnection conn = newConnection(props); Statement s = conn.createStatement()) {
             if (conn.getUri().toString().contains(":grpc:")) {
                 throw new SkipException("Skip gRPC test");
-            } else if (!conn.getServerVersion().check("[21.8,)")) {
-                throw new SkipException("Skip test when ClickHouse is older than 21.8");
+            } else if (!conn.getServerVersion().check("[22.3,)")) {
+                throw new SkipException("Skip test when ClickHouse is older than 22.3");
             }
             s.execute(String.format("drop table if exists %s; ", tableName)
                     + String.format("create table %s(id Int8, v %s)engine=Memory", tableName, columnType));
