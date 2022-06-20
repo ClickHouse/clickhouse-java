@@ -117,8 +117,7 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
     }
 
     private HttpRequest newRequest(String url) {
-        return HttpRequest.newBuilder()
-                .uri(URI.create(url))
+        return HttpRequest.newBuilder().uri(URI.create(url)).version(Version.HTTP_1_1)
                 .timeout(Duration.ofMillis(config.getSocketTimeout())).build();
     }
 
@@ -147,41 +146,11 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
         return true;
     }
 
-    private CompletableFuture<HttpResponse<Void>> retry(Throwable firstError, int retry) {
-        if (retry >= MAX_RETRIES) {
-            final CompletableFuture<HttpResponse<Void>> failure = new CompletableFuture<>();
-            failure.completeExceptionally(firstError);
-            return failure;
-        }
-
-        return httpClient.sendAsync(pingRequest, HttpResponse.BodyHandlers.discarding())
-                .thenApply(CompletableFuture::completedFuture)
-                .exceptionally(t -> {
-                    firstError.addSuppressed(t);
-                    return retry(firstError, retry + 1);
-                })
-                .thenCompose(Function.identity());
-    }
-
     private CompletableFuture<HttpResponse<InputStream>> postRequest(HttpRequest request) {
-        CompletableFuture<HttpResponse<InputStream>> f;
         // either change system property jdk.httpclient.keepalive.timeout or increase
         // keep_alive_timeout on server
-        boolean retry = false; // config.isRetry()
-        if (retry) {
-            f = httpClient
-                    .sendAsync(pingRequest, HttpResponse.BodyHandlers.discarding())
-                    .thenApply(CompletableFuture::completedFuture)
-                    .exceptionally(t -> retry(t, 0))
-                    .thenCompose(t -> httpClient.sendAsync(request,
-                            responseInfo -> new ClickHouseResponseHandler(config.getMaxQueuedBuffers(),
-                                    config.getSocketTimeout())));
-        } else {
-            f = httpClient.sendAsync(request,
-                    responseInfo -> new ClickHouseResponseHandler(config.getMaxQueuedBuffers(),
-                            config.getSocketTimeout()));
-        }
-        return f;
+        return httpClient.sendAsync(request,
+                responseInfo -> new ClickHouseResponseHandler(config.getMaxQueuedBuffers(), config.getSocketTimeout()));
     }
 
     private ClickHouseHttpResponse postStream(HttpRequest.Builder reqBuilder, String boundary, String sql,

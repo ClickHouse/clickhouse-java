@@ -7,6 +7,7 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.Function;
 
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.config.ClickHouseHealthCheckMethod;
@@ -206,6 +207,39 @@ public abstract class AbstractClient<T> implements ClickHouseClient {
             }
         }
         return ClickHouseClient.super.accept(protocol);
+    }
+
+    @Override
+    public ClickHouseRequest<?> connect(ClickHouseNode node) {
+        lock.readLock().lock();
+        try {
+            ensureInitialized();
+            return ClickHouseClient.super.connect(node);
+        } finally {
+            lock.readLock().unlock();
+        }
+    }
+
+    @Override
+    public ClickHouseRequest<?> connect(ClickHouseNodes nodes) {
+        lock.readLock().lock();
+        try {
+            ensureInitialized();
+            return ClickHouseClient.super.connect(nodes);
+        } finally {
+            lock.readLock().unlock();
+        }
+    }
+
+    @Override
+    public ClickHouseRequest<?> connect(Function<ClickHouseNodeSelector, ClickHouseNode> nodeFunc) {
+        lock.readLock().lock();
+        try {
+            ensureInitialized();
+            return ClickHouseClient.super.connect(nodeFunc);
+        } finally {
+            lock.readLock().unlock();
+        }
     }
 
     @Override

@@ -76,6 +76,20 @@ public class ClickHouseClientBuilder {
             return client.get();
         }
 
+        boolean changeClient(ClickHouseClient currentClient, ClickHouseClient newClient) {
+            final boolean changed = client.compareAndSet(currentClient, newClient);
+            try {
+                if (changed) {
+                    currentClient.close();
+                } else {
+                    newClient.close();
+                }
+            } catch (Exception e) {
+                // ignore
+            }
+            return changed;
+        }
+
         ClickHouseResponse failover(ClickHouseRequest<?> sealedRequest, Throwable cause, int times) {
             for (int i = 1; i <= times; i++) {
                 log.debug("Failover %d of %d due to: %s", i, times, cause.getMessage());
@@ -94,15 +108,29 @@ public class ClickHouseClientBuilder {
                     break;
                 }
 
-                log.info("Switching to %s due to connection issue with %s", next, current);
+                log.info("Switching node from %s to %s due to: %s", current, next, cause.getMessage());
                 final ClickHouseProtocol protocol = next.getProtocol();
-                client.getAndUpdate(c -> {
-                    if (!c.accept(protocol)) {
-                        c.close();
-                        return ClickHouseClient.newInstance(protocol);
+                final ClickHouseClient currentClient = client.get();
+                if (!currentClient.accept(protocol)) {
+                    ClickHouseClient newClient = null;
+                    try {
+                        newClient = ClickHouseClient.builder().agent(false)
+                                .config(new ClickHouseConfig(currentClient.getConfig(), next.config))
+                                .nodeSelector(ClickHouseNodeSelector.of(protocol)).build();
+                    } catch (Exception e) {
+                        cause = e;
+                        continue;
+                    } finally {
+                        if (newClient != null) {
+                            boolean changed = changeClient(currentClient, newClient);
+                            log.debug("Switching client from %s to %s: %s", currentClient, newClient, changed);
+                            if (changed) {
+                                sealedRequest.resetCache();
+                            }
+                        }
                     }
-                    return c;
-                });
+                }
+
                 try {
                     return sendOnce(sealedRequest);
                 } catch (Exception exp) {
@@ -326,7 +354,8 @@ public class ClickHouseClientBuilder {
 
         if (client == null) {
             throw new IllegalStateException(
-                    ClickHouseUtils.format("No suitable ClickHouse client(out of %d) found in classpath.", counter));
+                    ClickHouseUtils.format("No suitable ClickHouse client(out of %d) found in classpath for %s.",
+                            counter, nodeSelector));
         }
 
         return agent ? new Agent(client) : client;

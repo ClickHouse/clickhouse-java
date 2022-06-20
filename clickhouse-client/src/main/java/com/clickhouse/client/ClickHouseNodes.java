@@ -540,7 +540,8 @@ public class ClickHouseNodes implements ClickHouseNodeManager {
                 ClickHouseNode n = node.probe();
                 // probe is faster than ping but it cannot tell if the server works or not
                 boolean isAlive = false;
-                try (ClickHouseClient client = ClickHouseClient.newInstance(n.getProtocol())) {
+                try (ClickHouseClient client = ClickHouseClient.builder().agent(false).config(n.config)
+                        .nodeSelector(ClickHouseNodeSelector.of(n.getProtocol())).build()) {
                     isAlive = client.ping(n, n.config.getConnectionTimeout());
                 } catch (Exception e) {
                     // ignore

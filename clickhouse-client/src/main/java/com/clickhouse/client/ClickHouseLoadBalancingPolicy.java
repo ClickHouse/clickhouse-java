@@ -236,6 +236,18 @@ public abstract class ClickHouseLoadBalancingPolicy implements Serializable {
             }
         }
         if (node == null) {
+            for (ClickHouseNode n : manager.faultyNodes) {
+                ClickHouseNode probed = n.probe();
+                if (noSelector || t.match(probed)) {
+                    node = probed;
+                }
+                if (i++ >= idx && node != null) {
+                    break;
+                }
+            }
+        }
+
+        if (node == null) {
             throw new IllegalArgumentException(ClickHouseUtils.format(ERROR_NO_SUITABLE_NODE, manager, t));
         }
         return node;

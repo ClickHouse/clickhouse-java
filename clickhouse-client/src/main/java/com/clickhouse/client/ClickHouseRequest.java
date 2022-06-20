@@ -259,9 +259,8 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
 
     private final boolean sealed;
 
-    private transient ClickHouseClient client;
+    private final ClickHouseClient client;
 
-    protected final ClickHouseConfig clientConfig;
     protected final Function<ClickHouseNodeSelector, ClickHouseNode> server;
     protected final AtomicReference<ClickHouseNode> serverRef;
     protected final transient List<ClickHouseExternalTable> externalTables;
@@ -291,7 +290,6 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
         }
 
         this.client = client;
-        this.clientConfig = client.getConfig();
         this.server = (Function<ClickHouseNodeSelector, ClickHouseNode> & Serializable) server;
         this.serverRef = ref == null ? new AtomicReference<>(null) : ref;
         this.sealed = sealed;
@@ -327,7 +325,7 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
 
     protected ClickHouseClient getClient() {
         if (client == null) {
-            client = ClickHouseClient.builder().config(clientConfig).build();
+            throw new IllegalStateException("Non-null client is required");
         }
 
         return client;
@@ -426,6 +424,7 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
      */
     public ClickHouseConfig getConfig() {
         if (config == null) {
+            ClickHouseConfig clientConfig = getClient().getConfig();
             if (options.isEmpty()) {
                 config = clientConfig;
             } else {
