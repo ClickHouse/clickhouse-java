@@ -2,6 +2,7 @@ package com.clickhouse.client;
 
 import java.net.ConnectException;
 import java.net.SocketTimeoutException;
+import java.net.UnknownHostException;
 import java.util.Locale;
 import java.util.concurrent.TimeoutException;
 
@@ -72,6 +73,18 @@ public class ClickHouseException extends Exception {
         return ERROR_UNKNOWN;
     }
 
+    static Throwable getRootCause(Throwable t) {
+        if (t == null) {
+            return t;
+        }
+
+        Throwable rootCause = t;
+        while (rootCause.getCause() != null && rootCause.getCause() != rootCause) {
+            rootCause = rootCause.getCause();
+        }
+        return rootCause;
+    }
+
     /**
      * Creates an exception for cancellation.
      *
@@ -119,20 +132,14 @@ public class ClickHouseException extends Exception {
             return (ClickHouseException) e;
         }
 
-        Throwable cause = e != null ? e.getCause() : e;
-        if (cause instanceof ClickHouseException) {
-            return (ClickHouseException) cause;
-        } else if (cause == null) {
-            cause = e;
-        }
-
+        Throwable cause = getRootCause(e);
         ClickHouseException exp;
         // If we've got SocketTimeoutException, we'll say that the query is not good.
         // This is not the same as SOCKET_TIMEOUT of clickhouse but it actually could be
         // a failing ClickHouse
         if (cause instanceof SocketTimeoutException || cause instanceof TimeoutException) {
             exp = new ClickHouseException(ERROR_TIMEOUT, cause, server);
-        } else if (cause instanceof ConnectException) {
+        } else if (cause instanceof ConnectException || cause instanceof UnknownHostException) {
             exp = new ClickHouseException(ERROR_NETWORK, cause, server);
         } else {
             exp = new ClickHouseException(extractErrorCode(cause != null ? cause.getMessage() : null), cause, server);
