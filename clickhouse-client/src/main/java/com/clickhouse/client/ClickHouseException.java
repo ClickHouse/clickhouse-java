@@ -79,7 +79,8 @@ public class ClickHouseException extends Exception {
         }
 
         Throwable rootCause = t;
-        while (rootCause.getCause() != null && rootCause.getCause() != rootCause) {
+        while (!(rootCause instanceof ClickHouseException) && rootCause.getCause() != null
+                && rootCause.getCause() != rootCause) {
             rootCause = rootCause.getCause();
         }
         return rootCause;
@@ -134,10 +135,12 @@ public class ClickHouseException extends Exception {
 
         Throwable cause = getRootCause(e);
         ClickHouseException exp;
-        // If we've got SocketTimeoutException, we'll say that the query is not good.
-        // This is not the same as SOCKET_TIMEOUT of clickhouse but it actually could be
-        // a failing ClickHouse
-        if (cause instanceof SocketTimeoutException || cause instanceof TimeoutException) {
+        if (cause instanceof ClickHouseException) {
+            exp = (ClickHouseException) cause;
+        } else if (cause instanceof SocketTimeoutException || cause instanceof TimeoutException) {
+            // If we've got SocketTimeoutException, we'll say that the query is not good.
+            // This is not the same as SOCKET_TIMEOUT of clickhouse but it actually could be
+            // a failing ClickHouse
             exp = new ClickHouseException(ERROR_TIMEOUT, cause, server);
         } else if (cause instanceof ConnectException || cause instanceof UnknownHostException) {
             exp = new ClickHouseException(ERROR_NETWORK, cause, server);
