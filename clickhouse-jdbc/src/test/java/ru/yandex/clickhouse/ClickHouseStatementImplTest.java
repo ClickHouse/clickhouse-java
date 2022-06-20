@@ -15,6 +15,7 @@ import java.sql.Array;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.PreparedStatement;
 import java.sql.Statement;
 import java.sql.Types;
 import java.util.ArrayList;
@@ -557,6 +558,29 @@ public class ClickHouseStatementImplTest extends JdbcIntegrationTest {
             assertNotNull(response);
             assertEquals(response.getData(), Collections.singletonList(Arrays.asList("1", null)));
         }
+    }
+
+    @Test(groups = "integration")
+    public void testInsertMultiple() throws SQLException {
+        connection.createStatement().execute(
+                "DROP TABLE IF EXISTS test_insert_multiple_old_driver");
+        connection.createStatement().execute(
+                "CREATE TABLE IF NOT EXISTS test_insert_multiple_old_driver"
+                        + "(id UInt32, name String) "
+                        + "ENGINE = Memory");
+        try (PreparedStatement ps = connection.prepareStatement(
+                "INSERT INTO test_insert_multiple_old_driver VALUES (?, ?), (?, ?)")) {
+            ps.setInt(1, 1);
+            ps.setString(2, "John");
+            ps.setInt(3, 2);
+            ps.setString(4, "Donne");
+            ps.executeUpdate();
+        }
+
+        ResultSet rs = connection.createStatement().executeQuery(
+                "SELECT count(*) FROM test_insert_multiple_old_driver");
+        rs.next();
+        assertEquals(rs.getInt(1), 2);
     }
 
     private static String readQueryId(ClickHouseStatementImpl stmt, long timeoutSecs) {

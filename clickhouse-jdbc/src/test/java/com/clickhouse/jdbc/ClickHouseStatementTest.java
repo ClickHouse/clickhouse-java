@@ -753,4 +753,29 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
             }
         }
     }
+
+    @Test(groups = "integration")
+    public void testInsertMultiple() throws SQLException {
+        try (ClickHouseConnection conn = newConnection(new Properties());
+             ClickHouseStatement s = conn.createStatement()) {
+            conn.createStatement().execute(
+                    "DROP TABLE IF EXISTS test_insert_multiple");
+            conn.createStatement().execute(
+                    "CREATE TABLE IF NOT EXISTS test_insert_multiple"
+                            + "(id UInt32, name String) "
+                            + "ENGINE = Memory");
+            try (PreparedStatement ps = conn.prepareStatement(
+                    "INSERT INTO test_insert VALUES (?, ?), (?, ?)")) {
+                ps.setInt(1, 1);
+                ps.setString(2, "John");
+                ps.setInt(3, 2);
+                ps.setString(4, "Donne");
+                ps.executeUpdate();
+            }
+            ResultSet rs = s.executeQuery(
+                    "SELECT count(*) FROM test_insert_multiple");
+            rs.next();
+            Assert.assertEquals(rs.getInt(1), 2);
+        }
+    }
 }
