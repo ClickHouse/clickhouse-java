@@ -13,6 +13,7 @@ import java.util.Set;
 
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.config.ClickHouseDefaults;
+import com.clickhouse.client.config.ClickHouseSslMode;
 
 public class ClickHouseNodeTest extends BaseIntegrationTest {
     private void checkDefaultValues(ClickHouseNode node) {
@@ -356,6 +357,29 @@ public class ClickHouseNodeTest extends BaseIntegrationTest {
                             ClickHouseProtocol.TCP.getDefaultPort(), null,
                             null, tags));
         }
+    }
+
+    @Test(groups = { "unit" })
+    public void testCaseInsensitiveEnumValue() {
+        ClickHouseNode server = ClickHouseNode.of("localhost?format=rowbinary&sslmode=strict");
+        Assert.assertEquals(server.config.getFormat(), ClickHouseFormat.RowBinary);
+        Assert.assertEquals(server.config.getSslMode(), ClickHouseSslMode.STRICT);
+    }
+
+    @Test(groups = { "unit" })
+    public void testQueryWithSlash() throws Exception {
+        ClickHouseNode server = ClickHouseNode.of("http://localhost?a=/b/c/d");
+        Assert.assertEquals(server.getDatabase().orElse(null), null);
+        Assert.assertEquals(server.getOptions(), Collections.singletonMap("a", "/b/c/d"));
+        Assert.assertEquals(server.toUri(), new URI("http://localhost:8123?a=/b/c/d"));
+
+        server = ClickHouseNode.of("http://localhost:1234?/a/b/c=d");
+        Assert.assertEquals(server.getDatabase().orElse(null), null);
+        Assert.assertEquals(server.getOptions(), Collections.singletonMap("/a/b/c", "d"));
+        Assert.assertEquals(server.toUri(), new URI("http://localhost:1234?/a/b/c=d"));
+
+        Assert.assertEquals(ClickHouseNode.of("https://myserver/db/1/2/3?a%20=%201&b=/root/my.crt").toUri(),
+                new URI("http://myserver:8443/db/1/2/3?ssl=true&sslmode=NONE&a%20=%201&b=/root/my.crt"));
     }
 
     @Test(groups = { "integration" })

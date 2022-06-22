@@ -185,6 +185,16 @@ public class ClickHouseNodesTest {
     }
 
     @Test(groups = { "unit" })
+    public void testQueryWithSlash() throws Exception {
+        ClickHouseNodes servers = ClickHouseNodes.of("https://node1?a=/b/c/d,node2/db2?/a/b/c=d,node3/db1?a=/d/c.b");
+        Assert.assertEquals(servers.nodes.get(0).getDatabase().orElse(null), "db1");
+        Assert.assertEquals(servers.nodes.get(0).getOptions().get("a"), "/b/c/d");
+        Assert.assertEquals(servers.nodes.get(1).getDatabase().orElse(null), "db2");
+        Assert.assertEquals(servers.nodes.get(1).getOptions().get("a"), "/d/c.b");
+        Assert.assertEquals(servers.nodes.get(1).getOptions().get("/a/b/c"), "d");
+    }
+
+    @Test(groups = { "unit" })
     public void testSingleNodeList() {
         String uri = "a";
         Assert.assertEquals(ClickHouseNodes.of(uri),

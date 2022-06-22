@@ -482,6 +482,27 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
 
     public static final String SCHEME_DELIMITER = "://";
 
+    static URI normalize(String uri, ClickHouseProtocol defaultProtocol) {
+        int index = ClickHouseChecker.nonEmpty(uri, "URI").indexOf(SCHEME_DELIMITER);
+        String normalized;
+        if (index < 0) {
+            normalized = new StringBuilder()
+                    .append((defaultProtocol != null ? defaultProtocol : ClickHouseProtocol.ANY).name()
+                            .toLowerCase())
+                    .append(SCHEME_DELIMITER)
+                    .append(uri.trim()).toString();
+        } else {
+            normalized = uri.trim();
+        }
+        return cache.computeIfAbsent(normalized, k -> {
+            try {
+                return new URI(k);
+            } catch (URISyntaxException e) {
+                throw new IllegalArgumentException("Invalid URI", e);
+            }
+        });
+    }
+
     static void parseOptions(String query, Map<String, String> params) {
         if (ClickHouseChecker.isNullOrEmpty(query)) {
             return;
@@ -713,6 +734,7 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
      * @return non-null node object
      */
     public static ClickHouseNode of(String uri, Map<?, ?> options) {
+        URI normalizedUri = normalize(uri, null);
         ClickHouseNode template = DEFAULT;
         if (options != null && !options.isEmpty()) {
             Builder builder = builder(DEFAULT);
@@ -727,9 +749,19 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
             if (!ClickHouseChecker.isNullOrEmpty(user)) {
                 builder.credentials(ClickHouseCredentials.fromUserAndPassword(user, passwd == null ? "" : passwd));
             }
+            String db = builder.options.get(ClickHouseClientOption.DATABASE.getKey());
+            if (!ClickHouseChecker.isNullOrEmpty(db)) {
+                try {
+                    normalizedUri = new URI(normalizedUri.getScheme(), normalizedUri.getUserInfo(),
+                            normalizedUri.getHost(), normalizedUri.getPort(), "/" + db, normalizedUri.getQuery(),
+                            normalizedUri.getFragment());
+                } catch (URISyntaxException e) { // should not happen
+                    throw new IllegalArgumentException("Failed to update database in given URI", e);
+                }
+            }
             template = builder.build();
         }
-        return of(uri, template);
+        return of(normalizedUri, template);
     }
 
     /**
@@ -740,24 +772,7 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
      * @return non-null node object
      */
     public static ClickHouseNode of(String uri, ClickHouseNode template) {
-        int index = ClickHouseChecker.nonEmpty(uri, "URI").indexOf(SCHEME_DELIMITER);
-        String normalized;
-        if (index < 0) {
-            normalized = new StringBuilder()
-                    .append((template != null ? template.getProtocol() : ClickHouseProtocol.ANY).name()
-                            .toLowerCase())
-                    .append(SCHEME_DELIMITER)
-                    .append(uri.trim()).toString();
-        } else {
-            normalized = uri.trim();
-        }
-        return of(cache.computeIfAbsent(normalized, k -> {
-            try {
-                return new URI(k);
-            } catch (URISyntaxException e) {
-                throw new IllegalArgumentException("Invalid URI", e);
-            }
-        }), template);
+        return of(normalize(uri, template != null ? template.getProtocol() : null), template);
     }
 
     /**
@@ -810,12 +825,9 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
             }
         }
 
-        String db = params.get(ClickHouseClientOption.DATABASE.getKey());
-        if (ClickHouseChecker.isNullOrEmpty(db)) {
-            db = uri.getPath();
-            if (!ClickHouseChecker.isNullOrEmpty(db) && db.length() > 1) {
-                params.put(ClickHouseClientOption.DATABASE.getKey(), db.substring(1));
-            }
+        String db = uri.getPath();
+        if (!ClickHouseChecker.isNullOrEmpty(db) && db.length() > 1) {
+            params.put(ClickHouseClientOption.DATABASE.getKey(), db.substring(1));
         }
 
         parseOptions(uri.getRawQuery(), params);
@@ -1279,8 +1291,7 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
                 db = entry.getValue();
                 continue;
             }
-            builder.append(ClickHouseUtils.encode(entry.getKey())).append('=')
-                    .append(ClickHouseUtils.encode(entry.getValue())).append('&');
+            builder.append(entry.getKey()).append('=').append(entry.getValue()).append('&');
         }
         String query = null;
         if (builder.length() > 0) {
