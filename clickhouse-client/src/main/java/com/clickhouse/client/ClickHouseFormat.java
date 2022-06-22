@@ -11,8 +11,8 @@ public enum ClickHouseFormat {
     RowBinaryWithNamesAndTypes(true, true, true, true, true, RowBinary), // https://clickhouse.com/docs/en/interfaces/formats/#rowbinarywithnamesandtypes
     TabSeparated(true, true, false, false, true), // https://clickhouse.com/docs/en/interfaces/formats/#tabseparated
     TabSeparatedRaw(true, true, false, false, true), // https://clickhouse.com/docs/en/interfaces/formats/#tabseparatedraw
-    TabSeparatedRawWithNames(true, true, false, true, true, TabSeparated), // https://clickhouse.com/docs/en/interfaces/formats/#tabseparatedrawwithnames
-    TabSeparatedRawWithNamesAndTypes(true, true, false, true, true, TabSeparated), // https://clickhouse.com/docs/en/interfaces/formats/#tabseparatedrawwithnamesandtypes
+    TabSeparatedRawWithNames(true, true, false, true, true, TabSeparatedRaw), // https://clickhouse.com/docs/en/interfaces/formats/#tabseparatedrawwithnames
+    TabSeparatedRawWithNamesAndTypes(true, true, false, true, true, TabSeparatedRaw), // https://clickhouse.com/docs/en/interfaces/formats/#tabseparatedrawwithnamesandtypes
     TabSeparatedWithNames(true, true, false, true, true, TabSeparated), // https://clickhouse.com/docs/en/interfaces/formats/#tabseparatedwithnames
     TabSeparatedWithNamesAndTypes(true, true, false, true, true, TabSeparated), // https://clickhouse.com/docs/en/interfaces/formats/#tabseparatedwithnamesandtypes
     // and the rest

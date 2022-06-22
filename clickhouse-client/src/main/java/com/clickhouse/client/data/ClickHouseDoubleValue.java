@@ -180,6 +180,11 @@ public class ClickHouseDoubleValue implements ClickHouseValue {
     }
 
     @Override
+    public ClickHouseDoubleValue resetToDefault() {
+        return set(false, 0D);
+    }
+
+    @Override
     public ClickHouseDoubleValue resetToNullOrEmpty() {
         return set(true, 0D);
     }

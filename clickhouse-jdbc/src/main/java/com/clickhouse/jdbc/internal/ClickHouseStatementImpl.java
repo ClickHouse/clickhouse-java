@@ -60,6 +60,7 @@ public class ClickHouseStatementImpl extends JdbcWrapper
     private int fetchSize;
     private int maxFieldSize;
     private long maxRows;
+    private int nullAsDefault;
     private boolean poolable;
     private volatile String queryId;
     private int queryTimeout;
@@ -249,6 +250,7 @@ public class ClickHouseStatementImpl extends JdbcWrapper
         this.fetchSize = connection.getJdbcConfig().getFetchSize();
         this.maxFieldSize = 0;
         this.maxRows = 0L;
+        this.nullAsDefault = connection.getJdbcConfig().getNullAsDefault();
         this.poolable = false;
         this.queryId = null;
 
@@ -384,7 +386,7 @@ public class ClickHouseStatementImpl extends JdbcWrapper
         ensureOpen();
 
         if (this.maxRows != max) {
-            if (max == 0L) {
+            if (max == 0L || !connection.allowCustomSetting()) {
                 request.removeSetting("max_result_rows");
                 request.removeSetting("result_overflow_mode");
             } else {
@@ -722,6 +724,16 @@ public class ClickHouseStatementImpl extends JdbcWrapper
     @Override
     public ClickHouseConfig getConfig() {
         return request.getConfig();
+    }
+
+    @Override
+    public int getNullAsDefault() {
+        return nullAsDefault;
+    }
+
+    @Override
+    public void setNullAsDefault(int level) {
+        this.nullAsDefault = level;
     }
 
     @Override

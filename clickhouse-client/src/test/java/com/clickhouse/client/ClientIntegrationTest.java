@@ -23,6 +23,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
+import com.clickhouse.client.ClickHouseClientBuilder.Agent;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.config.ClickHouseRenameMethod;
 import com.clickhouse.client.config.ClickHouseSslMode;
@@ -163,7 +164,8 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
                 ClickHouseClient client4 = ClickHouseClient.newInstance(getProtocol());
                 ClickHouseClient client5 = getClient()) {
             for (ClickHouseClient client : new ClickHouseClient[] { client1, client2, client3, client4, client5 }) {
-                Assert.assertEquals(client.getClass(), getClientClass());
+                Assert.assertEquals(client.getClass(), Agent.class);
+                Assert.assertEquals(((Agent) client).getClient().getClass(), getClientClass());
                 Assert.assertTrue(client.accept(getProtocol()), "The client should support protocl: " + getProtocol());
             }
         }

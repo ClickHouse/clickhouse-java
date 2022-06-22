@@ -131,8 +131,6 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
 
     private final AtomicReference<FakeTransaction> fakeTransaction;
 
-    private URI uri;
-
     /**
      * Checks if the connection is open or not.
      *
@@ -221,15 +219,13 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
 
         autoCommit = !jdbcConf.isJdbcCompliant() || jdbcConf.isAutoCommit();
 
-        this.uri = connInfo.getUri();
-
-        log.debug("Creating a new connection to %s", connInfo.getUri());
         ClickHouseNode node = connInfo.getServer();
-        log.debug("Target node: %s", node);
+        log.debug("Connecting to node: %s", node);
 
         jvmTimeZone = TimeZone.getDefault();
 
         client = ClickHouseClient.builder().options(ClickHouseDriver.toClientOptions(connInfo.getProperties()))
+                .defaultCredentials(connInfo.getDefaultCredentials())
                 .nodeSelector(ClickHouseNodeSelector.of(node.getProtocol())).build();
         clientRequest = client.connect(node);
         ClickHouseConfig config = clientRequest.getConfig();
@@ -685,13 +681,17 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
     public boolean isValid(int timeout) throws SQLException {
         if (timeout < 0) {
             throw SqlExceptionUtils.clientError("Negative milliseconds is not allowed");
+        } else if (timeout == 0) {
+            timeout = clientRequest.getConfig().getConnectionTimeout();
+        } else {
+            timeout = (int) TimeUnit.SECONDS.toMillis(timeout);
         }
 
         if (isClosed()) {
             return false;
         }
 
-        return client.ping(clientRequest.getServer(), (int) TimeUnit.SECONDS.toMillis(timeout));
+        return client.ping(clientRequest.getServer(), timeout);
     }
 
     @Override
@@ -858,6 +858,11 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
     }
 
     @Override
+    public boolean allowCustomSetting() {
+        return initialReadOnly != 1;
+    }
+
+    @Override
     public String getCurrentDatabase() {
         return database;
     }
@@ -894,7 +899,7 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
 
     @Override
     public URI getUri() {
-        return uri;
+        return clientRequest.getServer().toUri(ClickHouseJdbcUrlParser.JDBC_CLICKHOUSE_PREFIX);
     }
 
     @Override

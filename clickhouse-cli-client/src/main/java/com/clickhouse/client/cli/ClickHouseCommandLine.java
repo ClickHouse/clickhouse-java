@@ -46,7 +46,8 @@ public class ClickHouseCommandLine implements AutoCloseable {
     private static final Logger log = LoggerFactory.getLogger(ClickHouseCommandLine.class);
 
     public static final String DEFAULT_CLI_ARG_VERSION = "--version";
-    public static final String DEFAULT_CLICKHOUSE_CLI_PATH = "clickhouse-client";
+    public static final String DEFAULT_CLICKHOUSE_CLI_PATH = "clickhouse";
+    public static final String DEFAULT_CLIENT_OPTION = "client";
     public static final String DEFAULT_DOCKER_CLI_PATH = "docker";
     public static final String DEFAULT_DOCKER_IMAGE = "clickhouse/clickhouse-server";
 
@@ -103,9 +104,11 @@ public class ClickHouseCommandLine implements AutoCloseable {
         }
         String str = (String) config.getOption(ClickHouseCommandLineOption.CLI_CONTAINER_ID);
         if (!ClickHouseChecker.isNullOrBlank(str)) {
-            if (!check(timeout, cli, "exec", str, DEFAULT_CLICKHOUSE_CLI_PATH, DEFAULT_CLI_ARG_VERSION)) {
+            if (!check(timeout, cli, "exec", str, DEFAULT_CLICKHOUSE_CLI_PATH, DEFAULT_CLIENT_OPTION,
+                    DEFAULT_CLI_ARG_VERSION)) {
                 synchronized (ClickHouseCommandLine.class) {
-                    if (!check(timeout, cli, "exec", str, DEFAULT_CLICKHOUSE_CLI_PATH, DEFAULT_CLI_ARG_VERSION)
+                    if (!check(timeout, cli, "exec", str, DEFAULT_CLICKHOUSE_CLI_PATH, DEFAULT_CLIENT_OPTION,
+                            DEFAULT_CLI_ARG_VERSION)
                             && !check(timeout, cli, "run", "--rm", "--name", str, "-v", hostDir + ':' + containerDir,
                                     "-d", img, "tail", "-f", "/dev/null")) {
                         throw new IllegalStateException("Failed to start new container: " + str);
@@ -117,7 +120,8 @@ public class ClickHouseCommandLine implements AutoCloseable {
             commands.add("-i");
             commands.add(str);
         } else { // create new container for each query
-            if (!check(timeout, cli, "run", "--rm", img, DEFAULT_CLICKHOUSE_CLI_PATH, DEFAULT_CLI_ARG_VERSION)) {
+            if (!check(timeout, cli, "run", "--rm", img, DEFAULT_CLICKHOUSE_CLI_PATH, DEFAULT_CLIENT_OPTION,
+                    DEFAULT_CLI_ARG_VERSION)) {
                 throw new IllegalStateException("Invalid ClickHouse docker image: " + img);
             }
             commands.add("run");
@@ -150,13 +154,14 @@ public class ClickHouseCommandLine implements AutoCloseable {
         if (ClickHouseChecker.isNullOrBlank(cli)) {
             cli = DEFAULT_CLICKHOUSE_CLI_PATH;
         }
-        if (!check(timeout, cli, DEFAULT_CLI_ARG_VERSION)) {
+        if (!check(timeout, cli, DEFAULT_CLIENT_OPTION, DEFAULT_CLI_ARG_VERSION)) {
             // fallback to docker
             dockerCommand(config, hostDir, containerDir, timeout, commands);
         } else {
             commands.add(cli);
             containerDir = hostDir;
         }
+        commands.add(DEFAULT_CLIENT_OPTION);
 
         if (config.isSsl()) {
             commands.add("--secure");

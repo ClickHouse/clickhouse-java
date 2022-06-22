@@ -1,5 +1,6 @@
 package com.clickhouse.client;
 
+import java.net.SocketTimeoutException;
 import java.util.concurrent.ExecutionException;
 
 import org.testng.Assert;
@@ -105,5 +106,12 @@ public class ClickHouseExceptionTest {
         Assert.assertEquals(e.getErrorCode(), 12345);
         Assert.assertEquals(e.getCause(), cause.getCause());
         Assert.assertEquals(e.getMessage(), cause.getCause().getMessage() + ", server " + server);
+    }
+
+    @Test(groups = { "unit" })
+    public void testNetworkException() {
+        Assert.assertTrue(ClickHouseException.isConnectTimedOut(new SocketTimeoutException("Connect timed out")));
+        Assert.assertTrue(ClickHouseException.isConnectTimedOut(new SocketTimeoutException("connect timed out")));
+        Assert.assertTrue(ClickHouseException.isConnectTimedOut(new SocketTimeoutException("Connect timed out ")));
     }
 }

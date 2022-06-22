@@ -2,13 +2,13 @@ package com.clickhouse.client.http;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 
 import com.clickhouse.client.AbstractClient;
-// import com.clickhouse.client.ClickHouseCluster;
 import com.clickhouse.client.ClickHouseException;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseProtocol;
@@ -23,11 +23,23 @@ import com.clickhouse.client.logging.LoggerFactory;
 public class ClickHouseHttpClient extends AbstractClient<ClickHouseHttpConnection> {
     private static final Logger log = LoggerFactory.getLogger(ClickHouseHttpClient.class);
 
+    static final List<ClickHouseProtocol> SUPPORTED = Collections.singletonList(ClickHouseProtocol.HTTP);
+
     @Override
     protected boolean checkConnection(ClickHouseHttpConnection connection, ClickHouseNode requestServer,
             ClickHouseNode currentServer, ClickHouseRequest<?> request) {
         // return false to suggest creating a new connection
         return connection != null && connection.isReusable() && requestServer.equals(currentServer);
+    }
+
+    @Override
+    protected boolean checkHealth(ClickHouseNode server, int timeout) {
+        return getConnection(connect(server)).ping(timeout);
+    }
+
+    @Override
+    protected Collection<ClickHouseProtocol> getSupportedProtocols() {
+        return SUPPORTED;
     }
 
     @Override
@@ -70,7 +82,8 @@ public class ClickHouseHttpClient extends AbstractClient<ClickHouseHttpConnectio
         return builder.toString();
     }
 
-    protected ClickHouseResponse postRequest(ClickHouseRequest<?> sealedRequest) throws IOException {
+    @Override
+    protected ClickHouseResponse send(ClickHouseRequest<?> sealedRequest) throws ClickHouseException, IOException {
         ClickHouseHttpConnection conn = getConnection(sealedRequest);
 
         List<String> stmts = sealedRequest.getStatements(false);
@@ -92,44 +105,7 @@ public class ClickHouseHttpClient extends AbstractClient<ClickHouseHttpConnectio
     }
 
     @Override
-    public boolean accept(ClickHouseProtocol protocol) {
-        return ClickHouseProtocol.HTTP == protocol || super.accept(protocol);
-    }
-
-    @Override
-    public CompletableFuture<ClickHouseResponse> execute(ClickHouseRequest<?> request) {
-        // sealedRequest is an immutable copy of the original request
-        final ClickHouseRequest<?> sealedRequest = request.seal();
-
-        if (sealedRequest.getConfig().isAsync()) {
-            return CompletableFuture.supplyAsync(() -> {
-                try {
-                    return postRequest(sealedRequest);
-                } catch (IOException e) {
-                    throw new CompletionException(ClickHouseException.of(e, sealedRequest.getServer()));
-                }
-            }, getExecutor());
-        } else {
-            try {
-                return CompletableFuture.completedFuture(postRequest(sealedRequest));
-            } catch (IOException e) {
-                return failedResponse(ClickHouseException.of(e, sealedRequest.getServer()));
-            }
-        }
-    }
-
-    @Override
     public final Class<? extends ClickHouseOption> getOptionClass() {
         return ClickHouseHttpOption.class;
-    }
-
-    @Override
-    public boolean ping(ClickHouseNode server, int timeout) {
-        if (server != null) {
-            // server = ClickHouseCluster.probe(server, timeout);
-            return getConnection(connect(server)).ping(timeout);
-        }
-
-        return false;
     }
 }

@@ -116,6 +116,12 @@ public class ClickHouseBigIntegerValue extends ClickHouseObjectValue<BigInteger>
     }
 
     @Override
+    public ClickHouseBigIntegerValue resetToDefault() {
+        set(BigInteger.ZERO);
+        return this;
+    }
+
+    @Override
     public String toSqlExpression() {
         return isNullOrEmpty() ? ClickHouseValues.NULL_EXPR : String.valueOf(getValue());
     }

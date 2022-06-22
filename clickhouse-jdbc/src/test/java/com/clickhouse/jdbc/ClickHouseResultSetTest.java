@@ -87,6 +87,34 @@ public class ClickHouseResultSetTest extends JdbcIntegrationTest {
         };
     }
 
+    @DataProvider(name = "nullableColumns")
+    private Object[][] getNullableColumns() {
+        return new Object[][] {
+                new Object[] { "Bool", "false" },
+                new Object[] { "Date", "1970-01-01" },
+                new Object[] { "Date32", "1970-01-01" },
+                new Object[] { "DateTime32('UTC')", "1970-01-01 00:00:00" },
+                new Object[] { "DateTime64(3, 'UTC')", "1970-01-01 00:00:00" },
+                new Object[] { "Decimal(10,4)", "0" },
+                new Object[] { "Enum8('x'=0,'y'=1)", "x" },
+                new Object[] { "Enum16('xx'=1,'yy'=0)", "yy" },
+                new Object[] { "Float32", "0.0" },
+                new Object[] { "Float64", "0.0" },
+                new Object[] { "Int8", "0" },
+                new Object[] { "UInt8", "0" },
+                new Object[] { "Int16", "0" },
+                new Object[] { "UInt16", "0" },
+                new Object[] { "Int32", "0" },
+                new Object[] { "UInt32", "0" },
+                new Object[] { "Int64", "0" },
+                new Object[] { "UInt64", "0" },
+                new Object[] { "Int128", "0" },
+                new Object[] { "UInt128", "0" },
+                new Object[] { "Int256", "0" },
+                new Object[] { "UInt256", "0" },
+        };
+    }
+
     @Test(groups = "integration")
     public void testFloatToBigDecimal() throws SQLException {
         try (ClickHouseConnection conn = newConnection(new Properties());
@@ -253,6 +281,53 @@ public class ClickHouseResultSetTest extends JdbcIntegrationTest {
             Assert.assertNull(rs.getString(2));
             Assert.assertNull(func.apply(rs, 2));
             Assert.assertFalse(rs.next());
+        }
+    }
+
+    @Test(dataProvider = "nullableColumns", groups = "integration")
+    public void testNullValue(String columnType, String defaultValue) throws Exception {
+        Properties props = new Properties();
+        props.setProperty(JdbcConfig.PROP_NULL_AS_DEFAULT, "2");
+        String tableName = "test_query_null_value_" + columnType.split("\\(")[0].trim().toLowerCase();
+        try (ClickHouseConnection conn = newConnection(props); ClickHouseStatement s = conn.createStatement()) {
+            if (!conn.getServerVersion().check("[22.3,)")) {
+                throw new SkipException("Skip test when ClickHouse is older than 22.3");
+            }
+            s.execute(String.format("drop table if exists %s; ", tableName)
+                    + String.format("create table %s(id Int8, v Nullable(%s))engine=Memory; ", tableName, columnType)
+                    + String.format("insert into %s values(1, null)", tableName));
+
+            try (ResultSet rs = s.executeQuery(String.format("select * from %s order by id", tableName))) {
+                Assert.assertTrue(rs.next(), "Should have at least one row");
+                Assert.assertEquals(rs.getInt(1), 1);
+                Assert.assertEquals(rs.getString(2), defaultValue);
+                Assert.assertFalse(rs.wasNull(), "Should not be null");
+                Assert.assertFalse(rs.next(), "Should have only one row");
+            }
+
+            s.setNullAsDefault(1);
+            try (ResultSet rs = s.executeQuery(String.format("select * from %s order by id", tableName))) {
+                Assert.assertTrue(rs.next(), "Should have at least one row");
+                Assert.assertEquals(rs.getInt(1), 1);
+                Assert.assertEquals(rs.getString(2), null);
+                Assert.assertTrue(rs.wasNull(), "Should be null");
+                Assert.assertFalse(rs.next(), "Should have only one row");
+            }
+
+            s.setNullAsDefault(0);
+            try (ResultSet rs = s.executeQuery(String.format("select * from %s order by id", tableName))) {
+                Assert.assertTrue(rs.next(), "Should have at least one row");
+                Assert.assertEquals(rs.getInt(1), 1);
+                Assert.assertEquals(rs.getString(2), null);
+                Assert.assertTrue(rs.wasNull(), "Should be null");
+                Assert.assertFalse(rs.next(), "Should have only one row");
+            }
+        } catch (SQLException e) {
+            // 'Unknown data type family', 'Missing columns' or 'Cannot create table column'
+            if (e.getErrorCode() == 50 || e.getErrorCode() == 47 || e.getErrorCode() == 44) {
+                return;
+            }
+            throw e;
         }
     }
 }

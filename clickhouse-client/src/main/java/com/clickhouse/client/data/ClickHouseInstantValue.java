@@ -21,6 +21,11 @@ import com.clickhouse.client.ClickHouseValues;
  */
 public class ClickHouseInstantValue extends ClickHouseObjectValue<Instant> {
     /**
+     * Default instant.
+     */
+    public static final Instant DEFAULT = Instant.ofEpochMilli(0L);
+
+    /**
      * Create a new instance representing null getValue().
      *
      * @param scale scale
@@ -229,6 +234,12 @@ public class ClickHouseInstantValue extends ClickHouseObjectValue<Instant> {
         }
 
         return str;
+    }
+
+    @Override
+    public ClickHouseInstantValue resetToDefault() {
+        set(DEFAULT);
+        return this;
     }
 
     @Override

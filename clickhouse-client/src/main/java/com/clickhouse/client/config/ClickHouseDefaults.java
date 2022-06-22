@@ -32,7 +32,10 @@ public enum ClickHouseDefaults implements ClickHouseOption {
     BUFFERING("buffering", ClickHouseBufferingMode.RESOURCE_EFFICIENT, "Buffering mode."),
     /**
      * Default cluster.
+     *
+     * @deprecated will be removed in v0.3.3
      */
+    @Deprecated
     CLUSTER("cluster", "", "Cluster name."),
     /**
      * Default server host.
@@ -44,11 +47,17 @@ public enum ClickHouseDefaults implements ClickHouseOption {
     PROTOCOL("protocol", ClickHouseProtocol.ANY, "Protocol to use."),
     /**
      * Default server port.
+     *
+     * @deprecated will be removed in v0.3.3
      */
+    @Deprecated
     PORT("port", 8123, "Port to connect to."),
     /**
      * Default server weight.
+     *
+     * @deprecated will be removed in v0.3.3
      */
+    @Deprecated
     WEIGHT("weight", 1, "Server weight which might be used for load balancing."),
     /**
      * Default database.
@@ -66,6 +75,12 @@ public enum ClickHouseDefaults implements ClickHouseOption {
      * Default format.
      */
     FORMAT("format", ClickHouseFormat.TabSeparated, "Preferred data format for serialization and deserialization."),
+    /**
+     * Maximum number of threads that the scheduler(shared by all client instances)
+     * can use to run the adhoc/scheduled tasks like discovery and health check.
+     */
+    MAX_SCHEDULER_THREADS("max_scheduler_threads", 1,
+            "Maximum number of threads that the scheduler(shared by all client instances) can use to run the adhoc/scheduled tasks like discovery and health check.."),
     /**
      * Max threads.
      */

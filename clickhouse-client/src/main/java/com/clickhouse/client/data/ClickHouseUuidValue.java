@@ -17,6 +17,11 @@ import com.clickhouse.client.ClickHouseValues;
  */
 public class ClickHouseUuidValue extends ClickHouseObjectValue<UUID> {
     /**
+     * Default value.
+     */
+    public static final UUID DEFAULT = new UUID(0L, 0L);
+
+    /**
      * Create a new instance representing null value.
      *
      * @return new instance representing null value
@@ -116,6 +121,12 @@ public class ClickHouseUuidValue extends ClickHouseObjectValue<UUID> {
     @Override
     public UUID asUuid() {
         return getValue();
+    }
+
+    @Override
+    public ClickHouseUuidValue resetToDefault() {
+        set(DEFAULT);
+        return this;
     }
 
     @Override

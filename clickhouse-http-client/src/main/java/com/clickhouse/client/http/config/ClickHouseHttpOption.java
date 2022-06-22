@@ -43,7 +43,7 @@ public enum ClickHouseHttpOption implements ClickHouseOption {
     // SEND_PROGRESS_INTERVAL("http_headers_progress_interval_ms", 3000, ""),
     // WAIT_END_OF_QUERY("wait_end_of_query", false, ""),
     /**
-     * Flow control window.
+     * Web context.
      */
     WEB_CONTEXT("web_context", "/", "Web context.");
 

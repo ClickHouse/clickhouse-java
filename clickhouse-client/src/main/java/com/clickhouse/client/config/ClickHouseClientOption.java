@@ -20,6 +20,55 @@ public enum ClickHouseClientOption implements ClickHouseOption {
      */
     ASYNC("async", true, "Whether the client should run in async mode."),
     /**
+     * Whether the client should discover more nodes from system tables and/or
+     * clickhouse-keeper/zookeeper.
+     */
+    AUTO_DISCOVERY("auto_discovery", false,
+            "Whether the client should discover more nodes from system tables and/or clickhouse-keeper/zookeeper."),
+    /**
+     * Load balancing policy.
+     */
+    LOAD_BALANCING_POLICY("load_balancing_policy", "",
+            "Load balancing policy, can be one of '', 'firstAlive', 'random', 'roundRobin', or full qualified class name implementing ClickHouseLoadBalancingPolicy."),
+    /**
+     * Load balancing tags for filtering out nodes.
+     */
+    LOAD_BALANCING_TAGS("load_balancing_tags", "", "Load balancing tags for filtering out nodes."),
+    /**
+     * Health check interval in milliseconds.
+     */
+    HEALTH_CHECK_INTERVAL("health_check_interval", 0,
+            "Health check interval in milliseconds, zero or negative value means one-time."),
+    /**
+     * Health check method.
+     */
+    HEALTH_CHECK_METHOD("health_check_method", ClickHouseHealthCheckMethod.SELECT_ONE, "Health check method."),
+    /**
+     * Node discovery interval in milliseconds.
+     */
+    NODE_DISCOVERY_INTERVAL("node_discovery_interval", 0,
+            "Node discovery interval in milliseconds, zero or negative value means one-time discovery."),
+    /**
+     * Maximum number of nodes can be discovered at a time.
+     */
+    NODE_DISCOVERY_LIMIT("node_discovery_limit", 100,
+            "Maximum number of nodes can be discovered at a time, zero or negative value means no limit."),
+    /**
+     * Node check interval in milliseconds.
+     */
+    NODE_CHECK_INTERVAL("node_check_interval", 0,
+            "Node check interval in milliseconds, negative number is treated as zero."),
+    /**
+     * Maximum number of nodes can be used for operation at a time.
+     */
+    NODE_GROUP_SIZE("node_group_size", 50,
+            "Maximum number of nodes can be used for operation at a time, zero or negative value means all."),
+    /**
+     * Whether to perform health check against all nodes or just faulty ones.
+     */
+    CHECK_ALL_NODES("check_all_nodes", false,
+            "Whether to perform health check against all nodes or just faulty ones."),
+    /**
      * Default buffer size in byte for both request and response. It will be reset
      * to {@link #MAX_BUFFER_SIZE} if it's too large.
      */
@@ -96,12 +145,17 @@ public enum ClickHouseClientOption implements ClickHouseOption {
     /**
      * Connection timeout in milliseconds.
      */
-    CONNECTION_TIMEOUT("connect_timeout", 10 * 1000,
+    CONNECTION_TIMEOUT("connect_timeout", 5000,
             "Connection timeout in milliseconds. It's also used for waiting a connection being closed."),
     /**
      * Default database.
      */
     DATABASE("database", "", "Default database."),
+    /**
+     * Maximum number of times failover can happen for a request.
+     */
+    FAILOVER("failover", 0,
+            "Maximum number of times failover can happen for a request, zero or negative value means no failover."),
     /**
      * Default format.
      */
@@ -157,15 +211,20 @@ public enum ClickHouseClientOption implements ClickHouseOption {
     RENAME_RESPONSE_COLUMN("rename_response_column", ClickHouseRenameMethod.NONE,
             "Method to rename response columns."),
     /**
-     * Whether to enable retry.
+     * Maximum number of times retry can happen for a request.
      */
-    RETRY("retry", true, "Whether to retry when there's connection issue."),
+    RETRY("retry", 0,
+            "Maximum number of times retry can happen for a request, zero or negative value means no retry."),
     /**
      * Whether to reuse wrapper of value(e.g. ClickHouseValue or
      * ClickHouseRecord) for memory efficiency.
      */
     REUSE_VALUE_WRAPPER("reuse_value_wrapper", true,
             "Whether to reuse wrapper of value(e.g. ClickHouseValue or ClickHouseRecord) for memory efficiency."),
+    /**
+     * Server revision.
+     */
+    SERVER_REVISION("server_revision", 54442, "Server revision."),
     /**
      * Server timezone.
      */
@@ -174,6 +233,13 @@ public enum ClickHouseClientOption implements ClickHouseOption {
      * Server version.
      */
     SERVER_VERSION("server_version", "", "Server version."),
+    /**
+     * Server weight.
+     *
+     * @deprecated will be removed in v0.3.3
+     */
+    @Deprecated
+    SERVER_WEIGHT("server_weight", 1, "Server weight. Only will be considered in load balancing mode."),
     /**
      * Session id.
      */

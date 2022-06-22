@@ -37,6 +37,7 @@
             <scope>provided</scope>
         </dependency>
 
+        <!-- JDBC drivers -->
         <dependency>
             <groupId>ru.yandex.clickhouse</groupId>
             <artifactId>clickhouse-jdbc</artifactId>
@@ -49,33 +50,6 @@
                 </exclusion>
             </exclusions>
         </dependency>
-        <dependency>
-            <groupId>${project.parent.groupId}</groupId>
-            <artifactId>clickhouse-client</artifactId>
-            <version>${revision}</version>
-        </dependency>
-        <dependency>
-            <groupId>${project.parent.groupId}</groupId>
-            <artifactId>clickhouse-grpc-client</artifactId>
-            <version>${revision}</version>
-            <!-- exclusions>
-                <exclusion>
-                    <groupId>${project.parent.groupId}</groupId>
-                    <artifactId>io.grpc</artifactId>
-                </exclusion>
-            </exclusions -->
-        </dependency>
-        <dependency>
-            <groupId>io.grpc</groupId>
-            <artifactId>grpc-netty-shaded</artifactId>
-        </dependency>
-        <!-- separate classifier did not work well with flatten plugin -->
-        <dependency>
-            <groupId>io.grpc</groupId>
-            <artifactId>grpc-okhttp</artifactId>
-        </dependency>
-
-        <!-- JDBC drivers -->
         <dependency>
             <groupId>com.clickhouse</groupId>
             <artifactId>clickhouse-jdbc</artifactId>

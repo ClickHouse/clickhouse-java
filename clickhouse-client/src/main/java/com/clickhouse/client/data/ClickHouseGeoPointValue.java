@@ -101,9 +101,14 @@ public class ClickHouseGeoPointValue extends ClickHouseObjectValue<double[]> {
     }
 
     @Override
-    public ClickHouseGeoPointValue resetToNullOrEmpty() {
+    public ClickHouseGeoPointValue resetToDefault() {
         set(new double[] { 0D, 0D });
         return this;
+    }
+
+    @Override
+    public ClickHouseGeoPointValue resetToNullOrEmpty() {
+        return resetToDefault();
     }
 
     @Override

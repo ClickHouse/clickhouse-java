@@ -227,6 +227,11 @@ public class ClickHouseEnumValue implements ClickHouseValue {
     }
 
     @Override
+    public ClickHouseEnumValue resetToDefault() {
+        return set(false, (byte) 0);
+    }
+
+    @Override
     public ClickHouseEnumValue resetToNullOrEmpty() {
         return set(true, (byte) 0);
     }

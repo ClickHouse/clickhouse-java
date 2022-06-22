@@ -13,6 +13,10 @@ public interface ClickHouseStatement extends Statement {
 
     ClickHouseConfig getConfig();
 
+    int getNullAsDefault();
+
+    void setNullAsDefault(int level);
+
     ClickHouseRequest<?> getRequest();
 
     default Mutation write() {

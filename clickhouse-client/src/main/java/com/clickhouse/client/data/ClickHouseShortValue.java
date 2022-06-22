@@ -169,6 +169,11 @@ public class ClickHouseShortValue implements ClickHouseValue {
     }
 
     @Override
+    public ClickHouseShortValue resetToDefault() {
+        return set(false, (short) 0);
+    }
+
+    @Override
     public ClickHouseShortValue resetToNullOrEmpty() {
         return set(true, (short) 0);
     }

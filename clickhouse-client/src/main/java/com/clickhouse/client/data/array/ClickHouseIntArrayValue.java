@@ -139,10 +139,14 @@ public class ClickHouseIntArrayValue extends ClickHouseObjectValue<int[]> {
     }
 
     @Override
-
-    public ClickHouseIntArrayValue resetToNullOrEmpty() {
+    public ClickHouseIntArrayValue resetToDefault() {
         set(ClickHouseValues.EMPTY_INT_ARRAY);
         return this;
+    }
+
+    @Override
+    public ClickHouseIntArrayValue resetToNullOrEmpty() {
+        return resetToDefault();
     }
 
     @Override

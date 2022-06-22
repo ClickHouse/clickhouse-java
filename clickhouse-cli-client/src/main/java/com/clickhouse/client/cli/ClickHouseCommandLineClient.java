@@ -1,8 +1,9 @@
 package com.clickhouse.client.cli;
 
 import java.io.IOException;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 
 import com.clickhouse.client.AbstractClient;
 import com.clickhouse.client.ClickHouseChecker;
@@ -23,6 +24,19 @@ import com.clickhouse.client.cli.config.ClickHouseCommandLineOption;
  */
 public class ClickHouseCommandLineClient extends AbstractClient<ClickHouseCommandLine> {
     private static final Logger log = LoggerFactory.getLogger(ClickHouseCommandLineClient.class);
+
+    static final List<ClickHouseProtocol> SUPPORTED = Collections.singletonList(ClickHouseProtocol.TCP);
+
+    @Override
+    protected boolean checkHealth(ClickHouseNode server, int timeout) {
+        try (ClickHouseCommandLine cli = getConnection(connect(server).query("select 1"));
+                ClickHouseCommandLineResponse response = new ClickHouseCommandLineResponse(getConfig(), cli)) {
+            return response.firstRecord().getValue(0).asInteger() == 1;
+        } catch (Exception e) {
+            // ignore
+        }
+        return false;
+    }
 
     @Override
     protected ClickHouseCommandLine newConnection(ClickHouseCommandLine conn, ClickHouseNode server,
@@ -50,6 +64,16 @@ public class ClickHouseCommandLineClient extends AbstractClient<ClickHouseComman
     }
 
     @Override
+    protected Collection<ClickHouseProtocol> getSupportedProtocols() {
+        return SUPPORTED;
+    }
+
+    @Override
+    protected ClickHouseResponse send(ClickHouseRequest<?> sealedRequest) throws ClickHouseException, IOException {
+        return new ClickHouseCommandLineResponse(sealedRequest.getConfig(), getConnection(sealedRequest));
+    }
+
+    @Override
     public boolean accept(ClickHouseProtocol protocol) {
         ClickHouseConfig config = getConfig();
         int timeout = config != null ? config.getConnectionTimeout()
@@ -65,50 +89,14 @@ public class ClickHouseCommandLineClient extends AbstractClient<ClickHouseComman
             docker = ClickHouseCommandLine.DEFAULT_DOCKER_CLI_PATH;
         }
         return ClickHouseProtocol.TCP == protocol
-                && (ClickHouseCommandLine.check(timeout, cli, ClickHouseCommandLine.DEFAULT_CLI_ARG_VERSION)
-                        || ClickHouseCommandLine.check(timeout, docker, ClickHouseCommandLine.DEFAULT_CLI_ARG_VERSION));
-    }
-
-    @Override
-    public CompletableFuture<ClickHouseResponse> execute(ClickHouseRequest<?> request) {
-        final ClickHouseRequest<?> sealedRequest = request.seal();
-        final ClickHouseConfig config = sealedRequest.getConfig();
-        final ClickHouseNode server = getServer();
-
-        if (config.isAsync()) {
-            return CompletableFuture
-                    .supplyAsync(() -> {
-                        try {
-                            return new ClickHouseCommandLineResponse(config, getConnection(sealedRequest));
-                        } catch (IOException e) {
-                            throw new CompletionException(e);
-                        }
-                    });
-        } else {
-            try {
-                return CompletableFuture
-                        .completedFuture(new ClickHouseCommandLineResponse(config, getConnection(sealedRequest)));
-            } catch (IOException e) {
-                throw new CompletionException(ClickHouseException.of(e, server));
-            }
-        }
+                && (ClickHouseCommandLine.check(timeout, cli, ClickHouseCommandLine.DEFAULT_CLIENT_OPTION,
+                        ClickHouseCommandLine.DEFAULT_CLI_ARG_VERSION)
+                        || ClickHouseCommandLine.check(timeout, docker, ClickHouseCommandLine.DEFAULT_CLIENT_OPTION,
+                                ClickHouseCommandLine.DEFAULT_CLI_ARG_VERSION));
     }
 
     @Override
     public final Class<? extends ClickHouseOption> getOptionClass() {
         return ClickHouseCommandLineOption.class;
-    }
-
-    @Override
-    public boolean ping(ClickHouseNode server, int timeout) {
-        if (server != null) {
-            try (ClickHouseCommandLine cli = getConnection(connect(server).query("select 1"));
-                    ClickHouseCommandLineResponse response = new ClickHouseCommandLineResponse(getConfig(), cli)) {
-                return response.firstRecord().getValue(0).asInteger() == 1;
-            } catch (Exception e) {
-                // ignore
-            }
-        }
-        return false;
     }
 }
