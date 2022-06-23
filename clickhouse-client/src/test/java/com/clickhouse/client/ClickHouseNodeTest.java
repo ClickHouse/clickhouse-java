@@ -169,7 +169,7 @@ public class ClickHouseNodeTest extends BaseIntegrationTest {
     public void testValidNodes() {
         Map<String, String> options = new HashMap<>();
         options.put(ClickHouseClientOption.SSL.getKey(), "false");
-        options.put(ClickHouseClientOption.SSL_MODE.getKey(), "NONE");
+        options.put(ClickHouseClientOption.SSL_MODE.getKey(), ClickHouseSslMode.STRICT.name());
         options.put(ClickHouseClientOption.DATABASE.getKey(), "db1");
 
         Set<String> tags = new HashSet<>();
@@ -183,7 +183,7 @@ public class ClickHouseNodeTest extends BaseIntegrationTest {
     public void testSecureNode() {
         Map<String, String> options = new HashMap<>();
         options.put(ClickHouseClientOption.SSL.getKey(), "true");
-        options.put(ClickHouseClientOption.SSL_MODE.getKey(), "NONE");
+        options.put(ClickHouseClientOption.SSL_MODE.getKey(), ClickHouseSslMode.STRICT.name());
         options.put(ClickHouseClientOption.DATABASE.getKey(), "db1");
 
         Assert.assertEquals(ClickHouseNode.of("https://node1:443/db1"),
@@ -218,7 +218,7 @@ public class ClickHouseNodeTest extends BaseIntegrationTest {
     public void testNodeWithProtocol() {
         Map<String, String> options = new HashMap<>();
         options.put(ClickHouseClientOption.SSL.getKey(), "true");
-        options.put(ClickHouseClientOption.SSL_MODE.getKey(), "NONE");
+        options.put(ClickHouseClientOption.SSL_MODE.getKey(), ClickHouseSslMode.STRICT.name());
 
         for (ClickHouseProtocol p : ClickHouseProtocol.values()) {
             Assert.assertEquals(ClickHouseNode.of(p.name() + ":///?#"),
@@ -254,7 +254,7 @@ public class ClickHouseNodeTest extends BaseIntegrationTest {
     public void testNodeWithDatabase() {
         Map<String, String> options = new HashMap<>();
         options.put(ClickHouseClientOption.SSL.getKey(), "true");
-        options.put(ClickHouseClientOption.SSL_MODE.getKey(), "NONE");
+        options.put(ClickHouseClientOption.SSL_MODE.getKey(), ClickHouseSslMode.STRICT.name());
 
         Assert.assertEquals(ClickHouseNode.of("grpcs://node1:19100/"),
                 new ClickHouseNode("node1", ClickHouseProtocol.GRPC, 19100, null, options, null));
@@ -324,13 +324,13 @@ public class ClickHouseNodeTest extends BaseIntegrationTest {
         Map<String, String> options = new HashMap<>();
         options.put(ClickHouseClientOption.ASYNC.getKey(), "false");
         options.put(ClickHouseClientOption.SSL.getKey(), "true");
-        options.put(ClickHouseClientOption.SSL_MODE.getKey(), "NONE");
+        options.put(ClickHouseClientOption.SSL_MODE.getKey(), ClickHouseSslMode.STRICT.name());
         options.put(ClickHouseClientOption.CONNECTION_TIMEOUT.getKey(), "500");
 
         for (String uri : new String[] {
                 "https://node1?!async&ssl&connect_timeout=500",
-                "http://node1?async=false&ssl=true&sslmode=NONE&connect_timeout=500",
-                "http://node1?&&&&async=false&ssl&&&&&sslmode=NONE&connect_timeout=500&&&",
+                "http://node1?async=false&ssl=true&sslmode=STRICT&connect_timeout=500",
+                "http://node1?&&&&async=false&ssl&&&&&sslmode=STRICT&connect_timeout=500&&&",
         }) {
             Assert.assertEquals(ClickHouseNode.of(uri),
                     new ClickHouseNode("node1", ClickHouseProtocol.HTTP,
@@ -379,7 +379,7 @@ public class ClickHouseNodeTest extends BaseIntegrationTest {
         Assert.assertEquals(server.toUri(), new URI("http://localhost:1234?/a/b/c=d"));
 
         Assert.assertEquals(ClickHouseNode.of("https://myserver/db/1/2/3?a%20=%201&b=/root/my.crt").toUri(),
-                new URI("http://myserver:8443/db/1/2/3?ssl=true&sslmode=NONE&a%20=%201&b=/root/my.crt"));
+                new URI("http://myserver:8443/db/1/2/3?ssl=true&sslmode=STRICT&a%20=%201&b=/root/my.crt"));
     }
 
     @Test(groups = { "integration" })

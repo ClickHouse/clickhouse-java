@@ -801,7 +801,7 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
         }
         if (protocol != ClickHouseProtocol.POSTGRESQL && scheme.charAt(scheme.length() - 1) == 's') {
             params.put(ClickHouseClientOption.SSL.getKey(), Boolean.TRUE.toString());
-            params.put(ClickHouseClientOption.SSL_MODE.getKey(), ClickHouseSslMode.NONE.name());
+            params.put(ClickHouseClientOption.SSL_MODE.getKey(), ClickHouseSslMode.STRICT.name());
         }
 
         ClickHouseCredentials credentials = template.credentials;
