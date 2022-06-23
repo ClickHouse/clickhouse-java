@@ -18,10 +18,10 @@ Either [clickhouse-client](https://clickhouse.com/docs/en/interfaces/cli/) or [d
 
 ```xml
 <dependency>
-    <!-- will stop using ru.yandex.clickhouse starting from 0.4.0 -->
+    <!-- please stop using ru.yandex.clickhouse as it's been deprecated -->
     <groupId>com.clickhouse</groupId>
     <artifactId>clickhouse-cli-client</artifactId>
-    <version>0.3.2-patch9</version>
+    <version>0.3.2-patch10</version>
 </dependency>
 ```
 

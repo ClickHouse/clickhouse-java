@@ -56,7 +56,7 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
-        <clickhouse-jdbc.version>0.3.2-patch9</clickhouse-jdbc.version>
+        <clickhouse-jdbc.version>0.3.2-patch10</clickhouse-jdbc.version>
 
         <compiler-plugin.version>3.8.1</compiler-plugin.version>
 

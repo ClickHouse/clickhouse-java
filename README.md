@@ -10,9 +10,9 @@ Java 8 or higher is required in order to use Java client([clickhouse-client](htt
 
 :exclamation: **IMPORTANT**
 
-Maven groupId `ru.yandex.clickhouse` and legacy JDBC driver `ru.yandex.clickhouse.ClickHouseDriver` are deprecated.
+Maven groupId `ru.yandex.clickhouse` and legacy JDBC driver `ru.yandex.clickhouse.ClickHouseDriver` have been deprecated and no longer receive updates.
 
-Please use new groupId `com.clickhouse` and driver `com.clickhouse.jdbc.ClickHouseDriver` instead. It's highly recommended to upgrade to 0.3.2+ and start to integrate the new JDBC driver for improved performance and stability.
+Please use new groupId `com.clickhouse` and driver `com.clickhouse.jdbc.ClickHouseDriver` instead. It's highly recommended to upgrade to 0.3.2+ now for improved performance and stability.
 
 ![image](https://user-images.githubusercontent.com/4270380/154429324-631f718d-9277-4522-b60d-13f87b2e6c31.png)
 Note: in general, the new driver(v0.3.2) is a few times faster with less memory usage. More information can be found at [here](https://github.com/ClickHouse/clickhouse-jdbc/issues/768).
@@ -21,90 +21,36 @@ Note: in general, the new driver(v0.3.2) is a few times faster with less memory 
 
 ## Features
 
-| Category      | Feature                                                      | Supported          | Remark                                                                                                                                                               |
-| ------------- | ------------------------------------------------------------ | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Protocol      | [HTTP](https://clickhouse.com/docs/en/interfaces/http/)      | :white_check_mark: | recommended, defaults to `java.net.HttpURLConnection` and can be changed to `java.net.http.HttpClient`(faster but less stable)                                       |
-|               | [gRPC](https://clickhouse.com/docs/en/interfaces/grpc/)      | :white_check_mark: | still experimental, works with 22.3+, known to has [issue](https://github.com/ClickHouse/ClickHouse/issues/28671#issuecomment-1087049993) when using LZ4 compression |
-|               | [TCP/Native](https://clickhouse.com/docs/en/interfaces/tcp/) | :x:                | will be available in 0.3.3                                                                                                                                           |
-| Compatibility | Server < 20.7                                                | :x:                | use 0.3.1-patch(or 0.2.6 if you're stuck with JDK 7)                                                                                                                 |
-|               | Server >= 20.7                                               | :white_check_mark: | use 0.3.2 or above. All [active releases](https://github.com/ClickHouse/ClickHouse/pulls?q=is%3Aopen+is%3Apr+label%3Arelease) are supported.                         |
-| Data Type     | AggregatedFunction                                           | :x:                | limited to `groupBitmap`                                                                                                                                             |
-|               | Array(\*)                                                    | :white_check_mark: |                                                                                                                                                                      |
-|               | Bool                                                         | :white_check_mark: |                                                                                                                                                                      |
-|               | Date\*                                                       | :white_check_mark: |                                                                                                                                                                      |
-|               | DateTime\*                                                   | :white_check_mark: |                                                                                                                                                                      |
-|               | Decimal\*                                                    | :white_check_mark: | `SET output_format_decimal_trailing_zeros=1` in 21.9+ for consistency                                                                                                |
-|               | Enum\*                                                       | :white_check_mark: | can be treated as both string and integer                                                                                                                            |
-|               | Geo Types                                                    | :white_check_mark: | Point, Ring, Polygon, and MultiPolygon                                                                                                                               |
-|               | Int\*, UInt\*                                                | :white_check_mark: | UInt64 is mapped to `long`                                                                                                                                           |
-|               | IPv\*                                                        | :white_check_mark: |                                                                                                                                                                      |
-|               | Map(\*)                                                      | :white_check_mark: |                                                                                                                                                                      |
-|               | Nested(\*)                                                   | :white_check_mark: |                                                                                                                                                                      |
-|               | Object('JSON')                                               | :white_check_mark: |                                                                                                                                                                      |
-|               | SimpleAggregateFunction                                      | :white_check_mark: |                                                                                                                                                                      |
-|               | \*String                                                     | :white_check_mark: |                                                                                                                                                                      |
-|               | Tuple(\*)                                                    | :white_check_mark: |                                                                                                                                                                      |
-|               | UUID                                                         | :white_check_mark: |                                                                                                                                                                      |
-| Format        | RowBinary                                                    | :white_check_mark: | `RowBinaryWithNamesAndTypes` for query and `RowBinary` for insertion                                                                                                 |
-|               | TabSeparated                                                 | :white_check_mark: | Does not support as many data types as RowBinary                                                                                                                     |
-
-## Configuration
-
-- Client option, server setting, and default value
-
-  You can pass any client option([common](https://github.com/ClickHouse/clickhouse-jdbc/blob/master/clickhouse-client/src/main/java/com/clickhouse/client/config/ClickHouseClientOption.java), [http](https://github.com/ClickHouse/clickhouse-jdbc/blob/master/clickhouse-http-client/src/main/java/com/clickhouse/client/http/config/ClickHouseHttpOption.java) and [grpc](https://github.com/ClickHouse/clickhouse-jdbc/blob/master/clickhouse-grpc-client/src/main/java/com/clickhouse/client/grpc/config/ClickHouseGrpcOption.java)) to `ClickHouseRequest.option()` and [server setting](https://clickhouse.com/docs/en/operations/settings/) to `ClickHouseRequest.set()` before execution, for instance:
-
-  ```java
-  ClickHouseRequest<?> request = client.connect(myServer);
-  request
-      .query("select 1")
-      // short version of option(ClickHouseClientOption.FORMAT, ClickHouseFormat.RowBinaryWithNamesAndTypes)
-      .format(ClickHouseFormat.RowBinaryWithNamesAndTypes)
-      .option(ClickHouseClientOption.SOCKET_TIMEOUT, 30000 * 2)
-      .set("max_rows_to_read", 100)
-      .set("read_overflow_mode", "throw")
-      .execute()
-      .whenComplete((response, throwable) -> {
-          if (throwable != null) {
-              log.error("Unexpected error", throwable);
-          } else {
-              try {
-                  for (ClickHouseRecord rec : response.records()) {
-                      // ...
-                  }
-              } finally {
-                  response.close();
-              }
-          }
-      });
-  ```
-
-  [Default value](https://github.com/ClickHouse/clickhouse-jdbc/blob/master/clickhouse-client/src/main/java/com/clickhouse/client/config/ClickHouseDefaults.java) can be either configured via system property or environment variable.
-
-- JDBC configuration
-
-  **Driver Class**: `com.clickhouse.jdbc.ClickHouseDriver`
-
-  Note: `ru.yandex.clickhouse.ClickHouseDriver` and everything under `ru.yandex.clickhouse` will be removed starting from 0.4.0.
-
-  **URL Syntax**: `jdbc:<prefix>[:<protocol>]://<host>:[<port>][/<database>[?param1=value1&param2=value2]]`, for examples:
-
-  - `jdbc:ch://localhost` is same as `jdbc:clickhouse:http://localhost:8123`
-  - `jdbc:ch:grpc://localhost` is same as `jdbc:clickhouse:grpc://localhost:9100`
-  - `jdbc:ch://localhost/test?socket_timeout=120000`
-
-  **Connection Properties**:
-
-  | Property             | Default | Description                                                                                                                                                                                                                                                                                                                                                                                                                |
-  | -------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-  | continueBatchOnError | `false` | Whether to continue batch processing when error occurred                                                                                                                                                                                                                                                                                                                                                                   |
-  | custom_http_headers  |         | comma separated custom http headers, for example: `User-Agent=client1,X-Gateway-Id=123`                                                                                                                                                                                                                                                                                                                                    |
-  | custom_http_params   |         | comma separated custom http query parameters, for example: `extremes=0,max_result_rows=100`                                                                                                                                                                                                                                                                                                                                |
-  | jdbcCompliance       | `true`  | Whether to support standard synchronous UPDATE/DELETE and fake transaction                                                                                                                                                                                                                                                                                                                                                 |
-  | typeMappings         |         | Customize mapping between ClickHouse data type and Java class, which will affect result of both [getColumnType()](https://docs.oracle.com/javase/8/docs/api/java/sql/ResultSetMetaData.html#getColumnType-int-) and [getObject(Class<?>)](https://docs.oracle.com/javase/8/docs/api/java/sql/ResultSet.html#getObject-java.lang.String-java.lang.Class-). For example: `UInt128=java.lang.String,UInt256=java.lang.String` |
-  | wrapperObject        | `false` | Whether [getObject()](https://docs.oracle.com/javase/8/docs/api/java/sql/ResultSet.html#getObject-int-) should return java.sql.Array / java.sql.Struct for Array / Tuple.                                                                                                                                                                                                                                                  |
-
-  Note: please refer to [JDBC specific configuration](https://github.com/ClickHouse/clickhouse-jdbc/blob/master/clickhouse-jdbc/src/main/java/com/clickhouse/jdbc/JdbcConfig.java) and client options([common](https://github.com/ClickHouse/clickhouse-jdbc/blob/master/clickhouse-client/src/main/java/com/clickhouse/client/config/ClickHouseClientOption.java), [http](https://github.com/ClickHouse/clickhouse-jdbc/blob/master/clickhouse-http-client/src/main/java/com/clickhouse/client/http/config/ClickHouseHttpOption.java) and [grpc](https://github.com/ClickHouse/clickhouse-jdbc/blob/master/clickhouse-grpc-client/src/main/java/com/clickhouse/client/grpc/config/ClickHouseGrpcOption.java)) for more.
+| Category          | Feature                                                              | Supported          | Remark                                                                                                                                                               |
+| ----------------- | -------------------------------------------------------------------- | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| API               | [JDBC](https://docs.oracle.com/javase/8/docs/technotes/guides/jdbc/) | :white_check_mark: |                                                                                                                                                                      |
+|                   | [R2DBC](https://r2dbc.io/)                                           | :white_check_mark: | 1.0.0GA was supported since 0.3.2-patch10                                                                                                                            |
+| Protocol          | [HTTP](https://clickhouse.com/docs/en/interfaces/http/)              | :white_check_mark: | recommended, defaults to `java.net.HttpURLConnection` and can be changed to `java.net.http.HttpClient`(faster but less stable)                                       |
+|                   | [gRPC](https://clickhouse.com/docs/en/interfaces/grpc/)              | :white_check_mark: | still experimental, works with 22.3+, known to has [issue](https://github.com/ClickHouse/ClickHouse/issues/28671#issuecomment-1087049993) when using LZ4 compression |
+|                   | [TCP/Native](https://clickhouse.com/docs/en/interfaces/tcp/)         | :white_check_mark: | `clickhouse-cli-client`(wrapper of ClickHouse native command-line client) was added in 0.3.2-patch10, `clickhouse-tcp-client` will be available in 0.3.3             |
+| Compatibility     | Server < 20.7                                                        | :x:                | use 0.3.1-patch(or 0.2.6 if you're stuck with JDK 7)                                                                                                                 |
+|                   | Server >= 20.7                                                       | :white_check_mark: | use 0.3.2 or above. All [active releases](https://github.com/ClickHouse/ClickHouse/pulls?q=is%3Aopen+is%3Apr+label%3Arelease) are supported.                         |
+| Data Format       | RowBinary                                                            | :white_check_mark: | `RowBinaryWithNamesAndTypes` for query and `RowBinary` for insertion                                                                                                 |
+|                   | TabSeparated                                                         | :white_check_mark: | Does not support as many data types as RowBinary                                                                                                                     |
+| Data Type         | AggregatedFunction                                                   | :x:                | limited to `groupBitmap`                                                                                                                                             |
+|                   | Array(\*)                                                            | :white_check_mark: |                                                                                                                                                                      |
+|                   | Bool                                                                 | :white_check_mark: |                                                                                                                                                                      |
+|                   | Date\*                                                               | :white_check_mark: |                                                                                                                                                                      |
+|                   | DateTime\*                                                           | :white_check_mark: |                                                                                                                                                                      |
+|                   | Decimal\*                                                            | :white_check_mark: | `SET output_format_decimal_trailing_zeros=1` in 21.9+ for consistency                                                                                                |
+|                   | Enum\*                                                               | :white_check_mark: | can be treated as both string and integer                                                                                                                            |
+|                   | Geo Types                                                            | :white_check_mark: | Point, Ring, Polygon, and MultiPolygon                                                                                                                               |
+|                   | Int\*, UInt\*                                                        | :white_check_mark: | UInt64 is mapped to `long`                                                                                                                                           |
+|                   | IPv\*                                                                | :white_check_mark: |                                                                                                                                                                      |
+|                   | Map(\*)                                                              | :white_check_mark: |                                                                                                                                                                      |
+|                   | Nested(\*)                                                           | :white_check_mark: |                                                                                                                                                                      |
+|                   | Object('JSON')                                                       | :white_check_mark: | supported since 0.3.2-patch8                                                                                                                                         |
+|                   | SimpleAggregateFunction                                              | :white_check_mark: |                                                                                                                                                                      |
+|                   | \*String                                                             | :white_check_mark: |                                                                                                                                                                      |
+|                   | Tuple(\*)                                                            | :white_check_mark: |                                                                                                                                                                      |
+|                   | UUID                                                                 | :white_check_mark: |                                                                                                                                                                      |
+| High Availability | Load Balancing                                                       | :white_check_mark: | supported since 0.3.2-patch10                                                                                                                                        |
+|                   | Failover                                                             | :white_check_mark: | supported since 0.3.2-patch10                                                                                                                                        |
 
 ## Examples
 
@@ -115,28 +61,28 @@ Note: in general, the new driver(v0.3.2) is a few times faster with less memory 
     <groupId>com.clickhouse</groupId>
     <!-- or clickhouse-grpc-client if you prefer gRPC -->
     <artifactId>clickhouse-http-client</artifactId>
-    <version>0.3.2-patch9</version>
+    <version>0.3.2-patch10</version>
 </dependency>
 ```
 
 ```java
-// only HTTP and gRPC are supported at this point
-ClickHouseProtocol preferredProtocol = ClickHouseProtocol.HTTP;
-// you'll have to parse response manually if use different format
-ClickHouseFormat preferredFormat = ClickHouseFormat.RowBinaryWithNamesAndTypes;
+// endpoint: protocol://host[:port][/database][?param1=value1&param2=value2...][#tag1,tag2,...]
+ClickHouseNode endpoint = ClickHouseNode.of("https://localhost"); // http://localhost:8443?ssl=true&sslmode=NONE
+// endpoints: [defaultProtocol://]endpoint1[,endpoint2,endpoint3,...][/defaultDatabase][?defaultParameters][#efaultTags]
+ClickHouseNodes endpoints = ClickHouseNodes.of("http://(https://explorer@play.clickhouse.com:443),localhost,(tcp://localhost?!auto_discovery#experimental),(grpc://localhost#experimental)?failover=3#test")
 
-// connect to localhost, use default port of the preferred protocol
-ClickHouseNode server = ClickHouseNode.builder().port(preferredProtocol).build();
-
-try (ClickHouseClient client = ClickHouseClient.newInstance(preferredProtocol);
-    ClickHouseResponse response = client.connect(server)
-        .format(preferredFormat)
+try (ClickHouseClient client = ClickHouseClient.newInstance(ClickHouseProtocol.HTTP);
+    ClickHouseResponse response = client.connect(endpoint) // or client.connect(endpoints)
+        // you'll have to parse response manually if using a different format
+        .format(ClickHouseFormat.RowBinaryWithNamesAndTypes)
         .query("select * from numbers(:limit)")
         .params(1000).executeAndWait()) {
-    // or resp.stream() if you prefer stream API
+    // or response.stream() if you prefer stream API
     for (ClickHouseRecord r : response.records()) {
         int num = r.getValue(0).asInteger();
+        // type conversion
         String str = r.getValue(0).asString();
+        LocalDate date = r.getValue(0).asDate();
     }
 
     ClickHouseResponseSummary summary = response.getSummary();
@@ -148,12 +94,12 @@ try (ClickHouseClient client = ClickHouseClient.newInstance(preferredProtocol);
 
 ```xml
 <dependency>
-    <!-- will stop using ru.yandex.clickhouse starting from 0.4.0  -->
+    <!-- please stop using ru.yandex.clickhouse as it's been deprecated -->
     <groupId>com.clickhouse</groupId>
     <artifactId>clickhouse-jdbc</artifactId>
-    <version>0.3.2-patch9</version>
-    <!-- below is only needed when all you want is a shaded jar -->
-    <classifier>http</classifier>
+    <version>0.3.2-patch10</version>
+    <!-- use uber jar with all dependencies included, change classifier to http for smaller jar -->
+    <classifier>all</classifier>
     <exclusions>
         <exclusion>
             <groupId>*</groupId>
@@ -164,16 +110,19 @@ try (ClickHouseClient client = ClickHouseClient.newInstance(preferredProtocol);
 ```
 
 ```java
-String url = "jdbc:ch://localhost/test";
+// jdbc:(ch|clickhouse):[defaultProtocol://]endpoint1[,endpoint2,endpoint3,...][/defaultDatabase][?defaultParameters][#efaultTags]
+String url = "jdbc:ch:https://play.clickhouse.com:443";
 Properties properties = new Properties();
-// optionally set connection properties
+properties.setProperty("user", "explorer");
+properties.setProperty("password", "");
+// optional properties
 properties.setProperty("client_name", "Agent #1");
 ...
 
 ClickHouseDataSource dataSource = new ClickHouseDataSource(url, properties);
 try (Connection conn = dataSource.getConnection();
     Statement stmt = conn.createStatement();
-    ResultSet rs = stmt.executeQuery("select * from mytable")) {
+    ResultSet rs = stmt.executeQuery("show databases")) {
     ...
 }
 ```
@@ -193,7 +142,16 @@ Use `mvn clean verify` to compile, test and generate shaded packages if you're u
               <version>11</version>
           </provides>
           <configuration>
-              <jdkHome>${{ env.JDK11_HOME }}</jdkHome>
+              <jdkHome>/usr/lib/jvm/java-11-openjdk</jdkHome>
+          </configuration>
+      </toolchain>
+      <toolchain>
+          <type>jdk</type>
+          <provides>
+              <version>17</version>
+          </provides>
+          <configuration>
+              <jdkHome>/usr/lib/jvm/java-17-openjdk</jdkHome>
           </configuration>
       </toolchain>
   </toolchains>
