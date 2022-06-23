@@ -13,6 +13,7 @@ import java.util.concurrent.TimeUnit;
 import com.clickhouse.client.ClickHouseNode.Status;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.config.ClickHouseDefaults;
+import com.clickhouse.client.config.ClickHouseSslMode;
 
 import org.testng.Assert;
 import org.testng.annotations.Test;
@@ -213,7 +214,7 @@ public class ClickHouseNodesTest {
 
         Map<String, String> options = new HashMap<>();
         options.put(ClickHouseClientOption.SSL.getKey(), "true");
-        options.put(ClickHouseClientOption.SSL_MODE.getKey(), "NONE");
+        options.put(ClickHouseClientOption.SSL_MODE.getKey(), ClickHouseSslMode.STRICT.name());
         options.put(ClickHouseClientOption.DATABASE.getKey(), "db1");
 
         Assert.assertEquals(ClickHouseNodes.of("https://node1:443/db1").nodes.get(0),
