@@ -1,8 +1,10 @@
 package com.clickhouse.client;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.Serializable;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -14,8 +16,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Map.Entry;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.Optional;
 import java.util.Properties;
@@ -39,6 +43,8 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
      * Mutation request.
      */
     public static class Mutation extends ClickHouseRequest<Mutation> {
+        private ClickHouseWriter writer;
+
         protected Mutation(ClickHouseRequest<?> request, boolean sealed) {
             super(request.getClient(), request.server, request.serverRef, request.options, sealed);
             this.settings.putAll(request.settings);
@@ -103,6 +109,20 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
             }
 
             return super.format(format);
+        }
+
+        /**
+         * Sets custom writer for streaming. This will create a piped stream between the
+         * writer and ClickHouse server.
+         *
+         * @param writer writer
+         * @return mutation request
+         */
+        public Mutation data(ClickHouseWriter writer) {
+            checkSealed();
+
+            this.writer = changeProperty(PROP_WRITER, this.writer, writer);
+            return this;
         }
 
         /**
@@ -197,6 +217,70 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
             return this;
         }
 
+        @Override
+        public CompletableFuture<ClickHouseResponse> execute() {
+            if (writer != null) {
+                ClickHouseConfig c = getConfig();
+                ClickHousePipedOutputStream stream = ClickHouseDataStreamFactory.getInstance()
+                        .createPipedOutputStream(c, null);
+                data(stream.getInputStream());
+                CompletableFuture<ClickHouseResponse> future = null;
+                if (c.isAsync()) {
+                    future = getClient().execute(isSealed() ? this : seal());
+                }
+                try (ClickHouseOutputStream out = stream) {
+                    writer.write(out);
+                } catch (IOException e) {
+                    throw new CompletionException(e);
+                }
+                if (future != null) {
+                    return future;
+                }
+            }
+
+            return getClient().execute(isSealed() ? this : seal());
+        }
+
+        @Override
+        public ClickHouseResponse executeAndWait() throws ClickHouseException {
+            if (writer != null) {
+                ClickHouseConfig c = getConfig();
+                ClickHousePipedOutputStream stream = ClickHouseDataStreamFactory.getInstance()
+                        .createPipedOutputStream(c, null);
+                data(stream.getInputStream());
+                CompletableFuture<ClickHouseResponse> future = null;
+                if (c.isAsync()) {
+                    future = getClient().execute(isSealed() ? this : seal());
+                }
+                try (ClickHouseOutputStream out = stream) {
+                    writer.write(out);
+                } catch (IOException e) {
+                    throw ClickHouseException.of(e, getServer());
+                }
+                if (future != null) {
+                    try {
+                        return future.get();
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        throw ClickHouseException.forCancellation(e, getServer());
+                    } catch (CancellationException e) {
+                        throw ClickHouseException.forCancellation(e, getServer());
+                    } catch (ExecutionException | UncheckedIOException e) {
+                        Throwable cause = e.getCause();
+                        if (cause == null) {
+                            cause = e;
+                        }
+                        throw cause instanceof ClickHouseException ? (ClickHouseException) cause
+                                : ClickHouseException.of(cause, getServer());
+                    } catch (RuntimeException e) { // unexpected
+                        throw ClickHouseException.of(e, getServer());
+                    }
+                }
+            }
+
+            return getClient().executeAndWait(isSealed() ? this : seal());
+        }
+
         /**
          * Sends mutation requets for execution. Same as
          * {@code client.execute(request.seal())}.
@@ -256,6 +340,7 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
     static final String PROP_PREPARED_QUERY = "preparedQuery";
     static final String PROP_QUERY = "query";
     static final String PROP_QUERY_ID = "queryId";
+    static final String PROP_WRITER = "writer";
 
     private final boolean sealed;
 

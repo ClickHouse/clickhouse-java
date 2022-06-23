@@ -21,6 +21,7 @@ import java.util.TimeZone;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import com.clickhouse.client.ClickHouseClientBuilder.Agent;
@@ -907,6 +908,46 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
         }
 
         Assert.assertEquals(count, 1000L);
+    }
+
+    @Test(groups = { "integration" })
+    public void testCustomWriter() throws Exception {
+        ClickHouseNode server = getServer();
+        ClickHouseClient.send(server, "drop table if exists test_custom_writer",
+                "create table test_custom_writer(a Int8) engine=Memory")
+                .get();
+
+        try (ClickHouseClient client = getClient()) {
+            AtomicInteger i = new AtomicInteger(1);
+            ClickHouseRequest.Mutation req = client.connect(server).write().format(ClickHouseFormat.RowBinary)
+                    .table("test_custom_writer").data(o -> {
+                        o.write(i.getAndIncrement());
+                    });
+            for (boolean b : new boolean[] { true, false }) {
+                req.option(ClickHouseClientOption.ASYNC, b);
+
+                try (ClickHouseResponse resp = req.send().get()) {
+                    Assert.assertNotNull(resp);
+                }
+
+                try (ClickHouseResponse resp = req.sendAndWait()) {
+                    Assert.assertNotNull(resp);
+                }
+
+                try (ClickHouseResponse resp = req.execute().get()) {
+                    Assert.assertNotNull(resp);
+                }
+
+                try (ClickHouseResponse resp = req.executeAndWait()) {
+                    Assert.assertNotNull(resp);
+                }
+            }
+
+            try (ClickHouseResponse resp = client.connect(server).query("select count(1) from test_custom_writer")
+                    .executeAndWait()) {
+                Assert.assertEquals(resp.firstRecord().getValue(0).asInteger(), i.get() - 1);
+            }
+        }
     }
 
     @Test(groups = { "integration" })
