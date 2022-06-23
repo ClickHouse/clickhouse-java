@@ -9,7 +9,7 @@ import java.util.regex.Pattern;
  * 
  * @deprecated As of release 0.3.2, replaced by
  *             {@link com.clickhouse.client.ClickHouseVersion} and it will be
- *             removed in 0.4.0
+ *             removed in 0.3.3
  */
 @Deprecated
 public final class ClickHouseVersionNumberUtil {

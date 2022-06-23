@@ -2,16 +2,24 @@
 
 Build on top of `clickhouse-client`, `clickhouse-jdbc` follows JDBC standards and provides additional features like custom type mapping, fake transaction, and standard synchronous UPDATE and DELETE statement etc., so that it can be easily used together with legacy applications and tools.
 
-Keep in mind that `clickhouse-jdbc` is synchronous, and in general it has more overheads(e.g. SQL parsing and type mapping/conversion etc.). You should consider `clickhouse-client` when performance is critical and/or you prefer more direct way to work with ClickHouse.
+Keep in mind that `clickhouse-jdbc` is synchronous, and in general it has more overheads(e.g. SQL parsing and type mapping/conversion etc.). You should consider `clickhouse-client` when performance is critical and/or you prefer more direct way to access ClickHouse.
 
 ## Maven Dependency
 
 ```xml
 <dependency>
-    <!-- will stop using ru.yandex.clickhouse starting from 0.4.0 -->
+    <!-- please stop using ru.yandex.clickhouse as it's been deprecated -->
     <groupId>com.clickhouse</groupId>
     <artifactId>clickhouse-jdbc</artifactId>
-    <version>0.3.2-patch9</version>
+    <version>0.3.2-patch10</version>
+    <!-- use uber jar with all dependencies included, change classifier to http for smaller jar -->
+    <classifier>all</classifier>
+    <exclusions>
+        <exclusion>
+            <groupId>*</groupId>
+            <artifactId>*</artifactId>
+        </exclusion>
+    </exclusions>
 </dependency>
 ```
 
@@ -19,13 +27,13 @@ Keep in mind that `clickhouse-jdbc` is synchronous, and in general it has more o
 
 **Driver Class**: `com.clickhouse.jdbc.ClickHouseDriver`
 
-Note: `ru.yandex.clickhouse.ClickHouseDriver` and everything under `ru.yandex.clickhouse` will be removed starting from 0.4.0.
+Note: `ru.yandex.clickhouse.ClickHouseDriver` has been deprecated and everything under `ru.yandex.clickhouse` will be removed in 0.3.3.
 
-**URL Syntax**: `jdbc:<prefix>[:<protocol>]://<host>:[<port>][/<database>[?param1=value1&param2=value2]]`, for examples:
+**URL Syntax**: `jdbc:(ch|clickhouse)[:<protocol>]://endpoint1[,endpoint2,...][/<database>][?param1=value1&param2=value2][#tag1,tag2,...]`, for examples:
 
+- `jdbc:ch://localhost` is same as `jdbc:clickhouse:http://localhost:8123`
+- `jdbc:ch:https://localhost` is same as `jdbc:clickhouse:http://localhost:8443?ssl=true&sslmode=STRICT`
 - `jdbc:ch:grpc://localhost` is same as `jdbc:clickhouse:grpc://localhost:9100`
-- `jdbc:ch:grpc://localhost` is same as `jdbc:clickhouse:grpc://localhost:9100`)
-- `jdbc:ch://localhost/test?socket_timeout=120000`
 
 **Connection Properties**:
 
@@ -35,11 +43,12 @@ Note: `ru.yandex.clickhouse.ClickHouseDriver` and everything under `ru.yandex.cl
 | createDatabaseIfNotExist | `false` | Whether to create database if it does not exist                                                                                                                                                                                                                                                                                                                                                                            |
 | custom_http_headers      |         | comma separated custom http headers, for example: `User-Agent=client1,X-Gateway-Id=123`                                                                                                                                                                                                                                                                                                                                    |
 | custom_http_params       |         | comma separated custom http query parameters, for example: `extremes=0,max_result_rows=100`                                                                                                                                                                                                                                                                                                                                |
+| nullAsDefault            | `0`     | `0` - treat null value as is and throw exception when inserting null into non-nullable column; `1` - treat null value as is and disable null-check for inserting; `2` - replace null to default value of corresponding data type for both query and insert                                                                                                                                                                 |
 | jdbcCompliance           | `true`  | Whether to support standard synchronous UPDATE/DELETE and fake transaction                                                                                                                                                                                                                                                                                                                                                 |
 | typeMappings             |         | Customize mapping between ClickHouse data type and Java class, which will affect result of both [getColumnType()](https://docs.oracle.com/javase/8/docs/api/java/sql/ResultSetMetaData.html#getColumnType-int-) and [getObject(Class<?>)](https://docs.oracle.com/javase/8/docs/api/java/sql/ResultSet.html#getObject-java.lang.String-java.lang.Class-). For example: `UInt128=java.lang.String,UInt256=java.lang.String` |
 | wrapperObject            | `false` | Whether [getObject()](https://docs.oracle.com/javase/8/docs/api/java/sql/ResultSet.html#getObject-int-) should return java.sql.Array / java.sql.Struct for Array / Tuple.                                                                                                                                                                                                                                                  |
 
-Note: please refer to [JDBC specific configuration](https://github.com/ClickHouse/clickhouse-jdbc/blob/master/clickhouse-jdbc/src/main/java/com/clickhouse/jdbc/JdbcConfig.java) and client options([common](https://github.com/ClickHouse/clickhouse-jdbc/blob/master/clickhouse-client/src/main/java/com/clickhouse/client/config/ClickHouseClientOption.java), [http](https://github.com/ClickHouse/clickhouse-jdbc/blob/master/clickhouse-http-client/src/main/java/com/clickhouse/client/http/config/ClickHouseHttpOption.java) and [grpc](https://github.com/ClickHouse/clickhouse-jdbc/blob/master/clickhouse-grpc-client/src/main/java/com/clickhouse/client/grpc/config/ClickHouseGrpcOption.java)) for more.
+Note: please refer to [JDBC specific configuration](https://github.com/ClickHouse/clickhouse-jdbc/blob/master/clickhouse-jdbc/src/main/java/com/clickhouse/jdbc/JdbcConfig.java) and client options([common](https://github.com/ClickHouse/clickhouse-jdbc/blob/master/clickhouse-client/src/main/java/com/clickhouse/client/config/ClickHouseClientOption.java), [http](https://github.com/ClickHouse/clickhouse-jdbc/blob/master/clickhouse-http-client/src/main/java/com/clickhouse/client/http/config/ClickHouseHttpOption.java), [grpc](https://github.com/ClickHouse/clickhouse-jdbc/blob/master/clickhouse-grpc-client/src/main/java/com/clickhouse/client/grpc/config/ClickHouseGrpcOption.java), and [cli](https://github.com/ClickHouse/clickhouse-jdbc/blob/master/clickhouse-cli-client/src/main/java/com/clickhouse/client/cli/config/ClickHouseCommandLineOption.java)) for more.
 
 ## Examples
 
@@ -48,7 +57,7 @@ Note: please refer to [JDBC specific configuration](https://github.com/ClickHous
 
 ```java
 String url = "jdbc:ch://my-server/system"; // use http protocol and port 8123 by default
-// String url = "jdbc:ch://my-server:8443/system"; // if you prefer https
+// String url = "jdbc:ch://my-server:8443/system?ssl=true&sslmode=strict&&sslrootcert=/mine.crt";
 Properties properties = new Properties();
 // properties.setProperty("ssl", "true");
 // properties.setProperty("sslmode", "NONE"); // NONE to trust all servers; STRICT for trusted only
@@ -257,3 +266,103 @@ ClickHouseFormat.RowBinary); // RowBinary or Native are supported
 ```
 
 </details>
+
+## Upgrade to 0.3.2
+
+Please refer to cheatsheet below to upgrade JDBC driver to 0.3.2.
+
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Item</th>
+<th>&lt;= 0.3.1-patch</th>
+<th>&gt;= 0.3.2</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>pom.xml</td>
+<td><pre><code class="language-xml">&lt;dependency&gt;
+    &lt;groupId&gt;ru.yandex.clickhouse&lt;/groupId&gt;
+    &lt;artifactId&gt;clickhouse-jdbc&lt;/artifactId&gt;
+    &lt;version&gt;0.3.1-patch&lt;/version&gt;
+    &lt;classifier&gt;shaded&lt;/classifier&gt;
+    &lt;exclusions&gt;
+        &lt;exclusion&gt;
+            &lt;groupId&gt;*&lt;/groupId&gt;
+            &lt;artifactId&gt;*&lt;/artifactId&gt;
+        &lt;/exclusion&gt;
+    &lt;/exclusions&gt;
+&lt;/dependency&gt;
+</code></pre></td>
+<td><pre><code class="language-xml">&lt;dependency&gt;
+    &lt;groupId&gt;com.clickhouse&lt;/groupId&gt;
+    &lt;artifactId&gt;clickhouse-jdbc&lt;/artifactId&gt;
+    &lt;version&gt;0.3.2-patch10&lt;/version&gt;
+    &lt;classifier&gt;all&lt;/classifier&gt;
+    &lt;exclusions&gt;
+        &lt;exclusion&gt;
+            &lt;groupId&gt;*&lt;/groupId&gt;
+            &lt;artifactId&gt;*&lt;/artifactId&gt;
+        &lt;/exclusion&gt;
+    &lt;/exclusions&gt;
+&lt;/dependency&gt;
+</code></pre></td>
+</tr>
+<tr>
+<td>2</td>
+<td>driver class</td>
+<td>ru.yandex.clickhouse.ClickHouseDriver</td>
+<td>com.clickhouse.jdbc.ClickHouseDriver</td>
+</tr>
+<tr>
+<td>3</td>
+<td>connection string</td>
+<td><pre><code class="language-text">jdbc:clickhouse://[user[:password]@]host:port[/database][?parameters]</code></pre></td>
+<td><pre><code class="language-text">jdbc:(ch|clickhouse)[:protocol]://endpoint[,endpoint][/database][?parameters][#tags]</code></pre>
+<b>endpoint:</b> [protocol://]host[:port][/database][?parameters][#tags]<br/>
+<b>protocol:</b> (grpc|grpcs|http|https|tcp|tcps)<br/>
+</td>
+</tr>
+<tr>
+<td>4</td>
+<td>load balancing</td>
+<td><pre><code class="language-java">String connString = "jdbc:clickhouse://server1:8123,server2:8123,server3:8123/database";
+BalancedClickhouseDataSource balancedDs = new BalancedClickhouseDataSource(
+    connString).scheduleActualization(5000, TimeUnit.MILLISECONDS);
+ClickHouseConnection conn = balancedDs.getConnection("default", "");
+</code></pre></td>
+<td><pre><code class="language-java">String connString = "jdbc:ch://server1,server2,server3/database"
+    + "?load_balancing_policy=random&health_check_interval=5000&failover=2";
+ClickHouseDataSource ds = new ClickHouseDataSource(connString);
+ClickHouseConnection conn = ds.getConnection("default", "");
+</code></pre></td>
+</tr>
+<td>5</td>
+<td>extended API</td>
+<td><pre><code class="language-java">ClickHouseStatement sth = connection.createStatement();
+sth.write().send("INSERT INTO test.writer", new ClickHouseStreamCallback() {
+    @Override
+    public void writeTo(ClickHouseRowBinaryStream stream) throws IOException {
+        for (int i = 0; i < 10; i++) {
+            stream.writeInt32(i);
+            stream.writeString("Name " + i);
+        }
+    }
+}, ClickHouseFormat.RowBinary); // RowBinary or Native are supported
+</code></pre></td>
+<td><pre><code class="language-java">Statement sth = connection.createStatement();
+sth.unwrap(ClickHouseRequest.class).write().table("test.writer")
+    .format(ClickHouseFormat.RowBinary).data(out -> {
+    for (int i = 0; i < 10; i++) {
+        // write data into the piped stream in current thread
+        BinaryStreamUtils.writeInt32(out, i);
+        BinaryStreamUtils.writeString(out, "Name " + i);
+    }
+}).sendAndWait(); // query happens in a separate thread
+</code></pre></td>
+</tr>
+</tbody>
+</table>
