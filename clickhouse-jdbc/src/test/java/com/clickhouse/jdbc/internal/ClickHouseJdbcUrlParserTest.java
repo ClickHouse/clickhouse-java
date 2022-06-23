@@ -69,12 +69,12 @@ public class ClickHouseJdbcUrlParserTest {
 
         info = ClickHouseJdbcUrlParser.parse("jdbc:ch:https://:letmein@[::1]:3218/db1?user=aaa", null);
         Assert.assertEquals(info.getServer().toUri(ClickHouseJdbcUrlParser.JDBC_CLICKHOUSE_PREFIX),
-                new URI("jdbc:clickhouse:http://[::1]:3218/db1?ssl=true&sslmode=NONE"));
+                new URI("jdbc:clickhouse:http://[::1]:3218/db1?ssl=true&sslmode=STRICT"));
         Assert.assertEquals(info.getServer(), ClickHouseNode.builder().host("[::1]")
                 .port(ClickHouseProtocol.HTTP, 3218)
                 .database("db1")
                 .credentials(ClickHouseCredentials.fromUserAndPassword("aaa", "letmein"))
-                .addOption("ssl", "true").addOption("sslmode", "NONE").build());
+                .addOption("ssl", "true").addOption("sslmode", "STRICT").build());
         Assert.assertEquals(info.getServer().getCredentials().orElse(null),
                 ClickHouseCredentials.fromUserAndPassword("aaa", "letmein"));
     }
@@ -98,13 +98,13 @@ public class ClickHouseJdbcUrlParserTest {
 
         info = ClickHouseJdbcUrlParser.parse("jdbc:ch:https://:letmein@127.0.0.1:3218/db1", null);
         Assert.assertEquals(info.getServer().toUri(ClickHouseJdbcUrlParser.JDBC_CLICKHOUSE_PREFIX),
-                new URI("jdbc:clickhouse:http://127.0.0.1:3218/db1?ssl=true&sslmode=NONE"));
+                new URI("jdbc:clickhouse:http://127.0.0.1:3218/db1?ssl=true&sslmode=STRICT"));
         Assert.assertEquals(info.getServer(), ClickHouseNode.builder().host("127.0.0.1")
                 .port(ClickHouseProtocol.HTTP, 3218).database("db1")
                 .credentials(ClickHouseCredentials
                         .fromUserAndPassword((String) ClickHouseDefaults.USER
                                 .getEffectiveDefaultValue(), "letmein"))
-                .addOption("ssl", "true").addOption("sslmode", "NONE")
+                .addOption("ssl", "true").addOption("sslmode", "STRICT")
                 .build());
     }
 
