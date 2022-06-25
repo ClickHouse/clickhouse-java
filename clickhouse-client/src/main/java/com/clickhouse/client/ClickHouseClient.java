@@ -180,8 +180,8 @@ public interface ClickHouseClient extends AutoCloseable {
                     .createPipedOutputStream(config, null);
             wrappedInput = getResponseInputStream(config, decompressedStream.getInputStream(), postCloseAction);
             submit(() -> {
-                try (ClickHouseInputStream in = ClickHouseInputStream.of(input, config.getReadBufferSize());
-                        ClickHouseOutputStream out = decompressedStream) {
+                try (ClickHouseInputStream in = ClickHouseInputStream.of(input, config.getReadBufferSize(),
+                        config.getResponseCompressAlgorithm(), null); ClickHouseOutputStream out = decompressedStream) {
                     in.pipe(out);
                 }
                 return null;

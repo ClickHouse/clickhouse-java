@@ -264,9 +264,10 @@ public abstract class AbstractByteArrayInputStream extends ClickHouseInputStream
 
         // peforms better but this is a bit tricky
         if (n == Long.MAX_VALUE) {
+            int avail = 0;
             long counter = (long) limit - position;
-            while (updateBuffer() > 0) {
-                counter += limit;
+            while ((avail = updateBuffer()) > 0) {
+                counter += avail;
             }
 
             return counter;
