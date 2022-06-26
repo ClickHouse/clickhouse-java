@@ -208,15 +208,24 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
             boolean compressRequest, boolean compressResponse) throws ClickHouseException {
         ClickHouseNode server = getServer();
         String uuid = UUID.randomUUID().toString();
+        ClickHouseClient.send(server, "create table if not exists test_compress_decompress(id UUID)engine=Memory");
         try (ClickHouseClient client = getClient()) {
             ClickHouseRequest<?> request = client.connect(server)
                     .format(format)
                     .option(ClickHouseClientOption.RESPONSE_BUFFERING, bufferingMode)
                     .compressServerResponse(compressResponse)
                     .decompressClientRequest(compressRequest);
+            // start with insert
+            try (ClickHouseResponse resp = request
+                    .query("insert into test_compress_decompress values(:uuid)").params(ClickHouseStringValue.of(uuid))
+                    .executeAndWait()) {
+                Assert.assertNotNull(resp);
+            }
+
             boolean hasResult = false;
             try (ClickHouseResponse resp = request
-                    .query("select :uuid").params(ClickHouseStringValue.of(uuid)).executeAndWait()) {
+                    .query("select id from test_compress_decompress where id = :uuid")
+                    .params(ClickHouseStringValue.of(uuid)).executeAndWait()) {
                 Assert.assertEquals(resp.firstRecord().getValue(0).asString(), uuid);
                 hasResult = true;
             }
