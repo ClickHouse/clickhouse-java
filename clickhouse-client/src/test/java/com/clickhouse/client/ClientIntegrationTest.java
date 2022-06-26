@@ -205,10 +205,11 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
 
     @Test(dataProvider = "compressionMatrix", groups = { "integration" })
     public void testCompression(ClickHouseFormat format, ClickHouseBufferingMode bufferingMode,
-            boolean compressRequest, boolean compressResponse) throws ClickHouseException {
+            boolean compressRequest, boolean compressResponse) throws Exception {
         ClickHouseNode server = getServer();
         String uuid = UUID.randomUUID().toString();
-        ClickHouseClient.send(server, "create table if not exists test_compress_decompress(id UUID)engine=Memory");
+        ClickHouseClient.send(server, "create table if not exists test_compress_decompress(id UUID)engine=Memory")
+                .get();
         try (ClickHouseClient client = getClient()) {
             ClickHouseRequest<?> request = client.connect(server)
                     .format(format)
