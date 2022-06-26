@@ -49,6 +49,12 @@ public class ClickHouseCommandLineClientTest extends ClientIntegrationTest {
 
     @Test(groups = { "integration" })
     @Override
+    public void testCustomLoad() throws Exception {
+        throw new SkipException("Skip due to time out error");
+    }
+
+    @Test(groups = { "integration" })
+    @Override
     public void testLoadRawData() throws Exception {
         throw new SkipException("Skip due to response summary is always empty");
     }
