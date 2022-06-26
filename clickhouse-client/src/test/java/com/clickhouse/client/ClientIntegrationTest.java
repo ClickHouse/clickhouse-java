@@ -975,7 +975,6 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
 
     @Test(groups = { "integration" })
     public void testDumpAndLoadFile() throws Exception {
-        // super.testLoadRawData();
         ClickHouseNode server = getServer();
         ClickHouseClient.send(server, "drop table if exists test_dump_load_file",
                 "create table test_dump_load_file(a UInt64, b Nullable(String)) engine=MergeTree() order by tuple()")
