@@ -52,7 +52,7 @@ public class ClickHouseSimpleResponse implements ClickHouseResponse {
     public static ClickHouseResponse of(ClickHouseConfig config, List<ClickHouseColumn> columns, Object[][] values,
             ClickHouseResponseSummary summary) {
         if (columns == null || columns.isEmpty()) {
-            return EMPTY;
+            return ClickHouseResponse.EMPTY;
         }
 
         int size = columns.size();

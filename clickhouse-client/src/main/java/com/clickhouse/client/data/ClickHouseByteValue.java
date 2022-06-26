@@ -169,6 +169,11 @@ public class ClickHouseByteValue implements ClickHouseValue {
     }
 
     @Override
+    public ClickHouseByteValue resetToDefault() {
+        return set(false, (byte) 0);
+    }
+
+    @Override
     public ClickHouseByteValue resetToNullOrEmpty() {
         return set(true, (byte) 0);
     }

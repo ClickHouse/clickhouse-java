@@ -26,6 +26,7 @@ public class JdbcConfig {
     public static final String PROP_FETCH_SIZE = "fetchSize";
     public static final String PROP_JDBC_COMPLIANT = "jdbcCompliant";
     public static final String PROP_NAMED_PARAM = "namedParameter";
+    public static final String PROP_NULL_AS_DEFAULT = "nullAsDefault";
     public static final String PROP_TYPE_MAP = "typeMappings";
     public static final String PROP_WRAPPER_OBJ = "wrapperObject";
 
@@ -38,6 +39,7 @@ public class JdbcConfig {
     private static final String DEFAULT_FETCH_SIZE = "0";
     private static final String DEFAULT_JDBC_COMPLIANT = BOOLEAN_TRUE;
     private static final String DEFAULT_NAMED_PARAM = BOOLEAN_FALSE;
+    private static final String DEFAULT_NULL_AS_DEFAULT = "0";
     private static final String DEFAULT_TYPE_MAP = "";
     private static final String DEFAULT_WRAPPER_OBJ = BOOLEAN_FALSE;
 
@@ -120,6 +122,10 @@ public class JdbcConfig {
         info.description = "Whether to use named parameter(e.g. :ts(DateTime64(6)) or :value etc.) instead of standard JDBC question mark placeholder.";
         list.add(info);
 
+        info = new DriverPropertyInfo(PROP_NULL_AS_DEFAULT, DEFAULT_NULL_AS_DEFAULT);
+        info.description = "Default approach to handle null value, sets to 0 or negative number to throw exception when target column is not nullable, 1 to disable the null-check, and 2 or higher to replace null to default value of corresponding data type.";
+        list.add(info);
+
         info = new DriverPropertyInfo(PROP_TYPE_MAP, DEFAULT_TYPE_MAP);
         info.description = "Default type mappings between ClickHouse data type and Java class. You can define multiple mappings using comma as separator.";
         list.add(info);
@@ -138,6 +144,7 @@ public class JdbcConfig {
     private final int fetchSize;
     private final boolean jdbcCompliant;
     private final boolean namedParameter;
+    private final int nullAsDefault;
     private final Map<String, Class<?>> typeMap;
     private final boolean wrapperObject;
 
@@ -156,6 +163,7 @@ public class JdbcConfig {
         this.fetchSize = extractIntValue(props, PROP_FETCH_SIZE, DEFAULT_FETCH_SIZE);
         this.jdbcCompliant = extractBooleanValue(props, PROP_JDBC_COMPLIANT, DEFAULT_JDBC_COMPLIANT);
         this.namedParameter = extractBooleanValue(props, PROP_NAMED_PARAM, DEFAULT_NAMED_PARAM);
+        this.nullAsDefault = extractIntValue(props, PROP_NULL_AS_DEFAULT, DEFAULT_NULL_AS_DEFAULT);
         this.typeMap = extractTypeMapValue(props, PROP_TYPE_MAP, DEFAULT_TYPE_MAP);
         this.wrapperObject = extractBooleanValue(props, PROP_WRAPPER_OBJ, DEFAULT_WRAPPER_OBJ);
     }
@@ -214,6 +222,16 @@ public class JdbcConfig {
      */
     public boolean isJdbcCompliant() {
         return jdbcCompliant;
+    }
+
+    /**
+     * Gets default approach to handle null value.
+     *
+     * @return 0 or negative to throw exception, 1 to disable the null-check, and 2
+     *         to reset null to default value of corresponding data type
+     */
+    public int getNullAsDefault() {
+        return nullAsDefault;
     }
 
     /**

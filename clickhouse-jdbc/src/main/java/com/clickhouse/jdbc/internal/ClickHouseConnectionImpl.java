@@ -40,6 +40,7 @@ import com.clickhouse.client.ClickHouseUtils;
 import com.clickhouse.client.ClickHouseValues;
 import com.clickhouse.client.ClickHouseVersion;
 import com.clickhouse.client.config.ClickHouseClientOption;
+import com.clickhouse.client.config.ClickHouseRenameMethod;
 import com.clickhouse.client.http.config.ClickHouseHttpOption;
 import com.clickhouse.client.logging.Logger;
 import com.clickhouse.client.logging.LoggerFactory;
@@ -65,7 +66,8 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
 
     protected static ClickHouseRecord getServerInfo(ClickHouseNode node, ClickHouseRequest<?> request,
             boolean createDbIfNotExist) throws SQLException {
-        ClickHouseRequest<?> newReq = request.copy();
+        ClickHouseRequest<?> newReq = request.copy().option(ClickHouseClientOption.RENAME_RESPONSE_COLUMN,
+                ClickHouseRenameMethod.NONE);
         if (!createDbIfNotExist) { // in case the database does not exist
             newReq.option(ClickHouseClientOption.DATABASE, "");
         }
@@ -129,8 +131,6 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
 
     private final AtomicReference<FakeTransaction> fakeTransaction;
 
-    private URI uri;
-
     /**
      * Checks if the connection is open or not.
      *
@@ -189,6 +189,7 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
         builder.append('`').append(ClickHouseUtils.escape(tableName, '`')).append('`').append(" WHERE 0");
         List<ClickHouseColumn> list;
         try (ClickHouseResponse resp = clientRequest.copy().format(ClickHouseFormat.RowBinaryWithNamesAndTypes)
+                .option(ClickHouseClientOption.RENAME_RESPONSE_COLUMN, ClickHouseRenameMethod.NONE)
                 .query(builder.toString()).execute().get()) {
             list = resp.getColumns();
         } catch (InterruptedException e) {
@@ -218,15 +219,13 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
 
         autoCommit = !jdbcConf.isJdbcCompliant() || jdbcConf.isAutoCommit();
 
-        this.uri = connInfo.getUri();
-
-        log.debug("Creating a new connection to %s", connInfo.getUri());
         ClickHouseNode node = connInfo.getServer();
-        log.debug("Target node: %s", node);
+        log.debug("Connecting to node: %s", node);
 
         jvmTimeZone = TimeZone.getDefault();
 
         client = ClickHouseClient.builder().options(ClickHouseDriver.toClientOptions(connInfo.getProperties()))
+                .defaultCredentials(connInfo.getDefaultCredentials())
                 .nodeSelector(ClickHouseNodeSelector.of(node.getProtocol())).build();
         clientRequest = client.connect(node);
         ClickHouseConfig config = clientRequest.getConfig();
@@ -615,14 +614,17 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
                     !parsedStmt.containsKeyword("SELECT") && parsedStmt.hasValues() &&
                     (!parsedStmt.hasFormat() || clientRequest.getFormat().name().equals(parsedStmt.getFormat()))) {
                 String query = parsedStmt.getSQL();
-                int startIndex = parsedStmt.getPositions().get(ClickHouseSqlStatement.KEYWORD_VALUES_START);
-                int endIndex = parsedStmt.getPositions().get(ClickHouseSqlStatement.KEYWORD_VALUES_END);
-                boolean useStream = true;
-                for (int i = startIndex + 1; i < endIndex; i++) {
-                    char ch = query.charAt(i);
-                    if (ch != '?' && ch != ',' && !Character.isWhitespace(ch)) {
-                        useStream = false;
-                        break;
+                boolean useStream = false;
+                Integer startIndex = parsedStmt.getPositions().get(ClickHouseSqlStatement.KEYWORD_VALUES_START);
+                if (startIndex != null) {
+                    useStream = true;
+                    int endIndex = parsedStmt.getPositions().get(ClickHouseSqlStatement.KEYWORD_VALUES_END);
+                    for (int i = startIndex + 1; i < endIndex; i++) {
+                        char ch = query.charAt(i);
+                        if (ch != '?' && ch != ',' && !Character.isWhitespace(ch)) {
+                            useStream = false;
+                            break;
+                        }
                     }
                 }
 
@@ -679,13 +681,17 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
     public boolean isValid(int timeout) throws SQLException {
         if (timeout < 0) {
             throw SqlExceptionUtils.clientError("Negative milliseconds is not allowed");
+        } else if (timeout == 0) {
+            timeout = clientRequest.getConfig().getConnectionTimeout();
+        } else {
+            timeout = (int) TimeUnit.SECONDS.toMillis(timeout);
         }
 
         if (isClosed()) {
             return false;
         }
 
-        return client.ping(clientRequest.getServer(), (int) TimeUnit.SECONDS.toMillis(timeout));
+        return client.ping(clientRequest.getServer(), timeout);
     }
 
     @Override
@@ -852,6 +858,11 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
     }
 
     @Override
+    public boolean allowCustomSetting() {
+        return initialReadOnly != 1;
+    }
+
+    @Override
     public String getCurrentDatabase() {
         return database;
     }
@@ -888,7 +899,7 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
 
     @Override
     public URI getUri() {
-        return uri;
+        return clientRequest.getServer().toUri(ClickHouseJdbcUrlParser.JDBC_CLICKHOUSE_PREFIX);
     }
 
     @Override

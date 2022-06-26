@@ -90,7 +90,7 @@ public final class ClickHouseDeferredValue<T> implements Supplier<T> {
 
     @Override
     public T get() {
-        return getOptional().get();
+        return getOptional().orElse(null);
     }
 
     /**

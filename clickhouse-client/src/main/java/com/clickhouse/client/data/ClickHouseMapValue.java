@@ -159,9 +159,14 @@ public class ClickHouseMapValue extends ClickHouseObjectValue<Map<?, ?>> {
     }
 
     @Override
-    public ClickHouseMapValue resetToNullOrEmpty() {
+    public ClickHouseMapValue resetToDefault() {
         set(Collections.emptyMap());
         return this;
+    }
+
+    @Override
+    public ClickHouseMapValue resetToNullOrEmpty() {
+        return resetToDefault();
     }
 
     @Override

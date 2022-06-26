@@ -9,6 +9,7 @@ import java.util.LinkedList;
 
 import com.clickhouse.client.ClickHouseByteBuffer;
 import com.clickhouse.client.ClickHouseDataUpdater;
+import com.clickhouse.client.ClickHouseFile;
 import com.clickhouse.client.ClickHouseInputStream;
 import com.clickhouse.client.ClickHouseOutputStream;
 import com.clickhouse.client.ClickHouseUtils;
@@ -19,8 +20,8 @@ import com.clickhouse.client.ClickHouseUtils;
 public abstract class AbstractByteBufferInputStream extends ClickHouseInputStream {
     protected ByteBuffer buffer;
 
-    protected AbstractByteBufferInputStream(OutputStream copyTo, Runnable postCloseAction) {
-        super(copyTo, postCloseAction);
+    protected AbstractByteBufferInputStream(ClickHouseFile file, OutputStream copyTo, Runnable postCloseAction) {
+        super(file, copyTo, postCloseAction);
 
         this.buffer = null;
     }

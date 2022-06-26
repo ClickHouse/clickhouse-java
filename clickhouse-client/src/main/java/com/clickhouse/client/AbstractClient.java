@@ -1,11 +1,16 @@
 package com.clickhouse.client;
 
+import java.io.IOException;
+import java.util.Collection;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.Function;
 
+import com.clickhouse.client.config.ClickHouseClientOption;
+import com.clickhouse.client.config.ClickHouseHealthCheckMethod;
 import com.clickhouse.client.logging.Logger;
 import com.clickhouse.client.logging.LoggerFactory;
 
@@ -36,6 +41,8 @@ public abstract class AbstractClient<T> implements ClickHouseClient {
         return initialized;
     }
 
+    protected abstract boolean checkHealth(ClickHouseNode server, int timeout);
+
     protected CompletableFuture<ClickHouseResponse> failedResponse(Throwable ex) {
         CompletableFuture<ClickHouseResponse> future = new CompletableFuture<>();
         future.completeExceptionally(ex);
@@ -60,6 +67,13 @@ public abstract class AbstractClient<T> implements ClickHouseClient {
     }
 
     /**
+     * Gets list of supported protocols.
+     *
+     * @return non-null list of supported protocols
+     */
+    protected abstract Collection<ClickHouseProtocol> getSupportedProtocols();
+
+    /**
      * Gets current server.
      *
      * @return current server
@@ -78,9 +92,9 @@ public abstract class AbstractClient<T> implements ClickHouseClient {
 
     /**
      * Checks if the underlying connection can be reused. In general, new connection
-     * will be created when {@code connection} is null or {@code requestServer} is
-     * different from {@code currentServer} - the existing connection will be closed
-     * in the later case.
+     * will be created when {@code connection} is {@code null} or
+     * {@code requestServer} is different from {@code currentServer} - the existing
+     * connection will be closed in the later case.
      *
      * @param connection    existing connection which may or may not be null
      * @param requestServer non-null requested server, returned from previous call
@@ -118,6 +132,42 @@ public abstract class AbstractClient<T> implements ClickHouseClient {
     protected abstract void closeConnection(T connection, boolean force);
 
     /**
+     * Gets arguments required for async execution. This method will be executed in
+     * current thread right before {@link #sendAsync(ClickHouseRequest, Object...)}.
+     *
+     * @param sealedRequest non-null sealed request
+     * @return arguments required for async execution
+     */
+    protected Object[] getAsyncExecArguments(ClickHouseRequest<?> sealedRequest) {
+        return new Object[0];
+    }
+
+    /**
+     * Sends the request to server in a separate thread.
+     *
+     * @param sealedRequest non-null sealed request
+     * @param args          arguments required for sending out the request
+     * @return non-null response
+     * @throws ClickHouseException when error server failed to process the request
+     * @throws IOException         when error occurred sending the request
+     */
+    protected ClickHouseResponse sendAsync(ClickHouseRequest<?> sealedRequest, Object... args)
+            throws ClickHouseException, IOException {
+        return send(sealedRequest);
+    }
+
+    /**
+     * Sends the request to server in a current thread.
+     *
+     * @param sealedRequest non-null sealed request
+     * @return non-null response
+     * @throws ClickHouseException when error server failed to process the request
+     * @throws IOException         when error occurred sending the request
+     */
+    protected abstract ClickHouseResponse send(ClickHouseRequest<?> sealedRequest)
+            throws ClickHouseException, IOException;
+
+    /**
      * Gets a connection according to the given request.
      *
      * @param request non-null request
@@ -150,6 +200,49 @@ public abstract class AbstractClient<T> implements ClickHouseClient {
     }
 
     @Override
+    public boolean accept(ClickHouseProtocol protocol) {
+        for (ClickHouseProtocol p : getSupportedProtocols()) {
+            if (p == protocol) {
+                return true;
+            }
+        }
+        return ClickHouseClient.super.accept(protocol);
+    }
+
+    @Override
+    public ClickHouseRequest<?> connect(ClickHouseNode node) {
+        lock.readLock().lock();
+        try {
+            ensureInitialized();
+            return ClickHouseClient.super.connect(node);
+        } finally {
+            lock.readLock().unlock();
+        }
+    }
+
+    @Override
+    public ClickHouseRequest<?> connect(ClickHouseNodes nodes) {
+        lock.readLock().lock();
+        try {
+            ensureInitialized();
+            return ClickHouseClient.super.connect(nodes);
+        } finally {
+            lock.readLock().unlock();
+        }
+    }
+
+    @Override
+    public ClickHouseRequest<?> connect(Function<ClickHouseNodeSelector, ClickHouseNode> nodeFunc) {
+        lock.readLock().lock();
+        try {
+            ensureInitialized();
+            return ClickHouseClient.super.connect(nodeFunc);
+        } finally {
+            lock.readLock().unlock();
+        }
+    }
+
+    @Override
     public final ClickHouseConfig getConfig() {
         lock.readLock().lock();
         try {
@@ -166,7 +259,12 @@ public abstract class AbstractClient<T> implements ClickHouseClient {
 
         lock.writeLock().lock();
         try {
-            this.config = config;
+            Collection<ClickHouseProtocol> protocols = getSupportedProtocols();
+            this.config = new ClickHouseConfig(config.getAllOptions(), config.getDefaultCredentials(),
+                    config.getNodeSelector() != ClickHouseNodeSelector.EMPTY || protocols.isEmpty()
+                            ? config.getNodeSelector()
+                            : ClickHouseNodeSelector.of(protocols, null),
+                    config.getMetricRegistry().orElse(null));
             if (this.executor == null) { // only initialize once
                 int threads = config.getMaxThreadsPerClient();
                 this.executor = threads < 1 ? ClickHouseClient.getExecutorService()
@@ -176,6 +274,29 @@ public abstract class AbstractClient<T> implements ClickHouseClient {
             initialized = true;
         } finally {
             lock.writeLock().unlock();
+        }
+    }
+
+    @Override
+    public CompletableFuture<ClickHouseResponse> execute(ClickHouseRequest<?> request) {
+        // sealedRequest is an immutable copy of the original request
+        final ClickHouseRequest<?> sealedRequest = request.seal();
+
+        if (sealedRequest.getConfig().isAsync()) {
+            final Object[] args = getAsyncExecArguments(sealedRequest);
+            return CompletableFuture.supplyAsync(() -> {
+                try {
+                    return sendAsync(sealedRequest, args);
+                } catch (ClickHouseException | IOException e) {
+                    throw new CompletionException(ClickHouseException.of(e, sealedRequest.getServer()));
+                }
+            }, getExecutor());
+        } else {
+            try {
+                return CompletableFuture.completedFuture(send(sealedRequest));
+            } catch (ClickHouseException | IOException e) {
+                return failedResponse(ClickHouseException.of(e, sealedRequest.getServer()));
+            }
         }
     }
 
@@ -222,5 +343,20 @@ public abstract class AbstractClient<T> implements ClickHouseClient {
                 lock.writeLock().unlock();
             }
         }
+    }
+
+    @Override
+    public boolean ping(ClickHouseNode server, int timeout) {
+        if (server == null) {
+            return false;
+        } else if (server.config.getOption(ClickHouseClientOption.HEALTH_CHECK_METHOD,
+                getConfig()) != ClickHouseHealthCheckMethod.PING) {
+            return ClickHouseClient.super.ping(server, timeout);
+        }
+
+        if (server.getProtocol() == ClickHouseProtocol.ANY) {
+            server = ClickHouseNode.probe(server.getHost(), server.getPort(), timeout);
+        }
+        return checkHealth(server, timeout);
     }
 }

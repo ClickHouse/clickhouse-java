@@ -17,6 +17,11 @@ import com.clickhouse.client.ClickHouseValues;
  */
 public class ClickHouseDateValue extends ClickHouseObjectValue<LocalDate> {
     /**
+     * Default date.
+     */
+    public static final LocalDate DEFAULT = LocalDate.of(1970, 1, 1);
+
+    /**
      * Create a new instance representing null value.
      *
      * @return new instance representing null value
@@ -150,6 +155,12 @@ public class ClickHouseDateValue extends ClickHouseObjectValue<LocalDate> {
         }
 
         return str;
+    }
+
+    @Override
+    public ClickHouseDateValue resetToDefault() {
+        set(DEFAULT);
+        return this;
     }
 
     @Override

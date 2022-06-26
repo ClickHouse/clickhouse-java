@@ -1,5 +1,7 @@
 package com.clickhouse.client;
 
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
@@ -8,6 +10,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.zip.GZIPOutputStream;
 
 import com.clickhouse.client.config.ClickHouseClientOption;
+import com.clickhouse.client.stream.EmptyOutputStream;
 import com.clickhouse.client.stream.Lz4OutputStream;
 import com.clickhouse.client.stream.WrappedOutputStream;
 
@@ -24,7 +27,76 @@ public abstract class ClickHouseOutputStream extends OutputStream {
     /**
      * Wraps the given output stream.
      *
-     * @param output non-null output stream
+     * @param file             wrapped file, could be null
+     * @param output           non-null output stream
+     * @param bufferSize       buffer size
+     * @param postCloseAction  custom action will be performed right after closing
+     *                         the wrapped output stream
+     * @param compression      compression algorithm
+     * @param compressionLevel compression level
+     * @return non-null wrapped output stream
+     */
+    static ClickHouseOutputStream wrap(ClickHouseFile file, OutputStream output, int bufferSize,
+            Runnable postCloseAction, ClickHouseCompression compression, int compressionLevel) {
+        final ClickHouseOutputStream chOutput;
+        if (compression == null || compression == ClickHouseCompression.NONE) {
+            chOutput = new WrappedOutputStream(file, output, bufferSize, postCloseAction);
+        } else {
+            switch (compression) {
+                case GZIP:
+                    try {
+                        chOutput = new WrappedOutputStream(file, new GZIPOutputStream(output), bufferSize,
+                                postCloseAction);
+                    } catch (IOException e) {
+                        throw new IllegalArgumentException("Failed to wrap input stream", e);
+                    }
+                    break;
+                case LZ4:
+                    chOutput = new Lz4OutputStream(file, output, bufferSize, postCloseAction);
+                    break;
+                default:
+                    throw new UnsupportedOperationException("Unsupported compression algorithm: " + compression);
+            }
+        }
+        return chOutput;
+    }
+
+    /**
+     * Gets an empty output stream that consumes nothing and cannot be closed.
+     *
+     * @return empty output stream
+     */
+    public static ClickHouseOutputStream empty() {
+        return EmptyOutputStream.INSTANCE;
+    }
+
+    /**
+     * Wraps the given file as output stream.
+     *
+     * @param file            non-null file
+     * @param postCloseAction custom action will be performed right after closing
+     *                        the output stream
+     * @param bufferSize      buffer size which is always greater than zero(usually
+     *                        8192
+     *                        or larger)
+     * @return wrapped output
+     */
+    public static ClickHouseOutputStream of(ClickHouseFile file, int bufferSize, Runnable postCloseAction) {
+        if (file == null || file == ClickHouseFile.NULL) {
+            throw new IllegalArgumentException("Non-null file required");
+        }
+        try {
+            return wrap(file, new FileOutputStream(file.getFile()), bufferSize, postCloseAction,
+                    file.getCompressionAlgorithm(), file.getCompressionLevel());
+        } catch (FileNotFoundException e) {
+            throw new IllegalArgumentException(e);
+        }
+    }
+
+    /**
+     * Wraps the given output stream.
+     *
+     * @param output output stream
      * @return wrapped output, or the same output if it's instance of
      *         {@link ClickHouseOutputStream}
      */
@@ -35,7 +107,7 @@ public abstract class ClickHouseOutputStream extends OutputStream {
     /**
      * Wraps the given output stream.
      *
-     * @param output     non-null output stream
+     * @param output     output stream
      * @param bufferSize buffer size which is always greater than zero(usually 8192
      *                   or larger)
      * @return wrapped output, or the same output if it's instance of
@@ -48,7 +120,7 @@ public abstract class ClickHouseOutputStream extends OutputStream {
     /**
      * Wraps the given output stream.
      *
-     * @param output          non-null output stream
+     * @param output          output stream
      * @param bufferSize      buffer size which is always greater than zero(usually
      *                        8192 or larger)
      * @param compression     compression algorithm, null or
@@ -61,35 +133,26 @@ public abstract class ClickHouseOutputStream extends OutputStream {
      */
     public static ClickHouseOutputStream of(OutputStream output, int bufferSize, ClickHouseCompression compression,
             Runnable postCloseAction) {
-        ClickHouseOutputStream chOutput;
-        if (compression != null && compression != ClickHouseCompression.NONE) {
-            switch (compression) {
-                case GZIP:
-                    try {
-                        chOutput = new WrappedOutputStream(new GZIPOutputStream(output), bufferSize, postCloseAction);
-                    } catch (IOException e) {
-                        throw new IllegalArgumentException("Failed to wrap input stream", e);
-                    }
-                    break;
-                case LZ4:
-                    chOutput = new Lz4OutputStream(output, bufferSize, postCloseAction);
-                    break;
-                default:
-                    throw new UnsupportedOperationException("Unsupported compression algorithm: " + compression);
-            }
+        final ClickHouseOutputStream chOutput;
+        if (output == null) {
+            chOutput = EmptyOutputStream.INSTANCE;
+        } else if (compression == null || compression == ClickHouseCompression.NONE) {
+            chOutput = output != EmptyOutputStream.INSTANCE && output instanceof ClickHouseOutputStream
+                    ? (ClickHouseOutputStream) output
+                    : new WrappedOutputStream(null, output, bufferSize, postCloseAction);
         } else {
-            chOutput = output instanceof ClickHouseOutputStream ? (ClickHouseOutputStream) output
-                    : new WrappedOutputStream(output, bufferSize, postCloseAction);
+            chOutput = wrap(null, output, bufferSize, postCloseAction, compression, 0);
         }
-
         return chOutput;
     }
 
+    protected final ClickHouseFile file;
     protected final Runnable postCloseAction;
 
     protected boolean closed;
 
-    protected ClickHouseOutputStream(Runnable postCloseAction) {
+    protected ClickHouseOutputStream(ClickHouseFile file, Runnable postCloseAction) {
+        this.file = file != null ? file : ClickHouseFile.NULL;
         this.postCloseAction = postCloseAction;
         this.closed = false;
     }
@@ -98,6 +161,15 @@ public abstract class ClickHouseOutputStream extends OutputStream {
         if (closed) {
             throw new IOException(ERROR_STREAM_CLOSED);
         }
+    }
+
+    /**
+     * Gets underlying file.
+     *
+     * @return non-null underlying file
+     */
+    public ClickHouseFile getUnderlyingFile() {
+        return file;
     }
 
     /**

@@ -18,10 +18,12 @@ import com.clickhouse.client.ClickHouseClient;
 import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseDataStreamFactory;
 import com.clickhouse.client.ClickHouseDeserializer;
+import com.clickhouse.client.ClickHouseFormat;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.ClickHouseResponseSummary;
 import com.clickhouse.client.ClickHouseSerializer;
+import com.clickhouse.client.ClickHouseUtils;
 import com.clickhouse.client.ClickHouseValue;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.config.ClickHouseConfigChangeListener;
@@ -58,6 +60,7 @@ public class ClickHouseStatementImpl extends JdbcWrapper
     private int fetchSize;
     private int maxFieldSize;
     private long maxRows;
+    private int nullAsDefault;
     private boolean poolable;
     private volatile String queryId;
     private int queryTimeout;
@@ -78,6 +81,9 @@ public class ClickHouseStatementImpl extends JdbcWrapper
         ClickHouseResponse response = null;
         for (int i = 0, len = parsedStmts.length; i < len; i++) {
             ClickHouseSqlStatement stmt = parsedStmts[i];
+            if (stmt.hasFormat()) {
+                request.format(ClickHouseFormat.valueOf(stmt.getFormat()));
+            }
             // TODO skip useless queries to reduce network calls and server load
             try {
                 response = request.query(stmt.getSQL(), queryId = connection.newQueryId()).execute().get();
@@ -119,18 +125,20 @@ public class ClickHouseStatementImpl extends JdbcWrapper
             }
             if (tables != null && !tables.isEmpty()) {
                 List<ClickHouseExternalTable> list = new ArrayList<>(tables.size());
+                char quote = '`';
                 for (ClickHouseExternalTable t : tables) {
                     if (t.isTempTable()) {
                         if (!request.getSessionId().isPresent()) {
                             request.session(UUID.randomUUID().toString());
                         }
-                        request.query("drop temporary table if exists `" + t.getName() + "`").execute().get();
-                        request.query("create temporary table `" + t.getName() + "`(" + t.getStructure() + ")")
-                                .execute().get();
-                        request.write()
-                                .table(t.getName())
+                        String tableName = new StringBuilder().append(quote)
+                                .append(ClickHouseUtils.escape(t.getName(), quote)).append(quote).toString();
+                        request.query("drop temporary table if exists ".concat(tableName)).executeAndWait();
+                        request.query("create temporary table " + tableName + "(" + t.getStructure() + ")")
+                                .executeAndWait();
+                        request.write().table(tableName)
                                 // .format(t.getFormat() != null ? t.getFormat() : ClickHouseFormat.RowBinary)
-                                .data(t.getContent()).sendAndWait();
+                                .data(t.getContent()).send().get();
                     } else {
                         list.add(t);
                     }
@@ -242,6 +250,7 @@ public class ClickHouseStatementImpl extends JdbcWrapper
         this.fetchSize = connection.getJdbcConfig().getFetchSize();
         this.maxFieldSize = 0;
         this.maxRows = 0L;
+        this.nullAsDefault = connection.getJdbcConfig().getNullAsDefault();
         this.poolable = false;
         this.queryId = null;
 
@@ -377,7 +386,7 @@ public class ClickHouseStatementImpl extends JdbcWrapper
         ensureOpen();
 
         if (this.maxRows != max) {
-            if (max == 0L) {
+            if (max == 0L || !connection.allowCustomSetting()) {
                 request.removeSetting("max_result_rows");
                 request.removeSetting("result_overflow_mode");
             } else {
@@ -715,6 +724,16 @@ public class ClickHouseStatementImpl extends JdbcWrapper
     @Override
     public ClickHouseConfig getConfig() {
         return request.getConfig();
+    }
+
+    @Override
+    public int getNullAsDefault() {
+        return nullAsDefault;
+    }
+
+    @Override
+    public void setNullAsDefault(int level) {
+        this.nullAsDefault = level;
     }
 
     @Override

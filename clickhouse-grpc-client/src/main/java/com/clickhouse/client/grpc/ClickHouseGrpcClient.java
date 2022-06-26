@@ -1,11 +1,13 @@
 package com.clickhouse.client.grpc;
 
 import java.io.IOException;
+import java.net.SocketTimeoutException;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.Map.Entry;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
 import com.google.protobuf.ByteString;
@@ -43,8 +45,11 @@ import com.clickhouse.client.logging.LoggerFactory;
 public class ClickHouseGrpcClient extends AbstractClient<ManagedChannel> {
     private static final Logger log = LoggerFactory.getLogger(ClickHouseGrpcClient.class);
 
-    protected static QueryInfo convert(ClickHouseNode server, ClickHouseRequest<?> request) {
+    static final List<ClickHouseProtocol> SUPPORTED = Collections.singletonList(ClickHouseProtocol.GRPC);
+
+    protected static QueryInfo convert(ClickHouseRequest<?> request) {
         ClickHouseConfig config = request.getConfig();
+        ClickHouseNode server = request.getServer();
         ClickHouseCredentials credentials = server.getCredentials(config);
 
         Builder builder = QueryInfo.newBuilder();
@@ -141,12 +146,22 @@ public class ClickHouseGrpcClient extends AbstractClient<ManagedChannel> {
     }
 
     @Override
+    protected boolean checkHealth(ClickHouseNode server, int timeout) {
+        return true;
+    }
+
+    @Override
     protected void closeConnection(ManagedChannel connection, boolean force) {
         if (!force) {
             connection.shutdown();
         } else {
             connection.shutdownNow();
         }
+    }
+
+    @Override
+    protected Collection<ClickHouseProtocol> getSupportedProtocols() {
+        return SUPPORTED;
     }
 
     @Override
@@ -161,24 +176,19 @@ public class ClickHouseGrpcClient extends AbstractClient<ManagedChannel> {
 
     protected void fill(ClickHouseRequest<?> request, StreamObserver<QueryInfo> observer) {
         try {
-            observer.onNext(convert(getServer(), request));
+            observer.onNext(convert(request));
         } finally {
             observer.onCompleted();
         }
     }
 
     @Override
-    public boolean accept(ClickHouseProtocol protocol) {
-        return ClickHouseProtocol.GRPC == protocol || super.accept(protocol);
-    }
-
-    protected CompletableFuture<ClickHouseResponse> executeAsync(ClickHouseRequest<?> sealedRequest,
-            ManagedChannel channel, ClickHouseNode server) {
+    protected Object[] getAsyncExecArguments(ClickHouseRequest<?> sealedRequest) {
         // reuse stub?
-        ClickHouseGrpc.ClickHouseStub stub = ClickHouseGrpc.newStub(channel);
+        ClickHouseGrpc.ClickHouseStub stub = ClickHouseGrpc.newStub(getConnection(sealedRequest));
 
         final ClickHouseStreamObserver responseObserver = new ClickHouseStreamObserver(sealedRequest.getConfig(),
-                server);
+                sealedRequest.getServer(), sealedRequest.getOutputStream().orElse(null));
         final StreamObserver<QueryInfo> requestObserver = stub.executeQueryWithStreamIO(responseObserver);
 
         if (sealedRequest.hasInputStream()) {
@@ -187,67 +197,61 @@ public class ClickHouseGrpcClient extends AbstractClient<ManagedChannel> {
             fill(sealedRequest, requestObserver);
         }
 
-        return CompletableFuture.supplyAsync(() -> {
-            ClickHouseConfig config = sealedRequest.getConfig();
-            int timeout = config.getConnectionTimeout() / 1000
-                    + Math.max(config.getSocketTimeout() / 1000, config.getMaxExecutionTime());
-            try {
-                if (!responseObserver.await(timeout, TimeUnit.SECONDS)) {
-                    if (!Context.current().withCancellation().cancel(new StatusException(Status.CANCELLED))) {
-                        requestObserver.onError(new StatusException(Status.CANCELLED));
-                    }
-                    throw new CompletionException(
-                            ClickHouseUtils.format("Timed out after waiting for %d %s", timeout, TimeUnit.SECONDS),
-                            null);
-                }
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw new CompletionException(ClickHouseException.of(e, server));
-            }
-
-            try {
-                ClickHouseResponse response = new ClickHouseGrpcResponse(sealedRequest.getConfig(),
-                        sealedRequest.getSettings(), responseObserver);
-                Throwable cause = responseObserver.getError();
-                if (cause != null) {
-                    throw new CompletionException(ClickHouseException.of(cause, server));
-                }
-                return response;
-            } catch (IOException e) {
-                throw new CompletionException(ClickHouseException.of(e, server));
-            }
-        }, getExecutor());
-    }
-
-    protected CompletableFuture<ClickHouseResponse> executeSync(ClickHouseRequest<?> sealedRequest,
-            ManagedChannel channel, ClickHouseNode server) {
-        ClickHouseGrpc.ClickHouseBlockingStub stub = ClickHouseGrpc.newBlockingStub(channel);
-
-        // TODO not as elegant as ClickHouseImmediateFuture :<
-        try {
-            Result result = stub.executeQuery(convert(server, sealedRequest));
-
-            ClickHouseResponse response = new ClickHouseGrpcResponse(sealedRequest.getConfig(),
-                    sealedRequest.getSettings(), result);
-
-            return result.hasException()
-                    ? failedResponse(new ClickHouseException(result.getException().getCode(),
-                            result.getException().getDisplayText(), server))
-                    : CompletableFuture.completedFuture(response);
-        } catch (IOException e) {
-            throw new CompletionException(ClickHouseException.of(e, server));
-        }
+        return new Object[] { requestObserver, responseObserver };
     }
 
     @Override
-    public CompletableFuture<ClickHouseResponse> execute(ClickHouseRequest<?> request) {
-        // sealedRequest is an immutable copy of the original request
-        final ClickHouseRequest<?> sealedRequest = request.seal();
-        final ManagedChannel c = getConnection(sealedRequest);
-        final ClickHouseNode s = getServer();
+    protected ClickHouseResponse sendAsync(ClickHouseRequest<?> sealedRequest, Object... args)
+            throws ClickHouseException, IOException {
+        StreamObserver<QueryInfo> requestObserver = (StreamObserver<QueryInfo>) args[0];
+        ClickHouseStreamObserver responseObserver = (ClickHouseStreamObserver) args[1];
 
-        return sealedRequest.getConfig().isAsync() ? executeAsync(sealedRequest, c, s)
-                : executeSync(sealedRequest, c, s);
+        ClickHouseConfig config = sealedRequest.getConfig();
+        int timeout = config.getConnectionTimeout() / 1000
+                + Math.max(config.getSocketTimeout() / 1000, config.getMaxExecutionTime());
+        try {
+            if (!responseObserver.await(timeout, TimeUnit.SECONDS)) {
+                if (!Context.current().withCancellation().cancel(new StatusException(Status.CANCELLED))) {
+                    requestObserver.onError(new StatusException(Status.CANCELLED));
+                }
+                throw new SocketTimeoutException(
+                        ClickHouseUtils.format("Timed out after waiting for %d %s", timeout, TimeUnit.SECONDS));
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw ClickHouseException.of(e, sealedRequest.getServer());
+        }
+
+        ClickHouseResponse response = new ClickHouseGrpcResponse(sealedRequest.getConfig(),
+                sealedRequest.getSettings(), responseObserver);
+        Throwable cause = responseObserver.getError();
+        if (cause != null) {
+            throw ClickHouseException.of(cause, sealedRequest.getServer());
+        }
+        return response;
+    }
+
+    @Override
+    protected ClickHouseResponse send(ClickHouseRequest<?> sealedRequest) throws ClickHouseException, IOException {
+        final ManagedChannel channel = getConnection(sealedRequest);
+
+        ClickHouseGrpc.ClickHouseBlockingStub stub = ClickHouseGrpc.newBlockingStub(channel);
+
+        Result result = stub.executeQuery(convert(sealedRequest));
+
+        ClickHouseResponse response = new ClickHouseGrpcResponse(sealedRequest.getConfig(),
+                sealedRequest.getSettings(), result);
+        if (result.hasException()) {
+            throw new ClickHouseException(result.getException().getCode(), result.getException().getDisplayText(),
+                    sealedRequest.getServer());
+        }
+
+        return response;
+    }
+
+    @Override
+    public boolean accept(ClickHouseProtocol protocol) {
+        return ClickHouseProtocol.GRPC == protocol || super.accept(protocol);
     }
 
     @Override

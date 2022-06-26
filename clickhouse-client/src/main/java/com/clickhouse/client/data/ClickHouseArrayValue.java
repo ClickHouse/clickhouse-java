@@ -135,9 +135,14 @@ public class ClickHouseArrayValue<T> extends ClickHouseObjectValue<T[]> {
 
     @Override
     @SuppressWarnings("unchecked")
-    public ClickHouseArrayValue<T> resetToNullOrEmpty() {
+    public ClickHouseArrayValue<T> resetToDefault() {
         set((T[]) ClickHouseValues.EMPTY_OBJECT_ARRAY);
         return this;
+    }
+
+    @Override
+    public ClickHouseArrayValue<T> resetToNullOrEmpty() {
+        return resetToDefault();
     }
 
     @Override

@@ -158,9 +158,14 @@ public class ClickHouseTupleValue extends ClickHouseObjectValue<List<Object>> {
     }
 
     @Override
-    public ClickHouseTupleValue resetToNullOrEmpty() {
+    public ClickHouseTupleValue resetToDefault() {
         set(Collections.emptyList());
         return this;
+    }
+
+    @Override
+    public ClickHouseTupleValue resetToNullOrEmpty() {
+        return resetToDefault();
     }
 
     @Override

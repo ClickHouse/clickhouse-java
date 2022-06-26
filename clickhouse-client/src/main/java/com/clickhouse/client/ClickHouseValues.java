@@ -76,6 +76,7 @@ public final class ClickHouseValues {
     public static final LocalTime TIME_ZERO = LocalTime.ofSecondOfDay(0L);
 
     public static final Object[] EMPTY_OBJECT_ARRAY = new Object[0];
+    public static final Object[][] EMPTY_OBJECT_ARRAY2 = new Object[0][];
     public static final byte[] EMPTY_BYTE_ARRAY = new byte[0];
     public static final short[] EMPTY_SHORT_ARRAY = new short[0];
     public static final int[] EMPTY_INT_ARRAY = new int[0];

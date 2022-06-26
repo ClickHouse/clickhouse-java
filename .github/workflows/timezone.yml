@@ -26,6 +26,10 @@ on:
         description: "Pull request#"
         required: false
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.event.number || github.sha }}
+  cancel-in-progress: true
+
 jobs:
   timezone:
     runs-on: ubuntu-latest
@@ -34,6 +38,7 @@ jobs:
         serverTz: ["Asia/Chongqing", "America/Los_Angeles", "Etc/UTC", "Europe/Berlin", "Europe/Moscow"]
         clientTz: ["Asia/Chongqing", "America/Los_Angeles", "Etc/UTC", "Europe/Berlin", "Europe/Moscow"]
       fail-fast: false
+    timeout-minutes: 30
     name: "TimeZone(C/S): ${{ matrix.clientTz }} vs. ${{ matrix.serverTz }}"
     steps:
       - name: Check out Git repository
@@ -44,16 +49,11 @@ jobs:
             origin pull/${{ github.event.inputs.pr }}/merge:merged-pr && git checkout merged-pr
         if: github.event.inputs.pr != ''
       - name: Set up JDK 8
-        uses: actions/setup-java@v1
+        uses: actions/setup-java@v3
         with:
+          distribution: 'temurin'
           java-version: 8
-      - name: Cache maven dependencies
-        uses: actions/cache@v2
-        with:
-          path: ~/.m2/repository
-          key: ${{ runner.os }}-build-${{ hashFiles('**/pom.xml') }}
-          restore-keys: |
-            ${{ runner.os }}-build-
+          cache: 'maven'
       - name: Install dependencies
         run: |
           mvn --batch-mode --update-snapshots \
@@ -61,9 +61,17 @@ jobs:
             --also-make install
       - name: Test JDBC driver
         run: |
-          mvn --batch-mode --update-snapshots \
-            --projects clickhouse-jdbc \
+          mvn --batch-mode --projects clickhouse-jdbc \
             -DclickhouseTimezone=${{ matrix.serverTz }} \
             -DclickhouseVersion=22.3 \
             -Duser.timezone=${{ matrix.clientTz }} \
             --also-make clean verify
+      - name: Upload test results
+        uses: actions/upload-artifact@v2
+        if: failure()
+        with:
+          name: result ${{ github.job }}
+          path: |
+            **/target/failsafe-reports
+            **/target/surefire-reports
+

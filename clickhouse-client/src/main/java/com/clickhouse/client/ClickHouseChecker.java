@@ -189,7 +189,7 @@ public final class ClickHouseChecker {
     }
 
     /**
-     * Checks if the given string is null or empty.
+     * Checks if the given string is {@code null} or empty.
      *
      * @param value the string to check
      * @return true if the string is null or empty; false otherwise

@@ -1,7 +1,5 @@
 package com.clickhouse.client;
 
-import java.io.FileNotFoundException;
-import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
@@ -107,16 +105,8 @@ public interface ClickHouseClient extends AutoCloseable {
         final CountDownLatch latch = new CountDownLatch(1);
         final ClickHousePipedOutputStream stream = ClickHouseDataStreamFactory.getInstance()
                 .createPipedOutputStream(config, () -> {
-                    long timeout = config.getSocketTimeout();
                     try {
-                        if (timeout > 0L) {
-                            if (!latch.await(timeout, TimeUnit.MILLISECONDS)) {
-                                throw new IllegalStateException(
-                                        ClickHouseUtils.format("Async write timed out after %d ms", timeout));
-                            }
-                        } else {
-                            latch.await();
-                        }
+                        latch.await();
 
                         if (postCloseAction != null) {
                             postCloseAction.run();
@@ -190,8 +180,8 @@ public interface ClickHouseClient extends AutoCloseable {
                     .createPipedOutputStream(config, null);
             wrappedInput = getResponseInputStream(config, decompressedStream.getInputStream(), postCloseAction);
             submit(() -> {
-                try (ClickHouseInputStream in = ClickHouseInputStream.of(input, config.getReadBufferSize());
-                        ClickHouseOutputStream out = decompressedStream) {
+                try (ClickHouseInputStream in = ClickHouseInputStream.of(input, config.getReadBufferSize(),
+                        config.getResponseCompressAlgorithm(), null); ClickHouseOutputStream out = decompressedStream) {
                     in.pipe(out);
                 }
                 return null;
@@ -258,6 +248,46 @@ public interface ClickHouseClient extends AutoCloseable {
      *
      * @param server       non-null server to connect to
      * @param tableOrQuery table name or a select query
+     * @param file         output file
+     * @return non-null future object to get result
+     * @throws IllegalArgumentException if any of server, tableOrQuery, and output
+     *                                  is null
+     * @throws CompletionException      when error occurred during execution
+     */
+    static CompletableFuture<ClickHouseResponseSummary> dump(ClickHouseNode server, String tableOrQuery,
+            ClickHouseFile file) {
+        if (server == null || tableOrQuery == null || file == null) {
+            throw new IllegalArgumentException("Non-null server, tableOrQuery, and file are required");
+        }
+
+        // in case the protocol is ANY
+        final ClickHouseNode theServer = server.probe();
+
+        final String theQuery = tableOrQuery.trim();
+
+        return submit(() -> {
+            try (ClickHouseClient client = newInstance(theServer.getProtocol())) {
+                ClickHouseRequest<?> request = client.connect(theServer).output(file);
+                // FIXME what if the table name is `try me`?
+                if (theQuery.indexOf(' ') < 0) {
+                    request.table(theQuery);
+                } else {
+                    request.query(theQuery);
+                }
+
+                try (ClickHouseResponse response = request.executeAndWait()) {
+                    return response.getSummary();
+                }
+            }
+        });
+    }
+
+    /**
+     * Dumps a table or query result from server into a file. File will be
+     * created/overwrited as needed.
+     *
+     * @param server       non-null server to connect to
+     * @param tableOrQuery table name or a select query
      * @param format       output format to use
      * @param compression  compression algorithm to use
      * @param file         output file
@@ -265,12 +295,10 @@ public interface ClickHouseClient extends AutoCloseable {
      * @throws IllegalArgumentException if any of server, tableOrQuery, and output
      *                                  is null
      * @throws CompletionException      when error occurred during execution
-     * @throws IOException              when failed to create the file or its parent
-     *                                  directories
      */
     static CompletableFuture<ClickHouseResponseSummary> dump(ClickHouseNode server, String tableOrQuery,
-            ClickHouseFormat format, ClickHouseCompression compression, String file) throws IOException {
-        return dump(server, tableOrQuery, format, compression, ClickHouseUtils.getFileOutputStream(file));
+            ClickHouseFormat format, ClickHouseCompression compression, String file) {
+        return dump(server, tableOrQuery, ClickHouseFile.of(file, compression, 0, format));
     }
 
     /**
@@ -296,14 +324,14 @@ public interface ClickHouseClient extends AutoCloseable {
         }
 
         // in case the protocol is ANY
-        final ClickHouseNode theServer = ClickHouseCluster.probe(server);
+        final ClickHouseNode theServer = server.probe();
 
         final String theQuery = tableOrQuery.trim();
 
         return submit(() -> {
             try (ClickHouseClient client = newInstance(theServer.getProtocol())) {
-                ClickHouseRequest<?> request = client.connect(theServer).compressServerResponse(
-                        compression != null && compression != ClickHouseCompression.NONE, compression).format(format);
+                ClickHouseRequest<?> request = client.connect(theServer).compressServerResponse(compression)
+                        .format(format).output(output);
                 // FIXME what if the table name is `try me`?
                 if (theQuery.indexOf(' ') < 0) {
                     request.table(theQuery);
@@ -312,7 +340,6 @@ public interface ClickHouseClient extends AutoCloseable {
                 }
 
                 try (ClickHouseResponse response = request.executeAndWait()) {
-                    response.pipe(output, request.getConfig().getWriteBufferSize());
                     return response.getSummary();
                 }
             } finally {
@@ -321,6 +348,33 @@ public interface ClickHouseClient extends AutoCloseable {
                 } catch (Exception e) {
                     // ignore
                 }
+            }
+        });
+    }
+
+    /**
+     * Loads data from given file into a table.
+     *
+     * @param server non-null server to connect to
+     * @param table  non-null target table
+     * @param file   non-null file
+     * @return future object to get result
+     * @throws IllegalArgumentException if any of server, table, and input is null
+     * @throws CompletionException      when error occurred during execution
+     */
+    static CompletableFuture<ClickHouseResponseSummary> load(ClickHouseNode server, String table, ClickHouseFile file) {
+        if (server == null || table == null || file == null) {
+            throw new IllegalArgumentException("Non-null server, table, and file are required");
+        }
+
+        // in case the protocol is ANY
+        final ClickHouseNode theServer = server.probe();
+
+        return submit(() -> {
+            try (ClickHouseClient client = newInstance(theServer.getProtocol());
+                    ClickHouseResponse response = client.connect(theServer).write().table(table).data(file)
+                            .executeAndWait()) {
+                return response.getSummary();
             }
         });
     }
@@ -337,11 +391,10 @@ public interface ClickHouseClient extends AutoCloseable {
      * @return future object to get result
      * @throws IllegalArgumentException if any of server, table, and input is null
      * @throws CompletionException      when error occurred during execution
-     * @throws FileNotFoundException    when file not found
      */
     static CompletableFuture<ClickHouseResponseSummary> load(ClickHouseNode server, String table,
-            ClickHouseFormat format, ClickHouseCompression compression, String file) throws FileNotFoundException {
-        return load(server, table, format, compression, ClickHouseUtils.getFileInputStream(file));
+            ClickHouseFormat format, ClickHouseCompression compression, String file) {
+        return load(server, table, ClickHouseFile.of(file, compression, 0, format));
     }
 
     /**
@@ -364,7 +417,7 @@ public interface ClickHouseClient extends AutoCloseable {
         }
 
         // in case the protocol is ANY
-        final ClickHouseNode theServer = ClickHouseCluster.probe(server);
+        final ClickHouseNode theServer = server.probe();
 
         return submit(() -> {
             InputStream input = null;
@@ -376,9 +429,8 @@ public interface ClickHouseClient extends AutoCloseable {
                         .createPipedOutputStream(client.getConfig(), null);
                 // execute query in a separate thread(because async is explicitly set to true)
                 CompletableFuture<ClickHouseResponse> future = client.connect(theServer).write().table(table)
-                        .decompressClientRequest(compression != null && compression != ClickHouseCompression.NONE,
-                                compression)
-                        .format(format).data(input = stream.getInputStream()).execute();
+                        .decompressClientRequest(compression).format(format).data(input = stream.getInputStream())
+                        .execute();
                 try {
                     // write data into stream in current thread
                     writer.write(stream);
@@ -429,14 +481,12 @@ public interface ClickHouseClient extends AutoCloseable {
         }
 
         // in case the protocol is ANY
-        final ClickHouseNode theServer = ClickHouseCluster.probe(server);
+        final ClickHouseNode theServer = server.probe();
 
         return submit(() -> {
             try (ClickHouseClient client = newInstance(theServer.getProtocol());
                     ClickHouseResponse response = client.connect(theServer).write().table(table)
-                            .decompressClientRequest(compression != null && compression != ClickHouseCompression.NONE,
-                                    compression)
-                            .format(format).data(input).executeAndWait()) {
+                            .decompressClientRequest(compression).format(format).data(input).executeAndWait()) {
                 return response.getSummary();
             } finally {
                 try {
@@ -476,7 +526,7 @@ public interface ClickHouseClient extends AutoCloseable {
         }
 
         // in case the protocol is ANY
-        final ClickHouseNode theServer = ClickHouseCluster.probe(server);
+        final ClickHouseNode theServer = server.probe();
 
         List<String> queries = new LinkedList<>();
         queries.add(sql);
@@ -526,7 +576,7 @@ public interface ClickHouseClient extends AutoCloseable {
         }
 
         // in case the protocol is ANY
-        final ClickHouseNode theServer = ClickHouseCluster.probe(server);
+        final ClickHouseNode theServer = server.probe();
 
         return submit(() -> {
             // set async to false so that we don't have to create additional thread
@@ -593,7 +643,7 @@ public interface ClickHouseClient extends AutoCloseable {
         }
 
         // in case the protocol is ANY
-        final ClickHouseNode theServer = ClickHouseCluster.probe(server);
+        final ClickHouseNode theServer = server.probe();
 
         return submit(() -> {
             List<ClickHouseResponseSummary> list = new ArrayList<>(size);
@@ -646,7 +696,7 @@ public interface ClickHouseClient extends AutoCloseable {
         }
 
         // in case the protocol is ANY
-        final ClickHouseNode theServer = ClickHouseCluster.probe(server);
+        final ClickHouseNode theServer = server.probe();
 
         return submit(() -> {
             List<ClickHouseResponseSummary> list = new ArrayList<>(params.length);
@@ -686,10 +736,46 @@ public interface ClickHouseClient extends AutoCloseable {
     }
 
     /**
+     * Connects to one or more ClickHouse servers. Same as
+     * {@code connect(ClickHouseNodes.of(uri))}.
+     *
+     * @param enpoints non-empty URIs separated by comman
+     * @return non-null request object holding references to this client and node
+     *         provider
+     */
+    default ClickHouseRequest<?> connect(String enpoints) {
+        return connect(ClickHouseNodes.of(enpoints));
+    }
+
+    /**
+     * Connects to a list of managed ClickHouse servers.
+     *
+     * @param nodes non-null list of servers to connect to
+     * @return non-null request object holding references to this client and node
+     *         provider
+     */
+    default ClickHouseRequest<?> connect(ClickHouseNodes nodes) {
+        return new ClickHouseRequest<>(this, ClickHouseChecker.nonNull(nodes, "Nodes"),
+                null, nodes.template.config.getAllOptions(), false);
+    }
+
+    /**
+     * Connects to a ClickHouse server.
+     *
+     * @param node non-null server to connect to
+     * @return non-null request object holding references to this client and node
+     *         provider
+     */
+    default ClickHouseRequest<?> connect(ClickHouseNode node) {
+        return new ClickHouseRequest<>(this, ClickHouseChecker.nonNull(node, "Node"), null, node.config.getAllOptions(),
+                false);
+    }
+
+    /**
      * Connects to a ClickHouse server defined by the given
      * {@link java.util.function.Function}. You can pass either
-     * {@link ClickHouseCluster} or {@link ClickHouseNode} here, as both of them
-     * implemented the same interface.
+     * {@link ClickHouseCluster}, {@link ClickHouseNodes} or {@link ClickHouseNode}
+     * here, as all of them implemented the same interface.
      *
      * <p>
      * Please be aware that this is nothing but an intention, so no network
@@ -701,7 +787,7 @@ public interface ClickHouseClient extends AutoCloseable {
      *         provider
      */
     default ClickHouseRequest<?> connect(Function<ClickHouseNodeSelector, ClickHouseNode> nodeFunc) {
-        return new ClickHouseRequest<>(this, ClickHouseChecker.nonNull(nodeFunc, "nodeFunc"), false);
+        return new ClickHouseRequest<>(this, ClickHouseChecker.nonNull(nodeFunc, "nodeFunc"), null, null, false);
     }
 
     /**
@@ -796,8 +882,13 @@ public interface ClickHouseClient extends AutoCloseable {
      * @return true if the server is alive; false otherwise
      */
     default boolean ping(ClickHouseNode server, int timeout) {
-        if (server != null && timeout > 0) {
-            server = ClickHouseCluster.probe(server, timeout);
+        if (server != null) {
+            if (timeout < 1) {
+                timeout = server.config.getConnectionTimeout();
+            }
+            if (server.getProtocol() == ClickHouseProtocol.ANY) {
+                server = ClickHouseNode.probe(server.getHost(), server.getPort(), timeout);
+            }
             try (ClickHouseResponse resp = connect(server) // create request
                     .option(ClickHouseClientOption.ASYNC, false) // use current thread
                     .option(ClickHouseClientOption.CONNECTION_TIMEOUT, timeout)
@@ -807,7 +898,7 @@ public interface ClickHouseClient extends AutoCloseable {
                     .format(ClickHouseFormat.TabSeparated)
                     .query("SELECT 1 FORMAT TabSeparated").execute()
                     .get(timeout, TimeUnit.MILLISECONDS)) {
-                return true;
+                return resp != null;
             } catch (Exception e) {
                 // ignore
             }

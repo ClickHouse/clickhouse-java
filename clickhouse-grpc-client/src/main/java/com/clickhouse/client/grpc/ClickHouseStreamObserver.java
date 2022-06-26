@@ -11,6 +11,7 @@ import com.clickhouse.client.ClickHouseDataStreamFactory;
 import com.clickhouse.client.ClickHouseException;
 import com.clickhouse.client.ClickHouseInputStream;
 import com.clickhouse.client.ClickHouseNode;
+import com.clickhouse.client.ClickHouseOutputStream;
 import com.clickhouse.client.ClickHousePipedOutputStream;
 import com.clickhouse.client.ClickHouseResponseSummary;
 import com.clickhouse.client.ClickHouseUtils;
@@ -30,21 +31,28 @@ public class ClickHouseStreamObserver implements StreamObserver<Result> {
     private final CountDownLatch startLatch;
     private final CountDownLatch finishLatch;
 
-    private final ClickHousePipedOutputStream stream;
+    private final ClickHouseOutputStream stream;
     private final ClickHouseInputStream input;
 
     private final ClickHouseResponseSummary summary;
 
     private Throwable error;
 
-    protected ClickHouseStreamObserver(ClickHouseConfig config, ClickHouseNode server) {
+    protected ClickHouseStreamObserver(ClickHouseConfig config, ClickHouseNode server, ClickHouseOutputStream output) {
         this.server = server;
 
         this.startLatch = new CountDownLatch(1);
         this.finishLatch = new CountDownLatch(1);
 
-        this.stream = ClickHouseDataStreamFactory.getInstance().createPipedOutputStream(config, null);
-        this.input = ClickHouseGrpcResponse.getInput(config, this.stream.getInputStream());
+        if (output != null) {
+            this.stream = output;
+            this.input = ClickHouseInputStream.empty();
+        } else {
+            ClickHousePipedOutputStream pipedStream = ClickHouseDataStreamFactory.getInstance()
+                    .createPipedOutputStream(config, null);
+            this.stream = pipedStream;
+            this.input = ClickHouseGrpcResponse.getInput(config, pipedStream.getInputStream());
+        }
 
         this.summary = new ClickHouseResponseSummary(null, null);
 

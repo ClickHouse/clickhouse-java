@@ -1,19 +1,42 @@
 package com.clickhouse.client;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.Serializable;
 import java.net.InetSocketAddress;
+import java.net.Socket;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TimeZone;
-import java.util.function.BiConsumer;
+import java.util.WeakHashMap;
+import java.util.Map.Entry;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLException;
+import javax.net.ssl.SSLSocket;
+import javax.net.ssl.SSLSocketFactory;
 
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.config.ClickHouseDefaults;
+import com.clickhouse.client.config.ClickHouseOption;
+import com.clickhouse.client.config.ClickHouseSslMode;
+import com.clickhouse.client.logging.Logger;
+import com.clickhouse.client.logging.LoggerFactory;
 
 /**
  * This class depicts a ClickHouse server, essentially a combination of host,
@@ -24,56 +47,68 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
      * Node status.
      */
     public enum Status {
-        HEALTHY, UNHEALTHY, MANAGED, UNMANAGED
+        /**
+         * Healthy status.
+         */
+        HEALTHY,
+        /**
+         * Faulty status.
+         * 
+         * @deprecated will be removed in v0.3.3, please use {@link #FAULTY} instead
+         */
+        @Deprecated
+        UNHEALTHY,
+        /**
+         * Managed status.
+         */
+        MANAGED,
+        /**
+         * Unmanaged status.
+         * 
+         * @deprecated will be removed in v0.3.3, please use {@link #STANDALONE} instead
+         */
+        @Deprecated
+        UNMANAGED,
+        /**
+         * Faulty status.
+         */
+        FAULTY,
+        /**
+         * Standalone status.
+         */
+        STANDALONE;
     }
 
     /**
      * Mutable and non-thread safe builder.
      */
     public static class Builder {
-        protected String cluster;
         protected String host;
-        protected Integer port;
-        protected InetSocketAddress address;
         protected ClickHouseProtocol protocol;
+        protected Integer port;
         protected ClickHouseCredentials credentials;
-        protected String database;
-        // label is more expressive, but is slow for comparison
-        protected Set<String> tags;
-        protected Integer weight;
 
-        protected TimeZone tz;
-        protected ClickHouseVersion version;
+        protected final Map<String, String> options;
+        // label is more expressive, but is slow for comparison
+        protected final Set<String> tags;
 
         /**
          * Default constructor.
          */
         protected Builder() {
-            this.tags = new HashSet<>(3);
+            this.host = null;
+            this.protocol = null;
+            this.port = null;
+            this.credentials = null;
+            this.options = new LinkedHashMap<>();
+            this.tags = new LinkedHashSet<>();
         }
 
-        protected String getCluster() {
-            if (cluster == null) {
-                cluster = (String) ClickHouseDefaults.CLUSTER.getEffectiveDefaultValue();
-            }
-
-            return cluster;
-        }
-
-        protected InetSocketAddress getAddress() {
-            if (host == null) {
+        protected String getHost() {
+            if (ClickHouseChecker.isNullOrEmpty(host)) {
                 host = (String) ClickHouseDefaults.HOST.getEffectiveDefaultValue();
             }
-
-            if (port == null) {
-                port = (Integer) ClickHouseDefaults.PORT.getEffectiveDefaultValue();
-            }
-
-            if (address == null) {
-                address = InetSocketAddress.createUnresolved(host, port);
-            }
-
-            return address;
+            return host;
         }
 
         protected ClickHouseProtocol getProtocol() {
@@ -83,39 +118,23 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
             return protocol;
         }
 
+        protected int getPort() {
+            if (port == null) {
+                port = getProtocol().getDefaultPort();
+            }
+            return port;
+        }
+
         protected ClickHouseCredentials getCredentials() {
             return credentials;
         }
 
-        protected String getDatabase() {
-            return database;
+        protected Map<String, String> getOptions() {
+            return options;
         }
 
         protected Set<String> getTags() {
-            int size = tags == null ? 0 : tags.size();
-            if (size == 0) {
-                return Collections.emptySet();
-            }
-
-            Set<String> s = new HashSet<>(size);
-            s.addAll(tags);
-            return Collections.unmodifiableSet(s);
-        }
-
-        protected int getWeight() {
-            if (weight == null) {
-                weight = (Integer) ClickHouseDefaults.WEIGHT.getEffectiveDefaultValue();
-            }
-
-            return weight.intValue();
-        }
-
-        protected TimeZone getTimeZone() {
-            return tz;
-        }
-
-        protected ClickHouseVersion getVersion() {
-            return version;
+            return tags;
         }
 
         /**
@@ -125,7 +144,11 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
          * @return this builder
          */
         public Builder cluster(String cluster) {
-            this.cluster = cluster;
+            if (!ClickHouseChecker.isNullOrEmpty(cluster)) {
+                options.put(PARAM_CLUSTER, cluster);
+            } else {
+                options.remove(PARAM_CLUSTER);
+            }
             return this;
         }
 
@@ -136,10 +159,6 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
          * @return this builder
          */
         public Builder host(String host) {
-            if (!Objects.equals(this.host, host)) {
-                this.address = null;
-            }
-
             this.host = host;
             return this;
         }
@@ -161,7 +180,7 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
          * @return this builder
          */
         public Builder port(ClickHouseProtocol protocol) {
-            return port(protocol, ClickHouseChecker.nonNull(protocol, "protocol").getDefaultPort());
+            return port(protocol, null);
         }
 
         /**
@@ -172,12 +191,8 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
          * @return this builder
          */
         public Builder port(ClickHouseProtocol protocol, Integer port) {
-            if (!Objects.equals(this.port, port)) {
-                this.address = null;
-            }
-
-            this.port = port;
             this.protocol = protocol;
+            this.port = port;
             return this;
         }
 
@@ -201,13 +216,13 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
          * @return this builder
          */
         public Builder address(ClickHouseProtocol protocol, InetSocketAddress address) {
-            if (!Objects.equals(this.address, address)) {
-                this.host = null;
-                this.port = null;
+            if (address != null) {
+                host(address.getHostName());
+                port(protocol, address.getPort());
+            } else {
+                host(null);
+                port(protocol, null);
             }
-
-            this.address = address;
-            this.protocol = protocol;
             return this;
         }
 
@@ -218,7 +233,11 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
          * @return this builder
          */
         public Builder database(String database) {
-            this.database = database;
+            if (!ClickHouseChecker.isNullOrEmpty(database)) {
+                options.put(ClickHouseClientOption.DATABASE.getKey(), database);
+            } else {
+                options.remove(ClickHouseClientOption.DATABASE.getKey());
+            }
             return this;
         }
 
@@ -237,14 +256,49 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
         }
 
         /**
+         * Adds an option for this node.
+         *
+         * @param option option name, null value will be ignored
+         * @param value  option value
+         * @return this builder
+         */
+        public Builder addOption(String option, String value) {
+            if (option != null) {
+                if (value != null) {
+                    options.put(option, value);
+                } else {
+                    options.remove(option);
+                }
+            }
+
+            return this;
+        }
+
+        /**
+         * Sets all options for this node. Use null or empty value to clear all existing
+         * options.
+         *
+         * @param options options for the node
+         * @return this builder
+         */
+        public Builder options(Map<String, String> options) {
+            this.options.clear();
+
+            if (options != null) {
+                this.options.putAll(options);
+            }
+            return this;
+        }
+
+        /**
          * Adds a tag for this node.
          *
          * @param tag tag for the node, null or duplicate tag will be ignored
          * @return this builder
          */
         public Builder addTag(String tag) {
-            if (tag != null) {
-                this.tags.add(tag);
+            if (!ClickHouseChecker.isNullOrEmpty(tag)) {
+                tags.add(tag);
             }
 
             return this;
@@ -257,8 +311,8 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
          * @return this builder
          */
         public Builder removeTag(String tag) {
-            if (tag != null) {
-                this.tags.remove(tag);
+            if (!ClickHouseChecker.isNullOrEmpty(tag)) {
+                tags.remove(tag);
             }
 
             return this;
@@ -279,10 +333,7 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
 
             if (more != null) {
                 for (String t : more) {
-                    if (t == null) {
-                        continue;
-                    }
-                    this.tags.add(t);
+                    addTag(t);
                 }
             }
 
@@ -301,13 +352,33 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
 
             if (tags != null) {
                 for (String t : tags) {
-                    if (t == null) {
-                        continue;
-                    }
-                    this.tags.add(t);
+                    addTag(t);
                 }
             }
 
+            return this;
+        }
+
+        public Builder replica(Integer num) {
+            if (num != null) {
+                options.put(PARAM_REPLICA_NUM, num.toString());
+            } else {
+                options.remove(PARAM_REPLICA_NUM);
+            }
+            return this;
+        }
+
+        public Builder shard(Integer num, Integer weight) {
+            if (num != null) {
+                options.put(PARAM_SHARD_NUM, num.toString());
+            } else {
+                options.remove(PARAM_SHARD_NUM);
+            }
+            if (weight != null) {
+                options.put(PARAM_SHARD_WEIGHT, weight.toString());
+            } else {
+                options.remove(PARAM_SHARD_WEIGHT);
+            }
             return this;
         }
 
@@ -319,7 +390,11 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
          * @return this builder
          */
         public Builder weight(Integer weight) {
-            this.weight = weight;
+            if (weight != null) {
+                options.put(PARAM_WEIGHT, weight.toString());
+            } else {
+                options.remove(PARAM_WEIGHT);
+            }
             return this;
         }
 
@@ -330,7 +405,11 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
          * @return this builder
          */
         public Builder timeZone(String tz) {
-            this.tz = tz != null ? TimeZone.getTimeZone(tz) : null;
+            if (!ClickHouseChecker.isNullOrEmpty(tz)) {
+                options.put(ClickHouseClientOption.SERVER_TIME_ZONE.getKey(), tz);
+            } else {
+                options.remove(ClickHouseClientOption.SERVER_TIME_ZONE.getKey());
+            }
             return this;
         }
 
@@ -341,7 +420,7 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
          * @return this builder
          */
         public Builder timeZone(TimeZone tz) {
-            this.tz = tz;
+            timeZone(tz != null ? tz.getID() : null);
             return this;
         }
 
@@ -352,7 +431,11 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
          * @return this builder
          */
         public Builder version(String version) {
-            this.version = version != null ? ClickHouseVersion.of(version) : null;
+            if (!ClickHouseChecker.isNullOrEmpty(version)) {
+                options.put(ClickHouseClientOption.SERVER_VERSION.getKey(), version);
+            } else {
+                options.remove(ClickHouseClientOption.SERVER_VERSION.getKey());
+            }
             return this;
         }
 
@@ -363,7 +446,7 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
          * @return this builder
          */
         public Builder version(ClickHouseVersion version) {
-            this.version = version;
+            version(version != null ? version.toString() : null);
             return this;
         }
 
@@ -375,6 +458,210 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
         public ClickHouseNode build() {
             return new ClickHouseNode(this);
         }
+    }
+
+    private static final Logger log = LoggerFactory.getLogger(ClickHouseNode.class);
+    private static final long serialVersionUID = 8342604784121795372L;
+    private static final Map<String, URI> cache = Collections.synchronizedMap(new WeakHashMap<>());
+
+    static final ClickHouseNode DEFAULT = new ClickHouseNode("localhost", ClickHouseProtocol.ANY, 0, null, null, null);
+
+    static final int MAX_PORT_NUM = 65535;
+    static final int MIN_PORT_NUM = 0;
+
+    static final String PARAM_CLUSTER = "cluster";
+    static final String PARAM_SHARD_NUM = "shard_num";
+    static final String PARAM_SHARD_WEIGHT = "shard_weight";
+    static final String PARAM_REPLICA_NUM = "replica_num";
+    static final String PARAM_WEIGHT = "weight";
+
+    static final int DEFAULT_SHARD_NUM = 0;
+    static final int DEFAULT_SHARD_WEIGHT = 0;
+    static final int DEFAULT_REPLICA_NUM = 0;
+    static final int DEFAULT_WEIGHT = 1;
+
+    public static final String SCHEME_DELIMITER = "://";
+
+    static URI normalize(String uri, ClickHouseProtocol defaultProtocol) {
+        int index = ClickHouseChecker.nonEmpty(uri, "URI").indexOf(SCHEME_DELIMITER);
+        String normalized;
+        if (index < 0) {
+            normalized = new StringBuilder()
+                    .append((defaultProtocol != null ? defaultProtocol : ClickHouseProtocol.ANY).name()
+                            .toLowerCase())
+                    .append(SCHEME_DELIMITER)
+                    .append(uri.trim()).toString();
+        } else {
+            normalized = uri.trim();
+        }
+        return cache.computeIfAbsent(normalized, k -> {
+            try {
+                return new URI(k);
+            } catch (URISyntaxException e) {
+                throw new IllegalArgumentException("Invalid URI", e);
+            }
+        });
+    }
+
+    static void parseOptions(String query, Map<String, String> params) {
+        if (ClickHouseChecker.isNullOrEmpty(query)) {
+            return;
+        }
+        int len = query.length();
+        for (int i = 0; i < len; i++) {
+            int index = query.indexOf('&', i);
+            if (index == i) {
+                continue;
+            }
+
+            String param;
+            if (index < 0) {
+                param = query.substring(i);
+                i = len;
+            } else {
+                param = query.substring(i, index);
+                i = index;
+            }
+            index = param.indexOf('=');
+            String key;
+            String value;
+            if (index < 0) {
+                key = ClickHouseUtils.decode(param);
+                if (key.charAt(0) == '!') {
+                    key = key.substring(1);
+                    value = Boolean.FALSE.toString();
+                } else {
+                    value = Boolean.TRUE.toString();
+                }
+            } else {
+                key = ClickHouseUtils.decode(param.substring(0, index));
+                value = ClickHouseUtils.decode(param.substring(index + 1));
+            }
+
+            // any multi-value option? cluster?
+            params.put(key, value);
+        }
+    }
+
+    static void parseTags(String fragment, Set<String> tags) {
+        if (ClickHouseChecker.isNullOrEmpty(fragment)) {
+            return;
+        }
+
+        for (int i = 0, len = fragment.length(); i < len; i++) {
+            int index = fragment.indexOf(',', i);
+            if (index == i) {
+                continue;
+            }
+
+            String tag;
+            if (index < 0) {
+                tag = fragment.substring(i).trim();
+                i = len;
+            } else {
+                tag = fragment.substring(i, index).trim();
+                i = index;
+            }
+            if (!tag.isEmpty()) {
+                tags.add(tag);
+            }
+        }
+    }
+
+    static ClickHouseNode probe(String host, int port, ClickHouseSslMode mode, String rootCaFile, String certFile,
+            String keyFile, int timeout) {
+        if (mode == null) {
+            return probe(host, port, timeout);
+        }
+
+        Map<ClickHouseOption, Serializable> options = new HashMap<>();
+        options.put(ClickHouseClientOption.SSL, true);
+        options.put(ClickHouseClientOption.SSL_MODE, mode);
+        options.put(ClickHouseClientOption.SSL_ROOT_CERTIFICATE, rootCaFile);
+        options.put(ClickHouseClientOption.SSL_CERTIFICATE, certFile);
+        options.put(ClickHouseClientOption.SSL_KEY, keyFile);
+        ClickHouseConfig config = new ClickHouseConfig(options, null, null, null);
+        SSLContext sslContext = null;
+        try {
+            sslContext = ClickHouseSslContextProvider.getProvider().getSslContext(SSLContext.class, config)
+                    .orElse(null);
+        } catch (SSLException e) {
+            log.debug("Failed to create SSL context due to: %s", e.getMessage());
+        }
+        if (sslContext == null) {
+            return probe(host, port, timeout);
+        }
+
+        SSLSocketFactory factory = sslContext.getSocketFactory();
+        ClickHouseDnsResolver resolver = ClickHouseDnsResolver.getInstance();
+        ClickHouseProtocol p = ClickHouseProtocol.HTTP;
+        InetSocketAddress address = resolver != null
+                ? resolver.resolve(ClickHouseProtocol.ANY, host, port)
+                : new InetSocketAddress(host, port);
+        try (SSLSocket client = (SSLSocket) factory.createSocket()) {
+            client.setKeepAlive(false);
+            client.setSoTimeout(timeout);
+            client.connect(address, timeout);
+            client.startHandshake();
+
+            try (OutputStream out = client.getOutputStream(); InputStream in = client.getInputStream()) {
+                out.write("GET /ping HTTP/1.1\r\n\r\n".getBytes(StandardCharsets.US_ASCII));
+                out.flush();
+                byte[] buf = new byte[12]; // HTTP/1.x xxx
+                int read = in.read(buf);
+                if (read == -1) {
+                    p = ClickHouseProtocol.GRPC;
+                } else if (buf[0] == 72 && buf[9] == 52) {
+                    p = ClickHouseProtocol.TCP;
+                }
+            }
+        } catch (IOException e) {
+            // MYSQL does not support SSL
+            // and PostgreSQL will end up with SocketTimeoutException
+            log.debug("Failed to probe %s:%d", host, port, e);
+        }
+        return new ClickHouseNode(host, p, port, null, null, null);
+    }
+
+    static ClickHouseNode probe(String host, int port, int timeout) {
+        ClickHouseDnsResolver resolver = ClickHouseDnsResolver.getInstance();
+        InetSocketAddress address = resolver != null
+                ? resolver.resolve(ClickHouseProtocol.ANY, host, port)
+                : new InetSocketAddress(host, port);
+
+        ClickHouseProtocol p = ClickHouseProtocol.HTTP;
+        // TODO needs a better way so that we can detect PostgreSQL port as well
+        try (Socket client = new Socket()) {
+            client.setKeepAlive(false);
+            client.connect(address, timeout);
+            client.setSoTimeout(timeout);
+            try (OutputStream out = client.getOutputStream(); InputStream in = client.getInputStream()) {
+                out.write("GET /ping HTTP/1.1\r\n\r\n".getBytes(StandardCharsets.US_ASCII));
+                out.flush();
+                byte[] buf = new byte[12]; // HTTP/1.x xxx
+                int read = in.read(buf);
+                if (read == buf.length && buf[0] == 0) {
+                    p = ClickHouseProtocol.GRPC;
+                } else if (buf[0] != 0 && buf[3] == 0) {
+                    p = ClickHouseProtocol.MYSQL;
+                } else if (buf[0] == 72 && buf[9] == 52) {
+                    p = ClickHouseProtocol.TCP;
+                }
+            }
+        } catch (IOException e) {
+            // PostgreSQL will end up with SocketTimeoutException
+            log.debug("Failed to probe %s:%d", host, port, e);
+        }
+
+        return new ClickHouseNode(host, p, port, null, null, null);
+    }
+
+    static String value(String value, String defaultValue) {
+        return ClickHouseChecker.isNullOrEmpty(value) ? defaultValue : value;
+    }
+
+    static int value(String value, int defaultValue) {
+        return ClickHouseChecker.isNullOrEmpty(value) ? defaultValue : Integer.parseInt(value);
     }
 
     /**
@@ -395,10 +682,14 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
     public static Builder builder(ClickHouseNode base) {
         Builder b = new Builder();
         if (base != null) {
-            b.cluster(base.getCluster()).host(base.getHost()).port(base.getProtocol(), base.getPort())
-                    .credentials(base.getCredentials().orElse(null)).database(base.getDatabase().orElse(null))
-                    .tags(base.getTags()).weight(base.getWeight()).timeZone(base.getTimeZone().orElse(null))
-                    .version(base.getVersion().orElse(null));
+            Map<String, String> map = new LinkedHashMap<>(base.options);
+            map.put(PARAM_CLUSTER, base.getCluster());
+            map.put(PARAM_REPLICA_NUM, Integer.toString(base.replicaNum));
+            map.put(PARAM_SHARD_NUM, Integer.toString(base.shardNum));
+            map.put(PARAM_SHARD_WEIGHT, Integer.toString(base.shardWeight));
+            map.put(PARAM_WEIGHT, Integer.toString(base.getWeight()));
+            b.host(base.getHost()).port(base.getProtocol(), base.getPort()).credentials(base.credentials).options(map)
+                    .tags(base.getTags());
         }
         return b;
     }
@@ -412,7 +703,7 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
      * @param port     port number
      * @param database database name, null means {@link ClickHouseDefaults#DATABASE}
      * @param tags     tags for the node, null tag will be ignored
-     * @return node object
+     * @return non-null node object
      */
     public static ClickHouseNode of(String host, ClickHouseProtocol protocol, int port, String database,
             String... tags) {
@@ -424,40 +715,268 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
     }
 
     /**
-     * Generated UID.
+     * Creates a node object using given URI. Same as
+     * {@code of(uri, ClickHouseProtocol.ANY)}.
+     *
+     * @param uri non-empty URI
+     * @return non-null node object
      */
-    private static final long serialVersionUID = 8342604784121795372L;
+    public static ClickHouseNode of(String uri) {
+        return of(uri, DEFAULT);
+    }
 
-    private final String cluster;
+    /**
+     * Creates a node object using given URI. Same as
+     * {@code of(uri, ClickHouseProtocol.ANY)}.
+     *
+     * @param uri     non-empty URI
+     * @param options default options
+     * @return non-null node object
+     */
+    public static ClickHouseNode of(String uri, Map<?, ?> options) {
+        URI normalizedUri = normalize(uri, null);
+        ClickHouseNode template = DEFAULT;
+        if (options != null && !options.isEmpty()) {
+            Builder builder = builder(DEFAULT);
+            for (Entry<?, ?> entry : options.entrySet()) {
+                if (entry.getKey() != null) {
+                    builder.addOption(entry.getKey().toString(),
+                            entry.getValue() != null ? entry.getValue().toString() : null);
+                }
+            }
+            String user = builder.options.remove(ClickHouseDefaults.USER.getKey());
+            String passwd = builder.options.remove(ClickHouseDefaults.PASSWORD.getKey());
+            if (!ClickHouseChecker.isNullOrEmpty(user)) {
+                builder.credentials(ClickHouseCredentials.fromUserAndPassword(user, passwd == null ? "" : passwd));
+            }
+            String db = builder.options.get(ClickHouseClientOption.DATABASE.getKey());
+            if (!ClickHouseChecker.isNullOrEmpty(db)) {
+                try {
+                    normalizedUri = new URI(normalizedUri.getScheme(), normalizedUri.getUserInfo(),
+                            normalizedUri.getHost(), normalizedUri.getPort(), "/" + db, normalizedUri.getQuery(),
+                            normalizedUri.getFragment());
+                } catch (URISyntaxException e) { // should not happen
+                    throw new IllegalArgumentException("Failed to update database in given URI", e);
+                }
+            }
+            template = builder.build();
+        }
+        return of(normalizedUri, template);
+    }
+
+    /**
+     * Creates a node object using given URI and template.
+     *
+     * @param uri      non-empty URI
+     * @param template optinal template used for creating the node
+     * @return non-null node object
+     */
+    public static ClickHouseNode of(String uri, ClickHouseNode template) {
+        return of(normalize(uri, template != null ? template.getProtocol() : null), template);
+    }
+
+    /**
+     * Creates a node object using given URI.
+     *
+     * @param uri      non-null URI which contains scheme(protocol), host and
+     *                 optionally port
+     * @param template optinal template used for creating the node object
+     * @return non-null node object
+     */
+    public static ClickHouseNode of(URI uri, ClickHouseNode template) {
+        String host = ClickHouseChecker.nonNull(uri, "URI").getHost();
+        String scheme = ClickHouseChecker.nonEmpty(uri.getScheme(), "Protocol");
+        if (template == null) {
+            template = DEFAULT;
+        }
+        if (ClickHouseChecker.isNullOrEmpty(host)) {
+            host = template.getHost();
+        }
+
+        int port = uri.getPort();
+        Map<String, String> params = new LinkedHashMap<>(template.options);
+        ClickHouseProtocol protocol = ClickHouseProtocol.fromUriScheme(scheme);
+        if (port < MIN_PORT_NUM || port > MAX_PORT_NUM) {
+            port = MIN_PORT_NUM;
+        }
+        if (protocol != ClickHouseProtocol.POSTGRESQL && scheme.charAt(scheme.length() - 1) == 's') {
+            params.put(ClickHouseClientOption.SSL.getKey(), Boolean.TRUE.toString());
+            params.put(ClickHouseClientOption.SSL_MODE.getKey(), ClickHouseSslMode.STRICT.name());
+        }
+
+        ClickHouseCredentials credentials = template.credentials;
+        String user = "";
+        String passwd = "";
+        if (credentials != null && !credentials.useAccessToken()) {
+            user = credentials.getUserName();
+            passwd = credentials.getPassword();
+        }
+        String auth = uri.getRawUserInfo();
+        if (!ClickHouseChecker.isNullOrEmpty(auth)) {
+            int index = auth.indexOf(':');
+            if (index < 0) {
+                user = ClickHouseUtils.decode(auth);
+            } else {
+                String str = ClickHouseUtils.decode(auth.substring(0, index));
+                if (!ClickHouseChecker.isNullOrEmpty(str)) {
+                    user = str;
+                }
+                passwd = ClickHouseUtils.decode(auth.substring(index + 1));
+            }
+        }
+
+        String db = uri.getPath();
+        if (!ClickHouseChecker.isNullOrEmpty(db) && db.length() > 1) {
+            params.put(ClickHouseClientOption.DATABASE.getKey(), db.substring(1));
+        }
+
+        parseOptions(uri.getRawQuery(), params);
+
+        String str = params.remove(ClickHouseDefaults.USER.getKey());
+        if (!ClickHouseChecker.isNullOrEmpty(str)) {
+            user = str;
+        }
+        str = params.remove(ClickHouseDefaults.PASSWORD.getKey());
+        if (str != null) {
+            passwd = str;
+        }
+        if (!ClickHouseChecker.isNullOrEmpty(user)) {
+            credentials = ClickHouseCredentials.fromUserAndPassword(user, passwd);
+        } else if (!ClickHouseChecker.isNullOrEmpty(passwd)) {
+            credentials = ClickHouseCredentials
+                    .fromUserAndPassword((String) ClickHouseDefaults.USER.getEffectiveDefaultValue(), passwd);
+        }
+
+        if (protocol != ClickHouseProtocol.ANY && port == MIN_PORT_NUM) {
+            if (Boolean.TRUE.toString().equals(params.get(ClickHouseClientOption.SSL.getKey()))) {
+                port = protocol.getDefaultSecurePort();
+            } else {
+                port = protocol.getDefaultPort();
+            }
+        }
+
+        Set<String> tags = new LinkedHashSet<>(template.tags);
+        parseTags(uri.getRawFragment(), tags);
+
+        // TODO allow to define scope of client option
+        for (String key : new String[] {
+                ClickHouseClientOption.LOAD_BALANCING_POLICY.getKey(),
+                ClickHouseClientOption.LOAD_BALANCING_TAGS.getKey(),
+                ClickHouseClientOption.FAILOVER.getKey(),
+                ClickHouseClientOption.NODE_DISCOVERY_INTERVAL.getKey(),
+                ClickHouseClientOption.NODE_DISCOVERY_LIMIT.getKey(),
+                ClickHouseClientOption.HEALTH_CHECK_INTERVAL.getKey(),
+                ClickHouseClientOption.NODE_GROUP_SIZE.getKey(),
+                ClickHouseClientOption.CHECK_ALL_NODES.getKey()
+        }) {
+            if (template.options.containsKey(key)) {
+                params.remove(key);
+            }
+        }
+
+        return new ClickHouseNode(host, protocol, port, credentials, params, tags);
+    }
+
+    private final String host;
     private final ClickHouseProtocol protocol;
-    private final InetSocketAddress address;
+    private final int port;
     private final ClickHouseCredentials credentials;
-    private final String database;
+    private final Map<String, String> options;
     private final Set<String> tags;
+    // cluster-specific properties
+    private final String cluster;
+    private final int replicaNum;
+    private final int shardNum;
+    private final int shardWeight;
     private final int weight;
-
-    // extended attributes, better to use a map and offload to sub class?
-    private final TimeZone tz;
-    private final ClickHouseVersion version;
+    // cache
+    private final String baseUri;
+    /**
+     * Last update time in milliseconds.
+     */
+    protected final AtomicLong lastUpdateTime;
     // TODO: metrics
 
-    private transient BiConsumer<ClickHouseNode, Status> manager;
+    // consolidated copy of credentials, options and tags
+    protected final ClickHouseConfig config;
+    protected final AtomicReference<ClickHouseNodeManager> manager;
 
     protected ClickHouseNode(Builder builder) {
-        ClickHouseChecker.nonNull(builder, "builder");
+        this(ClickHouseChecker.nonNull(builder, "builder").getHost(), builder.getProtocol(), builder.getPort(),
+                builder.getCredentials(), builder.getOptions(), builder.getTags());
+    }
 
-        this.cluster = builder.getCluster();
-        this.protocol = builder.getProtocol();
-        this.address = builder.getAddress();
-        this.credentials = builder.getCredentials();
-        this.database = builder.getDatabase();
-        this.tags = builder.getTags();
-        this.weight = builder.getWeight();
+    protected ClickHouseNode(String host, ClickHouseProtocol protocol, int port, ClickHouseCredentials credentials,
+            Map<String, String> options, Set<String> tags) {
+        this.host = ClickHouseChecker.nonEmpty(host, "Host");
+        this.protocol = protocol != null ? protocol : ClickHouseProtocol.ANY;
+        this.port = port < MIN_PORT_NUM || port > MAX_PORT_NUM ? this.protocol.getDefaultPort() : port;
+        this.credentials = credentials;
+        if (options != null && !options.isEmpty()) {
+            Map<String, String> map = new LinkedHashMap<>(options);
+            this.cluster = value(map.remove(PARAM_CLUSTER), "");
+            this.replicaNum = value(map.remove(PARAM_REPLICA_NUM), DEFAULT_REPLICA_NUM);
+            this.shardNum = value(map.remove(PARAM_SHARD_NUM), DEFAULT_SHARD_NUM);
+            this.shardWeight = value(map.remove(PARAM_SHARD_WEIGHT), DEFAULT_SHARD_WEIGHT);
+            this.weight = value(map.remove(PARAM_WEIGHT), DEFAULT_WEIGHT);
+            this.options = map.isEmpty() ? Collections.emptyMap() : Collections.unmodifiableMap(map);
+        } else {
+            this.cluster = "";
+            this.replicaNum = DEFAULT_REPLICA_NUM;
+            this.shardNum = DEFAULT_SHARD_NUM;
+            this.shardWeight = DEFAULT_SHARD_WEIGHT;
+            this.weight = DEFAULT_WEIGHT;
+            this.options = Collections.emptyMap();
+        }
+        this.lastUpdateTime = new AtomicLong(0L);
+        this.tags = tags == null || tags.isEmpty() ? Collections.emptySet()
+                : Collections.unmodifiableSet(new LinkedHashSet<>(tags));
 
-        this.tz = builder.getTimeZone();
-        this.version = builder.getVersion();
+        this.config = new ClickHouseConfig(ClickHouseConfig.toClientOptions(options), credentials, null, null);
+        this.manager = new AtomicReference<>(null);
 
-        this.manager = null;
+        StringBuilder builder = new StringBuilder().append(protocol.name().toLowerCase());
+        if (config.isSsl()) {
+            builder.append('s');
+        }
+        builder.append(SCHEME_DELIMITER);
+        builder.append(host).append(':').append(port).append('/');
+        this.baseUri = builder.toString();
+    }
+
+    protected ClickHouseNode probe() {
+        if (protocol != ClickHouseProtocol.ANY) {
+            return this;
+        }
+
+        ClickHouseNode newNode;
+        if (config.isSsl()) {
+            newNode = probe(host, port, config.getSslMode(), config.getSslRootCert(), config.getSslCert(),
+                    config.getSslKey(), config.getConnectionTimeout());
+        } else {
+            newNode = probe(host, port, config.getConnectionTimeout());
+        }
+        return newNode;
+    }
+
+    /**
+     * Sets manager for this node.
+     * 
+     * @param m node manager
+     * @return this node
+     */
+    protected ClickHouseNode setManager(ClickHouseNodeManager m) {
+        this.manager.getAndUpdate(v -> {
+            boolean sameManager = Objects.equals(v, m);
+            if (v != null && !sameManager) {
+                v.update(ClickHouseNode.this, Status.STANDALONE);
+            }
+            return sameManager ? v : null;
+        });
+        if (m != null && manager.compareAndSet(null, m)) {
+            m.update(ClickHouseNode.this, Status.MANAGED);
+        }
+        return this;
     }
 
     /**
@@ -466,7 +985,16 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
      * @return socket address to connect to the node
      */
     public InetSocketAddress getAddress() {
-        return this.address;
+        return new InetSocketAddress(host, port);
+    }
+
+    /**
+     * Gets base URI which is composed of protocol, host and port.
+     *
+     * @return non-emtpy base URI
+     */
+    public String getBaseUri() {
+        return this.baseUri;
     }
 
     /**
@@ -497,7 +1025,7 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
      * @return host of the node
      */
     public String getHost() {
-        return this.address.getHostString();
+        return host;
     }
 
     /**
@@ -506,7 +1034,7 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
      * @return port of the node
      */
     public int getPort() {
-        return this.address.getPort();
+        return port;
     }
 
     /**
@@ -515,7 +1043,7 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
      * @return database of the node
      */
     public Optional<String> getDatabase() {
-        return Optional.ofNullable(database);
+        return hasPreferredDatabase() ? Optional.of(this.config.getDatabase()) : Optional.empty();
     }
 
     /**
@@ -527,7 +1055,16 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
      */
     public String getDatabase(ClickHouseConfig config) {
         return !ClickHouseChecker.nonNull(config, "config").hasOption(ClickHouseClientOption.DATABASE)
-                && hasPreferredDatabase() ? database : config.getDatabase();
+                && hasPreferredDatabase() ? this.config.getDatabase() : config.getDatabase();
+    }
+
+    /**
+     * Gets all options of the node.
+     *
+     * @return options of the node
+     */
+    public Map<String, String> getOptions() {
+        return this.options;
     }
 
     /**
@@ -545,7 +1082,7 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
      * @return weight of the node
      */
     public int getWeight() {
-        return this.weight;
+        return weight;
     }
 
     /**
@@ -554,7 +1091,9 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
      * @return time zone of the node
      */
     public Optional<TimeZone> getTimeZone() {
-        return Optional.ofNullable(tz);
+        return this.config.hasOption(ClickHouseClientOption.SERVER_TIME_ZONE)
+                ? Optional.of(this.config.getServerTimeZone())
+                : Optional.empty();
     }
 
     /**
@@ -565,7 +1104,8 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
      * @return time zone of the node
      */
     public TimeZone getTimeZone(ClickHouseConfig config) {
-        return tz != null ? tz : ClickHouseChecker.nonNull(config, "config").getServerTimeZone();
+        return this.config.hasOption(ClickHouseClientOption.SERVER_TIME_ZONE) ? this.config.getServerTimeZone()
+                : ClickHouseChecker.nonNull(config, "config").getServerTimeZone();
     }
 
     /**
@@ -574,7 +1114,9 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
      * @return version of the node
      */
     public Optional<ClickHouseVersion> getVersion() {
-        return Optional.ofNullable(version);
+        return this.config.hasOption(ClickHouseClientOption.SERVER_VERSION)
+                ? Optional.of(this.config.getServerVersion())
+                : Optional.empty();
     }
 
     /**
@@ -585,7 +1127,8 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
      * @return version of the node
      */
     public ClickHouseVersion getVersion(ClickHouseConfig config) {
-        return version != null ? version : ClickHouseChecker.nonNull(config, "config").getServerVersion();
+        return this.config.hasOption(ClickHouseClientOption.SERVER_VERSION) ? this.config.getServerVersion()
+                : ClickHouseChecker.nonNull(config, "config").getServerVersion();
     }
 
     /**
@@ -594,7 +1137,7 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
      * @return cluster name of node
      */
     public String getCluster() {
-        return this.cluster;
+        return cluster;
     }
 
     /**
@@ -613,91 +1156,175 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
      * @return true if preferred database was specified; false otherwise
      */
     public boolean hasPreferredDatabase() {
-        return database != null && !database.isEmpty();
+        return this.config.hasOption(ClickHouseClientOption.DATABASE);
     }
 
     /**
-     * Sets manager for this node.
-     * 
-     * @param manager function to manage status of the node
+     * Checks whether the node is managed by a {@link ClickHouseCluster} ro
+     * {@link ClickHouseNodes}.
+     *
+     * @return true if the node is managed; false otherwise
      */
-    public synchronized void setManager(BiConsumer<ClickHouseNode, Status> manager) {
-        if (this.manager != null && !this.manager.equals(manager)) {
-            this.manager.accept(this, Status.UNMANAGED);
-        }
-
-        if (manager != null && !manager.equals(this.manager)) {
-            manager.accept(this, Status.MANAGED);
-            this.manager = manager;
-        }
+    public boolean isManaged() {
+        return manager.get() != null;
     }
 
     /**
-     * Updates status of the node. This will only work when a manager function
-     * exists via {@link #setManager(BiConsumer)}.
-     * 
-     * @param status node status
+     * Checks whether the node is not managed by any {@link ClickHouseCluster} ro
+     * {@link ClickHouseNodes}.
+     *
+     * @return true if the node is not managed; false otherwise
      */
-    public synchronized void updateStatus(Status status) {
-        if (this.manager != null) {
-            this.manager.accept(this, status);
+    public boolean isStandalone() {
+        return manager.get() == null;
+    }
+
+    /**
+     * Checks if the given node has same base URI as current one.
+     *
+     * @param node node to test
+     * @return true if the nodes are same endpoint; false otherwise
+     */
+    public boolean isSameEndpoint(ClickHouseNode node) {
+        if (node == null) {
+            return false;
+        }
+
+        return baseUri.equals(node.baseUri);
+    }
+
+    /**
+     * Updates status of the node. This will only work when the node is
+     * managed({@link #isManaged()} returns {@code true}).
+     * 
+     * @param status non-null node status
+     */
+    public void update(Status status) {
+        ClickHouseNodeManager m = this.manager.get();
+        if (m != null) {
+            m.update(this, status);
         }
     }
 
     @Override
     public ClickHouseNode apply(ClickHouseNodeSelector t) {
-        if (t != null && t != ClickHouseNodeSelector.EMPTY
-                && (!t.matchAnyOfPreferredProtocols(protocol) || !t.matchAllPreferredTags(tags))) {
-            throw new IllegalArgumentException("No suitable node found");
+        final ClickHouseNodeManager m = manager.get();
+        if (m != null) { // managed
+            return m.apply(m.getNodeSelector());
         }
 
+        if (t != null && t != ClickHouseNodeSelector.EMPTY
+                && (!t.matchAnyOfPreferredProtocols(protocol) || !t.matchAllPreferredTags(tags))) {
+            throw new IllegalArgumentException(ClickHouseUtils.format("%s expects a node rather than %s", t, this));
+        }
         return this;
     }
 
     @Override
-    public String toString() {
-        StringBuilder builder = new StringBuilder().append(getClass().getSimpleName()).append('(');
-        boolean hasCluster = cluster != null && !cluster.isEmpty();
-        if (hasCluster) {
-            builder.append("cluster=").append(cluster).append(", ");
-        }
-        builder.append("addr=").append(protocol.name().toLowerCase()).append(":").append(address).append(", db=")
-                .append(database);
-        if (tz != null) {
-            builder.append(", tz=").append(tz.getID());
-        }
-        if (version != null) {
-            builder.append(", ver=").append(version);
-        }
-        if (tags != null && !tags.isEmpty()) {
-            builder.append(", tags=").append(tags);
-        }
-        if (hasCluster) {
-            builder.append(", weight=").append(weight);
-        }
-
-        return builder.append(')').append('@').append(hashCode()).toString();
-    }
-
-    @Override
     public int hashCode() {
-        return Objects.hash(address, cluster, credentials, database, protocol, tags, weight, tz, version);
+        return Objects.hash(host, port, protocol, credentials, options, tags, cluster, replicaNum, shardNum,
+                shardWeight, weight);
     }
 
     @Override
     public boolean equals(Object obj) {
-        if (obj == null || obj.getClass() != getClass()) {
+        if (this == obj) {
+            return true;
+        } else if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
 
-        if (this == obj) {
-            return true;
+        ClickHouseNode other = (ClickHouseNode) obj;
+        return host.equals(other.host) && port == other.port && protocol == other.protocol
+                && Objects.equals(credentials, other.credentials) && options.equals(other.options)
+                && tags.equals(other.tags) && cluster.equals(other.cluster) && replicaNum == other.replicaNum
+                && shardNum == other.shardNum && shardWeight == other.shardWeight && weight == other.weight;
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder builder = new StringBuilder().append("ClickHouseNode [uri=").append(baseUri)
+                .append(config.getDatabase());
+        if (!cluster.isEmpty()) {
+            builder.append(", cluster=").append(cluster).append("(s").append(shardNum).append(",w").append(shardWeight)
+                    .append(",r").append(replicaNum).append(')');
         }
 
-        ClickHouseNode node = (ClickHouseNode) obj;
-        return address.equals(node.address) && cluster.equals(node.cluster)
-                && Objects.equals(credentials, node.credentials) && Objects.equals(database, node.database)
-                && protocol == node.protocol && tags.equals(node.tags) && weight == node.weight
-                && Objects.equals(tz, node.tz) && Objects.equals(version, node.version);
+        StringBuilder optsBuilder = new StringBuilder();
+        for (Entry<String, String> option : options.entrySet()) {
+            String key = option.getKey();
+            if (!ClickHouseClientOption.DATABASE.getKey().equals(key)
+                    && !ClickHouseClientOption.SSL.getKey().equals(key)) {
+                optsBuilder.append(key).append('=').append(option.getValue()).append(",");
+            }
+        }
+        if (optsBuilder.length() > 0) {
+            optsBuilder.setLength(optsBuilder.length() - 1);
+            builder.append(", options={").append(optsBuilder).append('}');
+        }
+        if (!tags.isEmpty()) {
+            builder.append(", tags=").append(tags);
+        }
+        return builder.append(']').toString();
+    }
+
+    /**
+     * Converts to URI, without credentials for security reason.
+     *
+     * @return non-null URI
+     */
+    public URI toUri() {
+        return toUri(null);
+    }
+
+    /**
+     * Converts to URI, without credentials for security reason.
+     *
+     * @param schemePrefix optional prefix of scheme
+     * @return non-null URI
+     */
+    public URI toUri(String schemePrefix) {
+        StringBuilder builder = new StringBuilder();
+        String db = getDatabase().orElse(null);
+        for (Entry<String, String> entry : options.entrySet()) {
+            if (ClickHouseClientOption.DATABASE.getKey().equals(entry.getKey())) {
+                db = entry.getValue();
+                continue;
+            }
+            builder.append(entry.getKey()).append('=').append(entry.getValue()).append('&');
+        }
+        String query = null;
+        if (builder.length() > 0) {
+            builder.setLength(builder.length() - 1);
+            query = builder.toString();
+        }
+
+        builder.setLength(0);
+        boolean first = true;
+        for (String tag : tags) {
+            if (first) {
+                first = false;
+            } else {
+                builder.append(',');
+            }
+            builder.append(ClickHouseUtils.encode(tag));
+        }
+
+        String p = protocol.name().toLowerCase(Locale.ROOT);
+        if (ClickHouseChecker.isNullOrEmpty(schemePrefix)) {
+            schemePrefix = p;
+        } else {
+            if (schemePrefix.charAt(schemePrefix.length() - 1) == ':') {
+                schemePrefix = schemePrefix.concat(p);
+            } else {
+                schemePrefix = new StringBuilder(schemePrefix).append(':').append(p).toString();
+            }
+        }
+        try {
+            return new URI(schemePrefix, null, host, port, ClickHouseChecker.isNullOrEmpty(db) ? "" : "/".concat(db),
+                    query, builder.length() > 0 ? builder.toString() : null);
+        } catch (URISyntaxException e) {
+            throw new IllegalStateException(e);
+        }
     }
 }

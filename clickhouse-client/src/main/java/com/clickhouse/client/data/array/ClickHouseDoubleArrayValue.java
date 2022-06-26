@@ -139,10 +139,14 @@ public class ClickHouseDoubleArrayValue extends ClickHouseObjectValue<double[]> 
     }
 
     @Override
-
-    public ClickHouseDoubleArrayValue resetToNullOrEmpty() {
+    public ClickHouseDoubleArrayValue resetToDefault() {
         set(ClickHouseValues.EMPTY_DOUBLE_ARRAY);
         return this;
+    }
+
+    @Override
+    public ClickHouseDoubleArrayValue resetToNullOrEmpty() {
+        return resetToDefault();
     }
 
     @Override

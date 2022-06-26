@@ -5,11 +5,14 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TimeZone;
+import java.util.Map.Entry;
 
 import com.clickhouse.client.config.ClickHouseBufferingMode;
 import com.clickhouse.client.config.ClickHouseClientOption;
@@ -22,6 +25,33 @@ import com.clickhouse.client.config.ClickHouseSslMode;
  * {@link ClickHouseCredentials} and {@link ClickHouseNodeSelector} etc.
  */
 public class ClickHouseConfig implements Serializable {
+    static final class ClientOptions {
+        private static final ClientOptions instance = new ClientOptions();
+
+        private final Map<String, ClickHouseOption> customOptions;
+
+        private ClientOptions() {
+            Map<String, ClickHouseOption> m = new LinkedHashMap<>();
+            try {
+                for (ClickHouseClient c : ClickHouseClientBuilder.loadClients()) {
+                    Class<? extends ClickHouseOption> clazz = c.getOptionClass();
+                    if (clazz == null || clazz == ClickHouseClientOption.class) {
+                        continue;
+                    }
+                    for (ClickHouseOption o : clazz.getEnumConstants()) {
+                        m.put(o.getKey(), o);
+                    }
+                }
+            } catch (Exception e) {
+                // ignore
+            }
+
+            customOptions = m.isEmpty() ? Collections.emptyMap() : Collections.unmodifiableMap(m);
+        }
+    }
+
+    private static final long serialVersionUID = 7794222888859182491L;
+
     protected static final Map<ClickHouseOption, Serializable> mergeOptions(List<ClickHouseConfig> list) {
         if (list == null || list.isEmpty()) {
             return Collections.emptyMap();
@@ -98,10 +128,40 @@ public class ClickHouseConfig implements Serializable {
         return metricRegistry;
     }
 
-    private static final long serialVersionUID = 7794222888859182491L;
+    /**
+     * Converts given key-value pairs to a mutable map of corresponding
+     * {@link ClickHouseOption}.
+     *
+     * @param props key-value pairs
+     * @return non-null mutable map of client options
+     */
+    public static Map<ClickHouseOption, Serializable> toClientOptions(Map<?, ?> props) {
+        Map<ClickHouseOption, Serializable> options = new HashMap<>();
+        if (props != null && !props.isEmpty()) {
+            Map<String, ClickHouseOption> customOptions = ClientOptions.instance.customOptions;
+            for (Entry<?, ?> e : props.entrySet()) {
+                if (e.getKey() == null || e.getValue() == null) {
+                    continue;
+                }
+
+                String key = e.getKey().toString();
+                ClickHouseOption o = ClickHouseClientOption.fromKey(key);
+                if (o == null) {
+                    o = customOptions.get(key);
+                }
+
+                if (o != null) {
+                    options.put(o, ClickHouseOption.fromString(e.getValue().toString(), o.getValueType()));
+                }
+            }
+        }
+
+        return options;
+    }
 
     // common options optimized for read
     private final boolean async;
+    private final boolean autoDiscovery;
     private final String clientName;
     private final boolean compressRequest;
     private final ClickHouseCompression compressAlgorithm;
@@ -125,7 +185,9 @@ public class ClickHouseConfig implements Serializable {
     private final int maxQueuedRequests;
     private final long maxResultRows;
     private final int maxThreads;
-    private final boolean retry;
+    private final int nodeCheckInterval;
+    private final int failover;
+    private final int retry;
     private final boolean reuseValueWrapper;
     private final boolean serverInfo;
     private final TimeZone serverTimeZone;
@@ -188,6 +250,7 @@ public class ClickHouseConfig implements Serializable {
         }
 
         this.async = (boolean) getOption(ClickHouseClientOption.ASYNC, ClickHouseDefaults.ASYNC);
+        this.autoDiscovery = (boolean) getOption(ClickHouseClientOption.AUTO_DISCOVERY);
         this.clientName = (String) getOption(ClickHouseClientOption.CLIENT_NAME);
         this.compressRequest = (boolean) getOption(ClickHouseClientOption.DECOMPRESS);
         this.compressAlgorithm = (ClickHouseCompression) getOption(ClickHouseClientOption.DECOMPRESS_ALGORITHM);
@@ -214,7 +277,9 @@ public class ClickHouseConfig implements Serializable {
         this.maxQueuedRequests = (int) getOption(ClickHouseClientOption.MAX_QUEUED_REQUESTS);
         this.maxResultRows = (long) getOption(ClickHouseClientOption.MAX_RESULT_ROWS);
         this.maxThreads = (int) getOption(ClickHouseClientOption.MAX_THREADS_PER_CLIENT);
-        this.retry = (boolean) getOption(ClickHouseClientOption.RETRY);
+        this.nodeCheckInterval = (int) getOption(ClickHouseClientOption.NODE_CHECK_INTERVAL);
+        this.failover = (int) getOption(ClickHouseClientOption.FAILOVER);
+        this.retry = (int) getOption(ClickHouseClientOption.RETRY);
         this.reuseValueWrapper = (boolean) getOption(ClickHouseClientOption.REUSE_VALUE_WRAPPER);
         this.serverInfo = !ClickHouseChecker.isNullOrBlank((String) getOption(ClickHouseClientOption.SERVER_TIME_ZONE))
                 && !ClickHouseChecker.isNullOrBlank((String) getOption(ClickHouseClientOption.SERVER_VERSION));
@@ -255,6 +320,10 @@ public class ClickHouseConfig implements Serializable {
         return async;
     }
 
+    public boolean isAutoDiscovery() {
+        return autoDiscovery;
+    }
+
     public String getClientName() {
         return clientName;
     }
@@ -291,7 +360,7 @@ public class ClickHouseConfig implements Serializable {
     /**
      * Checks if server response should be compressed or not.
      *
-     * @return
+     * @return true if server response is compressed; false otherwise
      * @deprecated will be removed in v0.3.3, please use
      *             {@link #isResponseCompressed()} instead
      */
@@ -356,7 +425,7 @@ public class ClickHouseConfig implements Serializable {
     /**
      * Checks if client request should be compressed or not.
      *
-     * @return
+     * @return true if server needs to decompress client request; false otherwise
      * @deprecated will be removed in v0.3.3, please use
      *             {@link #isRequestCompressed()} instead
      */
@@ -399,6 +468,10 @@ public class ClickHouseConfig implements Serializable {
 
     public ClickHouseFormat getFormat() {
         return format;
+    }
+
+    public int getNodeCheckInterval() {
+        return nodeCheckInterval;
     }
 
     /**
@@ -495,8 +568,24 @@ public class ClickHouseConfig implements Serializable {
         return maxThreads;
     }
 
-    public boolean isRetry() {
+    public int getFailover() {
+        return failover;
+    }
+
+    public int getRetry() {
         return retry;
+    }
+
+    /**
+     * Checks whether retry is enabled or not.
+     *
+     * @return true if retry is enabled; false otherwise
+     * @deprecated will be removed in v0.3.3, please use
+     *             {@link #getRetry()} instead
+     */
+    @Deprecated
+    public boolean isRetry() {
+        return retry > 0;
     }
 
     public boolean isReuseValueWrapper() {
@@ -613,7 +702,12 @@ public class ClickHouseConfig implements Serializable {
     }
 
     public Serializable getOption(ClickHouseOption option) {
-        return getOption(option, null);
+        return getOption(option, (ClickHouseDefaults) null);
+    }
+
+    public Serializable getOption(ClickHouseOption option, ClickHouseConfig defaultConfig) {
+        return this.options.getOrDefault(ClickHouseChecker.nonNull(option, "option"),
+                defaultConfig == null ? option.getEffectiveDefaultValue() : defaultConfig.getOption(option));
     }
 
     public Serializable getOption(ClickHouseOption option, ClickHouseDefaults defaultValue) {
@@ -629,5 +723,24 @@ public class ClickHouseConfig implements Serializable {
      */
     public boolean hasOption(ClickHouseOption option) {
         return option != null && this.options.containsKey(option);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(options, credentials, metricRegistry.orElse(null), nodeSelector);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        } else if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+
+        ClickHouseConfig other = (ClickHouseConfig) obj;
+        return Objects.equals(options, other.options) && Objects.equals(credentials, other.credentials)
+                && Objects.equals(metricRegistry.orElse(null), other.metricRegistry.orElse(null))
+                && Objects.equals(nodeSelector, other.nodeSelector);
     }
 }

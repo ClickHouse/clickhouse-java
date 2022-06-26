@@ -7,6 +7,7 @@ import java.util.LinkedList;
 
 import com.clickhouse.client.ClickHouseByteBuffer;
 import com.clickhouse.client.ClickHouseDataUpdater;
+import com.clickhouse.client.ClickHouseFile;
 import com.clickhouse.client.ClickHouseInputStream;
 import com.clickhouse.client.ClickHouseOutputStream;
 import com.clickhouse.client.ClickHouseUtils;
@@ -19,8 +20,8 @@ public abstract class AbstractByteArrayInputStream extends ClickHouseInputStream
     protected int position;
     protected int limit;
 
-    protected AbstractByteArrayInputStream(OutputStream copyTo, Runnable postCloseAction) {
-        super(copyTo, postCloseAction);
+    protected AbstractByteArrayInputStream(ClickHouseFile file, OutputStream copyTo, Runnable postCloseAction) {
+        super(file, copyTo, postCloseAction);
 
         buffer = ClickHouseByteBuffer.EMPTY_BYTES;
         position = 0;
@@ -263,9 +264,10 @@ public abstract class AbstractByteArrayInputStream extends ClickHouseInputStream
 
         // peforms better but this is a bit tricky
         if (n == Long.MAX_VALUE) {
+            int avail = 0;
             long counter = (long) limit - position;
-            while (updateBuffer() > 0) {
-                counter += limit;
+            while ((avail = updateBuffer()) > 0) {
+                counter += avail;
             }
 
             return counter;

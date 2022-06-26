@@ -194,9 +194,14 @@ public class ClickHouseNestedValue extends ClickHouseObjectValue<Object[][]> {
     }
 
     @Override
-    public ClickHouseNestedValue resetToNullOrEmpty() {
-        set(new Object[0][]);
+    public ClickHouseNestedValue resetToDefault() {
+        set(ClickHouseValues.EMPTY_OBJECT_ARRAY2);
         return this;
+    }
+
+    @Override
+    public ClickHouseNestedValue resetToNullOrEmpty() {
+        return resetToDefault();
     }
 
     @Override

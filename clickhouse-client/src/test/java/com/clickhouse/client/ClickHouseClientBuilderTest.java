@@ -2,6 +2,8 @@ package com.clickhouse.client;
 
 import org.testng.Assert;
 import org.testng.annotations.Test;
+
+import com.clickhouse.client.ClickHouseClientBuilder.Agent;
 import com.clickhouse.client.config.ClickHouseClientOption;
 
 public class ClickHouseClientBuilderTest {
@@ -9,11 +11,11 @@ public class ClickHouseClientBuilderTest {
     public void testBuildClient() {
         ClickHouseClientBuilder builder = new ClickHouseClientBuilder();
         ClickHouseClient client = builder.build();
-        Assert.assertTrue(client instanceof ClickHouseTestClient);
+        Assert.assertTrue(client instanceof Agent);
+        Assert.assertTrue(((Agent) client).getClient() instanceof ClickHouseTestClient);
         Assert.assertNotEquals(builder.build(), client);
 
-        ClickHouseTestClient testClient = (ClickHouseTestClient) client;
-        Assert.assertTrue(testClient.getConfig() == builder.getConfig());
+        Assert.assertTrue(client.getConfig() == builder.getConfig());
     }
 
     @Test(groups = { "unit" })

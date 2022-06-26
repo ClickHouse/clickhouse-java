@@ -22,6 +22,8 @@ import com.clickhouse.client.ClickHouseDataType;
 import com.clickhouse.client.ClickHouseParameterizedQuery;
 import com.clickhouse.client.ClickHouseUtils;
 import com.clickhouse.client.ClickHouseValues;
+import com.clickhouse.client.config.ClickHouseClientOption;
+import com.clickhouse.client.config.ClickHouseRenameMethod;
 import com.clickhouse.client.data.ClickHouseRecordTransformer;
 import com.clickhouse.client.data.ClickHouseSimpleResponse;
 import com.clickhouse.client.logging.Logger;
@@ -66,7 +68,9 @@ public class ClickHouseDatabaseMetaData extends JdbcWrapper implements DatabaseM
             ClickHouseStatement stmt = connection.createStatement();
             return new ClickHouseResultSet("", "", stmt,
                     // load everything into memory
-                    ClickHouseSimpleResponse.of(stmt.getRequest().query(sql).execute().get(), func));
+                    ClickHouseSimpleResponse.of(stmt.getRequest()
+                            .option(ClickHouseClientOption.RENAME_RESPONSE_COLUMN, ClickHouseRenameMethod.NONE)
+                            .query(sql).execute().get(), func));
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw SqlExceptionUtils.forCancellation(e);
@@ -1255,19 +1259,23 @@ public class ClickHouseDatabaseMetaData extends JdbcWrapper implements DatabaseM
     public ResultSet getFunctions(String catalog, String schemaPattern, String functionNamePattern)
             throws SQLException {
         Map<String, String> params = new HashMap<>();
-        params.put("filter", ClickHouseChecker.isNullOrEmpty(schemaPattern)
-                || "system".contains(schemaPattern.toLowerCase(Locale.ROOT)) ? "1" : "0");
+        boolean systemSchema = ClickHouseChecker.isNullOrEmpty(schemaPattern);
+        if (!systemSchema) {
+            String schemaPatternLower = schemaPattern.toLowerCase(Locale.ROOT);
+            systemSchema = "system".contains(schemaPatternLower) || "information_schema".contains(schemaPatternLower);
+        }
+        params.put("filter", systemSchema ? "1" : "0");
         params.put("pattern", ClickHouseChecker.isNullOrEmpty(functionNamePattern) ? "'%'"
                 : ClickHouseValues.convertToQuotedString(functionNamePattern));
 
         String sql = ClickHouseParameterizedQuery.apply(
                 "select * from (select null as FUNCTION_CAT, 'system' as FUNCTION_SCHEM, name as FUNCTION_NAME,\n"
                         + "concat('case-', case_insensitive ? 'in' : '', 'sensitive function', is_aggregate ? ' for aggregation' : '') as REMARKS,"
-                        + "1 as FUNCTION_TYPE, name as SPECIFIC_NAME from system.functions\n"
-                        + "where alias_to = '' and name like :pattern order by name union all\n"
+                        + "1 as FUNCTION_TYPE, name as SPECIFIC_NAME from system.functions where name like :pattern union all\n"
                         + "select null as FUNCTION_CAT, 'system' as FUNCTION_SCHEM, name as FUNCTION_NAME,\n"
-                        + "'case-sensistive table function' as REMARKS, 2 as FUNCTION_TYPE, name as SPECIFIC_NAME from system.table_functions\n"
-                        + "order by name) where :filter",
+                        + "'case-sensitive table function' as REMARKS, 2 as FUNCTION_TYPE, name as SPECIFIC_NAME from system.table_functions\n"
+                        + "where name not in (select name from system.functions) and name like :pattern) where :filter\n"
+                        + "order by FUNCTION_CAT, FUNCTION_SCHEM, FUNCTION_NAME",
                 params);
         return query(sql);
     }

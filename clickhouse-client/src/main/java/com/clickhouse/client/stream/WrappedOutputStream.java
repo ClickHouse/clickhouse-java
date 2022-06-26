@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 
 import com.clickhouse.client.ClickHouseChecker;
+import com.clickhouse.client.ClickHouseFile;
 import com.clickhouse.client.ClickHouseUtils;
 import com.clickhouse.client.config.ClickHouseClientOption;
 
@@ -18,8 +19,8 @@ public class WrappedOutputStream extends AbstractByteArrayOutputStream {
         output.write(bytes, offset, length);
     }
 
-    public WrappedOutputStream(OutputStream stream, int bufferSize, Runnable postCloseAction) {
-        super(ClickHouseUtils.getBufferSize(bufferSize,
+    public WrappedOutputStream(ClickHouseFile file, OutputStream stream, int bufferSize, Runnable postCloseAction) {
+        super(file, ClickHouseUtils.getBufferSize(bufferSize,
                 (int) ClickHouseClientOption.BUFFER_SIZE.getDefaultValue(),
                 (int) ClickHouseClientOption.MAX_BUFFER_SIZE.getDefaultValue()), postCloseAction);
 

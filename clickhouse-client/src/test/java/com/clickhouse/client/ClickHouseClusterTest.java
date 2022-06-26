@@ -1,6 +1,7 @@
 package com.clickhouse.client;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -11,10 +12,12 @@ import org.testng.Assert;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 import com.clickhouse.client.ClickHouseNode.Status;
+import com.clickhouse.client.config.ClickHouseClientOption;
 
 public class ClickHouseClusterTest extends BaseIntegrationTest {
-    private ClickHouseCluster createCluster(int size) {
-        ClickHouseNode template = ClickHouseNode.builder().host("test.host").build();
+    private ClickHouseCluster createCluster(int size, String policy) {
+        ClickHouseNode template = ClickHouseNode.builder().host("test.host")
+                .addOption(ClickHouseClientOption.LOAD_BALANCING_POLICY.getKey(), policy).build();
 
         ClickHouseNode[] nodes = new ClickHouseNode[size];
         for (int i = 0; i < size; i++) {
@@ -22,7 +25,7 @@ public class ClickHouseClusterTest extends BaseIntegrationTest {
                     .tags(String.valueOf(i % size)).build();
         }
 
-        return ClickHouseCluster.of(nodes);
+        return ClickHouseCluster.of("cluster", Arrays.asList(nodes));
     }
 
     @DataProvider(name = "nodeSelectorProvider")
@@ -40,7 +43,7 @@ public class ClickHouseClusterTest extends BaseIntegrationTest {
                 ? Integer.parseInt(nodeSelector.getPreferredTags().iterator().next())
                 : -1;
 
-        ClickHouseCluster cluster = createCluster(size);
+        ClickHouseCluster cluster = createCluster(size, ClickHouseLoadBalancingPolicy.ROUND_ROBIN);
 
         // single thread
         int[] counters = new int[size];
@@ -92,28 +95,11 @@ public class ClickHouseClusterTest extends BaseIntegrationTest {
         int size = 5000;
         int len = nodeSelector != null && nodeSelector.getPreferredTags().size() > 0 ? 1 : size;
 
-        ClickHouseCluster cluster = createCluster(size);
+        ClickHouseCluster cluster = createCluster(size, ClickHouseLoadBalancingPolicy.ROUND_ROBIN);
         for (int i = 0; i < len; i++) {
             ClickHouseNode node = cluster.apply(nodeSelector);
-            node.updateStatus(Status.UNHEALTHY);
-            Assert.assertTrue(cluster.getAvailableNodes().size() >= size - i - 1);
-        }
-    }
-
-    @Test(groups = { "integration" })
-    public void testProbe() {
-        // FIXME does not support ClickHouseProtocol.POSTGRESQL for now
-        ClickHouseProtocol[] protocols = new ClickHouseProtocol[] { ClickHouseProtocol.GRPC, ClickHouseProtocol.HTTP,
-                ClickHouseProtocol.MYSQL, ClickHouseProtocol.TCP };
-        ClickHouseVersion serverVersion = ClickHouseVersion.of(System.getProperty("clickhouseVersion", "latest"));
-        for (ClickHouseProtocol p : protocols) {
-            if (p == ClickHouseProtocol.GRPC && !serverVersion.check("[21.1,)")) {
-                continue;
-            }
-            ClickHouseNode node = getServer(ClickHouseProtocol.ANY, p.getDefaultPort());
-            ClickHouseNode probedNode = ClickHouseCluster.probe(node);
-            Assert.assertNotEquals(probedNode, node);
-            Assert.assertEquals(probedNode.getProtocol(), p);
+            node.update(Status.STANDALONE);
+            Assert.assertTrue(cluster.nodes.size() >= size - i - 1);
         }
     }
 }

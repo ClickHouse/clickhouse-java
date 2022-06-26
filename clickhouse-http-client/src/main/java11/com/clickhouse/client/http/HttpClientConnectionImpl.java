@@ -19,11 +19,15 @@ import java.io.BufferedWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.Reader;
+import java.io.UncheckedIOException;
+import java.net.ConnectException;
 import java.net.HttpURLConnection;
 import java.net.URI;
 import java.net.http.HttpClient;
+import java.net.http.HttpConnectTimeoutException;
 import java.net.http.HttpHeaders;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -69,8 +73,24 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
                     : timeZone;
         }
 
-        return new ClickHouseHttpResponse(this,
-                ClickHouseClient.getResponseInputStream(config, checkResponse(r).body(), this::closeQuietly),
+        final InputStream source;
+        final Runnable action;
+        if (output != null) {
+            source = ClickHouseInputStream.empty();
+            action = () -> {
+                try (OutputStream o = output) {
+                    ClickHouseInputStream.pipe(checkResponse(r).body(), o, config.getWriteBufferSize());
+                } catch (IOException e) {
+                    throw new UncheckedIOException("Failed to redirect response to given output stream", e);
+                } finally {
+                    closeQuietly();
+                }
+            };
+        } else {
+            source = checkResponse(r).body();
+            action = this::closeQuietly;
+        }
+        return new ClickHouseHttpResponse(this, ClickHouseClient.getResponseInputStream(config, source, action),
                 displayName, queryId, summary, format, timeZone);
     }
 
@@ -97,8 +117,7 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
     }
 
     private HttpRequest newRequest(String url) {
-        return HttpRequest.newBuilder()
-                .uri(URI.create(url))
+        return HttpRequest.newBuilder().uri(URI.create(url)).version(Version.HTTP_1_1)
                 .timeout(Duration.ofMillis(config.getSocketTimeout())).build();
     }
 
@@ -127,41 +146,11 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
         return true;
     }
 
-    private CompletableFuture<HttpResponse<Void>> retry(Throwable firstError, int retry) {
-        if (retry >= MAX_RETRIES) {
-            final CompletableFuture<HttpResponse<Void>> failure = new CompletableFuture<>();
-            failure.completeExceptionally(firstError);
-            return failure;
-        }
-
-        return httpClient.sendAsync(pingRequest, HttpResponse.BodyHandlers.discarding())
-                .thenApply(CompletableFuture::completedFuture)
-                .exceptionally(t -> {
-                    firstError.addSuppressed(t);
-                    return retry(firstError, retry + 1);
-                })
-                .thenCompose(Function.identity());
-    }
-
     private CompletableFuture<HttpResponse<InputStream>> postRequest(HttpRequest request) {
-        CompletableFuture<HttpResponse<InputStream>> f;
         // either change system property jdk.httpclient.keepalive.timeout or increase
         // keep_alive_timeout on server
-        boolean retry = false; // config.isRetry()
-        if (retry) {
-            f = httpClient
-                    .sendAsync(pingRequest, HttpResponse.BodyHandlers.discarding())
-                    .thenApply(CompletableFuture::completedFuture)
-                    .exceptionally(t -> retry(t, 0))
-                    .thenCompose(t -> httpClient.sendAsync(request,
-                            responseInfo -> new ClickHouseResponseHandler(config.getMaxQueuedBuffers(),
-                                    config.getSocketTimeout())));
-        } else {
-            f = httpClient.sendAsync(request,
-                    responseInfo -> new ClickHouseResponseHandler(config.getMaxQueuedBuffers(),
-                            config.getSocketTimeout()));
-        }
-        return f;
+        return httpClient.sendAsync(request,
+                responseInfo -> new ClickHouseResponseHandler(config.getMaxQueuedBuffers(), config.getSocketTimeout()));
     }
 
     private ClickHouseHttpResponse postStream(HttpRequest.Builder reqBuilder, String boundary, String sql,
@@ -220,7 +209,12 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
             Thread.currentThread().interrupt();
             throw new IOException("Thread was interrupted when posting request or receiving response", e);
         } catch (ExecutionException e) {
-            throw new IOException("Failed to post request", e);
+            Throwable cause = e.getCause();
+            if (cause instanceof HttpConnectTimeoutException) {
+                throw new ConnectException(cause.getMessage());
+            } else {
+                throw new IOException("Failed to post request", cause);
+            }
         }
 
         return buildResponse(r);
@@ -235,7 +229,12 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
             Thread.currentThread().interrupt();
             throw new IOException("Thread was interrupted when posting request or receiving response", e);
         } catch (ExecutionException e) {
-            throw new IOException("Failed to post query", e);
+            Throwable cause = e.getCause();
+            if (cause instanceof HttpConnectTimeoutException) {
+                throw new ConnectException(cause.getMessage());
+            } else {
+                throw new IOException("Failed to post query", cause);
+            }
         }
         return buildResponse(r);
     }
@@ -274,7 +273,7 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         } catch (IOException e) {
-            log.debug("Failed to ping server: ", e.getMessage());
+            log.debug("Failed to ping server: %s", e.getMessage());
         }
 
         return false;

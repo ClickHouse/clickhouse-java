@@ -71,6 +71,11 @@ public final class ClickHouseEmptyValue implements ClickHouseValue {
     }
 
     @Override
+    public ClickHouseValue resetToDefault() {
+        return INSTANCE;
+    }
+
+    @Override
     public ClickHouseValue resetToNullOrEmpty() {
         return INSTANCE;
     }

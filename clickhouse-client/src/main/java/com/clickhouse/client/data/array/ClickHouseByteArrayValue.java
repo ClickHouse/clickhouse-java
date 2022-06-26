@@ -139,10 +139,14 @@ public class ClickHouseByteArrayValue extends ClickHouseObjectValue<byte[]> {
     }
 
     @Override
-
-    public ClickHouseByteArrayValue resetToNullOrEmpty() {
+    public ClickHouseByteArrayValue resetToDefault() {
         set(ClickHouseValues.EMPTY_BYTE_ARRAY);
         return this;
+    }
+
+    @Override
+    public ClickHouseByteArrayValue resetToNullOrEmpty() {
+        return resetToDefault();
     }
 
     @Override

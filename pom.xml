@@ -36,9 +36,10 @@
 
     <modules>
         <module>clickhouse-client</module>
+        <module>clickhouse-cli-client</module>
         <module>clickhouse-grpc-client</module>
         <module>clickhouse-http-client</module>
-        <module>clickhouse-tcp-client</module>
+        <!-- module>clickhouse-tcp-client</module -->
         <module>clickhouse-jdbc</module>
         <module>clickhouse-benchmark</module>
     </modules>
@@ -78,50 +79,51 @@
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
         <annotations-api.version>6.0.53</annotations-api.version>
-        <asm.version>9.2</asm.version>
-        <caffeine.version>3.0.5</caffeine.version>
+        <asm.version>9.3</asm.version>
+        <byte-buddy.version>1.12.10</byte-buddy.version>
+        <caffeine.version>3.1.0</caffeine.version>
         <compress.version>1.21</compress.version>
         <disruptor.version>3.4.4</disruptor.version>
-        <dnsjava.version>3.5.0</dnsjava.version>
+        <dnsjava.version>3.5.1</dnsjava.version>
         <fastutil.version>8.5.8</fastutil.version>
-        <grpc.version>1.40.2</grpc.version>
+        <grpc.version>1.45.1</grpc.version>
         <gson.version>2.9.0</gson.version>
         <httpclient.version>4.5.13</httpclient.version>
-        <protobuf.version>3.17.3</protobuf.version>
+        <protobuf.version>3.19.2</protobuf.version>
         <lz4.version>1.8.0</lz4.version>
         <roaring-bitmap.version>0.9.25</roaring-bitmap.version>
         <slf4j.version>2.0.0-alpha5</slf4j.version>
         <mockito.version>3.12.4</mockito.version>
-        <wiremock.version>2.32.0</wiremock.version>
-        <testcontainers.version>1.16.3</testcontainers.version>
+        <wiremock.version>2.33.2</wiremock.version>
+        <testcontainers.version>1.17.1</testcontainers.version>
         <testng.version>7.5</testng.version>
 
-        <mariadb-driver.version>3.0.3</mariadb-driver.version>
-        <mysql-driver.version>8.0.28</mysql-driver.version>
-        <postgresql-driver.version>42.3.3</postgresql-driver.version>
+        <mariadb-driver.version>3.0.4</mariadb-driver.version>
+        <mysql-driver.version>8.0.29</mysql-driver.version>
+        <postgresql-driver.version>42.3.5</postgresql-driver.version>
 
-        <repackaged.version>1.1.2</repackaged.version>
+        <repackaged.version>1.2.0</repackaged.version>
 
         <assembly-plugin.version>3.3.0</assembly-plugin.version>
-        <compiler-plugin.version>3.8.1</compiler-plugin.version>
-        <deploy-plugin.version>3.0.0-M1</deploy-plugin.version>
-        <enforcer-plugin.version>3.0.0-M3</enforcer-plugin.version>
-        <failsafe-plugin.version>3.0.0-M5</failsafe-plugin.version>
+        <compiler-plugin.version>3.10.1</compiler-plugin.version>
+        <deploy-plugin.version>3.0.0-M2</deploy-plugin.version>
+        <enforcer-plugin.version>3.0.0</enforcer-plugin.version>
+        <failsafe-plugin.version>3.0.0-M6</failsafe-plugin.version>
         <flatten-plugin.version>1.2.7</flatten-plugin.version>
         <git-plugin.version>4.9.9</git-plugin.version>
-        <gpg-plugin.version>1.6</gpg-plugin.version>
-        <helper-plugin.version>3.2.0</helper-plugin.version>
-        <jacoco-plugin.version>0.8.6</jacoco-plugin.version>
-        <jar-plugin.version>3.2.0</jar-plugin.version>
-        <javadoc-plugin.version>3.2.0</javadoc-plugin.version>
+        <gpg-plugin.version>3.0.1</gpg-plugin.version>
+        <helper-plugin.version>3.3.0</helper-plugin.version>
+        <jacoco-plugin.version>0.8.8</jacoco-plugin.version>
+        <jar-plugin.version>3.2.2</jar-plugin.version>
+        <javadoc-plugin.version>3.4.0</javadoc-plugin.version>
         <os-plugin.version>1.7.0</os-plugin.version>
         <protobuf-plugin.version>0.6.1</protobuf-plugin.version>
-        <shade-plugin.version>3.2.4</shade-plugin.version>
+        <shade-plugin.version>3.3.0</shade-plugin.version>
         <source-plugin.version>3.2.1</source-plugin.version>
-        <staging-plugin.version>1.6.8</staging-plugin.version>
-        <surefire-plugin.version>3.0.0-M5</surefire-plugin.version>
+        <staging-plugin.version>1.6.13</staging-plugin.version>
+        <surefire-plugin.version>3.0.0-M6</surefire-plugin.version>
         <toolchains-plugin.version>3.0.0</toolchains-plugin.version>
-        <versions-plugin.version>2.8.1</versions-plugin.version>
+        <versions-plugin.version>2.10.0</versions-plugin.version>
 
         <minJdk>1.8</minJdk>
         <skipTests>false</skipTests>
@@ -525,6 +527,23 @@
                             <multiReleaseOutput>true</multiReleaseOutput>
                         </configuration>
                     </execution>
+                    <!-- execution>
+                        <id>java17</id>
+                        <phase>none</phase>
+                        <goals>
+                            <goal>compile</goal>
+                        </goals>
+                        <configuration>
+                            <release>17</release>
+                            <jdkToolchain>
+                                <version>17</version>
+                            </jdkToolchain>
+                            <compileSourceRoots>
+                                <compileSourceRoot>${project.basedir}/src/main/java17</compileSourceRoot>
+                            </compileSourceRoots>
+                            <multiReleaseOutput>true</multiReleaseOutput>
+                        </configuration>
+                    </execution -->
                 </executions>
             </plugin>
             <plugin>
@@ -655,6 +674,26 @@
                 </plugins>
             </build>
         </profile>
+        <!-- profile>
+            <id>compile-java17</id>
+            <activation>
+                <jdk>[17,)</jdk>
+            </activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-compiler-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>java17</id>
+                                <phase>compile</phase>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile -->
         <profile>
             <id>release</id>
             <build>
@@ -677,6 +716,9 @@
                                 <jdk>
                                     <version>11</version>
                                 </jdk>
+                                <!-- jdk>
+                                    <version>17</version>
+                                </jdk -->
                             </toolchains>
                         </configuration>
                     </plugin>
@@ -692,6 +734,10 @@
                                 <id>java11</id>
                                 <phase>compile</phase>
                             </execution>
+                            <!-- execution>
+                                <id>java17</id>
+                                <phase>compile</phase>
+                            </execution -->
                         </executions>
                     </plugin>
                     <plugin>
@@ -877,6 +923,9 @@
                                 <jdk>
                                     <version>11</version>
                                 </jdk>
+                                <!-- jdk>
+                                    <version>17</version>
+                                </jdk -->
                             </toolchains>
                         </configuration>
                     </plugin>
@@ -892,6 +941,10 @@
                                 <id>java11</id>
                                 <phase>compile</phase>
                             </execution>
+                            <!-- execution>
+                                <id>java17</id>
+                                <phase>compile</phase>
+                            </execution -->
                         </executions>
                     </plugin>
                     <plugin>

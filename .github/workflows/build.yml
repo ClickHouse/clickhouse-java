@@ -27,6 +27,10 @@ on:
         description: "Pull request#"
         required: false
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.event.number || github.sha }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -42,7 +46,7 @@ jobs:
           - clickhouse: "21.8"
             protocol: grpc
       fail-fast: false
-    timeout-minutes: 45
+    timeout-minutes: 30
     name: Build against ClickHouse ${{ matrix.clickhouse }} (${{ matrix.protocol }})
     steps:
       - name: Check out Git repository
@@ -76,21 +80,18 @@ jobs:
           </toolchains>
           EOF
       - name: Install JDK 8 and Maven
-        uses: actions/setup-java@v2
+        uses: actions/setup-java@v3
         with:
           distribution: 'temurin'
           java-version: 8
-      # Step that does that actual cache save and restore
-      - name: Cache maven dependencies
-        uses: actions/cache@v2
-        with:
-          path: ~/.m2/repository
-          key: ${{ runner.os }}-build-${{ hashFiles('**/pom.xml') }}
-          restore-keys: |
-            ${{ runner.os }}-build-
+          cache: 'maven'
+      # or take below workaround as mentioned at https://github.com/actions/virtual-environments/issues/1499#issuecomment-689467080
+      # -Dhttp.keepAlive=false -Dmaven.wagon.http.pool=false -Dmaven.wagon.httpconnectionManager.ttlSeconds=120
+      - name: Check
+        run: mvn --batch-mode --update-snapshots -Drelease -DskipTests install
       - name: Build
         run: |
-          mvn --batch-mode --update-snapshots -Drelease -DclickhouseVersion=${{ matrix.clickhouse }} -Dprotocol=${{ matrix.protocol }} verify
+          mvn --batch-mode -Drelease -DclickhouseVersion=${{ matrix.clickhouse }} -Dprotocol=${{ matrix.protocol }} verify
       - name: Upload test results
         uses: actions/upload-artifact@v2
         if: failure()

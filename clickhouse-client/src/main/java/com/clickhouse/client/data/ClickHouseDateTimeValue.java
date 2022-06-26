@@ -21,6 +21,11 @@ import com.clickhouse.client.ClickHouseValues;
  * Wraper class of LocalDateTime.
  */
 public class ClickHouseDateTimeValue extends ClickHouseObjectValue<LocalDateTime> {
+    /**
+     * Default value.
+     */
+    public static final LocalDateTime DEFAULT = ClickHouseDateValue.DEFAULT.atStartOfDay();
+
     static final DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     /**
@@ -228,6 +233,12 @@ public class ClickHouseDateTimeValue extends ClickHouseObjectValue<LocalDateTime
         }
 
         return str;
+    }
+
+    @Override
+    public ClickHouseDateTimeValue resetToDefault() {
+        set(DEFAULT);
+        return this;
     }
 
     @Override

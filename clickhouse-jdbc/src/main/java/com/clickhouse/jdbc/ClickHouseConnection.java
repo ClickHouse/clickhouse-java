@@ -142,6 +142,13 @@ public interface ClickHouseConnection extends Connection {
     ClickHouseConfig getConfig();
 
     /**
+     * Checks whether custom setting is allowed or not.
+     *
+     * @return true if custom setting is allowed; false otherwise
+     */
+    boolean allowCustomSetting();
+
+    /**
      * Gets current database. {@link #getSchema()} is similar but it will check if
      * connection is closed or not hence may throw {@link SQLException}.
      *

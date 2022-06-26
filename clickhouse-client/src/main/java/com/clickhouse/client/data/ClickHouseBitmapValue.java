@@ -173,6 +173,12 @@ public class ClickHouseBitmapValue extends ClickHouseObjectValue<ClickHouseBitma
     }
 
     @Override
+    public ClickHouseBitmapValue resetToDefault() {
+        set(ClickHouseBitmap.empty());
+        return this;
+    }
+
+    @Override
     public String toSqlExpression() {
         return isNullOrEmpty() ? ClickHouseValues.NULL_EXPR : String.valueOf(getValue());
     }

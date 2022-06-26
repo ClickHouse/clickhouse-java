@@ -1,8 +1,10 @@
 package com.clickhouse.jdbc;
 
 import java.io.ByteArrayInputStream;
+import java.math.BigDecimal;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
+import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.sql.BatchUpdateException;
 import java.sql.Connection;
@@ -69,6 +71,34 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
                 new Object[] { "UInt128", "17", "17" },
                 new Object[] { "Int256", "-19", "-19" },
                 new Object[] { "UInt256", "23", "23" },
+        };
+    }
+
+    @DataProvider(name = "columnsWithoutDefaultValue")
+    private Object[][] getColumnsWithoutDefaultValue() {
+        return new Object[][] {
+                new Object[] { "Bool", "false" },
+                new Object[] { "Date", "1970-01-01" },
+                new Object[] { "Date32", "1970-01-01" },
+                new Object[] { "DateTime32('UTC')", "1970-01-01 00:00:00" },
+                new Object[] { "DateTime64(3, 'UTC')", "1970-01-01 00:00:00" },
+                new Object[] { "Decimal(10,4)", "0" },
+                new Object[] { "Enum8('x'=0,'y'=1)", "x" },
+                new Object[] { "Enum16('xx'=1,'yy'=0)", "yy" },
+                new Object[] { "Float32", "0.0" },
+                new Object[] { "Float64", "0.0" },
+                new Object[] { "Int8", "0" },
+                new Object[] { "UInt8", "0" },
+                new Object[] { "Int16", "0" },
+                new Object[] { "UInt16", "0" },
+                new Object[] { "Int32", "0" },
+                new Object[] { "UInt32", "0" },
+                new Object[] { "Int64", "0" },
+                new Object[] { "UInt64", "0" },
+                new Object[] { "Int128", "0" },
+                new Object[] { "UInt128", "0" },
+                new Object[] { "Int256", "0" },
+                new Object[] { "UInt256", "0" },
         };
     }
 
@@ -519,7 +549,7 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
                 stmt.setObject(3, null);
                 stmt.setObject(4, new String[0]);
                 stmt.setObject(5, new String[0]);
-                Assert.assertThrows(RuntimeException.class, () -> stmt.execute());
+                Assert.assertThrows(SQLException.class, () -> stmt.execute());
             }
             try (PreparedStatement stmt = conn
                     .prepareStatement("insert into test_read_write_strings")) {
@@ -1061,6 +1091,7 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
     @Test(dataProvider = "columnsWithDefaultValue", groups = "integration")
     public void testInsertDefaultValue(String columnType, String defaultExpr, String defaultValue) throws Exception {
         Properties props = new Properties();
+        props.setProperty(JdbcConfig.PROP_NULL_AS_DEFAULT, "1");
         props.setProperty(ClickHouseClientOption.COMPRESS.getKey(), "false");
         props.setProperty(ClickHouseClientOption.FORMAT.getKey(),
                 ClickHouseFormat.TabSeparatedWithNamesAndTypes.name());
@@ -1105,6 +1136,76 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
                 Assert.assertFalse(rs.next(), "Should have only 3 rows");
             }
             Assert.assertEquals(rowCount, 3);
+        } catch (SQLException e) {
+            // 'Unknown data type family', 'Missing columns' or 'Cannot create table column'
+            if (e.getErrorCode() == 50 || e.getErrorCode() == 47 || e.getErrorCode() == 44) {
+                return;
+            }
+            throw e;
+        }
+    }
+
+    @Test(dataProvider = "columnsWithoutDefaultValue", groups = "integration")
+    public void testInsertNullValue(String columnType, String defaultValue) throws Exception {
+        Properties props = new Properties();
+        props.setProperty(ClickHouseClientOption.FORMAT.getKey(),
+                ClickHouseFormat.TabSeparatedWithNamesAndTypes.name());
+        String tableName = "test_insert_null_value_" + columnType.split("\\(")[0].trim().toLowerCase();
+        try (ClickHouseConnection conn = newConnection(props); Statement s = conn.createStatement()) {
+            if (conn.getUri().toString().contains(":grpc:")) {
+                throw new SkipException("Skip gRPC test");
+            } else if (!conn.getServerVersion().check("[22.3,)")) {
+                throw new SkipException("Skip test when ClickHouse is older than 22.3");
+            }
+            s.execute(String.format("drop table if exists %s; ", tableName)
+                    + String.format("create table %s(id Int8, v %s)engine=Memory", tableName, columnType));
+            SQLException sqlException = null;
+            try (PreparedStatement stmt = conn
+                    .prepareStatement(String.format("insert into %s values(?,?)", tableName))) {
+                try {
+                    ((ClickHouseStatement) stmt).setNullAsDefault(0);
+                    stmt.setInt(1, 0);
+                    stmt.setObject(2, null);
+                    stmt.executeUpdate();
+                } catch (SQLException e) {
+                    sqlException = e;
+                }
+                Assert.assertNotNull(sqlException, "Should end-up with SQL exception when nullAsDefault < 1");
+
+                try {
+                    ((ClickHouseStatement) stmt).setNullAsDefault(1);
+                    stmt.setInt(1, 0);
+                    stmt.setNull(2, Types.OTHER);
+                    stmt.executeUpdate();
+                } catch (SQLException e) {
+                    sqlException = e;
+                }
+                Assert.assertNotNull(sqlException, "Should end-up with SQL exception when nullAsDefault = 1");
+
+                ((ClickHouseStatement) stmt).setNullAsDefault(2);
+                stmt.setInt(1, 1);
+                stmt.setObject(2, null);
+                stmt.executeUpdate();
+                stmt.setInt(1, 2);
+                stmt.setNull(2, Types.OTHER);
+                stmt.executeUpdate();
+            }
+
+            int rowCount = 0;
+            try (ResultSet rs = s.executeQuery(String.format("select * from %s order by id", tableName))) {
+                Assert.assertTrue(rs.next());
+                Assert.assertEquals(rs.getInt(1), 1);
+                Assert.assertEquals(rs.getString(2), defaultValue);
+                Assert.assertFalse(rs.wasNull(), "Should not be null");
+                rowCount++;
+                Assert.assertTrue(rs.next());
+                Assert.assertEquals(rs.getInt(1), 2);
+                Assert.assertEquals(rs.getString(2), defaultValue);
+                Assert.assertFalse(rs.wasNull(), "Should not be null");
+                rowCount++;
+                Assert.assertFalse(rs.next(), "Should have only 2 rows");
+            }
+            Assert.assertEquals(rowCount, 2);
         } catch (SQLException e) {
             // 'Unknown data type family', 'Missing columns' or 'Cannot create table column'
             if (e.getErrorCode() == 50 || e.getErrorCode() == 47 || e.getErrorCode() == 44) {
@@ -1197,6 +1298,32 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
     }
 
     @Test(groups = "integration")
+    public void testInsertWithSelect() throws Exception {
+        try (ClickHouseConnection conn = newConnection(new Properties());
+                Statement s = conn.createStatement();
+                PreparedStatement ps1 = conn
+                        .prepareStatement("insert into test_issue_402(uid,uuid) select 2,generateUUIDv4()");
+                PreparedStatement ps2 = conn.prepareStatement(
+                        "insert into test_issue_402\nselect ?, max(uuid) from test_issue_402 where uid in (?) group by uid having count(*) = 1")) {
+            s.execute("drop table if exists test_issue_402; "
+                    + "create table test_issue_402(uid Int32, uuid UUID)engine=Memory");
+            Assert.assertEquals(ps1.executeUpdate(), 1);
+            ps2.setInt(1, 1);
+            ps2.setInt(2, 2);
+            Assert.assertEquals(ps2.executeUpdate(), 1);
+
+            ResultSet rs = s.executeQuery("select * from test_issue_402 order by uid");
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getInt(1), 1);
+            String uuid = rs.getString(2);
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getInt(1), 2);
+            Assert.assertEquals(rs.getString(2), uuid);
+            Assert.assertFalse(rs.next());
+        }
+    }
+
+    @Test(groups = "integration")
     public void testQueryWithNamedParameter() throws SQLException {
         Properties props = new Properties();
         props.setProperty(JdbcConfig.PROP_NAMED_PARAM, "true");
@@ -1255,6 +1382,48 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
             Assert.assertTrue(rs.next());
             Assert.assertEquals(rs.getString("VALUE"), "testValue2");
             Assert.assertFalse(rs.next());
+        }
+    }
+
+    @Test(groups = "integration")
+    public void testInsertWithMultipleValues() throws Exception {
+        try (ClickHouseConnection conn = newConnection(new Properties());
+                Statement s = conn.createStatement()) {
+            s.execute("drop table if exists test_insert_with_multiple_values; "
+                    + "CREATE TABLE test_insert_with_multiple_values(a Int32, b Nullable(String)) ENGINE=Memory");
+            try (PreparedStatement ps = conn.prepareStatement(
+                    "INSERT INTO test_insert_with_multiple_values values(?, ?), (2 , ? ), ( ? , '') , (?,?) ,( ? ,? )")) {
+                ps.setInt(1, 1);
+                ps.setNull(2, Types.VARCHAR);
+                ps.setObject(3, "er");
+                ps.setInt(4, 3);
+                ps.setInt(5, 4);
+                ps.setURL(6, new URL("http://some.host"));
+                ps.setInt(7, 5);
+                ps.setString(8, null);
+                ps.executeUpdate();
+            }
+
+            try (ResultSet rs = s.executeQuery("select * from test_insert_with_multiple_values order by a")) {
+                Assert.assertTrue(rs.next());
+                Assert.assertEquals(rs.getByte(1), (byte) 1);
+                Assert.assertEquals(rs.getObject(2), null);
+                Assert.assertTrue(rs.wasNull());
+                Assert.assertTrue(rs.next());
+                Assert.assertEquals(rs.getBigDecimal(1), BigDecimal.valueOf(2L));
+                Assert.assertEquals(rs.getString(2), "er");
+                Assert.assertTrue(rs.next());
+                Assert.assertEquals(rs.getString(1), "3");
+                Assert.assertEquals(rs.getObject(2), "");
+                Assert.assertTrue(rs.next());
+                Assert.assertEquals(rs.getShort(1), (short) 4);
+                Assert.assertEquals(rs.getURL(2), new URL("http://some.host"));
+                Assert.assertTrue(rs.next());
+                Assert.assertEquals(rs.getObject(1), Integer.valueOf(5));
+                Assert.assertEquals(rs.getString(2), null);
+                Assert.assertTrue(rs.wasNull());
+                Assert.assertFalse(rs.next());
+            }
         }
     }
 }

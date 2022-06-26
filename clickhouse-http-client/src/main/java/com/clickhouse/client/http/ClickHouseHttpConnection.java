@@ -18,6 +18,7 @@ import com.clickhouse.client.ClickHouseCompression;
 import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseCredentials;
 import com.clickhouse.client.ClickHouseNode;
+import com.clickhouse.client.ClickHouseOutputStream;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseUtils;
 import com.clickhouse.client.config.ClickHouseClientOption;
@@ -119,25 +120,21 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
         return builder.toString();
     }
 
-    static String buildUrl(ClickHouseNode server, ClickHouseRequest<?> request) {
+    static String buildUrl(String baseUrl, ClickHouseRequest<?> request) {
         ClickHouseConfig config = request.getConfig();
 
-        StringBuilder builder = new StringBuilder();
-        builder.append(config.isSsl() ? "https" : "http").append("://").append(server.getHost()).append(':')
-                .append(server.getPort()).append('/');
+        StringBuilder builder = new StringBuilder().append(baseUrl);
         String context = (String) config.getOption(ClickHouseHttpOption.WEB_CONTEXT);
-        if (context != null && !context.isEmpty()) {
+        if (!ClickHouseChecker.isNullOrEmpty(context)) {
             char prev = '/';
             for (int i = 0, len = context.length(); i < len; i++) {
                 char ch = context.charAt(i);
-                if (ch != '/' || ch != prev) {
+                if (ch == '?' || ch == '#') {
+                    break;
+                } else if (ch != '/' || ch != prev) {
                     builder.append(ch);
                 }
                 prev = ch;
-            }
-
-            if (prev != '/') {
-                builder.append('/');
             }
         }
 
@@ -153,6 +150,8 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
     protected final ClickHouseNode server;
     protected final Map<String, String> defaultHeaders;
 
+    protected final ClickHouseOutputStream output;
+
     protected final String url;
 
     protected ClickHouseHttpConnection(ClickHouseNode server, ClickHouseRequest<?> request) {
@@ -163,7 +162,9 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
         this.config = request.getConfig();
         this.server = server;
 
-        this.url = buildUrl(server, request);
+        this.output = request.getOutputStream().orElse(null);
+
+        this.url = buildUrl(server.getBaseUri(), request);
 
         Map<String, String> map = new LinkedHashMap<>();
         // add customer headers
@@ -213,12 +214,14 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
     }
 
     protected String getBaseUrl() {
-        String baseUrl;
         int index = url.indexOf('?');
-        if (index > 0) {
-            baseUrl = url.substring(0, index);
-        } else {
-            baseUrl = url;
+        if (index < 1) {
+            index = url.length();
+        }
+
+        String baseUrl = url.substring(0, index);
+        if (url.charAt(index - 1) != '/') {
+            baseUrl = baseUrl.concat("/");
         }
 
         return baseUrl;

@@ -6,9 +6,13 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.UnsupportedEncodingException;
 import java.lang.reflect.Array;
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.net.URLDecoder;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -47,6 +51,11 @@ public final class ClickHouseUtils {
      * Default buffer size.
      */
     public static final int DEFAULT_BUFFER_SIZE = 8192;
+
+    /**
+     * Default charset.
+     */
+    public static final String DEFAULT_CHARSET = StandardCharsets.UTF_8.name();
 
     /**
      * Maximum buffer size.
@@ -100,6 +109,44 @@ public final class ClickHouseUtils {
 
     public static String applyVariables(String template, Map<String, String> variables) {
         return applyVariables(template, variables == null || variables.isEmpty() ? null : variables::get);
+    }
+
+    /**
+     * Decode given string using {@link URLDecoder} and
+     * {@link StandardCharsets#UTF_8}.
+     *
+     * @param encodedString encoded string
+     * @return non-null decoded string
+     */
+    public static String decode(String encodedString) {
+        if (ClickHouseChecker.isNullOrEmpty(encodedString)) {
+            return "";
+        }
+
+        try {
+            return URLDecoder.decode(encodedString, DEFAULT_CHARSET);
+        } catch (UnsupportedEncodingException e) {
+            return encodedString;
+        }
+    }
+
+    /**
+     * Encode given string using {@link URLEncoder} and
+     * {@link StandardCharsets#UTF_8}.
+     *
+     * @param str string to encode
+     * @return non-null encoded string
+     */
+    public static String encode(String str) {
+        if (ClickHouseChecker.isNullOrEmpty(str)) {
+            return "";
+        }
+
+        try {
+            return URLEncoder.encode(str, DEFAULT_CHARSET);
+        } catch (UnsupportedEncodingException e) {
+            return str;
+        }
     }
 
     private static <T> T findFirstService(Class<? extends T> serviceInterface) {
@@ -231,6 +278,20 @@ public final class ClickHouseUtils {
      */
     public static String format(String template, Object... args) {
         return String.format(Locale.ROOT, template, args);
+    }
+
+    /**
+     * Normalizes given directory by appending back slash if it does exist.
+     *
+     * @param dir original directory
+     * @return normalized directory
+     */
+    public static String normalizeDirectory(String dir) {
+        if (dir == null || dir.isEmpty()) {
+            return "./";
+        }
+
+        return dir.charAt(dir.length() - 1) == '/' ? dir : dir.concat("/");
     }
 
     private static int readJsonArray(String json, List<Object> array, int startIndex, int len) {

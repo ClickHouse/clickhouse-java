@@ -1,7 +1,9 @@
 package com.clickhouse.client.config;
 
 import java.io.Serializable;
+import java.util.Locale;
 import java.util.Optional;
+import java.util.TimeZone;
 
 /**
  * This defines a configuration option. To put it in a nutshell, an option is
@@ -45,7 +47,24 @@ public interface ClickHouseOption extends Serializable {
         } else if (double.class == clazz || Double.class == clazz) {
             result = clazz.cast(value.isEmpty() ? Double.valueOf(0D) : Double.valueOf(value));
         } else if (Enum.class.isAssignableFrom(clazz)) {
-            result = (T) Enum.valueOf((Class<? extends Enum>) clazz, value);
+            Enum enumValue = null;
+            try {
+                enumValue = Enum.valueOf((Class<? extends Enum>) clazz, value);
+            } catch (IllegalArgumentException exp) {
+                for (Enum<?> e : ((Class<? extends Enum>) clazz).getEnumConstants()) {
+                    if (e.name().equalsIgnoreCase(value)) {
+                        enumValue = e;
+                        break;
+                    }
+                }
+            }
+            if (enumValue == null) {
+                throw new IllegalArgumentException("No enum constant " + clazz.getCanonicalName() + "." + value);
+            } else {
+                result = (T) enumValue;
+            }
+        } else if (TimeZone.class.isAssignableFrom(clazz)) {
+            result = (T) TimeZone.getTimeZone(value);
         } else {
             result = clazz.cast(value);
         }
@@ -67,12 +86,7 @@ public interface ClickHouseOption extends Serializable {
      * @return trimmed default value defined in environment variable
      */
     default Optional<String> getDefaultValueFromEnvVar() {
-        String prefix = getPrefix().toUpperCase();
-        String optionName = name();
-        int length = optionName.length();
-
-        String value = System.getenv(new StringBuilder(length + prefix.length() + 1).append(prefix).append('_')
-                .append(optionName.toUpperCase()).toString());
+        String value = System.getenv(getEnvironmentVariable());
         if (value != null) {
             value = value.trim();
         }
@@ -87,12 +101,7 @@ public interface ClickHouseOption extends Serializable {
      * @return trimmed default value defined in system property
      */
     default Optional<String> getDefaultValueFromSysProp() {
-        String prefix = getPrefix().toLowerCase();
-        String optionName = name();
-        int length = optionName.length();
-
-        String value = System.getProperty(new StringBuilder(length + prefix.length() + 1).append(prefix).append('_')
-                .append(optionName.toLowerCase()).toString());
+        String value = System.getProperty(getSystemProperty());
         if (value != null) {
             value = value.trim();
         }
@@ -156,6 +165,30 @@ public interface ClickHouseOption extends Serializable {
      */
     default String getPrefix() {
         return "CHC";
+    }
+
+    /**
+     * Gets environment variable for the option.
+     *
+     * @return environment variable
+     */
+    default String getEnvironmentVariable() {
+        String name = name().toUpperCase(Locale.ROOT);
+        String prefix = getPrefix().toUpperCase(Locale.ROOT);
+        return new StringBuilder(prefix.length() + name.length() + 1).append(prefix).append('_').append(name)
+                .toString();
+    }
+
+    /**
+     * Gets system property for the option.
+     *
+     * @return system property
+     */
+    default String getSystemProperty() {
+        String name = name().toLowerCase(Locale.ROOT);
+        String prefix = getPrefix().toLowerCase(Locale.ROOT);
+        return new StringBuilder(prefix.length() + name.length() + 1).append(prefix).append('_').append(name)
+                .toString();
     }
 
     /**
