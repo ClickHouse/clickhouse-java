@@ -37,10 +37,10 @@ public enum ClickHouseCommandLineOption implements ClickHouseOption {
     /**
      * Work directory inside container, only works running in docker mode(when
      * {@link #CLICKHOUSE_CLI_PATH} is not available). Empty value is treated as
-     * '/data'.
+     * '/tmp'.
      */
     CLI_CONTAINER_DIRECTORY("cli_container_directory", "",
-            "Work directory inside container, empty value is treated as '/data'"),
+            "Work directory inside container, empty value is treated as '/tmp'"),
     /**
      * Command-line work directory. Empty value is treated as system temporary
      * directory(e.g. {@code System.getProperty("java.io.tmpdir")}). When running in

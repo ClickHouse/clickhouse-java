@@ -144,7 +144,7 @@ public class ClickHouseCommandLine implements AutoCloseable {
                 ClickHouseChecker.isNullOrBlank(hostDir) ? System.getProperty("java.io.tmpdir") : hostDir);
         String containerDir = (String) config.getOption(ClickHouseCommandLineOption.CLI_CONTAINER_DIRECTORY);
         if (ClickHouseChecker.isNullOrBlank(containerDir)) {
-            containerDir = "/data/";
+            containerDir = "/tmp/";
         } else {
             containerDir = ClickHouseUtils.normalizeDirectory(containerDir);
         }
