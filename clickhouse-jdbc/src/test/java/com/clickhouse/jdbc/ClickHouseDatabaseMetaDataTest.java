@@ -7,6 +7,7 @@ import java.util.Locale;
 import java.util.Properties;
 
 import com.clickhouse.client.ClickHouseColumn;
+import com.clickhouse.client.config.ClickHouseClientOption;
 
 import org.testng.Assert;
 import org.testng.annotations.DataProvider;
@@ -38,6 +39,45 @@ public class ClickHouseDatabaseMetaDataTest extends JdbcIntegrationTest {
         try (ClickHouseConnection conn = newConnection(props); ResultSet rs = conn.getMetaData().getTypeInfo()) {
             while (rs.next()) {
                 Assert.assertNotNull(rs.getString(1));
+            }
+        }
+    }
+
+    @Test(groups = "integration")
+    public void testGetClientInfo() throws SQLException {
+        String clientName = "";
+        Properties props = new Properties();
+        try (ClickHouseConnection conn = newConnection(props);
+                ResultSet rs = conn.getMetaData().getClientInfoProperties()) {
+            while (rs.next()) {
+                if (ClickHouseConnection.PROP_APPLICATION_NAME.equals(rs.getString(1))) {
+                    clientName = rs.getString(3);
+                }
+            }
+            Assert.assertEquals(clientName, ClickHouseClientOption.CLIENT_NAME.getDefaultValue());
+        }
+
+        props.setProperty(ClickHouseClientOption.CLIENT_NAME.getKey(), "client1");
+        try (ClickHouseConnection conn = newConnection(props)) {
+            clientName = "";
+            try (ResultSet rs = conn.getMetaData().getClientInfoProperties()) {
+                while (rs.next()) {
+                    if (ClickHouseConnection.PROP_APPLICATION_NAME.equals(rs.getString(1))) {
+                        clientName = rs.getString(3);
+                    }
+                }
+                Assert.assertEquals(clientName, "client1");
+            }
+
+            conn.setClientInfo(ClickHouseConnection.PROP_APPLICATION_NAME, "client2");
+            clientName = "";
+            try (ResultSet rs = conn.getMetaData().getClientInfoProperties()) {
+                while (rs.next()) {
+                    if (ClickHouseConnection.PROP_APPLICATION_NAME.equals(rs.getString(1))) {
+                        clientName = rs.getString(3);
+                    }
+                }
+                Assert.assertEquals(clientName, "client2");
             }
         }
     }
