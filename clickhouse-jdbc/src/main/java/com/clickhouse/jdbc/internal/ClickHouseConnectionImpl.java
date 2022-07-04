@@ -220,7 +220,7 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
         autoCommit = !jdbcConf.isJdbcCompliant() || jdbcConf.isAutoCommit();
 
         ClickHouseNode node = connInfo.getServer();
-        log.debug("Connecting to node: %s", node);
+        log.debug("Connecting to: %s", node);
 
         jvmTimeZone = TimeZone.getDefault();
 

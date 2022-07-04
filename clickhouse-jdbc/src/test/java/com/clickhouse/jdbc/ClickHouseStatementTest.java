@@ -136,6 +136,9 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
     public void testMutation() throws SQLException {
         Properties props = new Properties();
         try (ClickHouseConnection conn = newConnection(props); ClickHouseStatement stmt = conn.createStatement()) {
+            Assert.assertEquals(stmt.executeBatch(), new int[0]);
+            Assert.assertEquals(stmt.executeLargeBatch(), new long[0]);
+
             Assert.assertFalse(stmt.execute("drop table if exists test_mutation;"
                     + "create table test_mutation(a String, b UInt32) engine=MergeTree() order by tuple()"),
                     "Should not return result set");
@@ -156,6 +159,9 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
             stmt.addBatch("drop table non_existing_table");
             stmt.addBatch("insert into test_mutation values('2',2)");
             Assert.assertThrows(SQLException.class, () -> stmt.executeBatch());
+
+            Assert.assertEquals(stmt.executeBatch(), new int[0]);
+            Assert.assertEquals(stmt.executeLargeBatch(), new long[0]);
         }
 
         props.setProperty(JdbcConfig.PROP_CONTINUE_BATCH, "true");
@@ -269,7 +275,12 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
     public void testExecuteBatch() throws SQLException {
         Properties props = new Properties();
         try (Connection conn = newConnection(props); Statement stmt = conn.createStatement()) {
-            Assert.assertThrows(SQLException.class, () -> stmt.executeBatch());
+            Assert.assertEquals(stmt.executeBatch(), new int[0]);
+            Assert.assertEquals(stmt.executeLargeBatch(), new long[0]);
+            stmt.addBatch("select 1");
+            stmt.clearBatch();
+            Assert.assertEquals(stmt.executeBatch(), new int[0]);
+            Assert.assertEquals(stmt.executeLargeBatch(), new long[0]);
             stmt.addBatch("select 1");
             // mixed usage
             Assert.assertThrows(SQLException.class, () -> stmt.execute("select 2"));

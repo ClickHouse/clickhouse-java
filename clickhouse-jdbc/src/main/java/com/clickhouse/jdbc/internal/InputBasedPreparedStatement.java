@@ -94,7 +94,7 @@ public class InputBasedPreparedStatement extends AbstractPreparedStatement imple
         boolean continueOnError = false;
         if (asBatch) {
             if (counter < 1) {
-                throw SqlExceptionUtils.emptyBatchError();
+                return ClickHouseValues.EMPTY_LONG_ARRAY;
             }
             continueOnError = getConnection().getJdbcConfig().isContinueBatchOnError();
         } else {

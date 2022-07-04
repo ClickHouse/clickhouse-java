@@ -19,6 +19,7 @@ import java.util.Set;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.ClickHouseUtils;
+import com.clickhouse.client.ClickHouseValues;
 import com.clickhouse.client.data.ClickHouseExternalTable;
 import com.clickhouse.client.logging.Logger;
 import com.clickhouse.client.logging.LoggerFactory;
@@ -75,7 +76,7 @@ public class TableBasedPreparedStatement extends AbstractPreparedStatement imple
         boolean continueOnError = false;
         if (asBatch) {
             if (batch.isEmpty()) {
-                throw SqlExceptionUtils.emptyBatchError();
+                return ClickHouseValues.EMPTY_LONG_ARRAY;
             }
             continueOnError = getConnection().getJdbcConfig().isContinueBatchOnError();
         } else {

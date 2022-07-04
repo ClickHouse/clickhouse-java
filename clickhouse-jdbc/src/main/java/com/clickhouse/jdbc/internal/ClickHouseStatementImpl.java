@@ -25,6 +25,7 @@ import com.clickhouse.client.ClickHouseResponseSummary;
 import com.clickhouse.client.ClickHouseSerializer;
 import com.clickhouse.client.ClickHouseUtils;
 import com.clickhouse.client.ClickHouseValue;
+import com.clickhouse.client.ClickHouseValues;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.config.ClickHouseConfigChangeListener;
 import com.clickhouse.client.config.ClickHouseOption;
@@ -588,7 +589,7 @@ public class ClickHouseStatementImpl extends JdbcWrapper
     public long[] executeLargeBatch() throws SQLException {
         ensureOpen();
         if (batchStmts.isEmpty()) {
-            throw SqlExceptionUtils.emptyBatchError();
+            return ClickHouseValues.EMPTY_LONG_ARRAY;
         }
 
         boolean continueOnError = getConnection().getJdbcConfig().isContinueBatchOnError();
