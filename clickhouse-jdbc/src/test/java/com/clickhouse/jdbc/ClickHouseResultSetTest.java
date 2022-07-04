@@ -1,6 +1,7 @@
 package com.clickhouse.jdbc;
 
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
@@ -90,28 +91,28 @@ public class ClickHouseResultSetTest extends JdbcIntegrationTest {
     @DataProvider(name = "nullableColumns")
     private Object[][] getNullableColumns() {
         return new Object[][] {
-                new Object[] { "Bool", "false" },
-                new Object[] { "Date", "1970-01-01" },
-                new Object[] { "Date32", "1970-01-01" },
-                new Object[] { "DateTime32('UTC')", "1970-01-01 00:00:00" },
-                new Object[] { "DateTime64(3, 'UTC')", "1970-01-01 00:00:00" },
-                new Object[] { "Decimal(10,4)", "0" },
-                new Object[] { "Enum8('x'=0,'y'=1)", "x" },
-                new Object[] { "Enum16('xx'=1,'yy'=0)", "yy" },
-                new Object[] { "Float32", "0.0" },
-                new Object[] { "Float64", "0.0" },
-                new Object[] { "Int8", "0" },
-                new Object[] { "UInt8", "0" },
-                new Object[] { "Int16", "0" },
-                new Object[] { "UInt16", "0" },
-                new Object[] { "Int32", "0" },
-                new Object[] { "UInt32", "0" },
-                new Object[] { "Int64", "0" },
-                new Object[] { "UInt64", "0" },
-                new Object[] { "Int128", "0" },
-                new Object[] { "UInt128", "0" },
-                new Object[] { "Int256", "0" },
-                new Object[] { "UInt256", "0" },
+                new Object[] { "Bool", "false", Boolean.class },
+                new Object[] { "Date", "1970-01-01", LocalDate.class },
+                new Object[] { "Date32", "1970-01-01", LocalDate.class },
+                new Object[] { "DateTime32('UTC')", "1970-01-01 00:00:00", LocalDateTime.class },
+                new Object[] { "DateTime64(3, 'UTC')", "1970-01-01 00:00:00", OffsetDateTime.class },
+                new Object[] { "Decimal(10,4)", "0", BigDecimal.class },
+                new Object[] { "Enum8('x'=0,'y'=1)", "x", Integer.class },
+                new Object[] { "Enum16('xx'=1,'yy'=0)", "yy", String.class },
+                new Object[] { "Float32", "0.0", Float.class },
+                new Object[] { "Float64", "0.0", Double.class },
+                new Object[] { "Int8", "0", Byte.class },
+                new Object[] { "UInt8", "0", Short.class },
+                new Object[] { "Int16", "0", Short.class },
+                new Object[] { "UInt16", "0", Integer.class },
+                new Object[] { "Int32", "0", Integer.class },
+                new Object[] { "UInt32", "0", Long.class },
+                new Object[] { "Int64", "0", Long.class },
+                new Object[] { "UInt64", "0", BigInteger.class },
+                new Object[] { "Int128", "0", BigInteger.class },
+                new Object[] { "UInt128", "0", BigInteger.class },
+                new Object[] { "Int256", "0", BigInteger.class },
+                new Object[] { "UInt256", "0", BigInteger.class },
         };
     }
 
@@ -296,7 +297,7 @@ public class ClickHouseResultSetTest extends JdbcIntegrationTest {
     }
 
     @Test(dataProvider = "nullableColumns", groups = "integration")
-    public void testNullValue(String columnType, String defaultValue) throws Exception {
+    public void testNullValue(String columnType, String defaultValue, Class<?> clazz) throws Exception {
         Properties props = new Properties();
         props.setProperty(JdbcConfig.PROP_NULL_AS_DEFAULT, "2");
         String tableName = "test_query_null_value_" + columnType.split("\\(")[0].trim().toLowerCase();
@@ -312,6 +313,8 @@ public class ClickHouseResultSetTest extends JdbcIntegrationTest {
                 Assert.assertTrue(rs.next(), "Should have at least one row");
                 Assert.assertEquals(rs.getInt(1), 1);
                 Assert.assertEquals(rs.getString(2), defaultValue);
+                Assert.assertNotNull(rs.getObject(2));
+                Assert.assertNotNull(rs.getObject(2, clazz));
                 Assert.assertFalse(rs.wasNull(), "Should not be null");
                 Assert.assertFalse(rs.next(), "Should have only one row");
             }
@@ -321,6 +324,7 @@ public class ClickHouseResultSetTest extends JdbcIntegrationTest {
                 Assert.assertTrue(rs.next(), "Should have at least one row");
                 Assert.assertEquals(rs.getInt(1), 1);
                 Assert.assertEquals(rs.getString(2), null);
+                Assert.assertEquals(rs.getObject(2, clazz), null);
                 Assert.assertTrue(rs.wasNull(), "Should be null");
                 Assert.assertFalse(rs.next(), "Should have only one row");
             }
@@ -330,6 +334,7 @@ public class ClickHouseResultSetTest extends JdbcIntegrationTest {
                 Assert.assertTrue(rs.next(), "Should have at least one row");
                 Assert.assertEquals(rs.getInt(1), 1);
                 Assert.assertEquals(rs.getString(2), null);
+                Assert.assertEquals(rs.getObject(2, clazz), null);
                 Assert.assertTrue(rs.wasNull(), "Should be null");
                 Assert.assertFalse(rs.next(), "Should have only one row");
             }

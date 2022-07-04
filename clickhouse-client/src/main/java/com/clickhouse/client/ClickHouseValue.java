@@ -89,6 +89,16 @@ public interface ClickHouseValue extends Serializable {
     }
 
     /**
+     * Checks whether the value is nullable. This always returns {@code false} for
+     * nested value type.
+     *
+     * @return true if the value is nullable; false otherwise
+     */
+    default boolean isNullable() {
+        return true;
+    }
+
+    /**
      * Checks if the value is null, or empty for non-null types like Array, Tuple
      * and Map.
      *
@@ -485,7 +495,7 @@ public interface ClickHouseValue extends Serializable {
      * @return a typed object representing the value, could be null
      */
     default <T, E extends Enum<E>> T asObject(Class<T> clazz) {
-        if (clazz == null) {
+        if (clazz == null || (isNullable() && isNullOrEmpty())) {
             return null;
         } else if (clazz == boolean.class || clazz == Boolean.class) {
             return clazz.cast(asBoolean());
@@ -531,6 +541,8 @@ public interface ClickHouseValue extends Serializable {
             return clazz.cast(asArray());
         } else if (List.class.isAssignableFrom(clazz)) {
             return clazz.cast(asTuple());
+        } else if (Map.class.isAssignableFrom(clazz)) {
+            return clazz.cast(asMap());
         } else if (Enum.class.isAssignableFrom(clazz)) {
             return clazz.cast(asEnum((Class<E>) clazz));
         } else {

@@ -134,6 +134,11 @@ public class ClickHouseIntArrayValue extends ClickHouseObjectValue<int[]> {
     }
 
     @Override
+    public boolean isNullable() {
+        return false;
+    }
+
+    @Override
     public boolean isNullOrEmpty() {
         return getValue().length == 0;
     }

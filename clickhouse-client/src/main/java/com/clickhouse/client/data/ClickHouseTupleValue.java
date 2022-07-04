@@ -153,6 +153,11 @@ public class ClickHouseTupleValue extends ClickHouseObjectValue<List<Object>> {
     }
 
     @Override
+    public boolean isNullable() {
+        return false;
+    }
+
+    @Override
     public boolean isNullOrEmpty() {
         return getValue().isEmpty();
     }
