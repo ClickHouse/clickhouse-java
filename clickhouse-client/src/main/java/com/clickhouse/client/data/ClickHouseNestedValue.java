@@ -188,6 +188,11 @@ public class ClickHouseNestedValue extends ClickHouseObjectValue<Object[][]> {
     }
 
     @Override
+    public boolean isNullable() {
+        return false;
+    }
+
+    @Override
     public boolean isNullOrEmpty() {
         Object[][] value = getValue();
         return value == null || value.length == 0;

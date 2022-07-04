@@ -134,6 +134,11 @@ public class ClickHouseByteArrayValue extends ClickHouseObjectValue<byte[]> {
     }
 
     @Override
+    public boolean isNullable() {
+        return false;
+    }
+
+    @Override
     public boolean isNullOrEmpty() {
         return getValue().length == 0;
     }

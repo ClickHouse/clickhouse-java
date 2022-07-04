@@ -141,6 +141,11 @@ public class ClickHouseGeoRingValue extends ClickHouseObjectValue<double[][]> {
     }
 
     @Override
+    public boolean isNullable() {
+        return false;
+    }
+
+    @Override
     public boolean isNullOrEmpty() {
         double[][] value = getValue();
         return value == null || value.length == 0;
