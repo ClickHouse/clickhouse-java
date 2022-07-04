@@ -8,15 +8,15 @@ import java.util.Properties;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
-import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.config.ClickHouseDefaults;
 
 public class ClickHouseDataSourceTest extends JdbcIntegrationTest {
     @Test(groups = "integration")
     public void testGetConnection() throws SQLException {
-        String url = "jdbc:ch://" + getServerAddress(DEFAULT_PROTOCOL);
-        String urlWithCredentials = "jdbc:ch://default@" + getServerAddress(ClickHouseProtocol.HTTP);
+        String url = "jdbc:ch:" + DEFAULT_PROTOCOL.name() + "://" + getServerAddress(DEFAULT_PROTOCOL);
+        String urlWithCredentials = "jdbc:ch:" + DEFAULT_PROTOCOL.name() + "://default@"
+                + getServerAddress(DEFAULT_PROTOCOL);
         String clientName = "client1";
         int maxExecuteTime = 1234;
         boolean continueBatchOnError = true;
