@@ -778,15 +778,22 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
     public void testBatchQuery() throws SQLException {
         try (ClickHouseConnection conn = newConnection(new Properties());
                 PreparedStatement stmt = conn.prepareStatement("select * from numbers(100) where number < ?")) {
+            Assert.assertEquals(stmt.executeBatch(), new int[0]);
+            Assert.assertEquals(stmt.executeLargeBatch(), new long[0]);
             Assert.assertThrows(SQLException.class, () -> stmt.setInt(0, 5));
             Assert.assertThrows(SQLException.class, () -> stmt.setInt(2, 5));
             Assert.assertThrows(SQLException.class, () -> stmt.addBatch());
 
             stmt.setInt(1, 3);
+            Assert.assertEquals(stmt.executeBatch(), new int[0]);
+            Assert.assertEquals(stmt.executeLargeBatch(), new long[0]);
             stmt.addBatch();
             stmt.setInt(1, 2);
             stmt.addBatch();
             Assert.assertThrows(BatchUpdateException.class, () -> stmt.executeBatch());
+
+            Assert.assertEquals(stmt.executeBatch(), new int[0]);
+            Assert.assertEquals(stmt.executeLargeBatch(), new long[0]);
         }
     }
 

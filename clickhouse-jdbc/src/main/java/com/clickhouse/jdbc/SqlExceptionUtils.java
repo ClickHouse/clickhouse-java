@@ -107,10 +107,6 @@ public final class SqlExceptionUtils {
         return new BatchUpdateException("Unexpected error", SQL_STATE_SQL_ERROR, 0, updateCounts, cause);
     }
 
-    public static SQLException emptyBatchError() {
-        return clientError("Please call addBatch method at least once before batch execution");
-    }
-
     public static BatchUpdateException queryInBatchError(int[] updateCounts) {
         return new BatchUpdateException("Query is not allow in batch update", SQL_STATE_CLIENT_ERROR, updateCounts);
     }
