@@ -15,6 +15,7 @@ import java.util.logging.Logger;
 
 public class ClickHouseDataSource extends JdbcWrapper implements DataSource {
     private final String url;
+    private final Properties props;
 
     protected final ClickHouseDriver driver;
     protected final ConnectionInfo connInfo;
@@ -31,6 +32,10 @@ public class ClickHouseDataSource extends JdbcWrapper implements DataSource {
             throw new IllegalArgumentException("Incorrect ClickHouse jdbc url. It must be not null");
         }
         this.url = url;
+        this.props = new Properties();
+        if (properties != null && !properties.isEmpty()) {
+            this.props.putAll(properties);
+        }
 
         this.driver = new ClickHouseDriver();
         this.connInfo = ClickHouseJdbcUrlParser.parse(url, properties);
@@ -51,10 +56,16 @@ public class ClickHouseDataSource extends JdbcWrapper implements DataSource {
             password = "";
         }
 
-        Properties props = new Properties(connInfo.getProperties());
-        props.setProperty(ClickHouseDefaults.USER.getKey(), username);
-        props.setProperty(ClickHouseDefaults.PASSWORD.getKey(), password);
-        return driver.connect(url, props);
+        if (username.equals(props.getProperty(ClickHouseDefaults.USER.getKey()))
+                && password.equals(props.getProperty(ClickHouseDefaults.PASSWORD.getKey()))) {
+            return new ClickHouseConnectionImpl(connInfo);
+        }
+
+        Properties properties = new Properties();
+        properties.putAll(this.props);
+        properties.setProperty(ClickHouseDefaults.USER.getKey(), username);
+        properties.setProperty(ClickHouseDefaults.PASSWORD.getKey(), password);
+        return new ClickHouseConnectionImpl(url, properties);
     }
 
     /**

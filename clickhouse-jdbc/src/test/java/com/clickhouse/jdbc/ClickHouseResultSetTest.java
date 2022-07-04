@@ -245,9 +245,8 @@ public class ClickHouseResultSetTest extends JdbcIntegrationTest {
     public void testTuple() throws SQLException {
         try (ClickHouseConnection conn = newConnection(new Properties());
                 Statement stmt = conn.createStatement()) {
-            ResultSet rs = stmt
-                    .executeQuery(
-                            "select (toInt16(1), 'a', toFloat32(1.2), cast([1,2] as Array(Nullable(UInt8))), map(toUInt32(1),'a')) v");
+            ResultSet rs = stmt.executeQuery(
+                    "select (toInt16(1), 'a', toFloat32(1.2), cast([1,2] as Array(Nullable(UInt8))), map(toUInt32(1),'a')) v");
             Assert.assertTrue(rs.next());
             List<?> v = rs.getObject(1, List.class);
             Assert.assertEquals(v.size(), 5);
@@ -256,6 +255,18 @@ public class ClickHouseResultSetTest extends JdbcIntegrationTest {
             Assert.assertEquals(v.get(2), Float.valueOf(1.2F));
             Assert.assertEquals(v.get(3), new Short[] { 1, 2 });
             Assert.assertEquals(v.get(4), Collections.singletonMap(1L, "a"));
+            Assert.assertFalse(rs.next());
+
+            rs = stmt.executeQuery(
+                    "select cast(tuple(1, [2,3], ('4', [5,6]), map('seven', 8)) as Tuple(Int16, Array(Nullable(Int16)), Tuple(String, Array(Int32)), Map(String, Int32))) v");
+            Assert.assertTrue(rs.next());
+            v = rs.getObject(1, List.class);
+            Assert.assertEquals(v.size(), 4);
+            Assert.assertEquals(v.get(0), Short.valueOf((short) 1));
+            Assert.assertEquals(v.get(1), new Short[] { 2, 3 });
+            Assert.assertEquals(((List<?>) v.get(2)).get(0), "4");
+            Assert.assertEquals(((List<?>) v.get(2)).get(1), new int[] { 5, 6 });
+            Assert.assertEquals(v.get(3), Collections.singletonMap("seven", 8));
             Assert.assertFalse(rs.next());
         }
     }
