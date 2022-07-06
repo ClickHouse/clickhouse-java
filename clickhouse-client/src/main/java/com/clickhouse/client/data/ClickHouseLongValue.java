@@ -12,7 +12,7 @@ import com.clickhouse.client.ClickHouseValues;
  * Wraper class of long.
  */
 public class ClickHouseLongValue implements ClickHouseValue {
-    private static final BigInteger MASK = BigInteger.ONE.shiftLeft(Long.SIZE).subtract(BigInteger.ONE);
+    public static final BigInteger MASK = BigInteger.ONE.shiftLeft(Long.SIZE).subtract(BigInteger.ONE);
 
     /**
      * Create a new instance representing null value of long.
