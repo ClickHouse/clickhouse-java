@@ -460,7 +460,11 @@ public class ClickHouseByteArrayValue extends ClickHouseObjectValue<byte[]> {
             byte[] values = new byte[len];
             for (int i = 0; i < len; i++) {
                 Object o = value[i];
-                values[i] = o == null ? 0 : ((Number) o).byteValue();
+                if (value[i] instanceof Boolean) {
+                    values[i] = (Boolean) o ? (byte) 1 : (byte) 0;
+                } else {
+                    values[i] = o == null ? 0 : ((Number) o).byteValue();
+                }
             }
             set(values);
         }
