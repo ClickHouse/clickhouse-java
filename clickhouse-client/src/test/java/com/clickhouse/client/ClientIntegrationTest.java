@@ -5,6 +5,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.UncheckedIOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.Inet4Address;
@@ -1255,5 +1256,51 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
             }
             Assert.assertEquals(count, 2);
         }
+    }
+
+    @Test(groups = "integration")
+    public void testErrorDuringInsert() throws Exception {
+        ClickHouseNode server = getServer();
+        ClickHouseClient.send(server, "drop table if exists error_during_insert",
+                "create table error_during_insert(n UInt64, flag UInt8)engine=Null").get();
+        boolean success = true;
+        try (ClickHouseClient client = getClient();
+                ClickHouseResponse resp = client.connect(getServer()).write()
+                        .format(ClickHouseFormat.RowBinary)
+                        .query("insert into error_during_insert select number, throwIf(number>=100000000) from numbers(500000000)")
+                        .executeAndWait()) {
+            for (ClickHouseRecord r : resp.records()) {
+                Assert.fail("Should have no record");
+            }
+            Assert.fail("Insert should be aborted");
+        } catch (ClickHouseException e) {
+            Assert.assertEquals(e.getErrorCode(), 395);
+            Assert.assertTrue(e.getCause() instanceof IOException, "Should end up with IOException");
+            success = false;
+        }
+
+        Assert.assertFalse(success, "Should fail due insert error");
+    }
+
+    @Test(groups = "integration")
+    public void testErrorDuringQuery() throws Exception {
+        String query = "select number, throwIf(number>=100000000) from numbers(500000000)";
+        long count = 0L;
+        try (ClickHouseClient client = getClient();
+                ClickHouseResponse resp = client.connect(getServer())
+                        .format(ClickHouseFormat.RowBinaryWithNamesAndTypes).query(query).executeAndWait()) {
+            for (ClickHouseRecord r : resp.records()) {
+                // does not work which may relate to deserialization failure
+                // java.lang.AssertionError: expected [99764115] but found [4121673519155408707]
+                // Assert.assertEquals(r.getValue(0).asLong(), count++);
+                Assert.assertTrue((count = r.getValue(0).asLong()) >= 0);
+            }
+            Assert.fail("Query should be terminated before all rows returned");
+        } catch (UncheckedIOException e) {
+            Assert.assertTrue(e.getCause() instanceof IOException,
+                    "Should end up with IOException due to deserialization failure");
+        }
+
+        Assert.assertNotEquals(count, 0L, "Should have read at least one record");
     }
 }

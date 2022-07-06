@@ -66,6 +66,22 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
     }
 
     @Test(groups = "integration")
+    public void testSocketTimeout() throws SQLException {
+        Properties props = new Properties();
+        props.setProperty("connect_timeout", "500");
+        props.setProperty("socket_timeout", "1000");
+        props.setProperty("database", "system");
+        try (ClickHouseConnection conn = newConnection(props);
+                ClickHouseStatement stmt = conn.createStatement()) {
+            stmt.executeQuery("select sleep(3)");
+            Assert.fail("Should throw timeout exception");
+        } catch (SQLException e) {
+            Assert.assertTrue(e.getCause() instanceof java.net.SocketTimeoutException,
+                    "Should throw SocketTimeoutException");
+        }
+    }
+
+    @Test(groups = "integration")
     public void testSwitchSchema() throws SQLException {
         Properties props = new Properties();
         props.setProperty("database", "system");
