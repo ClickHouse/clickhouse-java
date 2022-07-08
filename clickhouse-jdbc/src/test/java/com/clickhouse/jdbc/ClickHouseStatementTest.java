@@ -33,12 +33,14 @@ import com.clickhouse.client.ClickHouseClient;
 import com.clickhouse.client.ClickHouseDataType;
 import com.clickhouse.client.ClickHouseParameterizedQuery;
 import com.clickhouse.client.ClickHouseProtocol;
+import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseValues;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.data.ClickHouseDateTimeValue;
 import com.clickhouse.client.http.config.ClickHouseHttpOption;
 
 import org.testng.Assert;
+import org.testng.SkipException;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
@@ -62,6 +64,25 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
             Assert.assertEquals(rs.getObject("d"), LocalDate.of(2021, 11, 1));
             Assert.assertEquals(rs.getTime("t"), Time.valueOf(LocalTime.of(12, 34, 56)));
             Assert.assertFalse(rs.next());
+        }
+    }
+
+    @Test(groups = "integration")
+    public void testSocketTimeout() throws SQLException {
+        Properties props = new Properties();
+        props.setProperty("connect_timeout", "500");
+        props.setProperty("socket_timeout", "1000");
+        props.setProperty("database", "system");
+        try (ClickHouseConnection conn = newConnection(props);
+                ClickHouseStatement stmt = conn.createStatement()) {
+            if (stmt.unwrap(ClickHouseRequest.class).getServer().getProtocol() != ClickHouseProtocol.HTTP) {
+                throw new SkipException("Skip as only http implementation works well");
+            }
+            stmt.executeQuery("select sleep(3)");
+            Assert.fail("Should throw timeout exception");
+        } catch (SQLException e) {
+            Assert.assertTrue(e.getCause() instanceof java.net.SocketTimeoutException,
+                    "Should throw SocketTimeoutException");
         }
     }
 
