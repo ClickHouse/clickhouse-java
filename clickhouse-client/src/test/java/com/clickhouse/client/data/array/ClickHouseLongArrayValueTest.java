@@ -14,4 +14,12 @@ public class ClickHouseLongArrayValueTest {
         Assert.assertArrayEquals(v.asArray(BigInteger.class),
                 new BigInteger[] { BigInteger.ONE, new BigInteger("9223372036854775808") });
     }
+
+    @Test(groups = { "unit" })
+    public void testConvertFromBigInteger() throws Exception {
+        ClickHouseLongArrayValue v = ClickHouseLongArrayValue.ofEmpty();
+        Assert.assertArrayEquals(v.getValue(), new long[0]);
+        v.update(new BigInteger[] { BigInteger.ONE, new BigInteger("9223372036854775808") });
+        Assert.assertArrayEquals(v.getValue(), new long[] { 1L, -9223372036854775808L });
+    }
 }
