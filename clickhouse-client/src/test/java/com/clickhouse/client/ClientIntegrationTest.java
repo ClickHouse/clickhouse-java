@@ -1261,12 +1261,14 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
     @Test(groups = "integration")
     public void testErrorDuringInsert() throws Exception {
         ClickHouseNode server = getServer();
+        if (server.getProtocol() != ClickHouseProtocol.HTTP) {
+            return;
+        }
         ClickHouseClient.send(server, "drop table if exists error_during_insert",
                 "create table error_during_insert(n UInt64, flag UInt8)engine=Null").get();
         boolean success = true;
         try (ClickHouseClient client = getClient();
-                ClickHouseResponse resp = client.connect(getServer()).write()
-                        .format(ClickHouseFormat.RowBinary)
+                ClickHouseResponse resp = client.connect(getServer()).write().format(ClickHouseFormat.RowBinary)
                         .query("insert into error_during_insert select number, throwIf(number>=100000000) from numbers(500000000)")
                         .executeAndWait()) {
             for (ClickHouseRecord r : resp.records()) {
@@ -1284,11 +1286,15 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
 
     @Test(groups = "integration")
     public void testErrorDuringQuery() throws Exception {
+        ClickHouseNode server = getServer();
+        if (server.getProtocol() != ClickHouseProtocol.HTTP) {
+            return;
+        }
         String query = "select number, throwIf(number>=100000000) from numbers(500000000)";
         long count = 0L;
         try (ClickHouseClient client = getClient();
-                ClickHouseResponse resp = client.connect(getServer())
-                        .format(ClickHouseFormat.RowBinaryWithNamesAndTypes).query(query).executeAndWait()) {
+                ClickHouseResponse resp = client.connect(server).format(ClickHouseFormat.RowBinaryWithNamesAndTypes)
+                        .query(query).executeAndWait()) {
             for (ClickHouseRecord r : resp.records()) {
                 // does not work which may relate to deserialization failure
                 // java.lang.AssertionError: expected [99764115] but found [4121673519155408707]
