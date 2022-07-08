@@ -45,6 +45,7 @@ import com.clickhouse.client.data.ClickHouseOffsetDateTimeValue;
 import com.clickhouse.client.data.ClickHouseStringValue;
 
 import org.testng.Assert;
+import org.testng.SkipException;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
@@ -1262,7 +1263,7 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
     public void testErrorDuringInsert() throws Exception {
         ClickHouseNode server = getServer();
         if (server.getProtocol() != ClickHouseProtocol.HTTP) {
-            return;
+            throw new SkipException("Skip as only http implementation works well");
         }
         ClickHouseClient.send(server, "drop table if exists error_during_insert",
                 "create table error_during_insert(n UInt64, flag UInt8)engine=Null").get();
@@ -1288,7 +1289,7 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
     public void testErrorDuringQuery() throws Exception {
         ClickHouseNode server = getServer();
         if (server.getProtocol() != ClickHouseProtocol.HTTP) {
-            return;
+            throw new SkipException("Skip as only http implementation works well");
         }
         String query = "select number, throwIf(number>=100000000) from numbers(500000000)";
         long count = 0L;

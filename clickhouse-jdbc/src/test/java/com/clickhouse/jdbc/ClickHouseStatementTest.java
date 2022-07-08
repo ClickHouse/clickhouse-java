@@ -33,12 +33,14 @@ import com.clickhouse.client.ClickHouseClient;
 import com.clickhouse.client.ClickHouseDataType;
 import com.clickhouse.client.ClickHouseParameterizedQuery;
 import com.clickhouse.client.ClickHouseProtocol;
+import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseValues;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.data.ClickHouseDateTimeValue;
 import com.clickhouse.client.http.config.ClickHouseHttpOption;
 
 import org.testng.Assert;
+import org.testng.SkipException;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
@@ -73,6 +75,9 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
         props.setProperty("database", "system");
         try (ClickHouseConnection conn = newConnection(props);
                 ClickHouseStatement stmt = conn.createStatement()) {
+            if (stmt.unwrap(ClickHouseRequest.class).getServer().getProtocol() != ClickHouseProtocol.HTTP) {
+                throw new SkipException("Skip as only http implementation works well");
+            }
             stmt.executeQuery("select sleep(3)");
             Assert.fail("Should throw timeout exception");
         } catch (SQLException e) {
