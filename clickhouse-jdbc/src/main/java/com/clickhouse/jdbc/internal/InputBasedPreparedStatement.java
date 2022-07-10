@@ -16,6 +16,7 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
+import java.util.Collections;
 import java.util.List;
 
 import com.clickhouse.client.ClickHouseColumn;
@@ -40,6 +41,7 @@ public class InputBasedPreparedStatement extends AbstractPreparedStatement imple
 
     private final ClickHouseColumn[] columns;
     private final ClickHouseValue[] values;
+    private final ClickHouseParameterMetaData paramMetaData;
     private final boolean[] flags;
 
     private int counter;
@@ -62,12 +64,15 @@ public class InputBasedPreparedStatement extends AbstractPreparedStatement imple
         int size = columns.size();
         this.columns = new ClickHouseColumn[size];
         this.values = new ClickHouseValue[size];
+        List<ClickHouseColumn> list = new ArrayList<>(size);
         int i = 0;
         for (ClickHouseColumn col : columns) {
             this.columns[i] = col;
             this.values[i] = ClickHouseValues.newValue(config, col);
+            list.add(col);
             i++;
         }
+        paramMetaData = new ClickHouseParameterMetaData(Collections.unmodifiableList(list));
         flags = new boolean[size];
 
         counter = 0;
@@ -444,8 +449,7 @@ public class InputBasedPreparedStatement extends AbstractPreparedStatement imple
 
     @Override
     public ParameterMetaData getParameterMetaData() throws SQLException {
-        // TODO Auto-generated method stub
-        return null;
+        return paramMetaData;
     }
 
     @Override
