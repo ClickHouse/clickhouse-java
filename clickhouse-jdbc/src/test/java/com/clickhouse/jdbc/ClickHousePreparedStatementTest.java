@@ -9,6 +9,7 @@ import java.nio.charset.StandardCharsets;
 import java.sql.BatchUpdateException;
 import java.sql.Connection;
 import java.sql.Date;
+import java.sql.ParameterMetaData;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -28,6 +29,7 @@ import java.util.concurrent.CompletionException;
 
 import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseDataStreamFactory;
+import com.clickhouse.client.ClickHouseDataType;
 import com.clickhouse.client.ClickHouseFormat;
 import com.clickhouse.client.ClickHouseInputStream;
 import com.clickhouse.client.ClickHousePipedOutputStream;
@@ -1430,6 +1432,32 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
                 Assert.assertEquals(rs.getString(2), null);
                 Assert.assertTrue(rs.wasNull());
                 Assert.assertFalse(rs.next());
+            }
+        }
+    }
+
+    @Test(groups = "integration")
+    public void testGetParameterMetaData() throws Exception {
+        try (Connection conn = newConnection(new Properties());
+                PreparedStatement emptyPs = conn.prepareStatement("select 1");
+                PreparedStatement inputPs = conn.prepareStatement(
+                        "insert into non_existing_table select * from input('col2 String, col3 Int8, col1 JSON')");
+                PreparedStatement sqlPs = conn.prepareStatement("select ?, toInt32(?), ? b");
+                PreparedStatement tablePs = conn.prepareStatement(
+                        "select a.id, c.* from {tt 'col2'} a inner join {tt 'col3'} b on a.id = b.id left outer join {tt 'col1'} c on b.id = c.id");) {
+            Assert.assertEquals(emptyPs.getParameterMetaData().getParameterCount(), 0);
+
+            for (PreparedStatement ps : new PreparedStatement[] { inputPs, sqlPs }) {
+                Assert.assertNotNull(ps.getParameterMetaData());
+                Assert.assertTrue(ps.getParameterMetaData() == ps.getParameterMetaData(),
+                        "parameter mete data should be singleton");
+                Assert.assertEquals(ps.getParameterMetaData().getParameterCount(), 3);
+                Assert.assertEquals(ps.getParameterMetaData().getParameterMode(3), ParameterMetaData.parameterModeIn);
+                Assert.assertEquals(ps.getParameterMetaData().getParameterType(3), Types.OTHER);
+                Assert.assertEquals(ps.getParameterMetaData().getPrecision(3), 0);
+                Assert.assertEquals(ps.getParameterMetaData().getScale(3), 0);
+                Assert.assertEquals(ps.getParameterMetaData().getParameterClassName(3), Object.class.getName());
+                Assert.assertEquals(ps.getParameterMetaData().getParameterTypeName(3), ClickHouseDataType.JSON.name());
             }
         }
     }
