@@ -103,6 +103,7 @@
         <postgresql-driver.version>42.3.5</postgresql-driver.version>
 
         <repackaged.version>1.2.0</repackaged.version>
+        <shade.base>${project.groupId}.client.internal</shade.base>
 
         <assembly-plugin.version>3.3.0</assembly-plugin.version>
         <compiler-plugin.version>3.10.1</compiler-plugin.version>
@@ -407,6 +408,7 @@
                     <version>${flatten-plugin.version}</version>
                     <configuration>
                         <updatePomFile>true</updatePomFile>
+                        <flattenDependencyMode>all</flattenDependencyMode>
                         <flattenMode>ossrh</flattenMode>
                     </configuration>
                     <executions>
@@ -425,6 +427,7 @@
                             </goals>
                         </execution>
                     </executions>
+                    <inherited>true</inherited>
                 </plugin>
                 <plugin>
                     <groupId>org.codehaus.mojo</groupId>
@@ -752,8 +755,17 @@
                                 <id>default-jar</id>
                                 <configuration>
                                     <archive>
+                                        <manifest>
+                                            <addDefaultEntries>true</addDefaultEntries>
+                                            <addDefaultImplementationEntries>true</addDefaultImplementationEntries>
+                                            <addBuildEnvironmentEntries>true</addBuildEnvironmentEntries>
+                                        </manifest>
                                         <manifestEntries>
                                             <Multi-Release>true</Multi-Release>
+                                            <Implementation-URL>${project.url}</Implementation-URL>
+                                            <Implementation-Vendor>ClickHouse, Inc.</Implementation-Vendor>
+                                            <Implementation-Vendor-Id>${project.groupId}</Implementation-Vendor-Id>
+                                            <Implementation-Version>${project.artifactId} ${project.version} (revision: ${git.commit.id.abbrev})</Implementation-Version>
                                             <SCM-Revision>${git.commit.id.full}</SCM-Revision>
                                         </manifestEntries>
                                     </archive>
@@ -948,6 +960,14 @@
                         </executions>
                     </plugin>
                     <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>flatten-maven-plugin</artifactId>
+                    </plugin>
+                    <plugin>
+                        <groupId>io.github.git-commit-id</groupId>
+                        <artifactId>git-commit-id-maven-plugin</artifactId>
+                    </plugin>
+                    <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-jar-plugin</artifactId>
                         <executions>
@@ -955,8 +975,18 @@
                                 <id>default-jar</id>
                                 <configuration>
                                     <archive>
+                                        <manifest>
+                                            <addDefaultEntries>true</addDefaultEntries>
+                                            <addDefaultImplementationEntries>true</addDefaultImplementationEntries>
+                                            <addBuildEnvironmentEntries>true</addBuildEnvironmentEntries>
+                                        </manifest>
                                         <manifestEntries>
                                             <Multi-Release>true</Multi-Release>
+                                            <Implementation-URL>${project.url}</Implementation-URL>
+                                            <Implementation-Vendor>ClickHouse, Inc.</Implementation-Vendor>
+                                            <Implementation-Vendor-Id>${project.groupId}</Implementation-Vendor-Id>
+                                            <Implementation-Version>${project.artifactId} ${project.version} (revision: ${git.commit.id.abbrev})</Implementation-Version>
+                                            <SCM-Revision>${git.commit.id.full}</SCM-Revision>
                                         </manifestEntries>
                                     </archive>
                                 </configuration>
