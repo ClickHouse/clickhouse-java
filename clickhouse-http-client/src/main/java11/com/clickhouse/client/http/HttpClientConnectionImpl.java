@@ -10,6 +10,7 @@ import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHousePipedOutputStream;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseSslContextProvider;
+import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.data.ClickHouseExternalTable;
 import com.clickhouse.client.http.config.ClickHouseHttpOption;
 import com.clickhouse.client.logging.Logger;
@@ -17,6 +18,8 @@ import com.clickhouse.client.logging.LoggerFactory;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -79,7 +82,7 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
             source = ClickHouseInputStream.empty();
             action = () -> {
                 try (OutputStream o = output) {
-                    ClickHouseInputStream.pipe(checkResponse(r).body(), o, config.getWriteBufferSize());
+                    ClickHouseInputStream.pipe(checkResponse(config, r).body(), o, config.getWriteBufferSize());
                 } catch (IOException e) {
                     throw new UncheckedIOException("Failed to redirect response to given output stream", e);
                 } finally {
@@ -87,7 +90,7 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
                 }
             };
         } else {
-            source = checkResponse(r).body();
+            source = checkResponse(config, r).body();
             action = this::closeQuietly;
         }
 
@@ -97,23 +100,34 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
                 displayName, queryId, summary, format, timeZone);
     }
 
-    private HttpResponse<InputStream> checkResponse(HttpResponse<InputStream> r) throws IOException {
+    private HttpResponse<InputStream> checkResponse(ClickHouseConfig config, HttpResponse<InputStream> r)
+            throws IOException {
         if (r.statusCode() != HttpURLConnection.HTTP_OK) {
-            // TODO get exception from response header, for example:
-            // X-ClickHouse-Exception-Code: 47
-            StringBuilder builder = new StringBuilder();
-            try (Reader reader = new InputStreamReader(
-                    ClickHouseClient.getResponseInputStream(config, r.body(), this::closeQuietly),
-                    StandardCharsets.UTF_8)) {
-                int c = 0;
-                while ((c = reader.read()) != -1) {
-                    builder.append((char) c);
+            String errorCode = r.headers().firstValue("X-ClickHouse-Exception-Code").orElse("");
+            // String encoding = r.headers().firstValue("Content-Encoding");
+            String serverName = r.headers().firstValue("X-ClickHouse-Server-Display-Name").orElse("");
+
+            String errorMsg;
+            int bufferSize = (int) ClickHouseClientOption.BUFFER_SIZE.getDefaultValue();
+            ByteArrayOutputStream output = new ByteArrayOutputStream(bufferSize);
+            ClickHouseInputStream.pipe(r.body(), output, bufferSize);
+            byte[] bytes = output.toByteArray();
+
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(
+                    ClickHouseClient.getResponseInputStream(config, new ByteArrayInputStream(bytes),
+                            this::closeQuietly),
+                    StandardCharsets.UTF_8))) {
+                StringBuilder builder = new StringBuilder();
+                while ((errorMsg = reader.readLine()) != null) {
+                    builder.append(errorMsg).append('\n');
                 }
+                errorMsg = builder.toString();
             } catch (IOException e) {
-                log.warn("Error while reading error message", e);
+                log.warn("Error while reading error message[code=%s] from server [%s]", errorCode, serverName, e);
+                errorMsg = new String(bytes, StandardCharsets.UTF_8);
             }
 
-            throw new IOException(builder.toString());
+            throw new IOException(errorMsg);
         }
 
         return r;
