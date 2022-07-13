@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 
 import com.clickhouse.client.ClickHouseClient;
+import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseFormat;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseProtocol;
@@ -24,7 +25,7 @@ public class ClickHouseHttpConnectionTest {
 
         @Override
         protected ClickHouseHttpResponse post(String query, InputStream data, List<ClickHouseExternalTable> tables,
-                Map<String, String> headers) throws IOException {
+                String url, Map<String, String> headers, ClickHouseConfig config) throws IOException {
             return null;
         }
 

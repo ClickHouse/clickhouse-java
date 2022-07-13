@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.concurrent.CompletionException;
 
 import com.clickhouse.client.AbstractClient;
+import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseException;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseProtocol;
@@ -29,7 +30,7 @@ public class ClickHouseHttpClient extends AbstractClient<ClickHouseHttpConnectio
     protected boolean checkConnection(ClickHouseHttpConnection connection, ClickHouseNode requestServer,
             ClickHouseNode currentServer, ClickHouseRequest<?> request) {
         // return false to suggest creating a new connection
-        return connection != null && connection.isReusable() && requestServer.equals(currentServer);
+        return connection != null && connection.isReusable() && requestServer.isSameEndpoint(currentServer);
     }
 
     @Override
@@ -98,8 +99,18 @@ public class ClickHouseHttpClient extends AbstractClient<ClickHouseHttpConnectio
         }
 
         log.debug("Query: %s", sql);
-        ClickHouseHttpResponse httpResponse = conn.post(sql, sealedRequest.getInputStream().orElse(null),
-                sealedRequest.getExternalTables(), null);
+        ClickHouseConfig config = sealedRequest.getConfig();
+        final ClickHouseHttpResponse httpResponse;
+        if (conn.isReusable()) {
+            ClickHouseNode server = sealedRequest.getServer();
+            httpResponse = conn.post(sql, sealedRequest.getInputStream().orElse(null),
+                    sealedRequest.getExternalTables(),
+                    ClickHouseHttpConnection.buildUrl(server.getBaseUri(), sealedRequest),
+                    ClickHouseHttpConnection.createDefaultHeaders(config, server), config);
+        } else {
+            httpResponse = conn.post(sql, sealedRequest.getInputStream().orElse(null),
+                    sealedRequest.getExternalTables(), null, null, config);
+        }
         return ClickHouseStreamResponse.of(httpResponse.getConfig(sealedRequest), httpResponse.getInputStream(),
                 sealedRequest.getSettings(), null, httpResponse.summary);
     }

@@ -9,7 +9,6 @@
     </parent>
 
     <artifactId>io.grpc</artifactId>
-    <version>${revision}</version>
     <packaging>jar</packaging>
 
     <name>${project.artifactId}</name>
@@ -109,6 +108,19 @@
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer" />
                             </transformers>
                         </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>flatten-maven-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>flatten</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>flatten</goal>
+                        </goals>
                     </execution>
                 </executions>
             </plugin>

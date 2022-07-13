@@ -8,10 +8,9 @@
     </parent>
 
     <artifactId>clickhouse-client</artifactId>
-    <version>${revision}</version>
     <packaging>jar</packaging>
 
-    <name>${project.artifactId}</name>
+    <name>ClickHouse Java Client</name>
     <description>Unified Java client for ClickHouse</description>
     <url>https://github.com/ClickHouse/clickhouse-jdbc/tree/master/clickhouse-client</url>
 
