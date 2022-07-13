@@ -235,13 +235,9 @@
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer" />
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                                     <manifestEntries>
-                                        <Automatic-Module-Name>com.clickhouse.jdbc</Automatic-Module-Name>
-                                        <!-- https://docs.oracle.com/en/java/javase/11/docs/api/java.sql/java/sql/package-summary.html -->
+                                        <Automatic-Module-Name>${project.groupId}.jdbc</Automatic-Module-Name>
                                         <Specification-Title>${spec.title}</Specification-Title>
                                         <Specification-Version>${spec.version}</Specification-Version>
-                                        <Implementation-Title>${project.name}</Implementation-Title>
-                                        <Implementation-Vendor-Id>${project.groupId}</Implementation-Vendor-Id>
-                                        <Implementation-Version>${project.artifactId} ${project.version} (revision: ${git.commit.id.abbrev})</Implementation-Version>
                                     </manifestEntries>
                                 </transformer>
                             </transformers>
@@ -287,13 +283,9 @@
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer" />
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                                     <manifestEntries>
-                                        <Automatic-Module-Name>com.clickhouse.jdbc</Automatic-Module-Name>
-                                        <!-- https://docs.oracle.com/en/java/javase/11/docs/api/java.sql/java/sql/package-summary.html -->
+                                        <Automatic-Module-Name>${project.groupId}.jdbc</Automatic-Module-Name>
                                         <Specification-Title>${spec.title}</Specification-Title>
                                         <Specification-Version>${spec.version}</Specification-Version>
-                                        <Implementation-Title>${project.name}</Implementation-Title>
-                                        <Implementation-Vendor-Id>${project.groupId}</Implementation-Vendor-Id>
-                                        <Implementation-Version>${project.artifactId} ${project.version} (revision: ${git.commit.id.abbrev})</Implementation-Version>
                                     </manifestEntries>
                                 </transformer>
                             </transformers>
@@ -332,13 +324,9 @@
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer" />
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                                     <manifestEntries>
-                                        <Automatic-Module-Name>com.clickhouse.jdbc</Automatic-Module-Name>
-                                        <!-- https://docs.oracle.com/en/java/javase/11/docs/api/java.sql/java/sql/package-summary.html -->
+                                        <Automatic-Module-Name>${project.groupId}.jdbc</Automatic-Module-Name>
                                         <Specification-Title>${spec.title}</Specification-Title>
                                         <Specification-Version>${spec.version}</Specification-Version>
-                                        <Implementation-Title>${project.name}</Implementation-Title>
-                                        <Implementation-Vendor-Id>${project.groupId}</Implementation-Vendor-Id>
-                                        <Implementation-Version>${project.artifactId} ${project.version} (revision: ${git.commit.id.abbrev})</Implementation-Version>
                                     </manifestEntries>
                                 </transformer>
                             </transformers>
@@ -393,13 +381,9 @@
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer" />
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                                     <manifestEntries>
-                                        <Automatic-Module-Name>com.clickhouse.jdbc</Automatic-Module-Name>
-                                        <!-- https://docs.oracle.com/en/java/javase/11/docs/api/java.sql/java/sql/package-summary.html -->
+                                        <Automatic-Module-Name>${project.groupId}.jdbc</Automatic-Module-Name>
                                         <Specification-Title>${spec.title}</Specification-Title>
                                         <Specification-Version>${spec.version}</Specification-Version>
-                                        <Implementation-Title>${project.name}</Implementation-Title>
-                                        <Implementation-Vendor-Id>${project.groupId}</Implementation-Vendor-Id>
-                                        <Implementation-Version>${project.artifactId} ${project.version} (revision: ${git.commit.id.abbrev})</Implementation-Version>
                                     </manifestEntries>
                                 </transformer>
                             </transformers>
@@ -412,6 +396,63 @@
                                 </filter>
                                 <filter>
                                     <artifact>${project.parent.groupId}:clickhouse-grpc-client</artifact>
+                                    <excludes>
+                                        <exclude>**</exclude>
+                                    </excludes>
+                                </filter>
+                                <filter>
+                                    <artifact>*:*</artifact>
+                                    <excludes>
+                                        <exclude>com/google/**</exclude>
+                                        <exclude>mozilla/**</exclude>
+                                        <exclude>org/**</exclude>
+                                        <exclude>ru/**</exclude>
+                                        <exclude>**/darwin/**</exclude>
+                                        <exclude>**/linux/**</exclude>
+                                        <exclude>**/win32/**</exclude>
+                                        <exclude>**/module-info.class</exclude>
+                                        <exclude>META-INF/DEPENDENCIES</exclude>
+                                        <exclude>META-INF/MANIFEST.MF</exclude>
+                                        <exclude>META-INF/maven/**</exclude>
+                                        <exclude>META-INF/native-image/**</exclude>
+                                        <exclude>META-INF/*.xml</exclude>
+                                    </excludes>
+                                </filter>
+                            </filters>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>shade-cli</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>shade</goal>
+                        </goals>
+                        <configuration>
+                            <shadedArtifactAttached>true</shadedArtifactAttached>
+                            <createDependencyReducedPom>true</createDependencyReducedPom>
+                            <promoteTransitiveDependencies>true</promoteTransitiveDependencies>
+                            <shadedClassifierName>cli</shadedClassifierName>
+                            <transformers>
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.ApacheLicenseResourceTransformer" />
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.ApacheNoticeResourceTransformer" />
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer" />
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                                    <manifestEntries>
+                                        <Automatic-Module-Name>${project.groupId}.jdbc</Automatic-Module-Name>
+                                        <Specification-Title>${spec.title}</Specification-Title>
+                                        <Specification-Version>${spec.version}</Specification-Version>
+                                    </manifestEntries>
+                                </transformer>
+                            </transformers>
+                            <filters>
+                                <filter>
+                                    <artifact>${project.parent.groupId}:clickhouse-grpc-client</artifact>
+                                    <excludes>
+                                        <exclude>**</exclude>
+                                    </excludes>
+                                </filter>
+                                <filter>
+                                    <artifact>${project.parent.groupId}:clickhouse-http-client</artifact>
                                     <excludes>
                                         <exclude>**</exclude>
                                     </excludes>

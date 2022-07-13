@@ -2,6 +2,7 @@ package com.clickhouse.client.http;
 
 import com.clickhouse.client.ClickHouseChecker;
 import com.clickhouse.client.ClickHouseClient;
+import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseDataStreamFactory;
 import com.clickhouse.client.ClickHouseFormat;
 import com.clickhouse.client.ClickHouseInputStream;
@@ -50,12 +51,11 @@ import javax.net.ssl.SSLContext;
 public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
     private static final Logger log = LoggerFactory.getLogger(HttpClientConnectionImpl.class);
 
-    private static final int MAX_RETRIES = 1;
-
     private final HttpClient httpClient;
     private final HttpRequest pingRequest;
 
-    private ClickHouseHttpResponse buildResponse(HttpResponse<InputStream> r) throws IOException {
+    private ClickHouseHttpResponse buildResponse(ClickHouseConfig config, HttpResponse<InputStream> r)
+            throws IOException {
         HttpHeaders headers = r.headers();
         String displayName = headers.firstValue("X-ClickHouse-Server-Display-Name").orElse(server.getHost());
         String queryId = headers.firstValue("X-ClickHouse-Query-Id").orElse("");
@@ -90,7 +90,10 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
             source = checkResponse(r).body();
             action = this::closeQuietly;
         }
-        return new ClickHouseHttpResponse(this, ClickHouseClient.getResponseInputStream(config, source, action),
+
+        return new ClickHouseHttpResponse(this,
+                ClickHouseInputStream.wrap(null, source, config.getReadBufferSize(), action,
+                        config.getResponseCompressAlgorithm(), config.getResponseCompressLevel()),
                 displayName, queryId, summary, format, timeZone);
     }
 
@@ -125,10 +128,8 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
             throws IOException {
         super(server, request);
 
-        HttpClient.Builder builder = HttpClient.newBuilder()
-                .version(Version.HTTP_1_1)
-                .connectTimeout(Duration.ofMillis(config.getConnectionTimeout()))
-                .followRedirects(Redirect.NORMAL);
+        HttpClient.Builder builder = HttpClient.newBuilder().version(Version.HTTP_1_1)
+                .connectTimeout(Duration.ofMillis(config.getConnectionTimeout())).followRedirects(Redirect.NORMAL);
         if (executor != null) {
             builder.executor(executor);
         }
@@ -153,8 +154,8 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
                 responseInfo -> new ClickHouseResponseHandler(config.getMaxQueuedBuffers(), config.getSocketTimeout()));
     }
 
-    private ClickHouseHttpResponse postStream(HttpRequest.Builder reqBuilder, String boundary, String sql,
-            InputStream data, List<ClickHouseExternalTable> tables) throws IOException {
+    private ClickHouseHttpResponse postStream(ClickHouseConfig config, HttpRequest.Builder reqBuilder, String boundary,
+            String sql, InputStream data, List<ClickHouseExternalTable> tables) throws IOException {
         ClickHousePipedOutputStream stream = ClickHouseDataStreamFactory.getInstance().createPipedOutputStream(config,
                 null);
         reqBuilder.POST(HttpRequest.BodyPublishers.ofInputStream(stream::getInputStream));
@@ -217,10 +218,11 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
             }
         }
 
-        return buildResponse(r);
+        return buildResponse(config, r);
     }
 
-    private ClickHouseHttpResponse postString(HttpRequest.Builder reqBuilder, String sql) throws IOException {
+    private ClickHouseHttpResponse postString(ClickHouseConfig config, HttpRequest.Builder reqBuilder, String sql)
+            throws IOException {
         reqBuilder.POST(HttpRequest.BodyPublishers.ofString(sql));
         HttpResponse<InputStream> r;
         try {
@@ -236,15 +238,16 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
                 throw new IOException("Failed to post query", cause);
             }
         }
-        return buildResponse(r);
+        return buildResponse(config, r);
     }
 
     @Override
     protected ClickHouseHttpResponse post(String sql, InputStream data, List<ClickHouseExternalTable> tables,
-            Map<String, String> headers) throws IOException {
+            String url, Map<String, String> headers, ClickHouseConfig config) throws IOException {
+        ClickHouseConfig c = config == null ? this.config : config;
         HttpRequest.Builder reqBuilder = HttpRequest.newBuilder()
-                .uri(URI.create(url))
-                .timeout(Duration.ofMillis(config.getSocketTimeout()));
+                .uri(URI.create(ClickHouseChecker.isNullOrEmpty(url) ? this.url : url))
+                .timeout(Duration.ofMillis(c.getSocketTimeout()));
         String boundary = null;
         if (tables != null && !tables.isEmpty()) {
             boundary = UUID.randomUUID().toString();
@@ -260,8 +263,8 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
             }
         }
 
-        return boundary != null || data != null ? postStream(reqBuilder, boundary, sql, data, tables)
-                : postString(reqBuilder, sql);
+        return boundary != null || data != null ? postStream(c, reqBuilder, boundary, sql, data, tables)
+                : postString(c, reqBuilder, sql);
     }
 
     @Override

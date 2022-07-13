@@ -824,7 +824,7 @@ public class ClickHouseDatabaseMetaData extends JdbcWrapper implements DatabaseM
                         + "toInt32(position(type, 'Nullable(') >= 1 ? :defaultNullable : :defaultNonNull) as NULLABLE, :comment as REMARKS, default_expression as COLUMN_DEF, "
                         + "0 as SQL_DATA_TYPE, 0 as SQL_DATETIME_SUB, cast(null as Nullable(Int32)) as CHAR_OCTET_LENGTH, position as ORDINAL_POSITION, "
                         + "position(type, 'Nullable(') >= 1 ? 'YES' : 'NO' as IS_NULLABLE, null as SCOPE_CATALOG, null as SCOPE_SCHEMA, null as SCOPE_TABLE, "
-                        + "null as SOURCE_DATA_TYPE, 'NO' as IS_AUTOINCREMENT, 'NO' as IS_GENERATEDCOLUMN from system.columns\n"
+                        + "null as SOURCE_DATA_TYPE, 'NO' as IS_AUTOINCREMENT, 'NO' as IS_GENERATEDCOLUMN from system.columns "
                         + "where database like :database and table like :table and name like :column", params);
         return query(sql, (i, r) -> {
             String typeName = r.getValue("TYPE_NAME").asString();

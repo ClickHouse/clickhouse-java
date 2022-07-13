@@ -75,11 +75,13 @@ public abstract class ClickHouseInputStream extends InputStream {
      * @param compressionLevel compression level
      * @return non-null wrapped input stream
      */
-    static ClickHouseInputStream wrap(ClickHouseFile file, InputStream input, int bufferSize, Runnable postCloseAction,
-            ClickHouseCompression compression, int compressionLevel) {
+    public static ClickHouseInputStream wrap(ClickHouseFile file, InputStream input, int bufferSize,
+            Runnable postCloseAction, ClickHouseCompression compression, int compressionLevel) {
         final ClickHouseInputStream chInput;
         if (compression == null || compression == ClickHouseCompression.NONE) {
-            chInput = new WrappedInputStream(file, input, bufferSize, postCloseAction);
+            chInput = input != EmptyInputStream.INSTANCE && input instanceof ClickHouseInputStream
+                    ? (ClickHouseInputStream) input
+                    : new WrappedInputStream(file, input, bufferSize, postCloseAction);
         } else {
             switch (compression) {
                 case GZIP:
@@ -485,7 +487,7 @@ public abstract class ClickHouseInputStream extends InputStream {
                 tmp = File.createTempFile("chc", "data");
                 tmp.deleteOnExit();
             } catch (IOException e) {
-                throw new IllegalStateException("Failed to create temp file", e);
+                throw new UncheckedIOException("Failed to create temp file", e);
             }
         }
         CompletableFuture<File> data = CompletableFuture.supplyAsync(() -> {
@@ -509,7 +511,9 @@ public abstract class ClickHouseInputStream extends InputStream {
         } catch (ExecutionException e) {
             Throwable cause = e.getCause();
             if (cause instanceof UncheckedIOException) {
-                cause = ((UncheckedIOException) cause).getCause();
+                throw ((UncheckedIOException) cause);
+            } else if (cause instanceof IOException) {
+                throw new UncheckedIOException((IOException) cause);
             }
             throw new IllegalStateException(cause);
         }

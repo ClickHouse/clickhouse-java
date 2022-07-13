@@ -202,7 +202,7 @@ public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
 
     @Override
     protected ClickHouseHttpResponse post(String sql, InputStream data, List<ClickHouseExternalTable> tables,
-            Map<String, String> headers) throws IOException {
+            String url, Map<String, String> headers, ClickHouseConfig config) throws IOException {
         Charset charset = StandardCharsets.US_ASCII;
         byte[] boundary = null;
         if (tables != null && !tables.isEmpty()) {

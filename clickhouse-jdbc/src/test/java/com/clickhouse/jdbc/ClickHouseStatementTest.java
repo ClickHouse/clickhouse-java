@@ -1,5 +1,6 @@
 package com.clickhouse.jdbc;
 
+import java.io.IOException;
 import java.sql.Array;
 import java.sql.BatchUpdateException;
 import java.sql.Connection;
@@ -81,8 +82,9 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
             stmt.executeQuery("select sleep(3)");
             Assert.fail("Should throw timeout exception");
         } catch (SQLException e) {
-            Assert.assertTrue(e.getCause() instanceof java.net.SocketTimeoutException,
-                    "Should throw SocketTimeoutException");
+            Assert.assertTrue(e.getCause() instanceof java.net.SocketTimeoutException
+                    || e.getCause() instanceof IOException,
+                    "Should throw SocketTimeoutException or HttpTimeoutException");
         }
     }
 

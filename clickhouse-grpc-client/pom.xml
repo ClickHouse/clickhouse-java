@@ -40,13 +40,13 @@
             <artifactId>gson</artifactId>
         </dependency>
         <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-compress</artifactId>
+        </dependency>
+        <dependency>
             <groupId>io.grpc</groupId>
             <artifactId>grpc-protobuf</artifactId>
             <scope>provided</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.commons</groupId>
-            <artifactId>commons-compress</artifactId>
         </dependency>
         <!-- necessary for Java 9+ -->
         <dependency>
@@ -120,6 +120,10 @@
                                     <shadedPattern>${shade.base}.okio</shadedPattern>
                                 </relocation>
                                 <relocation>
+                                    <pattern>org.apache</pattern>
+                                    <shadedPattern>${shade.base}.apache</shadedPattern>
+                                </relocation>
+                                <relocation>
                                     <pattern>io.grpc</pattern>
                                     <shadedPattern>${shade.base}.grpc</shadedPattern>
                                 </relocation>
@@ -153,7 +157,8 @@
                                         <exclude>android/**</exclude>
                                         <exclude>google/**</exclude>
                                         <exclude>javax/**</exclude>
-                                        <exclude>org/**</exclude>
+                                        <exclude>org/checkerframework/**</exclude>
+                                        <exclude>org/codehaus/**</exclude>
                                         <exclude>**/module-info.class</exclude>
                                         <exclude>META-INF/MANIFEST.MF</exclude>
                                         <exclude>META-INF/maven/**</exclude>
@@ -178,6 +183,10 @@
                                 <relocation>
                                     <pattern>com.google</pattern>
                                     <shadedPattern>${shade.base}.google</shadedPattern>
+                                </relocation>
+                                <relocation>
+                                    <pattern>org.apache</pattern>
+                                    <shadedPattern>${shade.base}.apache</shadedPattern>
                                 </relocation>
                                 <relocation>
                                     <pattern>io.grpc</pattern>
@@ -211,7 +220,8 @@
                                         <exclude>io/grpc/okhttp/**</exclude>
                                         <exclude>javax/**</exclude>
                                         <exclude>okio/**</exclude>
-                                        <exclude>org/**</exclude>
+                                        <exclude>org/checkerframework/**</exclude>
+                                        <exclude>org/codehaus/**</exclude>
                                         <exclude>**/module-info.class</exclude>
                                         <exclude>META-INF/MANIFEST.MF</exclude>
                                         <exclude>META-INF/maven/**</exclude>
@@ -246,6 +256,10 @@
                                     <shadedPattern>${shade.base}.okio</shadedPattern>
                                 </relocation>
                                 <relocation>
+                                    <pattern>org.apache</pattern>
+                                    <shadedPattern>${shade.base}.apache</shadedPattern>
+                                </relocation>
+                                <relocation>
                                     <pattern>io.grpc</pattern>
                                     <shadedPattern>${shade.base}.grpc</shadedPattern>
                                 </relocation>
@@ -275,7 +289,8 @@
                                         <exclude>google/**</exclude>
                                         <exclude>io/grpc/netty/**</exclude>
                                         <exclude>javax/**</exclude>
-                                        <exclude>org/**</exclude>
+                                        <exclude>org/checkerframework/**</exclude>
+                                        <exclude>org/codehaus/**</exclude>
                                         <exclude>**/module-info.class</exclude>
                                         <exclude>META-INF/MANIFEST.MF</exclude>
                                         <exclude>META-INF/maven/**</exclude>
