@@ -12,14 +12,10 @@ import com.clickhouse.client.ClickHouseNodes;
 import com.clickhouse.client.ClickHouseUtils;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.config.ClickHouseDefaults;
-import com.clickhouse.client.logging.Logger;
-import com.clickhouse.client.logging.LoggerFactory;
 import com.clickhouse.jdbc.JdbcConfig;
 import com.clickhouse.jdbc.SqlExceptionUtils;
 
 public class ClickHouseJdbcUrlParser {
-    private static final Logger log = LoggerFactory.getLogger(ClickHouseJdbcUrlParser.class);
-
     public static class ConnectionInfo {
         private final ClickHouseCredentials credentials;
         private final ClickHouseNodes nodes;
@@ -46,12 +42,29 @@ public class ClickHouseJdbcUrlParser {
             return this.credentials;
         }
 
+        /**
+         * Gets selected server.
+         *
+         * @return non-null selected server
+         * @deprecated will be removed in v0.3.3, please use {@link #getNodes()}
+         *             instead
+         */
+        @Deprecated
         public ClickHouseNode getServer() {
             return nodes.apply(nodes.getNodeSelector());
         }
 
         public JdbcConfig getJdbcConfig() {
             return jdbcConf;
+        }
+
+        /**
+         * Gets nodes defined in connection string.
+         *
+         * @return non-null nodes
+         */
+        public ClickHouseNodes getNodes() {
+            return nodes;
         }
 
         public Properties getProperties() {

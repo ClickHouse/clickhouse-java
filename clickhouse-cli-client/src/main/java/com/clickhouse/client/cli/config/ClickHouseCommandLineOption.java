@@ -8,10 +8,10 @@ import com.clickhouse.client.config.ClickHouseOption;
 public enum ClickHouseCommandLineOption implements ClickHouseOption {
     /**
      * ClickHouse native command-line client path. Empty value is treated as
-     * 'clickhouse-client'.
+     * 'clickhouse'.
      */
     CLICKHOUSE_CLI_PATH("clickhouse_cli_path", "",
-            "ClickHouse native command-line client path, empty value is treated as 'clickhouse-client'"),
+            "ClickHouse native command-line client path, empty value is treated as 'clickhouse'"),
     /**
      * ClickHouse docker image. Empty value is treated as
      * 'clickhouse/clickhouse-server'.

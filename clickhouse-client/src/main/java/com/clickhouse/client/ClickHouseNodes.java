@@ -315,6 +315,10 @@ public class ClickHouseNodes implements ClickHouseNodeManager {
      */
     protected final ClickHouseNodeSelector selector;
     /**
+     * Flag indicating whether it's single node or not.
+     */
+    protected final boolean singleNode;
+    /**
      * Template node.
      */
     protected final ClickHouseNode template;
@@ -358,8 +362,11 @@ public class ClickHouseNodes implements ClickHouseNodeManager {
             n.setManager(this);
         }
         if (autoDiscovery) {
+            this.singleNode = false;
             this.discoveryFuture.getAndUpdate(current -> policy.schedule(current, ClickHouseNodes.this::discover,
                     (int) template.config.getOption(ClickHouseClientOption.NODE_DISCOVERY_INTERVAL)));
+        } else {
+            this.singleNode = nodes.size() == 1;
         }
         this.healthCheckFuture.getAndUpdate(current -> policy.schedule(current, ClickHouseNodes.this::check,
                 (int) template.config.getOption(ClickHouseClientOption.HEALTH_CHECK_INTERVAL)));
@@ -470,6 +477,15 @@ public class ClickHouseNodes implements ClickHouseNodeManager {
      */
     protected ClickHouseNode get() {
         return apply(selector);
+    }
+
+    /**
+     * Checks whether it's single node or not.
+     *
+     * @return true if it's single node; false otherwise
+     */
+    public boolean isSingleNode() {
+        return singleNode;
     }
 
     @Override

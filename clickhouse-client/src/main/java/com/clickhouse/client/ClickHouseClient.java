@@ -151,7 +151,7 @@ public interface ClickHouseClient extends AutoCloseable {
 
     /**
      * Gets piped input stream for reading data from response asynchronously. When
-     * {@code config} is null or {@code config.isAsync()} is faluse, this method is
+     * {@code config} is null or {@code config.isAsync()} is false, this method is
      * same as
      * {@link #getResponseInputStream(ClickHouseConfig, InputStream, Runnable)}.
      *

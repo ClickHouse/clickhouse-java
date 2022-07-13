@@ -1,6 +1,8 @@
 package com.clickhouse.client;
 
 import java.io.Serializable;
+import java.io.UncheckedIOException;
+import java.net.ConnectException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -27,7 +29,7 @@ import com.clickhouse.client.config.ClickHouseDefaults;
  */
 public class ClickHouseClientBuilder {
     /**
-     * Dummy client which is only used {@link Agent}.
+     * Dummy client which is only used by {@link Agent}.
      */
     static class DummyClient implements ClickHouseClient {
         static final ClickHouseConfig CONFIG = new ClickHouseConfig();
@@ -40,7 +42,10 @@ public class ClickHouseClientBuilder {
 
         @Override
         public CompletableFuture<ClickHouseResponse> execute(ClickHouseRequest<?> request) {
-            return CompletableFuture.completedFuture(ClickHouseResponse.EMPTY);
+            CompletableFuture<ClickHouseResponse> future = new CompletableFuture<>();
+            future.completeExceptionally(
+                    new ConnectException("No client available for connecting to: " + request.getServer()));
+            return future;
         }
 
         @Override
@@ -55,7 +60,7 @@ public class ClickHouseClientBuilder {
 
         @Override
         public boolean ping(ClickHouseNode server, int timeout) {
-            return true;
+            return false;
         }
     }
 
@@ -166,6 +171,11 @@ public class ClickHouseClientBuilder {
         }
 
         ClickHouseResponse handle(ClickHouseRequest<?> sealedRequest, Throwable cause) {
+            // in case there's any recoverable exception wrapped by UncheckedIOException
+            if (cause instanceof UncheckedIOException && cause.getCause() != null) {
+                cause = ((UncheckedIOException) cause).getCause();
+            }
+
             try {
                 int times = sealedRequest.getConfig().getFailover();
                 if (times > 0) {
@@ -352,7 +362,7 @@ public class ClickHouseClientBuilder {
             }
         }
 
-        if (client == null) {
+        if (client == null && !agent) {
             throw new IllegalStateException(
                     ClickHouseUtils.format("No suitable ClickHouse client(out of %d) found in classpath for %s.",
                             counter, nodeSelector));

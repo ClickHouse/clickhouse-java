@@ -27,11 +27,13 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import com.clickhouse.client.ClickHouseChecker;
 import com.clickhouse.client.ClickHouseClient;
+import com.clickhouse.client.ClickHouseClientBuilder;
 import com.clickhouse.client.ClickHouseColumn;
 import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseFormat;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseNodeSelector;
+import com.clickhouse.client.ClickHouseNodes;
 import com.clickhouse.client.ClickHouseParameterizedQuery;
 import com.clickhouse.client.ClickHouseRecord;
 import com.clickhouse.client.ClickHouseRequest;
@@ -218,16 +220,33 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
         jdbcConf = connInfo.getJdbcConfig();
 
         autoCommit = !jdbcConf.isJdbcCompliant() || jdbcConf.isAutoCommit();
-
-        ClickHouseNode node = connInfo.getServer();
-        log.debug("Connecting to: %s", node);
-
         jvmTimeZone = TimeZone.getDefault();
 
-        client = ClickHouseClient.builder().options(ClickHouseDriver.toClientOptions(connInfo.getProperties()))
-                .defaultCredentials(connInfo.getDefaultCredentials())
-                .nodeSelector(ClickHouseNodeSelector.of(node.getProtocol())).build();
-        clientRequest = client.connect(node);
+        ClickHouseClientBuilder clientBuilder = ClickHouseClient.builder()
+                .options(ClickHouseDriver.toClientOptions(connInfo.getProperties()))
+                .defaultCredentials(connInfo.getDefaultCredentials());
+        ClickHouseNodes nodes = connInfo.getNodes();
+        final ClickHouseNode node;
+        if (nodes.isSingleNode()) {
+            try {
+                node = nodes.apply(nodes.getNodeSelector());
+            } catch (Exception e) {
+                throw SqlExceptionUtils.clientError("Failed to get single-node", e);
+            }
+            client = clientBuilder.nodeSelector(ClickHouseNodeSelector.of(node.getProtocol())).build();
+            clientRequest = client.connect(node);
+        } else {
+            log.debug("Selecting node from: %s", nodes);
+            client = clientBuilder.nodeSelector(nodes.getNodeSelector()).build();
+            clientRequest = client.connect(nodes);
+            try {
+                node = clientRequest.getServer();
+            } catch (Exception e) {
+                throw SqlExceptionUtils.clientError("No healthy node available", e);
+            }
+        }
+
+        log.debug("Connecting to: %s", node);
         ClickHouseConfig config = clientRequest.getConfig();
         String currentUser = null;
         TimeZone timeZone = null;
