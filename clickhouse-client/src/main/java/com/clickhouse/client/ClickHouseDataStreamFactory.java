@@ -152,7 +152,7 @@ public class ClickHouseDataStreamFactory {
         final CapacityPolicy policy;
         final int timeout;
 
-        if (config.getResponseBuffering() == ClickHouseBufferingMode.PERFORMANCE) {
+        if (config.getRequestBuffering() == ClickHouseBufferingMode.PERFORMANCE) {
             blocking = false;
             queue = 0;
             policy = null;
