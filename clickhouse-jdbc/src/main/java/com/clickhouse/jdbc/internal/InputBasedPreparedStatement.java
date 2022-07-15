@@ -77,7 +77,8 @@ public class InputBasedPreparedStatement extends AbstractPreparedStatement imple
 
         counter = 0;
         // it's important to make sure the queue has unlimited length
-        stream = ClickHouseDataStreamFactory.getInstance().createPipedOutputStream(config, null);
+        stream = ClickHouseDataStreamFactory.getInstance().createPipedOutputStream(config.getWriteBufferSize(), 0,
+                config.getSocketTimeout(), null);
     }
 
     protected void ensureParams() throws SQLException {
@@ -350,7 +351,10 @@ public class InputBasedPreparedStatement extends AbstractPreparedStatement imple
             // ignore
         }
         counter = 0;
-        stream = ClickHouseDataStreamFactory.getInstance().createPipedOutputStream(getConfig(), null);
+
+        ClickHouseConfig config = getConfig();
+        stream = ClickHouseDataStreamFactory.getInstance().createPipedOutputStream(config.getWriteBufferSize(), 0,
+                config.getSocketTimeout(), null);
     }
 
     @Override
