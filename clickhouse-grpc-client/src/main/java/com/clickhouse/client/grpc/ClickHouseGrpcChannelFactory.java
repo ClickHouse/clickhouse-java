@@ -1,7 +1,9 @@
 package com.clickhouse.client.grpc;
 
 import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.io.InputStreamReader;
+import java.net.SocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.HashMap;
@@ -11,6 +13,8 @@ import com.google.gson.Gson;
 import com.google.gson.stream.JsonReader;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
+import io.grpc.ProxiedSocketAddress;
+import io.grpc.ProxyDetector;
 import io.grpc.Status;
 import com.clickhouse.client.ClickHouseChecker;
 import com.clickhouse.client.ClickHouseConfig;
@@ -22,6 +26,18 @@ import com.clickhouse.client.logging.Logger;
 import com.clickhouse.client.logging.LoggerFactory;
 
 public abstract class ClickHouseGrpcChannelFactory {
+    static class NoProxyDetector implements ProxyDetector {
+        static final NoProxyDetector INSTANCE = new NoProxyDetector();
+
+        private NoProxyDetector() {
+        }
+
+        @Override
+        public ProxiedSocketAddress proxyFor(SocketAddress arg0) throws IOException {
+            return null;
+        }
+    }
+
     private static final Logger log = LoggerFactory.getLogger(ClickHouseGrpcChannelFactory.class);
 
     private static final String PROP_NAME = "name";
@@ -164,6 +180,9 @@ public abstract class ClickHouseGrpcChannelFactory {
             builder.enableFullStreamDecompression();
         }
 
+        if (config.isUseNoProxy()) {
+            builder.proxyDetector(NoProxyDetector.INSTANCE);
+        }
         // TODO add interceptor to customize retry
         builder.maxInboundMessageSize((int) config.getOption(ClickHouseGrpcOption.MAX_INBOUND_MESSAGE_SIZE))
                 .maxInboundMetadataSize((int) config.getOption(ClickHouseGrpcOption.MAX_INBOUND_METADATA_SIZE));

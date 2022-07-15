@@ -29,6 +29,9 @@ import java.io.Reader;
 import java.io.UncheckedIOException;
 import java.net.ConnectException;
 import java.net.HttpURLConnection;
+import java.net.Proxy;
+import java.net.ProxySelector;
+import java.net.SocketAddress;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpConnectTimeoutException;
@@ -52,6 +55,25 @@ import java.util.function.Function;
 import javax.net.ssl.SSLContext;
 
 public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
+    static class NoProxySelector extends ProxySelector {
+        static final NoProxySelector INSTANCE = new NoProxySelector();
+
+        private static final List<Proxy> NO_PROXY_LIST = List.of(Proxy.NO_PROXY);
+
+        private NoProxySelector() {
+        }
+
+        @Override
+        public void connectFailed(URI uri, SocketAddress sa, IOException e) {
+            // ignore
+        }
+
+        @Override
+        public List<Proxy> select(URI uri) {
+            return NO_PROXY_LIST;
+        }
+    }
+
     private static final Logger log = LoggerFactory.getLogger(HttpClientConnectionImpl.class);
 
     private final HttpClient httpClient;
@@ -146,6 +168,9 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
                 .connectTimeout(Duration.ofMillis(config.getConnectionTimeout())).followRedirects(Redirect.NORMAL);
         if (executor != null) {
             builder.executor(executor);
+        }
+        if (config.isUseNoProxy()) {
+            builder.proxy(NoProxySelector.INSTANCE);
         }
         if (config.isSsl()) {
             builder.sslContext(ClickHouseSslContextProvider.getProvider().getSslContext(SSLContext.class, config)
