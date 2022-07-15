@@ -19,7 +19,6 @@
             <groupId>${project.parent.groupId}</groupId>
             <artifactId>clickhouse-client</artifactId>
             <version>${revision}</version>
-            <scope>compile</scope>
         </dependency>
         <dependency>
             <groupId>com.google.code.gson</groupId>

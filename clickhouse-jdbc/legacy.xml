@@ -143,6 +143,11 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-failsafe-plugin</artifactId>
+                <configuration>
+                    <environmentVariables>
+                        <CHC_TEST_CONTAINER_ID>clickhouse-cli-client</CHC_TEST_CONTAINER_ID>
+                    </environmentVariables>
+                </configuration>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
