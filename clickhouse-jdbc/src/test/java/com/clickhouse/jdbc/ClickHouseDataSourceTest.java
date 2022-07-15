@@ -33,7 +33,7 @@ public class ClickHouseDataSourceTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test(groups = "integration")
+    @Test // (groups = "integration")
     public void testMultiEndpoints() throws SQLException {
         String httpEndpoint = "http://" + getServerAddress(ClickHouseProtocol.HTTP) + "/";
         String grpcEndpoint = "grpc://" + getServerAddress(ClickHouseProtocol.GRPC) + "/";
