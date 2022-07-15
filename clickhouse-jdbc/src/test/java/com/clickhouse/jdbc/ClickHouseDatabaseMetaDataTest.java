@@ -103,6 +103,21 @@ public class ClickHouseDatabaseMetaDataTest extends JdbcIntegrationTest {
     }
 
     @Test(groups = "integration")
+    public void testMaxRows() throws SQLException {
+        Properties props = new Properties();
+        props.setProperty(ClickHouseClientOption.MAX_RESULT_ROWS.getKey(), "1");
+        int count = 0;
+        try (ClickHouseConnection conn = newConnection(props)) {
+            try (ResultSet rs = conn.getMetaData().getColumns(conn.getCatalog(), conn.getSchema(), "%", "%")) {
+                while (rs.next()) {
+                    count++;
+                }
+            }
+        }
+        Assert.assertTrue(count > 1, "Should have more than one row returned");
+    }
+
+    @Test(groups = "integration")
     public void testTableComment() throws SQLException {
         String tableName = "test_table_comment";
         String tableComment = "table comments";
