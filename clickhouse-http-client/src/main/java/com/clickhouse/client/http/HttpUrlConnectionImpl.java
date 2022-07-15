@@ -27,6 +27,7 @@ import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.net.ConnectException;
 import java.net.HttpURLConnection;
+import java.net.Proxy;
 import java.net.URL;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
@@ -107,7 +108,9 @@ public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
     }
 
     private HttpURLConnection newConnection(String url, boolean post) throws IOException {
-        HttpURLConnection newConn = (HttpURLConnection) new URL(url).openConnection();
+        HttpURLConnection newConn = config.isUseNoProxy()
+                ? (HttpURLConnection) new URL(url).openConnection(Proxy.NO_PROXY)
+                : (HttpURLConnection) new URL(url).openConnection();
 
         if ((newConn instanceof HttpsURLConnection) && config.isSsl()) {
             HttpsURLConnection secureConn = (HttpsURLConnection) newConn;
@@ -143,12 +146,10 @@ public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
     private void setHeaders(HttpURLConnection conn, Map<String, String> headers) {
         headers = mergeHeaders(headers);
 
-        if (headers == null || headers.isEmpty()) {
-            return;
-        }
-
-        for (Entry<String, String> header : headers.entrySet()) {
-            conn.setRequestProperty(header.getKey(), header.getValue());
+        if (headers != null && !headers.isEmpty()) {
+            for (Entry<String, String> header : headers.entrySet()) {
+                conn.setRequestProperty(header.getKey(), header.getValue());
+            }
         }
     }
 

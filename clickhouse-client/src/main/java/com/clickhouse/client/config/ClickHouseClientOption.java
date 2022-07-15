@@ -288,6 +288,12 @@ public enum ClickHouseClientOption implements ClickHouseOption {
     USE_OBJECTS_IN_ARRAYS("use_objects_in_arrays", false,
             "Whether Object[] should be used instead of primitive arrays."),
     /**
+     * Whether to access ClickHouse server directly without using system wide proxy
+     * including the one defined in JVM system properties.
+     */
+    USE_NO_PROXY("use_no_proxy", false,
+            "Whether to access ClickHouse server directly without using system wide proxy including the one defined in JVM system properties."),
+    /**
      * Whether to use server time zone.
      */
     USE_SERVER_TIME_ZONE("use_server_time_zone", true,
