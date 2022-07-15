@@ -237,7 +237,7 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
             clientRequest = client.connect(node);
         } else {
             log.debug("Selecting node from: %s", nodes);
-            client = clientBuilder.nodeSelector(nodes.getNodeSelector()).build();
+            client = clientBuilder.build(); // use dummy client
             clientRequest = client.connect(nodes);
             try {
                 node = clientRequest.getServer();
@@ -246,7 +246,7 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
             }
         }
 
-        log.debug("Connecting to: %s", node);
+        log.warn("Connecting to: %s", node);
         ClickHouseConfig config = clientRequest.getConfig();
         String currentUser = null;
         TimeZone timeZone = null;

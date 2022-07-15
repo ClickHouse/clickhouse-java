@@ -17,12 +17,14 @@ import com.clickhouse.jdbc.SqlExceptionUtils;
 
 public class ClickHouseJdbcUrlParser {
     public static class ConnectionInfo {
+        private final String cacheKey;
         private final ClickHouseCredentials credentials;
         private final ClickHouseNodes nodes;
         private final JdbcConfig jdbcConf;
         private final Properties props;
 
-        protected ConnectionInfo(ClickHouseNodes nodes, Properties props) {
+        protected ConnectionInfo(String cacheKey, ClickHouseNodes nodes, Properties props) {
+            this.cacheKey = cacheKey;
             this.nodes = nodes;
             this.jdbcConf = new JdbcConfig(props);
             this.props = props;
@@ -113,10 +115,12 @@ public class ClickHouseJdbcUrlParser {
         }
 
         try {
-            ClickHouseNodes nodes = ClickHouseNodes.of(jdbcUrl, defaults);
+            String cacheKey = ClickHouseNodes.buildCacheKey(jdbcUrl, defaults);
+            ClickHouseNodes nodes = ClickHouseNodes.of(cacheKey, jdbcUrl, defaults);
             Properties props = newProperties();
             props.putAll(nodes.getTemplate().getOptions());
-            return new ConnectionInfo(nodes, props);
+            props.putAll(defaults);
+            return new ConnectionInfo(cacheKey, nodes, props);
         } catch (IllegalArgumentException e) {
             throw SqlExceptionUtils.clientError(e);
         }
