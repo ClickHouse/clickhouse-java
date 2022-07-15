@@ -26,7 +26,7 @@ import com.clickhouse.client.config.ClickHouseSslMode;
  */
 public class ClickHouseConfig implements Serializable {
     static final class ClientOptions {
-        private static final ClientOptions instance = new ClientOptions();
+        private static final ClientOptions INSTANCE = new ClientOptions();
 
         private final Map<String, ClickHouseOption> customOptions;
 
@@ -138,7 +138,7 @@ public class ClickHouseConfig implements Serializable {
     public static Map<ClickHouseOption, Serializable> toClientOptions(Map<?, ?> props) {
         Map<ClickHouseOption, Serializable> options = new HashMap<>();
         if (props != null && !props.isEmpty()) {
-            Map<String, ClickHouseOption> customOptions = ClientOptions.instance.customOptions;
+            Map<String, ClickHouseOption> customOptions = ClientOptions.INSTANCE.customOptions;
             for (Entry<?, ?> e : props.entrySet()) {
                 if (e.getKey() == null || e.getValue() == null) {
                     continue;
@@ -202,6 +202,7 @@ public class ClickHouseConfig implements Serializable {
     private final String sslKey;
     private final boolean useBlockingQueue;
     private final boolean useObjectsInArray;
+    private final boolean useNoProxy;
     private final boolean useServerTimeZone;
     private final boolean useServerTimeZoneForDates;
     private final TimeZone timeZoneForDate;
@@ -297,6 +298,7 @@ public class ClickHouseConfig implements Serializable {
         this.sslKey = (String) getOption(ClickHouseClientOption.SSL_KEY);
         this.useBlockingQueue = (boolean) getOption(ClickHouseClientOption.USE_BLOCKING_QUEUE);
         this.useObjectsInArray = (boolean) getOption(ClickHouseClientOption.USE_OBJECTS_IN_ARRAYS);
+        this.useNoProxy = (boolean) getOption(ClickHouseClientOption.USE_NO_PROXY);
         this.useServerTimeZone = (boolean) getOption(ClickHouseClientOption.USE_SERVER_TIME_ZONE);
         this.useServerTimeZoneForDates = (boolean) getOption(ClickHouseClientOption.USE_SERVER_TIME_ZONE_FOR_DATES);
 
@@ -647,6 +649,10 @@ public class ClickHouseConfig implements Serializable {
 
     public boolean isUseObjectsInArray() {
         return useObjectsInArray;
+    }
+
+    public boolean isUseNoProxy() {
+        return useNoProxy;
     }
 
     public boolean isUseServerTimeZone() {
