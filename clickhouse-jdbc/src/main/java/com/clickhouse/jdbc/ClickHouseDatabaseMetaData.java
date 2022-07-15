@@ -19,6 +19,7 @@ import java.util.Map;
 import com.clickhouse.client.ClickHouseChecker;
 import com.clickhouse.client.ClickHouseColumn;
 import com.clickhouse.client.ClickHouseDataType;
+import com.clickhouse.client.ClickHouseFormat;
 import com.clickhouse.client.ClickHouseParameterizedQuery;
 import com.clickhouse.client.ClickHouseUtils;
 import com.clickhouse.client.ClickHouseValues;
@@ -66,9 +67,11 @@ public class ClickHouseDatabaseMetaData extends JdbcWrapper implements DatabaseM
         SQLException error = null;
         try {
             ClickHouseStatement stmt = connection.createStatement();
+            stmt.setLargeMaxRows(0L);
             return new ClickHouseResultSet("", "", stmt,
                     // load everything into memory
                     ClickHouseSimpleResponse.of(stmt.getRequest()
+                            .format(ClickHouseFormat.RowBinaryWithNamesAndTypes)
                             .option(ClickHouseClientOption.RENAME_RESPONSE_COLUMN, ClickHouseRenameMethod.NONE)
                             .query(sql).execute().get(), func));
         } catch (InterruptedException e) {
