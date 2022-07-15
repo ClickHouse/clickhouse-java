@@ -42,57 +42,19 @@ public class ClickHouseNodes implements ClickHouseNodeManager {
     private static final char[] separators = new char[] { '/', '?', '#' };
 
     /**
-     * Build unique key for the given base URI and options.
-     *
-     * @param uri     non-null URI
-     * @param options options
-     * @return non-null unique key for caching
-     */
-    static String buildKey(String uri, Map<?, ?> options) {
-        if (uri == null) {
-            throw new IllegalArgumentException("Non-null URI required");
-        } else if ((uri = uri.trim()).isEmpty()) {
-            throw new IllegalArgumentException("Non-blank URI required");
-        }
-        if (options == null || options.isEmpty()) {
-            return uri;
-        }
-
-        SortedMap<Object, Object> sorted;
-        if (options instanceof SortedMap) {
-            sorted = (SortedMap<Object, Object>) options;
-        } else {
-            sorted = new TreeMap<>();
-            for (Entry<?, ?> entry : options.entrySet()) {
-                if (entry.getKey() != null) {
-                    sorted.put(entry.getKey(), entry.getValue());
-                }
-            }
-        }
-
-        StringBuilder builder = new StringBuilder(uri).append('|');
-        for (Entry<Object, Object> entry : sorted.entrySet()) {
-            if (entry.getKey() != null) {
-                builder.append(entry.getKey()).append('=').append(entry.getValue()).append(',');
-            }
-        }
-        return builder.toString();
-    }
-
-    /**
      * Creates list of managed {@link ClickHouseNode} for load balancing and
      * fail-over.
      *
-     * @param enpoints       non-empty URIs separated by comma
+     * @param endpoints      non-empty URIs separated by comma
      * @param defaultOptions default options
      * @return non-null list of nodes
      */
-    static ClickHouseNodes create(String enpoints, Map<?, ?> defaultOptions) {
-        int index = enpoints.indexOf(ClickHouseNode.SCHEME_DELIMITER);
+    static ClickHouseNodes create(String endpoints, Map<?, ?> defaultOptions) {
+        int index = endpoints.indexOf(ClickHouseNode.SCHEME_DELIMITER);
         String defaultProtocol = ((ClickHouseProtocol) ClickHouseDefaults.PROTOCOL
                 .getEffectiveDefaultValue()).name();
         if (index > 0) {
-            defaultProtocol = enpoints.substring(0, index);
+            defaultProtocol = endpoints.substring(0, index);
             if (ClickHouseProtocol.fromUriScheme(defaultProtocol) == ClickHouseProtocol.ANY) {
                 defaultProtocol = ClickHouseProtocol.ANY.name();
                 index = 0;
@@ -106,13 +68,13 @@ public class ClickHouseNodes implements ClickHouseNodeManager {
         String defaultParams = "";
         Set<String> list = new LinkedHashSet<>();
         char stopChar = ',';
-        for (int i = index, len = enpoints.length(); i < len; i++) {
-            char ch = enpoints.charAt(i);
+        for (int i = index, len = endpoints.length(); i < len; i++) {
+            char ch = endpoints.charAt(i);
             if (ch == ',' || Character.isWhitespace(ch)) {
                 index++;
                 continue;
             } else if (ch == '/' || ch == '?' || ch == '#') {
-                defaultParams = enpoints.substring(i);
+                defaultParams = endpoints.substring(i);
                 break;
             }
             switch (ch) {
@@ -130,19 +92,19 @@ public class ClickHouseNodes implements ClickHouseNodeManager {
 
             int endIndex = i;
             for (int j = i + 1; j < len; j++) {
-                ch = enpoints.charAt(j);
+                ch = endpoints.charAt(j);
                 if (ch == stopChar || Character.isWhitespace(ch)) {
                     endIndex = j;
                     break;
                 }
             }
             if (endIndex > i) {
-                list.add(enpoints.substring(index, endIndex).trim());
+                list.add(endpoints.substring(index, endIndex).trim());
                 i = endIndex;
                 index = endIndex + 1;
                 stopChar = ',';
             } else {
-                String last = enpoints.substring(index);
+                String last = endpoints.substring(index);
                 int sepIndex = last.indexOf(ClickHouseNode.SCHEME_DELIMITER);
                 int startIndex = sepIndex < 0 ? 0 : sepIndex + 3;
                 for (char spec : separators) {
@@ -167,9 +129,9 @@ public class ClickHouseNodes implements ClickHouseNodeManager {
         }
 
         if (list.size() == 1 && defaultParams.isEmpty()) {
-            enpoints = new StringBuilder().append(defaultProtocol).append(ClickHouseNode.SCHEME_DELIMITER)
+            endpoints = new StringBuilder().append(defaultProtocol).append(ClickHouseNode.SCHEME_DELIMITER)
                     .append(list.iterator().next()).toString();
-            return new ClickHouseNodes(Collections.singletonList(ClickHouseNode.of(enpoints, defaultOptions)));
+            return new ClickHouseNodes(Collections.singletonList(ClickHouseNode.of(endpoints, defaultOptions)));
         }
 
         ClickHouseNode defaultNode = ClickHouseNode.of(defaultProtocol + "://localhost" + defaultParams,
@@ -248,30 +210,87 @@ public class ClickHouseNodes implements ClickHouseNodeManager {
     }
 
     /**
-     * Gets or creates list of managed {@link ClickHouseNode} for load balancing
-     * and fail-over.
+     * Build unique key according to the given base URI and options for caching.
      *
-     * @param enpoints non-empty URIs separated by comma
-     * @return non-null list of nodes
+     * @param uri     non-null URI
+     * @param options options
+     * @return non-empty unique key for caching
      */
-    public static ClickHouseNodes of(String enpoints) {
-        return of(enpoints, Collections.emptyMap());
+    public static String buildCacheKey(String uri, Map<?, ?> options) {
+        if (uri == null) {
+            throw new IllegalArgumentException("Non-null URI required");
+        } else if ((uri = uri.trim()).isEmpty()) {
+            throw new IllegalArgumentException("Non-blank URI required");
+        }
+        if (options == null || options.isEmpty()) {
+            return uri;
+        }
+
+        SortedMap<Object, Object> sorted;
+        if (options instanceof SortedMap) {
+            sorted = (SortedMap<Object, Object>) options;
+        } else {
+            sorted = new TreeMap<>();
+            for (Entry<?, ?> entry : options.entrySet()) {
+                if (entry.getKey() != null) {
+                    sorted.put(entry.getKey(), entry.getValue());
+                }
+            }
+        }
+
+        StringBuilder builder = new StringBuilder(uri).append('|');
+        for (Entry<Object, Object> entry : sorted.entrySet()) {
+            if (entry.getKey() != null) {
+                builder.append(entry.getKey()).append('=').append(entry.getValue()).append(',');
+            }
+        }
+        return builder.toString();
     }
 
     /**
      * Gets or creates list of managed {@link ClickHouseNode} for load balancing
      * and fail-over.
      *
-     * @param enpoints non-empty URIs separated by comma
-     * @param options  default options
+     * @param endpoints non-empty URIs separated by comma
      * @return non-null list of nodes
      */
-    public static ClickHouseNodes of(String enpoints, Map<?, ?> options) {
+    public static ClickHouseNodes of(String endpoints) {
+        return of(endpoints, Collections.emptyMap());
+    }
+
+    /**
+     * Gets or creates list of managed {@link ClickHouseNode} for load balancing
+     * and fail-over.
+     *
+     * @param endpoints non-empty URIs separated by comma
+     * @param options   default options
+     * @return non-null list of nodes
+     */
+    public static ClickHouseNodes of(String endpoints, Map<?, ?> options) {
+        return cache.computeIfAbsent(buildCacheKey(ClickHouseChecker.nonEmpty(endpoints, "Endpoints"), options),
+                k -> create(endpoints, options));
+    }
+
+    /**
+     * Gets or creates list of managed {@link ClickHouseNode} for load balancing
+     * and fail-over. Since the list will be cached in a {@link WeakHashMap}, as
+     * long as you hold strong reference to the {@code cacheKey}, same combination
+     * of {@code endpoints} and {@code options} will be always mapped to the exact
+     * same list.
+     *
+     * @param cacheKey  non-empty cache key
+     * @param endpoints non-empty URIs separated by comma
+     * @param options   default options
+     * @return non-null list of nodes
+     */
+    public static ClickHouseNodes of(String cacheKey, String endpoints, Map<?, ?> options) {
         // TODO discover endpoints from a URL or custom service, for examples:
         // discover://(smb://fs1/ch-list.txt),(smb://fs1/ch-dc.json)
         // discover:com.mycompany.integration.clickhouse.Endpoints
-        return cache.computeIfAbsent(buildKey(ClickHouseChecker.nonEmpty(enpoints, "Endpoints"), options),
-                k -> create(enpoints, options));
+        if (ClickHouseChecker.isNullOrEmpty(cacheKey) || ClickHouseChecker.isNullOrEmpty(endpoints)) {
+            throw new IllegalArgumentException("Non-empty cache key and endpoints are required");
+        }
+        return cache.computeIfAbsent(cacheKey, k -> create(endpoints, options));
     }
 
     /**
@@ -314,6 +333,10 @@ public class ClickHouseNodes implements ClickHouseNodeManager {
      * Load balancing tags for filtering out nodes.
      */
     protected final ClickHouseNodeSelector selector;
+    /**
+     * Flag indicating whether it's single node or not.
+     */
+    protected final boolean singleNode;
     /**
      * Template node.
      */
@@ -358,8 +381,11 @@ public class ClickHouseNodes implements ClickHouseNodeManager {
             n.setManager(this);
         }
         if (autoDiscovery) {
+            this.singleNode = false;
             this.discoveryFuture.getAndUpdate(current -> policy.schedule(current, ClickHouseNodes.this::discover,
                     (int) template.config.getOption(ClickHouseClientOption.NODE_DISCOVERY_INTERVAL)));
+        } else {
+            this.singleNode = nodes.size() == 1;
         }
         this.healthCheckFuture.getAndUpdate(current -> policy.schedule(current, ClickHouseNodes.this::check,
                 (int) template.config.getOption(ClickHouseClientOption.HEALTH_CHECK_INTERVAL)));
@@ -470,6 +496,15 @@ public class ClickHouseNodes implements ClickHouseNodeManager {
      */
     protected ClickHouseNode get() {
         return apply(selector);
+    }
+
+    /**
+     * Checks whether it's single node or not.
+     *
+     * @return true if it's single node; false otherwise
+     */
+    public boolean isSingleNode() {
+        return singleNode;
     }
 
     @Override
@@ -747,6 +782,6 @@ public class ClickHouseNodes implements ClickHouseNodeManager {
                 .append(index.get()).append(", lock=r").append(lock.getReadHoldCount()).append('w')
                 .append(lock.getWriteHoldCount()).append(", nodes=").append(nodes.size()).append(", faulty=")
                 .append(faultyNodes.size()).append(", policy=").append(policy.getClass().getSimpleName())
-                .append(", tags=").append(selector.getPreferredTags()).append(']').toString();
+                .append(", tags=").append(selector.getPreferredTags()).append("]@").append(hashCode()).toString();
     }
 }

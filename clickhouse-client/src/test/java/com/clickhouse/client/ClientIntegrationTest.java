@@ -177,9 +177,10 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
         Assert.assertNotEquals(getProtocol(), ClickHouseProtocol.ANY,
                 "The client should support a specific protocol instead of ANY");
 
-        try (ClickHouseClient client1 = ClickHouseClient.builder().build();
+        try (ClickHouseClient client1 = ClickHouseClient.builder()
+                .nodeSelector(ClickHouseNodeSelector.of(getProtocol())).build();
                 ClickHouseClient client2 = ClickHouseClient.builder().option(ClickHouseClientOption.ASYNC, false)
-                        .build();
+                        .nodeSelector(ClickHouseNodeSelector.of(ClickHouseProtocol.ANY)).build();
                 ClickHouseClient client3 = ClickHouseClient.newInstance();
                 ClickHouseClient client4 = ClickHouseClient.newInstance(getProtocol());
                 ClickHouseClient client5 = getClient()) {
@@ -419,7 +420,8 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
     public void testQueryInSameThread() throws Exception {
         ClickHouseNode server = getServer();
 
-        try (ClickHouseClient client = ClickHouseClient.builder().option(ClickHouseClientOption.ASYNC, false).build()) {
+        try (ClickHouseClient client = ClickHouseClient.builder().nodeSelector(ClickHouseNodeSelector.EMPTY)
+                .option(ClickHouseClientOption.ASYNC, false).build()) {
             CompletableFuture<ClickHouseResponse> future = client.connect(server)
                     .format(ClickHouseFormat.TabSeparatedWithNamesAndTypes).query("select 1,2").execute();
             // Assert.assertTrue(future instanceof ClickHouseImmediateFuture);

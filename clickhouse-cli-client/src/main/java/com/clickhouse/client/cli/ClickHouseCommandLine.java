@@ -8,6 +8,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
+import java.net.ConnectException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -93,7 +94,7 @@ public class ClickHouseCommandLine implements AutoCloseable {
             cli = DEFAULT_DOCKER_CLI_PATH;
         }
         if (!check(timeout, cli, DEFAULT_CLI_ARG_VERSION)) {
-            throw new IllegalStateException("Docker command-line is not available: " + cli);
+            throw new UncheckedIOException(new ConnectException("Docker command-line is not available: " + cli));
         } else {
             commands.add(cli);
         }
@@ -111,7 +112,7 @@ public class ClickHouseCommandLine implements AutoCloseable {
                             DEFAULT_CLI_ARG_VERSION)
                             && !check(timeout, cli, "run", "--rm", "--name", str, "-v", hostDir + ':' + containerDir,
                                     "-d", img, "tail", "-f", "/dev/null")) {
-                        throw new IllegalStateException("Failed to start new container: " + str);
+                        throw new UncheckedIOException(new ConnectException("Failed to start new container: " + str));
                     }
                 }
             }
@@ -122,7 +123,7 @@ public class ClickHouseCommandLine implements AutoCloseable {
         } else { // create new container for each query
             if (!check(timeout, cli, "run", "--rm", img, DEFAULT_CLICKHOUSE_CLI_PATH, DEFAULT_CLIENT_OPTION,
                     DEFAULT_CLI_ARG_VERSION)) {
-                throw new IllegalStateException("Invalid ClickHouse docker image: " + img);
+                throw new UncheckedIOException(new ConnectException("Invalid ClickHouse docker image: " + img));
             }
             commands.add("run");
             commands.add("--rm");
@@ -234,6 +235,10 @@ public class ClickHouseCommandLine implements AutoCloseable {
         value = settings.get("result_overflow_mode");
         if (value != null) {
             commands.add("--result_overflow_mode=".concat(value.toString()));
+        }
+        value = settings.get("readonly");
+        if (value != null) {
+            commands.add("--readonly=".concat(value.toString()));
         }
         if ((boolean) config.getOption(ClickHouseCommandLineOption.USE_PROFILE_EVENTS)) {
             commands.add("--print-profile-events");

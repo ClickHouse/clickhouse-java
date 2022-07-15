@@ -37,5 +37,13 @@ public class LogMessageTest {
         msg = LogMessage.of("test %s", 1, t);
         Assert.assertEquals("test 1", msg.getMessage());
         Assert.assertEquals(t, msg.getThrowable());
+
+        msg = LogMessage.of("test %d %s", 1, t);
+        Assert.assertEquals("test 1 java.lang.Exception", msg.getMessage());
+        Assert.assertEquals(t, msg.getThrowable());
+
+        msg = LogMessage.of("test %d %s", 1, t, null);
+        Assert.assertEquals("test 1 java.lang.Exception", msg.getMessage());
+        Assert.assertEquals(msg.getThrowable(), null);
     }
 }

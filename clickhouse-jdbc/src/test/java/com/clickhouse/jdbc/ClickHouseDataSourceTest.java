@@ -1,5 +1,6 @@
 package com.clickhouse.jdbc;
 
+import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
@@ -8,10 +9,53 @@ import java.util.Properties;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
+import com.clickhouse.client.ClickHouseLoadBalancingPolicy;
+import com.clickhouse.client.ClickHouseProtocol;
+import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.config.ClickHouseDefaults;
 
 public class ClickHouseDataSourceTest extends JdbcIntegrationTest {
+    @Test(groups = "integration")
+    public void testHighAvailabilityConfig() throws SQLException {
+        String httpEndpoint = "http://" + getServerAddress(ClickHouseProtocol.HTTP) + "/";
+        String grpcEndpoint = "grpc://" + getServerAddress(ClickHouseProtocol.GRPC) + "/";
+        String tcpEndpoint = "tcp://" + getServerAddress(ClickHouseProtocol.TCP) + "/";
+
+        String url = "jdbc:ch://(" + httpEndpoint + "),(" + grpcEndpoint + "),(" + tcpEndpoint + ")/system";
+        Properties props = new Properties();
+        props.setProperty("failover", "21");
+        props.setProperty("load_balancing_policy", "roundRobin");
+        try (Connection conn = DriverManager.getConnection(url, props)) {
+            Assert.assertEquals(conn.unwrap(ClickHouseRequest.class).getConfig().getFailover(), 21);
+            Assert.assertEquals(conn.unwrap(ClickHouseRequest.class).getConfig().getOption(
+                    ClickHouseClientOption.LOAD_BALANCING_POLICY), ClickHouseLoadBalancingPolicy.ROUND_ROBIN);
+        }
+    }
+
+    @Test // (groups = "integration")
+    public void testMultiEndpoints() throws SQLException {
+        String httpEndpoint = "http://" + getServerAddress(ClickHouseProtocol.HTTP) + "/";
+        String grpcEndpoint = "grpc://" + getServerAddress(ClickHouseProtocol.GRPC) + "/";
+        String tcpEndpoint = "tcp://" + getServerAddress(ClickHouseProtocol.TCP) + "/";
+
+        String url = "jdbc:ch://(" + httpEndpoint + "),(" + grpcEndpoint + "),(" + tcpEndpoint
+                + ")/system?load_balancing_policy=roundRobin";
+        Properties props = new Properties();
+        props.setProperty("user", "default");
+        props.setProperty("password", "");
+        ClickHouseDataSource ds = new ClickHouseDataSource(url, props);
+        for (int i = 0; i < 10; i++) {
+            try (Connection httpConn = ds.getConnection();
+                    Connection grpcConn = ds.getConnection("default", "");
+                    Connection tcpConn = DriverManager.getConnection(url, props)) {
+                Assert.assertEquals(httpConn.unwrap(ClickHouseRequest.class).getServer().getBaseUri(), httpEndpoint);
+                Assert.assertEquals(grpcConn.unwrap(ClickHouseRequest.class).getServer().getBaseUri(), grpcEndpoint);
+                Assert.assertEquals(tcpConn.unwrap(ClickHouseRequest.class).getServer().getBaseUri(), tcpEndpoint);
+            }
+        }
+    }
+
     @Test(groups = "integration")
     public void testGetConnection() throws SQLException {
         String url = "jdbc:ch:" + DEFAULT_PROTOCOL.name() + "://" + getServerAddress(DEFAULT_PROTOCOL);

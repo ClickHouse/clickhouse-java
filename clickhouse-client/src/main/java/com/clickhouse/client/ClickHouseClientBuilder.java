@@ -1,6 +1,9 @@
 package com.clickhouse.client;
 
 import java.io.Serializable;
+import java.io.UncheckedIOException;
+import java.net.ConnectException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -27,25 +30,36 @@ import com.clickhouse.client.config.ClickHouseDefaults;
  */
 public class ClickHouseClientBuilder {
     /**
-     * Dummy client which is only used {@link Agent}.
+     * Dummy client which is only used by {@link Agent}.
      */
     static class DummyClient implements ClickHouseClient {
-        static final ClickHouseConfig CONFIG = new ClickHouseConfig();
-        static final DummyClient INSTANCE = new DummyClient();
+        static final ClickHouseConfig DEFAULT_CONFIG = new ClickHouseConfig();
+
+        private final ClickHouseConfig config;
+
+        DummyClient() {
+            this(null);
+        }
+
+        DummyClient(ClickHouseConfig config) {
+            this.config = config != null ? config : DEFAULT_CONFIG;
+        }
 
         @Override
         public boolean accept(ClickHouseProtocol protocol) {
-            return true;
+            return false;
         }
 
         @Override
         public CompletableFuture<ClickHouseResponse> execute(ClickHouseRequest<?> request) {
-            return CompletableFuture.completedFuture(ClickHouseResponse.EMPTY);
+            CompletableFuture<ClickHouseResponse> future = new CompletableFuture<>();
+            future.completeExceptionally(new ConnectException("No client available"));
+            return future;
         }
 
         @Override
         public ClickHouseConfig getConfig() {
-            return CONFIG;
+            return config;
         }
 
         @Override
@@ -55,7 +69,7 @@ public class ClickHouseClientBuilder {
 
         @Override
         public boolean ping(ClickHouseNode server, int timeout) {
-            return true;
+            return false;
         }
     }
 
@@ -68,8 +82,8 @@ public class ClickHouseClientBuilder {
 
         private final AtomicReference<ClickHouseClient> client;
 
-        Agent(ClickHouseClient client) {
-            this.client = new AtomicReference<>(client != null ? client : DummyClient.INSTANCE);
+        Agent(ClickHouseClient client, ClickHouseConfig config) {
+            this.client = new AtomicReference<>(client != null ? client : new DummyClient(config));
         }
 
         ClickHouseClient getClient() {
@@ -90,25 +104,27 @@ public class ClickHouseClientBuilder {
             return changed;
         }
 
-        ClickHouseResponse failover(ClickHouseRequest<?> sealedRequest, Throwable cause, int times) {
+        ClickHouseResponse failover(ClickHouseRequest<?> sealedRequest, ClickHouseException exception, int times) {
             for (int i = 1; i <= times; i++) {
-                log.debug("Failover %d of %d due to: %s", i, times, cause.getMessage());
+                log.debug("Failover %d of %d due to: %s", i, times, exception.getCause(), null);
                 ClickHouseNode current = sealedRequest.getServer();
                 ClickHouseNodeManager manager = current.manager.get();
                 if (manager == null) {
                     break;
                 }
-                ClickHouseNode next = manager.suggestNode(current, cause);
+                ClickHouseNode next = manager.suggestNode(current, exception);
                 if (next == current) {
+                    log.debug("Cancel failover for same node returned from %s", manager.getPolicy());
                     break;
                 }
                 current.update(Status.FAULTY);
                 next = sealedRequest.changeServer(current, next);
                 if (next == current) {
+                    log.debug("Cancel failover for no alternative of %s", current);
                     break;
                 }
 
-                log.info("Switching node from %s to %s due to: %s", current, next, cause.getMessage());
+                log.info("Switching node from %s to %s due to: %s", current, next, exception.getCause(), null);
                 final ClickHouseProtocol protocol = next.getProtocol();
                 final ClickHouseClient currentClient = client.get();
                 if (!currentClient.accept(protocol)) {
@@ -118,64 +134,70 @@ public class ClickHouseClientBuilder {
                                 .config(new ClickHouseConfig(currentClient.getConfig(), next.config))
                                 .nodeSelector(ClickHouseNodeSelector.of(protocol)).build();
                     } catch (Exception e) {
-                        cause = e;
-                        continue;
+                        exception = ClickHouseException.of(new ConnectException("No client available for " + next),
+                                sealedRequest.getServer());
                     } finally {
                         if (newClient != null) {
                             boolean changed = changeClient(currentClient, newClient);
-                            log.debug("Switching client from %s to %s: %s", currentClient, newClient, changed);
+                            log.info("Switching client from %s to %s: %s", currentClient, newClient, changed);
                             if (changed) {
                                 sealedRequest.resetCache();
                             }
                         }
+                    }
+
+                    if (newClient == null) {
+                        continue;
                     }
                 }
 
                 try {
                     return sendOnce(sealedRequest);
                 } catch (Exception exp) {
-                    cause = exp.getCause();
-                    if (cause == null) {
-                        cause = exp;
-                    }
+                    exception = ClickHouseException.of(exp.getCause() != null ? exp.getCause() : exp,
+                            sealedRequest.getServer());
                 }
             }
 
-            throw new CompletionException(cause);
+            throw new CompletionException(exception);
         }
 
-        ClickHouseResponse retry(ClickHouseRequest<?> sealedRequest, Throwable cause, int times) {
+        ClickHouseResponse retry(ClickHouseRequest<?> sealedRequest, ClickHouseException exception, int times) {
             for (int i = 1; i <= times; i++) {
-                log.debug("Retry %d of %d due to: %s", i, times, cause.getMessage());
+                log.debug("Retry %d of %d due to: %s", i, times, exception.getMessage());
                 // TODO retry idempotent query
-                if (cause instanceof ClickHouseException
-                        && ((ClickHouseException) cause).getErrorCode() == ClickHouseException.ERROR_NETWORK) {
+                if (exception.getErrorCode() == ClickHouseException.ERROR_NETWORK) {
                     log.info("Retry request on %s due to connection issue", sealedRequest.getServer());
                     try {
                         return sendOnce(sealedRequest);
                     } catch (Exception exp) {
-                        cause = exp.getCause();
-                        if (cause == null) {
-                            cause = exp;
-                        }
+                        exception = ClickHouseException.of(exp.getCause() != null ? exp.getCause() : exp,
+                                sealedRequest.getServer());
                     }
                 }
             }
 
-            throw new CompletionException(cause);
+            throw new CompletionException(exception);
         }
 
         ClickHouseResponse handle(ClickHouseRequest<?> sealedRequest, Throwable cause) {
+            // in case there's any recoverable exception wrapped by UncheckedIOException
+            if (cause instanceof UncheckedIOException && cause.getCause() != null) {
+                cause = ((UncheckedIOException) cause).getCause();
+            }
+
+            log.debug("Handling %s(failover=%d, retry=%d)", cause, sealedRequest.getConfig().getFailover(),
+                    sealedRequest.getConfig().getRetry());
             try {
                 int times = sealedRequest.getConfig().getFailover();
                 if (times > 0) {
-                    return failover(sealedRequest, cause, times);
+                    return failover(sealedRequest, ClickHouseException.of(cause, sealedRequest.getServer()), times);
                 }
 
                 // different from failover: 1) retry on the same node; 2) never retry on timeout
                 times = sealedRequest.getConfig().getRetry();
                 if (times > 0) {
-                    return retry(sealedRequest, cause, times);
+                    return retry(sealedRequest, ClickHouseException.of(cause, sealedRequest.getServer()), times);
                 }
 
                 throw new CompletionException(cause);
@@ -200,8 +222,8 @@ public class ClickHouseClientBuilder {
         ClickHouseResponse send(ClickHouseRequest<?> sealedRequest) {
             try {
                 return sendOnce(sealedRequest);
-            } catch (CompletionException e) {
-                return handle(sealedRequest, e.getCause());
+            } catch (Exception e) {
+                return handle(sealedRequest, e.getCause() != null ? e.getCause() : e);
             }
         }
 
@@ -228,9 +250,32 @@ public class ClickHouseClientBuilder {
         @Override
         public CompletableFuture<ClickHouseResponse> execute(ClickHouseRequest<?> request) {
             final ClickHouseRequest<?> sealedRequest = request.seal();
+            final ClickHouseNode server = sealedRequest.getServer();
+            final ClickHouseProtocol protocol = server.getProtocol();
+            final ClickHouseClient currentClient = client.get();
+            if (!currentClient.accept(protocol)) {
+                ClickHouseClient newClient = null;
+                try {
+                    newClient = ClickHouseClient.builder().agent(false)
+                            .config(new ClickHouseConfig(currentClient.getConfig(), server.config))
+                            .nodeSelector(ClickHouseNodeSelector.of(protocol)).build();
+                } catch (IllegalStateException e) {
+                    // let it fail on execution phase
+                    log.debug("Failed to find client for %s", server);
+                } finally {
+                    if (newClient != null) {
+                        boolean changed = changeClient(currentClient, newClient);
+                        log.debug("Switching client from %s to %s: %s", currentClient, newClient, changed);
+                        if (changed) {
+                            sealedRequest.resetCache();
+                        }
+                    }
+                }
+            }
             return sealedRequest.getConfig().isAsync()
                     ? getClient().execute(sealedRequest)
-                            .handle((r, t) -> t == null ? r : handle(sealedRequest, t.getCause()))
+                            .handle((r, t) -> t == null ? r
+                                    : handle(sealedRequest, t.getCause() != null ? t.getCause() : t))
                     : CompletableFuture.completedFuture(send(sealedRequest));
         }
 
@@ -339,26 +384,28 @@ public class ClickHouseClientBuilder {
     public ClickHouseClient build() {
         ClickHouseClient client = null;
 
-        boolean noSelector = nodeSelector == null || nodeSelector == ClickHouseNodeSelector.EMPTY;
-        int counter = 0;
         ClickHouseConfig conf = getConfig();
-        for (ClickHouseClient c : loadClients()) {
-            c.init(conf);
+        int counter = 0;
+        if (nodeSelector != null) {
+            for (ClickHouseClient c : loadClients()) {
+                c.init(conf);
 
-            counter++;
-            if (noSelector || nodeSelector.match(c)) {
-                client = c;
-                break;
+                counter++;
+                if (nodeSelector == ClickHouseNodeSelector.EMPTY || nodeSelector.match(c)) {
+                    client = c;
+                    break;
+                }
             }
         }
 
-        if (client == null) {
+        if (agent) {
+            return new Agent(client, conf);
+        } else if (client == null) {
             throw new IllegalStateException(
                     ClickHouseUtils.format("No suitable ClickHouse client(out of %d) found in classpath for %s.",
                             counter, nodeSelector));
         }
-
-        return agent ? new Agent(client) : client;
+        return client;
     }
 
     /**
@@ -475,7 +522,11 @@ public class ClickHouseClientBuilder {
      */
     public ClickHouseClientBuilder nodeSelector(ClickHouseNodeSelector nodeSelector) {
         if (!ClickHouseChecker.nonNull(nodeSelector, "nodeSelector").equals(this.nodeSelector)) {
-            this.nodeSelector = nodeSelector;
+            this.nodeSelector = (nodeSelector.getPreferredProtocols().isEmpty() || nodeSelector.getPreferredProtocols()
+                    .equals(Collections.singletonList(ClickHouseProtocol.ANY)))
+                    && nodeSelector.getPreferredTags().isEmpty()
+                            ? ClickHouseNodeSelector.EMPTY
+                            : nodeSelector;
             resetConfig();
         }
 

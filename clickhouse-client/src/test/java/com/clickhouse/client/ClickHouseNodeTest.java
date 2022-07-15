@@ -379,7 +379,7 @@ public class ClickHouseNodeTest extends BaseIntegrationTest {
         Assert.assertEquals(server.toUri(), new URI("http://localhost:1234?/a/b/c=d"));
 
         Assert.assertEquals(ClickHouseNode.of("https://myserver/db/1/2/3?a%20=%201&b=/root/my.crt").toUri(),
-                new URI("http://myserver:8443/db/1/2/3?ssl=true&sslmode=STRICT&a%20=%201&b=/root/my.crt"));
+                new URI("http://myserver:8443/db/1/2/3?a%20=%201&b=/root/my.crt&ssl=true&sslmode=STRICT"));
     }
 
     @Test(groups = { "integration" })
