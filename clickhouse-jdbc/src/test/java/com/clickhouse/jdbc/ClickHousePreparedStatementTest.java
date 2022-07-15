@@ -711,6 +711,49 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
     }
 
     @Test(groups = "integration")
+    public void testBatchInsertWithoutUnboundedQueue() throws Exception {
+        Properties props = new Properties();
+        props.setProperty(ClickHouseClientOption.WRITE_BUFFER_SIZE.getKey(), "1");
+        props.setProperty(ClickHouseClientOption.MAX_QUEUED_BUFFERS.getKey(), "1");
+        try (ClickHouseConnection conn = newConnection(new Properties());
+                Statement s = conn.createStatement()) {
+            s.execute("drop table if exists test_insert_buffer_size; "
+                    + "CREATE TABLE test_insert_buffer_size(value String) ENGINE=Memory");
+            try (PreparedStatement ps = conn.prepareStatement(
+                    "INSERT INTO test_insert_buffer_size")) {
+                ps.setString(1, "1");
+                ps.addBatch();
+                ps.setString(1, "2");
+                ps.addBatch();
+                ps.setString(1, "3");
+                ps.addBatch();
+                ps.executeBatch();
+
+                ps.setString(1, "4");
+                ps.addBatch();
+                ps.executeBatch();
+
+                ps.setString(1, "4");
+                ps.addBatch();
+                ps.clearBatch();
+                ps.setString(1, "5");
+                ps.addBatch();
+                ps.setString(1, "6");
+                ps.addBatch();
+                ps.executeBatch();
+            }
+
+            try (ResultSet rs = s.executeQuery("select * from test_insert_buffer_size order by value")) {
+                int count = 1;
+                while (rs.next()) {
+                    Assert.assertEquals(rs.getInt(1), count++);
+                }
+                Assert.assertEquals(count, 7);
+            }
+        }
+    }
+
+    @Test(groups = "integration")
     public void testQueryWithDateTime() throws SQLException {
         try (ClickHouseConnection conn = newConnection(new Properties());
                 Statement s = conn.createStatement();
@@ -1365,36 +1408,6 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
             Assert.assertEquals(rs.getString(2), "1970-01-01 02:46:40");
             Assert.assertEquals(rs.getString(3), "1970-01-01 02:46:40");
             Assert.assertFalse(rs.next());
-        }
-    }
-
-    @Test(groups = "integration")
-    public void testInsertBufferSize() throws Exception {
-        Properties props = new Properties();
-        props.setProperty(ClickHouseClientOption.WRITE_BUFFER_SIZE.getKey(), "1");
-        props.setProperty(ClickHouseClientOption.MAX_QUEUED_BUFFERS.getKey(), "1");
-        try (ClickHouseConnection conn = newConnection(new Properties());
-                Statement s = conn.createStatement()) {
-            s.execute("drop table if exists test_insert_buffer_size; "
-                    + "CREATE TABLE test_insert_buffer_size(value String) ENGINE=Memory");
-            try (PreparedStatement ps = conn.prepareStatement(
-                    "INSERT INTO test_insert_buffer_size")) {
-                ps.setString(1, "1");
-                ps.addBatch();
-                ps.setString(1, "2");
-                ps.addBatch();
-                ps.setString(1, "3");
-                ps.addBatch();
-                ps.executeBatch();
-            }
-
-            try (ResultSet rs = s.executeQuery("select * from test_insert_buffer_size order by value")) {
-                int count = 1;
-                while (rs.next()) {
-                    Assert.assertEquals(rs.getInt(1), count++);
-                }
-                Assert.assertEquals(count, 4);
-            }
         }
     }
 
