@@ -1,7 +1,6 @@
 package com.clickhouse.client.http;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
 import java.nio.charset.Charset;
@@ -17,6 +16,7 @@ import com.clickhouse.client.ClickHouseChecker;
 import com.clickhouse.client.ClickHouseCompression;
 import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseCredentials;
+import com.clickhouse.client.ClickHouseInputStream;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseOutputStream;
 import com.clickhouse.client.ClickHouseRequest;
@@ -59,13 +59,20 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
             appendQueryParameter(builder, cp.getKey(), cp.getValue());
         }
 
-        if (config.isResponseCompressed()) {
-            // request server to compress response
-            appendQueryParameter(builder, "compress", "1");
-        }
-        if (config.isRequestCompressed()) {
+        ClickHouseInputStream chIn = request.getInputStream().orElse(null);
+        if (chIn != null && chIn.getUnderlyingFile().isAvailable()) {
+            appendQueryParameter(builder, "query", request.getStatements().get(0));
+        } else if (config.isRequestCompressed()) {
             // inform server that client's request is compressed
             appendQueryParameter(builder, "decompress", "1");
+        }
+
+        ClickHouseOutputStream chOut = request.getOutputStream().orElse(null);
+        if (chOut != null && chOut.getUnderlyingFile().isAvailable()) {
+            appendQueryParameter(builder, "enable_http_compression", "1");
+        } else if (config.isResponseCompressed()) {
+            // request server to compress response
+            appendQueryParameter(builder, "compress", "1");
         }
 
         Map<String, Object> settings = request.getSettings();
@@ -263,8 +270,9 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
      * @throws IOException when error occured posting request and/or server failed
      *                     to respond
      */
-    protected abstract ClickHouseHttpResponse post(String query, InputStream data, List<ClickHouseExternalTable> tables,
-            String url, Map<String, String> headers, ClickHouseConfig config) throws IOException;
+    protected abstract ClickHouseHttpResponse post(String query, ClickHouseInputStream data,
+            List<ClickHouseExternalTable> tables, String url, Map<String, String> headers, ClickHouseConfig config)
+            throws IOException;
 
     /**
      * Checks whether the connection is reusable or not. This method will be called
@@ -296,11 +304,11 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
         return post(query, null, null, null, headers, null);
     }
 
-    public ClickHouseHttpResponse update(String query, InputStream data) throws IOException {
+    public ClickHouseHttpResponse update(String query, ClickHouseInputStream data) throws IOException {
         return post(query, data, null, null, null, null);
     }
 
-    public ClickHouseHttpResponse update(String query, InputStream data, Map<String, String> headers)
+    public ClickHouseHttpResponse update(String query, ClickHouseInputStream data, Map<String, String> headers)
             throws IOException {
         return post(query, data, null, null, headers, null);
     }

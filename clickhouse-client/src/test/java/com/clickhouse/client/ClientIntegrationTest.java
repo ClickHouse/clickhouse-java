@@ -2,9 +2,14 @@ package com.clickhouse.client;
 
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -24,6 +29,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
+import java.util.zip.GZIPInputStream;
+import java.util.zip.GZIPOutputStream;
 
 import com.clickhouse.client.ClickHouseClientBuilder.Agent;
 import com.clickhouse.client.config.ClickHouseBufferingMode;
@@ -117,6 +124,16 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
             }
         }
         return array;
+    }
+
+    @DataProvider(name = "fileProcessMatrix")
+    protected Object[][] getFileProcessMatrix() {
+        return new Object[][] {
+                { true, true },
+                { true, false },
+                { false, true },
+                { false, false },
+        };
     }
 
     @DataProvider(name = "renameMethods")
@@ -1035,6 +1052,47 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
         Files.delete(temp);
     }
 
+    @Test(dataProvider = "fileProcessMatrix", groups = "integration")
+    public void testDumpFile(boolean gzipCompressed, boolean useOneLiner) throws Exception {
+        ClickHouseNode server = getServer();
+        if (server.getProtocol() != ClickHouseProtocol.HTTP) {
+            throw new SkipException("Skip as only http implementation works well");
+        }
+
+        File file = File.createTempFile("chc", ".data");
+        ClickHouseFile wrappedFile = ClickHouseFile.of(file,
+                gzipCompressed ? ClickHouseCompression.GZIP : ClickHouseCompression.NONE, 0,
+                ClickHouseFormat.CSV);
+        String query = "select number, if(number % 2 = 0, null, toString(number)) str from numbers(10)";
+        if (useOneLiner) {
+            ClickHouseClient.dump(server, query, wrappedFile).get();
+        } else {
+            try (ClickHouseClient client = getClient();
+                    ClickHouseResponse response = client.connect(server).query(query).output(wrappedFile)
+                            .executeAndWait()) {
+                // ignore
+            }
+        }
+        try (InputStream in = gzipCompressed ? new GZIPInputStream(new FileInputStream(file))
+                : new FileInputStream(file); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            ClickHouseInputStream.pipe(in, out, 512);
+            String content = new String(out.toByteArray(), StandardCharsets.US_ASCII);
+            StringBuilder builder = new StringBuilder();
+            for (int i = 0; i < 10; i++) {
+                builder.append(i).append(',');
+                if (i % 2 == 0) {
+                    builder.append("\\N");
+                } else {
+                    builder.append('"').append(i).append('"');
+                }
+                builder.append('\n');
+            }
+            Assert.assertEquals(content, builder.toString());
+        } finally {
+            file.delete();
+        }
+    }
+
     @Test(groups = { "integration" })
     public void testCustomLoad() throws Exception {
         ClickHouseNode server = getServer();
@@ -1114,6 +1172,66 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
             }
         } finally {
             Files.delete(temp);
+        }
+    }
+
+    @Test(dataProvider = "fileProcessMatrix", groups = "integration")
+    public void testLoadFile(boolean gzipCompressed, boolean useOneLiner) throws Exception {
+        ClickHouseNode server = getServer();
+        if (server.getProtocol() != ClickHouseProtocol.HTTP) {
+            throw new SkipException("Skip as only http implementation works well");
+        }
+
+        File file = File.createTempFile("chc", ".data");
+        Object[][] data = new Object[][] {
+                { 1, "12345" },
+                { 2, "23456" },
+                { 3, "\\N" },
+                { 4, "x" },
+                { 5, "y" },
+        };
+        try (OutputStream out = gzipCompressed ? new GZIPOutputStream(new FileOutputStream(file))
+                : new FileOutputStream(file)) {
+            for (Object[] row : data) {
+                out.write((row[0] + "," + row[1]).getBytes(StandardCharsets.US_ASCII));
+                if ((int) row[0] != 5) {
+                    out.write(10);
+                }
+            }
+            out.flush();
+        }
+
+        ClickHouseClient.send(server, "drop table if exists test_load_file",
+                "create table test_load_file(a Int32, b Nullable(String))engine=Memory").get();
+        ClickHouseFile wrappedFile = ClickHouseFile.of(file,
+                gzipCompressed ? ClickHouseCompression.GZIP : ClickHouseCompression.NONE, 0,
+                ClickHouseFormat.CSV);
+        if (useOneLiner) {
+            ClickHouseClient
+                    .load(server, "test_load_file", wrappedFile)
+                    .get();
+        } else {
+            try (ClickHouseClient client = getClient();
+                    ClickHouseResponse response = client.connect(server).write().table("test_load_file")
+                            .data(wrappedFile).executeAndWait()) {
+                // ignore
+            }
+        }
+        try (ClickHouseClient client = getClient();
+                ClickHouseResponse response = client.connect(server).format(ClickHouseFormat.RowBinaryWithNamesAndTypes)
+                        .query("select * from test_load_file order by a").executeAndWait()) {
+            int row = 0;
+            for (ClickHouseRecord r : response.records()) {
+                Assert.assertEquals(r.getValue(0).asObject(), data[row][0]);
+                if (row == 2) {
+                    Assert.assertNull(r.getValue(1).asObject());
+                } else {
+                    Assert.assertEquals(r.getValue(1).asObject(), data[row][1]);
+                }
+                row++;
+            }
+        } finally {
+            file.delete();
         }
     }
 

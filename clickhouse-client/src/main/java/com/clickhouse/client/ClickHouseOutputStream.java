@@ -87,7 +87,7 @@ public abstract class ClickHouseOutputStream extends OutputStream {
         }
         try {
             return wrap(file, new FileOutputStream(file.getFile()), bufferSize, postCloseAction,
-                    file.getCompressionAlgorithm(), file.getCompressionLevel());
+                    ClickHouseCompression.NONE, file.getCompressionLevel());
         } catch (FileNotFoundException e) {
             throw new IllegalArgumentException(e);
         }

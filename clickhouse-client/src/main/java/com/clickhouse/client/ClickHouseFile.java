@@ -68,7 +68,7 @@ public class ClickHouseFile {
         try {
             return ClickHouseInputStream.wrap(this, new FileInputStream(getFile()),
                     (int) ClickHouseClientOption.READ_BUFFER_SIZE.getDefaultValue(), null,
-                    getCompressionAlgorithm(), getCompressionLevel());
+                    ClickHouseCompression.NONE, getCompressionLevel());
         } catch (FileNotFoundException e) {
             throw new IllegalArgumentException(e);
         }
@@ -87,7 +87,7 @@ public class ClickHouseFile {
         try {
             return ClickHouseOutputStream.wrap(this, new FileOutputStream(getFile()),
                     (int) ClickHouseClientOption.WRITE_BUFFER_SIZE.getDefaultValue(), null,
-                    getCompressionAlgorithm(), getCompressionLevel());
+                    ClickHouseCompression.NONE, getCompressionLevel());
         } catch (FileNotFoundException e) {
             throw new IllegalArgumentException(e);
         }

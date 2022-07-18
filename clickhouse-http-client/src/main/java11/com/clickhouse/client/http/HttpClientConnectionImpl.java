@@ -7,6 +7,7 @@ import com.clickhouse.client.ClickHouseDataStreamFactory;
 import com.clickhouse.client.ClickHouseFormat;
 import com.clickhouse.client.ClickHouseInputStream;
 import com.clickhouse.client.ClickHouseNode;
+import com.clickhouse.client.ClickHouseOutputStream;
 import com.clickhouse.client.ClickHousePipedOutputStream;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseSslContextProvider;
@@ -98,6 +99,7 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
                     : timeZone;
         }
 
+        boolean hasOutputFile = output != null && output.getUnderlyingFile().isAvailable();
         final InputStream source;
         final Runnable action;
         if (output != null) {
@@ -117,8 +119,9 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
         }
 
         return new ClickHouseHttpResponse(this,
-                ClickHouseInputStream.wrap(null, source, config.getReadBufferSize(), action,
-                        config.getResponseCompressAlgorithm(), config.getResponseCompressLevel()),
+                hasOutputFile ? ClickHouseInputStream.of(source, config.getReadBufferSize(), action)
+                        : ClickHouseInputStream.wrap(null, source, config.getReadBufferSize(), action,
+                                config.getResponseCompressAlgorithm(), config.getResponseCompressLevel()),
                 displayName, queryId, summary, format, timeZone);
     }
 
@@ -194,7 +197,8 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
     }
 
     private ClickHouseHttpResponse postStream(ClickHouseConfig config, HttpRequest.Builder reqBuilder, String boundary,
-            String sql, InputStream data, List<ClickHouseExternalTable> tables) throws IOException {
+            String sql, ClickHouseInputStream data, List<ClickHouseExternalTable> tables) throws IOException {
+        final boolean hasFile = data != null && data.getUnderlyingFile().isAvailable();
         ClickHousePipedOutputStream stream = ClickHouseDataStreamFactory.getInstance().createPipedOutputStream(config,
                 null);
         reqBuilder.POST(HttpRequest.BodyPublishers.ofInputStream(stream::getInputStream));
@@ -228,12 +232,14 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
                 writer.write("\r\n--" + boundary + "--\r\n");
                 writer.flush();
             } else {
-                writer.write(sql);
-                writer.flush();
+                if (!hasFile) {
+                    writer.write(sql);
+                    writer.flush();
+                }
 
                 if (data.available() > 0) {
                     // append \n
-                    if (sql.charAt(sql.length() - 1) != '\n') {
+                    if (!hasFile && sql.charAt(sql.length() - 1) != '\n') {
                         stream.write(10);
                     }
 
@@ -281,7 +287,7 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
     }
 
     @Override
-    protected ClickHouseHttpResponse post(String sql, InputStream data, List<ClickHouseExternalTable> tables,
+    protected ClickHouseHttpResponse post(String sql, ClickHouseInputStream data, List<ClickHouseExternalTable> tables,
             String url, Map<String, String> headers, ClickHouseConfig config) throws IOException {
         ClickHouseConfig c = config == null ? this.config : config;
         HttpRequest.Builder reqBuilder = HttpRequest.newBuilder()
