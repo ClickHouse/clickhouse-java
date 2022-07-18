@@ -165,7 +165,7 @@ public abstract class ClickHouseInputStream extends InputStream {
         }
         try {
             return wrap(file, new FileInputStream(file.getFile()), bufferSize, postCloseAction,
-                    file.getCompressionAlgorithm(), file.getCompressionLevel());
+                    ClickHouseCompression.NONE, file.getCompressionLevel());
         } catch (FileNotFoundException e) {
             throw new IllegalArgumentException(e);
         }
