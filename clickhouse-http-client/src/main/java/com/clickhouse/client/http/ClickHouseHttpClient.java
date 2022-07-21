@@ -20,6 +20,8 @@ import com.clickhouse.client.http.config.ClickHouseHttpOption;
 import com.clickhouse.client.logging.Logger;
 import com.clickhouse.client.logging.LoggerFactory;
 
+import aQute.bnd.annotation.spi.ServiceProvider;
+@ServiceProvider(value = ClickHouseHttpClient.class)
 public class ClickHouseHttpClient extends AbstractClient<ClickHouseHttpConnection> {
     private static final Logger log = LoggerFactory.getLogger(ClickHouseHttpClient.class);
 

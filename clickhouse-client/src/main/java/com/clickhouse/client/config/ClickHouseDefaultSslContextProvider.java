@@ -31,6 +31,9 @@ import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseSslContextProvider;
 import com.clickhouse.client.ClickHouseUtils;
 
+import aQute.bnd.annotation.spi.ServiceProvider;
+
+@ServiceProvider(value = ClickHouseSslContextProvider.class)
 public class ClickHouseDefaultSslContextProvider implements ClickHouseSslContextProvider {
     static final String PEM_BEGIN_PART1 = "---BEGIN ";
     static final String PEM_BEGIN_PART2 = " PRIVATE KEY---";

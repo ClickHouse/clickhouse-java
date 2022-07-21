@@ -42,6 +42,7 @@
         <!-- module>clickhouse-tcp-client</module -->
         <module>clickhouse-jdbc</module>
         <module>clickhouse-benchmark</module>
+        <module>third-party-libraries</module>
     </modules>
 
     <scm>
@@ -78,6 +79,9 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
+        <maven.compiler.source>11</maven.compiler.source>
+        <maven.compiler.target>11</maven.compiler.target>
+    
         <annotations-api.version>6.0.53</annotations-api.version>
         <asm.version>9.3</asm.version>
         <byte-buddy.version>1.12.10</byte-buddy.version>
@@ -91,7 +95,7 @@
         <httpclient.version>4.5.13</httpclient.version>
         <protobuf.version>3.19.2</protobuf.version>
         <lz4.version>1.8.0</lz4.version>
-        <roaring-bitmap.version>0.9.25</roaring-bitmap.version>
+        <roaring-bitmap.version>0.9.26</roaring-bitmap.version>
         <slf4j.version>2.0.0-alpha5</slf4j.version>
         <mockito.version>3.12.4</mockito.version>
         <wiremock.version>2.33.2</wiremock.version>
@@ -125,7 +129,7 @@
         <toolchains-plugin.version>3.0.0</toolchains-plugin.version>
         <versions-plugin.version>2.10.0</versions-plugin.version>
 
-        <minJdk>1.8</minJdk>
+        <minJdk>11</minJdk>
         <skipTests>false</skipTests>
         <skipITs>${skipTests}</skipITs>
         <skipUTs>${skipTests}</skipUTs>
@@ -150,6 +154,11 @@
                 <version>${repackaged.version}</version>
             </dependency>
 
+            <dependency>
+              <groupId>biz.aQute.bnd</groupId>
+              <artifactId>biz.aQute.bnd.annotation</artifactId>
+              <version>${bnd.version}</version>
+            </dependency>
             <dependency>
                 <groupId>com.google.code.gson</groupId>
                 <artifactId>gson</artifactId>
@@ -235,6 +244,11 @@
             <dependency>
                 <groupId>org.roaringbitmap</groupId>
                 <artifactId>RoaringBitmap</artifactId>
+                <version>${roaring-bitmap.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.roaringbitmap</groupId>
+                <artifactId>shims</artifactId>
                 <version>${roaring-bitmap.version}</version>
             </dependency>
             <dependency>
@@ -336,11 +350,6 @@
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-gpg-plugin</artifactId>
                     <version>${gpg-plugin.version}</version>
-                </plugin>
-                <plugin>
-                    <groupId>org.apache.maven.plugins</groupId>
-                    <artifactId>maven-jar-plugin</artifactId>
-                    <version>${jar-plugin.version}</version>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
@@ -477,75 +486,78 @@
                         <offline>true</offline>
                     </configuration>
                 </plugin>
+                <plugin>
+                  <groupId>biz.aQute.bnd</groupId>
+                  <artifactId>bnd-maven-plugin</artifactId>
+                  <version>${bnd.version}</version>
+                  <extensions>true</extensions>
+                  <configuration>
+                    <bnd><![CDATA[
+                    SPDX-License-Identifier: ${project.licenses[0].name}
+                    //-jpms-module-info-options: \
+                    //  com.google.gson;substitute="gson",\
+                    //  org.slf4j;substitute="slf4j-api"
+                    ]]></bnd>
+                  </configuration>
+                  <executions>
+                    <execution>
+                      <id>bnd-process</id>
+                      <goals>
+                        <goal>bnd-process</goal>
+                      </goals>
+                    </execution>
+                    <execution>
+                      <id>bnd-process-tests</id>
+                      <goals>
+                        <goal>bnd-process-tests</goal>
+                      </goals>
+                    </execution>
+                <!--    <execution>
+                      <id>jar</id>
+                      <goals>
+                        <goal>jar</goal>
+                      </goals>
+                    </execution>
+                    <execution>
+                      <id>test-jar</id>
+                      <goals>
+                        <goal>test-jar</goal>
+                      </goals>
+                    </execution> -->
+                  </executions>
+                </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-jar-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>default-jar</id>
+                                  <goals>
+					                 <goal>jar</goal>
+					              </goals>
+                                <configuration>
+                                    <archive>
+										<manifestFile>${project.build.outputDirectory}/META-INF/MANIFEST.MF</manifestFile>
+                                    </archive>
+                                </configuration>
+                            </execution>
+                           <execution>
+                              <id>test-jar</id>
+			                  <goals>
+					             <goal>test-jar</goal>
+					          </goals>
+					          <configuration>
+					              <archive>
+					                  <manifestFile>${project.build.testOutputDirectory}/META-INF/MANIFEST.MF</manifestFile>
+					              </archive>
+					          </configuration>
+					        </execution>
+                        </executions>
+                    </plugin>
+
             </plugins>
         </pluginManagement>
         <plugins>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-compiler-plugin</artifactId>
-                <configuration>
-                    <source>${minJdk}</source>
-                    <target>${minJdk}</target>
-                    <showWarnings>true</showWarnings>
-                    <compilerArgs>
-                        <arg>-Xlint:all</arg>
-                        <!-- arg>-Werror</arg -->
-                    </compilerArgs>
-                </configuration>
-                <executions>
-                    <execution>
-                        <id>java9</id>
-                        <phase>none</phase>
-                        <goals>
-                            <goal>compile</goal>
-                        </goals>
-                        <configuration>
-                            <release>9</release>
-                            <jdkToolchain>
-                                <version>9</version>
-                            </jdkToolchain>
-                            <compileSourceRoots>
-                                <compileSourceRoot>${project.basedir}/src/main/java9</compileSourceRoot>
-                            </compileSourceRoots>
-                            <multiReleaseOutput>true</multiReleaseOutput>
-                        </configuration>
-                    </execution>
-                    <execution>
-                        <id>java11</id>
-                        <phase>none</phase>
-                        <goals>
-                            <goal>compile</goal>
-                        </goals>
-                        <configuration>
-                            <release>11</release>
-                            <jdkToolchain>
-                                <version>11</version>
-                            </jdkToolchain>
-                            <compileSourceRoots>
-                                <compileSourceRoot>${project.basedir}/src/main/java11</compileSourceRoot>
-                            </compileSourceRoots>
-                            <multiReleaseOutput>true</multiReleaseOutput>
-                        </configuration>
-                    </execution>
-                    <!-- execution>
-                        <id>java17</id>
-                        <phase>none</phase>
-                        <goals>
-                            <goal>compile</goal>
-                        </goals>
-                        <configuration>
-                            <release>17</release>
-                            <jdkToolchain>
-                                <version>17</version>
-                            </jdkToolchain>
-                            <compileSourceRoots>
-                                <compileSourceRoot>${project.basedir}/src/main/java17</compileSourceRoot>
-                            </compileSourceRoots>
-                            <multiReleaseOutput>true</multiReleaseOutput>
-                        </configuration>
-                    </execution -->
-                </executions>
-            </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-enforcer-plugin</artifactId>
@@ -614,7 +626,7 @@
                                                     <counter>LINE</counter>
                                                     <value>COVEREDRATIO</value>
                                                     <minimum>0.0</minimum>
-                                                </limit>
+                                               </limit>
                                             </limits>
                                         </rule>
                                     </rules>
@@ -743,23 +755,6 @@
                     <plugin>
                         <groupId>io.github.git-commit-id</groupId>
                         <artifactId>git-commit-id-maven-plugin</artifactId>
-                    </plugin>
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-jar-plugin</artifactId>
-                        <executions>
-                            <execution>
-                                <id>default-jar</id>
-                                <configuration>
-                                    <archive>
-                                        <manifestEntries>
-                                            <Multi-Release>true</Multi-Release>
-                                            <SCM-Revision>${git.commit.id.full}</SCM-Revision>
-                                        </manifestEntries>
-                                    </archive>
-                                </configuration>
-                            </execution>
-                        </executions>
                     </plugin>
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>

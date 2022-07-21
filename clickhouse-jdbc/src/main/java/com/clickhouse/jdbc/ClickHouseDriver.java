@@ -25,6 +25,8 @@ import com.clickhouse.client.logging.LoggerFactory;
 import com.clickhouse.jdbc.internal.ClickHouseConnectionImpl;
 import com.clickhouse.jdbc.internal.ClickHouseJdbcUrlParser;
 
+import aQute.bnd.annotation.spi.ServiceProvider;
+
 /**
  * JDBC driver for ClickHouse. It takes a connection string like below for
  * connecting to ClickHouse server:
@@ -38,6 +40,7 @@ import com.clickhouse.jdbc.internal.ClickHouseJdbcUrlParser;
  * <li>{@code jdbc:clickhouse://localhost/system?protocol=grpc}</li>
  * </ul>
  */
+@ServiceProvider(value=Driver.class)
 public class ClickHouseDriver implements Driver {
     private static final Logger log = LoggerFactory.getLogger(ClickHouseDriver.class);
 

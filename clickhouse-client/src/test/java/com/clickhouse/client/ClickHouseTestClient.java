@@ -2,6 +2,9 @@ package com.clickhouse.client;
 
 import java.util.concurrent.CompletableFuture;
 
+import aQute.bnd.annotation.spi.ServiceProvider;
+
+@ServiceProvider(value =ClickHouseClient.class )
 public class ClickHouseTestClient implements ClickHouseClient {
     private ClickHouseConfig clientConfig;
 

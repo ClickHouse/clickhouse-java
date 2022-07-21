@@ -69,6 +69,7 @@
 
     <properties>
         <revision>1.2.0</revision>
+        <bnd.version>6.2.0</bnd.version>
         <project.current.year>2022</project.current.year>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
@@ -236,9 +237,29 @@
                     </executions>
                 </plugin>
                 <plugin>
-                    <groupId>org.moditect</groupId>
-                    <artifactId>moditect-maven-plugin</artifactId>
-                    <version>${moditect-plugin.version}</version>
+                  <groupId>biz.aQute.bnd</groupId>
+                  <artifactId>bnd-maven-plugin</artifactId>
+                  <version>${bnd.version}</version>
+                  <extensions>true</extensions>
+                  <configuration>
+                     <bnd><![CDATA[
+                    SPDX-License-Identifier: ${project.licenses[0].name}
+                    ]]></bnd>
+                  </configuration>
+                  <executions>
+                    <execution>
+                      <id>jar</id>
+                      <goals>
+                        <goal>jar</goal>
+                      </goals>
+                    </execution>
+                    <execution>
+                      <id>test-jar</id>
+                      <goals>
+                        <goal>test-jar</goal>
+                      </goals>
+                    </execution>
+                </executions>
                 </plugin>
             </plugins>
         </pluginManagement>

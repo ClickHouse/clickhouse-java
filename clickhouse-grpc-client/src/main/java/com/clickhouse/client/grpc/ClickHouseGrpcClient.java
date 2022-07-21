@@ -11,6 +11,8 @@ import java.util.Map.Entry;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
 import com.google.protobuf.ByteString;
+
+import aQute.bnd.annotation.spi.ServiceProvider;
 import io.grpc.Context;
 import io.grpc.ManagedChannel;
 import io.grpc.Status;
@@ -19,6 +21,7 @@ import io.grpc.stub.StreamObserver;
 
 import com.clickhouse.client.AbstractClient;
 import com.clickhouse.client.ClickHouseChecker;
+import com.clickhouse.client.ClickHouseClient;
 import com.clickhouse.client.ClickHouseColumn;
 import com.clickhouse.client.ClickHouseCompression;
 import com.clickhouse.client.ClickHouseConfig;
@@ -41,7 +44,7 @@ import com.clickhouse.client.grpc.impl.Result;
 import com.clickhouse.client.grpc.impl.QueryInfo.Builder;
 import com.clickhouse.client.logging.Logger;
 import com.clickhouse.client.logging.LoggerFactory;
-
+@ServiceProvider(value=ClickHouseClient.class)
 public class ClickHouseGrpcClient extends AbstractClient<ManagedChannel> {
     private static final Logger log = LoggerFactory.getLogger(ClickHouseGrpcClient.class);
 
