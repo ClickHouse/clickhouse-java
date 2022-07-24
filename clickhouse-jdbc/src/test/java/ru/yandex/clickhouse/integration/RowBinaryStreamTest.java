@@ -548,7 +548,7 @@ public class RowBinaryStreamTest extends JdbcIntegrationTest {
         final ClickHouseStatement statement = connection.createStatement();
         connection.createStatement().execute("DROP TABLE IF EXISTS binary_tz");
         connection.createStatement().execute(
-                "CREATE TABLE binary_tz (date Date, dateTime DateTime) ENGINE = MergeTree(date, (date), 8192)");
+                "CREATE TABLE binary_tz (date Date, dateTime DateTime) ENGINE = MergeTree order by date");
 
         //
         final Date date1 = new Date(1497474018000L);
