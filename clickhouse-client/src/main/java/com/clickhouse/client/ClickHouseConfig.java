@@ -200,6 +200,7 @@ public class ClickHouseConfig implements Serializable {
     private final String sslRootCert;
     private final String sslCert;
     private final String sslKey;
+    private final int transactionTimeout;
     private final boolean useBlockingQueue;
     private final boolean useObjectsInArray;
     private final boolean useNoProxy;
@@ -296,6 +297,7 @@ public class ClickHouseConfig implements Serializable {
         this.sslRootCert = (String) getOption(ClickHouseClientOption.SSL_ROOT_CERTIFICATE);
         this.sslCert = (String) getOption(ClickHouseClientOption.SSL_CERTIFICATE);
         this.sslKey = (String) getOption(ClickHouseClientOption.SSL_KEY);
+        this.transactionTimeout = (int) getOption(ClickHouseClientOption.TRANSACTION_TIMEOUT);
         this.useBlockingQueue = (boolean) getOption(ClickHouseClientOption.USE_BLOCKING_QUEUE);
         this.useObjectsInArray = (boolean) getOption(ClickHouseClientOption.USE_OBJECTS_IN_ARRAYS);
         this.useNoProxy = (boolean) getOption(ClickHouseClientOption.USE_NO_PROXY);
@@ -641,6 +643,10 @@ public class ClickHouseConfig implements Serializable {
 
     public String getSslKey() {
         return sslKey;
+    }
+
+    public int getTransactionTimeout() {
+        return transactionTimeout < 1 ? sessionTimeout : transactionTimeout;
     }
 
     public boolean isUseBlockingQueue() {

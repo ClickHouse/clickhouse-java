@@ -249,10 +249,10 @@ public enum ClickHouseClientOption implements ClickHouseOption {
      */
     SESSION_CHECK("session_check", false, "Whether to check if existence of session id."),
     /**
-     * Session timeout in milliseconds.
+     * Session timeout in seconds.
      */
     SESSION_TIMEOUT("session_timeout", 0,
-            "Session timeout in milliseconds. 0 or negative number means same as server default."),
+            "Session timeout in seconds. 0 or negative number means same as server default."),
     /**
      * Socket timeout in milliseconds.
      */
@@ -278,6 +278,11 @@ public enum ClickHouseClientOption implements ClickHouseOption {
      * SSL key.
      */
     SSL_KEY("sslkey", "", "RSA key in PKCS#8 format."),
+    /**
+     * Transaction timeout in seconds.
+     */
+    TRANSACTION_TIMEOUT("transaction_timeout", 0,
+            "Transaction timeout in seconds. 0 or negative number means same as session_timeout."),
     /**
      * Whether to use blocking queue for buffering.
      */

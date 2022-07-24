@@ -47,7 +47,12 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
 
         protected Mutation(ClickHouseRequest<?> request, boolean sealed) {
             super(request.getClient(), request.server, request.serverRef, request.options, sealed);
+
             this.settings.putAll(request.settings);
+            this.txRef.set(request.txRef.get());
+
+            this.changeListener = request.changeListener;
+            this.serverListener = request.serverListener;
         }
 
         @Override
@@ -182,7 +187,7 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
          * Loads data from input stream.
          *
          * @param input input stream
-         * @return mutation requets
+         * @return mutation request
          */
         public Mutation data(InputStream input) {
             return data(ClickHouseInputStream.of(input));
@@ -192,7 +197,7 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
          * Loads data from input stream.
          *
          * @param input input stream
-         * @return mutation requets
+         * @return mutation request
          */
         public Mutation data(ClickHouseInputStream input) {
             checkSealed();
@@ -207,7 +212,7 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
          * Loads data from input stream.
          *
          * @param input input stream
-         * @return mutation requets
+         * @return mutation request
          */
         public Mutation data(ClickHouseDeferredValue<ClickHouseInputStream> input) {
             checkSealed();
@@ -278,11 +283,11 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
                 }
             }
 
-            return getClient().executeAndWait(isSealed() ? this : seal());
+            return getClient().executeAndWait(this);
         }
 
         /**
-         * Sends mutation requets for execution. Same as
+         * Sends mutation request for execution. Same as
          * {@code client.execute(request.seal())}.
          *
          * @return non-null future to get response
@@ -327,6 +332,8 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
                 req.sql = sql;
 
                 req.preparedQuery = preparedQuery;
+                req.managerRef.set(managerRef.get());
+                req.txRef.set(txRef.get());
             }
 
             return req;
@@ -336,19 +343,24 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
     private static final long serialVersionUID = 4990313525960702287L;
 
     static final String PROP_DATA = "data";
+    static final String PROP_MANAGER = "manager";
     static final String PROP_OUTPUT = "output";
     static final String PROP_PREPARED_QUERY = "preparedQuery";
     static final String PROP_QUERY = "query";
     static final String PROP_QUERY_ID = "queryId";
+    static final String PROP_TRANSACTION = "transaction";
     static final String PROP_WRITER = "writer";
 
     private final boolean sealed;
 
     private final ClickHouseClient client;
 
+    protected final AtomicReference<ClickHouseRequestManager> managerRef;
     protected final Function<ClickHouseNodeSelector, ClickHouseNode> server;
     protected final AtomicReference<ClickHouseNode> serverRef;
-    protected final transient List<ClickHouseExternalTable> externalTables;
+    protected final AtomicReference<ClickHouseTransaction> txRef;
+
+    protected final List<ClickHouseExternalTable> externalTables;
     protected final Map<ClickHouseOption, Serializable> options;
     protected final Map<String, Serializable> settings;
 
@@ -375,8 +387,11 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
         }
 
         this.client = client;
+
+        this.managerRef = new AtomicReference<>(null);
         this.server = (Function<ClickHouseNodeSelector, ClickHouseNode> & Serializable) server;
         this.serverRef = ref == null ? new AtomicReference<>(null) : ref;
+        this.txRef = new AtomicReference<>(null);
         this.sealed = sealed;
 
         this.externalTables = new LinkedList<>();
@@ -408,12 +423,13 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
         }
     }
 
+    /**
+     * Gets client associated with the request.
+     *
+     * @return non-null client
+     */
     protected ClickHouseClient getClient() {
-        if (client == null) {
-            throw new IllegalStateException("Non-null client is required");
-        }
-
-        return client;
+        return client != null ? client : ClickHouseClient.newInstance(getServer().getProtocol());
     }
 
     /**
@@ -436,9 +452,10 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
     }
 
     /**
-     * Creates a copy of this request. Pay attention that the same node reference
-     * (returned from {@link #getServer()}) will be copied to the new request as
-     * well, meaning failover will change node for both requets.
+     * Creates a copy of this request including listeners. Please pay attention that
+     * the same node reference (returned from {@link #getServer()}) will be copied
+     * to the new request as well, meaning failover will change node for both
+     * requests.
      *
      * @return copy of this request
      */
@@ -452,7 +469,28 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
         req.queryId = queryId;
         req.sql = sql;
         req.preparedQuery = preparedQuery;
+        req.managerRef.set(managerRef.get());
+        req.txRef.set(txRef.get());
+        req.changeListener = changeListener;
+        req.serverListener = serverListener;
         return req;
+    }
+
+    /**
+     * Gets manager for the request, which defaults to
+     * {@link ClickHouseRequestManager#getInstance()}.
+     *
+     * @return non-null request manager
+     */
+    public ClickHouseRequestManager getManager() {
+        ClickHouseRequestManager m = managerRef.get();
+        if (m == null) {
+            m = ClickHouseRequestManager.getInstance();
+            if (!managerRef.compareAndSet(null, m)) {
+                m = managerRef.get();
+            }
+        }
+        return m;
     }
 
     /**
@@ -462,6 +500,15 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
      */
     public boolean isSealed() {
         return this.sealed;
+    }
+
+    /**
+     * Checks if the request is bounded with a transaction.
+     *
+     * @return true if the request is bounded with a transaction; false otherwise
+     */
+    public boolean isTransactional() {
+        return txRef.get() != null;
     }
 
     /**
@@ -524,27 +571,16 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
         return config;
     }
 
-    /**
-     * Sets change listener.
-     *
-     * @param listener change listener which may or may not be null
-     * @return the request itself
-     */
-    @SuppressWarnings("unchecked")
-    public final SelfT setChangeListener(ClickHouseConfigChangeListener<ClickHouseRequest<?>> listener) {
-        this.changeListener = listener;
-        return (SelfT) this;
+    public ClickHouseTransaction getTransaction() {
+        return txRef.get();
     }
 
-    /**
-     * Sets server change listener.
-     *
-     * @param listener change listener which may or may not be null
-     * @return the request itself
-     */
-    public final SelfT setServerListener(BiConsumer<ClickHouseNode, ClickHouseNode> listener) {
-        this.serverListener = listener;
-        return (SelfT) this;
+    public final ClickHouseConfigChangeListener<ClickHouseRequest<?>> getChangeListener() {
+        return this.changeListener;
+    }
+
+    public final BiConsumer<ClickHouseNode, ClickHouseNode> getServerListener() {
+        return this.serverListener;
     }
 
     /**
@@ -911,6 +947,23 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
     public SelfT format(ClickHouseFormat format) {
         checkSealed();
         option(ClickHouseClientOption.FORMAT, format);
+        return (SelfT) this;
+    }
+
+    /**
+     * Sets request manager which is responsible for generating query ID and session
+     * ID, as well as transaction creation.
+     *
+     * @param manager request manager
+     * @return the request itself
+     */
+    @SuppressWarnings("unchecked")
+    public SelfT manager(ClickHouseRequestManager manager) {
+        checkSealed();
+        ClickHouseRequestManager current = managerRef.get();
+        if (!Objects.equals(current, manager) && managerRef.compareAndSet(current, manager)) {
+            changeProperty(PROP_MANAGER, current, manager);
+        }
         return (SelfT) this;
     }
 
@@ -1428,8 +1481,41 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
     }
 
     /**
-     * Clears session configuration including session id, whether to validate the id
-     * and session timeout.
+     * Sets all server settings.
+     *
+     * @param settings settings
+     * @return the request itself
+     */
+    @SuppressWarnings("unchecked")
+    public SelfT settings(Map<String, Serializable> settings) {
+        checkSealed();
+
+        if (changeListener == null) {
+            this.settings.clear();
+            if (settings != null) {
+                this.settings.putAll(settings);
+            }
+            resetCache();
+        } else {
+            Map<String, Serializable> m = new HashMap<>();
+            m.putAll(this.settings);
+            if (options != null) {
+                for (Entry<String, Serializable> e : settings.entrySet()) {
+                    set(e.getKey(), e.getValue());
+                    m.remove(e.getKey());
+                }
+            }
+            for (String s : m.keySet()) {
+                removeSetting(s);
+            }
+        }
+
+        return (SelfT) this;
+    }
+
+    /**
+     * Clears session configuration including session id, session check(whether to
+     * validate the id), and session timeout. Transaction will be removed as well.
      *
      * @return the request itself
      */
@@ -1440,6 +1526,12 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
         removeOption(ClickHouseClientOption.SESSION_ID);
         removeOption(ClickHouseClientOption.SESSION_CHECK);
         removeOption(ClickHouseClientOption.SESSION_TIMEOUT);
+
+        // assume the transaction is managed somewhere else
+        ClickHouseTransaction tx = txRef.get();
+        if (tx != null && txRef.compareAndSet(tx, null)) {
+            changeProperty(PROP_TRANSACTION, tx, null);
+        }
 
         return (SelfT) this;
     }
@@ -1471,7 +1563,7 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
      * Sets current session. Same as {@code session(sessionId, null, timeout)}.
      *
      * @param sessionId session id, null means no session
-     * @param timeout   timeout in milliseconds
+     * @param timeout   timeout in seconds
      * @return the request itself
      */
     public SelfT session(String sessionId, Integer timeout) {
@@ -1484,16 +1576,23 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
      * @param sessionId session id, null means no session
      * @param check     whether the server should check if the session id exists or
      *                  not
-     * @param timeout   timeout in milliseconds
+     * @param timeout   timeout in seconds
      * @return the request itself
      */
     @SuppressWarnings("unchecked")
     public SelfT session(String sessionId, Boolean check, Integer timeout) {
         checkSealed();
 
-        option(ClickHouseClientOption.SESSION_ID, sessionId);
-        option(ClickHouseClientOption.SESSION_CHECK, check);
-        option(ClickHouseClientOption.SESSION_TIMEOUT, timeout);
+        ClickHouseTransaction tx = txRef.get();
+        if (tx != null) {
+            throw new IllegalArgumentException(ClickHouseUtils.format(
+                    "Please complete %s (or clear session) before changing session to (id=%s, check=%s, timeout=%s)",
+                    tx, sessionId, check, timeout));
+        } else {
+            option(ClickHouseClientOption.SESSION_ID, sessionId);
+            option(ClickHouseClientOption.SESSION_CHECK, check);
+            option(ClickHouseClientOption.SESSION_TIMEOUT, timeout);
+        }
 
         return (SelfT) this;
     }
@@ -1542,6 +1641,32 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
     }
 
     /**
+     * Sets thread-safe change listener. Please keep in mind that the same listener
+     * might be shared by multiple requests.
+     *
+     * @param listener thread-safe change listener which may or may not be null
+     * @return the request itself
+     */
+    @SuppressWarnings("unchecked")
+    public final SelfT setChangeListener(ClickHouseConfigChangeListener<ClickHouseRequest<?>> listener) {
+        this.changeListener = listener;
+        return (SelfT) this;
+    }
+
+    /**
+     * Sets thread-safe server change listener. Please keep in mind that the same
+     * listener might be shared by multiple requests.
+     *
+     * @param listener thread-safe server listener which may or may not be null
+     * @return the request itself
+     */
+    @SuppressWarnings("unchecked")
+    public final SelfT setServerListener(BiConsumer<ClickHouseNode, ClickHouseNode> listener) {
+        this.serverListener = listener;
+        return (SelfT) this;
+    }
+
+    /**
      * Sets target table. Same as {@code table(table, null)}.
      *
      * @param table non-empty table name
@@ -1562,6 +1687,74 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
      */
     public SelfT table(String table, String queryId) {
         return query("SELECT * FROM ".concat(ClickHouseChecker.nonBlank(table, "table")), queryId);
+    }
+
+    /**
+     * Creates and starts a transaction. Same as {@code transaction(0)}.
+     *
+     * @return the request itself
+     * @throws ClickHouseException when failed to start or reuse transaction
+     */
+    public SelfT transaction() throws ClickHouseException {
+        return transaction(0);
+    }
+
+    /**
+     * Creates and starts a transaction immediately. Please pay attention that
+     * unlike other methods in this class, it will connect to ClickHouse server,
+     * allocate session and start transaction right away.
+     *
+     * @param timeout transaction timeout in seconds, zero or negative means
+     *                same as session timeout
+     * @return the request itself
+     * @throws ClickHouseException when failed to start or reuse transaction
+     */
+    @SuppressWarnings("unchecked")
+    public SelfT transaction(int timeout) throws ClickHouseException {
+        ClickHouseTransaction tx = txRef.get();
+        if (tx != null && tx.getTimeout() == (timeout > 0 ? timeout : 0)) {
+            return (SelfT) this;
+        }
+        return transaction(getManager().getOrStartTransaction(this, timeout));
+    }
+
+    /**
+     * Sets transaction. Any existing transaction, regardless its state, will be
+     * replaced by the given one.
+     *
+     * @param transaction transaction
+     * @return the request itself
+     * @throws ClickHouseException when failed to set transaction
+     */
+    @SuppressWarnings("unchecked")
+    public SelfT transaction(ClickHouseTransaction transaction) throws ClickHouseException {
+        checkSealed();
+
+        try {
+            txRef.updateAndGet(x -> {
+                if (changeProperty(PROP_TRANSACTION, x, transaction) != null) {
+                    final ClickHouseNode currentServer = getServer();
+                    final ClickHouseNode txServer = transaction.getServer();
+                    // there's no global transaction and ReplicateMergeTree is not supported
+                    if (!currentServer.isSameEndpoint(txServer) && changeServer(currentServer, txServer) != txServer) {
+                        throw new IllegalStateException(ClickHouseUtils
+                                .format("Failed to change current server from %s to %s", currentServer, txServer));
+                    }
+                    // skip the check in session method
+                    option(ClickHouseClientOption.SESSION_ID, transaction.getSessionId());
+                    option(ClickHouseClientOption.SESSION_CHECK, true);
+                    option(ClickHouseClientOption.SESSION_TIMEOUT,
+                            transaction.getTimeout() < 1 ? null : transaction.getTimeout());
+                    removeSetting(ClickHouseTransaction.SETTING_IMPLICIT_TRANSACTION);
+                } else if (x != null) {
+                    clearSession();
+                }
+                return transaction;
+            });
+        } catch (IllegalStateException e) {
+            throw ClickHouseException.of(e.getMessage(), getServer());
+        }
+        return (SelfT) this;
     }
 
     /**
@@ -1675,6 +1868,10 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
         checkSealed();
 
         this.externalTables.clear();
+        this.namedParameters.clear();
+
+        this.serverListener = null;
+
         if (changeListener == null) {
             this.options.clear();
             this.settings.clear();
@@ -1685,16 +1882,23 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
             for (String s : this.settings.keySet().toArray(new String[0])) {
                 removeSetting(s);
             }
-            this.changeListener = null;
         }
-        this.serverListener = null;
-        this.namedParameters.clear();
-
         this.input = changeProperty(PROP_DATA, this.input, null);
         this.output = changeProperty(PROP_OUTPUT, this.output, null);
         this.sql = changeProperty(PROP_QUERY, this.sql, null);
         this.preparedQuery = changeProperty(PROP_PREPARED_QUERY, this.preparedQuery, null);
         this.queryId = changeProperty(PROP_QUERY_ID, this.queryId, null);
+
+        ClickHouseRequestManager current = managerRef.get();
+        if (current != null && managerRef.compareAndSet(current, null)) {
+            changeProperty(PROP_MANAGER, current, null);
+        }
+        ClickHouseTransaction tx = txRef.get();
+        if (tx != null && txRef.compareAndSet(tx, null)) {
+            changeProperty(PROP_TRANSACTION, tx, null);
+        }
+
+        this.changeListener = null;
 
         resetCache();
 
@@ -1703,6 +1907,7 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
 
     /**
      * Creates a sealed request, which is an immutable copy of the current request.
+     * Listeners won't be copied to the sealed instance, because it's immutable.
      *
      * @return sealed request, an immutable copy of the current request
      */
@@ -1722,6 +1927,8 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
             req.queryId = queryId;
             req.sql = sql;
             req.preparedQuery = preparedQuery;
+            req.managerRef.set(managerRef.get());
+            req.txRef.set(txRef.get());
         }
 
         return req;
@@ -1755,6 +1962,45 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
      * @throws ClickHouseException when error occurred during execution
      */
     public ClickHouseResponse executeAndWait() throws ClickHouseException {
-        return getClient().executeAndWait(isSealed() ? this : seal());
+        return getClient().executeAndWait(this);
+    }
+
+    /**
+     * Executes the request within a transaction, wait until it's completed and
+     * the transaction being committed or rolled back. The transaction here is
+     * either an implicit transaction(using {@code implicit_transaction} server
+     * setting, with less overhead but requiring 22.7+) or auto-commit
+     * transaction(using clone of this request), depending on argument
+     * {@code useImplicitTransaction}.
+     *
+     * @param useImplicitTransaction use {@code implicit_transaction} server setting
+     *                               with minimum overhead(no session on server side
+     *                               and no additional objects on client side), or
+     *                               an auto-commit {@link ClickHouseTransaction}
+     * @return non-null response
+     * @throws ClickHouseException when error occurred during execution
+     */
+    public ClickHouseResponse executeWithinTransaction(boolean useImplicitTransaction) throws ClickHouseException {
+        if (useImplicitTransaction) {
+            return set(ClickHouseTransaction.SETTING_IMPLICIT_TRANSACTION, 1).transaction(null).executeAndWait();
+        }
+
+        ClickHouseTransaction tx = getManager().createTransaction(this);
+        try {
+            tx.begin();
+            ClickHouseResponse response = getClient().executeAndWait(transaction(tx));
+            tx.commit();
+            tx = null;
+            return response;
+        } catch (ClickHouseException e) {
+            throw e;
+        } catch (Exception e) {
+            throw ClickHouseException.of(e, getServer());
+        } finally {
+            transaction(null);
+            if (tx != null) {
+                tx.rollback();
+            }
+        }
     }
 }

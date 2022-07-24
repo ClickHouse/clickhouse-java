@@ -19,6 +19,7 @@ public class ClickHouseException extends Exception {
     public static final int ERROR_ABORTED = 236;
     public static final int ERROR_CANCELLED = 394;
     public static final int ERROR_NETWORK = 210;
+    public static final int ERROR_SESSION_NOT_FOUND = 372;
     public static final int ERROR_POCO = 1000;
     public static final int ERROR_TIMEOUT = 159;
     public static final int ERROR_UNKNOWN = 1002;
@@ -36,6 +37,10 @@ public class ClickHouseException extends Exception {
 
         if (message != null && !message.isEmpty()) {
             builder.append(message);
+        } else if (code == ERROR_ABORTED) {
+            builder.append("Code: ").append(code).append(". Execution aborted");
+        } else if (code == ERROR_CANCELLED) {
+            builder.append("Code: ").append(code).append(". Execution cancelled");
         } else {
             builder.append("Unknown error ").append(code);
         }
@@ -184,6 +189,19 @@ public class ClickHouseException extends Exception {
      */
     public ClickHouseException(int code, String message, ClickHouseNode server) {
         super(buildErrorMessage(code, message, server), null);
+
+        errorCode = code;
+    }
+
+    /**
+     * Constructs an exception.
+     *
+     * @param code    error code
+     * @param message error message
+     * @param cause   cause
+     */
+    protected ClickHouseException(int code, String message, Throwable cause) {
+        super(message, cause);
 
         errorCode = code;
     }

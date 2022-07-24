@@ -19,8 +19,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.TimeZone;
-import java.util.UUID;
-import java.util.concurrent.CancellationException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -30,6 +28,7 @@ import com.clickhouse.client.ClickHouseClient;
 import com.clickhouse.client.ClickHouseClientBuilder;
 import com.clickhouse.client.ClickHouseColumn;
 import com.clickhouse.client.ClickHouseConfig;
+import com.clickhouse.client.ClickHouseException;
 import com.clickhouse.client.ClickHouseFormat;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseNodeSelector;
@@ -38,6 +37,7 @@ import com.clickhouse.client.ClickHouseParameterizedQuery;
 import com.clickhouse.client.ClickHouseRecord;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseResponse;
+import com.clickhouse.client.ClickHouseTransaction;
 import com.clickhouse.client.ClickHouseUtils;
 import com.clickhouse.client.ClickHouseValues;
 import com.clickhouse.client.ClickHouseVersion;
@@ -56,7 +56,6 @@ import com.clickhouse.jdbc.JdbcParseHandler;
 import com.clickhouse.jdbc.SqlExceptionUtils;
 import com.clickhouse.jdbc.JdbcWrapper;
 import com.clickhouse.jdbc.internal.ClickHouseJdbcUrlParser.ConnectionInfo;
-import com.clickhouse.jdbc.internal.FakeTransaction.FakeSavepoint;
 import com.clickhouse.jdbc.parser.ClickHouseSqlParser;
 import com.clickhouse.jdbc.parser.ClickHouseSqlStatement;
 import com.clickhouse.jdbc.parser.StatementType;
@@ -64,7 +63,19 @@ import com.clickhouse.jdbc.parser.StatementType;
 public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseConnection {
     private static final Logger log = LoggerFactory.getLogger(ClickHouseConnectionImpl.class);
 
-    private static final String CREATE_DB = "create database if not exists `";
+    private static final String SETTING_READONLY = "readonly";
+
+    private static final String SQL_GET_SERVER_INFO = "select currentUser() user, timezone() timezone, version() version, "
+            + "toInt8(ifnull((select value from system.settings where name = 'readonly'), '0')) as readonly, "
+            + "toInt8(ifnull((select value from system.settings where name = '"
+            + ClickHouseTransaction.SETTING_THROW_ON_UNSUPPORTED_QUERY_INSIDE_TRANSACTION
+            + "'), '-1')) as non_transational_query, "
+            + "lower(ifnull((select value from system.settings where name = '"
+            + ClickHouseTransaction.SETTING_WAIT_CHANGES_BECOME_VISIBLE_AFTER_COMMIT_MODE
+            + "'), '')) as commit_wait_mode, "
+            + "toInt8(ifnull((select value from system.settings where name = '"
+            + ClickHouseTransaction.SETTING_IMPLICIT_TRANSACTION + "'), '-1')) as implicit_transaction "
+            + "FORMAT RowBinaryWithNamesAndTypes";
 
     protected static ClickHouseRecord getServerInfo(ClickHouseNode node, ClickHouseRequest<?> request,
             boolean createDbIfNotExist) throws SQLException {
@@ -76,27 +87,17 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
         try (ClickHouseResponse response = newReq.option(ClickHouseClientOption.ASYNC, false)
                 .option(ClickHouseClientOption.COMPRESS, false).option(ClickHouseClientOption.DECOMPRESS, false)
                 .option(ClickHouseClientOption.FORMAT, ClickHouseFormat.RowBinaryWithNamesAndTypes)
-                .query("select currentUser(), timezone(), version(), getSetting('readonly') readonly "
-                        + "FORMAT RowBinaryWithNamesAndTypes")
-                .execute().get()) {
+                .query(SQL_GET_SERVER_INFO).executeAndWait()) {
             return response.firstRecord();
-        } catch (InterruptedException | CancellationException e) {
-            // not going to happen as it's synchronous call
-            Thread.currentThread().interrupt();
-            throw SqlExceptionUtils.forCancellation(e);
         } catch (Exception e) {
             SQLException sqlExp = SqlExceptionUtils.handle(e);
             if (createDbIfNotExist && sqlExp.getErrorCode() == 81) {
                 String db = node.getDatabase(request.getConfig());
                 try (ClickHouseResponse resp = newReq.use("")
-                        .query(new StringBuilder(CREATE_DB.length() + 1 + db.length()).append(CREATE_DB).append(db)
-                                .append('`').toString())
-                        .execute().get()) {
+                        .query(new StringBuilder("create database if not exists `")
+                                .append(ClickHouseUtils.escape(db, '`')).append('`').toString())
+                        .executeAndWait()) {
                     return getServerInfo(node, request, false);
-                } catch (InterruptedException | CancellationException ex) {
-                    // not going to happen as it's synchronous call
-                    Thread.currentThread().interrupt();
-                    throw SqlExceptionUtils.forCancellation(ex);
                 } catch (SQLException ex) {
                     throw ex;
                 } catch (Exception ex) {
@@ -128,10 +129,35 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
     private final ClickHouseVersion serverVersion;
     private final String user;
     private final int initialReadOnly;
+    private final int initialNonTxQuerySupport;
+    private final String initialTxCommitWaitMode;
+    private final int initialImplicitTx;
 
     private final Map<String, Class<?>> typeMap;
 
-    private final AtomicReference<FakeTransaction> fakeTransaction;
+    private final AtomicReference<JdbcTransaction> txRef;
+
+    protected JdbcTransaction createTransaction() throws SQLException {
+        if (!isTransactionSupported()) {
+            return new JdbcTransaction(null);
+        }
+
+        try {
+            ClickHouseTransaction tx = clientRequest.getManager().createTransaction(clientRequest);
+            tx.begin();
+            // if (txIsolation == Connection.TRANSACTION_READ_UNCOMMITTED) {
+            // tx.snapshot(ClickHouseTransaction.CSN_EVERYTHING_VISIBLE);
+            // }
+            clientRequest.transaction(tx);
+            return new JdbcTransaction(tx);
+        } catch (ClickHouseException e) {
+            throw SqlExceptionUtils.handle(e);
+        }
+    }
+
+    protected JdbcSavepoint createSavepoint() {
+        return new JdbcSavepoint(1, "name");
+    }
 
     /**
      * Checks if the connection is open or not.
@@ -169,7 +195,9 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
     }
 
     protected void ensureTransactionSupport() throws SQLException {
-        ensureSupport("Transaction", false);
+        if (!isTransactionSupported()) {
+            ensureSupport("Transaction", false);
+        }
     }
 
     protected List<ClickHouseColumn> getTableColumns(String dbName, String tableName, String columns)
@@ -192,20 +220,17 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
         List<ClickHouseColumn> list;
         try (ClickHouseResponse resp = clientRequest.copy().format(ClickHouseFormat.RowBinaryWithNamesAndTypes)
                 .option(ClickHouseClientOption.RENAME_RESPONSE_COLUMN, ClickHouseRenameMethod.NONE)
-                .query(builder.toString()).execute().get()) {
+                .query(builder.toString()).executeAndWait()) {
             list = resp.getColumns();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw SqlExceptionUtils.forCancellation(e);
         } catch (Exception e) {
             throw SqlExceptionUtils.handle(e);
         }
         return list;
     }
 
-    // for testing only
-    final FakeTransaction getTransaction() {
-        return fakeTransaction.get();
+    // for testing purpose
+    final JdbcTransaction getJdbcTrasaction() {
+        return txRef.get();
     }
 
     public ClickHouseConnectionImpl(String url) throws SQLException {
@@ -219,7 +244,6 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
     public ClickHouseConnectionImpl(ConnectionInfo connInfo) throws SQLException {
         jdbcConf = connInfo.getJdbcConfig();
 
-        autoCommit = !jdbcConf.isJdbcCompliant() || jdbcConf.isAutoCommit();
         jvmTimeZone = TimeZone.getDefault();
 
         ClickHouseClientBuilder clientBuilder = ClickHouseClient.builder()
@@ -255,9 +279,20 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
             timeZone = config.getServerTimeZone();
             version = config.getServerVersion();
             if (jdbcConf.isCreateDbIfNotExist()) {
-                initialReadOnly = getServerInfo(node, clientRequest, true).getValue(3).asInteger();
+                ClickHouseRecord r = getServerInfo(node, clientRequest, true);
+                initialReadOnly = r.getValue(3).asInteger();
+                initialNonTxQuerySupport = r.getValue(4).asInteger();
+                initialTxCommitWaitMode = r.getValue(5).asString();
+                initialImplicitTx = r.getValue(6).asInteger();
             } else {
-                initialReadOnly = (int) clientRequest.getSettings().getOrDefault("readonly", 0);
+                initialReadOnly = (int) clientRequest.getSettings().getOrDefault(SETTING_READONLY, 0);
+                initialNonTxQuerySupport = (int) clientRequest.getSettings()
+                        .getOrDefault(ClickHouseTransaction.SETTING_THROW_ON_UNSUPPORTED_QUERY_INSIDE_TRANSACTION, 1);
+                initialTxCommitWaitMode = (String) clientRequest.getSettings()
+                        .getOrDefault(ClickHouseTransaction.SETTING_WAIT_CHANGES_BECOME_VISIBLE_AFTER_COMMIT_MODE,
+                                "wait_unknown");
+                initialImplicitTx = (int) clientRequest.getSettings()
+                        .getOrDefault(ClickHouseTransaction.SETTING_IMPLICIT_TRANSACTION, 0);
             }
         } else {
             ClickHouseRecord r = getServerInfo(node, clientRequest, jdbcConf.isCreateDbIfNotExist());
@@ -276,21 +311,33 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
             // tsTimeZone.hasSameRules(ClickHouseValues.UTC_TIMEZONE)
             timeZone = "UTC".equals(tz) ? ClickHouseValues.UTC_TIMEZONE : TimeZone.getTimeZone(tz);
             initialReadOnly = r.getValue(3).asInteger();
+            initialNonTxQuerySupport = r.getValue(4).asInteger();
+            initialTxCommitWaitMode = r.getValue(5).asString();
+            initialImplicitTx = r.getValue(6).asInteger();
 
             // update request and corresponding config
             clientRequest.option(ClickHouseClientOption.SERVER_TIME_ZONE, tz)
                     .option(ClickHouseClientOption.SERVER_VERSION, ver);
         }
 
-        this.autoCommit = true;
+        this.autoCommit = !jdbcConf.isJdbcCompliant() || jdbcConf.isAutoCommit();
         this.closed = false;
         this.database = config.getDatabase();
         this.clientRequest.use(this.database);
         this.readOnly = initialReadOnly != 0;
         this.networkTimeout = 0;
         this.rsHoldability = ResultSet.HOLD_CURSORS_OVER_COMMIT;
-        this.txIsolation = jdbcConf.isJdbcCompliant() ? Connection.TRANSACTION_READ_COMMITTED
-                : Connection.TRANSACTION_NONE;
+        if (isTransactionSupported()) {
+            this.txIsolation = Connection.TRANSACTION_REPEATABLE_READ;
+            if (jdbcConf.isJdbcCompliant()) {
+                this.clientRequest.set(ClickHouseTransaction.SETTING_THROW_ON_UNSUPPORTED_QUERY_INSIDE_TRANSACTION, 0);
+                // .set(ClickHouseTransaction.SETTING_WAIT_CHANGES_BECOME_VISIBLE_AFTER_COMMIT_MODE,
+                // "wait_unknown");
+            }
+        } else {
+            this.txIsolation = jdbcConf.isJdbcCompliant() ? Connection.TRANSACTION_READ_COMMITTED
+                    : Connection.TRANSACTION_NONE;
+        }
 
         this.user = currentUser != null ? currentUser : node.getCredentials(config).getUserName();
         this.serverTimeZone = timeZone;
@@ -304,7 +351,7 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
         }
         this.serverVersion = version;
         this.typeMap = new HashMap<>(jdbcConf.getTypeMap());
-        this.fakeTransaction = new AtomicReference<>();
+        this.txRef = new AtomicReference<>(this.autoCommit ? null : createTransaction());
     }
 
     @Override
@@ -325,13 +372,12 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
 
         ensureTransactionSupport();
         if (this.autoCommit = autoCommit) { // commit
-            FakeTransaction tx = fakeTransaction.getAndSet(null);
+            JdbcTransaction tx = txRef.getAndSet(null);
             if (tx != null) {
-                tx.logTransactionDetails(log, FakeTransaction.ACTION_COMMITTED);
-                tx.clear();
+                tx.commit(log);
             }
         } else { // start new transaction
-            if (!fakeTransaction.compareAndSet(null, new FakeTransaction())) {
+            if (!txRef.compareAndSet(null, createTransaction())) {
                 log.warn("[JDBC Compliant Mode] not able to start a new transaction, reuse the exist one");
             }
         }
@@ -354,13 +400,18 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
 
         ensureTransactionSupport();
 
-        FakeTransaction tx = fakeTransaction.getAndSet(new FakeTransaction());
+        JdbcTransaction tx = txRef.get();
         if (tx == null) {
             // invalid transaction state
-            throw new SQLException(FakeTransaction.ERROR_TX_NOT_STARTED, SqlExceptionUtils.SQL_STATE_INVALID_TX_STATE);
+            throw new SQLException(JdbcTransaction.ERROR_TX_NOT_STARTED, SqlExceptionUtils.SQL_STATE_INVALID_TX_STATE);
         } else {
-            tx.logTransactionDetails(log, FakeTransaction.ACTION_COMMITTED);
-            tx.clear();
+            try {
+                tx.commit(log);
+            } finally {
+                if (!txRef.compareAndSet(tx, createTransaction())) {
+                    log.warn("Transaction was set to %s unexpectedly", txRef.get());
+                }
+            }
         }
     }
 
@@ -374,13 +425,18 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
 
         ensureTransactionSupport();
 
-        FakeTransaction tx = fakeTransaction.getAndSet(new FakeTransaction());
+        JdbcTransaction tx = txRef.get();
         if (tx == null) {
             // invalid transaction state
-            throw new SQLException(FakeTransaction.ERROR_TX_NOT_STARTED, SqlExceptionUtils.SQL_STATE_INVALID_TX_STATE);
+            throw new SQLException(JdbcTransaction.ERROR_TX_NOT_STARTED, SqlExceptionUtils.SQL_STATE_INVALID_TX_STATE);
         } else {
-            tx.logTransactionDetails(log, FakeTransaction.ACTION_ROLLBACK);
-            tx.clear();
+            try {
+                tx.rollback(log);
+            } finally {
+                if (!txRef.compareAndSet(tx, createTransaction())) {
+                    log.warn("Transaction was set to %s unexpectedly", txRef.get());
+                }
+            }
         }
     }
 
@@ -395,10 +451,15 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
             this.closed = true;
         }
 
-        FakeTransaction tx = fakeTransaction.getAndSet(null);
+        JdbcTransaction tx = txRef.get();
         if (tx != null) {
-            tx.logTransactionDetails(log, FakeTransaction.ACTION_COMMITTED);
-            tx.clear();
+            try {
+                tx.commit(log);
+            } finally {
+                if (!txRef.compareAndSet(tx, null)) {
+                    log.warn("Transaction was set to %s unexpectedly", txRef.get());
+                }
+            }
         }
     }
 
@@ -422,9 +483,9 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
             }
         } else {
             if (readOnly) {
-                clientRequest.set("readonly", 2);
+                clientRequest.set(SETTING_READONLY, 2);
             } else {
-                clientRequest.removeSetting("readonly");
+                clientRequest.removeSetting(SETTING_READONLY);
             }
             this.readOnly = readOnly;
         }
@@ -455,11 +516,16 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
     public void setTransactionIsolation(int level) throws SQLException {
         ensureOpen();
 
-        if (level == Connection.TRANSACTION_READ_UNCOMMITTED || level == Connection.TRANSACTION_READ_COMMITTED
-                || level == Connection.TRANSACTION_REPEATABLE_READ || level == Connection.TRANSACTION_SERIALIZABLE) {
+        if (Connection.TRANSACTION_NONE != level && Connection.TRANSACTION_READ_UNCOMMITTED != level
+                && Connection.TRANSACTION_READ_COMMITTED != level && Connection.TRANSACTION_REPEATABLE_READ != level
+                && Connection.TRANSACTION_SERIALIZABLE != level) {
+            throw new SQLException("Invalid transaction isolation level: " + level);
+        } else if (isTransactionSupported()) {
+            txIsolation = Connection.TRANSACTION_REPEATABLE_READ;
+        } else if (jdbcConf.isJdbcCompliant()) {
             txIsolation = level;
         } else {
-            throw new SQLException("Invalid transaction isolation level: " + level);
+            txIsolation = Connection.TRANSACTION_NONE;
         }
     }
 
@@ -533,7 +599,13 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
             throw SqlExceptionUtils.unsupportedError("setSavepoint not implemented");
         }
 
-        FakeTransaction tx = fakeTransaction.updateAndGet(current -> current != null ? current : new FakeTransaction());
+        JdbcTransaction tx = txRef.get();
+        if (tx == null) {
+            tx = createTransaction();
+            if (!txRef.compareAndSet(null, tx)) {
+                tx = txRef.get();
+            }
+        }
         return tx.newSavepoint(name);
     }
 
@@ -549,17 +621,17 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
             throw SqlExceptionUtils.unsupportedError("rollback not implemented");
         }
 
-        if (!(savepoint instanceof FakeSavepoint)) {
+        if (!(savepoint instanceof JdbcSavepoint)) {
             throw SqlExceptionUtils.clientError("Unsupported type of savepoint: " + savepoint);
         }
 
-        FakeTransaction tx = fakeTransaction.get();
+        JdbcTransaction tx = txRef.get();
         if (tx == null) {
             // invalid transaction state
-            throw new SQLException(FakeTransaction.ERROR_TX_NOT_STARTED, SqlExceptionUtils.SQL_STATE_INVALID_TX_STATE);
+            throw new SQLException(JdbcTransaction.ERROR_TX_NOT_STARTED, SqlExceptionUtils.SQL_STATE_INVALID_TX_STATE);
         } else {
-            FakeSavepoint s = (FakeSavepoint) savepoint;
-            tx.logSavepointDetails(log, s, FakeTransaction.ACTION_ROLLBACK);
+            JdbcSavepoint s = (JdbcSavepoint) savepoint;
+            tx.logSavepointDetails(log, s, JdbcTransaction.ACTION_ROLLBACK);
             tx.toSavepoint(s);
         }
     }
@@ -576,16 +648,16 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
             throw SqlExceptionUtils.unsupportedError("rollback not implemented");
         }
 
-        if (!(savepoint instanceof FakeSavepoint)) {
+        if (!(savepoint instanceof JdbcSavepoint)) {
             throw SqlExceptionUtils.clientError("Unsupported type of savepoint: " + savepoint);
         }
 
-        FakeTransaction tx = fakeTransaction.get();
+        JdbcTransaction tx = txRef.get();
         if (tx == null) {
             // invalid transaction state
-            throw new SQLException(FakeTransaction.ERROR_TX_NOT_STARTED, SqlExceptionUtils.SQL_STATE_INVALID_TX_STATE);
+            throw new SQLException(JdbcTransaction.ERROR_TX_NOT_STARTED, SqlExceptionUtils.SQL_STATE_INVALID_TX_STATE);
         } else {
-            FakeSavepoint s = (FakeSavepoint) savepoint;
+            JdbcSavepoint s = (JdbcSavepoint) savepoint;
             tx.logSavepointDetails(log, s, "released");
             tx.toSavepoint(s);
         }
@@ -917,6 +989,11 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
     }
 
     @Override
+    public ClickHouseTransaction getTransaction() {
+        return clientRequest.getTransaction();
+    }
+
+    @Override
     public URI getUri() {
         return clientRequest.getServer().toUri(ClickHouseJdbcUrlParser.JDBC_CLICKHOUSE_PREFIX);
     }
@@ -927,9 +1004,21 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
     }
 
     @Override
+    public boolean isTransactionSupported() {
+        return jdbcConf.isTransactionSupported() && initialNonTxQuerySupport >= 0
+                && !ClickHouseChecker.isNullOrEmpty(initialTxCommitWaitMode);
+    }
+
+    @Override
+    public boolean isImplicitTransactionSupported() {
+        return jdbcConf.isTransactionSupported() && initialImplicitTx >= 0;
+    }
+
+    @Override
     public String newQueryId() {
-        FakeTransaction tx = fakeTransaction.get();
-        return tx != null ? tx.newQuery(null) : UUID.randomUUID().toString();
+        String queryId = clientRequest.getManager().createQueryId();
+        JdbcTransaction tx = txRef.get();
+        return tx != null ? tx.newQuery(queryId) : queryId;
     }
 
     @Override

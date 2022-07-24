@@ -110,6 +110,7 @@ public class ClickHouseClientBuilder {
                 ClickHouseNode current = sealedRequest.getServer();
                 ClickHouseNodeManager manager = current.manager.get();
                 if (manager == null) {
+                    log.debug("Cancel failover for unmanaged node: %s", current);
                     break;
                 }
                 ClickHouseNode next = manager.suggestNode(current, exception);
@@ -118,8 +119,10 @@ public class ClickHouseClientBuilder {
                     break;
                 }
                 current.update(Status.FAULTY);
-                next = sealedRequest.changeServer(current, next);
-                if (next == current) {
+                if (sealedRequest.isTransactional()) {
+                    log.debug("Cancel failover for transactional context: %s", sealedRequest.getTransaction());
+                    break;
+                } else if ((next = sealedRequest.changeServer(current, next)) == current) {
                     log.debug("Cancel failover for no alternative of %s", current);
                     break;
                 }

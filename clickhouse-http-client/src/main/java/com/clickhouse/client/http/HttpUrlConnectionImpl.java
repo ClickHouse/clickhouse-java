@@ -183,7 +183,8 @@ public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
                 }
                 errorMsg = builder.toString();
             } catch (IOException e) {
-                log.warn("Error while reading error message[code=%s] from server [%s]", errorCode, serverName, e);
+                log.debug("Failed to read error message[code=%s] from server [%s] due to: %s", errorCode, serverName,
+                        e.getMessage());
                 errorMsg = new String(bytes, StandardCharsets.UTF_8);
             }
 

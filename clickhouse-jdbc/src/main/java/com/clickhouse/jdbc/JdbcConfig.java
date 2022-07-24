@@ -27,6 +27,7 @@ public class JdbcConfig {
     public static final String PROP_JDBC_COMPLIANT = "jdbcCompliant";
     public static final String PROP_NAMED_PARAM = "namedParameter";
     public static final String PROP_NULL_AS_DEFAULT = "nullAsDefault";
+    public static final String PROP_TX_SUPPORT = "transactionSupport";
     public static final String PROP_TYPE_MAP = "typeMappings";
     public static final String PROP_WRAPPER_OBJ = "wrapperObject";
 
@@ -40,6 +41,7 @@ public class JdbcConfig {
     private static final String DEFAULT_JDBC_COMPLIANT = BOOLEAN_TRUE;
     private static final String DEFAULT_NAMED_PARAM = BOOLEAN_FALSE;
     private static final String DEFAULT_NULL_AS_DEFAULT = "0";
+    private static final String DEFAULT_TX_SUPPORT = BOOLEAN_FALSE;
     private static final String DEFAULT_TYPE_MAP = "";
     private static final String DEFAULT_WRAPPER_OBJ = BOOLEAN_FALSE;
 
@@ -126,6 +128,11 @@ public class JdbcConfig {
         info.description = "Default approach to handle null value, sets to 0 or negative number to throw exception when target column is not nullable, 1 to disable the null-check, and 2 or higher to replace null to default value of corresponding data type.";
         list.add(info);
 
+        info = new DriverPropertyInfo(PROP_TX_SUPPORT, DEFAULT_TX_SUPPORT);
+        info.choices = new String[] { BOOLEAN_TRUE, BOOLEAN_FALSE };
+        info.description = "Whether to enable transaction support or not.";
+        list.add(info);
+
         info = new DriverPropertyInfo(PROP_TYPE_MAP, DEFAULT_TYPE_MAP);
         info.description = "Default type mappings between ClickHouse data type and Java class. You can define multiple mappings using comma as separator.";
         list.add(info);
@@ -145,6 +152,7 @@ public class JdbcConfig {
     private final boolean jdbcCompliant;
     private final boolean namedParameter;
     private final int nullAsDefault;
+    private final boolean txSupport;
     private final Map<String, Class<?>> typeMap;
     private final boolean wrapperObject;
 
@@ -164,6 +172,7 @@ public class JdbcConfig {
         this.jdbcCompliant = extractBooleanValue(props, PROP_JDBC_COMPLIANT, DEFAULT_JDBC_COMPLIANT);
         this.namedParameter = extractBooleanValue(props, PROP_NAMED_PARAM, DEFAULT_NAMED_PARAM);
         this.nullAsDefault = extractIntValue(props, PROP_NULL_AS_DEFAULT, DEFAULT_NULL_AS_DEFAULT);
+        this.txSupport = extractBooleanValue(props, PROP_TX_SUPPORT, DEFAULT_TX_SUPPORT);
         this.typeMap = extractTypeMapValue(props, PROP_TYPE_MAP, DEFAULT_TYPE_MAP);
         this.wrapperObject = extractBooleanValue(props, PROP_WRAPPER_OBJ, DEFAULT_WRAPPER_OBJ);
     }
@@ -222,6 +231,15 @@ public class JdbcConfig {
      */
     public boolean isJdbcCompliant() {
         return jdbcCompliant;
+    }
+
+    /**
+     * Checks whether transaction support is enabled or not.
+     *
+     * @return true if transaction support is enabled; false otherwise
+     */
+    public boolean isTransactionSupported() {
+        return txSupport;
     }
 
     /**

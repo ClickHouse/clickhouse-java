@@ -35,7 +35,7 @@ public class ClickHouseExceptionTest {
 
     @Test(groups = { "unit" })
     public void testConstructorWithoutCause() {
-        ClickHouseException e = new ClickHouseException(-1, (String) null, null);
+        ClickHouseException e = new ClickHouseException(-1, (String) null, (ClickHouseNode) null);
         Assert.assertEquals(e.getErrorCode(), -1);
         Assert.assertNull(e.getCause());
         Assert.assertEquals(e.getMessage(), "Unknown error -1");
