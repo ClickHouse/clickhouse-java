@@ -39,8 +39,8 @@ public final class ClickHouseTransaction implements Serializable {
                 throw new IllegalArgumentException(
                         "Non-null tuple with 3 elements(long, long, String) is required");
             }
-            long snapshotVersion = (long) list.get(0);
-            long localTxCounter = (long) list.get(1);
+            long snapshotVersion = (Long) list.get(0);
+            long localTxCounter = (Long) list.get(1);
             String hostId = String.valueOf(list.get(2));
             if (EMPTY.snapshotVersion == snapshotVersion && EMPTY.localTxCounter == localTxCounter
                     && EMPTY.hostId.equals(hostId)) {
