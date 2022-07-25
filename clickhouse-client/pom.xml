@@ -8,7 +8,6 @@
     </parent>
 
     <artifactId>clickhouse-client</artifactId>
-    <version>${revision}</version>
     <packaging>jar</packaging>
 
     <name>${project.artifactId}</name>
@@ -73,6 +72,14 @@
             <groupId>biz.aQute.bnd</groupId>
             <artifactId>biz.aQute.bnd.annotation</artifactId>
         </dependency>
+        <dependency>
+		    <groupId>org.osgi</groupId>
+		    <artifactId>org.osgi.annotation.versioning</artifactId>
+		</dependency>
+		<dependency>
+		    <groupId>org.osgi</groupId>
+		    <artifactId>org.osgi.annotation.bundle</artifactId>
+		</dependency>
     </dependencies>
 
     <build>

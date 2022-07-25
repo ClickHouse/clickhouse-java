@@ -128,6 +128,7 @@
         <surefire-plugin.version>3.0.0-M6</surefire-plugin.version>
         <toolchains-plugin.version>3.0.0</toolchains-plugin.version>
         <versions-plugin.version>2.10.0</versions-plugin.version>
+        <bnd.version>6.3.1</bnd.version>
 
         <minJdk>11</minJdk>
         <skipTests>false</skipTests>
@@ -159,6 +160,18 @@
               <artifactId>biz.aQute.bnd.annotation</artifactId>
               <version>${bnd.version}</version>
             </dependency>
+            <dependency>
+			    <groupId>org.osgi</groupId>
+			    <artifactId>org.osgi.annotation.versioning</artifactId>
+			    <version>1.1.2</version>
+			    <scope>provided</scope>
+			</dependency>
+			<dependency>
+			    <groupId>org.osgi</groupId>
+			    <artifactId>org.osgi.annotation.bundle</artifactId>
+			    <version>2.0.0</version>
+			    <scope>provided</scope>
+			</dependency>
             <dependency>
                 <groupId>com.google.code.gson</groupId>
                 <artifactId>gson</artifactId>
@@ -529,6 +542,7 @@
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-jar-plugin</artifactId>
+                        <version>${jar-plugin.version}</version>
                         <executions>
                             <execution>
                                 <id>default-jar</id>
@@ -940,22 +954,6 @@
                                 <id>java17</id>
                                 <phase>compile</phase>
                             </execution -->
-                        </executions>
-                    </plugin>
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-jar-plugin</artifactId>
-                        <executions>
-                            <execution>
-                                <id>default-jar</id>
-                                <configuration>
-                                    <archive>
-                                        <manifestEntries>
-                                            <Multi-Release>true</Multi-Release>
-                                        </manifestEntries>
-                                    </archive>
-                                </configuration>
-                            </execution>
                         </executions>
                     </plugin>
                     <plugin>

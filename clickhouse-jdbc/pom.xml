@@ -8,7 +8,6 @@
     </parent>
 
     <artifactId>clickhouse-jdbc</artifactId>
-    <version>${revision}</version>
     <packaging>jar</packaging>
 
     <name>${project.artifactId}</name>

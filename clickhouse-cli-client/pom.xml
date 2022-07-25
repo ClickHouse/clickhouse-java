@@ -8,7 +8,6 @@
     </parent>
 
     <artifactId>clickhouse-cli-client</artifactId>
-    <version>${revision}</version>
     <packaging>jar</packaging>
 
     <name>${project.artifactId}</name>
@@ -116,6 +115,33 @@
                     </environmentVariables>
                 </configuration>
             </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>default-jar</id>
+                          <goals>
+			                 <goal>jar</goal>
+			              </goals>
+                        <configuration>
+                            <archive combine.self="override">
+                            </archive>
+                        </configuration>
+                    </execution>
+                   <execution>
+                      <id>test-jar</id>
+	                  <goals>
+			             <goal>test-jar</goal>
+			          </goals>
+			          <configuration>
+			              <archive combine.self="override">
+			              </archive>
+			          </configuration>
+			        </execution>
+                </executions>
+            </plugin>
+
         </plugins>
     </build>
 </project>

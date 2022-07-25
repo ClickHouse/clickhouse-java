@@ -30,6 +30,14 @@
             <artifactId>biz.aQute.bnd.annotation</artifactId>
         </dependency>
         <dependency>
+		    <groupId>org.osgi</groupId>
+		    <artifactId>org.osgi.annotation.versioning</artifactId>
+		</dependency>
+		<dependency>
+		    <groupId>org.osgi</groupId>
+		    <artifactId>org.osgi.annotation.bundle</artifactId>
+		</dependency>
+        <dependency>
             <groupId>com.google.code.gson</groupId>
             <artifactId>gson</artifactId>
         </dependency>
