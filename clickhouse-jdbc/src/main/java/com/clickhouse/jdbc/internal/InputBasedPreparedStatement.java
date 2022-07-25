@@ -289,7 +289,7 @@ public class InputBasedPreparedStatement extends AbstractPreparedStatement imple
         MappedFunctions functions = ClickHouseRowBinaryProcessor.getMappedFunctions();
         for (int i = 0, len = values.length; i < len; i++) {
             if (!flags[i]) {
-                throw SqlExceptionUtils.clientError(ClickHouseUtils.format("Missing value for parameter #%d", i + 1));
+                throw SqlExceptionUtils.clientError(ClickHouseUtils.format("Missing value for parameter #%d for column name %s", i + 1, columns.get(i)));
             }
             try {
                 functions.serialize(values[i], config, columns.get(i), stream);
