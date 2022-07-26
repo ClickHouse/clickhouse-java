@@ -219,7 +219,7 @@ public enum ClickHouseClientOption implements ClickHouseOption {
      * Whether to repeat execution when session is locked, until timed out(according
      * to {@link #SESSION_TIMEOUT} or {@link #CONNECTION_TIMEOUT}).
      */
-    REPEAT_ON_SESSION_LOCK("repeat_on_session_lock", false,
+    REPEAT_ON_SESSION_LOCK("repeat_on_session_lock", true,
             "Whether to repeat execution when session is locked, until timed out(according to 'session_timeout' or 'connect_timeout')."),
     /**
      * Whether to reuse wrapper of value(e.g. ClickHouseValue or
