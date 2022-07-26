@@ -181,7 +181,7 @@ It's time consuming to run all benchmarks against all drivers using different pa
 
 ## Testing
 
-By default, docker container will be created automatically during integration test. You can pass system property like `-DclickhouseVersion=21.8` to specify version of ClickHouse.
+By default, docker container will be created automatically during integration test. You can pass system property like `-DclickhouseVersion=22.3` to specify version of ClickHouse.
 
 In the case you prefer to test against an existing server, please follow instructions below:
 
