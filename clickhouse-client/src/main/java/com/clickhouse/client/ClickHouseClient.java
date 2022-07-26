@@ -1,5 +1,6 @@
 package com.clickhouse.client;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
@@ -16,6 +17,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
 
 import com.clickhouse.client.config.ClickHouseBufferingMode;
@@ -345,7 +347,7 @@ public interface ClickHouseClient extends AutoCloseable {
             } finally {
                 try {
                     output.close();
-                } catch (Exception e) {
+                } catch (IOException e) {
                     // ignore
                 }
             }
@@ -438,7 +440,8 @@ public interface ClickHouseClient extends AutoCloseable {
                     stream.close();
                 }
                 // wait until write & read acomplished
-                try (ClickHouseResponse response = future.get()) {
+                try (ClickHouseResponse response = future.get(client.getConfig().getSocketTimeout(),
+                        TimeUnit.MILLISECONDS)) {
                     return response.getSummary();
                 }
             } catch (InterruptedException e) {
@@ -446,13 +449,13 @@ public interface ClickHouseClient extends AutoCloseable {
                 throw ClickHouseException.forCancellation(e, theServer);
             } catch (CancellationException e) {
                 throw ClickHouseException.forCancellation(e, theServer);
-            } catch (ExecutionException e) {
+            } catch (ExecutionException | TimeoutException e) {
                 throw ClickHouseException.of(e, theServer);
             } finally {
                 if (input != null) {
                     try {
                         input.close();
-                    } catch (Exception e) {
+                    } catch (IOException e) {
                         // ignore
                     }
                 }
@@ -491,7 +494,7 @@ public interface ClickHouseClient extends AutoCloseable {
             } finally {
                 try {
                     input.close();
-                } catch (Exception e) {
+                } catch (IOException e) {
                     // ignore
                 }
             }
@@ -546,7 +549,7 @@ public interface ClickHouseClient extends AutoCloseable {
                     .option(ClickHouseClientOption.ASYNC, false).build()) {
                 ClickHouseRequest<?> request = client.connect(theServer).format(ClickHouseFormat.RowBinary);
                 if ((boolean) ClickHouseDefaults.AUTO_SESSION.getEffectiveDefaultValue() && queries.size() > 1) {
-                    request.session(UUID.randomUUID().toString(), false);
+                    request.session(request.getManager().createSessionId(), false);
                 }
                 for (String query : queries) {
                     try (ClickHouseResponse resp = request.query(query).executeAndWait()) {
@@ -818,13 +821,13 @@ public interface ClickHouseClient extends AutoCloseable {
         final ClickHouseRequest<?> sealedRequest = request.seal();
 
         try {
-            return execute(sealedRequest).get();
+            return execute(sealedRequest).get(sealedRequest.getConfig().getSocketTimeout(), TimeUnit.MILLISECONDS);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw ClickHouseException.forCancellation(e, sealedRequest.getServer());
         } catch (CancellationException e) {
             throw ClickHouseException.forCancellation(e, sealedRequest.getServer());
-        } catch (CompletionException | ExecutionException | UncheckedIOException e) {
+        } catch (CompletionException | ExecutionException | TimeoutException | UncheckedIOException e) {
             Throwable cause = e.getCause();
             if (cause == null) {
                 cause = e;

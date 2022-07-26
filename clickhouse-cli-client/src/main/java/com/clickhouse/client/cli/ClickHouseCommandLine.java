@@ -29,6 +29,7 @@ import java.util.concurrent.TimeoutException;
 
 import com.clickhouse.client.ClickHouseChecker;
 import com.clickhouse.client.ClickHouseClient;
+import com.clickhouse.client.ClickHouseCompression;
 import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseCredentials;
 import com.clickhouse.client.ClickHouseFile;
@@ -136,8 +137,9 @@ public class ClickHouseCommandLine implements AutoCloseable {
         commands.add(DEFAULT_CLICKHOUSE_CLI_PATH);
     }
 
-    static Process startProcess(ClickHouseNode server, ClickHouseRequest<?> request) {
+    static Process startProcess(ClickHouseRequest<?> request) {
         final ClickHouseConfig config = request.getConfig();
+        final ClickHouseNode server = request.getServer();
         final int timeout = config.getSocketTimeout();
 
         String hostDir = (String) config.getOption(ClickHouseCommandLineOption.CLI_WORK_DIRECTORY);
@@ -196,7 +198,7 @@ public class ClickHouseCommandLine implements AutoCloseable {
         if (!ClickHouseChecker.isNullOrBlank(str)) {
             commands.add("--query_id=".concat(str));
         }
-        commands.add("--query=".concat(request.getStatements(false).get(0)));
+        commands.add("--query=".concat(str = request.getStatements(false).get(0)));
 
         for (ClickHouseExternalTable table : request.getExternalTables()) {
             ClickHouseFile tableFile = table.getFile();
@@ -331,30 +333,36 @@ public class ClickHouseCommandLine implements AutoCloseable {
         }
     }
 
-    private final ClickHouseNode server;
     private final ClickHouseRequest<?> request;
 
     private final Process process;
 
     private String error;
 
-    public ClickHouseCommandLine(ClickHouseNode server, ClickHouseRequest<?> request) {
-        this.server = server;
+    public ClickHouseCommandLine(ClickHouseRequest<?> request) {
         this.request = request;
 
-        this.process = startProcess(server, request);
+        this.process = startProcess(request);
         this.error = null;
     }
 
     public ClickHouseInputStream getInputStream() throws IOException {
         ClickHouseOutputStream out = request.getOutputStream().orElse(null);
+        Runnable postCloseAction = () -> {
+            IOException exp = getError();
+            if (exp != null) {
+                throw new UncheckedIOException(exp);
+            }
+        };
         if (out != null && !out.getUnderlyingFile().isAvailable()) {
             try (OutputStream o = out) {
                 ClickHouseInputStream.pipe(process.getInputStream(), o, request.getConfig().getWriteBufferSize());
             }
-            return ClickHouseInputStream.empty();
+            return ClickHouseInputStream.wrap(null, ClickHouseInputStream.empty(),
+                    request.getConfig().getReadBufferSize(), postCloseAction, ClickHouseCompression.NONE, 0);
         } else {
-            return ClickHouseInputStream.of(process.getInputStream(), request.getConfig().getReadBufferSize());
+            return ClickHouseInputStream.of(process.getInputStream(), request.getConfig().getReadBufferSize(),
+                    postCloseAction);
         }
     }
 

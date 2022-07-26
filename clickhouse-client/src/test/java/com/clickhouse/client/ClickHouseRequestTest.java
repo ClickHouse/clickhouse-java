@@ -73,7 +73,7 @@ public class ClickHouseRequestTest {
     }
 
     @Test(groups = { "unit" })
-    public void testChangeListener() {
+    public void testConfigChangeListener() {
         final ClickHouseConfig config = new ClickHouseConfig();
         final List<Object[]> changedOptions = new ArrayList<>();
         final List<Object[]> changedProperties = new ArrayList<>();
@@ -108,7 +108,9 @@ public class ClickHouseRequestTest {
         request.option(ClickHouseClientOption.FORMAT, ClickHouseFormat.Avro);
         request.removeOption(ClickHouseClientOption.BUFFER_SIZE);
         request.removeOption(ClickHouseClientOption.ASYNC);
-        request.query("select 1").query("select 2", "id=2").query(select3);
+        request.query("select 1");
+        request.query("select 2", "id=2");
+        request.query(select3);
         request.reset();
         request.format(ClickHouseFormat.TSV);
         Assert.assertEquals(changedOptions.toArray(new Object[0]),
@@ -126,6 +128,8 @@ public class ClickHouseRequestTest {
                 { request, ClickHouseRequest.PROP_PREPARED_QUERY, null, select3 },
                 { request, ClickHouseRequest.PROP_QUERY, "select 2", "select 3" },
                 { request, ClickHouseRequest.PROP_QUERY_ID, "id=2", null },
+                { request, ClickHouseRequest.PROP_QUERY, "select 3", null },
+                { request, ClickHouseRequest.PROP_PREPARED_QUERY, select3, null },
         });
         changedOptions.clear();
 
@@ -147,8 +151,31 @@ public class ClickHouseRequestTest {
         changedSettings.clear();
 
         request.setChangeListener(listener);
-        Assert.assertNull(request.copy().changeListener, "Listener should never be copied");
+        Assert.assertEquals(request.copy().changeListener, request.changeListener);
         Assert.assertNull(request.seal().changeListener, "Listener should never be copied");
+    }
+
+    @Test(groups = { "unit" })
+    public void testServerListener() {
+        ClickHouseRequest<?> request = ClickHouseClient.newInstance().connect(ClickHouseNode.builder().build());
+        final List<Object[]> serverChanges = new ArrayList<>();
+        request.setServerListener(
+                (currentServer, newServer) -> serverChanges.add(new Object[] { currentServer, newServer }));
+        ClickHouseNode s11 = ClickHouseNode.of("http://node1");
+        ClickHouseNode s12 = ClickHouseNode.of("grpc://node1/system");
+        ClickHouseNode s21 = ClickHouseNode.of("tcp://node2");
+        ClickHouseNode s22 = ClickHouseNode.of("https://node2");
+        request.changeServer(request.getServer(), s11);
+        Assert.assertEquals(serverChanges.toArray(new Object[0]), new Object[][] { { ClickHouseNode.DEFAULT, s11 } });
+        request.changeServer(ClickHouseNode.DEFAULT, s12);
+        Assert.assertEquals(serverChanges.toArray(new Object[0]), new Object[][] { { ClickHouseNode.DEFAULT, s11 } });
+        request.changeServer(s11, s21);
+        Assert.assertEquals(serverChanges.toArray(new Object[0]),
+                new Object[][] { { ClickHouseNode.DEFAULT, s11 }, { s11, s21 } });
+        request.reset();
+        request.changeServer(s21, s22);
+        Assert.assertEquals(serverChanges.toArray(new Object[0]),
+                new Object[][] { { ClickHouseNode.DEFAULT, s11 }, { s11, s21 } });
     }
 
     @Test(groups = { "unit" })

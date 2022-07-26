@@ -25,8 +25,8 @@ public class ClickHouseHttpConnectionTest {
 
         @Override
         protected ClickHouseHttpResponse post(String query, ClickHouseInputStream data,
-                List<ClickHouseExternalTable> tables, String url, Map<String, String> headers, ClickHouseConfig config)
-                throws IOException {
+                List<ClickHouseExternalTable> tables, String url, Map<String, String> headers, ClickHouseConfig config,
+                Runnable postAction) throws IOException {
             return null;
         }
 

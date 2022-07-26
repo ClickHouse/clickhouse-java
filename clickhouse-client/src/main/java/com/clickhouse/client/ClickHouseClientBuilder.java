@@ -15,6 +15,8 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 
 import com.clickhouse.client.config.ClickHouseOption;
@@ -80,6 +82,10 @@ public class ClickHouseClientBuilder {
     static final class Agent implements ClickHouseClient {
         private static final Logger log = LoggerFactory.getLogger(Agent.class);
 
+        private static final long INITIAL_REPEAT_DELAY = 100;
+        private static final long MAX_REPEAT_DELAY = 1000;
+        private static final long REPEAT_DELAY_BACKOFF = 100;
+
         private final AtomicReference<ClickHouseClient> client;
 
         Agent(ClickHouseClient client, ClickHouseConfig config) {
@@ -110,6 +116,7 @@ public class ClickHouseClientBuilder {
                 ClickHouseNode current = sealedRequest.getServer();
                 ClickHouseNodeManager manager = current.manager.get();
                 if (manager == null) {
+                    log.debug("Cancel failover for unmanaged node: %s", current);
                     break;
                 }
                 ClickHouseNode next = manager.suggestNode(current, exception);
@@ -118,8 +125,10 @@ public class ClickHouseClientBuilder {
                     break;
                 }
                 current.update(Status.FAULTY);
-                next = sealedRequest.changeServer(current, next);
-                if (next == current) {
+                if (sealedRequest.isTransactional()) {
+                    log.debug("Cancel failover for transactional context: %s", sealedRequest.getTransaction());
+                    break;
+                } else if ((next = sealedRequest.changeServer(current, next)) == current) {
                     log.debug("Cancel failover for no alternative of %s", current);
                     break;
                 }
@@ -162,6 +171,59 @@ public class ClickHouseClientBuilder {
             throw new CompletionException(exception);
         }
 
+        /**
+         * Repeats sending same request until success, timed out or running into a
+         * different error.
+         *
+         * @param sealedRequest non-null sealed request
+         * @param exception     non-null exception to start with
+         * @param timeout       timeout in milliseconds, zero or negative numbers means
+         *                      no repeat
+         * @return non-null response
+         * @throws CompletionException when error occurred or timed out
+         */
+        ClickHouseResponse repeat(ClickHouseRequest<?> sealedRequest, ClickHouseException exception, long timeout) {
+            if (timeout > 0) {
+                final int errorCode = exception.getErrorCode();
+                final long startTime = System.currentTimeMillis();
+
+                long delay = INITIAL_REPEAT_DELAY;
+                long elapsed = 0L;
+                int count = 1;
+                while (true) {
+                    log.info("Repeating #%d (delay=%d, elapsed=%d, timeout=%d) due to: %s", count++, delay, elapsed,
+                            timeout, exception.getMessage());
+                    try {
+                        return sendOnce(sealedRequest);
+                    } catch (Exception exp) {
+                        exception = ClickHouseException.of(exp.getCause() != null ? exp.getCause() : exp,
+                                sealedRequest.getServer());
+                    }
+
+                    elapsed = System.currentTimeMillis() - startTime;
+                    if (exception.getErrorCode() != errorCode || elapsed + delay >= timeout) {
+                        log.warn("Stopped repeating(delay=%d, elapsed=%d, timeout=%d) for %s", delay, elapsed,
+                                timeout, exception.getMessage());
+                        break;
+                    }
+
+                    try {
+                        Thread.sleep(delay);
+                        elapsed += delay;
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
+                    if (delay >= MAX_REPEAT_DELAY) {
+                        delay = MAX_REPEAT_DELAY;
+                    } else {
+                        delay += REPEAT_DELAY_BACKOFF;
+                    }
+                }
+            }
+            throw new CompletionException(exception);
+        }
+
         ClickHouseResponse retry(ClickHouseRequest<?> sealedRequest, ClickHouseException exception, int times) {
             for (int i = 1; i <= times; i++) {
                 log.debug("Retry %d of %d due to: %s", i, times, exception.getMessage());
@@ -186,18 +248,27 @@ public class ClickHouseClientBuilder {
                 cause = ((UncheckedIOException) cause).getCause();
             }
 
-            log.debug("Handling %s(failover=%d, retry=%d)", cause, sealedRequest.getConfig().getFailover(),
-                    sealedRequest.getConfig().getRetry());
+            ClickHouseConfig config = sealedRequest.getConfig();
+            log.debug("Handling %s(failover=%d, retry=%d)", cause, config.getFailover(), config.getRetry());
+            ClickHouseException ex = ClickHouseException.of(cause, sealedRequest.getServer());
             try {
+                if (config.isRepeatOnSessionLock()
+                        && ex.getErrorCode() == ClickHouseException.ERROR_SESSION_IS_LOCKED) {
+                    // connection timeout is usually a small number(defaults to 5000 ms), making it
+                    // better default compare to socket timeout and max execution time etc.
+                    return repeat(sealedRequest, ex, config.getSessionTimeout() <= 0 ? config.getConnectionTimeout()
+                            : TimeUnit.SECONDS.toMillis(config.getSessionTimeout()));
+                }
+
                 int times = sealedRequest.getConfig().getFailover();
                 if (times > 0) {
-                    return failover(sealedRequest, ClickHouseException.of(cause, sealedRequest.getServer()), times);
+                    return failover(sealedRequest, ex, times);
                 }
 
                 // different from failover: 1) retry on the same node; 2) never retry on timeout
                 times = sealedRequest.getConfig().getRetry();
                 if (times > 0) {
-                    return retry(sealedRequest, ClickHouseException.of(cause, sealedRequest.getServer()), times);
+                    return retry(sealedRequest, ex, times);
                 }
 
                 throw new CompletionException(cause);
@@ -210,11 +281,12 @@ public class ClickHouseClientBuilder {
 
         ClickHouseResponse sendOnce(ClickHouseRequest<?> sealedRequest) {
             try {
-                return getClient().execute(sealedRequest).get();
+                return getClient().execute(sealedRequest).get(sealedRequest.getConfig().getSocketTimeout(),
+                        TimeUnit.MILLISECONDS);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 throw new CancellationException("Execution was interrupted");
-            } catch (ExecutionException e) {
+            } catch (ExecutionException | TimeoutException e) {
                 throw new CompletionException(e.getCause());
             }
         }

@@ -4,15 +4,13 @@ import java.sql.SQLException;
 import java.util.Arrays;
 import java.util.Collections;
 
-import com.clickhouse.jdbc.internal.FakeTransaction.FakeSavepoint;
-
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
-public class FakeTransactionTest {
+public class JdbcTransactionTest {
     @Test(groups = "unit")
     public void testQuery() {
-        FakeTransaction tx = new FakeTransaction();
+        JdbcTransaction tx = new JdbcTransaction();
         Assert.assertNotNull(tx.id);
         Assert.assertEquals(tx.getQueries(), Collections.emptyList());
         Assert.assertEquals(tx.getSavepoints(), Collections.emptyList());
@@ -40,13 +38,13 @@ public class FakeTransactionTest {
 
     @Test(groups = "unit")
     public void testSavepoint() throws SQLException {
-        FakeTransaction tx = new FakeTransaction();
+        JdbcTransaction tx = new JdbcTransaction();
         Assert.assertNotNull(tx.id);
         Assert.assertEquals(tx.getQueries(), Collections.emptyList());
         Assert.assertEquals(tx.getSavepoints(), Collections.emptyList());
 
-        FakeSavepoint unnamedSavepoint = tx.newSavepoint(null);
-        FakeSavepoint s1 = unnamedSavepoint;
+        JdbcSavepoint unnamedSavepoint = tx.newSavepoint(null);
+        JdbcSavepoint s1 = unnamedSavepoint;
         Assert.assertEquals(unnamedSavepoint.id, 0);
         Assert.assertEquals(unnamedSavepoint.getSavepointId(), 0);
         Assert.assertNull(unnamedSavepoint.name, "Un-named savepoint should not have name");
@@ -54,8 +52,8 @@ public class FakeTransactionTest {
         Assert.assertEquals(tx.getQueries(), Collections.emptyList());
         Assert.assertEquals(tx.getSavepoints(), Collections.singleton(unnamedSavepoint));
 
-        FakeSavepoint namedSavepoint = tx.newSavepoint("tmp");
-        FakeSavepoint s2 = namedSavepoint;
+        JdbcSavepoint namedSavepoint = tx.newSavepoint("tmp");
+        JdbcSavepoint s2 = namedSavepoint;
         Assert.assertEquals(namedSavepoint.id, 0);
         Assert.assertThrows(SQLException.class, () -> s2.getSavepointId());
         Assert.assertEquals(namedSavepoint.name, "tmp");
@@ -76,7 +74,7 @@ public class FakeTransactionTest {
         Assert.assertEquals(tx.getSavepoints(), Collections.emptyList());
 
         String queryId = tx.newQuery(null);
-        FakeSavepoint s3 = unnamedSavepoint = tx.newSavepoint(null);
+        JdbcSavepoint s3 = unnamedSavepoint = tx.newSavepoint(null);
         Assert.assertEquals(unnamedSavepoint.id, 1);
         Assert.assertEquals(unnamedSavepoint.getSavepointId(), 1);
         Assert.assertNull(unnamedSavepoint.name, "Un-named savepoint should not have name");
@@ -85,7 +83,7 @@ public class FakeTransactionTest {
         Assert.assertEquals(tx.getSavepoints(), Collections.singleton(unnamedSavepoint));
 
         tx.newQuery(null);
-        FakeSavepoint s4 = namedSavepoint = tx.newSavepoint("tmp");
+        JdbcSavepoint s4 = namedSavepoint = tx.newSavepoint("tmp");
         Assert.assertEquals(namedSavepoint.id, 2);
         Assert.assertThrows(SQLException.class, () -> s4.getSavepointId());
         Assert.assertEquals(namedSavepoint.name, "tmp");

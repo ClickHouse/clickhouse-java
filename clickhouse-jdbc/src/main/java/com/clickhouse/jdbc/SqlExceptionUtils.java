@@ -12,6 +12,7 @@ import com.clickhouse.client.ClickHouseException;
  */
 public final class SqlExceptionUtils {
     public static final String SQL_STATE_CLIENT_ERROR = "HY000";
+    public static final String SQL_STATE_OPERATION_CANCELLED = "HY008";
     public static final String SQL_STATE_CONNECTION_EXCEPTION = "08000";
     public static final String SQL_STATE_SQL_ERROR = "07000";
     public static final String SQL_STATE_NO_DATA = "02000";
@@ -23,19 +24,48 @@ public final class SqlExceptionUtils {
     private SqlExceptionUtils() {
     }
 
-    // https://en.wikipedia.org/wiki/SQLSTATE
-    private static String toSqlState(ClickHouseException e) {
-        String sqlState;
-        if (e.getErrorCode() == ClickHouseException.ERROR_NETWORK
-                || e.getErrorCode() == ClickHouseException.ERROR_POCO) {
-            sqlState = SQL_STATE_CONNECTION_EXCEPTION;
-        } else if (e.getErrorCode() == 0) {
-            sqlState = e.getCause() instanceof ConnectException ? SQL_STATE_CONNECTION_EXCEPTION
-                    : SQL_STATE_CLIENT_ERROR;
-        } else {
-            sqlState = e.getCause() instanceof ConnectException ? SQL_STATE_CONNECTION_EXCEPTION : SQL_STATE_SQL_ERROR;
+    private static SQLException create(Throwable e) {
+        if (e == null) {
+            return unknownError();
+        } else if (e instanceof ClickHouseException) {
+            return handle((ClickHouseException) e);
+        } else if (e instanceof SQLException) {
+            return (SQLException) e;
         }
 
+        Throwable cause = e.getCause();
+        if (cause instanceof ClickHouseException) {
+            return handle((ClickHouseException) cause);
+        } else if (e instanceof SQLException) {
+            return (SQLException) cause;
+        } else if (cause == null) {
+            cause = e;
+        }
+
+        return new SQLException(cause);
+    }
+
+    // https://en.wikipedia.org/wiki/SQLSTATE
+    private static String toSqlState(ClickHouseException e) {
+        final String sqlState;
+        switch (e.getErrorCode()) {
+            case ClickHouseException.ERROR_ABORTED:
+            case ClickHouseException.ERROR_CANCELLED:
+                sqlState = SQL_STATE_OPERATION_CANCELLED;
+                break;
+            case ClickHouseException.ERROR_NETWORK:
+            case ClickHouseException.ERROR_POCO:
+                sqlState = SQL_STATE_CONNECTION_EXCEPTION;
+                break;
+            case 0:
+                sqlState = e.getCause() instanceof ConnectException ? SQL_STATE_CONNECTION_EXCEPTION
+                        : SQL_STATE_CLIENT_ERROR;
+                break;
+            default:
+                sqlState = e.getCause() instanceof ConnectException ? SQL_STATE_CONNECTION_EXCEPTION
+                        : SQL_STATE_SQL_ERROR;
+                break;
+        }
         return sqlState;
     }
 
@@ -56,25 +86,14 @@ public final class SqlExceptionUtils {
                 : unknownError();
     }
 
-    public static SQLException handle(Throwable e) {
-        if (e == null) {
-            return unknownError();
-        } else if (e instanceof ClickHouseException) {
-            return handle((ClickHouseException) e);
-        } else if (e instanceof SQLException) {
-            return (SQLException) e;
+    public static SQLException handle(Throwable e, Throwable... more) {
+        SQLException rootEx = create(e);
+        if (more != null) {
+            for (Throwable t : more) {
+                rootEx.setNextException(create(t));
+            }
         }
-
-        Throwable cause = e.getCause();
-        if (cause instanceof ClickHouseException) {
-            return handle((ClickHouseException) cause);
-        } else if (e instanceof SQLException) {
-            return (SQLException) cause;
-        } else if (cause == null) {
-            cause = e;
-        }
-
-        return new SQLException(cause);
+        return rootEx;
     }
 
     public static BatchUpdateException batchUpdateError(Throwable e, long[] updateCounts) {
@@ -127,7 +146,8 @@ public final class SqlExceptionUtils {
         }
 
         // operation canceled
-        return new SQLException(e.getMessage(), "HY008", ClickHouseException.ERROR_ABORTED, cause);
+        return new SQLException(e.getMessage(), SQL_STATE_OPERATION_CANCELLED, ClickHouseException.ERROR_ABORTED,
+                cause);
     }
 
     public static SQLFeatureNotSupportedException unsupportedError(String message) {

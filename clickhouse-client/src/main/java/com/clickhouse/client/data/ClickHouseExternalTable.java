@@ -2,6 +2,7 @@ package com.clickhouse.client.data;
 
 import java.io.FileNotFoundException;
 import java.io.InputStream;
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -22,7 +23,7 @@ import com.clickhouse.client.ClickHouseUtils;
 /**
  * "Attached" temporary table.
  */
-public class ClickHouseExternalTable {
+public class ClickHouseExternalTable implements Serializable {
     public static class Builder {
         private String name;
         private ClickHouseFile file;
@@ -163,6 +164,8 @@ public class ClickHouseExternalTable {
     public static Builder builder() {
         return new Builder();
     }
+
+    private static final long serialVersionUID = -5395148151046691946L;
 
     private final String name;
     private final ClickHouseFile file;

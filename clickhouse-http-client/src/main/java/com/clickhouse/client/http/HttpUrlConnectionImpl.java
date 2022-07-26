@@ -59,7 +59,7 @@ public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
 
     private final HttpURLConnection conn;
 
-    private ClickHouseHttpResponse buildResponse() throws IOException {
+    private ClickHouseHttpResponse buildResponse(Runnable postCloseAction) throws IOException {
         // X-ClickHouse-Server-Display-Name: xxx
         // X-ClickHouse-Query-Id: xxx
         // X-ClickHouse-Format: RowBinaryWithNamesAndTypes
@@ -94,13 +94,16 @@ public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
             action = () -> {
                 try (OutputStream o = output) {
                     ClickHouseInputStream.pipe(conn.getInputStream(), o, c.getWriteBufferSize());
+                    if (postCloseAction != null) {
+                        postCloseAction.run();
+                    }
                 } catch (IOException e) {
                     throw new UncheckedIOException("Failed to redirect response to given output stream", e);
                 }
             };
         } else {
             source = conn.getInputStream();
-            action = null;
+            action = postCloseAction;
         }
         return new ClickHouseHttpResponse(this,
                 hasOutputFile ? ClickHouseInputStream.of(source, c.getReadBufferSize(), action)
@@ -183,7 +186,8 @@ public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
                 }
                 errorMsg = builder.toString();
             } catch (IOException e) {
-                log.warn("Error while reading error message[code=%s] from server [%s]", errorCode, serverName, e);
+                log.debug("Failed to read error message[code=%s] from server [%s] due to: %s", errorCode, serverName,
+                        e.getMessage());
                 errorMsg = new String(bytes, StandardCharsets.UTF_8);
             }
 
@@ -205,7 +209,8 @@ public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
 
     @Override
     protected ClickHouseHttpResponse post(String sql, ClickHouseInputStream data, List<ClickHouseExternalTable> tables,
-            String url, Map<String, String> headers, ClickHouseConfig config) throws IOException {
+            String url, Map<String, String> headers, ClickHouseConfig config, Runnable postCloseAction)
+            throws IOException {
         Charset charset = StandardCharsets.US_ASCII;
         byte[] boundary = null;
         if (tables != null && !tables.isEmpty()) {
@@ -283,7 +288,7 @@ public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
 
         checkResponse(conn);
 
-        return buildResponse();
+        return buildResponse(postCloseAction);
     }
 
     @Override

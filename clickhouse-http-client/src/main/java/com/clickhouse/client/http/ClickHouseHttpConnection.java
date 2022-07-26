@@ -260,19 +260,20 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
     /**
      * Posts query and data to server.
      *
-     * @param query   non-blank query
-     * @param data    optionally input stream for batch updating
-     * @param tables  optionally external tables for query
-     * @param url     optionally url
-     * @param headers optionally request headers
-     * @param config  optionally configuration
+     * @param query           non-blank query
+     * @param data            optionally input stream for batch updating
+     * @param tables          optionally external tables for query
+     * @param url             optionally url
+     * @param headers         optionally request headers
+     * @param config          optionally configuration
+     * @param postCloseAction optionally post action
      * @return response
      * @throws IOException when error occured posting request and/or server failed
      *                     to respond
      */
     protected abstract ClickHouseHttpResponse post(String query, ClickHouseInputStream data,
-            List<ClickHouseExternalTable> tables, String url, Map<String, String> headers, ClickHouseConfig config)
-            throws IOException;
+            List<ClickHouseExternalTable> tables, String url, Map<String, String> headers, ClickHouseConfig config,
+            Runnable postCloseAction) throws IOException;
 
     /**
      * Checks whether the connection is reusable or not. This method will be called
@@ -297,36 +298,36 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
     public abstract boolean ping(int timeout);
 
     public ClickHouseHttpResponse update(String query) throws IOException {
-        return post(query, null, null, null, null, null);
+        return post(query, null, null, null, null, null, null);
     }
 
     public ClickHouseHttpResponse update(String query, Map<String, String> headers) throws IOException {
-        return post(query, null, null, null, headers, null);
+        return post(query, null, null, null, headers, null, null);
     }
 
     public ClickHouseHttpResponse update(String query, ClickHouseInputStream data) throws IOException {
-        return post(query, data, null, null, null, null);
+        return post(query, data, null, null, null, null, null);
     }
 
     public ClickHouseHttpResponse update(String query, ClickHouseInputStream data, Map<String, String> headers)
             throws IOException {
-        return post(query, data, null, null, headers, null);
+        return post(query, data, null, null, headers, null, null);
     }
 
     public ClickHouseHttpResponse query(String query) throws IOException {
-        return post(query, null, null, null, null, null);
+        return post(query, null, null, null, null, null, null);
     }
 
     public ClickHouseHttpResponse query(String query, Map<String, String> headers) throws IOException {
-        return post(query, null, null, null, headers, null);
+        return post(query, null, null, null, headers, null, null);
     }
 
     public ClickHouseHttpResponse query(String query, List<ClickHouseExternalTable> tables) throws IOException {
-        return post(query, null, tables, null, null, null);
+        return post(query, null, tables, null, null, null, null);
     }
 
     public ClickHouseHttpResponse query(String query, List<ClickHouseExternalTable> tables, Map<String, String> headers)
             throws IOException {
-        return post(query, null, tables, null, headers, null);
+        return post(query, null, tables, null, headers, null, null);
     }
 }

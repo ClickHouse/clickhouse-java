@@ -1,11 +1,16 @@
 package com.clickhouse.client.grpc;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
+
 import io.grpc.Status;
 import io.grpc.StatusException;
 import io.grpc.stub.StreamObserver;
+
+import com.clickhouse.client.ClickHouseCompression;
 import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseDataStreamFactory;
 import com.clickhouse.client.ClickHouseException;
@@ -36,7 +41,7 @@ public class ClickHouseStreamObserver implements StreamObserver<Result> {
 
     private final ClickHouseResponseSummary summary;
 
-    private Throwable error;
+    private final AtomicReference<IOException> errorRef;
 
     protected ClickHouseStreamObserver(ClickHouseConfig config, ClickHouseNode server, ClickHouseOutputStream output) {
         this.server = server;
@@ -44,30 +49,31 @@ public class ClickHouseStreamObserver implements StreamObserver<Result> {
         this.startLatch = new CountDownLatch(1);
         this.finishLatch = new CountDownLatch(1);
 
+        Runnable postCloseAction = () -> {
+            IOException exp = getError();
+            if (exp != null) {
+                throw new UncheckedIOException(exp);
+            }
+        };
         if (output != null) {
             this.stream = output;
-            this.input = ClickHouseInputStream.empty();
+            this.input = ClickHouseInputStream.wrap(null, ClickHouseInputStream.empty(),
+                    config.getReadBufferSize(), postCloseAction, ClickHouseCompression.NONE, 0);
         } else {
             ClickHousePipedOutputStream pipedStream = ClickHouseDataStreamFactory.getInstance()
                     .createPipedOutputStream(config, null);
             this.stream = pipedStream;
-            this.input = ClickHouseGrpcResponse.getInput(config, pipedStream.getInputStream());
+            this.input = ClickHouseGrpcResponse.getInput(config, pipedStream.getInputStream(), postCloseAction);
         }
 
         this.summary = new ClickHouseResponseSummary(null, null);
 
-        this.error = null;
+        this.errorRef = new AtomicReference<>(null);
     }
 
     protected void checkClosed() {
         if (finishLatch.getCount() == 0) {
             throw new IllegalStateException("closed observer");
-        }
-    }
-
-    protected void setError(Throwable error) {
-        if (this.error == null) {
-            this.error = error;
         }
     }
 
@@ -111,9 +117,10 @@ public class ClickHouseStreamObserver implements StreamObserver<Result> {
             log.error("Server error: Code=%s, %s", e.getCode(), e.getDisplayText());
             log.error(e.getStackTrace());
 
+            Throwable error = errorRef.get();
             if (error == null) {
-                error = new ClickHouseException(result.getException().getCode(), result.getException().getDisplayText(),
-                        this.server);
+                errorRef.compareAndSet(null, new IOException(ClickHouseException
+                        .buildErrorMessage(result.getException().getCode(), result.getException().getDisplayText())));
             }
         }
 
@@ -125,15 +132,15 @@ public class ClickHouseStreamObserver implements StreamObserver<Result> {
     }
 
     public boolean isCancelled() {
-        return isCompleted() && error != null;
+        return isCompleted() && errorRef.get() != null;
     }
 
     public ClickHouseResponseSummary getSummary() {
         return summary;
     }
 
-    public Throwable getError() {
-        return error;
+    public IOException getError() {
+        return errorRef.get();
     }
 
     @Override
@@ -162,7 +169,7 @@ public class ClickHouseStreamObserver implements StreamObserver<Result> {
         try {
             log.error("Query failed", t);
 
-            setError(t);
+            errorRef.compareAndSet(null, new IOException(t));
             try {
                 stream.close();
             } catch (IOException e) {
@@ -183,9 +190,7 @@ public class ClickHouseStreamObserver implements StreamObserver<Result> {
         try {
             stream.flush();
         } catch (IOException e) {
-            if (error == null) {
-                error = e;
-            }
+            errorRef.compareAndSet(null, e);
             log.error("Failed to flush output", e);
         } finally {
             startLatch.countDown();

@@ -51,6 +51,9 @@ Note: in general, the new driver(v0.3.2) is a few times faster with less memory 
 |                   | UUID                                                                 | :white_check_mark: |                                                                                                                                                                      |
 | High Availability | Load Balancing                                                       | :white_check_mark: | supported since 0.3.2-patch10                                                                                                                                        |
 |                   | Failover                                                             | :white_check_mark: | supported since 0.3.2-patch10                                                                                                                                        |
+| Transaction       | Transaction                                                          | :white_check_mark: | supported since 0.3.2-patch11, use ClickHouse 22.7+ for native implicit transaction support                                                                          |
+|                   | Savepoint                                                            | :x:                |                                                                                                                                                                      |
+|                   | XAConnection                                                         | :x:                |                                                                                                                                                                      |
 
 ## Examples
 
@@ -178,7 +181,7 @@ It's time consuming to run all benchmarks against all drivers using different pa
 
 ## Testing
 
-By default, docker container will be created automatically during integration test. You can pass system property like `-DclickhouseVersion=21.8` to specify version of ClickHouse.
+By default, docker container will be created automatically during integration test. You can pass system property like `-DclickhouseVersion=22.3` to specify version of ClickHouse.
 
 In the case you prefer to test against an existing server, please follow instructions below:
 

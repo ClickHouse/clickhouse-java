@@ -188,6 +188,7 @@ public class ClickHouseConfig implements Serializable {
     private final int nodeCheckInterval;
     private final int failover;
     private final int retry;
+    private final boolean repeatOnSessionLock;
     private final boolean reuseValueWrapper;
     private final boolean serverInfo;
     private final TimeZone serverTimeZone;
@@ -200,6 +201,7 @@ public class ClickHouseConfig implements Serializable {
     private final String sslRootCert;
     private final String sslCert;
     private final String sslKey;
+    private final int transactionTimeout;
     private final boolean useBlockingQueue;
     private final boolean useObjectsInArray;
     private final boolean useNoProxy;
@@ -281,6 +283,7 @@ public class ClickHouseConfig implements Serializable {
         this.nodeCheckInterval = (int) getOption(ClickHouseClientOption.NODE_CHECK_INTERVAL);
         this.failover = (int) getOption(ClickHouseClientOption.FAILOVER);
         this.retry = (int) getOption(ClickHouseClientOption.RETRY);
+        this.repeatOnSessionLock = (boolean) getOption(ClickHouseClientOption.REPEAT_ON_SESSION_LOCK);
         this.reuseValueWrapper = (boolean) getOption(ClickHouseClientOption.REUSE_VALUE_WRAPPER);
         this.serverInfo = !ClickHouseChecker.isNullOrBlank((String) getOption(ClickHouseClientOption.SERVER_TIME_ZONE))
                 && !ClickHouseChecker.isNullOrBlank((String) getOption(ClickHouseClientOption.SERVER_VERSION));
@@ -296,6 +299,7 @@ public class ClickHouseConfig implements Serializable {
         this.sslRootCert = (String) getOption(ClickHouseClientOption.SSL_ROOT_CERTIFICATE);
         this.sslCert = (String) getOption(ClickHouseClientOption.SSL_CERTIFICATE);
         this.sslKey = (String) getOption(ClickHouseClientOption.SSL_KEY);
+        this.transactionTimeout = (int) getOption(ClickHouseClientOption.TRANSACTION_TIMEOUT);
         this.useBlockingQueue = (boolean) getOption(ClickHouseClientOption.USE_BLOCKING_QUEUE);
         this.useObjectsInArray = (boolean) getOption(ClickHouseClientOption.USE_OBJECTS_IN_ARRAYS);
         this.useNoProxy = (boolean) getOption(ClickHouseClientOption.USE_NO_PROXY);
@@ -578,6 +582,10 @@ public class ClickHouseConfig implements Serializable {
         return retry;
     }
 
+    public boolean isRepeatOnSessionLock() {
+        return repeatOnSessionLock;
+    }
+
     /**
      * Checks whether retry is enabled or not.
      *
@@ -641,6 +649,10 @@ public class ClickHouseConfig implements Serializable {
 
     public String getSslKey() {
         return sslKey;
+    }
+
+    public int getTransactionTimeout() {
+        return transactionTimeout < 1 ? sessionTimeout : transactionTimeout;
     }
 
     public boolean isUseBlockingQueue() {

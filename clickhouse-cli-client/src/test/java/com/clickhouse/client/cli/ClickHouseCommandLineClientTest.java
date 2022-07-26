@@ -55,13 +55,6 @@ public class ClickHouseCommandLineClientTest extends ClientIntegrationTest {
 
     @Test(groups = { "integration" })
     @Override
-    public void testErrorDuringQuery() throws Exception {
-        throw new SkipException(
-                "Skip due to incomplete implementation(needs to consider ErrorOutputStream in deserialization as well)");
-    }
-
-    @Test(groups = { "integration" })
-    @Override
     public void testLoadRawData() throws Exception {
         throw new SkipException("Skip due to response summary is always empty");
     }
@@ -89,6 +82,12 @@ public class ClickHouseCommandLineClientTest extends ClientIntegrationTest {
     @Test(groups = { "integration" })
     @Override
     public void testReadWriteGeoTypes() {
+        throw new SkipException("Skip due to session is not supported");
+    }
+
+    @Test(groups = { "integration" })
+    @Override
+    public void testSessionLock() {
         throw new SkipException("Skip due to session is not supported");
     }
 

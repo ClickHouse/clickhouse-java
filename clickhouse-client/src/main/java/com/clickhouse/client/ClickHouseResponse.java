@@ -110,6 +110,7 @@ public interface ClickHouseResponse extends AutoCloseable, Serializable {
      * supposed to be called for more than once.
      *
      * @return non-null iterable collection
+     * @throws UncheckedIOException when failed to read data(e.g. deserialization)
      */
     Iterable<ClickHouseRecord> records();
 

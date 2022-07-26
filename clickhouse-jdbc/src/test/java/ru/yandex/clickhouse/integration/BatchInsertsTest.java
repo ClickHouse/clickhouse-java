@@ -82,7 +82,7 @@ public class BatchInsertsTest extends JdbcIntegrationTest {
                         "string String," +
                         "int32 Int32," +
                         "float64 Float64" +
-                        ") ENGINE = MergeTree(date, (date), 8192)"
+                        ") ENGINE = MergeTree order by date"
         );
 
         Date date = new Date(dateFormat.parse("1989-01-30").getTime());
@@ -194,7 +194,7 @@ public class BatchInsertsTest extends JdbcIntegrationTest {
                         "string String," +
                         "int32 Int32," +
                         "float64 Float64" +
-                        ") ENGINE = MergeTree(date, (date), 8192)"
+                        ") ENGINE = MergeTree order by date"
         );
 
         Date date = new Date(dateFormat.parse("1989-01-30").getTime());
@@ -237,7 +237,7 @@ public class BatchInsertsTest extends JdbcIntegrationTest {
                         "string Nullable(String)," +
                         "int32 Nullable(Int32)," +
                         "float64 Nullable(Float64)" +
-                        ") ENGINE = MergeTree(date, (date), 8192)"
+                        ") ENGINE = MergeTree order by date"
         );
 
         ClickHousePreparedStatement statement = (ClickHousePreparedStatement) connection.prepareStatement(

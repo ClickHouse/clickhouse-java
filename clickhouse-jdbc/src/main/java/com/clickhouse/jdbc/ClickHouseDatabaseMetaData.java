@@ -65,18 +65,14 @@ public class ClickHouseDatabaseMetaData extends JdbcWrapper implements DatabaseM
 
     protected ResultSet query(String sql, ClickHouseRecordTransformer func, boolean ignoreError) throws SQLException {
         SQLException error = null;
-        try {
-            ClickHouseStatement stmt = connection.createStatement();
+        try (ClickHouseStatement stmt = connection.createStatement()) {
             stmt.setLargeMaxRows(0L);
             return new ClickHouseResultSet("", "", stmt,
                     // load everything into memory
                     ClickHouseSimpleResponse.of(stmt.getRequest()
                             .format(ClickHouseFormat.RowBinaryWithNamesAndTypes)
                             .option(ClickHouseClientOption.RENAME_RESPONSE_COLUMN, ClickHouseRenameMethod.NONE)
-                            .query(sql).execute().get(), func));
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw SqlExceptionUtils.forCancellation(e);
+                            .query(sql).executeAndWait(), func));
         } catch (Exception e) {
             error = SqlExceptionUtils.handle(e);
         }
@@ -669,13 +665,13 @@ public class ClickHouseDatabaseMetaData extends JdbcWrapper implements DatabaseM
 
     @Override
     public int getDefaultTransactionIsolation() throws SQLException {
-        return connection.getJdbcConfig().isJdbcCompliant() ? Connection.TRANSACTION_READ_COMMITTED
+        return connection.getJdbcConfig().isJdbcCompliant() ? Connection.TRANSACTION_REPEATABLE_READ
                 : Connection.TRANSACTION_NONE;
     }
 
     @Override
     public boolean supportsTransactions() throws SQLException {
-        return connection.getJdbcConfig().isJdbcCompliant();
+        return connection.isTransactionSupported() || connection.getJdbcConfig().isJdbcCompliant();
     }
 
     @Override
@@ -687,7 +683,8 @@ public class ClickHouseDatabaseMetaData extends JdbcWrapper implements DatabaseM
             throw SqlExceptionUtils.clientError("Unknown isolation level: " + level);
         }
 
-        return connection.getJdbcConfig().isJdbcCompliant();
+        return (connection.isTransactionSupported() && Connection.TRANSACTION_REPEATABLE_READ == level)
+                || connection.getJdbcConfig().isJdbcCompliant();
     }
 
     @Override

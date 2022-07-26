@@ -69,6 +69,18 @@ public class ClickHouseHttpClientTest extends ClientIntegrationTest {
     }
 
     @Test // (groups = "integration")
+    public void testTransaction() throws Exception {
+        testAbortTransaction();
+        testNewTransaction();
+        testJoinTransaction();
+        testCommitTransaction();
+        testRollbackTransaction();
+        testTransactionSnapshot();
+        testTransactionTimeout();
+        testImplicitTransaction();
+    }
+
+    @Test // (groups = "integration")
     public void testSslClientAuth() throws Exception {
         // NPE on JDK 8:
         // java.lang.NullPointerException

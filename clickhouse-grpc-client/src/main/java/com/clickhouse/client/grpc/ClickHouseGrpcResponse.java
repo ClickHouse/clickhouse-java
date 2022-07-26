@@ -2,11 +2,13 @@ package com.clickhouse.client.grpc;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.util.Map;
 
 import com.clickhouse.client.ClickHouseCompression;
 import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseDeferredValue;
+import com.clickhouse.client.ClickHouseException;
 import com.clickhouse.client.ClickHouseInputStream;
 import com.clickhouse.client.ClickHouseResponseSummary;
 import com.clickhouse.client.data.ClickHouseStreamResponse;
@@ -20,7 +22,15 @@ public class ClickHouseGrpcResponse extends ClickHouseStreamResponse {
     private final ClickHouseStreamObserver observer;
     private final Result result;
 
-    static ClickHouseInputStream getInput(ClickHouseConfig config, InputStream input) {
+    static void checkError(Result result) {
+        if (result != null && result.hasException()) {
+            throw new UncheckedIOException(new IOException(ClickHouseException
+                    .buildErrorMessage(result.getException().getCode(),
+                            result.getException().getDisplayText())));
+        }
+    }
+
+    static ClickHouseInputStream getInput(ClickHouseConfig config, InputStream input, Runnable postCloseAction) {
         final ClickHouseInputStream in;
         if (config.getResponseCompressAlgorithm() == ClickHouseCompression.LZ4) {
             in = ClickHouseInputStream.of(
@@ -31,10 +41,10 @@ public class ClickHouseGrpcResponse extends ClickHouseStreamResponse {
                             return input;
                         }
                     }),
-                    config.getReadBufferSize(), null);
+                    config.getReadBufferSize(), postCloseAction);
         } else {
             in = ClickHouseInputStream.of(input, config.getReadBufferSize(), config.getResponseCompressAlgorithm(),
-                    null);
+                    postCloseAction);
         }
 
         return in;
@@ -51,8 +61,10 @@ public class ClickHouseGrpcResponse extends ClickHouseStreamResponse {
     protected ClickHouseGrpcResponse(ClickHouseConfig config, Map<String, Object> settings, Result result)
             throws IOException {
         super(config,
-                result.getOutput().isEmpty() ? ClickHouseInputStream.of(result.getOutput().newInput())
-                        : getInput(config, result.getOutput().newInput()),
+                result.getOutput().isEmpty()
+                        ? ClickHouseInputStream.of(result.getOutput().newInput(), config.getReadBufferSize(),
+                                () -> checkError(result))
+                        : getInput(config, result.getOutput().newInput(), () -> checkError(result)),
                 settings, null,
                 new ClickHouseResponseSummary(null, null));
 
