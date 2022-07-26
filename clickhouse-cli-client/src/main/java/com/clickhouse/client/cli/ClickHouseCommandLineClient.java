@@ -45,7 +45,7 @@ public class ClickHouseCommandLineClient extends AbstractClient<ClickHouseComman
             closeConnection(conn, false);
         }
 
-        return new ClickHouseCommandLine(server, request);
+        return new ClickHouseCommandLine(request);
     }
 
     @Override

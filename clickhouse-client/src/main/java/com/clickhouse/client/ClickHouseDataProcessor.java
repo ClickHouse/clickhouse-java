@@ -119,11 +119,15 @@ public abstract class ClickHouseDataProcessor {
      * Checks whether there's more to read from input stream.
      *
      * @return true if there's more; false otherwise
-     * @throws UncheckedIOException when failed to read columns from input stream
+     * @throws UncheckedIOException when failed to read data from input stream
      */
     private boolean hasNext() throws UncheckedIOException {
         try {
-            return input.available() > 0;
+            if (input.available() <= 0) {
+                input.close();
+                return false;
+            }
+            return true;
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -135,7 +139,7 @@ public abstract class ClickHouseDataProcessor {
      *
      * @return non-null record
      * @throws NoSuchElementException when no more record to read
-     * @throws UncheckedIOException   when failed to read columns from input stream
+     * @throws UncheckedIOException   when failed to read data from input stream
      */
     private ClickHouseRecord nextRecord() throws NoSuchElementException, UncheckedIOException {
         final ClickHouseRecord r = config.isReuseValueWrapper() ? currentRecord : currentRecord.copy();
@@ -164,7 +168,7 @@ public abstract class ClickHouseDataProcessor {
      *
      * @return non-null value
      * @throws NoSuchElementException when no more value to read
-     * @throws UncheckedIOException   when failed to read columns from input stream
+     * @throws UncheckedIOException   when failed to read data from input stream
      */
     private ClickHouseValue nextValue() throws NoSuchElementException, UncheckedIOException {
         ClickHouseColumn column = columns[readPosition];
@@ -312,7 +316,7 @@ public abstract class ClickHouseDataProcessor {
             }
         }
 
-        if (this.columns.length == 0 || input == null) {
+        if (input == null) {
             this.currentRecord = ClickHouseRecord.EMPTY;
             this.records = Collections.emptyIterator();
             this.values = Collections.emptyIterator();
@@ -341,25 +345,25 @@ public abstract class ClickHouseDataProcessor {
      * Returns an iterable collection of records which can be walked through in a
      * foreach-loop. Please pay attention that: 1)
      * {@link java.io.UncheckedIOException} might be thrown when iterating through
-     * the collection; and 2) it's not supposed to be called for more than once.
+     * the collection; and 2) it's not supposed to be called for more than once
+     * because the input stream will be closed at the end of reading.
      *
      * @return non-null iterable records
+     * @throws UncheckedIOException when failed to access the input stream
      */
     public final Iterable<ClickHouseRecord> records() {
-        if (columns.length == 0) {
-            return Collections.emptyList();
-        }
-
         return () -> records;
     }
 
     /**
      * Returns an iterable collection of values which can be walked through in a
-     * foreach-loop. It's slower than {@link #records()}, because the latter
-     * reads data in bulk. However, it's particular useful when you're reading large
-     * values with limited memory - e.g. a binary field with a few GB bytes.
-     * 
+     * foreach-loop. In general, this is slower than {@link #records()}, because the
+     * latter reads data in bulk. However, it's particular useful when you're
+     * reading large values with limited memory - e.g. a binary field with a few GB
+     * bytes. Similarly, the input stream will be closed at the end of reading.
+     *
      * @return non-null iterable values
+     * @throws UncheckedIOException when failed to access the input stream
      */
     public final Iterable<ClickHouseValue> values() {
         if (columns.length == 0) {

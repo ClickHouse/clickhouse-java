@@ -266,12 +266,23 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
                     .executeAndWait()) {
                 Assert.assertNotNull(resp);
             }
+            int expectedRows = 1;
+            if (server.getProtocol() != ClickHouseProtocol.GRPC) {
+                try (ClickHouseResponse resp = request.write().table("test_compress_decompress")
+                        .format(ClickHouseFormat.CSV).data(ClickHouseInputStream.of("'" + uuid + "'\n'" + uuid + "'"))
+                        .executeAndWait()) {
+                    Assert.assertNotNull(resp);
+                }
+                expectedRows += 2;
+            }
 
             boolean hasResult = false;
             try (ClickHouseResponse resp = request
-                    .query("select id from test_compress_decompress where id = :uuid")
+                    .query("select id, count(1) n from test_compress_decompress where id = :uuid group by id")
                     .params(ClickHouseStringValue.of(uuid)).executeAndWait()) {
-                Assert.assertEquals(resp.firstRecord().getValue(0).asString(), uuid);
+                ClickHouseRecord r = resp.firstRecord();
+                Assert.assertEquals(r.getValue(0).asString(), uuid);
+                Assert.assertEquals(r.getValue(1).asInteger(), expectedRows);
                 hasResult = true;
             }
             Assert.assertTrue(hasResult, "Should have at least one result");
@@ -1406,20 +1417,22 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
     @Test(groups = "integration")
     public void testErrorDuringInsert() throws Exception {
         ClickHouseNode server = getServer();
-        if (server.getProtocol() != ClickHouseProtocol.HTTP) {
-            throw new SkipException("Skip as only http implementation works well");
-        }
         ClickHouseClient.send(server, "drop table if exists error_during_insert",
                 "create table error_during_insert(n UInt64, flag UInt8)engine=Null").get();
         boolean success = true;
         try (ClickHouseClient client = getClient();
-                ClickHouseResponse resp = client.connect(getServer()).write().format(ClickHouseFormat.RowBinary)
+                ClickHouseResponse resp = client.connect(server).write().format(ClickHouseFormat.RowBinary)
                         .query("insert into error_during_insert select number, throwIf(number>=100000000) from numbers(500000000)")
                         .executeAndWait()) {
             for (ClickHouseRecord r : resp.records()) {
                 Assert.fail("Should have no record");
             }
             Assert.fail("Insert should be aborted");
+        } catch (UncheckedIOException e) {
+            ClickHouseException ex = ClickHouseException.of(e, server);
+            Assert.assertEquals(ex.getErrorCode(), 395);
+            Assert.assertTrue(ex.getCause() instanceof IOException, "Should end up with IOException");
+            success = false;
         } catch (ClickHouseException e) {
             Assert.assertEquals(e.getErrorCode(), 395);
             Assert.assertTrue(e.getCause() instanceof IOException, "Should end up with IOException");
@@ -1432,10 +1445,7 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
     @Test(groups = "integration")
     public void testErrorDuringQuery() throws Exception {
         ClickHouseNode server = getServer();
-        if (server.getProtocol() != ClickHouseProtocol.HTTP) {
-            throw new SkipException("Skip as only http implementation works well");
-        }
-        String query = "select number, throwIf(number>=100000000) from numbers(500000000)";
+        String query = "select number, throwIf(number>=10000000) from numbers(50000000)";
         long count = 0L;
         try (ClickHouseClient client = getClient();
                 ClickHouseResponse resp = client.connect(server).format(ClickHouseFormat.RowBinaryWithNamesAndTypes)
@@ -1453,6 +1463,40 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
         }
 
         Assert.assertNotEquals(count, 0L, "Should have read at least one record");
+    }
+
+    @Test(groups = "integration")
+    public void testSessionLock() throws Exception {
+        ClickHouseNode server = getServer();
+        String sessionId = ClickHouseRequestManager.getInstance().createSessionId();
+        try (ClickHouseClient client = getClient()) {
+            ClickHouseRequest<?> req1 = client.connect(server).session(sessionId)
+                    .query("select * from numbers(10000000)");
+            ClickHouseRequest<?> req2 = client.connect(server)
+                    .option(ClickHouseClientOption.REPEAT_ON_SESSION_LOCK, true)
+                    .option(ClickHouseClientOption.CONNECTION_TIMEOUT, 500)
+                    .session(sessionId).query("select 1");
+
+            ClickHouseResponse resp1 = req1.executeAndWait();
+            try (ClickHouseResponse resp = req2.executeAndWait()) {
+                Assert.fail("Should fail due to session is locked by previous query");
+            } catch (ClickHouseException e) {
+                Assert.assertEquals(e.getErrorCode(), ClickHouseException.ERROR_SESSION_IS_LOCKED);
+            }
+            new Thread(() -> {
+                try {
+                    Thread.sleep(1000);
+                    resp1.close();
+                } catch (InterruptedException e) {
+                    // ignore
+                }
+            }).start();
+
+            try (ClickHouseResponse resp = req2.option(ClickHouseClientOption.CONNECTION_TIMEOUT, 30000)
+                    .executeAndWait()) {
+                Assert.assertNotNull(resp);
+            }
+        }
     }
 
     @Test // (groups = "integration")

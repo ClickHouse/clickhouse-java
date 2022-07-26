@@ -20,6 +20,8 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.Optional;
 import java.util.Properties;
@@ -231,7 +233,7 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
                 data(stream.getInputStream());
                 CompletableFuture<ClickHouseResponse> future = null;
                 if (c.isAsync()) {
-                    future = getClient().execute(isSealed() ? this : seal());
+                    future = getClient().execute(this);
                 }
                 try (ClickHouseOutputStream out = stream) {
                     writer.write(out);
@@ -243,7 +245,7 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
                 }
             }
 
-            return getClient().execute(isSealed() ? this : seal());
+            return getClient().execute(this);
         }
 
         @Override
@@ -255,7 +257,7 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
                 data(stream.getInputStream());
                 CompletableFuture<ClickHouseResponse> future = null;
                 if (c.isAsync()) {
-                    future = getClient().execute(isSealed() ? this : seal());
+                    future = getClient().execute(this);
                 }
                 try (ClickHouseOutputStream out = stream) {
                     writer.write(out);
@@ -264,13 +266,13 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
                 }
                 if (future != null) {
                     try {
-                        return future.get();
+                        return future.get(c.getSocketTimeout(), TimeUnit.MILLISECONDS);
                     } catch (InterruptedException e) {
                         Thread.currentThread().interrupt();
                         throw ClickHouseException.forCancellation(e, getServer());
                     } catch (CancellationException e) {
                         throw ClickHouseException.forCancellation(e, getServer());
-                    } catch (ExecutionException | UncheckedIOException e) {
+                    } catch (ExecutionException | TimeoutException | UncheckedIOException e) {
                         Throwable cause = e.getCause();
                         if (cause == null) {
                             cause = e;
@@ -292,7 +294,10 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
          *
          * @return non-null future to get response
          * @throws CompletionException when error occurred
+         * @deprecated will be removed in v0.3.3, please use {@link #execute()}
+         *             instead
          */
+        @Deprecated
         public CompletableFuture<ClickHouseResponse> send() {
             return execute();
         }
@@ -302,6 +307,8 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
          *
          * @return non-null response
          * @throws ClickHouseException when error occurred during execution
+         * @deprecated will be removed in v0.3.3, please use {@link #executeAndWait()}
+         *             instead
          */
         public ClickHouseResponse sendAndWait() throws ClickHouseException {
             return executeAndWait();
@@ -1952,7 +1959,7 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
      * @throws CompletionException when error occurred during execution
      */
     public CompletableFuture<ClickHouseResponse> execute() {
-        return getClient().execute(isSealed() ? this : seal());
+        return getClient().execute(this);
     }
 
     /**
@@ -1985,22 +1992,22 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
             return set(ClickHouseTransaction.SETTING_IMPLICIT_TRANSACTION, 1).transaction(null).executeAndWait();
         }
 
-        ClickHouseTransaction tx = getManager().createTransaction(this);
+        ClickHouseTransaction tx = null;
         try {
-            tx.begin();
-            ClickHouseResponse response = getClient().executeAndWait(transaction(tx));
-            tx.commit();
-            tx = null;
-            return response;
-        } catch (ClickHouseException e) {
-            throw e;
+            tx = getManager().createImplicitTransaction(this);
+            // transaction will be committed only when the response is fully consumed
+            return getClient().executeAndWait(transaction(tx));
         } catch (Exception e) {
+            if (tx != null) {
+                try {
+                    tx.rollback();
+                } catch (Exception ex) {
+                    // ignore
+                }
+            }
             throw ClickHouseException.of(e, getServer());
         } finally {
             transaction(null);
-            if (tx != null) {
-                tx.rollback();
-            }
         }
     }
 }

@@ -48,11 +48,23 @@ public class ClickHouseRequestManager {
     }
 
     /**
+     * Creates an implicit transaction.
+     *
+     * @param request non-null request
+     * @return non-null new transaction
+     * @throws ClickHouseException when failed to create implicit transaction
+     */
+    public ClickHouseTransaction createImplicitTransaction(ClickHouseRequest<?> request) throws ClickHouseException {
+        return new ClickHouseTransaction(ClickHouseChecker.nonNull(request, "Request").getServer(),
+                request.getConfig().getTransactionTimeout(), true);
+    }
+
+    /**
      * Creates a new transaction. Same as {@code createTransaction(request, 0)}.
      *
      * @param request non-null request
      * @return non-null new transaction
-     * @throws ClickHouseException when failed to get or start transaction
+     * @throws ClickHouseException when failed to create transaction
      */
     public ClickHouseTransaction createTransaction(ClickHouseRequest<?> request) throws ClickHouseException {
         return createTransaction(request, 0);
@@ -68,7 +80,7 @@ public class ClickHouseRequestManager {
      * @param timeout transaction timeout in seconds, zero or negative number
      *                means {@code request.getConfig().getTransactionTimeout()}
      * @return non-null new transaction
-     * @throws ClickHouseException when failed to get or start transaction
+     * @throws ClickHouseException when failed to create transaction
      */
     public ClickHouseTransaction createTransaction(ClickHouseRequest<?> request, int timeout)
             throws ClickHouseException {

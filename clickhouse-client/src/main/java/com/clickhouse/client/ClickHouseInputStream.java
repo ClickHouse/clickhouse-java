@@ -452,20 +452,10 @@ public abstract class ClickHouseInputStream extends InputStream {
         int size = buffer.length;
         long count = 0L;
         int written = 0;
-        try {
-            while ((written = input.read(buffer, 0, size)) >= 0) {
+        try (InputStream in = input) {
+            while ((written = in.read(buffer, 0, size)) >= 0) {
                 output.write(buffer, 0, written);
                 count += written;
-            }
-            input.close();
-            input = null;
-        } finally {
-            if (input != null) {
-                try {
-                    input.close();
-                } catch (Exception e) {
-                    // ignore
-                }
             }
         }
         return count;

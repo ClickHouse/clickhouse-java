@@ -70,6 +70,7 @@ public class ClickHouseStreamResponse implements ClickHouseResponse {
 
         this.config = config;
         this.input = input;
+        this.closed = false;
 
         boolean hasError = true;
         try {
@@ -84,13 +85,13 @@ public class ClickHouseStreamResponse implements ClickHouseResponse {
                 log.error("Failed to create stream response, closing input stream");
                 try {
                     input.close();
-                } catch (Exception e) {
+                } catch (IOException e) {
                     // ignore
                 }
             }
         }
-        this.summary = summary != null ? summary : ClickHouseResponseSummary.EMPTY;
         this.closed = hasError;
+        this.summary = summary != null ? summary : ClickHouseResponseSummary.EMPTY;
     }
 
     @Override
@@ -115,10 +116,11 @@ public class ClickHouseStreamResponse implements ClickHouseResponse {
         } finally {
             try {
                 input.close();
-            } catch (Exception e) {
+            } catch (IOException e) {
                 log.warn("Failed to close input stream", e);
+            } finally {
+                closed = true;
             }
-            closed = true;
         }
     }
 

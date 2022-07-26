@@ -188,6 +188,7 @@ public class ClickHouseConfig implements Serializable {
     private final int nodeCheckInterval;
     private final int failover;
     private final int retry;
+    private final boolean repeatOnSessionLock;
     private final boolean reuseValueWrapper;
     private final boolean serverInfo;
     private final TimeZone serverTimeZone;
@@ -282,6 +283,7 @@ public class ClickHouseConfig implements Serializable {
         this.nodeCheckInterval = (int) getOption(ClickHouseClientOption.NODE_CHECK_INTERVAL);
         this.failover = (int) getOption(ClickHouseClientOption.FAILOVER);
         this.retry = (int) getOption(ClickHouseClientOption.RETRY);
+        this.repeatOnSessionLock = (boolean) getOption(ClickHouseClientOption.REPEAT_ON_SESSION_LOCK);
         this.reuseValueWrapper = (boolean) getOption(ClickHouseClientOption.REUSE_VALUE_WRAPPER);
         this.serverInfo = !ClickHouseChecker.isNullOrBlank((String) getOption(ClickHouseClientOption.SERVER_TIME_ZONE))
                 && !ClickHouseChecker.isNullOrBlank((String) getOption(ClickHouseClientOption.SERVER_VERSION));
@@ -578,6 +580,10 @@ public class ClickHouseConfig implements Serializable {
 
     public int getRetry() {
         return retry;
+    }
+
+    public boolean isRepeatOnSessionLock() {
+        return repeatOnSessionLock;
     }
 
     /**

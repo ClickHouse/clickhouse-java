@@ -143,7 +143,7 @@ public final class ClickHouseTransaction implements Serializable {
      * @throws ClickHouseException when failed to enable or disable implicit
      *                             transaction
      */
-    public static void setImplicitTransaction(ClickHouseRequest<?> request, boolean enable) throws ClickHouseException {
+    static void setImplicitTransaction(ClickHouseRequest<?> request, boolean enable) throws ClickHouseException {
         if (enable) {
             request.set(SETTING_IMPLICIT_TRANSACTION, 1).transaction(null);
         } else {
@@ -154,13 +154,63 @@ public final class ClickHouseTransaction implements Serializable {
     private final ClickHouseNode server;
     private final String sessionId;
     private final int timeout;
-
-    // transaction ID
+    private final boolean implicit;
     private final AtomicReference<XID> id;
     private final AtomicInteger state;
 
     /**
-     * Default constructor.
+     * Constructs a unique transaction in {@link #ACTIVE} state.
+     * {@link ClickHouseRequestManager#createSessionId()} will be used to ensure
+     * uniquness of the transaction.
+     *
+     * @param server   non-null server of the transaction
+     * @param timeout  transaction timeout
+     * @param implicit whether it's an implicit transaction or not
+     */
+    protected ClickHouseTransaction(ClickHouseNode server, int timeout, boolean implicit) throws ClickHouseException {
+        this.server = server;
+        this.sessionId = ClickHouseRequestManager.getInstance().createSessionId();
+        this.timeout = timeout < 1 ? 0 : timeout;
+        this.implicit = implicit;
+        this.id = new AtomicReference<>(XID.EMPTY);
+        this.state = new AtomicInteger(NEW);
+
+        try {
+            id.updateAndGet(x -> {
+                boolean success = false;
+                try {
+                    issue("BEGIN TRANSACTION", false, Collections.emptyMap());
+                    XID txId = XID.of(issue(QUERY_SELECT_TX_ID).getValue(0).asTuple());
+
+                    if (XID.EMPTY.equals(txId)) {
+                        throw new ClickHouseTransactionException(
+                                ClickHouseTransactionException.ERROR_UNKNOWN_STATUS_OF_TRANSACTION,
+                                ClickHouseUtils.format("Failed to start transaction(implicit=%s)", implicit), this);
+                    }
+                    success = state.compareAndSet(NEW, ACTIVE);
+                    return txId;
+                } catch (ClickHouseException e) {
+                    throw new IllegalStateException(e);
+                } finally {
+                    if (!success) {
+                        state.compareAndSet(NEW, FAILED);
+                    }
+                }
+            });
+            log.debug("Began transaction(implicit=%s): %s", this.implicit, this);
+        } catch (IllegalStateException e) {
+            if (e.getCause() instanceof ClickHouseException) {
+                throw (ClickHouseException) e.getCause();
+            } else {
+                throw e;
+            }
+        }
+    }
+
+    /**
+     * Constructs a transaction in {@link #NEW} state, hence {@link #begin()} or
+     * {@link #begin(Map)} must be called before commit/rollback and
+     * {@link #isImplicit()} is always {@code false}.
      *
      * @param server    non-null server of the transaction
      * @param sessionId non-empty session ID for the transaction
@@ -171,7 +221,7 @@ public final class ClickHouseTransaction implements Serializable {
         this.server = server;
         this.sessionId = sessionId;
         this.timeout = timeout < 1 ? 0 : timeout;
-
+        this.implicit = false;
         if (id == null || XID.EMPTY.equals(id)) {
             this.id = new AtomicReference<>(XID.EMPTY);
             this.state = new AtomicInteger(NEW);
@@ -188,12 +238,15 @@ public final class ClickHouseTransaction implements Serializable {
      *                             client and server
      */
     protected void ensureTransactionId() throws ClickHouseException {
-        XID serverTxId = XID.of(issue(QUERY_SELECT_TX_ID).getValue(0).asTuple());
-        if (!serverTxId.equals(id.get())) {
-            throw new ClickHouseTransactionException(
-                    ClickHouseUtils.format("Inconsistent transaction ID - client expected %s but found %s on server.",
-                            id.get(), serverTxId),
-                    this);
+        if (!implicit) {
+            XID serverTxId = XID.of(issue(QUERY_SELECT_TX_ID).getValue(0).asTuple());
+            if (!serverTxId.equals(id.get())) {
+                throw new ClickHouseTransactionException(
+                        ClickHouseUtils.format(
+                                "Inconsistent transaction ID - client expected %s but found %s on server.",
+                                id.get(), serverTxId),
+                        this);
+            }
         }
     }
 
@@ -232,8 +285,8 @@ public final class ClickHouseTransaction implements Serializable {
         } catch (ClickHouseException e) {
             switch (e.getErrorCode()) {
                 case ClickHouseException.ERROR_SESSION_NOT_FOUND:
-                    throw new ClickHouseTransactionException("Invalid transaction due to session timeout", e.getCause(),
-                            this);
+                    throw new ClickHouseTransactionException(
+                            "Invalid transaction due to session not found or timeed out", e.getCause(), this);
                 case ClickHouseTransactionException.ERROR_INVALID_TRANSACTION:
                 case ClickHouseTransactionException.ERROR_UNKNOWN_STATUS_OF_TRANSACTION:
                     throw new ClickHouseTransactionException(e.getErrorCode(), e.getMessage(), e.getCause(), this);
@@ -290,6 +343,15 @@ public final class ClickHouseTransaction implements Serializable {
      */
     public int getTimeout() {
         return timeout;
+    }
+
+    /**
+     * Checks if the transaction is implicit or not.
+     *
+     * @return true if it's an implicit transaction; false otherwise
+     */
+    public boolean isImplicit() {
+        return implicit;
     }
 
     /**

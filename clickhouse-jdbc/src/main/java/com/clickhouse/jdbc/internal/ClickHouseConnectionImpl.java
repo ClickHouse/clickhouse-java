@@ -270,7 +270,7 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
             }
         }
 
-        log.warn("Connecting to: %s", node);
+        log.debug("Connecting to: %s", node);
         ClickHouseConfig config = clientRequest.getConfig();
         String currentUser = null;
         TimeZone timeZone = null;

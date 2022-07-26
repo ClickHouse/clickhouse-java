@@ -29,6 +29,26 @@ public class ClickHouseConnectionTest extends JdbcIntegrationTest {
         }
     }
 
+    @Test // (groups = "integration")
+    public void testAutoCommitMode() throws Exception {
+        Properties props = new Properties();
+        props.setProperty("transactionSupport", "true");
+
+        for (int i = 0; i < 10; i++) {
+            try (Connection conn = newConnection(props); Statement stmt = conn.createStatement()) {
+                stmt.execute("select 1, throwIf(" + i + " % 3 = 0)");
+                stmt.executeQuery("select number, toDateTime(number), toString(number), throwIf(" + i + " % 5 = 0)"
+                        + " from numbers(100000)");
+            } catch (SQLException e) {
+                if (i % 3 == 0 || i % 5 == 0) {
+                    Assert.assertEquals(e.getErrorCode(), 395);
+                } else {
+                    Assert.fail("Should not have exception");
+                }
+            }
+        }
+    }
+
     @Test(groups = "integration")
     public void testNonExistDatabase() throws Exception {
         String database = UUID.randomUUID().toString();

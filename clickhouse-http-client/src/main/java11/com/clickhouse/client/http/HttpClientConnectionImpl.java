@@ -80,8 +80,8 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
     private final HttpClient httpClient;
     private final HttpRequest pingRequest;
 
-    private ClickHouseHttpResponse buildResponse(ClickHouseConfig config, HttpResponse<InputStream> r)
-            throws IOException {
+    private ClickHouseHttpResponse buildResponse(ClickHouseConfig config, HttpResponse<InputStream> r,
+            Runnable postAction) throws IOException {
         HttpHeaders headers = r.headers();
         String displayName = headers.firstValue("X-ClickHouse-Server-Display-Name").orElse(server.getHost());
         String queryId = headers.firstValue("X-ClickHouse-Query-Id").orElse("");
@@ -107,6 +107,9 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
             action = () -> {
                 try (OutputStream o = output) {
                     ClickHouseInputStream.pipe(checkResponse(config, r).body(), o, config.getWriteBufferSize());
+                    if (postAction != null) {
+                        postAction.run();
+                    }
                 } catch (IOException e) {
                     throw new UncheckedIOException("Failed to redirect response to given output stream", e);
                 } finally {
@@ -115,7 +118,12 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
             };
         } else {
             source = checkResponse(config, r).body();
-            action = this::closeQuietly;
+            action = () -> {
+                if (postAction != null) {
+                    postAction.run();
+                }
+                closeQuietly();
+            };
         }
 
         return new ClickHouseHttpResponse(this,
@@ -198,7 +206,8 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
     }
 
     private ClickHouseHttpResponse postStream(ClickHouseConfig config, HttpRequest.Builder reqBuilder, String boundary,
-            String sql, ClickHouseInputStream data, List<ClickHouseExternalTable> tables) throws IOException {
+            String sql, ClickHouseInputStream data, List<ClickHouseExternalTable> tables, Runnable postAction)
+            throws IOException {
         final boolean hasFile = data != null && data.getUnderlyingFile().isAvailable();
         ClickHousePipedOutputStream stream = ClickHouseDataStreamFactory.getInstance().createPipedOutputStream(config,
                 null);
@@ -264,11 +273,11 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
             }
         }
 
-        return buildResponse(config, r);
+        return buildResponse(config, r, postAction);
     }
 
-    private ClickHouseHttpResponse postString(ClickHouseConfig config, HttpRequest.Builder reqBuilder, String sql)
-            throws IOException {
+    private ClickHouseHttpResponse postString(ClickHouseConfig config, HttpRequest.Builder reqBuilder, String sql,
+            Runnable postAction) throws IOException {
         reqBuilder.POST(HttpRequest.BodyPublishers.ofString(sql));
         HttpResponse<InputStream> r;
         try {
@@ -284,12 +293,12 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
                 throw new IOException("Failed to post query", cause);
             }
         }
-        return buildResponse(config, r);
+        return buildResponse(config, r, postAction);
     }
 
     @Override
     protected ClickHouseHttpResponse post(String sql, ClickHouseInputStream data, List<ClickHouseExternalTable> tables,
-            String url, Map<String, String> headers, ClickHouseConfig config) throws IOException {
+            String url, Map<String, String> headers, ClickHouseConfig config, Runnable postAction) throws IOException {
         ClickHouseConfig c = config == null ? this.config : config;
         HttpRequest.Builder reqBuilder = HttpRequest.newBuilder()
                 .uri(URI.create(ClickHouseChecker.isNullOrEmpty(url) ? this.url : url))
@@ -309,8 +318,8 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
             }
         }
 
-        return boundary != null || data != null ? postStream(c, reqBuilder, boundary, sql, data, tables)
-                : postString(c, reqBuilder, sql);
+        return boundary != null || data != null ? postStream(c, reqBuilder, boundary, sql, data, tables, postAction)
+                : postString(c, reqBuilder, sql, postAction);
     }
 
     @Override

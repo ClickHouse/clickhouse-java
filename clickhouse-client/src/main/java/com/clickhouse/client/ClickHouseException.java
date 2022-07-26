@@ -20,10 +20,12 @@ public class ClickHouseException extends Exception {
     public static final int ERROR_CANCELLED = 394;
     public static final int ERROR_NETWORK = 210;
     public static final int ERROR_SESSION_NOT_FOUND = 372;
+    public static final int ERROR_SESSION_IS_LOCKED = 373;
     public static final int ERROR_POCO = 1000;
     public static final int ERROR_TIMEOUT = 159;
     public static final int ERROR_UNKNOWN = 1002;
 
+    static final String MSG_CODE = "Code: ";
     static final String MSG_CONNECT_TIMED_OUT = "connect timed out";
 
     private final int errorCode;
@@ -38,9 +40,11 @@ public class ClickHouseException extends Exception {
         if (message != null && !message.isEmpty()) {
             builder.append(message);
         } else if (code == ERROR_ABORTED) {
-            builder.append("Code: ").append(code).append(". Execution aborted");
+            builder.append(MSG_CODE).append(code).append(". Execution aborted");
         } else if (code == ERROR_CANCELLED) {
-            builder.append("Code: ").append(code).append(". Execution cancelled");
+            builder.append(MSG_CODE).append(code).append(". Execution cancelled");
+        } else if (code == ERROR_TIMEOUT) {
+            builder.append(MSG_CODE).append(code).append(". Execution timed out");
         } else {
             builder.append("Unknown error ").append(code);
         }
@@ -89,6 +93,17 @@ public class ClickHouseException extends Exception {
             rootCause = rootCause.getCause();
         }
         return rootCause;
+    }
+
+    /**
+     * Builds error message like {@code "Code: <code>, <detail>"}.
+     *
+     * @param code   error code
+     * @param detail detail of the error
+     * @return non-null error message
+     */
+    public static String buildErrorMessage(int code, String detail) {
+        return new StringBuilder().append(MSG_CODE).append(code).append(", ").append(detail).toString();
     }
 
     /**

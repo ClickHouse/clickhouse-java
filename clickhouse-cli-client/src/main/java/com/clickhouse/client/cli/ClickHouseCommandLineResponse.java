@@ -12,6 +12,7 @@ public class ClickHouseCommandLineResponse extends ClickHouseStreamResponse {
 
     protected ClickHouseCommandLineResponse(ClickHouseConfig config, ClickHouseCommandLine cli) throws IOException {
         super(config, cli.getInputStream(), null, null, ClickHouseResponseSummary.EMPTY);
+        this.cli = cli;
 
         if (this.input.available() < 1) {
             IOException exp = cli.getError();
@@ -19,8 +20,6 @@ public class ClickHouseCommandLineResponse extends ClickHouseStreamResponse {
                 throw exp;
             }
         }
-
-        this.cli = cli;
     }
 
     @Override
