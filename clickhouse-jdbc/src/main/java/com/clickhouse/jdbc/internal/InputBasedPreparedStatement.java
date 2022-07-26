@@ -316,7 +316,8 @@ public class InputBasedPreparedStatement extends AbstractPreparedStatement imple
         int nullAsDefault = getNullAsDefault();
         for (int i = 0, len = values.length; i < len; i++) {
             if (!flags[i]) {
-                throw SqlExceptionUtils.clientError(ClickHouseUtils.format("Missing value for parameter #%d", i + 1));
+                throw SqlExceptionUtils
+                        .clientError(ClickHouseUtils.format("Missing value for parameter #%d [%s]", i + 1, columns[i]));
             }
             ClickHouseColumn col = columns[i];
             ClickHouseValue val = values[i];
