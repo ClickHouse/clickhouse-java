@@ -1445,7 +1445,7 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
     @Test(groups = "integration")
     public void testErrorDuringQuery() throws Exception {
         ClickHouseNode server = getServer();
-        String query = "select number, throwIf(number>=10000000) from numbers(50000000)";
+        String query = "select number, throwIf(number>=100000000) from numbers(500000000)";
         long count = 0L;
         try (ClickHouseClient client = getClient();
                 ClickHouseResponse resp = client.connect(server).format(ClickHouseFormat.RowBinaryWithNamesAndTypes)

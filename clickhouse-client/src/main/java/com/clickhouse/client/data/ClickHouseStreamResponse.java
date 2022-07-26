@@ -70,7 +70,6 @@ public class ClickHouseStreamResponse implements ClickHouseResponse {
 
         this.config = config;
         this.input = input;
-        this.closed = false;
 
         boolean hasError = true;
         try {
