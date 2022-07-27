@@ -136,7 +136,9 @@
         <sonar.organization>clickhouse</sonar.organization>
         <sonar.host.url>https://sonarcloud.io</sonar.host.url>
         <sonar.projectVersion>0.3.3</sonar.projectVersion>
-    </properties>
+        <bnd.version>6.4.0-SNAPSHOT</bnd.version>
+		<!-- <bnd.version>6.3.0</bnd.version> -->
+	</properties>
 
     <dependencyManagement>
         <dependencies>
@@ -578,7 +580,27 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-failsafe-plugin</artifactId>
             </plugin>
-        </plugins>
+			<plugin>
+				<groupId>biz.aQute.bnd</groupId>
+				<artifactId>bnd-maven-plugin</artifactId>
+				<version>${bnd.version}</version>
+				<executions>
+					<execution>
+						<id>bnd-process</id>
+						<goals>
+							<goal>bnd-process</goal>
+						</goals>				
+					</execution>
+				</executions>
+				<configuration>
+				<bnd><![CDATA[
+					SPDX-License-Identifier: ${project.licenses[0].name}
+					Export-Package: com.clickhouse.*;-noimport:=true
+					Multi-Release: true
+				]]></bnd>
+				</configuration>	
+			</plugin>
+		</plugins>
     </build>
 
     <profiles>
@@ -754,7 +776,8 @@
                             <execution>
                                 <id>default-jar</id>
                                 <configuration>
-                                    <archive>
+                                   <archive>
+                                		<manifestFile>${project.build.outputDirectory}/META-INF/MANIFEST.MF</manifestFile>
                                         <manifest>
                                             <addDefaultEntries>true</addDefaultEntries>
                                             <addDefaultImplementationEntries>true</addDefaultImplementationEntries>
@@ -960,6 +983,11 @@
                         </executions>
                     </plugin>
                     <plugin>
+						<groupId>biz.aQute.bnd</groupId>
+						<artifactId>bnd-maven-plugin</artifactId>
+						<version>${bnd.version}</version>
+					</plugin>
+                    <plugin>
                         <groupId>org.codehaus.mojo</groupId>
                         <artifactId>flatten-maven-plugin</artifactId>
                     </plugin>
@@ -975,6 +1003,7 @@
                                 <id>default-jar</id>
                                 <configuration>
                                     <archive>
+                                		<manifestFile>${project.build.outputDirectory}/META-INF/MANIFEST.MF</manifestFile>
                                         <manifest>
                                             <addDefaultEntries>true</addDefaultEntries>
                                             <addDefaultImplementationEntries>true</addDefaultImplementationEntries>
