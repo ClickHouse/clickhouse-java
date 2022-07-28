@@ -199,7 +199,15 @@ public class ClickHouseServerForTest {
                 return;
             }
 
-            clickhouseContainer.start();
+            try {
+                clickhouseContainer.start();
+            } catch (RuntimeException e) {
+                throw new IllegalStateException(new StringBuilder()
+                        .append("Failed to start docker container for integration test.\r\n")
+                        .append("If you prefer to run tests without docker, ")
+                        .append("please follow instructions at https://github.com/ClickHouse/clickhouse-jdbc#testing")
+                        .toString(), e);
+            }
         }
     }
 
