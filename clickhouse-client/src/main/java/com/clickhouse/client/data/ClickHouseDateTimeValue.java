@@ -9,6 +9,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.TimeZone;
@@ -24,7 +25,8 @@ public class ClickHouseDateTimeValue extends ClickHouseObjectValue<LocalDateTime
     /**
      * Default value.
      */
-    public static final LocalDateTime DEFAULT = ClickHouseDateValue.DEFAULT.atStartOfDay();
+    public static final LocalDateTime DEFAULT = ClickHouseInstantValue.DEFAULT.atOffset(ZoneOffset.UTC)
+            .toLocalDateTime();
 
     static final DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
@@ -111,11 +113,15 @@ public class ClickHouseDateTimeValue extends ClickHouseObjectValue<LocalDateTime
 
     private final int scale;
     private final TimeZone tz;
+    private final LocalDateTime defaultValue;
 
     protected ClickHouseDateTimeValue(LocalDateTime value, int scale, TimeZone tz) {
         super(value);
         this.scale = ClickHouseChecker.between(scale, ClickHouseValues.PARAM_SCALE, 0, 9);
         this.tz = tz != null ? tz : ClickHouseValues.UTC_TIMEZONE;
+        this.defaultValue = this.tz.equals(ClickHouseValues.UTC_TIMEZONE) ? DEFAULT
+                : ClickHouseOffsetDateTimeValue.DEFAULT.toZonedDateTime().withZoneSameInstant(this.tz.toZoneId())
+                        .toLocalDateTime();
     }
 
     public int getScale() {
@@ -237,7 +243,7 @@ public class ClickHouseDateTimeValue extends ClickHouseObjectValue<LocalDateTime
 
     @Override
     public ClickHouseDateTimeValue resetToDefault() {
-        set(DEFAULT);
+        set(defaultValue);
         return this;
     }
 
