@@ -20,6 +20,8 @@ public class ClickHouseResponseSummary implements Serializable {
     public static final class Progress implements Serializable {
         private static final long serialVersionUID = -1447066780591278108L;
 
+        static final Progress EMPTY = new Progress(0L, 0L, 0L, 0L, 0L);
+
         private final long read_rows;
         private final long read_bytes;
         private final long total_rows_to_read;
@@ -75,6 +77,8 @@ public class ClickHouseResponseSummary implements Serializable {
      */
     public static class Statistics implements Serializable {
         private static final long serialVersionUID = -7744796632866829161L;
+
+        static final Statistics EMPTY = new Statistics(0L, 0L, 0L, false, 0L);
 
         private final long rows;
         private final long blocks;
@@ -151,10 +155,10 @@ public class ClickHouseResponseSummary implements Serializable {
      */
     protected ClickHouseResponseSummary(Progress progress, Statistics stats, boolean sealed) {
         if (progress == null) {
-            progress = new Progress(0L, 0L, 0L, 0L, 0L);
+            progress = Progress.EMPTY;
         }
         if (stats == null) {
-            stats = new Statistics(0L, 0L, 0L, false, 0L);
+            stats = Statistics.EMPTY;
         }
         this.progress = new AtomicReference<>(progress);
         this.stats = new AtomicReference<>(stats);
