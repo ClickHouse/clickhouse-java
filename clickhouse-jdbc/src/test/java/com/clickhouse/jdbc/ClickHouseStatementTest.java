@@ -173,7 +173,7 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
             // [update] tbl a [set] a.b = 1 where a.b != 1[ settings mutation_async=0]
             // alter table tbl a update a.b = 1 where a.b != 1
             conn.setClientInfo("ApplicationName", "333");
-            Assert.assertEquals(conn.createStatement().executeUpdate("update test_mutation set b = 22 where b = 1"), 0);
+            Assert.assertEquals(conn.createStatement().executeUpdate("update test_mutation set b = 22 where b = 1"), 1);
 
             Assert.assertThrows(SQLException.class,
                     () -> stmt.executeUpdate("update non_existing_table set value=1 where key=1"));
@@ -407,7 +407,7 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
             rs = stmt.executeQuery("drop table if exists non_existing_table");
             Assert.assertNotNull(rs, "Should never be null");
             Assert.assertNull(stmt.getResultSet(), "Should be null");
-            Assert.assertEquals(stmt.getUpdateCount(), 1);
+            Assert.assertEquals(stmt.getUpdateCount(), 0);
             Assert.assertFalse(rs.next(), "Should has no row");
         }
     }
@@ -519,7 +519,7 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
             stmt.addBatch("drop table if exists non_existing_table2");
             stmt.addBatch("drop table if exists non_existing_table3");
             int[] results = stmt.executeBatch();
-            Assert.assertEquals(results, new int[] { 1, 1, 1 });
+            Assert.assertEquals(results, new int[] { 0, 0, 0 });
         }
     }
 
