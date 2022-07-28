@@ -21,7 +21,7 @@ Either [clickhouse](https://clickhouse.com/docs/en/interfaces/cli/) or [docker](
     <!-- please stop using ru.yandex.clickhouse as it's been deprecated -->
     <groupId>com.clickhouse</groupId>
     <artifactId>clickhouse-cli-client</artifactId>
-    <version>0.3.2-patch10</version>
+    <version>0.3.2-patch11</version>
 </dependency>
 ```
 

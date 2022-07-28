@@ -11,7 +11,7 @@ Keep in mind that `clickhouse-jdbc` is synchronous, and in general it has more o
     <!-- please stop using ru.yandex.clickhouse as it's been deprecated -->
     <groupId>com.clickhouse</groupId>
     <artifactId>clickhouse-jdbc</artifactId>
-    <version>0.3.2-patch10</version>
+    <version>0.3.2-patch11</version>
     <!-- use uber jar with all dependencies included, change classifier to http for smaller jar -->
     <classifier>all</classifier>
     <exclusions>
@@ -300,7 +300,7 @@ Please refer to cheatsheet below to upgrade JDBC driver to 0.3.2.
 <td><pre><code class="language-xml">&lt;dependency&gt;
     &lt;groupId&gt;com.clickhouse&lt;/groupId&gt;
     &lt;artifactId&gt;clickhouse-jdbc&lt;/artifactId&gt;
-    &lt;version&gt;0.3.2-patch10&lt;/version&gt;
+    &lt;version&gt;0.3.2-patch11&lt;/version&gt;
     &lt;classifier&gt;all&lt;/classifier&gt;
     &lt;exclusions&gt;
         &lt;exclusion&gt;
