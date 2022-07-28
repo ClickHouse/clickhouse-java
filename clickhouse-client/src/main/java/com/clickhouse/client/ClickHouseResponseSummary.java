@@ -10,6 +10,8 @@ import java.util.concurrent.atomic.AtomicReference;
 public class ClickHouseResponseSummary implements Serializable {
     private static final long serialVersionUID = 6241261266635143197L;
 
+    static final String ERROR_CANNOT_UPDATE = "Sealed summary cannot be updated";
+
     public static final ClickHouseResponseSummary EMPTY = new ClickHouseResponseSummary(null, null, true);
 
     /**
@@ -17,6 +19,8 @@ public class ClickHouseResponseSummary implements Serializable {
      */
     public static final class Progress implements Serializable {
         private static final long serialVersionUID = -1447066780591278108L;
+
+        static final Progress EMPTY = new Progress(0L, 0L, 0L, 0L, 0L);
 
         private final long read_rows;
         private final long read_bytes;
@@ -61,6 +65,11 @@ public class ClickHouseResponseSummary implements Serializable {
         public long getWrittenBytes() {
             return written_bytes;
         }
+
+        public boolean isEmpty() {
+            return read_rows == 0L && read_bytes == 0L && total_rows_to_read == 0L && written_rows == 0L
+                    && written_bytes == 0L;
+        }
     }
 
     /**
@@ -68,6 +77,8 @@ public class ClickHouseResponseSummary implements Serializable {
      */
     public static class Statistics implements Serializable {
         private static final long serialVersionUID = -7744796632866829161L;
+
+        static final Statistics EMPTY = new Statistics(0L, 0L, 0L, false, 0L);
 
         private final long rows;
         private final long blocks;
@@ -112,6 +123,10 @@ public class ClickHouseResponseSummary implements Serializable {
         public long getRowsBeforeLimit() {
             return rows_before_limit;
         }
+
+        public boolean isEmpty() {
+            return rows == 0L && blocks == 0L && allocated_bytes == 0L && !applied_limit && rows_before_limit == 0L;
+        }
     }
 
     private final AtomicReference<Progress> progress;
@@ -139,9 +154,15 @@ public class ClickHouseResponseSummary implements Serializable {
      * @param sealed   whether the summary is sealed
      */
     protected ClickHouseResponseSummary(Progress progress, Statistics stats, boolean sealed) {
-        this.progress = new AtomicReference<>(progress != null ? progress : new Progress(0L, 0L, 0L, 0L, 0L));
-        this.stats = new AtomicReference<>(stats != null ? stats : new Statistics(0L, 0L, 0L, false, 0L));
-        this.updates = new AtomicInteger(1);
+        if (progress == null) {
+            progress = Progress.EMPTY;
+        }
+        if (stats == null) {
+            stats = Statistics.EMPTY;
+        }
+        this.progress = new AtomicReference<>(progress);
+        this.stats = new AtomicReference<>(stats);
+        this.updates = new AtomicInteger(progress.isEmpty() && stats.isEmpty() ? 0 : 1);
 
         this.sealed = sealed;
     }
@@ -159,6 +180,10 @@ public class ClickHouseResponseSummary implements Serializable {
      * @return increased update counter
      */
     public int update() {
+        if (sealed) {
+            throw new IllegalStateException(ERROR_CANNOT_UPDATE);
+        }
+
         return this.updates.incrementAndGet();
     }
 
@@ -169,7 +194,7 @@ public class ClickHouseResponseSummary implements Serializable {
      */
     public void update(Progress progress) {
         if (sealed) {
-            throw new IllegalStateException("Sealed summary cannot be updated");
+            throw new IllegalStateException(ERROR_CANNOT_UPDATE);
         }
 
         if (progress != null) {
@@ -179,7 +204,7 @@ public class ClickHouseResponseSummary implements Serializable {
 
     public void update(Statistics stats) {
         if (sealed) {
-            throw new IllegalStateException("Sealed summary cannot be updated");
+            throw new IllegalStateException(ERROR_CANNOT_UPDATE);
         }
 
         if (stats != null) {
@@ -227,5 +252,9 @@ public class ClickHouseResponseSummary implements Serializable {
 
     public int getUpdateCount() {
         return updates.get();
+    }
+
+    public boolean isEmpty() {
+        return progress.get().isEmpty() && stats.get().isEmpty();
     }
 }

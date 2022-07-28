@@ -845,6 +845,7 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
     @Test(dataProvider = "statementAndParams", groups = "integration")
     public void testExecuteWithOrWithoutParameters(String tableSuffix, String query, Class<?> clazz,
             boolean hasResultSet, String[] params, boolean checkTable) throws SQLException {
+        int expectedRowCount = "ddl".equals(tableSuffix) ? 0 : 1;
         String tableName = "test_execute_ps_" + tableSuffix;
         query = query.replace("$table", tableName);
         Properties props = new Properties();
@@ -932,7 +933,7 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
                 if (hasResultSet) {
                     Assert.assertThrows(SQLException.class, () -> ps.executeLargeBatch());
                 } else {
-                    Assert.assertEquals(ps.executeLargeBatch(), new long[] { 1L });
+                    Assert.assertEquals(ps.executeLargeBatch(), new long[] { expectedRowCount });
                 }
                 if (checkTable)
                     checkTable(stmt, "select * from " + tableName, params);
@@ -950,7 +951,7 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
                 if (hasResultSet) {
                     Assert.assertThrows(SQLException.class, () -> ps.executeBatch());
                 } else {
-                    Assert.assertEquals(ps.executeBatch(), new int[] { 1 });
+                    Assert.assertEquals(ps.executeBatch(), new int[] { expectedRowCount });
                 }
                 if (checkTable)
                     checkTable(stmt, "select * from " + tableName, params);
@@ -973,7 +974,7 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
             if (hasResultSet) {
                 Assert.assertEquals(ps.executeLargeBatch(), new long[] { Statement.EXECUTE_FAILED });
             } else {
-                Assert.assertEquals(ps.executeLargeBatch(), new long[] { 1L });
+                Assert.assertEquals(ps.executeLargeBatch(), new long[] { expectedRowCount });
             }
             if (checkTable)
                 checkTable(stmt, "select * from " + tableName, params);
@@ -988,7 +989,7 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
             if (hasResultSet) {
                 Assert.assertEquals(ps.executeBatch(), new int[] { Statement.EXECUTE_FAILED });
             } else {
-                Assert.assertEquals(ps.executeBatch(), new int[] { 1 });
+                Assert.assertEquals(ps.executeBatch(), new int[] { expectedRowCount });
             }
             if (checkTable)
                 checkTable(stmt, "select * from " + tableName, params);

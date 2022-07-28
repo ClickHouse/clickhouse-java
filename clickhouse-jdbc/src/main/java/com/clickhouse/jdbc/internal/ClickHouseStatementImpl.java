@@ -95,8 +95,13 @@ public class ClickHouseStatementImpl extends JdbcWrapper
             } catch (Exception e) {
                 throw SqlExceptionUtils.handle(e);
             } finally {
-                if (i + 1 < len && response != null) {
+                if (response == null) {
+                    // something went wrong
+                } else if (i + 1 < len) {
                     response.close();
+                    response = null;
+                } else {
+                    updateResult(stmt, response);
                 }
             }
         }
@@ -166,18 +171,17 @@ public class ClickHouseStatementImpl extends JdbcWrapper
 
     protected int executeInsert(String sql, InputStream input) throws SQLException {
         boolean autoTx = connection.getAutoCommit() && connection.isTransactionSupported();
-        ClickHouseResponseSummary summary = null;
         Mutation req = request.write().query(sql, queryId = connection.newQueryId()).data(input);
         try (ClickHouseResponse resp = autoTx
                 ? req.executeWithinTransaction(connection.isImplicitTransactionSupported())
                 : req.transaction(connection.getTransaction()).sendAndWait();
                 ResultSet rs = updateResult(new ClickHouseSqlStatement(sql, StatementType.INSERT), resp)) {
-            summary = resp.getSummary();
+            // ignore
         } catch (Exception e) {
             throw SqlExceptionUtils.handle(e);
         }
 
-        return summary != null && summary.getWrittenRows() > 0L ? (int) summary.getWrittenRows() : 1;
+        return (int) currentUpdateCount;
     }
 
     protected ClickHouseSqlStatement getLastStatement() {
@@ -212,23 +216,17 @@ public class ClickHouseStatementImpl extends JdbcWrapper
     }
 
     protected ResultSet updateResult(ClickHouseSqlStatement stmt, ClickHouseResponse response) throws SQLException {
-        ResultSet rs = null;
         if (stmt.isQuery() || !response.getColumns().isEmpty()) {
             currentUpdateCount = -1L;
             currentResult = new ClickHouseResultSet(stmt.getDatabaseOrDefault(getConnection().getCurrentDatabase()),
                     stmt.getTable(), this, response);
-            rs = currentResult;
         } else {
-            currentUpdateCount = response.getSummary().getWrittenRows();
-            // FIXME apparently this is not always true
-            if (currentUpdateCount <= 0L) {
-                currentUpdateCount = 1L;
-            }
-            currentResult = null;
             response.close();
+            currentUpdateCount = stmt.isDDL() ? 0L
+                    : (response.getSummary().isEmpty() ? 1L : response.getSummary().getWrittenRows());
+            currentResult = null;
         }
-
-        return rs == null ? newEmptyResultSet() : rs;
+        return currentResult;
     }
 
     protected ClickHouseStatementImpl(ClickHouseConnectionImpl connection, ClickHouseRequest<?> request,
@@ -303,18 +301,8 @@ public class ClickHouseStatementImpl extends JdbcWrapper
         }
 
         parseSqlStatements(sql);
-
-        ClickHouseResponse response = getLastResponse(null, null, null);
-
-        try {
-            return updateResult(getLastStatement(), response);
-        } catch (Exception e) {
-            if (response != null) {
-                response.close();
-            }
-
-            throw SqlExceptionUtils.handle(e);
-        }
+        getLastResponse(null, null, null);
+        return currentResult != null ? currentResult : newEmptyResultSet();
     }
 
     @Override
@@ -326,14 +314,11 @@ public class ClickHouseStatementImpl extends JdbcWrapper
 
         parseSqlStatements(sql);
 
-        ClickHouseResponseSummary summary = null;
         try (ClickHouseResponse response = getLastResponse(null, null, null)) {
-            summary = response.getSummary();
+            return currentUpdateCount;
         } catch (Exception e) {
             throw SqlExceptionUtils.handle(e);
         }
-
-        return summary != null ? summary.getWrittenRows() : 1L;
     }
 
     @Override
