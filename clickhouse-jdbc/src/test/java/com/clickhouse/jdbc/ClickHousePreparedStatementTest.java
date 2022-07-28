@@ -20,6 +20,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.Calendar;
 import java.util.Collections;
 import java.util.Properties;
 import java.util.TimeZone;
@@ -36,7 +37,9 @@ import com.clickhouse.client.ClickHousePipedOutputStream;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.data.ClickHouseBitmap;
+import com.clickhouse.client.data.ClickHouseDateTimeValue;
 import com.clickhouse.client.data.ClickHouseExternalTable;
+import com.clickhouse.client.data.ClickHouseOffsetDateTimeValue;
 import com.clickhouse.jdbc.internal.InputBasedPreparedStatement;
 import com.clickhouse.jdbc.internal.SqlBasedPreparedStatement;
 
@@ -1475,6 +1478,39 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
                 Assert.assertEquals(rs.getObject(1), Integer.valueOf(5));
                 Assert.assertEquals(rs.getString(2), null);
                 Assert.assertTrue(rs.wasNull());
+                Assert.assertFalse(rs.next());
+            }
+        }
+    }
+
+    @Test(groups = "integration")
+    public void testInsertWithNullDateTime() throws Exception {
+        Properties props = new Properties();
+        props.setProperty(JdbcConfig.PROP_NULL_AS_DEFAULT, "2");
+        try (ClickHouseConnection conn = newConnection(props);
+                Statement s = conn.createStatement()) {
+            s.execute("drop table if exists test_insert_with_null_datetime; "
+                    + "CREATE TABLE test_insert_with_null_datetime(a Int32, "
+                    + "b01 DateTime32, b02 DateTime32('America/Los_Angeles'), "
+                    + "b11 DateTime32, b12 DateTime32('America/Los_Angeles'), "
+                    + "c01 DateTime64(3), c02 DateTime64(6, 'Asia/Shanghai'), "
+                    + "c11 DateTime64(3), c12 DateTime64(6, 'Asia/Shanghai')) ENGINE=Memory");
+            try (PreparedStatement ps = conn
+                    .prepareStatement("INSERT INTO test_insert_with_null_datetime values(?, ? ,? ,?,?)")) {
+                ps.setInt(1, 1);
+                ps.setObject(2, LocalDateTime.now());
+                ps.setObject(3, LocalDateTime.now());
+                ps.setTimestamp(4, null);
+                ps.setNull(5, Types.TIMESTAMP);
+                ps.setObject(6, LocalDateTime.now());
+                ps.setObject(7, LocalDateTime.now());
+                ps.setObject(8, null);
+                ps.setTimestamp(9, null, Calendar.getInstance());
+                ps.executeUpdate();
+            }
+
+            try (ResultSet rs = s.executeQuery("select * from test_insert_with_null_datetime order by a")) {
+                Assert.assertTrue(rs.next());
                 Assert.assertFalse(rs.next());
             }
         }

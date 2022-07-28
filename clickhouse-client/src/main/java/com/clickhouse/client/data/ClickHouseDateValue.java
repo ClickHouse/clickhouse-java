@@ -19,7 +19,7 @@ public class ClickHouseDateValue extends ClickHouseObjectValue<LocalDate> {
     /**
      * Default date.
      */
-    public static final LocalDate DEFAULT = LocalDate.of(1970, 1, 1);
+    public static final LocalDate DEFAULT = ClickHouseOffsetDateTimeValue.DEFAULT.toLocalDate();
 
     /**
      * Create a new instance representing null value.
