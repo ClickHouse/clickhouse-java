@@ -1973,20 +1973,36 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
     }
 
     /**
-     * Executes the request within a transaction, wait until it's completed and
-     * the transaction being committed or rolled back. The transaction here is
-     * either an implicit transaction(using {@code implicit_transaction} server
-     * setting, with less overhead but requiring 22.7+) or auto-commit
-     * transaction(using clone of this request), depending on argument
-     * {@code useImplicitTransaction}.
-     *
-     * @param useImplicitTransaction use {@code implicit_transaction} server setting
-     *                               with minimum overhead(no session on server side
-     *                               and no additional objects on client side), or
-     *                               an auto-commit {@link ClickHouseTransaction}
+     * Executes the request within an implicit transaction. New transaction will be
+     * always created and started right before the query, and it will be committed
+     * or rolled back afterwards automatically.
+     * 
      * @return non-null response
      * @throws ClickHouseException when error occurred during execution
      */
+    public ClickHouseResponse executeWithinTransaction() throws ClickHouseException {
+        return executeWithinTransaction(false);
+    }
+
+    /**
+     * Executes the request within an implicit transaction. When
+     * {@code useImplicitTransaction} is set to {@code true}, it enforces the client
+     * to use {@code implicit_transaction} setting which is only available in
+     * ClickHouse 22.7+. Otherwise, new transaction will be always created and
+     * started right before the query, and it will be committed or rolled back
+     * afterwards automatically.
+     *
+     * @param useImplicitTransaction {@code true} to use native implicit transaction
+     *                               requiring ClickHouse 22.7+ with minimum
+     *                               overhead(no session on server side and no
+     *                               additional objects on client side); false to
+     *                               use auto-commit transaction
+     * @return non-null response
+     * @throws ClickHouseException when error occurred during execution
+     * @deprecated will be removed in the future, once the minimum supported version
+     *             of ClickHouse is 22.7 or above
+     */
+    @Deprecated
     public ClickHouseResponse executeWithinTransaction(boolean useImplicitTransaction) throws ClickHouseException {
         if (useImplicitTransaction) {
             return set(ClickHouseTransaction.SETTING_IMPLICIT_TRANSACTION, 1).transaction(null).executeAndWait();

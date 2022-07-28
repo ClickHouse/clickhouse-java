@@ -64,7 +64,7 @@ Note: in general, the new driver(v0.3.2) is a few times faster with less memory 
     <groupId>com.clickhouse</groupId>
     <!-- or clickhouse-grpc-client if you prefer gRPC -->
     <artifactId>clickhouse-http-client</artifactId>
-    <version>0.3.2-patch10</version>
+    <version>0.3.2-patch11</version>
 </dependency>
 ```
 
@@ -100,7 +100,7 @@ try (ClickHouseClient client = ClickHouseClient.newInstance(ClickHouseProtocol.H
     <!-- please stop using ru.yandex.clickhouse as it's been deprecated -->
     <groupId>com.clickhouse</groupId>
     <artifactId>clickhouse-jdbc</artifactId>
-    <version>0.3.2-patch10</version>
+    <version>0.3.2-patch11</version>
     <!-- use uber jar with all dependencies included, change classifier to http for smaller jar -->
     <classifier>all</classifier>
     <exclusions>
