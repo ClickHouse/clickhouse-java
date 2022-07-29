@@ -18,10 +18,11 @@ public class ClickHouseConnectionImplTest extends JdbcIntegrationTest {
             Assert.assertNull(conn.getTransaction(), "Should NOT have any transaction");
             conn.setAutoCommit(false);
             Assert.assertEquals(conn.getAutoCommit(), false);
-            FakeTransaction tx = conn.getTransaction();
+            JdbcTransaction tx = conn.getJdbcTrasaction();
             Assert.assertNotNull(tx, "Should have transaction");
             Assert.assertEquals(tx.getQueries().size(), 0);
             Assert.assertEquals(tx.getSavepoints().size(), 0);
+            Assert.assertEquals(tx.tx, conn.getTransaction());
             try (ClickHouseStatement stmt = conn.createStatement()) {
                 stmt.execute("select 1; select 2");
                 Assert.assertEquals(tx.getQueries().size(), 2);
@@ -72,7 +73,7 @@ public class ClickHouseConnectionImplTest extends JdbcIntegrationTest {
                 Assert.assertEquals(tx.getSavepoints().size(), 2);
             }
             conn.commit();
-            FakeTransaction newTx = conn.getTransaction();
+            JdbcTransaction newTx = conn.getJdbcTrasaction();
             Assert.assertNotEquals(newTx, tx);
             Assert.assertNotNull(tx, "Should have transaction");
             Assert.assertEquals(tx.getQueries().size(), 0);
@@ -80,6 +81,7 @@ public class ClickHouseConnectionImplTest extends JdbcIntegrationTest {
             Assert.assertNotNull(newTx, "Should have transaction");
             Assert.assertEquals(newTx.getQueries().size(), 0);
             Assert.assertEquals(newTx.getSavepoints().size(), 0);
+            Assert.assertEquals(newTx.tx, conn.getTransaction());
             tx = newTx;
 
             try (ClickHouseStatement stmt = conn.createStatement()) {
@@ -89,7 +91,7 @@ public class ClickHouseConnectionImplTest extends JdbcIntegrationTest {
                 Assert.assertEquals(tx.getSavepoints().size(), 1);
             }
             conn.commit();
-            newTx = conn.getTransaction();
+            newTx = conn.getJdbcTrasaction();
             Assert.assertNotEquals(newTx, tx);
             Assert.assertNotNull(tx, "Should have transaction");
             Assert.assertEquals(tx.getQueries().size(), 0);
@@ -97,6 +99,7 @@ public class ClickHouseConnectionImplTest extends JdbcIntegrationTest {
             Assert.assertNotNull(newTx, "Should have transaction");
             Assert.assertEquals(newTx.getQueries().size(), 0);
             Assert.assertEquals(newTx.getSavepoints().size(), 0);
+            Assert.assertEquals(newTx.tx, conn.getTransaction());
         }
     }
 
@@ -107,10 +110,11 @@ public class ClickHouseConnectionImplTest extends JdbcIntegrationTest {
             Assert.assertNull(conn.getTransaction(), "Should NOT have any transaction");
             conn.setAutoCommit(false);
             Assert.assertEquals(conn.getAutoCommit(), false);
-            FakeTransaction tx = conn.getTransaction();
+            JdbcTransaction tx = conn.getJdbcTrasaction();
             Assert.assertNotNull(tx, "Should have transaction");
             Assert.assertEquals(tx.getQueries().size(), 0);
             Assert.assertEquals(tx.getSavepoints().size(), 0);
+            Assert.assertEquals(tx.tx, conn.getTransaction());
             try (ClickHouseStatement stmt = conn.createStatement()) {
                 stmt.execute("select 1; select 2");
                 Assert.assertEquals(tx.getQueries().size(), 2);
@@ -161,7 +165,7 @@ public class ClickHouseConnectionImplTest extends JdbcIntegrationTest {
                 Assert.assertEquals(tx.getSavepoints().size(), 2);
             }
             conn.rollback();
-            FakeTransaction newTx = conn.getTransaction();
+            JdbcTransaction newTx = conn.getJdbcTrasaction();
             Assert.assertNotEquals(newTx, tx);
             Assert.assertNotNull(tx, "Should have transaction");
             Assert.assertEquals(tx.getQueries().size(), 0);
@@ -169,6 +173,7 @@ public class ClickHouseConnectionImplTest extends JdbcIntegrationTest {
             Assert.assertNotNull(newTx, "Should have transaction");
             Assert.assertEquals(newTx.getQueries().size(), 0);
             Assert.assertEquals(newTx.getSavepoints().size(), 0);
+            Assert.assertEquals(newTx.tx, conn.getTransaction());
             tx = newTx;
 
             try (ClickHouseStatement stmt = conn.createStatement()) {
@@ -178,7 +183,7 @@ public class ClickHouseConnectionImplTest extends JdbcIntegrationTest {
                 Assert.assertEquals(tx.getSavepoints().size(), 1);
             }
             conn.rollback();
-            newTx = conn.getTransaction();
+            newTx = conn.getJdbcTrasaction();
             Assert.assertNotEquals(newTx, tx);
             Assert.assertNotNull(tx, "Should have transaction");
             Assert.assertEquals(tx.getQueries().size(), 0);
@@ -186,6 +191,7 @@ public class ClickHouseConnectionImplTest extends JdbcIntegrationTest {
             Assert.assertNotNull(newTx, "Should have transaction");
             Assert.assertEquals(newTx.getQueries().size(), 0);
             Assert.assertEquals(newTx.getSavepoints().size(), 0);
+            Assert.assertEquals(newTx.tx, conn.getTransaction());
         }
     }
 

@@ -19,6 +19,7 @@ import java.util.Map;
 import com.clickhouse.client.ClickHouseChecker;
 import com.clickhouse.client.ClickHouseColumn;
 import com.clickhouse.client.ClickHouseDataType;
+import com.clickhouse.client.ClickHouseFormat;
 import com.clickhouse.client.ClickHouseParameterizedQuery;
 import com.clickhouse.client.ClickHouseUtils;
 import com.clickhouse.client.ClickHouseValues;
@@ -64,16 +65,14 @@ public class ClickHouseDatabaseMetaData extends JdbcWrapper implements DatabaseM
 
     protected ResultSet query(String sql, ClickHouseRecordTransformer func, boolean ignoreError) throws SQLException {
         SQLException error = null;
-        try {
-            ClickHouseStatement stmt = connection.createStatement();
+        try (ClickHouseStatement stmt = connection.createStatement()) {
+            stmt.setLargeMaxRows(0L);
             return new ClickHouseResultSet("", "", stmt,
                     // load everything into memory
                     ClickHouseSimpleResponse.of(stmt.getRequest()
+                            .format(ClickHouseFormat.RowBinaryWithNamesAndTypes)
                             .option(ClickHouseClientOption.RENAME_RESPONSE_COLUMN, ClickHouseRenameMethod.NONE)
-                            .query(sql).execute().get(), func));
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw SqlExceptionUtils.forCancellation(e);
+                            .query(sql).executeAndWait(), func));
         } catch (Exception e) {
             error = SqlExceptionUtils.handle(e);
         }
@@ -666,13 +665,13 @@ public class ClickHouseDatabaseMetaData extends JdbcWrapper implements DatabaseM
 
     @Override
     public int getDefaultTransactionIsolation() throws SQLException {
-        return connection.getJdbcConfig().isJdbcCompliant() ? Connection.TRANSACTION_READ_COMMITTED
+        return connection.getJdbcConfig().isJdbcCompliant() ? Connection.TRANSACTION_REPEATABLE_READ
                 : Connection.TRANSACTION_NONE;
     }
 
     @Override
     public boolean supportsTransactions() throws SQLException {
-        return connection.getJdbcConfig().isJdbcCompliant();
+        return connection.isTransactionSupported() || connection.getJdbcConfig().isJdbcCompliant();
     }
 
     @Override
@@ -684,7 +683,8 @@ public class ClickHouseDatabaseMetaData extends JdbcWrapper implements DatabaseM
             throw SqlExceptionUtils.clientError("Unknown isolation level: " + level);
         }
 
-        return connection.getJdbcConfig().isJdbcCompliant();
+        return (connection.isTransactionSupported() && Connection.TRANSACTION_REPEATABLE_READ == level)
+                || connection.getJdbcConfig().isJdbcCompliant();
     }
 
     @Override
@@ -824,7 +824,7 @@ public class ClickHouseDatabaseMetaData extends JdbcWrapper implements DatabaseM
                         + "toInt32(position(type, 'Nullable(') >= 1 ? :defaultNullable : :defaultNonNull) as NULLABLE, :comment as REMARKS, default_expression as COLUMN_DEF, "
                         + "0 as SQL_DATA_TYPE, 0 as SQL_DATETIME_SUB, cast(null as Nullable(Int32)) as CHAR_OCTET_LENGTH, position as ORDINAL_POSITION, "
                         + "position(type, 'Nullable(') >= 1 ? 'YES' : 'NO' as IS_NULLABLE, null as SCOPE_CATALOG, null as SCOPE_SCHEMA, null as SCOPE_TABLE, "
-                        + "null as SOURCE_DATA_TYPE, 'NO' as IS_AUTOINCREMENT, 'NO' as IS_GENERATEDCOLUMN from system.columns\n"
+                        + "null as SOURCE_DATA_TYPE, 'NO' as IS_AUTOINCREMENT, 'NO' as IS_GENERATEDCOLUMN from system.columns "
                         + "where database like :database and table like :table and name like :column", params);
         return query(sql, (i, r) -> {
             String typeName = r.getValue("TYPE_NAME").asString();

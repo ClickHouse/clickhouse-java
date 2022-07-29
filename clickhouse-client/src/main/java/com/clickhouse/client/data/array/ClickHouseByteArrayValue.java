@@ -91,11 +91,19 @@ public class ClickHouseByteArrayValue extends ClickHouseObjectValue<byte[]> {
     public <E> E[] asArray(Class<E> clazz) {
         byte[] v = getValue();
         int len = v.length;
-        E[] array = ClickHouseValues.createObjectArray(clazz, len, 1);
-        for (int i = 0; i < len; i++) {
-            array[i] = clazz.cast(v[i]);
+        if (clazz == Boolean.class) {
+            Boolean[] array = new Boolean[len];
+            for (int i = 0; i < len; i++) {
+                array[i] = v[i] == (byte) 1 ? Boolean.TRUE : Boolean.FALSE;
+            }
+            return (E[]) array;
+        } else {
+            E[] array = ClickHouseValues.createObjectArray(clazz, len, 1);
+            for (int i = 0; i < len; i++) {
+                array[i] = clazz.cast(v[i]);
+            }
+            return array;
         }
-        return array;
     }
 
     @Override
@@ -131,6 +139,11 @@ public class ClickHouseByteArrayValue extends ClickHouseObjectValue<byte[]> {
 
         byte[] value = getValue();
         return new ClickHouseByteArrayValue(Arrays.copyOf(value, value.length));
+    }
+
+    @Override
+    public boolean isNullable() {
+        return false;
     }
 
     @Override
@@ -456,6 +469,12 @@ public class ClickHouseByteArrayValue extends ClickHouseObjectValue<byte[]> {
         int len = value == null ? 0 : value.length;
         if (len == 0) {
             return resetToNullOrEmpty();
+        } else if (value instanceof Boolean[]) {
+            byte[] values = new byte[len];
+            for (int i = 0; i < len; i++) {
+                values[i] = Boolean.TRUE.equals(value[i]) ? (byte) 1 : (byte) 0;
+            }
+            set(values);
         } else {
             byte[] values = new byte[len];
             for (int i = 0; i < len; i++) {

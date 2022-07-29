@@ -27,6 +27,7 @@ import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.net.ConnectException;
 import java.net.HttpURLConnection;
+import java.net.Proxy;
 import java.net.URL;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
@@ -58,7 +59,7 @@ public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
 
     private final HttpURLConnection conn;
 
-    private ClickHouseHttpResponse buildResponse() throws IOException {
+    private ClickHouseHttpResponse buildResponse(Runnable postCloseAction) throws IOException {
         // X-ClickHouse-Server-Display-Name: xxx
         // X-ClickHouse-Query-Id: xxx
         // X-ClickHouse-Format: RowBinaryWithNamesAndTypes
@@ -72,6 +73,7 @@ public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
         ClickHouseConfig c = config;
         ClickHouseFormat format = c.getFormat();
         TimeZone timeZone = c.getServerTimeZone();
+        boolean hasOutputFile = output != null && output.getUnderlyingFile().isAvailable();
         boolean hasQueryResult = false;
         // queryId, format and timeZone are only available for queries
         if (!ClickHouseChecker.isNullOrEmpty(queryId)) {
@@ -92,22 +94,28 @@ public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
             action = () -> {
                 try (OutputStream o = output) {
                     ClickHouseInputStream.pipe(conn.getInputStream(), o, c.getWriteBufferSize());
+                    if (postCloseAction != null) {
+                        postCloseAction.run();
+                    }
                 } catch (IOException e) {
                     throw new UncheckedIOException("Failed to redirect response to given output stream", e);
                 }
             };
         } else {
             source = conn.getInputStream();
-            action = null;
+            action = postCloseAction;
         }
         return new ClickHouseHttpResponse(this,
-                hasQueryResult ? ClickHouseClient.getAsyncResponseInputStream(c, source, action)
-                        : ClickHouseClient.getResponseInputStream(c, source, action),
+                hasOutputFile ? ClickHouseInputStream.of(source, c.getReadBufferSize(), action)
+                        : (hasQueryResult ? ClickHouseClient.getAsyncResponseInputStream(c, source, action)
+                                : ClickHouseClient.getResponseInputStream(c, source, action)),
                 displayName, queryId, summary, format, timeZone);
     }
 
     private HttpURLConnection newConnection(String url, boolean post) throws IOException {
-        HttpURLConnection newConn = (HttpURLConnection) new URL(url).openConnection();
+        HttpURLConnection newConn = config.isUseNoProxy()
+                ? (HttpURLConnection) new URL(url).openConnection(Proxy.NO_PROXY)
+                : (HttpURLConnection) new URL(url).openConnection();
 
         if ((newConn instanceof HttpsURLConnection) && config.isSsl()) {
             HttpsURLConnection secureConn = (HttpsURLConnection) newConn;
@@ -143,12 +151,10 @@ public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
     private void setHeaders(HttpURLConnection conn, Map<String, String> headers) {
         headers = mergeHeaders(headers);
 
-        if (headers == null || headers.isEmpty()) {
-            return;
-        }
-
-        for (Entry<String, String> header : headers.entrySet()) {
-            conn.setRequestProperty(header.getKey(), header.getValue());
+        if (headers != null && !headers.isEmpty()) {
+            for (Entry<String, String> header : headers.entrySet()) {
+                conn.setRequestProperty(header.getKey(), header.getValue());
+            }
         }
     }
 
@@ -180,7 +186,8 @@ public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
                 }
                 errorMsg = builder.toString();
             } catch (IOException e) {
-                log.warn("Error while reading error message[code=%s] from server [%s]", errorCode, serverName, e);
+                log.debug("Failed to read error message[code=%s] from server [%s] due to: %s", errorCode, serverName,
+                        e.getMessage());
                 errorMsg = new String(bytes, StandardCharsets.UTF_8);
             }
 
@@ -201,8 +208,9 @@ public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
     }
 
     @Override
-    protected ClickHouseHttpResponse post(String sql, InputStream data, List<ClickHouseExternalTable> tables,
-            Map<String, String> headers) throws IOException {
+    protected ClickHouseHttpResponse post(String sql, ClickHouseInputStream data, List<ClickHouseExternalTable> tables,
+            String url, Map<String, String> headers, ClickHouseConfig config, Runnable postCloseAction)
+            throws IOException {
         Charset charset = StandardCharsets.US_ASCII;
         byte[] boundary = null;
         if (tables != null && !tables.isEmpty()) {
@@ -215,16 +223,19 @@ public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
         setHeaders(conn, headers);
 
         ClickHouseConfig c = config;
+        final boolean hasFile = data != null && data.getUnderlyingFile().isAvailable();
         final boolean hasInput = data != null || boundary != null;
         if (hasInput) {
             conn.setChunkedStreamingMode(config.getRequestChunkSize());
         } else {
             // TODO conn.setFixedLengthStreamingMode(contentLength);
         }
-        try (ClickHouseOutputStream out = hasInput
-                ? ClickHouseClient.getAsyncRequestOutputStream(config, conn.getOutputStream(), null) // latch::countDown)
-                : ClickHouseClient.getRequestOutputStream(c, conn.getOutputStream(), null)) {
-            byte[] sqlBytes = sql.getBytes(StandardCharsets.UTF_8);
+        try (ClickHouseOutputStream out = hasFile
+                ? ClickHouseOutputStream.of(conn.getOutputStream(), config.getWriteBufferSize())
+                : (hasInput
+                        ? ClickHouseClient.getAsyncRequestOutputStream(config, conn.getOutputStream(), null) // latch::countDown)
+                        : ClickHouseClient.getRequestOutputStream(c, conn.getOutputStream(), null))) {
+            byte[] sqlBytes = hasFile ? new byte[0] : sql.getBytes(StandardCharsets.UTF_8);
             if (boundary != null) {
                 byte[] linePrefix = new byte[] { '\r', '\n', '-', '-' };
                 byte[] lineSuffix = new byte[] { '\r', '\n' };
@@ -267,7 +278,7 @@ public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
                 out.writeBytes(sqlBytes);
                 if (data != null && data.available() > 0) {
                     // append \n
-                    if (sqlBytes[sqlBytes.length - 1] != (byte) '\n') {
+                    if (sqlBytes.length > 0 && sqlBytes[sqlBytes.length - 1] != (byte) '\n') {
                         out.write(10);
                     }
                     ClickHouseInputStream.pipe(data, out, c.getWriteBufferSize());
@@ -277,7 +288,7 @@ public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
 
         checkResponse(conn);
 
-        return buildResponse();
+        return buildResponse(postCloseAction);
     }
 
     @Override

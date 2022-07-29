@@ -23,11 +23,6 @@ public final class LogMessage {
             Object lastArg = arguments[len - 1];
             if (lastArg instanceof Throwable) {
                 t = (Throwable) lastArg;
-                if (--len > 0) {
-                    Object[] args = new Object[len];
-                    System.arraycopy(arguments, 0, args, 0, len);
-                    arguments = args;
-                }
             }
 
             if (len > 0) {

@@ -173,7 +173,7 @@ public class ClickHouseDatabaseMetadataTest extends JdbcIntegrationTest {
             new String[] {"TinyLog"},
             new String[] {"Log"},
             new String[] {"Memory"},
-            new String[] {"MergeTree(foo, (foo), 8192)"}
+            new String[] {"MergeTree order by foo"}
         };
         // unfortunately this is hard to test
         // new String[] {"Dictionary(myDict)"},

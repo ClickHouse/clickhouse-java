@@ -134,6 +134,11 @@ public class ClickHouseDoubleArrayValue extends ClickHouseObjectValue<double[]> 
     }
 
     @Override
+    public boolean isNullable() {
+        return false;
+    }
+
+    @Override
     public boolean isNullOrEmpty() {
         return getValue().length == 0;
     }

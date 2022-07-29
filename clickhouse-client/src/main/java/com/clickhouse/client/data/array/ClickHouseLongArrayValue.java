@@ -24,6 +24,7 @@ import com.clickhouse.client.ClickHouseChecker;
 import com.clickhouse.client.ClickHouseUtils;
 import com.clickhouse.client.ClickHouseValue;
 import com.clickhouse.client.ClickHouseValues;
+import com.clickhouse.client.data.ClickHouseLongValue;
 import com.clickhouse.client.data.ClickHouseObjectValue;
 
 /**
@@ -91,11 +92,23 @@ public class ClickHouseLongArrayValue extends ClickHouseObjectValue<long[]> {
     public <E> E[] asArray(Class<E> clazz) {
         long[] v = getValue();
         int len = v.length;
-        E[] array = ClickHouseValues.createObjectArray(clazz, len, 1);
-        for (int i = 0; i < len; i++) {
-            array[i] = clazz.cast(v[i]);
+        if (clazz == BigInteger.class) {
+            BigInteger[] array = new BigInteger[len];
+            for (int i = 0; i < len; i++) {
+                long value = v[i];
+                array[i] = BigInteger.valueOf(value);
+                if (value < 0L) {
+                    array[i] = array[i].and(ClickHouseLongValue.MASK);
+                }
+            }
+            return (E[]) array;
+        } else {
+            E[] array = ClickHouseValues.createObjectArray(clazz, len, 1);
+            for (int i = 0; i < len; i++) {
+                array[i] = clazz.cast(v[i]);
+            }
+            return array;
         }
-        return array;
     }
 
     @Override
@@ -131,6 +144,11 @@ public class ClickHouseLongArrayValue extends ClickHouseObjectValue<long[]> {
 
         long[] value = getValue();
         return new ClickHouseLongArrayValue(Arrays.copyOf(value, value.length));
+    }
+
+    @Override
+    public boolean isNullable() {
+        return false;
     }
 
     @Override

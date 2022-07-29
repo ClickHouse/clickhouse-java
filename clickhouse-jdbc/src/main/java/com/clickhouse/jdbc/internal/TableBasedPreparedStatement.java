@@ -16,9 +16,12 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
 
+import com.clickhouse.client.ClickHouseColumn;
+import com.clickhouse.client.ClickHouseDataType;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.ClickHouseUtils;
+import com.clickhouse.client.ClickHouseValues;
 import com.clickhouse.client.data.ClickHouseExternalTable;
 import com.clickhouse.client.logging.Logger;
 import com.clickhouse.client.logging.LoggerFactory;
@@ -34,12 +37,12 @@ public class TableBasedPreparedStatement extends AbstractPreparedStatement imple
     private final ClickHouseSqlStatement parsedStmt;
     private final List<String> tables;
     private final ClickHouseExternalTable[] values;
+    private final ClickHouseParameterMetaData paramMetaData;
 
     private final List<List<ClickHouseExternalTable>> batch;
 
     protected TableBasedPreparedStatement(ClickHouseConnectionImpl connection, ClickHouseRequest<?> request,
-            ClickHouseSqlStatement parsedStmt, int resultSetType, int resultSetConcurrency,
-            int resultSetHoldability)
+            ClickHouseSqlStatement parsedStmt, int resultSetType, int resultSetConcurrency, int resultSetHoldability)
             throws SQLException {
         super(connection, request, resultSetType, resultSetConcurrency, resultSetHoldability);
 
@@ -53,6 +56,11 @@ public class TableBasedPreparedStatement extends AbstractPreparedStatement imple
         this.tables = new ArrayList<>(size);
         this.tables.addAll(set);
         values = new ClickHouseExternalTable[size];
+        List<ClickHouseColumn> list = new ArrayList<>(size);
+        for (String name : set) {
+            list.add(ClickHouseColumn.of(name, ClickHouseDataType.JSON, false));
+        }
+        paramMetaData = new ClickHouseParameterMetaData(Collections.unmodifiableList(list));
         batch = new LinkedList<>();
     }
 
@@ -75,7 +83,7 @@ public class TableBasedPreparedStatement extends AbstractPreparedStatement imple
         boolean continueOnError = false;
         if (asBatch) {
             if (batch.isEmpty()) {
-                throw SqlExceptionUtils.emptyBatchError();
+                return ClickHouseValues.EMPTY_LONG_ARRAY;
             }
             continueOnError = getConnection().getJdbcConfig().isContinueBatchOnError();
         } else {
@@ -277,8 +285,7 @@ public class TableBasedPreparedStatement extends AbstractPreparedStatement imple
 
     @Override
     public ParameterMetaData getParameterMetaData() throws SQLException {
-        // TODO Auto-generated method stub
-        return null;
+        return paramMetaData;
     }
 
     @Override

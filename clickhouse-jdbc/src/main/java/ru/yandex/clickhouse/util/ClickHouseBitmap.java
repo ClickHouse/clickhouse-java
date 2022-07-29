@@ -293,7 +293,7 @@ public abstract class ClickHouseBitmap {
                             "Not able to deserialize ClickHouseBitmap for too many bitmaps(>" + 0xFFFFFFFFL + ")!");
                 }
                 // read the rest
-                Utils.readFully(in, bytes, 5, len - 5);
+                Utils.readFully(in, bytes, 5, len - 8);
                 Roaring64NavigableMap b = new Roaring64NavigableMap();
                 b.deserialize(new DataInputStream(new ByteArrayInputStream(bytes)));
                 rb = ClickHouseBitmap.wrap(b, innerType);

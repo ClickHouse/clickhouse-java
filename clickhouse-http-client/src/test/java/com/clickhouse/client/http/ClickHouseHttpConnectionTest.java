@@ -1,12 +1,13 @@
 package com.clickhouse.client.http;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.List;
 import java.util.Map;
 
 import com.clickhouse.client.ClickHouseClient;
+import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseFormat;
+import com.clickhouse.client.ClickHouseInputStream;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseRequest;
@@ -23,8 +24,9 @@ public class ClickHouseHttpConnectionTest {
         }
 
         @Override
-        protected ClickHouseHttpResponse post(String query, InputStream data, List<ClickHouseExternalTable> tables,
-                Map<String, String> headers) throws IOException {
+        protected ClickHouseHttpResponse post(String query, ClickHouseInputStream data,
+                List<ClickHouseExternalTable> tables, String url, Map<String, String> headers, ClickHouseConfig config,
+                Runnable postAction) throws IOException {
             return null;
         }
 

@@ -2,10 +2,13 @@ package com.clickhouse.jdbc;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Locale;
 import java.util.Properties;
+
+import org.testng.Assert;
 
 import com.clickhouse.client.BaseIntegrationTest;
 import com.clickhouse.client.ClickHouseNode;
@@ -54,6 +57,16 @@ public abstract class JdbcIntegrationTest extends BaseIntegrationTest {
             builder.append('?').append(ClickHouseHttpOption.CONNECTION_PROVIDER.getKey()).append("=HTTP_CLIENT");
         }
         return builder.toString();
+    }
+
+    protected void checkRowCount(Statement stmt, String queryOrTableName, int expectedRowCount) throws SQLException {
+        String sql = queryOrTableName.indexOf(' ') > 0 ? queryOrTableName
+                : "select count(1) from ".concat(queryOrTableName);
+        try (ResultSet rs = stmt.executeQuery(sql)) {
+            Assert.assertTrue(rs.next(), "Should have at least one record");
+            Assert.assertEquals(rs.getInt(1), expectedRowCount);
+            Assert.assertFalse(rs.next(), "Should have only one record");
+        }
     }
 
     public JdbcIntegrationTest() {

@@ -16,6 +16,7 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
+import java.util.Collections;
 import java.util.List;
 
 import com.clickhouse.client.ClickHouseColumn;
@@ -40,6 +41,7 @@ public class InputBasedPreparedStatement extends AbstractPreparedStatement imple
 
     private final ClickHouseColumn[] columns;
     private final ClickHouseValue[] values;
+    private final ClickHouseParameterMetaData paramMetaData;
     private final boolean[] flags;
 
     private int counter;
@@ -62,17 +64,21 @@ public class InputBasedPreparedStatement extends AbstractPreparedStatement imple
         int size = columns.size();
         this.columns = new ClickHouseColumn[size];
         this.values = new ClickHouseValue[size];
+        List<ClickHouseColumn> list = new ArrayList<>(size);
         int i = 0;
         for (ClickHouseColumn col : columns) {
             this.columns[i] = col;
             this.values[i] = ClickHouseValues.newValue(config, col);
+            list.add(col);
             i++;
         }
+        paramMetaData = new ClickHouseParameterMetaData(Collections.unmodifiableList(list));
         flags = new boolean[size];
 
         counter = 0;
         // it's important to make sure the queue has unlimited length
-        stream = ClickHouseDataStreamFactory.getInstance().createPipedOutputStream(config, null);
+        stream = ClickHouseDataStreamFactory.getInstance().createPipedOutputStream(config.getWriteBufferSize(), 0,
+                config.getSocketTimeout(), null);
     }
 
     protected void ensureParams() throws SQLException {
@@ -94,7 +100,7 @@ public class InputBasedPreparedStatement extends AbstractPreparedStatement imple
         boolean continueOnError = false;
         if (asBatch) {
             if (counter < 1) {
-                throw SqlExceptionUtils.emptyBatchError();
+                return ClickHouseValues.EMPTY_LONG_ARRAY;
             }
             continueOnError = getConnection().getJdbcConfig().isContinueBatchOnError();
         } else {
@@ -310,7 +316,8 @@ public class InputBasedPreparedStatement extends AbstractPreparedStatement imple
         int nullAsDefault = getNullAsDefault();
         for (int i = 0, len = values.length; i < len; i++) {
             if (!flags[i]) {
-                throw SqlExceptionUtils.clientError(ClickHouseUtils.format("Missing value for parameter #%d", i + 1));
+                throw SqlExceptionUtils
+                        .clientError(ClickHouseUtils.format("Missing value for parameter #%d [%s]", i + 1, columns[i]));
             }
             ClickHouseColumn col = columns[i];
             ClickHouseValue val = values[i];
@@ -345,7 +352,10 @@ public class InputBasedPreparedStatement extends AbstractPreparedStatement imple
             // ignore
         }
         counter = 0;
-        stream = ClickHouseDataStreamFactory.getInstance().createPipedOutputStream(getConfig(), null);
+
+        ClickHouseConfig config = getConfig();
+        stream = ClickHouseDataStreamFactory.getInstance().createPipedOutputStream(config.getWriteBufferSize(), 0,
+                config.getSocketTimeout(), null);
     }
 
     @Override
@@ -444,8 +454,7 @@ public class InputBasedPreparedStatement extends AbstractPreparedStatement imple
 
     @Override
     public ParameterMetaData getParameterMetaData() throws SQLException {
-        // TODO Auto-generated method stub
-        return null;
+        return paramMetaData;
     }
 
     @Override

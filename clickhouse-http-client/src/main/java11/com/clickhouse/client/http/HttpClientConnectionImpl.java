@@ -2,13 +2,16 @@ package com.clickhouse.client.http;
 
 import com.clickhouse.client.ClickHouseChecker;
 import com.clickhouse.client.ClickHouseClient;
+import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseDataStreamFactory;
 import com.clickhouse.client.ClickHouseFormat;
 import com.clickhouse.client.ClickHouseInputStream;
 import com.clickhouse.client.ClickHouseNode;
+import com.clickhouse.client.ClickHouseOutputStream;
 import com.clickhouse.client.ClickHousePipedOutputStream;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseSslContextProvider;
+import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.data.ClickHouseExternalTable;
 import com.clickhouse.client.http.config.ClickHouseHttpOption;
 import com.clickhouse.client.logging.Logger;
@@ -16,6 +19,8 @@ import com.clickhouse.client.logging.LoggerFactory;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -25,6 +30,9 @@ import java.io.Reader;
 import java.io.UncheckedIOException;
 import java.net.ConnectException;
 import java.net.HttpURLConnection;
+import java.net.Proxy;
+import java.net.ProxySelector;
+import java.net.SocketAddress;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpConnectTimeoutException;
@@ -48,14 +56,32 @@ import java.util.function.Function;
 import javax.net.ssl.SSLContext;
 
 public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
-    private static final Logger log = LoggerFactory.getLogger(HttpClientConnectionImpl.class);
+    static class NoProxySelector extends ProxySelector {
+        static final NoProxySelector INSTANCE = new NoProxySelector();
 
-    private static final int MAX_RETRIES = 1;
+        private static final List<Proxy> NO_PROXY_LIST = List.of(Proxy.NO_PROXY);
+
+        private NoProxySelector() {
+        }
+
+        @Override
+        public void connectFailed(URI uri, SocketAddress sa, IOException e) {
+            // ignore
+        }
+
+        @Override
+        public List<Proxy> select(URI uri) {
+            return NO_PROXY_LIST;
+        }
+    }
+
+    private static final Logger log = LoggerFactory.getLogger(HttpClientConnectionImpl.class);
 
     private final HttpClient httpClient;
     private final HttpRequest pingRequest;
 
-    private ClickHouseHttpResponse buildResponse(HttpResponse<InputStream> r) throws IOException {
+    private ClickHouseHttpResponse buildResponse(ClickHouseConfig config, HttpResponse<InputStream> r,
+            Runnable postAction) throws IOException {
         HttpHeaders headers = r.headers();
         String displayName = headers.firstValue("X-ClickHouse-Server-Display-Name").orElse(server.getHost());
         String queryId = headers.firstValue("X-ClickHouse-Query-Id").orElse("");
@@ -73,13 +99,17 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
                     : timeZone;
         }
 
+        boolean hasOutputFile = output != null && output.getUnderlyingFile().isAvailable();
         final InputStream source;
         final Runnable action;
         if (output != null) {
             source = ClickHouseInputStream.empty();
             action = () -> {
                 try (OutputStream o = output) {
-                    ClickHouseInputStream.pipe(checkResponse(r).body(), o, config.getWriteBufferSize());
+                    ClickHouseInputStream.pipe(checkResponse(config, r).body(), o, config.getWriteBufferSize());
+                    if (postAction != null) {
+                        postAction.run();
+                    }
                 } catch (IOException e) {
                     throw new UncheckedIOException("Failed to redirect response to given output stream", e);
                 } finally {
@@ -87,30 +117,51 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
                 }
             };
         } else {
-            source = checkResponse(r).body();
-            action = this::closeQuietly;
+            source = checkResponse(config, r).body();
+            action = () -> {
+                if (postAction != null) {
+                    postAction.run();
+                }
+                closeQuietly();
+            };
         }
-        return new ClickHouseHttpResponse(this, ClickHouseClient.getResponseInputStream(config, source, action),
+
+        return new ClickHouseHttpResponse(this,
+                hasOutputFile ? ClickHouseInputStream.of(source, config.getReadBufferSize(), action)
+                        : ClickHouseInputStream.wrap(null, source, config.getReadBufferSize(), action,
+                                config.getResponseCompressAlgorithm(), config.getResponseCompressLevel()),
                 displayName, queryId, summary, format, timeZone);
     }
 
-    private HttpResponse<InputStream> checkResponse(HttpResponse<InputStream> r) throws IOException {
+    private HttpResponse<InputStream> checkResponse(ClickHouseConfig config, HttpResponse<InputStream> r)
+            throws IOException {
         if (r.statusCode() != HttpURLConnection.HTTP_OK) {
-            // TODO get exception from response header, for example:
-            // X-ClickHouse-Exception-Code: 47
-            StringBuilder builder = new StringBuilder();
-            try (Reader reader = new InputStreamReader(
-                    ClickHouseClient.getResponseInputStream(config, r.body(), this::closeQuietly),
-                    StandardCharsets.UTF_8)) {
-                int c = 0;
-                while ((c = reader.read()) != -1) {
-                    builder.append((char) c);
+            String errorCode = r.headers().firstValue("X-ClickHouse-Exception-Code").orElse("");
+            // String encoding = r.headers().firstValue("Content-Encoding");
+            String serverName = r.headers().firstValue("X-ClickHouse-Server-Display-Name").orElse("");
+
+            String errorMsg;
+            int bufferSize = (int) ClickHouseClientOption.BUFFER_SIZE.getDefaultValue();
+            ByteArrayOutputStream output = new ByteArrayOutputStream(bufferSize);
+            ClickHouseInputStream.pipe(r.body(), output, bufferSize);
+            byte[] bytes = output.toByteArray();
+
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(
+                    ClickHouseClient.getResponseInputStream(config, new ByteArrayInputStream(bytes),
+                            this::closeQuietly),
+                    StandardCharsets.UTF_8))) {
+                StringBuilder builder = new StringBuilder();
+                while ((errorMsg = reader.readLine()) != null) {
+                    builder.append(errorMsg).append('\n');
                 }
+                errorMsg = builder.toString();
             } catch (IOException e) {
-                log.warn("Error while reading error message", e);
+                log.debug("Failed to read error message[code=%s] from server [%s] due to: %s", errorCode, serverName,
+                        e.getMessage());
+                errorMsg = new String(bytes, StandardCharsets.UTF_8);
             }
 
-            throw new IOException(builder.toString());
+            throw new IOException(errorMsg);
         }
 
         return r;
@@ -125,12 +176,13 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
             throws IOException {
         super(server, request);
 
-        HttpClient.Builder builder = HttpClient.newBuilder()
-                .version(Version.HTTP_1_1)
-                .connectTimeout(Duration.ofMillis(config.getConnectionTimeout()))
-                .followRedirects(Redirect.NORMAL);
+        HttpClient.Builder builder = HttpClient.newBuilder().version(Version.HTTP_1_1)
+                .connectTimeout(Duration.ofMillis(config.getConnectionTimeout())).followRedirects(Redirect.NORMAL);
         if (executor != null) {
             builder.executor(executor);
+        }
+        if (config.isUseNoProxy()) {
+            builder.proxy(NoProxySelector.INSTANCE);
         }
         if (config.isSsl()) {
             builder.sslContext(ClickHouseSslContextProvider.getProvider().getSslContext(SSLContext.class, config)
@@ -153,8 +205,10 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
                 responseInfo -> new ClickHouseResponseHandler(config.getMaxQueuedBuffers(), config.getSocketTimeout()));
     }
 
-    private ClickHouseHttpResponse postStream(HttpRequest.Builder reqBuilder, String boundary, String sql,
-            InputStream data, List<ClickHouseExternalTable> tables) throws IOException {
+    private ClickHouseHttpResponse postStream(ClickHouseConfig config, HttpRequest.Builder reqBuilder, String boundary,
+            String sql, ClickHouseInputStream data, List<ClickHouseExternalTable> tables, Runnable postAction)
+            throws IOException {
+        final boolean hasFile = data != null && data.getUnderlyingFile().isAvailable();
         ClickHousePipedOutputStream stream = ClickHouseDataStreamFactory.getInstance().createPipedOutputStream(config,
                 null);
         reqBuilder.POST(HttpRequest.BodyPublishers.ofInputStream(stream::getInputStream));
@@ -188,12 +242,14 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
                 writer.write("\r\n--" + boundary + "--\r\n");
                 writer.flush();
             } else {
-                writer.write(sql);
-                writer.flush();
+                if (!hasFile) {
+                    writer.write(sql);
+                    writer.flush();
+                }
 
                 if (data.available() > 0) {
                     // append \n
-                    if (sql.charAt(sql.length() - 1) != '\n') {
+                    if (!hasFile && sql.charAt(sql.length() - 1) != '\n') {
                         stream.write(10);
                     }
 
@@ -217,10 +273,11 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
             }
         }
 
-        return buildResponse(r);
+        return buildResponse(config, r, postAction);
     }
 
-    private ClickHouseHttpResponse postString(HttpRequest.Builder reqBuilder, String sql) throws IOException {
+    private ClickHouseHttpResponse postString(ClickHouseConfig config, HttpRequest.Builder reqBuilder, String sql,
+            Runnable postAction) throws IOException {
         reqBuilder.POST(HttpRequest.BodyPublishers.ofString(sql));
         HttpResponse<InputStream> r;
         try {
@@ -236,15 +293,16 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
                 throw new IOException("Failed to post query", cause);
             }
         }
-        return buildResponse(r);
+        return buildResponse(config, r, postAction);
     }
 
     @Override
-    protected ClickHouseHttpResponse post(String sql, InputStream data, List<ClickHouseExternalTable> tables,
-            Map<String, String> headers) throws IOException {
+    protected ClickHouseHttpResponse post(String sql, ClickHouseInputStream data, List<ClickHouseExternalTable> tables,
+            String url, Map<String, String> headers, ClickHouseConfig config, Runnable postAction) throws IOException {
+        ClickHouseConfig c = config == null ? this.config : config;
         HttpRequest.Builder reqBuilder = HttpRequest.newBuilder()
-                .uri(URI.create(url))
-                .timeout(Duration.ofMillis(config.getSocketTimeout()));
+                .uri(URI.create(ClickHouseChecker.isNullOrEmpty(url) ? this.url : url))
+                .timeout(Duration.ofMillis(c.getSocketTimeout()));
         String boundary = null;
         if (tables != null && !tables.isEmpty()) {
             boundary = UUID.randomUUID().toString();
@@ -260,8 +318,8 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
             }
         }
 
-        return boundary != null || data != null ? postStream(reqBuilder, boundary, sql, data, tables)
-                : postString(reqBuilder, sql);
+        return boundary != null || data != null ? postStream(c, reqBuilder, boundary, sql, data, tables, postAction)
+                : postString(c, reqBuilder, sql, postAction);
     }
 
     @Override

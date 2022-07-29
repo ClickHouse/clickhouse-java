@@ -12,9 +12,15 @@ public class ClickHouseClientBuilderTest {
         ClickHouseClientBuilder builder = new ClickHouseClientBuilder();
         ClickHouseClient client = builder.build();
         Assert.assertTrue(client instanceof Agent);
+        Assert.assertTrue(((Agent) client).getClient() instanceof ClickHouseClientBuilder.DummyClient);
+        Assert.assertNotEquals(builder.build(), client);
+        Assert.assertTrue(client.getConfig() == builder.getConfig());
+
+        builder.nodeSelector(ClickHouseNodeSelector.of(ClickHouseProtocol.ANY));
+        client = builder.build();
+        Assert.assertTrue(client instanceof Agent);
         Assert.assertTrue(((Agent) client).getClient() instanceof ClickHouseTestClient);
         Assert.assertNotEquals(builder.build(), client);
-
         Assert.assertTrue(client.getConfig() == builder.getConfig());
     }
 

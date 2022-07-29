@@ -8,6 +8,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
+import java.net.ConnectException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -28,6 +29,7 @@ import java.util.concurrent.TimeoutException;
 
 import com.clickhouse.client.ClickHouseChecker;
 import com.clickhouse.client.ClickHouseClient;
+import com.clickhouse.client.ClickHouseCompression;
 import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseCredentials;
 import com.clickhouse.client.ClickHouseFile;
@@ -93,7 +95,7 @@ public class ClickHouseCommandLine implements AutoCloseable {
             cli = DEFAULT_DOCKER_CLI_PATH;
         }
         if (!check(timeout, cli, DEFAULT_CLI_ARG_VERSION)) {
-            throw new IllegalStateException("Docker command-line is not available: " + cli);
+            throw new UncheckedIOException(new ConnectException("Docker command-line is not available: " + cli));
         } else {
             commands.add(cli);
         }
@@ -111,7 +113,7 @@ public class ClickHouseCommandLine implements AutoCloseable {
                             DEFAULT_CLI_ARG_VERSION)
                             && !check(timeout, cli, "run", "--rm", "--name", str, "-v", hostDir + ':' + containerDir,
                                     "-d", img, "tail", "-f", "/dev/null")) {
-                        throw new IllegalStateException("Failed to start new container: " + str);
+                        throw new UncheckedIOException(new ConnectException("Failed to start new container: " + str));
                     }
                 }
             }
@@ -122,7 +124,7 @@ public class ClickHouseCommandLine implements AutoCloseable {
         } else { // create new container for each query
             if (!check(timeout, cli, "run", "--rm", img, DEFAULT_CLICKHOUSE_CLI_PATH, DEFAULT_CLIENT_OPTION,
                     DEFAULT_CLI_ARG_VERSION)) {
-                throw new IllegalStateException("Invalid ClickHouse docker image: " + img);
+                throw new UncheckedIOException(new ConnectException("Invalid ClickHouse docker image: " + img));
             }
             commands.add("run");
             commands.add("--rm");
@@ -135,8 +137,9 @@ public class ClickHouseCommandLine implements AutoCloseable {
         commands.add(DEFAULT_CLICKHOUSE_CLI_PATH);
     }
 
-    static Process startProcess(ClickHouseNode server, ClickHouseRequest<?> request) {
+    static Process startProcess(ClickHouseRequest<?> request) {
         final ClickHouseConfig config = request.getConfig();
+        final ClickHouseNode server = request.getServer();
         final int timeout = config.getSocketTimeout();
 
         String hostDir = (String) config.getOption(ClickHouseCommandLineOption.CLI_WORK_DIRECTORY);
@@ -195,7 +198,7 @@ public class ClickHouseCommandLine implements AutoCloseable {
         if (!ClickHouseChecker.isNullOrBlank(str)) {
             commands.add("--query_id=".concat(str));
         }
-        commands.add("--query=".concat(request.getStatements(false).get(0)));
+        commands.add("--query=".concat(str = request.getStatements(false).get(0)));
 
         for (ClickHouseExternalTable table : request.getExternalTables()) {
             ClickHouseFile tableFile = table.getFile();
@@ -234,6 +237,10 @@ public class ClickHouseCommandLine implements AutoCloseable {
         value = settings.get("result_overflow_mode");
         if (value != null) {
             commands.add("--result_overflow_mode=".concat(value.toString()));
+        }
+        value = settings.get("readonly");
+        if (value != null) {
+            commands.add("--readonly=".concat(value.toString()));
         }
         if ((boolean) config.getOption(ClickHouseCommandLineOption.USE_PROFILE_EVENTS)) {
             commands.add("--print-profile-events");
@@ -326,30 +333,36 @@ public class ClickHouseCommandLine implements AutoCloseable {
         }
     }
 
-    private final ClickHouseNode server;
     private final ClickHouseRequest<?> request;
 
     private final Process process;
 
     private String error;
 
-    public ClickHouseCommandLine(ClickHouseNode server, ClickHouseRequest<?> request) {
-        this.server = server;
+    public ClickHouseCommandLine(ClickHouseRequest<?> request) {
         this.request = request;
 
-        this.process = startProcess(server, request);
+        this.process = startProcess(request);
         this.error = null;
     }
 
     public ClickHouseInputStream getInputStream() throws IOException {
         ClickHouseOutputStream out = request.getOutputStream().orElse(null);
+        Runnable postCloseAction = () -> {
+            IOException exp = getError();
+            if (exp != null) {
+                throw new UncheckedIOException(exp);
+            }
+        };
         if (out != null && !out.getUnderlyingFile().isAvailable()) {
             try (OutputStream o = out) {
                 ClickHouseInputStream.pipe(process.getInputStream(), o, request.getConfig().getWriteBufferSize());
             }
-            return ClickHouseInputStream.empty();
+            return ClickHouseInputStream.wrap(null, ClickHouseInputStream.empty(),
+                    request.getConfig().getReadBufferSize(), postCloseAction, ClickHouseCompression.NONE, 0);
         } else {
-            return ClickHouseInputStream.of(process.getInputStream(), request.getConfig().getReadBufferSize());
+            return ClickHouseInputStream.of(process.getInputStream(), request.getConfig().getReadBufferSize(),
+                    postCloseAction);
         }
     }
 

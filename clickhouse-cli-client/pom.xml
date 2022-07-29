@@ -8,28 +8,21 @@
     </parent>
 
     <artifactId>clickhouse-cli-client</artifactId>
-    <version>${revision}</version>
     <packaging>jar</packaging>
 
-    <name>${project.artifactId}</name>
+    <name>ClickHouse Native Command-line Wrapper</name>
     <description>Wrapper of ClickHouse native command-line client</description>
     <url>https://github.com/ClickHouse/clickhouse-jdbc/tree/master/clickhouse-cli-client</url>
-
-    <properties>
-        <shade.base>${project.parent.groupId}.client.internal</shade.base>
-    </properties>
 
     <dependencies>
         <dependency>
             <groupId>${project.parent.groupId}</groupId>
             <artifactId>clickhouse-client</artifactId>
             <version>${revision}</version>
-            <exclusions>
-                <exclusion>
-                    <groupId>*</groupId>
-                    <artifactId>*</artifactId>
-                </exclusion>
-            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>org.lz4</groupId>
+            <artifactId>lz4-java</artifactId>
         </dependency>
 
         <!-- necessary for Java 9+ -->
@@ -67,6 +60,19 @@
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-failsafe-plugin</artifactId>
+                <configuration>
+                    <environmentVariables>
+                        <CHC_TEST_CONTAINER_ID>clickhouse-cli-client</CHC_TEST_CONTAINER_ID>
+                    </environmentVariables>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
                 <executions>
                     <execution>
@@ -77,13 +83,24 @@
                         </goals>
                         <configuration>
                             <shadedArtifactAttached>true</shadedArtifactAttached>
+                            <shadedClassifierName>shaded</shadedClassifierName>
                             <createDependencyReducedPom>true</createDependencyReducedPom>
                             <promoteTransitiveDependencies>true</promoteTransitiveDependencies>
-                            <shadedClassifierName>shaded</shadedClassifierName>
+                            <relocations>
+                                <relocation>
+                                    <pattern>net.jpountz</pattern>
+                                    <shadedPattern>${shade.base}.jpountz</shadedPattern>
+                                </relocation>
+                            </relocations>
                             <transformers>
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ApacheLicenseResourceTransformer" />
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ApacheNoticeResourceTransformer" />
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer" />
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                                    <manifestEntries>
+                                        <Automatic-Module-Name>com.clickhouse.client.cli</Automatic-Module-Name>
+                                    </manifestEntries>
+                                </transformer>
                             </transformers>
                             <filters>
                                 <filter>
@@ -104,17 +121,17 @@
                 </executions>
             </plugin>
             <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-compiler-plugin</artifactId>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-failsafe-plugin</artifactId>
-                <configuration>
-                    <environmentVariables>
-                        <CHC_TEST_CONTAINER_ID>clickhouse-cli-client</CHC_TEST_CONTAINER_ID>
-                    </environmentVariables>
-                </configuration>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>flatten-maven-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>flatten</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>flatten</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>

@@ -176,6 +176,32 @@ public class ClickHouseRowBinaryProcessorTest {
     }
 
     @Test(groups = { "unit" })
+    public void testSerializeBoolean() throws IOException {
+        ClickHouseConfig config = new ClickHouseConfig();
+
+        ClickHouseValue value = ClickHouseArrayValue.of(new Boolean[][] { new Boolean[] { true, false } });
+        ByteArrayOutputStream bas = new ByteArrayOutputStream();
+        ClickHouseOutputStream out = ClickHouseOutputStream.of(bas);
+        ClickHouseRowBinaryProcessor.getMappedFunctions().serialize(value, config,
+                ClickHouseColumn.of("a", "Array(Array(Boolean))"), out);
+        out.flush();
+        Assert.assertEquals(bas.toByteArray(), BinaryStreamUtilsTest.generateBytes(1, 2, 1, 0));
+
+        boolean[] nativeBoolArray = new boolean[3];
+        nativeBoolArray[0] = true;
+        nativeBoolArray[1] = false;
+        nativeBoolArray[2] = true;
+
+        ClickHouseValue value2 = ClickHouseArrayValue.of(new boolean[][]{nativeBoolArray});
+        ByteArrayOutputStream bas2 = new ByteArrayOutputStream();
+        ClickHouseOutputStream out2 = ClickHouseOutputStream.of(bas2);
+        ClickHouseRowBinaryProcessor.getMappedFunctions().serialize(value2, config,
+                ClickHouseColumn.of("a", "Array(Array(boolean))"), out2);
+        out2.flush();
+        Assert.assertEquals(bas2.toByteArray(), BinaryStreamUtilsTest.generateBytes(1, 3, 1, 0, 1));
+    }
+
+    @Test(groups = { "unit" })
     public void testDeserializeMap() throws IOException {
         ClickHouseConfig config = new ClickHouseConfig();
         ClickHouseValue value = ClickHouseRowBinaryProcessor.getMappedFunctions().deserialize(null, config,

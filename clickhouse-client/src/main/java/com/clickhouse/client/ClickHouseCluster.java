@@ -136,6 +136,6 @@ public class ClickHouseCluster extends ClickHouseNodes {
                 .append(checking.get()).append(", index=").append(index.get()).append(", lock=r")
                 .append(lock.getReadHoldCount()).append('w').append(lock.getWriteHoldCount()).append(", nodes=")
                 .append(nodes.size()).append(", faulty=").append(faultyNodes.size()).append(", policy=")
-                .append(policy.getClass().getSimpleName()).append(']').toString();
+                .append(policy.getClass().getSimpleName()).append("]@").append(hashCode()).toString();
     }
 }

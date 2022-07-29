@@ -1,6 +1,7 @@
 package com.clickhouse.client.http;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.Collections;
@@ -9,11 +10,13 @@ import java.util.Map;
 import java.util.concurrent.CompletionException;
 
 import com.clickhouse.client.AbstractClient;
+import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseException;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseResponse;
+import com.clickhouse.client.ClickHouseTransaction;
 import com.clickhouse.client.config.ClickHouseOption;
 import com.clickhouse.client.data.ClickHouseStreamResponse;
 import com.clickhouse.client.http.config.ClickHouseHttpOption;
@@ -29,7 +32,7 @@ public class ClickHouseHttpClient extends AbstractClient<ClickHouseHttpConnectio
     protected boolean checkConnection(ClickHouseHttpConnection connection, ClickHouseNode requestServer,
             ClickHouseNode currentServer, ClickHouseRequest<?> request) {
         // return false to suggest creating a new connection
-        return connection != null && connection.isReusable() && requestServer.equals(currentServer);
+        return connection != null && connection.isReusable() && requestServer.isSameEndpoint(currentServer);
     }
 
     @Override
@@ -98,8 +101,28 @@ public class ClickHouseHttpClient extends AbstractClient<ClickHouseHttpConnectio
         }
 
         log.debug("Query: %s", sql);
-        ClickHouseHttpResponse httpResponse = conn.post(sql, sealedRequest.getInputStream().orElse(null),
-                sealedRequest.getExternalTables(), null);
+        ClickHouseConfig config = sealedRequest.getConfig();
+        final ClickHouseHttpResponse httpResponse;
+        final ClickHouseTransaction tx = sealedRequest.getTransaction();
+        final Runnable postAction = tx != null && tx.isImplicit()
+                ? () -> {
+                    try {
+                        tx.commit();
+                    } catch (ClickHouseException e) {
+                        throw new UncheckedIOException(new IOException(e.getMessage()));
+                    }
+                }
+                : null;
+        if (conn.isReusable()) {
+            ClickHouseNode server = sealedRequest.getServer();
+            httpResponse = conn.post(sql, sealedRequest.getInputStream().orElse(null),
+                    sealedRequest.getExternalTables(),
+                    ClickHouseHttpConnection.buildUrl(server.getBaseUri(), sealedRequest),
+                    ClickHouseHttpConnection.createDefaultHeaders(config, server), config, postAction);
+        } else {
+            httpResponse = conn.post(sql, sealedRequest.getInputStream().orElse(null),
+                    sealedRequest.getExternalTables(), null, null, config, postAction);
+        }
         return ClickHouseStreamResponse.of(httpResponse.getConfig(sealedRequest), httpResponse.getInputStream(),
                 sealedRequest.getSettings(), null, httpResponse.summary);
     }

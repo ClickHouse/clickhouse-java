@@ -216,6 +216,12 @@ public enum ClickHouseClientOption implements ClickHouseOption {
     RETRY("retry", 0,
             "Maximum number of times retry can happen for a request, zero or negative value means no retry."),
     /**
+     * Whether to repeat execution when session is locked, until timed out(according
+     * to {@link #SESSION_TIMEOUT} or {@link #CONNECTION_TIMEOUT}).
+     */
+    REPEAT_ON_SESSION_LOCK("repeat_on_session_lock", true,
+            "Whether to repeat execution when session is locked, until timed out(according to 'session_timeout' or 'connect_timeout')."),
+    /**
      * Whether to reuse wrapper of value(e.g. ClickHouseValue or
      * ClickHouseRecord) for memory efficiency.
      */
@@ -249,10 +255,10 @@ public enum ClickHouseClientOption implements ClickHouseOption {
      */
     SESSION_CHECK("session_check", false, "Whether to check if existence of session id."),
     /**
-     * Session timeout in milliseconds.
+     * Session timeout in seconds.
      */
     SESSION_TIMEOUT("session_timeout", 0,
-            "Session timeout in milliseconds. 0 or negative number means same as server default."),
+            "Session timeout in seconds. 0 or negative number means same as server default."),
     /**
      * Socket timeout in milliseconds.
      */
@@ -279,6 +285,11 @@ public enum ClickHouseClientOption implements ClickHouseOption {
      */
     SSL_KEY("sslkey", "", "RSA key in PKCS#8 format."),
     /**
+     * Transaction timeout in seconds.
+     */
+    TRANSACTION_TIMEOUT("transaction_timeout", 0,
+            "Transaction timeout in seconds. 0 or negative number means same as session_timeout."),
+    /**
      * Whether to use blocking queue for buffering.
      */
     USE_BLOCKING_QUEUE("use_blocking_queue", true, "Whether to use blocking queue for buffering"),
@@ -287,6 +298,12 @@ public enum ClickHouseClientOption implements ClickHouseOption {
      */
     USE_OBJECTS_IN_ARRAYS("use_objects_in_arrays", false,
             "Whether Object[] should be used instead of primitive arrays."),
+    /**
+     * Whether to access ClickHouse server directly without using system wide proxy
+     * including the one defined in JVM system properties.
+     */
+    USE_NO_PROXY("use_no_proxy", false,
+            "Whether to access ClickHouse server directly without using system wide proxy including the one defined in JVM system properties."),
     /**
      * Whether to use server time zone.
      */

@@ -1,5 +1,6 @@
 package com.clickhouse.jdbc;
 
+import java.io.IOException;
 import java.sql.Array;
 import java.sql.BatchUpdateException;
 import java.sql.Connection;
@@ -33,12 +34,14 @@ import com.clickhouse.client.ClickHouseClient;
 import com.clickhouse.client.ClickHouseDataType;
 import com.clickhouse.client.ClickHouseParameterizedQuery;
 import com.clickhouse.client.ClickHouseProtocol;
+import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseValues;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.data.ClickHouseDateTimeValue;
 import com.clickhouse.client.http.config.ClickHouseHttpOption;
 
 import org.testng.Assert;
+import org.testng.SkipException;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
@@ -62,6 +65,26 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
             Assert.assertEquals(rs.getObject("d"), LocalDate.of(2021, 11, 1));
             Assert.assertEquals(rs.getTime("t"), Time.valueOf(LocalTime.of(12, 34, 56)));
             Assert.assertFalse(rs.next());
+        }
+    }
+
+    @Test(groups = "integration")
+    public void testSocketTimeout() throws SQLException {
+        Properties props = new Properties();
+        props.setProperty("connect_timeout", "500");
+        props.setProperty("socket_timeout", "1000");
+        props.setProperty("database", "system");
+        try (ClickHouseConnection conn = newConnection(props);
+                ClickHouseStatement stmt = conn.createStatement()) {
+            if (stmt.unwrap(ClickHouseRequest.class).getServer().getProtocol() != ClickHouseProtocol.HTTP) {
+                throw new SkipException("Skip as only http implementation works well");
+            }
+            stmt.executeQuery("select sleep(3)");
+            Assert.fail("Should throw timeout exception");
+        } catch (SQLException e) {
+            Assert.assertTrue(e.getCause() instanceof java.net.SocketTimeoutException
+                    || e.getCause() instanceof IOException,
+                    "Should throw SocketTimeoutException or HttpTimeoutException");
         }
     }
 
@@ -136,6 +159,9 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
     public void testMutation() throws SQLException {
         Properties props = new Properties();
         try (ClickHouseConnection conn = newConnection(props); ClickHouseStatement stmt = conn.createStatement()) {
+            Assert.assertEquals(stmt.executeBatch(), new int[0]);
+            Assert.assertEquals(stmt.executeLargeBatch(), new long[0]);
+
             Assert.assertFalse(stmt.execute("drop table if exists test_mutation;"
                     + "create table test_mutation(a String, b UInt32) engine=MergeTree() order by tuple()"),
                     "Should not return result set");
@@ -147,7 +173,7 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
             // [update] tbl a [set] a.b = 1 where a.b != 1[ settings mutation_async=0]
             // alter table tbl a update a.b = 1 where a.b != 1
             conn.setClientInfo("ApplicationName", "333");
-            Assert.assertEquals(conn.createStatement().executeUpdate("update test_mutation set b = 22 where b = 1"), 0);
+            Assert.assertEquals(conn.createStatement().executeUpdate("update test_mutation set b = 22 where b = 1"), 1);
 
             Assert.assertThrows(SQLException.class,
                     () -> stmt.executeUpdate("update non_existing_table set value=1 where key=1"));
@@ -156,6 +182,9 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
             stmt.addBatch("drop table non_existing_table");
             stmt.addBatch("insert into test_mutation values('2',2)");
             Assert.assertThrows(SQLException.class, () -> stmt.executeBatch());
+
+            Assert.assertEquals(stmt.executeBatch(), new int[0]);
+            Assert.assertEquals(stmt.executeLargeBatch(), new long[0]);
         }
 
         props.setProperty(JdbcConfig.PROP_CONTINUE_BATCH, "true");
@@ -269,7 +298,12 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
     public void testExecuteBatch() throws SQLException {
         Properties props = new Properties();
         try (Connection conn = newConnection(props); Statement stmt = conn.createStatement()) {
-            Assert.assertThrows(SQLException.class, () -> stmt.executeBatch());
+            Assert.assertEquals(stmt.executeBatch(), new int[0]);
+            Assert.assertEquals(stmt.executeLargeBatch(), new long[0]);
+            stmt.addBatch("select 1");
+            stmt.clearBatch();
+            Assert.assertEquals(stmt.executeBatch(), new int[0]);
+            Assert.assertEquals(stmt.executeLargeBatch(), new long[0]);
             stmt.addBatch("select 1");
             // mixed usage
             Assert.assertThrows(SQLException.class, () -> stmt.execute("select 2"));
@@ -373,7 +407,7 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
             rs = stmt.executeQuery("drop table if exists non_existing_table");
             Assert.assertNotNull(rs, "Should never be null");
             Assert.assertNull(stmt.getResultSet(), "Should be null");
-            Assert.assertEquals(stmt.getUpdateCount(), 1);
+            Assert.assertEquals(stmt.getUpdateCount(), 0);
             Assert.assertFalse(rs.next(), "Should has no row");
         }
     }
@@ -485,7 +519,7 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
             stmt.addBatch("drop table if exists non_existing_table2");
             stmt.addBatch("drop table if exists non_existing_table3");
             int[] results = stmt.executeBatch();
-            Assert.assertEquals(results, new int[] { 1, 1, 1 });
+            Assert.assertEquals(results, new int[] { 0, 0, 0 });
         }
     }
 

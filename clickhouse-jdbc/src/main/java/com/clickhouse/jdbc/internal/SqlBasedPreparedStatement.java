@@ -15,12 +15,15 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
+import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.TimeZone;
 
 import com.clickhouse.client.ClickHouseChecker;
+import com.clickhouse.client.ClickHouseColumn;
 import com.clickhouse.client.ClickHouseConfig;
+import com.clickhouse.client.ClickHouseDataType;
 import com.clickhouse.client.ClickHouseParameterizedQuery;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseResponse;
@@ -51,6 +54,7 @@ public class SqlBasedPreparedStatement extends AbstractPreparedStatement impleme
     private final ClickHouseParameterizedQuery preparedQuery;
     private final ClickHouseValue[] templates;
     private final String[] values;
+    private final ClickHouseParameterMetaData paramMetaData;
     private final List<String[]> batch;
     private final StringBuilder builder;
 
@@ -93,7 +97,13 @@ public class SqlBasedPreparedStatement extends AbstractPreparedStatement impleme
 
         templates = preparedQuery.getParameterTemplates();
 
-        values = new String[templates.length];
+        int tlen = templates.length;
+        values = new String[tlen];
+        List<ClickHouseColumn> list = new ArrayList<>(tlen);
+        for (int i = 1; i <= tlen; i++) {
+            list.add(ClickHouseColumn.of("parameter" + i, ClickHouseDataType.JSON, true));
+        }
+        paramMetaData = new ClickHouseParameterMetaData(Collections.unmodifiableList(list));
         batch = new LinkedList<>();
         builder = new StringBuilder();
         if ((insertValuesQuery = prefix) != null) {
@@ -122,7 +132,7 @@ public class SqlBasedPreparedStatement extends AbstractPreparedStatement impleme
         boolean continueOnError = false;
         if (asBatch) {
             if (counter < 1) {
-                throw SqlExceptionUtils.emptyBatchError();
+                return ClickHouseValues.EMPTY_LONG_ARRAY;
             }
             continueOnError = getConnection().getJdbcConfig().isContinueBatchOnError();
         } else {
@@ -578,8 +588,7 @@ public class SqlBasedPreparedStatement extends AbstractPreparedStatement impleme
 
     @Override
     public ParameterMetaData getParameterMetaData() throws SQLException {
-        // TODO Auto-generated method stub
-        return null;
+        return paramMetaData;
     }
 
     @Override

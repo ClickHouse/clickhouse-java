@@ -96,6 +96,11 @@ public class ClickHouseGeoPointValue extends ClickHouseObjectValue<double[]> {
     }
 
     @Override
+    public boolean isNullable() {
+        return false;
+    }
+
+    @Override
     public boolean isNullOrEmpty() {
         return false;
     }

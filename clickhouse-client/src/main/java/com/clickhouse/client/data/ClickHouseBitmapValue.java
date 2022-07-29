@@ -79,6 +79,11 @@ public class ClickHouseBitmapValue extends ClickHouseObjectValue<ClickHouseBitma
     }
 
     @Override
+    public boolean isNullable() {
+        return false;
+    }
+
+    @Override
     public boolean isNullOrEmpty() {
         return getValue().isEmpty();
     }

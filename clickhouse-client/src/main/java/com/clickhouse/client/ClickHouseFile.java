@@ -4,6 +4,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
+import java.io.Serializable;
 import java.nio.file.Path;
 
 import com.clickhouse.client.config.ClickHouseClientOption;
@@ -12,7 +13,9 @@ import com.clickhouse.client.config.ClickHouseClientOption;
  * Wrapper of {@link java.io.File} with additional information like compression
  * and format.
  */
-public class ClickHouseFile {
+public class ClickHouseFile implements Serializable {
+    private static final long serialVersionUID = -2641191818870839568L;
+
     /**
      * Null file which has no compression and format.
      */
@@ -68,7 +71,7 @@ public class ClickHouseFile {
         try {
             return ClickHouseInputStream.wrap(this, new FileInputStream(getFile()),
                     (int) ClickHouseClientOption.READ_BUFFER_SIZE.getDefaultValue(), null,
-                    getCompressionAlgorithm(), getCompressionLevel());
+                    ClickHouseCompression.NONE, getCompressionLevel());
         } catch (FileNotFoundException e) {
             throw new IllegalArgumentException(e);
         }
@@ -87,7 +90,7 @@ public class ClickHouseFile {
         try {
             return ClickHouseOutputStream.wrap(this, new FileOutputStream(getFile()),
                     (int) ClickHouseClientOption.WRITE_BUFFER_SIZE.getDefaultValue(), null,
-                    getCompressionAlgorithm(), getCompressionLevel());
+                    ClickHouseCompression.NONE, getCompressionLevel());
         } catch (FileNotFoundException e) {
             throw new IllegalArgumentException(e);
         }

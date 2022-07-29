@@ -26,7 +26,7 @@ import com.clickhouse.client.config.ClickHouseSslMode;
  */
 public class ClickHouseConfig implements Serializable {
     static final class ClientOptions {
-        private static final ClientOptions instance = new ClientOptions();
+        private static final ClientOptions INSTANCE = new ClientOptions();
 
         private final Map<String, ClickHouseOption> customOptions;
 
@@ -138,7 +138,7 @@ public class ClickHouseConfig implements Serializable {
     public static Map<ClickHouseOption, Serializable> toClientOptions(Map<?, ?> props) {
         Map<ClickHouseOption, Serializable> options = new HashMap<>();
         if (props != null && !props.isEmpty()) {
-            Map<String, ClickHouseOption> customOptions = ClientOptions.instance.customOptions;
+            Map<String, ClickHouseOption> customOptions = ClientOptions.INSTANCE.customOptions;
             for (Entry<?, ?> e : props.entrySet()) {
                 if (e.getKey() == null || e.getValue() == null) {
                     continue;
@@ -188,6 +188,7 @@ public class ClickHouseConfig implements Serializable {
     private final int nodeCheckInterval;
     private final int failover;
     private final int retry;
+    private final boolean repeatOnSessionLock;
     private final boolean reuseValueWrapper;
     private final boolean serverInfo;
     private final TimeZone serverTimeZone;
@@ -200,8 +201,10 @@ public class ClickHouseConfig implements Serializable {
     private final String sslRootCert;
     private final String sslCert;
     private final String sslKey;
+    private final int transactionTimeout;
     private final boolean useBlockingQueue;
     private final boolean useObjectsInArray;
+    private final boolean useNoProxy;
     private final boolean useServerTimeZone;
     private final boolean useServerTimeZoneForDates;
     private final TimeZone timeZoneForDate;
@@ -280,6 +283,7 @@ public class ClickHouseConfig implements Serializable {
         this.nodeCheckInterval = (int) getOption(ClickHouseClientOption.NODE_CHECK_INTERVAL);
         this.failover = (int) getOption(ClickHouseClientOption.FAILOVER);
         this.retry = (int) getOption(ClickHouseClientOption.RETRY);
+        this.repeatOnSessionLock = (boolean) getOption(ClickHouseClientOption.REPEAT_ON_SESSION_LOCK);
         this.reuseValueWrapper = (boolean) getOption(ClickHouseClientOption.REUSE_VALUE_WRAPPER);
         this.serverInfo = !ClickHouseChecker.isNullOrBlank((String) getOption(ClickHouseClientOption.SERVER_TIME_ZONE))
                 && !ClickHouseChecker.isNullOrBlank((String) getOption(ClickHouseClientOption.SERVER_VERSION));
@@ -295,8 +299,10 @@ public class ClickHouseConfig implements Serializable {
         this.sslRootCert = (String) getOption(ClickHouseClientOption.SSL_ROOT_CERTIFICATE);
         this.sslCert = (String) getOption(ClickHouseClientOption.SSL_CERTIFICATE);
         this.sslKey = (String) getOption(ClickHouseClientOption.SSL_KEY);
+        this.transactionTimeout = (int) getOption(ClickHouseClientOption.TRANSACTION_TIMEOUT);
         this.useBlockingQueue = (boolean) getOption(ClickHouseClientOption.USE_BLOCKING_QUEUE);
         this.useObjectsInArray = (boolean) getOption(ClickHouseClientOption.USE_OBJECTS_IN_ARRAYS);
+        this.useNoProxy = (boolean) getOption(ClickHouseClientOption.USE_NO_PROXY);
         this.useServerTimeZone = (boolean) getOption(ClickHouseClientOption.USE_SERVER_TIME_ZONE);
         this.useServerTimeZoneForDates = (boolean) getOption(ClickHouseClientOption.USE_SERVER_TIME_ZONE_FOR_DATES);
 
@@ -576,6 +582,10 @@ public class ClickHouseConfig implements Serializable {
         return retry;
     }
 
+    public boolean isRepeatOnSessionLock() {
+        return repeatOnSessionLock;
+    }
+
     /**
      * Checks whether retry is enabled or not.
      *
@@ -641,12 +651,20 @@ public class ClickHouseConfig implements Serializable {
         return sslKey;
     }
 
+    public int getTransactionTimeout() {
+        return transactionTimeout < 1 ? sessionTimeout : transactionTimeout;
+    }
+
     public boolean isUseBlockingQueue() {
         return useBlockingQueue;
     }
 
     public boolean isUseObjectsInArray() {
         return useObjectsInArray;
+    }
+
+    public boolean isUseNoProxy() {
+        return useNoProxy;
     }
 
     public boolean isUseServerTimeZone() {

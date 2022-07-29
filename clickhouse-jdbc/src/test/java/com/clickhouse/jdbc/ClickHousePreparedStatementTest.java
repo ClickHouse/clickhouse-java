@@ -9,6 +9,7 @@ import java.nio.charset.StandardCharsets;
 import java.sql.BatchUpdateException;
 import java.sql.Connection;
 import java.sql.Date;
+import java.sql.ParameterMetaData;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -19,6 +20,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.Calendar;
 import java.util.Collections;
 import java.util.Properties;
 import java.util.TimeZone;
@@ -28,13 +30,16 @@ import java.util.concurrent.CompletionException;
 
 import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseDataStreamFactory;
+import com.clickhouse.client.ClickHouseDataType;
 import com.clickhouse.client.ClickHouseFormat;
 import com.clickhouse.client.ClickHouseInputStream;
 import com.clickhouse.client.ClickHousePipedOutputStream;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.data.ClickHouseBitmap;
+import com.clickhouse.client.data.ClickHouseDateTimeValue;
 import com.clickhouse.client.data.ClickHouseExternalTable;
+import com.clickhouse.client.data.ClickHouseOffsetDateTimeValue;
 import com.clickhouse.jdbc.internal.InputBasedPreparedStatement;
 import com.clickhouse.jdbc.internal.SqlBasedPreparedStatement;
 
@@ -709,6 +714,49 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
     }
 
     @Test(groups = "integration")
+    public void testBatchInsertWithoutUnboundedQueue() throws Exception {
+        Properties props = new Properties();
+        props.setProperty(ClickHouseClientOption.WRITE_BUFFER_SIZE.getKey(), "1");
+        props.setProperty(ClickHouseClientOption.MAX_QUEUED_BUFFERS.getKey(), "1");
+        try (ClickHouseConnection conn = newConnection(new Properties());
+                Statement s = conn.createStatement()) {
+            s.execute("drop table if exists test_insert_buffer_size; "
+                    + "CREATE TABLE test_insert_buffer_size(value String) ENGINE=Memory");
+            try (PreparedStatement ps = conn.prepareStatement(
+                    "INSERT INTO test_insert_buffer_size")) {
+                ps.setString(1, "1");
+                ps.addBatch();
+                ps.setString(1, "2");
+                ps.addBatch();
+                ps.setString(1, "3");
+                ps.addBatch();
+                ps.executeBatch();
+
+                ps.setString(1, "4");
+                ps.addBatch();
+                ps.executeBatch();
+
+                ps.setString(1, "4");
+                ps.addBatch();
+                ps.clearBatch();
+                ps.setString(1, "5");
+                ps.addBatch();
+                ps.setString(1, "6");
+                ps.addBatch();
+                ps.executeBatch();
+            }
+
+            try (ResultSet rs = s.executeQuery("select * from test_insert_buffer_size order by value")) {
+                int count = 1;
+                while (rs.next()) {
+                    Assert.assertEquals(rs.getInt(1), count++);
+                }
+                Assert.assertEquals(count, 7);
+            }
+        }
+    }
+
+    @Test(groups = "integration")
     public void testQueryWithDateTime() throws SQLException {
         try (ClickHouseConnection conn = newConnection(new Properties());
                 Statement s = conn.createStatement();
@@ -778,21 +826,29 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
     public void testBatchQuery() throws SQLException {
         try (ClickHouseConnection conn = newConnection(new Properties());
                 PreparedStatement stmt = conn.prepareStatement("select * from numbers(100) where number < ?")) {
+            Assert.assertEquals(stmt.executeBatch(), new int[0]);
+            Assert.assertEquals(stmt.executeLargeBatch(), new long[0]);
             Assert.assertThrows(SQLException.class, () -> stmt.setInt(0, 5));
             Assert.assertThrows(SQLException.class, () -> stmt.setInt(2, 5));
             Assert.assertThrows(SQLException.class, () -> stmt.addBatch());
 
             stmt.setInt(1, 3);
+            Assert.assertEquals(stmt.executeBatch(), new int[0]);
+            Assert.assertEquals(stmt.executeLargeBatch(), new long[0]);
             stmt.addBatch();
             stmt.setInt(1, 2);
             stmt.addBatch();
             Assert.assertThrows(BatchUpdateException.class, () -> stmt.executeBatch());
+
+            Assert.assertEquals(stmt.executeBatch(), new int[0]);
+            Assert.assertEquals(stmt.executeLargeBatch(), new long[0]);
         }
     }
 
     @Test(dataProvider = "statementAndParams", groups = "integration")
     public void testExecuteWithOrWithoutParameters(String tableSuffix, String query, Class<?> clazz,
             boolean hasResultSet, String[] params, boolean checkTable) throws SQLException {
+        int expectedRowCount = "ddl".equals(tableSuffix) ? 0 : 1;
         String tableName = "test_execute_ps_" + tableSuffix;
         query = query.replace("$table", tableName);
         Properties props = new Properties();
@@ -880,7 +936,7 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
                 if (hasResultSet) {
                     Assert.assertThrows(SQLException.class, () -> ps.executeLargeBatch());
                 } else {
-                    Assert.assertEquals(ps.executeLargeBatch(), new long[] { 1L });
+                    Assert.assertEquals(ps.executeLargeBatch(), new long[] { expectedRowCount });
                 }
                 if (checkTable)
                     checkTable(stmt, "select * from " + tableName, params);
@@ -898,7 +954,7 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
                 if (hasResultSet) {
                     Assert.assertThrows(SQLException.class, () -> ps.executeBatch());
                 } else {
-                    Assert.assertEquals(ps.executeBatch(), new int[] { 1 });
+                    Assert.assertEquals(ps.executeBatch(), new int[] { expectedRowCount });
                 }
                 if (checkTable)
                     checkTable(stmt, "select * from " + tableName, params);
@@ -921,7 +977,7 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
             if (hasResultSet) {
                 Assert.assertEquals(ps.executeLargeBatch(), new long[] { Statement.EXECUTE_FAILED });
             } else {
-                Assert.assertEquals(ps.executeLargeBatch(), new long[] { 1L });
+                Assert.assertEquals(ps.executeLargeBatch(), new long[] { expectedRowCount });
             }
             if (checkTable)
                 checkTable(stmt, "select * from " + tableName, params);
@@ -936,7 +992,7 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
             if (hasResultSet) {
                 Assert.assertEquals(ps.executeBatch(), new int[] { Statement.EXECUTE_FAILED });
             } else {
-                Assert.assertEquals(ps.executeBatch(), new int[] { 1 });
+                Assert.assertEquals(ps.executeBatch(), new int[] { expectedRowCount });
             }
             if (checkTable)
                 checkTable(stmt, "select * from " + tableName, params);
@@ -1423,6 +1479,65 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
                 Assert.assertEquals(rs.getString(2), null);
                 Assert.assertTrue(rs.wasNull());
                 Assert.assertFalse(rs.next());
+            }
+        }
+    }
+
+    @Test(groups = "integration")
+    public void testInsertWithNullDateTime() throws Exception {
+        Properties props = new Properties();
+        props.setProperty(JdbcConfig.PROP_NULL_AS_DEFAULT, "2");
+        try (ClickHouseConnection conn = newConnection(props);
+                Statement s = conn.createStatement()) {
+            s.execute("drop table if exists test_insert_with_null_datetime; "
+                    + "CREATE TABLE test_insert_with_null_datetime(a Int32, "
+                    + "b01 DateTime32, b02 DateTime32('America/Los_Angeles'), "
+                    + "b11 DateTime32, b12 DateTime32('America/Los_Angeles'), "
+                    + "c01 DateTime64(3), c02 DateTime64(6, 'Asia/Shanghai'), "
+                    + "c11 DateTime64(3), c12 DateTime64(6, 'Asia/Shanghai')) ENGINE=Memory");
+            try (PreparedStatement ps = conn
+                    .prepareStatement("INSERT INTO test_insert_with_null_datetime values(?, ? ,? ,?,?)")) {
+                ps.setInt(1, 1);
+                ps.setObject(2, LocalDateTime.now());
+                ps.setObject(3, LocalDateTime.now());
+                ps.setTimestamp(4, null);
+                ps.setNull(5, Types.TIMESTAMP);
+                ps.setObject(6, LocalDateTime.now());
+                ps.setObject(7, LocalDateTime.now());
+                ps.setObject(8, null);
+                ps.setTimestamp(9, null, Calendar.getInstance());
+                ps.executeUpdate();
+            }
+
+            try (ResultSet rs = s.executeQuery("select * from test_insert_with_null_datetime order by a")) {
+                Assert.assertTrue(rs.next());
+                Assert.assertFalse(rs.next());
+            }
+        }
+    }
+
+    @Test(groups = "integration")
+    public void testGetParameterMetaData() throws Exception {
+        try (Connection conn = newConnection(new Properties());
+                PreparedStatement emptyPs = conn.prepareStatement("select 1");
+                PreparedStatement inputPs = conn.prepareStatement(
+                        "insert into non_existing_table select * from input('col2 String, col3 Int8, col1 JSON')");
+                PreparedStatement sqlPs = conn.prepareStatement("select ?, toInt32(?), ? b");
+                PreparedStatement tablePs = conn.prepareStatement(
+                        "select a.id, c.* from {tt 'col2'} a inner join {tt 'col3'} b on a.id = b.id left outer join {tt 'col1'} c on b.id = c.id");) {
+            Assert.assertEquals(emptyPs.getParameterMetaData().getParameterCount(), 0);
+
+            for (PreparedStatement ps : new PreparedStatement[] { inputPs, sqlPs }) {
+                Assert.assertNotNull(ps.getParameterMetaData());
+                Assert.assertTrue(ps.getParameterMetaData() == ps.getParameterMetaData(),
+                        "parameter mete data should be singleton");
+                Assert.assertEquals(ps.getParameterMetaData().getParameterCount(), 3);
+                Assert.assertEquals(ps.getParameterMetaData().getParameterMode(3), ParameterMetaData.parameterModeIn);
+                Assert.assertEquals(ps.getParameterMetaData().getParameterType(3), Types.OTHER);
+                Assert.assertEquals(ps.getParameterMetaData().getPrecision(3), 0);
+                Assert.assertEquals(ps.getParameterMetaData().getScale(3), 0);
+                Assert.assertEquals(ps.getParameterMetaData().getParameterClassName(3), Object.class.getName());
+                Assert.assertEquals(ps.getParameterMetaData().getParameterTypeName(3), ClickHouseDataType.JSON.name());
             }
         }
     }

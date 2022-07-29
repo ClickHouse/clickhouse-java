@@ -8,16 +8,11 @@
     </parent>
 
     <artifactId>clickhouse-http-client</artifactId>
-    <version>${revision}</version>
     <packaging>jar</packaging>
 
-    <name>${project.artifactId}</name>
+    <name>ClickHouse HTTP Client</name>
     <description>HTTP client for ClickHouse</description>
     <url>https://github.com/ClickHouse/clickhouse-jdbc/tree/master/clickhouse-http-client</url>
-
-    <properties>
-        <shade.base>${project.parent.groupId}.client.internal</shade.base>
-    </properties>
 
     <dependencies>
         <dependency>
@@ -85,6 +80,10 @@
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
                 <executions>
                     <execution>
@@ -95,9 +94,9 @@
                         </goals>
                         <configuration>
                             <shadedArtifactAttached>true</shadedArtifactAttached>
+                            <shadedClassifierName>shaded</shadedClassifierName>
                             <createDependencyReducedPom>true</createDependencyReducedPom>
                             <promoteTransitiveDependencies>true</promoteTransitiveDependencies>
-                            <shadedClassifierName>shaded</shadedClassifierName>
                             <relocations>
                                 <relocation>
                                     <pattern>net.jpountz</pattern>
@@ -108,6 +107,11 @@
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ApacheLicenseResourceTransformer" />
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ApacheNoticeResourceTransformer" />
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer" />
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                                    <manifestEntries>
+                                        <Automatic-Module-Name>com.clickhouse.client.http</Automatic-Module-Name>
+                                    </manifestEntries>
+                                </transformer>
                             </transformers>
                             <filters>
                                 <filter>
@@ -128,8 +132,17 @@
                 </executions>
             </plugin>
             <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-compiler-plugin</artifactId>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>flatten-maven-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>flatten</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>flatten</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>

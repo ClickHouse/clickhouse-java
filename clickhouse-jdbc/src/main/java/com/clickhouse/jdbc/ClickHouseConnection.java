@@ -15,6 +15,7 @@ import java.util.TimeZone;
 import com.clickhouse.client.ClickHouseColumn;
 import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseDataType;
+import com.clickhouse.client.ClickHouseTransaction;
 import com.clickhouse.client.ClickHouseValue;
 import com.clickhouse.client.ClickHouseValues;
 import com.clickhouse.client.ClickHouseVersion;
@@ -206,6 +207,13 @@ public interface ClickHouseConnection extends Connection {
     ClickHouseVersion getServerVersion();
 
     /**
+     * Gets current transaction.
+     *
+     * @return current transaction, which could be null
+     */
+    ClickHouseTransaction getTransaction();
+
+    /**
      * Gets URI of the connection.
      *
      * @return URI of the connection
@@ -218,6 +226,20 @@ public interface ClickHouseConnection extends Connection {
      * @return non-null JDBC-specific configuration
      */
     JdbcConfig getJdbcConfig();
+
+    /**
+     * Checks whether transaction is supported.
+     *
+     * @return true if transaction is supported; false otherwise
+     */
+    boolean isTransactionSupported();
+
+    /**
+     * Checks whether implicit transaction is supported.
+     *
+     * @return true if implicit transaction is supported; false otherwise
+     */
+    boolean isImplicitTransactionSupported();
 
     /**
      * Creates a new query ID.

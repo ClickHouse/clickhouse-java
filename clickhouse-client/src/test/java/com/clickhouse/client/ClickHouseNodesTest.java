@@ -29,33 +29,35 @@ public class ClickHouseNodesTest {
     }
 
     @Test(groups = { "unit" })
-    public void testBuildKey() {
+    public void testBuildCacheKey() {
         String baseUri = "localhost";
-        Assert.assertEquals(ClickHouseNodes.buildKey(baseUri, null), baseUri);
-        Assert.assertEquals(ClickHouseNodes.buildKey(baseUri, new TreeMap<Object, Object>()), baseUri);
-        Assert.assertEquals(ClickHouseNodes.buildKey(baseUri, new Properties()), baseUri);
+        Assert.assertEquals(ClickHouseNodes.buildCacheKey(baseUri, null), baseUri);
+        Assert.assertEquals(ClickHouseNodes.buildCacheKey(baseUri, new TreeMap<Object, Object>()), baseUri);
+        Assert.assertEquals(ClickHouseNodes.buildCacheKey(baseUri, new Properties()), baseUri);
 
         Map<Object, Object> defaultOptions = new HashMap<>();
-        Assert.assertEquals(ClickHouseNodes.buildKey(baseUri, defaultOptions), baseUri);
+        Assert.assertEquals(ClickHouseNodes.buildCacheKey(baseUri, defaultOptions), baseUri);
         defaultOptions.put("b", " ");
-        Assert.assertEquals(ClickHouseNodes.buildKey(baseUri, defaultOptions), baseUri + "|b= ,");
+        Assert.assertEquals(ClickHouseNodes.buildCacheKey(baseUri, defaultOptions), baseUri + "|b= ,");
         defaultOptions.put("a", 1);
-        Assert.assertEquals(ClickHouseNodes.buildKey(baseUri, defaultOptions), baseUri + "|a=1,b= ,");
+        Assert.assertEquals(ClickHouseNodes.buildCacheKey(baseUri, defaultOptions), baseUri + "|a=1,b= ,");
         defaultOptions.put(" ", false);
-        Assert.assertEquals(ClickHouseNodes.buildKey(baseUri, defaultOptions), baseUri + "| =false,a=1,b= ,");
+        Assert.assertEquals(ClickHouseNodes.buildCacheKey(baseUri, defaultOptions),
+                baseUri + "| =false,a=1,b= ,");
         defaultOptions.put(null, "null-key");
-        Assert.assertEquals(ClickHouseNodes.buildKey(baseUri, defaultOptions), baseUri + "| =false,a=1,b= ,");
+        Assert.assertEquals(ClickHouseNodes.buildCacheKey(baseUri, defaultOptions),
+                baseUri + "| =false,a=1,b= ,");
         defaultOptions.put("null-value", null);
-        Assert.assertEquals(ClickHouseNodes.buildKey(baseUri, defaultOptions),
+        Assert.assertEquals(ClickHouseNodes.buildCacheKey(baseUri, defaultOptions),
                 baseUri + "| =false,a=1,b= ,null-value=null,");
         defaultOptions.put(null, null);
-        Assert.assertEquals(ClickHouseNodes.buildKey(baseUri, defaultOptions),
+        Assert.assertEquals(ClickHouseNodes.buildCacheKey(baseUri, defaultOptions),
                 baseUri + "| =false,a=1,b= ,null-value=null,");
         defaultOptions.put(ClickHouseDefaults.USER.getKey(), "hello ");
-        Assert.assertEquals(ClickHouseNodes.buildKey(baseUri, defaultOptions),
+        Assert.assertEquals(ClickHouseNodes.buildCacheKey(baseUri, defaultOptions),
                 baseUri + "| =false,a=1,b= ,null-value=null,user=hello ,");
         defaultOptions.put(ClickHouseDefaults.PASSWORD.getKey(), " /?&#");
-        Assert.assertEquals(ClickHouseNodes.buildKey(baseUri, defaultOptions),
+        Assert.assertEquals(ClickHouseNodes.buildCacheKey(baseUri, defaultOptions),
                 baseUri + "| =false,a=1,b= ,null-value=null,password= /?&#,user=hello ,");
         Assert.assertTrue(
                 ClickHouseNodes.of(baseUri, defaultOptions) == ClickHouseNodes.of(baseUri,
@@ -103,7 +105,8 @@ public class ClickHouseNodesTest {
         Map<String, String> options = new HashMap<>();
         options.put(ClickHouseDefaults.USER.getKey(), "");
         options.put(ClickHouseDefaults.PASSWORD.getKey(), "");
-        Assert.assertEquals(ClickHouseNodes.of("https://dba:managed@node1,(node2),(tcp://aaa:bbb@node3)/test", options)
+        Assert.assertEquals(ClickHouseNodes
+                .of("https://dba:managed@node1,(node2),(tcp://aaa:bbb@node3)/test", options)
                 .getTemplate().getCredentials().orElse(null), null);
         options.put(ClickHouseDefaults.USER.getKey(), "/u:s?e#r");
         options.put(ClickHouseDefaults.PASSWORD.getKey(), "");
@@ -127,8 +130,32 @@ public class ClickHouseNodesTest {
         Assert.assertEquals(
                 ClickHouseNodes.of("https://[::1]:3218/db1?password=ppp").nodes.get(0)
                         .getCredentials().orElse(null),
-                ClickHouseCredentials.fromUserAndPassword((String) ClickHouseDefaults.USER.getEffectiveDefaultValue(),
+                ClickHouseCredentials.fromUserAndPassword(
+                        (String) ClickHouseDefaults.USER.getEffectiveDefaultValue(),
                         "ppp"));
+    }
+
+    @Test(groups = { "unit" })
+    public void testFactoryMethods() {
+        Properties props = new Properties();
+        props.setProperty("database", "cc");
+        props.setProperty("socket_timeout", "12345");
+        props.setProperty("failover", "7");
+        props.setProperty("load_balancing_policy", "roundRobin");
+        for (ClickHouseNodes nodes : new ClickHouseNodes[] {
+                ClickHouseNodes.of(
+                        "http://host1,host2,host3/bb?database=cc&socket_timeout=12345&failover=7&load_balancing_policy=roundRobin"),
+                ClickHouseNodes.of(
+                        "http://host1,host2,host3?database=aa&socket_timeout=54321&failover=3&load_balancing_policy=random",
+                        props),
+                ClickHouseNodes.of("http://host1,host2,host3/bb", props)
+        }) {
+            Assert.assertEquals(nodes.template.config.getDatabase(), "cc");
+            Assert.assertEquals(nodes.template.config.getSocketTimeout(), 12345);
+            Assert.assertEquals(nodes.template.config.getFailover(), 7);
+            Assert.assertEquals(nodes.template.config.getOption(ClickHouseClientOption.LOAD_BALANCING_POLICY),
+                    ClickHouseLoadBalancingPolicy.ROUND_ROBIN);
+        }
     }
 
     @Test(groups = { "unit" })
@@ -187,7 +214,8 @@ public class ClickHouseNodesTest {
 
     @Test(groups = { "unit" })
     public void testQueryWithSlash() throws Exception {
-        ClickHouseNodes servers = ClickHouseNodes.of("https://node1?a=/b/c/d,node2/db2?/a/b/c=d,node3/db1?a=/d/c.b");
+        ClickHouseNodes servers = ClickHouseNodes
+                .of("https://node1?a=/b/c/d,node2/db2?/a/b/c=d,node3/db1?a=/d/c.b");
         Assert.assertEquals(servers.nodes.get(0).getDatabase().orElse(null), "db1");
         Assert.assertEquals(servers.nodes.get(0).getOptions().get("a"), "/b/c/d");
         Assert.assertEquals(servers.nodes.get(1).getDatabase().orElse(null), "db2");

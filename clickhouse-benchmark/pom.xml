@@ -8,10 +8,9 @@
     </parent>
 
     <artifactId>clickhouse-benchmark</artifactId>
-    <version>${revision}</version>
     <packaging>jar</packaging>
 
-    <name>${project.artifactId}</name>
+    <name>ClickHouse Client Benchmarks</name>
     <description>Benchmarks for ClickHouse clients</description>
     <url>https://github.com/ClickHouse/clickhouse-jdbc/tree/master/clickhouse-benchmark</url>
 

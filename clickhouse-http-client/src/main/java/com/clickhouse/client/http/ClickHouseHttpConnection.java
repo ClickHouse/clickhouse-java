@@ -1,7 +1,6 @@
 package com.clickhouse.client.http;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
 import java.nio.charset.Charset;
@@ -17,6 +16,7 @@ import com.clickhouse.client.ClickHouseChecker;
 import com.clickhouse.client.ClickHouseCompression;
 import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseCredentials;
+import com.clickhouse.client.ClickHouseInputStream;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseOutputStream;
 import com.clickhouse.client.ClickHouseRequest;
@@ -26,6 +26,11 @@ import com.clickhouse.client.data.ClickHouseExternalTable;
 import com.clickhouse.client.http.config.ClickHouseHttpOption;
 
 public abstract class ClickHouseHttpConnection implements AutoCloseable {
+    private static StringBuilder appendQueryParameter(StringBuilder builder, String key, String value) {
+        return builder.append(urlEncode(key, StandardCharsets.UTF_8)).append('=')
+                .append(urlEncode(value, StandardCharsets.UTF_8)).append('&');
+    }
+
     static String urlEncode(String str, Charset charset) {
         if (charset == null) {
             charset = StandardCharsets.UTF_8;
@@ -37,11 +42,6 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
             // should not happen
             throw new IllegalArgumentException(e);
         }
-    }
-
-    private static StringBuilder appendQueryParameter(StringBuilder builder, String key, String value) {
-        return builder.append(urlEncode(key, StandardCharsets.UTF_8)).append('=')
-                .append(urlEncode(value, StandardCharsets.UTF_8)).append('&');
     }
 
     static String buildQueryParams(ClickHouseRequest<?> request) {
@@ -59,13 +59,20 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
             appendQueryParameter(builder, cp.getKey(), cp.getValue());
         }
 
-        if (config.isResponseCompressed()) {
-            // request server to compress response
-            appendQueryParameter(builder, "compress", "1");
-        }
-        if (config.isRequestCompressed()) {
+        ClickHouseInputStream chIn = request.getInputStream().orElse(null);
+        if (chIn != null && chIn.getUnderlyingFile().isAvailable()) {
+            appendQueryParameter(builder, "query", request.getStatements().get(0));
+        } else if (config.isRequestCompressed()) {
             // inform server that client's request is compressed
             appendQueryParameter(builder, "decompress", "1");
+        }
+
+        ClickHouseOutputStream chOut = request.getOutputStream().orElse(null);
+        if (chOut != null && chOut.getUnderlyingFile().isAvailable()) {
+            appendQueryParameter(builder, "enable_http_compression", "1");
+        } else if (config.isResponseCompressed()) {
+            // request server to compress response
+            appendQueryParameter(builder, "compress", "1");
         }
 
         Map<String, Object> settings = request.getSettings();
@@ -146,26 +153,7 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
         return builder.toString();
     }
 
-    protected final ClickHouseConfig config;
-    protected final ClickHouseNode server;
-    protected final Map<String, String> defaultHeaders;
-
-    protected final ClickHouseOutputStream output;
-
-    protected final String url;
-
-    protected ClickHouseHttpConnection(ClickHouseNode server, ClickHouseRequest<?> request) {
-        if (server == null || request == null) {
-            throw new IllegalArgumentException("Non-null server and request are required");
-        }
-
-        this.config = request.getConfig();
-        this.server = server;
-
-        this.output = request.getOutputStream().orElse(null);
-
-        this.url = buildUrl(server.getBaseUri(), request);
-
+    protected static Map<String, String> createDefaultHeaders(ClickHouseConfig config, ClickHouseNode server) {
         Map<String, String> map = new LinkedHashMap<>();
         // add customer headers
         map.putAll(ClickHouseUtils.getKeyValuePairs((String) config.getOption(ClickHouseHttpOption.CUSTOM_HEADERS)));
@@ -201,8 +189,25 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
                 && config.getRequestCompressAlgorithm() != ClickHouseCompression.LZ4) {
             map.put("Content-Encoding", config.getRequestCompressAlgorithm().encoding());
         }
+        return map;
+    }
 
-        this.defaultHeaders = Collections.unmodifiableMap(map);
+    protected final ClickHouseConfig config;
+    protected final ClickHouseNode server;
+    protected final ClickHouseOutputStream output;
+    protected final String url;
+    protected final Map<String, String> defaultHeaders;
+
+    protected ClickHouseHttpConnection(ClickHouseNode server, ClickHouseRequest<?> request) {
+        if (server == null || request == null) {
+            throw new IllegalArgumentException("Non-null server and request are required");
+        }
+
+        this.config = request.getConfig();
+        this.server = server;
+        this.output = request.getOutputStream().orElse(null);
+        this.url = buildUrl(server.getBaseUri(), request);
+        this.defaultHeaders = Collections.unmodifiableMap(createDefaultHeaders(config, server));
     }
 
     protected void closeQuietly() {
@@ -231,11 +236,13 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
      * Creates a merged map.
      *
      * @param requestHeaders request headers
-     * @return
+     * @return non-null merged headers
      */
     protected Map<String, String> mergeHeaders(Map<String, String> requestHeaders) {
         if (requestHeaders == null || requestHeaders.isEmpty()) {
             return defaultHeaders;
+        } else if (isReusable()) {
+            return requestHeaders;
         }
 
         Map<String, String> merged = new LinkedHashMap<>();
@@ -253,16 +260,20 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
     /**
      * Posts query and data to server.
      *
-     * @param query   non-blank query
-     * @param data    optionally input stream for batch updating
-     * @param tables  optionally external tables for query
-     * @param headers optionally request headers
+     * @param query           non-blank query
+     * @param data            optionally input stream for batch updating
+     * @param tables          optionally external tables for query
+     * @param url             optionally url
+     * @param headers         optionally request headers
+     * @param config          optionally configuration
+     * @param postCloseAction optionally post action
      * @return response
      * @throws IOException when error occured posting request and/or server failed
      *                     to respond
      */
-    protected abstract ClickHouseHttpResponse post(String query, InputStream data, List<ClickHouseExternalTable> tables,
-            Map<String, String> headers) throws IOException;
+    protected abstract ClickHouseHttpResponse post(String query, ClickHouseInputStream data,
+            List<ClickHouseExternalTable> tables, String url, Map<String, String> headers, ClickHouseConfig config,
+            Runnable postCloseAction) throws IOException;
 
     /**
      * Checks whether the connection is reusable or not. This method will be called
@@ -287,36 +298,36 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
     public abstract boolean ping(int timeout);
 
     public ClickHouseHttpResponse update(String query) throws IOException {
-        return post(query, null, null, null);
+        return post(query, null, null, null, null, null, null);
     }
 
     public ClickHouseHttpResponse update(String query, Map<String, String> headers) throws IOException {
-        return post(query, null, null, headers);
+        return post(query, null, null, null, headers, null, null);
     }
 
-    public ClickHouseHttpResponse update(String query, InputStream data) throws IOException {
-        return post(query, data, null, null);
+    public ClickHouseHttpResponse update(String query, ClickHouseInputStream data) throws IOException {
+        return post(query, data, null, null, null, null, null);
     }
 
-    public ClickHouseHttpResponse update(String query, InputStream data, Map<String, String> headers)
+    public ClickHouseHttpResponse update(String query, ClickHouseInputStream data, Map<String, String> headers)
             throws IOException {
-        return post(query, data, null, headers);
+        return post(query, data, null, null, headers, null, null);
     }
 
     public ClickHouseHttpResponse query(String query) throws IOException {
-        return post(query, null, null, null);
+        return post(query, null, null, null, null, null, null);
     }
 
     public ClickHouseHttpResponse query(String query, Map<String, String> headers) throws IOException {
-        return post(query, null, null, headers);
+        return post(query, null, null, null, headers, null, null);
     }
 
     public ClickHouseHttpResponse query(String query, List<ClickHouseExternalTable> tables) throws IOException {
-        return post(query, null, tables, null);
+        return post(query, null, tables, null, null, null, null);
     }
 
     public ClickHouseHttpResponse query(String query, List<ClickHouseExternalTable> tables, Map<String, String> headers)
             throws IOException {
-        return post(query, null, tables, headers);
+        return post(query, null, tables, null, headers, null, null);
     }
 }

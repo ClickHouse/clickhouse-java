@@ -10,7 +10,6 @@ import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import java.util.Map.Entry;
 
 import com.clickhouse.client.ClickHouseChecker;
@@ -25,6 +24,8 @@ import com.clickhouse.client.ClickHouseResponseSummary;
 import com.clickhouse.client.ClickHouseSerializer;
 import com.clickhouse.client.ClickHouseUtils;
 import com.clickhouse.client.ClickHouseValue;
+import com.clickhouse.client.ClickHouseValues;
+import com.clickhouse.client.ClickHouseRequest.Mutation;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.config.ClickHouseConfigChangeListener;
 import com.clickhouse.client.config.ClickHouseOption;
@@ -74,9 +75,11 @@ public class ClickHouseStatementImpl extends JdbcWrapper
 
     private ClickHouseResponse getLastResponse(Map<ClickHouseOption, Serializable> options,
             List<ClickHouseExternalTable> tables, Map<String, String> settings) throws SQLException {
+        boolean autoTx = connection.getAutoCommit() && connection.isTransactionSupported();
+
         // disable extremes
-        if (parsedStmts.length > 1) {
-            request.session(UUID.randomUUID().toString());
+        if (parsedStmts.length > 1 && !request.getSessionId().isPresent()) {
+            request.session(request.getManager().createSessionId());
         }
         ClickHouseResponse response = null;
         for (int i = 0, len = parsedStmts.length; i < len; i++) {
@@ -84,17 +87,21 @@ public class ClickHouseStatementImpl extends JdbcWrapper
             if (stmt.hasFormat()) {
                 request.format(ClickHouseFormat.valueOf(stmt.getFormat()));
             }
+            request.query(stmt.getSQL(), queryId = connection.newQueryId());
             // TODO skip useless queries to reduce network calls and server load
             try {
-                response = request.query(stmt.getSQL(), queryId = connection.newQueryId()).execute().get();
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw SqlExceptionUtils.forCancellation(e);
+                response = autoTx ? request.executeWithinTransaction(connection.isImplicitTransactionSupported())
+                        : request.transaction(connection.getTransaction()).executeAndWait();
             } catch (Exception e) {
                 throw SqlExceptionUtils.handle(e);
             } finally {
-                if (i + 1 < len && response != null) {
+                if (response == null) {
+                    // something went wrong
+                } else if (i + 1 < len) {
                     response.close();
+                    response = null;
+                } else {
+                    updateResult(stmt, response);
                 }
             }
         }
@@ -108,16 +115,16 @@ public class ClickHouseStatementImpl extends JdbcWrapper
         }
     }
 
-    protected ClickHouseResponse executeStatement(String stmt,
-            Map<ClickHouseOption, Serializable> options, List<ClickHouseExternalTable> tables,
-            Map<String, String> settings) throws SQLException {
+    protected ClickHouseResponse executeStatement(String stmt, Map<ClickHouseOption, Serializable> options,
+            List<ClickHouseExternalTable> tables, Map<String, String> settings) throws SQLException {
+        boolean autoTx = connection.getAutoCommit() && connection.isTransactionSupported();
         try {
             if (options != null) {
                 request.options(options);
             }
             if (settings != null && !settings.isEmpty()) {
                 if (!request.getSessionId().isPresent()) {
-                    request.session(UUID.randomUUID().toString());
+                    request.session(request.getManager().createSessionId());
                 }
                 for (Entry<String, String> e : settings.entrySet()) {
                     request.set(e.getKey(), e.getValue());
@@ -129,28 +136,28 @@ public class ClickHouseStatementImpl extends JdbcWrapper
                 for (ClickHouseExternalTable t : tables) {
                     if (t.isTempTable()) {
                         if (!request.getSessionId().isPresent()) {
-                            request.session(UUID.randomUUID().toString());
+                            request.session(request.getManager().createSessionId());
                         }
                         String tableName = new StringBuilder().append(quote)
                                 .append(ClickHouseUtils.escape(t.getName(), quote)).append(quote).toString();
-                        request.query("drop temporary table if exists ".concat(tableName)).executeAndWait();
-                        request.query("create temporary table " + tableName + "(" + t.getStructure() + ")")
-                                .executeAndWait();
-                        request.write().table(tableName)
-                                // .format(t.getFormat() != null ? t.getFormat() : ClickHouseFormat.RowBinary)
-                                .data(t.getContent()).send().get();
+                        try (ClickHouseResponse dropResp = request
+                                .query("DROP TEMPORARY TABLE IF EXISTS ".concat(tableName)).executeAndWait();
+                                ClickHouseResponse createResp = request
+                                        .query("CREATE TEMPORARY TABLE " + tableName + "(" + t.getStructure() + ")")
+                                        .executeAndWait();
+                                ClickHouseResponse writeResp = request.write().table(tableName).data(t.getContent())
+                                        .sendAndWait()) {
+                            // ignore
+                        }
                     } else {
                         list.add(t);
                     }
                 }
                 request.external(list);
             }
-
-            return request.query(stmt, queryId = connection.newQueryId()).execute().get();
-        } catch (InterruptedException e) {
-            log.error("can not close stream: %s", e.getMessage());
-            Thread.currentThread().interrupt();
-            throw SqlExceptionUtils.forCancellation(e);
+            request.query(stmt, queryId = connection.newQueryId());
+            return autoTx ? request.executeWithinTransaction(connection.isImplicitTransactionSupported())
+                    : request.transaction(connection.getTransaction()).executeAndWait();
         } catch (Exception e) {
             throw SqlExceptionUtils.handle(e);
         }
@@ -163,20 +170,18 @@ public class ClickHouseStatementImpl extends JdbcWrapper
     }
 
     protected int executeInsert(String sql, InputStream input) throws SQLException {
-        ClickHouseResponseSummary summary = null;
-        try (ClickHouseResponse resp = request.write().query(sql, queryId = connection.newQueryId()).data(input)
-                .execute().get();
+        boolean autoTx = connection.getAutoCommit() && connection.isTransactionSupported();
+        Mutation req = request.write().query(sql, queryId = connection.newQueryId()).data(input);
+        try (ClickHouseResponse resp = autoTx
+                ? req.executeWithinTransaction(connection.isImplicitTransactionSupported())
+                : req.transaction(connection.getTransaction()).sendAndWait();
                 ResultSet rs = updateResult(new ClickHouseSqlStatement(sql, StatementType.INSERT), resp)) {
-            summary = resp.getSummary();
-        } catch (InterruptedException e) {
-            log.error("can not close stream: %s", e.getMessage());
-            Thread.currentThread().interrupt();
-            throw SqlExceptionUtils.forCancellation(e);
+            // ignore
         } catch (Exception e) {
             throw SqlExceptionUtils.handle(e);
         }
 
-        return summary != null && summary.getWrittenRows() > 0L ? (int) summary.getWrittenRows() : 1;
+        return (int) currentUpdateCount;
     }
 
     protected ClickHouseSqlStatement getLastStatement() {
@@ -211,23 +216,17 @@ public class ClickHouseStatementImpl extends JdbcWrapper
     }
 
     protected ResultSet updateResult(ClickHouseSqlStatement stmt, ClickHouseResponse response) throws SQLException {
-        ResultSet rs = null;
         if (stmt.isQuery() || !response.getColumns().isEmpty()) {
             currentUpdateCount = -1L;
             currentResult = new ClickHouseResultSet(stmt.getDatabaseOrDefault(getConnection().getCurrentDatabase()),
                     stmt.getTable(), this, response);
-            rs = currentResult;
         } else {
-            currentUpdateCount = response.getSummary().getWrittenRows();
-            // FIXME apparently this is not always true
-            if (currentUpdateCount <= 0L) {
-                currentUpdateCount = 1L;
-            }
-            currentResult = null;
             response.close();
+            currentUpdateCount = stmt.isDDL() ? 0L
+                    : (response.getSummary().isEmpty() ? 1L : response.getSummary().getWrittenRows());
+            currentResult = null;
         }
-
-        return rs == null ? newEmptyResultSet() : rs;
+        return currentResult;
     }
 
     protected ClickHouseStatementImpl(ClickHouseConnectionImpl connection, ClickHouseRequest<?> request,
@@ -302,18 +301,8 @@ public class ClickHouseStatementImpl extends JdbcWrapper
         }
 
         parseSqlStatements(sql);
-
-        ClickHouseResponse response = getLastResponse(null, null, null);
-
-        try {
-            return updateResult(getLastStatement(), response);
-        } catch (Exception e) {
-            if (response != null) {
-                response.close();
-            }
-
-            throw SqlExceptionUtils.handle(e);
-        }
+        getLastResponse(null, null, null);
+        return currentResult != null ? currentResult : newEmptyResultSet();
     }
 
     @Override
@@ -325,14 +314,11 @@ public class ClickHouseStatementImpl extends JdbcWrapper
 
         parseSqlStatements(sql);
 
-        ClickHouseResponseSummary summary = null;
         try (ClickHouseResponse response = getLastResponse(null, null, null)) {
-            summary = response.getSummary();
+            return currentUpdateCount;
         } catch (Exception e) {
             throw SqlExceptionUtils.handle(e);
         }
-
-        return summary != null ? summary.getWrittenRows() : 1L;
     }
 
     @Override
@@ -387,10 +373,10 @@ public class ClickHouseStatementImpl extends JdbcWrapper
 
         if (this.maxRows != max) {
             if (max == 0L || !connection.allowCustomSetting()) {
-                request.removeSetting("max_result_rows");
+                request.removeSetting(ClickHouseClientOption.MAX_RESULT_ROWS.getKey());
                 request.removeSetting("result_overflow_mode");
             } else {
-                request.set("max_result_rows", max);
+                request.set(ClickHouseClientOption.MAX_RESULT_ROWS.getKey(), max);
                 request.set("result_overflow_mode", "break");
             }
             this.maxRows = max;
@@ -435,19 +421,24 @@ public class ClickHouseStatementImpl extends JdbcWrapper
 
     @Override
     public void cancel() throws SQLException {
-        final String qid;
-        if ((qid = this.queryId) == null || isClosed()) {
+        if (isClosed()) {
             return;
         }
 
-        ClickHouseClient.send(request.getServer(), String.format("KILL QUERY WHERE query_id='%s'", qid))
-                .whenComplete((summary, exception) -> {
-                    if (exception != null) {
-                        log.warn("Failed to kill query [%s] due to: %s", qid, exception.getMessage());
-                    } else if (summary != null) {
-                        log.debug("Killed query [%s]", qid);
-                    }
-                });
+        final String qid;
+        if ((qid = this.queryId) != null) {
+            ClickHouseClient.send(request.getServer(), String.format("KILL QUERY WHERE query_id='%s'", qid))
+                    .whenComplete((summary, exception) -> {
+                        if (exception != null) {
+                            log.warn("Failed to kill query [%s] due to: %s", qid, exception.getMessage());
+                        } else if (summary != null) {
+                            log.debug("Killed query [%s]", qid);
+                        }
+                    });
+        }
+        if (request.getTransaction() != null) {
+            request.getTransaction().abort();
+        }
     }
 
     @Override
@@ -588,7 +579,7 @@ public class ClickHouseStatementImpl extends JdbcWrapper
     public long[] executeLargeBatch() throws SQLException {
         ensureOpen();
         if (batchStmts.isEmpty()) {
-            throw SqlExceptionUtils.emptyBatchError();
+            return ClickHouseValues.EMPTY_LONG_ARRAY;
         }
 
         boolean continueOnError = getConnection().getJdbcConfig().isContinueBatchOnError();

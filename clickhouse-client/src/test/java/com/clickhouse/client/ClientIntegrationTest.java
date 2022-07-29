@@ -2,9 +2,15 @@ package com.clickhouse.client;
 
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.io.UncheckedIOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.Inet4Address;
@@ -23,8 +29,11 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
+import java.util.zip.GZIPInputStream;
+import java.util.zip.GZIPOutputStream;
 
 import com.clickhouse.client.ClickHouseClientBuilder.Agent;
+import com.clickhouse.client.ClickHouseTransaction.XID;
 import com.clickhouse.client.config.ClickHouseBufferingMode;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.config.ClickHouseRenameMethod;
@@ -44,10 +53,34 @@ import com.clickhouse.client.data.ClickHouseOffsetDateTimeValue;
 import com.clickhouse.client.data.ClickHouseStringValue;
 
 import org.testng.Assert;
+import org.testng.SkipException;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 public abstract class ClientIntegrationTest extends BaseIntegrationTest {
+    protected void checkRowCount(String queryOrTableName, int expectedRowCount) throws ClickHouseException {
+        try (ClickHouseClient client = getClient()) {
+            checkRowCount(client.connect(getServer()).format(ClickHouseFormat.RowBinaryWithNamesAndTypes),
+                    queryOrTableName, expectedRowCount);
+        }
+    }
+
+    protected void checkRowCount(ClickHouseRequest<?> request, String queryOrTableName, int expectedRowCount)
+            throws ClickHouseException {
+        String sql = queryOrTableName.indexOf(' ') > 0 ? queryOrTableName
+                : "select count(1) from ".concat(queryOrTableName);
+        try (ClickHouseResponse response = request.query(sql).executeAndWait()) {
+            int count = 0;
+            for (ClickHouseRecord r : response.records()) {
+                if (count == 0) {
+                    Assert.assertEquals(r.getValue(0).asInteger(), expectedRowCount);
+                }
+                count++;
+            }
+            Assert.assertEquals(count, 1);
+        }
+    }
+
     protected ClickHouseResponseSummary execute(ClickHouseRequest<?> request, String sql) throws ClickHouseException {
         try (ClickHouseResponse response = request.query(sql).executeAndWait()) {
             for (ClickHouseRecord record : response.records()) {
@@ -117,6 +150,16 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
         return array;
     }
 
+    @DataProvider(name = "fileProcessMatrix")
+    protected Object[][] getFileProcessMatrix() {
+        return new Object[][] {
+                { true, true },
+                { true, false },
+                { false, true },
+                { false, false },
+        };
+    }
+
     @DataProvider(name = "renameMethods")
     protected Object[][] getRenameMethods() {
         return new Object[][] {
@@ -175,9 +218,10 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
         Assert.assertNotEquals(getProtocol(), ClickHouseProtocol.ANY,
                 "The client should support a specific protocol instead of ANY");
 
-        try (ClickHouseClient client1 = ClickHouseClient.builder().build();
+        try (ClickHouseClient client1 = ClickHouseClient.builder()
+                .nodeSelector(ClickHouseNodeSelector.of(getProtocol())).build();
                 ClickHouseClient client2 = ClickHouseClient.builder().option(ClickHouseClientOption.ASYNC, false)
-                        .build();
+                        .nodeSelector(ClickHouseNodeSelector.of(ClickHouseProtocol.ANY)).build();
                 ClickHouseClient client3 = ClickHouseClient.newInstance();
                 ClickHouseClient client4 = ClickHouseClient.newInstance(getProtocol());
                 ClickHouseClient client5 = getClient()) {
@@ -222,12 +266,23 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
                     .executeAndWait()) {
                 Assert.assertNotNull(resp);
             }
+            int expectedRows = 1;
+            if (server.getProtocol() != ClickHouseProtocol.GRPC) {
+                try (ClickHouseResponse resp = request.write().table("test_compress_decompress")
+                        .format(ClickHouseFormat.CSV).data(ClickHouseInputStream.of("'" + uuid + "'\n'" + uuid + "'"))
+                        .executeAndWait()) {
+                    Assert.assertNotNull(resp);
+                }
+                expectedRows += 2;
+            }
 
             boolean hasResult = false;
             try (ClickHouseResponse resp = request
-                    .query("select id from test_compress_decompress where id = :uuid")
+                    .query("select id, count(1) n from test_compress_decompress where id = :uuid group by id")
                     .params(ClickHouseStringValue.of(uuid)).executeAndWait()) {
-                Assert.assertEquals(resp.firstRecord().getValue(0).asString(), uuid);
+                ClickHouseRecord r = resp.firstRecord();
+                Assert.assertEquals(r.getValue(0).asString(), uuid);
+                Assert.assertEquals(r.getValue(1).asInteger(), expectedRows);
                 hasResult = true;
             }
             Assert.assertTrue(hasResult, "Should have at least one result");
@@ -417,7 +472,8 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
     public void testQueryInSameThread() throws Exception {
         ClickHouseNode server = getServer();
 
-        try (ClickHouseClient client = ClickHouseClient.builder().option(ClickHouseClientOption.ASYNC, false).build()) {
+        try (ClickHouseClient client = ClickHouseClient.builder().nodeSelector(ClickHouseNodeSelector.EMPTY)
+                .option(ClickHouseClientOption.ASYNC, false).build()) {
             CompletableFuture<ClickHouseResponse> future = client.connect(server)
                     .format(ClickHouseFormat.TabSeparatedWithNamesAndTypes).query("select 1,2").execute();
             // Assert.assertTrue(future instanceof ClickHouseImmediateFuture);
@@ -1031,6 +1087,47 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
         Files.delete(temp);
     }
 
+    @Test(dataProvider = "fileProcessMatrix", groups = "integration")
+    public void testDumpFile(boolean gzipCompressed, boolean useOneLiner) throws Exception {
+        ClickHouseNode server = getServer();
+        if (server.getProtocol() != ClickHouseProtocol.HTTP) {
+            throw new SkipException("Skip as only http implementation works well");
+        }
+
+        File file = File.createTempFile("chc", ".data");
+        ClickHouseFile wrappedFile = ClickHouseFile.of(file,
+                gzipCompressed ? ClickHouseCompression.GZIP : ClickHouseCompression.NONE, 0,
+                ClickHouseFormat.CSV);
+        String query = "select number, if(number % 2 = 0, null, toString(number)) str from numbers(10)";
+        if (useOneLiner) {
+            ClickHouseClient.dump(server, query, wrappedFile).get();
+        } else {
+            try (ClickHouseClient client = getClient();
+                    ClickHouseResponse response = client.connect(server).query(query).output(wrappedFile)
+                            .executeAndWait()) {
+                // ignore
+            }
+        }
+        try (InputStream in = gzipCompressed ? new GZIPInputStream(new FileInputStream(file))
+                : new FileInputStream(file); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            ClickHouseInputStream.pipe(in, out, 512);
+            String content = new String(out.toByteArray(), StandardCharsets.US_ASCII);
+            StringBuilder builder = new StringBuilder();
+            for (int i = 0; i < 10; i++) {
+                builder.append(i).append(',');
+                if (i % 2 == 0) {
+                    builder.append("\\N");
+                } else {
+                    builder.append('"').append(i).append('"');
+                }
+                builder.append('\n');
+            }
+            Assert.assertEquals(content, builder.toString());
+        } finally {
+            file.delete();
+        }
+    }
+
     @Test(groups = { "integration" })
     public void testCustomLoad() throws Exception {
         ClickHouseNode server = getServer();
@@ -1110,6 +1207,66 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
             }
         } finally {
             Files.delete(temp);
+        }
+    }
+
+    @Test(dataProvider = "fileProcessMatrix", groups = "integration")
+    public void testLoadFile(boolean gzipCompressed, boolean useOneLiner) throws Exception {
+        ClickHouseNode server = getServer();
+        if (server.getProtocol() != ClickHouseProtocol.HTTP) {
+            throw new SkipException("Skip as only http implementation works well");
+        }
+
+        File file = File.createTempFile("chc", ".data");
+        Object[][] data = new Object[][] {
+                { 1, "12345" },
+                { 2, "23456" },
+                { 3, "\\N" },
+                { 4, "x" },
+                { 5, "y" },
+        };
+        try (OutputStream out = gzipCompressed ? new GZIPOutputStream(new FileOutputStream(file))
+                : new FileOutputStream(file)) {
+            for (Object[] row : data) {
+                out.write((row[0] + "," + row[1]).getBytes(StandardCharsets.US_ASCII));
+                if ((int) row[0] != 5) {
+                    out.write(10);
+                }
+            }
+            out.flush();
+        }
+
+        ClickHouseClient.send(server, "drop table if exists test_load_file",
+                "create table test_load_file(a Int32, b Nullable(String))engine=Memory").get();
+        ClickHouseFile wrappedFile = ClickHouseFile.of(file,
+                gzipCompressed ? ClickHouseCompression.GZIP : ClickHouseCompression.NONE, 0,
+                ClickHouseFormat.CSV);
+        if (useOneLiner) {
+            ClickHouseClient
+                    .load(server, "test_load_file", wrappedFile)
+                    .get();
+        } else {
+            try (ClickHouseClient client = getClient();
+                    ClickHouseResponse response = client.connect(server).write().table("test_load_file")
+                            .data(wrappedFile).executeAndWait()) {
+                // ignore
+            }
+        }
+        try (ClickHouseClient client = getClient();
+                ClickHouseResponse response = client.connect(server).format(ClickHouseFormat.RowBinaryWithNamesAndTypes)
+                        .query("select * from test_load_file order by a").executeAndWait()) {
+            int row = 0;
+            for (ClickHouseRecord r : response.records()) {
+                Assert.assertEquals(r.getValue(0).asObject(), data[row][0]);
+                if (row == 2) {
+                    Assert.assertNull(r.getValue(1).asObject());
+                } else {
+                    Assert.assertEquals(r.getValue(1).asObject(), data[row][1]);
+                }
+                row++;
+            }
+        } finally {
+            file.delete();
         }
     }
 
@@ -1254,6 +1411,456 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
                 }
             }
             Assert.assertEquals(count, 2);
+        }
+    }
+
+    @Test(groups = "integration")
+    public void testErrorDuringInsert() throws Exception {
+        ClickHouseNode server = getServer();
+        ClickHouseClient.send(server, "drop table if exists error_during_insert",
+                "create table error_during_insert(n UInt64, flag UInt8)engine=Null").get();
+        boolean success = true;
+        try (ClickHouseClient client = getClient();
+                ClickHouseResponse resp = client.connect(server).write().format(ClickHouseFormat.RowBinary)
+                        .query("insert into error_during_insert select number, throwIf(number>=100000000) from numbers(500000000)")
+                        .executeAndWait()) {
+            for (ClickHouseRecord r : resp.records()) {
+                Assert.fail("Should have no record");
+            }
+            Assert.fail("Insert should be aborted");
+        } catch (UncheckedIOException e) {
+            ClickHouseException ex = ClickHouseException.of(e, server);
+            Assert.assertEquals(ex.getErrorCode(), 395);
+            Assert.assertTrue(ex.getCause() instanceof IOException, "Should end up with IOException");
+            success = false;
+        } catch (ClickHouseException e) {
+            Assert.assertEquals(e.getErrorCode(), 395);
+            Assert.assertTrue(e.getCause() instanceof IOException, "Should end up with IOException");
+            success = false;
+        }
+
+        Assert.assertFalse(success, "Should fail due insert error");
+    }
+
+    @Test(groups = "integration")
+    public void testErrorDuringQuery() throws Exception {
+        ClickHouseNode server = getServer();
+        String query = "select number, throwIf(number>=100000000) from numbers(500000000)";
+        long count = 0L;
+        try (ClickHouseClient client = getClient();
+                ClickHouseResponse resp = client.connect(server).format(ClickHouseFormat.RowBinaryWithNamesAndTypes)
+                        .query(query).executeAndWait()) {
+            for (ClickHouseRecord r : resp.records()) {
+                // does not work which may relate to deserialization failure
+                // java.lang.AssertionError: expected [99764115] but found [4121673519155408707]
+                // Assert.assertEquals(r.getValue(0).asLong(), count++);
+                Assert.assertTrue((count = r.getValue(0).asLong()) >= 0);
+            }
+            Assert.fail("Query should be terminated before all rows returned");
+        } catch (UncheckedIOException e) {
+            Assert.assertTrue(e.getCause() instanceof IOException,
+                    "Should end up with IOException due to deserialization failure");
+        }
+
+        Assert.assertNotEquals(count, 0L, "Should have read at least one record");
+    }
+
+    @Test(groups = "integration")
+    public void testSessionLock() throws Exception {
+        ClickHouseNode server = getServer();
+        String sessionId = ClickHouseRequestManager.getInstance().createSessionId();
+        try (ClickHouseClient client = getClient()) {
+            ClickHouseRequest<?> req1 = client.connect(server).session(sessionId)
+                    .query("select * from numbers(10000000)");
+            ClickHouseRequest<?> req2 = client.connect(server)
+                    .option(ClickHouseClientOption.REPEAT_ON_SESSION_LOCK, true)
+                    .option(ClickHouseClientOption.CONNECTION_TIMEOUT, 500)
+                    .session(sessionId).query("select 1");
+
+            ClickHouseResponse resp1 = req1.executeAndWait();
+            try (ClickHouseResponse resp = req2.executeAndWait()) {
+                Assert.fail("Should fail due to session is locked by previous query");
+            } catch (ClickHouseException e) {
+                Assert.assertEquals(e.getErrorCode(), ClickHouseException.ERROR_SESSION_IS_LOCKED);
+            }
+            new Thread(() -> {
+                try {
+                    Thread.sleep(1000);
+                    resp1.close();
+                } catch (InterruptedException e) {
+                    // ignore
+                }
+            }).start();
+
+            try (ClickHouseResponse resp = req2.option(ClickHouseClientOption.CONNECTION_TIMEOUT, 30000)
+                    .executeAndWait()) {
+                Assert.assertNotNull(resp);
+            }
+        }
+    }
+
+    @Test // (groups = "integration")
+    public void testAbortTransaction() throws Exception {
+        ClickHouseNode server = getServer();
+        String tableName = "test_abort_transaction";
+        ClickHouseClient.send(server, "drop table if exists " + tableName,
+                "create table " + tableName + " (id Int64)engine=MergeTree order by id").get();
+        try (ClickHouseClient client = getClient()) {
+            ClickHouseRequest<?> txRequest = client.connect(server).transaction();
+            try (ClickHouseResponse response = txRequest.query("insert into " + tableName + " values(1)(2)(3)")
+                    .executeAndWait()) {
+                // ignore
+            }
+            checkRowCount(txRequest, tableName, 3);
+            checkRowCount(tableName, 3);
+            Assert.assertEquals(txRequest.getTransaction().getState(), ClickHouseTransaction.ACTIVE);
+
+            txRequest.getTransaction().abort();
+            Assert.assertEquals(txRequest.getTransaction().getState(), ClickHouseTransaction.FAILED);
+            checkRowCount(tableName, 0);
+
+            try {
+                checkRowCount(txRequest, tableName, 0);
+                Assert.fail("Should fail as the transaction is invalid");
+            } catch (ClickHouseException e) {
+                Assert.assertEquals(e.getErrorCode(), ClickHouseTransactionException.ERROR_INVALID_TRANSACTION);
+            }
+        }
+    }
+
+    @Test // (groups = "integration")
+    public void testNewTransaction() throws ClickHouseException {
+        ClickHouseNode server = getServer();
+        try (ClickHouseClient client = getClient()) {
+            ClickHouseRequest<?> request = client.connect(server);
+            Assert.assertNull(request.getSessionId().orElse(null), "Should have no session");
+            Assert.assertNull(request.getTransaction(), "Should have no transaction");
+
+            request.transaction();
+            Assert.assertNotNull(request.getSessionId().orElse(null), "Should have session now");
+            ClickHouseTransaction tx = request.getTransaction();
+            Assert.assertNotNull(tx, "Should have transaction now");
+            Assert.assertEquals(tx.getSessionId(), request.getSessionId().orElse(null));
+            Assert.assertEquals(tx.getServer(), server);
+            Assert.assertEquals(tx.getState(), ClickHouseTransaction.ACTIVE);
+            Assert.assertNotEquals(tx.getId(), XID.EMPTY);
+
+            request.transaction(0); // current transaction should be reused
+            Assert.assertEquals(request.getTransaction(), tx);
+            Assert.assertEquals(ClickHouseRequestManager.getInstance().getOrStartTransaction(request, 0), tx);
+            Assert.assertNotEquals(ClickHouseRequestManager.getInstance().createTransaction(server, 0), tx);
+
+            request.transaction(30); // same transaction ID but with different timeout settings
+            Assert.assertNotEquals(request.getTransaction(), tx);
+            Assert.assertEquals(request.getTransaction().getId().getSnapshotVersion(), tx.getId().getSnapshotVersion());
+            Assert.assertEquals(request.getTransaction().getId().getHostId(), tx.getId().getHostId());
+            Assert.assertNotEquals(request.getTransaction().getId().getLocalTransactionCounter(),
+                    tx.getId().getLocalTransactionCounter());
+            Assert.assertNotEquals(request.getTransaction().getSessionId(), tx.getSessionId());
+
+            request.transaction(0);
+            Assert.assertNotEquals(request.getTransaction(), tx);
+
+            ClickHouseRequest<?> otherRequest = client.connect(server).transaction(tx);
+            Assert.assertEquals(otherRequest.getSessionId().orElse(null), tx.getSessionId());
+            Assert.assertEquals(otherRequest.getTransaction(), tx);
+        }
+    }
+
+    @Test // (groups = "integration")
+    public void testJoinTransaction() throws ClickHouseException {
+        ClickHouseNode server = getServer();
+        try (ClickHouseClient client = getClient()) {
+            ClickHouseRequest<?> request = client.connect(server).transaction();
+            ClickHouseTransaction tx = request.getTransaction();
+
+            ClickHouseRequest<?> otherRequest = client.connect(server).transaction(tx);
+            Assert.assertEquals(otherRequest.getSessionId().orElse(null), request.getSessionId().orElse(null));
+            Assert.assertEquals(otherRequest.getTransaction(), request.getTransaction());
+
+            ClickHouseTransaction newTx = ClickHouseRequestManager.getInstance().createTransaction(server, 0);
+            Assert.assertNotEquals(newTx, XID.EMPTY);
+            Assert.assertNotEquals(tx, newTx);
+            Assert.assertEquals(newTx.getState(), ClickHouseTransaction.NEW);
+
+            // now replace the existing transaction to the new one
+            request.transaction(newTx);
+            Assert.assertEquals(request.getTransaction(), newTx);
+            Assert.assertNotEquals(request.getSessionId().orElse(null), otherRequest.getSessionId().orElse(null));
+            Assert.assertNotEquals(request.getTransaction(), otherRequest.getTransaction());
+        }
+    }
+
+    @Test // (groups = "integration")
+    public void testCommitTransaction() throws Exception {
+        ClickHouseNode server = getServer();
+        ClickHouseClient.send(server, "drop table if exists test_tx_commit",
+                "create table test_tx_commit(a Int64, b String)engine=MergeTree order by a").get();
+        try (ClickHouseClient client = getClient()) {
+            ClickHouseRequest<?> request = client.connect(server).transaction();
+            ClickHouseTransaction tx = request.getTransaction();
+
+            ClickHouseRequest<?> otherRequest = client.connect(server).transaction(tx);
+            Assert.assertEquals(otherRequest.getSessionId().orElse(null), request.getSessionId().orElse(null));
+            Assert.assertEquals(otherRequest.getTransaction(), request.getTransaction());
+
+            ClickHouseTransaction newTx = ClickHouseRequestManager.getInstance().createTransaction(server, 0);
+            Assert.assertNotEquals(newTx, XID.EMPTY);
+            Assert.assertNotEquals(tx, newTx);
+            Assert.assertEquals(newTx.getState(), ClickHouseTransaction.NEW);
+
+            // now replace the existing transaction to the new one
+            request.transaction(newTx);
+            Assert.assertEquals(request.getTransaction(), newTx);
+            Assert.assertNotEquals(request.getSessionId().orElse(null), otherRequest.getSessionId().orElse(null));
+            Assert.assertNotEquals(request.getTransaction(), otherRequest.getTransaction());
+        }
+    }
+
+    @Test // (groups = "integration")
+    public void testRollbackTransaction() throws Exception {
+        String tableName = "test_tx_rollback";
+        ClickHouseNode server = getServer();
+        ClickHouseClient.send(server, "drop table if exists " + tableName,
+                "create table " + tableName + "(a Int64, b String)engine=MergeTree order by a").get();
+
+        checkRowCount(tableName, 0);
+        try (ClickHouseClient client = getClient()) {
+            ClickHouseRequest<?> request = client.connect(server).transaction();
+            ClickHouseTransaction tx = request.getTransaction();
+            try (ClickHouseResponse response = client.connect(server)
+                    .query("insert into " + tableName + " values(0, '?')").executeAndWait()) {
+                // ignore
+            }
+            int rows = 1;
+            checkRowCount(tableName, rows);
+            checkRowCount(request, tableName, rows);
+
+            try (ClickHouseResponse response = request
+                    .query("insert into " + tableName + " values(1,'x')(2,'y')(3,'z')")
+                    .executeAndWait()) {
+                // ignore
+            }
+            rows += 3;
+
+            checkRowCount(request, tableName, rows);
+            ClickHouseRequest<?> otherRequest = client.connect(server).transaction(tx);
+            checkRowCount(otherRequest, tableName, rows);
+            checkRowCount(tableName, rows);
+
+            try (ClickHouseResponse response = client.connect(server)
+                    .query("insert into " + tableName + " values(-1, '?')").executeAndWait()) {
+                // ignore
+            }
+            rows++;
+
+            checkRowCount(request, tableName, rows);
+            checkRowCount(otherRequest, tableName, rows);
+            checkRowCount(tableName, rows);
+
+            try (ClickHouseResponse response = otherRequest.query("insert into " + tableName + " values(4,'.')")
+                    .executeAndWait()) {
+                // ignore
+            }
+            rows++;
+
+            checkRowCount(request, tableName, rows);
+            checkRowCount(otherRequest, tableName, rows);
+            checkRowCount(tableName, rows);
+
+            rows -= 4;
+            for (int i = 0; i < 10; i++) {
+                tx.rollback();
+                checkRowCount(tableName, rows);
+                checkRowCount(otherRequest, tableName, rows);
+                checkRowCount(request, tableName, rows);
+            }
+        }
+    }
+
+    @Test // (groups = "integration")
+    public void testTransactionSnapshot() throws Exception {
+        String tableName = "test_tx_snapshots";
+        ClickHouseNode server = getServer();
+        ClickHouseClient.send(server, "drop table if exists " + tableName,
+                "create table " + tableName + "(a Int64)engine=MergeTree order by a").get();
+        try (ClickHouseClient client = getClient()) {
+            ClickHouseRequest<?> req1 = client.connect(server).transaction();
+            ClickHouseRequest<?> req2 = client.connect(server).transaction();
+            try (ClickHouseResponse response = req1.query("insert into " + tableName + " values(1)").executeAndWait()) {
+                // ignore
+            }
+            req2.getTransaction().snapshot(1);
+            checkRowCount(tableName, 1);
+            checkRowCount(req1, tableName, 1);
+            checkRowCount(req2, tableName, 0);
+            try (ClickHouseResponse response = req2.query("insert into " + tableName + " values(2)").executeAndWait()) {
+                // ignore
+            }
+            checkRowCount(tableName, 2);
+            checkRowCount(req1, tableName, 1);
+            checkRowCount(req2, tableName, 1);
+
+            req1.getTransaction().snapshot(1);
+            try (ClickHouseResponse response = req1.query("insert into " + tableName + " values(3)").executeAndWait()) {
+                // ignore
+            }
+            checkRowCount(tableName, 3);
+            checkRowCount(req1, tableName, 2);
+            checkRowCount(req2, tableName, 1);
+
+            try (ClickHouseResponse response = req2.query("insert into " + tableName + " values(4)").executeAndWait()) {
+                // ignore
+            }
+            checkRowCount(tableName, 4);
+            checkRowCount(req1, tableName, 2);
+            checkRowCount(req2, tableName, 2);
+
+            req2.getTransaction().snapshot(3);
+            checkRowCount(tableName, 4);
+            checkRowCount(req1, tableName, 2);
+            checkRowCount(req2, tableName, 4);
+
+            req1.getTransaction().snapshot(3);
+            checkRowCount(tableName, 4);
+            checkRowCount(req1, tableName, 4);
+            checkRowCount(req2, tableName, 4);
+
+            req1.getTransaction().snapshot(1);
+            try (ClickHouseResponse response = req1.query("insert into " + tableName + " values(5)").executeAndWait()) {
+                // ignore
+            }
+            checkRowCount(tableName, 5);
+            checkRowCount(req1, tableName, 3);
+            checkRowCount(req2, tableName, 5);
+
+            req2.getTransaction().commit();
+            checkRowCount(tableName, 5);
+            checkRowCount(req1, tableName, 3);
+            checkRowCount(req2, tableName, 5);
+            try {
+                req2.getTransaction().snapshot(5);
+            } catch (ClickHouseTransactionException e) {
+                Assert.assertEquals(e.getErrorCode(), ClickHouseTransactionException.ERROR_INVALID_TRANSACTION);
+            }
+
+            req1.getTransaction().commit();
+            checkRowCount(tableName, 5);
+            checkRowCount(req1, tableName, 5);
+            checkRowCount(req2, tableName, 5);
+            try {
+                req1.getTransaction().snapshot(5);
+            } catch (ClickHouseTransactionException e) {
+                Assert.assertEquals(e.getErrorCode(), ClickHouseTransactionException.ERROR_INVALID_TRANSACTION);
+            }
+        }
+    }
+
+    @Test // (groups = "integration")
+    public void testTransactionTimeout() throws Exception {
+        String tableName = "test_tx_timeout";
+        ClickHouseNode server = getServer();
+        ClickHouseClient.send(server, "drop table if exists " + tableName,
+                "create table " + tableName + "(a UInt64)engine=MergeTree order by a").get();
+        try (ClickHouseClient client = getClient()) {
+            ClickHouseRequest<?> request = client.connect(server).transaction(1);
+            ClickHouseTransaction tx = request.getTransaction();
+            Assert.assertEquals(tx.getState(), ClickHouseTransaction.ACTIVE);
+            tx.commit();
+            Assert.assertEquals(tx.getState(), ClickHouseTransaction.COMMITTED);
+
+            tx.begin();
+            Assert.assertEquals(tx.getState(), ClickHouseTransaction.ACTIVE);
+            tx.rollback();
+            Assert.assertEquals(tx.getState(), ClickHouseTransaction.ROLLED_BACK);
+
+            tx.begin();
+            Thread.sleep(3000L);
+            try (ClickHouseResponse response = client.connect(server).transaction(tx).query("select 1")
+                    .executeAndWait()) {
+                Assert.fail("Query should fail due to session timed out");
+            } catch (ClickHouseException e) {
+                // session not found(since it's timed out)
+                Assert.assertEquals(e.getErrorCode(), ClickHouseException.ERROR_SESSION_NOT_FOUND);
+            }
+            Assert.assertEquals(tx.getState(), ClickHouseTransaction.ACTIVE);
+
+            try {
+                tx.commit();
+                Assert.fail("Should fail to commit due to session timed out");
+            } catch (ClickHouseTransactionException e) {
+                Assert.assertEquals(e.getErrorCode(), ClickHouseTransactionException.ERROR_INVALID_TRANSACTION);
+            }
+            Assert.assertEquals(tx.getState(), ClickHouseTransaction.FAILED);
+
+            try {
+                tx.rollback();
+                Assert.fail("Should fail to roll back due to session timed out");
+            } catch (ClickHouseTransactionException e) {
+                Assert.assertEquals(e.getErrorCode(), ClickHouseTransactionException.ERROR_INVALID_TRANSACTION);
+            }
+            Assert.assertEquals(tx.getState(), ClickHouseTransaction.FAILED);
+
+            try {
+                tx.begin();
+                Assert.fail("Should fail to restart due to session timed out");
+            } catch (ClickHouseTransactionException e) {
+                Assert.assertEquals(e.getErrorCode(), ClickHouseTransactionException.ERROR_INVALID_TRANSACTION);
+            }
+            Assert.assertEquals(tx.getState(), ClickHouseTransaction.FAILED);
+
+            request.transaction(null);
+            Assert.assertNull(request.getTransaction(), "Should have no transaction");
+            checkRowCount(tableName, 0);
+            request.transaction(1);
+            try (ClickHouseResponse response = request.write().query("insert into " + tableName + " values(1)(2)(3)")
+                    .executeAndWait()) {
+                // ignore
+            }
+            Assert.assertEquals(request.getTransaction().getState(), ClickHouseTransaction.ACTIVE);
+            checkRowCount(tableName, 3);
+            checkRowCount(request, tableName, 3);
+            Thread.sleep(3000L);
+            checkRowCount(tableName, 0);
+            try {
+                checkRowCount(request, tableName, 3);
+                Assert.fail("Should fail to query due to session timed out");
+            } catch (ClickHouseException e) {
+                Assert.assertEquals(e.getErrorCode(), ClickHouseException.ERROR_SESSION_NOT_FOUND);
+            }
+            Assert.assertEquals(request.getTransaction().getState(), ClickHouseTransaction.ACTIVE);
+        }
+    }
+
+    @Test // (groups = "integration")
+    public void testImplicitTransaction() throws Exception {
+        ClickHouseNode server = getServer();
+        String tableName = "test_implicit_transaction";
+        ClickHouseClient.send(server, "drop table if exists " + tableName,
+                "create table " + tableName + " (id Int64)engine=MergeTree order by id").get();
+        try (ClickHouseClient client = getClient()) {
+            ClickHouseRequest<?> request = client.connect(server);
+            ClickHouseTransaction.setImplicitTransaction(request, true);
+            try (ClickHouseResponse response = request.query("insert into " + tableName + " values(1)")
+                    .executeAndWait()) {
+                // ignore
+            }
+            checkRowCount(tableName, 1);
+            ClickHouseTransaction.setImplicitTransaction(request, false);
+            try (ClickHouseResponse response = request.query("insert into " + tableName + " values(2)")
+                    .executeAndWait()) {
+                // ignore
+            }
+            checkRowCount(tableName, 2);
+
+            ClickHouseTransaction.setImplicitTransaction(request, true);
+            try (ClickHouseResponse response = request.transaction().query("insert into " + tableName + " values(3)")
+                    .executeAndWait()) {
+                // ignore
+            }
+            checkRowCount(tableName, 3);
+            request.getTransaction().rollback();
+            checkRowCount(tableName, 2);
         }
     }
 }

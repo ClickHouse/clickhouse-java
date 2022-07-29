@@ -482,6 +482,65 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
 
     public static final String SCHEME_DELIMITER = "://";
 
+    static int extract(String scheme, int port, ClickHouseProtocol protocol, Map<String, String> params) {
+        if (port < MIN_PORT_NUM || port > MAX_PORT_NUM) {
+            port = MIN_PORT_NUM;
+        }
+        if (protocol != ClickHouseProtocol.POSTGRESQL && scheme.charAt(scheme.length() - 1) == 's') {
+            params.putIfAbsent(ClickHouseClientOption.SSL.getKey(), Boolean.TRUE.toString());
+            params.putIfAbsent(ClickHouseClientOption.SSL_MODE.getKey(), ClickHouseSslMode.STRICT.name());
+        }
+
+        if (protocol != ClickHouseProtocol.ANY && port == MIN_PORT_NUM) {
+            if (Boolean.TRUE.toString().equals(params.get(ClickHouseClientOption.SSL.getKey()))) {
+                port = protocol.getDefaultSecurePort();
+            } else {
+                port = protocol.getDefaultPort();
+            }
+        }
+        return port;
+    }
+
+    static ClickHouseCredentials extract(String rawUserInfo, Map<String, String> params,
+            ClickHouseCredentials defaultCredentials) {
+        ClickHouseCredentials credentials = defaultCredentials;
+        String user = "";
+        String passwd = "";
+        if (credentials != null && !credentials.useAccessToken()) {
+            user = credentials.getUserName();
+            passwd = credentials.getPassword();
+        }
+
+        if (!ClickHouseChecker.isNullOrEmpty(rawUserInfo)) {
+            int index = rawUserInfo.indexOf(':');
+            if (index < 0) {
+                user = ClickHouseUtils.decode(rawUserInfo);
+            } else {
+                String str = ClickHouseUtils.decode(rawUserInfo.substring(0, index));
+                if (!ClickHouseChecker.isNullOrEmpty(str)) {
+                    user = str;
+                }
+                passwd = ClickHouseUtils.decode(rawUserInfo.substring(index + 1));
+            }
+        }
+
+        String str = params.remove(ClickHouseDefaults.USER.getKey());
+        if (!ClickHouseChecker.isNullOrEmpty(str)) {
+            user = str;
+        }
+        str = params.remove(ClickHouseDefaults.PASSWORD.getKey());
+        if (str != null) {
+            passwd = str;
+        }
+        if (!ClickHouseChecker.isNullOrEmpty(user)) {
+            credentials = ClickHouseCredentials.fromUserAndPassword(user, passwd);
+        } else if (!ClickHouseChecker.isNullOrEmpty(passwd)) {
+            credentials = ClickHouseCredentials
+                    .fromUserAndPassword((String) ClickHouseDefaults.USER.getEffectiveDefaultValue(), passwd);
+        }
+        return credentials;
+    }
+
     static URI normalize(String uri, ClickHouseProtocol defaultProtocol) {
         int index = ClickHouseChecker.nonEmpty(uri, "URI").indexOf(SCHEME_DELIMITER);
         String normalized;
@@ -501,6 +560,12 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
                 throw new IllegalArgumentException("Invalid URI", e);
             }
         });
+    }
+
+    static void parseDatabase(String path, Map<String, String> params) {
+        if (!ClickHouseChecker.isNullOrEmpty(path) && path.length() > 1) {
+            params.put(ClickHouseClientOption.DATABASE.getKey(), path.substring(1));
+        }
     }
 
     static void parseOptions(String query, Map<String, String> params) {
@@ -539,7 +604,9 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
             }
 
             // any multi-value option? cluster?
-            params.put(key, value);
+            if (!ClickHouseChecker.isNullOrEmpty(value)) {
+                params.put(key, value);
+            }
         }
     }
 
@@ -735,33 +802,34 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
      */
     public static ClickHouseNode of(String uri, Map<?, ?> options) {
         URI normalizedUri = normalize(uri, null);
-        ClickHouseNode template = DEFAULT;
+
+        Map<String, String> params = new LinkedHashMap<>();
+        parseDatabase(normalizedUri.getPath(), params);
+
+        parseOptions(normalizedUri.getRawQuery(), params);
+
+        Set<String> tags = new LinkedHashSet<>();
+        parseTags(normalizedUri.getRawFragment(), tags);
+
         if (options != null && !options.isEmpty()) {
-            Builder builder = builder(DEFAULT);
             for (Entry<?, ?> entry : options.entrySet()) {
                 if (entry.getKey() != null) {
-                    builder.addOption(entry.getKey().toString(),
-                            entry.getValue() != null ? entry.getValue().toString() : null);
+                    if (entry.getValue() != null) {
+                        params.put(entry.getKey().toString(), entry.getValue().toString());
+                    } else {
+                        params.remove(entry.getKey().toString());
+                    }
                 }
             }
-            String user = builder.options.remove(ClickHouseDefaults.USER.getKey());
-            String passwd = builder.options.remove(ClickHouseDefaults.PASSWORD.getKey());
-            if (!ClickHouseChecker.isNullOrEmpty(user)) {
-                builder.credentials(ClickHouseCredentials.fromUserAndPassword(user, passwd == null ? "" : passwd));
-            }
-            String db = builder.options.get(ClickHouseClientOption.DATABASE.getKey());
-            if (!ClickHouseChecker.isNullOrEmpty(db)) {
-                try {
-                    normalizedUri = new URI(normalizedUri.getScheme(), normalizedUri.getUserInfo(),
-                            normalizedUri.getHost(), normalizedUri.getPort(), "/" + db, normalizedUri.getQuery(),
-                            normalizedUri.getFragment());
-                } catch (URISyntaxException e) { // should not happen
-                    throw new IllegalArgumentException("Failed to update database in given URI", e);
-                }
-            }
-            template = builder.build();
         }
-        return of(normalizedUri, template);
+
+        String scheme = normalizedUri.getScheme();
+        ClickHouseProtocol protocol = ClickHouseProtocol.fromUriScheme(scheme);
+        int port = extract(scheme, normalizedUri.getPort(), protocol, params);
+
+        ClickHouseCredentials credentials = extract(normalizedUri.getRawUserInfo(), params, null);
+
+        return new ClickHouseNode(normalizedUri.getHost(), protocol, port, credentials, params, tags);
     }
 
     /**
@@ -793,67 +861,15 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
             host = template.getHost();
         }
 
-        int port = uri.getPort();
         Map<String, String> params = new LinkedHashMap<>(template.options);
-        ClickHouseProtocol protocol = ClickHouseProtocol.fromUriScheme(scheme);
-        if (port < MIN_PORT_NUM || port > MAX_PORT_NUM) {
-            port = MIN_PORT_NUM;
-        }
-        if (protocol != ClickHouseProtocol.POSTGRESQL && scheme.charAt(scheme.length() - 1) == 's') {
-            params.put(ClickHouseClientOption.SSL.getKey(), Boolean.TRUE.toString());
-            params.put(ClickHouseClientOption.SSL_MODE.getKey(), ClickHouseSslMode.STRICT.name());
-        }
-
-        ClickHouseCredentials credentials = template.credentials;
-        String user = "";
-        String passwd = "";
-        if (credentials != null && !credentials.useAccessToken()) {
-            user = credentials.getUserName();
-            passwd = credentials.getPassword();
-        }
-        String auth = uri.getRawUserInfo();
-        if (!ClickHouseChecker.isNullOrEmpty(auth)) {
-            int index = auth.indexOf(':');
-            if (index < 0) {
-                user = ClickHouseUtils.decode(auth);
-            } else {
-                String str = ClickHouseUtils.decode(auth.substring(0, index));
-                if (!ClickHouseChecker.isNullOrEmpty(str)) {
-                    user = str;
-                }
-                passwd = ClickHouseUtils.decode(auth.substring(index + 1));
-            }
-        }
-
-        String db = uri.getPath();
-        if (!ClickHouseChecker.isNullOrEmpty(db) && db.length() > 1) {
-            params.put(ClickHouseClientOption.DATABASE.getKey(), db.substring(1));
-        }
+        parseDatabase(uri.getPath(), params);
 
         parseOptions(uri.getRawQuery(), params);
 
-        String str = params.remove(ClickHouseDefaults.USER.getKey());
-        if (!ClickHouseChecker.isNullOrEmpty(str)) {
-            user = str;
-        }
-        str = params.remove(ClickHouseDefaults.PASSWORD.getKey());
-        if (str != null) {
-            passwd = str;
-        }
-        if (!ClickHouseChecker.isNullOrEmpty(user)) {
-            credentials = ClickHouseCredentials.fromUserAndPassword(user, passwd);
-        } else if (!ClickHouseChecker.isNullOrEmpty(passwd)) {
-            credentials = ClickHouseCredentials
-                    .fromUserAndPassword((String) ClickHouseDefaults.USER.getEffectiveDefaultValue(), passwd);
-        }
+        ClickHouseProtocol protocol = ClickHouseProtocol.fromUriScheme(scheme);
+        int port = extract(scheme, uri.getPort(), protocol, params);
 
-        if (protocol != ClickHouseProtocol.ANY && port == MIN_PORT_NUM) {
-            if (Boolean.TRUE.toString().equals(params.get(ClickHouseClientOption.SSL.getKey()))) {
-                port = protocol.getDefaultSecurePort();
-            } else {
-                port = protocol.getDefaultPort();
-            }
-        }
+        ClickHouseCredentials credentials = extract(uri.getRawUserInfo(), params, template.credentials);
 
         Set<String> tags = new LinkedHashSet<>(template.tags);
         parseTags(uri.getRawFragment(), tags);
@@ -1265,7 +1281,7 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
         if (!tags.isEmpty()) {
             builder.append(", tags=").append(tags);
         }
-        return builder.append(']').toString();
+        return builder.append("]@").append(hashCode()).toString();
     }
 
     /**
