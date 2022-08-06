@@ -52,6 +52,15 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
                 new Object[] { true }, new Object[] { false } };
     }
 
+    @DataProvider(name = "connectionProperties")
+    private Object[][] getConnectionProperties() {
+        Properties emptyProps = new Properties();
+        Properties sessionProps = new Properties();
+        sessionProps.setProperty(ClickHouseClientOption.SESSION_ID.getKey(), UUID.randomUUID().toString());
+        return new Object[][] {
+                new Object[] { emptyProps }, new Object[] { sessionProps } };
+    }
+
     @Test(groups = "integration")
     public void testJdbcEscapeSyntax() throws SQLException {
         try (ClickHouseConnection conn = newConnection(new Properties());
@@ -237,13 +246,15 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test(groups = "integration")
-    public void testCancelQuery() throws Exception {
-        try (ClickHouseConnection conn = newConnection(new Properties());
+    @Test(dataProvider = "connectionProperties", groups = "integration")
+    public void testCancelQuery(Properties props) throws Exception {
+        try (ClickHouseConnection conn = newConnection(props);
                 ClickHouseStatement stmt = conn.createStatement();) {
             CountDownLatch c = new CountDownLatch(1);
             ClickHouseClient.submit(() -> stmt.executeQuery("select * from numbers(100000000)")).whenComplete(
                     (rs, e) -> {
+                        Assert.assertNull(e, "Should NOT have any exception");
+
                         int index = 0;
 
                         try {
@@ -252,14 +263,21 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
                                     c.countDown();
                                 }
                             }
+                            Assert.fail("Query should have been cancelled");
                         } catch (SQLException ex) {
-                            // ignore
+                            Assert.assertNotNull(ex, "Should end up with exception");
                         }
                     });
             try {
                 c.await(5, TimeUnit.SECONDS);
             } finally {
                 stmt.cancel();
+            }
+
+            try (ResultSet rs = stmt.executeQuery("select 5")) {
+                Assert.assertTrue(rs.next(), "Should have at least one record");
+                Assert.assertEquals(rs.getInt(1), 5);
+                Assert.assertFalse(rs.next(), "Should have only one record");
             }
         }
     }
