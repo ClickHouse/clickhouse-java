@@ -252,14 +252,58 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
                                     c.countDown();
                                 }
                             }
+                            Assert.fail("Query should have been cancelled");
                         } catch (SQLException ex) {
-                            // ignore
+                            Assert.assertNotNull(ex);
                         }
                     });
             try {
                 c.await(5, TimeUnit.SECONDS);
             } finally {
                 stmt.cancel();
+            }
+
+            try (ResultSet rs = stmt.executeQuery("select 5")) {
+                Assert.assertTrue(rs.next(), "Should have at least one record");
+                Assert.assertEquals(rs.getInt(1), 5);
+                Assert.assertFalse(rs.next(), "Should have only one record");
+            }
+        }
+    }
+
+    @Test(groups = "integration")
+    public void testCancelQueryWithSession() throws Exception {
+        Properties props = new Properties();
+        props.setProperty(ClickHouseClientOption.SESSION_ID.getKey(), UUID.randomUUID().toString());
+        props.setProperty(ClickHouseClientOption.REPEAT_ON_SESSION_LOCK.getKey(), "false");
+        try (ClickHouseConnection conn = newConnection(props);
+                ClickHouseStatement stmt = conn.createStatement();) {
+            CountDownLatch c = new CountDownLatch(1);
+            ClickHouseClient.submit(() -> stmt.executeQuery("select * from numbers(100000000)")).whenComplete(
+                    (rs, e) -> {
+                        int index = 0;
+
+                        try {
+                            while (rs.next()) {
+                                if (index++ < 1) {
+                                    c.countDown();
+                                }
+                            }
+                            Assert.fail("Query should have been cancelled");
+                        } catch (SQLException ex) {
+                            Assert.assertNotNull(ex);
+                        }
+                    });
+            try {
+                c.await(5, TimeUnit.SECONDS);
+            } finally {
+                stmt.cancel();
+            }
+
+            try (ResultSet rs = stmt.executeQuery("select 5")) {
+                Assert.assertTrue(rs.next(), "Should have at least one record");
+                Assert.assertEquals(rs.getInt(1), 5);
+                Assert.assertFalse(rs.next(), "Should have only one record");
             }
         }
     }

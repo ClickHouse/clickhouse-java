@@ -257,4 +257,12 @@ public class ClickHouseResponseSummary implements Serializable {
     public boolean isEmpty() {
         return progress.get().isEmpty() && stats.get().isEmpty();
     }
+
+    @Override
+    public String toString() {
+        return new StringBuilder().append("ClickHouseResponseSummary [readBytes=").append(getReadBytes())
+                .append(", readRows=").append(getReadRows()).append(", totalRowsToRead=").append(getTotalRowsToRead())
+                .append(", writtenBytes=").append(getWrittenBytes()).append(", writtenRows=").append(getWrittenRows())
+                .append(", updates=").append(getUpdateCount()).append(']').toString();
+    }
 }
