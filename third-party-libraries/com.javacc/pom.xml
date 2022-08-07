@@ -1,0 +1,69 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.clickhouse</groupId>
+        <artifactId>third-party-libraries</artifactId>
+        <version>${revision}</version>
+    </parent>
+
+    <artifactId>com.javacc</artifactId>
+    <packaging>jar</packaging>
+
+    <name>${project.artifactId}</name>
+    <description>Repackaged JavaCC for generating SQL parser</description>
+    <url>https://github.com/ClickHouse/clickhouse-jdbc/tree/master/third-party-libraries/com.javacc</url>
+
+    <properties>
+        <javacc.dir>javacc21-master</javacc.dir>
+        <javacc.src.zip>https://github.com/javacc21/javacc21/archive/refs/heads/master.zip</javacc.src.zip>
+    </properties>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-antrun-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>get-javacc</id>
+                        <phase>clean</phase>
+                        <configuration>
+                            <target>
+                                <get src="${javacc.src.zip}" dest="${project.build.directory}/javacc.zip" />
+                                <unzip src="${project.build.directory}/javacc.zip" dest="${project.build.directory}" />
+                            </target>
+                        </configuration>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>build-javacc</id>
+                        <phase>initialize</phase>
+                        <configuration>
+                            <target>
+                                <ant antfile="${project.build.directory}/${javacc.dir}/build.xml" dir="${project.build.directory}/${javacc.dir}">
+                                    <target name="full-jar" />
+                                </ant>
+                                <unzip src="${project.build.directory}/${javacc.dir}/javacc-full.jar" dest="${project.build.directory}/classes" />
+                            </target>
+                        </configuration>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <configuration>
+                    <archive>
+                      <manifestFile>${project.build.directory}/classes/META-INF/MANIFEST.MF</manifestFile>
+                    </archive>
+                  </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>
