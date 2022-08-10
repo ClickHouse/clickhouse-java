@@ -228,6 +228,10 @@
                                     <pattern>org.apache</pattern>
                                     <shadedPattern>${shade.base}.apache</shadedPattern>
                                 </relocation>
+                                <relocation>
+                                    <pattern>net.jpountz</pattern>
+                                    <shadedPattern>${shade.base}.jpountz</shadedPattern>
+                                </relocation>
                             </relocations>
                             <transformers>
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ApacheLicenseResourceTransformer" />
@@ -285,6 +289,10 @@
                                 <relocation>
                                     <pattern>org.apache</pattern>
                                     <shadedPattern>${shade.base}.apache</shadedPattern>
+                                </relocation>
+                                <relocation>
+                                    <pattern>net.jpountz</pattern>
+                                    <shadedPattern>${shade.base}.jpountz</shadedPattern>
                                 </relocation>
                             </relocations>
                             <transformers>
