@@ -115,7 +115,7 @@
         <exec-plugin.version>3.1.0</exec-plugin.version>
         <failsafe-plugin.version>3.0.0-M7</failsafe-plugin.version>
         <flatten-plugin.version>1.2.7</flatten-plugin.version>
-        <git-plugin.version>4.9.10</git-plugin.version>
+        <git-plugin.version>4.9.9</git-plugin.version>
         <gpg-plugin.version>3.0.1</gpg-plugin.version>
         <helper-plugin.version>3.3.0</helper-plugin.version>
         <jacoco-plugin.version>0.8.8</jacoco-plugin.version>
