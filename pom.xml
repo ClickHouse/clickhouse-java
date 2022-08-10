@@ -39,7 +39,8 @@
         <module>clickhouse-cli-client</module>
         <module>clickhouse-grpc-client</module>
         <module>clickhouse-http-client</module>
-        <!-- module>clickhouse-tcp-client</module -->
+        <!-- module>clickhouse-tcp-client</module>
+        <module>clickhouse-sql-parser</module -->
         <module>clickhouse-jdbc</module>
         <module>clickhouse-benchmark</module>
     </modules>
@@ -96,7 +97,7 @@
         <mockito.version>3.12.4</mockito.version>
         <wiremock.version>2.33.2</wiremock.version>
         <testcontainers.version>1.17.3</testcontainers.version>
-        <testng.version>7.6.1</testng.version>
+        <testng.version>7.5</testng.version>
 
         <mariadb-driver.version>3.0.7</mariadb-driver.version>
         <mysql-driver.version>8.0.30</mysql-driver.version>
@@ -107,12 +108,14 @@
 
         <antrun-plugin.version>3.1.0</antrun-plugin.version>
         <assembly-plugin.version>3.4.2</assembly-plugin.version>
+        <clean-plugin.version>3.2.0</clean-plugin.version>
         <compiler-plugin.version>3.10.1</compiler-plugin.version>
         <deploy-plugin.version>3.0.0</deploy-plugin.version>
         <enforcer-plugin.version>3.1.0</enforcer-plugin.version>
+        <exec-plugin.version>3.1.0</exec-plugin.version>
         <failsafe-plugin.version>3.0.0-M7</failsafe-plugin.version>
         <flatten-plugin.version>1.2.7</flatten-plugin.version>
-        <git-plugin.version>5.0.0</git-plugin.version>
+        <git-plugin.version>4.9.9</git-plugin.version>
         <gpg-plugin.version>3.0.1</gpg-plugin.version>
         <helper-plugin.version>3.3.0</helper-plugin.version>
         <jacoco-plugin.version>0.8.8</jacoco-plugin.version>
@@ -141,6 +144,11 @@
 
     <dependencyManagement>
         <dependencies>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>com.javacc</artifactId>
+                <version>${repackaged.version}</version>
+            </dependency>
             <dependency>
                 <groupId>${project.groupId}</groupId>
                 <artifactId>io.grpc</artifactId>
@@ -326,6 +334,11 @@
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-clean-plugin</artifactId>
+                    <version>${clean-plugin.version}</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-compiler-plugin</artifactId>
                     <version>${compiler-plugin.version}</version>
                 </plugin>
@@ -338,6 +351,11 @@
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-enforcer-plugin</artifactId>
                     <version>${enforcer-plugin.version}</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.codehaus.mojo</groupId>
+                    <artifactId>exec-maven-plugin</artifactId>
+                    <version>${exec-plugin.version}</version>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
