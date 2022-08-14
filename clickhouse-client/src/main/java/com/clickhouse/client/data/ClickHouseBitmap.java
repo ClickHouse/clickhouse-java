@@ -7,10 +7,17 @@ import java.io.DataOutput;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.reflect.AccessibleObject;
+import java.lang.reflect.Field;
 import java.nio.Buffer;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.HashSet;
+import java.util.NavigableMap;
 import java.util.Objects;
+import java.util.Set;
+
+import org.roaringbitmap.BitmapDataProvider;
 import org.roaringbitmap.RoaringBitmap;
 import org.roaringbitmap.buffer.ImmutableRoaringBitmap;
 import org.roaringbitmap.buffer.MutableRoaringBitmap;
@@ -171,7 +178,10 @@ public abstract class ClickHouseBitmap {
                 DataOutput out = new DataOutputStream(bas);
                 try {
                     // https://github.com/RoaringBitmap/RoaringBitmap/blob/0.9.9/RoaringBitmap/src/main/java/org/roaringbitmap/longlong/Roaring64NavigableMap.java#L1105
-                    rb.serialize(out);
+                    Roaring64NavigableMap rbCopy = new Roaring64NavigableMap();
+                    rbCopy.or(rb);
+                    reverseHighInt(rbCopy);
+                    rbCopy.serialize(out);
                 } catch (IOException e) {
                     throw new IllegalArgumentException("Failed to serialize given bitmap", e);
                 }
@@ -376,6 +386,7 @@ public abstract class ClickHouseBitmap {
                 in.readFully(bytes, 5, len - 8);
                 Roaring64NavigableMap b = new Roaring64NavigableMap();
                 b.deserialize(new DataInputStream(new ByteArrayInputStream(bytes)));
+                reverseHighInt(b);
                 rb = ClickHouseBitmap.wrap(b, innerType);
             }
         }
@@ -455,6 +466,7 @@ public abstract class ClickHouseBitmap {
                 buffer.get(bitmaps);
                 Roaring64NavigableMap b = new Roaring64NavigableMap();
                 b.deserialize(new DataInputStream(new ByteArrayInputStream(bitmaps)));
+                reverseHighInt(b);
                 rb = ClickHouseBitmap.wrap(b, innerType);
             }
         }
@@ -642,5 +654,28 @@ public abstract class ClickHouseBitmap {
 
     public Object unwrap() {
         return this.reference;
+    }
+
+    /**
+     * reverse the bytes of the Roaring64NavigableMap's high key
+     * @param map map to reverse
+     */
+    public static void reverseHighInt(Roaring64NavigableMap map){
+        try {
+            Field highToBitmapField = Roaring64NavigableMap.class.getDeclaredField("highToBitmap");
+            AccessibleObject.setAccessible(new AccessibleObject[]{highToBitmapField}, true);
+            NavigableMap<Integer, BitmapDataProvider> highToBitmap = (NavigableMap<Integer, BitmapDataProvider>) highToBitmapField.get(map);
+            Set<Integer> oldKeys = new HashSet<>(highToBitmap.keySet());
+            oldKeys.forEach(key -> {
+                if (key > 0) {
+                    BitmapDataProvider provider = highToBitmap.get(key);
+                    highToBitmap.remove(key);
+                    int high = Integer.reverseBytes(key);
+                    highToBitmap.put(high, provider);
+                }
+            });
+        } catch (NoSuchFieldException | IllegalAccessException e) {
+            throw new IllegalArgumentException("Failed to reverse the high key of the given bitmap", e);
+        }
     }
 }
