@@ -31,76 +31,76 @@ import java.util.UUID;
  */
 @SuppressWarnings("squid:S115")
 public enum ClickHouseDataType {
-    IntervalYear(Long.class, false, true, true, 8, 19, 0, 0, 0, false),
-    IntervalQuarter(Long.class, false, true, true, 8, 19, 0, 0, 0, false),
-    IntervalMonth(Long.class, false, true, true, 8, 19, 0, 0, 0, false),
-    IntervalWeek(Long.class, false, true, true, 8, 19, 0, 0, 0, false),
-    IntervalDay(Long.class, false, true, true, 8, 19, 0, 0, 0, false),
-    IntervalHour(Long.class, false, true, true, 8, 19, 0, 0, 0, false),
-    IntervalMinute(Long.class, false, true, true, 8, 19, 0, 0, 0, false),
-    IntervalSecond(Long.class, false, true, true, 8, 19, 0, 0, 0, false),
-    UInt8(Short.class, false, true, false, 1, 3, 0, 0, 0, false, "INT1 UNSIGNED", "TINYINT UNSIGNED"),
-    UInt16(Integer.class, false, true, false, 2, 5, 0, 0, 0, false, "SMALLINT UNSIGNED"),
-    UInt32(Long.class, false, true, false, 4, 10, 0, 0, 0, false, "INT UNSIGNED", "INTEGER UNSIGNED",
+    IntervalYear(Long.class, false, true, true, 8, 19, 0, 0, 0, false, false),
+    IntervalQuarter(Long.class, false, true, true, 8, 19, 0, 0, 0, false, false),
+    IntervalMonth(Long.class, false, true, true, 8, 19, 0, 0, 0, false, false),
+    IntervalWeek(Long.class, false, true, true, 8, 19, 0, 0, 0, false, false),
+    IntervalDay(Long.class, false, true, true, 8, 19, 0, 0, 0, false, false),
+    IntervalHour(Long.class, false, true, true, 8, 19, 0, 0, 0, false, false),
+    IntervalMinute(Long.class, false, true, true, 8, 19, 0, 0, 0, false, false),
+    IntervalSecond(Long.class, false, true, true, 8, 19, 0, 0, 0, false, false),
+    UInt8(Short.class, false, true, false, 1, 3, 0, 0, 0, false, true, "INT1 UNSIGNED", "TINYINT UNSIGNED"),
+    UInt16(Integer.class, false, true, false, 2, 5, 0, 0, 0, false, true, "SMALLINT UNSIGNED"),
+    UInt32(Long.class, false, true, false, 4, 10, 0, 0, 0, false, true, "INT UNSIGNED", "INTEGER UNSIGNED",
             "MEDIUMINT UNSIGNED"),
-    UInt64(Long.class, false, true, false, 8, 20, 0, 0, 0, false, "BIGINT UNSIGNED"),
-    UInt128(BigInteger.class, false, true, false, 16, 39, 0, 0, 0, false),
-    UInt256(BigInteger.class, false, true, false, 32, 78, 0, 0, 0, false),
-    Int8(Byte.class, false, true, true, 1, 3, 0, 0, 0, false, "BYTE", "INT1", "INT1 SIGNED", "TINYINT",
+    UInt64(Long.class, false, true, false, 8, 20, 0, 0, 0, false, true, "BIGINT UNSIGNED"),
+    UInt128(BigInteger.class, false, true, false, 16, 39, 0, 0, 0, false, true),
+    UInt256(BigInteger.class, false, true, false, 32, 78, 0, 0, 0, false, true),
+    Int8(Byte.class, false, true, true, 1, 3, 0, 0, 0, false, true, "BYTE", "INT1", "INT1 SIGNED", "TINYINT",
             "TINYINT SIGNED"),
-    Int16(Short.class, false, true, true, 2, 5, 0, 0, 0, false, "SMALLINT", "SMALLINT SIGNED"),
-    Int32(Integer.class, false, true, true, 4, 10, 0, 0, 0, false, "INT", "INTEGER", "MEDIUMINT", "INT SIGNED",
+    Int16(Short.class, false, true, true, 2, 5, 0, 0, 0, false, true, "SMALLINT", "SMALLINT SIGNED"),
+    Int32(Integer.class, false, true, true, 4, 10, 0, 0, 0, false, true, "INT", "INTEGER", "MEDIUMINT", "INT SIGNED",
             "INTEGER SIGNED", "MEDIUMINT SIGNED"),
-    Int64(Long.class, false, true, true, 8, 19, 0, 0, 0, false, "BIGINT", "BIGINT SIGNED"),
-    Int128(BigInteger.class, false, true, true, 16, 39, 0, 0, 0, false),
-    Int256(BigInteger.class, false, true, true, 32, 77, 0, 0, 0, false),
-    Bool(Boolean.class, false, false, true, 1, 1, 0, 0, 0, false, "BOOLEAN"),
-    Date(LocalDate.class, false, false, false, 2, 10, 0, 0, 0, false),
-    Date32(LocalDate.class, false, false, false, 4, 10, 0, 0, 0, false),
-    DateTime(LocalDateTime.class, true, false, false, 0, 29, 0, 0, 9, false, "TIMESTAMP"),
-    DateTime32(LocalDateTime.class, true, false, false, 4, 19, 0, 0, 0, false),
-    DateTime64(LocalDateTime.class, true, false, false, 8, 29, 3, 0, 9, false),
-    Decimal(BigDecimal.class, true, false, true, 0, 76, 0, 0, 76, false, "DEC", "NUMERIC", "FIXED"),
-    Decimal32(BigDecimal.class, true, false, true, 4, 9, 9, 0, 9, false),
-    Decimal64(BigDecimal.class, true, false, true, 8, 18, 18, 0, 18, false),
-    Decimal128(BigDecimal.class, true, false, true, 16, 38, 38, 0, 38, false),
-    Decimal256(BigDecimal.class, true, false, true, 32, 76, 20, 0, 76, false),
-    UUID(UUID.class, false, true, false, 16, 69, 0, 0, 0, false),
+    Int64(Long.class, false, true, true, 8, 19, 0, 0, 0, false, true, "BIGINT", "BIGINT SIGNED"),
+    Int128(BigInteger.class, false, true, true, 16, 39, 0, 0, 0, false, true),
+    Int256(BigInteger.class, false, true, true, 32, 77, 0, 0, 0, false, true),
+    Bool(Boolean.class, false, false, true, 1, 1, 0, 0, 0, false, true, "BOOLEAN"),
+    Date(LocalDate.class, false, false, false, 2, 10, 0, 0, 0, false, true),
+    Date32(LocalDate.class, false, false, false, 4, 10, 0, 0, 0, false, true),
+    DateTime(LocalDateTime.class, true, false, false, 0, 29, 0, 0, 9, false, true, "TIMESTAMP"),
+    DateTime32(LocalDateTime.class, true, false, false, 4, 19, 0, 0, 0, false, true),
+    DateTime64(LocalDateTime.class, true, false, false, 8, 29, 3, 0, 9, false, true),
+    Decimal(BigDecimal.class, true, false, true, 0, 76, 0, 0, 76, false, true, "DEC", "NUMERIC", "FIXED"),
+    Decimal32(BigDecimal.class, true, false, true, 4, 9, 9, 0, 9, false, true),
+    Decimal64(BigDecimal.class, true, false, true, 8, 18, 18, 0, 18, false, true),
+    Decimal128(BigDecimal.class, true, false, true, 16, 38, 38, 0, 38, false, true),
+    Decimal256(BigDecimal.class, true, false, true, 32, 76, 20, 0, 76, false, true),
+    UUID(UUID.class, false, true, false, 16, 69, 0, 0, 0, false, false),
     /**
      * Enum data type.
      *
      * @deprecated will be removed in v0.3.3, please use {@link #Enum8} instead
      */
     @Deprecated
-    Enum(String.class, true, true, false, 1, 0, 0, 0, 0, false),
-    Enum8(String.class, true, true, false, 1, 0, 0, 0, 0, false), // "ENUM"),
-    Enum16(String.class, true, true, false, 2, 0, 0, 0, 0, false),
-    Float32(Float.class, false, true, true, 4, 12, 0, 0, 38, false, "FLOAT", "REAL", "SINGLE"),
-    Float64(Double.class, false, true, true, 16, 22, 0, 0, 308, false, "DOUBLE", "DOUBLE PRECISION"),
-    IPv4(Inet4Address.class, false, true, false, 4, 10, 0, 0, 0, false, "INET4"),
-    IPv6(Inet6Address.class, false, true, false, 16, 39, 0, 0, 0, false, "INET6"),
-    FixedString(String.class, true, true, false, 0, 0, 0, 0, 0, false, "BINARY"),
-    String(String.class, false, true, false, 0, 0, 0, 0, 0, false, "BINARY LARGE OBJECT", "BINARY VARYING", "BLOB",
+    Enum(String.class, true, true, false, 1, 0, 0, 0, 0, false, true),
+    Enum8(String.class, true, true, false, 1, 0, 0, 0, 0, false, true), // "ENUM"),
+    Enum16(String.class, true, true, false, 2, 0, 0, 0, 0, false, true),
+    Float32(Float.class, false, true, true, 4, 12, 0, 0, 38, false, true, "FLOAT", "REAL", "SINGLE"),
+    Float64(Double.class, false, true, true, 16, 22, 0, 0, 308, false, true, "DOUBLE", "DOUBLE PRECISION"),
+    IPv4(Inet4Address.class, false, true, false, 4, 10, 0, 0, 0, false, false, "INET4"),
+    IPv6(Inet6Address.class, false, true, false, 16, 39, 0, 0, 0, false, false, "INET6"),
+    FixedString(String.class, true, true, false, 0, 0, 0, 0, 0, false, false, "BINARY"),
+    String(String.class, false, true, false, 0, 0, 0, 0, 0, false, true, "BINARY LARGE OBJECT", "BINARY VARYING", "BLOB",
             "BYTEA",
             "CHAR", "CHARACTER", "CHARACTER LARGE OBJECT", "CHARACTER VARYING", "CHAR LARGE OBJECT", "CHAR VARYING",
             "CLOB", "LONGBLOB", "LONGTEXT", "MEDIUMBLOB", "MEDIUMTEXT", "NATIONAL CHAR", "NATIONAL CHARACTER",
             "NATIONAL CHARACTER LARGE OBJECT", "NATIONAL CHARACTER VARYING", "NATIONAL CHAR VARYING", "NCHAR",
             "NCHAR LARGE OBJECT", "NCHAR VARYING", "NVARCHAR", "TEXT", "TINYBLOB", "TINYTEXT", "VARBINARY", "VARCHAR",
             "VARCHAR2"),
-    AggregateFunction(String.class, true, true, false, 0, 0, 0, 0, 0, true), // implementation-defined intermediate
-                                                                             // state
-    SimpleAggregateFunction(String.class, true, true, false, 0, 0, 0, 0, 0, false),
-    Array(Object.class, true, true, false, 0, 0, 0, 0, 0, true),
-    Map(Map.class, true, true, false, 0, 0, 0, 0, 0, true),
-    Nested(Object.class, true, true, false, 0, 0, 0, 0, 0, true),
-    Tuple(List.class, true, true, false, 0, 0, 0, 0, 0, true),
-    Object(Object.class, true, true, false, 0, 0, 0, 0, 0, true),
-    JSON(Object.class, false, false, false, 0, 0, 0, 0, 0, true), // same as Object('JSON')
-    Point(Object.class, false, true, true, 33, 0, 0, 0, 0, true), // same as Tuple(Float64, Float64)
-    Polygon(Object.class, false, true, true, 0, 0, 0, 0, 0, true), // same as Array(Ring)
-    MultiPolygon(Object.class, false, true, true, 0, 0, 0, 0, 0, true), // same as Array(Polygon)
-    Ring(Object.class, false, true, true, 0, 0, 0, 0, 0, true), // same as Array(Point)
-    Nothing(Object.class, false, true, false, 0, 0, 0, 0, 0, true);
+    AggregateFunction(String.class, true, true, false, 0, 0, 0, 0, 0, true, false), // implementation-defined intermediate
+    // state
+    SimpleAggregateFunction(String.class, true, true, false, 0, 0, 0, 0, 0, false, false),
+    Array(Object.class, true, true, false, 0, 0, 0, 0, 0, true, false),
+    Map(Map.class, true, true, false, 0, 0, 0, 0, 0, true, false),
+    Nested(Object.class, true, true, false, 0, 0, 0, 0, 0, true, false),
+    Tuple(List.class, true, true, false, 0, 0, 0, 0, 0, true, false),
+    Object(Object.class, true, true, false, 0, 0, 0, 0, 0, true, false),
+    JSON(Object.class, false, false, false, 0, 0, 0, 0, 0, true, true), // same as Object('JSON')
+    Point(Object.class, false, true, true, 33, 0, 0, 0, 0, true, false), // same as Tuple(Float64, Float64)
+    Polygon(Object.class, false, true, true, 0, 0, 0, 0, 0, true, false), // same as Array(Ring)
+    MultiPolygon(Object.class, false, true, true, 0, 0, 0, 0, 0, true, false), // same as Array(Polygon)
+    Ring(Object.class, false, true, true, 0, 0, 0, 0, 0, true, false), // same as Array(Point)
+    Nothing(Object.class, false, true, false, 0, 0, 0, 0, 0, true, false);
 
     /**
      * Immutable set(sorted) for all aliases.
@@ -119,7 +119,7 @@ public enum ClickHouseDataType {
         ClickHouseDataType used = null;
         for (ClickHouseDataType t : ClickHouseDataType.values()) {
             String name = t.name();
-            if (!t.isCaseSensitive()) {
+            if (t.isCaseInsensitiveTypeName()) {
                 name = name.toUpperCase();
             }
             used = map.put(name, t);
@@ -291,6 +291,7 @@ public enum ClickHouseDataType {
     private final Class<?> primitiveType;
     private final boolean parameter;
     private final boolean caseSensitive;
+    private final boolean caseInsensitiveTypeName;
     private final boolean signed;
     private final List<String> aliases;
     private final int byteLength;
@@ -301,7 +302,7 @@ public enum ClickHouseDataType {
     private final boolean nestedType;
 
     ClickHouseDataType(Class<?> javaClass, boolean parameter, boolean caseSensitive, boolean signed, int byteLength,
-            int maxPrecision, int defaultScale, int minScale, int maxScale, boolean nestedType, String... aliases) {
+                       int maxPrecision, int defaultScale, int minScale, int maxScale, boolean nestedType, boolean caseInsensitiveTypeName, String... aliases) {
         this.objectType = toObjectType(javaClass);
         this.primitiveType = toPrimitiveType(javaClass);
         this.parameter = parameter;
@@ -313,6 +314,7 @@ public enum ClickHouseDataType {
         this.minScale = minScale;
         this.maxScale = maxScale;
         this.nestedType = nestedType;
+        this.caseInsensitiveTypeName = caseInsensitiveTypeName;
         if (aliases == null || aliases.length == 0) {
             this.aliases = Collections.emptyList();
         } else {
@@ -430,4 +432,14 @@ public enum ClickHouseDataType {
     public int getMaxScale() {
         return maxScale;
     }
+
+    /**
+     * Checks if name of this data type is case insensitive or not when look up type with type name
+     *
+     * @return true if it's case insensitive; false otherwise
+     */
+    public boolean isCaseInsensitiveTypeName() {
+        return caseInsensitiveTypeName;
+    }
+
 }

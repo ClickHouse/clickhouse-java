@@ -24,7 +24,10 @@ public class ClickHouseDataTypeTest {
                 Assert.assertEquals(ClickHouseDataType.of(t.name().toLowerCase()), t);
                 Assert.assertEquals(ClickHouseDataType.of(t.name().toUpperCase()), t);
             }
-
+            if (t.isCaseInsensitiveTypeName()) {
+                Assert.assertEquals(ClickHouseDataType.of(t.name().toLowerCase()), t);
+                Assert.assertEquals(ClickHouseDataType.of(t.name().toUpperCase()), t);
+            }
             for (String alias : t.getAliases()) {
                 Assert.assertEquals(ClickHouseDataType.of(alias), t);
                 Assert.assertEquals(ClickHouseDataType.of(alias.toLowerCase()), t);
@@ -44,5 +47,14 @@ public class ClickHouseDataTypeTest {
         matched = ClickHouseDataType.match("UInt32");
         Assert.assertEquals(matched.size(), 1);
         Assert.assertEquals(matched.get(0), "UInt32");
+    }
+
+    @Test(groups = { "unit" })
+    public void testCaseInsensitiveTypeName() {
+        for (ClickHouseDataType t : ClickHouseDataType.values()) {
+            if (!t.isCaseSensitive()) {
+                Assert.assertTrue(t.isCaseInsensitiveTypeName());
+            }
+        }
     }
 }
