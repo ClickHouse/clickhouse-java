@@ -8,6 +8,8 @@
 *.ear
 
 # VSCode
+.bloop
+.metals
 .vscode
 .factorypath
 
@@ -33,6 +35,7 @@ target/
 # Generated files
 .flattened-pom.xml
 dependency-reduced-pom.xml
+**/parser/javacc/*
 **/parser/*CharStream.java
 **/parser/ClickHouseSqlParser.java
 **/parser/ClickHouseSqlParserConstants.java

@@ -11,6 +11,8 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import com.clickhouse.client.ClickHouseChecker;
 import com.clickhouse.client.ClickHouseClient;
@@ -18,6 +20,7 @@ import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseDataStreamFactory;
 import com.clickhouse.client.ClickHouseDeserializer;
 import com.clickhouse.client.ClickHouseFormat;
+import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.ClickHouseResponseSummary;
@@ -427,14 +430,27 @@ public class ClickHouseStatementImpl extends JdbcWrapper
 
         final String qid;
         if ((qid = this.queryId) != null) {
-            ClickHouseClient.send(request.getServer(), String.format("KILL QUERY WHERE query_id='%s'", qid))
-                    .whenComplete((summary, exception) -> {
-                        if (exception != null) {
-                            log.warn("Failed to kill query [%s] due to: %s", qid, exception.getMessage());
-                        } else if (summary != null) {
-                            log.debug("Killed query [%s]", qid);
-                        }
-                    });
+            String sessionIdKey = ClickHouseClientOption.SESSION_ID.getKey();
+            ClickHouseNode server = request.getServer();
+            if (server.getOptions().containsKey(sessionIdKey)) {
+                server = ClickHouseNode.builder(request.getServer()).removeOption(sessionIdKey)
+                        .removeOption(ClickHouseClientOption.SESSION_CHECK.getKey())
+                        .removeOption(ClickHouseClientOption.SESSION_TIMEOUT.getKey()).build();
+            }
+            try {
+                List<ClickHouseResponseSummary> summaries = ClickHouseClient
+                        .send(server, String.format("KILL QUERY WHERE query_id='%s'", qid))
+                        .get(request.getConfig().getConnectionTimeout(), TimeUnit.MILLISECONDS);
+                log.info("Killed query [%s]: %s", qid, summaries.get(0));
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                log.warn("Interrupted for killing query [%s]", qid);
+            } catch (TimeoutException e) {
+                log.warn("Timed out after waiting %d ms for killing query [%s]",
+                        request.getConfig().getConnectionTimeout(), qid);
+            } catch (Exception e) { // unexpected
+                throw SqlExceptionUtils.handle(e.getCause());
+            }
         }
         if (request.getTransaction() != null) {
             request.getTransaction().abort();

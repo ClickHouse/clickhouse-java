@@ -321,5 +321,11 @@ public class ClickHouseLongValueTest extends BaseClickHouseValueTest {
         Assert.assertEquals(v.asBigInteger(), new BigInteger("10223372036854775101"));
         Assert.assertEquals(v.asBigDecimal(), new BigDecimal("10223372036854775101"));
         Assert.assertEquals(v.asString(), "10223372036854775101");
+
+        v.update(new BigDecimal("10223372036854775101"));
+        Assert.assertEquals(v.asLong(), -8223372036854776515L);
+        Assert.assertEquals(v.asBigInteger(), new BigInteger("10223372036854775101"));
+        Assert.assertEquals(v.asBigDecimal(), new BigDecimal("10223372036854775101"));
+        Assert.assertEquals(v.asString(), "10223372036854775101");
     }
 }

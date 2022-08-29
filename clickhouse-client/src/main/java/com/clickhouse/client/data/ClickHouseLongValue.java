@@ -246,12 +246,12 @@ public class ClickHouseLongValue implements ClickHouseValue {
 
     @Override
     public ClickHouseLongValue update(BigInteger value) {
-        return value == null ? resetToNullOrEmpty() : set(false, unsigned, value.longValueExact());
+        return value == null ? resetToNullOrEmpty() : set(false, unsigned, value.longValue());
     }
 
     @Override
     public ClickHouseLongValue update(BigDecimal value) {
-        return value == null ? resetToNullOrEmpty() : set(false, unsigned, value.longValueExact());
+        return value == null ? resetToNullOrEmpty() : set(false, unsigned, value.longValue());
     }
 
     @Override

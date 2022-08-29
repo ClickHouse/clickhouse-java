@@ -275,6 +275,20 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
         }
 
         /**
+         * Removes an option from this node.
+         *
+         * @param option option to be removed, null value will be ignored
+         * @return this builder
+         */
+        public Builder removeOption(String option) {
+            if (!ClickHouseChecker.isNullOrEmpty(option)) {
+                options.remove(option);
+            }
+
+            return this;
+        }
+
+        /**
          * Sets all options for this node. Use null or empty value to clear all existing
          * options.
          *

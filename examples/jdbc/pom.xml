@@ -7,7 +7,7 @@
     <version>1.0.0</version>
     <packaging>jar</packaging>
 
-    <name>jdbc-examples</name>
+    <name>JDBC Examples</name>
     <description>JDBC Examples</description>
     <url>https://github.com/ClickHouse/clickhouse-jdbc</url>
     <inceptionYear>2022</inceptionYear>
@@ -56,7 +56,7 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
-        <clickhouse-jdbc.version>0.3.2-patch9</clickhouse-jdbc.version>
+        <clickhouse-jdbc.version>0.3.3-SNAPSHOT</clickhouse-jdbc.version>
 
         <compiler-plugin.version>3.8.1</compiler-plugin.version>
 
