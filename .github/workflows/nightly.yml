@@ -1,0 +1,65 @@
+name: Nightly
+
+on:
+  schedule:
+    # Build and publish nightly snapshot at 3:15pm every day
+    - cron: "15 15 * * *"
+
+env:
+  CHC_BRANCH: "develop"
+  CHC_VERSION: "0.3.3"
+
+jobs:
+  nightly:
+    if: ${{ startsWith(github.repository, 'ClickHouse/') }}
+    name: "Build and Publish Nightly Snapshot"
+    runs-on: "ubuntu-latest"
+
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ env.CHC_BRANCH }}
+      - name: Install JDK 11
+        uses: AdoptOpenJDK/install-jdk@v1
+        with:
+          version: "11"
+          targets: "JDK11_HOME"
+      - name: Setup Toolchain
+        shell: bash
+        run: |
+          mkdir -p $HOME/.m2 \
+          && cat << EOF > $HOME/.m2/toolchains.xml
+          <?xml version="1.0" encoding="UTF8"?>
+          <toolchains>
+            <toolchain>
+              <type>jdk</type>
+              <provides>
+                <version>11</version>
+              </provides>
+              <configuration>
+                <jdkHome>${{ env.JDK11_HOME }}</jdkHome>
+              </configuration>
+            </toolchain>
+          </toolchains>
+          EOF
+      - name: Install JDK 8 and Maven
+        uses: actions/setup-java@v2
+        with:
+          distribution: "temurin"
+          java-version: 8
+      - name: Update Configuration
+        run: |
+          find . -type f -name "pom.xml" -exec sed -i -e 's|${revision}|${{ env.CHC_VERSION }}-SNAPSHOT|g' \
+            -e 's|^\(    <version>\).*\(</version>\)$|\1${{ env.CHC_VERSION }}-SNAPSHOT\2|' \
+            -e 's|${parent.groupId}|com.clickhouse|g' -e 's|${project.parent.groupId}|com.clickhouse|g' '{}' \;
+          find . -type f -name "simplelogger.*" -exec rm -fv '{}' \;
+      - name: Release Snapshot
+        uses: samuelmeuli/action-maven-publish@v1
+        with:
+          maven_profiles: release
+          maven_args: -q --batch-mode
+          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
+          gpg_passphrase: ${{ secrets.GPG_PASSPHRASE }}
+          nexus_username: ${{ secrets.SONATYPE_USER }}
+          nexus_password: ${{ secrets.SONATYPE_PASSWD }}
