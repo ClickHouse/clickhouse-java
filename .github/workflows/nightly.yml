@@ -2,8 +2,8 @@ name: Nightly
 
 on:
   schedule:
-    # Build and publish nightly snapshot at 3:15pm every day
-    - cron: "15 15 * * *"
+    # Build and publish nightly snapshot at 3:55pm every day
+    - cron: "55 15 * * *"
 
 env:
   CHC_BRANCH: "develop"
