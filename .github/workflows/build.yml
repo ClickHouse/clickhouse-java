@@ -9,6 +9,7 @@ on:
     paths-ignore:
       - "**.md"
       - "docs/**"
+      - "examples/**"
       - "**/CHANGELOG"
 
   pull_request:
@@ -19,6 +20,7 @@ on:
     paths-ignore:
       - "**.md"
       - "docs/**"
+      - "examples/**"
       - "**/CHANGELOG"
 
   workflow_dispatch:
