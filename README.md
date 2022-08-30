@@ -1,10 +1,9 @@
 # ClickHouse Java Client & JDBC Driver
 
-[![GitHub release (latest SemVer including pre-releases)](https://img.shields.io/github/v/release/ClickHouse/clickhouse-jdbc?include_prereleases)](https://github.com/ClickHouse/clickhouse-jdbc/releases/) ![Build Status(https://github.com/ClickHouse/clickhouse-jdbc/workflows/Build/badge.svg)](https://github.com/ClickHouse/clickhouse-jdbc/workflows/Build/badge.svg) [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=ClickHouse_clickhouse-jdbc&metric=coverage)](https://sonarcloud.io/dashboard?id=ClickHouse_clickhouse-jdbc)
+[![GitHub release (latest SemVer including pre-releases)](https://img.shields.io/github/v/release/ClickHouse/clickhouse-jdbc?style=plastic&include_prereleases&label=Latest%20Release)](https://github.com/ClickHouse/clickhouse-jdbc/releases/) [![Sonatype Nexus (Snapshots)](https://img.shields.io/nexus/s/com.clickhouse/clickhouse-jdbc?style=plastic&label=Nightly%20Build&server=https%3A%2F%2Fs01.oss.sonatype.org)](https://s01.oss.sonatype.org/content/repositories/snapshots/com/clickhouse/) ![GitHub milestone](https://img.shields.io/github/milestones/progress-percent/ClickHouse/clickhouse-jdbc/6?style=social)
 
 Java client and JDBC driver for ClickHouse. Java client is async, lightweight, and low-overhead library for ClickHouse; while JDBC driver is built on top of the Java client with more dependencies and extensions for JDBC-compliance.
-
-Java 8 or higher is required in order to use Java client([clickhouse-client](https://github.com/ClickHouse/clickhouse-jdbc/tree/master/clickhouse-client)) and/or JDBC driver([clickhouse-jdbc](https://github.com/ClickHouse/clickhouse-jdbc/tree/master/clickhouse-jdbc)). In addition, starting from 0.3.2, JDBC driver only works with ClickHouse 20.7 or above, so please consider to either downgrade the driver to 0.3.1-patch or upgrade server to one of [active releases](https://github.com/ClickHouse/ClickHouse/pulls?q=is%3Aopen+is%3Apr+label%3Arelease).
+Java 8 or higher is required to use Java client([clickhouse-client](https://github.com/ClickHouse/clickhouse-jdbc/tree/master/clickhouse-client)) and/or JDBC driver([clickhouse-jdbc](https://github.com/ClickHouse/clickhouse-jdbc/tree/master/clickhouse-jdbc)). In addition, starting from 0.3.2, JDBC driver only works with ClickHouse 20.7+, so please consider to either upgrade server to one of [active releases](https://github.com/ClickHouse/ClickHouse/pulls?q=is%3Aopen+is%3Apr+label%3Arelease) or downgrade the driver to 0.3.1-patch(not recommended).
 
 ---
 
@@ -15,47 +14,64 @@ Maven groupId `ru.yandex.clickhouse` and legacy JDBC driver `ru.yandex.clickhous
 Please use new groupId `com.clickhouse` and driver `com.clickhouse.jdbc.ClickHouseDriver` instead. It's highly recommended to upgrade to 0.3.2+ now for improved performance and stability.
 
 ![image](https://user-images.githubusercontent.com/4270380/154429324-631f718d-9277-4522-b60d-13f87b2e6c31.png)
-Note: in general, the new driver(v0.3.2) is a few times faster with less memory usage. More information can be found at [here](https://github.com/ClickHouse/clickhouse-jdbc/issues/768).
+Note: in general, the new driver(v0.3.2+) is a few times faster with less memory usage. More information can be found at [here](https://github.com/ClickHouse/clickhouse-jdbc/issues/768).
 
 ---
 
 ## Features
 
-| Category          | Feature                                                              | Supported          | Remark                                                                                                                                                               |
-| ----------------- | -------------------------------------------------------------------- | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| API               | [JDBC](https://docs.oracle.com/javase/8/docs/technotes/guides/jdbc/) | :white_check_mark: |                                                                                                                                                                      |
-|                   | [R2DBC](https://r2dbc.io/)                                           | :x:                | will be supported in 0.3.3                                                                                                                                           |
-| Protocol          | [HTTP](https://clickhouse.com/docs/en/interfaces/http/)              | :white_check_mark: | recommended, defaults to `java.net.HttpURLConnection` and can be changed to `java.net.http.HttpClient`(faster but less stable)                                       |
-|                   | [gRPC](https://clickhouse.com/docs/en/interfaces/grpc/)              | :white_check_mark: | still experimental, works with 22.3+, known to has [issue](https://github.com/ClickHouse/ClickHouse/issues/28671#issuecomment-1087049993) when using LZ4 compression |
-|                   | [TCP/Native](https://clickhouse.com/docs/en/interfaces/tcp/)         | :white_check_mark: | `clickhouse-cli-client`(wrapper of ClickHouse native command-line client) was added in 0.3.2-patch10, `clickhouse-tcp-client` will be available in 0.3.3             |
-| Compatibility     | Server < 20.7                                                        | :x:                | use 0.3.1-patch(or 0.2.6 if you're stuck with JDK 7)                                                                                                                 |
-|                   | Server >= 20.7                                                       | :white_check_mark: | use 0.3.2 or above. All [active releases](https://github.com/ClickHouse/ClickHouse/pulls?q=is%3Aopen+is%3Apr+label%3Arelease) are supported.                         |
-| Data Format       | RowBinary                                                            | :white_check_mark: | `RowBinaryWithNamesAndTypes` for query and `RowBinary` for insertion                                                                                                 |
-|                   | TabSeparated                                                         | :white_check_mark: | Does not support as many data types as RowBinary                                                                                                                     |
-| Data Type         | AggregatedFunction                                                   | :x:                | limited to `groupBitmap`                                                                                                                                             |
-|                   | Array(\*)                                                            | :white_check_mark: |                                                                                                                                                                      |
-|                   | Bool                                                                 | :white_check_mark: |                                                                                                                                                                      |
-|                   | Date\*                                                               | :white_check_mark: |                                                                                                                                                                      |
-|                   | DateTime\*                                                           | :white_check_mark: |                                                                                                                                                                      |
-|                   | Decimal\*                                                            | :white_check_mark: | `SET output_format_decimal_trailing_zeros=1` in 21.9+ for consistency                                                                                                |
-|                   | Enum\*                                                               | :white_check_mark: | can be treated as both string and integer                                                                                                                            |
-|                   | Geo Types                                                            | :white_check_mark: | Point, Ring, Polygon, and MultiPolygon                                                                                                                               |
-|                   | Int\*, UInt\*                                                        | :white_check_mark: | UInt64 is mapped to `long`                                                                                                                                           |
-|                   | IPv\*                                                                | :white_check_mark: |                                                                                                                                                                      |
-|                   | Map(\*)                                                              | :white_check_mark: |                                                                                                                                                                      |
-|                   | Nested(\*)                                                           | :white_check_mark: |                                                                                                                                                                      |
-|                   | Object('JSON')                                                       | :white_check_mark: | supported since 0.3.2-patch8                                                                                                                                         |
-|                   | SimpleAggregateFunction                                              | :white_check_mark: |                                                                                                                                                                      |
-|                   | \*String                                                             | :white_check_mark: |                                                                                                                                                                      |
-|                   | Tuple(\*)                                                            | :white_check_mark: |                                                                                                                                                                      |
-|                   | UUID                                                                 | :white_check_mark: |                                                                                                                                                                      |
-| High Availability | Load Balancing                                                       | :white_check_mark: | supported since 0.3.2-patch10                                                                                                                                        |
-|                   | Failover                                                             | :white_check_mark: | supported since 0.3.2-patch10                                                                                                                                        |
-| Transaction       | Transaction                                                          | :white_check_mark: | supported since 0.3.2-patch11, use ClickHouse 22.7+ for native implicit transaction support                                                                          |
-|                   | Savepoint                                                            | :x:                |                                                                                                                                                                      |
-|                   | XAConnection                                                         | :x:                |                                                                                                                                                                      |
+| Category          | Feature                                                                             | Supported          | Remark                                                                                                                                                               |
+| ----------------- | ----------------------------------------------------------------------------------- | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| API               | [JDBC](https://docs.oracle.com/javase/8/docs/technotes/guides/jdbc/)                | :white_check_mark: |                                                                                                                                                                      |
+|                   | [R2DBC](https://r2dbc.io/)                                                          | :x:                | will be supported in 0.3.3                                                                                                                                           |
+|                   | [GraphQL](https://graphql.org/)                                                     | :x:                |                                                                                                                                                                      |
+| Protocol          | [HTTP](https://clickhouse.com/docs/en/interfaces/http/)                             | :white_check_mark: | recommended, defaults to `java.net.HttpURLConnection` and can be changed to `java.net.http.HttpClient`(less stable)                                                  |
+|                   | [gRPC](https://clickhouse.com/docs/en/interfaces/grpc/)                             | :white_check_mark: | still experimental, works with 22.3+, known to has [issue](https://github.com/ClickHouse/ClickHouse/issues/28671#issuecomment-1087049993) when using LZ4 compression |
+|                   | [TCP/Native](https://clickhouse.com/docs/en/interfaces/tcp/)                        | :white_check_mark: | `clickhouse-cli-client`(wrapper of ClickHouse native command-line client) was added in 0.3.2-patch10, `clickhouse-tcp-client` will be available in 0.3.3             |
+|                   | [Local/File](https://clickhouse.com/docs/en/operations/utilities/clickhouse-local/) | :x:                | `clickhouse-cli-client` will be enhanced to support `clickhouse-local`                                                                                               |
+| Compatibility     | Server < 20.7                                                                       | :x:                | use 0.3.1-patch(or 0.2.6 if you're stuck with JDK 7)                                                                                                                 |
+|                   | Server >= 20.7                                                                      | :white_check_mark: | use 0.3.2 or above. All [active releases](https://github.com/ClickHouse/ClickHouse/pulls?q=is%3Aopen+is%3Apr+label%3Arelease) are supported.                         |
+| Compression       | [gzip](https://www.gzip.org/)                                                       | :white_check_mark: |                                                                                                                                                                      |
+|                   | [lz4](https://lz4.github.io/lz4/)                                                   | :white_check_mark: | default                                                                                                                                                              |
+|                   | [zstd](https://facebook.github.io/zstd/)                                            | :x:                |                                                                                                                                                                      |
+| Data Format       | RowBinary                                                                           | :white_check_mark: | `RowBinaryWithNamesAndTypes` for query and `RowBinary` for insertion                                                                                                 |
+|                   | TabSeparated                                                                        | :white_check_mark: | Does not support as many data types as RowBinary                                                                                                                     |
+| Data Type         | AggregatedFunction                                                                  | :x:                | limited to `groupBitmap`                                                                                                                                             |
+|                   | Array(\*)                                                                           | :white_check_mark: |                                                                                                                                                                      |
+|                   | Bool                                                                                | :white_check_mark: |                                                                                                                                                                      |
+|                   | Date\*                                                                              | :white_check_mark: |                                                                                                                                                                      |
+|                   | DateTime\*                                                                          | :white_check_mark: |                                                                                                                                                                      |
+|                   | Decimal\*                                                                           | :white_check_mark: | `SET output_format_decimal_trailing_zeros=1` in 21.9+ for consistency                                                                                                |
+|                   | Enum\*                                                                              | :white_check_mark: | can be treated as both string and integer                                                                                                                            |
+|                   | Geo Types                                                                           | :white_check_mark: | Point, Ring, Polygon, and MultiPolygon                                                                                                                               |
+|                   | Int\*, UInt\*                                                                       | :white_check_mark: | UInt64 is mapped to `long`                                                                                                                                           |
+|                   | IPv\*                                                                               | :white_check_mark: |                                                                                                                                                                      |
+|                   | Map(\*)                                                                             | :white_check_mark: |                                                                                                                                                                      |
+|                   | Nested(\*)                                                                          | :white_check_mark: |                                                                                                                                                                      |
+|                   | Object('JSON')                                                                      | :white_check_mark: | supported since 0.3.2-patch8                                                                                                                                         |
+|                   | SimpleAggregateFunction                                                             | :white_check_mark: |                                                                                                                                                                      |
+|                   | \*String                                                                            | :white_check_mark: |                                                                                                                                                                      |
+|                   | Tuple(\*)                                                                           | :white_check_mark: |                                                                                                                                                                      |
+|                   | UUID                                                                                | :white_check_mark: |                                                                                                                                                                      |
+| High Availability | Load Balancing                                                                      | :white_check_mark: | supported since 0.3.2-patch10                                                                                                                                        |
+|                   | Failover                                                                            | :white_check_mark: | supported since 0.3.2-patch10                                                                                                                                        |
+| Transaction       | Transaction                                                                         | :white_check_mark: | supported since 0.3.2-patch11, use ClickHouse 22.7+ for native implicit transaction support                                                                          |
+|                   | Savepoint                                                                           | :x:                |                                                                                                                                                                      |
+|                   | XAConnection                                                                        | :x:                |                                                                                                                                                                      |
 
-## Examples
+## Usage
+
+The library can be downloaded from both [Github Releases](../../releases) and [Maven Central](https://repo1.maven.org/maven2/com/clickhouse/). Development snapshots are available on [Sonatype OSSRH](https://s01.oss.sonatype.org/content/repositories/snapshots/com/clickhouse/).
+
+```xml
+<repositories>
+    <repository>
+        <id>ossrh</id>
+        <name>Sonatype OSSRH</name>
+        <url>https://s01.oss.sonatype.org/content/repositories/snapshots/</url>
+    </repository>
+</repositories>
+```
 
 ### Java Client
 
@@ -69,10 +85,11 @@ Note: in general, the new driver(v0.3.2) is a few times faster with less memory 
 ```
 
 ```java
-// endpoint: protocol://host[:port][/database][?param1=value1&param2=value2...][#tag1,tag2,...]
+//  endpoint: protocol://host[:port][/database][?param[=value][&param[=value]][#tag[,tag]]
 ClickHouseNode endpoint = ClickHouseNode.of("https://localhost"); // http://localhost:8443?ssl=true&sslmode=NONE
-// endpoints: [defaultProtocol://]endpoint1[,endpoint2,endpoint3,...][/defaultDatabase][?defaultParameters][#efaultTags]
-ClickHouseNodes endpoints = ClickHouseNodes.of("http://(https://explorer@play.clickhouse.com:443),localhost,(tcp://localhost?!auto_discovery#experimental),(grpc://localhost#experimental)?failover=3#test")
+// endpoints: [defaultProtocol://]endpoint[,endpoint][/defaultDatabase][?defaultParameters][#defaultTags]
+ClickHouseNodes endpoints = ClickHouseNodes.of("http://(https://explorer@play.clickhouse.com:443),localhost,"
+    + "(tcp://localhost?!auto_discovery#experimental),(grpc://localhost#experimental)?failover=3#test")
 
 try (ClickHouseClient client = ClickHouseClient.newInstance(ClickHouseProtocol.HTTP);
     ClickHouseResponse response = client.connect(endpoint) // or client.connect(endpoints)
@@ -113,7 +130,7 @@ try (ClickHouseClient client = ClickHouseClient.newInstance(ClickHouseProtocol.H
 ```
 
 ```java
-// jdbc:(ch|clickhouse):[defaultProtocol://]endpoint1[,endpoint2,endpoint3,...][/defaultDatabase][?defaultParameters][#efaultTags]
+// jdbc:(ch|clickhouse):[defaultProtocol://]endpoint[,endpoint][/defaultDatabase][?defaultParameters][#defaultTags]
 String url = "jdbc:ch:https://play.clickhouse.com:443";
 Properties properties = new Properties();
 properties.setProperty("user", "explorer");
@@ -129,6 +146,8 @@ try (Connection conn = dataSource.getConnection();
     ...
 }
 ```
+
+More examples can be found at [here](../../tree/master/examples/jdbc).
 
 ## Build with Maven
 
@@ -193,4 +212,4 @@ java -DdbHost=localhost -jar target/benchmarks.jar -t 1 \
     -p statement=prepared Query.selectInt8
 ```
 
-It's time consuming to run all benchmarks against all drivers using different parameters for comparison. If you just need some numbers to understand performance, please refer to table below and some more details like CPU and memory usage mentioned at [here](https://github.com/ClickHouse/clickhouse-jdbc/issues/768)(still have plenty of room to improve according to ranking at [here](https://github.com/go-faster/ch-bench)).
+It's time consuming to run all benchmarks against all drivers using different parameters for comparison. If you just need some numbers to understand performance, please refer to [this](https://github.com/ClickHouse/clickhouse-jdbc/issues/768)(still have plenty of room to improve according to ranking at [here](https://github.com/go-faster/ch-bench)).

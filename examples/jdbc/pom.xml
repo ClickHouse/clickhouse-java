@@ -51,6 +51,14 @@
         <url>https://github.com/ClickHouse/clickhouse-jdbc/actions</url>
     </ciManagement>
 
+    <repositories>
+        <repository>
+            <id>ossrh</id>
+            <name>Sonatype OSSRH</name>
+            <url>https://s01.oss.sonatype.org/content/repositories/snapshots/</url>
+        </repository>
+    </repositories>
+
     <properties>
         <project.current.year>2022</project.current.year>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
