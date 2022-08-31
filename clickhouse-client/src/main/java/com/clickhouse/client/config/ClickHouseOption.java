@@ -1,7 +1,10 @@
 package com.clickhouse.client.config;
 
 import java.io.Serializable;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.TimeZone;
 
@@ -11,6 +14,57 @@ import java.util.TimeZone;
  * description.
  */
 public interface ClickHouseOption extends Serializable {
+    /**
+     * Converts given string to key value pairs.
+     * 
+     * @param str string
+     * @return non-null key value pairs
+     */
+    public static Map<String, String> toKeyValuePairs(String str) {
+        if (str == null || str.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        Map<String, String> map = new LinkedHashMap<>();
+        String key = null;
+        StringBuilder builder = new StringBuilder();
+        for (int i = 0, len = str.length(); i < len; i++) {
+            char ch = str.charAt(i);
+            if (ch == '\\' && i + 1 < len) {
+                ch = str.charAt(++i);
+                builder.append(ch);
+                continue;
+            }
+
+            if (Character.isWhitespace(ch)) {
+                if (builder.length() > 0) {
+                    builder.append(ch);
+                }
+            } else if (ch == '=' && key == null) {
+                key = builder.toString().trim();
+                builder.setLength(0);
+            } else if (ch == ',' && key != null) {
+                String value = builder.toString().trim();
+                builder.setLength(0);
+                if (!key.isEmpty() && !value.isEmpty()) {
+                    map.put(key, value);
+                }
+                key = null;
+            } else {
+                builder.append(ch);
+            }
+        }
+
+        if (key != null && builder.length() > 0) {
+            String value = builder.toString().trim();
+            if (!key.isEmpty() && !value.isEmpty()) {
+                map.put(key, value);
+            }
+        }
+
+        return Collections.unmodifiableMap(map);
+    }
+
     /**
      * Converts given string to a typed value.
      *
@@ -63,6 +117,8 @@ public interface ClickHouseOption extends Serializable {
             } else {
                 result = (T) enumValue;
             }
+        } else if (Map.class.isAssignableFrom(clazz)) { // treat as Map<String, String> & Serializable
+            result = (T) toKeyValuePairs(value);
         } else if (TimeZone.class.isAssignableFrom(clazz)) {
             result = (T) TimeZone.getTimeZone(value);
         } else {

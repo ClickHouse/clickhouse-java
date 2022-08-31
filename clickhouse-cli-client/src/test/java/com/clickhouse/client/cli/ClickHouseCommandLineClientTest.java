@@ -87,6 +87,12 @@ public class ClickHouseCommandLineClientTest extends ClientIntegrationTest {
 
     @Test(groups = { "integration" })
     @Override
+    public void testSession() {
+        throw new SkipException("Skip due to session is not supported");
+    }
+
+    @Test(groups = { "integration" })
+    @Override
     public void testSessionLock() {
         throw new SkipException("Skip due to session is not supported");
     }

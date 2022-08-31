@@ -1118,6 +1118,8 @@ public final class ClickHouseValues {
             case IPv6:
                 value = ClickHouseIpv6Value.ofNull();
                 break;
+            case Object:
+            case JSON:
             case FixedString:
             case String:
                 value = ClickHouseStringValue.ofNull();
@@ -1195,8 +1197,6 @@ public final class ClickHouseValues {
                 }
                 value = ClickHouseNestedValue.ofEmpty(column.getNestedColumns());
                 break;
-            case Object:
-            case JSON:
             case Tuple:
                 value = ClickHouseTupleValue.of();
                 break;

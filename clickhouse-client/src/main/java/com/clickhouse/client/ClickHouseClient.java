@@ -8,7 +8,6 @@ import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
@@ -86,8 +85,9 @@ public interface ClickHouseClient extends AutoCloseable {
 
     /**
      * Gets piped output stream for writing data into request asynchronously. When
-     * {@code config} is null or {@code config.isAsync()} is false, this method is
-     * same as
+     * {@code config} is {@code null}, {@code config.isAsync()} is {@code false}, or
+     * request buffering mode is {@link ClickHouseBufferingMode#RESOURCE_EFFICIENT},
+     * this method will be same as
      * {@link #getRequestOutputStream(ClickHouseConfig, OutputStream, Runnable)}.
      *
      * @param config          optional configuration
@@ -153,9 +153,10 @@ public interface ClickHouseClient extends AutoCloseable {
 
     /**
      * Gets piped input stream for reading data from response asynchronously. When
-     * {@code config} is null or {@code config.isAsync()} is false, this method is
-     * same as
-     * {@link #getResponseInputStream(ClickHouseConfig, InputStream, Runnable)}.
+     * {@code config} is {@code null}, {@code config.isAsync()} is {@code false}, or
+     * response buffering mode is
+     * {@link ClickHouseBufferingMode#RESOURCE_EFFICIENT}, this method will be same
+     * as {@link #getResponseInputStream(ClickHouseConfig, InputStream, Runnable)}.
      *
      * @param config          optional configuration
      * @param input           non-null input stream
@@ -201,34 +202,17 @@ public interface ClickHouseClient extends AutoCloseable {
     }
 
     /**
-     * Submits task for execution. Depending on {@link ClickHouseDefaults#ASYNC}, it
-     * may or may not use {@link #getExecutorService()} to run the task in a
-     * separate thread.
-     * 
+     * Runs the given task immediately in current thread. Exception will be wrapped
+     * as {@link CompletionException}.
+     *
      * @param <T>  return type of the task
-     * @param task non-null task
-     * @return non-null future object to get result
-     * @throws CompletionException when failed to complete the task
+     * @param task non-null task to run
+     * @return result which may or may not be null
+     * @throws CompletionException when failed to execute the task
      */
-    static <T> CompletableFuture<T> submit(Callable<T> task) {
+    static <T> T run(Callable<T> task) {
         try {
-            return (boolean) ClickHouseDefaults.ASYNC.getEffectiveDefaultValue() ? CompletableFuture.supplyAsync(() -> {
-                try {
-                    return task.call();
-                } catch (ClickHouseException e) {
-                    throw new CompletionException(e);
-                } catch (CompletionException e) {
-                    throw e;
-                } catch (Exception e) {
-                    Throwable cause = e.getCause();
-                    if (cause instanceof CompletionException) {
-                        throw (CompletionException) cause;
-                    } else if (cause == null) {
-                        cause = e;
-                    }
-                    throw new CompletionException(cause);
-                }
-            }, getExecutorService()) : CompletableFuture.completedFuture(task.call());
+            return task.call();
         } catch (ClickHouseException e) {
             throw new CompletionException(e);
         } catch (CompletionException e) {
@@ -242,6 +226,22 @@ public interface ClickHouseClient extends AutoCloseable {
             }
             throw new CompletionException(cause);
         }
+    }
+
+    /**
+     * Submits task for execution. Depending on {@link ClickHouseDefaults#ASYNC}, it
+     * may or may not use {@link #getExecutorService()} to run the task in a
+     * separate thread.
+     * 
+     * @param <T>  return type of the task
+     * @param task non-null task
+     * @return non-null future object to get result
+     * @throws CompletionException when failed to complete the task
+     */
+    static <T> CompletableFuture<T> submit(Callable<T> task) {
+        return (boolean) ClickHouseDefaults.ASYNC.getEffectiveDefaultValue()
+                ? CompletableFuture.supplyAsync(() -> run(task), getExecutorService())
+                : CompletableFuture.completedFuture(run(task));
     }
 
     /**

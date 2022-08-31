@@ -1,6 +1,7 @@
 package com.clickhouse.client.http;
 
 import java.io.IOException;
+import java.io.Serializable;
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
 import java.nio.charset.Charset;
@@ -22,6 +23,7 @@ import com.clickhouse.client.ClickHouseOutputStream;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseUtils;
 import com.clickhouse.client.config.ClickHouseClientOption;
+import com.clickhouse.client.config.ClickHouseOption;
 import com.clickhouse.client.data.ClickHouseExternalTable;
 import com.clickhouse.client.http.config.ClickHouseHttpOption;
 
@@ -53,8 +55,8 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
         StringBuilder builder = new StringBuilder();
 
         // start with custom query parameters first
-        Map<String, String> customParams = ClickHouseUtils
-                .getKeyValuePairs((String) config.getOption(ClickHouseHttpOption.CUSTOM_PARAMS));
+        Map<String, String> customParams = ClickHouseOption
+                .toKeyValuePairs(config.getStrOption(ClickHouseHttpOption.CUSTOM_PARAMS));
         for (Entry<String, String> cp : customParams.entrySet()) {
             appendQueryParameter(builder, cp.getKey(), cp.getValue());
         }
@@ -75,19 +77,19 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
             appendQueryParameter(builder, "compress", "1");
         }
 
-        Map<String, Object> settings = request.getSettings();
+        Map<String, Serializable> settings = request.getSettings();
         List<String> stmts = request.getStatements(false);
-        String settingKey = "max_execution_time";
+        String settingKey = ClickHouseClientOption.MAX_EXECUTION_TIME.getKey();
         if (config.getMaxExecutionTime() > 0 && !settings.containsKey(settingKey)) {
             appendQueryParameter(builder, settingKey, String.valueOf(config.getMaxExecutionTime()));
         }
-        settingKey = "max_result_rows";
+        settingKey = ClickHouseClientOption.MAX_RESULT_ROWS.getKey();
         if (config.getMaxResultRows() > 0L && !settings.containsKey(settingKey)) {
             appendQueryParameter(builder, settingKey, String.valueOf(config.getMaxResultRows()));
             appendQueryParameter(builder, "result_overflow_mode", "break");
         }
         settingKey = "log_comment";
-        if (!stmts.isEmpty() && (boolean) config.getOption(ClickHouseClientOption.LOG_LEADING_COMMENT)
+        if (!stmts.isEmpty() && config.getBoolOption(ClickHouseClientOption.LOG_LEADING_COMMENT)
                 && !settings.containsKey(settingKey)) {
             String comment = ClickHouseUtils.getLeadingComment(stmts.get(0));
             if (!comment.isEmpty()) {
@@ -101,14 +103,15 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
 
         Optional<String> optionalValue = request.getSessionId();
         if (optionalValue.isPresent()) {
-            appendQueryParameter(builder, "session_id", optionalValue.get());
+            appendQueryParameter(builder, ClickHouseClientOption.SESSION_ID.getKey(), optionalValue.get());
 
             if (config.isSessionCheck()) {
-                appendQueryParameter(builder, "session_check", "1");
+                appendQueryParameter(builder, ClickHouseClientOption.SESSION_CHECK.getKey(), "1");
             }
             if (config.getSessionTimeout() > 0) {
                 // see default_session_timeout
-                appendQueryParameter(builder, "session_timeout", String.valueOf(config.getSessionTimeout()));
+                appendQueryParameter(builder, ClickHouseClientOption.SESSION_TIMEOUT.getKey(),
+                        String.valueOf(config.getSessionTimeout()));
             }
         }
 
@@ -117,7 +120,7 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
             appendQueryParameter(builder, "query_id", optionalValue.get());
         }
 
-        for (Map.Entry<String, Object> entry : settings.entrySet()) {
+        for (Map.Entry<String, Serializable> entry : settings.entrySet()) {
             appendQueryParameter(builder, entry.getKey(), String.valueOf(entry.getValue()));
         }
 
@@ -131,7 +134,7 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
         ClickHouseConfig config = request.getConfig();
 
         StringBuilder builder = new StringBuilder().append(baseUrl);
-        String context = (String) config.getOption(ClickHouseHttpOption.WEB_CONTEXT);
+        String context = config.getStrOption(ClickHouseHttpOption.WEB_CONTEXT);
         if (!ClickHouseChecker.isNullOrEmpty(context)) {
             char prev = '/';
             for (int i = 0, len = context.length(); i < len; i++) {
@@ -156,9 +159,9 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
     protected static Map<String, String> createDefaultHeaders(ClickHouseConfig config, ClickHouseNode server) {
         Map<String, String> map = new LinkedHashMap<>();
         // add customer headers
-        map.putAll(ClickHouseUtils.getKeyValuePairs((String) config.getOption(ClickHouseHttpOption.CUSTOM_HEADERS)));
+        map.putAll(ClickHouseOption.toKeyValuePairs(config.getStrOption(ClickHouseHttpOption.CUSTOM_HEADERS)));
         map.put("Accept", "*/*");
-        if (!(boolean) config.getOption(ClickHouseHttpOption.KEEP_ALIVE)) {
+        if (!config.getBoolOption(ClickHouseHttpOption.KEEP_ALIVE)) {
             map.put("Connection", "Close");
         }
         map.put("User-Agent", config.getClientName());

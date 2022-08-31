@@ -1,6 +1,7 @@
 package com.clickhouse.client;
 
 import java.io.IOException;
+import java.io.Serializable;
 import java.util.List;
 import java.util.Map;
 
@@ -49,7 +50,7 @@ public class ClickHouseDataStreamFactory {
      * @throws IOException when failed to read columns from input stream
      */
     public ClickHouseDataProcessor getProcessor(ClickHouseConfig config, ClickHouseInputStream input,
-            ClickHouseOutputStream output, Map<String, Object> settings, List<ClickHouseColumn> columns)
+            ClickHouseOutputStream output, Map<String, Serializable> settings, List<ClickHouseColumn> columns)
             throws IOException {
         ClickHouseFormat format = ClickHouseChecker.nonNull(config, "config").getFormat();
         ClickHouseDataProcessor processor = null;

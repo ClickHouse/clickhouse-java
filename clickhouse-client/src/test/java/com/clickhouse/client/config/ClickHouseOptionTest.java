@@ -1,13 +1,17 @@
 package com.clickhouse.client.config;
 
 import java.io.Serializable;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+
 import org.testng.Assert;
 import org.testng.annotations.Test;
 import com.clickhouse.client.ClickHouseChecker;
 import com.clickhouse.client.ClickHouseDataType;
 import com.clickhouse.client.ClickHouseFormat;
 
-public class ClickHouseConfigOptionTest {
+public class ClickHouseOptionTest {
     static enum ClickHouseTestOption implements ClickHouseOption {
         STR("string_option", "string", "string option"),
         STR0("string_option0", "string0", "string option without environment variable support"),
@@ -113,5 +117,54 @@ public class ClickHouseConfigOptionTest {
                 ClickHouseTestOption.INT1.getDefaultValue());
         Assert.assertEquals(ClickHouseTestOption.BOOL1.getEffectiveDefaultValue(),
                 ClickHouseTestOption.BOOL1.getDefaultValue());
+    }
+
+    @Test(groups = { "unit" })
+    public void testToKeyValuePairs() {
+        // empty
+        Assert.assertEquals(ClickHouseOption.toKeyValuePairs(null), Collections.emptyMap());
+        Assert.assertEquals(ClickHouseOption.toKeyValuePairs(""), Collections.emptyMap());
+        Assert.assertEquals(ClickHouseOption.toKeyValuePairs(" "), Collections.emptyMap());
+        Assert.assertEquals(ClickHouseOption.toKeyValuePairs("="), Collections.emptyMap());
+        Assert.assertEquals(ClickHouseOption.toKeyValuePairs("=="), Collections.emptyMap());
+        Assert.assertEquals(ClickHouseOption.toKeyValuePairs(" = "), Collections.emptyMap());
+        Assert.assertEquals(ClickHouseOption.toKeyValuePairs(","), Collections.emptyMap());
+        Assert.assertEquals(ClickHouseOption.toKeyValuePairs(",,"), Collections.emptyMap());
+        Assert.assertEquals(ClickHouseOption.toKeyValuePairs(" , "), Collections.emptyMap());
+        Assert.assertEquals(ClickHouseOption.toKeyValuePairs("=,="), Collections.emptyMap());
+        Assert.assertEquals(ClickHouseOption.toKeyValuePairs("=,"), Collections.emptyMap());
+        Assert.assertEquals(ClickHouseOption.toKeyValuePairs(",=,"), Collections.emptyMap());
+        Assert.assertEquals(ClickHouseOption.toKeyValuePairs(" =\r ,"), Collections.emptyMap());
+        Assert.assertEquals(ClickHouseOption.toKeyValuePairs("a"), Collections.emptyMap());
+        Assert.assertEquals(ClickHouseOption.toKeyValuePairs(" a "), Collections.emptyMap());
+        Assert.assertEquals(ClickHouseOption.toKeyValuePairs("a,b,c"), Collections.emptyMap());
+
+        Map<String, String> m = new HashMap<>();
+        m.put("ab", "12");
+
+        // single
+        Assert.assertEquals(ClickHouseOption.toKeyValuePairs("ab=12"), m);
+        Assert.assertEquals(ClickHouseOption.toKeyValuePairs(" ab = 12 ,"), m);
+        Assert.assertEquals(ClickHouseOption.toKeyValuePairs(" ab = , ab=12"), m);
+        Assert.assertEquals(ClickHouseOption.toKeyValuePairs("a\\=='b c',"),
+                Collections.singletonMap("a=", "'b c'"));
+
+        // multiple
+        m.put("cd", "34");
+        Assert.assertEquals(ClickHouseOption.toKeyValuePairs("ab=12,cd=34"), m);
+        Assert.assertEquals(ClickHouseOption.toKeyValuePairs("cd = 34 , ab=12"), m);
+        Assert.assertEquals(ClickHouseOption.toKeyValuePairs("ab=,cd=,ab=34,cd=12,cd=34,ab=12"), m);
+
+        m.put("cd", "3=4");
+        Assert.assertEquals(ClickHouseOption.toKeyValuePairs("ab=12,cd=3\\=4"), m);
+        Assert.assertEquals(ClickHouseOption.toKeyValuePairs("ab=12,cd=\\3\\=\\4"), m);
+
+        Assert.assertEquals(ClickHouseOption.toKeyValuePairs("User-Agent=New Client, X-Forward-For=1\\,2"),
+                new HashMap<String, String>() {
+                    {
+                        put("User-Agent", "New Client");
+                        put("X-Forward-For", "1,2");
+                    }
+                });
     }
 }

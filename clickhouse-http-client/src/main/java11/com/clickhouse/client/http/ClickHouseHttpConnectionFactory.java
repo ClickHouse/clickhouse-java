@@ -11,8 +11,8 @@ import com.clickhouse.client.http.config.HttpConnectionProvider;
 public abstract class ClickHouseHttpConnectionFactory {
     public static ClickHouseHttpConnection createConnection(ClickHouseNode server, ClickHouseRequest<?> request,
             ExecutorService executor) throws IOException {
-        HttpConnectionProvider provider = (HttpConnectionProvider) request.getConfig()
-                .getOption(ClickHouseHttpOption.CONNECTION_PROVIDER);
+        HttpConnectionProvider provider = request.getConfig().getOption(ClickHouseHttpOption.CONNECTION_PROVIDER,
+                HttpConnectionProvider.class);
 
         try {
             return provider == null || provider == HttpConnectionProvider.HTTP_URL_CONNECTION

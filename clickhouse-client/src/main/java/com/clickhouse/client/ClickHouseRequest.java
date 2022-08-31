@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
@@ -25,6 +26,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.Optional;
 import java.util.Properties;
+import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 
@@ -40,6 +42,19 @@ import com.clickhouse.client.data.ClickHouseExternalTable;
 @SuppressWarnings("squid:S119")
 public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implements Serializable {
     private static final String TYPE_EXTERNAL_TABLE = "ExternalTable";
+
+    private static final Set<String> SPECIAL_SETTINGS;
+
+    static final String PARAM_SETTING = "setting";
+
+    static {
+        Set<String> set = new HashSet<>();
+        set.add("query_id");
+        set.add(ClickHouseClientOption.SESSION_ID.getKey());
+        set.add(ClickHouseClientOption.SESSION_CHECK.getKey());
+        set.add(ClickHouseClientOption.SESSION_TIMEOUT.getKey());
+        SPECIAL_SETTINGS = Collections.unmodifiableSet(set);
+    }
 
     /**
      * Mutation request.
@@ -317,8 +332,7 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
         @Override
         public Mutation table(String table, String queryId) {
             checkSealed();
-            super.query("INSERT INTO " + ClickHouseChecker.nonBlank(table, "table"), queryId);
-            return this;
+            return super.query("INSERT INTO " + ClickHouseChecker.nonBlank(table, "table"), queryId);
         }
 
         @Override
@@ -403,7 +417,7 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
 
         this.externalTables = new LinkedList<>();
         this.options = options != null ? new HashMap<>(options) : new HashMap<>();
-        this.settings = new LinkedHashMap<>();
+        this.settings = new LinkedHashMap<>(client.getConfig().getCustomSettings());
 
         this.namedParameters = new HashMap<>();
     }
@@ -664,7 +678,7 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
      *
      * @return immutable settings
      */
-    public Map<String, Object> getSettings() {
+    public Map<String, Serializable> getSettings() {
         return Collections.unmodifiableMap(settings);
     }
 
@@ -674,7 +688,7 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
      * @return session id
      */
     public Optional<String> getSessionId() {
-        String sessionId = (String) getConfig().getOption(ClickHouseClientOption.SESSION_ID);
+        String sessionId = getConfig().getStrOption(ClickHouseClientOption.SESSION_ID);
         return ClickHouseChecker.isNullOrEmpty(sessionId) ? Optional.empty() : Optional.of(sessionId);
     }
 
@@ -784,7 +798,6 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
      * @param compressLevel     compression level
      * @return the request itself
      */
-    @SuppressWarnings("unchecked")
     public SelfT compressServerResponse(boolean enable, ClickHouseCompression compressAlgorithm, int compressLevel) {
         checkSealed();
 
@@ -800,11 +813,9 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
             compressLevel = 9;
         }
 
-        option(ClickHouseClientOption.COMPRESS, enable);
-        option(ClickHouseClientOption.COMPRESS_ALGORITHM, compressAlgorithm);
-        option(ClickHouseClientOption.COMPRESS_LEVEL, compressLevel);
-
-        return (SelfT) this;
+        return option(ClickHouseClientOption.COMPRESS, enable)
+                .option(ClickHouseClientOption.COMPRESS_ALGORITHM, compressAlgorithm)
+                .option(ClickHouseClientOption.COMPRESS_LEVEL, compressLevel);
     }
 
     /**
@@ -862,7 +873,6 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
      * @param compressLevel     compression level
      * @return the request itself
      */
-    @SuppressWarnings("unchecked")
     public SelfT decompressClientRequest(boolean enable, ClickHouseCompression compressAlgorithm, int compressLevel) {
         checkSealed();
 
@@ -878,11 +888,9 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
             compressLevel = 9;
         }
 
-        option(ClickHouseClientOption.DECOMPRESS, enable);
-        option(ClickHouseClientOption.DECOMPRESS_ALGORITHM, compressAlgorithm);
-        option(ClickHouseClientOption.DECOMPRESS_LEVEL, compressLevel);
-
-        return (SelfT) this;
+        return option(ClickHouseClientOption.DECOMPRESS, enable)
+                .option(ClickHouseClientOption.DECOMPRESS_ALGORITHM, compressAlgorithm)
+                .option(ClickHouseClientOption.DECOMPRESS_LEVEL, compressLevel);
     }
 
     /**
@@ -950,11 +958,9 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
      * @param format preferred format, {@code null} means reset to default
      * @return the request itself
      */
-    @SuppressWarnings("unchecked")
     public SelfT format(ClickHouseFormat format) {
         checkSealed();
-        option(ClickHouseClientOption.FORMAT, format);
-        return (SelfT) this;
+        return option(ClickHouseClientOption.FORMAT, format);
     }
 
     /**
@@ -988,12 +994,19 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
 
         if (value == null) {
             return removeOption(option);
+        } else if (option != null && option.getValueType() != value.getClass()) {
+            value = ClickHouseOption.fromString(value.toString(), option.getValueType());
         }
 
-        Serializable oldValue = options.put(ClickHouseChecker.nonNull(option, "Option"), value);
+        Serializable oldValue = options.put(ClickHouseChecker.nonNull(option, ClickHouseConfig.PARAM_OPTION), value);
         if (oldValue == null || !oldValue.equals(value)) {
             if (changeListener != null) {
                 changeListener.optionChanged(this, option, oldValue, value);
+            }
+            if (option == ClickHouseClientOption.CUSTOM_SETTINGS) {
+                for (Entry<String, String> entry : ClickHouseOption.toKeyValuePairs(value.toString()).entrySet()) {
+                    set(entry.getKey(), entry.getValue());
+                }
             }
             resetCache();
         }
@@ -1015,7 +1028,9 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
         if (changeListener == null) {
             this.options.clear();
             if (options != null) {
-                this.options.putAll(options);
+                for (Entry<ClickHouseOption, Serializable> e : options.entrySet()) {
+                    option(e.getKey(), e.getValue());
+                }
             }
             resetCache();
         } else {
@@ -1145,7 +1160,7 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
     public SelfT output(ClickHouseOutputStream output) {
         checkSealed();
 
-        this.output = changeProperty(PROP_DATA, this.output,
+        this.output = changeProperty(PROP_OUTPUT, this.output,
                 ClickHouseDeferredValue.of(output, ClickHouseOutputStream.class));
 
         return (SelfT) this;
@@ -1500,7 +1515,9 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
         if (changeListener == null) {
             this.settings.clear();
             if (settings != null) {
-                this.settings.putAll(settings);
+                for (Entry<String, Serializable> e : settings.entrySet()) {
+                    set(e.getKey(), e.getValue());
+                }
             }
             resetCache();
         } else {
@@ -1617,11 +1634,13 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
     public SelfT set(String setting, Serializable value) {
         checkSealed();
 
-        if (value == null) {
+        if (SPECIAL_SETTINGS.contains(ClickHouseChecker.nonBlank(setting, PARAM_SETTING))) {
+            return option(ClickHouseClientOption.fromKey(setting), value);
+        } else if (value == null) {
             return removeSetting(setting);
         }
 
-        Serializable oldValue = settings.put(ClickHouseChecker.nonBlank(setting, "setting"), value);
+        Serializable oldValue = settings.put(setting, value);
         if (oldValue == null || !oldValue.equals(value)) {
             if (changeListener != null) {
                 changeListener.settingChanged(this, setting, oldValue, value);
@@ -1833,10 +1852,19 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
     public SelfT removeOption(ClickHouseOption option) {
         checkSealed();
 
-        Serializable oldValue = options.remove(ClickHouseChecker.nonNull(option, "option"));
+        Serializable oldValue = options.remove(ClickHouseChecker.nonNull(option, ClickHouseConfig.PARAM_OPTION));
         if (oldValue != null) {
             if (changeListener != null) {
                 changeListener.optionChanged(this, option, oldValue, null);
+            }
+
+            if (option == ClickHouseClientOption.CUSTOM_SETTINGS) {
+                for (String key : ClickHouseOption.toKeyValuePairs(oldValue.toString()).keySet()) {
+                    removeSetting(key);
+                    if (SPECIAL_SETTINGS.contains(key)) {
+                        removeOption(ClickHouseClientOption.fromKey(key));
+                    }
+                }
             }
             resetCache();
         }
@@ -1854,7 +1882,7 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
     public SelfT removeSetting(String setting) {
         checkSealed();
 
-        Serializable oldValue = settings.remove(ClickHouseChecker.nonBlank(setting, "setting"));
+        Serializable oldValue = settings.remove(ClickHouseChecker.nonBlank(setting, PARAM_SETTING));
         if (oldValue != null) {
             if (changeListener != null) {
                 changeListener.settingChanged(this, setting, oldValue, null);

@@ -56,7 +56,7 @@ public class ClickHouseCluster extends ClickHouseNodes {
             if (n == null) {
                 continue;
             }
-            autoDiscovery = autoDiscovery || (boolean) n.config.getOption(ClickHouseClientOption.AUTO_DISCOVERY);
+            autoDiscovery = autoDiscovery || n.config.getBoolOption(ClickHouseClientOption.AUTO_DISCOVERY);
             String name = n.getCluster();
             if (!ClickHouseChecker.isNullOrEmpty(name)) {
                 if (ClickHouseChecker.isNullOrEmpty(clusterName)) {

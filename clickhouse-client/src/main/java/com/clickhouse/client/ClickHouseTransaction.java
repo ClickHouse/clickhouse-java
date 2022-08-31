@@ -166,6 +166,7 @@ public final class ClickHouseTransaction implements Serializable {
      * @param server   non-null server of the transaction
      * @param timeout  transaction timeout
      * @param implicit whether it's an implicit transaction or not
+     * @throws ClickHouseException when failed to start transaction
      */
     protected ClickHouseTransaction(ClickHouseNode server, int timeout, boolean implicit) throws ClickHouseException {
         this.server = server;
@@ -286,7 +287,7 @@ public final class ClickHouseTransaction implements Serializable {
             switch (e.getErrorCode()) {
                 case ClickHouseException.ERROR_SESSION_NOT_FOUND:
                     throw new ClickHouseTransactionException(
-                            "Invalid transaction due to session not found or timeed out", e.getCause(), this);
+                            "Invalid transaction due to session not found or timed out", e.getCause(), this);
                 case ClickHouseTransactionException.ERROR_INVALID_TRANSACTION:
                 case ClickHouseTransactionException.ERROR_UNKNOWN_STATUS_OF_TRANSACTION:
                     throw new ClickHouseTransactionException(e.getErrorCode(), e.getMessage(), e.getCause(), this);

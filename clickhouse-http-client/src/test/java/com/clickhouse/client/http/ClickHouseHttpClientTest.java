@@ -11,6 +11,7 @@ import com.clickhouse.client.ClickHouseParameterizedQuery;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseRecord;
 import com.clickhouse.client.ClickHouseRequest;
+import com.clickhouse.client.ClickHouseRequestManager;
 import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.ClickHouseResponseSummary;
 import com.clickhouse.client.ClickHouseVersion;
@@ -32,6 +33,29 @@ public class ClickHouseHttpClientTest extends ClientIntegrationTest {
     @Override
     protected Class<? extends ClickHouseClient> getClientClass() {
         return ClickHouseHttpClient.class;
+    }
+
+    @Test(groups = "integration")
+    @Override
+    public void testSession() throws Exception {
+        super.testSession();
+
+        ClickHouseNode server = getServer();
+        String sessionId = ClickHouseRequestManager.getInstance().createSessionId();
+        try (ClickHouseClient client = getClient()) {
+            ClickHouseRequest<?> req = client.connect(server).session(sessionId, true)
+                    .option(ClickHouseHttpOption.CUSTOM_PARAMS, "session_check=0,max_query_size=1000")
+                    .transaction(null)
+                    .format(ClickHouseFormat.RowBinaryWithNamesAndTypes);
+            try (ClickHouseResponse resp = req.copy()
+                    .query("create temporary table test_session(a String)engine=Memory as select '1'")
+                    .executeAndWait()) {
+                // ignore
+            }
+            try (ClickHouseResponse resp = req.copy().query("select * from test_session").executeAndWait()) {
+                Assert.assertEquals(resp.firstRecord().getValue(0).asInteger(), 1);
+            }
+        }
     }
 
     @Test(groups = { "integration" })

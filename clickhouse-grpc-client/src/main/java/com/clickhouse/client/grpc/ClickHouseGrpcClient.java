@@ -1,6 +1,7 @@
 package com.clickhouse.client.grpc;
 
 import java.io.IOException;
+import java.io.Serializable;
 import java.net.SocketTimeoutException;
 import java.util.Collection;
 import java.util.Collections;
@@ -80,7 +81,7 @@ public class ClickHouseGrpcClient extends AbstractClient<ManagedChannel> {
         builder.setOutputCompressionType(outputCompression.encoding());
 
         // builder.setNextQueryInfo(true);
-        for (Entry<String, Object> s : request.getSettings().entrySet()) {
+        for (Entry<String, Serializable> s : request.getSettings().entrySet()) {
             builder.putSettings(s.getKey(), String.valueOf(s.getValue()));
         }
 

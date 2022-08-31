@@ -1466,6 +1466,31 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
     }
 
     @Test(groups = "integration")
+    public void testSession() throws Exception {
+        ClickHouseNode server = getServer();
+        String sessionId = ClickHouseRequestManager.getInstance().createSessionId();
+        try (ClickHouseClient client = getClient()) {
+            ClickHouseRequest<?> req = client.connect(server).session(sessionId)
+                    .format(ClickHouseFormat.RowBinaryWithNamesAndTypes);
+            try (ClickHouseResponse resp = req.copy()
+                    .query("drop temporary table if exists test_session")
+                    .executeAndWait()) {
+                // ignore
+            }
+            try (ClickHouseResponse resp = req.copy().clearSession().set("session_id", sessionId)
+                    .query("create temporary table test_session(a String)engine=Memory as select '7'")
+                    .executeAndWait()) {
+                // ignore
+            }
+            try (ClickHouseResponse resp = req.copy().clearSession()
+                    .option(ClickHouseClientOption.CUSTOM_SETTINGS, "session_id=" + sessionId)
+                    .query("select * from test_session").executeAndWait()) {
+                Assert.assertEquals(resp.firstRecord().getValue(0).asInteger(), 7);
+            }
+        }
+    }
+
+    @Test(groups = "integration")
     public void testSessionLock() throws Exception {
         ClickHouseNode server = getServer();
         String sessionId = ClickHouseRequestManager.getInstance().createSessionId();

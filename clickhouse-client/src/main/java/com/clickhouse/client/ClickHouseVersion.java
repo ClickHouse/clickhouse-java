@@ -115,7 +115,7 @@ public final class ClickHouseVersion implements Comparable<ClickHouseVersion>, S
                 }
             }
         } else {
-            version = version.trim().toLowerCase();
+            version = version.trim().toLowerCase(Locale.ROOT);
 
             int index = Math.max(version.lastIndexOf(' '), version.lastIndexOf(':'));
             latest = STR_LATEST.equals(index == -1 ? version : version.substring(index + 1));

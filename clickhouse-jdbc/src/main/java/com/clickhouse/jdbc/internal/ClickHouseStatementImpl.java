@@ -444,7 +444,7 @@ public class ClickHouseStatementImpl extends JdbcWrapper
                 log.info("Killed query [%s]: %s", qid, summaries.get(0));
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                log.warn("Interrupted for killing query [%s]", qid);
+                log.warn("Cancellation of query [%s] was interrupted", qid);
             } catch (TimeoutException e) {
                 log.warn("Timed out after waiting %d ms for killing query [%s]",
                         request.getConfig().getConnectionTimeout(), qid);

@@ -17,7 +17,7 @@ final class OkHttpChannelFactoryImpl extends ClickHouseGrpcChannelFactory {
 
         builder = OkHttpChannelBuilder.forAddress(server.getHost(), server.getPort());
 
-        int flowControlWindow = (int) config.getOption(ClickHouseGrpcOption.FLOW_CONTROL_WINDOW);
+        int flowControlWindow = config.getIntOption(ClickHouseGrpcOption.FLOW_CONTROL_WINDOW);
         if (flowControlWindow > 0) {
             builder.flowControlWindow(flowControlWindow);
         }

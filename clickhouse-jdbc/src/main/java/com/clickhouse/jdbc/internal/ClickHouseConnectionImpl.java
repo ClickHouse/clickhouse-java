@@ -28,6 +28,7 @@ import com.clickhouse.client.ClickHouseClient;
 import com.clickhouse.client.ClickHouseClientBuilder;
 import com.clickhouse.client.ClickHouseColumn;
 import com.clickhouse.client.ClickHouseConfig;
+import com.clickhouse.client.ClickHouseDataType;
 import com.clickhouse.client.ClickHouseException;
 import com.clickhouse.client.ClickHouseFormat;
 import com.clickhouse.client.ClickHouseNode;
@@ -66,16 +67,39 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
     private static final String SETTING_READONLY = "readonly";
 
     private static final String SQL_GET_SERVER_INFO = "select currentUser() user, timezone() timezone, version() version, "
-            + "toInt8(ifnull((select value from system.settings where name = 'readonly'), '0')) as readonly, "
-            + "toInt8(ifnull((select value from system.settings where name = '"
-            + ClickHouseTransaction.SETTING_THROW_ON_UNSUPPORTED_QUERY_INSIDE_TRANSACTION
-            + "'), '-1')) as non_transational_query, "
-            + "lower(ifnull((select value from system.settings where name = '"
-            + ClickHouseTransaction.SETTING_WAIT_CHANGES_BECOME_VISIBLE_AFTER_COMMIT_MODE
-            + "'), '')) as commit_wait_mode, "
-            + "toInt8(ifnull((select value from system.settings where name = '"
-            + ClickHouseTransaction.SETTING_IMPLICIT_TRANSACTION + "'), '-1')) as implicit_transaction "
-            + "FORMAT RowBinaryWithNamesAndTypes";
+            + getSetting(SETTING_READONLY, ClickHouseDataType.UInt8) + ", "
+            + getSetting(ClickHouseTransaction.SETTING_THROW_ON_UNSUPPORTED_QUERY_INSIDE_TRANSACTION,
+                    ClickHouseDataType.Int8)
+            + ", "
+            + getSetting(ClickHouseTransaction.SETTING_WAIT_CHANGES_BECOME_VISIBLE_AFTER_COMMIT_MODE,
+                    ClickHouseDataType.String)
+            + ","
+            + getSetting(ClickHouseTransaction.SETTING_IMPLICIT_TRANSACTION, ClickHouseDataType.Int8) + ", "
+            + getSetting("max_insert_block_size", ClickHouseDataType.Int8) + ", "
+            + getSetting("allow_experimental_lightweight_delete", ClickHouseDataType.Int8)
+            + " FORMAT RowBinaryWithNamesAndTypes";
+
+    private static String getSetting(String setting, ClickHouseDataType type) {
+        return getSetting(setting, type, null);
+    }
+
+    private static String getSetting(String setting, ClickHouseDataType type, String defaultValue) {
+        StringBuilder builder = new StringBuilder();
+        if (type == ClickHouseDataType.String) {
+            builder.append("lower(ifnull((select value from system.settings where name = '").append(setting)
+                    .append("'), ");
+        } else {
+            builder.append("to").append(type.name())
+                    .append("(ifnull((select value from system.settings where name = '").append(setting)
+                    .append("'), ");
+        }
+        if (ClickHouseChecker.isNullOrEmpty(defaultValue)) {
+            builder.append(type.getMaxPrecision() > 0 ? (type.isSigned() ? "'-1'" : "'0'") : "''");
+        } else {
+            builder.append('\'').append(defaultValue).append('\'');
+        }
+        return builder.append(")) as ").append(setting).toString();
+    }
 
     protected static ClickHouseRecord getServerInfo(ClickHouseNode node, ClickHouseRequest<?> request,
             boolean createDbIfNotExist) throws SQLException {
@@ -85,7 +109,8 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
             newReq.option(ClickHouseClientOption.DATABASE, "");
         }
         try (ClickHouseResponse response = newReq.option(ClickHouseClientOption.ASYNC, false)
-                .option(ClickHouseClientOption.COMPRESS, false).option(ClickHouseClientOption.DECOMPRESS, false)
+                .option(ClickHouseClientOption.COMPRESS, false)
+                .option(ClickHouseClientOption.DECOMPRESS, false)
                 .option(ClickHouseClientOption.FORMAT, ClickHouseFormat.RowBinaryWithNamesAndTypes)
                 .query(SQL_GET_SERVER_INFO).executeAndWait()) {
             return response.firstRecord();
@@ -94,7 +119,7 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
             if (createDbIfNotExist && sqlExp.getErrorCode() == 81) {
                 String db = node.getDatabase(request.getConfig());
                 try (ClickHouseResponse resp = newReq.use("")
-                        .query(new StringBuilder("create database if not exists `")
+                        .query(new StringBuilder("CREATE DATABASE IF NOT EXISTS `")
                                 .append(ClickHouseUtils.escape(db, '`')).append('`').toString())
                         .executeAndWait()) {
                     return getServerInfo(node, request, false);
@@ -329,7 +354,7 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
         this.rsHoldability = ResultSet.HOLD_CURSORS_OVER_COMMIT;
         if (isTransactionSupported()) {
             this.txIsolation = Connection.TRANSACTION_REPEATABLE_READ;
-            if (jdbcConf.isJdbcCompliant()) {
+            if (jdbcConf.isJdbcCompliant() && !this.readOnly) {
                 this.clientRequest.set(ClickHouseTransaction.SETTING_THROW_ON_UNSUPPORTED_QUERY_INSIDE_TRANSACTION, 0);
                 // .set(ClickHouseTransaction.SETTING_WAIT_CHANGES_BECOME_VISIBLE_AFTER_COMMIT_MODE,
                 // "wait_unknown");
@@ -738,6 +763,9 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
                         resultSetType, resultSetConcurrency, resultSetHoldability);
             } else if (parsedStmt.getStatementType() == StatementType.INSERT) {
                 if (!ClickHouseChecker.isNullOrBlank(parsedStmt.getInput())) {
+                    // ugly workaround for https://github.com/ClickHouse/ClickHouse/issues/39866
+                    // TODO replace JSON and Object('json') types in input function to String
+
                     // insert query using input function
                     ps = new InputBasedPreparedStatement(this,
                             clientRequest.write().query(parsedStmt.getSQL(), newQueryId()),
@@ -863,9 +891,9 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
         if (PROP_APPLICATION_NAME.equals(name)) {
             value = config.getClientName();
         } else if (PROP_CUSTOM_HTTP_HEADERS.equals(name)) {
-            value = (String) config.getOption(ClickHouseHttpOption.CUSTOM_HEADERS);
+            value = config.getStrOption(ClickHouseHttpOption.CUSTOM_HEADERS);
         } else if (PROP_CUSTOM_HTTP_PARAMS.equals(name)) {
-            value = (String) config.getOption(ClickHouseHttpOption.CUSTOM_PARAMS);
+            value = config.getStrOption(ClickHouseHttpOption.CUSTOM_PARAMS);
         }
         return value;
     }
@@ -877,8 +905,8 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
         ClickHouseConfig config = clientRequest.getConfig();
         Properties props = new Properties();
         props.setProperty(PROP_APPLICATION_NAME, config.getClientName());
-        props.setProperty(PROP_CUSTOM_HTTP_HEADERS, (String) config.getOption(ClickHouseHttpOption.CUSTOM_HEADERS));
-        props.setProperty(PROP_CUSTOM_HTTP_PARAMS, (String) config.getOption(ClickHouseHttpOption.CUSTOM_PARAMS));
+        props.setProperty(PROP_CUSTOM_HTTP_HEADERS, config.getStrOption(ClickHouseHttpOption.CUSTOM_HEADERS));
+        props.setProperty(PROP_CUSTOM_HTTP_PARAMS, config.getStrOption(ClickHouseHttpOption.CUSTOM_PARAMS));
         return props;
     }
 

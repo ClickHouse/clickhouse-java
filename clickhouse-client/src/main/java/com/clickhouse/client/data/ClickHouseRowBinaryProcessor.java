@@ -2,6 +2,7 @@ package com.clickhouse.client.data;
 
 import java.io.EOFException;
 import java.io.IOException;
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumMap;
@@ -334,7 +335,10 @@ public class ClickHouseRowBinaryProcessor extends ClickHouseDataProcessor {
                     (v, f, c, o) -> o.write(v.asBinary(c.getPrecision())), ClickHouseDataType.FixedString);
             buildMappings(deserializers, serializers,
                     (r, f, c, i) -> ClickHouseStringValue.of(r, i.readBytes(i.readVarInt())),
-                    (v, f, c, o) -> BinaryStreamUtils.writeString(o, v.asBinary()), ClickHouseDataType.String);
+                    (v, f, c, o) -> BinaryStreamUtils.writeString(o, v.asBinary()), ClickHouseDataType.String,
+                    ClickHouseDataType.JSON, ClickHouseDataType.Object);
+            deserializers.remove(ClickHouseDataType.JSON);
+            deserializers.remove(ClickHouseDataType.Object);
             buildMappings(deserializers, serializers,
                     (r, f, c, i) -> ClickHouseUuidValue.of(r, BinaryStreamUtils.readUuid(i)),
                     (v, f, c, o) -> BinaryStreamUtils.writeUuid(o, v.asUuid()), ClickHouseDataType.UUID);
@@ -543,8 +547,8 @@ public class ClickHouseRowBinaryProcessor extends ClickHouseDataProcessor {
             names[i] = input.readUnicodeString();
         }
 
-        ClickHouseRenameMethod m = (ClickHouseRenameMethod) config
-                .getOption(ClickHouseClientOption.RENAME_RESPONSE_COLUMN);
+        ClickHouseRenameMethod m = config.getOption(ClickHouseClientOption.RENAME_RESPONSE_COLUMN,
+                ClickHouseRenameMethod.class);
         List<ClickHouseColumn> columns = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             columns.add(ClickHouseColumn.of(m.rename(names[i]), input.readUnicodeString()));
@@ -566,7 +570,7 @@ public class ClickHouseRowBinaryProcessor extends ClickHouseDataProcessor {
      * @throws IOException when failed to read columns from input stream
      */
     public ClickHouseRowBinaryProcessor(ClickHouseConfig config, ClickHouseInputStream input,
-            ClickHouseOutputStream output, List<ClickHouseColumn> columns, Map<String, Object> settings)
+            ClickHouseOutputStream output, List<ClickHouseColumn> columns, Map<String, Serializable> settings)
             throws IOException {
         super(config, input, output, columns, settings);
     }

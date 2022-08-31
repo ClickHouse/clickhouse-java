@@ -368,12 +368,12 @@ public class ClickHouseNodes implements ClickHouseNodeManager {
         this.healthCheckFuture = new AtomicReference<>(null);
 
         this.template = template;
-        this.groupSize = (int) template.config.getOption(ClickHouseClientOption.NODE_GROUP_SIZE);
+        this.groupSize = template.config.getIntOption(ClickHouseClientOption.NODE_GROUP_SIZE);
 
         Set<String> tags = new LinkedHashSet<>();
-        ClickHouseNode.parseTags((String) template.config.getOption(ClickHouseClientOption.LOAD_BALANCING_TAGS), tags);
+        ClickHouseNode.parseTags(template.config.getStrOption(ClickHouseClientOption.LOAD_BALANCING_TAGS), tags);
         this.policy = ClickHouseLoadBalancingPolicy
-                .of((String) template.config.getOption(ClickHouseClientOption.LOAD_BALANCING_POLICY));
+                .of(template.config.getStrOption(ClickHouseClientOption.LOAD_BALANCING_POLICY));
         this.selector = tags.isEmpty() ? ClickHouseNodeSelector.EMPTY : ClickHouseNodeSelector.of(null, tags);
         boolean autoDiscovery = false;
         for (ClickHouseNode n : nodes) {
@@ -383,12 +383,12 @@ public class ClickHouseNodes implements ClickHouseNodeManager {
         if (autoDiscovery) {
             this.singleNode = false;
             this.discoveryFuture.getAndUpdate(current -> policy.schedule(current, ClickHouseNodes.this::discover,
-                    (int) template.config.getOption(ClickHouseClientOption.NODE_DISCOVERY_INTERVAL)));
+                    template.config.getIntOption(ClickHouseClientOption.NODE_DISCOVERY_INTERVAL)));
         } else {
             this.singleNode = nodes.size() == 1;
         }
         this.healthCheckFuture.getAndUpdate(current -> policy.schedule(current, ClickHouseNodes.this::check,
-                (int) template.config.getOption(ClickHouseClientOption.HEALTH_CHECK_INTERVAL)));
+                template.config.getIntOption(ClickHouseClientOption.HEALTH_CHECK_INTERVAL)));
     }
 
     protected void queryClusterNodes(Collection<ClickHouseNode> seeds, Collection<ClickHouseNode> allNodes,
@@ -461,7 +461,7 @@ public class ClickHouseNodes implements ClickHouseNodeManager {
                 }
 
                 String query = policy.getQueryForNonLocalNodes();
-                int limit = (int) template.config.getOption(ClickHouseClientOption.NODE_DISCOVERY_LIMIT);
+                int limit = template.config.getIntOption(ClickHouseClientOption.NODE_DISCOVERY_LIMIT);
                 if (limit > 0) {
                     query = query + " limit " + limit;
                 }
@@ -551,7 +551,7 @@ public class ClickHouseNodes implements ClickHouseNodeManager {
 
         Set<ClickHouseNode> list = new LinkedHashSet<>();
         long currentTime = System.currentTimeMillis();
-        boolean checkAll = (boolean) template.config.getOption(ClickHouseClientOption.CHECK_ALL_NODES);
+        boolean checkAll = template.config.getBoolOption(ClickHouseClientOption.CHECK_ALL_NODES);
         int healthyNodeStartIndex = -1;
         lock.readLock().lock();
         // TODO:

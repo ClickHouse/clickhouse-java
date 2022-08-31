@@ -561,7 +561,7 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
         if (index < 0) {
             normalized = new StringBuilder()
                     .append((defaultProtocol != null ? defaultProtocol : ClickHouseProtocol.ANY).name()
-                            .toLowerCase())
+                            .toLowerCase(Locale.ROOT))
                     .append(SCHEME_DELIMITER)
                     .append(uri.trim()).toString();
         } else {
@@ -965,7 +965,7 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
         this.config = new ClickHouseConfig(ClickHouseConfig.toClientOptions(options), credentials, null, null);
         this.manager = new AtomicReference<>(null);
 
-        StringBuilder builder = new StringBuilder().append(protocol.name().toLowerCase());
+        StringBuilder builder = new StringBuilder().append(protocol.name().toLowerCase(Locale.ROOT));
         if (config.isSsl()) {
             builder.append('s');
         }
