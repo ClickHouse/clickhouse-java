@@ -52,6 +52,11 @@ public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
     private static final byte[] HEADER_BINARY_ENCODING = "Content-Transfer-Encoding: binary\r\n\r\n"
             .getBytes(StandardCharsets.US_ASCII);
 
+    private static final byte[] DOUBLE_DASH = new byte[] { '-', '-' };
+    private static final byte[] END_OF_NAME = new byte[] { '"', '\r', '\n' };
+    private static final byte[] LINE_PREFIX = new byte[] { '\r', '\n', '-', '-' };
+    private static final byte[] LINE_SUFFIX = new byte[] { '\r', '\n' };
+
     private static final byte[] SUFFIX_QUERY = "query\"\r\n\r\n".getBytes(StandardCharsets.US_ASCII);
     private static final byte[] SUFFIX_FORMAT = "_format\"\r\n\r\n".getBytes(StandardCharsets.US_ASCII);
     private static final byte[] SUFFIX_STRUCTURE = "_structure\"\r\n\r\n".getBytes(StandardCharsets.US_ASCII);
@@ -237,20 +242,18 @@ public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
                         : ClickHouseClient.getRequestOutputStream(c, conn.getOutputStream(), null))) {
             byte[] sqlBytes = hasFile ? new byte[0] : sql.getBytes(StandardCharsets.UTF_8);
             if (boundary != null) {
-                byte[] linePrefix = new byte[] { '\r', '\n', '-', '-' };
-                byte[] lineSuffix = new byte[] { '\r', '\n' };
-                out.writeBytes(linePrefix);
+                out.writeBytes(LINE_PREFIX);
                 out.writeBytes(boundary);
-                out.writeBytes(lineSuffix);
+                out.writeBytes(LINE_SUFFIX);
                 out.writeBytes(HEADER_CONTENT_DISPOSITION);
                 out.writeBytes(SUFFIX_QUERY);
                 out.writeBytes(sqlBytes);
                 for (ClickHouseExternalTable t : tables) {
                     byte[] tableName = t.getName().getBytes(StandardCharsets.UTF_8);
                     for (int i = 0; i < 3; i++) {
-                        out.writeBytes(linePrefix);
+                        out.writeBytes(LINE_PREFIX);
                         out.writeBytes(boundary);
-                        out.writeBytes(lineSuffix);
+                        out.writeBytes(LINE_SUFFIX);
                         out.writeBytes(HEADER_CONTENT_DISPOSITION);
                         out.writeBytes(tableName);
                         if (i == 0) {
@@ -262,7 +265,7 @@ public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
                         } else {
                             out.writeBytes(SUFFIX_FILENAME);
                             out.writeBytes(tableName);
-                            out.writeBytes(new byte[] { '"', '\r', '\n' });
+                            out.writeBytes(END_OF_NAME);
                             break;
                         }
                     }
@@ -270,10 +273,10 @@ public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
                     out.writeBytes(HEADER_BINARY_ENCODING);
                     ClickHouseInputStream.pipe(t.getContent(), out, c.getWriteBufferSize());
                 }
-                out.writeBytes(linePrefix);
+                out.writeBytes(LINE_PREFIX);
                 out.writeBytes(boundary);
-                out.writeBytes(new byte[] { '-', '-' });
-                out.writeBytes(lineSuffix);
+                out.writeBytes(DOUBLE_DASH);
+                out.writeBytes(LINE_SUFFIX);
             } else {
                 out.writeBytes(sqlBytes);
                 if (data != null && data.available() > 0) {
@@ -293,7 +296,7 @@ public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
 
     @Override
     public boolean ping(int timeout) {
-        String response = (String) config.getOption(ClickHouseHttpOption.DEFAULT_RESPONSE);
+        String response = config.getStrOption(ClickHouseHttpOption.DEFAULT_RESPONSE);
         String url = null;
         HttpURLConnection c = null;
         try {

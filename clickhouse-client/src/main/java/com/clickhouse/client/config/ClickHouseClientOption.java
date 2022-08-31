@@ -26,6 +26,10 @@ public enum ClickHouseClientOption implements ClickHouseOption {
     AUTO_DISCOVERY("auto_discovery", false,
             "Whether the client should discover more nodes from system tables and/or clickhouse-keeper/zookeeper."),
     /**
+     * Custom server settings for all queries.
+     */
+    CUSTOM_SETTINGS("custom_settings", "", "Custom server settings for all queries."),
+    /**
      * Load balancing policy.
      */
     LOAD_BALANCING_POLICY("load_balancing_policy", "",

@@ -324,7 +324,7 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
 
     @Override
     public boolean ping(int timeout) {
-        String response = (String) config.getOption(ClickHouseHttpOption.DEFAULT_RESPONSE);
+        String response = config.getStrOption(ClickHouseHttpOption.DEFAULT_RESPONSE);
         try {
             HttpResponse<String> r = httpClient.send(pingRequest, HttpResponse.BodyHandlers.ofString());
             return r.statusCode() == HttpURLConnection.HTTP_OK && response.equals(r.body());

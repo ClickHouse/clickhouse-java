@@ -2,6 +2,7 @@ package com.clickhouse.client;
 
 import java.io.EOFException;
 import java.io.IOException;
+import java.io.Serializable;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.Collections;
@@ -279,7 +280,7 @@ public abstract class ClickHouseDataProcessor {
      * @throws IOException when failed to read columns from input stream
      */
     protected ClickHouseDataProcessor(ClickHouseConfig config, ClickHouseInputStream input,
-            ClickHouseOutputStream output, List<ClickHouseColumn> columns, Map<String, Object> settings)
+            ClickHouseOutputStream output, List<ClickHouseColumn> columns, Map<String, Serializable> settings)
             throws IOException {
         this.config = ClickHouseChecker.nonNull(config, "config");
         if (input == null && output == null) {

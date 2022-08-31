@@ -7,6 +7,7 @@ import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.io.Serializable;
 import java.io.UncheckedIOException;
 import java.net.ConnectException;
 import java.nio.charset.StandardCharsets;
@@ -50,6 +51,7 @@ public class ClickHouseCommandLine implements AutoCloseable {
     public static final String DEFAULT_CLI_ARG_VERSION = "--version";
     public static final String DEFAULT_CLICKHOUSE_CLI_PATH = "clickhouse";
     public static final String DEFAULT_CLIENT_OPTION = "client";
+    public static final String DEFAULT_LOCAL_OPTION = "local";
     public static final String DEFAULT_DOCKER_CLI_PATH = "docker";
     public static final String DEFAULT_DOCKER_IMAGE = "clickhouse/clickhouse-server";
 
@@ -90,7 +92,7 @@ public class ClickHouseCommandLine implements AutoCloseable {
 
     static void dockerCommand(ClickHouseConfig config, String hostDir, String containerDir, int timeout,
             List<String> commands) {
-        String cli = (String) config.getOption(ClickHouseCommandLineOption.DOCKER_CLI_PATH);
+        String cli = config.getStrOption(ClickHouseCommandLineOption.DOCKER_CLI_PATH);
         if (ClickHouseChecker.isNullOrBlank(cli)) {
             cli = DEFAULT_DOCKER_CLI_PATH;
         }
@@ -100,11 +102,11 @@ public class ClickHouseCommandLine implements AutoCloseable {
             commands.add(cli);
         }
 
-        String img = (String) config.getOption(ClickHouseCommandLineOption.CLICKHOUSE_DOCKER_IMAGE);
+        String img = config.getStrOption(ClickHouseCommandLineOption.CLICKHOUSE_DOCKER_IMAGE);
         if (ClickHouseChecker.isNullOrBlank(img)) {
             img = DEFAULT_DOCKER_IMAGE;
         }
-        String str = (String) config.getOption(ClickHouseCommandLineOption.CLI_CONTAINER_ID);
+        String str = config.getStrOption(ClickHouseCommandLineOption.CLI_CONTAINER_ID);
         if (!ClickHouseChecker.isNullOrBlank(str)) {
             if (!check(timeout, cli, "exec", str, DEFAULT_CLICKHOUSE_CLI_PATH, DEFAULT_CLIENT_OPTION,
                     DEFAULT_CLI_ARG_VERSION)) {
@@ -142,10 +144,10 @@ public class ClickHouseCommandLine implements AutoCloseable {
         final ClickHouseNode server = request.getServer();
         final int timeout = config.getSocketTimeout();
 
-        String hostDir = (String) config.getOption(ClickHouseCommandLineOption.CLI_WORK_DIRECTORY);
+        String hostDir = config.getStrOption(ClickHouseCommandLineOption.CLI_WORK_DIRECTORY);
         hostDir = ClickHouseUtils.normalizeDirectory(
                 ClickHouseChecker.isNullOrBlank(hostDir) ? System.getProperty("java.io.tmpdir") : hostDir);
-        String containerDir = (String) config.getOption(ClickHouseCommandLineOption.CLI_CONTAINER_DIRECTORY);
+        String containerDir = config.getStrOption(ClickHouseCommandLineOption.CLI_CONTAINER_DIRECTORY);
         if (ClickHouseChecker.isNullOrBlank(containerDir)) {
             containerDir = "/tmp/";
         } else {
@@ -153,7 +155,7 @@ public class ClickHouseCommandLine implements AutoCloseable {
         }
 
         List<String> commands = new LinkedList<>();
-        String cli = (String) config.getOption(ClickHouseCommandLineOption.CLICKHOUSE_CLI_PATH);
+        String cli = config.getStrOption(ClickHouseCommandLineOption.CLICKHOUSE_CLI_PATH);
         if (ClickHouseChecker.isNullOrBlank(cli)) {
             cli = DEFAULT_CLICKHOUSE_CLI_PATH;
         }
@@ -177,8 +179,8 @@ public class ClickHouseCommandLine implements AutoCloseable {
         if (!ClickHouseChecker.isNullOrBlank(str)) {
             commands.add("--database=".concat(str));
         }
-        str = (String) config.getOption(ClickHouseCommandLineOption.CLI_CONFIG_FILE);
-        if ((boolean) config.getOption(ClickHouseCommandLineOption.USE_CLI_CONFIG)
+        str = config.getStrOption(ClickHouseCommandLineOption.CLI_CONFIG_FILE);
+        if (config.getBoolOption(ClickHouseCommandLineOption.USE_CLI_CONFIG)
                 && !ClickHouseChecker.isNullOrBlank(str) && Files.exists(Paths.get(str))) {
             commands.add("--config-file=".concat(str));
         } else {
@@ -226,7 +228,7 @@ public class ClickHouseCommandLine implements AutoCloseable {
             commands.add("--structure=".concat(table.getStructure()));
         }
 
-        Map<String, Object> settings = request.getSettings();
+        Map<String, Serializable> settings = request.getSettings();
         Object value = settings.get("max_result_rows");
         if (value instanceof Number) {
             long maxRows = ((Number) value).longValue();
@@ -242,14 +244,14 @@ public class ClickHouseCommandLine implements AutoCloseable {
         if (value != null) {
             commands.add("--readonly=".concat(value.toString()));
         }
-        if ((boolean) config.getOption(ClickHouseCommandLineOption.USE_PROFILE_EVENTS)) {
+        if (config.getBoolOption(ClickHouseCommandLineOption.USE_PROFILE_EVENTS)) {
             commands.add("--print-profile-events");
             commands.add("--profile-events-delay-ms=-1");
         }
 
         log.debug("Query: %s", str);
         ProcessBuilder builder = new ProcessBuilder(commands);
-        String workDirectory = (String) config.getOption(
+        String workDirectory = config.getStrOption(
                 ClickHouseCommandLineOption.CLI_WORK_DIRECTORY);
         if (!ClickHouseChecker.isNullOrBlank(workDirectory)) {
             Path p = Paths.get(workDirectory);

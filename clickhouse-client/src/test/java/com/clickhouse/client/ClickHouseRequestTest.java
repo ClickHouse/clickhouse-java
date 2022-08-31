@@ -251,6 +251,17 @@ public class ClickHouseRequestTest {
     }
 
     @Test(groups = { "unit" })
+    public void testNamedParameters() {
+        // String sql = "select xxx from xxx settings max_execution_time =
+        // :max_execution_time";
+        ClickHouseRequest<?> request = ClickHouseClient.newInstance().connect(ClickHouseNode.builder().build());
+
+        String sql = "select :a,:b,:a";
+        request.query(sql).params("1", "2");
+        Assert.assertEquals(request.getStatements(false).get(0), "select 1,2,1");
+    }
+
+    @Test(groups = { "unit" })
     public void testOptions() {
         ClickHouseRequest<?> request = ClickHouseClient.newInstance().connect(ClickHouseNode.builder().build());
 
@@ -371,6 +382,32 @@ public class ClickHouseRequestTest {
         Assert.assertEquals(request.getSessionId(), Optional.empty());
         Assert.assertEquals(request.getConfig().isSessionCheck(), false);
         Assert.assertEquals(request.getConfig().getSessionTimeout(), 0);
+
+        request.clearSession();
+        Assert.assertEquals(request.getSessionId(), Optional.empty());
+        Assert.assertEquals(request.getConfig().isSessionCheck(), false);
+        Assert.assertEquals(request.getConfig().getSessionTimeout(), 0);
+        request.set("session_id", sessionId);
+        request.set("session_check", true);
+        request.set("session_timeout", "7");
+        Assert.assertEquals(request.getSessionId().get(), sessionId);
+        Assert.assertEquals(request.getConfig().isSessionCheck(), true);
+        Assert.assertEquals(request.getConfig().getSessionTimeout(), 7);
+        Assert.assertTrue(request.getSettings().isEmpty());
+        request.removeSetting("session_id");
+        Assert.assertEquals(request.getSessionId().get(), sessionId);
+
+        request.clearSession();
+        Assert.assertEquals(request.getSessionId(), Optional.empty());
+        Assert.assertEquals(request.getConfig().isSessionCheck(), false);
+        Assert.assertEquals(request.getConfig().getSessionTimeout(), 0);
+        request.option(ClickHouseClientOption.SESSION_CHECK, true);
+        request.option(ClickHouseClientOption.SESSION_TIMEOUT, 3);
+        request.option(ClickHouseClientOption.CUSTOM_SETTINGS,
+                "session_check=false,a=1,session_id=" + sessionId + ",session_timeout=5");
+        Assert.assertEquals(request.getSessionId().get(), sessionId);
+        Assert.assertEquals(request.getConfig().isSessionCheck(), false);
+        Assert.assertEquals(request.getConfig().getSessionTimeout(), 5);
     }
 
     @Test(groups = { "unit" })

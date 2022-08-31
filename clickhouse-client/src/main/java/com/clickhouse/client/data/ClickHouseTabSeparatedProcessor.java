@@ -2,6 +2,7 @@ package com.clickhouse.client.data;
 
 import java.io.EOFException;
 import java.io.IOException;
+import java.io.Serializable;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -296,8 +297,8 @@ public class ClickHouseTabSeparatedProcessor extends ClickHouseDataProcessor {
             types = toStringArray(typesFragment, getTextHandler().colDelimiter);
         }
 
-        ClickHouseRenameMethod m = (ClickHouseRenameMethod) config
-                .getOption(ClickHouseClientOption.RENAME_RESPONSE_COLUMN);
+        ClickHouseRenameMethod m = config.getOption(ClickHouseClientOption.RENAME_RESPONSE_COLUMN,
+                ClickHouseRenameMethod.class);
         List<ClickHouseColumn> list = new ArrayList<>(cols.length);
         for (int i = 0; i < cols.length; i++) {
             list.add(ClickHouseColumn.of(m.rename(cols[i]), types == null ? "Nullable(String)" : types[i]));
@@ -307,7 +308,7 @@ public class ClickHouseTabSeparatedProcessor extends ClickHouseDataProcessor {
     }
 
     public ClickHouseTabSeparatedProcessor(ClickHouseConfig config, ClickHouseInputStream input,
-            ClickHouseOutputStream output, List<ClickHouseColumn> columns, Map<String, Object> settings)
+            ClickHouseOutputStream output, List<ClickHouseColumn> columns, Map<String, Serializable> settings)
             throws IOException {
         super(config, input, output, columns, settings);
     }

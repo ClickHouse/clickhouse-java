@@ -1,6 +1,7 @@
 package com.clickhouse.client.data;
 
 import java.io.IOException;
+import java.io.Serializable;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -33,7 +34,7 @@ public class ClickHouseStreamResponse implements ClickHouseResponse {
     }
 
     public static ClickHouseResponse of(ClickHouseConfig config, ClickHouseInputStream input,
-            Map<String, Object> settings) throws IOException {
+            Map<String, Serializable> settings) throws IOException {
         return of(config, input, settings, null, null);
     }
 
@@ -43,12 +44,12 @@ public class ClickHouseStreamResponse implements ClickHouseResponse {
     }
 
     public static ClickHouseResponse of(ClickHouseConfig config, ClickHouseInputStream input,
-            Map<String, Object> settings, List<ClickHouseColumn> columns) throws IOException {
+            Map<String, Serializable> settings, List<ClickHouseColumn> columns) throws IOException {
         return of(config, input, settings, columns, null);
     }
 
     public static ClickHouseResponse of(ClickHouseConfig config, ClickHouseInputStream input,
-            Map<String, Object> settings, List<ClickHouseColumn> columns, ClickHouseResponseSummary summary)
+            Map<String, Serializable> settings, List<ClickHouseColumn> columns, ClickHouseResponseSummary summary)
             throws IOException {
         return new ClickHouseStreamResponse(config, input, settings, columns, summary);
     }
@@ -62,7 +63,7 @@ public class ClickHouseStreamResponse implements ClickHouseResponse {
     private boolean closed;
 
     protected ClickHouseStreamResponse(ClickHouseConfig config, ClickHouseInputStream input,
-            Map<String, Object> settings, List<ClickHouseColumn> columns, ClickHouseResponseSummary summary)
+            Map<String, Serializable> settings, List<ClickHouseColumn> columns, ClickHouseResponseSummary summary)
             throws IOException {
         if (config == null || input == null) {
             throw new IllegalArgumentException("Non-null configuration and input stream are required");

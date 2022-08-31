@@ -1,5 +1,7 @@
 package com.clickhouse.client;
 
+import java.util.Locale;
+
 /**
  * All formats supported by ClickHouse. More information at:
  * https://clickhouse.com/docs/en/interfaces/formats/.
@@ -98,7 +100,7 @@ public enum ClickHouseFormat {
 
         int index = 0;
         if (file != null && (index = file.lastIndexOf('.')) > 0) {
-            String ext = file.substring(index + 1).toLowerCase();
+            String ext = file.substring(index + 1).toLowerCase(Locale.ROOT);
             switch (ext) {
                 case "arrow":
                     format = Arrow;

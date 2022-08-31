@@ -42,7 +42,7 @@ public final class ClickHouseUtils {
     private static final String HOME_DIR;
 
     static {
-        HOME_DIR = System.getProperty("os.name").toLowerCase().contains("windows")
+        HOME_DIR = System.getProperty("os.name").toLowerCase(Locale.ROOT).contains("windows")
                 ? Paths.get(System.getenv("APPDATA"), "clickhouse").toFile().getAbsolutePath()
                 : Paths.get(System.getProperty("user.home"), ".clickhouse").toFile().getAbsolutePath();
     }
@@ -725,7 +725,11 @@ public final class ClickHouseUtils {
      * 
      * @param str string
      * @return non-null map containing extracted key value pairs
+     * @deprecated will be removed in v0.3.3, please use
+     *             {@link com.clickhouse.client.config.ClickHouseOption#toKeyValuePairs(String)}
+     *             instead
      */
+    @Deprecated
     public static Map<String, String> getKeyValuePairs(String str) {
         if (str == null || str.isEmpty()) {
             return Collections.emptyMap();

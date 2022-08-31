@@ -13,7 +13,8 @@ public class ClickHouseConfigTest {
     @Test(groups = { "unit" })
     public void testDefaultValues() {
         ClickHouseConfig config = new ClickHouseConfig(null, null, null, null, null);
-        Assert.assertEquals(config.getClientName(), ClickHouseClientOption.CLIENT_NAME.getEffectiveDefaultValue());
+        Assert.assertEquals(config.getClientName(),
+                ClickHouseClientOption.CLIENT_NAME.getEffectiveDefaultValue());
         Assert.assertEquals(config.getDatabase(), ClickHouseDefaults.DATABASE.getEffectiveDefaultValue());
 
         Assert.assertEquals(config.getOption(ClickHouseDefaults.CLUSTER),
@@ -42,6 +43,9 @@ public class ClickHouseConfigTest {
         Integer weight = -99;
         String user = "sa";
         String password = "welcome";
+        Map<String, String> settings = new HashMap<>();
+        settings.put("session_check", "1");
+        settings.put("max_execution_time", "300");
 
         Map<ClickHouseOption, Serializable> options = new HashMap<>();
         options.put(ClickHouseClientOption.CLIENT_NAME, clientName);
@@ -52,6 +56,7 @@ public class ClickHouseConfigTest {
         options.put(ClickHouseDefaults.WEIGHT, weight);
         options.put(ClickHouseDefaults.USER, "useless");
         options.put(ClickHouseDefaults.PASSWORD, "useless");
+        options.put(ClickHouseClientOption.CUSTOM_SETTINGS, "session_check = 1, max_execution_time = 300");
 
         Object metricRegistry = new Object();
 
@@ -63,6 +68,7 @@ public class ClickHouseConfigTest {
         Assert.assertEquals(config.getOption(ClickHouseDefaults.HOST), host);
         Assert.assertEquals(config.getOption(ClickHouseDefaults.PORT), port);
         Assert.assertEquals(config.getOption(ClickHouseDefaults.WEIGHT), weight);
+        Assert.assertEquals(config.getCustomSettings(), settings);
 
         ClickHouseCredentials credentials = config.getDefaultCredentials();
         Assert.assertEquals(credentials.useAccessToken(), false);
