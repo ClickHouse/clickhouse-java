@@ -2,10 +2,13 @@ package com.clickhouse.jdbc.internal;
 
 import java.sql.SQLException;
 import java.sql.Savepoint;
+import java.util.Properties;
 
+import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.jdbc.ClickHouseConnection;
 import com.clickhouse.jdbc.ClickHouseStatement;
 import com.clickhouse.jdbc.JdbcIntegrationTest;
+import com.clickhouse.jdbc.parser.ClickHouseSqlStatement;
 
 import org.testng.Assert;
 import org.testng.annotations.Test;
@@ -192,6 +195,38 @@ public class ClickHouseConnectionImplTest extends JdbcIntegrationTest {
             Assert.assertEquals(newTx.getQueries().size(), 0);
             Assert.assertEquals(newTx.getSavepoints().size(), 0);
             Assert.assertEquals(newTx.tx, conn.getTransaction());
+        }
+    }
+
+    @Test(groups = "integration")
+    public void testParse() throws SQLException {
+        Properties props = new Properties();
+        String sql = "delete from table where column=1";
+        boolean supportsLightWeightDelete = false;
+        try (ClickHouseConnection conn = newConnection(props)) {
+            ClickHouseSqlStatement[] stmts = conn.parse(sql, conn.getConfig(), null);
+            Assert.assertEquals(stmts.length, 1);
+            Assert.assertEquals(stmts[0].getSQL(),
+                    "ALTER TABLE `table` DELETE where column=1 SETTINGS mutations_sync=1");
+            if (conn.getServerVersion().check("[22.8,)")) {
+                supportsLightWeightDelete = true;
+            }
+        }
+
+        if (!supportsLightWeightDelete) {
+            return;
+        }
+
+        props.setProperty("custom_settings", "allow_experimental_lightweight_delete=1");
+        try (ClickHouseConnection conn = newConnection(props)) {
+            ClickHouseSqlStatement[] stmts = conn.parse(sql, conn.getConfig(), null);
+            Assert.assertEquals(stmts.length, 1);
+            Assert.assertEquals(stmts[0].getSQL(),
+                    "ALTER TABLE `table` DELETE where column=1 SETTINGS mutations_sync=1");
+
+            stmts = conn.parse(sql, conn.getConfig(), conn.unwrap(ClickHouseRequest.class).getSettings());
+            Assert.assertEquals(stmts.length, 1);
+            Assert.assertEquals(stmts[0].getSQL(), sql);
         }
     }
 

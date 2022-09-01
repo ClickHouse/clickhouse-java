@@ -204,7 +204,7 @@ public class ClickHouseStatementImpl extends JdbcWrapper
     }
 
     protected ClickHouseSqlStatement parseSqlStatements(String sql) {
-        parsedStmts = connection.parse(sql, getConfig());
+        parsedStmts = connection.parse(sql, getConfig(), request.getSettings());
 
         if (parsedStmts == null || parsedStmts.length == 0) {
             // should never happen
@@ -567,7 +567,7 @@ public class ClickHouseStatementImpl extends JdbcWrapper
     public void addBatch(String sql) throws SQLException {
         ensureOpen();
 
-        for (ClickHouseSqlStatement s : connection.parse(sql, getConfig())) {
+        for (ClickHouseSqlStatement s : connection.parse(sql, getConfig(), request.getSettings())) {
             this.batchStmts.add(s);
         }
     }

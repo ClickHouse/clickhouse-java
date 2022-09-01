@@ -413,13 +413,15 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
         this.server = (Function<ClickHouseNodeSelector, ClickHouseNode> & Serializable) server;
         this.serverRef = ref == null ? new AtomicReference<>(null) : ref;
         this.txRef = new AtomicReference<>(null);
-        this.sealed = sealed;
 
         this.externalTables = new LinkedList<>();
-        this.options = options != null ? new HashMap<>(options) : new HashMap<>();
+        this.options = new HashMap<>();
         this.settings = new LinkedHashMap<>(client.getConfig().getCustomSettings());
+        options(options);
 
         this.namedParameters = new HashMap<>();
+
+        this.sealed = sealed;
     }
 
     protected <T> T changeProperty(String property, T oldValue, T newValue) {
@@ -671,6 +673,47 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
         }
 
         return preparedQuery;
+    }
+
+    /**
+     * Gets typed setting value.
+     *
+     * @param <T>       type of the setting value
+     * @param setting   non-null setting key
+     * @param valueType non-null value type
+     * @return non-null value
+     */
+    public <T extends Serializable> T getSetting(String setting, Class<T> valueType) {
+        Serializable value = settings.get(ClickHouseChecker.nonBlank(setting, PARAM_SETTING));
+        return ClickHouseOption.fromString(value == null ? "" : value.toString(), valueType);
+    }
+
+    /**
+     * Gets typed setting value.
+     *
+     * @param <T>          type of the setting value
+     * @param setting      non-null setting key
+     * @param defaultValue non-null default value
+     * @return non-null value
+     */
+    public <T extends Serializable> T getSetting(String setting, T defaultValue) {
+        Serializable value = settings.get(ClickHouseChecker.nonBlank(setting, PARAM_SETTING));
+        ClickHouseChecker.nonNull(defaultValue, "defaultValue");
+        if (value == null) {
+            return defaultValue;
+        }
+
+        return (T) ClickHouseOption.fromString(value.toString(), defaultValue.getClass());
+    }
+
+    /**
+     * Checks if a setting has been defined or not.
+     *
+     * @param setting setting
+     * @return true if the setting has been defined; false otherwise
+     */
+    public boolean hasSetting(String setting) {
+        return settings.containsKey(setting);
     }
 
     /**
@@ -1085,6 +1128,26 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
         }
 
         return (SelfT) this;
+    }
+
+    /**
+     * Checks if a option has been defined or not.
+     *
+     * @param option option
+     * @return true if the option has been defined; false otherwise
+     */
+    public boolean hasOption(ClickHouseOption option) {
+        return options.containsKey(option);
+    }
+
+    /**
+     * Checks if a option has been defined or not.
+     *
+     * @param key key of the option
+     * @return true if the option has been defined; false otherwise
+     */
+    public boolean hasOption(String key) {
+        return options.containsKey(ClickHouseClientOption.fromKey(key));
     }
 
     /**
@@ -1503,7 +1566,8 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
     }
 
     /**
-     * Sets all server settings.
+     * Sets all server settings. When {@code settings} is null or empty, it's same
+     * as {@link #clearSettings()}.
      *
      * @param settings settings
      * @return the request itself
@@ -1523,7 +1587,7 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
         } else {
             Map<String, Serializable> m = new HashMap<>();
             m.putAll(this.settings);
-            if (options != null) {
+            if (settings != null) {
                 for (Entry<String, Serializable> e : settings.entrySet()) {
                     set(e.getKey(), e.getValue());
                     m.remove(e.getKey());
@@ -1531,6 +1595,29 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
             }
             for (String s : m.keySet()) {
                 removeSetting(s);
+            }
+        }
+
+        return (SelfT) this;
+    }
+
+    /**
+     * Clears server settings.
+     *
+     * @return the request itself
+     */
+    @SuppressWarnings("unchecked")
+    public SelfT clearSettings() {
+        checkSealed();
+
+        if (!this.settings.isEmpty()) {
+            if (changeListener == null) {
+                this.settings.clear();
+                resetCache();
+            } else {
+                for (Iterator<String> it = settings.keySet().iterator(); it.hasNext();) {
+                    removeSetting(it.next());
+                }
             }
         }
 
@@ -1911,11 +1998,11 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
             this.options.clear();
             this.settings.clear();
         } else {
-            for (ClickHouseOption o : this.options.keySet().toArray(new ClickHouseOption[0])) {
-                removeOption(o);
+            for (Iterator<ClickHouseOption> it = this.options.keySet().iterator(); it.hasNext();) {
+                removeOption(it.next());
             }
-            for (String s : this.settings.keySet().toArray(new String[0])) {
-                removeSetting(s);
+            for (Iterator<String> it = this.settings.keySet().iterator(); it.hasNext();) {
+                removeSetting(it.next());
             }
         }
         this.input = changeProperty(PROP_DATA, this.input, null);
