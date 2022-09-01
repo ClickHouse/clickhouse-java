@@ -8,6 +8,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.TimeZone;
 
+import com.clickhouse.client.ClickHouseChecker;
+
 /**
  * This defines a configuration option. To put it in a nutshell, an option is
  * composed of key, default value(which implies type of the value) and
@@ -71,35 +73,39 @@ public interface ClickHouseOption extends Serializable {
      * @param <T>   type of the value
      * @param value value in string format
      * @param clazz non-null class of the value
-     * @return typed value
+     * @return non-null typed value
      */
     @SuppressWarnings("unchecked")
-    static <T extends Serializable> T fromString(String value, Class<T> clazz) {
-        if (value == null || clazz == null) {
-            throw new IllegalArgumentException("Non-null value and class are required");
+    public static <T extends Serializable> T fromString(String value, Class<T> clazz) {
+        if (clazz == null) {
+            throw new IllegalArgumentException("Non-null value type is required");
+        } else if (value == null) {
+            value = "";
         }
 
         T result;
         if (clazz == boolean.class || clazz == Boolean.class) {
             final Boolean boolValue;
-            if ("1".equals(value) || "0".equals(value)) {
+            if (value.isEmpty()) {
+                boolValue = Boolean.FALSE;
+            } else if (value.length() == 1) {
                 boolValue = "1".equals(value);
             } else {
                 boolValue = Boolean.valueOf(value);
             }
-            result = clazz.cast(boolValue);
+            result = (T) boolValue;
         } else if (byte.class == clazz || Byte.class == clazz) {
-            result = clazz.cast(value.isEmpty() ? Byte.valueOf((byte) 0) : Byte.valueOf(value));
+            result = (T) (value.isEmpty() ? Byte.valueOf((byte) 0) : Byte.valueOf(value));
         } else if (short.class == clazz || Short.class == clazz) {
-            result = clazz.cast(value.isEmpty() ? Short.valueOf((short) 0) : Short.valueOf(value));
+            result = (T) (value.isEmpty() ? Short.valueOf((short) 0) : Short.valueOf(value));
         } else if (int.class == clazz || Integer.class == clazz) {
-            result = clazz.cast(value.isEmpty() ? Integer.valueOf(0) : Integer.valueOf(value));
+            result = (T) (value.isEmpty() ? Integer.valueOf(0) : Integer.valueOf(value));
         } else if (long.class == clazz || Long.class == clazz) {
-            result = clazz.cast(value.isEmpty() ? Long.valueOf(0L) : Long.valueOf(value));
+            result = (T) (value.isEmpty() ? Long.valueOf(0L) : Long.valueOf(value));
         } else if (float.class == clazz || Float.class == clazz) {
-            result = clazz.cast(value.isEmpty() ? Float.valueOf(0F) : Float.valueOf(value));
+            result = (T) (value.isEmpty() ? Float.valueOf(0F) : Float.valueOf(value));
         } else if (double.class == clazz || Double.class == clazz) {
-            result = clazz.cast(value.isEmpty() ? Double.valueOf(0D) : Double.valueOf(value));
+            result = (T) (value.isEmpty() ? Double.valueOf(0D) : Double.valueOf(value));
         } else if (Enum.class.isAssignableFrom(clazz)) {
             Enum enumValue = null;
             try {
@@ -125,6 +131,27 @@ public interface ClickHouseOption extends Serializable {
             result = clazz.cast(value);
         }
         return result;
+    }
+
+    /**
+     * Converts given string to typed value. When {@code value} is null or blank,
+     * {@code defaultValue} will be returned.
+     *
+     * @param <T>          type of the value
+     * @param value        value in string format
+     * @param defaultValue non-null default value
+     * @return non-null typed value
+     */
+    @SuppressWarnings("unchecked")
+    public static <T extends Serializable> T fromString(String value, T defaultValue) {
+        if (defaultValue == null) {
+            throw new IllegalArgumentException("Non-null default value is required");
+        }
+        if (ClickHouseChecker.isNullOrBlank(value)) {
+            return defaultValue;
+        }
+
+        return (T) fromString(value, defaultValue.getClass());
     }
 
     /**

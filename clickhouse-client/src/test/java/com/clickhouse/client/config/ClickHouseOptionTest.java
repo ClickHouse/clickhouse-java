@@ -61,20 +61,23 @@ public class ClickHouseOptionTest {
 
     @Test(groups = { "unit" })
     public void testFromString() {
-        Assert.assertThrows(IllegalArgumentException.class,
-                () -> ClickHouseOption.fromString(null, String.class));
+        Assert.assertThrows(IllegalArgumentException.class, () -> ClickHouseOption.fromString(null, null));
+
+        Assert.assertEquals(ClickHouseOption.fromString(null, String.class), "");
         Assert.assertEquals(ClickHouseOption.fromString("", String.class), "");
 
         Assert.assertEquals(ClickHouseOption.fromString("", Boolean.class), Boolean.FALSE);
         Assert.assertEquals(ClickHouseOption.fromString("Yes", Boolean.class), Boolean.FALSE);
+        Assert.assertEquals(ClickHouseOption.fromString("1", boolean.class), true);
         Assert.assertEquals(ClickHouseOption.fromString("1", Boolean.class), Boolean.TRUE);
         Assert.assertEquals(ClickHouseOption.fromString("true", Boolean.class), Boolean.TRUE);
         Assert.assertEquals(ClickHouseOption.fromString("True", Boolean.class), Boolean.TRUE);
 
+        Assert.assertEquals(ClickHouseOption.fromString(null, Integer.class), Integer.valueOf(0));
         Assert.assertEquals(ClickHouseOption.fromString("", Integer.class), Integer.valueOf(0));
+        Assert.assertEquals(ClickHouseOption.fromString(" ", 1), 1);
         Assert.assertEquals(ClickHouseOption.fromString("0", Integer.class), Integer.valueOf(0));
-        Assert.assertThrows(IllegalArgumentException.class,
-                () -> ClickHouseOption.fromString(null, Integer.class));
+        Assert.assertEquals(ClickHouseOption.fromString("0", int.class), 0);
 
         Assert.assertEquals(ClickHouseOption.fromString("0.1", Float.class), Float.valueOf(0.1F));
         Assert.assertEquals(ClickHouseOption.fromString("NaN", Float.class), Float.valueOf(Float.NaN));

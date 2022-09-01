@@ -1,5 +1,6 @@
 package com.clickhouse.jdbc.internal;
 
+import java.io.Serializable;
 import java.net.URI;
 import java.sql.ClientInfoStatus;
 import java.sql.Connection;
@@ -43,6 +44,7 @@ import com.clickhouse.client.ClickHouseUtils;
 import com.clickhouse.client.ClickHouseValues;
 import com.clickhouse.client.ClickHouseVersion;
 import com.clickhouse.client.config.ClickHouseClientOption;
+import com.clickhouse.client.config.ClickHouseOption;
 import com.clickhouse.client.config.ClickHouseRenameMethod;
 import com.clickhouse.client.http.config.ClickHouseHttpOption;
 import com.clickhouse.client.logging.Logger;
@@ -59,12 +61,15 @@ import com.clickhouse.jdbc.JdbcWrapper;
 import com.clickhouse.jdbc.internal.ClickHouseJdbcUrlParser.ConnectionInfo;
 import com.clickhouse.jdbc.parser.ClickHouseSqlParser;
 import com.clickhouse.jdbc.parser.ClickHouseSqlStatement;
+import com.clickhouse.jdbc.parser.ParseHandler;
 import com.clickhouse.jdbc.parser.StatementType;
 
 public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseConnection {
     private static final Logger log = LoggerFactory.getLogger(ClickHouseConnectionImpl.class);
 
-    private static final String SETTING_READONLY = "readonly";
+    static final String SETTING_READONLY = "readonly";
+    static final String SETTING_MAX_INSERT_BLOCK = "max_insert_block_size";
+    static final String SETTING_LW_DELETE = "allow_experimental_lightweight_delete";
 
     private static final String SQL_GET_SERVER_INFO = "select currentUser() user, timezone() timezone, version() version, "
             + getSetting(SETTING_READONLY, ClickHouseDataType.UInt8) + ", "
@@ -75,8 +80,8 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
                     ClickHouseDataType.String)
             + ","
             + getSetting(ClickHouseTransaction.SETTING_IMPLICIT_TRANSACTION, ClickHouseDataType.Int8) + ", "
-            + getSetting("max_insert_block_size", ClickHouseDataType.Int8) + ", "
-            + getSetting("allow_experimental_lightweight_delete", ClickHouseDataType.Int8)
+            + getSetting(SETTING_MAX_INSERT_BLOCK, ClickHouseDataType.UInt64) + ", "
+            + getSetting(SETTING_LW_DELETE, ClickHouseDataType.Int8)
             + " FORMAT RowBinaryWithNamesAndTypes";
 
     private static String getSetting(String setting, ClickHouseDataType type) {
@@ -157,6 +162,8 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
     private final int initialNonTxQuerySupport;
     private final String initialTxCommitWaitMode;
     private final int initialImplicitTx;
+    private final long initialMaxInsertBlockSize;
+    private final int initialDeleteSupport;
 
     private final Map<String, Class<?>> typeMap;
 
@@ -309,15 +316,17 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
                 initialNonTxQuerySupport = r.getValue(4).asInteger();
                 initialTxCommitWaitMode = r.getValue(5).asString();
                 initialImplicitTx = r.getValue(6).asInteger();
+                initialMaxInsertBlockSize = r.getValue(7).asLong();
+                initialDeleteSupport = r.getValue(8).asInteger();
             } else {
-                initialReadOnly = (int) clientRequest.getSettings().getOrDefault(SETTING_READONLY, 0);
-                initialNonTxQuerySupport = (int) clientRequest.getSettings()
-                        .getOrDefault(ClickHouseTransaction.SETTING_THROW_ON_UNSUPPORTED_QUERY_INSIDE_TRANSACTION, 1);
-                initialTxCommitWaitMode = (String) clientRequest.getSettings()
-                        .getOrDefault(ClickHouseTransaction.SETTING_WAIT_CHANGES_BECOME_VISIBLE_AFTER_COMMIT_MODE,
-                                "wait_unknown");
-                initialImplicitTx = (int) clientRequest.getSettings()
-                        .getOrDefault(ClickHouseTransaction.SETTING_IMPLICIT_TRANSACTION, 0);
+                initialReadOnly = clientRequest.getSetting(SETTING_READONLY, 0);
+                initialNonTxQuerySupport = clientRequest
+                        .getSetting(ClickHouseTransaction.SETTING_THROW_ON_UNSUPPORTED_QUERY_INSIDE_TRANSACTION, 1);
+                initialTxCommitWaitMode = clientRequest.getSetting(
+                        ClickHouseTransaction.SETTING_WAIT_CHANGES_BECOME_VISIBLE_AFTER_COMMIT_MODE, "wait_unknown");
+                initialImplicitTx = clientRequest.getSetting(ClickHouseTransaction.SETTING_IMPLICIT_TRANSACTION, 0);
+                initialMaxInsertBlockSize = clientRequest.getSetting(SETTING_MAX_INSERT_BLOCK, 0L);
+                initialDeleteSupport = clientRequest.getSetting(SETTING_LW_DELETE, 0);
             }
         } else {
             ClickHouseRecord r = getServerInfo(node, clientRequest, jdbcConf.isCreateDbIfNotExist());
@@ -339,6 +348,8 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
             initialNonTxQuerySupport = r.getValue(4).asInteger();
             initialTxCommitWaitMode = r.getValue(5).asString();
             initialImplicitTx = r.getValue(6).asInteger();
+            initialMaxInsertBlockSize = r.getValue(7).asLong();
+            initialDeleteSupport = r.getValue(8).asInteger();
 
             // update request and corresponding config
             clientRequest.option(ClickHouseClientOption.SERVER_TIME_ZONE, tz)
@@ -349,13 +360,17 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
         this.closed = false;
         this.database = config.getDatabase();
         this.clientRequest.use(this.database);
-        this.readOnly = initialReadOnly != 0;
+        this.readOnly = clientRequest.getSetting(SETTING_READONLY, initialReadOnly) != 0;
         this.networkTimeout = 0;
         this.rsHoldability = ResultSet.HOLD_CURSORS_OVER_COMMIT;
         if (isTransactionSupported()) {
             this.txIsolation = Connection.TRANSACTION_REPEATABLE_READ;
             if (jdbcConf.isJdbcCompliant() && !this.readOnly) {
-                this.clientRequest.set(ClickHouseTransaction.SETTING_THROW_ON_UNSUPPORTED_QUERY_INSIDE_TRANSACTION, 0);
+                if (!this.clientRequest
+                        .hasSetting(ClickHouseTransaction.SETTING_THROW_ON_UNSUPPORTED_QUERY_INSIDE_TRANSACTION)) {
+                    this.clientRequest.set(ClickHouseTransaction.SETTING_THROW_ON_UNSUPPORTED_QUERY_INSIDE_TRANSACTION,
+                            0);
+                }
                 // .set(ClickHouseTransaction.SETTING_WAIT_CHANGES_BECOME_VISIBLE_AFTER_COMMIT_MODE,
                 // "wait_unknown");
             }
@@ -704,7 +719,7 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
 
         ClickHouseConfig config = clientRequest.getConfig();
         // TODO remove the extra parsing
-        ClickHouseSqlStatement[] stmts = parse(sql, config);
+        ClickHouseSqlStatement[] stmts = parse(sql, config, clientRequest.getSettings());
         if (stmts.length != 1) {
             throw SqlExceptionUtils
                     .clientError("Prepared statement only supports one query but we got: " + stmts.length);
@@ -1032,6 +1047,11 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
     }
 
     @Override
+    public long getMaxInsertBlockSize() {
+        return initialMaxInsertBlockSize;
+    }
+
+    @Override
     public boolean isTransactionSupported() {
         return jdbcConf.isTransactionSupported() && initialNonTxQuerySupport >= 0
                 && !ClickHouseChecker.isNullOrEmpty(initialTxCommitWaitMode);
@@ -1050,9 +1070,20 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
     }
 
     @Override
-    public ClickHouseSqlStatement[] parse(String sql, ClickHouseConfig config) {
-        return ClickHouseSqlParser.parse(sql, config != null ? config : clientRequest.getConfig(),
-                jdbcConf.isJdbcCompliant() ? JdbcParseHandler.INSTANCE : null);
+    public ClickHouseSqlStatement[] parse(String sql, ClickHouseConfig config, Map<String, Serializable> settings) {
+        ParseHandler handler = null;
+        if (jdbcConf.isJdbcCompliant()) {
+            handler = JdbcParseHandler.INSTANCE;
+            if (settings != null) {
+                Serializable value = settings.get(SETTING_LW_DELETE);
+                if (value == null ? initialDeleteSupport == 1
+                        : ClickHouseOption.fromString(value.toString(), Boolean.class)) {
+                    handler = JdbcParseHandler.WITHOUT_DELETE;
+                }
+
+            }
+        }
+        return ClickHouseSqlParser.parse(sql, config != null ? config : clientRequest.getConfig(), handler);
     }
 
     @Override

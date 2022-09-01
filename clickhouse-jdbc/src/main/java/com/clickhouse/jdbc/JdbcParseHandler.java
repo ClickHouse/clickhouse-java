@@ -12,7 +12,11 @@ import com.clickhouse.jdbc.parser.StatementType;
 public class JdbcParseHandler extends ParseHandler {
     private static final String SETTING_MUTATIONS_SYNC = "mutations_sync";
 
-    public static final ParseHandler INSTANCE = new JdbcParseHandler();
+    public static final ParseHandler INSTANCE = new JdbcParseHandler(false, false);
+    public static final ParseHandler WITHOUT_DELETE = new JdbcParseHandler(true, false);
+
+    private final boolean allowLightWeightDelete;
+    private final boolean allowLightWeightUpdate;
 
     private void addMutationSetting(String sql, StringBuilder builder, Map<String, Integer> positions,
             Map<String, String> settings, int index) {
@@ -85,15 +89,19 @@ public class JdbcParseHandler extends ParseHandler {
             Map<String, Integer> positions, Map<String, String> settings, Set<String> tempTables) {
         ClickHouseSqlStatement s = null;
         if (stmtType == StatementType.DELETE) {
-            s = handleDelete(sql, stmtType, cluster, database, table, input, format, outfile, parameters, positions,
-                    settings, tempTables);
+            s = allowLightWeightDelete ? s
+                    : handleDelete(sql, stmtType, cluster, database, table, input, format, outfile, parameters,
+                            positions, settings, tempTables);
         } else if (stmtType == StatementType.UPDATE) {
-            s = handleUpdate(sql, stmtType, cluster, database, table, input, format, outfile, parameters, positions,
-                    settings, tempTables);
+            s = allowLightWeightUpdate ? s
+                    : handleUpdate(sql, stmtType, cluster, database, table, input, format, outfile, parameters,
+                            positions, settings, tempTables);
         }
         return s;
     }
 
-    private JdbcParseHandler() {
+    private JdbcParseHandler(boolean allowLightWeightDelete, boolean allowLightWeightUpdate) {
+        this.allowLightWeightDelete = allowLightWeightDelete;
+        this.allowLightWeightUpdate = allowLightWeightUpdate;
     }
 }

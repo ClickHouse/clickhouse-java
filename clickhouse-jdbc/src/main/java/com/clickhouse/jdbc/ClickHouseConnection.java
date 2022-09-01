@@ -1,5 +1,6 @@
 package com.clickhouse.jdbc;
 
+import java.io.Serializable;
 import java.net.URI;
 import java.sql.CallableStatement;
 import java.sql.Connection;
@@ -9,6 +10,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Calendar;
 import java.util.Collections;
+import java.util.Map;
 import java.util.Optional;
 import java.util.TimeZone;
 
@@ -228,6 +230,15 @@ public interface ClickHouseConnection extends Connection {
     JdbcConfig getJdbcConfig();
 
     /**
+     * Gets max insert block size. Pay attention that INSERT into one partition in
+     * one table of
+     * MergeTree family up to max_insert_size rows is transactional.
+     *
+     * @return
+     */
+    long getMaxInsertBlockSize();
+
+    /**
      * Checks whether transaction is supported.
      *
      * @return true if transaction is supported; false otherwise
@@ -254,6 +265,21 @@ public interface ClickHouseConnection extends Connection {
      * @param sql    sql to parse
      * @param config configuration which might be used for parsing, could be null
      * @return non-null parsed sql statements
+     * @deprecated will be removed in v0.3.3, please use
+     *             {@link #parse(String, ClickHouseConfig, Map)} instead
      */
-    ClickHouseSqlStatement[] parse(String sql, ClickHouseConfig config);
+    @Deprecated
+    default ClickHouseSqlStatement[] parse(String sql, ClickHouseConfig config) {
+        return parse(sql, config, null);
+    }
+
+    /**
+     * Parses the given sql.
+     *
+     * @param sql      sql to parse
+     * @param config   configuration which might be used for parsing, could be null
+     * @param settings server settings
+     * @return non-null parsed sql statements
+     */
+    ClickHouseSqlStatement[] parse(String sql, ClickHouseConfig config, Map<String, Serializable> settings);
 }
