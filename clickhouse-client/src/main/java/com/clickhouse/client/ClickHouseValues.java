@@ -1140,8 +1140,13 @@ public final class ClickHouseValues {
                 value = ClickHouseGeoMultiPolygonValue.ofEmpty();
                 break;
             case SimpleAggregateFunction:
-                column = column.getNestedColumns().get(0);
-                return newValue(config, column.getDataType(), column);
+                if (column != null) {
+                    column = column.getNestedColumns().get(0);
+                    return newValue(config, column.getDataType(), column);
+                } else { // should never happen
+                    value = ClickHouseEmptyValue.INSTANCE;
+                }
+                break;
             case AggregateFunction:
                 value = ClickHouseEmptyValue.INSTANCE;
                 if (column != null) {

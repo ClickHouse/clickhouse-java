@@ -107,6 +107,7 @@ public class ClickHouseDefaultSslContextProvider implements ClickHouseSslContext
         return ks;
     }
 
+    @SuppressWarnings("lgtm[java/insecure-trustmanager]")
     protected SSLContext getJavaSslContext(ClickHouseConfig config) throws SSLException {
         ClickHouseSslMode sslMode = config.getSslMode();
         String clientCert = config.getSslCert();

@@ -413,7 +413,7 @@ public class ClickHouseGeoMultiPolygonValue extends ClickHouseObjectValue<double
     @Override
     public ClickHouseGeoMultiPolygonValue update(Object[] value) {
         if (value == null || value.length != 2) {
-            throw new IllegalArgumentException(ClickHouseValues.ERROR_INVALID_POINT + value);
+            throw new IllegalArgumentException(ClickHouseValues.ERROR_INVALID_POINT + Arrays.toString(value));
         }
         Object v1 = value[0];
         Object v2 = value[1];

@@ -25,9 +25,7 @@ public final class LogMessage {
                 t = (Throwable) lastArg;
             }
 
-            if (len > 0) {
-                message = String.format(Locale.ROOT, message, arguments);
-            }
+            message = String.format(Locale.ROOT, message, arguments);
         }
 
         return new LogMessage(message, t);

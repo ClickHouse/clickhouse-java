@@ -290,7 +290,7 @@ public class ClickHouseCommandLine implements AutoCloseable {
                         throw new UncheckedIOException(e);
                     } catch (UnsupportedOperationException e) {
                         try {
-                            f = ClickHouseInputStream.save(newPath.toFile(), new FileInputStream(f),
+                            f = ClickHouseInputStream.save(newPath.toFile(), new FileInputStream(f), // lgtm[java/input-resource-leak]
                                     config.getWriteBufferSize(), timeout, true);
                         } catch (FileNotFoundException exp) {
                             throw new UncheckedIOException(exp);
@@ -312,7 +312,7 @@ public class ClickHouseCommandLine implements AutoCloseable {
                     CompletableFuture<File> data = ClickHouseClient.submit(() -> {
                         File tmp = File.createTempFile("tmp", "data");
                         tmp.deleteOnExit();
-                        try (ClickHouseOutputStream out = ClickHouseOutputStream.of(new FileOutputStream(tmp))) {
+                        try (ClickHouseOutputStream out = ClickHouseOutputStream.of(new FileOutputStream(tmp))) { // lgtm[java/output-resource-leak]
                             request.getInputStream().get().pipe(out);
                         }
                         return tmp;

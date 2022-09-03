@@ -84,8 +84,7 @@ public interface ClickHouseValue extends Serializable {
      * @return true if the value is NaN; false otherwise
      */
     default boolean isNaN() {
-        double v = asDouble();
-        return v != v;
+        return Double.isNaN(asDouble());
     }
 
     /**

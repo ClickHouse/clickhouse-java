@@ -467,8 +467,7 @@ public class ClickHouseNodes implements ClickHouseNodeManager {
                 }
                 try (ClickHouseResponse response = request.query(query)
                         .params(isAddress ? "host_address" : "host_name",
-                                ClickHouseValues.convertToSqlExpression(
-                                        clusters != null ? clusters : Collections.singleton(clusterName)))
+                                ClickHouseValues.convertToSqlExpression(clusters))
                         .executeAndWait()) {
                     for (ClickHouseRecord r : response.records()) {
                         int idx = 0;

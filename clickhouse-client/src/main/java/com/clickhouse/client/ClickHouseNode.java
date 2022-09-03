@@ -965,7 +965,7 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
         this.config = new ClickHouseConfig(ClickHouseConfig.toClientOptions(options), credentials, null, null);
         this.manager = new AtomicReference<>(null);
 
-        StringBuilder builder = new StringBuilder().append(protocol.name().toLowerCase(Locale.ROOT));
+        StringBuilder builder = new StringBuilder().append(this.protocol.name().toLowerCase(Locale.ROOT));
         if (config.isSsl()) {
             builder.append('s');
         }
