@@ -100,7 +100,7 @@ public class ClickHouseFloatValue implements ClickHouseValue {
 
     @Override
     public boolean isNaN() {
-        return value != value;
+        return Float.isNaN(value);
     }
 
     @Override

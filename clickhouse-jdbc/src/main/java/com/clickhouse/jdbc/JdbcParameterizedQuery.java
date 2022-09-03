@@ -1,6 +1,7 @@
 package com.clickhouse.jdbc;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Iterator;
 
 import com.clickhouse.client.ClickHouseConfig;
@@ -71,12 +72,10 @@ public final class JdbcParameterizedQuery extends ClickHouseParameterizedQuery {
             return;
         }
 
-        Iterator<String> it = params == null ? null : params.iterator();
-        boolean hasMore = it != null && it.hasNext();
+        Iterator<String> it = params == null ? Collections.emptyIterator() : params.iterator();
         for (QueryPart p : getParts()) {
             builder.append(p.part);
-            builder.append(hasMore ? it.next() : ClickHouseValues.NULL_EXPR);
-            hasMore = hasMore && it.hasNext();
+            builder.append(it.hasNext() ? it.next() : ClickHouseValues.NULL_EXPR);
         }
 
         appendLastPartIfExists(builder);

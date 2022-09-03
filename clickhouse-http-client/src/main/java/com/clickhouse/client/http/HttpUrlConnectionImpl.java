@@ -117,6 +117,7 @@ public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
                 displayName, queryId, summary, format, timeZone);
     }
 
+    @SuppressWarnings("lgtm[java/unsafe-hostname-verification]")
     private HttpURLConnection newConnection(String url, boolean post) throws IOException {
         HttpURLConnection newConn = config.isUseNoProxy()
                 ? (HttpURLConnection) new URL(url).openConnection(Proxy.NO_PROXY)

@@ -92,10 +92,14 @@ public class ClickHouseOffsetDateTimeValue extends ClickHouseObjectValue<OffsetD
     protected ClickHouseOffsetDateTimeValue(OffsetDateTime value, int scale, TimeZone tz) {
         super(value);
         this.scale = ClickHouseChecker.between(scale, ClickHouseValues.PARAM_SCALE, 0, 9);
-        this.tz = tz == null || tz.equals(ClickHouseValues.UTC_TIMEZONE) ? ClickHouseValues.UTC_TIMEZONE : tz;
-        this.defaultValue = this.tz.equals(ClickHouseValues.UTC_TIMEZONE) ? DEFAULT
-                : ClickHouseInstantValue.DEFAULT
-                        .atOffset(tz.toZoneId().getRules().getOffset(ClickHouseInstantValue.DEFAULT));
+        if (tz == null || tz.equals(ClickHouseValues.UTC_TIMEZONE)) {
+            this.tz = ClickHouseValues.UTC_TIMEZONE;
+            this.defaultValue = DEFAULT;
+        } else {
+            this.tz = tz;
+            this.defaultValue = ClickHouseInstantValue.DEFAULT
+                    .atOffset(this.tz.toZoneId().getRules().getOffset(ClickHouseInstantValue.DEFAULT));
+        }
     }
 
     public int getScale() {
