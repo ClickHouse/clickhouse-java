@@ -41,6 +41,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.net.http.HttpClient.Redirect;
 import java.net.http.HttpClient.Version;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
@@ -76,6 +77,23 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
     }
 
     private static final Logger log = LoggerFactory.getLogger(HttpClientConnectionImpl.class);
+
+    private static final byte[] HEADER_CONTENT_DISPOSITION = "content-disposition: form-data; name=\""
+            .getBytes(StandardCharsets.US_ASCII);
+    private static final byte[] HEADER_OCTET_STREAM = "content-type: application/octet-stream\r\n"
+            .getBytes(StandardCharsets.US_ASCII);
+    private static final byte[] HEADER_BINARY_ENCODING = "content-transfer-encoding: binary\r\n\r\n"
+            .getBytes(StandardCharsets.US_ASCII);
+
+    private static final byte[] DOUBLE_DASH = new byte[] { '-', '-' };
+    private static final byte[] END_OF_NAME = new byte[] { '"', '\r', '\n' };
+    private static final byte[] LINE_PREFIX = new byte[] { '\r', '\n', '-', '-' };
+    private static final byte[] LINE_SUFFIX = new byte[] { '\r', '\n' };
+
+    private static final byte[] SUFFIX_QUERY = "query\"\r\n\r\n".getBytes(StandardCharsets.US_ASCII);
+    private static final byte[] SUFFIX_FORMAT = "_format\"\r\n\r\n".getBytes(StandardCharsets.US_ASCII);
+    private static final byte[] SUFFIX_STRUCTURE = "_structure\"\r\n\r\n".getBytes(StandardCharsets.US_ASCII);
+    private static final byte[] SUFFIX_FILENAME = "\"; filename=\"".getBytes(StandardCharsets.US_ASCII);
 
     private final HttpClient httpClient;
     private final HttpRequest pingRequest;
@@ -205,55 +223,68 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
                 responseInfo -> new ClickHouseResponseHandler(config.getMaxQueuedBuffers(), config.getSocketTimeout()));
     }
 
-    private ClickHouseHttpResponse postStream(ClickHouseConfig config, HttpRequest.Builder reqBuilder, String boundary,
+    private ClickHouseHttpResponse postStream(ClickHouseConfig config, HttpRequest.Builder reqBuilder, byte[] boundary,
             String sql, ClickHouseInputStream data, List<ClickHouseExternalTable> tables, Runnable postAction)
             throws IOException {
+        Charset ascii = StandardCharsets.US_ASCII;
+        ClickHouseConfig c = config;
         final boolean hasFile = data != null && data.getUnderlyingFile().isAvailable();
-        ClickHousePipedOutputStream stream = ClickHouseDataStreamFactory.getInstance().createPipedOutputStream(config,
+
+        ClickHousePipedOutputStream stream = ClickHouseDataStreamFactory.getInstance().createPipedOutputStream(c,
                 null);
         reqBuilder.POST(HttpRequest.BodyPublishers.ofInputStream(stream::getInputStream));
-
         // running in async is necessary to avoid deadlock of the piped stream
         CompletableFuture<HttpResponse<InputStream>> f = postRequest(reqBuilder.build());
-        try (BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(stream, StandardCharsets.UTF_8))) {
+
+        try (ClickHouseOutputStream out = stream) {
+            Charset utf8 = StandardCharsets.UTF_8;
+            byte[] sqlBytes = hasFile ? new byte[0] : sql.getBytes(utf8);
+
             if (boundary != null) {
-                String line = "\r\n--" + boundary + "\r\n";
-                writer.write(line);
-                writer.write("Content-Disposition: form-data; name=\"query\"\r\n\r\n");
-                writer.write(sql);
-
+                out.writeBytes(LINE_PREFIX);
+                out.writeBytes(boundary);
+                out.writeBytes(LINE_SUFFIX);
+                out.writeBytes(HEADER_CONTENT_DISPOSITION);
+                out.writeBytes(SUFFIX_QUERY);
+                out.writeBytes(sqlBytes);
                 for (ClickHouseExternalTable t : tables) {
-                    String tableName = t.getName();
-                    StringBuilder builder = new StringBuilder();
-                    builder.append(line).append("Content-Disposition: form-data; name=\"").append(tableName)
-                            .append("_format\"\r\n\r\n").append(t.getFormat().name());
-                    builder.append(line).append("Content-Disposition: form-data; name=\"").append(tableName)
-                            .append("_structure\"\r\n\r\n").append(t.getStructure());
-                    builder.append(line).append("Content-Disposition: form-data; name=\"").append(tableName)
-                            .append("\"; filename=\"").append(tableName).append("\"\r\n")
-                            .append("Content-Type: application/octet-stream\r\n")
-                            .append("Content-Transfer-Encoding: binary\r\n\r\n");
-                    writer.write(builder.toString());
-                    writer.flush();
-
-                    ClickHouseInputStream.pipe(t.getContent(), stream, config.getWriteBufferSize());
-                }
-
-                writer.write("\r\n--" + boundary + "--\r\n");
-                writer.flush();
-            } else {
-                if (!hasFile) {
-                    writer.write(sql);
-                    writer.flush();
-                }
-
-                if (data.available() > 0) {
-                    // append \n
-                    if (!hasFile && sql.charAt(sql.length() - 1) != '\n') {
-                        stream.write(10);
+                    byte[] tableName = t.getName().getBytes(utf8);
+                    for (int i = 0; i < 3; i++) {
+                        out.writeBytes(LINE_PREFIX);
+                        out.writeBytes(boundary);
+                        out.writeBytes(LINE_SUFFIX);
+                        out.writeBytes(HEADER_CONTENT_DISPOSITION);
+                        out.writeBytes(tableName);
+                        if (i == 0) {
+                            out.writeBytes(SUFFIX_FORMAT);
+                            out.writeBytes(t.getFormat().name().getBytes(ascii));
+                        } else if (i == 1) {
+                            out.writeBytes(SUFFIX_STRUCTURE);
+                            out.writeBytes(t.getStructure().getBytes(utf8));
+                        } else {
+                            out.writeBytes(SUFFIX_FILENAME);
+                            out.writeBytes(tableName);
+                            out.writeBytes(END_OF_NAME);
+                            break;
+                        }
                     }
+                    out.writeBytes(HEADER_OCTET_STREAM);
+                    out.writeBytes(HEADER_BINARY_ENCODING);
+                    ClickHouseInputStream.pipe(t.getContent(), out, c.getWriteBufferSize());
+                }
 
-                    ClickHouseInputStream.pipe(data, stream, config.getWriteBufferSize());
+                out.writeBytes(LINE_PREFIX);
+                out.writeBytes(boundary);
+                out.writeBytes(DOUBLE_DASH);
+                out.writeBytes(LINE_SUFFIX);
+            } else {
+                out.writeBytes(sqlBytes);
+                if (data != null && data.available() > 0) {
+                    // append \n
+                    if (sqlBytes.length > 0 && sqlBytes[sqlBytes.length - 1] != (byte) '\n') {
+                        out.write(10);
+                    }
+                    ClickHouseInputStream.pipe(data, out, c.getWriteBufferSize());
                 }
             }
         }
@@ -303,12 +334,13 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
         HttpRequest.Builder reqBuilder = HttpRequest.newBuilder()
                 .uri(URI.create(ClickHouseChecker.isNullOrEmpty(url) ? this.url : url))
                 .timeout(Duration.ofMillis(c.getSocketTimeout()));
-        String boundary = null;
+        byte[] boundary = null;
         if (tables != null && !tables.isEmpty()) {
-            boundary = UUID.randomUUID().toString();
-            reqBuilder.setHeader("Content-Type", "multipart/form-data; boundary=" + boundary);
+            String uuid = UUID.randomUUID().toString();
+            reqBuilder.setHeader("content-type", "multipart/form-data; boundary=" + uuid);
+            boundary = uuid.getBytes(StandardCharsets.US_ASCII);
         } else {
-            reqBuilder.setHeader("Content-Type", "text/plain; charset=UTF-8");
+            reqBuilder.setHeader("content-type", "text/plain; charset=UTF-8");
         }
 
         headers = mergeHeaders(headers);

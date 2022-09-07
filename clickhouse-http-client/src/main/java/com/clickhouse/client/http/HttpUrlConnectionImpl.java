@@ -45,11 +45,11 @@ import javax.net.ssl.SSLContext;
 public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
     private static final Logger log = LoggerFactory.getLogger(HttpUrlConnectionImpl.class);
 
-    private static final byte[] HEADER_CONTENT_DISPOSITION = "Content-Disposition: form-data; name=\""
+    private static final byte[] HEADER_CONTENT_DISPOSITION = "content-disposition: form-data; name=\""
             .getBytes(StandardCharsets.US_ASCII);
-    private static final byte[] HEADER_OCTET_STREAM = "Content-Type: application/octet-stream\r\n"
+    private static final byte[] HEADER_OCTET_STREAM = "content-type: application/octet-stream\r\n"
             .getBytes(StandardCharsets.US_ASCII);
-    private static final byte[] HEADER_BINARY_ENCODING = "Content-Transfer-Encoding: binary\r\n\r\n"
+    private static final byte[] HEADER_BINARY_ENCODING = "content-transfer-encoding: binary\r\n\r\n"
             .getBytes(StandardCharsets.US_ASCII);
 
     private static final byte[] DOUBLE_DASH = new byte[] { '-', '-' };
@@ -217,14 +217,14 @@ public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
     protected ClickHouseHttpResponse post(String sql, ClickHouseInputStream data, List<ClickHouseExternalTable> tables,
             String url, Map<String, String> headers, ClickHouseConfig config, Runnable postCloseAction)
             throws IOException {
-        Charset charset = StandardCharsets.US_ASCII;
+        Charset ascii = StandardCharsets.US_ASCII;
         byte[] boundary = null;
         if (tables != null && !tables.isEmpty()) {
             String uuid = UUID.randomUUID().toString();
-            conn.setRequestProperty("Content-Type", "multipart/form-data; boundary=".concat(uuid));
-            boundary = uuid.getBytes(charset);
+            conn.setRequestProperty("content-type", "multipart/form-data; boundary=".concat(uuid));
+            boundary = uuid.getBytes(ascii);
         } else {
-            conn.setRequestProperty("Content-Type", "text/plain; charset=UTF-8");
+            conn.setRequestProperty("content-type", "text/plain; charset=UTF-8");
         }
         setHeaders(conn, headers);
 
@@ -241,7 +241,8 @@ public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
                 : (hasInput
                         ? ClickHouseClient.getAsyncRequestOutputStream(config, conn.getOutputStream(), null) // latch::countDown)
                         : ClickHouseClient.getRequestOutputStream(c, conn.getOutputStream(), null))) {
-            byte[] sqlBytes = hasFile ? new byte[0] : sql.getBytes(StandardCharsets.UTF_8);
+            Charset utf8 = StandardCharsets.UTF_8;
+            byte[] sqlBytes = hasFile ? new byte[0] : sql.getBytes(utf8);
             if (boundary != null) {
                 out.writeBytes(LINE_PREFIX);
                 out.writeBytes(boundary);
@@ -250,7 +251,7 @@ public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
                 out.writeBytes(SUFFIX_QUERY);
                 out.writeBytes(sqlBytes);
                 for (ClickHouseExternalTable t : tables) {
-                    byte[] tableName = t.getName().getBytes(StandardCharsets.UTF_8);
+                    byte[] tableName = t.getName().getBytes(utf8);
                     for (int i = 0; i < 3; i++) {
                         out.writeBytes(LINE_PREFIX);
                         out.writeBytes(boundary);
@@ -259,10 +260,10 @@ public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
                         out.writeBytes(tableName);
                         if (i == 0) {
                             out.writeBytes(SUFFIX_FORMAT);
-                            out.writeBytes(t.getFormat().name().getBytes(charset));
+                            out.writeBytes(t.getFormat().name().getBytes(ascii));
                         } else if (i == 1) {
                             out.writeBytes(SUFFIX_STRUCTURE);
-                            out.writeBytes(t.getStructure().getBytes(StandardCharsets.UTF_8));
+                            out.writeBytes(t.getStructure().getBytes(utf8));
                         } else {
                             out.writeBytes(SUFFIX_FILENAME);
                             out.writeBytes(tableName);

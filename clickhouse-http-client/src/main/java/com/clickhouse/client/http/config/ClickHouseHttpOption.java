@@ -19,7 +19,9 @@ public enum ClickHouseHttpOption implements ClickHouseOption {
      */
     CUSTOM_HEADERS("custom_http_headers", "", "Custom HTTP headers."),
     /**
-     * Custom HTTP query parameters.
+     * Custom HTTP query parameters. Consider
+     * {@link com.clickhouse.client.config.ClickHouseClientOption#CUSTOM_SETTINGS}
+     * if you don't want your implementation ties to http protocol.
      */
     CUSTOM_PARAMS("custom_http_params", "", "Custom HTTP query parameters."),
     /**

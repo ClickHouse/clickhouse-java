@@ -3,6 +3,7 @@ package com.clickhouse.client.http;
 import java.util.UUID;
 
 import com.clickhouse.client.ClickHouseClient;
+import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseCredentials;
 import com.clickhouse.client.ClickHouseFormat;
 import com.clickhouse.client.ClickHouseNode;
@@ -33,6 +34,36 @@ public class ClickHouseHttpClientTest extends ClientIntegrationTest {
     @Override
     protected Class<? extends ClickHouseClient> getClientClass() {
         return ClickHouseHttpClient.class;
+    }
+
+    @Test(groups = "integration")
+    public void testAuthentication() throws Exception {
+        String sql = "select currentUser()";
+        try (ClickHouseClient client = getClient(
+                new ClickHouseConfig(null, ClickHouseCredentials.fromUserAndPassword("dba", "dba"), null, null));
+                ClickHouseResponse response = client
+                        .connect(getServer())
+                        // .option(ClickHouseHttpOption.CUSTOM_PARAMS, "user=dba,password=incorrect")
+                        .query(sql).executeAndWait()) {
+            Assert.assertEquals(response.firstRecord().getValue(0).asString(), "dba");
+        }
+
+        try (ClickHouseClient client = getClient();
+                ClickHouseResponse response = client
+                        .connect(getServer())
+                        .option(ClickHouseHttpOption.CUSTOM_HEADERS, "Authorization=Basic ZGJhOmRiYQ==")
+                        // .option(ClickHouseHttpOption.CUSTOM_PARAMS, "user=dba,password=incorrect")
+                        .query(sql).executeAndWait()) {
+            Assert.assertEquals(response.firstRecord().getValue(0).asString(), "dba");
+        }
+
+        try (ClickHouseClient client = getClient();
+                ClickHouseResponse response = client
+                        .connect(getServer(ClickHouseNode
+                                .of("http://localhost?custom_http_headers=aUthorization%3DBasic%20ZGJhOmRiYQ%3D%3D")))
+                        .query(sql).executeAndWait()) {
+            Assert.assertEquals(response.firstRecord().getValue(0).asString(), "dba");
+        }
     }
 
     @Test(groups = "integration")

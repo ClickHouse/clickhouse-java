@@ -9,6 +9,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Map.Entry;
@@ -158,39 +159,52 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
 
     protected static Map<String, String> createDefaultHeaders(ClickHouseConfig config, ClickHouseNode server) {
         Map<String, String> map = new LinkedHashMap<>();
+        boolean hasAuthorizationHeader = false;
         // add customer headers
-        map.putAll(ClickHouseOption.toKeyValuePairs(config.getStrOption(ClickHouseHttpOption.CUSTOM_HEADERS)));
-        map.put("Accept", "*/*");
-        if (!config.getBoolOption(ClickHouseHttpOption.KEEP_ALIVE)) {
-            map.put("Connection", "Close");
+        for (Entry<String, String> header : ClickHouseOption
+                .toKeyValuePairs(config.getStrOption(ClickHouseHttpOption.CUSTOM_HEADERS)).entrySet()) {
+            String name = header.getKey().toLowerCase(Locale.ROOT);
+            String value = header.getValue();
+            if (value == null) {
+                continue;
+            }
+            if ("authorization".equals(name)) {
+                hasAuthorizationHeader = true;
+            }
+            map.put(name, value);
         }
-        map.put("User-Agent", config.getClientName());
+
+        map.put("accept", "*/*");
+        if (!config.getBoolOption(ClickHouseHttpOption.KEEP_ALIVE)) {
+            map.put("connection", "Close");
+        }
+        map.put("user-agent", config.getClientName());
 
         ClickHouseCredentials credentials = server.getCredentials(config);
         if (credentials.useAccessToken()) {
             // TODO check if auth-scheme is available and supported
-            map.put("Authorization", credentials.getAccessToken());
-        } else {
-            map.put("X-ClickHouse-User", credentials.getUserName());
+            map.put("authorization", credentials.getAccessToken());
+        } else if (!hasAuthorizationHeader) {
+            map.put("x-clickhouse-user", credentials.getUserName());
             if (config.isSsl() && !ClickHouseChecker.isNullOrEmpty(config.getSslCert())) {
-                map.put("X-ClickHouse-SSL-Certificate-Auth", "on");
+                map.put("x-clickhouse-ssl-certificate-auth", "on");
             } else if (!ClickHouseChecker.isNullOrEmpty(credentials.getPassword())) {
-                map.put("X-ClickHouse-Key", credentials.getPassword());
+                map.put("x-clickhouse-key", credentials.getPassword());
             }
         }
 
         String database = server.getDatabase(config);
         if (!ClickHouseChecker.isNullOrEmpty(database)) {
-            map.put("X-ClickHouse-Database", database);
+            map.put("x-clickhouse-database", database);
         }
         // Also, you can use the ‘default_format’ URL parameter
-        map.put("X-ClickHouse-Format", config.getFormat().name());
+        map.put("x-clickhouse-format", config.getFormat().name());
         if (config.isResponseCompressed()) {
-            map.put("Accept-Encoding", config.getResponseCompressAlgorithm().encoding());
+            map.put("accept-encoding", config.getResponseCompressAlgorithm().encoding());
         }
         if (config.isRequestCompressed()
                 && config.getRequestCompressAlgorithm() != ClickHouseCompression.LZ4) {
-            map.put("Content-Encoding", config.getRequestCompressAlgorithm().encoding());
+            map.put("content-encoding", config.getRequestCompressAlgorithm().encoding());
         }
         return map;
     }
@@ -251,10 +265,12 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
         Map<String, String> merged = new LinkedHashMap<>();
         merged.putAll(defaultHeaders);
         for (Entry<String, String> header : requestHeaders.entrySet()) {
-            if (header.getValue() == null) {
-                merged.remove(header.getKey());
+            String name = header.getKey().toLowerCase(Locale.ROOT);
+            String value = header.getValue();
+            if (value == null) {
+                merged.remove(name);
             } else {
-                merged.put(header.getKey(), header.getValue());
+                merged.put(name, value);
             }
         }
         return merged;

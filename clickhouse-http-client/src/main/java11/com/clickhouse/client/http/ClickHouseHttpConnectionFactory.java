@@ -8,7 +8,7 @@ import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.http.config.ClickHouseHttpOption;
 import com.clickhouse.client.http.config.HttpConnectionProvider;
 
-public abstract class ClickHouseHttpConnectionFactory {
+public final class ClickHouseHttpConnectionFactory {
     public static ClickHouseHttpConnection createConnection(ClickHouseNode server, ClickHouseRequest<?> request,
             ExecutorService executor) throws IOException {
         HttpConnectionProvider provider = request.getConfig().getOption(ClickHouseHttpOption.CONNECTION_PROVIDER,
@@ -23,5 +23,8 @@ public abstract class ClickHouseHttpConnectionFactory {
         } catch (Throwable t) {
             return new HttpUrlConnectionImpl(server, request, executor);
         }
+    }
+
+    private ClickHouseHttpConnectionFactory() {
     }
 }
