@@ -101,12 +101,14 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
         return builder;
     }
 
-    protected ClickHouseClient getClient() {
-        return initClient(ClickHouseClient.builder()).nodeSelector(ClickHouseNodeSelector.of(getProtocol())).build();
+    protected ClickHouseClient getClient(ClickHouseConfig... configs) {
+        return initClient(ClickHouseClient.builder()).config(new ClickHouseConfig(configs))
+                .nodeSelector(ClickHouseNodeSelector.of(getProtocol())).build();
     }
 
-    protected ClickHouseClient getSecureClient() {
+    protected ClickHouseClient getSecureClient(ClickHouseConfig... configs) {
         return initClient(ClickHouseClient.builder())
+                .config(new ClickHouseConfig(configs))
                 .nodeSelector(ClickHouseNodeSelector.of(getProtocol()))
                 .option(ClickHouseClientOption.SSL, true)
                 .option(ClickHouseClientOption.SSL_MODE, ClickHouseSslMode.STRICT)
@@ -117,12 +119,20 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
                 .build();
     }
 
-    protected ClickHouseNode getServer() {
-        return getServer(getProtocol());
+    protected ClickHouseNode getSecureServer(ClickHouseNode base) {
+        return getSecureServer(getProtocol(), base);
     }
 
     protected ClickHouseNode getSecureServer() {
         return getSecureServer(getProtocol());
+    }
+
+    protected ClickHouseNode getServer(ClickHouseNode base) {
+        return getServer(getProtocol(), base);
+    }
+
+    protected ClickHouseNode getServer() {
+        return getServer(getProtocol());
     }
 
     @DataProvider(name = "compressionMatrix")
