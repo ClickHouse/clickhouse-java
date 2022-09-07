@@ -189,7 +189,7 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
             if (config.isSsl() && !ClickHouseChecker.isNullOrEmpty(config.getSslCert())) {
                 map.put("x-clickhouse-ssl-certificate-auth", "on");
             } else if (!ClickHouseChecker.isNullOrEmpty(credentials.getPassword())) {
-                map.put("x-clickHouse-key", credentials.getPassword());
+                map.put("x-clickhouse-key", credentials.getPassword());
             }
         }
 
