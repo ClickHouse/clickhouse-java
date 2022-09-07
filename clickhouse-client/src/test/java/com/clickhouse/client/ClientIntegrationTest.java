@@ -1412,7 +1412,11 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
             request.query("drop temporary table if exists my_temp_table").execute().get();
             request.query("create temporary table my_temp_table(a Int8)").execute().get();
             request.query("insert into my_temp_table values(2)").execute().get();
-            request.write().table("my_temp_table").data(new ByteArrayInputStream(new byte[] { 3 })).execute().get();
+            try (ClickHouseResponse resp = request.write().table("my_temp_table")
+                    .data(new ByteArrayInputStream(new byte[] { 3 })).executeAndWait()) {
+                // ignore
+            }
+
             int count = 0;
             try (ClickHouseResponse resp = request.format(ClickHouseFormat.RowBinaryWithNamesAndTypes)
                     .query("select * from my_temp_table order by a").execute().get()) {
