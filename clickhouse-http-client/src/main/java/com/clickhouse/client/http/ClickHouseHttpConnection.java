@@ -22,6 +22,7 @@ import com.clickhouse.client.ClickHouseInputStream;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseOutputStream;
 import com.clickhouse.client.ClickHouseRequest;
+import com.clickhouse.client.ClickHouseRequestManager;
 import com.clickhouse.client.ClickHouseUtils;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.config.ClickHouseOption;
@@ -214,6 +215,7 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
     protected final ClickHouseOutputStream output;
     protected final String url;
     protected final Map<String, String> defaultHeaders;
+    protected final ClickHouseRequestManager rm;
 
     protected ClickHouseHttpConnection(ClickHouseNode server, ClickHouseRequest<?> request) {
         if (server == null || request == null) {
@@ -225,6 +227,7 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
         this.output = request.getOutputStream().orElse(null);
         this.url = buildUrl(server.getBaseUri(), request);
         this.defaultHeaders = Collections.unmodifiableMap(createDefaultHeaders(config, server));
+        this.rm = request.getManager();
     }
 
     protected void closeQuietly() {

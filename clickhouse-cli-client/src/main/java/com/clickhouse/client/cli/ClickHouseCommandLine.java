@@ -20,7 +20,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.UUID;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -209,7 +208,7 @@ public class ClickHouseCommandLine implements AutoCloseable {
             if (!tableFile.isAvailable() || !tableFile.getFile().getAbsolutePath().startsWith(hostDir)) {
                 // creating a hard link is faster but it's not platform-independent
                 File f = ClickHouseInputStream.save(
-                        Paths.get(hostDir, "chc_".concat(UUID.randomUUID().toString())).toFile(),
+                        Paths.get(hostDir, "chc_".concat(request.getManager().createUniqueId())).toFile(),
                         table.getContent(), config.getWriteBufferSize(), config.getSocketTimeout(), true);
                 filePath = containerDir.concat(f.getName());
             } else {
@@ -275,13 +274,13 @@ public class ClickHouseCommandLine implements AutoCloseable {
                     String fileName = f.getName();
                     int len = fileName.length();
                     int index = fileName.indexOf('.', 1);
-                    String uuid = UUID.randomUUID().toString();
+                    String uuid = request.getManager().createUniqueId();
                     if (index > 0 && index + 1 < len) {
                         fileName = new StringBuilder(len + uuid.length() + 1).append(fileName.substring(0, index))
                                 .append('_').append(uuid).append(fileName.substring(index)).toString();
                     } else {
                         fileName = new StringBuilder(len + uuid.length() + 1).append(fileName).append('_')
-                                .append(UUID.randomUUID().toString()).toString();
+                                .append(request.getManager().createUniqueId()).toString();
                     }
                     Path newPath = Paths.get(hostDir, fileName);
                     try {

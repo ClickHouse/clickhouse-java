@@ -220,7 +220,7 @@ public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
         Charset ascii = StandardCharsets.US_ASCII;
         byte[] boundary = null;
         if (tables != null && !tables.isEmpty()) {
-            String uuid = UUID.randomUUID().toString();
+            String uuid = rm.createUniqueId();
             conn.setRequestProperty("content-type", "multipart/form-data; boundary=".concat(uuid));
             boundary = uuid.getBytes(ascii);
         } else {
