@@ -7,7 +7,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
-import java.util.UUID;
 import java.util.Map.Entry;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
@@ -130,7 +129,7 @@ public class ClickHouseGrpcClient extends AbstractClient<ManagedChannel> {
             }
 
             if (ClickHouseChecker.isNullOrEmpty(builder.getSessionId())) {
-                builder.setSessionId(UUID.randomUUID().toString());
+                builder.setSessionId(request.getManager().createSessionId());
             }
 
             // builder.getSessionTimeout()

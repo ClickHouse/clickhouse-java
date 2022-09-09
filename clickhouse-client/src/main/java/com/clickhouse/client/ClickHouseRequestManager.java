@@ -30,20 +30,34 @@ public class ClickHouseRequestManager {
     }
 
     /**
-     * Creates a new query ID.
+     * Creates a new query ID. By default, it simply forwards the call to
+     * {@link #createUniqueId()}.
      *
-     * @return non-null query ID
+     * @return non-null unique query ID
      */
     public String createQueryId() {
-        return UUID.randomUUID().toString();
+        return createUniqueId();
     }
 
     /**
-     * Creates a new session ID.
+     * Creates a new session ID. By default, it simply forwards the call to
+     * {@link #createUniqueId()}.
      *
-     * @return non-null session ID
+     * @return non-null unique session ID
      */
     public String createSessionId() {
+        return createUniqueId();
+    }
+
+    /**
+     * Creates a global, URL-safe unique ID. By default it uses
+     * {@link UUID#randomUUID()} for least dependency, but you can override this
+     * method to use any other alternatives like TimeUUID, snowflake and maybe
+     * NanoID.
+     *
+     * @return non-empty global unique ID
+     */
+    public String createUniqueId() {
         return UUID.randomUUID().toString();
     }
 

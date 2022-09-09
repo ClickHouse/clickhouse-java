@@ -5,7 +5,6 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.UUID;
 
 import com.clickhouse.client.ClickHouseChecker;
 import com.clickhouse.client.ClickHouseException;
@@ -32,7 +31,7 @@ public class JdbcTransaction {
 
     public JdbcTransaction(ClickHouseTransaction tx) {
         this.tx = tx;
-        this.id = tx != null ? tx.getId().asTupleString() : UUID.randomUUID().toString();
+        this.id = tx != null ? tx.getId().asTupleString() : ClickHouseRequestManager.getInstance().createUniqueId();
         this.queries = new LinkedList<>();
         this.savepoints = new LinkedList<>();
     }

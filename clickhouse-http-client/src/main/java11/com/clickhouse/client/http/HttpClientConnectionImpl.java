@@ -336,7 +336,7 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
                 .timeout(Duration.ofMillis(c.getSocketTimeout()));
         byte[] boundary = null;
         if (tables != null && !tables.isEmpty()) {
-            String uuid = UUID.randomUUID().toString();
+            String uuid = rm.createUniqueId();
             reqBuilder.setHeader("content-type", "multipart/form-data; boundary=" + uuid);
             boundary = uuid.getBytes(StandardCharsets.US_ASCII);
         } else {
