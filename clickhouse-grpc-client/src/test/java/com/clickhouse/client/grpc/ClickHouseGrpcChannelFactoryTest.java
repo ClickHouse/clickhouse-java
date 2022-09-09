@@ -11,7 +11,7 @@ import com.clickhouse.client.grpc.config.ClickHouseGrpcOption;
 
 public class ClickHouseGrpcChannelFactoryTest extends BaseIntegrationTest {
     @Test(groups = { "integration" })
-    public void testGetFactory() throws Exception {
+    public void testGetFactory() {
         ClickHouseNode server = getServer(ClickHouseProtocol.GRPC);
         try (ClickHouseClient client = ClickHouseClient.newInstance()) {
             ClickHouseRequest<?> request = client.connect(server);

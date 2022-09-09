@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
+import java.net.UnknownHostException;
 import java.time.DateTimeException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -17,7 +18,7 @@ import com.clickhouse.client.ClickHouseDataType;
 
 public class ClickHouseFloatValueTest extends BaseClickHouseValueTest {
     @Test(groups = { "unit" })
-    public void testValue() throws Exception {
+    public void testValue() throws UnknownHostException {
         // null value
         checkNull(ClickHouseFloatValue.ofNull());
         checkNull(ClickHouseFloatValue.of(Float.MAX_VALUE).resetToNullOrEmpty());

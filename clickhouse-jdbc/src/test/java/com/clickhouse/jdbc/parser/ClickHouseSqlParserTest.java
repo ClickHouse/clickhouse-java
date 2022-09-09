@@ -768,7 +768,7 @@ public class ClickHouseSqlParserTest {
     }
 
     // TODO: add a sub-module points to ClickHouse/tests/queries?
-    public static void main(String[] args) throws Exception {
+    public static void main(String[] args) throws IOException {
         String chTestQueryDir = "D:/Sources/Github/ch/queries";
         if (args != null && args.length > 0) {
             chTestQueryDir = args[0];

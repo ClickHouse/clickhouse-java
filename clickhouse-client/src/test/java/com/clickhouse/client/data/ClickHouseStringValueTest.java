@@ -3,6 +3,7 @@ package com.clickhouse.client.data;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.Inet4Address;
+import java.net.UnknownHostException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeParseException;
 import java.util.Arrays;
@@ -78,7 +79,7 @@ public class ClickHouseStringValueTest extends BaseClickHouseValueTest {
     }
 
     @Test(groups = { "unit" })
-    public void testValue() throws Exception {
+    public void testValue() throws UnknownHostException {
         // null value
         checkNull(ClickHouseStringValue.ofNull());
         checkNull(ClickHouseStringValue.of("abc").resetToNullOrEmpty());

@@ -7,8 +7,10 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.TreeMap;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import com.clickhouse.client.ClickHouseNode.Status;
 import com.clickhouse.client.config.ClickHouseClientOption;
@@ -185,7 +187,7 @@ public class ClickHouseNodesTest {
     }
 
     @Test(groups = { "unit" })
-    public void testNodeGrouping() throws Exception {
+    public void testNodeGrouping() throws ExecutionException, InterruptedException, TimeoutException {
         ClickHouseNodes nodes = ClickHouseNodes
                 .of("http://(a?node_group_size=1),(tcp://b?x=1)/test?x=2&node_group_size=0");
         Assert.assertTrue(nodes.getPolicy() == ClickHouseLoadBalancingPolicy.DEFAULT,
@@ -213,7 +215,7 @@ public class ClickHouseNodesTest {
     }
 
     @Test(groups = { "unit" })
-    public void testQueryWithSlash() throws Exception {
+    public void testQueryWithSlash() {
         ClickHouseNodes servers = ClickHouseNodes
                 .of("https://node1?a=/b/c/d,node2/db2?/a/b/c=d,node3/db1?a=/d/c.b");
         Assert.assertEquals(servers.nodes.get(0).getDatabase().orElse(null), "db1");

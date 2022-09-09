@@ -247,7 +247,7 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
     }
 
     @Test(dataProvider = "connectionProperties", groups = "integration")
-    public void testCancelQuery(Properties props) throws Exception {
+    public void testCancelQuery(Properties props) throws SQLException {
         try (ClickHouseConnection conn = newConnection(props);
                 ClickHouseStatement stmt = conn.createStatement();) {
             CountDownLatch c = new CountDownLatch(1);
@@ -270,6 +270,8 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
                     });
             try {
                 c.await(5, TimeUnit.SECONDS);
+            } catch (Exception e) {
+                Assert.fail("Failed to wait", e);
             } finally {
                 stmt.cancel();
             }

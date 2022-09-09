@@ -9,6 +9,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 
 import com.clickhouse.client.ClickHouseClient;
+import com.clickhouse.client.ClickHouseException;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseRecord;
@@ -36,14 +37,14 @@ public class ClickHouseGrpcClientTest extends ClientIntegrationTest {
     }
 
     @Test(groups = "integration")
-    public void testResponseSummary() throws Exception {
+    public void testResponseSummary() throws ClickHouseException {
         ClickHouseNode server = getServer();
 
         try (ClickHouseClient client = getClient();
                 ClickHouseResponse resp = client.connect(server)
                         .option(ClickHouseClientOption.READ_BUFFER_SIZE, 8)
                         .format(ClickHouseFormat.TabSeparatedWithNamesAndTypes)
-                        .query("select number, number+1 from numbers(100)").execute().get()) {
+                        .query("select number, number+1 from numbers(100)").executeAndWait()) {
             int n = 0;
             for (ClickHouseRecord record : resp.records()) {
                 Assert.assertEquals(record.size(), 2);

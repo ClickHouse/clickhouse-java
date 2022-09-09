@@ -297,7 +297,7 @@ public class ClickHouseResultSetTest extends JdbcIntegrationTest {
     }
 
     @Test(dataProvider = "nullableColumns", groups = "integration")
-    public void testNullValue(String columnType, String defaultValue, Class<?> clazz) throws Exception {
+    public void testNullValue(String columnType, String defaultValue, Class<?> clazz) throws SQLException {
         Properties props = new Properties();
         props.setProperty(JdbcConfig.PROP_NULL_AS_DEFAULT, "2");
         String tableName = "test_query_null_value_" + columnType.split("\\(")[0].trim().toLowerCase();

@@ -5,6 +5,7 @@ import java.util.UUID;
 import com.clickhouse.client.ClickHouseClient;
 import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseCredentials;
+import com.clickhouse.client.ClickHouseException;
 import com.clickhouse.client.ClickHouseFormat;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseNodeSelector;
@@ -37,7 +38,7 @@ public class ClickHouseHttpClientTest extends ClientIntegrationTest {
     }
 
     @Test(groups = "integration")
-    public void testAuthentication() throws Exception {
+    public void testAuthentication() throws ClickHouseException {
         String sql = "select currentUser()";
         try (ClickHouseClient client = getClient(
                 new ClickHouseConfig(null, ClickHouseCredentials.fromUserAndPassword("dba", "dba"), null, null));
@@ -68,7 +69,7 @@ public class ClickHouseHttpClientTest extends ClientIntegrationTest {
 
     @Test(groups = "integration")
     @Override
-    public void testSession() throws Exception {
+    public void testSession() throws ClickHouseException {
         super.testSession();
 
         ClickHouseNode server = getServer();
@@ -90,7 +91,7 @@ public class ClickHouseHttpClientTest extends ClientIntegrationTest {
     }
 
     @Test(groups = { "integration" })
-    public void testPing() throws Exception {
+    public void testPing() {
         try (ClickHouseClient client = ClickHouseClient.newInstance(ClickHouseProtocol.HTTP)) {
             Assert.assertTrue(client.ping(getServer(), 3000));
         }
@@ -124,7 +125,7 @@ public class ClickHouseHttpClientTest extends ClientIntegrationTest {
     }
 
     @Test // (groups = "integration")
-    public void testTransaction() throws Exception {
+    public void testTransaction() throws ClickHouseException {
         testAbortTransaction();
         testNewTransaction();
         testJoinTransaction();
@@ -136,7 +137,7 @@ public class ClickHouseHttpClientTest extends ClientIntegrationTest {
     }
 
     @Test // (groups = "integration")
-    public void testSslClientAuth() throws Exception {
+    public void testSslClientAuth() throws ClickHouseException {
         // NPE on JDK 8:
         // java.lang.NullPointerException
         // at sun.security.provider.JavaKeyStore.convertToBytes(JavaKeyStore.java:822)
@@ -160,48 +161,48 @@ public class ClickHouseHttpClientTest extends ClientIntegrationTest {
 
     @Test(groups = { "integration" })
     @Override
-    public void testMutation() throws Exception {
+    public void testMutation() throws ClickHouseException {
         super.testMutation();
 
         ClickHouseNode server = getServer();
-        ClickHouseClient.send(server, "drop table if exists test_http_mutation",
-                "create table test_http_mutation(a String, b Nullable(Int64))engine=Memory").get();
+        sendAndWait(server, "drop table if exists test_http_mutation",
+                "create table test_http_mutation(a String, b Nullable(Int64))engine=Memory");
         try (ClickHouseClient client = getClient();
                 ClickHouseResponse response = client.connect(server).set("send_progress_in_http_headers", 1)
                         .query("insert into test_http_mutation select toString(number), number from numbers(1)")
-                        .execute().get()) {
+                        .executeAndWait()) {
             ClickHouseResponseSummary summary = response.getSummary();
             Assert.assertEquals(summary.getWrittenRows(), 1);
         }
     }
 
     @Test(groups = { "integration" })
-    public void testLogComment() throws Exception {
+    public void testLogComment() throws ClickHouseException {
         ClickHouseNode server = getServer(ClickHouseProtocol.HTTP);
         String uuid = UUID.randomUUID().toString();
         try (ClickHouseClient client = ClickHouseClient.newInstance()) {
             ClickHouseRequest<?> request = client.connect(server).format(ClickHouseFormat.RowBinaryWithNamesAndTypes);
             try (ClickHouseResponse resp = request
-                    .query("select version()").execute().get()) {
+                    .query("select version()").executeAndWait()) {
                 if (!ClickHouseVersion.of(resp.firstRecord().getValue(0).asString()).check("[21.2,)")) {
                     return;
                 }
             }
             try (ClickHouseResponse resp = request
                     .option(ClickHouseClientOption.LOG_LEADING_COMMENT, true)
-                    .query("-- select something\r\nselect 1", uuid).execute().get()) {
+                    .query("-- select something\r\nselect 1", uuid).executeAndWait()) {
             }
 
             try (ClickHouseResponse resp = request
                     .option(ClickHouseClientOption.LOG_LEADING_COMMENT, true)
-                    .query("SYSTEM FLUSH LOGS", uuid).execute().get()) {
+                    .query("SYSTEM FLUSH LOGS", uuid).executeAndWait()) {
             }
 
             try (ClickHouseResponse resp = request
                     .option(ClickHouseClientOption.LOG_LEADING_COMMENT, true)
                     .query(ClickHouseParameterizedQuery
                             .of(request.getConfig(), "select log_comment from system.query_log where query_id = :qid"))
-                    .params(ClickHouseStringValue.of(uuid)).execute().get()) {
+                    .params(ClickHouseStringValue.of(uuid)).executeAndWait()) {
                 int counter = 0;
                 for (ClickHouseRecord r : resp.records()) {
                     Assert.assertEquals(r.getValue(0).asString(), "select something");
@@ -213,7 +214,7 @@ public class ClickHouseHttpClientTest extends ClientIntegrationTest {
     }
 
     @Test(groups = { "integration" })
-    public void testPost() throws Exception {
+    public void testPost() throws ClickHouseException {
         ClickHouseNode server = getServer(ClickHouseProtocol.HTTP);
 
         try (ClickHouseClient client = ClickHouseClient.builder()
@@ -221,7 +222,7 @@ public class ClickHouseHttpClientTest extends ClientIntegrationTest {
             // why no detailed error message for this: "select 1，2"
             try (ClickHouseResponse resp = client.connect(server).compressServerResponse(false)
                     .format(ClickHouseFormat.RowBinaryWithNamesAndTypes)
-                    .query("select 1,2").execute().get()) {
+                    .query("select 1,2").executeAndWait()) {
                 int count = 0;
                 for (ClickHouseRecord r : resp.records()) {
                     Assert.assertEquals(r.getValue(0).asInteger(), 1);
@@ -234,7 +235,7 @@ public class ClickHouseHttpClientTest extends ClientIntegrationTest {
 
             // reuse connection
             try (ClickHouseResponse resp = client.connect(server).format(ClickHouseFormat.RowBinaryWithNamesAndTypes)
-                    .query("select 3,4").execute().get()) {
+                    .query("select 3,4").executeAndWait()) {
                 int count = 0;
                 for (ClickHouseRecord r : resp.records()) {
                     Assert.assertEquals(r.getValue(0).asInteger(), 3);

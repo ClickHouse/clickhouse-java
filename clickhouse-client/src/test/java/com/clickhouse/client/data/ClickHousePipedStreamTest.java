@@ -20,7 +20,7 @@ import org.testng.annotations.Test;
 
 public class ClickHousePipedStreamTest {
     @Test(groups = { "unit" })
-    public void testRead() throws Exception {
+    public void testRead() throws InterruptedException, IOException {
         ClickHousePipedStream stream = new ClickHousePipedStream(4, 3, 1);
         Assert.assertEquals(stream.queue.size(), 0);
         try (InputStream in = stream.getInput()) {
@@ -80,7 +80,7 @@ public class ClickHousePipedStreamTest {
     }
 
     @Test(groups = { "unit" })
-    public void testReadBytes() throws Exception {
+    public void testReadBytes() throws InterruptedException, IOException {
         ClickHousePipedStream stream = new ClickHousePipedStream(4, 3, 1);
         Assert.assertEquals(stream.queue.size(), 0);
         byte[] bytes = new byte[3];
@@ -144,7 +144,7 @@ public class ClickHousePipedStreamTest {
     }
 
     @Test(groups = { "unit" })
-    public void testWrite() throws Exception {
+    public void testWrite() throws InterruptedException, IOException {
         ClickHousePipedStream stream = new ClickHousePipedStream(2, 3, 2);
         Assert.assertEquals(stream.queue.size(), 0);
         try (OutputStream out = stream) {
@@ -184,7 +184,7 @@ public class ClickHousePipedStreamTest {
     }
 
     @Test(groups = { "unit" })
-    public void testWriteBytes() throws Exception {
+    public void testWriteBytes() throws InterruptedException, IOException {
         ClickHousePipedStream stream = new ClickHousePipedStream(2, 3, 2);
         Assert.assertEquals(stream.queue.size(), 0);
         try (OutputStream out = stream) {
@@ -210,7 +210,7 @@ public class ClickHousePipedStreamTest {
     }
 
     @Test(groups = { "unit" })
-    public void testPipedStream() throws Exception {
+    public void testPipedStream() throws InterruptedException, IOException {
         final int timeout = 10000;
         ExecutorService executor = Executors.newFixedThreadPool(2);
         for (int bufferSize = -1; bufferSize < 10; bufferSize++) {

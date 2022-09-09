@@ -8,7 +8,7 @@ import com.clickhouse.client.ClickHouseColumn;
 
 public class ClickHouseNestedValueTest extends BaseClickHouseValueTest {
     @Test(groups = { "unit" })
-    public void testMultipleValues() throws Exception {
+    public void testMultipleValues() {
         // single type
         checkValue(
                 ClickHouseNestedValue.of(ClickHouseColumn.parse("a String not null, b String null"),
@@ -96,7 +96,7 @@ public class ClickHouseNestedValueTest extends BaseClickHouseValueTest {
     }
 
     @Test(groups = { "unit" })
-    public void testSingleValue() throws Exception {
+    public void testSingleValue() {
         // null value
         checkNull(ClickHouseNestedValue.ofEmpty(ClickHouseColumn.parse("a Nullable(String)")), false, 3, 9);
         checkNull(ClickHouseNestedValue.ofEmpty(ClickHouseColumn.parse("a String not null")), false, 3, 9);

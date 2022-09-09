@@ -2,11 +2,14 @@ package com.clickhouse.client.cli;
 
 import com.clickhouse.client.ClickHouseClient;
 import com.clickhouse.client.ClickHouseClientBuilder;
+import com.clickhouse.client.ClickHouseException;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseServerForTest;
 import com.clickhouse.client.ClientIntegrationTest;
 import com.clickhouse.client.cli.config.ClickHouseCommandLineOption;
+
+import java.io.IOException;
 
 import org.testcontainers.containers.GenericContainer;
 import org.testng.Assert;
@@ -49,19 +52,19 @@ public class ClickHouseCommandLineClientTest extends ClientIntegrationTest {
 
     @Test(groups = { "integration" })
     @Override
-    public void testCustomLoad() throws Exception {
+    public void testCustomLoad() throws ClickHouseException {
         throw new SkipException("Skip due to time out error");
     }
 
     @Test(groups = { "integration" })
     @Override
-    public void testLoadRawData() throws Exception {
+    public void testLoadRawData() throws ClickHouseException, IOException {
         throw new SkipException("Skip due to response summary is always empty");
     }
 
     @Test(groups = { "integration" })
     @Override
-    public void testMultipleQueries() throws Exception {
+    public void testMultipleQueries() throws ClickHouseException {
         // FIXME not sure if the occasional "Stream closed" exception is related to
         // zeroturnaround/zt-exec#30 or not
         /*

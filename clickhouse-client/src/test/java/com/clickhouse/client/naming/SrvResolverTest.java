@@ -16,7 +16,7 @@ public class SrvResolverTest {
     }
 
     @Test(groups = { "integration" })
-    public void testResolv() throws Exception {
+    public void testResolv() {
         String host = "_sip._udp.sip.voice.google.com";
         int port = 5060;
 

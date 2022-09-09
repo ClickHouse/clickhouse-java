@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
+import java.net.UnknownHostException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -40,7 +41,7 @@ public class ClickHouseDateTimeValueTest extends BaseClickHouseValueTest {
     }
 
     @Test(groups = { "unit" })
-    public void testValueWithoutScale() throws Exception {
+    public void testValueWithoutScale() throws UnknownHostException {
         // null value
         checkNull(ClickHouseDateTimeValue.ofNull(0, ClickHouseValues.UTC_TIMEZONE));
         checkNull(
@@ -164,7 +165,7 @@ public class ClickHouseDateTimeValueTest extends BaseClickHouseValueTest {
     }
 
     @Test(groups = { "unit" })
-    public void testValueWithScale() throws Exception {
+    public void testValueWithScale() throws UnknownHostException {
         // null value
         checkNull(ClickHouseDateTimeValue.ofNull(3, ClickHouseValues.UTC_TIMEZONE));
         checkNull(

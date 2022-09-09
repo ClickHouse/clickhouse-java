@@ -34,7 +34,7 @@ public class ClickHouseConfigTest {
     }
 
     @Test(groups = { "unit" })
-    public void testCustomValues() throws Exception {
+    public void testCustomValues() {
         String clientName = "test client";
         String cluster = "test cluster";
         String database = "test_database";

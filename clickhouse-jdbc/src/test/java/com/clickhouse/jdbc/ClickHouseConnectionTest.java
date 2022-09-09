@@ -30,7 +30,7 @@ public class ClickHouseConnectionTest extends JdbcIntegrationTest {
     }
 
     @Test // (groups = "integration")
-    public void testAutoCommitMode() throws Exception {
+    public void testAutoCommitMode() throws SQLException {
         Properties props = new Properties();
         props.setProperty("transactionSupport", "true");
 
@@ -50,7 +50,7 @@ public class ClickHouseConnectionTest extends JdbcIntegrationTest {
     }
 
     @Test(groups = "integration")
-    public void testNonExistDatabase() throws Exception {
+    public void testNonExistDatabase() throws SQLException {
         String database = UUID.randomUUID().toString();
         Properties props = new Properties();
         props.setProperty(ClickHouseClientOption.DATABASE.getKey(), database);
@@ -199,7 +199,7 @@ public class ClickHouseConnectionTest extends JdbcIntegrationTest {
     }
 
     @Test // (groups = "integration")
-    public void testTransaction() throws Exception {
+    public void testTransaction() throws SQLException {
         testAutoCommit();
         testManualCommit();
         testNestedTransactions();
@@ -207,7 +207,7 @@ public class ClickHouseConnectionTest extends JdbcIntegrationTest {
     }
 
     @Test // (groups = "integration")
-    public void testAutoCommit() throws Exception {
+    public void testAutoCommit() throws SQLException {
         Properties props = new Properties();
         props.setProperty("transactionSupport", "true");
         String tableName = "test_jdbc_tx_auto_commit";
@@ -294,7 +294,7 @@ public class ClickHouseConnectionTest extends JdbcIntegrationTest {
     }
 
     @Test // (groups = "integration")
-    public void testManualCommit() throws Exception {
+    public void testManualCommit() throws SQLException {
         Properties props = new Properties();
         props.setProperty("autoCommit", "false");
         Properties txProps = new Properties();
@@ -397,7 +397,7 @@ public class ClickHouseConnectionTest extends JdbcIntegrationTest {
     }
 
     @Test // (groups = "integration")
-    public void testNestedTransactions() throws Exception {
+    public void testNestedTransactions() throws SQLException {
         Properties props = new Properties();
         props.setProperty("autoCommit", "false");
         props.setProperty("transactionSupport", "true");
@@ -436,7 +436,7 @@ public class ClickHouseConnectionTest extends JdbcIntegrationTest {
     }
 
     @Test // (groups = "integration")
-    public void testParallelTransactions() throws Exception {
+    public void testParallelTransactions() throws SQLException {
         Properties props = new Properties();
         props.setProperty("autoCommit", "false");
         props.setProperty("transactionSupport", "true");
