@@ -62,6 +62,30 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
     }
 
     @Test(groups = "integration")
+    public void testDialect() throws SQLException {
+        Properties props = new Properties();
+        String sql = "select cast(1 as UInt64) a, cast([1, 2] as Array(Int8)) b";
+        try (ClickHouseConnection conn = newConnection(props);
+                ClickHouseStatement stmt = conn.createStatement();
+                ResultSet rs = stmt.executeQuery(sql);) {
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getMetaData().getColumnTypeName(1), ClickHouseDataType.UInt64.name());
+            Assert.assertEquals(rs.getMetaData().getColumnTypeName(2), "Array(Int8)");
+            Assert.assertFalse(rs.next());
+        }
+
+        props.setProperty(JdbcConfig.PROP_DIALECT, "ansi");
+        try (ClickHouseConnection conn = newConnection(props);
+                ClickHouseStatement stmt = conn.createStatement();
+                ResultSet rs = stmt.executeQuery(sql);) {
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getMetaData().getColumnTypeName(1), "DECIMAL(20,0)");
+            Assert.assertEquals(rs.getMetaData().getColumnTypeName(2), "ARRAY(BYTE)");
+            Assert.assertFalse(rs.next());
+        }
+    }
+
+    @Test(groups = "integration")
     public void testJdbcEscapeSyntax() throws SQLException {
         try (ClickHouseConnection conn = newConnection(new Properties());
                 ClickHouseStatement stmt = conn.createStatement()) {

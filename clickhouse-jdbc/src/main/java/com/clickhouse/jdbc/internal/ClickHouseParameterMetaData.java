@@ -4,6 +4,7 @@ import java.sql.ParameterMetaData;
 import java.sql.SQLException;
 import java.sql.Types;
 import java.util.List;
+import java.util.Map;
 
 import com.clickhouse.client.ClickHouseChecker;
 import com.clickhouse.client.ClickHouseColumn;
@@ -14,9 +15,15 @@ import com.clickhouse.jdbc.JdbcWrapper;
 
 public class ClickHouseParameterMetaData extends JdbcWrapper implements ParameterMetaData {
     protected final List<ClickHouseColumn> params;
+    protected final JdbcTypeMapping mapper;
+    protected final Map<String, Class<?>> typeMap;
 
-    protected ClickHouseParameterMetaData(List<ClickHouseColumn> params) {
+    protected ClickHouseParameterMetaData(List<ClickHouseColumn> params, JdbcTypeMapping mapper,
+            Map<String, Class<?>> typeMap) {
         this.params = ClickHouseChecker.nonNull(params, "Parameters");
+
+        this.mapper = mapper;
+        this.typeMap = typeMap;
     }
 
     protected ClickHouseColumn getParameter(int param) throws SQLException {
@@ -64,19 +71,19 @@ public class ClickHouseParameterMetaData extends JdbcWrapper implements Paramete
     @Override
     public int getParameterType(int param) throws SQLException {
         ClickHouseColumn p = getParameter(param);
-        return p != null ? JdbcTypeMapping.toJdbcType(null, p) : Types.OTHER;
+        return p != null ? mapper.toSqlType(p, typeMap) : Types.OTHER;
     }
 
     @Override
     public String getParameterTypeName(int param) throws SQLException {
         ClickHouseColumn p = getParameter(param);
-        return p != null ? p.getOriginalTypeName() : "<unknown>";
+        return p != null ? mapper.toNativeType(p) : "<unknown>";
     }
 
     @Override
     public String getParameterClassName(int param) throws SQLException {
         ClickHouseColumn p = getParameter(param);
-        return (p != null ? p.getObjectClass() : Object.class).getName();
+        return (p != null ? mapper.toJavaClass(p, typeMap) : Object.class).getName();
     }
 
     @Override

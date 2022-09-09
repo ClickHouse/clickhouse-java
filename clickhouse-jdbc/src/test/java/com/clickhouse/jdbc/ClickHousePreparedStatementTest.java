@@ -1541,7 +1541,7 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
                         "parameter mete data should be singleton");
                 Assert.assertEquals(ps.getParameterMetaData().getParameterCount(), 3);
                 Assert.assertEquals(ps.getParameterMetaData().getParameterMode(3), ParameterMetaData.parameterModeIn);
-                Assert.assertEquals(ps.getParameterMetaData().getParameterType(3), Types.OTHER);
+                Assert.assertEquals(ps.getParameterMetaData().getParameterType(3), Types.VARCHAR);
                 Assert.assertEquals(ps.getParameterMetaData().getPrecision(3), 0);
                 Assert.assertEquals(ps.getParameterMetaData().getScale(3), 0);
                 Assert.assertEquals(ps.getParameterMetaData().getParameterClassName(3), Object.class.getName());

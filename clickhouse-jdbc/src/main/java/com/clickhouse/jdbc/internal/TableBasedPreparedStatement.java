@@ -60,7 +60,8 @@ public class TableBasedPreparedStatement extends AbstractPreparedStatement imple
         for (String name : set) {
             list.add(ClickHouseColumn.of(name, ClickHouseDataType.JSON, false));
         }
-        paramMetaData = new ClickHouseParameterMetaData(Collections.unmodifiableList(list));
+        paramMetaData = new ClickHouseParameterMetaData(Collections.unmodifiableList(list), mapper,
+                connection.getTypeMap());
         batch = new LinkedList<>();
     }
 
@@ -100,7 +101,7 @@ public class TableBasedPreparedStatement extends AbstractPreparedStatement imple
             for (List<ClickHouseExternalTable> list : batch) {
                 try (ClickHouseResponse r = executeStatement(sql, null, list, null);
                         ResultSet rs = updateResult(parsedStmt, r)) {
-                    if (asBatch && getResultSet() != null) {
+                    if (asBatch && rs != null) {
                         throw SqlExceptionUtils.queryInBatchError(results);
                     }
                     long rows = getLargeUpdateCount();
@@ -234,8 +235,7 @@ public class TableBasedPreparedStatement extends AbstractPreparedStatement imple
         }
 
         ClickHouseSqlStatement stmt = new ClickHouseSqlStatement(getSql());
-        updateResult(parsedStmt, executeStatement(stmt, null, Arrays.asList(values), null));
-        return getResultSet() != null;
+        return updateResult(parsedStmt, executeStatement(stmt, null, Arrays.asList(values), null)) != null;
     }
 
     @Override
@@ -243,11 +243,7 @@ public class TableBasedPreparedStatement extends AbstractPreparedStatement imple
         ensureOpen();
 
         ensureParams();
-        List<ClickHouseExternalTable> list = new ArrayList<>(values.length);
-        for (ClickHouseExternalTable v : values) {
-            list.add(v);
-        }
-        batch.add(Collections.unmodifiableList(list));
+        batch.add(Collections.unmodifiableList(Arrays.asList(values)));
         clearParameters();
     }
 
