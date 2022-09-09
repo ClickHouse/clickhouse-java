@@ -35,7 +35,7 @@ public class ClickHouseClusterTest extends BaseIntegrationTest {
     }
 
     @Test(dataProvider = "nodeSelectorProvider", groups = { "unit" })
-    public void testGetNode(ClickHouseNodeSelector nodeSelector) throws Exception {
+    public void testGetNode(ClickHouseNodeSelector nodeSelector) throws InterruptedException {
         int size = 5;
         int requests = 500;
         int len = size * requests;

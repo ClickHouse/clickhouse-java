@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
+import java.net.UnknownHostException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -17,7 +18,7 @@ import com.clickhouse.client.ClickHouseDataType;
 
 public class ClickHouseByteValueTest extends BaseClickHouseValueTest {
     @Test(groups = { "unit" })
-    public void testUpdate() throws Exception {
+    public void testUpdate() {
         ClickHouseByteValue v = ClickHouseByteValue.of(-1);
         Assert.assertEquals(v.getValue(), (byte) -1);
         Assert.assertEquals(v.update(true).asByte(), (byte) 1);
@@ -54,7 +55,7 @@ public class ClickHouseByteValueTest extends BaseClickHouseValueTest {
     }
 
     @Test(groups = { "unit" })
-    public void testValue() throws Exception {
+    public void testValue() throws UnknownHostException {
         // null value
         checkNull(ClickHouseByteValue.ofNull());
         checkNull(ClickHouseByteValue.of(Byte.MIN_VALUE).resetToNullOrEmpty());

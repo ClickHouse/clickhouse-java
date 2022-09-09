@@ -65,6 +65,11 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
         protected Mutation(ClickHouseRequest<?> request, boolean sealed) {
             super(request.getClient(), request.server, request.serverRef, request.options, sealed);
 
+            // use headless format if possible
+            if (!sealed) {
+                format(request.getFormat().defaultInputFormat());
+            }
+
             this.settings.putAll(request.settings);
             this.txRef.set(request.txRef.get());
 
@@ -117,8 +122,7 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
                 }
 
                 return builder.length() > 0 && index == len ? sql
-                        : new StringBuilder().append(sql).append("\n FORMAT ").append(getInputFormat().name())
-                                .toString();
+                        : new StringBuilder().append(sql).append("\n FORMAT ").append(getFormat().name()).toString();
             }
 
             return super.getQuery();
@@ -237,6 +241,11 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
             this.input = changeProperty(PROP_DATA, this.input, input);
 
             return this;
+        }
+
+        @Override
+        public ClickHouseFormat getInputFormat() {
+            return getFormat();
         }
 
         @Override
@@ -646,7 +655,10 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
      * Gets data format used for input(e.g. writing data into server).
      *
      * @return data format for input
+     * @deprecated will be removed in v0.3.3, please use
+     *             {@code getFormat().defaultInputFormat()} instead
      */
+    @Deprecated
     public ClickHouseFormat getInputFormat() {
         return getFormat().defaultInputFormat();
     }

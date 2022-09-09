@@ -1,10 +1,13 @@
 package com.clickhouse.jdbc;
 
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
+import java.net.MalformedURLException;
 import java.net.URL;
+import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
 import java.sql.BatchUpdateException;
 import java.sql.Connection;
@@ -27,6 +30,7 @@ import java.util.TimeZone;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutionException;
 
 import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseDataStreamFactory;
@@ -714,7 +718,7 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
     }
 
     @Test(groups = "integration")
-    public void testBatchInsertWithoutUnboundedQueue() throws Exception {
+    public void testBatchInsertWithoutUnboundedQueue() throws SQLException {
         Properties props = new Properties();
         props.setProperty(ClickHouseClientOption.WRITE_BUFFER_SIZE.getKey(), "1");
         props.setProperty(ClickHouseClientOption.MAX_QUEUED_BUFFERS.getKey(), "1");
@@ -1000,7 +1004,7 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
     }
 
     @Test(groups = "integration")
-    public void testLoadRawData() throws Exception {
+    public void testLoadRawData() throws IOException, SQLException {
         try (ClickHouseConnection conn = newConnection(new Properties());
                 ClickHouseStatement stmt = conn.createStatement();
                 PreparedStatement ps = conn.prepareStatement(
@@ -1029,7 +1033,11 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
                 }
             }
 
-            Assert.assertTrue(future.get() >= 0);
+            try {
+                Assert.assertTrue(future.get() >= 0);
+            } catch (InterruptedException | ExecutionException ex) {
+                Assert.fail("Failed to get result", ex);
+            }
         }
     }
 
@@ -1145,7 +1153,7 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
     }
 
     @Test(dataProvider = "columnsWithDefaultValue", groups = "integration")
-    public void testInsertDefaultValue(String columnType, String defaultExpr, String defaultValue) throws Exception {
+    public void testInsertDefaultValue(String columnType, String defaultExpr, String defaultValue) throws SQLException {
         Properties props = new Properties();
         props.setProperty(JdbcConfig.PROP_NULL_AS_DEFAULT, "1");
         props.setProperty(ClickHouseClientOption.COMPRESS.getKey(), "false");
@@ -1202,7 +1210,7 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
     }
 
     @Test(dataProvider = "columnsWithoutDefaultValue", groups = "integration")
-    public void testInsertNullValue(String columnType, String defaultValue) throws Exception {
+    public void testInsertNullValue(String columnType, String defaultValue) throws SQLException {
         Properties props = new Properties();
         props.setProperty(ClickHouseClientOption.FORMAT.getKey(),
                 ClickHouseFormat.TabSeparatedWithNamesAndTypes.name());
@@ -1272,7 +1280,7 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
     }
 
     @Test(groups = "integration")
-    public void testInsertStringAsArray() throws Exception {
+    public void testInsertStringAsArray() throws SQLException {
         try (ClickHouseConnection conn = newConnection(new Properties());
                 Statement s = conn.createStatement();
                 PreparedStatement stmt = conn.prepareStatement(
@@ -1316,7 +1324,7 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
     }
 
     @Test(groups = "integration")
-    public void testInsertWithFunction() throws Exception {
+    public void testInsertWithFunction() throws SQLException, UnknownHostException {
         try (ClickHouseConnection conn = newConnection(new Properties());
                 Statement s = conn.createStatement();
                 PreparedStatement stmt = conn.prepareStatement(
@@ -1354,7 +1362,7 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
     }
 
     @Test(groups = "integration")
-    public void testInsertWithSelect() throws Exception {
+    public void testInsertWithSelect() throws SQLException {
         try (ClickHouseConnection conn = newConnection(new Properties());
                 Statement s = conn.createStatement();
                 PreparedStatement ps1 = conn
@@ -1416,7 +1424,7 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
     }
 
     @Test(groups = "integration")
-    public void testInsertWithAndSelect() throws Exception {
+    public void testInsertWithAndSelect() throws SQLException {
         try (ClickHouseConnection conn = newConnection(new Properties());
                 Statement s = conn.createStatement()) {
             s.execute("drop table if exists test_insert_with_and_select; "
@@ -1442,7 +1450,7 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
     }
 
     @Test(groups = "integration")
-    public void testInsertWithMultipleValues() throws Exception {
+    public void testInsertWithMultipleValues() throws MalformedURLException, SQLException {
         try (ClickHouseConnection conn = newConnection(new Properties());
                 Statement s = conn.createStatement()) {
             s.execute("drop table if exists test_insert_with_multiple_values; "
@@ -1484,7 +1492,7 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
     }
 
     @Test(groups = "integration")
-    public void testInsertWithNullDateTime() throws Exception {
+    public void testInsertWithNullDateTime() throws SQLException {
         Properties props = new Properties();
         props.setProperty(JdbcConfig.PROP_NULL_AS_DEFAULT, "2");
         try (ClickHouseConnection conn = newConnection(props);
@@ -1517,7 +1525,7 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
     }
 
     @Test(groups = "integration")
-    public void testGetParameterMetaData() throws Exception {
+    public void testGetParameterMetaData() throws SQLException {
         try (Connection conn = newConnection(new Properties());
                 PreparedStatement emptyPs = conn.prepareStatement("select 1");
                 PreparedStatement inputPs = conn.prepareStatement(

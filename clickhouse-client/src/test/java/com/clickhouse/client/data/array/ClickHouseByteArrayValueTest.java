@@ -5,7 +5,7 @@ import org.testng.annotations.Test;
 
 public class ClickHouseByteArrayValueTest {
     @Test(groups = { "unit" })
-    public void testConvertToBoolean() throws Exception {
+    public void testConvertToBoolean() {
         ClickHouseByteArrayValue v = ClickHouseByteArrayValue
                 .of(new byte[] { 0, 1, -1 });
         Assert.assertArrayEquals(v.getValue(), new byte[] { 0, 1, -1 });
@@ -13,7 +13,7 @@ public class ClickHouseByteArrayValueTest {
     }
 
     @Test(groups = { "unit" })
-    public void testConvertFromBoolean() throws Exception {
+    public void testConvertFromBoolean() {
         ClickHouseByteArrayValue v = ClickHouseByteArrayValue.ofEmpty();
         Assert.assertArrayEquals(v.getValue(), new byte[0]);
         v.update(new boolean[] { false, true, false });

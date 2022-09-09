@@ -71,7 +71,7 @@ public class ClickHouseLoadBalancingPolicyTest {
     }
 
     @Test(dataProvider = "nodeSelectorProvider", groups = { "unit" })
-    public void testDummy(ClickHouseNodeSelector nodeSelector) throws Exception {
+    public void testDummy(ClickHouseNodeSelector nodeSelector) throws InterruptedException {
         int size = 5;
         int requests = 500;
         int len = size * requests;
@@ -130,7 +130,7 @@ public class ClickHouseLoadBalancingPolicyTest {
     }
 
     @Test(dataProvider = "nodeSelectorProvider", groups = { "unit" })
-    public void testFirstAlive(ClickHouseNodeSelector nodeSelector) throws Exception {
+    public void testFirstAlive(ClickHouseNodeSelector nodeSelector) throws InterruptedException {
         int size = 5;
         int requests = 500;
         int len = size * requests;
@@ -189,7 +189,7 @@ public class ClickHouseLoadBalancingPolicyTest {
     }
 
     @Test(dataProvider = "nodeSelectorProvider", groups = { "unit" })
-    public void testFirstAliveWithFailures(ClickHouseNodeSelector nodeSelector) throws Exception {
+    public void testFirstAliveWithFailures(ClickHouseNodeSelector nodeSelector) throws InterruptedException {
         int size = 5;
         int requests = 500;
         int len = size * requests;
@@ -238,7 +238,7 @@ public class ClickHouseLoadBalancingPolicyTest {
     }
 
     @Test(dataProvider = "nodeSelectorProvider", groups = { "unit" })
-    public void testRoundRobin(ClickHouseNodeSelector nodeSelector) throws Exception {
+    public void testRoundRobin(ClickHouseNodeSelector nodeSelector) throws InterruptedException {
         int size = 5;
         int requests = 500;
         int len = size * requests;
@@ -297,7 +297,7 @@ public class ClickHouseLoadBalancingPolicyTest {
     }
 
     @Test(dataProvider = "nodeSelectorProvider", groups = { "unit" })
-    public void testRandom(ClickHouseNodeSelector nodeSelector) throws Exception {
+    public void testRandom(ClickHouseNodeSelector nodeSelector) throws InterruptedException {
         int size = 5;
         int requests = 500;
         int len = size * requests;

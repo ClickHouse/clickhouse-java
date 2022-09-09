@@ -142,7 +142,7 @@ public class ClickHouseValuesTest extends BaseClickHouseValueTest {
     }
 
     @Test(groups = { "unit" })
-    public void testConvertToIpv4() throws Exception {
+    public void testConvertToIpv4() throws UnknownHostException {
         Assert.assertEquals(ClickHouseValues.convertToIpv4((String) null), null);
         Assert.assertEquals(ClickHouseValues.convertToIpv4("127.0.0.1"), Inet4Address.getByName("127.0.0.1"));
         Assert.assertEquals(ClickHouseValues.convertToIpv4("0:0:0:0:0:ffff:7f00:1"),
@@ -150,7 +150,7 @@ public class ClickHouseValuesTest extends BaseClickHouseValueTest {
     }
 
     @Test(groups = { "unit" })
-    public void testConvertToIpv6() throws Exception {
+    public void testConvertToIpv6() throws UnknownHostException {
         Assert.assertEquals(ClickHouseValues.convertToIpv6((String) null), null);
         Assert.assertEquals(ClickHouseValues.convertToIpv6("::1"), Inet6Address.getByName("::1"));
         Assert.assertEquals(ClickHouseValues.convertToIpv6("127.0.0.1").getClass(), Inet6Address.class);

@@ -141,7 +141,7 @@ public class ClickHouseColumnTest {
     }
 
     @Test(groups = { "unit" })
-    public void testParse() throws Exception {
+    public void testParse() {
         ClickHouseColumn column = ClickHouseColumn.of("arr", "Nullable(Array(Nullable(UInt8))");
         Assert.assertNotNull(column);
 
@@ -156,7 +156,7 @@ public class ClickHouseColumnTest {
     }
 
     @Test(groups = { "unit" })
-    public void testAggregationFunction() throws Exception {
+    public void testAggregationFunction() {
         ClickHouseColumn column = ClickHouseColumn.of("aggFunc", "AggregateFunction(groupBitmap, UInt32)");
         Assert.assertTrue(column.isAggregateFunction());
         Assert.assertEquals(column.getDataType(), ClickHouseDataType.AggregateFunction);
@@ -178,7 +178,7 @@ public class ClickHouseColumnTest {
     }
 
     @Test(groups = { "unit" })
-    public void testArray() throws Exception {
+    public void testArray() {
         ClickHouseColumn column = ClickHouseColumn.of("arr",
                 "Array(Array(Array(Array(Array(Map(LowCardinality(String), Tuple(Array(UInt8),LowCardinality(String))))))))");
         Assert.assertTrue(column.isArray());
@@ -204,7 +204,7 @@ public class ClickHouseColumnTest {
     }
 
     @Test(dataProvider = "enumTypesProvider", groups = { "unit" })
-    public void testEnum(String typeName) throws Exception {
+    public void testEnum(String typeName) {
         Assert.assertThrows(IllegalArgumentException.class,
                 () -> ClickHouseColumn.of("e", typeName + "('Query''Start' = a)"));
         Assert.assertThrows(IllegalArgumentException.class, () -> ClickHouseColumn.of("e", typeName + "(aa,1)"));
@@ -236,7 +236,7 @@ public class ClickHouseColumnTest {
     }
 
     @Test(groups = { "unit" })
-    public void testSimpleAggregationFunction() throws Exception {
+    public void testSimpleAggregationFunction() {
         ClickHouseColumn c = ClickHouseColumn.of("a", "SimpleAggregateFunction(max, UInt64)");
         Assert.assertEquals(c.getDataType(), ClickHouseDataType.SimpleAggregateFunction);
         Assert.assertEquals(c.getNestedColumns().get(0).getDataType(), ClickHouseDataType.UInt64);

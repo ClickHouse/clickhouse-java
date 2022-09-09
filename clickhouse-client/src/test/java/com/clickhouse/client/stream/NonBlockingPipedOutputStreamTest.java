@@ -18,7 +18,7 @@ import org.testng.annotations.Test;
 
 public class NonBlockingPipedOutputStreamTest {
     @Test(groups = { "unit" })
-    public void testRead() throws Exception {
+    public void testRead() throws IOException {
         NonBlockingPipedOutputStream stream = new NonBlockingPipedOutputStream(4, 3, 1, CapacityPolicy.fixedCapacity(3),
                 null);
         Assert.assertEquals(stream.queue.size(), 0);
@@ -77,7 +77,7 @@ public class NonBlockingPipedOutputStreamTest {
     }
 
     @Test(groups = { "unit" })
-    public void testReadBytes() throws Exception {
+    public void testReadBytes() throws IOException {
         NonBlockingPipedOutputStream stream = new NonBlockingPipedOutputStream(4, 3, 1, CapacityPolicy.fixedCapacity(3),
                 null);
         Assert.assertEquals(stream.queue.size(), 0);
@@ -140,7 +140,7 @@ public class NonBlockingPipedOutputStreamTest {
     }
 
     @Test(groups = { "unit" })
-    public void testWrite() throws Exception {
+    public void testWrite() throws IOException {
         NonBlockingPipedOutputStream stream = new NonBlockingPipedOutputStream(2, 3, 2, CapacityPolicy.fixedCapacity(3),
                 null);
         Assert.assertEquals(stream.queue.size(), 0);
@@ -181,7 +181,7 @@ public class NonBlockingPipedOutputStreamTest {
     }
 
     @Test(groups = { "unit" })
-    public void testWriteBytes() throws Exception {
+    public void testWriteBytes() throws IOException {
         NonBlockingPipedOutputStream stream = new NonBlockingPipedOutputStream(2, 3, 2, CapacityPolicy.fixedCapacity(3),
                 null);
         Assert.assertEquals(stream.queue.size(), 0);
@@ -208,7 +208,7 @@ public class NonBlockingPipedOutputStreamTest {
     }
 
     @Test(groups = { "unit" })
-    public void testPipedStream() throws Exception {
+    public void testPipedStream() throws InterruptedException, IOException {
         final int timeout = 10000;
         ExecutorService executor = Executors.newFixedThreadPool(2);
         for (int bufferSize = -1; bufferSize < 10; bufferSize++) {

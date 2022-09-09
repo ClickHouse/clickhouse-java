@@ -1,18 +1,20 @@
 package com.clickhouse.client;
 
+import java.io.IOException;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
 public class ClickHouseDataStreamFactoryTest {
     @Test(groups = { "unit" })
-    public void testGetInstance() throws Exception {
+    public void testGetInstance() {
         Assert.assertNotNull(ClickHouseDataStreamFactory.getInstance());
     }
 
     @Test(groups = { "unit" })
-    public void testCreatePipedOutputStream() throws Exception {
+    public void testCreatePipedOutputStream() throws ExecutionException, IOException, InterruptedException {
         ClickHouseConfig config = new ClickHouseConfig();
 
         // read in worker thread

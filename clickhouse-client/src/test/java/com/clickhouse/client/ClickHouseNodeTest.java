@@ -4,6 +4,7 @@ import org.testng.Assert;
 import org.testng.annotations.Test;
 
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -367,7 +368,7 @@ public class ClickHouseNodeTest extends BaseIntegrationTest {
     }
 
     @Test(groups = { "unit" })
-    public void testQueryWithSlash() throws Exception {
+    public void testQueryWithSlash() throws URISyntaxException {
         ClickHouseNode server = ClickHouseNode.of("http://localhost?a=/b/c/d");
         Assert.assertEquals(server.getDatabase().orElse(null), null);
         Assert.assertEquals(server.getOptions(), Collections.singletonMap("a", "/b/c/d"));

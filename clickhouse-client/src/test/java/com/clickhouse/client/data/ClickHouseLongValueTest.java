@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
+import java.net.UnknownHostException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -18,7 +19,7 @@ import com.clickhouse.client.ClickHouseValues;
 
 public class ClickHouseLongValueTest extends BaseClickHouseValueTest {
     @Test(groups = { "unit" })
-    public void testSignedValue() throws Exception {
+    public void testSignedValue() throws UnknownHostException {
         // null value
         checkNull(ClickHouseLongValue.ofNull(false));
         checkNull(ClickHouseLongValue.of(Long.MAX_VALUE, false).resetToNullOrEmpty());
@@ -159,7 +160,7 @@ public class ClickHouseLongValueTest extends BaseClickHouseValueTest {
     }
 
     @Test(groups = { "unit" })
-    public void testUnsignedValue() throws Exception {
+    public void testUnsignedValue() throws UnknownHostException {
         // null value
         checkNull(ClickHouseLongValue.ofNull(true));
         checkNull(ClickHouseLongValue.of(Long.MAX_VALUE, true).resetToNullOrEmpty());

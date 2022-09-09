@@ -4,12 +4,14 @@ import org.testng.Assert;
 import org.testng.annotations.Test;
 
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.util.concurrent.ExecutionException;
 
 import com.clickhouse.client.ClickHouseRequest.Mutation;
 
 public class ClickHouseClientTest {
     @Test(groups = { "unit" })
-    public void testGetAsyncRequestOutputStream() throws Exception {
+    public void testGetAsyncRequestOutputStream() throws IOException {
         ClickHouseConfig config = new ClickHouseConfig();
         for (int i = 0; i < 256; i++) {
             ByteArrayOutputStream bas = new ByteArrayOutputStream();
@@ -21,7 +23,7 @@ public class ClickHouseClientTest {
     }
 
     @Test(groups = { "unit" })
-    public void testGetRequestOutputStream() throws Exception {
+    public void testGetRequestOutputStream() throws IOException {
         ClickHouseConfig config = new ClickHouseConfig();
         for (int i = 0; i < 256; i++) {
             ByteArrayOutputStream bas = new ByteArrayOutputStream();
@@ -33,7 +35,7 @@ public class ClickHouseClientTest {
     }
 
     @Test(groups = { "unit" })
-    public void testQuery() throws Exception {
+    public void testQuery() throws ExecutionException, InterruptedException {
         ClickHouseClient client = ClickHouseClient.builder().build();
         Assert.assertNotNull(client);
         ClickHouseRequest<?> req = client.connect(ClickHouseNode.builder().build());
@@ -48,7 +50,7 @@ public class ClickHouseClientTest {
     }
 
     @Test(groups = { "unit" })
-    public void testMutation() throws Exception {
+    public void testMutation() throws ExecutionException, InterruptedException {
         ClickHouseClient client = ClickHouseClient.builder().build();
         Assert.assertNotNull(client);
         Mutation req = client.connect(ClickHouseNode.builder().build()).write();
