@@ -7,7 +7,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
-import java.lang.reflect.Array;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.URLDecoder;
@@ -18,7 +17,6 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Deque;
 import java.util.LinkedHashMap;
@@ -1340,19 +1338,6 @@ public final class ClickHouseUtils {
         }
 
         return len;
-    }
-
-    @SuppressWarnings("unchecked")
-    protected static <T> T[] toArray(Class<T> clazz, Collection<T> list) {
-        int size = list == null ? 0 : list.size();
-        T[] array = (T[]) Array.newInstance(clazz, size);
-        if (size > 0) {
-            int i = 0;
-            for (T t : list) {
-                array[i++] = t;
-            }
-        }
-        return array;
     }
 
     private ClickHouseUtils() {

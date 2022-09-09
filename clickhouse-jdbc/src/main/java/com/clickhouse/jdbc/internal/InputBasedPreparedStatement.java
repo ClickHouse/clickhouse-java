@@ -72,7 +72,8 @@ public class InputBasedPreparedStatement extends AbstractPreparedStatement imple
             list.add(col);
             i++;
         }
-        paramMetaData = new ClickHouseParameterMetaData(Collections.unmodifiableList(list));
+        paramMetaData = new ClickHouseParameterMetaData(Collections.unmodifiableList(list), mapper,
+                connection.getTypeMap());
         flags = new boolean[size];
 
         counter = 0;

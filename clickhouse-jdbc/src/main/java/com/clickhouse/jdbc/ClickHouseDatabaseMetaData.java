@@ -40,7 +40,6 @@ public class ClickHouseDatabaseMetaData extends JdbcWrapper implements DatabaseM
             "REMOTE TABLE", "TABLE", "VIEW", "SYSTEM TABLE", "TEMPORARY TABLE" };
 
     private final ClickHouseConnection connection;
-    private final Map<String, Class<?>> typeMaps;
 
     protected ResultSet empty(String columns) throws SQLException {
         return fixed(columns, null);
@@ -86,7 +85,6 @@ public class ClickHouseDatabaseMetaData extends JdbcWrapper implements DatabaseM
 
     public ClickHouseDatabaseMetaData(ClickHouseConnection connection) throws SQLException {
         this.connection = ClickHouseChecker.nonNull(connection, "Connection");
-        this.typeMaps = connection.getTypeMap();
     }
 
     @Override
@@ -830,7 +828,8 @@ public class ClickHouseDatabaseMetaData extends JdbcWrapper implements DatabaseM
             String typeName = r.getValue("TYPE_NAME").asString();
             try {
                 ClickHouseColumn column = ClickHouseColumn.of("", typeName);
-                r.getValue("DATA_TYPE").update(JdbcTypeMapping.toJdbcType(typeMaps, column));
+                r.getValue("DATA_TYPE")
+                        .update(connection.getJdbcTypeMapping().toSqlType(column, connection.getTypeMap()));
                 r.getValue("COLUMN_SIZE").update(
                         column.getPrecision() > 0 ? column.getPrecision() : column.getDataType().getByteLength());
                 if (column.isNullable()) {
@@ -913,7 +912,7 @@ public class ClickHouseDatabaseMetaData extends JdbcWrapper implements DatabaseM
                 + "DELETE_RULE Int16, FK_NAME Nullable(String), PK_NAME Nullable(String), DEFERRABILITY Int16");
     }
 
-    private Object[] toTypeRow(String typeName, String aliasTo) {
+    private Object[] toTypeRow(String typeName, String aliasTo) throws SQLException {
         ClickHouseDataType type;
         try {
             type = ClickHouseDataType.of(typeName);
@@ -976,7 +975,8 @@ public class ClickHouseDatabaseMetaData extends JdbcWrapper implements DatabaseM
                 break;
         }
         return new Object[] { typeName,
-                JdbcTypeMapping.toJdbcType(typeMaps, ClickHouseColumn.of("", type, false, false, new String[0])),
+                connection.getJdbcTypeMapping().toSqlType(ClickHouseColumn.of("", type, false, false, new String[0]),
+                        connection.getTypeMap()),
                 type.getMaxPrecision(), prefix, suffix, params, nullable, type.isCaseSensitive() ? 1 : 0, searchable,
                 type.getMaxPrecision() > 0 && !type.isSigned() ? 1 : 0, money, 0,
                 aliasTo == null || aliasTo.isEmpty() ? type.name() : aliasTo, type.getMinScale(), type.getMaxScale(), 0,

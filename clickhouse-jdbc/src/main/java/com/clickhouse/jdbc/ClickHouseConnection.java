@@ -230,11 +230,20 @@ public interface ClickHouseConnection extends Connection {
     JdbcConfig getJdbcConfig();
 
     /**
-     * Gets max insert block size. Pay attention that INSERT into one partition in
-     * one table of
-     * MergeTree family up to max_insert_size rows is transactional.
+     * Gets JDBC type mapping. Same as {@code getJdbcConfig().getMapper()}.
      *
-     * @return
+     * @return non-null JDBC type mapping
+     */
+    default JdbcTypeMapping getJdbcTypeMapping() {
+        return getJdbcConfig().getDialect();
+    }
+
+    /**
+     * Gets max insert block size. Pay attention that INSERT into one partition in
+     * one table of MergeTree family up to max_insert_block_size rows is
+     * transactional.
+     *
+     * @return value of max_insert_block_size
      */
     long getMaxInsertBlockSize();
 

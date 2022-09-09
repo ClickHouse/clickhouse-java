@@ -10,7 +10,7 @@ import java.util.Properties;
 import java.util.Map.Entry;
 
 import com.clickhouse.client.ClickHouseChecker;
-import com.clickhouse.client.ClickHouseUtils;
+import com.clickhouse.client.config.ClickHouseOption;
 import com.clickhouse.client.logging.Logger;
 import com.clickhouse.client.logging.LoggerFactory;
 
@@ -23,6 +23,7 @@ public class JdbcConfig {
     public static final String PROP_AUTO_COMMIT = "autoCommit";
     public static final String PROP_CREATE_DATABASE = "createDatabaseIfNotExist";
     public static final String PROP_CONTINUE_BATCH = "continueBatchOnError";
+    public static final String PROP_DIALECT = "dialect";
     public static final String PROP_FETCH_SIZE = "fetchSize";
     public static final String PROP_JDBC_COMPLIANT = "jdbcCompliant";
     public static final String PROP_NAMED_PARAM = "namedParameter";
@@ -37,6 +38,7 @@ public class JdbcConfig {
     private static final String DEFAULT_AUTO_COMMIT = BOOLEAN_TRUE;
     private static final String DEFAULT_CREATE_DATABASE = BOOLEAN_FALSE;
     private static final String DEFAULT_CONTINUE_BATCH = BOOLEAN_FALSE;
+    private static final String DEFAULT_DIALECT = "";
     private static final String DEFAULT_FETCH_SIZE = "0";
     private static final String DEFAULT_JDBC_COMPLIANT = BOOLEAN_TRUE;
     private static final String DEFAULT_NAMED_PARAM = BOOLEAN_FALSE;
@@ -45,31 +47,55 @@ public class JdbcConfig {
     private static final String DEFAULT_TYPE_MAP = "";
     private static final String DEFAULT_WRAPPER_OBJ = BOOLEAN_FALSE;
 
-    static boolean extractBooleanValue(Properties props, String key, String defaultValue) {
+    static String removeAndGetPropertyValue(Properties props, String key) {
         if (props == null || props.isEmpty() || key == null || key.isEmpty()) {
-            return Boolean.parseBoolean(defaultValue);
+            return null;
         }
 
-        Object value = props.remove(key);
-        return Boolean.parseBoolean(value != null ? value.toString() : defaultValue);
+        // Remove JDBC-specific options so that they won't be treated as server settings
+        // at later stage. Default properties won't be used for the same reason.
+        Object raw = props.remove(key);
+        return raw == null ? null : raw.toString();
+    }
+
+    static boolean extractBooleanValue(Properties props, String key, String defaultValue) {
+        String value = removeAndGetPropertyValue(props, key);
+        return Boolean.parseBoolean(value != null ? value : defaultValue);
     }
 
     static int extractIntValue(Properties props, String key, String defaultValue) {
-        if (props == null || props.isEmpty() || key == null || key.isEmpty()) {
-            return Integer.parseInt(defaultValue);
+        String value = removeAndGetPropertyValue(props, key);
+        return Integer.parseInt(value != null ? value : defaultValue);
+    }
+
+    // TODO return JdbcDialect
+    static JdbcTypeMapping extractDialectValue(Properties props, String key, String defaultValue) {
+        String value = removeAndGetPropertyValue(props, key);
+        if (value == null) {
+            value = defaultValue;
         }
 
-        Object value = props.remove(key);
-        return Integer.parseInt(value != null ? value.toString() : defaultValue);
+        JdbcTypeMapping mapper;
+        if (ClickHouseChecker.isNullOrBlank(value)) {
+            mapper = JdbcTypeMapping.getDefaultMapping();
+        } else if ("ansi".equalsIgnoreCase(value)) {
+            mapper = JdbcTypeMapping.getAnsiMapping();
+        } else {
+            try {
+                Class<?> clazz = JdbcConfig.class.getClassLoader().loadClass(value);
+                mapper = (JdbcTypeMapping) clazz.getConstructor().newInstance();
+            } catch (Throwable t) {
+                log.warn("Failed to load custom JDBC type mapping [%s], due to: %s", value, t.getMessage());
+                mapper = JdbcTypeMapping.getDefaultMapping();
+            }
+        }
+        return mapper;
     }
 
     static Map<String, Class<?>> extractTypeMapValue(Properties props, String key, String defaultValue) {
-        String value = null;
-        if (props == null || props.isEmpty() || key == null || key.isEmpty()) {
+        String value = removeAndGetPropertyValue(props, key);
+        if (value == null) {
             value = defaultValue;
-        } else {
-            Object v = props.remove(key);
-            value = v != null ? v.toString() : defaultValue;
         }
 
         if (ClickHouseChecker.isNullOrBlank(value)) {
@@ -78,7 +104,7 @@ public class JdbcConfig {
 
         Map<String, Class<?>> map = new LinkedHashMap<>();
         ClassLoader loader = JdbcConfig.class.getClassLoader();
-        for (Entry<String, String> e : ClickHouseUtils.getKeyValuePairs(value).entrySet()) {
+        for (Entry<String, String> e : ClickHouseOption.toKeyValuePairs(value).entrySet()) {
             Class<?> clazz = null;
             try {
                 clazz = loader.loadClass(e.getValue());
@@ -119,6 +145,10 @@ public class JdbcConfig {
         info.description = "Whether to enable JDBC-compliant features like fake transaction and standard UPDATE and DELETE statements.";
         list.add(info);
 
+        info = new DriverPropertyInfo(PROP_DIALECT, DEFAULT_DIALECT);
+        info.description = "Dialect mainly for data type mapping, can be set to ansi or a full qualified class name implementing JdbcTypeMapping.";
+        list.add(info);
+
         info = new DriverPropertyInfo(PROP_NAMED_PARAM, DEFAULT_NAMED_PARAM);
         info.choices = new String[] { BOOLEAN_TRUE, BOOLEAN_FALSE };
         info.description = "Whether to use named parameter(e.g. :ts(DateTime64(6)) or :value etc.) instead of standard JDBC question mark placeholder.";
@@ -150,6 +180,7 @@ public class JdbcConfig {
     private final boolean continueBatch;
     private final int fetchSize;
     private final boolean jdbcCompliant;
+    private final JdbcTypeMapping dialect;
     private final boolean namedParameter;
     private final int nullAsDefault;
     private final boolean txSupport;
@@ -168,6 +199,7 @@ public class JdbcConfig {
         this.autoCommit = extractBooleanValue(props, PROP_AUTO_COMMIT, DEFAULT_AUTO_COMMIT);
         this.createDb = extractBooleanValue(props, PROP_CREATE_DATABASE, DEFAULT_CREATE_DATABASE);
         this.continueBatch = extractBooleanValue(props, PROP_CONTINUE_BATCH, DEFAULT_CONTINUE_BATCH);
+        this.dialect = extractDialectValue(props, PROP_DIALECT, DEFAULT_DIALECT);
         this.fetchSize = extractIntValue(props, PROP_FETCH_SIZE, DEFAULT_FETCH_SIZE);
         this.jdbcCompliant = extractBooleanValue(props, PROP_JDBC_COMPLIANT, DEFAULT_JDBC_COMPLIANT);
         this.namedParameter = extractBooleanValue(props, PROP_NAMED_PARAM, DEFAULT_NAMED_PARAM);
@@ -213,6 +245,15 @@ public class JdbcConfig {
      */
     public int getFetchSize() {
         return fetchSize;
+    }
+
+    /**
+     * Gets JDBC dialect.
+     *
+     * @return non-null JDBC dialect
+     */
+    public JdbcTypeMapping getDialect() {
+        return dialect;
     }
 
     /**
