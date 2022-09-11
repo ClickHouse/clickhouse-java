@@ -1,13 +1,24 @@
 package com.clickhouse.r2dbc.connection;
 
+import com.clickhouse.client.ClickHouseClient;
 import com.clickhouse.client.ClickHouseNodes;
+import com.clickhouse.client.ClickHouseProtocol;
+import com.clickhouse.client.ClickHouseUtils;
+import com.clickhouse.client.config.ClickHouseDefaults;
+import com.clickhouse.client.config.ClickHouseOption;
+
 import io.r2dbc.spi.ConnectionFactory;
 import io.r2dbc.spi.ConnectionFactoryOptions;
 import io.r2dbc.spi.Option;
 
-import java.util.Arrays;
+import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.stream.Collectors;
+import java.util.Locale;
+import java.util.ServiceLoader;
+import java.util.Set;
 
 import static io.r2dbc.spi.ConnectionFactoryOptions.*;
 
@@ -18,41 +29,61 @@ public class ClickHouseConnectionFactoryProvider implements io.r2dbc.spi.Connect
      */
     public static final String CLICKHOUSE_DRIVER = "clickhouse";
 
-    private static final List<String> connQueryParams = Arrays.asList("auto_discovery", "node_discovery_interval",
-            "node_discovery_limit", "load_balancing_policy", "load_balancing_tags", "health_check_method",
-            "health_check_interval", "check_all_nodes", "node_check_interval", "node_group_size", "failover",
-            "retry");
+    private static final List<Option<?>> connQueryParams;
 
-    @Override
-    public ConnectionFactory create(ConnectionFactoryOptions cfOpt) {
-        String hosts = getHosts(cfOpt);
-        String database = cfOpt.getValue(DATABASE).toString();
-        String protocol = cfOpt.getValue(PROTOCOL).toString();
-        if (cfOpt.getValue(USER) == null ) {
-            throw new IllegalArgumentException("User and password is mandatory.");
+    static {
+        Set<Option<?>> allOptions = new LinkedHashSet<>();
+        try {
+            for (ClickHouseClient client : ServiceLoader.load(ClickHouseClient.class, ClickHouseConnectionFactoryProvider.class.getClassLoader())) {
+                for (ClickHouseOption option : client.getOptionClass().getEnumConstants()) {
+                    allOptions.add(Option.valueOf(option.getKey()));
+                }
+            }
+        } catch (Exception e) {
+            // ignore
         }
-        String username = cfOpt.getValue(USER).toString();
-        String password = "";
-        if (cfOpt.getValue(PASSWORD) != null) {
-            password = cfOpt.getValue(PASSWORD).toString();
-        }
+        connQueryParams = Collections.unmodifiableList(new ArrayList<>(allOptions));
+    }
 
-        StringBuilder urlBuilder = new StringBuilder(String.format("%s://%s/%s?user=%s&password=%s", protocol, hosts, database, username, password));
-        String params = connQueryParams.stream().filter(queryParam -> cfOpt.getValue(Option.valueOf(queryParam)) != null)
-                .map(queryParam -> String.format("%s=%s", queryParam, cfOpt.getValue(Option.valueOf(queryParam))))
-                .collect(Collectors.joining("%"));
-        urlBuilder.append(params.isEmpty() ? "" : ("&" + params));
-
-        ClickHouseNodes nodes = ClickHouseNodes.of(urlBuilder.toString());
-        return new ClickHouseConnectionFactory(nodes);
+    private String getOptionValueAsString(ConnectionFactoryOptions cfOpt, Option<?> option, Serializable defaultValue) {
+        Object value = cfOpt.getValue(option);
+        return value != null ? value.toString() : defaultValue.toString();
     }
 
     private String getHosts(ConnectionFactoryOptions cfOpt) {
-        String hosts = cfOpt.getValue(HOST).toString();
+        String hosts = getOptionValueAsString(cfOpt, HOST, ClickHouseDefaults.HOST.getEffectiveDefaultValue());
         if (!hosts.contains(",") && !hosts.contains(":")){
             return hosts + ":" + cfOpt.getValue(PORT);
         }
         return hosts;
+    }
+
+    @Override
+    public ConnectionFactory create(ConnectionFactoryOptions cfOpt) {
+        String hosts = getHosts(cfOpt);
+        String database = getOptionValueAsString(cfOpt, DATABASE, "");
+        String protocol = getOptionValueAsString(cfOpt, PROTOCOL, ClickHouseProtocol.HTTP.name()).toLowerCase(Locale.ROOT);
+        if (Boolean.parseBoolean(getOptionValueAsString(cfOpt, SSL, "false"))) {
+            protocol += "s";
+        }
+
+        StringBuilder urlBuilder = new StringBuilder();
+        urlBuilder.append(protocol).append("://").append(hosts).append('/');
+        if (!database.isEmpty()) {
+            urlBuilder.append(database);
+        }
+        String user = getOptionValueAsString(cfOpt, USER, "");
+        String password = getOptionValueAsString(cfOpt, PASSWORD, "");
+        urlBuilder.append("?user=").append(ClickHouseUtils.encode(user)).append("&password=").append(ClickHouseUtils.encode(password));
+        for (Option<?> option : connQueryParams) {
+            Object value = cfOpt.getValue(option);
+            if (value != null) {
+                urlBuilder.append('&').append(option.name()).append('=').append(ClickHouseUtils.encode(cfOpt.getValue(option).toString()));
+            }
+        }
+
+        ClickHouseNodes nodes = ClickHouseNodes.of(urlBuilder.toString());
+        return new ClickHouseConnectionFactory(nodes);
     }
 
     @Override

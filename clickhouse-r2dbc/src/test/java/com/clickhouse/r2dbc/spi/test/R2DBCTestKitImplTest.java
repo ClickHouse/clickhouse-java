@@ -39,7 +39,12 @@ public class R2DBCTestKitImplTest implements TestKit<String> {
 
     private static final String DATABASE = "default";
     private static final String USER = "default";
-    public static final String PASSWORD = "";
+    private static final String PASSWORD = "";
+
+    private static final String CUSTOM_PROTOCOL_NAME = System.getProperty("protocol", "http").toUpperCase();
+    private static final ClickHouseProtocol DEFAULT_PROTOCOL = ClickHouseProtocol
+            .valueOf(CUSTOM_PROTOCOL_NAME.startsWith("HTTP") ? "HTTP" : CUSTOM_PROTOCOL_NAME);
+    private static final String EXTRA_PARAM = "HTTP2".equals(CUSTOM_PROTOCOL_NAME) ? "http_connection_provider=HTTP_CLIENT" : "";
 
     static ConnectionFactory connectionFactory;
     static JdbcTemplate jdbcTemplate;
@@ -47,9 +52,10 @@ public class R2DBCTestKitImplTest implements TestKit<String> {
     @BeforeAll
     public static void setup() throws Exception {
         ClickHouseServerForTest.beforeSuite();
+
         connectionFactory = ConnectionFactories.get(
-                format("r2dbc:clickhouse:http://%s:%s@%s/%s?falan=filan#tag1", USER, PASSWORD,
-                        getClickHouseAddress(ClickHouseProtocol.HTTP, false), DATABASE));
+                format("r2dbc:clickhouse:%s://%s:%s@%s/%s?falan=filan&%s#tag1", DEFAULT_PROTOCOL, USER, PASSWORD,
+                        getClickHouseAddress(DEFAULT_PROTOCOL, false), DATABASE, EXTRA_PARAM));
         jdbcTemplate = jdbcTemplate(null);
     }
 
@@ -79,9 +85,9 @@ public class R2DBCTestKitImplTest implements TestKit<String> {
         Driver driver = new ClickHouseDriver();
         DriverManager.registerDriver(driver);
         if (database == null) {
-            source.setJdbcUrl(format("jdbc:clickhouse://%s", getClickHouseAddress(ClickHouseProtocol.HTTP, false)));
+            source.setJdbcUrl(format("jdbc:clickhouse:%s://%s?%s", DEFAULT_PROTOCOL, getClickHouseAddress(DEFAULT_PROTOCOL, false), EXTRA_PARAM));
         } else {
-            source.setJdbcUrl(format("jdbc:clickhouse://%s/%s", getClickHouseAddress(ClickHouseProtocol.HTTP, false), DATABASE));
+            source.setJdbcUrl(format("jdbc:clickhouse:%s://%s/%s?%s", DEFAULT_PROTOCOL, getClickHouseAddress(DEFAULT_PROTOCOL, false), DATABASE, EXTRA_PARAM));
         }
 
         source.setUsername(USER);

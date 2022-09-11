@@ -35,7 +35,6 @@ public class ClickHouseConnection implements Connection {
     private boolean closed = false;
 
     ClickHouseConnection(ClickHouseNodes nodes) {
-        ClickHouseNode node = nodes.apply(ClickHouseNodeSelector.EMPTY);
         this.node = nodes.apply(ClickHouseNodeSelector.EMPTY);
         this.client = ClickHouseClient.newInstance(node.getProtocol());
     }
@@ -81,6 +80,7 @@ public class ClickHouseConnection implements Connection {
 
     /**
      * Returns {@link ClickHouseBatch} for batching statements.
+     *
      * @return Batch object
      */
     @Override
@@ -95,6 +95,7 @@ public class ClickHouseConnection implements Connection {
 
     /**
      * Returns true since there is no transaction support.
+     *
      * @return true
      */
     @Override
@@ -118,6 +119,7 @@ public class ClickHouseConnection implements Connection {
 
     /**
      * Returns true since there is no transaction support.
+     *
      * @return true
      */
     @Override
@@ -132,6 +134,7 @@ public class ClickHouseConnection implements Connection {
     }
 
     /**
+     * Returns transaction isolation level.
      *
      * @return Always returns read committed.
      */
@@ -180,6 +183,7 @@ public class ClickHouseConnection implements Connection {
 
     /**
      * Since transactions are not supported, this method will throw exception.
+     *
      * @param isolationLevel isolation level for transaction
      */
     @Override

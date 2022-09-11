@@ -1,7 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0"
-         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <parent>
         <artifactId>clickhouse-java</artifactId>
         <groupId>com.clickhouse</groupId>
@@ -11,8 +9,13 @@
 
     <artifactId>clickhouse-r2dbc</artifactId>
 
+    <name>ClickHouse R2DBC Driver</name>
+    <description>R2DBC driver for ClickHouse</description>
+    <url>https://github.com/ClickHouse/clickhouse-jdbc/tree/master/clickhouse-r2dbc</url>
+
     <properties>
         <hikari-cp.version>4.0.3</hikari-cp.version>
+        <junit.version>5.9.0</junit.version>
         <maven.compiler.source>1.8</maven.compiler.source>
         <maven.compiler.target>1.8</maven.compiler.target>
         <r2dbc-spi.version>1.0.0.RELEASE</r2dbc-spi.version>
@@ -39,7 +42,7 @@
         </dependency>
         <dependency>
             <groupId>com.clickhouse</groupId>
-            <artifactId>clickhouse-client</artifactId>
+            <artifactId>clickhouse-cli-client</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>
@@ -53,15 +56,11 @@
             <version>${project.version}</version>
         </dependency>
         <dependency>
-            <groupId>com.clickhouse</groupId>
-            <artifactId>clickhouse-jdbc</artifactId>
-            <version>${project.version}</version>
-        </dependency>
-        <dependency>
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-lang3</artifactId>
             <version>${commons-lang3.version}</version>
         </dependency>
+
         <dependency>
             <groupId>org.testcontainers</groupId>
             <artifactId>testcontainers</artifactId>
@@ -72,6 +71,12 @@
             <artifactId>clickhouse-client</artifactId>
             <version>${project.version}</version>
             <type>test-jar</type>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.clickhouse</groupId>
+            <artifactId>clickhouse-jdbc</artifactId>
+            <version>${project.version}</version>
             <scope>test</scope>
         </dependency>
         <dependency>
@@ -89,7 +94,12 @@
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter-api</artifactId>
-            <version>5.8.2</version>
+            <version>${junit.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-simple</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>
@@ -98,13 +108,24 @@
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-surefire-plugin</artifactId>
-                <version>${surefire-plugin.version}</version>
+                <artifactId>maven-failsafe-plugin</artifactId>
                 <configuration combine.self="override">
-                    <excludedGroups>${excludedGroups}</excludedGroups>
-                    <skipTests>${skipUTs}</skipTests>
+                    <includes>**/*.java</includes>
+                    <skipTests>${skipTests}</skipTests>
+                    <skipITs>${skipITs}</skipITs>
+                    <useSystemClassLoader>true</useSystemClassLoader>
                     <useModulePath>false</useModulePath>
                 </configuration>
+                <executions>
+                    <execution>
+                        <id>run-integration-tests</id>
+                        <phase>integration-test</phase>
+                        <goals>
+                            <goal>integration-test</goal>
+                            <goal>verify</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

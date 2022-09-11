@@ -1,5 +1,7 @@
 package com.clickhouse.r2dbc.connection;
 
+import java.util.concurrent.atomic.AtomicReference;
+
 import com.clickhouse.client.ClickHouseClient;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseResponse;
@@ -14,7 +16,7 @@ public class ClickHouseConnectionMetadata implements ConnectionMetadata {
     final ClickHouseClient client;
     final ClickHouseNode server;
 
-    private final String serverVersion = null;
+    private final AtomicReference<String> serverVersion = new AtomicReference<>("");
 
     ClickHouseConnectionMetadata(ClickHouseClient client, ClickHouseNode server) {
         this.client = client;
@@ -28,20 +30,23 @@ public class ClickHouseConnectionMetadata implements ConnectionMetadata {
 
     /**
      * Blocking operation. Queries server version by calling "SELECT version()" statement.
-     * @return server version
+     *
+     * @return non-null server version
      */
     @Override
     public String getDatabaseVersion() {
-        if (serverVersion != null) {
-            return serverVersion;
-        }
-        try {
+        String version = serverVersion.get();
+        if (version.isEmpty()) {
             // blocking here
-            ClickHouseResponse resp = client.connect(server).query("SELECT version()").executeAndWait();
-            return resp.records().iterator().next().getValue(0).asString();
-        } catch (Exception e) {
-            log.error("While fetching server version, error occured.", e);
-            return null;
+            try (ClickHouseResponse resp = client.connect(server).query("SELECT version()").executeAndWait()) {
+                version = resp.firstRecord().getValue(0).asString();
+                if (!serverVersion.compareAndSet("", version)) {
+                    return serverVersion.get();
+                }
+            } catch (Exception e) {
+                log.error("While fetching server version, error occured.", e);
+            }
         }
+        return version;
     }
 }

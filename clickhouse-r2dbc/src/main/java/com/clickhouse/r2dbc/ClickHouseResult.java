@@ -47,6 +47,7 @@ public class ClickHouseResult implements Result {
 
     /**
      * Returns updated count(written rows from summary of {@link ClickHouseResponse}).Important! if writtenRows is greater than MAX_INT then it will return MAX_INT.
+     *
      * @return updated count
      */
     @Override

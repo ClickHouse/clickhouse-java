@@ -5,7 +5,7 @@ import io.r2dbc.spi.Type;
 
 
 public class ClickHouseDataTypeWrapper implements Type {
-    ClickHouseDataType dType;
+    final ClickHouseDataType dType;
 
     private ClickHouseDataTypeWrapper(ClickHouseDataType dType){
         this.dType = dType;
@@ -17,7 +17,7 @@ public class ClickHouseDataTypeWrapper implements Type {
 
 
     @Override
-    public Class getJavaType() {
+    public Class<?> getJavaType() {
         return dType.getObjectClass();
     }
 

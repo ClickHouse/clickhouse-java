@@ -15,10 +15,11 @@ public class ClickHouseBatch implements Batch {
 
     private static final ClickHouseFormat PREFERRED_FORMAT = ClickHouseFormat.TabSeparatedWithNamesAndTypes;
     private ClickHouseRequest<?> request;
-    List<String> sqlList = new ArrayList<>();
+    final List<String> sqlList;
 
-    public ClickHouseBatch(ClickHouseRequest request) {
+    public ClickHouseBatch(ClickHouseRequest<?> request) {
         this.request = request;
+        this.sqlList = new ArrayList<>();
     }
 
     @Override
