@@ -3,6 +3,7 @@ name: TimeZone
 on:
   push:
     branches:
+      - main
       - master
       - develop
     paths-ignore:
@@ -44,7 +45,7 @@ jobs:
     name: "TimeZone(C/S): ${{ matrix.clientTz }} vs. ${{ matrix.serverTz }}"
     steps:
       - name: Check out Git repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: Check out PR
         run: |
           git fetch --no-tags --prune --progress --no-recurse-submodules --depth=1 \
@@ -58,16 +59,12 @@ jobs:
           cache: 'maven'
       - name: Install dependencies
         run: |
-          mvn --batch-mode --update-snapshots \
-            --projects clickhouse-client -DskipTests \
-            --also-make install
-      - name: Test JDBC driver
+          mvn --also-make --batch-mode --projects clickhouse-jdbc -Drelease -DskipTests install
+      - name: Test JDBC & R2DBC drivers
         run: |
-          mvn --batch-mode --projects clickhouse-jdbc \
-            -DclickhouseTimezone=${{ matrix.serverTz }} \
-            -DclickhouseVersion=22.3 \
-            -Duser.timezone=${{ matrix.clientTz }} \
-            --also-make clean verify
+          mvn --batch-mode --projects clickhouse-jdbc,clickhouse-r2dbc -DskipUTs \
+            -DclickhouseTimezone=${{ matrix.serverTz }} -DclickhouseVersion=22.8 \
+            -Duser.timezone=${{ matrix.clientTz }} clean verify
       - name: Upload test results
         uses: actions/upload-artifact@v2
         if: failure()
@@ -76,4 +73,3 @@ jobs:
           path: |
             **/target/failsafe-reports
             **/target/surefire-reports
-
