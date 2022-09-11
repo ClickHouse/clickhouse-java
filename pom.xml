@@ -43,6 +43,7 @@
         <module>clickhouse-sql-parser</module -->
         <module>clickhouse-jdbc</module>
         <module>clickhouse-benchmark</module>
+        <module>clickhouse-r2dbc</module>
     </modules>
 
     <scm>
@@ -98,6 +99,7 @@
         <wiremock.version>2.33.2</wiremock.version>
         <testcontainers.version>1.17.3</testcontainers.version>
         <testng.version>7.5</testng.version>
+        <commons-lang3.version>3.12.0</commons-lang3.version>
 
         <mariadb-driver.version>3.0.7</mariadb-driver.version>
         <mysql-driver.version>8.0.30</mysql-driver.version>
@@ -310,6 +312,14 @@
                         <artifactId>*</artifactId>
                     </exclusion>
                 </exclusions>
+            </dependency>
+            <!-- required for r2dbc -->
+            <dependency>
+                <groupId>io.projectreactor</groupId>
+                <artifactId>reactor-bom</artifactId>
+                <version>2020.0.16</version>
+                <type>pom</type>
+                <scope>import</scope>
             </dependency>
         </dependencies>
     </dependencyManagement>

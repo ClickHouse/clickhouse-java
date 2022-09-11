@@ -1,0 +1,57 @@
+{
+	"info": {
+		"_postman_id": "42544c65-9bda-4155-b00c-68bf62de19c2",
+		"name": "clickhouse-r2dbc-sample",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "List Clicks",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://localhost:8080/clicks/google.com",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8080",
+					"path": [
+						"clicks",
+						"google.com"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Create Clicks",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"domain\" : \"google.com\",\n    \"path\" : \"/mail\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://localhost:8080/clicks",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8080",
+					"path": [
+						"clicks"
+					]
+				}
+			},
+			"response": []
+		}
+	]
+}
