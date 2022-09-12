@@ -362,6 +362,8 @@ public class ClickHouseClientBuilder {
         }
     }
 
+    private static final Logger log = LoggerFactory.getLogger(ClickHouseClientBuilder.class);
+
     // expose method to change default thread pool in runtime? JMX?
     static final ExecutorService defaultExecutor;
     static final ScheduledExecutorService defaultScheduler;
@@ -460,12 +462,16 @@ public class ClickHouseClientBuilder {
         int counter = 0;
         if (nodeSelector != null) {
             for (ClickHouseClient c : loadClients()) {
-                c.init(conf);
+                try {
+                    c.init(conf);
 
-                counter++;
-                if (nodeSelector == ClickHouseNodeSelector.EMPTY || nodeSelector.match(c)) {
-                    client = c;
-                    break;
+                    counter++;
+                    if (nodeSelector == ClickHouseNodeSelector.EMPTY || nodeSelector.match(c)) {
+                        client = c;
+                        break;
+                    }
+                } catch (Exception e) {
+                    log.warn("Skip %s due to: %s", c, e.getMessage());
                 }
             }
         }

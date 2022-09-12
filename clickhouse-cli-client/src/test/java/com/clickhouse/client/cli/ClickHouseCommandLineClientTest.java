@@ -43,7 +43,7 @@ public class ClickHouseCommandLineClientTest extends ClientIntegrationTest {
     @Override
     protected ClickHouseNode getServer() {
         GenericContainer<?> container = ClickHouseServerForTest.getClickHouseContainer();
-        if (container != null) {
+        if (container != null && !ClickHouseCommandLine.DEFAULT_CLI_IS_AVAILALBE) {
             return ClickHouseNode.of("localhost", getProtocol(), getProtocol().getDefaultPort(), null);
         }
 
