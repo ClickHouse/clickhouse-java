@@ -1403,7 +1403,7 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
     }
 
     @Test(groups = { "integration" })
-    public void testInsertWithCustomFormat() throws ClickHouseException {
+    public void testInsertWithCustomFormat1() throws ClickHouseException, IOException {
         ClickHouseNode server = getServer();
         sendAndWait(server, "drop table if exists test_custom_input_format",
                 "create table test_custom_input_format(i Int8, f String)engine=Memory");
@@ -1415,18 +1415,30 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
             }
             try (ClickHouseResponse response = request.write().format(ClickHouseFormat.CSVWithNames)
                     .table("test_custom_input_format")
-                    .data(o -> o.writeBytes("i,f\n2,CSVWithNames".getBytes())).executeAndWait()) {
+                    .data(o -> o.writeBytes("i,f\n2,CSVWithNames\n3,CSVWithNames".getBytes(StandardCharsets.US_ASCII)))
+                    .executeAndWait()) {
                 // ignore
             }
+
+            Path temp = Files.createTempFile("data", ".csv");
+            Assert.assertEquals(Files.size(temp), 0L);
+            Files.write(temp, "i,f\n4,CSVWithNames\n5,CSVWithNames\n".getBytes(StandardCharsets.US_ASCII));
+            Assert.assertTrue(Files.size(temp) > 0L);
+            try (ClickHouseResponse response = request.write().format(ClickHouseFormat.CSVWithNames)
+                    .table("test_custom_input_format")
+                    .data(temp.toFile().getAbsolutePath()).executeAndWait()) {
+                // ignore
+            }
+
             try (ClickHouseResponse response = request.query("select * from test_custom_input_format order by i")
                     .executeAndWait()) {
                 int count = 0;
                 for (ClickHouseRecord r : response.records()) {
                     Assert.assertEquals(r.getValue(0).asInteger(), count + 1);
-                    Assert.assertEquals(r.getValue(1).asString(), count == 0 ? "RowBinary" : "CSVWithNames");
+                    Assert.assertEquals(r.getValue(1).asString(), count < 1 ? "RowBinary" : "CSVWithNames");
                     count++;
                 }
-                Assert.assertEquals(count, 2);
+                Assert.assertEquals(count, 5);
             }
         }
     }
@@ -1481,9 +1493,10 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
         try (ClickHouseClient client = getClient()) {
             ClickHouseRequest<?> request = client.connect(server).format(ClickHouseFormat.RowBinary)
                     .session(sessionId);
-            request.query("drop temporary table if exists my_temp_table").executeAndWait();
-            request.query("create temporary table my_temp_table(a Int8)").executeAndWait();
-            request.query("insert into my_temp_table values(2)").executeAndWait();
+            execute(request, "drop temporary table if exists my_temp_table");
+            execute(request, "create temporary table my_temp_table(a Int8)");
+            execute(request, "insert into my_temp_table values(2)");
+
             try (ClickHouseResponse resp = request.write().table("my_temp_table")
                     .data(new ByteArrayInputStream(new byte[] { 3 })).executeAndWait()) {
                 // ignore

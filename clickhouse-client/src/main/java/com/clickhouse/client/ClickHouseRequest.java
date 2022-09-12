@@ -196,7 +196,7 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
 
             final ClickHouseRequest<?> self = this;
             final ClickHouseFile wrappedFile = ClickHouseFile.of(file, compression, 0, null);
-            if (wrappedFile.hasFormat()) {
+            if (wrappedFile.hasFormat() && getFormat().defaultInputFormat() != wrappedFile.getFormat()) {
                 format(wrappedFile.getFormat());
             }
             this.input = changeProperty(PROP_DATA, this.input, ClickHouseDeferredValue

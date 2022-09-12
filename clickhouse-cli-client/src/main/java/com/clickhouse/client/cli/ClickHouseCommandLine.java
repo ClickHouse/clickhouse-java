@@ -124,7 +124,9 @@ public class ClickHouseCommandLine implements AutoCloseable {
                 process = null;
             }
 
-            cache.put(command, value);
+            if (value) { // no negative cache
+                cache.put(command, value);
+            }
         }
 
         return Boolean.TRUE.equals(value);
