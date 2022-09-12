@@ -7,8 +7,6 @@ import java.util.Collections;
 import java.util.List;
 
 import com.clickhouse.client.AbstractClient;
-import com.clickhouse.client.ClickHouseChecker;
-import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseException;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseProtocol;
@@ -27,25 +25,6 @@ public class ClickHouseCommandLineClient extends AbstractClient<ClickHouseComman
 
     static final List<ClickHouseProtocol> SUPPORTED = Collections
             .unmodifiableList(Arrays.asList(ClickHouseProtocol.LOCAL, ClickHouseProtocol.TCP));
-
-    private String getCommandLine(String option) {
-        ClickHouseConfig config = getConfig();
-        int timeout = config.getConnectionTimeout();
-        String cli = config.getStrOption(ClickHouseCommandLineOption.CLICKHOUSE_CLI_PATH);
-        if (ClickHouseChecker.isNullOrBlank(cli)) {
-            cli = ClickHouseCommandLine.DEFAULT_CLICKHOUSE_CLI_PATH;
-        }
-        if (!ClickHouseCommandLine.check(timeout, cli, option, ClickHouseCommandLine.DEFAULT_CLI_ARG_VERSION)) {
-            cli = config.getStrOption(ClickHouseCommandLineOption.DOCKER_CLI_PATH);
-            if (ClickHouseChecker.isNullOrBlank(cli)) {
-                cli = ClickHouseCommandLine.DEFAULT_DOCKER_CLI_PATH;
-            }
-            if (!ClickHouseCommandLine.check(timeout, cli, option, ClickHouseCommandLine.DEFAULT_CLI_ARG_VERSION)) {
-                cli = null;
-            }
-        }
-        return cli;
-    }
 
     @Override
     protected boolean checkHealth(ClickHouseNode server, int timeout) {
@@ -107,7 +86,7 @@ public class ClickHouseCommandLineClient extends AbstractClient<ClickHouseComman
                 option = null;
                 break;
         }
-        return option != null && getCommandLine(option) != null;
+        return option != null && ClickHouseCommandLine.getCommandLine(getConfig(), option) != null;
     }
 
     @Override

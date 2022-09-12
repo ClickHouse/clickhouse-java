@@ -55,6 +55,45 @@ jobs:
       - name: Compile examples
         run: for d in $(ls -d `pwd`/examples/*/); do cd $d && mvn clean compile; done
 
+  test-cli-client:
+    runs-on: ubuntu-latest
+    needs: compile
+    timeout-minutes: 10
+    name: CLI client against ClickHouse 22.8
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v3
+      - name: Check out PR
+        run: |
+          git fetch --no-tags --prune --progress --no-recurse-submodules --depth=1 \
+            origin pull/${{ github.event.inputs.pr }}/merge:merged-pr && git checkout merged-pr
+        if: github.event.inputs.pr != ''
+      - name: Install JDK 8 and Maven
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: 8
+          cache: 'maven'
+      - name: Install ClickHouse native command line
+        run: |
+          sudo apt-get update \
+            && sudo apt-get install -y apt-transport-https ca-certificates dirmngr \
+            && sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv 8919F6BD2B48D754 \
+            && echo "deb https://packages.clickhouse.com/deb lts main" | sudo tee /etc/apt/sources.list.d/clickhouse.list \
+            && sudo apt-get update && sudo apt-get install -y clickhouse-client \
+            && clickhouse client --version
+      - name: Test CLI client
+        run: |
+          mvn --also-make --batch-mode --projects clickhouse-cli-client -DclickhouseVersion=22.8 -DskipUTs verify
+      - name: Upload test results
+        uses: actions/upload-artifact@v2
+        if: failure()
+        with:
+          name: result ${{ github.job }}
+          path: |
+            **/target/failsafe-reports
+            **/target/surefire-reports
+
   test-java-client:
     runs-on: ubuntu-latest
     needs: compile
@@ -64,7 +103,7 @@ jobs:
         clickhouse: ["21.8", "22.3", "latest"]
       fail-fast: false
     timeout-minutes: 30
-    name: Test Java client against ClickHouse ${{ matrix.clickhouse }}
+    name: Java client against ClickHouse ${{ matrix.clickhouse }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v3
@@ -127,7 +166,7 @@ jobs:
             protocol: grpc
       fail-fast: false
     timeout-minutes: 30
-    name: Test JDBC driver against ClickHouse ${{ matrix.clickhouse }} (${{ matrix.protocol }})
+    name: JDBC driver against ClickHouse ${{ matrix.clickhouse }} (${{ matrix.protocol }})
     steps:
       - name: Check out repository
         uses: actions/checkout@v3
@@ -189,7 +228,7 @@ jobs:
         protocol: ["http"]
       fail-fast: false
     timeout-minutes: 10
-    name: Test R2DBC driver against ClickHouse ${{ matrix.clickhouse }} (${{ matrix.protocol }})
+    name: R2DBC driver against ClickHouse ${{ matrix.clickhouse }} (${{ matrix.protocol }})
     steps:
       - name: Check out repository
         uses: actions/checkout@v3
@@ -252,27 +291,24 @@ jobs:
     timeout-minutes: 30
     name: "TimeZone(C/S): ${{ matrix.clientTz }} vs. ${{ matrix.serverTz }}"
     steps:
-      - name: Check out Git repository
+      - name: Check out repository
         uses: actions/checkout@v3
       - name: Check out PR
         run: |
           git fetch --no-tags --prune --progress --no-recurse-submodules --depth=1 \
             origin pull/${{ github.event.inputs.pr }}/merge:merged-pr && git checkout merged-pr
         if: github.event.inputs.pr != ''
-      - name: Set up JDK 8
+      - name: Install JDK 8 and Maven
         uses: actions/setup-java@v3
         with:
           distribution: 'temurin'
           java-version: 8
           cache: 'maven'
-      - name: Install dependencies
+      - name: Test
         run: |
-          mvn --also-make --batch-mode --projects clickhouse-jdbc -DskipTests install
-      - name: Test JDBC & R2DBC drivers
-        run: |
-          mvn --batch-mode --projects clickhouse-jdbc,clickhouse-r2dbc -DskipUTs \
-            -DclickhouseTimezone=${{ matrix.serverTz }} -DclickhouseVersion=22.8 \
-            -Duser.timezone=${{ matrix.clientTz }} clean verify
+          mvn --batch-mode --projects '!clickhouse-benchmark' -DclickhouseVersion=22.8 \
+            -DclickhouseTimezone=${{ matrix.serverTz }} -Duser.timezone=${{ matrix.clientTz }} \
+            -DskipUTs verify
       - name: Upload test results
         uses: actions/upload-artifact@v2
         if: failure()

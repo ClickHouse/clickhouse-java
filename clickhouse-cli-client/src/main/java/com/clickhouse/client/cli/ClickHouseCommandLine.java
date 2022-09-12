@@ -20,6 +20,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.WeakHashMap;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -54,51 +55,97 @@ public class ClickHouseCommandLine implements AutoCloseable {
     public static final String DEFAULT_DOCKER_CLI_PATH = "docker";
     public static final String DEFAULT_DOCKER_IMAGE = "clickhouse/clickhouse-server";
 
+    public static final boolean DEFAULT_CLI_IS_AVAILALBE;
+    public static final boolean DEFAULT_DOCKER_IS_AVAILALBE;
+
+    private static final Map<String, Boolean> cache = Collections.synchronizedMap(new WeakHashMap<>(8));
+
+    static {
+        String option = DEFAULT_CLIENT_OPTION;
+        int timeout = (int) ClickHouseClientOption.CONNECTION_TIMEOUT.getEffectiveDefaultValue();
+
+        DEFAULT_CLI_IS_AVAILALBE = check(timeout, DEFAULT_CLICKHOUSE_CLI_PATH, option, DEFAULT_CLI_ARG_VERSION);
+        DEFAULT_DOCKER_IS_AVAILALBE = check(timeout, DEFAULT_DOCKER_CLI_PATH, option, DEFAULT_CLI_ARG_VERSION);
+    }
+
+    static String getCommandLine(ClickHouseConfig config, String option) {
+        int timeout = config.getConnectionTimeout();
+        String cli = config.getStrOption(ClickHouseCommandLineOption.CLICKHOUSE_CLI_PATH);
+        if (ClickHouseChecker.isNullOrBlank(cli)) {
+            cli = DEFAULT_CLI_IS_AVAILALBE ? DEFAULT_CLICKHOUSE_CLI_PATH : null;
+        } else if (!check(timeout, cli, option, DEFAULT_CLI_ARG_VERSION)) {
+            cli = null;
+        }
+
+        if (cli == null) {
+            cli = config.getStrOption(ClickHouseCommandLineOption.DOCKER_CLI_PATH);
+            if (ClickHouseChecker.isNullOrBlank(cli)) {
+                cli = DEFAULT_DOCKER_IS_AVAILALBE ? DEFAULT_DOCKER_CLI_PATH : null;
+            } else if (!check(timeout, cli, option, DEFAULT_CLI_ARG_VERSION)) {
+                cli = null;
+            }
+        }
+        return cli;
+    }
+
     static boolean check(int timeout, String command, String... args) {
         if (ClickHouseChecker.isNullOrBlank(command) || args == null) {
             throw new IllegalArgumentException("Non-blank command and non-null arguments are required");
         }
 
-        List<String> list = new ArrayList<>(args.length + 1);
-        list.add(command);
-        Collections.addAll(list, args);
-        Process process = null;
-        try {
-            process = new ProcessBuilder(list).start();
-            process.getOutputStream().close();
-            if (process.waitFor(timeout, TimeUnit.MILLISECONDS)) {
-                int exitValue = process.exitValue();
-                if (exitValue != 0) {
-                    log.trace("Command %s exited with value %d", list, exitValue);
+        Boolean value = cache.get(command);
+        if (value == null) {
+            value = Boolean.FALSE;
+
+            List<String> list = new ArrayList<>(args.length + 1);
+            list.add(command);
+            Collections.addAll(list, args);
+            Process process = null;
+            try {
+                process = new ProcessBuilder(list).start();
+                process.getOutputStream().close();
+                if (process.waitFor(timeout, TimeUnit.MILLISECONDS)) {
+                    int exitValue = process.exitValue();
+                    if (exitValue != 0) {
+                        log.trace("Command %s exited with value %d", list, exitValue);
+                    }
+                    value = exitValue == 0;
+                } else {
+                    log.trace("Timed out after waiting %d ms for command %s to complete", timeout, list);
                 }
-                return exitValue == 0;
-            } else {
-                log.trace("Timed out after waiting %d ms for command %s to complete", timeout, list);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            } catch (Exception e) {
+                log.trace("Failed to check command %s due to: %s", list, e.getMessage());
+            } finally {
+                if (process != null && process.isAlive()) {
+                    process.destroyForcibly();
+                }
+                process = null;
             }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        } catch (Exception e) {
-            log.trace("Failed to check command %s due to: %s", list, e.getMessage());
-        } finally {
-            if (process != null && process.isAlive()) {
-                process.destroyForcibly();
-            }
-            process = null;
+
+            cache.put(command, value);
         }
 
-        return false;
+        return Boolean.TRUE.equals(value);
     }
 
     static void dockerCommand(ClickHouseConfig config, String hostDir, String containerDir, int timeout,
             List<String> commands) {
         String cli = config.getStrOption(ClickHouseCommandLineOption.DOCKER_CLI_PATH);
+        boolean useDocker = false;
         if (ClickHouseChecker.isNullOrBlank(cli)) {
-            cli = DEFAULT_DOCKER_CLI_PATH;
+            if (DEFAULT_DOCKER_IS_AVAILALBE) {
+                cli = DEFAULT_DOCKER_CLI_PATH;
+                useDocker = true;
+            }
+        } else if (check(timeout, cli, DEFAULT_CLI_ARG_VERSION)) {
+            useDocker = true;
         }
-        if (!check(timeout, cli, DEFAULT_CLI_ARG_VERSION)) {
-            throw new UncheckedIOException(new ConnectException("Docker command-line is not available: " + cli));
-        } else {
+        if (useDocker) {
             commands.add(cli);
+        } else {
+            throw new UncheckedIOException(new ConnectException("Docker command-line is not available: " + cli));
         }
 
         String img = config.getStrOption(ClickHouseCommandLineOption.CLICKHOUSE_DOCKER_IMAGE);
@@ -155,15 +202,21 @@ public class ClickHouseCommandLine implements AutoCloseable {
 
         List<String> commands = new LinkedList<>();
         String cli = config.getStrOption(ClickHouseCommandLineOption.CLICKHOUSE_CLI_PATH);
+        boolean useCli = false;
         if (ClickHouseChecker.isNullOrBlank(cli)) {
-            cli = DEFAULT_CLICKHOUSE_CLI_PATH;
+            if (DEFAULT_CLI_IS_AVAILALBE) {
+                cli = DEFAULT_CLICKHOUSE_CLI_PATH;
+                useCli = true;
+            }
+        } else if (check(timeout, cli, DEFAULT_CLIENT_OPTION, DEFAULT_CLI_ARG_VERSION)) {
+            useCli = true;
         }
-        if (!check(timeout, cli, DEFAULT_CLIENT_OPTION, DEFAULT_CLI_ARG_VERSION)) {
-            // fallback to docker
-            dockerCommand(config, hostDir, containerDir, timeout, commands);
-        } else {
+        if (useCli) {
             commands.add(cli);
             containerDir = hostDir;
+        } else {
+            // fallback to docker
+            dockerCommand(config, hostDir, containerDir, timeout, commands);
         }
         commands.add(DEFAULT_CLIENT_OPTION);
 
