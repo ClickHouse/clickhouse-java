@@ -1,22 +1,12 @@
 /**
  * Declares ru.yandex.clickhouse module.
  */
-module com.clickhouse.jdbc {
-    exports com.clickhouse.jdbc;
-    
-    exports ru.yandex.clickhouse;
-    exports ru.yandex.clickhouse.domain;
-    exports ru.yandex.clickhouse.except;
-    exports ru.yandex.clickhouse.response;
-    exports ru.yandex.clickhouse.settings;
-    exports ru.yandex.clickhouse.util;
-
-    requires java.sql;
+module com.clickhouse.r2dbc {
+    exports com.clickhouse.r2dbc;
 
     requires transitive com.clickhouse.client;
-    requires transitive com.google.gson;
-    requires transitive org.apache.httpcomponents.httpclient;
-    requires transitive org.apache.httpcomponents.httpmime;
+    requires transitive r2dbc.spi;
+    requires transitive reactor.core;
     requires transitive org.lz4.java;
 
     requires static java.logging;
