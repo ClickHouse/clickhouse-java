@@ -11,6 +11,8 @@ module com.clickhouse.jdbc {
     exports ru.yandex.clickhouse.settings;
     exports ru.yandex.clickhouse.util;
 
+    requires java.sql;
+
     requires transitive com.clickhouse.client;
     requires transitive com.google.gson;
     requires transitive org.apache.httpcomponents.httpclient;

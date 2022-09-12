@@ -19,6 +19,7 @@
         <hikari-cp.version>4.0.3</hikari-cp.version>
         <junit.version>5.9.0</junit.version>
         <r2dbc-spi.version>1.0.0.RELEASE</r2dbc-spi.version>
+        <reactor.version>3.4.22</reactor.version>
         <spec.title>R2DBC</spec.title>
         <spec.version>1.0</spec.version>
     </properties>
@@ -27,13 +28,12 @@
         <dependency>
             <groupId>io.projectreactor</groupId>
             <artifactId>reactor-core</artifactId>
-            <scope>provided</scope>
+            <version>${reactor.version}</version>
         </dependency>
         <dependency>
             <groupId>io.r2dbc</groupId>
             <artifactId>r2dbc-spi</artifactId>
             <version>${r2dbc-spi.version}</version>
-            <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>${project.parent.groupId}</groupId>
@@ -210,6 +210,18 @@
                             </transformers>
                             <filters>
                                 <filter>
+                                    <artifact>io.r2dbc:r2dbc-spi</artifact>
+                                    <excludes>
+                                        <exclude>**</exclude>
+                                    </excludes>
+                                </filter>
+                                <filter>
+                                    <artifact>io.projectreactor:reactor-core</artifact>
+                                    <excludes>
+                                        <exclude>**</exclude>
+                                    </excludes>
+                                </filter>
+                                <filter>
                                     <artifact>*:*</artifact>
                                     <excludes>
                                         <exclude>mozilla/**</exclude>
@@ -248,6 +260,18 @@
                                 </transformer>
                             </transformers>
                             <filters>
+                                <filter>
+                                    <artifact>io.r2dbc:r2dbc-spi</artifact>
+                                    <excludes>
+                                        <exclude>**</exclude>
+                                    </excludes>
+                                </filter>
+                                <filter>
+                                    <artifact>io.projectreactor:reactor-core</artifact>
+                                    <excludes>
+                                        <exclude>**</exclude>
+                                    </excludes>
+                                </filter>
                                 <filter>
                                     <artifact>${project.parent.groupId}:clickhouse-cli-client</artifact>
                                     <excludes>
