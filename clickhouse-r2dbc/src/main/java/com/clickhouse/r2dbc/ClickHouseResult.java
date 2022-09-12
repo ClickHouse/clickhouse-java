@@ -7,7 +7,6 @@ import com.clickhouse.client.logging.LoggerFactory;
 import io.r2dbc.spi.Result;
 import io.r2dbc.spi.Row;
 import io.r2dbc.spi.RowMetadata;
-import org.apache.commons.lang3.tuple.Pair;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -29,7 +28,7 @@ public class ClickHouseResult implements Result {
         this.rowSegments = Mono.just(response)
                 .flatMapMany(resp -> Flux
                         .fromStream(StreamSupport.stream(resp.records().spliterator(), false)
-                                .map(rec -> Pair.of(resp.getColumns(), rec))))
+                                .map(rec -> ClickHousePair.of(resp.getColumns(), rec))))
                     .map(pair -> new ClickHouseRow(pair.getRight(), pair.getLeft()))
                 .map(RowSegment::new);
         this.updatedCount =  Mono.just(response).map(ClickHouseResponse::getSummary)

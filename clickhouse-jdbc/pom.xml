@@ -61,7 +61,6 @@
         <dependency>
             <groupId>${project.parent.groupId}</groupId>
             <artifactId>org.roaringbitmap</artifactId>
-            <version>${repackaged.version}</version>
             <scope>provided</scope>
             <exclusions>
                 <exclusion>
