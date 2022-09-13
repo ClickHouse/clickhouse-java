@@ -93,7 +93,12 @@ public class ClickHouseCommandLine implements AutoCloseable {
             throw new IllegalArgumentException("Non-blank command and non-null arguments are required");
         }
 
-        Boolean value = cache.get(command);
+        StringBuilder builder = new StringBuilder(command);
+        for (String str : args) {
+            builder.append(' ').append(str);
+        }
+        String commandLine = builder.toString();
+        Boolean value = cache.get(commandLine);
         if (value == null) {
             value = Boolean.FALSE;
 
@@ -125,7 +130,7 @@ public class ClickHouseCommandLine implements AutoCloseable {
             }
 
             if (value) { // no negative cache
-                cache.put(command, value);
+                cache.put(commandLine, value);
             }
         }
 
