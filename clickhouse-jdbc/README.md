@@ -328,6 +328,26 @@ Please refer to cheatsheet below to upgrade JDBC driver to 0.3.2.
 </tr>
 <tr>
 <td>4</td>
+<td>custom settings</td>
+<td><pre><code class="language-java">String jdbcUrl = "jdbc:clickhouse://localhost:8123/default?socket_timeout=6000000"
+    // custom server settings
+    + "&max_bytes_before_external_group_by=16000000000"
+    + "&optimize_aggregation_in_order=0"
+    + "&join_default_strictness=ANY"
+    + "&join_algorithm=auto"
+    + "&max_memory_usage=20000000000"; </code></pre></td>
+<td><pre><code class="language-java">String jdbcUrl = "jdbc:clickhouse://localhost/default?socket_timeout=6000000"
+    // or properties.setProperty("custom_settings", "a=1,b=2,c=3")
+    + "&custom_settings="
+    // url encoded settings separated by comma
+    + "max_bytes_before_external_group_by%3D16000000000%2C"
+    + "optimize_aggregation_in_order%3D0%2C"
+    + "join_default_strictness%3DANY%2C"
+    + "join_algorithm%3Dauto%2C"
+    + "max_memory_usage%3D20000000000"; </code></pre></td>
+</tr>
+<tr>
+<td>5</td>
 <td>load balancing</td>
 <td><pre><code class="language-java">String connString = "jdbc:clickhouse://server1:8123,server2:8123,server3:8123/database";
 BalancedClickhouseDataSource balancedDs = new BalancedClickhouseDataSource(
@@ -340,7 +360,7 @@ ClickHouseDataSource ds = new ClickHouseDataSource(connString);
 ClickHouseConnection conn = ds.getConnection("default", "");
 </code></pre></td>
 </tr>
-<td>5</td>
+<td>6</td>
 <td>extended API</td>
 <td><pre><code class="language-java">ClickHouseStatement sth = connection.createStatement();
 sth.write().send("INSERT INTO test.writer", new ClickHouseStreamCallback() {
