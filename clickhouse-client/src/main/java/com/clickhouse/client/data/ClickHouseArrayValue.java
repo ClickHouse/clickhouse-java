@@ -19,6 +19,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.Map.Entry;
+
+import com.clickhouse.client.ClickHouseArraySequence;
 import com.clickhouse.client.ClickHouseChecker;
 import com.clickhouse.client.ClickHouseValue;
 import com.clickhouse.client.ClickHouseValues;
@@ -26,7 +28,7 @@ import com.clickhouse.client.ClickHouseValues;
 /**
  * Wrapper class of Array.
  */
-public class ClickHouseArrayValue<T> extends ClickHouseObjectValue<T[]> {
+public class ClickHouseArrayValue<T> extends ClickHouseObjectValue<T[]> implements ClickHouseArraySequence {
     /**
      * Creates an empty array.
      *
@@ -546,5 +548,39 @@ public class ClickHouseArrayValue<T> extends ClickHouseObjectValue<T[]> {
     @Override
     public int hashCode() {
         return Arrays.deepHashCode(getValue());
+    }
+
+    @Override
+    public ClickHouseArraySequence allocate(int length, Class<?> clazz, int level) {
+        if (length < 1) {
+            // resetToNullOrEmpty / resetToDefault will replace the value to Object[0]
+            if (!isNullOrEmpty() || getValue().getClass().getComponentType() != clazz) {
+                set((T[]) (clazz.isPrimitive()
+                        ? ClickHouseValues.createPrimitiveArray(clazz, 0, level)
+                        : ClickHouseValues.createObjectArray(clazz, 0, level)));
+            }
+        } else if (length() != length) {
+            set((T[]) (clazz.isPrimitive()
+                    ? ClickHouseValues.createPrimitiveArray(clazz, length, level)
+                    : ClickHouseValues.createObjectArray(clazz, length, level)));
+        }
+        return this;
+    }
+
+    @Override
+    public int length() {
+        return isNullOrEmpty() ? 0 : getValue().length;
+    }
+
+    @Override
+    public <V extends ClickHouseValue> V getValue(int index, V value) {
+        value.update(getValue()[index]);
+        return value;
+    }
+
+    @Override
+    public ClickHouseArraySequence setValue(int index, ClickHouseValue value) {
+        getValue()[index] = (T) value.asObject();
+        return this;
     }
 }

@@ -5,7 +5,6 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
@@ -524,24 +523,28 @@ public interface ClickHouseClient extends AutoCloseable {
      * @throws CompletionException      when error occurred during execution
      */
     static CompletableFuture<List<ClickHouseResponseSummary>> send(ClickHouseNode server, String sql, String... more) {
-        if (server == null || sql == null) {
+        if (server == null || sql == null || more == null) {
             throw new IllegalArgumentException("Non-null server and sql are required");
         }
 
         // in case the protocol is ANY
         final ClickHouseNode theServer = server.probe();
 
-        List<String> queries = new LinkedList<>();
-        queries.add(sql);
-        if (more != null && more.length > 0) {
-            for (String query : more) {
-                // dedup?
-                queries.add(ClickHouseChecker.nonNull(query, "query"));
+        List<String> queries = new ArrayList<>(more.length + 1);
+        if (!ClickHouseChecker.isNullOrBlank(sql)) {
+            queries.add(sql);
+        }
+        for (String query : more) {
+            if (!ClickHouseChecker.isNullOrBlank(query)) {
+                queries.add(query);
             }
+        }
+        if (queries.isEmpty()) {
+            throw new IllegalArgumentException("At least one non-blank query is required");
         }
 
         return submit(() -> {
-            List<ClickHouseResponseSummary> list = new LinkedList<>();
+            List<ClickHouseResponseSummary> list = new ArrayList<>(queries.size());
 
             // set async to false so that we don't have to create additional thread
             try (ClickHouseClient client = ClickHouseClient.builder()

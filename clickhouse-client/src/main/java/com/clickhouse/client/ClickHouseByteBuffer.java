@@ -217,7 +217,7 @@ public class ClickHouseByteBuffer implements Serializable {
     }
 
     public double[] asDoubleArray() {
-        int step = 8;
+        int step = Double.BYTES;
         int len = length / step;
         double[] values = new double[len];
         for (int i = 0, offset = 0; i < len; i++, offset += step) {
@@ -231,7 +231,7 @@ public class ClickHouseByteBuffer implements Serializable {
     }
 
     public float[] asFloatArray() {
-        int step = 4;
+        int step = Float.BYTES;
         int len = length / step;
         float[] values = new float[len];
         for (int i = 0, offset = 0; i < len; i++, offset += step) {
@@ -394,7 +394,7 @@ public class ClickHouseByteBuffer implements Serializable {
     }
 
     public int[] asIntegerArray() {
-        int step = 4;
+        int step = Integer.BYTES;
         int len = length / step;
         int[] values = new int[len];
         for (int i = 0, offset = 0; i < len; i++, offset += step) {
@@ -404,7 +404,7 @@ public class ClickHouseByteBuffer implements Serializable {
     }
 
     public long[] asLongArray() {
-        int step = 8;
+        int step = Long.BYTES;
         int len = length / step;
         long[] values = new long[len];
         for (int i = 0, offset = 0; i < len; i++, offset += step) {
@@ -414,7 +414,7 @@ public class ClickHouseByteBuffer implements Serializable {
     }
 
     public short[] asShortArray() {
-        int step = 2;
+        int step = Short.BYTES;
         int len = length / step;
         short[] values = new short[len];
         for (int i = 0, offset = 0; i < len; i++, offset += step) {
@@ -436,7 +436,7 @@ public class ClickHouseByteBuffer implements Serializable {
     }
 
     public long[] asUnsignedIntegerArray() {
-        int step = 4;
+        int step = Integer.BYTES;
         int len = length / step;
         long[] values = new long[len];
         for (int i = 0, offset = 0; i < len; i++, offset += step) {
@@ -446,7 +446,7 @@ public class ClickHouseByteBuffer implements Serializable {
     }
 
     public int[] asUnsignedShortArray() {
-        int step = 2;
+        int step = Short.BYTES;
         int len = length / step;
         int[] values = new int[len];
         for (int i = 0, offset = 0; i < len; i++, offset += step) {

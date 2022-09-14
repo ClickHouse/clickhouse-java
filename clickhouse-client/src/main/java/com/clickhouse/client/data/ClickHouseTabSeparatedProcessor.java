@@ -261,10 +261,10 @@ public class ClickHouseTabSeparatedProcessor extends ClickHouseDataProcessor {
 
     @Override
     protected List<ClickHouseColumn> readColumns() throws IOException {
-        if (input == null) {
+        if (input.available() < 1) {
+            input.close();
             return Collections.emptyList();
         }
-
         ClickHouseFormat format = config.getFormat();
         if (!format.hasHeader()) {
             return DEFAULT_COLUMNS;

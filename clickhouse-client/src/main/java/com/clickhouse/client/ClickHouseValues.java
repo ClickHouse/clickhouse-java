@@ -1016,6 +1016,42 @@ public final class ClickHouseValues {
     /**
      * Creates a value object based on given column.
      *
+     * @param column array column
+     * @return value object with empty value
+     */
+    public static ClickHouseArraySequence newArrayValue(ClickHouseColumn column) {
+        ClickHouseArraySequence value;
+        if (column == null || !column.isArray() || column.getArrayBaseColumn().isNullable()) {
+            value = ClickHouseArrayValue.ofEmpty();
+        } else if (column.getArrayNestedLevel() > 1) {
+            value = ClickHouseArrayValue.of(
+                    (Object[]) createPrimitiveArray(
+                            column.getArrayBaseColumn().getPrimitiveClass(),
+                            0, column.getArrayNestedLevel()));
+        } else {
+            Class<?> javaClass = column.getArrayBaseColumn().getPrimitiveClass();
+            if (byte.class == javaClass) {
+                value = ClickHouseByteArrayValue.ofEmpty();
+            } else if (short.class == javaClass) {
+                value = ClickHouseShortArrayValue.ofEmpty();
+            } else if (int.class == javaClass) {
+                value = ClickHouseIntArrayValue.ofEmpty();
+            } else if (long.class == javaClass) {
+                value = ClickHouseLongArrayValue.ofEmpty();
+            } else if (float.class == javaClass) {
+                value = ClickHouseFloatArrayValue.ofEmpty();
+            } else if (double.class == javaClass) {
+                value = ClickHouseDoubleArrayValue.ofEmpty();
+            } else {
+                value = ClickHouseArrayValue.ofEmpty();
+            }
+        }
+        return value;
+    }
+
+    /**
+     * Creates a value object based on given column.
+     *
      * @param config non-null configuration
      * @param column non-null column
      * @return value object with default value, either null or empty
@@ -1163,31 +1199,7 @@ public final class ClickHouseValues {
                 }
                 break;
             case Array:
-                if (column == null || column.getArrayBaseColumn().isNullable()) {
-                    value = ClickHouseArrayValue.ofEmpty();
-                } else if (column.getArrayNestedLevel() > 1) {
-                    value = ClickHouseArrayValue.of(
-                            (Object[]) createPrimitiveArray(
-                                    column.getArrayBaseColumn().getPrimitiveClass(),
-                                    0, column.getArrayNestedLevel()));
-                } else {
-                    Class<?> javaClass = column.getArrayBaseColumn().getPrimitiveClass();
-                    if (byte.class == javaClass) {
-                        value = ClickHouseByteArrayValue.ofEmpty();
-                    } else if (short.class == javaClass) {
-                        value = ClickHouseShortArrayValue.ofEmpty();
-                    } else if (int.class == javaClass) {
-                        value = ClickHouseIntArrayValue.ofEmpty();
-                    } else if (long.class == javaClass) {
-                        value = ClickHouseLongArrayValue.ofEmpty();
-                    } else if (float.class == javaClass) {
-                        value = ClickHouseFloatArrayValue.ofEmpty();
-                    } else if (double.class == javaClass) {
-                        value = ClickHouseDoubleArrayValue.ofEmpty();
-                    } else {
-                        value = ClickHouseArrayValue.ofEmpty();
-                    }
-                }
+                value = newArrayValue(column);
                 break;
             case Map:
                 if (column == null) {

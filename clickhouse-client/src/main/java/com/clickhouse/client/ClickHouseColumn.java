@@ -583,7 +583,7 @@ public final class ClickHouseColumn implements Serializable {
         return nullable;
     }
 
-    boolean isLowCardinality() {
+    public boolean isLowCardinality() {
         return lowCardinality;
     }
 
