@@ -117,20 +117,23 @@ public class WrappedInputStream extends AbstractByteArrayInputStream {
         }
         ensureOpen();
 
-        int l = limit;
-        int p = position;
-        int remain = l - p;
-        if (remain > 0) {
-            output.writeBytes(buffer, p, remain);
-            count += remain;
-            position = l;
-        }
+        try {
+            int l = limit;
+            int p = position;
+            int remain = l - p;
+            if (remain > 0) {
+                output.writeBytes(buffer, p, remain);
+                count += remain;
+                position = l;
+            }
 
-        while ((remain = updateBuffer()) > 0) {
-            output.writeBytes(buffer, 0, remain);
-            count += remain;
+            while ((remain = updateBuffer()) > 0) {
+                output.writeBytes(buffer, 0, remain);
+                count += remain;
+            }
+        } finally {
+            close();
         }
-        close();
         return count;
     }
 }

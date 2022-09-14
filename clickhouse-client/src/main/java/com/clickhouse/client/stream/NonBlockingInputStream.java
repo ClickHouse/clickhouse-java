@@ -108,20 +108,23 @@ public class NonBlockingInputStream extends ClickHouseInputStream {
         }
         ensureOpen();
 
-        byte[] b = buffer;
-        int l = b.length;
-        int p = position;
-        int remain = l - p;
-        if (remain > 0) {
-            output.transferBytes(b, p, remain);
-            count += remain;
-            while ((remain = updateBuffer()) > 0) {
-                b = buffer;
-                output.transferBytes(b, 0, remain);
+        try {
+            byte[] b = buffer;
+            int l = b.length;
+            int p = position;
+            int remain = l - p;
+            if (remain > 0) {
+                output.transferBytes(b, p, remain);
                 count += remain;
+                while ((remain = updateBuffer()) > 0) {
+                    b = buffer;
+                    output.transferBytes(b, 0, remain);
+                    count += remain;
+                }
             }
+        } finally {
+            close();
         }
-        close();
         return count;
     }
 
