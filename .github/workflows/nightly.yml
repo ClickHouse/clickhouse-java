@@ -14,7 +14,7 @@ jobs:
     if: ${{ startsWith(github.repository, 'ClickHouse/') }}
     name: "Build and Publish Nightly Snapshot"
     runs-on: "ubuntu-latest"
-
+    timeout-minutes: 15
     steps:
       - name: Check out Git repository
         uses: actions/checkout@v3
