@@ -80,20 +80,23 @@ public abstract class AbstractByteArrayInputStream extends ClickHouseInputStream
         }
         ensureOpen();
 
-        byte[] b = buffer;
-        int l = limit;
-        int p = position;
-        int remain = l - p;
-        if (remain > 0) {
-            output.transferBytes(b, p, remain);
-            count += remain;
-            while ((remain = updateBuffer()) > 0) {
-                b = buffer;
-                output.transferBytes(b, 0, remain);
+        try {
+            byte[] b = buffer;
+            int l = limit;
+            int p = position;
+            int remain = l - p;
+            if (remain > 0) {
+                output.transferBytes(b, p, remain);
                 count += remain;
+                while ((remain = updateBuffer()) > 0) {
+                    b = buffer;
+                    output.transferBytes(b, 0, remain);
+                    count += remain;
+                }
             }
+        } finally {
+            close();
         }
-        close();
         return count;
     }
 

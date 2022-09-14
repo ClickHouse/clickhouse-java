@@ -20,6 +20,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.Map.Entry;
 
+import com.clickhouse.client.ClickHouseArraySequence;
 import com.clickhouse.client.ClickHouseChecker;
 import com.clickhouse.client.ClickHouseUtils;
 import com.clickhouse.client.ClickHouseValue;
@@ -29,7 +30,7 @@ import com.clickhouse.client.data.ClickHouseObjectValue;
 /**
  * Wrapper of {@code double[]}.
  */
-public class ClickHouseDoubleArrayValue extends ClickHouseObjectValue<double[]> {
+public class ClickHouseDoubleArrayValue extends ClickHouseObjectValue<double[]> implements ClickHouseArraySequence {
     private static final String TYPE_NAME = "double[]";
 
     /**
@@ -305,7 +306,7 @@ public class ClickHouseDoubleArrayValue extends ClickHouseObjectValue<double[]> 
             return resetToNullOrEmpty();
         }
 
-        return set(Arrays.copyOf(value, len));
+        return set(value);
     }
 
     @Override
@@ -500,5 +501,32 @@ public class ClickHouseDoubleArrayValue extends ClickHouseObjectValue<double[]> 
     @Override
     public int hashCode() {
         return Arrays.hashCode(getValue());
+    }
+
+    @Override
+    public ClickHouseArraySequence allocate(int length, Class<?> clazz, int level) {
+        if (length < 1) {
+            resetToDefault();
+        } else if (length() != length) {
+            set(new double[length]);
+        }
+        return this;
+    }
+
+    @Override
+    public int length() {
+        return isNullOrEmpty() ? 0 : getValue().length;
+    }
+
+    @Override
+    public <V extends ClickHouseValue> V getValue(int index, V value) {
+        value.update(getValue()[index]);
+        return value;
+    }
+
+    @Override
+    public ClickHouseArraySequence setValue(int index, ClickHouseValue value) {
+        getValue()[index] = value.asDouble();
+        return this;
     }
 }

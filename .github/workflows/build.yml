@@ -50,8 +50,8 @@ jobs:
           distribution: 'temurin'
           java-version: 8
           cache: 'maven'
-      - name: Compile and install libraries
-        run: MAVEN_OPTS="-Xmx512M -XX:+ExitOnOutOfMemoryError" mvn --batch-mode --show-version --strict-checksums --threads C1 -Dmaven.wagon.rto=30000 -DskipTests install
+      - name: Build and install libraries
+        run: mvn --batch-mode --show-version --strict-checksums --threads C1 -Dmaven.wagon.rto=30000 install
       - name: Compile examples
         run: for d in $(ls -d `pwd`/examples/*/); do cd $d && mvn clean compile; done
 
@@ -102,7 +102,7 @@ jobs:
         # most recent LTS releases as well as latest stable builds
         clickhouse: ["21.8", "22.3", "latest"]
       fail-fast: false
-    timeout-minutes: 30
+    timeout-minutes: 15
     name: Java client against ClickHouse ${{ matrix.clickhouse }}
     steps:
       - name: Check out repository
@@ -165,7 +165,7 @@ jobs:
           - clickhouse: "21.8"
             protocol: grpc
       fail-fast: false
-    timeout-minutes: 30
+    timeout-minutes: 15
     name: JDBC driver against ClickHouse ${{ matrix.clickhouse }} (${{ matrix.protocol }})
     steps:
       - name: Check out repository
@@ -288,7 +288,7 @@ jobs:
         serverTz: ["Asia/Chongqing", "America/Los_Angeles", "Etc/UTC", "Europe/Berlin", "Europe/Moscow"]
         clientTz: ["Asia/Chongqing", "America/Los_Angeles", "Etc/UTC", "Europe/Berlin", "Europe/Moscow"]
       fail-fast: false
-    timeout-minutes: 30
+    timeout-minutes: 20
     name: "TimeZone(C/S): ${{ matrix.clientTz }} vs. ${{ matrix.serverTz }}"
     steps:
       - name: Check out repository

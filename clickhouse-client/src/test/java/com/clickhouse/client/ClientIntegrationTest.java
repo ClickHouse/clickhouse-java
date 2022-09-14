@@ -22,6 +22,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.TimeZone;
@@ -177,6 +178,55 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
             }
         }
         return array;
+    }
+
+    @DataProvider(name = "primitiveArrayMatrix")
+    protected Object[][] getPrimitiveArrayMatrix() {
+        return new Object[][] {
+                { "Int8", new int[] { -1, 2, -3, 4, -5 } },
+                { "UInt8", new int[] { 1, 2, 3, 4, 5 } },
+                { "Int16", new int[] { -1, 2, -3, 4, -5 } },
+                { "UInt16", new int[] { 1, 2, 3, 4, 5 } },
+                { "Int32", new int[] { -1, 2, -3, 4, -5 } },
+                { "UInt32", new int[] { 1, 2, 3, 4, 5 } },
+                { "Int64", new int[] { -1, 2, -3, 4, -5 } },
+                { "UInt64", new int[] { 1, 2, 3, 4, 5 } },
+                { "Float32", new int[] { 1, -2, 3, -4, 5 } },
+                { "Float64", new int[] { 1, -2, 3, -4, 5 } },
+
+                { "Nullable(Int8)", new Byte[] { null, 2, -3, 4, -5 } },
+                { "Nullable(UInt8)", new Short[] { 1, null, 3, 4, 5 } },
+                { "Nullable(Int16)", new Short[] { -1, 2, null, 4, -5 } },
+                { "Nullable(UInt16)", new Integer[] { 1, 2, 3, null, 5 } },
+                { "Nullable(Int32)", new Integer[] { -1, 2, -3, 4, null } },
+                { "Nullable(UInt32)", new Long[] { 1L, 2L, 3L, null, 5L } },
+                { "Nullable(Int64)", new Long[] { -1L, 2L, null, 4L, -5L } },
+                { "Nullable(UInt64)", new Long[] { 1L, null, 3L, 4L, 5L } },
+                { "Nullable(Float32)", new Float[] { null, -2F, 3F, -4F, 5F } },
+                { "Nullable(Float64)", new Double[] { 1D, null, 3D, -4D, 5D } },
+
+                { "LowCardinality(Int8)", new int[] { -1, 2, -3, 4, -5 } },
+                { "LowCardinality(UInt8)", new int[] { 1, 2, 3, 4, 5 } },
+                { "LowCardinality(Int16)", new int[] { -1, 2, -3, 4, -5 } },
+                { "LowCardinality(UInt16)", new int[] { 1, 2, 3, 4, 5 } },
+                { "LowCardinality(Int32)", new int[] { -1, 2, -3, 4, -5 } },
+                { "LowCardinality(UInt32)", new int[] { 1, 2, 3, 4, 5 } },
+                { "LowCardinality(Int64)", new int[] { -1, 2, -3, 4, -5 } },
+                { "LowCardinality(UInt64)", new int[] { 1, 2, 3, 4, 5 } },
+                { "LowCardinality(Float32)", new int[] { 1, -2, 3, -4, 5 } },
+                { "LowCardinality(Float64)", new int[] { 1, -2, 3, -4, 5 } },
+
+                { "LowCardinality(Nullable(Int8))", new Byte[] { -1, 2, -3, 4, -5 } },
+                { "LowCardinality(Nullable(UInt8))", new Short[] { 1, 2, 3, 4, 5 } },
+                { "LowCardinality(Nullable(Int16))", new Short[] { -1, 2, -3, 4, -5 } },
+                { "LowCardinality(Nullable(UInt16))", new Integer[] { 1, 2, 3, 4, 5 } },
+                { "LowCardinality(Nullable(Int32))", new Integer[] { -1, 2, -3, 4, -5 } },
+                { "LowCardinality(Nullable(UInt32))", new Long[] { 1L, 2L, 3L, 4L, 5L } },
+                { "LowCardinality(Nullable(Int64))", new Long[] { -1L, 2L, -3L, 4L, -5L } },
+                { "LowCardinality(Nullable(UInt64))", new Long[] { 1L, 2L, 3L, 4L, 5L } },
+                { "LowCardinality(Nullable(Float32))", new Float[] { null, -2F, 3F, -4F, 5F } },
+                { "LowCardinality(Nullable(Float64))", new Double[] { 1D, null, 3D, -4D, 5D } },
+        };
     }
 
     @DataProvider(name = "fileProcessMatrix")
@@ -413,6 +463,71 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
             }
         } catch (Exception e) {
             Assert.fail("Should not have exception");
+        }
+    }
+
+    @Test(dataProvider = "primitiveArrayMatrix", groups = "integration")
+    public void testPrimitiveArray(String baseType, Object expectedValues) throws ClickHouseException {
+        ClickHouseNode server = getServer();
+
+        String tableName = "test_primitive_array_"
+                + baseType.replace('(', '_').replace(')', ' ').trim().toLowerCase();
+        String tableColumns = String.format("a1 Array(%1$s), a2 Array(Array(%1$s)), a3 Array(Array(Array(%1$s)))",
+                baseType);
+        sendAndWait(server, "drop table if exists " + tableName,
+                "create table " + tableName + " (" + tableColumns + ")engine=Memory",
+                "insert into " + tableName + String.format(
+                        " values(%2$s, [[123],[],[4], %2$s], [[[12],[3],[],[4,5]],[[123],[],[4], %2$s]])", baseType,
+                        expectedValues.getClass() == int[].class ? Arrays.toString((int[]) expectedValues)
+                                : Arrays.toString((Object[]) expectedValues)));
+
+        try (ClickHouseClient client = getClient()) {
+            ClickHouseRequest<?> request = client.connect(server).format(ClickHouseFormat.RowBinaryWithNamesAndTypes);
+            try (ClickHouseResponse response = request.write().table(tableName).data(o -> {
+                ClickHouseConfig config = request.getConfig();
+                ClickHouseSerializer<ClickHouseValue> serializer = ClickHouseDataStreamFactory.getInstance()
+                        .getSerializer(request.getFormat());
+                List<ClickHouseColumn> columns = ClickHouseColumn.parse(tableColumns);
+                ClickHouseColumn baseColumn = ClickHouseColumn.of("", baseType);
+                Class<?> javaClass = expectedValues.getClass() == int[].class ? baseColumn.getPrimitiveClass()
+                        : baseColumn.getObjectClass();
+                ClickHouseColumn currentColumn = columns.get(0);
+
+                ClickHouseArraySequence arr = ClickHouseValues.newArrayValue(currentColumn);
+                arr.update(expectedValues);
+                serializer.serialize(arr, config, currentColumn, o);
+
+                currentColumn = columns.get(1);
+                ClickHouseArraySequence val = ClickHouseValues.newArrayValue(currentColumn);
+                val.allocate(1, javaClass, 2).setValue(0, arr);
+                serializer.serialize(val, config, currentColumn, o);
+
+                currentColumn = columns.get(2);
+                arr = ClickHouseValues.newArrayValue(currentColumn);
+                arr.allocate(1, javaClass, 3).setValue(0, val);
+                serializer.serialize(arr, config, currentColumn, o);
+            }).executeAndWait()) {
+                // ignore
+            }
+
+            try (ClickHouseResponse response = request.query("select * from " + tableName).executeAndWait()) {
+                for (ClickHouseRecord r : response.records()) {
+                    ClickHouseArraySequence val = (ClickHouseArraySequence) r.getValue(0);
+                    Assert.assertEquals(val.asObject(), val.copy().update(expectedValues).asObject());
+
+                    ClickHouseArraySequence arr = (ClickHouseArraySequence) r.getValue(1);
+                    val = arr.getValue(arr.length() - 1, ClickHouseValues
+                            .newArrayValue(ClickHouseColumn.of("c", String.format("Array(%s)", baseType))));
+                    Assert.assertEquals(val.asObject(), val.copy().update(expectedValues).asObject());
+
+                    arr = (ClickHouseArraySequence) r.getValue(2);
+                    val = arr.getValue(arr.length() - 1, ClickHouseValues
+                            .newArrayValue(ClickHouseColumn.of("c", String.format("Array(Array(%s))", baseType))));
+                    val = val.getValue(val.length() - 1, ClickHouseValues
+                            .newArrayValue(ClickHouseColumn.of("c", String.format("Array(%s)", baseType))));
+                    Assert.assertEquals(val.asObject(), val.copy().update(expectedValues).asObject());
+                }
+            }
         }
     }
 
@@ -1403,7 +1518,7 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
     }
 
     @Test(groups = { "integration" })
-    public void testInsertWithCustomFormat1() throws ClickHouseException, IOException {
+    public void testInsertWithCustomFormat() throws ClickHouseException, IOException {
         ClickHouseNode server = getServer();
         sendAndWait(server, "drop table if exists test_custom_input_format",
                 "create table test_custom_input_format(i Int8, f String)engine=Memory");

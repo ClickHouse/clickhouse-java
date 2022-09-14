@@ -29,7 +29,7 @@ public abstract class ClickHouseDataProcessor {
 
         @Override
         public boolean hasNext() {
-            return processor.hasNext();
+            return processor.hasMoreToRead();
         }
 
         @Override
@@ -47,7 +47,7 @@ public abstract class ClickHouseDataProcessor {
 
         @Override
         public boolean hasNext() {
-            return processor.hasNext();
+            return processor.hasMoreToRead();
         }
 
         @Override
@@ -122,7 +122,7 @@ public abstract class ClickHouseDataProcessor {
      * @return true if there's more; false otherwise
      * @throws UncheckedIOException when failed to read data from input stream
      */
-    private boolean hasNext() throws UncheckedIOException {
+    protected boolean hasMoreToRead() throws UncheckedIOException {
         try {
             if (input.available() <= 0) {
                 input.close();

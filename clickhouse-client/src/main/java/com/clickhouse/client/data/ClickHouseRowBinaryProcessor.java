@@ -1,6 +1,5 @@
 package com.clickhouse.client.data;
 
-import java.io.EOFException;
 import java.io.IOException;
 import java.io.Serializable;
 import java.util.ArrayList;
@@ -13,6 +12,8 @@ import java.util.Map;
 import java.util.Map.Entry;
 
 import com.clickhouse.client.ClickHouseAggregateFunction;
+import com.clickhouse.client.ClickHouseArraySequence;
+import com.clickhouse.client.ClickHouseByteBuffer;
 import com.clickhouse.client.ClickHouseChecker;
 import com.clickhouse.client.ClickHouseColumn;
 import com.clickhouse.client.ClickHouseConfig;
@@ -38,118 +39,41 @@ public class ClickHouseRowBinaryProcessor extends ClickHouseDataProcessor {
             implements ClickHouseDeserializer<ClickHouseValue>, ClickHouseSerializer<ClickHouseValue> {
         private static final MappedFunctions instance = new MappedFunctions();
 
-        private void writeArray(ClickHouseValue value, ClickHouseConfig config, ClickHouseColumn column,
+        protected void writeArray(ClickHouseArraySequence value, ClickHouseConfig config, ClickHouseColumn column,
                 ClickHouseOutputStream output) throws IOException {
             ClickHouseColumn nestedColumn = column.getNestedColumns().get(0);
-            ClickHouseColumn baseColumn = column.getArrayBaseColumn();
-            int level = column.getArrayNestedLevel();
-            Class<?> javaClass = baseColumn.getPrimitiveClass();
-            if (level > 1 || !javaClass.isPrimitive()) {
-                Object[] array = value.asArray();
-                ClickHouseValue v = ClickHouseValues.newValue(config, nestedColumn);
-                int length = array.length;
-                output.writeVarInt(length);
-                for (int i = 0; i < length; i++) {
-                    serialize(v.update(array[i]), config, nestedColumn, output);
-                }
-            } else {
-                ClickHouseValue v = ClickHouseValues.newValue(config, baseColumn);
-                if (byte.class == javaClass) {
-                    byte[] array = (byte[]) value.asObject();
-                    int length = array.length;
-                    output.writeVarInt(length);
-                    for (int i = 0; i < length; i++) {
-                        serialize(v.update(array[i]), config, baseColumn, output);
-                    }
-                } else if (short.class == javaClass) {
-                    short[] array = (short[]) value.asObject();
-                    int length = array.length;
-                    output.writeVarInt(length);
-                    for (int i = 0; i < length; i++) {
-                        serialize(v.update(array[i]), config, baseColumn, output);
-                    }
-                } else if (int.class == javaClass) {
-                    int[] array = (int[]) value.asObject();
-                    int length = array.length;
-                    output.writeVarInt(length);
-                    for (int i = 0; i < length; i++) {
-                        serialize(v.update(array[i]), config, baseColumn, output);
-                    }
-                } else if (long.class == javaClass) {
-                    long[] array = (long[]) value.asObject();
-                    int length = array.length;
-                    output.writeVarInt(length);
-                    for (int i = 0; i < length; i++) {
-                        serialize(v.update(array[i]), config, baseColumn, output);
-                    }
-                } else if (float.class == javaClass) {
-                    float[] array = (float[]) value.asObject();
-                    int length = array.length;
-                    output.writeVarInt(length);
-                    for (int i = 0; i < length; i++) {
-                        serialize(v.update(array[i]), config, baseColumn, output);
-                    }
-                } else if (double.class == javaClass) {
-                    double[] array = (double[]) value.asObject();
-                    int length = array.length;
-                    output.writeVarInt(length);
-                    for (int i = 0; i < length; i++) {
-                        serialize(v.update(array[i]), config, baseColumn, output);
-                    }
-                } else {
-                    throw new IllegalArgumentException("Unsupported primitive type: " + javaClass);
-                }
+            ClickHouseValue v = ClickHouseValues.newValue(config, nestedColumn);
+            int length = value.length();
+            output.writeVarInt(length);
+            for (int i = 0; i < length; i++) {
+                serialize(value.getValue(i, v), config, nestedColumn, output);
             }
         }
 
-        private ClickHouseValue readArray(ClickHouseValue ref, ClickHouseConfig config, ClickHouseColumn nestedColumn,
-                ClickHouseColumn baseColumn, ClickHouseInputStream input, int length, int level) throws IOException {
+        protected ClickHouseArraySequence readArray(ClickHouseArraySequence ref, ClickHouseConfig config,
+                ClickHouseColumn nestedColumn, ClickHouseColumn baseColumn, ClickHouseInputStream input, int length,
+                int level) throws IOException {
             Class<?> javaClass = baseColumn.getPrimitiveClass();
             if (level > 1 || baseColumn.isNullable() || !javaClass.isPrimitive()) {
-                Object[] array = baseColumn.isNullable()
-                        ? ClickHouseValues.createObjectArray(baseColumn.getObjectClass(), length, level)
-                        : (Object[]) ClickHouseValues.createPrimitiveArray(javaClass, length, level);
+                ref.allocate(length, baseColumn.isNullable() ? baseColumn.getObjectClass() : javaClass, level);
                 for (int i = 0; i < length; i++) {
-                    array[i] = deserialize(null, config, nestedColumn, input).asObject();
+                    ref.setValue(i, deserialize(null, config, nestedColumn, input));
                 }
-                ref.update(array);
             } else {
-                if (byte.class == javaClass) {
-                    ref.update(input.readBuffer(length).compact().array());
-                } else if (short.class == javaClass) {
-                    if (baseColumn.getDataType().getByteLength() != 2) {
-                        short[] array = new short[length];
-                        for (int i = 0; i < length; i++) {
-                            array[i] = deserialize(null, config, baseColumn, input).asShort();
-                        }
-                        ref.update(array);
-                    } else {
-                        ref.update(input.readBuffer(length * 2).asShortArray());
-                    }
-                } else if (int.class == javaClass) {
-                    if (baseColumn.getDataType().getByteLength() != 4) {
-                        int[] array = new int[length];
-                        for (int i = 0; i < length; i++) {
-                            array[i] = deserialize(null, config, baseColumn, input).asInteger();
-                        }
-                        ref.update(array);
-                    } else {
-                        ref.update(input.readBuffer(length * 4).asIntegerArray());
-                    }
-                } else if (long.class == javaClass) {
-                    if (baseColumn.getDataType().getByteLength() != 8) {
-                        long[] array = new long[length];
-                        for (int i = 0; i < length; i++) {
-                            array[i] = deserialize(null, config, baseColumn, input).asLong();
-                        }
-                        ref.update(array);
-                    } else {
-                        ref.update(input.readBuffer(length * 8).asLongArray());
-                    }
-                } else if (float.class == javaClass) {
-                    ref.update(input.readBuffer(length * 4).asFloatArray());
-                } else if (double.class == javaClass) {
-                    ref.update(input.readBuffer(length * 8).asDoubleArray());
+                int byteLength = baseColumn.getDataType().getByteLength();
+                ClickHouseByteBuffer buffer = input.readBuffer(length * byteLength);
+                if (byteLength == Byte.BYTES) { // Bool, *Int8
+                    ref.update(buffer.compact().array());
+                } else if (byteLength == Short.BYTES) { // *Int16
+                    ref.update(buffer.asShortArray());
+                } else if (int.class == javaClass) { // Int32
+                    ref.update(buffer.asIntegerArray());
+                } else if (long.class == javaClass) { // *Int64, UInt32
+                    ref.update(byteLength == Long.BYTES ? buffer.asLongArray() : buffer.asIntegerArray());
+                } else if (float.class == javaClass) { // Float32
+                    ref.update(buffer.asFloatArray());
+                } else if (double.class == javaClass) { // Float64
+                    ref.update(buffer.asDoubleArray());
                 } else {
                     throw new IllegalArgumentException("Unsupported primitive type: " + javaClass);
                 }
@@ -368,7 +292,7 @@ public class ClickHouseRowBinaryProcessor extends ClickHouseDataProcessor {
             buildMappings(deserializers, serializers, (r, f, c, i) -> {
                 int length = i.readVarInt();
                 if (r == null) {
-                    r = ClickHouseValues.newValue(f, c);
+                    r = ClickHouseValues.newArrayValue(c);
                 }
                 return readArray(r, f, c.getNestedColumns().get(0), c.getArrayBaseColumn(), i, length,
                         c.getArrayNestedLevel());
@@ -444,7 +368,25 @@ public class ClickHouseRowBinaryProcessor extends ClickHouseDataProcessor {
             }, ClickHouseDataType.Tuple);
         }
 
-        private MappedFunctions() {
+        protected final ClickHouseDeserializer<ClickHouseValue> getDeserializer(ClickHouseDataType dataType) {
+            ClickHouseDeserializer<ClickHouseValue> func = (ClickHouseDeserializer<ClickHouseValue>) deserializers
+                    .get(dataType);
+            if (func == null) {
+                throw new IllegalArgumentException(ERROR_UNKNOWN_DATA_TYPE + dataType);
+            }
+            return func;
+        }
+
+        protected final ClickHouseSerializer<ClickHouseValue> getSerializer(ClickHouseDataType dataType) {
+            ClickHouseSerializer<ClickHouseValue> func = (ClickHouseSerializer<ClickHouseValue>) serializers
+                    .get(dataType);
+            if (func == null) {
+                throw new IllegalArgumentException(ERROR_UNKNOWN_DATA_TYPE + dataType);
+            }
+            return func;
+        }
+
+        protected MappedFunctions() {
             aggDeserializers = new EnumMap<>(ClickHouseAggregateFunction.class);
             aggSerializers = new EnumMap<>(ClickHouseAggregateFunction.class);
 
@@ -530,18 +472,14 @@ public class ClickHouseRowBinaryProcessor extends ClickHouseDataProcessor {
 
     @Override
     protected List<ClickHouseColumn> readColumns() throws IOException {
-        if (!config.getFormat().hasHeader()) {
+        if (input.available() < 1) {
+            input.close();
+            return Collections.emptyList();
+        } else if (!config.getFormat().hasHeader()) {
             return Collections.emptyList();
         }
 
-        int size = 0;
-        try {
-            size = input.readVarInt();
-        } catch (EOFException e) {
-            // no result returned
-            return Collections.emptyList();
-        }
-
+        int size = input.readVarInt();
         String[] names = new String[ClickHouseChecker.between(size, "size", 0, Integer.MAX_VALUE)];
         for (int i = 0; i < size; i++) {
             names[i] = input.readUnicodeString();

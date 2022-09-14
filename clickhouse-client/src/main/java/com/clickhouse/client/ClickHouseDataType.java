@@ -76,7 +76,7 @@ public enum ClickHouseDataType {
     Enum8(String.class, true, true, false, 1, 0, 0, 0, 0, false), // "ENUM"),
     Enum16(String.class, true, true, false, 2, 0, 0, 0, 0, false),
     Float32(Float.class, false, true, true, 4, 12, 0, 0, 38, false, "FLOAT", "REAL", "SINGLE"),
-    Float64(Double.class, false, true, true, 16, 22, 0, 0, 308, false, "DOUBLE", "DOUBLE PRECISION"),
+    Float64(Double.class, false, true, true, 8, 22, 0, 0, 308, false, "DOUBLE", "DOUBLE PRECISION"),
     IPv4(Inet4Address.class, false, true, false, 4, 10, 0, 0, 0, false, "INET4"),
     IPv6(Inet6Address.class, false, true, false, 16, 39, 0, 0, 0, false, "INET6"),
     FixedString(String.class, true, true, false, 0, 0, 0, 0, 0, false, "BINARY"),

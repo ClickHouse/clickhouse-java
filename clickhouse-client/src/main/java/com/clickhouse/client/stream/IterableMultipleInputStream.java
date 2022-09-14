@@ -153,21 +153,24 @@ public final class IterableMultipleInputStream<T> extends AbstractByteArrayInput
         }
         ensureOpen();
 
-        int remain = limit - position;
-        if (remain > 0) {
-            output.transferBytes(buffer, position, remain);
-            count += remain;
-            position = limit;
-        }
-
-        count += pipe(in, output, buffer);
-        while (it.hasNext()) {
-            InputStream i = func.apply(it.next());
-            if (i != null) {
-                count += pipe(i, output, buffer);
+        try {
+            int remain = limit - position;
+            if (remain > 0) {
+                output.transferBytes(buffer, position, remain);
+                count += remain;
+                position = limit;
             }
+
+            count += pipe(in, output, buffer);
+            while (it.hasNext()) {
+                InputStream i = func.apply(it.next());
+                if (i != null) {
+                    count += pipe(i, output, buffer);
+                }
+            }
+        } finally {
+            close();
         }
-        close();
         return count;
     }
 
