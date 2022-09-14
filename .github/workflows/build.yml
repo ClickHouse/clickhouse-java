@@ -50,8 +50,8 @@ jobs:
           distribution: 'temurin'
           java-version: 8
           cache: 'maven'
-      - name: Compile and install libraries
-        run: MAVEN_OPTS="-Xmx512M -XX:+ExitOnOutOfMemoryError" mvn --batch-mode --show-version --strict-checksums --threads C1 -Dmaven.wagon.rto=30000 -DskipITs install
+      - name: Build and install libraries
+        run: mvn --batch-mode --show-version --strict-checksums --threads C1 -Dmaven.wagon.rto=30000 install
       - name: Compile examples
         run: for d in $(ls -d `pwd`/examples/*/); do cd $d && mvn clean compile; done
 
@@ -288,7 +288,7 @@ jobs:
         serverTz: ["Asia/Chongqing", "America/Los_Angeles", "Etc/UTC", "Europe/Berlin", "Europe/Moscow"]
         clientTz: ["Asia/Chongqing", "America/Los_Angeles", "Etc/UTC", "Europe/Berlin", "Europe/Moscow"]
       fail-fast: false
-    timeout-minutes: 10
+    timeout-minutes: 20
     name: "TimeZone(C/S): ${{ matrix.clientTz }} vs. ${{ matrix.serverTz }}"
     steps:
       - name: Check out repository
