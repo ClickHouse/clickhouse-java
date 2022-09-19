@@ -27,11 +27,6 @@ public enum JdbcDriver {
     ClickhouseGrpcOkHttpJdbc("com.clickhouse.jdbc.ClickHouseDriver",
             "jdbc:ch:grpc://%s:%s/%s?ssl=false&use_okhttp=true&user=%s&password=%s&use_server_time_zone=false&use_time_zone=UTC&max_inbound_message_size=2147483647&compress=%s%s",
             Constants.GRPC_PORT),
-    // version prior to 0.3.2
-    ClickhouseLegacyJdbc("ru.yandex.clickhouse.ClickHouseDriver",
-            "jdbc:clickhouse://%s:%s/%s?ssl=false&user=%s&password=%s&use_server_time_zone=false&use_time_zone=UTC&compress=%s%s",
-            Constants.HTTP_PORT),
-
     // ClickHouse4j
     Clickhouse4j("cc.blynk.clickhouse.ClickHouseDriver",
             "jdbc:clickhouse://%s:%s/%s?ssl=false&user=%s&password=%s&use_server_time_zone=false&use_time_zone=UTC&compress=%s%s",
