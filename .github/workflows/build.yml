@@ -51,7 +51,7 @@ jobs:
           java-version: 8
           cache: 'maven'
       - name: Build and install libraries
-        run: mvn --batch-mode --show-version --strict-checksums --threads C1 -Dmaven.wagon.rto=30000 install
+        run: mvn --batch-mode --show-version --strict-checksums --threads C1 -Dmaven.wagon.rto=30000 -DskipITs install
       - name: Compile examples
         run: for d in $(ls -d `pwd`/examples/*/); do cd $d && mvn clean compile; done
 
@@ -304,9 +304,11 @@ jobs:
           distribution: 'temurin'
           java-version: 8
           cache: 'maven'
-      - name: Test
+      - name: Install Java client
+        run: mvn --also-make --batch-mode --projects clickhouse-cli-client,clickhouse-grpc-client,clickhouse-http-client -Drelease -DskipTests install
+      - name: Test JDBC and R2DBC drivers
         run: |
-          mvn --batch-mode --projects '!clickhouse-benchmark' -DclickhouseVersion=22.8 \
+          mvn --batch-mode --projects clickhouse-jdbc,clickhouse-r2dbc -DclickhouseVersion=22.8 \
             -DclickhouseTimezone=${{ matrix.serverTz }} -Duser.timezone=${{ matrix.clientTz }} \
             -DskipUTs verify
       - name: Upload test results
