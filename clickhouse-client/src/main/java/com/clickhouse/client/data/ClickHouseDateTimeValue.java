@@ -2,8 +2,6 @@ package com.clickhouse.client.data;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
-import java.nio.charset.Charset;
-import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -13,7 +11,6 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.TimeZone;
-
 import com.clickhouse.client.ClickHouseChecker;
 import com.clickhouse.client.ClickHouseValue;
 import com.clickhouse.client.ClickHouseValues;
@@ -226,19 +223,13 @@ public class ClickHouseDateTimeValue extends ClickHouseObjectValue<LocalDateTime
     }
 
     @Override
-    public String asString(int length, Charset charset) {
+    public String asString() {
         if (isNullOrEmpty()) {
             return null;
         }
 
         // different formatter for each scale?
-        String str = getValue().format(scale > 0 ? ClickHouseValues.DATETIME_FORMATTER : dateTimeFormatter);
-        if (length > 0) {
-            ClickHouseChecker.notWithDifferentLength(str.getBytes(charset == null ? StandardCharsets.UTF_8 : charset),
-                    length);
-        }
-
-        return str;
+        return getValue().format(scale > 0 ? ClickHouseValues.DATETIME_FORMATTER : dateTimeFormatter);
     }
 
     @Override

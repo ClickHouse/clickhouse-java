@@ -68,7 +68,9 @@ public class ClickHouseStringValueTest extends BaseClickHouseValueTest {
         Assert.assertEquals(ClickHouseStringValue.of(new byte[0]).asBinary(0), new byte[0]);
         Assert.assertEquals(ClickHouseStringValue.of("").asBinary(0), new byte[0]);
 
-        Assert.assertThrows(IllegalArgumentException.class, () -> ClickHouseStringValue.of("").asBinary(1));
+        Assert.assertEquals(ClickHouseStringValue.of("").asBinary(1), new byte[] { 0 });
+        Assert.assertEquals(ClickHouseStringValue.of("ab").asBinary(1), new byte[] { 97, 98 });
+        Assert.assertEquals(ClickHouseStringValue.of("ab").asBinary(5), new byte[] { 97, 98, 0, 0, 0 });
 
         Assert.assertEquals(ClickHouseStringValue.of("a").asBinary(1), new byte[] { 97 });
         Assert.assertEquals(ClickHouseStringValue.of("a").asBinary(0), new byte[] { 97 });

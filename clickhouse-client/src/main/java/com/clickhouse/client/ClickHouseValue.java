@@ -591,8 +591,8 @@ public interface ClickHouseValue extends Serializable {
         }
 
         byte[] bytes = asString().getBytes(charset == null ? StandardCharsets.UTF_8 : charset);
-        if (length > 0) {
-            ClickHouseChecker.notWithDifferentLength(bytes, length);
+        if (bytes.length < length) {
+            bytes = Arrays.copyOf(bytes, length);
         }
 
         return bytes;
@@ -604,50 +604,11 @@ public interface ClickHouseValue extends Serializable {
      * @return string value, could be null
      */
     default String asString() {
-        return asString(0, null);
-    }
-
-    /**
-     * Gets value as fixed length(in bytes) string, using default charset(usually
-     * UTF-8).
-     *
-     * @param length byte length of the string, 0 or negative number means unbounded
-     * @return string value, could be null
-     */
-    default String asString(int length) {
-        return asString(length, null);
-    }
-
-    /**
-     * Gets value as unbounded string.
-     *
-     * @param charset charset, null is same as default(UTF-8)
-     * @return string value, could be null
-     */
-    default String asString(Charset charset) {
-        return asString(0, charset);
-    }
-
-    /**
-     * Gets value as fixed length(in bytes) string.
-     *
-     * @param length  byte length of the string, 0 or negative number means
-     *                unbounded
-     * @param charset charset, null is same as default(UTF-8)
-     * @return string value, could be null
-     */
-    default String asString(int length, Charset charset) {
         if (isNullOrEmpty()) {
             return null;
         }
 
-        String str = String.valueOf(asObject());
-        if (length > 0) {
-            ClickHouseChecker.notWithDifferentLength(str.getBytes(charset == null ? StandardCharsets.UTF_8 : charset),
-                    length);
-        }
-
-        return str;
+        return String.valueOf(asObject());
     }
 
     /**

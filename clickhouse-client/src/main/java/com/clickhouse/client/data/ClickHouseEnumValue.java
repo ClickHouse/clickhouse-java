@@ -2,9 +2,6 @@ package com.clickhouse.client.data;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
-import java.nio.charset.Charset;
-import java.nio.charset.StandardCharsets;
-import com.clickhouse.client.ClickHouseChecker;
 import com.clickhouse.client.ClickHouseEnum;
 import com.clickhouse.client.ClickHouseValue;
 import com.clickhouse.client.ClickHouseValues;
@@ -212,18 +209,12 @@ public class ClickHouseEnumValue implements ClickHouseValue {
     }
 
     @Override
-    public String asString(int length, Charset charset) {
+    public String asString() {
         if (isNull) {
             return null;
         }
 
-        String str = type.name(value);
-        if (length > 0) {
-            ClickHouseChecker.notWithDifferentLength(str.getBytes(charset == null ? StandardCharsets.UTF_8 : charset),
-                    length);
-        }
-
-        return str;
+        return type.name(value);
     }
 
     @Override

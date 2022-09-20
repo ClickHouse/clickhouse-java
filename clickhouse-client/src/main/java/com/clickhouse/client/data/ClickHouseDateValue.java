@@ -2,13 +2,10 @@ package com.clickhouse.client.data;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
-import java.nio.charset.Charset;
-import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 
-import com.clickhouse.client.ClickHouseChecker;
 import com.clickhouse.client.ClickHouseValue;
 import com.clickhouse.client.ClickHouseValues;
 
@@ -143,18 +140,12 @@ public class ClickHouseDateValue extends ClickHouseObjectValue<LocalDate> {
     }
 
     @Override
-    public String asString(int length, Charset charset) {
+    public String asString() {
         if (isNullOrEmpty()) {
             return null;
         }
 
-        String str = asDate().format(ClickHouseValues.DATE_FORMATTER);
-        if (length > 0) {
-            ClickHouseChecker.notWithDifferentLength(str.getBytes(charset == null ? StandardCharsets.UTF_8 : charset),
-                    length);
-        }
-
-        return str;
+        return asDate().format(ClickHouseValues.DATE_FORMATTER);
     }
 
     @Override
