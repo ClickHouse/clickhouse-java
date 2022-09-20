@@ -1084,7 +1084,7 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
             }).executeAndWait()) {
                 Assert.fail("Should fail to insert because the string was too long");
             } catch (ClickHouseException e) {
-                Assert.assertEquals(e.getErrorCode(), 33);
+                Assert.assertTrue(e.getErrorCode() >= 33);
             }
             try (ClickHouseResponse resp = req.copy().query("select b from test_write_fixed_string order by a")
                     .executeAndWait()) {
