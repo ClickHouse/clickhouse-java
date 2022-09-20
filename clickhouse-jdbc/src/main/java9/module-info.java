@@ -8,8 +8,6 @@ module com.clickhouse.jdbc {
 
     requires transitive com.clickhouse.client;
     requires transitive com.google.gson;
-    requires transitive org.apache.httpcomponents.httpclient;
-    requires transitive org.apache.httpcomponents.httpmime;
     requires transitive org.lz4.java;
 
     requires static java.logging;
