@@ -1,5 +1,5 @@
 /**
- * Declares ru.yandex.clickhouse module.
+ * Declares com.clickhouse.r2dbc module.
  */
 module com.clickhouse.r2dbc {
     exports com.clickhouse.r2dbc;

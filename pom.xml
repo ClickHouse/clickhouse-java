@@ -90,7 +90,6 @@
         <fastutil.version>8.5.8</fastutil.version>
         <grpc.version>1.48.1</grpc.version>
         <gson.version>2.9.1</gson.version>
-        <httpclient.version>4.5.13</httpclient.version>
         <protobuf.version>3.21.4</protobuf.version>
         <lz4.version>1.8.0</lz4.version>
         <roaring-bitmap.version>0.9.31</roaring-bitmap.version>
@@ -213,16 +212,6 @@
                 <groupId>org.apache.commons</groupId>
                 <artifactId>commons-compress</artifactId>
                 <version>${compress.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>org.apache.httpcomponents</groupId>
-                <artifactId>httpclient</artifactId>
-                <version>${httpclient.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>org.apache.httpcomponents</groupId>
-                <artifactId>httpmime</artifactId>
-                <version>${httpclient.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.apache.tomcat</groupId>
