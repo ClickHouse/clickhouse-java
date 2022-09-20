@@ -2,8 +2,6 @@ package com.clickhouse.client;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
-import java.nio.charset.Charset;
-import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 
 /**
@@ -344,76 +342,6 @@ public final class ClickHouseChecker {
         if (length > maxLength) {
             throw newException("length of byte array %s is %d, which should NOT longer than %d", name, length,
                     maxLength);
-        }
-
-        return value;
-    }
-
-    /**
-     * Checks if length of the given byte array is NOT different from
-     * {@code expectedLength} and throws a customized
-     * {@link IllegalArgumentException} if it is.
-     * 
-     * @param value          the byte array to check
-     * @param expectedLength execpted length of the byte array
-     * @return the exact same byte array
-     * @throws IllegalArgumentException if length of the byte array is not same as
-     *                                  {@code expectedLength}
-     */
-    public static byte[] notWithDifferentLength(byte[] value, int expectedLength) {
-        return notWithDifferentLength(value, DEFAULT_NAME, expectedLength);
-    }
-
-    /**
-     * Checks if length of the given byte array is NOT different from
-     * {@code expectedLength} and throws a customized
-     * {@link IllegalArgumentException} if it is.
-     * 
-     * @param value          the byte array to check
-     * @param name           name of the byte array
-     * @param expectedLength execpted length of the byte array
-     * @return the exact same byte array
-     * @throws IllegalArgumentException if length of the byte array is not same as
-     *                                  {@code expectedLength}
-     */
-    public static byte[] notWithDifferentLength(byte[] value, String name, int expectedLength) {
-        int length = value == null ? 0 : value.length;
-        if (length != expectedLength) {
-            throw newException("length of byte array %s is %d, but it should be %d", name, length, expectedLength);
-        }
-
-        return value;
-    }
-
-    public static String notWithDifferentLength(String value, int expectedLength) {
-        return notWithDifferentLength(value, null, DEFAULT_NAME, expectedLength);
-    }
-
-    public static String notWithDifferentLength(String value, Charset charset, int expectedLength) {
-        return notWithDifferentLength(value, charset, DEFAULT_NAME, expectedLength);
-    }
-
-    /**
-     * Checks if byte length of the given string is NOT different from
-     * {@code expectedLength} and throws a customized
-     * {@link IllegalArgumentException} if it is.
-     * 
-     * @param value          the string to check
-     * @param charset        charset used to decode the string for byte length
-     *                       comparison, null means utf8
-     * @param name           name of the byte array
-     * @param expectedLength execpted length of the string
-     * @return the exact same string
-     * @throws IllegalArgumentException if length of the byte array is not same as
-     *                                  {@code expectedLength}
-     */
-    public static String notWithDifferentLength(String value, Charset charset, String name, int expectedLength) {
-        if (charset == null) {
-            charset = StandardCharsets.UTF_8;
-        }
-        int length = value == null ? 0 : value.getBytes(charset).length;
-        if (length != expectedLength) {
-            throw newException("length of byte array %s is %d, but it should be %d", name, length, expectedLength);
         }
 
         return value;

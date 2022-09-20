@@ -108,19 +108,4 @@ public class ClickHouseCheckerTest {
         Assert.assertThrows(IllegalArgumentException.class,
                 () -> ClickHouseChecker.notLongerThan(new byte[2], null, 1));
     }
-
-    @Test(groups = { "unit" })
-    public void testNotWithDifferentLength() {
-        byte[] bytes;
-        Assert.assertEquals(ClickHouseChecker.notWithDifferentLength(bytes = null, "value", 0), bytes);
-        Assert.assertEquals(ClickHouseChecker.notWithDifferentLength(bytes = new byte[0], "value", 0), bytes);
-        Assert.assertEquals(ClickHouseChecker.notWithDifferentLength(bytes = new byte[1], "value", 1), bytes);
-
-        Assert.assertThrows(IllegalArgumentException.class,
-                () -> ClickHouseChecker.notWithDifferentLength((byte[]) null, null, -1));
-        Assert.assertThrows(IllegalArgumentException.class,
-                () -> ClickHouseChecker.notWithDifferentLength(new byte[0], null, -1));
-        Assert.assertThrows(IllegalArgumentException.class,
-                () -> ClickHouseChecker.notWithDifferentLength(new byte[2], null, 1));
-    }
 }

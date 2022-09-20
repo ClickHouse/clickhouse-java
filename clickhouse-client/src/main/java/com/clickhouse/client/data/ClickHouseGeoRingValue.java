@@ -5,7 +5,6 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
-import java.nio.charset.Charset;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -66,17 +65,16 @@ public class ClickHouseGeoRingValue extends ClickHouseObjectValue<double[][]> {
         return value;
     }
 
-    protected static String convert(double[][] value, int length) {
+    protected static String convert(double[][] value) {
         StringBuilder builder = new StringBuilder().append('[');
         for (int i = 0, len = value.length; i < len; i++) {
-            builder.append(ClickHouseGeoPointValue.convert(value[i], 0)).append(',');
+            builder.append(ClickHouseGeoPointValue.convert(value[i])).append(',');
         }
 
         if (builder.length() > 1) {
             builder.setLength(builder.length() - 1);
         }
-        String str = builder.append(']').toString();
-        return length > 0 ? ClickHouseChecker.notWithDifferentLength(str, length) : str;
+        return builder.append(']').toString();
     }
 
     protected ClickHouseGeoRingValue(double[][] value) {
@@ -136,8 +134,8 @@ public class ClickHouseGeoRingValue extends ClickHouseObjectValue<double[][]> {
     }
 
     @Override
-    public String asString(int length, Charset charset) {
-        return convert(getValue(), length);
+    public String asString() {
+        return convert(getValue());
     }
 
     @Override
@@ -164,7 +162,7 @@ public class ClickHouseGeoRingValue extends ClickHouseObjectValue<double[][]> {
 
     @Override
     public String toSqlExpression() {
-        return convert(getValue(), 0);
+        return convert(getValue());
     }
 
     @Override

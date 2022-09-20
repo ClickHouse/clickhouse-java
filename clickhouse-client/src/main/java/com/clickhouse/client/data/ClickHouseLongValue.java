@@ -2,9 +2,6 @@ package com.clickhouse.client.data;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
-import java.nio.charset.Charset;
-import java.nio.charset.StandardCharsets;
-import com.clickhouse.client.ClickHouseChecker;
 import com.clickhouse.client.ClickHouseValue;
 import com.clickhouse.client.ClickHouseValues;
 
@@ -171,18 +168,12 @@ public class ClickHouseLongValue implements ClickHouseValue {
     }
 
     @Override
-    public String asString(int length, Charset charset) {
+    public String asString() {
         if (isNull) {
             return null;
         }
 
-        String str = unsigned && value < 0L ? asBigInteger().toString() : String.valueOf(value);
-        if (length > 0) {
-            ClickHouseChecker.notWithDifferentLength(str.getBytes(charset == null ? StandardCharsets.UTF_8 : charset),
-                    length);
-        }
-
-        return str;
+        return unsigned && value < 0L ? asBigInteger().toString() : String.valueOf(value);
     }
 
     @Override

@@ -12,7 +12,6 @@ import java.time.LocalTime;
 import java.util.Arrays;
 import java.util.Objects;
 import java.util.UUID;
-import com.clickhouse.client.ClickHouseChecker;
 import com.clickhouse.client.ClickHouseValue;
 import com.clickhouse.client.ClickHouseValues;
 
@@ -222,33 +221,21 @@ public class ClickHouseStringValue implements ClickHouseValue {
 
     @Override
     public byte[] asBinary(int length, Charset charset) {
-        if (value != null && bytes == null) {
-            bytes = value.getBytes(charset == null ? StandardCharsets.UTF_8 : charset);
+        byte[] b = bytes;
+        if (value != null && b == null) {
+            bytes = b = value.getBytes(charset == null ? StandardCharsets.UTF_8 : charset);
         }
 
-        if (bytes != null && length > 0) {
-            return ClickHouseChecker.notWithDifferentLength(bytes, length);
-        } else {
-            return bytes;
+        if (b != null && b.length < length) {
+            b = Arrays.copyOf(b, length);
         }
+        return b;
     }
 
     @Override
     public String asString() {
         if (bytes != null && value == null) {
             value = new String(bytes, StandardCharsets.UTF_8);
-        }
-
-        return value;
-    }
-
-    @Override
-    public String asString(int length, Charset charset) {
-        if (value != null && length > 0) {
-            if (bytes == null) {
-                bytes = value.getBytes(charset == null ? StandardCharsets.UTF_8 : charset);
-            }
-            ClickHouseChecker.notWithDifferentLength(bytes, length);
         }
 
         return value;

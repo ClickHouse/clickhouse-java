@@ -1060,6 +1060,45 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
     }
 
     @Test(groups = "integration")
+    public void testWriteFixedString() throws ClickHouseException {
+        ClickHouseNode server = getServer();
+        sendAndWait(server, "drop table if exists test_write_fixed_string",
+                "create table test_write_fixed_string(a Int8, b FixedString(3))engine=Memory");
+        try (ClickHouseClient client = getClient()) {
+            ClickHouseRequest<?> req = client.connect(server).format(ClickHouseFormat.RowBinaryWithNamesAndTypes);
+            try (ClickHouseResponse resp = req.write().table("test_write_fixed_string").data(o -> {
+                o.writeByte((byte) 1);
+                o.writeBytes(ClickHouseStringValue.of("a").asBinary(3));
+            }).executeAndWait()) {
+                // ignore
+            }
+            try (ClickHouseResponse resp = req.write().table("test_write_fixed_string").data(o -> {
+                o.writeByte((byte) 2);
+                o.writeBytes(ClickHouseStringValue.of("abc").asBinary(3));
+            }).executeAndWait()) {
+                // ignore
+            }
+            try (ClickHouseResponse resp = req.write().table("test_write_fixed_string").data(o -> {
+                o.writeByte((byte) 3);
+                o.writeBytes(ClickHouseStringValue.of("abcd").asBinary(3));
+            }).executeAndWait()) {
+                Assert.fail("Should fail to insert because the string was too long");
+            } catch (ClickHouseException e) {
+                Assert.assertEquals(e.getErrorCode(), 33);
+            }
+            try (ClickHouseResponse resp = req.copy().query("select b from test_write_fixed_string order by a")
+                    .executeAndWait()) {
+                int i = 0;
+                for (ClickHouseRecord r : resp.records()) {
+                    Assert.assertEquals(r.getValue(0).asString(), i == 0 ? "a\0\0" : "abc");
+                    i++;
+                }
+                Assert.assertEquals(i, 2);
+            }
+        }
+    }
+
+    @Test(groups = "integration")
     public void testQueryWithMultipleExternalTables() throws ExecutionException, InterruptedException {
         ClickHouseNode server = getServer();
 

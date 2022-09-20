@@ -4,7 +4,6 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
-import java.nio.charset.Charset;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -14,7 +13,6 @@ import java.util.Enumeration;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.UUID;
-import com.clickhouse.client.ClickHouseChecker;
 import com.clickhouse.client.ClickHouseValue;
 import com.clickhouse.client.ClickHouseValues;
 
@@ -62,10 +60,9 @@ public class ClickHouseGeoPointValue extends ClickHouseObjectValue<double[]> {
         return value;
     }
 
-    protected static String convert(double[] value, int length) {
-        String str = new StringBuilder().append('(').append(value[0]).append(',').append(value[1]).append(')')
+    protected static String convert(double[] value) {
+        return new StringBuilder().append('(').append(value[0]).append(',').append(value[1]).append(')')
                 .toString();
-        return length > 0 ? ClickHouseChecker.notWithDifferentLength(str, length) : str;
     }
 
     protected ClickHouseGeoPointValue(double[] value) {
@@ -91,8 +88,8 @@ public class ClickHouseGeoPointValue extends ClickHouseObjectValue<double[]> {
     }
 
     @Override
-    public String asString(int length, Charset charset) {
-        return convert(getValue(), length);
+    public String asString() {
+        return convert(getValue());
     }
 
     @Override
@@ -118,7 +115,7 @@ public class ClickHouseGeoPointValue extends ClickHouseObjectValue<double[]> {
 
     @Override
     public String toSqlExpression() {
-        return convert(getValue(), 0);
+        return convert(getValue());
     }
 
     @Override
