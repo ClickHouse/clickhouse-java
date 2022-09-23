@@ -59,6 +59,16 @@ jobs:
           gpg_passphrase: ${{ secrets.GPG_PASSPHRASE }}
           nexus_username: ${{ secrets.SONATYPE_USER }}
           nexus_password: ${{ secrets.SONATYPE_PASSWD }}
+      - name: Release R2DBC 0.9.1
+        uses: samuelmeuli/action-maven-publish@v1
+        with:
+          directory: clickhouse-r2dbc
+          maven_profiles: release
+          maven_args: -q --batch-mode -Dr2dbc-spi.version=0.9.1.RELEASE
+          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
+          gpg_passphrase: ${{ secrets.GPG_PASSPHRASE }}
+          nexus_username: ${{ secrets.SONATYPE_USER }}
+          nexus_password: ${{ secrets.SONATYPE_PASSWD }}
       - name: Create Pre-release on Github
         uses: "zhicwu/action-automatic-releases@latest"
         with:

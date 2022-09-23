@@ -4,6 +4,7 @@ import io.r2dbc.spi.ColumnMetadata;
 import io.r2dbc.spi.RowMetadata;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -12,7 +13,7 @@ public class ClickHouseRowMetadata implements RowMetadata {
 
     LinkedHashMap<String, ClickHouseColumnMetadata> columnNameMetadataMap;
 
-    ClickHouseRowMetadata( LinkedHashMap<String, ClickHouseColumnMetadata> columnNameMetadataMap) {
+    ClickHouseRowMetadata(LinkedHashMap<String, ClickHouseColumnMetadata> columnNameMetadataMap) {
         this.columnNameMetadataMap = columnNameMetadataMap;
     }
 
@@ -20,7 +21,7 @@ public class ClickHouseRowMetadata implements RowMetadata {
     public ColumnMetadata getColumnMetadata(int i) {
         if (i > columnNameMetadataMap.size())
             throw new IllegalArgumentException("Given index is greater than size column metadata array.");
-        return columnNameMetadataMap.entrySet().stream().skip(i-1).findFirst().get().getValue();
+        return columnNameMetadataMap.entrySet().stream().skip(i - 1L).findFirst().get().getValue();
     }
 
     @Override
@@ -31,5 +32,10 @@ public class ClickHouseRowMetadata implements RowMetadata {
     @Override
     public List<? extends ColumnMetadata> getColumnMetadatas() {
         return Collections.unmodifiableList(new ArrayList<>(columnNameMetadataMap.values()));
+    }
+
+    // deprecated method
+    public Collection<String> getColumnNames() {
+        return Collections.unmodifiableCollection(new ArrayList<>(columnNameMetadataMap.keySet()));
     }
 }

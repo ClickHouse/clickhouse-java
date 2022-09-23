@@ -8,7 +8,7 @@
         <version>${revision}</version>
     </parent>
 
-    <artifactId>clickhouse-r2dbc</artifactId>
+    <artifactId>clickhouse-r2dbc${release_suffix}</artifactId>
     <packaging>jar</packaging>
 
     <name>ClickHouse R2DBC Driver</name>
@@ -143,6 +143,59 @@
             <scope>test</scope>
         </dependency>
     </dependencies>
+
+    <profiles>
+        <profile>
+            <id>r2dbc-1.0.0</id>
+            <activation>
+                <property>
+                    <name>r2dbc-spi.version</name>
+                    <value>!0.9.1.RELEASE</value>
+                </property>
+            </activation>
+            <properties>
+                <release_suffix></release_suffix>
+            </properties>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-compiler-plugin</artifactId>
+                        <configuration>
+                            <excludes>
+                                <exclude>**/com/clickhouse/r2dbc/ClickHouseResult0*.java</exclude>
+                            </excludes>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+        <profile>
+            <id>r2dbc-0.9.1</id>
+            <activation>
+                <property>
+                    <name>r2dbc-spi.version</name>
+                    <value>0.9.1.RELEASE</value>
+                </property>
+            </activation>
+            <properties>
+                <release_suffix>_0.9.1</release_suffix>
+            </properties>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-compiler-plugin</artifactId>
+                        <configuration>
+                            <excludes>
+                                <exclude>**/com/clickhouse/r2dbc/ClickHouseResult.java</exclude>
+                            </excludes>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 
     <build>
         <plugins>
