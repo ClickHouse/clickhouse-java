@@ -229,7 +229,7 @@ jobs:
         r2dbc: ["1.0.0.RELEASE", "0.9.1.RELEASE"]
       fail-fast: false
     timeout-minutes: 10
-    name: R2DBC driver against ClickHouse ${{ matrix.clickhouse }} (${{ matrix.protocol }})
+    name: R2DBC ${{ matrix.r2dbc }} against ClickHouse ${{ matrix.clickhouse }} (${{ matrix.protocol }})
     steps:
       - name: Check out repository
         uses: actions/checkout@v3
