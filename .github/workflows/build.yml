@@ -226,9 +226,10 @@ jobs:
         clickhouse: ["21.8", "22.3", "latest"]
         # grpc is not fully supported, and http2 does not work in CI environment(due to limited threads?)
         protocol: ["http"]
+        r2dbc: ["1.0.0.RELEASE", "0.9.1.RELEASE"]
       fail-fast: false
     timeout-minutes: 10
-    name: R2DBC driver against ClickHouse ${{ matrix.clickhouse }} (${{ matrix.protocol }})
+    name: R2DBC ${{ matrix.r2dbc }} against ClickHouse ${{ matrix.clickhouse }} (${{ matrix.protocol }})
     steps:
       - name: Check out repository
         uses: actions/checkout@v3
@@ -268,9 +269,10 @@ jobs:
           cache: 'maven'
       - name: Install Java client
         run: mvn --also-make --batch-mode --projects clickhouse-jdbc -Drelease -DskipTests install
-      - name: Test R2DBC driver
+      - name: Test R2DBC ${{ matrix.r2dbc }}
         run: |
-          mvn --batch-mode --projects clickhouse-r2dbc -Drelease -DclickhouseVersion=${{ matrix.clickhouse }} -Dprotocol=${{ matrix.protocol }} verify
+          mvn --batch-mode --projects clickhouse-r2dbc -Drelease -DclickhouseVersion=${{ matrix.clickhouse }} \
+            -D'r2dbc-spi.version=${{ matrix.r2dbc }}' -Dprotocol=${{ matrix.protocol }} verify
       - name: Upload test results
         uses: actions/upload-artifact@v2
         if: failure()

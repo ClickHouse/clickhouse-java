@@ -4,6 +4,11 @@ on:
   schedule:
     # Build and publish nightly snapshot at 3:55pm every day
     - cron: "55 15 * * *"
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: "Pull request#"
+        required: false
 
 env:
   CHC_BRANCH: "develop"
@@ -20,6 +25,11 @@ jobs:
         uses: actions/checkout@v3
         with:
           ref: ${{ env.CHC_BRANCH }}
+      - name: Check out PR
+        run: |
+          git fetch --no-tags --prune --progress --no-recurse-submodules --depth=1 \
+            origin pull/${{ github.event.inputs.pr }}/merge:merged-pr && git checkout merged-pr
+        if: github.event.inputs.pr != ''
       - name: Install JDK 11
         uses: AdoptOpenJDK/install-jdk@v1
         with:
@@ -59,6 +69,16 @@ jobs:
         with:
           maven_profiles: release
           maven_args: -q --batch-mode
+          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
+          gpg_passphrase: ${{ secrets.GPG_PASSPHRASE }}
+          nexus_username: ${{ secrets.SONATYPE_USER }}
+          nexus_password: ${{ secrets.SONATYPE_PASSWD }}
+      - name: Release R2DBC 0.9.1 Snapshot
+        uses: samuelmeuli/action-maven-publish@v1
+        with:
+          directory: clickhouse-r2dbc
+          maven_profiles: release
+          maven_args: -q --batch-mode -Dr2dbc-spi.version=0.9.1.RELEASE
           gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
           gpg_passphrase: ${{ secrets.GPG_PASSPHRASE }}
           nexus_username: ${{ secrets.SONATYPE_USER }}
