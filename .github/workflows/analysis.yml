@@ -78,7 +78,7 @@ jobs:
           sed -i -e 's|^\(.*<sonar.projectKey>\).*\(</sonar.projectKey>\)$|\1ClickHouse_clickhouse-jdbc\2|' \
             -e 's|^\(.*<sonar.organization>\).*\(</sonar.organization>\)$|\1clickhouse-java\2|' pom.xml
         if: github.repository_owner == 'ClickHouse'
-      - name: Build
+      - name: Build and install
         run: |
           find . -type f -name "simplelogger.*" -exec rm -fv '{}' \;
           mvn -q --batch-mode --projects '!clickhouse-benchmark' -Drelease -DclickhouseVersion=22.8 -DskipTests install
@@ -87,6 +87,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Needed to get PR information, if any
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
-          mvn --projects '!clickhouse-benchmark' -Drelease -DclickhouseVersion=22.8 \
+          mvn --batch-mode --projects '!clickhouse-benchmark' -Drelease -DclickhouseVersion=22.8 \
             -Panalysis verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar
         continue-on-error: true
