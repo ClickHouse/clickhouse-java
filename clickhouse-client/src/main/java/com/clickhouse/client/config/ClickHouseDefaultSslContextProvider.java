@@ -46,11 +46,15 @@ public class ClickHouseDefaultSslContextProvider implements ClickHouseSslContext
         }
 
         @Override
+        @SuppressWarnings("squid:S4830")
         public void checkClientTrusted(X509Certificate[] certs, String authType) {
+            // ignore
         }
 
         @Override
+        @SuppressWarnings("squid:S4830")
         public void checkServerTrusted(X509Certificate[] certs, String authType) {
+            // ignore
         }
     }
 
@@ -107,7 +111,6 @@ public class ClickHouseDefaultSslContextProvider implements ClickHouseSslContext
         return ks;
     }
 
-    @SuppressWarnings("lgtm[java/insecure-trustmanager]")
     protected SSLContext getJavaSslContext(ClickHouseConfig config) throws SSLException {
         ClickHouseSslMode sslMode = config.getSslMode();
         String clientCert = config.getSslCert();

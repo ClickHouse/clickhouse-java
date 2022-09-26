@@ -197,7 +197,7 @@ public class ClickHouseStatementImpl extends JdbcWrapper
             stmt = parsedStmts[parsedStmts.length - 1];
         }
 
-        return ClickHouseChecker.nonNull(stmt, "ParsedStatement");
+        return ClickHouseChecker.nonNull(stmt, "ParsedStatement"); // NOSONAR
     }
 
     protected void setLastStatement(ClickHouseSqlStatement stmt) {

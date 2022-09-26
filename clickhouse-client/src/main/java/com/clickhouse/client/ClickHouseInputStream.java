@@ -146,7 +146,7 @@ public abstract class ClickHouseInputStream extends InputStream {
      */
     public static ClickHouseInputStream of(ClickHouseDeferredValue<InputStream> deferredInput, int bufferSize,
             Runnable postCloseAction) {
-        return new WrappedInputStream(null, new DeferredInputStream(deferredInput), bufferSize, postCloseAction);
+        return new WrappedInputStream(null, new DeferredInputStream(deferredInput), bufferSize, postCloseAction); // NOSONAR
     }
 
     /**
@@ -474,7 +474,7 @@ public abstract class ClickHouseInputStream extends InputStream {
             }
         } else {
             try {
-                tmp = File.createTempFile("chc", "data");
+                tmp = File.createTempFile("chc", "data"); // NOSONAR
                 tmp.deleteOnExit();
             } catch (IOException e) {
                 throw new UncheckedIOException("Failed to create temp file", e);

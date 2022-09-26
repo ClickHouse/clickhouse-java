@@ -3,11 +3,12 @@ name: Analysis
 on:
   push:
     branches:
+      - main
       - master
       - develop
-      - 0.2.x
   pull_request_target:
     branches:
+      - main
       - master
       - develop
     types:
@@ -23,12 +24,13 @@ on:
 jobs:
   static:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     name: Static code analysis
     steps:
       - name: Check out Git repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: Check out head
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           ref: ${{ github.event.pull_request.head.sha }}
         if: github.event_name == 'pull_request_target'
@@ -37,33 +39,52 @@ jobs:
           git fetch --no-tags --prune --progress --no-recurse-submodules --depth=1 \
             origin pull/${{ github.event.inputs.pr }}/head:the-pr && git checkout the-pr
         if: github.event.inputs.pr != ''
-      - name: Set up JDK
-        uses: actions/setup-java@v1
+      - name: Install JDK 8 and Maven
+        uses: actions/setup-java@v3
         with:
-          java-version: 11
+          distribution: 'temurin'
+          java-version: |
+            8
+            11
+          cache: 'maven'
+      - name: Setup Toolchain
+        shell: bash
+        run: |
+          mkdir -p $HOME/.m2 \
+          && cat << EOF > $HOME/.m2/toolchains.xml
+          <?xml version="1.0" encoding="UTF8"?>
+          <toolchains>
+            <toolchain>
+              <type>jdk</type>
+              <provides>
+                <version>11</version>
+              </provides>
+              <configuration>
+                <jdkHome>${{ env.JAVA_HOME }}</jdkHome>
+              </configuration>
+            </toolchain>
+          </toolchains>
+          EOF
       - name: Cache SonarCloud packages
-        uses: actions/cache@v1
+        uses: actions/cache@v2
         with:
           path: ~/.sonar/cache
           key: ${{ runner.os }}-sonar
           restore-keys: ${{ runner.os }}-sonar
-      - name: Cache Maven packages
-        uses: actions/cache@v1
-        with:
-          path: ~/.m2
-          key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
-          restore-keys: ${{ runner.os }}-m2
       - name: Update sonar config
         run: |
           sed -i -e 's|^\(.*<sonar.projectKey>\).*\(</sonar.projectKey>\)$|\1ClickHouse_clickhouse-jdbc\2|' \
             -e 's|^\(.*<sonar.organization>\).*\(</sonar.organization>\)$|\1clickhouse-java\2|' pom.xml
         if: github.repository_owner == 'ClickHouse'
-      - name: Build and analyze
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      - name: Build
         run: |
           find . -type f -name "simplelogger.*" -exec rm -fv '{}' \;
-          mvn -q --batch-mode --global-toolchains .github/toolchains.xml -Drelease \
+          mvn -q --batch-mode --projects '!clickhouse-benchmark' -Drelease -DclickhouseVersion=22.8 -DskipTests install
+      - name: Analyze
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Needed to get PR information, if any
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          mvn --projects '!clickhouse-benchmark' -Drelease -DclickhouseVersion=22.8 \
             -Panalysis verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar
         continue-on-error: true

@@ -60,7 +60,7 @@ public class ClickHouseSimpleRecord implements ClickHouseRecord {
         int len = values != null ? values.length : 0;
         for (int i = 0, size = this.values.length; i < size; i++) {
             if (i < len) {
-                this.values[i].update(values[i]);
+                this.values[i].update(values[i]); // NOSONAR
             } else {
                 this.values[i].resetToNullOrEmpty();
             }

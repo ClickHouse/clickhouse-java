@@ -17,9 +17,9 @@
 
     <properties>
         <hikari-cp.version>4.0.3</hikari-cp.version>
-        <junit.version>5.9.0</junit.version>
+        <junit.version>5.9.1</junit.version>
         <r2dbc-spi.version>1.0.0.RELEASE</r2dbc-spi.version>
-        <reactor.version>3.4.22</reactor.version>
+        <reactor.version>3.4.23</reactor.version>
         <spec.title>R2DBC</spec.title>
         <spec.version>1.0</spec.version>
     </properties>
@@ -203,6 +203,7 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <configuration combine.self="override">
+                    <argLine>${surefireArgLine}</argLine>
                     <skipTests>${skipUTs}</skipTests>
                     <useModulePath>false</useModulePath>
                 </configuration>
@@ -211,6 +212,7 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-failsafe-plugin</artifactId>
                 <configuration combine.self="override">
+                    <argLine>${failsafeArgLine}</argLine>
                     <includes>**/*.java</includes>
                     <skipTests>${skipTests}</skipTests>
                     <skipITs>${skipITs}</skipITs>

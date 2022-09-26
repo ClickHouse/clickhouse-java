@@ -222,7 +222,7 @@ public class ClickHouseGrpcClient extends AbstractClient<ManagedChannel> {
             throw ClickHouseException.of(e, sealedRequest.getServer());
         }
 
-        ClickHouseResponse response = new ClickHouseGrpcResponse(sealedRequest.getConfig(),
+        ClickHouseResponse response = new ClickHouseGrpcResponse(sealedRequest.getConfig(), // NOSONAR
                 sealedRequest.getSettings(), responseObserver);
         Throwable cause = responseObserver.getError();
         if (cause != null) {
@@ -239,7 +239,7 @@ public class ClickHouseGrpcClient extends AbstractClient<ManagedChannel> {
 
         Result result = stub.executeQuery(convert(sealedRequest));
 
-        ClickHouseResponse response = new ClickHouseGrpcResponse(sealedRequest.getConfig(),
+        ClickHouseResponse response = new ClickHouseGrpcResponse(sealedRequest.getConfig(), // NOSONAR
                 sealedRequest.getSettings(), result);
         if (result.hasException()) {
             throw new ClickHouseException(result.getException().getCode(), result.getException().getDisplayText(),

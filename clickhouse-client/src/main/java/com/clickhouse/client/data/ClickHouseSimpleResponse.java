@@ -70,7 +70,7 @@ public class ClickHouseSimpleResponse implements ClickHouseResponse {
                 int count = input != null ? input.length : 0;
                 ClickHouseValue[] v = new ClickHouseValue[size];
                 for (int j = 0; j < size; j++) {
-                    v[j] = templates[j].copy().update(j < count ? input[j] : null);
+                    v[j] = templates[j].copy().update(j < count ? input[j] : null); // NOSONAR
                 }
                 wrappedValues[i] = v;
             }

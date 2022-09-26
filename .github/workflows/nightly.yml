@@ -30,11 +30,14 @@ jobs:
           git fetch --no-tags --prune --progress --no-recurse-submodules --depth=1 \
             origin pull/${{ github.event.inputs.pr }}/merge:merged-pr && git checkout merged-pr
         if: github.event.inputs.pr != ''
-      - name: Install JDK 11
-        uses: AdoptOpenJDK/install-jdk@v1
+      - name: Install JDK 8 and Maven
+        uses: actions/setup-java@v3
         with:
-          version: "11"
-          targets: "JDK11_HOME"
+          distribution: "temurin"
+          java-version: |
+            8
+            11
+          cache: 'maven'
       - name: Setup Toolchain
         shell: bash
         run: |
@@ -48,16 +51,11 @@ jobs:
                 <version>11</version>
               </provides>
               <configuration>
-                <jdkHome>${{ env.JDK11_HOME }}</jdkHome>
+                <jdkHome>${{ env.JAVA_HOME }}</jdkHome>
               </configuration>
             </toolchain>
           </toolchains>
           EOF
-      - name: Install JDK 8 and Maven
-        uses: actions/setup-java@v2
-        with:
-          distribution: "temurin"
-          java-version: 8
       - name: Update Configuration
         run: |
           find . -type f -name "pom.xml" -exec sed -i -e 's|${revision}|${{ env.CHC_VERSION }}-SNAPSHOT|g' \

@@ -15,12 +15,15 @@ jobs:
 
     steps:
       - name: Check out Git repository
-        uses: actions/checkout@v2
-      - name: Install JDK 11
-        uses: AdoptOpenJDK/install-jdk@v1
+        uses: actions/checkout@v3
+      - name: Install JDK 8 and Maven
+        uses: actions/setup-java@v3
         with:
-          version: '11'
-          targets: 'JDK11_HOME'
+          distribution: 'temurin'
+          java-version: |
+            8
+            11
+          cache: 'maven'
       - name: Setup Toolchain
         shell: bash
         run: |
@@ -34,16 +37,11 @@ jobs:
                 <version>11</version>
               </provides>
               <configuration>
-                <jdkHome>${{ env.JDK11_HOME }}</jdkHome>
+                <jdkHome>${{ env.JAVA_HOME }}</jdkHome>
               </configuration>
             </toolchain>
           </toolchains>
           EOF
-      - name: Install JDK 8 and Maven
-        uses: actions/setup-java@v2
-        with:
-          distribution: 'temurin'
-          java-version: 8
       - name: Update Configuration
         run: |
           find . -type f -name "pom.xml" -exec sed -i -e 's|${revision}|${{ github.event.inputs.version }}|g' \

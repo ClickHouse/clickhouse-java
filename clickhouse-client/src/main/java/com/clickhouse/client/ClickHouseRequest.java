@@ -1053,7 +1053,7 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
             value = ClickHouseOption.fromString(value.toString(), option.getValueType());
         }
 
-        Serializable oldValue = options.put(ClickHouseChecker.nonNull(option, ClickHouseConfig.PARAM_OPTION), value);
+        Serializable oldValue = options.put(ClickHouseChecker.nonNull(option, ClickHouseConfig.PARAM_OPTION), value); // NOSONAR
         if (oldValue == null || !oldValue.equals(value)) {
             if (changeListener != null) {
                 changeListener.optionChanged(this, option, oldValue, value);

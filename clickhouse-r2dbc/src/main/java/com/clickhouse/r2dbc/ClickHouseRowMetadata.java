@@ -21,7 +21,7 @@ public class ClickHouseRowMetadata implements RowMetadata {
     public ColumnMetadata getColumnMetadata(int i) {
         if (i > columnNameMetadataMap.size())
             throw new IllegalArgumentException("Given index is greater than size column metadata array.");
-        return columnNameMetadataMap.entrySet().stream().skip(i - 1L).findFirst().get().getValue();
+        return columnNameMetadataMap.entrySet().stream().skip(i - 1L).findFirst().get().getValue(); // NOSONAR
     }
 
     @Override

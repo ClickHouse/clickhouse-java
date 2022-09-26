@@ -368,7 +368,7 @@ public abstract class ClickHouseBitmap {
                 for (int i = 4; i > 0; i--) {
                     bytes[i] = in.readByte();
                 }
-                if (in.readByte() != 0 || in.readByte() != 0 || in.readByte() != 0 || in.readByte() != 0) {
+                if (in.readByte() != 0 || in.readByte() != 0 || in.readByte() != 0 || in.readByte() != 0) { // NOSONAR
                     throw new IllegalStateException(
                             "Not able to deserialize ClickHouseBitmap for too many bitmaps(>" + 0xFFFFFFFFL + ")!");
                 }
@@ -436,7 +436,7 @@ public abstract class ClickHouseBitmap {
                 // consume map size(long in little-endian byte order)
                 byte[] bitmaps = new byte[4];
                 buffer.get(bitmaps);
-                if (buffer.get() != 0 || buffer.get() != 0 || buffer.get() != 0 || buffer.get() != 0) {
+                if (buffer.get() != 0 || buffer.get() != 0 || buffer.get() != 0 || buffer.get() != 0) { // NOSONAR
                     throw new IllegalStateException(
                             "Not able to deserialize ClickHouseBitmap for too many bitmaps(>" + 0xFFFFFFFFL + ")!");
                 }
