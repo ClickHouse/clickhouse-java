@@ -320,7 +320,7 @@ public class ClickHouseCommandLine implements AutoCloseable {
         }
 
         if (request.hasOutputStream()) {
-            final ClickHouseOutputStream chOutput = request.getOutputStream().get();
+            final ClickHouseOutputStream chOutput = request.getOutputStream().get(); // NOSONAR
             final ClickHouseFile outputFile = chOutput.getUnderlyingFile();
 
             if (outputFile.isAvailable()) {
@@ -349,7 +349,7 @@ public class ClickHouseCommandLine implements AutoCloseable {
                         throw new UncheckedIOException(e);
                     } catch (UnsupportedOperationException e) {
                         try {
-                            f = ClickHouseInputStream.save(newPath.toFile(), new FileInputStream(f), // lgtm[java/input-resource-leak]
+                            f = ClickHouseInputStream.save(newPath.toFile(), new FileInputStream(f),
                                     config.getWriteBufferSize(), timeout, true);
                         } catch (FileNotFoundException exp) {
                             throw new UncheckedIOException(exp);
@@ -369,9 +369,9 @@ public class ClickHouseCommandLine implements AutoCloseable {
                     inputFile = chInput.getUnderlyingFile().getFile();
                 } else {
                     CompletableFuture<File> data = ClickHouseClient.submit(() -> {
-                        File tmp = File.createTempFile("tmp", "data");
+                        File tmp = File.createTempFile("tmp", "data"); // NOSONAR
                         tmp.deleteOnExit();
-                        try (ClickHouseOutputStream out = ClickHouseOutputStream.of(new FileOutputStream(tmp))) { // lgtm[java/output-resource-leak]
+                        try (ClickHouseOutputStream out = ClickHouseOutputStream.of(new FileOutputStream(tmp))) {
                             request.getInputStream().get().pipe(out);
                         }
                         return tmp;

@@ -203,6 +203,7 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <configuration combine.self="override">
+                    <argLine>${surefireArgLine}</argLine>
                     <skipTests>${skipUTs}</skipTests>
                     <useModulePath>false</useModulePath>
                 </configuration>
@@ -211,6 +212,7 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-failsafe-plugin</artifactId>
                 <configuration combine.self="override">
+                    <argLine>${failsafeArgLine}</argLine>
                     <includes>**/*.java</includes>
                     <skipTests>${skipTests}</skipTests>
                     <skipITs>${skipITs}</skipITs>

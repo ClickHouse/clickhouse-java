@@ -202,7 +202,7 @@ public final class ClickHouseColumn implements Serializable {
             List<ClickHouseColumn> nestedColumns = new LinkedList<>();
             for (String p : params) {
                 if (isFirst) {
-                    if (matchedKeyword == KEYWORD_AGGREGATE_FUNCTION) {
+                    if (matchedKeyword == KEYWORD_AGGREGATE_FUNCTION) { // NOSONAR
                         int pIndex = p.indexOf('(');
                         aggFunc = ClickHouseAggregateFunction.of(pIndex > 0 ? p.substring(0, pIndex) : p);
                     }

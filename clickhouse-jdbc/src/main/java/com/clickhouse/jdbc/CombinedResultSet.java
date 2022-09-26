@@ -517,12 +517,12 @@ public class CombinedResultSet extends AbstractResultSet {
 
     @Override
     public SQLXML getSQLXML(int columnIndex) throws SQLException {
-        return getSQLXML(columnIndex);
+        return current().getSQLXML(columnIndex);
     }
 
     @Override
     public SQLXML getSQLXML(String columnLabel) throws SQLException {
-        return getSQLXML(columnLabel);
+        return current().getSQLXML(columnLabel);
     }
 
     @Override

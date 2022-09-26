@@ -34,7 +34,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import java.util.TimeZone;
-import java.util.UUID;
 import java.util.Map.Entry;
 import java.util.concurrent.ExecutorService;
 
@@ -117,7 +116,6 @@ public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
                 displayName, queryId, summary, format, timeZone);
     }
 
-    @SuppressWarnings("lgtm[java/unsafe-hostname-verification]")
     private HttpURLConnection newConnection(String url, boolean post) throws IOException {
         HttpURLConnection newConn = config.isUseNoProxy()
                 ? (HttpURLConnection) new URL(url).openConnection(Proxy.NO_PROXY)
@@ -129,10 +127,12 @@ public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
                     .orElse(null);
             HostnameVerifier verifier = config.getSslMode() == ClickHouseSslMode.STRICT
                     ? HttpsURLConnection.getDefaultHostnameVerifier()
-                    : (hostname, session) -> true;
+                    : (hostname, session) -> true; // NOSONAR
 
             secureConn.setHostnameVerifier(verifier);
-            secureConn.setSSLSocketFactory(sslContext.getSocketFactory());
+            if (sslContext != null) {
+                secureConn.setSSLSocketFactory(sslContext.getSocketFactory());
+            }
         }
 
         if (post) {

@@ -776,7 +776,6 @@ public class ClickHouseByteBuffer implements Serializable {
     }
 
     @Override
-    @SuppressWarnings("lgtm[java/print-array]")
     public String toString() {
         return new StringBuilder().append(getClass().getSimpleName()).append("array=").append(array)
                 .append(", position=").append(position).append(", length=").append(length).append(')').toString();

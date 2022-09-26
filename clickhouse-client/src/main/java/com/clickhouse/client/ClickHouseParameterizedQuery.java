@@ -390,8 +390,8 @@ public class ClickHouseParameterizedQuery implements Serializable {
                 map.put(e.getKey(),
                         v != null ? v.update(param).toSqlExpression() : ClickHouseValues.convertToSqlExpression(param));
             } else if (index < len) {
-                map.put(e.getKey(), v != null ? v.update(more[index]).toSqlExpression()
-                        : ClickHouseValues.convertToSqlExpression(more[index]));
+                map.put(e.getKey(), v != null ? v.update(more[index]).toSqlExpression() // NOSONAR
+                        : ClickHouseValues.convertToSqlExpression(more[index])); // NOSONAR
             } else {
                 break;
             }
@@ -452,7 +452,7 @@ public class ClickHouseParameterizedQuery implements Serializable {
             if (index < 0) {
                 map.put(n, param);
             } else if (index < len) {
-                map.put(n, more[index]);
+                map.put(n, more[index]); // NOSONAR
             } else {
                 break;
             }

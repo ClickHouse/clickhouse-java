@@ -93,7 +93,7 @@ public final class JdbcParameterizedQuery extends ClickHouseParameterizedQuery {
         for (QueryPart p : getParts()) {
             builder.append(p.part);
             if (index > 0) {
-                param = index < len ? more[index - 1] : null;
+                param = index < len ? more[index - 1] : null; // NOSONAR
             }
             builder.append(toSqlExpression(p.paramName, param));
             index++;
@@ -114,7 +114,7 @@ public final class JdbcParameterizedQuery extends ClickHouseParameterizedQuery {
         for (QueryPart p : getParts()) {
             builder.append(p.part);
             builder.append(
-                    index < len ? toSqlExpression(p.paramName, values[index]) : ClickHouseValues.NULL_EXPR);
+                    index < len ? toSqlExpression(p.paramName, values[index]) : ClickHouseValues.NULL_EXPR); // NOSONAR
             index++;
         }
 
@@ -133,7 +133,7 @@ public final class JdbcParameterizedQuery extends ClickHouseParameterizedQuery {
         for (QueryPart p : getParts()) {
             builder.append(p.part);
             if (index > 0) {
-                param = index < len ? more[index - 1] : ClickHouseValues.NULL_EXPR;
+                param = index < len ? more[index - 1] : ClickHouseValues.NULL_EXPR; // NOSONAR
             }
             builder.append(param);
             index++;
@@ -153,7 +153,7 @@ public final class JdbcParameterizedQuery extends ClickHouseParameterizedQuery {
         int index = 0;
         for (QueryPart p : getParts()) {
             builder.append(p.part);
-            builder.append(index < len ? values[index] : ClickHouseValues.NULL_EXPR);
+            builder.append(index < len ? values[index] : ClickHouseValues.NULL_EXPR); // NOSONAR
             index++;
         }
 

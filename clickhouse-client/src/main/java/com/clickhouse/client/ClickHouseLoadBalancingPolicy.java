@@ -64,7 +64,7 @@ public abstract class ClickHouseLoadBalancingPolicy implements Serializable {
         private final Random rand;
 
         protected RandomPolicy() {
-            this.rand = new Random(System.currentTimeMillis());
+            this.rand = new Random(System.currentTimeMillis()); // NOSONAR
         }
 
         @Override

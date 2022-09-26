@@ -35,9 +35,9 @@ public interface CapacityPolicy {
             if (current < capacity) {
                 count = 0;
                 return true;
-            } else if (capacity < maxSize && ++count >= variation) {
+            } else if (capacity < maxSize && ++count >= variation) { // NOSONAR
                 count = 0;
-                capacity++;
+                capacity++; // NOSONAR
                 return true;
             }
             return false;

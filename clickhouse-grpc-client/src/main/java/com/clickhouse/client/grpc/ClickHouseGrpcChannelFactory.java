@@ -91,7 +91,6 @@ public abstract class ClickHouseGrpcChannelFactory {
         this.server = ClickHouseChecker.nonNull(server, "server");
     }
 
-    @SuppressWarnings("lgtm[java/input-resource-leak]")
     protected Map<String, ?> getDefaultServiceConfig() {
         Map<String, ?> config = defaultServiceConfig;
         try {
