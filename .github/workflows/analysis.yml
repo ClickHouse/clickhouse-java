@@ -29,6 +29,8 @@ jobs:
     steps:
       - name: Check out Git repository
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
       - name: Check out head
         uses: actions/checkout@v3
         with:
@@ -42,11 +44,11 @@ jobs:
       - name: Install JDK 8 and Maven
         uses: actions/setup-java@v3
         with:
-          distribution: 'temurin'
+          distribution: "temurin"
           java-version: |
             8
             11
-          cache: 'maven'
+          cache: "maven"
       - name: Setup Toolchain
         shell: bash
         run: |
@@ -82,7 +84,7 @@ jobs:
           mvn -q --batch-mode --projects '!clickhouse-benchmark' -Drelease -DclickhouseVersion=22.8 -DskipTests install
       - name: Analyze
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Needed to get PR information, if any
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Needed to get PR information, if any
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
           mvn --projects '!clickhouse-benchmark' -Drelease -DclickhouseVersion=22.8 \
