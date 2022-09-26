@@ -14,7 +14,6 @@ module io.grpc {
     requires java.logging;
     requires java.naming;
     // requires com.google.errorprone.annotations;
-    // requires com.lmax.disruptor;
     // requires io.perfmark;
 
     uses io.grpc.ManagedChannelProvider;

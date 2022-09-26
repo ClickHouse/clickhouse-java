@@ -100,7 +100,7 @@ jobs:
     strategy:
       matrix:
         # most recent LTS releases as well as latest stable builds
-        clickhouse: ["21.8", "22.3", "latest"]
+        clickhouse: ["21.8", "22.3", "22.8", "latest"]
       fail-fast: false
     timeout-minutes: 15
     name: Java client against ClickHouse ${{ matrix.clickhouse }}
@@ -112,11 +112,14 @@ jobs:
           git fetch --no-tags --prune --progress --no-recurse-submodules --depth=1 \
             origin pull/${{ github.event.inputs.pr }}/merge:merged-pr && git checkout merged-pr
         if: github.event.inputs.pr != ''
-      - name: Install JDK 11
-        uses: AdoptOpenJDK/install-jdk@v1
+      - name: Install JDK 8 and Maven
+        uses: actions/setup-java@v3
         with:
-          version: '11'
-          targets: 'JDK11_HOME'
+          distribution: 'temurin'
+          java-version: |
+            8
+            11
+          cache: 'maven'
       - name: Setup Toolchain
         shell: bash
         run: |
@@ -130,17 +133,11 @@ jobs:
                 <version>11</version>
               </provides>
               <configuration>
-                <jdkHome>${{ env.JDK11_HOME }}</jdkHome>
+                <jdkHome>${{ env.JAVA_HOME }}</jdkHome>
               </configuration>
             </toolchain>
           </toolchains>
           EOF
-      - name: Install JDK 8 and Maven
-        uses: actions/setup-java@v3
-        with:
-          distribution: 'temurin'
-          java-version: 8
-          cache: 'maven'
       - name: Test Java client
         run: |
           mvn --also-make --batch-mode --projects clickhouse-cli-client,clickhouse-grpc-client,clickhouse-http-client -Drelease -DclickhouseVersion=${{ matrix.clickhouse }} verify
@@ -158,7 +155,7 @@ jobs:
     needs: compile
     strategy:
       matrix:
-        clickhouse: ["21.8", "22.3", "latest"]
+        clickhouse: ["21.8", "22.3", "22.8", "latest"]
         # http2 here represents http protocol + JDK HttpClient(http_connection_provider=HTTP_CLIENT)
         protocol: ["http", "http2", "grpc"]
         exclude:
@@ -175,11 +172,14 @@ jobs:
           git fetch --no-tags --prune --progress --no-recurse-submodules --depth=1 \
             origin pull/${{ github.event.inputs.pr }}/merge:merged-pr && git checkout merged-pr
         if: github.event.inputs.pr != ''
-      - name: Install JDK 11
-        uses: AdoptOpenJDK/install-jdk@v1
+      - name: Install JDK 8 and Maven
+        uses: actions/setup-java@v3
         with:
-          version: '11'
-          targets: 'JDK11_HOME'
+          distribution: 'temurin'
+          java-version: |
+            8
+            11
+          cache: 'maven'
       - name: Setup Toolchain
         shell: bash
         run: |
@@ -193,17 +193,11 @@ jobs:
                 <version>11</version>
               </provides>
               <configuration>
-                <jdkHome>${{ env.JDK11_HOME }}</jdkHome>
+                <jdkHome>${{ env.JAVA_HOME }}</jdkHome>
               </configuration>
             </toolchain>
           </toolchains>
           EOF
-      - name: Install JDK 8 and Maven
-        uses: actions/setup-java@v3
-        with:
-          distribution: 'temurin'
-          java-version: 8
-          cache: 'maven'
       - name: Install Java client
         run: mvn --also-make --batch-mode --projects clickhouse-cli-client,clickhouse-grpc-client,clickhouse-http-client -Drelease -DskipTests install
       - name: Test JDBC driver
@@ -223,7 +217,7 @@ jobs:
     needs: compile
     strategy:
       matrix:
-        clickhouse: ["21.8", "22.3", "latest"]
+        clickhouse: ["21.8", "22.3", "22.8", "latest"]
         # grpc is not fully supported, and http2 does not work in CI environment(due to limited threads?)
         protocol: ["http"]
         r2dbc: ["1.0.0.RELEASE", "0.9.1.RELEASE"]
@@ -238,11 +232,14 @@ jobs:
           git fetch --no-tags --prune --progress --no-recurse-submodules --depth=1 \
             origin pull/${{ github.event.inputs.pr }}/merge:merged-pr && git checkout merged-pr
         if: github.event.inputs.pr != ''
-      - name: Install JDK 11
-        uses: AdoptOpenJDK/install-jdk@v1
+      - name: Install JDK 8 and Maven
+        uses: actions/setup-java@v3
         with:
-          version: '11'
-          targets: 'JDK11_HOME'
+          distribution: 'temurin'
+          java-version: |
+            8
+            11
+          cache: 'maven'
       - name: Setup Toolchain
         shell: bash
         run: |
@@ -256,17 +253,11 @@ jobs:
                 <version>11</version>
               </provides>
               <configuration>
-                <jdkHome>${{ env.JDK11_HOME }}</jdkHome>
+                <jdkHome>${{ env.JAVA_HOME }}</jdkHome>
               </configuration>
             </toolchain>
           </toolchains>
           EOF
-      - name: Install JDK 8 and Maven
-        uses: actions/setup-java@v3
-        with:
-          distribution: 'temurin'
-          java-version: 8
-          cache: 'maven'
       - name: Install Java client
         run: mvn --also-make --batch-mode --projects clickhouse-jdbc -Drelease -DskipTests install
       - name: Test R2DBC ${{ matrix.r2dbc }}
