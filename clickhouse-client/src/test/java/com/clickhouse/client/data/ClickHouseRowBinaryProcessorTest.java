@@ -129,6 +129,14 @@ public class ClickHouseRowBinaryProcessorTest {
         out.flush();
         Assert.assertEquals(bas.toByteArray(), BinaryStreamUtilsTest.generateBytes(2, 1, 2));
 
+        value = ClickHouseArrayValue.of(new Short[]{1, 2, null});
+        bas = new ByteArrayOutputStream();
+        out = ClickHouseOutputStream.of(bas);
+        ClickHouseRowBinaryProcessor.getMappedFunctions().serialize(value, config,
+                ClickHouseColumn.of("a", "Array(Nullable(UInt8))"), out);
+        out.flush();
+        Assert.assertEquals(bas.toByteArray(), BinaryStreamUtilsTest.generateBytes(3, 0, 1, 0, 2, 1));
+
         value = ClickHouseByteArrayValue.of(new byte[] { 1, 2 });
         bas = new ByteArrayOutputStream();
         out = ClickHouseOutputStream.of(bas);

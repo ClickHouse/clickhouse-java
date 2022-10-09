@@ -43,7 +43,7 @@ public class ClickHouseRowBinaryProcessor extends ClickHouseDataProcessor {
             ClickHouseColumn baseColumn = column.getArrayBaseColumn();
             int level = column.getArrayNestedLevel();
             Class<?> javaClass = baseColumn.getPrimitiveClass();
-            if (level > 1 || !javaClass.isPrimitive()) {
+            if (level > 1 || !javaClass.isPrimitive() || baseColumn.isNullable()) {
                 Object[] array = value.asArray();
                 ClickHouseValue v = ClickHouseValues.newValue(config, nestedColumn);
                 int length = array.length;
