@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE configuration>
+
+<configuration>
+    <import class="com.clickhouse.jdbcbridge.internal.qos.logback.classic.encoder.PatternLayoutEncoder"/>
+    <import class="com.clickhouse.jdbcbridge.internal.qos.logback.contrib.jackson.JacksonJsonFormatter"/>
+    <import class="com.clickhouse.jdbcbridge.internal.qos.logback.contrib.json.classic.JsonLayout"/>
+    <import class="com.clickhouse.jdbcbridge.internal.qos.logback.core.ConsoleAppender"/>
+    <import class="com.clickhouse.jdbcbridge.internal.qos.logback.core.ConsoleAppender"/>
+    <import class="com.clickhouse.jdbcbridge.internal.qos.logback.core.encoder.LayoutWrappingEncoder"/>
+
+    <appender name="STDOUT" class="ConsoleAppender">
+        <encoder class="PatternLayoutEncoder">
+            <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <appender name="JSON_STDOUT" class="ConsoleAppender">
+        <encoder class="LayoutWrappingEncoder">
+            <layout class="JsonLayout">
+                <appendLineSeparator>true</appendLineSeparator>
+                <timestampFormat>yyyy-MM-dd'T'HH:mm:ss.SSSX</timestampFormat>
+                <timestampFormatTimezoneId>Etc/UTC</timestampFormatTimezoneId>
+                <jsonFormatter class="JacksonJsonFormatter"/>
+            </layout>
+        </encoder>
+    </appender>
+
+    <root level="trace">
+        <appender-ref ref="STDOUT"/>
+    </root>
+</configuration>

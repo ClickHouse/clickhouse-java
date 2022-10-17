@@ -177,6 +177,14 @@ Use `mvn -DskipITs clean verify` to compile and generate packages if you're usin
 </toolchains>
 ```
 
+## Logging
+
+  You can customize logging configuration in `logback.xml` for each component, e.g. [clickhouse-jdbc/src/main/resources/logback.xml](clickhouse-jdbc/src/main/resources/logback.xml). See the [logback documentation](https://logback.qos.ch/manual/configuration.html) for details about the contents of this file.
+
+  Note that the default logging level is `trace` -- you may wish to set this to `info` or `warning` for less verbose logs in production.
+
+  Note also that the default logging format is the default plaintext format suggested by logback. We also provide (by way of example) a structured log appender named `JSON_STDOUT`; to use it you will need to change the `appender-ref` property of the root logger to point to it.
+
 ## Testing
 
 By default, [docker](https://docs.docker.com/engine/install/) is required to run integration test. Docker image(defaults to `clickhouse/clickhouse-server`) will be pulled from Internet, and containers will be created automatically by [testcontainers](https://www.testcontainers.org/) before testing. To test against specific version of ClickHouse, you can pass parameter like `-DclickhouseVersion=22.3` to Maven.
