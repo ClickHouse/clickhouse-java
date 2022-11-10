@@ -6,7 +6,7 @@ on:
       version:
         description: "Release version"
         required: true
-        default: "1.4.0"
+        default: "1.5.0"
 
 jobs:
   release:
@@ -29,7 +29,7 @@ jobs:
             -e 's|${parent.groupId}|com.clickhouse|g' -e 's|${project.parent.groupId}|com.clickhouse|g' '{}' \;
           find . -type f -name "simplelogger.*" -exec rm -fv '{}' \;
       - name: Release Maven package
-        uses: samuelmeuli/action-maven-publish@v1
+        uses: zhicwu/action-maven-publish@master
         with:
           directory: ./third-party-libraries/
           maven_profiles: release
