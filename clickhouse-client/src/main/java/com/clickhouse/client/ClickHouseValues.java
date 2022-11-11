@@ -31,38 +31,7 @@ import java.util.Map.Entry;
 
 import com.clickhouse.client.config.ClickHouseDefaults;
 import com.clickhouse.client.data.ClickHouseArrayValue;
-import com.clickhouse.client.data.ClickHouseBigDecimalValue;
-import com.clickhouse.client.data.ClickHouseBigIntegerValue;
-import com.clickhouse.client.data.ClickHouseBitmapValue;
-import com.clickhouse.client.data.ClickHouseBoolValue;
 import com.clickhouse.client.data.ClickHouseByteValue;
-import com.clickhouse.client.data.ClickHouseDateTimeValue;
-import com.clickhouse.client.data.ClickHouseDateValue;
-import com.clickhouse.client.data.ClickHouseDoubleValue;
-import com.clickhouse.client.data.ClickHouseEmptyValue;
-import com.clickhouse.client.data.ClickHouseEnumValue;
-import com.clickhouse.client.data.ClickHouseFloatValue;
-import com.clickhouse.client.data.ClickHouseGeoMultiPolygonValue;
-import com.clickhouse.client.data.ClickHouseGeoPointValue;
-import com.clickhouse.client.data.ClickHouseGeoPolygonValue;
-import com.clickhouse.client.data.ClickHouseGeoRingValue;
-import com.clickhouse.client.data.ClickHouseIntegerValue;
-import com.clickhouse.client.data.ClickHouseIpv4Value;
-import com.clickhouse.client.data.ClickHouseIpv6Value;
-import com.clickhouse.client.data.ClickHouseLongValue;
-import com.clickhouse.client.data.ClickHouseMapValue;
-import com.clickhouse.client.data.ClickHouseNestedValue;
-import com.clickhouse.client.data.ClickHouseOffsetDateTimeValue;
-import com.clickhouse.client.data.ClickHouseShortValue;
-import com.clickhouse.client.data.ClickHouseStringValue;
-import com.clickhouse.client.data.ClickHouseTupleValue;
-import com.clickhouse.client.data.ClickHouseUuidValue;
-import com.clickhouse.client.data.array.ClickHouseByteArrayValue;
-import com.clickhouse.client.data.array.ClickHouseDoubleArrayValue;
-import com.clickhouse.client.data.array.ClickHouseFloatArrayValue;
-import com.clickhouse.client.data.array.ClickHouseIntArrayValue;
-import com.clickhouse.client.data.array.ClickHouseLongArrayValue;
-import com.clickhouse.client.data.array.ClickHouseShortArrayValue;
 
 /**
  * Help class for dealing with values.
@@ -77,6 +46,7 @@ public final class ClickHouseValues {
 
     public static final Object[] EMPTY_OBJECT_ARRAY = new Object[0];
     public static final Object[][] EMPTY_OBJECT_ARRAY2 = new Object[0][];
+    public static final boolean[] EMPTY_BOOL_ARRAY = new boolean[0];
     public static final byte[] EMPTY_BYTE_ARRAY = new byte[0];
     public static final short[] EMPTY_SHORT_ARRAY = new short[0];
     public static final int[] EMPTY_INT_ARRAY = new int[0];
@@ -599,8 +569,6 @@ public final class ClickHouseValues {
                 builder.setLength(builder.length() - 1);
             }
             s = builder.append('}').toString();
-        } else if (value instanceof Boolean) {
-            s = String.valueOf((boolean) value ? 1 : 0);
         } else if (value instanceof Character) {
             s = String.valueOf((int) ((char) value));
         } else if (value instanceof boolean[]) {
@@ -633,17 +601,17 @@ public final class ClickHouseValues {
      * @return string
      */
     public static String convertToString(boolean[] value) {
-        if (value == null) {
+        int len;
+        if (value == null) { // should not happen
             return NULL_EXPR;
-        } else if (value.length == 0) {
+        } else if ((len = value.length) == 0) {
             return EMPTY_ARRAY_EXPR;
         }
 
-        StringBuilder builder = new StringBuilder().append('[');
-        for (boolean v : value) {
-            builder.append(v ? 1 : 0).append(',');
+        StringBuilder builder = new StringBuilder(len < 3 ? 16 : 6 * len).append('[').append(value[0]);
+        for (int i = 1; i < len; i++) {
+            builder.append(',').append(value[i]);
         }
-        builder.setLength(builder.length() - 1);
         return builder.append(']').toString();
     }
 
@@ -655,17 +623,17 @@ public final class ClickHouseValues {
      * @return string
      */
     public static String convertToString(char[] value) {
-        if (value == null) {
+        int len;
+        if (value == null) { // should not happen
             return NULL_EXPR;
-        } else if (value.length == 0) {
+        } else if ((len = value.length) == 0) {
             return EMPTY_ARRAY_EXPR;
         }
 
-        StringBuilder builder = new StringBuilder().append('[');
-        for (char v : value) {
-            builder.append((int) v).append(',');
+        StringBuilder builder = new StringBuilder(len < 3 ? 16 : 6 * len).append('[').append((short) value[0]);
+        for (int i = 1; i < len; i++) {
+            builder.append(',').append((short) value[i]);
         }
-        builder.setLength(builder.length() - 1);
         return builder.append(']').toString();
     }
 
@@ -677,17 +645,17 @@ public final class ClickHouseValues {
      * @return string
      */
     public static String convertToString(byte[] value) {
-        if (value == null) {
+        int len = 0;
+        if (value == null) { // should not happen
             return NULL_EXPR;
-        } else if (value.length == 0) {
+        } else if ((len = value.length) == 0) {
             return EMPTY_ARRAY_EXPR;
         }
 
-        StringBuilder builder = new StringBuilder().append('[');
-        for (byte v : value) {
-            builder.append(v).append(',');
+        StringBuilder builder = new StringBuilder(len < 4 ? 16 : 4 * len).append('[').append(value[0]);
+        for (int i = 1; i < len; i++) {
+            builder.append(',').append(value[i]);
         }
-        builder.setLength(builder.length() - 1);
         return builder.append(']').toString();
     }
 
@@ -699,17 +667,17 @@ public final class ClickHouseValues {
      * @return string
      */
     public static String convertToString(short[] value) {
-        if (value == null) {
+        int len;
+        if (value == null) { // should not happen
             return NULL_EXPR;
-        } else if (value.length == 0) {
+        } else if ((len = value.length) == 0) {
             return EMPTY_ARRAY_EXPR;
         }
 
-        StringBuilder builder = new StringBuilder().append('[');
-        for (short v : value) {
-            builder.append(v).append(',');
+        StringBuilder builder = new StringBuilder(len < 3 ? 16 : 6 * len).append('[').append(value[0]);
+        for (int i = 1; i < len; i++) {
+            builder.append(',').append(value[i]);
         }
-        builder.setLength(builder.length() - 1);
         return builder.append(']').toString();
     }
 
@@ -721,17 +689,17 @@ public final class ClickHouseValues {
      * @return string
      */
     public static String convertToString(int[] value) {
-        if (value == null) {
+        int len;
+        if (value == null) { // should not happen
             return NULL_EXPR;
-        } else if (value.length == 0) {
+        } else if ((len = value.length) == 0) {
             return EMPTY_ARRAY_EXPR;
         }
 
-        StringBuilder builder = new StringBuilder().append('[');
-        for (int v : value) {
-            builder.append(v).append(',');
+        StringBuilder builder = new StringBuilder(len < 3 ? 16 : 6 * len).append('[').append(value[0]);
+        for (int i = 1; i < len; i++) {
+            builder.append(',').append(value[i]);
         }
-        builder.setLength(builder.length() - 1);
         return builder.append(']').toString();
     }
 
@@ -743,17 +711,17 @@ public final class ClickHouseValues {
      * @return string
      */
     public static String convertToString(long[] value) {
-        if (value == null) {
+        int len;
+        if (value == null) { // should not happen
             return NULL_EXPR;
-        } else if (value.length == 0) {
+        } else if ((len = value.length) == 0) {
             return EMPTY_ARRAY_EXPR;
         }
 
-        StringBuilder builder = new StringBuilder().append('[');
-        for (long v : value) {
-            builder.append(v).append(',');
+        StringBuilder builder = new StringBuilder(len < 3 ? 16 : 6 * len).append('[').append(value[0]);
+        for (int i = 1; i < len; i++) {
+            builder.append(',').append(value[i]);
         }
-        builder.setLength(builder.length() - 1);
         return builder.append(']').toString();
     }
 
@@ -765,17 +733,17 @@ public final class ClickHouseValues {
      * @return string
      */
     public static String convertToString(float[] value) {
-        if (value == null) {
+        int len;
+        if (value == null) { // should not happen
             return NULL_EXPR;
-        } else if (value.length == 0) {
+        } else if ((len = value.length) == 0) {
             return EMPTY_ARRAY_EXPR;
         }
 
-        StringBuilder builder = new StringBuilder().append('[');
-        for (float v : value) {
-            builder.append(v).append(',');
+        StringBuilder builder = new StringBuilder(len < 3 ? 16 : 6 * len).append('[').append(value[0]);
+        for (int i = 1; i < len; i++) {
+            builder.append(',').append(value[i]);
         }
-        builder.setLength(builder.length() - 1);
         return builder.append(']').toString();
     }
 
@@ -787,17 +755,17 @@ public final class ClickHouseValues {
      * @return string
      */
     public static String convertToString(double[] value) {
-        if (value == null) {
+        int len;
+        if (value == null) { // should not happen
             return NULL_EXPR;
-        } else if (value.length == 0) {
+        } else if ((len = value.length) == 0) {
             return EMPTY_ARRAY_EXPR;
         }
 
-        StringBuilder builder = new StringBuilder().append('[');
-        for (double v : value) {
-            builder.append(v).append(',');
+        StringBuilder builder = new StringBuilder(len < 3 ? 16 : 6 * len).append('[').append(value[0]);
+        for (int i = 1; i < len; i++) {
+            builder.append(',').append(value[i]);
         }
-        builder.setLength(builder.length() - 1);
         return builder.append(']').toString();
     }
 
@@ -845,7 +813,7 @@ public final class ClickHouseValues {
             low = low.subtract(BIGINT_HL_BOUNDARY);
         }
 
-        return new UUID(high.longValueExact(), low.longValueExact());
+        return new UUID(high.longValue(), low.longValue());
     }
 
     /**
@@ -910,12 +878,12 @@ public final class ClickHouseValues {
     }
 
     static ClickHouseArrayValue<?> fillByteArray(ClickHouseArrayValue<?> array, ClickHouseConfig config,
-            ClickHouseColumn column, ClickHouseInputStream input, ClickHouseDeserializer<ClickHouseValue> deserializer,
+            ClickHouseColumn column, ClickHouseInputStream input, ClickHouseDeserializer deserializer,
             int length) throws IOException {
         byte[] values = new byte[length];
         ClickHouseValue ref = ClickHouseByteValue.ofNull();
         for (int i = 0; i < length; i++) {
-            values[i] = deserializer.deserialize(ref, config, column, input).asByte();
+            values[i] = deserializer.deserialize(ref, input).asByte();
         }
         return array.update(values);
     }
@@ -988,7 +956,7 @@ public final class ClickHouseValues {
         ClickHouseValue[] values = new ClickHouseValue[columns.size()];
         int index = 0;
         for (ClickHouseColumn c : columns) {
-            values[index++] = newValue(config, c);
+            values[index++] = c.newValue(config);
         }
         return values;
     }
@@ -1008,227 +976,9 @@ public final class ClickHouseValues {
         int len = columns.length;
         ClickHouseValue[] values = new ClickHouseValue[len];
         for (int i = 0; i < len; i++) {
-            values[i] = newValue(config, columns[i]);
+            values[i] = columns[i].newValue(config);
         }
         return values;
-    }
-
-    /**
-     * Creates a value object based on given column.
-     *
-     * @param column array column
-     * @return value object with empty value
-     */
-    public static ClickHouseArraySequence newArrayValue(ClickHouseColumn column) {
-        ClickHouseArraySequence value;
-        if (column == null || !column.isArray() || column.getArrayBaseColumn().isNullable()) {
-            value = ClickHouseArrayValue.ofEmpty();
-        } else if (column.getArrayNestedLevel() > 1) {
-            value = ClickHouseArrayValue.of(
-                    (Object[]) createPrimitiveArray(
-                            column.getArrayBaseColumn().getPrimitiveClass(),
-                            0, column.getArrayNestedLevel()));
-        } else {
-            Class<?> javaClass = column.getArrayBaseColumn().getPrimitiveClass();
-            if (byte.class == javaClass) {
-                value = ClickHouseByteArrayValue.ofEmpty();
-            } else if (short.class == javaClass) {
-                value = ClickHouseShortArrayValue.ofEmpty();
-            } else if (int.class == javaClass) {
-                value = ClickHouseIntArrayValue.ofEmpty();
-            } else if (long.class == javaClass) {
-                value = ClickHouseLongArrayValue.ofEmpty();
-            } else if (float.class == javaClass) {
-                value = ClickHouseFloatArrayValue.ofEmpty();
-            } else if (double.class == javaClass) {
-                value = ClickHouseDoubleArrayValue.ofEmpty();
-            } else {
-                value = ClickHouseArrayValue.ofEmpty();
-            }
-        }
-        return value;
-    }
-
-    /**
-     * Creates a value object based on given column.
-     *
-     * @param config non-null configuration
-     * @param column non-null column
-     * @return value object with default value, either null or empty
-     */
-    public static ClickHouseValue newValue(ClickHouseConfig config, ClickHouseColumn column) {
-        return newValue(ClickHouseChecker.nonNull(config, "config"),
-                ClickHouseChecker.nonNull(column, "column").getDataType(), column);
-    }
-
-    /**
-     * Creates a value object based on given data type.
-     *
-     * @param config non-null configuration
-     * @param type   non-null data type
-     * @return value object with default value, either null or empty
-     */
-    public static ClickHouseValue newValue(ClickHouseConfig config, ClickHouseDataType type) {
-        return newValue(ClickHouseChecker.nonNull(config, "config"), ClickHouseChecker.nonNull(type, "type"), null);
-    }
-
-    private static ClickHouseValue newValue(ClickHouseConfig config, ClickHouseDataType type, ClickHouseColumn column) {
-        ClickHouseValue value = null;
-        switch (type) { // still faster than EnumMap and with less overhead
-            case Bool:
-                value = ClickHouseBoolValue.ofNull();
-                break;
-            case Enum:
-            case Enum8:
-                value = column != null ? ClickHouseEnumValue.ofNull(column.getEnumConstants())
-                        : ClickHouseByteValue.ofNull();
-                break;
-            case Enum16:
-                value = column != null ? ClickHouseEnumValue.ofNull(column.getEnumConstants())
-                        : ClickHouseShortValue.ofNull();
-                break;
-            case Int8:
-                value = ClickHouseByteValue.ofNull();
-                break;
-            case UInt8:
-            case Int16:
-                value = ClickHouseShortValue.ofNull();
-                break;
-            case UInt16:
-            case Int32:
-                value = ClickHouseIntegerValue.ofNull();
-                break;
-            case UInt32:
-            case IntervalYear:
-            case IntervalQuarter:
-            case IntervalMonth:
-            case IntervalWeek:
-            case IntervalDay:
-            case IntervalHour:
-            case IntervalMinute:
-            case IntervalSecond:
-            case Int64:
-                value = ClickHouseLongValue.ofNull(false);
-                break;
-            case UInt64:
-                value = ClickHouseLongValue.ofNull(true);
-                break;
-            case Int128:
-            case UInt128:
-            case Int256:
-            case UInt256:
-                value = ClickHouseBigIntegerValue.ofNull();
-                break;
-            case Float32:
-                value = ClickHouseFloatValue.ofNull();
-                break;
-            case Float64:
-                value = ClickHouseDoubleValue.ofNull();
-                break;
-            case Decimal:
-            case Decimal32:
-            case Decimal64:
-            case Decimal128:
-            case Decimal256:
-                value = ClickHouseBigDecimalValue.ofNull();
-                break;
-            case Date:
-            case Date32:
-                value = ClickHouseDateValue.ofNull();
-                break;
-            case DateTime:
-            case DateTime32:
-            case DateTime64: {
-                if (column == null) {
-                    value = ClickHouseDateTimeValue.ofNull(0, config.getUseTimeZone());
-                } else if (column.getTimeZone() == null) {
-                    value = ClickHouseDateTimeValue.ofNull(column.getScale(), config.getUseTimeZone());
-                } else {
-                    value = ClickHouseOffsetDateTimeValue.ofNull(column.getScale(), column.getTimeZone());
-                }
-                break;
-            }
-            case IPv4:
-                value = ClickHouseIpv4Value.ofNull();
-                break;
-            case IPv6:
-                value = ClickHouseIpv6Value.ofNull();
-                break;
-            case Object:
-            case JSON:
-            case FixedString:
-            case String:
-                value = ClickHouseStringValue.ofNull();
-                break;
-            case UUID:
-                value = ClickHouseUuidValue.ofNull();
-                break;
-            case Point:
-                value = ClickHouseGeoPointValue.ofOrigin();
-                break;
-            case Ring:
-                value = ClickHouseGeoRingValue.ofEmpty();
-                break;
-            case Polygon:
-                value = ClickHouseGeoPolygonValue.ofEmpty();
-                break;
-            case MultiPolygon:
-                value = ClickHouseGeoMultiPolygonValue.ofEmpty();
-                break;
-            case SimpleAggregateFunction:
-                if (column != null) {
-                    column = column.getNestedColumns().get(0);
-                    return newValue(config, column.getDataType(), column);
-                } else { // should never happen
-                    value = ClickHouseEmptyValue.INSTANCE;
-                }
-                break;
-            case AggregateFunction:
-                value = ClickHouseEmptyValue.INSTANCE;
-                if (column != null) {
-                    switch (column.getAggregateFunction()) {
-                        case any:
-                            value = newValue(config, column.getNestedColumns().get(0));
-                            break;
-                        case groupBitmap:
-                            value = ClickHouseBitmapValue.ofEmpty(column.getNestedColumns().get(0).getDataType());
-                            break;
-                        default:
-                            break;
-                    }
-                }
-                break;
-            case Array:
-                value = newArrayValue(column);
-                break;
-            case Map:
-                if (column == null) {
-                    throw new IllegalArgumentException("column types for key and value are required");
-                }
-                value = ClickHouseMapValue.ofEmpty(column.getKeyInfo().getObjectClass(),
-                        column.getValueInfo().getObjectClass());
-                break;
-            case Nested:
-                if (column == null) {
-                    throw new IllegalArgumentException("nested column types are required");
-                }
-                value = ClickHouseNestedValue.ofEmpty(column.getNestedColumns());
-                break;
-            case Tuple:
-                value = ClickHouseTupleValue.of();
-                break;
-            case Nothing:
-                value = ClickHouseEmptyValue.INSTANCE;
-                break;
-            default:
-                break;
-        }
-
-        if (value == null) {
-            throw new IllegalArgumentException("Unsupported data type: " + type.name());
-        }
-
-        return value;
     }
 
     private ClickHouseValues() {

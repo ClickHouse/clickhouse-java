@@ -49,8 +49,8 @@ public interface ClickHouseArraySequence extends ClickHouseValue {
      * Gets value at the specified position in this array.
      *
      * @param <V>   type of the value
-     * @param index index which is greater or equal to zero and always smaller
-     *              than {@link #length()}
+     * @param index index which is greater than or equal to zero and it's always
+     *              smaller than {@link #length()}
      * @param value non-null template object to retrieve the value
      * @return non-null value which is same as {@code value}
      */
@@ -59,8 +59,8 @@ public interface ClickHouseArraySequence extends ClickHouseValue {
     /**
      * Sets value to the specified position in this array.
      *
-     * @param index index which is greater or equal to zero and always smaller
-     *              than {@link #length()}
+     * @param index index which is greater than or equal to zero and it's always
+     *              smaller than {@link #length()}
      * @param value non-null container of the value
      * @return this value
      */

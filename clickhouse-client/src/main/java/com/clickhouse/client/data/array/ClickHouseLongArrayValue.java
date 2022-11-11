@@ -22,45 +22,130 @@ import com.clickhouse.client.ClickHouseChecker;
 import com.clickhouse.client.ClickHouseUtils;
 import com.clickhouse.client.ClickHouseValue;
 import com.clickhouse.client.ClickHouseValues;
-import com.clickhouse.client.data.ClickHouseLongValue;
 import com.clickhouse.client.data.ClickHouseObjectValue;
+import com.clickhouse.client.data.UnsignedLong;
 
 /**
  * Wrapper of {@code long[]}.
  */
 public class ClickHouseLongArrayValue extends ClickHouseObjectValue<long[]> implements ClickHouseArraySequence {
+    static final class UnsignedLongArrayValue extends ClickHouseLongArrayValue {
+        @Override
+        public Object[] asArray() {
+            long[] v = getValue();
+            int len = v.length;
+            UnsignedLong[] array = new UnsignedLong[len];
+            for (int i = 0; i < len; i++) {
+                array[i] = UnsignedLong.valueOf(v[i]);
+            }
+            return array;
+        }
+
+        @Override
+        public String asString() {
+            long[] v = getValue();
+            int len = v.length;
+            if (len == 0) {
+                return ClickHouseValues.EMPTY_ARRAY_EXPR;
+            }
+            StringBuilder builder = new StringBuilder().append('[').append(Long.toUnsignedString(v[0]));
+            for (int i = 1; i < len; i++) {
+                builder.append(',').append(Long.toUnsignedString(v[i]));
+            }
+            return builder.append(']').toString();
+        }
+
+        @Override
+        public UnsignedLongArrayValue copy(boolean deep) {
+            if (!deep) {
+                return new UnsignedLongArrayValue(getValue());
+            }
+
+            long[] value = getValue();
+            return new UnsignedLongArrayValue(Arrays.copyOf(value, value.length));
+        }
+
+        @Override
+        public UnsignedLongArrayValue update(String value) {
+            if (ClickHouseChecker.isNullOrBlank(value)) {
+                set(ClickHouseValues.EMPTY_LONG_ARRAY);
+            } else {
+                List<String> list = ClickHouseUtils.readValueArray(value, 0, value.length());
+                if (list.isEmpty()) {
+                    set(ClickHouseValues.EMPTY_LONG_ARRAY);
+                } else {
+                    long[] arr = new long[list.size()];
+                    int index = 0;
+                    for (String v : list) {
+                        arr[index++] = v == null ? 0 : Integer.parseUnsignedInt(v);
+                    }
+                    set(arr);
+                }
+            }
+            return this;
+        }
+
+        protected UnsignedLongArrayValue(long[] value) {
+            super(value);
+        }
+    }
+
     private static final String TYPE_NAME = "long[]";
 
     /**
-     * Creates an empty array.
+     * Creates a new instance representing empty {@code Int64} array.
      *
-     * @return empty array
+     * @return new instance representing an empty array
      */
-
     public static ClickHouseLongArrayValue ofEmpty() {
-        return of(ClickHouseValues.EMPTY_LONG_ARRAY);
+        return of(null, ClickHouseValues.EMPTY_LONG_ARRAY, false);
     }
 
     /**
-     * Wrap the given value.
+     * Creates a new instance representing empty {@code UInt64} array.
+     *
+     * @return new instance representing an empty array
+     */
+    public static ClickHouseLongArrayValue ofUnsignedEmpty() {
+        return of(null, ClickHouseValues.EMPTY_LONG_ARRAY, true);
+    }
+
+    /**
+     * Wraps the given {@code Int64} array.
      *
      * @param value value
      * @return object representing the value
      */
     public static ClickHouseLongArrayValue of(long[] value) {
-        return of(null, value);
+        return of(null, value, false);
+    }
+
+    /**
+     * Wraps the given {@code UInt64} array.
+     *
+     * @param value value
+     * @return object representing the value
+     */
+    public static ClickHouseLongArrayValue ofUnsigned(long[] value) {
+        return of(null, value, true);
     }
 
     /**
      * Update value of the given object or create a new instance if {@code ref} is
      * null.
      *
-     * @param ref   object to update, could be null
-     * @param value value
+     * @param ref      object to update, could be null
+     * @param value    value
+     * @param unsigned true if {@code value} is unsigned; false otherwise
      * @return same object as {@code ref} or a new instance if it's null
      */
 
-    public static ClickHouseLongArrayValue of(ClickHouseValue ref, long[] value) {
+    public static ClickHouseLongArrayValue of(ClickHouseValue ref, long[] value, boolean unsigned) {
+        if (unsigned) {
+            return ref instanceof UnsignedLongArrayValue ? ((UnsignedLongArrayValue) ref).set(value)
+                    : new UnsignedLongArrayValue(value);
+        }
+
         return ref instanceof ClickHouseLongArrayValue ? ((ClickHouseLongArrayValue) ref).set(value)
                 : new ClickHouseLongArrayValue(value);
     }
@@ -96,7 +181,7 @@ public class ClickHouseLongArrayValue extends ClickHouseObjectValue<long[]> impl
                 long value = v[i];
                 array[i] = BigInteger.valueOf(value);
                 if (value < 0L) {
-                    array[i] = array[i].and(ClickHouseLongValue.MASK);
+                    array[i] = array[i].and(UnsignedLong.MASK);
                 }
             }
             return (E[]) array;
@@ -125,7 +210,17 @@ public class ClickHouseLongArrayValue extends ClickHouseObjectValue<long[]> impl
 
     @Override
     public String asString() {
-        return Arrays.toString(getValue());
+        long[] value = getValue();
+        int len = value == null ? 0 : value.length;
+        if (len == 0) {
+            return ClickHouseValues.EMPTY_ARRAY_EXPR;
+        }
+
+        StringBuilder builder = new StringBuilder().append('[').append(value[0]);
+        for (int i = 1; i < len; i++) {
+            builder.append(',').append(value[i]);
+        }
+        return builder.append(']').toString();
     }
 
     @Override
@@ -161,18 +256,7 @@ public class ClickHouseLongArrayValue extends ClickHouseObjectValue<long[]> impl
 
     @Override
     public String toSqlExpression() {
-        long[] value = getValue();
-        int len = value == null ? 0 : value.length;
-        if (len == 0) {
-            return ClickHouseValues.EMPTY_ARRAY_EXPR;
-        }
-
-        StringBuilder builder = new StringBuilder().append('[');
-        for (int i = 0; i < len; i++) {
-            builder.append(value[i]).append(',');
-        }
-        builder.setLength(builder.length() - 1);
-        return builder.append(']').toString();
+        return asString();
     }
 
     @Override
@@ -217,7 +301,7 @@ public class ClickHouseLongArrayValue extends ClickHouseObjectValue<long[]> impl
 
         long[] v = new long[len];
         for (int i = 0; i < len; i++) {
-            v[i] = value[i];
+            v[i] = 0xFFL & value[i];
         }
         return set(v);
     }
@@ -236,7 +320,7 @@ public class ClickHouseLongArrayValue extends ClickHouseObjectValue<long[]> impl
 
         long[] v = new long[len];
         for (int i = 0; i < len; i++) {
-            v[i] = value[i];
+            v[i] = 0xFFFFL & value[i];
         }
         return set(v);
     }
@@ -255,7 +339,7 @@ public class ClickHouseLongArrayValue extends ClickHouseObjectValue<long[]> impl
 
         long[] v = new long[len];
         for (int i = 0; i < len; i++) {
-            v[i] = value[i];
+            v[i] = 0xFFFFFFFFL & value[i];
         }
         return set(v);
     }

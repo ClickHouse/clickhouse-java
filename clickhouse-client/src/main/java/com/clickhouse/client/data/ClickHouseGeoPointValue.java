@@ -17,7 +17,7 @@ import com.clickhouse.client.ClickHouseValue;
 import com.clickhouse.client.ClickHouseValues;
 
 /**
- * Wraper class of Point.
+ * Wrapper class of {@code Point}.
  */
 public class ClickHouseGeoPointValue extends ClickHouseObjectValue<double[]> {
     /**
@@ -336,7 +336,7 @@ public class ClickHouseGeoPointValue extends ClickHouseObjectValue<double[]> {
 
     @Override
     public ClickHouseGeoPointValue update(ClickHouseValue value) {
-        if (value == null) {
+        if (value == null || value.isNullOrEmpty()) {
             resetToNullOrEmpty();
         } else if (value instanceof ClickHouseGeoPointValue) {
             set(((ClickHouseGeoPointValue) value).getValue());

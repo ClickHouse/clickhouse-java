@@ -388,7 +388,7 @@ public class ClickHouseClientBuilder {
         }
 
         String prefix = "ClickHouseClientWorker";
-        defaultExecutor = ClickHouseUtils.newThreadPool(prefix, maxThreads, maxThreads * 2, maxRequests,
+        defaultExecutor = ClickHouseUtils.newThreadPool(prefix, maxThreads, maxThreads * 2 + 1, maxRequests,
                 keepAliveTimeoutMs, false);
         prefix = "ClickHouseClientScheduler";
         defaultScheduler = maxSchedulers == 1 ? Executors

@@ -6,7 +6,7 @@ import com.clickhouse.client.ClickHouseValue;
 import com.clickhouse.client.ClickHouseValues;
 
 /**
- * Wraper class of bool.
+ * Wrapper class of {@code bool}.
  */
 public class ClickHouseBoolValue implements ClickHouseValue {
     private static final String ERROR_INVALID_NUMBER = "Boolean value can be only 1(true) or 0(false).";
@@ -298,7 +298,7 @@ public class ClickHouseBoolValue implements ClickHouseValue {
 
     @Override
     public ClickHouseBoolValue update(ClickHouseValue value) {
-        return value == null ? resetToNullOrEmpty() : set(false, value.asBoolean());
+        return value == null || value.isNullOrEmpty() ? resetToNullOrEmpty() : set(false, value.asBoolean());
     }
 
     @Override

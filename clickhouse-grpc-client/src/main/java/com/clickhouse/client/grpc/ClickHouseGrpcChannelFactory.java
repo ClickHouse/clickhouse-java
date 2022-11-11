@@ -87,7 +87,7 @@ public abstract class ClickHouseGrpcChannelFactory {
     protected final ClickHouseNode server;
 
     protected ClickHouseGrpcChannelFactory(ClickHouseConfig config, ClickHouseNode server) {
-        this.config = ClickHouseChecker.nonNull(config, "config");
+        this.config = ClickHouseChecker.nonNull(config, ClickHouseConfig.TYPE_NAME);
         this.server = ClickHouseChecker.nonNull(server, "server");
     }
 
@@ -111,7 +111,7 @@ public abstract class ClickHouseGrpcChannelFactory {
     protected void setupRetry() {
         ManagedChannelBuilder<?> builder = getChannelBuilder();
 
-        if (config.isRetry()) {
+        if (config.getRetry() > 0) {
             Map<String, ?> serviceConfig = getDefaultServiceConfig();
             int maxAttempts = -1;
             Object value = serviceConfig.get(PROP_METHOD_CONFIG);

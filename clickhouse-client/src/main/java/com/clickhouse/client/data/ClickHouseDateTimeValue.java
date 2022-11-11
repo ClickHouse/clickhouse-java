@@ -16,7 +16,7 @@ import com.clickhouse.client.ClickHouseValue;
 import com.clickhouse.client.ClickHouseValues;
 
 /**
- * Wraper class of LocalDateTime.
+ * Wrapper class of {@link LocalDateTime}.
  */
 public class ClickHouseDateTimeValue extends ClickHouseObjectValue<LocalDateTime> {
     /**
@@ -372,7 +372,7 @@ public class ClickHouseDateTimeValue extends ClickHouseObjectValue<LocalDateTime
 
     @Override
     public ClickHouseDateTimeValue update(ClickHouseValue value) {
-        if (value == null) {
+        if (value == null || value.isNullOrEmpty()) {
             resetToNullOrEmpty();
         } else {
             set(value.asDateTime(scale));

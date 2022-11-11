@@ -18,13 +18,16 @@ import com.clickhouse.client.ClickHouseColumn;
 import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseDataType;
 import com.clickhouse.client.ClickHouseTransaction;
+import com.clickhouse.client.ClickHouseUtils;
 import com.clickhouse.client.ClickHouseValue;
-import com.clickhouse.client.ClickHouseValues;
 import com.clickhouse.client.ClickHouseVersion;
 import com.clickhouse.client.data.ClickHouseSimpleResponse;
 import com.clickhouse.jdbc.parser.ClickHouseSqlStatement;
 
 public interface ClickHouseConnection extends Connection {
+    static final String COLUMN_ELEMENT = "element";
+    static final String COLUMN_ARRAY = "array";
+
     // The name of the application currently utilizing the connection
     static final String PROP_APPLICATION_NAME = "ApplicationName";
     static final String PROP_CUSTOM_HTTP_HEADERS = "CustomHttpHeaders";
@@ -40,12 +43,23 @@ public interface ClickHouseConnection extends Connection {
     @Override
     default ClickHouseArray createArrayOf(String typeName, Object[] elements) throws SQLException {
         ClickHouseConfig config = getConfig();
-        ClickHouseColumn column = ClickHouseColumn.of("", ClickHouseDataType.Array, false,
-                ClickHouseColumn.of("", typeName));
-        ClickHouseValue v = ClickHouseValues.newValue(config, column).update(elements);
-        ClickHouseResultSet rs = new ClickHouseResultSet("", "", createStatement(),
-                ClickHouseSimpleResponse.of(config, Collections.singletonList(column),
-                        new Object[][] { new Object[] { v.asObject() } }));
+        ClickHouseColumn col = ClickHouseColumn.of(COLUMN_ELEMENT, typeName);
+        ClickHouseColumn arrCol = ClickHouseColumn.of(COLUMN_ARRAY, ClickHouseDataType.Array, false, col);
+        ClickHouseValue val = arrCol.newValue(config);
+        if (elements == null && !col.isNestedType() && !col.isNullable()) {
+            int nullAsDefault = getJdbcConfig().getNullAsDefault();
+            if (nullAsDefault > 1) {
+                val.resetToDefault();
+            } else if (nullAsDefault < 1) {
+                throw SqlExceptionUtils
+                        .clientError(ClickHouseUtils.format("Cannot set null to non-nullable column [%s]", col));
+            }
+        } else {
+            val.update(elements);
+        }
+        ClickHouseResultSet rs = new ClickHouseResultSet(getCurrentDatabase(), ClickHouseSqlStatement.DEFAULT_TABLE,
+                createStatement(), ClickHouseSimpleResponse.of(config, Collections.singletonList(arrCol),
+                        new Object[][] { new Object[] { val.asObject() } }));
         rs.next();
         return new ClickHouseArray(rs, 1);
     }

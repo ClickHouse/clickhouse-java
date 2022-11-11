@@ -120,7 +120,7 @@ public class Query extends DriverBenchmark {
     public void selectUInt8(Blackhole blackhole, DriverState state) throws Throwable {
         int num = state.getRandomNumber();
         int rows = state.getSampleSize() + num;
-        ConsumeValueFunction func = state.getConsumeFunction((b, r, l, i) -> b.consume(r.getShort(i)));
+        ConsumeValueFunction func = state.getConsumeFunction((b, r, l, i) -> b.consume(r.getByte(i)));
         int l = 0;
         try (Statement stmt = executeQuery(state, "select toUInt8(number % 256) as v from numbers(?)", rows)) {
             ResultSet rs = stmt.getResultSet();
@@ -157,6 +157,23 @@ public class Query extends DriverBenchmark {
         ConsumeValueFunction func = state.getConsumeFunction((b, r, l, i) -> b.consume(r.getInt(i)));
         int l = 0;
         try (Statement stmt = executeQuery(state, "select toInt32(number) as v from numbers(?)", rows)) {
+            ResultSet rs = stmt.getResultSet();
+            while (rs.next()) {
+                func.consume(blackhole, rs, l++, 1);
+            }
+        }
+        if (l != rows) {
+            throw new IllegalStateException(String.format(Locale.ROOT, "Expected %d rows but got %d", rows, l));
+        }
+    }
+
+    @Benchmark
+    public void selectUInt32(Blackhole blackhole, DriverState state) throws Throwable {
+        int num = state.getRandomNumber();
+        int rows = state.getSampleSize() + num;
+        ConsumeValueFunction func = state.getConsumeFunction((b, r, l, i) -> b.consume(r.getInt(i)));
+        int l = 0;
+        try (Statement stmt = executeQuery(state, "select toUInt32(number) as v from numbers(?)", rows)) {
             ResultSet rs = stmt.getResultSet();
             while (rs.next()) {
                 func.consume(blackhole, rs, l++, 1);

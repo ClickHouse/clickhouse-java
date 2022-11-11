@@ -243,19 +243,19 @@ public class ClickHouseRequestTest {
                 (ClickHouseFormat) ClickHouseDefaults.FORMAT.getEffectiveDefaultValue());
         request.format(ClickHouseFormat.TabSeparatedRawWithNamesAndTypes);
         Assert.assertEquals(request.getFormat(), ClickHouseFormat.TabSeparatedRawWithNamesAndTypes);
-        Assert.assertEquals(request.getInputFormat(), ClickHouseFormat.TabSeparatedRaw);
+        Assert.assertEquals(request.getFormat().defaultInputFormat(), ClickHouseFormat.TabSeparatedRaw);
         request.format(ClickHouseFormat.ArrowStream);
         Assert.assertEquals(request.getFormat(), ClickHouseFormat.ArrowStream);
-        Assert.assertEquals(request.getInputFormat(), ClickHouseFormat.ArrowStream);
+        Assert.assertEquals(request.getFormat().defaultInputFormat(), ClickHouseFormat.ArrowStream);
         request.format(null);
         Assert.assertEquals(request.getFormat(),
                 (ClickHouseFormat) ClickHouseDefaults.FORMAT.getEffectiveDefaultValue());
-        Assert.assertEquals(request.getInputFormat(),
+        Assert.assertEquals(request.getFormat().defaultInputFormat(),
                 ((ClickHouseFormat) ClickHouseDefaults.FORMAT.getEffectiveDefaultValue())
                         .defaultInputFormat());
         request.format(ClickHouseFormat.Arrow);
         Assert.assertEquals(request.getFormat(), ClickHouseFormat.Arrow);
-        Assert.assertEquals(request.getInputFormat(), ClickHouseFormat.Arrow);
+        Assert.assertEquals(request.getFormat().defaultInputFormat(), ClickHouseFormat.Arrow);
     }
 
     @Test(groups = { "unit" })

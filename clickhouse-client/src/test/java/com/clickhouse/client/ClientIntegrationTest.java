@@ -22,7 +22,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.TimeZone;
@@ -53,6 +52,10 @@ import com.clickhouse.client.data.ClickHouseIpv6Value;
 import com.clickhouse.client.data.ClickHouseLongValue;
 import com.clickhouse.client.data.ClickHouseOffsetDateTimeValue;
 import com.clickhouse.client.data.ClickHouseStringValue;
+import com.clickhouse.client.data.UnsignedByte;
+import com.clickhouse.client.data.UnsignedInteger;
+import com.clickhouse.client.data.UnsignedLong;
+import com.clickhouse.client.data.UnsignedShort;
 
 import org.testng.Assert;
 import org.testng.SkipException;
@@ -195,13 +198,25 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
                 { "Float64", new int[] { 1, -2, 3, -4, 5 } },
 
                 { "Nullable(Int8)", new Byte[] { null, 2, -3, 4, -5 } },
-                { "Nullable(UInt8)", new Short[] { 1, null, 3, 4, 5 } },
+                // { "Nullable(UInt8)", new Short[] { 1, null, 3, 4, 5 } },
+                { "Nullable(UInt8)",
+                        new UnsignedByte[] { UnsignedByte.ONE, null, UnsignedByte.valueOf((byte) 3),
+                                UnsignedByte.valueOf((byte) 4), UnsignedByte.valueOf((byte) 5) } },
                 { "Nullable(Int16)", new Short[] { -1, 2, null, 4, -5 } },
-                { "Nullable(UInt16)", new Integer[] { 1, 2, 3, null, 5 } },
+                // { "Nullable(UInt16)", new Integer[] { 1, 2, 3, null, 5 } },
+                { "Nullable(UInt16)",
+                        new UnsignedShort[] { UnsignedShort.ONE, UnsignedShort.valueOf((short) 2),
+                                UnsignedShort.valueOf((short) 3), null, UnsignedShort.valueOf((short) 5) } },
                 { "Nullable(Int32)", new Integer[] { -1, 2, -3, 4, null } },
-                { "Nullable(UInt32)", new Long[] { 1L, 2L, 3L, null, 5L } },
+                // { "Nullable(UInt32)", new Long[] { 1L, 2L, 3L, null, 5L } },
+                { "Nullable(UInt32)",
+                        new UnsignedInteger[] { UnsignedInteger.ONE, UnsignedInteger.TWO, UnsignedInteger.valueOf(3),
+                                null, UnsignedInteger.valueOf(5) } },
                 { "Nullable(Int64)", new Long[] { -1L, 2L, null, 4L, -5L } },
-                { "Nullable(UInt64)", new Long[] { 1L, null, 3L, 4L, 5L } },
+                // { "Nullable(UInt64)", new Long[] { 1L, null, 3L, 4L, 5L } },
+                { "Nullable(UInt64)",
+                        new UnsignedLong[] { UnsignedLong.ONE, null, UnsignedLong.valueOf(3L), UnsignedLong.valueOf(4L),
+                                UnsignedLong.valueOf(5L) } },
                 { "Nullable(Float32)", new Float[] { null, -2F, 3F, -4F, 5F } },
                 { "Nullable(Float64)", new Double[] { 1D, null, 3D, -4D, 5D } },
 
@@ -217,13 +232,27 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
                 { "LowCardinality(Float64)", new int[] { 1, -2, 3, -4, 5 } },
 
                 { "LowCardinality(Nullable(Int8))", new Byte[] { -1, 2, -3, 4, -5 } },
-                { "LowCardinality(Nullable(UInt8))", new Short[] { 1, 2, 3, 4, 5 } },
+                // { "LowCardinality(Nullable(UInt8))", new Short[] { 1, 2, 3, 4, 5 } },
+                { "LowCardinality(Nullable(UInt8))",
+                        new UnsignedByte[] { UnsignedByte.ONE, UnsignedByte.valueOf((byte) 2),
+                                UnsignedByte.valueOf((byte) 3), UnsignedByte.valueOf((byte) 4),
+                                UnsignedByte.valueOf((byte) 5) } },
                 { "LowCardinality(Nullable(Int16))", new Short[] { -1, 2, -3, 4, -5 } },
-                { "LowCardinality(Nullable(UInt16))", new Integer[] { 1, 2, 3, 4, 5 } },
+                // { "LowCardinality(Nullable(UInt16))", new Integer[] { 1, 2, 3, 4, 5 } },
+                { "LowCardinality(Nullable(UInt16))",
+                        new UnsignedShort[] { UnsignedShort.ONE, UnsignedShort.valueOf((short) 2),
+                                UnsignedShort.valueOf((short) 3), UnsignedShort.valueOf((short) 4),
+                                UnsignedShort.valueOf((short) 5) } },
                 { "LowCardinality(Nullable(Int32))", new Integer[] { -1, 2, -3, 4, -5 } },
-                { "LowCardinality(Nullable(UInt32))", new Long[] { 1L, 2L, 3L, 4L, 5L } },
+                // { "LowCardinality(Nullable(UInt32))", new Long[] { 1L, 2L, 3L, 4L, 5L } },
+                { "LowCardinality(Nullable(UInt32))",
+                        new UnsignedInteger[] { UnsignedInteger.ONE, UnsignedInteger.TWO, UnsignedInteger.valueOf(3),
+                                UnsignedInteger.valueOf(4), UnsignedInteger.valueOf(5) } },
                 { "LowCardinality(Nullable(Int64))", new Long[] { -1L, 2L, -3L, 4L, -5L } },
-                { "LowCardinality(Nullable(UInt64))", new Long[] { 1L, 2L, 3L, 4L, 5L } },
+                // { "LowCardinality(Nullable(UInt64))", new Long[] { 1L, 2L, 3L, 4L, 5L } },
+                { "LowCardinality(Nullable(UInt64))",
+                        new UnsignedLong[] { UnsignedLong.ONE, UnsignedLong.TWO, UnsignedLong.valueOf(3L),
+                                UnsignedLong.valueOf(4L), UnsignedLong.valueOf(5L) } },
                 { "LowCardinality(Nullable(Float32))", new Float[] { null, -2F, 3F, -4F, 5F } },
                 { "LowCardinality(Nullable(Float64))", new Double[] { 1D, null, 3D, -4D, 5D } },
         };
@@ -254,7 +283,6 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
     @DataProvider(name = "simpleTypeProvider")
     protected Object[][] getSimpleTypes() {
         return new Object[][] {
-                { ClickHouseDataType.Enum.name() + "('v-1' = -1, 'v0' = 0, 'v+1' = 1)", "v0", "v-1", "v+1" },
                 { ClickHouseDataType.Enum8.name() + "('v-1' = -1, 'v0' = 0, 'v+1' = 1)", "v0", "v-1", "v+1" },
                 { ClickHouseDataType.Enum16.name() + "('v-1' = -1, 'v0' = 0, 'v+1' = 1)", "v0", "v-1", "v+1" },
                 { ClickHouseDataType.Int8.name(), "0", "-1", "1" },
@@ -478,34 +506,35 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
                 "create table " + tableName + " (" + tableColumns + ")engine=Memory",
                 "insert into " + tableName + String.format(
                         " values(%2$s, [[123],[],[4], %2$s], [[[12],[3],[],[4,5]],[[123],[],[4], %2$s]])", baseType,
-                        expectedValues.getClass() == int[].class ? Arrays.toString((int[]) expectedValues)
-                                : Arrays.toString((Object[]) expectedValues)));
+                        ClickHouseColumn.of("", ClickHouseDataType.Array, false,
+                                ClickHouseColumn.of("", baseType)).newArrayValue(server.config).update(expectedValues)
+                                .toSqlExpression()));
 
         try (ClickHouseClient client = getClient()) {
             ClickHouseRequest<?> request = client.connect(server).format(ClickHouseFormat.RowBinaryWithNamesAndTypes);
             try (ClickHouseResponse response = request.write().table(tableName).data(o -> {
                 ClickHouseConfig config = request.getConfig();
-                ClickHouseSerializer<ClickHouseValue> serializer = ClickHouseDataStreamFactory.getInstance()
-                        .getSerializer(request.getFormat());
                 List<ClickHouseColumn> columns = ClickHouseColumn.parse(tableColumns);
+                ClickHouseDataProcessor processor = ClickHouseDataStreamFactory.getInstance().getProcessor(config, null,
+                        o, null, columns);
                 ClickHouseColumn baseColumn = ClickHouseColumn.of("", baseType);
-                Class<?> javaClass = expectedValues.getClass() == int[].class ? baseColumn.getPrimitiveClass()
-                        : baseColumn.getObjectClass();
+                Class<?> javaClass = expectedValues.getClass() == int[].class ? baseColumn.getPrimitiveClass(config)
+                        : baseColumn.getObjectClass(config);
                 ClickHouseColumn currentColumn = columns.get(0);
 
-                ClickHouseArraySequence arr = ClickHouseValues.newArrayValue(currentColumn);
+                ClickHouseArraySequence arr = currentColumn.newArrayValue(config);
                 arr.update(expectedValues);
-                serializer.serialize(arr, config, currentColumn, o);
+                processor.getSerializer(config, currentColumn).serialize(arr, o);
 
                 currentColumn = columns.get(1);
-                ClickHouseArraySequence val = ClickHouseValues.newArrayValue(currentColumn);
+                ClickHouseArraySequence val = currentColumn.newArrayValue(config);
                 val.allocate(1, javaClass, 2).setValue(0, arr);
-                serializer.serialize(val, config, currentColumn, o);
+                processor.getSerializer(config, currentColumn).serialize(val, o);
 
                 currentColumn = columns.get(2);
-                arr = ClickHouseValues.newArrayValue(currentColumn);
+                arr = currentColumn.newArrayValue(config);
                 arr.allocate(1, javaClass, 3).setValue(0, val);
-                serializer.serialize(arr, config, currentColumn, o);
+                processor.getSerializer(config, currentColumn).serialize(arr, o);
             }).executeAndWait()) {
                 // ignore
             }
@@ -516,15 +545,16 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
                     Assert.assertEquals(val.asObject(), val.copy().update(expectedValues).asObject());
 
                     ClickHouseArraySequence arr = (ClickHouseArraySequence) r.getValue(1);
-                    val = arr.getValue(arr.length() - 1, ClickHouseValues
-                            .newArrayValue(ClickHouseColumn.of("c", String.format("Array(%s)", baseType))));
+                    val = arr.getValue(arr.length() - 1, ClickHouseColumn.of("c", String.format("Array(%s)", baseType))
+                            .newArrayValue(request.getConfig()));
                     Assert.assertEquals(val.asObject(), val.copy().update(expectedValues).asObject());
 
                     arr = (ClickHouseArraySequence) r.getValue(2);
-                    val = arr.getValue(arr.length() - 1, ClickHouseValues
-                            .newArrayValue(ClickHouseColumn.of("c", String.format("Array(Array(%s))", baseType))));
-                    val = val.getValue(val.length() - 1, ClickHouseValues
-                            .newArrayValue(ClickHouseColumn.of("c", String.format("Array(%s)", baseType))));
+                    val = arr.getValue(arr.length() - 1,
+                            ClickHouseColumn.of("c", String.format("Array(Array(%s))", baseType))
+                                    .newArrayValue(request.getConfig()));
+                    val = val.getValue(val.length() - 1, ClickHouseColumn.of("c", String.format("Array(%s)", baseType))
+                            .newArrayValue(request.getConfig()));
                     Assert.assertEquals(val.asObject(), val.copy().update(expectedValues).asObject());
                 }
             }
@@ -1168,7 +1198,7 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
                 int len = columns.length;
                 while (input.available() > 0) {
                     for (int i = 0; i < len; i++) {
-                        Assert.assertEquals(processor.read(values[i], columns[i]).asLong(), count++);
+                        Assert.assertEquals(processor.read(values[i]).asLong(), count++);
                     }
                 }
             }
@@ -1192,13 +1222,13 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
             for (boolean b : new boolean[] { true, false }) {
                 req.option(ClickHouseClientOption.ASYNC, b);
 
-                try (ClickHouseResponse resp = req.send().get()) {
+                try (ClickHouseResponse resp = req.execute().get()) {
                     Assert.assertNotNull(resp);
                 } catch (Exception e) {
                     Assert.fail("Failed to call send() followed by get()", e);
                 }
 
-                try (ClickHouseResponse resp = req.sendAndWait()) {
+                try (ClickHouseResponse resp = req.executeAndWait()) {
                     Assert.assertNotNull(resp);
                 }
 

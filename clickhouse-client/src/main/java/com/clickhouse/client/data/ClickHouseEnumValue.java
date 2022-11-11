@@ -7,7 +7,7 @@ import com.clickhouse.client.ClickHouseValue;
 import com.clickhouse.client.ClickHouseValues;
 
 /**
- * Wraper class of enum.
+ * Wrapper class of {@code enum}.
  */
 public class ClickHouseEnumValue implements ClickHouseValue {
     /**
@@ -289,7 +289,7 @@ public class ClickHouseEnumValue implements ClickHouseValue {
 
     @Override
     public ClickHouseEnumValue update(ClickHouseValue value) {
-        return value == null ? resetToNullOrEmpty() : set(false, value.asInteger());
+        return value == null || value.isNullOrEmpty() ? resetToNullOrEmpty() : set(false, value.asInteger());
     }
 
     @Override

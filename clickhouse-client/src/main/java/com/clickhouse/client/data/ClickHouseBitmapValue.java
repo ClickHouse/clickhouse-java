@@ -16,7 +16,7 @@ import com.clickhouse.client.ClickHouseValue;
 import com.clickhouse.client.ClickHouseValues;
 
 /**
- * Wraper class of Bitmap.
+ * Wrapper class of {@code Bitmap}.
  */
 public class ClickHouseBitmapValue extends ClickHouseObjectValue<ClickHouseBitmap> {
     /**
@@ -338,7 +338,7 @@ public class ClickHouseBitmapValue extends ClickHouseObjectValue<ClickHouseBitma
 
     @Override
     public ClickHouseBitmapValue update(ClickHouseValue value) {
-        if (value == null) {
+        if (value == null || value.isNullOrEmpty()) {
             resetToNullOrEmpty();
         } else if (value instanceof ClickHouseBitmapValue) {
             set(((ClickHouseBitmapValue) value).getValue());

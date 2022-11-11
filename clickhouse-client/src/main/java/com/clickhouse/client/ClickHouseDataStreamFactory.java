@@ -7,8 +7,6 @@ import java.util.Map;
 
 import com.clickhouse.client.config.ClickHouseBufferingMode;
 import com.clickhouse.client.config.ClickHouseClientOption;
-import com.clickhouse.client.config.ClickHouseDefaults;
-import com.clickhouse.client.data.ClickHousePipedStream;
 import com.clickhouse.client.data.ClickHouseRowBinaryProcessor;
 import com.clickhouse.client.data.ClickHouseTabSeparatedProcessor;
 import com.clickhouse.client.stream.BlockingPipedOutputStream;
@@ -52,11 +50,12 @@ public class ClickHouseDataStreamFactory {
     public ClickHouseDataProcessor getProcessor(ClickHouseConfig config, ClickHouseInputStream input,
             ClickHouseOutputStream output, Map<String, Serializable> settings, List<ClickHouseColumn> columns)
             throws IOException {
-        ClickHouseFormat format = ClickHouseChecker.nonNull(config, "config").getFormat();
+        ClickHouseFormat format = ClickHouseChecker.nonNull(config, ClickHouseConfig.TYPE_NAME).getFormat();
         ClickHouseDataProcessor processor = null;
         if (ClickHouseFormat.RowBinary == format || ClickHouseFormat.RowBinaryWithNamesAndTypes == format) {
             processor = new ClickHouseRowBinaryProcessor(config, input, output, columns, settings);
-        } else if (ClickHouseFormat.TSVWithNames == format || ClickHouseFormat.TSVWithNamesAndTypes == format
+        } else if (ClickHouseFormat.TSV == format || ClickHouseFormat.TabSeparated == format
+                || ClickHouseFormat.TSVWithNames == format || ClickHouseFormat.TSVWithNamesAndTypes == format
                 || ClickHouseFormat.TabSeparatedWithNames == format
                 || ClickHouseFormat.TabSeparatedWithNamesAndTypes == format) {
             processor = new ClickHouseTabSeparatedProcessor(config, input, output, columns, settings);
@@ -68,77 +67,6 @@ public class ClickHouseDataStreamFactory {
     }
 
     /**
-     * Gets deserializer for the given data format.
-     *
-     * @param format data format, null means
-     *               {@code ClickHouseDefaults.FORMAT.getEffectiveDefaultValue()}
-     * @return deserializer for the given data format
-     */
-    public ClickHouseDeserializer<ClickHouseValue> getDeserializer(ClickHouseFormat format) {
-        if (format == null) {
-            format = (ClickHouseFormat) ClickHouseDefaults.FORMAT.getEffectiveDefaultValue();
-        }
-        if (!format.supportsInput()) {
-            throw new IllegalArgumentException(ClickHouseUtils.format(ERROR_NO_DESERIALIZER, format.name()));
-        }
-
-        ClickHouseDeserializer<ClickHouseValue> deserializer;
-        if (format.isText()) {
-            deserializer = ClickHouseTabSeparatedProcessor.getMappedFunctions(format);
-        } else if (format == ClickHouseFormat.RowBinary || format == ClickHouseFormat.RowBinaryWithNamesAndTypes) {
-            deserializer = ClickHouseRowBinaryProcessor.getMappedFunctions();
-        } else {
-            throw new IllegalArgumentException(ERROR_UNSUPPORTED_FORMAT + format);
-        }
-        return deserializer;
-    }
-
-    /**
-     * Gets serializer for the given data format.
-     *
-     * @param format data format, null means
-     *               {@code ClickHouseDefaults.FORMAT.getEffectiveDefaultValue()}
-     * @return serializer for the given data format
-     */
-    public ClickHouseSerializer<ClickHouseValue> getSerializer(ClickHouseFormat format) {
-        if (format == null) {
-            format = (ClickHouseFormat) ClickHouseDefaults.FORMAT.getEffectiveDefaultValue();
-        }
-        if (!format.supportsOutput()) {
-            throw new IllegalArgumentException(ClickHouseUtils.format(ERROR_NO_SERIALIZER, format.name()));
-        }
-
-        ClickHouseSerializer<ClickHouseValue> serializer;
-        if (format.isText()) {
-            serializer = ClickHouseTabSeparatedProcessor.getMappedFunctions(format);
-        } else if (format == ClickHouseFormat.RowBinary || format == ClickHouseFormat.RowBinaryWithNamesAndTypes) {
-            serializer = ClickHouseRowBinaryProcessor.getMappedFunctions();
-        } else {
-            throw new IllegalArgumentException(ERROR_UNSUPPORTED_FORMAT + format);
-        }
-        return serializer;
-    }
-
-    /**
-     * Creates a piped stream.
-     *
-     * @param config non-null configuration
-     * @return piped stream
-     * @deprecated will be removed in v0.3.3, please use
-     *             {@link #createPipedOutputStream(ClickHouseConfig, Runnable)}
-     *             instead
-     */
-    @Deprecated
-    public ClickHousePipedStream createPipedStream(ClickHouseConfig config) {
-        return config != null
-                ? new ClickHousePipedStream(config.getWriteBufferSize(), config.getMaxQueuedBuffers(),
-                        config.getSocketTimeout())
-                : new ClickHousePipedStream((int) ClickHouseClientOption.BUFFER_SIZE.getDefaultValue(),
-                        (int) ClickHouseClientOption.MAX_QUEUED_BUFFERS.getDefaultValue(),
-                        (int) ClickHouseClientOption.SOCKET_TIMEOUT.getDefaultValue());
-    }
-
-    /**
      * Creates a piped output stream.
      *
      * @param config          non-null configuration
@@ -147,7 +75,7 @@ public class ClickHouseDataStreamFactory {
      * @return piped output stream
      */
     public ClickHousePipedOutputStream createPipedOutputStream(ClickHouseConfig config, Runnable postCloseAction) {
-        final int bufferSize = ClickHouseChecker.nonNull(config, "config").getWriteBufferSize();
+        final int bufferSize = ClickHouseChecker.nonNull(config, ClickHouseConfig.TYPE_NAME).getWriteBufferSize();
         final boolean blocking;
         final int queue;
         final CapacityPolicy policy;

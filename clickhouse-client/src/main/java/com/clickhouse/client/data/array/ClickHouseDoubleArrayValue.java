@@ -112,7 +112,17 @@ public class ClickHouseDoubleArrayValue extends ClickHouseObjectValue<double[]> 
 
     @Override
     public String asString() {
-        return Arrays.toString(getValue());
+        double[] value = getValue();
+        int len = value == null ? 0 : value.length;
+        if (len == 0) {
+            return ClickHouseValues.EMPTY_ARRAY_EXPR;
+        }
+
+        StringBuilder builder = new StringBuilder().append('[').append(value[0]);
+        for (int i = 1; i < len; i++) {
+            builder.append(',').append(value[i]);
+        }
+        return builder.append(']').toString();
     }
 
     @Override
@@ -148,18 +158,7 @@ public class ClickHouseDoubleArrayValue extends ClickHouseObjectValue<double[]> 
 
     @Override
     public String toSqlExpression() {
-        double[] value = getValue();
-        int len = value == null ? 0 : value.length;
-        if (len == 0) {
-            return ClickHouseValues.EMPTY_ARRAY_EXPR;
-        }
-
-        StringBuilder builder = new StringBuilder().append('[');
-        for (int i = 0; i < len; i++) {
-            builder.append(value[i]).append(',');
-        }
-        builder.setLength(builder.length() - 1);
-        return builder.append(']').toString();
+        return asString();
     }
 
     @Override

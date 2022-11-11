@@ -20,7 +20,7 @@ import com.clickhouse.client.ClickHouseValue;
 import com.clickhouse.client.ClickHouseValues;
 
 /**
- * Wraper class of Polygon.
+ * Wrapper class of {@code Polygon}.
  */
 public class ClickHouseGeoPolygonValue extends ClickHouseObjectValue<double[][][]> {
     static final double[][][] EMPTY_VALUE = new double[0][][];
@@ -392,7 +392,7 @@ public class ClickHouseGeoPolygonValue extends ClickHouseObjectValue<double[][][
 
     @Override
     public ClickHouseGeoPolygonValue update(ClickHouseValue value) {
-        if (value == null) {
+        if (value == null || value.isNullOrEmpty()) {
             resetToNullOrEmpty();
         } else if (value instanceof ClickHouseGeoPolygonValue) {
             set(((ClickHouseGeoPolygonValue) value).getValue());
@@ -404,7 +404,9 @@ public class ClickHouseGeoPolygonValue extends ClickHouseObjectValue<double[][][
 
     @Override
     public ClickHouseGeoPolygonValue update(Object[] value) {
-        if (value == null || value.length != 2) {
+        if (value instanceof double[][][]) {
+            return set((double[][][]) value);
+        } else if (value == null || value.length != 2) {
             throw new IllegalArgumentException(ClickHouseValues.ERROR_INVALID_POINT + Arrays.toString(value));
         }
         Object v1 = value[0];
@@ -422,7 +424,7 @@ public class ClickHouseGeoPolygonValue extends ClickHouseObjectValue<double[][][
     @Override
     public ClickHouseGeoPolygonValue update(Object value) {
         if (value instanceof double[][][]) {
-            update((double[]) value);
+            set((double[][][]) value);
         } else {
             super.update(value);
         }

@@ -621,7 +621,7 @@ public interface ClickHouseClient extends AutoCloseable {
         ClickHouseValue[] templates = new ClickHouseValue[len];
         int index = 0;
         for (ClickHouseColumn column : columns) {
-            templates[index++] = ClickHouseValues.newValue(config, ClickHouseChecker.nonNull(column, "column"));
+            templates[index++] = ClickHouseChecker.nonNull(column, ClickHouseColumn.TYPE_NAME).newValue(config);
         }
 
         return send(server, sql, templates, params);
@@ -874,7 +874,7 @@ public interface ClickHouseClient extends AutoCloseable {
      * @param config immutable configuration extracted from the builder
      */
     default void init(ClickHouseConfig config) {
-        ClickHouseChecker.nonNull(config, "configuration");
+        ClickHouseChecker.nonNull(config, ClickHouseConfig.TYPE_NAME);
     }
 
     /**

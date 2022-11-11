@@ -348,7 +348,7 @@ public class ClickHouseMapValue extends ClickHouseObjectValue<Map<?, ?>> {
 
     @Override
     public ClickHouseMapValue update(ClickHouseValue value) {
-        if (value == null) {
+        if (value == null || value.isNullOrEmpty()) {
             resetToNullOrEmpty();
         } else if (value instanceof ClickHouseMapValue) {
             set(((ClickHouseMapValue) value).getValue());

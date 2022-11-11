@@ -66,17 +66,19 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
         ClickHouseInputStream chIn = request.getInputStream().orElse(null);
         if (chIn != null && chIn.getUnderlyingFile().isAvailable()) {
             appendQueryParameter(builder, "query", request.getStatements().get(0));
-        } else if (config.isRequestCompressed()) {
-            // inform server that client's request is compressed
+        }
+        if (config.isRequestCompressed() && config.getRequestCompressAlgorithm() == ClickHouseCompression.LZ4) {
+            // inform server to decompress client request
             appendQueryParameter(builder, "decompress", "1");
         }
 
-        ClickHouseOutputStream chOut = request.getOutputStream().orElse(null);
-        if (chOut != null && chOut.getUnderlyingFile().isAvailable()) {
-            appendQueryParameter(builder, "enable_http_compression", "1");
-        } else if (config.isResponseCompressed()) {
-            // request server to compress response
-            appendQueryParameter(builder, "compress", "1");
+        if (config.isResponseCompressed()) {
+            if (config.getResponseCompressAlgorithm() == ClickHouseCompression.LZ4) {
+                // request server to compress response
+                appendQueryParameter(builder, "compress", "1");
+            } else {
+                appendQueryParameter(builder, "enable_http_compression", "1");
+            }
         }
 
         Map<String, Serializable> settings = request.getSettings();

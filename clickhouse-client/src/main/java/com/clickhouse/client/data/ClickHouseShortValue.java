@@ -2,72 +2,225 @@ package com.clickhouse.client.data;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
+
 import com.clickhouse.client.ClickHouseValue;
 import com.clickhouse.client.ClickHouseValues;
 
 /**
- * Wraper class of short.
+ * Wrapper class of {@code short}.
  */
 public class ClickHouseShortValue implements ClickHouseValue {
     /**
-     * Create a new instance representing null value.
+     * Unsigned version of {@code ClickHouseShortValue}.
+     */
+    static final class UnsignedShortValue extends ClickHouseShortValue {
+        protected UnsignedShortValue(boolean isNull, short value) {
+            super(isNull, value);
+        }
+
+        @Override
+        public int asInteger() {
+            return 0xFFFF & getValue();
+        }
+
+        @Override
+        public long asLong() {
+            return 0xFFFFL & getValue();
+        }
+
+        @Override
+        public BigInteger asBigInteger() {
+            return isNullOrEmpty() ? null : BigInteger.valueOf(asLong());
+        }
+
+        @Override
+        public float asFloat() {
+            return asInteger();
+        }
+
+        @Override
+        public double asDouble() {
+            return asLong();
+        }
+
+        @Override
+        public BigDecimal asBigDecimal(int scale) {
+            return isNullOrEmpty() ? null : BigDecimal.valueOf(asLong(), scale);
+        }
+
+        @Override
+        public Object asObject() {
+            return isNullOrEmpty() ? null : UnsignedShort.valueOf(getValue());
+        }
+
+        @Override
+        public String asString() {
+            return isNullOrEmpty() ? null : Integer.toString(asInteger());
+        }
+
+        @Override
+        public ClickHouseShortValue copy(boolean deep) {
+            return new UnsignedShortValue(isNullOrEmpty(), getValue());
+        }
+
+        @Override
+        public String toSqlExpression() {
+            return isNullOrEmpty() ? ClickHouseValues.NULL_EXPR : Integer.toString(asInteger());
+        }
+
+        @Override
+        public ClickHouseShortValue update(byte value) {
+            return set(false, (short) (0xFF & value));
+        }
+
+        @Override
+        public ClickHouseShortValue update(BigInteger value) {
+            return value == null ? resetToNullOrEmpty() : set(false, value.shortValue());
+        }
+
+        @Override
+        public ClickHouseShortValue update(BigDecimal value) {
+            return value == null ? resetToNullOrEmpty() : set(false, value.shortValue());
+        }
+
+        @Override
+        public ClickHouseShortValue update(String value) {
+            return value == null ? resetToNullOrEmpty() : set(false, UnsignedShort.valueOf(value).shortValue());
+        }
+    }
+
+    /**
+     * Creates a new instance representing null {@code Int16} value.
      *
      * @return new instance representing null value
      */
     public static ClickHouseShortValue ofNull() {
-        return ofNull(null);
+        return ofNull(null, false);
     }
 
     /**
-     * Update given value to null or create a new instance if {@code ref} is null.
+     * Creates a new instance representing null {@code UInt16} value.
+     *
+     * @return new instance representing null value
+     */
+    public static ClickHouseShortValue ofUnsignedNull() {
+        return ofNull(null, true);
+    }
+
+    /**
+     * Creates a new instance representing null value.
+     *
+     * @param unsigned true if the value is unsigned; false otherwise
+     * @return new instance representing null value
+     */
+    public static ClickHouseShortValue ofNull(boolean unsigned) {
+        return ofNull(null, unsigned);
+    }
+
+    /**
+     * Updates the given value to null or creates a new instance when {@code ref} is
+     * null.
      * 
-     * @param ref object to update, could be null
+     * @param ref      object to update, could be null
+     * @param unsigned true if the value is unsigned; false otherwise
      * @return same object as {@code ref} or a new instance if it's null
      */
-    public static ClickHouseShortValue ofNull(ClickHouseValue ref) {
+    public static ClickHouseShortValue ofNull(ClickHouseValue ref, boolean unsigned) {
+        if (unsigned) {
+            return ref instanceof UnsignedShortValue ? ((UnsignedShortValue) ref).set(true, (short) 0)
+                    : new UnsignedShortValue(true, (short) 0);
+        }
         return ref instanceof ClickHouseShortValue ? ((ClickHouseShortValue) ref).set(true, (short) 0)
                 : new ClickHouseShortValue(true, (short) 0);
     }
 
     /**
-     * Wrap the given value.
+     * Wraps the given {@code Int16} value.
      *
      * @param value value
      * @return object representing the value
      */
     public static ClickHouseShortValue of(short value) {
-        return of(null, value);
+        return of(null, value, false);
     }
 
     /**
-     * Wrap the given value.
+     * Wraps the given {@code UInt16} value.
+     *
+     * @param value value
+     * @return object representing the value
+     */
+    public static ClickHouseShortValue ofUnsigned(short value) {
+        return of(null, value, true);
+    }
+
+    /**
+     * Wraps the given value.
+     *
+     * @param value    value
+     * @param unsigned true if {@code value} is unsigned; false otherwise
+     * @return object representing the value
+     */
+    public static ClickHouseShortValue of(short value, boolean unsigned) {
+        return of(null, value, unsigned);
+    }
+
+    /**
+     * Wraps the given {@code Int16} value.
      *
      * @param value value
      * @return object representing the value
      */
     public static ClickHouseShortValue of(int value) {
-        return of(null, (short) value);
+        return of(null, (short) value, false);
     }
 
     /**
-     * Wrap the given value.
+     * Wraps the given {@code UInt16} value.
      *
      * @param value value
      * @return object representing the value
      */
-    public static ClickHouseShortValue of(Number value) {
-        return value == null ? ofNull(null) : of(null, value.shortValue());
+    public static ClickHouseShortValue ofUnsigned(int value) {
+        return of(null, (short) value, true);
     }
 
     /**
-     * Update value of the given object or create a new instance if {@code ref} is
-     * null.
+     * Wraps the given value.
      *
-     * @param ref   object to update, could be null
-     * @param value value
+     * @param value    value
+     * @param unsigned true if {@code value} is unsigned; false otherwise
+     * @return object representing the value
+     */
+    public static ClickHouseShortValue of(int value, boolean unsigned) {
+        return of(null, (short) value, unsigned);
+    }
+
+    /**
+     * Wraps the given value.
+     *
+     * @param value    value
+     * @param unsigned true if {@code value} is unsigned; false otherwise
+     * @return object representing the value
+     */
+    public static ClickHouseShortValue of(Number value, boolean unsigned) {
+        return value == null ? ofNull(null, unsigned) : of(null, value.shortValue(), unsigned);
+    }
+
+    /**
+     * Updates value of the given object or create a new instance when {@code ref}
+     * is null.
+     *
+     * @param ref      object to update, could be null
+     * @param value    value
+     * @param unsigned true if {@code value} is unsigned; false otherwise
      * @return same object as {@code ref} or a new instance if it's null
      */
-    public static ClickHouseShortValue of(ClickHouseValue ref, short value) {
+    public static ClickHouseShortValue of(ClickHouseValue ref, short value, boolean unsigned) {
+        if (unsigned) {
+            return ref instanceof UnsignedShortValue ? ((UnsignedShortValue) ref).set(false, value)
+                    : new UnsignedShortValue(false, value);
+        }
         return ref instanceof ClickHouseShortValue ? ((ClickHouseShortValue) ref).set(false, value)
                 : new ClickHouseShortValue(false, value);
     }
@@ -79,7 +232,7 @@ public class ClickHouseShortValue implements ClickHouseValue {
         set(isNull, value);
     }
 
-    protected ClickHouseShortValue set(boolean isNull, short value) {
+    protected final ClickHouseShortValue set(boolean isNull, short value) {
         this.isNull = isNull;
         this.value = isNull ? (short) 0 : value;
 
@@ -91,7 +244,7 @@ public class ClickHouseShortValue implements ClickHouseValue {
      *
      * @return value
      */
-    public short getValue() {
+    public final short getValue() {
         return value;
     }
 
@@ -101,7 +254,7 @@ public class ClickHouseShortValue implements ClickHouseValue {
     }
 
     @Override
-    public boolean isNullOrEmpty() {
+    public final boolean isNullOrEmpty() {
         return isNull;
     }
 
@@ -152,11 +305,7 @@ public class ClickHouseShortValue implements ClickHouseValue {
 
     @Override
     public String asString() {
-        if (isNull) {
-            return null;
-        }
-
-        return String.valueOf(value);
+        return isNull ? null : Short.toString(value);
     }
 
     @Override
@@ -171,7 +320,7 @@ public class ClickHouseShortValue implements ClickHouseValue {
 
     @Override
     public String toSqlExpression() {
-        return isNullOrEmpty() ? ClickHouseValues.NULL_EXPR : String.valueOf(value);
+        return isNullOrEmpty() ? ClickHouseValues.NULL_EXPR : Short.toString(value);
     }
 
     @Override
@@ -236,7 +385,7 @@ public class ClickHouseShortValue implements ClickHouseValue {
 
     @Override
     public ClickHouseShortValue update(ClickHouseValue value) {
-        return value == null ? resetToNullOrEmpty() : set(false, value.asShort());
+        return value == null || value.isNullOrEmpty() ? resetToNullOrEmpty() : set(false, value.asShort());
     }
 
     @Override

@@ -244,11 +244,6 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
         }
 
         @Override
-        public ClickHouseFormat getInputFormat() {
-            return getFormat();
-        }
-
-        @Override
         public CompletableFuture<ClickHouseResponse> execute() {
             if (writer != null) {
                 ClickHouseConfig c = getConfig();
@@ -310,32 +305,6 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
             }
 
             return getClient().executeAndWait(this);
-        }
-
-        /**
-         * Sends mutation request for execution. Same as
-         * {@code client.execute(request.seal())}.
-         *
-         * @return non-null future to get response
-         * @throws CompletionException when error occurred
-         * @deprecated will be removed in v0.3.3, please use {@link #execute()}
-         *             instead
-         */
-        @Deprecated
-        public CompletableFuture<ClickHouseResponse> send() {
-            return execute();
-        }
-
-        /**
-         * Synchronous version of {@link #send()}.
-         *
-         * @return non-null response
-         * @throws ClickHouseException when error occurred during execution
-         * @deprecated will be removed in v0.3.3, please use {@link #executeAndWait()}
-         *             instead
-         */
-        public ClickHouseResponse sendAndWait() throws ClickHouseException {
-            return executeAndWait();
         }
 
         @Override
@@ -649,18 +618,6 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
      */
     public ClickHouseFormat getFormat() {
         return getConfig().getFormat();
-    }
-
-    /**
-     * Gets data format used for input(e.g. writing data into server).
-     *
-     * @return data format for input
-     * @deprecated will be removed in v0.3.3, please use
-     *             {@code getFormat().defaultInputFormat()} instead
-     */
-    @Deprecated
-    public ClickHouseFormat getInputFormat() {
-        return getFormat().defaultInputFormat();
     }
 
     /**
