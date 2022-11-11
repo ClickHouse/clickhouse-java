@@ -17,14 +17,8 @@ public class ClickHouseConfigTest {
                 ClickHouseClientOption.CLIENT_NAME.getEffectiveDefaultValue());
         Assert.assertEquals(config.getDatabase(), ClickHouseDefaults.DATABASE.getEffectiveDefaultValue());
 
-        Assert.assertEquals(config.getOption(ClickHouseDefaults.CLUSTER),
-                ClickHouseDefaults.CLUSTER.getEffectiveDefaultValue());
         Assert.assertEquals(config.getOption(ClickHouseDefaults.HOST),
                 ClickHouseDefaults.HOST.getEffectiveDefaultValue());
-        Assert.assertEquals(config.getOption(ClickHouseDefaults.PORT),
-                ClickHouseDefaults.PORT.getEffectiveDefaultValue());
-        Assert.assertEquals(config.getOption(ClickHouseDefaults.WEIGHT),
-                ClickHouseDefaults.WEIGHT.getEffectiveDefaultValue());
         ClickHouseCredentials credentials = config.getDefaultCredentials();
         Assert.assertEquals(credentials.useAccessToken(), false);
         Assert.assertEquals(credentials.getUserName(), ClickHouseDefaults.USER.getEffectiveDefaultValue());
@@ -49,11 +43,8 @@ public class ClickHouseConfigTest {
 
         Map<ClickHouseOption, Serializable> options = new HashMap<>();
         options.put(ClickHouseClientOption.CLIENT_NAME, clientName);
-        options.put(ClickHouseDefaults.CLUSTER, cluster);
         options.put(ClickHouseClientOption.DATABASE, database);
         options.put(ClickHouseDefaults.HOST, host);
-        options.put(ClickHouseDefaults.PORT, port);
-        options.put(ClickHouseDefaults.WEIGHT, weight);
         options.put(ClickHouseDefaults.USER, "useless");
         options.put(ClickHouseDefaults.PASSWORD, "useless");
         options.put(ClickHouseClientOption.CUSTOM_SETTINGS, "session_check = 1, max_execution_time = 300");
@@ -64,10 +55,7 @@ public class ClickHouseConfigTest {
                 ClickHouseCredentials.fromUserAndPassword(user, password), null, metricRegistry);
         Assert.assertEquals(config.getClientName(), clientName);
         Assert.assertEquals(config.getDatabase(), database);
-        Assert.assertEquals(config.getOption(ClickHouseDefaults.CLUSTER), cluster);
         Assert.assertEquals(config.getOption(ClickHouseDefaults.HOST), host);
-        Assert.assertEquals(config.getOption(ClickHouseDefaults.PORT), port);
-        Assert.assertEquals(config.getOption(ClickHouseDefaults.WEIGHT), weight);
         Assert.assertEquals(config.getCustomSettings(), settings);
 
         ClickHouseCredentials credentials = config.getDefaultCredentials();

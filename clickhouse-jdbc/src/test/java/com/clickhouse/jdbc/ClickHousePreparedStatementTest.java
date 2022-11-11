@@ -41,9 +41,10 @@ import com.clickhouse.client.ClickHousePipedOutputStream;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.data.ClickHouseBitmap;
-import com.clickhouse.client.data.ClickHouseDateTimeValue;
 import com.clickhouse.client.data.ClickHouseExternalTable;
-import com.clickhouse.client.data.ClickHouseOffsetDateTimeValue;
+import com.clickhouse.client.data.UnsignedByte;
+import com.clickhouse.client.data.UnsignedInteger;
+import com.clickhouse.client.data.UnsignedLong;
 import com.clickhouse.jdbc.internal.InputBasedPreparedStatement;
 import com.clickhouse.jdbc.internal.SqlBasedPreparedStatement;
 
@@ -242,6 +243,7 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
     @Test(groups = "integration")
     public void testReadWriteBinaryString() throws SQLException {
         Properties props = new Properties();
+        props.setProperty(ClickHouseClientOption.USE_BINARY_STRING.getKey(), "true");
         try (ClickHouseConnection conn = newConnection(props);
                 Statement s = conn.createStatement()) {
             s.execute("drop table if exists test_binary_string; "
@@ -541,6 +543,57 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
             Assert.assertEquals(rs.getInt(1), 2);
             Assert.assertEquals(rs.getByte(2), 2);
             Assert.assertEquals(rs.getObject(3), "v22");
+            Assert.assertFalse(rs.next());
+        }
+    }
+
+    @Test(groups = "integration")
+    public void testReadWriteArrayWithNullableTypes() throws SQLException {
+        try (ClickHouseConnection conn = newConnection(new Properties());
+                Statement s = conn.createStatement()) {
+            s.execute("drop table if exists test_read_write_nullable_unsigned_types;"
+                    + "create table test_read_write_nullable_unsigned_types(id Int32, a1 Array(Nullable(Int8)), a2 Array(Nullable(UInt64)))engine=Memory");
+            try (PreparedStatement stmt = conn
+                    .prepareStatement("insert into test_read_write_nullable_unsigned_types")) {
+                stmt.setInt(1, 1);
+                stmt.setObject(2, new byte[0]);
+                stmt.setObject(3, new long[0]);
+                stmt.execute();
+            }
+            try (PreparedStatement stmt = conn
+                    .prepareStatement("insert into test_read_write_nullable_unsigned_types")) {
+                stmt.setInt(1, 2);
+                stmt.setObject(2, new byte[] { 2, 2 });
+                stmt.setObject(3, new Long[] { 2L, null });
+                stmt.addBatch();
+                stmt.setInt(1, 3);
+                stmt.setArray(2, conn.createArrayOf("Nullable(Int8)", new Byte[] { null, 3 }));
+                stmt.setArray(3,
+                        conn.createArrayOf("Nullable(UInt64)", new UnsignedLong[] { null, UnsignedLong.valueOf(3L) }));
+                stmt.addBatch();
+                int[] results = stmt.executeBatch();
+                Assert.assertEquals(results, new int[] { 1, 1 });
+            }
+
+            ResultSet rs = s.executeQuery("select * from test_read_write_nullable_unsigned_types order by id");
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getInt(1), 1);
+            Assert.assertEquals(rs.getObject(2), new Byte[0]);
+            Assert.assertEquals(rs.getArray(2).getArray(), new Byte[0]);
+            Assert.assertEquals(rs.getObject(3), new UnsignedLong[0]);
+            Assert.assertEquals(rs.getArray(3).getArray(), new UnsignedLong[0]);
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getInt(1), 2);
+            Assert.assertEquals(rs.getObject(2), new Byte[] { 2, 2 });
+            Assert.assertEquals(rs.getArray(2).getArray(), new Byte[] { 2, 2 });
+            Assert.assertEquals(rs.getObject(3), new UnsignedLong[] { UnsignedLong.valueOf(2L), null });
+            Assert.assertEquals(rs.getArray(3).getArray(), new UnsignedLong[] { UnsignedLong.valueOf(2L), null });
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getInt(1), 3);
+            Assert.assertEquals(rs.getObject(2), new Byte[] { null, 3 });
+            Assert.assertEquals(rs.getArray(2).getArray(), new Byte[] { null, 3 });
+            Assert.assertEquals(rs.getObject(3), new UnsignedLong[] { null, UnsignedLong.valueOf(3L) });
+            Assert.assertEquals(rs.getArray(3).getArray(), new UnsignedLong[] { null, UnsignedLong.valueOf(3L) });
             Assert.assertFalse(rs.next());
         }
     }
@@ -1214,6 +1267,7 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
         Properties props = new Properties();
         props.setProperty(ClickHouseClientOption.FORMAT.getKey(),
                 ClickHouseFormat.TabSeparatedWithNamesAndTypes.name());
+        props.setProperty(ClickHouseClientOption.CUSTOM_SETTINGS.getKey(), "input_format_null_as_default=0");
         String tableName = "test_insert_null_value_" + columnType.split("\\(")[0].trim().toLowerCase();
         try (ClickHouseConnection conn = newConnection(props); Statement s = conn.createStatement()) {
             if (conn.getUri().toString().contains(":grpc:")) {
@@ -1235,6 +1289,7 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
                     sqlException = e;
                 }
                 Assert.assertNotNull(sqlException, "Should end-up with SQL exception when nullAsDefault < 1");
+                sqlException = null;
 
                 try {
                     ((ClickHouseStatement) stmt).setNullAsDefault(1);
@@ -1297,7 +1352,8 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
             Assert.assertTrue(rs.next());
             Assert.assertEquals(rs.getInt(1), 1);
             Assert.assertEquals(rs.getObject(2), new short[] { 1, 2, 3 });
-            Assert.assertEquals(rs.getObject(3), new Long[] { 3L, null, 1L });
+            Assert.assertEquals(rs.getObject(3),
+                    new UnsignedInteger[] { UnsignedInteger.valueOf(3), null, UnsignedInteger.ONE });
             Assert.assertFalse(rs.next());
         }
 

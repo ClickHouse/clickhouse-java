@@ -149,8 +149,7 @@ public interface ClickHouseValue extends Serializable {
      * @return non-null byte stream for reading
      */
     default InputStream asByteStream() {
-        byte[] bytes = isNullOrEmpty() ? new byte[0] : new byte[] { asByte() };
-        return new ByteArrayInputStream(bytes);
+        return isNullOrEmpty() ? ClickHouseInputStream.empty() : new ByteArrayInputStream(new byte[] { asByte() });
     }
 
     /**
@@ -160,8 +159,8 @@ public interface ClickHouseValue extends Serializable {
      * @return non-null character stream for reading
      */
     default Reader asCharacterStream() {
-        String s = isNullOrEmpty() ? "" : asString();
-        return new StringReader(s);
+        // Reader.nullReader() requires JDK 11+
+        return new StringReader(isNullOrEmpty() ? "" : asString());
     }
 
     /**
@@ -188,9 +187,6 @@ public interface ClickHouseValue extends Serializable {
      * @return byte value
      */
     byte asByte();
-
-    // not a good idea as this may confuse people, use asString(byteLength) instead
-    // byte[] asBytes()
 
     /**
      * Gets value as short.
@@ -484,6 +480,16 @@ public interface ClickHouseValue extends Serializable {
      * @return an object representing the value, could be null
      */
     Object asObject();
+
+    /**
+     * Gets raw value as an object. This method is probably only useful for
+     * {@code String} as it can be either a byte array or text.
+     * 
+     * @return an object representing the raw value, could be null
+     */
+    default Object asRawObject() {
+        return asObject();
+    }
 
     /**
      * Gets value as a typed object.

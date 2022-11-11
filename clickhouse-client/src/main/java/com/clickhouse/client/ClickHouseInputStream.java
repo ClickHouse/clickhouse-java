@@ -41,23 +41,6 @@ import com.clickhouse.client.stream.WrappedInputStream;
  * class is also responsible for creating various input stream as needed.
  */
 public abstract class ClickHouseInputStream extends InputStream {
-    /**
-     * Empty byte array.
-     *
-     * @deprecated will be removed in v0.3.3, please use
-     *             {@link ClickHouseByteBuffer#EMPTY_BYTES} instead
-     */
-    @Deprecated
-    public static final byte[] EMPTY_BYTES = ClickHouseByteBuffer.EMPTY_BYTES;
-    /**
-     * Empty and read-only byte buffer.
-     *
-     * @deprecated will be removed in v0.3.3, please use
-     *             {@link ClickHouseByteBuffer#EMPTY_BUFFER} instead
-     */
-    @Deprecated
-    public static final ByteBuffer EMPTY_BUFFER = ClickHouseByteBuffer.EMPTY_BUFFER;
-
     protected static final String ERROR_INCOMPLETE_READ = "Reached end of input stream after reading %d of %d bytes";
     protected static final String ERROR_NULL_BYTES = "Non-null byte array is required";
     protected static final String ERROR_REUSE_BUFFER = "Please pass a different byte array instead of the same internal buffer for reading";
@@ -596,8 +579,8 @@ public abstract class ClickHouseInputStream extends InputStream {
      * @throws IOException when failed to read value from input stream or reached
      *                     end of the stream
      */
-    public int readUnsignedByte() throws IOException {
-        return 0xFF & readByte();
+    public short readUnsignedByte() throws IOException {
+        return (short) (0xFF & readByte());
     }
 
     /**
@@ -614,6 +597,24 @@ public abstract class ClickHouseInputStream extends InputStream {
         }
 
         return byteBuffer.update(readBytes(length));
+    }
+
+    /**
+     * Reads a byte as boolean. The byte value can be either 0 (false) or 1 (true).
+     *
+     * @return boolean value
+     * @throws IOException when failed to read boolean value from input stream or
+     *                     reached end of the stream
+     */
+    public boolean readBoolean() throws IOException {
+        byte b = readByte();
+        if (b == (byte) 0) {
+            return false;
+        } else if (b == (byte) 1) {
+            return true;
+        } else {
+            throw new IOException("Failed to read boolean value, expect 0 (false) or 1 (true) but we got: " + b);
+        }
     }
 
     /**

@@ -6,7 +6,7 @@ import com.clickhouse.client.ClickHouseValue;
 import com.clickhouse.client.ClickHouseValues;
 
 /**
- * Wraper class of float.
+ * Wrapper class of {@code float}.
  */
 public class ClickHouseFloatValue implements ClickHouseValue {
     /**
@@ -277,7 +277,7 @@ public class ClickHouseFloatValue implements ClickHouseValue {
 
     @Override
     public ClickHouseFloatValue update(ClickHouseValue value) {
-        return value == null ? resetToNullOrEmpty() : set(false, value.asFloat());
+        return value == null || value.isNullOrEmpty() ? resetToNullOrEmpty() : set(false, value.asFloat());
     }
 
     @Override

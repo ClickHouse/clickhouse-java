@@ -262,6 +262,18 @@ public abstract class ClickHouseOutputStream extends OutputStream {
     }
 
     /**
+     * Writes a byte (true=1, false=0) into output stream.
+     *
+     * @param b boolean value to write
+     * @return current output stream
+     * @throws IOException when failed to write value into output stream, not able
+     *                     to sent all bytes, or opereate on a closed stream
+     */
+    public ClickHouseOutputStream writeBoolean(boolean b) throws IOException {
+        return writeByte(b ? (byte) 1 : (byte) 0);
+    }
+
+    /**
      * Writes a single byte into output stream.
      *
      * @param b byte to write

@@ -38,6 +38,18 @@ public class ClickHouseArrayValue<T> extends ClickHouseObjectValue<T[]> implemen
     }
 
     /**
+     * Creates an empty array.
+     *
+     * @param <T>   type of the array
+     * @param clazz non-null component class
+     * @return empty array
+     */
+    @SuppressWarnings("unchecked")
+    public static <T> ClickHouseArrayValue<T> ofEmpty(Class<T> clazz) {
+        return of((T[]) Array.newInstance(clazz, new int[1]));
+    }
+
+    /**
      * Wrap the given value.
      *
      * @param <T>   type of element
@@ -64,8 +76,13 @@ public class ClickHouseArrayValue<T> extends ClickHouseObjectValue<T[]> implemen
                 : new ClickHouseArrayValue<>(value);
     }
 
+    private final T[] emptyValue;
+
+    @SuppressWarnings("unchecked")
     protected ClickHouseArrayValue(T[] value) {
         super(value);
+        emptyValue = value.length == 0 ? value
+                : (T[]) Array.newInstance(value.getClass().getComponentType(), new int[1]);
     }
 
     @Override
@@ -132,9 +149,8 @@ public class ClickHouseArrayValue<T> extends ClickHouseObjectValue<T[]> implemen
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public ClickHouseArrayValue<T> resetToDefault() {
-        set((T[]) ClickHouseValues.EMPTY_OBJECT_ARRAY);
+        set(emptyValue);
         return this;
     }
 
@@ -146,16 +162,15 @@ public class ClickHouseArrayValue<T> extends ClickHouseObjectValue<T[]> implemen
     @Override
     public String toSqlExpression() {
         T[] value = getValue();
-        if (value == null || value.length == 0) {
+        int len = value == null ? 0 : value.length;
+        if (len == 0) {
             return ClickHouseValues.EMPTY_ARRAY_EXPR;
         }
 
-        StringBuilder builder = new StringBuilder().append('[');
-        for (T v : value) {
-            builder.append(ClickHouseValues.convertToSqlExpression(v)).append(',');
-        }
-        if (builder.length() > 1) {
-            builder.setLength(builder.length() - 1);
+        StringBuilder builder = new StringBuilder().append('[')
+                .append(ClickHouseValues.convertToSqlExpression(value[0]));
+        for (int i = 1; i < len; i++) {
+            builder.append(',').append(ClickHouseValues.convertToSqlExpression(value[i]));
         }
         return builder.append(']').toString();
     }
@@ -484,7 +499,7 @@ public class ClickHouseArrayValue<T> extends ClickHouseObjectValue<T[]> implemen
     @Override
     @SuppressWarnings("unchecked")
     public ClickHouseArrayValue<T> update(ClickHouseValue value) {
-        if (value == null) {
+        if (value == null || value.isNullOrEmpty()) {
             return resetToNullOrEmpty();
         } else if (value instanceof ClickHouseArrayValue) {
             set(((ClickHouseArrayValue<T>) value).getValue());
@@ -542,6 +557,7 @@ public class ClickHouseArrayValue<T> extends ClickHouseObjectValue<T[]> implemen
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public ClickHouseArraySequence allocate(int length, Class<?> clazz, int level) {
         if (length < 1) {
             // resetToNullOrEmpty / resetToDefault will replace the value to Object[0]
@@ -570,8 +586,9 @@ public class ClickHouseArrayValue<T> extends ClickHouseObjectValue<T[]> implemen
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public ClickHouseArraySequence setValue(int index, ClickHouseValue value) {
-        getValue()[index] = (T) value.asObject();
+        getValue()[index] = (T) value.asRawObject();
         return this;
     }
 }

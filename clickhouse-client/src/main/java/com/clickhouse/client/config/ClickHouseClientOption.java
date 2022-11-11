@@ -177,14 +177,6 @@ public enum ClickHouseClientOption implements ClickHouseOption {
     MAX_BUFFER_SIZE("max_buffer_size", 1024 * 1024 * 1024,
             "Maximum buffer size in byte can be used for streaming."),
     /**
-     * Maximum comression block size in byte, only useful when {@link #DECOMPRESS}
-     * is {@code true}.
-     *
-     * @deprecated will be removed in v0.3.3
-     */
-    @Deprecated
-    MAX_COMPRESS_BLOCK_SIZE("max_compress_block_size", 1024 * 1024, "Maximum comression block size in byte."),
-    /**
      * Maximum query execution time in seconds.
      */
     MAX_EXECUTION_TIME("max_execution_time", 0, "Maximum query execution time in seconds, 0 means no limit."),
@@ -244,13 +236,6 @@ public enum ClickHouseClientOption implements ClickHouseOption {
      */
     SERVER_VERSION("server_version", "", "Server version."),
     /**
-     * Server weight.
-     *
-     * @deprecated will be removed in v0.3.3
-     */
-    @Deprecated
-    SERVER_WEIGHT("server_weight", 1, "Server weight. Only will be considered in load balancing mode."),
-    /**
      * Session id.
      */
     SESSION_ID("session_id", "", "Session id"),
@@ -294,11 +279,24 @@ public enum ClickHouseClientOption implements ClickHouseOption {
     TRANSACTION_TIMEOUT("transaction_timeout", 0,
             "Transaction timeout in seconds. 0 or negative number means same as session_timeout."),
     /**
+     * Whether to convert unsigned types to the next widest type(e.g. use
+     * {@code short} for UInt8 instead of {@code byte}, and {@code UnsignedLong} for
+     * UInt64).
+     */
+    WIDEN_UNSIGNED_TYPES("widen_unsigned_types", false,
+            "Whether to convert unsigned types to the next widest type(e.g. use short for UInt8 instead of byte, and UnsignedLong for UInt64)."),
+    /**
+     * Whether to support binary string. Enable this option to treat
+     * {@code FixedString} and {@code String} as byte array.
+     */
+    USE_BINARY_STRING("use_binary_string", false, "Whether to support binary string. "
+            + "Enable this option to treat FixedString and String as byte array."),
+    /**
      * Whether to use blocking queue for buffering.
      */
-    USE_BLOCKING_QUEUE("use_blocking_queue", true, "Whether to use blocking queue for buffering"),
+    USE_BLOCKING_QUEUE("use_blocking_queue", true, "Whether to use blocking queue for buffering."),
     /**
-     * Whether to use objects in array or not.
+     * Whether Object[] should be used instead of primitive arrays.
      */
     USE_OBJECTS_IN_ARRAYS("use_objects_in_arrays", false,
             "Whether Object[] should be used instead of primitive arrays."),

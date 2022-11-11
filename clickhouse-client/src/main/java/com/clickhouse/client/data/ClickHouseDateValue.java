@@ -10,7 +10,7 @@ import com.clickhouse.client.ClickHouseValue;
 import com.clickhouse.client.ClickHouseValues;
 
 /**
- * Wraper class of LocalDate.
+ * Wrapper class of {@link LocalDate}.
  */
 public class ClickHouseDateValue extends ClickHouseObjectValue<LocalDate> {
     /**
@@ -204,7 +204,7 @@ public class ClickHouseDateValue extends ClickHouseObjectValue<LocalDate> {
         if (value == null) {
             resetToNullOrEmpty();
         } else {
-            set(LocalDate.ofEpochDay(value.longValueExact()));
+            set(LocalDate.ofEpochDay(value.longValue()));
         }
         return this;
     }
@@ -214,7 +214,7 @@ public class ClickHouseDateValue extends ClickHouseObjectValue<LocalDate> {
         if (value == null) {
             resetToNullOrEmpty();
         } else {
-            set(LocalDate.ofEpochDay(value.longValueExact()));
+            set(LocalDate.ofEpochDay(value.longValue()));
         }
         return this;
     }
@@ -262,7 +262,7 @@ public class ClickHouseDateValue extends ClickHouseObjectValue<LocalDate> {
 
     @Override
     public ClickHouseDateValue update(ClickHouseValue value) {
-        if (value == null) {
+        if (value == null || value.isNullOrEmpty()) {
             resetToNullOrEmpty();
         } else {
             set(value.asDate());

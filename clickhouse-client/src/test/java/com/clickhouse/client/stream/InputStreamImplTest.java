@@ -190,7 +190,7 @@ public class InputStreamImplTest {
                         new LinkedBlockingQueue<>(Collections.singletonList(ClickHouseByteBuffer.EMPTY_BUFFER)), 0,
                         null) },
                 { new NonBlockingInputStream(
-                        new AdaptiveQueue<>(CapacityPolicy.linearDynamicCapacity(0, 0, 0),
+                        AdaptiveQueue.create(CapacityPolicy.linearDynamicCapacity(0, 0, 0),
                                 ClickHouseByteBuffer.EMPTY_BYTES),
                         0, null) }
         };
@@ -279,18 +279,18 @@ public class InputStreamImplTest {
                                 ByteBuffer.wrap(new byte[] { 0x68, 0x69 }),
                                 ByteBuffer.wrap(new byte[] { 0x70 }), ClickHouseByteBuffer.EMPTY_BUFFER)),
                         0, null) },
-                { new NonBlockingInputStream(new AdaptiveQueue<byte[]>(CapacityPolicy.linearDynamicCapacity(0, 0, 0),
+                { new NonBlockingInputStream(AdaptiveQueue.create(CapacityPolicy.linearDynamicCapacity(0, 0, 0),
                         Arrays.asList(new byte[] { 0x65, 0x66, 0x67, 0x68, 0x69, 0x70 },
                                 ClickHouseByteBuffer.EMPTY_BYTES)),
                         0, null) },
                 { new NonBlockingInputStream(
-                        new AdaptiveQueue<byte[]>(CapacityPolicy.linearDynamicCapacity(0, 0, 0),
+                        AdaptiveQueue.create(CapacityPolicy.linearDynamicCapacity(0, 0, 0),
                                 Arrays.asList(new byte[] { 0x65 }, new byte[] { 0x66 }, new byte[] { 0x67 },
                                         new byte[] { 0x68 }, new byte[] { 0x69 }, new byte[] { 0x70 },
                                         ClickHouseByteBuffer.EMPTY_BYTES)),
                         0, null) },
                 { new NonBlockingInputStream(
-                        new AdaptiveQueue<byte[]>(CapacityPolicy.linearDynamicCapacity(0, 0, 0),
+                        AdaptiveQueue.create(CapacityPolicy.linearDynamicCapacity(0, 0, 0),
                                 Arrays.asList(new byte[] { 0x65, 0x66 }, new byte[] { 0x67 }, new byte[] { 0x68, 0x69 },
                                         new byte[] { 0x70 }, ClickHouseByteBuffer.EMPTY_BYTES)),
                         0, null) },

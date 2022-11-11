@@ -1,5 +1,6 @@
 package com.clickhouse.client.http;
 
+import java.util.Iterator;
 import java.util.UUID;
 
 import com.clickhouse.client.ClickHouseClient;
@@ -7,6 +8,7 @@ import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseCredentials;
 import com.clickhouse.client.ClickHouseException;
 import com.clickhouse.client.ClickHouseFormat;
+import com.clickhouse.client.ClickHouseInputStream;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseNodeSelector;
 import com.clickhouse.client.ClickHouseParameterizedQuery;
@@ -18,9 +20,13 @@ import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.ClickHouseResponseSummary;
 import com.clickhouse.client.ClickHouseVersion;
 import com.clickhouse.client.ClientIntegrationTest;
+import com.clickhouse.client.config.ClickHouseBufferingMode;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.config.ClickHouseHealthCheckMethod;
+import com.clickhouse.client.data.ClickHouseExternalTable;
 import com.clickhouse.client.data.ClickHouseStringValue;
+import com.clickhouse.client.data.UnsignedInteger;
+import com.clickhouse.client.data.UnsignedLong;
 import com.clickhouse.client.http.config.ClickHouseHttpOption;
 
 import org.testng.Assert;
@@ -160,6 +166,35 @@ public class ClickHouseHttpClientTest extends ClientIntegrationTest {
     }
 
     @Test(groups = { "integration" })
+    public void testCreateTableAsSelect() throws ClickHouseException {
+        ClickHouseNode server = getServer();
+        sendAndWait(server, "drop table if exists test_create_table_as_select");
+        try (ClickHouseClient client = getClient()) {
+            ClickHouseRequest<?> request = client.connect(server);
+            try (ClickHouseResponse resp = request.write()
+                    .external(ClickHouseExternalTable.builder().name("myExtTable").addColumn("s", "String")
+                            .addColumn("i", "Int32").content(ClickHouseInputStream.of("one,1\ntwo,2"))
+                            .format(ClickHouseFormat.CSV).build())
+                    .query("create table test_create_table_as_select engine=Memory as select * from myExtTable")
+                    .executeAndWait()) {
+                // ignore
+            }
+
+            try (ClickHouseResponse resp = request.format(ClickHouseFormat.RowBinaryWithNamesAndTypes)
+                    .query("select * from test_create_table_as_select order by i").executeAndWait()) {
+                String[] array = new String[] { "one", "two" };
+                int count = 0;
+                for (ClickHouseRecord r : resp.records()) {
+                    Assert.assertEquals(r.getValue("i").asInteger(), count + 1);
+                    Assert.assertEquals(r.getValue("s").asString(), array[count]);
+                    count++;
+                }
+                Assert.assertEquals(count, array.length);
+            }
+        }
+    }
+
+    @Test(groups = { "integration" })
     @Override
     public void testMutation() throws ClickHouseException {
         super.testMutation();
@@ -172,7 +207,7 @@ public class ClickHouseHttpClientTest extends ClientIntegrationTest {
                         .query("insert into test_http_mutation select toString(number), number from numbers(1)")
                         .executeAndWait()) {
             ClickHouseResponseSummary summary = response.getSummary();
-            Assert.assertEquals(summary.getWrittenRows(), 1);
+            Assert.assertEquals(summary.getWrittenRows(), 1L);
         }
     }
 

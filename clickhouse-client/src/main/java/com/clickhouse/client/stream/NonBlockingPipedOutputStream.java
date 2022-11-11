@@ -82,7 +82,7 @@ public class NonBlockingPipedOutputStream extends ClickHousePipedOutputStream {
             Runnable postCloseAction) {
         super(postCloseAction);
 
-        this.queue = new AdaptiveQueue<>(policy);
+        this.queue = AdaptiveQueue.create(policy);
 
         // may need an initialBufferSize and a monitor to update bufferSize in runtime
         this.bufferSize = ClickHouseUtils.getBufferSize(bufferSize,

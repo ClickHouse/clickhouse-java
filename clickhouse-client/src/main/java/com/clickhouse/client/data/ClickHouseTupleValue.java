@@ -413,11 +413,7 @@ public class ClickHouseTupleValue extends ClickHouseObjectValue<List<Object>> {
             return this;
         }
 
-        List<Object> v = new ArrayList<>(size);
-        for (Object o : value) {
-            v.add(o);
-        }
-        set(v);
+        set(new ArrayList<>(value));
         return this;
     }
 
@@ -472,7 +468,7 @@ public class ClickHouseTupleValue extends ClickHouseObjectValue<List<Object>> {
 
     @Override
     public ClickHouseTupleValue update(ClickHouseValue value) {
-        if (value == null) {
+        if (value == null || value.isNullOrEmpty()) {
             set(Collections.emptyList());
             return this;
         }

@@ -13,7 +13,7 @@ import com.clickhouse.client.ClickHouseValue;
 import com.clickhouse.client.ClickHouseValues;
 
 /**
- * Wraper class of BigInteger.
+ * Wrapper class of {@link BigInteger}.
  */
 public class ClickHouseBigIntegerValue extends ClickHouseObjectValue<BigInteger> {
     /**
@@ -72,22 +72,22 @@ public class ClickHouseBigIntegerValue extends ClickHouseObjectValue<BigInteger>
 
     @Override
     public byte asByte() {
-        return isNullOrEmpty() ? (byte) 0 : getValue().byteValueExact();
+        return isNullOrEmpty() ? (byte) 0 : getValue().byteValue();
     }
 
     @Override
     public short asShort() {
-        return isNullOrEmpty() ? (short) 0 : getValue().shortValueExact();
+        return isNullOrEmpty() ? (short) 0 : getValue().shortValue();
     }
 
     @Override
     public int asInteger() {
-        return isNullOrEmpty() ? 0 : getValue().intValueExact();
+        return isNullOrEmpty() ? 0 : getValue().intValue();
     }
 
     @Override
     public long asLong() {
-        return isNullOrEmpty() ? 0L : getValue().longValueExact();
+        return isNullOrEmpty() ? 0L : getValue().longValue();
     }
 
     @Override
@@ -272,7 +272,7 @@ public class ClickHouseBigIntegerValue extends ClickHouseObjectValue<BigInteger>
 
     @Override
     public ClickHouseBigIntegerValue update(ClickHouseValue value) {
-        if (value == null) {
+        if (value == null || value.isNullOrEmpty()) {
             resetToNullOrEmpty();
         } else {
             set(value.asBigInteger());

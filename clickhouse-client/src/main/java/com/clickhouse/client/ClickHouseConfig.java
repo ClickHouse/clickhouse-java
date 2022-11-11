@@ -54,6 +54,8 @@ public class ClickHouseConfig implements Serializable {
 
     static final String PARAM_OPTION = "option";
 
+    public static final String TYPE_NAME = "Config";
+
     protected static final Map<ClickHouseOption, Serializable> mergeOptions(List<ClickHouseConfig> list) {
         if (list == null || list.isEmpty()) {
             return Collections.emptyMap();
@@ -205,6 +207,8 @@ public class ClickHouseConfig implements Serializable {
     private final String sslCert;
     private final String sslKey;
     private final int transactionTimeout;
+    private final boolean widenUnsignedTypes;
+    private final boolean useBinaryString;
     private final boolean useBlockingQueue;
     private final boolean useObjectsInArray;
     private final boolean useNoProxy;
@@ -231,7 +235,7 @@ public class ClickHouseConfig implements Serializable {
     }
 
     /**
-     * Construct a new configuration by consolidating given ones.
+     * Constructs a new configuration by consolidating given ones.
      *
      * @param configs list of configuration
      */
@@ -241,7 +245,16 @@ public class ClickHouseConfig implements Serializable {
     }
 
     /**
-     * Default contructor.
+     * Constructs a new configuration using given options.
+     *
+     * @param options generic options
+     */
+    public ClickHouseConfig(Map<ClickHouseOption, Serializable> options) {
+        this(options, null, null, null);
+    }
+
+    /**
+     * Constructs a new configuration using given arguments.
      *
      * @param options        generic options
      * @param credentials    default credential
@@ -304,6 +317,8 @@ public class ClickHouseConfig implements Serializable {
         this.sslCert = getStrOption(ClickHouseClientOption.SSL_CERTIFICATE);
         this.sslKey = getStrOption(ClickHouseClientOption.SSL_KEY);
         this.transactionTimeout = getIntOption(ClickHouseClientOption.TRANSACTION_TIMEOUT);
+        this.widenUnsignedTypes = getBoolOption(ClickHouseClientOption.WIDEN_UNSIGNED_TYPES);
+        this.useBinaryString = getBoolOption(ClickHouseClientOption.USE_BINARY_STRING);
         this.useBlockingQueue = getBoolOption(ClickHouseClientOption.USE_BLOCKING_QUEUE);
         this.useObjectsInArray = getBoolOption(ClickHouseClientOption.USE_OBJECTS_IN_ARRAYS);
         this.useNoProxy = getBoolOption(ClickHouseClientOption.USE_NO_PROXY);
@@ -372,42 +387,6 @@ public class ClickHouseConfig implements Serializable {
     }
 
     /**
-     * Checks if server response should be compressed or not.
-     *
-     * @return true if server response is compressed; false otherwise
-     * @deprecated will be removed in v0.3.3, please use
-     *             {@link #isResponseCompressed()} instead
-     */
-    @Deprecated
-    public boolean isCompressServerResponse() {
-        return decompressResponse;
-    }
-
-    /**
-     * Gets compress algorithm for server response.
-     *
-     * @return compress algorithm for server response
-     * @deprecated will be removed in v0.3.3, please use
-     *             {@link #getResponseCompressAlgorithm()} instead
-     */
-    @Deprecated
-    public ClickHouseCompression getCompressAlgorithmForServerResponse() {
-        return decompressAlgorithm;
-    }
-
-    /**
-     * Gets compress level for server response.
-     *
-     * @return compress level
-     * @deprecated will be removed in v0.3.3, please use
-     *             {@link #getResponseCompressLevel()} instead
-     */
-    @Deprecated
-    public int getCompressLevelForServerResponse() {
-        return decompressLevel;
-    }
-
-    /**
      * Checks if client's output, aka. client request, should be compressed or not.
      *
      * @return true if client request should be compressed; false otherwise
@@ -434,42 +413,6 @@ public class ClickHouseConfig implements Serializable {
      */
     public int getRequestCompressLevel() {
         return compressRequest ? compressLevel : 0;
-    }
-
-    /**
-     * Checks if client request should be compressed or not.
-     *
-     * @return true if server needs to decompress client request; false otherwise
-     * @deprecated will be removed in v0.3.3, please use
-     *             {@link #isRequestCompressed()} instead
-     */
-    @Deprecated
-    public boolean isDecompressClientRequet() {
-        return compressRequest;
-    }
-
-    /**
-     * Gets compress algorithm for client request.
-     *
-     * @return compress algorithm for client request
-     * @deprecated will be removed in v0.3.3, please use
-     *             {@link #getRequestCompressAlgorithm()} instead
-     */
-    @Deprecated
-    public ClickHouseCompression getDecompressAlgorithmForClientRequest() {
-        return decompressAlgorithm;
-    }
-
-    /**
-     * Gets compress level for client request.
-     *
-     * @return compress level
-     * @deprecated will be removed in v0.3.3, please use
-     *             {@link #getRequestCompressLevel()} instead
-     */
-    @Deprecated
-    public int getDecompressLevelForClientRequest() {
-        return decompressLevel;
     }
 
     public int getConnectionTimeout() {
@@ -594,18 +537,6 @@ public class ClickHouseConfig implements Serializable {
         return repeatOnSessionLock;
     }
 
-    /**
-     * Checks whether retry is enabled or not.
-     *
-     * @return true if retry is enabled; false otherwise
-     * @deprecated will be removed in v0.3.3, please use
-     *             {@link #getRetry()} instead
-     */
-    @Deprecated
-    public boolean isRetry() {
-        return retry > 0;
-    }
-
     public boolean isReuseValueWrapper() {
         return reuseValueWrapper;
     }
@@ -661,6 +592,14 @@ public class ClickHouseConfig implements Serializable {
 
     public int getTransactionTimeout() {
         return transactionTimeout < 1 ? sessionTimeout : transactionTimeout;
+    }
+
+    public boolean isWidenUnsignedTypes() {
+        return widenUnsignedTypes;
+    }
+
+    public boolean isUseBinaryString() {
+        return useBinaryString;
     }
 
     public boolean isUseBlockingQueue() {

@@ -67,9 +67,10 @@ public class ClickHouseNestedValue extends ClickHouseObjectValue<Object[][]> {
             throw new IllegalArgumentException("Non-null columns and value are required");
         }
 
-        if (columns.isEmpty()) {
-            throw new IllegalArgumentException("At least one column must be specified for nested type");
-        }
+        // if (columns.isEmpty()) {
+        // throw new IllegalArgumentException("At least one column must be specified for
+        // nested type");
+        // }
 
         if (value.length != 0 && value.length != columns.size()) {
             throw new IllegalArgumentException("Columns and values should have same length");
@@ -510,7 +511,7 @@ public class ClickHouseNestedValue extends ClickHouseObjectValue<Object[][]> {
 
     @Override
     public ClickHouseNestedValue update(ClickHouseValue value) {
-        if (value == null) {
+        if (value == null || value.isNullOrEmpty()) {
             return resetToNullOrEmpty();
         } else if (value instanceof ClickHouseNestedValue) {
             set(((ClickHouseNestedValue) value).getValue());

@@ -21,6 +21,8 @@ import com.clickhouse.client.ClickHouseRecord;
 import com.clickhouse.client.ClickHouseValues;
 import com.clickhouse.client.data.ClickHouseDateTimeValue;
 import com.clickhouse.client.data.ClickHouseOffsetDateTimeValue;
+import com.clickhouse.client.data.UnsignedByte;
+import com.clickhouse.client.data.UnsignedInteger;
 
 import org.testng.Assert;
 import org.testng.SkipException;
@@ -167,18 +169,20 @@ public class ClickHouseResultSetTest extends JdbcIntegrationTest {
                     "select [1,2,3] v1, ['a','b', 'c'] v2, arrayZip(v1, v2) v3, cast(['2021-11-01 01:02:03', '2021-11-02 02:03:04'] as Array(DateTime32)) v4");
             Assert.assertTrue(rs.next());
 
-            Assert.assertEquals(rs.getObject(1), new short[] { 1, 2, 3 });
-            Assert.assertEquals(rs.getArray(1).getArray(), new short[] { 1, 2, 3 });
+            Assert.assertEquals(rs.getObject(1), new byte[] { 1, 2, 3 });
+            Assert.assertEquals(rs.getArray(1).getArray(), new byte[] { 1, 2, 3 });
             Assert.assertTrue(rs.getArray(1).getArray() == rs.getObject(1));
 
             Assert.assertEquals(rs.getObject(2), new String[] { "a", "b", "c" });
             Assert.assertEquals(rs.getArray(2).getArray(), new String[] { "a", "b", "c" });
             Assert.assertTrue(rs.getArray(2).getArray() == rs.getObject(2));
 
-            Assert.assertEquals(rs.getObject(3), new List[] { Arrays.asList((short) 1, "a"),
-                    Arrays.asList((short) 2, "b"), Arrays.asList((short) 3, "c") });
-            Assert.assertEquals(rs.getArray(3).getArray(), new List[] { Arrays.asList((short) 1, "a"),
-                    Arrays.asList((short) 2, "b"), Arrays.asList((short) 3, "c") });
+            Assert.assertEquals(rs.getObject(3), new List[] { Arrays.asList(UnsignedByte.ONE, "a"),
+                    Arrays.asList(UnsignedByte.valueOf((byte) 2), "b"),
+                    Arrays.asList(UnsignedByte.valueOf((byte) 3), "c") });
+            Assert.assertEquals(rs.getArray(3).getArray(), new List[] { Arrays.asList(UnsignedByte.ONE, "a"),
+                    Arrays.asList(UnsignedByte.valueOf((byte) 2), "b"),
+                    Arrays.asList(UnsignedByte.valueOf((byte) 3), "c") });
             Assert.assertTrue(rs.getArray(3).getArray() == rs.getObject(3));
 
             Assert.assertEquals(rs.getObject(4), new LocalDateTime[] { LocalDateTime.of(2021, 11, 1, 1, 2, 3),
@@ -187,6 +191,22 @@ public class ClickHouseResultSetTest extends JdbcIntegrationTest {
                     LocalDateTime.of(2021, 11, 2, 2, 3, 4) });
             Assert.assertTrue(rs.getArray(4).getArray() == rs.getObject(4));
 
+            Assert.assertFalse(rs.next());
+        }
+    }
+
+    @Test(groups = "integration")
+    public void testHugeNumber() throws SQLException {
+        String number = "15369343623947579499";
+        try (ClickHouseConnection conn = newConnection(new Properties());
+                Statement stmt = conn.createStatement();
+                ResultSet rs = stmt
+                        .executeQuery(String.format("SELECT toUInt64(%1$s) a, toNullable(%1$s) b", number))) {
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getString(1), number);
+            Assert.assertEquals(rs.getString(2), number);
+            Assert.assertEquals(rs.getBigDecimal(1), new BigDecimal(number));
+            Assert.assertEquals(rs.getBigDecimal(2), new BigDecimal(number));
             Assert.assertFalse(rs.next());
         }
     }
@@ -254,8 +274,8 @@ public class ClickHouseResultSetTest extends JdbcIntegrationTest {
             Assert.assertEquals(v.get(0), Short.valueOf((short) 1));
             Assert.assertEquals(v.get(1), "a");
             Assert.assertEquals(v.get(2), Float.valueOf(1.2F));
-            Assert.assertEquals(v.get(3), new Short[] { 1, 2 });
-            Assert.assertEquals(v.get(4), Collections.singletonMap(1L, "a"));
+            Assert.assertEquals(v.get(3), new UnsignedByte[] { UnsignedByte.ONE, UnsignedByte.valueOf((byte) 2) });
+            Assert.assertEquals(v.get(4), Collections.singletonMap(UnsignedInteger.ONE, "a"));
             Assert.assertFalse(rs.next());
 
             rs = stmt.executeQuery(

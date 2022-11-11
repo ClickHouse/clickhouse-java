@@ -25,7 +25,7 @@ public abstract class ClickHouseObjectValue<T> implements ClickHouseValue {
      *
      * @return value
      */
-    public T getValue() {
+    public final T getValue() {
         return value;
     }
 

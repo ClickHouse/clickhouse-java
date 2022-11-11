@@ -1,35 +1,95 @@
 package com.clickhouse.client;
 
 import java.io.IOException;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
 
 /**
  * Functional interface for serializtion.
  */
 @FunctionalInterface
-public interface ClickHouseSerializer<T extends ClickHouseValue> {
+public interface ClickHouseSerializer {
+    static class CompositeSerializer implements ClickHouseSerializer {
+        protected final ClickHouseSerializer[] serializers;
+
+        protected CompositeSerializer(ClickHouseSerializer[] serializers) {
+            this.serializers = serializers;
+        }
+
+        @Override
+        public void serialize(ClickHouseValue value, ClickHouseOutputStream output) throws IOException {
+            for (int i = 0, len = serializers.length; i < len; i++) {
+                serializers[i].serialize(value, output);
+            }
+        }
+    }
+
     /**
      * Default serializer simply does nothing.
      */
-    ClickHouseSerializer<ClickHouseValue> DO_NOTHING = (v, f, c, o) -> {
+    static ClickHouseSerializer DO_NOTHING = (v, o) -> {
     };
 
     /**
      * Default deserializer throws IOException to inform caller serialization is
      * not supported.
      */
-    ClickHouseSerializer<ClickHouseValue> NOT_SUPPORTED = (v, f, c, o) -> {
-        throw new IOException(c.getOriginalTypeName() + " is not supported");
+    static ClickHouseSerializer NOT_SUPPORTED = (v, o) -> {
+        throw new IOException("Serialization is not supported");
     };
+
+    static String TYPE_NAME = "Serializer";
+
+    /**
+     * Creates composite serializer.
+     *
+     * @param first first serializer
+     * @param more  other serializers
+     * @return composite serializer
+     */
+    static ClickHouseSerializer of(ClickHouseSerializer first, ClickHouseSerializer... more) {
+        List<ClickHouseSerializer> list = new LinkedList<>();
+        if (first != null) {
+            list.add(first);
+        }
+
+        if (more != null) {
+            for (int i = 0, len = more.length; i < len; i++) {
+                ClickHouseSerializer s = more[i];
+                if (s != null) {
+                    list.add(s);
+                }
+            }
+        }
+        if (list.isEmpty()) {
+            return DO_NOTHING;
+        }
+
+        return new CompositeSerializer(list.toArray(new ClickHouseSerializer[0]));
+    }
+
+    static ClickHouseSerializer of(List<ClickHouseSerializer> list) {
+        if (list == null) {
+            return DO_NOTHING;
+        }
+
+        for (Iterator<ClickHouseSerializer> it = list.iterator(); it.hasNext();) {
+            ClickHouseSerializer s = it.next();
+            if (s == null) {
+                it.remove();
+            }
+        }
+
+        return list.isEmpty() ? DO_NOTHING : new CompositeSerializer(list.toArray(new ClickHouseSerializer[0]));
+    }
 
     /**
      * Writes serialized value to output stream.
      *
      * @param value  non-null value to be serialized
-     * @param config non-null configuration
-     * @param column non-null type information
      * @param output non-null output stream
      * @throws IOException when failed to write data to output stream
      */
-    void serialize(T value, ClickHouseConfig config, ClickHouseColumn column, ClickHouseOutputStream output)
-            throws IOException;
+    void serialize(ClickHouseValue value, ClickHouseOutputStream output) throws IOException;
 }

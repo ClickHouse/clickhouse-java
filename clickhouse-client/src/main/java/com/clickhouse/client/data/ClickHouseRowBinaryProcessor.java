@@ -4,8 +4,6 @@ import java.io.IOException;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.EnumMap;
-import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -13,7 +11,6 @@ import java.util.Map.Entry;
 
 import com.clickhouse.client.ClickHouseAggregateFunction;
 import com.clickhouse.client.ClickHouseArraySequence;
-import com.clickhouse.client.ClickHouseByteBuffer;
 import com.clickhouse.client.ClickHouseChecker;
 import com.clickhouse.client.ClickHouseColumn;
 import com.clickhouse.client.ClickHouseConfig;
@@ -25,8 +22,8 @@ import com.clickhouse.client.ClickHouseInputStream;
 import com.clickhouse.client.ClickHouseOutputStream;
 import com.clickhouse.client.ClickHouseRecord;
 import com.clickhouse.client.ClickHouseSerializer;
+import com.clickhouse.client.ClickHouseUtils;
 import com.clickhouse.client.ClickHouseValue;
-import com.clickhouse.client.ClickHouseValues;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.config.ClickHouseRenameMethod;
 
@@ -35,406 +32,259 @@ import com.clickhouse.client.config.ClickHouseRenameMethod;
  * {@link ClickHouseFormat#RowBinaryWithNamesAndTypes} two formats.
  */
 public class ClickHouseRowBinaryProcessor extends ClickHouseDataProcessor {
-    public static class MappedFunctions
-            implements ClickHouseDeserializer<ClickHouseValue>, ClickHouseSerializer<ClickHouseValue> {
-        private static final MappedFunctions instance = new MappedFunctions();
+    public static class ArrayDeserializer extends ClickHouseDeserializer.CompositeDeserializer {
+        private final int nestedLevel;
+        private final Class<?> valClass;
+        private final ClickHouseValue valValue;
 
-        protected void writeArray(ClickHouseArraySequence value, ClickHouseConfig config, ClickHouseColumn column,
-                ClickHouseOutputStream output) throws IOException {
-            ClickHouseColumn nestedColumn = column.getNestedColumns().get(0);
-            ClickHouseValue v = ClickHouseValues.newValue(config, nestedColumn);
-            int length = value.length();
-            output.writeVarInt(length);
-            for (int i = 0; i < length; i++) {
-                serialize(value.getValue(i, v), config, nestedColumn, output);
-            }
+        public ArrayDeserializer(ClickHouseConfig config, ClickHouseColumn column,
+                ClickHouseDeserializer... deserializers) {
+            super(deserializers);
+
+            ClickHouseColumn baseColumn = column.getArrayBaseColumn();
+            nestedLevel = column.getArrayNestedLevel();
+            valClass = baseColumn.getObjectClassForArray(config);
+            valValue = column.getNestedColumns().get(0).newValue(config);
         }
 
-        protected ClickHouseArraySequence readArray(ClickHouseArraySequence ref, ClickHouseConfig config,
-                ClickHouseColumn nestedColumn, ClickHouseColumn baseColumn, ClickHouseInputStream input, int length,
-                int level) throws IOException {
-            Class<?> javaClass = baseColumn.getPrimitiveClass();
-            if (level > 1 || baseColumn.isNullable() || !javaClass.isPrimitive()) {
-                ref.allocate(length, baseColumn.isNullable() ? baseColumn.getObjectClass() : javaClass, level);
-                for (int i = 0; i < length; i++) {
-                    ref.setValue(i, deserialize(null, config, nestedColumn, input));
-                }
-            } else {
-                int byteLength = baseColumn.getDataType().getByteLength();
-                ClickHouseByteBuffer buffer = input.readBuffer(length * byteLength);
-                if (byteLength == Byte.BYTES) { // Bool, *Int8
-                    ref.update(buffer.compact().array());
-                } else if (byteLength == Short.BYTES) { // *Int16
-                    ref.update(buffer.asShortArray());
-                } else if (int.class == javaClass) { // Int32
-                    ref.update(buffer.asIntegerArray());
-                } else if (long.class == javaClass) { // *Int64, UInt32
-                    ref.update(byteLength == Long.BYTES ? buffer.asLongArray() : buffer.asIntegerArray());
-                } else if (float.class == javaClass) { // Float32
-                    ref.update(buffer.asFloatArray());
-                } else if (double.class == javaClass) { // Float64
-                    ref.update(buffer.asDoubleArray());
-                } else {
-                    throw new IllegalArgumentException("Unsupported primitive type: " + javaClass);
-                }
+        @Override
+        public ClickHouseValue deserialize(ClickHouseValue ref, ClickHouseInputStream input) throws IOException {
+            int len = input.readVarInt();
+            if (len == 0) {
+                return ref.resetToNullOrEmpty();
+            }
+            ClickHouseArraySequence arr = (ClickHouseArraySequence) ref;
+            arr.allocate(len, valClass, nestedLevel);
+            ClickHouseDeserializer d = deserializers[0];
+            for (int i = 0; i < len; i++) {
+                arr.setValue(i, d.deserialize(valValue, input));
             }
             return ref;
         }
+    }
 
-        private final Map<ClickHouseAggregateFunction, ClickHouseDeserializer<ClickHouseValue>> aggDeserializers;
-        private final Map<ClickHouseAggregateFunction, ClickHouseSerializer<ClickHouseValue>> aggSerializers;
+    public static class ArraySerializer extends ClickHouseSerializer.CompositeSerializer {
+        private final ClickHouseValue valValue;
 
-        private final Map<ClickHouseDataType, ClickHouseDeserializer<? extends ClickHouseValue>> deserializers;
-        private final Map<ClickHouseDataType, ClickHouseSerializer<? extends ClickHouseValue>> serializers;
+        public ArraySerializer(ClickHouseConfig config, ClickHouseColumn column,
+                ClickHouseSerializer... serializers) {
+            super(serializers);
 
-        private void buildMappingsForAggregateFunctions() {
-            // aggregate functions
-            // buildAggMappings(aggDeserializers, aggSerializers,
-            // (r, f, c, i) -> {
-            // BinaryStreamUtils.readInt8(i); // always 1?
-            // return deserialize(r, f, c.getNestedColumns().get(0), i);
-            // },
-            // (v, f, c, o) -> {
-            // // no that simple:
-            // // * select anyState(n) from (select '5' where 0) => FFFF
-            // // * select anyState(n) from (select '5') => 0200 0000 3500
-            // BinaryStreamUtils.writeInt8(o, (byte) 1);
-            // serialize(v, f, c.getNestedColumns().get(0), o);
-            // }, ClickHouseAggregateFunction.any);
-            buildAggMappings(aggDeserializers, aggSerializers,
-                    (r, f, c, i) -> ClickHouseBitmapValue
-                            .of(BinaryStreamUtils.readBitmap(i, c.getNestedColumns().get(0).getDataType())),
-                    (v, f, c, o) -> BinaryStreamUtils.writeBitmap(o, v.asObject(ClickHouseBitmap.class)),
-                    ClickHouseAggregateFunction.groupBitmap);
-
-            // now the data type
-            buildMappings(deserializers, serializers, (r, f, c, i) -> aggDeserializers
-                    .getOrDefault(c.getAggregateFunction(), ClickHouseDeserializer.NOT_SUPPORTED)
-                    .deserialize(r, f, c, i),
-                    (v, f, c, o) -> aggSerializers
-                            .getOrDefault(c.getAggregateFunction(), ClickHouseSerializer.NOT_SUPPORTED)
-                            .serialize(v, f, c, o),
-                    ClickHouseDataType.AggregateFunction);
+            valValue = column.getNestedColumns().get(0).newValue(config);
         }
 
-        private void buildMappingsForDataTypes() {
-            // enums
-            buildMappings(deserializers, serializers,
-                    (r, f, c, i) -> ClickHouseEnumValue.of(r, c.getEnumConstants(), i.readByte()),
-                    (v, f, c, o) -> o.writeByte(v.asByte()), ClickHouseDataType.Enum, ClickHouseDataType.Enum8);
-            buildMappings(deserializers, serializers,
-                    (r, f, c, i) -> ClickHouseEnumValue.of(r, c.getEnumConstants(), BinaryStreamUtils.readInt16(i)),
-                    (v, f, c, o) -> BinaryStreamUtils.writeInt16(o, v.asShort()), ClickHouseDataType.Enum16);
-            // bool and numbers
-            buildMappings(deserializers, serializers,
-                    (r, f, c, i) -> ClickHouseBoolValue.of(r, BinaryStreamUtils.readBoolean(i)),
-                    (v, f, c, o) -> BinaryStreamUtils.writeBoolean(o, v.asBoolean()), ClickHouseDataType.Bool);
-            buildMappings(deserializers, serializers,
-                    (r, f, c, i) -> ClickHouseByteValue.of(r, i.readByte()),
-                    (v, f, c, o) -> BinaryStreamUtils.writeInt8(o, v.asByte()), ClickHouseDataType.Int8);
-            buildMappings(deserializers, serializers,
-                    (r, f, c, i) -> ClickHouseShortValue.of(r, (short) (0xFF & i.readByte())),
-                    (v, f, c, o) -> BinaryStreamUtils.writeUnsignedInt8(o, v.asInteger()), ClickHouseDataType.UInt8);
-            buildMappings(deserializers, serializers,
-                    (r, f, c, i) -> ClickHouseShortValue.of(r, BinaryStreamUtils.readInt16(i)),
-                    (v, f, c, o) -> BinaryStreamUtils.writeInt16(o, v.asShort()), ClickHouseDataType.Int16);
-            buildMappings(deserializers, serializers,
-                    (r, f, c, i) -> ClickHouseIntegerValue.of(r, BinaryStreamUtils.readUnsignedInt16(i)),
-                    (v, f, c, o) -> BinaryStreamUtils.writeUnsignedInt16(o, v.asInteger()), ClickHouseDataType.UInt16);
-            buildMappings(deserializers, serializers,
-                    (r, f, c, i) -> ClickHouseIntegerValue.of(r, BinaryStreamUtils.readInt32(i)),
-                    (v, f, c, o) -> BinaryStreamUtils.writeInt32(o, v.asInteger()), ClickHouseDataType.Int32);
-            buildMappings(deserializers, serializers,
-                    (r, f, c, i) -> ClickHouseLongValue.of(r, false, BinaryStreamUtils.readUnsignedInt32(i)),
-                    (v, f, c, o) -> BinaryStreamUtils.writeUnsignedInt32(o, v.asLong()), ClickHouseDataType.UInt32);
-            buildMappings(deserializers, serializers,
-                    (r, f, c, i) -> ClickHouseLongValue.of(r, false, i.readBuffer(8).asLong()),
-                    (v, f, c, o) -> BinaryStreamUtils.writeInt64(o, v.asLong()), ClickHouseDataType.IntervalYear,
-                    ClickHouseDataType.IntervalQuarter, ClickHouseDataType.IntervalMonth,
-                    ClickHouseDataType.IntervalWeek, ClickHouseDataType.IntervalDay, ClickHouseDataType.IntervalHour,
-                    ClickHouseDataType.IntervalMinute, ClickHouseDataType.IntervalSecond, ClickHouseDataType.Int64);
-            buildMappings(deserializers, serializers,
-                    (r, f, c, i) -> ClickHouseLongValue.of(r, true, i.readBuffer(8).asLong()),
-                    (v, f, c, o) -> BinaryStreamUtils.writeInt64(o, v.asLong()), ClickHouseDataType.UInt64);
-            buildMappings(deserializers, serializers,
-                    (r, f, c, i) -> ClickHouseBigIntegerValue.of(r, BinaryStreamUtils.readInt128(i)),
-                    (v, f, c, o) -> BinaryStreamUtils.writeInt128(o, v.asBigInteger()), ClickHouseDataType.Int128);
-            buildMappings(deserializers, serializers,
-                    (r, f, c, i) -> ClickHouseBigIntegerValue.of(r, BinaryStreamUtils.readUnsignedInt128(i)),
-                    (v, f, c, o) -> BinaryStreamUtils.writeUnsignedInt128(o, v.asBigInteger()),
-                    ClickHouseDataType.UInt128);
-            buildMappings(deserializers, serializers,
-                    (r, f, c, i) -> ClickHouseBigIntegerValue.of(r, BinaryStreamUtils.readInt256(i)),
-                    (v, f, c, o) -> BinaryStreamUtils.writeInt256(o, v.asBigInteger()), ClickHouseDataType.Int256);
-            buildMappings(deserializers, serializers,
-                    (r, f, c, i) -> ClickHouseBigIntegerValue.of(r, BinaryStreamUtils.readUnsignedInt256(i)),
-                    (v, f, c, o) -> BinaryStreamUtils.writeUnsignedInt256(o, v.asBigInteger()),
-                    ClickHouseDataType.UInt256);
-            buildMappings(deserializers, serializers,
-                    (r, f, c, i) -> ClickHouseFloatValue.of(r, BinaryStreamUtils.readFloat32(i)),
-                    (v, f, c, o) -> BinaryStreamUtils.writeFloat32(o, v.asFloat()), ClickHouseDataType.Float32);
-            buildMappings(deserializers, serializers,
-                    (r, f, c, i) -> ClickHouseDoubleValue.of(r, BinaryStreamUtils.readFloat64(i)),
-                    (v, f, c, o) -> BinaryStreamUtils.writeFloat64(o, v.asDouble()), ClickHouseDataType.Float64);
-
-            // decimals
-            buildMappings(deserializers, serializers,
-                    (r, f, c, i) -> ClickHouseBigDecimalValue.of(r,
-                            BinaryStreamUtils.readDecimal(i, c.getPrecision(), c.getScale())),
-                    (v, f, c, o) -> BinaryStreamUtils.writeDecimal(o, v.asBigDecimal(c.getScale()), c.getPrecision(),
-                            c.getScale()),
-                    ClickHouseDataType.Decimal);
-            buildMappings(deserializers, serializers,
-                    (r, f, c, i) -> ClickHouseBigDecimalValue.of(r, BinaryStreamUtils.readDecimal32(i, c.getScale())),
-                    (v, f, c, o) -> BinaryStreamUtils.writeDecimal32(o, v.asBigDecimal(c.getScale()), c.getScale()),
-                    ClickHouseDataType.Decimal32);
-            buildMappings(deserializers, serializers,
-                    (r, f, c, i) -> ClickHouseBigDecimalValue.of(r, BinaryStreamUtils.readDecimal64(i, c.getScale())),
-                    (v, f, c, o) -> BinaryStreamUtils.writeDecimal64(o, v.asBigDecimal(c.getScale()), c.getScale()),
-                    ClickHouseDataType.Decimal64);
-            buildMappings(deserializers, serializers,
-                    (r, f, c, i) -> ClickHouseBigDecimalValue.of(r, BinaryStreamUtils.readDecimal128(i, c.getScale())),
-                    (v, f, c, o) -> BinaryStreamUtils.writeDecimal128(o, v.asBigDecimal(c.getScale()), c.getScale()),
-                    ClickHouseDataType.Decimal128);
-            buildMappings(deserializers, serializers,
-                    (r, f, c, i) -> ClickHouseBigDecimalValue.of(r, BinaryStreamUtils.readDecimal256(i, c.getScale())),
-                    (v, f, c, o) -> BinaryStreamUtils.writeDecimal256(o, v.asBigDecimal(c.getScale()), c.getScale()),
-                    ClickHouseDataType.Decimal256);
-
-            // date, time, datetime and IPs
-            buildMappings(deserializers, serializers,
-                    (r, f, c, i) -> ClickHouseDateValue.of(r,
-                            BinaryStreamUtils.readDate(i, f.getTimeZoneForDate())),
-                    (v, f, c, o) -> BinaryStreamUtils.writeDate(o, v.asDate(), f.getTimeZoneForDate()),
-                    ClickHouseDataType.Date);
-            buildMappings(deserializers, serializers,
-                    (r, f, c, i) -> ClickHouseDateValue.of(r,
-                            BinaryStreamUtils.readDate32(i, f.getTimeZoneForDate())),
-                    (v, f, c, o) -> BinaryStreamUtils.writeDate32(o, v.asDate(), f.getTimeZoneForDate()),
-                    ClickHouseDataType.Date32);
-            buildMappings(deserializers, serializers, (r, f, c, i) -> c.getTimeZone() == null
-                    ? ClickHouseDateTimeValue.of(r,
-                            (c.getScale() > 0 ? BinaryStreamUtils.readDateTime64(i, c.getScale(), f.getUseTimeZone())
-                                    : BinaryStreamUtils.readDateTime(i, f.getUseTimeZone())),
-                            c.getScale(), f.getUseTimeZone())
-                    : ClickHouseOffsetDateTimeValue.of(r,
-                            (c.getScale() > 0 ? BinaryStreamUtils.readDateTime64(i, c.getScale(), c.getTimeZone())
-                                    : BinaryStreamUtils.readDateTime(i, c.getTimeZone())),
-                            c.getScale(), c.getTimeZone()),
-                    (v, f, c, o) -> BinaryStreamUtils.writeDateTime(o, v.asDateTime(), c.getScale(),
-                            c.getTimeZoneOrDefault(f.getUseTimeZone())),
-                    ClickHouseDataType.DateTime);
-            buildMappings(deserializers, serializers,
-                    (r, f, c, i) -> c.getTimeZone() == null
-                            ? ClickHouseDateTimeValue.of(r, BinaryStreamUtils.readDateTime(i, f.getUseTimeZone()), 0,
-                                    f.getUseTimeZone())
-                            : ClickHouseOffsetDateTimeValue.of(r, BinaryStreamUtils.readDateTime(i, c.getTimeZone()), 0,
-                                    c.getTimeZone()),
-                    (v, f, c, o) -> BinaryStreamUtils.writeDateTime32(o, v.asDateTime(),
-                            c.getTimeZoneOrDefault(f.getUseTimeZone())),
-                    ClickHouseDataType.DateTime32);
-            buildMappings(deserializers, serializers,
-                    (r, f, c, i) -> c.getTimeZone() == null ? ClickHouseDateTimeValue.of(r,
-                            BinaryStreamUtils.readDateTime64(i, c.getScale(), f.getUseTimeZone()), c.getScale(),
-                            f.getUseTimeZone())
-                            : ClickHouseOffsetDateTimeValue.of(r,
-                                    BinaryStreamUtils.readDateTime64(i, c.getScale(), c.getTimeZone()), c.getScale(),
-                                    c.getTimeZone()),
-                    (v, f, c, o) -> BinaryStreamUtils.writeDateTime64(o, v.asDateTime(), c.getScale(),
-                            c.getTimeZoneOrDefault(f.getUseTimeZone())),
-                    ClickHouseDataType.DateTime64);
-
-            buildMappings(deserializers, serializers,
-                    (r, f, c, i) -> ClickHouseIpv4Value.of(r, BinaryStreamUtils.readInet4Address(i)),
-                    (v, f, c, o) -> BinaryStreamUtils.writeInet4Address(o, v.asInet4Address()),
-                    ClickHouseDataType.IPv4);
-            buildMappings(deserializers, serializers,
-                    (r, f, c, i) -> ClickHouseIpv6Value.of(r, BinaryStreamUtils.readInet6Address(i)),
-                    (v, f, c, o) -> BinaryStreamUtils.writeInet6Address(o, v.asInet6Address()),
-                    ClickHouseDataType.IPv6);
-
-            // string and uuid
-            buildMappings(deserializers, serializers,
-                    (r, f, c, i) -> ClickHouseStringValue.of(r, i.readBytes(c.getPrecision())),
-                    (v, f, c, o) -> o.writeBytes(v.asBinary(c.getPrecision())), ClickHouseDataType.FixedString);
-            buildMappings(deserializers, serializers,
-                    (r, f, c, i) -> ClickHouseStringValue.of(r, i.readBytes(i.readVarInt())),
-                    (v, f, c, o) -> BinaryStreamUtils.writeString(o, v.asBinary()), ClickHouseDataType.String,
-                    ClickHouseDataType.JSON, ClickHouseDataType.Object);
-            deserializers.remove(ClickHouseDataType.JSON);
-            deserializers.remove(ClickHouseDataType.Object);
-            buildMappings(deserializers, serializers,
-                    (r, f, c, i) -> ClickHouseUuidValue.of(r, BinaryStreamUtils.readUuid(i)),
-                    (v, f, c, o) -> BinaryStreamUtils.writeUuid(o, v.asUuid()), ClickHouseDataType.UUID);
-
-            // geo types
-            buildMappings(deserializers, serializers,
-                    (r, f, c, i) -> ClickHouseGeoPointValue.of(r, BinaryStreamUtils.readGeoPoint(i)),
-                    (v, f, c, o) -> BinaryStreamUtils.writeGeoPoint(o, v.asObject(double[].class)),
-                    ClickHouseDataType.Point);
-            buildMappings(deserializers, serializers,
-                    (r, f, c, i) -> ClickHouseGeoRingValue.of(r, BinaryStreamUtils.readGeoRing(i)),
-                    (v, f, c, o) -> BinaryStreamUtils.writeGeoRing(o, v.asObject(double[][].class)),
-                    ClickHouseDataType.Ring);
-            buildMappings(deserializers, serializers,
-                    (r, f, c, i) -> ClickHouseGeoPolygonValue.of(r, BinaryStreamUtils.readGeoPolygon(i)),
-                    (v, f, c, o) -> BinaryStreamUtils.writeGeoPolygon(o, v.asObject(double[][][].class)),
-                    ClickHouseDataType.Polygon);
-            buildMappings(deserializers, serializers,
-                    (r, f, c, i) -> ClickHouseGeoMultiPolygonValue.of(r, BinaryStreamUtils.readGeoMultiPolygon(i)),
-                    (v, f, c, o) -> BinaryStreamUtils.writeGeoMultiPolygon(o, v.asObject(double[][][][].class)),
-                    ClickHouseDataType.MultiPolygon);
-
-            // advanced types
-            buildMappings(deserializers, serializers, (r, f, c, i) -> deserialize(r, f, c.getNestedColumns().get(0), i),
-                    (v, f, c, o) -> serialize(v, f, c.getNestedColumns().get(0), o),
-                    ClickHouseDataType.SimpleAggregateFunction);
-            buildMappings(deserializers, serializers, (r, f, c, i) -> {
-                int length = i.readVarInt();
-                if (r == null) {
-                    r = ClickHouseValues.newArrayValue(c);
-                }
-                return readArray(r, f, c.getNestedColumns().get(0), c.getArrayBaseColumn(), i, length,
-                        c.getArrayNestedLevel());
-            }, this::writeArray, ClickHouseDataType.Array);
-            buildMappings(deserializers, serializers, (r, f, c, i) -> {
-                Map<Object, Object> map = new LinkedHashMap<>();
-                ClickHouseColumn keyCol = c.getKeyInfo();
-                ClickHouseColumn valCol = c.getValueInfo();
-                for (int k = 0, len = i.readVarInt(); k < len; k++) {
-                    map.put(deserialize(null, f, keyCol, i).asObject(), deserialize(null, f, valCol, i).asObject());
-                }
-                return ClickHouseMapValue.of(map, keyCol.getObjectClass(), valCol.getObjectClass());
-            }, (v, f, c, o) -> {
-                Map<Object, Object> map = v.asMap();
-                BinaryStreamUtils.writeVarInt(o, map.size());
-                if (!map.isEmpty()) {
-                    ClickHouseColumn keyCol = c.getKeyInfo();
-                    ClickHouseColumn valCol = c.getValueInfo();
-                    ClickHouseValue kVal = ClickHouseValues.newValue(f, keyCol);
-                    ClickHouseValue vVal = ClickHouseValues.newValue(f, valCol);
-                    for (Entry<Object, Object> e : map.entrySet()) {
-                        serialize(kVal.update(e.getKey()), f, keyCol, o);
-                        serialize(vVal.update(e.getValue()), f, valCol, o);
-                    }
-                }
-            }, ClickHouseDataType.Map);
-            buildMappings(deserializers, serializers, (r, f, c, i) -> {
-                int count = c.getNestedColumns().size();
-                String[] names = new String[count];
-                Object[][] values = new Object[count][];
-                int l = 0;
-                for (ClickHouseColumn col : c.getNestedColumns()) {
-                    names[l] = col.getColumnName();
-                    int k = i.readVarInt();
-                    Object[] nvalues = new Object[k];
-                    for (int j = 0; j < k; j++) {
-                        nvalues[j] = deserialize(null, f, col, i).asObject();
-                    }
-                    values[l++] = nvalues;
-                }
-                return ClickHouseNestedValue.of(r, c.getNestedColumns(), values);
-            }, (v, f, c, o) -> {
-                Object[][] values = (Object[][]) v.asObject();
-                int l = 0;
-                for (ClickHouseColumn col : c.getNestedColumns()) {
-                    Object[] nvalues = values[l++];
-                    int k = nvalues.length;
-                    ClickHouseValue nv = ClickHouseValues.newValue(f, col);
-                    BinaryStreamUtils.writeVarInt(o, k);
-                    for (int j = 0; j < k; j++) {
-                        serialize(nv.update(nvalues[j]), f, col, o);
-                    }
-                }
-            }, ClickHouseDataType.Nested);
-            buildMappings(deserializers, serializers, (r, f, c, i) -> {
-                List<Object> tupleValues = new ArrayList<>(c.getNestedColumns().size());
-                for (ClickHouseColumn col : c.getNestedColumns()) {
-                    tupleValues.add(deserialize(null, f, col, i).asObject());
-                }
-                return ClickHouseTupleValue.of(r, tupleValues);
-            }, (v, f, c, o) -> {
-                List<Object> tupleValues = v.asTuple();
-                Iterator<Object> tupleIterator = tupleValues.iterator();
-                for (ClickHouseColumn col : c.getNestedColumns()) {
-                    // FIXME tooooo slow
-                    ClickHouseValue tv = ClickHouseValues.newValue(f, col);
-                    if (tupleIterator.hasNext()) {
-                        serialize(tv.update(tupleIterator.next()), f, col, o);
-                    } else {
-                        serialize(tv, f, col, o);
-                    }
-                }
-            }, ClickHouseDataType.Tuple);
-        }
-
-        protected final ClickHouseDeserializer<ClickHouseValue> getDeserializer(ClickHouseDataType dataType) {
-            ClickHouseDeserializer<ClickHouseValue> func = (ClickHouseDeserializer<ClickHouseValue>) deserializers
-                    .get(dataType);
-            if (func == null) {
-                throw new IllegalArgumentException(ERROR_UNKNOWN_DATA_TYPE + dataType);
+        @Override
+        public void serialize(ClickHouseValue value, ClickHouseOutputStream output) throws IOException {
+            ClickHouseArraySequence arr = (ClickHouseArraySequence) value;
+            int len = arr.length();
+            output.writeVarInt(len);
+            ClickHouseSerializer s = serializers[0];
+            for (int i = 0; i < len; i++) {
+                s.serialize(arr.getValue(i, valValue), output);
             }
-            return func;
-        }
-
-        protected final ClickHouseSerializer<ClickHouseValue> getSerializer(ClickHouseDataType dataType) {
-            ClickHouseSerializer<ClickHouseValue> func = (ClickHouseSerializer<ClickHouseValue>) serializers
-                    .get(dataType);
-            if (func == null) {
-                throw new IllegalArgumentException(ERROR_UNKNOWN_DATA_TYPE + dataType);
-            }
-            return func;
-        }
-
-        protected MappedFunctions() {
-            aggDeserializers = new EnumMap<>(ClickHouseAggregateFunction.class);
-            aggSerializers = new EnumMap<>(ClickHouseAggregateFunction.class);
-
-            deserializers = new EnumMap<>(ClickHouseDataType.class);
-            serializers = new EnumMap<>(ClickHouseDataType.class);
-
-            buildMappingsForAggregateFunctions();
-            buildMappingsForDataTypes();
-        }
-
-        @SuppressWarnings("unchecked")
-        public ClickHouseValue deserialize(ClickHouseValue ref, ClickHouseConfig config, ClickHouseColumn column,
-                ClickHouseInputStream input) throws IOException {
-            if (column.isNullable() && BinaryStreamUtils.readNull(input)) {
-                return ref == null ? ClickHouseValues.newValue(config, column) : ref.resetToNullOrEmpty();
-            }
-
-            ClickHouseDeserializer<ClickHouseValue> func = (ClickHouseDeserializer<ClickHouseValue>) deserializers
-                    .get(column.getDataType());
-            if (func == null) {
-                throw new IllegalArgumentException(ERROR_UNKNOWN_DATA_TYPE + column.getDataType().name());
-            }
-            return func.deserialize(ref, config, column, input);
-        }
-
-        @SuppressWarnings("unchecked")
-        public void serialize(ClickHouseValue value, ClickHouseConfig config, ClickHouseColumn column,
-                ClickHouseOutputStream output) throws IOException {
-            if (column.isNullable()) { // always false for geo types, and Array, Nested, Map and Tuple etc.
-                if (value.isNullOrEmpty()) {
-                    BinaryStreamUtils.writeNull(output);
-                    return;
-                } else {
-                    BinaryStreamUtils.writeNonNull(output);
-                }
-            }
-
-            ClickHouseSerializer<ClickHouseValue> func = (ClickHouseSerializer<ClickHouseValue>) serializers
-                    .get(column.getDataType());
-            if (func == null) {
-                throw new IllegalArgumentException(ERROR_UNKNOWN_DATA_TYPE + column.getDataType().name());
-            }
-            func.serialize(value, config, column, output);
         }
     }
 
-    public static MappedFunctions getMappedFunctions() {
-        return MappedFunctions.instance;
+    public static class BitmapDeSer implements ClickHouseDeserializer, ClickHouseSerializer {
+        private final ClickHouseDataType innerType;
+
+        public BitmapDeSer(ClickHouseConfig config, ClickHouseColumn column) {
+            this.innerType = column.getNestedColumns().get(0).getDataType();
+        }
+
+        @Override
+        public ClickHouseValue deserialize(ClickHouseValue ref, ClickHouseInputStream input) throws IOException {
+            return ref.update(ClickHouseBitmap.deserialize(input, innerType));
+        }
+
+        @Override
+        public void serialize(ClickHouseValue value, ClickHouseOutputStream output) throws IOException {
+            ClickHouseBitmapValue bitmapValue = (ClickHouseBitmapValue) value;
+            output.write(bitmapValue.getValue().toBytes());
+        }
+    }
+
+    public static class MapDeserializer extends ClickHouseDeserializer.CompositeDeserializer {
+        private final ClickHouseValue keyValue;
+        private final ClickHouseValue valValue;
+
+        public MapDeserializer(ClickHouseConfig config, ClickHouseColumn column,
+                ClickHouseDeserializer... deserializers) {
+            super(deserializers);
+
+            if (deserializers.length != 2) {
+                throw new IllegalArgumentException("Expect 2 deserializers but got " + deserializers.length);
+            }
+
+            this.keyValue = column.getKeyInfo().newValue(config);
+            this.valValue = column.getValueInfo().newValue(config);
+        }
+
+        @Override
+        public ClickHouseValue deserialize(ClickHouseValue ref, ClickHouseInputStream input) throws IOException {
+            int len = input.readVarInt();
+            if (len == 0) {
+                return ref.resetToNullOrEmpty();
+            }
+
+            Map<Object, Object> map = new LinkedHashMap<>(len * 4 / 3 + 1);
+            ClickHouseDeserializer kd = deserializers[0];
+            ClickHouseDeserializer vd = deserializers[1];
+            for (int i = 0; i < len; i++) {
+                map.put(kd.deserialize(keyValue, input).asObject(),
+                        vd.deserialize(valValue, input).asObject());
+            }
+            return ref.update(map);
+        }
+    }
+
+    public static class MapSerializer extends ClickHouseSerializer.CompositeSerializer {
+        private final ClickHouseValue keyValue;
+        private final ClickHouseValue valValue;
+
+        public MapSerializer(ClickHouseConfig config, ClickHouseColumn column,
+                ClickHouseSerializer... serializers) {
+            super(serializers);
+
+            if (serializers.length != 2) {
+                throw new IllegalArgumentException("Expect 2 serializers but got " + serializers.length);
+            }
+
+            this.keyValue = column.getKeyInfo().newValue(config);
+            this.valValue = column.getValueInfo().newValue(config);
+        }
+
+        @Override
+        public void serialize(ClickHouseValue value, ClickHouseOutputStream output) throws IOException {
+            Map<Object, Object> map = value.asMap();
+            output.writeVarInt(map.size());
+            if (!map.isEmpty()) {
+                ClickHouseSerializer ks = serializers[0];
+                ClickHouseSerializer vs = serializers[1];
+                for (Entry<Object, Object> e : map.entrySet()) {
+                    ks.serialize(keyValue.update(e.getKey()), output);
+                    vs.serialize(valValue.update(e.getValue()), output);
+                }
+            }
+        }
+    }
+
+    public static class NestedDeserializer extends ClickHouseDeserializer.CompositeDeserializer {
+        protected final ClickHouseValue[] values;
+
+        public NestedDeserializer(ClickHouseConfig config, ClickHouseColumn column,
+                ClickHouseDeserializer... deserializers) {
+            super(deserializers);
+
+            List<ClickHouseColumn> nestedCols = column.getNestedColumns();
+            int len = nestedCols.size();
+            if (deserializers.length != len) {
+                throw new IllegalArgumentException(
+                        ClickHouseUtils.format("Expect %d deserializers but got %d", len, deserializers.length));
+            }
+            values = new ClickHouseValue[len];
+            for (int i = 0; i < len; i++) {
+                values[i] = nestedCols.get(i).newArrayValue(config);
+            }
+        }
+
+        @Override
+        public ClickHouseValue deserialize(ClickHouseValue ref, ClickHouseInputStream input) throws IOException {
+            int len = values.length;
+            Object[][] vals = new Object[len][];
+            for (int i = 0; i < len; i++) {
+                ClickHouseDeserializer d = deserializers[i];
+                vals[i] = d.deserialize(values[i], input).asArray();
+            }
+            // ClickHouseNestedValue.of(r, c.getNestedColumns(), values)
+            return ref.update(vals);
+        }
+    }
+
+    public static class NestedSerializer extends ClickHouseSerializer.CompositeSerializer {
+        private final ClickHouseArraySequence[] values;
+
+        public NestedSerializer(ClickHouseConfig config, ClickHouseColumn column,
+                ClickHouseSerializer... serializers) {
+            super(serializers);
+
+            List<ClickHouseColumn> nestedCols = column.getNestedColumns();
+            int len = nestedCols.size();
+            if (serializers.length != len) {
+                throw new IllegalArgumentException(
+                        ClickHouseUtils.format("Expect %d serializers but got %d", len, serializers.length));
+            }
+            values = new ClickHouseArraySequence[len];
+            for (int i = 0; i < len; i++) {
+                values[i] = nestedCols.get(i).newArrayValue(config);
+            }
+        }
+
+        @Override
+        public void serialize(ClickHouseValue value, ClickHouseOutputStream output) throws IOException {
+            Object[][] vals = (Object[][]) value.asObject();
+            for (int i = 0, len = values.length; i < len; i++) {
+                serializers[i].serialize(values[i].update(vals[i]), output);
+            }
+        }
+    }
+
+    public static class TupleDeserializer extends ClickHouseDeserializer.CompositeDeserializer {
+        private final ClickHouseValue[] values;
+
+        public TupleDeserializer(ClickHouseConfig config, ClickHouseColumn column,
+                ClickHouseDeserializer... deserializers) {
+            super(deserializers);
+
+            List<ClickHouseColumn> nestedCols = column.getNestedColumns();
+            int len = nestedCols.size();
+            if (deserializers.length != len) {
+                throw new IllegalArgumentException(
+                        ClickHouseUtils.format("Expect %d deserializers but got %d", len, deserializers.length));
+            }
+            values = new ClickHouseValue[len];
+            for (int i = 0; i < len; i++) {
+                values[i] = nestedCols.get(i).newValue(config);
+            }
+        }
+
+        @Override
+        public ClickHouseValue deserialize(ClickHouseValue ref, ClickHouseInputStream input) throws IOException {
+            int len = values.length;
+            Object[] tupleValues = new Object[len];
+            for (int i = 0; i < len; i++) {
+                tupleValues[i] = deserializers[i].deserialize(values[i], input).asObject();
+            }
+            return ref.update(tupleValues);
+        }
+    }
+
+    public static class TupleSerializer extends ClickHouseSerializer.CompositeSerializer {
+        private final ClickHouseValue[] values;
+
+        public TupleSerializer(ClickHouseConfig config, ClickHouseColumn column,
+                ClickHouseSerializer... serializers) {
+            super(serializers);
+
+            List<ClickHouseColumn> nestedCols = column.getNestedColumns();
+            int len = nestedCols.size();
+            if (serializers.length != len) {
+                throw new IllegalArgumentException(
+                        ClickHouseUtils.format("Expect %d serializers but got %d", len, serializers.length));
+            }
+            values = new ClickHouseValue[len];
+            for (int i = 0; i < len; i++) {
+                values[i] = nestedCols.get(i).newValue(config);
+            }
+        }
+
+        @Override
+        public void serialize(ClickHouseValue value, ClickHouseOutputStream output) throws IOException {
+            List<Object> tupleValues = value.asTuple();
+            for (int i = 0, len = serializers.length; i < len; i++) {
+                serializers[i].serialize(values[i].update(tupleValues.get(i)), output);
+            }
+        }
     }
 
     @Override
@@ -444,29 +294,28 @@ public class ClickHouseRowBinaryProcessor extends ClickHouseDataProcessor {
 
     @Override
     protected void readAndFill(ClickHouseRecord r) throws IOException {
-        MappedFunctions m = getMappedFunctions();
-        int p = readPosition;
-        ClickHouseColumn[] c = columns;
-        ClickHouseConfig f = config;
-        ClickHouseInputStream i = input;
-        ClickHouseValue[] t = templates;
-        try {
-            for (int len = c.length; p < len; p++) {
-                ClickHouseValue n = m.deserialize(r.getValue(p), f, c[p], i);
-                if (n != t[p]) {
-                    t[p] = n;
-                }
-            }
-        } finally {
-            readPosition = p;
+        ClickHouseInputStream in = input;
+        ClickHouseDeserializer[] tbl = deserializers;
+
+        for (int i = readPosition, len = columns.length; i < len; i++) {
+            tbl[i].deserialize(r.getValue(i), in);
+            readPosition = i;
         }
+
+        readPosition = 0;
     }
 
     @Override
-    protected void readAndFill(ClickHouseValue value, ClickHouseColumn column) throws IOException {
-        ClickHouseValue v = getMappedFunctions().deserialize(value, config, column, input);
+    protected void readAndFill(ClickHouseValue value) throws IOException {
+        int pos = readPosition;
+        ClickHouseValue v = deserializers[pos].deserialize(value, input);
         if (v != value) {
-            templates[readPosition] = v;
+            templates[pos] = v;
+        }
+        if (++pos >= columns.length) {
+            readPosition = 0;
+        } else {
+            readPosition = pos;
         }
     }
 
@@ -513,12 +362,373 @@ public class ClickHouseRowBinaryProcessor extends ClickHouseDataProcessor {
         super(config, input, output, columns, settings);
     }
 
+    protected ClickHouseDeserializer[] getArrayDeserializers(ClickHouseConfig config, List<ClickHouseColumn> columns) {
+        List<ClickHouseDeserializer> list = new ArrayList<>(columns.size());
+        ClickHouseConfig modifiedConfig = new ClickHouseConfig(config,
+                new ClickHouseConfig(Collections.singletonMap(ClickHouseClientOption.USE_OBJECTS_IN_ARRAYS, true)));
+        for (ClickHouseColumn column : columns) {
+            list.add(getDeserializer(modifiedConfig,
+                    ClickHouseColumn.of(column.getColumnName(), ClickHouseDataType.Array, false, column)));
+        }
+        return list.toArray(new ClickHouseDeserializer[0]);
+    }
+
+    protected ClickHouseSerializer[] getArraySerializers(ClickHouseConfig config, List<ClickHouseColumn> columns) {
+        List<ClickHouseSerializer> list = new ArrayList<>(columns.size());
+        ClickHouseConfig modifiedConfig = new ClickHouseConfig(config,
+                new ClickHouseConfig(Collections.singletonMap(ClickHouseClientOption.USE_OBJECTS_IN_ARRAYS, true)));
+        for (ClickHouseColumn column : columns) {
+            list.add(getSerializer(modifiedConfig,
+                    ClickHouseColumn.of(column.getColumnName(), ClickHouseDataType.Array, false, column)));
+        }
+        return list.toArray(new ClickHouseSerializer[0]);
+    }
+
     @Override
-    public void write(ClickHouseValue value, ClickHouseColumn column) throws IOException {
-        if (output == null || column == null) {
-            throw new IllegalArgumentException("Cannot write any value when output stream or column is null");
+    public ClickHouseDeserializer getDeserializer(ClickHouseConfig config, ClickHouseColumn column) {
+        final ClickHouseDeserializer deserializer;
+        switch (column.getDataType()) {
+            case Bool:
+                deserializer = BinaryDataProcessor::readBool;
+                break;
+            case Date:
+                deserializer = BinaryDataProcessor.DateDeSer.of(config);
+                break;
+            case Date32:
+                deserializer = BinaryDataProcessor.Date32DeSer.of(config);
+                break;
+            case DateTime:
+                deserializer = column.getScale() > 0 ? BinaryDataProcessor.DateTime64DeSer.of(config, column)
+                        : BinaryDataProcessor.DateTime32DeSer.of(config, column);
+                break;
+            case DateTime32:
+                deserializer = BinaryDataProcessor.DateTime32DeSer.of(config, column);
+                break;
+            case DateTime64:
+                deserializer = BinaryDataProcessor.DateTime64DeSer.of(config, column);
+                break;
+            case Enum8:
+                deserializer = BinaryDataProcessor::readEnum8;
+                break;
+            case Enum16:
+                deserializer = BinaryDataProcessor::readEnum16;
+                break;
+            case FixedString:
+                deserializer = new BinaryDataProcessor.FixedStringDeSer(column);
+                break;
+            case Int8:
+                deserializer = BinaryDataProcessor::readByte;
+                break;
+            case UInt8:
+                deserializer = config.isWidenUnsignedTypes() ? BinaryDataProcessor::readUInt8AsShort
+                        : BinaryDataProcessor::readByte;
+                break;
+            case Int16:
+                deserializer = BinaryDataProcessor::readShort;
+                break;
+            case UInt16:
+                deserializer = config.isWidenUnsignedTypes() ? BinaryDataProcessor::readUInt16AsInt
+                        : BinaryDataProcessor::readShort;
+                break;
+            case Int32:
+                deserializer = BinaryDataProcessor::readInteger;
+                break;
+            case UInt32:
+                deserializer = config.isWidenUnsignedTypes() ? BinaryDataProcessor::readUInt32AsLong
+                        : BinaryDataProcessor::readInteger;
+                break;
+            case Int64:
+            case IntervalYear:
+            case IntervalQuarter:
+            case IntervalMonth:
+            case IntervalWeek:
+            case IntervalDay:
+            case IntervalHour:
+            case IntervalMinute:
+            case IntervalSecond:
+            case IntervalMicrosecond:
+            case IntervalMillisecond:
+            case IntervalNanosecond:
+            case UInt64:
+                deserializer = BinaryDataProcessor::readLong;
+                break;
+            case Int128:
+                deserializer = BinaryDataProcessor::readInt128;
+                break;
+            case UInt128:
+                deserializer = BinaryDataProcessor::readUInt128;
+                break;
+            case Int256:
+                deserializer = BinaryDataProcessor::readInt256;
+                break;
+            case UInt256:
+                deserializer = BinaryDataProcessor::readUInt256;
+                break;
+            case Decimal:
+                deserializer = BinaryDataProcessor.DecimalDeSer.of(column);
+                break;
+            case Decimal32:
+                deserializer = BinaryDataProcessor.Decimal32DeSer.of(column);
+                break;
+            case Decimal64:
+                deserializer = BinaryDataProcessor.Decimal64DeSer.of(column);
+                break;
+            case Decimal128:
+                deserializer = BinaryDataProcessor.Decimal128DeSer.of(column);
+                break;
+            case Decimal256:
+                deserializer = BinaryDataProcessor.Decimal256DeSer.of(column);
+                break;
+            case Float32:
+                deserializer = BinaryDataProcessor::readFloat;
+                break;
+            case Float64:
+                deserializer = BinaryDataProcessor::readDouble;
+                break;
+            case IPv4:
+                deserializer = BinaryDataProcessor::readIpv4;
+                break;
+            case IPv6:
+                deserializer = BinaryDataProcessor::readIpv6;
+                break;
+            case UUID:
+                deserializer = BinaryDataProcessor::readUuid;
+                break;
+            // Geo types
+            case Point:
+                deserializer = BinaryDataProcessor::readGeoPoint;
+                break;
+            case Ring:
+                deserializer = BinaryDataProcessor::readGeoRing;
+                break;
+            case Polygon:
+                deserializer = BinaryDataProcessor::readGeoPolygon;
+                break;
+            case MultiPolygon:
+                deserializer = BinaryDataProcessor::readGeoMultiPolygon;
+                break;
+            // String
+            case JSON:
+            case Object:
+            case String:
+                deserializer = config.isUseBinaryString() ? BinaryDataProcessor::readBinaryString
+                        : BinaryDataProcessor::readTextString;
+                break;
+            // nested
+            case Array: {
+                ClickHouseColumn baseColumn = column.getArrayBaseColumn();
+                Class<?> javaClass = baseColumn.getObjectClassForArray(config);
+                if (column.getArrayNestedLevel() == 1 && !baseColumn.isNullable() && javaClass.isPrimitive()) {
+                    int byteLength = baseColumn.getDataType().getByteLength();
+                    if (byteLength == Byte.BYTES) { // Bool, *Int8
+                        deserializer = BinaryDataProcessor::readByteArray;
+                    } else if (byteLength == Short.BYTES) { // *Int16
+                        deserializer = BinaryDataProcessor::readShortArray;
+                    } else if (int.class == javaClass) { // Int32
+                        deserializer = BinaryDataProcessor::readIntegerArray;
+                    } else if (long.class == javaClass) { // UInt32, *Int64
+                        deserializer = byteLength == Long.BYTES ? BinaryDataProcessor::readLongArray
+                                : BinaryDataProcessor::readIntegerArray;
+                    } else if (float.class == javaClass) { // Float32
+                        deserializer = BinaryDataProcessor::readFloatArray;
+                    } else if (double.class == javaClass) { // Float64
+                        deserializer = BinaryDataProcessor::readDoubleArray;
+                    } else {
+                        throw new IllegalArgumentException("Unsupported primitive type: " + javaClass);
+                    }
+                } else {
+                    deserializer = new ArrayDeserializer(config, column,
+                            getDeserializer(config, column.getNestedColumns().get(0)));
+                }
+                break;
+            }
+            case Map:
+                deserializer = new MapDeserializer(config, column,
+                        getDeserializers(config, column.getNestedColumns()));
+                break;
+            case Nested:
+                deserializer = new NestedDeserializer(config, column,
+                        getArrayDeserializers(config, column.getNestedColumns()));
+                break;
+            case Tuple:
+                deserializer = new TupleDeserializer(config, column,
+                        getDeserializers(config, column.getNestedColumns()));
+                break;
+            // special
+            case Nothing:
+                deserializer = ClickHouseDeserializer.EMPTY_VALUE;
+                break;
+            case SimpleAggregateFunction:
+                deserializer = getDeserializer(config, column.getNestedColumns().get(0));
+                break;
+            case AggregateFunction:
+                if (column.getAggregateFunction() != ClickHouseAggregateFunction.groupBitmap) {
+                    throw new IllegalArgumentException("Only groupMap is supported at this point");
+                }
+                deserializer = new BitmapDeSer(config, column)::deserialize;
+                break;
+            default:
+                throw new IllegalArgumentException("Unsupported column:" + column.toString());
         }
 
-        getMappedFunctions().serialize(value, config, column, output);
+        return column.isNullable() ? new BinaryDataProcessor.NullableDeserializer(deserializer) : deserializer;
+    }
+
+    @Override
+    public ClickHouseSerializer getSerializer(ClickHouseConfig config, ClickHouseColumn column) {
+        final ClickHouseSerializer serializer;
+        switch (column.getDataType()) {
+            case Bool:
+                serializer = BinaryDataProcessor::writeBool;
+                break;
+            case Date:
+                serializer = BinaryDataProcessor.DateDeSer.of(config);
+                break;
+            case Date32:
+                serializer = BinaryDataProcessor.Date32DeSer.of(config);
+                break;
+            case DateTime:
+                serializer = column.getScale() > 0 ? BinaryDataProcessor.DateTime64DeSer.of(config, column)
+                        : BinaryDataProcessor.DateTime32DeSer.of(config, column);
+                break;
+            case DateTime32:
+                serializer = BinaryDataProcessor.DateTime32DeSer.of(config, column);
+                break;
+            case DateTime64:
+                serializer = BinaryDataProcessor.DateTime64DeSer.of(config, column);
+                break;
+            case Enum8:
+                serializer = BinaryDataProcessor::writeEnum8;
+                break;
+            case Enum16:
+                serializer = BinaryDataProcessor::writeEnum16;
+                break;
+            case FixedString:
+                serializer = new BinaryDataProcessor.FixedStringDeSer(column);
+                break;
+            case Int8:
+            case UInt8:
+                serializer = BinaryDataProcessor::writeByte;
+                break;
+            case Int16:
+            case UInt16:
+                serializer = BinaryDataProcessor::writeShort;
+                break;
+            case Int32:
+            case UInt32:
+                serializer = BinaryDataProcessor::writeInteger;
+                break;
+            case Int64:
+            case IntervalYear:
+            case IntervalQuarter:
+            case IntervalMonth:
+            case IntervalWeek:
+            case IntervalDay:
+            case IntervalHour:
+            case IntervalMinute:
+            case IntervalSecond:
+            case IntervalMicrosecond:
+            case IntervalMillisecond:
+            case IntervalNanosecond:
+            case UInt64:
+                serializer = BinaryDataProcessor::writeLong;
+                break;
+            case Int128:
+                serializer = BinaryDataProcessor::writeInt128;
+                break;
+            case UInt128:
+                serializer = BinaryDataProcessor::writeUInt128;
+                break;
+            case Int256:
+                serializer = BinaryDataProcessor::writeInt256;
+                break;
+            case UInt256:
+                serializer = BinaryDataProcessor::writeUInt256;
+                break;
+            case Decimal:
+                serializer = BinaryDataProcessor.DecimalDeSer.of(column);
+                break;
+            case Decimal32:
+                serializer = BinaryDataProcessor.Decimal32DeSer.of(column);
+                break;
+            case Decimal64:
+                serializer = new BinaryDataProcessor.Decimal64DeSer(column);
+                break;
+            case Decimal128:
+                serializer = new BinaryDataProcessor.Decimal128DeSer(column);
+                break;
+            case Decimal256:
+                serializer = new BinaryDataProcessor.Decimal256DeSer(column);
+                break;
+            case Float32:
+                serializer = BinaryDataProcessor::writeFloat;
+                break;
+            case Float64:
+                serializer = BinaryDataProcessor::writeDouble;
+                break;
+            case IPv4:
+                serializer = BinaryDataProcessor::writeIpv4;
+                break;
+            case IPv6:
+                serializer = BinaryDataProcessor::writeIpv6;
+                break;
+            case UUID:
+                serializer = BinaryDataProcessor::writeUuid;
+                break;
+            // Geo types
+            case Point:
+                serializer = BinaryDataProcessor::writeGeoPoint;
+                break;
+            case Ring:
+                serializer = BinaryDataProcessor::writeGeoRing;
+                break;
+            case Polygon:
+                serializer = BinaryDataProcessor::writeGeoPolygon;
+                break;
+            case MultiPolygon:
+                serializer = BinaryDataProcessor::writeGeoMultiPolygon;
+                break;
+            // String
+            case JSON:
+            case Object:
+            case String:
+                serializer = config.isUseBinaryString() ? BinaryDataProcessor::writeBinaryString
+                        : BinaryDataProcessor::writeTextString;
+                break;
+            // nested
+            case Array:
+                serializer = new ArraySerializer(config, column,
+                        getSerializer(config, column.getNestedColumns().get(0)));
+                break;
+            case Map:
+                serializer = new MapSerializer(config, column,
+                        getSerializers(config, column.getNestedColumns()));
+                break;
+            case Nested:
+                serializer = new NestedSerializer(config, column,
+                        getArraySerializers(config, column.getNestedColumns()));
+                break;
+            case Tuple:
+                serializer = new TupleSerializer(config, column,
+                        getSerializers(config, column.getNestedColumns()));
+                break;
+            // special
+            case Nothing:
+                serializer = ClickHouseSerializer.DO_NOTHING;
+                break;
+            case SimpleAggregateFunction:
+                serializer = getSerializer(config, column.getNestedColumns().get(0));
+                break;
+            case AggregateFunction:
+                if (column.getAggregateFunction() != ClickHouseAggregateFunction.groupBitmap) {
+                    throw new IllegalArgumentException("Only groupMap is supported at this point");
+                }
+                serializer = new BitmapDeSer(config, column)::serialize;
+                break;
+            default:
+                throw new IllegalArgumentException("Unsupported column:" + column.toString());
+        }
+
+        return column.isNullable() ? new BinaryDataProcessor.NullableSerializer(serializer) : serializer;
     }
 }

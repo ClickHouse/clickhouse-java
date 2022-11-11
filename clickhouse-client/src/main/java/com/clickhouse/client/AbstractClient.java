@@ -255,7 +255,7 @@ public abstract class AbstractClient<T> implements ClickHouseClient {
 
     @Override
     public void init(ClickHouseConfig config) {
-        ClickHouseChecker.nonNull(config, "config");
+        ClickHouseChecker.nonNull(config, ClickHouseConfig.TYPE_NAME);
 
         lock.writeLock().lock();
         try {

@@ -15,7 +15,7 @@ import com.clickhouse.client.ClickHouseValue;
 import com.clickhouse.client.ClickHouseValues;
 
 /**
- * Wraper class of Inet4Address.
+ * Wrapper class of {@link Inet4Address}.
  */
 public class ClickHouseIpv4Value extends ClickHouseObjectValue<Inet4Address> {
     public static final Inet4Address DEFAULT;
@@ -84,19 +84,19 @@ public class ClickHouseIpv4Value extends ClickHouseObjectValue<Inet4Address> {
     @Override
     public byte asByte() {
         BigInteger bigInt = asBigInteger();
-        return bigInt == null ? (byte) 0 : bigInt.byteValueExact();
+        return bigInt == null ? (byte) 0 : bigInt.byteValue();
     }
 
     @Override
     public short asShort() {
         BigInteger bigInt = asBigInteger();
-        return bigInt == null ? (short) 0 : bigInt.shortValueExact();
+        return bigInt == null ? (short) 0 : bigInt.shortValue();
     }
 
     @Override
     public int asInteger() {
         BigInteger bigInt = asBigInteger();
-        return bigInt == null ? 0 : bigInt.intValueExact();
+        return bigInt == null ? 0 : bigInt.intValue();
     }
 
     @Override
@@ -202,7 +202,7 @@ public class ClickHouseIpv4Value extends ClickHouseObjectValue<Inet4Address> {
         if (value == null) {
             resetToNullOrEmpty();
         } else {
-            update(value.intValueExact());
+            update(value.intValue());
         }
         return this;
     }
@@ -212,7 +212,7 @@ public class ClickHouseIpv4Value extends ClickHouseObjectValue<Inet4Address> {
         if (value == null) {
             resetToNullOrEmpty();
         } else {
-            update(value.intValueExact());
+            update(value.intValue());
         }
         return this;
     }
@@ -281,14 +281,14 @@ public class ClickHouseIpv4Value extends ClickHouseObjectValue<Inet4Address> {
         if (v == null) {
             resetToNullOrEmpty();
         } else {
-            update(v.intValueExact());
+            update(v.intValue());
         }
         return this;
     }
 
     @Override
     public ClickHouseIpv4Value update(ClickHouseValue value) {
-        if (value == null) {
+        if (value == null || value.isNullOrEmpty()) {
             resetToNullOrEmpty();
         } else {
             set(value.asInet4Address());

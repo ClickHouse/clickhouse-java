@@ -596,7 +596,7 @@ public class SqlBasedPreparedStatement extends AbstractPreparedStatement impleme
         int idx = toArrayIndex(parameterIndex);
         ClickHouseValue value = templates[idx];
         if (value == null) {
-            value = ClickHouseValues.newValue(getConfig(), mapper.toColumn(targetSqlType, scaleOrLength));
+            value = mapper.toColumn(targetSqlType, scaleOrLength).newValue(getConfig());
             templates[idx] = value;
         }
 

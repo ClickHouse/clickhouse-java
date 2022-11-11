@@ -5,7 +5,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
-import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.data.BinaryStreamUtilsTest;
 
 import org.testng.Assert;
@@ -30,8 +29,7 @@ public class Lz4OutputStreamTest {
     public void testCompressAndDecompressQuery() throws IOException {
         ByteArrayOutputStream bas = new ByteArrayOutputStream(100);
         String sql = "select '4d67f5c7-60ae-4a00-8ed1-701429fa2cdf'";
-        try (Lz4OutputStream out = new Lz4OutputStream(bas,
-                (int) ClickHouseClientOption.MAX_COMPRESS_BLOCK_SIZE.getDefaultValue(), null)) {
+        try (Lz4OutputStream out = new Lz4OutputStream(bas, 1024 * 1024, null)) {
             out.write(sql.getBytes(StandardCharsets.UTF_8));
             out.flush();
         }

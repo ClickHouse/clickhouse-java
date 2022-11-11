@@ -6,58 +6,189 @@ import com.clickhouse.client.ClickHouseValue;
 import com.clickhouse.client.ClickHouseValues;
 
 /**
- * Wraper class of int.
+ * Wrapper class of {@code int}.
  */
 public class ClickHouseIntegerValue implements ClickHouseValue {
     /**
-     * Create a new instance representing null value.
+     * Unsigned version of {@code ClickHouseIntegerValue}.
+     */
+    static final class UnsignedIntegerValue extends ClickHouseIntegerValue {
+        protected UnsignedIntegerValue(boolean isNull, int value) {
+            super(isNull, value);
+        }
+
+        @Override
+        public long asLong() {
+            return 0xFFFFFFFFL & getValue();
+        }
+
+        @Override
+        public BigInteger asBigInteger() {
+            return isNullOrEmpty() ? null : BigInteger.valueOf(asLong());
+        }
+
+        @Override
+        public float asFloat() {
+            return asLong();
+        }
+
+        @Override
+        public double asDouble() {
+            return asLong();
+        }
+
+        @Override
+        public BigDecimal asBigDecimal(int scale) {
+            return isNullOrEmpty() ? null : BigDecimal.valueOf(asLong(), scale);
+        }
+
+        @Override
+        public Object asObject() {
+            return isNullOrEmpty() ? null : UnsignedInteger.valueOf(getValue());
+        }
+
+        @Override
+        public String asString() {
+            return isNullOrEmpty() ? null : Integer.toUnsignedString(getValue());
+        }
+
+        @Override
+        public ClickHouseIntegerValue copy(boolean deep) {
+            return new UnsignedIntegerValue(isNullOrEmpty(), getValue());
+        }
+
+        @Override
+        public String toSqlExpression() {
+            return isNullOrEmpty() ? ClickHouseValues.NULL_EXPR : Integer.toUnsignedString(getValue());
+        }
+
+        @Override
+        public ClickHouseIntegerValue update(byte value) {
+            return set(false, 0xFF & value);
+        }
+
+        @Override
+        public ClickHouseIntegerValue update(short value) {
+            return set(false, 0xFFFF & value);
+        }
+
+        @Override
+        public ClickHouseIntegerValue update(BigInteger value) {
+            return value == null ? resetToNullOrEmpty() : set(false, value.intValue());
+        }
+
+        @Override
+        public ClickHouseIntegerValue update(BigDecimal value) {
+            return value == null ? resetToNullOrEmpty() : set(false, value.intValue());
+        }
+
+        @Override
+        public ClickHouseIntegerValue update(String value) {
+            return value == null ? resetToNullOrEmpty() : set(false, Integer.parseUnsignedInt(value));
+        }
+    }
+
+    /**
+     * Creates a new instance representing null {@code Int32} value.
      *
      * @return new instance representing null value
      */
     public static ClickHouseIntegerValue ofNull() {
-        return ofNull(null);
+        return ofNull(null, false);
     }
 
     /**
-     * Update given value to null or create a new instance if {@code ref} is null.
+     * Creates a new instance representing null {@code UInt32} value.
+     *
+     * @return new instance representing null value
+     */
+    public static ClickHouseIntegerValue ofUnsignedNull() {
+        return ofNull(null, true);
+    }
+
+    /**
+     * Creates a new instance representing null value.
+     *
+     * @param unsigned true if the value is unsigned; false otherwise
+     * @return new instance representing null value
+     */
+    public static ClickHouseIntegerValue ofNull(boolean unsigned) {
+        return ofNull(null, unsigned);
+    }
+
+    /**
+     * Updates the given value to null or creates a new instance when {@code ref} is
+     * null.
      * 
-     * @param ref object to update, could be null
+     * @param ref      object to update, could be null
+     * @param unsigned true if the value is unsigned; false otherwise
      * @return same object as {@code ref} or a new instance if it's null
      */
-    public static ClickHouseIntegerValue ofNull(ClickHouseValue ref) {
+    public static ClickHouseIntegerValue ofNull(ClickHouseValue ref, boolean unsigned) {
+        if (unsigned) {
+            return ref instanceof UnsignedIntegerValue ? ((UnsignedIntegerValue) ref).set(true, 0)
+                    : new UnsignedIntegerValue(true, 0);
+        }
         return ref instanceof ClickHouseIntegerValue ? ((ClickHouseIntegerValue) ref).set(true, 0)
                 : new ClickHouseIntegerValue(true, 0);
     }
 
     /**
-     * Wrap the given value.
+     * Wraps the given {@code Int32} value.
      *
      * @param value value
      * @return object representing the value
      */
     public static ClickHouseIntegerValue of(int value) {
-        return of(null, value);
+        return of(null, value, false);
     }
 
     /**
-     * Wrap the given value.
+     * Wraps the given {@code UInt32} value.
      *
      * @param value value
      * @return object representing the value
      */
-    public static ClickHouseIntegerValue of(Number value) {
-        return value == null ? ofNull(null) : of(null, value.intValue());
+    public static ClickHouseIntegerValue ofUnsigned(int value) {
+        return of(null, value, true);
     }
 
     /**
-     * Update value of the given object or create a new instance if {@code ref} is
-     * null.
+     * Wraps the given value.
      *
-     * @param ref   object to update, could be null
-     * @param value value
+     * @param value    value
+     * @param unsigned true if {@code value} is unsigned; false otherwise
+     * @return object representing the value
+     */
+    public static ClickHouseIntegerValue of(int value, boolean unsigned) {
+        return of(null, value, unsigned);
+    }
+
+    /**
+     * Wraps the given value.
+     *
+     * @param value    value
+     * @param unsigned true if {@code value} is unsigned; false otherwise
+     * @return object representing the value
+     */
+    public static ClickHouseIntegerValue of(Number value, boolean unsigned) {
+        return value == null ? ofNull(null, unsigned) : of(null, value.intValue(), unsigned);
+    }
+
+    /**
+     * Updates value of the given object or create a new instance when {@code ref}
+     * is null.
+     *
+     * @param ref      object to update, could be null
+     * @param value    value
+     * @param unsigned true if {@code value} is unsigned; false otherwise
      * @return same object as {@code ref} or a new instance if it's null
      */
-    public static ClickHouseIntegerValue of(ClickHouseValue ref, int value) {
+    public static ClickHouseIntegerValue of(ClickHouseValue ref, int value, boolean unsigned) {
+        if (unsigned) {
+            return ref instanceof UnsignedIntegerValue ? ((UnsignedIntegerValue) ref).set(false, value)
+                    : new UnsignedIntegerValue(false, value);
+        }
         return ref instanceof ClickHouseIntegerValue ? ((ClickHouseIntegerValue) ref).set(false, value)
                 : new ClickHouseIntegerValue(false, value);
     }
@@ -69,7 +200,7 @@ public class ClickHouseIntegerValue implements ClickHouseValue {
         set(isNull, value);
     }
 
-    protected ClickHouseIntegerValue set(boolean isNull, int value) {
+    protected final ClickHouseIntegerValue set(boolean isNull, int value) {
         this.isNull = isNull;
         this.value = isNull ? 0 : value;
 
@@ -81,7 +212,7 @@ public class ClickHouseIntegerValue implements ClickHouseValue {
      *
      * @return value
      */
-    public int getValue() {
+    public final int getValue() {
         return value;
     }
 
@@ -91,7 +222,7 @@ public class ClickHouseIntegerValue implements ClickHouseValue {
     }
 
     @Override
-    public boolean isNullOrEmpty() {
+    public final boolean isNullOrEmpty() {
         return isNull;
     }
 
@@ -142,11 +273,7 @@ public class ClickHouseIntegerValue implements ClickHouseValue {
 
     @Override
     public String asString() {
-        if (isNull) {
-            return null;
-        }
-
-        return String.valueOf(value);
+        return isNull ? null : Integer.toString(value);
     }
 
     @Override
@@ -161,7 +288,7 @@ public class ClickHouseIntegerValue implements ClickHouseValue {
 
     @Override
     public String toSqlExpression() {
-        return isNullOrEmpty() ? ClickHouseValues.NULL_EXPR : String.valueOf(value);
+        return isNullOrEmpty() ? ClickHouseValues.NULL_EXPR : Integer.toString(value);
     }
 
     @Override
@@ -226,7 +353,7 @@ public class ClickHouseIntegerValue implements ClickHouseValue {
 
     @Override
     public ClickHouseIntegerValue update(ClickHouseValue value) {
-        return value == null ? resetToNullOrEmpty() : set(false, value.asInteger());
+        return value == null || value.isNullOrEmpty() ? resetToNullOrEmpty() : set(false, value.asInteger());
     }
 
     @Override

@@ -66,6 +66,9 @@ public class JdbcTypeMapping {
                 case IntervalHour:
                 case IntervalMinute:
                 case IntervalSecond:
+                case IntervalMicrosecond:
+                case IntervalMillisecond:
+                case IntervalNanosecond:
                     typeName = "BIGINT";
                     break;
                 case UInt64:
@@ -93,7 +96,6 @@ public class JdbcTypeMapping {
                 case MultiPolygon:
                     typeName = "ARRAY";
                     break;
-                case Enum:
                 case Enum8:
                 case Enum16:
                 case IPv4:
@@ -214,6 +216,9 @@ public class JdbcTypeMapping {
                 case IntervalHour:
                 case IntervalMinute:
                 case IntervalSecond:
+                case IntervalMicrosecond:
+                case IntervalMillisecond:
+                case IntervalNanosecond:
                 case Int64:
                     sqlType = Types.BIGINT;
                     break;
@@ -244,7 +249,6 @@ public class JdbcTypeMapping {
                 case DateTime64:
                     sqlType = Types.TIMESTAMP;
                     break;
-                case Enum:
                 case Enum8:
                 case Enum16:
                 case IPv4:
@@ -581,6 +585,9 @@ public class JdbcTypeMapping {
             case IntervalHour:
             case IntervalMinute:
             case IntervalSecond:
+            case IntervalMicrosecond:
+            case IntervalMillisecond:
+            case IntervalNanosecond:
             case Int64:
                 sqlType = Types.BIGINT;
                 break;
@@ -613,7 +620,6 @@ public class JdbcTypeMapping {
             case DateTime64:
                 sqlType = column.getTimeZone() != null ? Types.TIMESTAMP_WITH_TIMEZONE : Types.TIMESTAMP;
                 break;
-            case Enum:
             case Enum8:
             case Enum16:
             case IPv4:

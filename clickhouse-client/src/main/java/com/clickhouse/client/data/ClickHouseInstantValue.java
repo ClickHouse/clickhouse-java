@@ -14,7 +14,7 @@ import com.clickhouse.client.ClickHouseValue;
 import com.clickhouse.client.ClickHouseValues;
 
 /**
- * Wraper class of Instant.
+ * Wrapper class of {@link Instant}.
  */
 public class ClickHouseInstantValue extends ClickHouseObjectValue<Instant> {
     /**
@@ -378,7 +378,7 @@ public class ClickHouseInstantValue extends ClickHouseObjectValue<Instant> {
 
     @Override
     public ClickHouseInstantValue update(ClickHouseValue value) {
-        if (value == null) {
+        if (value == null || value.isNullOrEmpty()) {
             resetToNullOrEmpty();
         } else {
             set(value.asInstant(scale));

@@ -844,7 +844,7 @@ public class ClickHouseDatabaseMetaData extends JdbcWrapper implements DatabaseM
                     r.getValue("CHAR_OCTET_LENGTH").update(column.getPrecision());
                 }
 
-                Class<?> clazz = column.getObjectClass();
+                Class<?> clazz = column.getObjectClass(connection.getConfig());
                 if (column.getScale() > 0 || Number.class.isAssignableFrom(clazz) || Date.class.isAssignableFrom(clazz)
                         || Temporal.class.isAssignableFrom(clazz)) {
                     r.getValue("DECIMAL_DIGITS").update(column.getScale());
@@ -941,7 +941,6 @@ public class ClickHouseDatabaseMetaData extends JdbcWrapper implements DatabaseM
             case DateTime:
             case DateTime32:
             case DateTime64:
-            case Enum:
             case Enum8:
             case Enum16:
             case String:

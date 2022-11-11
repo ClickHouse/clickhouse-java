@@ -23,43 +23,129 @@ import com.clickhouse.client.ClickHouseUtils;
 import com.clickhouse.client.ClickHouseValue;
 import com.clickhouse.client.ClickHouseValues;
 import com.clickhouse.client.data.ClickHouseObjectValue;
+import com.clickhouse.client.data.UnsignedShort;
 
 /**
  * Wrapper of {@code short[]}.
  */
 public class ClickHouseShortArrayValue extends ClickHouseObjectValue<short[]> implements ClickHouseArraySequence {
+    static final class UnsignedShortArrayValue extends ClickHouseShortArrayValue {
+        @Override
+        public Object[] asArray() {
+            short[] v = getValue();
+            int len = v.length;
+            UnsignedShort[] array = new UnsignedShort[len];
+            for (int i = 0; i < len; i++) {
+                array[i] = UnsignedShort.valueOf(v[i]);
+            }
+            return array;
+        }
+
+        @Override
+        public String asString() {
+            short[] v = getValue();
+            int len = v.length;
+            if (len == 0) {
+                return ClickHouseValues.EMPTY_ARRAY_EXPR;
+            }
+            StringBuilder builder = new StringBuilder().append('[').append(UnsignedShort.toString(v[0]));
+            for (int i = 1; i < len; i++) {
+                builder.append(',').append(UnsignedShort.toString(v[i]));
+            }
+            return builder.append(']').toString();
+        }
+
+        @Override
+        public UnsignedShortArrayValue copy(boolean deep) {
+            if (!deep) {
+                return new UnsignedShortArrayValue(getValue());
+            }
+
+            short[] value = getValue();
+            return new UnsignedShortArrayValue(Arrays.copyOf(value, value.length));
+        }
+
+        @Override
+        public UnsignedShortArrayValue update(String value) {
+            if (ClickHouseChecker.isNullOrBlank(value)) {
+                set(ClickHouseValues.EMPTY_SHORT_ARRAY);
+            } else {
+                List<String> list = ClickHouseUtils.readValueArray(value, 0, value.length());
+                if (list.isEmpty()) {
+                    set(ClickHouseValues.EMPTY_SHORT_ARRAY);
+                } else {
+                    short[] arr = new short[list.size()];
+                    int index = 0;
+                    for (String v : list) {
+                        arr[index++] = v == null ? (short) 0 : UnsignedShort.valueOf(v).shortValue();
+                    }
+                    set(arr);
+                }
+            }
+            return this;
+        }
+
+        protected UnsignedShortArrayValue(short[] value) {
+            super(value);
+        }
+    }
+
     private static final String TYPE_NAME = "short[]";
 
     /**
-     * Creates an empty array.
+     * Creates a new instance representing empty {@code Int16} array.
      *
-     * @return empty array
+     * @return new instance representing an empty array
      */
-
     public static ClickHouseShortArrayValue ofEmpty() {
-        return of(ClickHouseValues.EMPTY_SHORT_ARRAY);
+        return of(null, ClickHouseValues.EMPTY_SHORT_ARRAY, false);
     }
 
     /**
-     * Wrap the given value.
+     * Creates a new instance representing empty {@code UInt16} array.
+     *
+     * @return new instance representing an empty array
+     */
+    public static ClickHouseShortArrayValue ofUnsignedEmpty() {
+        return of(null, ClickHouseValues.EMPTY_SHORT_ARRAY, true);
+    }
+
+    /**
+     * Wraps the given {@code Int16} array.
      *
      * @param value value
      * @return object representing the value
      */
     public static ClickHouseShortArrayValue of(short[] value) {
-        return of(null, value);
+        return of(null, value, false);
+    }
+
+    /**
+     * Wraps the given {@code UInt16} array.
+     *
+     * @param value value
+     * @return object representing the value
+     */
+    public static ClickHouseShortArrayValue ofUnsigned(short[] value) {
+        return of(null, value, true);
     }
 
     /**
      * Update value of the given object or create a new instance if {@code ref} is
      * null.
      *
-     * @param ref   object to update, could be null
-     * @param value value
+     * @param ref      object to update, could be null
+     * @param value    value
+     * @param unsigned true if {@code value} is unsigned; false otherwise
      * @return same object as {@code ref} or a new instance if it's null
      */
 
-    public static ClickHouseShortArrayValue of(ClickHouseValue ref, short[] value) {
+    public static ClickHouseShortArrayValue of(ClickHouseValue ref, short[] value, boolean unsigned) {
+        if (unsigned) {
+            return ref instanceof UnsignedShortArrayValue ? ((UnsignedShortArrayValue) ref).set(value)
+                    : new UnsignedShortArrayValue(value);
+        }
+
         return ref instanceof ClickHouseShortArrayValue ? ((ClickHouseShortArrayValue) ref).set(value)
                 : new ClickHouseShortArrayValue(value);
     }
@@ -112,7 +198,17 @@ public class ClickHouseShortArrayValue extends ClickHouseObjectValue<short[]> im
 
     @Override
     public String asString() {
-        return Arrays.toString(getValue());
+        short[] value = getValue();
+        int len = value == null ? 0 : value.length;
+        if (len == 0) {
+            return ClickHouseValues.EMPTY_ARRAY_EXPR;
+        }
+
+        StringBuilder builder = new StringBuilder().append('[').append(value[0]);
+        for (int i = 1; i < len; i++) {
+            builder.append(',').append(value[i]);
+        }
+        return builder.append(']').toString();
     }
 
     @Override
@@ -148,18 +244,7 @@ public class ClickHouseShortArrayValue extends ClickHouseObjectValue<short[]> im
 
     @Override
     public String toSqlExpression() {
-        short[] value = getValue();
-        int len = value == null ? 0 : value.length;
-        if (len == 0) {
-            return ClickHouseValues.EMPTY_ARRAY_EXPR;
-        }
-
-        StringBuilder builder = new StringBuilder().append('[');
-        for (int i = 0; i < len; i++) {
-            builder.append(value[i]).append(',');
-        }
-        builder.setLength(builder.length() - 1);
-        return builder.append(']').toString();
+        return asString();
     }
 
     @Override
@@ -204,7 +289,7 @@ public class ClickHouseShortArrayValue extends ClickHouseObjectValue<short[]> im
 
         short[] v = new short[len];
         for (int i = 0; i < len; i++) {
-            v[i] = value[i];
+            v[i] = (short) (0xFF & value[i]);
         }
         return set(v);
     }
