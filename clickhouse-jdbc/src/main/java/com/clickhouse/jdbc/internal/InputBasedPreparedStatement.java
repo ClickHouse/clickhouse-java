@@ -434,7 +434,7 @@ public class InputBasedPreparedStatement extends AbstractPreparedStatement imple
             } else {
                 Calendar c = (Calendar) cal.clone();
                 c.setTime(x);
-                dt = c.toInstant().atZone(tz).withZoneSameInstant(timeZoneForTs).toLocalDateTime();
+                dt = c.toInstant().atZone(tz).withNano(x.getNanos()).withZoneSameInstant(timeZoneForTs).toLocalDateTime();
             }
             values[idx].update(dt);
         } else {
