@@ -641,6 +641,33 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
         }
     }
 
+    @Test(groups = "integration")
+    public void testTimestampWithNanoSeconds() throws SQLException {
+        Properties props = new Properties();
+        try (ClickHouseConnection conn = newConnection(props);
+                ClickHouseStatement stmt = conn.createStatement()) {
+            stmt.execute("drop table if exists test_timetamp_with_nanos;"
+                    + "create table test_timetamp_with_nanos(d DateTime64(9))engine=Memory");
+            Instant instant = Instant.now();
+            Timestamp now = new Timestamp(instant.toEpochMilli());
+            now.setNanos(instant.getNano());
+            try (PreparedStatement ps1 = conn.prepareStatement("insert into test_timetamp_with_nanos");
+                    PreparedStatement ps2 = conn
+                            .prepareStatement(
+                                    "insert into test_timetamp_with_nanos values(toDateTime64(?, 9))")) {
+                ps1.setTimestamp(1, now);
+                ps1.executeUpdate();
+
+                ps2.setTimestamp(1, now);
+                ps2.executeUpdate();
+            }
+            ResultSet rs = stmt.executeQuery("select distinct * from test_timetamp_with_nanos");
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getObject(1, Instant.class), instant);
+            Assert.assertFalse(rs.next());
+        }
+    }
+
     // @Test(groups = "integration")
     // public void testAggregateFunction() throws SQLException {
     // Properties props = new Properties();
