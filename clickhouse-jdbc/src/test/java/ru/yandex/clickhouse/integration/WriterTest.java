@@ -13,6 +13,7 @@ import ru.yandex.clickhouse.util.ClickHouseRowBinaryStream;
 import ru.yandex.clickhouse.util.ClickHouseStreamCallback;
 
 import java.io.*;
+import java.nio.file.Files;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
@@ -57,7 +58,7 @@ public class WriterTest extends JdbcIntegrationTest {
 
     @Test(groups = "integration")
     public void testTSV() throws Exception {
-        File tempFile = File.createTempFile("tmp-", ".tsv");
+        File tempFile = Files.createTempFile("tmp-", ".tsv").toFile();
         tempFile.deleteOnExit();
         FileOutputStream fos = new FileOutputStream(tempFile);
         for (int i = 0; i < 1000; i++) {

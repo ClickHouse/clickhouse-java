@@ -13,6 +13,7 @@ import java.net.URL;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
@@ -474,7 +475,7 @@ public abstract class ClickHouseInputStream extends InputStream {
             }
         } else {
             try {
-                tmp = File.createTempFile("chc", "data");
+                tmp = Files.createTempFile("chc", "data").toFile();
                 tmp.deleteOnExit();
             } catch (IOException e) {
                 throw new UncheckedIOException("Failed to create temp file", e);

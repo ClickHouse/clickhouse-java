@@ -12,6 +12,7 @@ import java.math.BigInteger;
 import java.net.URL;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -101,7 +102,7 @@ public class InputStreamImplTest {
 
     private File generateTempFile(int... bytes) {
         try {
-            File f = File.createTempFile("test_", "_input_stream");
+            File f = Files.createTempFile("test_", "_input_stream").toFile();
             if (bytes != null && bytes.length > 0) {
                 try (FileOutputStream out = new FileOutputStream(f)) {
                     for (int b : bytes) {

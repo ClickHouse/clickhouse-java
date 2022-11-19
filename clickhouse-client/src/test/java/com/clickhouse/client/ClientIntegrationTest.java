@@ -1094,7 +1094,7 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
             throw new SkipException("Skip as only http implementation works well");
         }
 
-        File file = File.createTempFile("chc", ".data");
+        File file = Files.createTempFile("chc", ".data").toFile();
         ClickHouseFile wrappedFile = ClickHouseFile.of(file,
                 gzipCompressed ? ClickHouseCompression.GZIP : ClickHouseCompression.NONE, 0,
                 ClickHouseFormat.CSV);
@@ -1217,7 +1217,7 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
             throw new SkipException("Skip as only http implementation works well");
         }
 
-        File file = File.createTempFile("chc", ".data");
+        File file = Files.createTempFile("chc", ".data").toFile();
         Object[][] data = new Object[][] {
                 { 1, "12345" },
                 { 2, "23456" },
