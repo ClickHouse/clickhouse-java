@@ -33,6 +33,7 @@ import org.testng.annotations.BeforeSuite;
  * container mode</li>
  * </ul>
  */
+@SuppressWarnings("squid:S2187")
 public class ClickHouseServerForTest {
     private static final Properties properties;
 

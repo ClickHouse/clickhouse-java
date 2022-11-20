@@ -369,7 +369,7 @@ public class ClickHouseCommandLine implements AutoCloseable {
                     inputFile = chInput.getUnderlyingFile().getFile();
                 } else {
                     CompletableFuture<File> data = ClickHouseClient.submit(() -> {
-                        File tmp = File.createTempFile("tmp", "data"); // NOSONAR
+                        File tmp = Files.createTempFile("tmp", "data").toFile();
                         tmp.deleteOnExit();
                         try (ClickHouseOutputStream out = ClickHouseOutputStream.of(new FileOutputStream(tmp))) {
                             request.getInputStream().get().pipe(out);

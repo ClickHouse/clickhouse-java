@@ -16,7 +16,7 @@ public class ClickHouseThreadFactory implements ThreadFactory {
     private final boolean daemon;
     private final int priority;
 
-    private final ThreadGroup group;
+    private final ThreadGroup group; // NOSONAR
     private final String namePrefix;
     private final AtomicInteger threadNumber;
 
