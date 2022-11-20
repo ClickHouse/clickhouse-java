@@ -1,6 +1,5 @@
 package com.clickhouse.client.http;
 
-import java.util.Iterator;
 import java.util.UUID;
 
 import com.clickhouse.client.ClickHouseClient;
@@ -20,13 +19,10 @@ import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.ClickHouseResponseSummary;
 import com.clickhouse.client.ClickHouseVersion;
 import com.clickhouse.client.ClientIntegrationTest;
-import com.clickhouse.client.config.ClickHouseBufferingMode;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.config.ClickHouseHealthCheckMethod;
 import com.clickhouse.client.data.ClickHouseExternalTable;
 import com.clickhouse.client.data.ClickHouseStringValue;
-import com.clickhouse.client.data.UnsignedInteger;
-import com.clickhouse.client.data.UnsignedLong;
 import com.clickhouse.client.http.config.ClickHouseHttpOption;
 
 import org.testng.Assert;

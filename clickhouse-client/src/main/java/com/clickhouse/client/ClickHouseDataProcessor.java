@@ -144,11 +144,8 @@ public abstract class ClickHouseDataProcessor {
      * @throws UncheckedIOException   when failed to read data from input stream
      */
     private ClickHouseValue nextValue() throws NoSuchElementException, UncheckedIOException {
-        ClickHouseColumn column = columns[readPosition];
-        ClickHouseValue value = templates[readPosition];
-        if (value == null || config.isReuseValueWrapper()) {
-            value = column.newValue(config);
-        }
+        final ClickHouseValue value = config.isReuseValueWrapper() ? templates[readPosition]
+                : templates[readPosition].copy();
         try {
             readAndFill(value);
         } catch (EOFException e) {
@@ -156,11 +153,13 @@ public abstract class ClickHouseDataProcessor {
                 throw new NoSuchElementException("No more value");
             } else {
                 throw new UncheckedIOException(ClickHouseUtils.format(ERROR_REACHED_END_OF_STREAM,
-                        readPosition + 1, columns.length, column), e);
+                        readPosition + 1, columns.length, columns[readPosition]), e);
             }
         } catch (IOException e) {
             throw new UncheckedIOException(
-                    ClickHouseUtils.format(ERROR_FAILED_TO_READ, readPosition + 1, columns.length, column), e);
+                    ClickHouseUtils.format(ERROR_FAILED_TO_READ, readPosition + 1, columns.length,
+                            columns[readPosition]),
+                    e);
         }
 
         return value;
@@ -310,9 +309,7 @@ public abstract class ClickHouseDataProcessor {
             for (ClickHouseColumn column : columns) {
                 column.setColumnIndex(idx, colCount);
                 this.columns[idx] = column;
-                if (config.isReuseValueWrapper()) {
-                    this.templates[idx] = column.newValue(config);
-                }
+                this.templates[idx] = column.newValue(config);
                 idx++;
             }
         }
@@ -426,9 +423,8 @@ public abstract class ClickHouseDataProcessor {
             throw new IllegalStateException(
                     ClickHouseUtils.format("No column to read(total=%d, readPosition=%d)", len, pos));
         }
-        ClickHouseColumn column = columns[pos];
         if (value == null) {
-            value = config.isReuseValueWrapper() ? templates[pos] : column.newValue(config);
+            value = config.isReuseValueWrapper() ? templates[pos] : templates[pos].copy();
         }
 
         readAndFill(value);
@@ -452,9 +448,8 @@ public abstract class ClickHouseDataProcessor {
             throw new IllegalStateException(
                     ClickHouseUtils.format("No column to write(total=%d, writePosition=%d)", len, pos));
         }
-        ClickHouseColumn column = columns[pos];
         if (value == null) {
-            value = config.isReuseValueWrapper() ? templates[pos] : column.newValue(config);
+            value = config.isReuseValueWrapper() ? templates[pos] : templates[pos].copy();
         }
         serializers[pos++].serialize(value, output);
         writePosition = pos >= len ? 0 : pos;

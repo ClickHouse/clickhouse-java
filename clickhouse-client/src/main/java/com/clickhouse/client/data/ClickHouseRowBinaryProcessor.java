@@ -32,63 +32,10 @@ import com.clickhouse.client.config.ClickHouseRenameMethod;
  * {@link ClickHouseFormat#RowBinaryWithNamesAndTypes} two formats.
  */
 public class ClickHouseRowBinaryProcessor extends ClickHouseDataProcessor {
-    public static class ArrayDeserializer extends ClickHouseDeserializer.CompositeDeserializer {
-        private final int nestedLevel;
-        private final Class<?> valClass;
-        private final ClickHouseValue valValue;
-
-        public ArrayDeserializer(ClickHouseConfig config, ClickHouseColumn column,
-                ClickHouseDeserializer... deserializers) {
-            super(deserializers);
-
-            ClickHouseColumn baseColumn = column.getArrayBaseColumn();
-            nestedLevel = column.getArrayNestedLevel();
-            valClass = baseColumn.getObjectClassForArray(config);
-            valValue = column.getNestedColumns().get(0).newValue(config);
-        }
-
-        @Override
-        public ClickHouseValue deserialize(ClickHouseValue ref, ClickHouseInputStream input) throws IOException {
-            int len = input.readVarInt();
-            if (len == 0) {
-                return ref.resetToNullOrEmpty();
-            }
-            ClickHouseArraySequence arr = (ClickHouseArraySequence) ref;
-            arr.allocate(len, valClass, nestedLevel);
-            ClickHouseDeserializer d = deserializers[0];
-            for (int i = 0; i < len; i++) {
-                arr.setValue(i, d.deserialize(valValue, input));
-            }
-            return ref;
-        }
-    }
-
-    public static class ArraySerializer extends ClickHouseSerializer.CompositeSerializer {
-        private final ClickHouseValue valValue;
-
-        public ArraySerializer(ClickHouseConfig config, ClickHouseColumn column,
-                ClickHouseSerializer... serializers) {
-            super(serializers);
-
-            valValue = column.getNestedColumns().get(0).newValue(config);
-        }
-
-        @Override
-        public void serialize(ClickHouseValue value, ClickHouseOutputStream output) throws IOException {
-            ClickHouseArraySequence arr = (ClickHouseArraySequence) value;
-            int len = arr.length();
-            output.writeVarInt(len);
-            ClickHouseSerializer s = serializers[0];
-            for (int i = 0; i < len; i++) {
-                s.serialize(arr.getValue(i, valValue), output);
-            }
-        }
-    }
-
-    public static class BitmapDeSer implements ClickHouseDeserializer, ClickHouseSerializer {
+    public static class BitmapSerDe implements ClickHouseDeserializer, ClickHouseSerializer {
         private final ClickHouseDataType innerType;
 
-        public BitmapDeSer(ClickHouseConfig config, ClickHouseColumn column) {
+        public BitmapSerDe(ClickHouseConfig config, ClickHouseColumn column) {
             this.innerType = column.getNestedColumns().get(0).getDataType();
         }
 
@@ -392,20 +339,20 @@ public class ClickHouseRowBinaryProcessor extends ClickHouseDataProcessor {
                 deserializer = BinaryDataProcessor::readBool;
                 break;
             case Date:
-                deserializer = BinaryDataProcessor.DateDeSer.of(config);
+                deserializer = BinaryDataProcessor.DateSerDe.of(config);
                 break;
             case Date32:
-                deserializer = BinaryDataProcessor.Date32DeSer.of(config);
+                deserializer = BinaryDataProcessor.Date32SerDe.of(config);
                 break;
             case DateTime:
-                deserializer = column.getScale() > 0 ? BinaryDataProcessor.DateTime64DeSer.of(config, column)
-                        : BinaryDataProcessor.DateTime32DeSer.of(config, column);
+                deserializer = column.getScale() > 0 ? BinaryDataProcessor.DateTime64SerDe.of(config, column)
+                        : BinaryDataProcessor.DateTime32SerDe.of(config, column);
                 break;
             case DateTime32:
-                deserializer = BinaryDataProcessor.DateTime32DeSer.of(config, column);
+                deserializer = BinaryDataProcessor.DateTime32SerDe.of(config, column);
                 break;
             case DateTime64:
-                deserializer = BinaryDataProcessor.DateTime64DeSer.of(config, column);
+                deserializer = BinaryDataProcessor.DateTime64SerDe.of(config, column);
                 break;
             case Enum8:
                 deserializer = BinaryDataProcessor::readEnum8;
@@ -414,7 +361,7 @@ public class ClickHouseRowBinaryProcessor extends ClickHouseDataProcessor {
                 deserializer = BinaryDataProcessor::readEnum16;
                 break;
             case FixedString:
-                deserializer = new BinaryDataProcessor.FixedStringDeSer(column);
+                deserializer = new BinaryDataProcessor.FixedStringSerDe(column);
                 break;
             case Int8:
                 deserializer = BinaryDataProcessor::readByte;
@@ -465,19 +412,19 @@ public class ClickHouseRowBinaryProcessor extends ClickHouseDataProcessor {
                 deserializer = BinaryDataProcessor::readUInt256;
                 break;
             case Decimal:
-                deserializer = BinaryDataProcessor.DecimalDeSer.of(column);
+                deserializer = BinaryDataProcessor.DecimalSerDe.of(column);
                 break;
             case Decimal32:
-                deserializer = BinaryDataProcessor.Decimal32DeSer.of(column);
+                deserializer = BinaryDataProcessor.Decimal32SerDe.of(column);
                 break;
             case Decimal64:
-                deserializer = BinaryDataProcessor.Decimal64DeSer.of(column);
+                deserializer = BinaryDataProcessor.Decimal64SerDe.of(column);
                 break;
             case Decimal128:
-                deserializer = BinaryDataProcessor.Decimal128DeSer.of(column);
+                deserializer = BinaryDataProcessor.Decimal128SerDe.of(column);
                 break;
             case Decimal256:
-                deserializer = BinaryDataProcessor.Decimal256DeSer.of(column);
+                deserializer = BinaryDataProcessor.Decimal256SerDe.of(column);
                 break;
             case Float32:
                 deserializer = BinaryDataProcessor::readFloat;
@@ -537,7 +484,7 @@ public class ClickHouseRowBinaryProcessor extends ClickHouseDataProcessor {
                         throw new IllegalArgumentException("Unsupported primitive type: " + javaClass);
                     }
                 } else {
-                    deserializer = new ArrayDeserializer(config, column,
+                    deserializer = new BinaryDataProcessor.ArrayDeserializer(config, column, true,
                             getDeserializer(config, column.getNestedColumns().get(0)));
                 }
                 break;
@@ -565,7 +512,7 @@ public class ClickHouseRowBinaryProcessor extends ClickHouseDataProcessor {
                 if (column.getAggregateFunction() != ClickHouseAggregateFunction.groupBitmap) {
                     throw new IllegalArgumentException("Only groupMap is supported at this point");
                 }
-                deserializer = new BitmapDeSer(config, column)::deserialize;
+                deserializer = new BitmapSerDe(config, column)::deserialize;
                 break;
             default:
                 throw new IllegalArgumentException("Unsupported column:" + column.toString());
@@ -582,20 +529,20 @@ public class ClickHouseRowBinaryProcessor extends ClickHouseDataProcessor {
                 serializer = BinaryDataProcessor::writeBool;
                 break;
             case Date:
-                serializer = BinaryDataProcessor.DateDeSer.of(config);
+                serializer = BinaryDataProcessor.DateSerDe.of(config);
                 break;
             case Date32:
-                serializer = BinaryDataProcessor.Date32DeSer.of(config);
+                serializer = BinaryDataProcessor.Date32SerDe.of(config);
                 break;
             case DateTime:
-                serializer = column.getScale() > 0 ? BinaryDataProcessor.DateTime64DeSer.of(config, column)
-                        : BinaryDataProcessor.DateTime32DeSer.of(config, column);
+                serializer = column.getScale() > 0 ? BinaryDataProcessor.DateTime64SerDe.of(config, column)
+                        : BinaryDataProcessor.DateTime32SerDe.of(config, column);
                 break;
             case DateTime32:
-                serializer = BinaryDataProcessor.DateTime32DeSer.of(config, column);
+                serializer = BinaryDataProcessor.DateTime32SerDe.of(config, column);
                 break;
             case DateTime64:
-                serializer = BinaryDataProcessor.DateTime64DeSer.of(config, column);
+                serializer = BinaryDataProcessor.DateTime64SerDe.of(config, column);
                 break;
             case Enum8:
                 serializer = BinaryDataProcessor::writeEnum8;
@@ -604,7 +551,7 @@ public class ClickHouseRowBinaryProcessor extends ClickHouseDataProcessor {
                 serializer = BinaryDataProcessor::writeEnum16;
                 break;
             case FixedString:
-                serializer = new BinaryDataProcessor.FixedStringDeSer(column);
+                serializer = new BinaryDataProcessor.FixedStringSerDe(column);
                 break;
             case Int8:
             case UInt8:
@@ -646,19 +593,19 @@ public class ClickHouseRowBinaryProcessor extends ClickHouseDataProcessor {
                 serializer = BinaryDataProcessor::writeUInt256;
                 break;
             case Decimal:
-                serializer = BinaryDataProcessor.DecimalDeSer.of(column);
+                serializer = BinaryDataProcessor.DecimalSerDe.of(column);
                 break;
             case Decimal32:
-                serializer = BinaryDataProcessor.Decimal32DeSer.of(column);
+                serializer = BinaryDataProcessor.Decimal32SerDe.of(column);
                 break;
             case Decimal64:
-                serializer = new BinaryDataProcessor.Decimal64DeSer(column);
+                serializer = new BinaryDataProcessor.Decimal64SerDe(column);
                 break;
             case Decimal128:
-                serializer = new BinaryDataProcessor.Decimal128DeSer(column);
+                serializer = new BinaryDataProcessor.Decimal128SerDe(column);
                 break;
             case Decimal256:
-                serializer = new BinaryDataProcessor.Decimal256DeSer(column);
+                serializer = new BinaryDataProcessor.Decimal256SerDe(column);
                 break;
             case Float32:
                 serializer = BinaryDataProcessor::writeFloat;
@@ -697,7 +644,7 @@ public class ClickHouseRowBinaryProcessor extends ClickHouseDataProcessor {
                 break;
             // nested
             case Array:
-                serializer = new ArraySerializer(config, column,
+                serializer = new BinaryDataProcessor.ArraySerializer(config, column, true,
                         getSerializer(config, column.getNestedColumns().get(0)));
                 break;
             case Map:
@@ -723,7 +670,7 @@ public class ClickHouseRowBinaryProcessor extends ClickHouseDataProcessor {
                 if (column.getAggregateFunction() != ClickHouseAggregateFunction.groupBitmap) {
                     throw new IllegalArgumentException("Only groupMap is supported at this point");
                 }
-                serializer = new BitmapDeSer(config, column)::serialize;
+                serializer = new BitmapSerDe(config, column)::serialize;
                 break;
             default:
                 throw new IllegalArgumentException("Unsupported column:" + column.toString());
