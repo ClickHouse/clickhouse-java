@@ -54,14 +54,8 @@ public class ClickHouseDataStreamFactory {
         ClickHouseDataProcessor processor = null;
         if (ClickHouseFormat.RowBinary == format || ClickHouseFormat.RowBinaryWithNamesAndTypes == format) {
             processor = new ClickHouseRowBinaryProcessor(config, input, output, columns, settings);
-        } else if (ClickHouseFormat.TSV == format || ClickHouseFormat.TabSeparated == format
-                || ClickHouseFormat.TSVWithNames == format || ClickHouseFormat.TSVWithNamesAndTypes == format
-                || ClickHouseFormat.TabSeparatedWithNames == format
-                || ClickHouseFormat.TabSeparatedWithNamesAndTypes == format) {
+        } else if (format.isText()) {
             processor = new ClickHouseTabSeparatedProcessor(config, input, output, columns, settings);
-        } else if (format != null && format.isText()) {
-            processor = new ClickHouseTabSeparatedProcessor(config, input, output,
-                    ClickHouseDataProcessor.DEFAULT_COLUMNS, settings);
         }
         return processor;
     }

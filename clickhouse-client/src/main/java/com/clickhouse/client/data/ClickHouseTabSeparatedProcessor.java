@@ -39,14 +39,14 @@ public class ClickHouseTabSeparatedProcessor extends ClickHouseDataProcessor {
     }
 
     // initialize in readColumns()
-    private TextDataProcessor.TextDeSer deser;
+    private TextDataProcessor.TextSerDe serde;
     private ByteFragment currentRow;
 
-    protected TextDataProcessor.TextDeSer getTextDeSer() {
-        if (deser == null) {
-            deser = TextDataProcessor.getTextDeSer(config.getFormat());
+    protected TextDataProcessor.TextSerDe getTextSerDe() {
+        if (serde == null) {
+            serde = TextDataProcessor.getTextSerDe(config.getFormat());
         }
-        return deser;
+        return serde;
     }
 
     @Override
@@ -56,7 +56,7 @@ public class ClickHouseTabSeparatedProcessor extends ClickHouseDataProcessor {
 
     @Override
     protected void readAndFill(ClickHouseRecord r) throws IOException {
-        TextDataProcessor.TextDeSer ds = getTextDeSer();
+        TextDataProcessor.TextSerDe ds = getTextSerDe();
         ClickHouseByteBuffer buf = input.readCustom(ds::readRecord);
         if (buf.isEmpty() && input.available() < 1) {
             throw new EOFException();
@@ -94,7 +94,7 @@ public class ClickHouseTabSeparatedProcessor extends ClickHouseDataProcessor {
             return DEFAULT_COLUMNS;
         }
 
-        TextDataProcessor.TextDeSer ds = getTextDeSer();
+        TextDataProcessor.TextSerDe ds = getTextSerDe();
         ClickHouseByteBuffer buf = input.readCustom(ds::readRecord);
         if (buf.isEmpty()) {
             input.close();
@@ -140,11 +140,11 @@ public class ClickHouseTabSeparatedProcessor extends ClickHouseDataProcessor {
 
     @Override
     public void write(ClickHouseValue value) throws IOException {
-        deser.serialize(value, output);
+        serde.serialize(value, output);
         if (++writePosition < columns.length) {
-            output.writeByte(deser.getValueSeparator());
+            output.writeByte(serde.getValueSeparator());
         } else {
-            output.writeByte(deser.getRecordSeparator());
+            output.writeByte(serde.getRecordSeparator());
             writePosition = 0;
         }
     }
@@ -153,15 +153,15 @@ public class ClickHouseTabSeparatedProcessor extends ClickHouseDataProcessor {
     public ClickHouseDeserializer getDeserializer(ClickHouseConfig config, ClickHouseColumn column) {
         ClickHouseDataType dt = column.getDataType();
         return dt == ClickHouseDataType.FixedString || (config.isUseBinaryString() && dt == ClickHouseDataType.String)
-                ? getTextDeSer()::deserializeBinary
-                : getTextDeSer();
+                ? getTextSerDe()::deserializeBinary
+                : getTextSerDe();
     }
 
     @Override
     public ClickHouseSerializer getSerializer(ClickHouseConfig config, ClickHouseColumn column) {
         ClickHouseDataType dt = column.getDataType();
         return dt == ClickHouseDataType.FixedString || (config.isUseBinaryString() && dt == ClickHouseDataType.String)
-                ? getTextDeSer()::serializeBinary
-                : getTextDeSer();
+                ? getTextSerDe()::serializeBinary
+                : getTextSerDe();
     }
 }

@@ -14,6 +14,7 @@ import org.testng.annotations.Test;
 
 import com.clickhouse.client.ClickHouseColumn;
 import com.clickhouse.client.ClickHouseConfig;
+import com.clickhouse.client.ClickHouseDataProcessor;
 import com.clickhouse.client.ClickHouseInputStream;
 import com.clickhouse.client.ClickHouseOutputStream;
 import com.clickhouse.client.ClickHouseValue;
@@ -235,6 +236,9 @@ public abstract class BaseDataProcessorTest {
     protected byte[] toLEBytes(String s) {
         return toBytes(new byte[] { (byte) s.length() }, toBytes(s));
     }
+
+    protected abstract ClickHouseDataProcessor getDataProcessor(ClickHouseConfig config, ClickHouseColumn column,
+            ClickHouseInputStream input, ClickHouseOutputStream output) throws IOException;
 
     protected abstract byte[] getRawData(String typeName, String key);
 
@@ -911,11 +915,25 @@ public abstract class BaseDataProcessorTest {
         };
     }
 
-    protected abstract ClickHouseValue deserialize(ClickHouseValue ref, ClickHouseConfig config,
-            ClickHouseColumn column, ClickHouseInputStream input) throws IOException;
+    protected ClickHouseValue deserialize(ClickHouseValue ref, ClickHouseConfig config,
+            ClickHouseColumn column, ClickHouseInputStream input) throws IOException {
+        if (ref == null) {
+            ref = column.newValue(config);
+        }
+        return getDataProcessor(config, column, input, null).getDeserializer(config, column).deserialize(ref, input);
+    }
 
-    protected abstract void serialize(ClickHouseValue value, ClickHouseConfig config, ClickHouseColumn column,
-            ClickHouseOutputStream output) throws IOException;
+    protected void serialize(ClickHouseValue value, ClickHouseConfig config, ClickHouseColumn column,
+            ClickHouseOutputStream output) throws IOException {
+        ClickHouseDataProcessor p = getDataProcessor(config, column, null, output);
+        ClickHouseValue v = column.newValue(config);
+        if (v.getClass() != value.getClass()) {
+            v.update(value);
+        } else {
+            v = value;
+        }
+        p.write(v);
+    }
 
     @Test(dataProvider = "nestedTypesForRead", groups = { "unit" })
     public void testDeserializeNestedTypes(ClickHouseConfig config, String typeName, String dataKey,

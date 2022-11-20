@@ -16,14 +16,14 @@ import com.clickhouse.client.ClickHouseSerializer;
 import com.clickhouse.client.ClickHouseValue;
 
 public interface TextDataProcessor {
-    static class TextDeSer implements ClickHouseDeserializer, ClickHouseSerializer {
-        private static final Map<String, TextDeSer> cache = new HashMap<>();
+    static class TextSerDe implements ClickHouseDeserializer, ClickHouseSerializer {
+        private static final Map<String, TextSerDe> cache = new HashMap<>();
 
-        public static final TextDeSer of(byte escapeChar, byte recordSeparator, byte valueSeparator, String nullValue) {
+        public static final TextSerDe of(byte escapeChar, byte recordSeparator, byte valueSeparator, String nullValue) {
             String key = new StringBuffer().append((char) escapeChar).append((char) recordSeparator)
                     .append((char) valueSeparator)
                     .append(nullValue).toString();
-            return cache.computeIfAbsent(key, TextDeSer::new);
+            return cache.computeIfAbsent(key, TextSerDe::new);
         }
 
         // TODO what about quotes?
@@ -45,7 +45,7 @@ public interface TextDataProcessor {
             return -1;
         }
 
-        public TextDeSer(String str) {
+        public TextSerDe(String str) {
             byte[] bytes = ClickHouseChecker.nonNull(str, "String").getBytes(StandardCharsets.UTF_8);
             if (bytes.length < 3) {
                 throw new IllegalArgumentException(
@@ -61,7 +61,7 @@ public interface TextDataProcessor {
             this.nullValue = Arrays.copyOfRange(bytes, 3, bytes.length);
         }
 
-        public TextDeSer(byte escapeChar, byte recordSeparator, byte valueSeparator, String nullValue) {
+        public TextSerDe(byte escapeChar, byte recordSeparator, byte valueSeparator, String nullValue) {
             this.escapeChar = escapeChar;
             this.recordSeparator = recordSeparator;
             this.valueSeparator = valueSeparator;
@@ -187,27 +187,33 @@ public interface TextDataProcessor {
         }
     }
 
-    static TextDeSer getTextDeSer(ClickHouseFormat format) {
-        final TextDeSer deser;
+    static TextSerDe getTextSerDe(ClickHouseFormat format) {
+        final TextSerDe serde;
         switch (format) {
             case CSV:
             case CSVWithNames:
-                deser = new TextDeSer("\\\n,\\N");
+                serde = new TextSerDe("\\\n,\\N");
                 break;
             case TSV:
-            case TSVRaw:
             case TSVWithNames:
             case TSVWithNamesAndTypes:
             case TabSeparated:
-            case TabSeparatedRaw:
             case TabSeparatedWithNames:
             case TabSeparatedWithNamesAndTypes:
-                deser = new TextDeSer("\\\n\t\\N");
+                serde = new TextSerDe("\\\n\t\\N");
+                break;
+            case TSVRaw:
+            case TSVRawWithNames:
+            case TSVRawWithNamesAndTypes:
+            case TabSeparatedRaw:
+            case TabSeparatedRawWithNames:
+            case TabSeparatedRawWithNamesAndTypes:
+                serde = new TextSerDe("\\\n\0\\N");
                 break;
             default:
-                deser = new TextDeSer("\\\n\0\\N");
+                serde = new TextSerDe("\0\n\0");
                 break;
         }
-        return deser;
+        return serde;
     }
 }

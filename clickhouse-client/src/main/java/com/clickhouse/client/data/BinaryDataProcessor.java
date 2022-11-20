@@ -11,6 +11,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.TimeZone;
 
+import com.clickhouse.client.ClickHouseArraySequence;
 import com.clickhouse.client.ClickHouseChecker;
 import com.clickhouse.client.ClickHouseColumn;
 import com.clickhouse.client.ClickHouseConfig;
@@ -23,6 +24,87 @@ import com.clickhouse.client.ClickHouseValue;
 import com.clickhouse.client.ClickHouseValues;
 
 public interface BinaryDataProcessor {
+    static class ArrayDeserializer extends ClickHouseDeserializer.CompositeDeserializer {
+        private final long length;
+        private final int nestedLevel;
+        private final Class<?> valClass;
+        private final ClickHouseValue valValue;
+
+        public ArrayDeserializer(ClickHouseConfig config, ClickHouseColumn column, boolean varLength,
+                ClickHouseDeserializer... deserializers) {
+            this(config, column, varLength ? -1L : -2L, deserializers);
+        }
+
+        public ArrayDeserializer(ClickHouseConfig config, ClickHouseColumn column, long length,
+                ClickHouseDeserializer... deserializers) {
+            super(deserializers);
+
+            this.length = length;
+
+            ClickHouseColumn baseColumn = column.getArrayBaseColumn();
+            nestedLevel = column.getArrayNestedLevel();
+            valClass = baseColumn.getObjectClassForArray(config);
+            valValue = column.getNestedColumns().get(0).newValue(config);
+        }
+
+        @Override
+        public ClickHouseValue deserialize(ClickHouseValue ref, ClickHouseInputStream input) throws IOException {
+            int len = (int) this.length;
+            if (len == -1) {
+                len = input.readVarInt();
+            } else if (len < 0) {
+                len = (int) input.readBuffer(8).asLong();
+            }
+
+            if (len == 0) {
+                return ref.resetToNullOrEmpty();
+            }
+            ClickHouseArraySequence arr = (ClickHouseArraySequence) ref;
+            arr.allocate(len, valClass, nestedLevel);
+            ClickHouseDeserializer d = deserializers[0];
+            for (int i = 0; i < len; i++) {
+                arr.setValue(i, d.deserialize(valValue, input));
+            }
+            return ref;
+        }
+    }
+
+    static class ArraySerializer extends ClickHouseSerializer.CompositeSerializer {
+        private final long length;
+        private final ClickHouseValue valValue;
+
+        public ArraySerializer(ClickHouseConfig config, ClickHouseColumn column, boolean varLength,
+                ClickHouseSerializer... serializers) {
+            this(config, column, varLength ? -1L : -2L, serializers);
+        }
+
+        public ArraySerializer(ClickHouseConfig config, ClickHouseColumn column, long length,
+                ClickHouseSerializer... serializers) {
+            super(serializers);
+
+            this.length = length;
+            valValue = column.getNestedColumns().get(0).newValue(config);
+        }
+
+        @Override
+        public void serialize(ClickHouseValue value, ClickHouseOutputStream output) throws IOException {
+            ClickHouseArraySequence arr = (ClickHouseArraySequence) value;
+
+            int len = (int) this.length;
+            if (len == -1) {
+                output.writeVarInt(len = arr.length());
+            } else if (len < 0) {
+                // writeLong
+                output.writeVarInt(len = arr.length());
+            }
+
+            ClickHouseSerializer s = serializers[0];
+            for (int i = 0; i < len; i++) {
+                s.serialize(arr.getValue(i, valValue), output);
+            }
+        }
+    }
+
     static class NullableDeserializer implements ClickHouseDeserializer {
         private final ClickHouseDeserializer deserializer;
 
@@ -53,17 +135,17 @@ public interface BinaryDataProcessor {
         }
     }
 
-    static class DateDeSer implements ClickHouseDeserializer, ClickHouseSerializer {
-        private static final Map<TimeZone, DateDeSer> cache = new HashMap<>();
+    static class DateSerDe implements ClickHouseDeserializer, ClickHouseSerializer {
+        private static final Map<TimeZone, DateSerDe> cache = new HashMap<>();
 
-        public static final DateDeSer of(ClickHouseConfig config) {
+        public static final DateSerDe of(ClickHouseConfig config) {
             TimeZone tz = ClickHouseChecker.nonNull(config, ClickHouseConfig.TYPE_NAME).getTimeZoneForDate();
-            return cache.computeIfAbsent(tz, DateDeSer::new);
+            return cache.computeIfAbsent(tz, DateSerDe::new);
         }
 
         protected final ZoneId zoneId;
 
-        public DateDeSer(TimeZone tz) {
+        public DateSerDe(TimeZone tz) {
             this.zoneId = tz != null ? tz.toZoneId() : ClickHouseValues.SYS_ZONE;
         }
 
@@ -88,17 +170,17 @@ public interface BinaryDataProcessor {
         }
     }
 
-    static class Date32DeSer implements ClickHouseDeserializer, ClickHouseSerializer {
-        private static final Map<TimeZone, Date32DeSer> cache = new HashMap<>();
+    static class Date32SerDe implements ClickHouseDeserializer, ClickHouseSerializer {
+        private static final Map<TimeZone, Date32SerDe> cache = new HashMap<>();
 
-        public static final Date32DeSer of(ClickHouseConfig config) {
+        public static final Date32SerDe of(ClickHouseConfig config) {
             TimeZone tz = ClickHouseChecker.nonNull(config, ClickHouseConfig.TYPE_NAME).getTimeZoneForDate();
-            return cache.computeIfAbsent(tz, Date32DeSer::new);
+            return cache.computeIfAbsent(tz, Date32SerDe::new);
         }
 
         protected final ZoneId zoneId;
 
-        public Date32DeSer(TimeZone tz) {
+        public Date32SerDe(TimeZone tz) {
             this.zoneId = tz != null ? tz.toZoneId() : ClickHouseValues.SYS_ZONE;
         }
 
@@ -124,19 +206,19 @@ public interface BinaryDataProcessor {
         }
     }
 
-    static class DateTime32DeSer implements ClickHouseDeserializer, ClickHouseSerializer {
-        private static final Map<TimeZone, DateTime32DeSer> cache = new HashMap<>();
+    static class DateTime32SerDe implements ClickHouseDeserializer, ClickHouseSerializer {
+        private static final Map<TimeZone, DateTime32SerDe> cache = new HashMap<>();
 
-        public static final DateTime32DeSer of(ClickHouseConfig config, ClickHouseColumn column) {
+        public static final DateTime32SerDe of(ClickHouseConfig config, ClickHouseColumn column) {
             TimeZone tz = ClickHouseChecker.nonNull(column, ClickHouseColumn.TYPE_NAME).hasTimeZone()
                     ? column.getTimeZone()
                     : ClickHouseChecker.nonNull(config, ClickHouseConfig.TYPE_NAME).getUseTimeZone();
-            return cache.computeIfAbsent(tz, DateTime32DeSer::new);
+            return cache.computeIfAbsent(tz, DateTime32SerDe::new);
         }
 
         protected final ZoneId zoneId;
 
-        public DateTime32DeSer(TimeZone tz) {
+        public DateTime32SerDe(TimeZone tz) {
             this.zoneId = tz != null ? tz.toZoneId() : ClickHouseValues.UTC_ZONE;
         }
 
@@ -157,26 +239,26 @@ public interface BinaryDataProcessor {
         }
     }
 
-    static class DateTime64DeSer implements ClickHouseDeserializer, ClickHouseSerializer {
+    static class DateTime64SerDe implements ClickHouseDeserializer, ClickHouseSerializer {
         private static final int[] BASES = new int[] { 1, 10, 100, 1000, 10000, 100000, 1000000, 10000000, 100000000,
                 1000000000 };
         // use combined key for all timezones?
-        private static final Map<Integer, DateTime64DeSer> cache = new HashMap<>();
+        private static final Map<Integer, DateTime64SerDe> cache = new HashMap<>();
 
-        public static final DateTime64DeSer of(ClickHouseConfig config, ClickHouseColumn column) {
+        public static final DateTime64SerDe of(ClickHouseConfig config, ClickHouseColumn column) {
             TimeZone tz = ClickHouseChecker.nonNull(column, ClickHouseColumn.TYPE_NAME).hasTimeZone()
                     ? column.getTimeZone()
                     : ClickHouseChecker.nonNull(config, ClickHouseConfig.TYPE_NAME).getUseTimeZone();
             int scale = column.getScale();
             return ClickHouseValues.UTC_TIMEZONE.equals(tz)
-                    ? cache.computeIfAbsent(scale, s -> new DateTime64DeSer(s, ClickHouseValues.UTC_TIMEZONE))
-                    : new DateTime64DeSer(scale, tz);
+                    ? cache.computeIfAbsent(scale, s -> new DateTime64SerDe(s, ClickHouseValues.UTC_TIMEZONE))
+                    : new DateTime64SerDe(scale, tz);
         }
 
         private final ZoneId zoneId;
         private final int scale;
 
-        public DateTime64DeSer(int scale, TimeZone tz) {
+        public DateTime64SerDe(int scale, TimeZone tz) {
             this.scale = ClickHouseChecker.between(scale, ClickHouseValues.PARAM_SCALE, 0, 9);
             this.zoneId = tz != null ? tz.toZoneId() : ClickHouseValues.UTC_ZONE;
         }
@@ -221,26 +303,26 @@ public interface BinaryDataProcessor {
         }
     }
 
-    static class DecimalDeSer implements ClickHouseDeserializer, ClickHouseSerializer {
+    static class DecimalSerDe implements ClickHouseDeserializer, ClickHouseSerializer {
         protected final int scale;
 
-        public static DecimalDeSer of(ClickHouseColumn column) {
+        public static DecimalSerDe of(ClickHouseColumn column) {
             return of(ClickHouseChecker.nonNull(column, ClickHouseColumn.TYPE_NAME).getPrecision(), column.getScale());
         }
 
-        public static DecimalDeSer of(int precision, int scale) {
+        public static DecimalSerDe of(int precision, int scale) {
             if (precision > ClickHouseDataType.Decimal128.getMaxScale()) {
-                return new Decimal256DeSer(scale);
+                return new Decimal256SerDe(scale);
             } else if (precision > ClickHouseDataType.Decimal64.getMaxScale()) {
-                return new Decimal128DeSer(scale);
+                return new Decimal128SerDe(scale);
             } else if (precision > ClickHouseDataType.Decimal32.getMaxScale()) {
-                return new Decimal64DeSer(scale);
+                return new Decimal64SerDe(scale);
             } else {
-                return new Decimal32DeSer(scale);
+                return new Decimal32SerDe(scale);
             }
         }
 
-        public DecimalDeSer(int scale) {
+        public DecimalSerDe(int scale) {
             this.scale = scale;
         }
 
@@ -255,15 +337,15 @@ public interface BinaryDataProcessor {
         }
     }
 
-    static class Decimal32DeSer extends DecimalDeSer {
-        private static final Map<Integer, DecimalDeSer> cache = new HashMap<>();
+    static class Decimal32SerDe extends DecimalSerDe {
+        private static final Map<Integer, DecimalSerDe> cache = new HashMap<>();
 
-        public static final DecimalDeSer of(ClickHouseColumn column) {
+        public static final DecimalSerDe of(ClickHouseColumn column) {
             int scale = ClickHouseChecker.nonNull(column, ClickHouseColumn.TYPE_NAME).getScale();
-            return cache.computeIfAbsent(scale, Decimal32DeSer::new);
+            return cache.computeIfAbsent(scale, Decimal32SerDe::new);
         }
 
-        public Decimal32DeSer(int scale) {
+        public Decimal32SerDe(int scale) {
             super(ClickHouseChecker.between(scale, ClickHouseValues.PARAM_SCALE, 0,
                     ClickHouseDataType.Decimal32.getMaxScale()));
         }
@@ -283,19 +365,19 @@ public interface BinaryDataProcessor {
         }
     }
 
-    static class Decimal64DeSer extends DecimalDeSer {
-        private static final Map<Integer, DecimalDeSer> cache = new HashMap<>();
+    static class Decimal64SerDe extends DecimalSerDe {
+        private static final Map<Integer, DecimalSerDe> cache = new HashMap<>();
 
-        public static final DecimalDeSer of(ClickHouseColumn column) {
+        public static final DecimalSerDe of(ClickHouseColumn column) {
             int scale = ClickHouseChecker.nonNull(column, ClickHouseColumn.TYPE_NAME).getScale();
-            return cache.computeIfAbsent(scale, Decimal64DeSer::new);
+            return cache.computeIfAbsent(scale, Decimal64SerDe::new);
         }
 
-        public Decimal64DeSer(ClickHouseColumn column) {
+        public Decimal64SerDe(ClickHouseColumn column) {
             this(ClickHouseChecker.nonNull(column, ClickHouseColumn.TYPE_NAME).getScale());
         }
 
-        public Decimal64DeSer(int scale) {
+        public Decimal64SerDe(int scale) {
             super(ClickHouseChecker.between(scale, ClickHouseValues.PARAM_SCALE, 0,
                     ClickHouseDataType.Decimal64.getMaxScale()));
         }
@@ -315,19 +397,19 @@ public interface BinaryDataProcessor {
         }
     }
 
-    static class Decimal128DeSer extends DecimalDeSer {
-        private static final Map<Integer, DecimalDeSer> cache = new HashMap<>();
+    static class Decimal128SerDe extends DecimalSerDe {
+        private static final Map<Integer, DecimalSerDe> cache = new HashMap<>();
 
-        public static final DecimalDeSer of(ClickHouseColumn column) {
+        public static final DecimalSerDe of(ClickHouseColumn column) {
             int scale = ClickHouseChecker.nonNull(column, ClickHouseColumn.TYPE_NAME).getScale();
-            return cache.computeIfAbsent(scale, Decimal128DeSer::new);
+            return cache.computeIfAbsent(scale, Decimal128SerDe::new);
         }
 
-        public Decimal128DeSer(ClickHouseColumn column) {
+        public Decimal128SerDe(ClickHouseColumn column) {
             this(ClickHouseChecker.nonNull(column, ClickHouseColumn.TYPE_NAME).getScale());
         }
 
-        public Decimal128DeSer(int scale) {
+        public Decimal128SerDe(int scale) {
             super(ClickHouseChecker.between(scale, ClickHouseValues.PARAM_SCALE, 0,
                     ClickHouseDataType.Decimal128.getMaxScale()));
         }
@@ -347,19 +429,19 @@ public interface BinaryDataProcessor {
         }
     }
 
-    static class Decimal256DeSer extends DecimalDeSer {
-        private static final Map<Integer, DecimalDeSer> cache = new HashMap<>();
+    static class Decimal256SerDe extends DecimalSerDe {
+        private static final Map<Integer, DecimalSerDe> cache = new HashMap<>();
 
-        public static final DecimalDeSer of(ClickHouseColumn column) {
+        public static final DecimalSerDe of(ClickHouseColumn column) {
             int scale = ClickHouseChecker.nonNull(column, ClickHouseColumn.TYPE_NAME).getScale();
-            return cache.computeIfAbsent(scale, Decimal256DeSer::new);
+            return cache.computeIfAbsent(scale, Decimal256SerDe::new);
         }
 
-        public Decimal256DeSer(ClickHouseColumn column) {
+        public Decimal256SerDe(ClickHouseColumn column) {
             this(ClickHouseChecker.nonNull(column, ClickHouseColumn.TYPE_NAME).getScale());
         }
 
-        public Decimal256DeSer(int scale) {
+        public Decimal256SerDe(int scale) {
             super(ClickHouseChecker.between(scale, ClickHouseValues.PARAM_SCALE, 0,
                     ClickHouseDataType.Decimal256.getMaxScale()));
         }
@@ -379,14 +461,14 @@ public interface BinaryDataProcessor {
         }
     }
 
-    static class FixedStringDeSer implements ClickHouseDeserializer, ClickHouseSerializer {
+    static class FixedStringSerDe implements ClickHouseDeserializer, ClickHouseSerializer {
         private final int length;
 
-        public FixedStringDeSer(ClickHouseColumn column) {
+        public FixedStringSerDe(ClickHouseColumn column) {
             this(ClickHouseChecker.nonNull(column, ClickHouseColumn.TYPE_NAME).getPrecision());
         }
 
-        public FixedStringDeSer(int length) {
+        public FixedStringSerDe(int length) {
             if (length < 1) {
                 throw new IllegalArgumentException("Length should be greater than zero");
             }

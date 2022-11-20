@@ -15,6 +15,7 @@ import org.testng.Assert;
 import org.testng.annotations.Test;
 import com.clickhouse.client.ClickHouseColumn;
 import com.clickhouse.client.ClickHouseConfig;
+import com.clickhouse.client.ClickHouseDataProcessor;
 import com.clickhouse.client.ClickHouseInputStream;
 import com.clickhouse.client.ClickHouseOutputStream;
 import com.clickhouse.client.ClickHouseValue;
@@ -22,10 +23,10 @@ import com.clickhouse.client.data.array.ClickHouseByteArrayValue;
 import com.clickhouse.client.data.array.ClickHouseShortArrayValue;
 
 public class ClickHouseRowBinaryProcessorTest extends BaseDataProcessorTest {
-    private ClickHouseRowBinaryProcessor newProcessor(int... bytes) throws IOException {
-        return new ClickHouseRowBinaryProcessor(new ClickHouseConfig(),
-                BinaryStreamUtilsTest.generateInput(bytes),
-                null, Collections.emptyList(), null);
+    @Override
+    protected ClickHouseDataProcessor getDataProcessor(ClickHouseConfig config, ClickHouseColumn column,
+            ClickHouseInputStream input, ClickHouseOutputStream output) throws IOException {
+        return new ClickHouseRowBinaryProcessor(config, input, output, Collections.singletonList(column), null);
     }
 
     // @Test(groups = { "unit" })
@@ -38,23 +39,6 @@ public class ClickHouseRowBinaryProcessorTest extends BaseDataProcessorTest {
     // Assert.assertTrue(value instanceof ClickHouseStringValue);
     // Assert.assertEquals(value.asObject(), null);
     // }
-
-    @Override
-    protected ClickHouseValue deserialize(ClickHouseValue ref, ClickHouseConfig config,
-            ClickHouseColumn column, ClickHouseInputStream input) throws IOException {
-        if (ref == null) {
-            ref = column.newValue(config);
-        }
-        return new ClickHouseRowBinaryProcessor(config, input, null, Collections.singletonList(column), null)
-                .getDeserializer(config, column).deserialize(ref, input);
-    }
-
-    @Override
-    protected void serialize(ClickHouseValue value, ClickHouseConfig config, ClickHouseColumn column,
-            ClickHouseOutputStream output) throws IOException {
-        new ClickHouseRowBinaryProcessor(config, null, output, Collections.singletonList(column), null)
-                .getSerializer(config, column).serialize(value, output);
-    }
 
     @Override
     protected byte[] getRawData(String typeName, String key) {

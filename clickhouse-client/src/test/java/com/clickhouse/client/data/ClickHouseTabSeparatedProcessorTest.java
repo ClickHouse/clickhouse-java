@@ -38,27 +38,9 @@ public class ClickHouseTabSeparatedProcessorTest extends BaseDataProcessorTest {
     }
 
     @Override
-    protected ClickHouseValue deserialize(ClickHouseValue ref, ClickHouseConfig config,
-            ClickHouseColumn column, ClickHouseInputStream input) throws IOException {
-        if (ref == null) {
-            ref = column.newValue(config);
-        }
-        return new ClickHouseTabSeparatedProcessor(config, input, null, Collections.singletonList(column), null)
-                .getDeserializer(config, column).deserialize(ref, input);
-    }
-
-    @Override
-    protected void serialize(ClickHouseValue value, ClickHouseConfig config, ClickHouseColumn column,
-            ClickHouseOutputStream output) throws IOException {
-        ClickHouseTabSeparatedProcessor p = new ClickHouseTabSeparatedProcessor(config, null, output,
-                Collections.singletonList(column), null);
-        ClickHouseValue v = column.newValue(config);
-        if (v.getClass() != value.getClass()) {
-            v.update(value);
-        } else {
-            v = value;
-        }
-        p.write(v);
+    protected ClickHouseDataProcessor getDataProcessor(ClickHouseConfig config, ClickHouseColumn column,
+            ClickHouseInputStream input, ClickHouseOutputStream output) throws IOException {
+        return new ClickHouseTabSeparatedProcessor(config, input, output, Collections.singletonList(column), null);
     }
 
     @Override
