@@ -51,6 +51,8 @@ public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
     private static final byte[] HEADER_BINARY_ENCODING = "content-transfer-encoding: binary\r\n\r\n"
             .getBytes(StandardCharsets.US_ASCII);
 
+    private static final byte[] ERROR_MSG_PREFIX = "Code: ".getBytes(StandardCharsets.US_ASCII);
+
     private static final byte[] DOUBLE_DASH = new byte[] { '-', '-' };
     private static final byte[] END_OF_NAME = new byte[] { '"', '\r', '\n' };
     private static final byte[] LINE_PREFIX = new byte[] { '\r', '\n', '-', '-' };
@@ -194,7 +196,9 @@ public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
             } catch (IOException e) {
                 log.debug("Failed to read error message[code=%s] from server [%s] due to: %s", errorCode, serverName,
                         e.getMessage());
-                errorMsg = new String(bytes, StandardCharsets.UTF_8);
+                int index = ClickHouseUtils.indexOf(bytes, ERROR_MSG_PREFIX);
+                errorMsg = index > 0 ? new String(bytes, index, bytes.length - index, StandardCharsets.UTF_8)
+                        : new String(bytes, StandardCharsets.UTF_8);
             }
 
             throw new IOException(errorMsg);

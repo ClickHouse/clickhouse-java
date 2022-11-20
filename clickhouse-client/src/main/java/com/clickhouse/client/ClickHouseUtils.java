@@ -162,6 +162,27 @@ public final class ClickHouseUtils {
         return service;
     }
 
+    public static int indexOf(byte[] bytes, byte[] search) {
+        if (bytes == null || search == null) {
+            return -1;
+        }
+        int slen = search.length;
+        if (slen == 0) {
+            return 0;
+        }
+        int blen = bytes.length;
+
+        outer: for (int i = 0, len = blen - slen + 1; i < len; i++) {
+            for (int j = 0; j < slen; j++) {
+                if (bytes[i + j] != search[j]) {
+                    continue outer;
+                }
+            }
+            return i;
+        }
+        return -1;
+    }
+
     public static ExecutorService newThreadPool(Object owner, int maxThreads, int maxRequests) {
         return newThreadPool(owner, maxThreads, 0, maxRequests, 0L, true);
     }
