@@ -2,13 +2,7 @@ package com.clickhouse.client.data;
 
 import java.io.EOFException;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.EnumMap;
-import java.util.Iterator;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.Map.Entry;
 
 import com.clickhouse.client.ClickHouseAggregateFunction;
@@ -54,42 +48,42 @@ public class ClickHouseRowBinaryProcessor extends ClickHouseDataProcessor {
             } else {
                 ClickHouseValue v = ClickHouseValues.newValue(config, baseColumn);
                 if (byte.class == javaClass) {
-                    byte[] array = (byte[]) value.asObject();
+                    Byte[] array = value.asArray(Byte.class);
                     int length = array.length;
                     output.writeVarInt(length);
                     for (int i = 0; i < length; i++) {
                         serialize(v.update(array[i]), config, baseColumn, output);
                     }
                 } else if (short.class == javaClass) {
-                    short[] array = (short[]) value.asObject();
+                    Short[] array = value.asArray(Short.class);
                     int length = array.length;
                     output.writeVarInt(length);
                     for (int i = 0; i < length; i++) {
                         serialize(v.update(array[i]), config, baseColumn, output);
                     }
                 } else if (int.class == javaClass) {
-                    int[] array = (int[]) value.asObject();
+                    Integer[] array = value.asArray(Integer.class);
                     int length = array.length;
                     output.writeVarInt(length);
                     for (int i = 0; i < length; i++) {
                         serialize(v.update(array[i]), config, baseColumn, output);
                     }
                 } else if (long.class == javaClass) {
-                    long[] array = (long[]) value.asObject();
+                    Long[] array = value.asArray(Long.class);
                     int length = array.length;
                     output.writeVarInt(length);
                     for (int i = 0; i < length; i++) {
                         serialize(v.update(array[i]), config, baseColumn, output);
                     }
                 } else if (float.class == javaClass) {
-                    float[] array = (float[]) value.asObject();
+                    Float[] array = value.asArray(Float.class);
                     int length = array.length;
                     output.writeVarInt(length);
                     for (int i = 0; i < length; i++) {
                         serialize(v.update(array[i]), config, baseColumn, output);
                     }
                 } else if (double.class == javaClass) {
-                    double[] array = (double[]) value.asObject();
+                    Double[] array = value.asArray(Double.class);
                     int length = array.length;
                     output.writeVarInt(length);
                     for (int i = 0; i < length; i++) {
