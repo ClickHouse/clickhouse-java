@@ -11,9 +11,9 @@ import java.util.Locale;
  */
 public final class ClickHouseChecker {
     private static final String DEFAULT_NAME = "value";
-    private static final String ERR_SHOULD_BETWEEN = "%s(%s) should between %s and %s inclusive of both values";
-    private static final String ERR_SHOULD_BETWEEN_EXCLUSIVE = "%s(%s) should between %s and %s exclusive of both values";
-    private static final String ERR_SHOULD_GE = "%s(%s) should NOT less than %s";
+    private static final String ERR_SHOULD_BETWEEN = "%s(%s) should be between %s and %s inclusive of both values";
+    private static final String ERR_SHOULD_BETWEEN_EXCLUSIVE = "%s(%s) should be between %s and %s exclusive of both values";
+    private static final String ERR_SHOULD_GE = "%s(%s) should NOT be less than %s";
 
     static final IllegalArgumentException newException(String format, Object... args) {
         return new IllegalArgumentException(String.format(Locale.ROOT, format, args));
