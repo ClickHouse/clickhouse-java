@@ -1,5 +1,6 @@
 package com.clickhouse.client.data;
 
+import com.clickhouse.client.ClickHouseDataType;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
@@ -16,7 +17,6 @@ import org.roaringbitmap.buffer.ImmutableRoaringBitmap;
 import org.roaringbitmap.buffer.MutableRoaringBitmap;
 import org.roaringbitmap.longlong.Roaring64Bitmap;
 import org.roaringbitmap.longlong.Roaring64NavigableMap;
-import com.clickhouse.client.ClickHouseDataType;
 
 public abstract class ClickHouseBitmap {
     private static final int[] EMPTY_INT_ARRAY = new int[0];
@@ -562,9 +562,9 @@ public abstract class ClickHouseBitmap {
     public ByteBuffer toByteBuffer() {
         ByteBuffer buf;
 
-        int cardinality = getCardinality();
+        long cardinality = getLongCardinality();
         if (cardinality <= 32) {
-            buf = newBuffer(2 + byteLen * cardinality);
+            buf = newBuffer(2 + byteLen * (int) cardinality);
             buf.put((byte) 0);
             buf.put((byte) cardinality);
             if (byteLen == 1) {
