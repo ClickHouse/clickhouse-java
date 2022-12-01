@@ -6,7 +6,7 @@ import com.clickhouse.client.ClickHouseChecker;
 import com.clickhouse.client.config.ClickHouseOption;
 
 /**
- * gRPC client options.
+ * Http client options.
  */
 public enum ClickHouseHttpOption implements ClickHouseOption {
     /**
