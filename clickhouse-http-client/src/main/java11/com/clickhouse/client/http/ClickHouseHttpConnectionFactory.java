@@ -17,7 +17,9 @@ public final class ClickHouseHttpConnectionFactory {
         try {
             return provider == null || provider == HttpConnectionProvider.HTTP_URL_CONNECTION
                     ? new HttpUrlConnectionImpl(server, request, executor)
-                    : new HttpClientConnectionImpl(server, request, executor);
+                    : provider == HttpConnectionProvider.HTTP_CLIENT
+                        ? new HttpClientConnectionImpl(server, request, executor)
+                        : new ApacheHttpConnectionImpl(server, request, executor);
         } catch (IOException e) {
             throw e;
         } catch (Throwable t) {
