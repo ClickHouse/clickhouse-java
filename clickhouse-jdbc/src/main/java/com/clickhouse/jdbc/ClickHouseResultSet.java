@@ -46,7 +46,6 @@ public class ClickHouseResultSet extends AbstractResultSet {
     private Iterator<ClickHouseRecord> rowCursor;
     private int rowNumber;
     private int lastReadColumn; // 1-based
-    private int fetchSize;
 
     protected final String database;
     protected final String table;
@@ -92,7 +91,6 @@ public class ClickHouseResultSet extends AbstractResultSet {
 
         this.maxRows = 0;
         this.nullAsDefault = false;
-        this.fetchSize = 0;
     }
 
     public ClickHouseResultSet(String database, String table, ClickHouseStatement statement,
@@ -130,7 +128,6 @@ public class ClickHouseResultSet extends AbstractResultSet {
 
         this.maxRows = statement.getMaxRows();
         this.nullAsDefault = statement.getNullAsDefault() > 1;
-        this.fetchSize = statement.getFetchSize();
     }
 
     protected void ensureRead(int columnIndex) throws SQLException {
@@ -383,7 +380,7 @@ public class ClickHouseResultSet extends AbstractResultSet {
     public int getFetchSize() throws SQLException {
         ensureOpen();
 
-        return fetchSize;
+        return statement != null ? statement.getFetchSize() : 0;
     }
 
     @Override
@@ -729,8 +726,6 @@ public class ClickHouseResultSet extends AbstractResultSet {
     @Override
     public void setFetchSize(int rows) throws SQLException {
         ensureOpen();
-
-        this.fetchSize = rows;
     }
 
     @Override

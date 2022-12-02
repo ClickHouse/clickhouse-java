@@ -16,11 +16,14 @@ import java.util.Properties;
 import java.util.TimeZone;
 import java.util.function.BiFunction;
 
+import com.clickhouse.client.ClickHouseColumn;
+import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseDataType;
 import com.clickhouse.client.ClickHouseRecord;
 import com.clickhouse.client.ClickHouseValues;
 import com.clickhouse.client.data.ClickHouseDateTimeValue;
 import com.clickhouse.client.data.ClickHouseOffsetDateTimeValue;
+import com.clickhouse.client.data.ClickHouseSimpleResponse;
 import com.clickhouse.client.data.UnsignedByte;
 import com.clickhouse.client.data.UnsignedInteger;
 
@@ -364,6 +367,41 @@ public class ClickHouseResultSetTest extends JdbcIntegrationTest {
                 return;
             }
             throw e;
+        }
+    }
+
+    @Test(groups = "unit")
+    public void testFetchSizeOfDetachedResultSet() throws SQLException {
+        try (ClickHouseResultSet rs = new ClickHouseResultSet("", "",
+                ClickHouseSimpleResponse.of(new ClickHouseConfig(), ClickHouseColumn.parse("s String"),
+                        new Object[][] { new Object[] { "a" } }))) {
+            Assert.assertEquals(rs.getFetchSize(), 0);
+            rs.setFetchSize(2);
+            Assert.assertEquals(rs.getFetchSize(), 0);
+            rs.setFetchSize(-1);
+            Assert.assertEquals(rs.getFetchSize(), 0);
+        }
+    }
+
+    @Test(groups = "integration")
+    public void testFetchSize() throws SQLException {
+        try (ClickHouseConnection conn = newConnection(new Properties()); Statement stmt = conn.createStatement()) {
+            try (ResultSet rs = stmt.executeQuery("select 1")) {
+                Assert.assertEquals(rs.getFetchSize(), 0);
+                rs.setFetchSize(2);
+                Assert.assertEquals(rs.getFetchSize(), 0);
+                rs.setFetchSize(-1);
+                Assert.assertEquals(rs.getFetchSize(), 0);
+            }
+
+            stmt.setFetchSize(1);
+            try (ResultSet rs = stmt.executeQuery("select 1")) {
+                Assert.assertEquals(rs.getFetchSize(), 1);
+                rs.setFetchSize(2);
+                Assert.assertEquals(rs.getFetchSize(), 1);
+                rs.setFetchSize(-1);
+                Assert.assertEquals(rs.getFetchSize(), 1);
+            }
         }
     }
 }
