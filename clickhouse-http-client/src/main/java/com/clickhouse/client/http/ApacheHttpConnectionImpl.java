@@ -344,7 +344,6 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
     }
 
     static class SocketFactory extends PlainConnectionSocketFactory {
-        private static final Logger LOG = LoggerFactory.getLogger(SocketFactory.class);
         private final ClickHouseConfig config;
 
         private SocketFactory(ClickHouseConfig config) {
@@ -355,7 +354,6 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
         public Socket createSocket(final HttpContext context) throws IOException {
             Socket sock = new Socket();
             sock.setTrafficClass(config.getOption(ClickHouseSocketOption.IP_TOS, Integer.class));
-            LOG.debug("Set socket option IP_TOS to " + sock.getOption(StandardSocketOptions.IP_TOS));
             // TODO more socket options
             return sock;
         }
@@ -384,7 +382,6 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
         public Socket createSocket(HttpContext context) throws IOException {
             Socket sock = new Socket();
             sock.setTrafficClass(config.getOption(ClickHouseSocketOption.IP_TOS, Integer.class));
-            LOG.debug("Set socket option IP_TOS to " + sock.getOption(StandardSocketOptions.IP_TOS));
             // TODO more socket options
             return sock;
         }

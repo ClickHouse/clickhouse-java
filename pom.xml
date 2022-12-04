@@ -99,6 +99,7 @@
         <testcontainers.version>1.17.5</testcontainers.version>
         <!-- stay 7.5 for JDK 8 support -->
         <testng.version>7.5</testng.version>
+        <apache.httpclient.version>4.5.13</apache.httpclient.version>
 
         <mariadb-driver.version>3.0.9</mariadb-driver.version>
         <mysql-driver.version>8.0.31</mysql-driver.version>
@@ -263,6 +264,11 @@
                 <groupId>org.testng</groupId>
                 <artifactId>testng</artifactId>
                 <version>${testng.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.httpcomponents</groupId>
+                <artifactId>httpclient</artifactId>
+                <version>${apache.httpclient.version}</version>
             </dependency>
 
             <dependency>
