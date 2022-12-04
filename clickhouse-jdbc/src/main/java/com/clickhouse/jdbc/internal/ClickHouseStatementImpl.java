@@ -563,7 +563,8 @@ public class ClickHouseStatementImpl extends JdbcWrapper
     @Override
     public void setFetchSize(int rows) throws SQLException {
         if (rows < 0) {
-            throw SqlExceptionUtils.clientError("Fetch size cannot be negative number");
+            log.warn("Negative fetch size is treated as 0.");
+            rows = 0;
         }
 
         ensureOpen();

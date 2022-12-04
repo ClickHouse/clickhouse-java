@@ -132,4 +132,17 @@ public class CombinedResultSetTest {
         combined.close();
         Assert.assertTrue(combined.isClosed());
     }
+
+    @Test(groups = "unit")
+    public void testFetchSize() throws SQLException {
+        try (CombinedResultSet rs = new CombinedResultSet(new ClickHouseResultSet("", "",
+                ClickHouseSimpleResponse.of(new ClickHouseConfig(), ClickHouseColumn.parse("s String"),
+                        new Object[][] { new Object[] { "a" }, new Object[] { "b" } })))) {
+            Assert.assertEquals(rs.getFetchSize(), 0);
+            rs.setFetchSize(2);
+            Assert.assertEquals(rs.getFetchSize(), 0);
+            rs.setFetchSize(-1);
+            Assert.assertEquals(rs.getFetchSize(), 0);
+        }
+    }
 }

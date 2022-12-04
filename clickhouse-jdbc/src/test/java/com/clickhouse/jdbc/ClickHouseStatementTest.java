@@ -499,6 +499,27 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
     }
 
     @Test(groups = "integration")
+    public void testFetchSize() throws SQLException {
+        try (Connection conn = newConnection(new Properties()); Statement stmt = conn.createStatement()) {
+            Assert.assertEquals(stmt.getFetchSize(), 0);
+
+            stmt.setFetchSize(0);
+            Assert.assertEquals(stmt.getFetchSize(), 0);
+            stmt.setFetchSize(-1);
+            Assert.assertEquals(stmt.getFetchSize(), 0);
+            stmt.setFetchSize(Integer.MIN_VALUE);
+            Assert.assertEquals(stmt.getFetchSize(), 0);
+
+            stmt.setFetchSize(1);
+            Assert.assertEquals(stmt.getFetchSize(), 1);
+            stmt.setFetchSize(Integer.MAX_VALUE);
+            Assert.assertEquals(stmt.getFetchSize(), Integer.MAX_VALUE);
+            stmt.setFetchSize(0);
+            Assert.assertEquals(stmt.getFetchSize(), 0);
+        }
+    }
+
+    @Test(groups = "integration")
     public void testSimpleAggregateFunction() throws SQLException {
         try (ClickHouseConnection conn = newConnection(new Properties());
                 ClickHouseStatement stmt = conn.createStatement();) {
