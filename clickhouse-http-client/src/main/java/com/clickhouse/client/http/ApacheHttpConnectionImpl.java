@@ -9,7 +9,7 @@ import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseSslContextProvider;
 import com.clickhouse.client.ClickHouseUtils;
-import com.clickhouse.client.config.ClickHouseSocketOption;
+import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.config.ClickHouseSslMode;
 import com.clickhouse.client.data.ClickHouseExternalTable;
 import com.clickhouse.client.http.config.ClickHouseHttpOption;
@@ -32,7 +32,6 @@ import org.apache.hc.core5.http.config.Registry;
 import org.apache.hc.core5.http.config.RegistryBuilder;
 import org.apache.hc.core5.http.io.SocketConfig;
 import org.apache.hc.core5.http.io.entity.EntityUtils;
-import org.apache.hc.core5.http.message.StatusLine;
 import org.apache.hc.core5.http.protocol.HttpContext;
 import org.apache.hc.core5.ssl.SSLContexts;
 import org.apache.hc.core5.util.Timeout;
@@ -325,10 +324,10 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
     @Override
     public boolean ping(int timeout) {
         String url = getBaseUrl().concat("ping");
-        HttpGet request = new HttpGet(url);
+        HttpGet ping = new HttpGet(url);
 
         try (CloseableHttpClient httpClient = newConnection();
-                CloseableHttpResponse response = httpClient.execute(request)) {
+                CloseableHttpResponse response = httpClient.execute(ping)) {
             // TODO set timeout
             checkResponse(response);
             String ok = config.getStrOption(ClickHouseHttpOption.DEFAULT_RESPONSE);
@@ -356,7 +355,7 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
         @Override
         public Socket createSocket(final HttpContext context) throws IOException {
             Socket sock = new Socket();
-            sock.setTrafficClass(config.getOption(ClickHouseSocketOption.IP_TOS, Integer.class));
+            sock.setTrafficClass(config.getOption(ClickHouseClientOption.IP_TOS, Integer.class));
             // TODO more socket options
             return sock;
         }
@@ -367,7 +366,6 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
     }
 
     static class SSLSocketFactory extends SSLConnectionSocketFactory {
-        private static final Logger LOG = LoggerFactory.getLogger(SSLSocketFactory.class);
         private final ClickHouseConfig config;
 
         private SSLSocketFactory(ClickHouseConfig config) throws SSLException {
@@ -384,7 +382,7 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
         @Override
         public Socket createSocket(HttpContext context) throws IOException {
             Socket sock = new Socket();
-            sock.setTrafficClass(config.getOption(ClickHouseSocketOption.IP_TOS, Integer.class));
+            sock.setTrafficClass(config.getOption(ClickHouseClientOption.IP_TOS, Integer.class));
             // TODO more socket options
             return sock;
         }
