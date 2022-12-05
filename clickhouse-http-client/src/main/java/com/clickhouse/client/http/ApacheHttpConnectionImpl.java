@@ -202,10 +202,11 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
                     errorCode.getValue(),
                     serverName.getValue(),
                     e.getMessage());
-            if (e instanceof IOException)
+            if (e instanceof IOException) {
                 throw (IOException) e;
-            else
+            } else {
                 throw new IOException(e);
+            }
         }
         throw new IOException(errorMsg);
     }
@@ -310,9 +311,9 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
 
         ClickHouseInputStream input = ClickHouseInputStream.of(inputParts, InputStream.class, null, null);
 
+        String contentEncoding = headers == null ? null : headers.getOrDefault("content-encoding", null);
         ClickHouseHttpEntity postBody =
-                new ClickHouseHttpEntity(input, config, contentType, headers.getOrDefault("content-encoding", null),
-                        hasFile, hasInput);
+                new ClickHouseHttpEntity(input, config, contentType, contentEncoding, hasFile, hasInput);
 
         post.setEntity(postBody);
         CloseableHttpResponse response = client.execute(post);
