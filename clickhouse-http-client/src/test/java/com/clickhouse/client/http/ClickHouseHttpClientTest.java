@@ -1,5 +1,8 @@
 package com.clickhouse.client.http;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.util.Arrays;
 import java.util.UUID;
 
 import com.clickhouse.client.ClickHouseClient;
@@ -232,7 +235,7 @@ public class ClickHouseHttpClientTest extends ClientIntegrationTest {
     }
 
     @Test(dataProvider = "connectionProvider", groups = { "integration" })
-    public void testLogComment(HttpConnectionProvider connProvider) throws ClickHouseException {
+    public void testLogComment(HttpConnectionProvider connProvider) throws ClickHouseException, IOException {
         ClickHouseNode server = getServer(ClickHouseProtocol.HTTP);
         String uuid = UUID.randomUUID().toString();
         try (ClickHouseClient client = ClickHouseClient.newInstance()) {

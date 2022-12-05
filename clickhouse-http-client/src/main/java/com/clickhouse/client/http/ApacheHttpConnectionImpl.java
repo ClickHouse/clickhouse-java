@@ -27,7 +27,6 @@ import org.apache.hc.client5.http.socket.PlainConnectionSocketFactory;
 import org.apache.hc.client5.http.ssl.SSLConnectionSocketFactory;
 import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpRequest;
-import org.apache.hc.core5.http.ParseException;
 import org.apache.hc.core5.http.config.Registry;
 import org.apache.hc.core5.http.config.RegistryBuilder;
 import org.apache.hc.core5.http.io.SocketConfig;
@@ -36,12 +35,17 @@ import org.apache.hc.core5.http.protocol.HttpContext;
 import org.apache.hc.core5.ssl.SSLContexts;
 import org.apache.hc.core5.util.Timeout;
 
+import java.io.BufferedReader;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.net.ConnectException;
 import java.net.Socket;
+import java.net.URISyntaxException;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -82,7 +86,7 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
     private final CloseableHttpClient client;
 
     protected ApacheHttpConnectionImpl(ClickHouseNode server, ClickHouseRequest<?> request, ExecutorService executor)
-            throws IOException {
+            throws IOException, URISyntaxException {
         super(server, request);
         client = newConnection();
     }
@@ -181,49 +185,42 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
 
         String errorMsg;
 
-        //        int bufferSize = (int) ClickHouseClientOption.BUFFER_SIZE.getDefaultValue();
-        //        ByteArrayOutputStream output = new ByteArrayOutputStream(bufferSize);
-        //        ClickHouseInputStream.pipe(response.getEntity().getContent(), output, bufferSize);
-        //        byte[] bytes = output.toByteArray();
-        //
-        //        try (BufferedReader reader = new BufferedReader(new InputStreamReader(
-        //                ClickHouseClient.getResponseInputStream(config, new ByteArrayInputStream(bytes), null),
-        //                StandardCharsets.UTF_8))) {
-        //            StringBuilder builder = new StringBuilder();
-        //            while ((errorMsg = reader.readLine()) != null) {
-        //                builder.append(errorMsg).append('\n');
-        //            }
-        //            errorMsg = builder.toString();
+        int bufferSize = (int) ClickHouseClientOption.BUFFER_SIZE.getDefaultValue();
+        ByteArrayOutputStream output = new ByteArrayOutputStream(bufferSize);
+        ClickHouseInputStream.pipe(response.getEntity().getContent(), output, bufferSize);
+        byte[] bytes = output.toByteArray();
 
-        try {
-            errorMsg = EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8);
-        } catch (IOException | ParseException e) {
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(
+                ClickHouseClient.getResponseInputStream(config, new ByteArrayInputStream(bytes), null),
+                StandardCharsets.UTF_8))) {
+            StringBuilder builder = new StringBuilder();
+            while ((errorMsg = reader.readLine()) != null) {
+                builder.append(errorMsg).append('\n');
+            }
+            errorMsg = builder.toString();
+
+        } catch (IOException e) {
             log.debug("Failed to read error message[code=%s] from server [%s] due to: %s",
                     errorCode.getValue(),
                     serverName.getValue(),
                     e.getMessage());
-            if (e instanceof IOException) {
-                throw (IOException) e;
-            } else {
-                throw new IOException(e);
-            }
+            throw e;
         }
         throw new IOException(errorMsg);
     }
 
     @Override
     protected boolean isReusable() {
-        return false;
+        return true;
     }
 
     protected ClickHouseHttpResponse post(String sql, ClickHouseInputStream data, List<ClickHouseExternalTable> tables,
                                           String url, Map<String, String> headers, ClickHouseConfig config,
                                           Runnable postCloseAction)
             throws IOException {
-
-        HttpPost post = new HttpPost(this.url);
+        // reset post
+        HttpPost post = new HttpPost(url == null ? this.url : url);
         setHeaders(post, headers);
-
         byte[] boundary = null;
         String contentType = "text/plain; charset=UTF-8";
 
