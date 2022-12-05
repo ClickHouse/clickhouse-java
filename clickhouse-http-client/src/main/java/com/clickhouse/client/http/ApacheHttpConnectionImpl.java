@@ -15,24 +15,27 @@ import com.clickhouse.client.data.ClickHouseExternalTable;
 import com.clickhouse.client.http.config.ClickHouseHttpOption;
 import com.clickhouse.client.logging.Logger;
 import com.clickhouse.client.logging.LoggerFactory;
-import org.apache.http.Header;
-import org.apache.http.HttpRequest;
-import org.apache.http.client.methods.CloseableHttpResponse;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.config.ConnectionConfig;
-import org.apache.http.config.Registry;
-import org.apache.http.config.RegistryBuilder;
-import org.apache.http.config.SocketConfig;
-import org.apache.http.conn.socket.ConnectionSocketFactory;
-import org.apache.http.conn.socket.PlainConnectionSocketFactory;
-import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClientBuilder;
-import org.apache.http.impl.conn.BasicHttpClientConnectionManager;
-import org.apache.http.protocol.HttpContext;
-import org.apache.http.ssl.SSLContexts;
-import org.apache.http.util.EntityUtils;
+import org.apache.hc.client5.http.classic.methods.HttpGet;
+import org.apache.hc.client5.http.classic.methods.HttpPost;
+import org.apache.hc.client5.http.config.ConnectionConfig;
+import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
+import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse;
+import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
+import org.apache.hc.client5.http.impl.io.BasicHttpClientConnectionManager;
+import org.apache.hc.client5.http.socket.ConnectionSocketFactory;
+import org.apache.hc.client5.http.socket.PlainConnectionSocketFactory;
+import org.apache.hc.client5.http.ssl.SSLConnectionSocketFactory;
+import org.apache.hc.core5.http.Header;
+import org.apache.hc.core5.http.HttpRequest;
+import org.apache.hc.core5.http.ParseException;
+import org.apache.hc.core5.http.config.Registry;
+import org.apache.hc.core5.http.config.RegistryBuilder;
+import org.apache.hc.core5.http.io.SocketConfig;
+import org.apache.hc.core5.http.io.entity.EntityUtils;
+import org.apache.hc.core5.http.message.StatusLine;
+import org.apache.hc.core5.http.protocol.HttpContext;
+import org.apache.hc.core5.ssl.SSLContexts;
+import org.apache.hc.core5.util.Timeout;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -40,7 +43,6 @@ import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.net.ConnectException;
 import java.net.Socket;
-import java.net.StandardSocketOptions;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -49,6 +51,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.TimeZone;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
 import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLException;
@@ -167,10 +170,10 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
     private void checkResponse(CloseableHttpResponse response) throws IOException {
         if (response.getEntity() == null) {
             throw new ConnectException(
-                    ClickHouseUtils.format("HTTP response %d", response.getStatusLine().getStatusCode()));
+                    ClickHouseUtils.format("HTTP response %d, %s", response.getCode(), response.getReasonPhrase()));
         }
 
-        if (response.getStatusLine().getStatusCode() == 200) {
+        if (response.getCode() == 200) {
             return;
         }
 
@@ -195,14 +198,16 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
 
         try {
             errorMsg = EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8);
-        } catch (IOException e) {
+        } catch (IOException | ParseException e) {
             log.debug("Failed to read error message[code=%s] from server [%s] due to: %s",
                     errorCode.getValue(),
                     serverName.getValue(),
                     e.getMessage());
-            throw e;
+            if (e instanceof IOException)
+                throw (IOException) e;
+            else
+                throw new IOException(e);
         }
-
         throw new IOException(errorMsg);
     }
 
@@ -306,11 +311,9 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
 
         ClickHouseInputStream input = ClickHouseInputStream.of(inputParts, InputStream.class, null, null);
 
-        ClickHouseHttpEntity postBody = new ClickHouseHttpEntity(input, config, hasFile, hasInput);
-        if (hasInput) {
-            postBody.setChunked(true);
-            // TODO set chunked size
-        }
+        ClickHouseHttpEntity postBody =
+                new ClickHouseHttpEntity(input, config, contentType, headers.getOrDefault("content-encoding", null),
+                        hasFile, hasInput);
 
         post.setEntity(postBody);
         CloseableHttpResponse response = client.execute(post);
@@ -392,15 +395,18 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
     }
 
     static class HttpConnectionManager extends BasicHttpClientConnectionManager {
-        public HttpConnectionManager(Registry<ConnectionSocketFactory> socketFactory, ClickHouseConfig config) throws SSLException {
+        public HttpConnectionManager(Registry<ConnectionSocketFactory> socketFactory, ClickHouseConfig config)
+                throws SSLException {
             super(socketFactory);
 
             ConnectionConfig connConfig = ConnectionConfig.custom()
-                    .setBufferSize(config.getBufferSize())
+                    .setConnectTimeout(Timeout.of(config.getConnectionTimeout(), TimeUnit.MILLISECONDS))
                     .build();
             setConnectionConfig(connConfig);
             SocketConfig socketConfig = SocketConfig.custom()
-                    .setSoTimeout(config.getSocketTimeout())
+                    .setSoTimeout(Timeout.of(config.getSocketTimeout(), TimeUnit.MILLISECONDS))
+                    .setRcvBufSize(config.getReadBufferSize())
+                    .setSndBufSize(config.getWriteBufferSize())
                     .build();
             setSocketConfig(socketConfig);
         }

@@ -1,12 +1,10 @@
 package com.clickhouse.client.http;
 
 import com.clickhouse.client.ClickHouseClient;
-import com.clickhouse.client.ClickHouseCompression;
 import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseInputStream;
 import com.clickhouse.client.ClickHouseOutputStream;
-import com.clickhouse.client.config.ClickHouseClientOption;
-import org.apache.http.entity.AbstractHttpEntity;
+import org.apache.hc.core5.http.io.entity.AbstractHttpEntity;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -32,7 +30,10 @@ public class ClickHouseHttpEntity extends AbstractHttpEntity {
      */
     private final boolean hasInput;
 
-    public ClickHouseHttpEntity(ClickHouseInputStream in, ClickHouseConfig config, boolean hasFile, boolean hasInput) {
+    public ClickHouseHttpEntity(ClickHouseInputStream in, ClickHouseConfig config, String contentType,
+                                String contentEncoding,
+                                boolean hasFile, boolean hasInput) {
+        super(contentType, contentEncoding, hasInput);
         this.in = in;
         this.config = config;
         this.hasFile = hasFile;
@@ -61,8 +62,8 @@ public class ClickHouseHttpEntity extends AbstractHttpEntity {
             OutputStream wrappedOut = hasFile
                     ? ClickHouseOutputStream.of(outStream, config.getWriteBufferSize())
                     : (hasInput
-                        ? ClickHouseClient.getAsyncRequestOutputStream(config, outStream, null)
-                        : ClickHouseClient.getRequestOutputStream(config, outStream, null)
+                    ? ClickHouseClient.getAsyncRequestOutputStream(config, outStream, null)
+                    : ClickHouseClient.getRequestOutputStream(config, outStream, null)
             );
             final byte[] buffer = new byte[config.getBufferSize()];
             int readLen;
@@ -78,5 +79,12 @@ public class ClickHouseHttpEntity extends AbstractHttpEntity {
     @Override
     public boolean isStreaming() {
         return false;
+    }
+
+    @Override
+    public void close() throws IOException {
+        if (in != null) {
+            in.close();
+        }
     }
 }
