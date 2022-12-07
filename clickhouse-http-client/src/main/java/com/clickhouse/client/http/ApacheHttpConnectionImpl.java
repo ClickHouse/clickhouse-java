@@ -56,6 +56,7 @@ import java.util.Objects;
 import java.util.TimeZone;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLException;
@@ -85,6 +86,7 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
     private static final byte[] SUFFIX_FILENAME = "\"; filename=\"".getBytes(StandardCharsets.US_ASCII);
 
     private final CloseableHttpClient client;
+    private final AtomicBoolean isBusy = new AtomicBoolean(false);
 
     protected ApacheHttpConnectionImpl(ClickHouseNode server, ClickHouseRequest<?> request, ExecutorService executor)
             throws IOException, URISyntaxException {
@@ -219,7 +221,10 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
                                           String url, Map<String, String> headers, ClickHouseConfig config,
                                           Runnable postCloseAction)
             throws IOException {
-        // reset post
+        // Connection is reusable, ensure that only one request is on fly.
+        if (!isBusy.compareAndSet(false, true))
+            throw new IOException("Connection is busy");
+
         HttpPost post = new HttpPost(url == null ? this.url : url);
         setHeaders(post, headers);
         byte[] boundary = null;
@@ -318,7 +323,13 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
 
         checkResponse(response);
         // buildResponse should use the config of current request in case of reusable connection.
-        return buildResponse(response, config, postCloseAction);
+        return buildResponse(response, config, () -> {
+            isBusy.compareAndSet(true, false);
+            if (postCloseAction != null) {
+                postCloseAction.run();
+            }
+        });
+
     }
 
     @Override
@@ -356,7 +367,10 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
         public Socket createSocket(final HttpContext context) throws IOException {
             Socket sock = new Socket();
             sock.setTrafficClass(config.getOption(ClickHouseClientOption.IP_TOS, Integer.class));
-            // TODO more socket options
+            // TODO 1.more socket options
+            // TODO 2.If connection is in reusable mode and
+            //  use different socket options in different requests,
+            //  new options will not work
             return sock;
         }
 

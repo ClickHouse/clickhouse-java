@@ -17,11 +17,6 @@ public class ApacheHttpConnectionImplTest extends BaseIntegrationTest {
         ClickHouseNode server = getServer(ClickHouseProtocol.HTTP);
 
         try (ClickHouseClient client = ClickHouseClient.newInstance()) {
-            ClickHouseRequest<?> req = client.connect(server);
-
-            ClickHouseHttpConnection conn = ClickHouseHttpConnectionFactory.createConnection(server, req, null);
-            Assert.assertNotNull(conn);
-            conn.closeQuietly();
 
             ClickHouseRequest<?> req1 = client.connect(server);
             try (ClickHouseResponse resp = req1
