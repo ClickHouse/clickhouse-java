@@ -27,6 +27,7 @@ import org.apache.hc.client5.http.socket.PlainConnectionSocketFactory;
 import org.apache.hc.client5.http.ssl.SSLConnectionSocketFactory;
 import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpRequest;
+import org.apache.hc.core5.http.ProtocolException;
 import org.apache.hc.core5.http.config.Registry;
 import org.apache.hc.core5.http.config.RegistryBuilder;
 import org.apache.hc.core5.http.io.SocketConfig;
@@ -101,7 +102,7 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
                 .setConnectionManager(new HttpConnectionManager(r.build(), config)).build();
     }
 
-    private ClickHouseHttpResponse buildResponse(CloseableHttpResponse response, Runnable postCloseAction)
+    private ClickHouseHttpResponse buildResponse(CloseableHttpResponse response, ClickHouseConfig config, Runnable postCloseAction)
             throws IOException {
         // X-ClickHouse-Server-Display-Name: xxx
         // X-ClickHouse-Query-Id: xxx
@@ -316,7 +317,8 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
         CloseableHttpResponse response = client.execute(post);
 
         checkResponse(response);
-        return buildResponse(response, postCloseAction);
+        // buildResponse should use the config of current request in case of reusable connection.
+        return buildResponse(response, config, postCloseAction);
     }
 
     @Override
