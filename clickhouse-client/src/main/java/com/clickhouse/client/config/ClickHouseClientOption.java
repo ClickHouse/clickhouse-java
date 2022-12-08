@@ -323,7 +323,13 @@ public enum ClickHouseClientOption implements ClickHouseOption {
      * false.
      */
     USE_TIME_ZONE("use_time_zone", "", "Time zone of all DateTime* values. "
-            + "Only used when use_server_time_zone is false. Empty value means client time zone.");
+            + "Only used when use_server_time_zone is false. Empty value means client time zone."),
+
+    /**
+     * Socket IP_TOS option which indicates IP package priority.
+     */
+    IP_TOS("socket_op_ip_tos", 0, "Socket IP_TOS option which indicates IP package priority.");
+
 
     private final String key;
     private final Serializable defaultValue;

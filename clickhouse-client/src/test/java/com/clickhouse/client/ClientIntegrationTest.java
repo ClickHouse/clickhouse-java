@@ -1,5 +1,33 @@
 package com.clickhouse.client;
 
+import com.clickhouse.client.ClickHouseClientBuilder.Agent;
+import com.clickhouse.client.ClickHouseTransaction.XID;
+import com.clickhouse.client.config.ClickHouseBufferingMode;
+import com.clickhouse.client.config.ClickHouseClientOption;
+import com.clickhouse.client.config.ClickHouseRenameMethod;
+import com.clickhouse.client.config.ClickHouseSslMode;
+import com.clickhouse.client.data.BinaryStreamUtils;
+import com.clickhouse.client.data.ClickHouseBigDecimalValue;
+import com.clickhouse.client.data.ClickHouseBigIntegerValue;
+import com.clickhouse.client.data.ClickHouseByteValue;
+import com.clickhouse.client.data.ClickHouseDateTimeValue;
+import com.clickhouse.client.data.ClickHouseEnumValue;
+import com.clickhouse.client.data.ClickHouseExternalTable;
+import com.clickhouse.client.data.ClickHouseIntegerValue;
+import com.clickhouse.client.data.ClickHouseIpv4Value;
+import com.clickhouse.client.data.ClickHouseIpv6Value;
+import com.clickhouse.client.data.ClickHouseLongValue;
+import com.clickhouse.client.data.ClickHouseOffsetDateTimeValue;
+import com.clickhouse.client.data.ClickHouseStringValue;
+import com.clickhouse.client.data.UnsignedByte;
+import com.clickhouse.client.data.UnsignedInteger;
+import com.clickhouse.client.data.UnsignedLong;
+import com.clickhouse.client.data.UnsignedShort;
+import org.testng.Assert;
+import org.testng.SkipException;
+import org.testng.annotations.DataProvider;
+import org.testng.annotations.Test;
+
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -32,35 +60,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
-
-import com.clickhouse.client.ClickHouseClientBuilder.Agent;
-import com.clickhouse.client.ClickHouseTransaction.XID;
-import com.clickhouse.client.config.ClickHouseBufferingMode;
-import com.clickhouse.client.config.ClickHouseClientOption;
-import com.clickhouse.client.config.ClickHouseRenameMethod;
-import com.clickhouse.client.config.ClickHouseSslMode;
-import com.clickhouse.client.data.BinaryStreamUtils;
-import com.clickhouse.client.data.ClickHouseBigDecimalValue;
-import com.clickhouse.client.data.ClickHouseBigIntegerValue;
-import com.clickhouse.client.data.ClickHouseByteValue;
-import com.clickhouse.client.data.ClickHouseDateTimeValue;
-import com.clickhouse.client.data.ClickHouseEnumValue;
-import com.clickhouse.client.data.ClickHouseExternalTable;
-import com.clickhouse.client.data.ClickHouseIntegerValue;
-import com.clickhouse.client.data.ClickHouseIpv4Value;
-import com.clickhouse.client.data.ClickHouseIpv6Value;
-import com.clickhouse.client.data.ClickHouseLongValue;
-import com.clickhouse.client.data.ClickHouseOffsetDateTimeValue;
-import com.clickhouse.client.data.ClickHouseStringValue;
-import com.clickhouse.client.data.UnsignedByte;
-import com.clickhouse.client.data.UnsignedInteger;
-import com.clickhouse.client.data.UnsignedLong;
-import com.clickhouse.client.data.UnsignedShort;
-
-import org.testng.Assert;
-import org.testng.SkipException;
-import org.testng.annotations.DataProvider;
-import org.testng.annotations.Test;
 
 public abstract class ClientIntegrationTest extends BaseIntegrationTest {
     protected void checkRowCount(String queryOrTableName, int expectedRowCount) throws ClickHouseException {

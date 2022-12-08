@@ -1,9 +1,9 @@
 package com.clickhouse.client.http.config;
 
-import java.io.Serializable;
-
 import com.clickhouse.client.ClickHouseChecker;
 import com.clickhouse.client.config.ClickHouseOption;
+
+import java.io.Serializable;
 
 /**
  * Http client options.
