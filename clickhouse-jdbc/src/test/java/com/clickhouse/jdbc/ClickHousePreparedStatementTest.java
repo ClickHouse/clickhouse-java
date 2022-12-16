@@ -42,7 +42,6 @@ import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.data.ClickHouseBitmap;
 import com.clickhouse.client.data.ClickHouseExternalTable;
-import com.clickhouse.client.data.UnsignedByte;
 import com.clickhouse.client.data.UnsignedInteger;
 import com.clickhouse.client.data.UnsignedLong;
 import com.clickhouse.jdbc.internal.InputBasedPreparedStatement;
@@ -1574,6 +1573,33 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
             }
 
             try (ResultSet rs = s.executeQuery("select * from test_insert_with_null_datetime order by a")) {
+                Assert.assertTrue(rs.next());
+                Assert.assertFalse(rs.next());
+            }
+        }
+    }
+
+    @Test(groups = "integration")
+    public void testInsertWithSettings() throws SQLException {
+        Properties props = new Properties();
+        try (ClickHouseConnection conn = newConnection(props); Statement s = conn.createStatement()) {
+            if (!conn.getServerVersion().check("[22.5,)")) {
+                throw new SkipException(
+                        "Skip due to breaking change introduced by https://github.com/ClickHouse/ClickHouse/pull/35883");
+            }
+
+            s.execute("drop table if exists test_insert_with_settings; "
+                    + "CREATE TABLE test_insert_with_settings(i Int32, s String) ENGINE=Memory");
+            try (PreparedStatement ps = conn
+                    .prepareStatement(
+                            "INSERT INTO test_insert_with_settings SETTINGS async_insert=1,wait_for_async_insert=1 values(?, ?)")) {
+                ps.setInt(1, 1);
+                ps.setString(2, "1");
+                ps.addBatch();
+                ps.executeBatch();
+            }
+
+            try (ResultSet rs = s.executeQuery("select * from test_insert_with_settings order by i")) {
                 Assert.assertTrue(rs.next());
                 Assert.assertFalse(rs.next());
             }
