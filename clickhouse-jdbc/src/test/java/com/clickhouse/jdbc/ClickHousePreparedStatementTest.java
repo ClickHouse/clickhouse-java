@@ -1582,8 +1582,12 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
     @Test(groups = "integration")
     public void testInsertWithSettings() throws SQLException {
         Properties props = new Properties();
-        try (ClickHouseConnection conn = newConnection(props);
-                Statement s = conn.createStatement()) {
+        try (ClickHouseConnection conn = newConnection(props); Statement s = conn.createStatement()) {
+            if (!conn.getServerVersion().check("[22.5,)")) {
+                throw new SkipException(
+                        "Skip due to breaking change introduced by https://github.com/ClickHouse/ClickHouse/pull/35883");
+            }
+
             s.execute("drop table if exists test_insert_with_settings; "
                     + "CREATE TABLE test_insert_with_settings(i Int32, s String) ENGINE=Memory");
             try (PreparedStatement ps = conn
