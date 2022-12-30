@@ -60,7 +60,7 @@ public class ClickHouseStreamResponse implements ClickHouseResponse {
     protected final List<ClickHouseColumn> columns;
     protected final ClickHouseResponseSummary summary;
 
-    private boolean closed;
+    private volatile boolean closed;
 
     protected ClickHouseStreamResponse(ClickHouseConfig config, ClickHouseInputStream input,
             Map<String, Serializable> settings, List<ClickHouseColumn> columns, ClickHouseResponseSummary summary)

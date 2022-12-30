@@ -43,6 +43,7 @@ import com.clickhouse.client.ClickHouseTransaction;
 import com.clickhouse.client.ClickHouseUtils;
 import com.clickhouse.client.ClickHouseValues;
 import com.clickhouse.client.ClickHouseVersion;
+import com.clickhouse.client.ClickHouseRequest.Mutation;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.config.ClickHouseOption;
 import com.clickhouse.client.config.ClickHouseRenameMethod;
@@ -778,23 +779,29 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
                         resultSetType, resultSetConcurrency, resultSetHoldability);
             } else if (parsedStmt.getStatementType() == StatementType.INSERT) {
                 if (!ClickHouseChecker.isNullOrBlank(parsedStmt.getInput())) {
-                    // ugly workaround for https://github.com/ClickHouse/ClickHouse/issues/39866
-                    // TODO replace JSON and Object('json') types in input function to String
+                    // an ugly workaround of https://github.com/ClickHouse/ClickHouse/issues/39866
+                    // would be replace JSON and Object('json') types in the query to String
 
+                    Mutation m = clientRequest.write();
+                    if (parsedStmt.hasFormat()) {
+                        m.format(ClickHouseFormat.valueOf(parsedStmt.getFormat()));
+                    }
                     // insert query using input function
-                    ps = new InputBasedPreparedStatement(this,
-                            clientRequest.write().query(parsedStmt.getSQL(), newQueryId()),
-                            ClickHouseColumn.parse(parsedStmt.getInput()), resultSetType,
-                            resultSetConcurrency, resultSetHoldability);
-                } else if (!parsedStmt.containsKeyword("SELECT") && !parsedStmt.hasValues() &&
-                        (!parsedStmt.hasFormat() || clientRequest.getFormat().name().equals(parsedStmt.getFormat()))) {
-                    ps = new InputBasedPreparedStatement(this,
-                            clientRequest.write().query(parsedStmt.getSQL(), newQueryId()),
-                            getTableColumns(parsedStmt.getDatabase(), parsedStmt.getTable(),
-                                    parsedStmt.getContentBetweenKeywords(
-                                            ClickHouseSqlStatement.KEYWORD_TABLE_COLUMNS_START,
-                                            ClickHouseSqlStatement.KEYWORD_TABLE_COLUMNS_END)),
-                            resultSetType, resultSetConcurrency, resultSetHoldability);
+                    ps = new InputBasedPreparedStatement(this, m.query(parsedStmt.getSQL(), newQueryId()),
+                            ClickHouseColumn.parse(parsedStmt.getInput()), resultSetType, resultSetConcurrency,
+                            resultSetHoldability);
+                } else if (!parsedStmt.containsKeyword("SELECT") && !parsedStmt.hasValues()) {
+                    ps = parsedStmt.hasFormat()
+                            ? new StreamBasedPreparedStatement(this,
+                                    clientRequest.write().query(parsedStmt.getSQL(), newQueryId()), parsedStmt,
+                                    resultSetType, resultSetConcurrency, resultSetHoldability)
+                            : new InputBasedPreparedStatement(this,
+                                    clientRequest.write().query(parsedStmt.getSQL(), newQueryId()),
+                                    getTableColumns(parsedStmt.getDatabase(), parsedStmt.getTable(),
+                                            parsedStmt.getContentBetweenKeywords(
+                                                    ClickHouseSqlStatement.KEYWORD_TABLE_COLUMNS_START,
+                                                    ClickHouseSqlStatement.KEYWORD_TABLE_COLUMNS_END)),
+                                    resultSetType, resultSetConcurrency, resultSetHoldability);
                 }
             }
         }

@@ -20,6 +20,7 @@ import java.sql.Time;
 import java.sql.Timestamp;
 import java.sql.Types;
 
+import com.clickhouse.client.ClickHouseInputStream;
 import com.clickhouse.client.data.BinaryStreamUtils;
 
 public interface ClickHousePreparedStatement extends PreparedStatement {
@@ -167,7 +168,7 @@ public interface ClickHousePreparedStatement extends PreparedStatement {
 
     @Override
     default void setBinaryStream(int parameterIndex, InputStream x, long length) throws SQLException {
-        throw SqlExceptionUtils.unsupportedError("setBinaryStream not implemented");
+        setBinaryStream(parameterIndex, length < 0L ? x : ClickHouseInputStream.wrap(x, 0, length, null));
     }
 
     @Override
@@ -182,12 +183,12 @@ public interface ClickHousePreparedStatement extends PreparedStatement {
 
     @Override
     default void setBinaryStream(int parameterIndex, InputStream x) throws SQLException {
-        setBinaryStream(parameterIndex, x, 0L);
+        throw SqlExceptionUtils.unsupportedError("setBinaryStream not implemented");
     }
 
     @Override
     default void setCharacterStream(int parameterIndex, Reader reader) throws SQLException {
-        setCharacterStream(parameterIndex, reader, 0L);
+        setCharacterStream(parameterIndex, reader, -1L);
     }
 
     @Override
