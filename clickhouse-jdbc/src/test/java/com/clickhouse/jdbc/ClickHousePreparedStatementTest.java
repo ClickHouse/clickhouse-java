@@ -1606,6 +1606,11 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
                 Assert.assertFalse(rs.next());
             }
 
+            if (!conn.getServerVersion().check("[22.5,)")) {
+                throw new SkipException(
+                        "Skip due to breaking change introduced by https://github.com/ClickHouse/ClickHouse/pull/35883");
+            }
+
             s.execute("truncate table test_insert_with_format");
 
             try (PreparedStatement ps = conn
