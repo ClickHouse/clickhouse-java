@@ -1586,6 +1586,11 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
     public void testInsertWithFormat() throws SQLException {
         Properties props = new Properties();
         try (ClickHouseConnection conn = newConnection(props); Statement s = conn.createStatement()) {
+            if (!conn.getServerVersion().check("[22.5,)")) {
+                throw new SkipException(
+                        "Skip due to breaking change introduced by https://github.com/ClickHouse/ClickHouse/pull/35883");
+            }
+
             s.execute("drop table if exists test_insert_with_format; "
                     + "CREATE TABLE test_insert_with_format(i Int32, s String) ENGINE=Memory");
             try (PreparedStatement ps = conn.prepareStatement("INSERT INTO test_insert_with_format format CSV")) {
@@ -1604,11 +1609,6 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
                 Assert.assertEquals(rs.getInt(1), 2);
                 Assert.assertEquals(rs.getString(2), "two");
                 Assert.assertFalse(rs.next());
-            }
-
-            if (!conn.getServerVersion().check("[22.5,)")) {
-                throw new SkipException(
-                        "Skip due to breaking change introduced by https://github.com/ClickHouse/ClickHouse/pull/35883");
             }
 
             s.execute("truncate table test_insert_with_format");
