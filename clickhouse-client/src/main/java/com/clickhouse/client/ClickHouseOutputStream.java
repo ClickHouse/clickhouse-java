@@ -149,7 +149,7 @@ public abstract class ClickHouseOutputStream extends OutputStream {
     protected final ClickHouseFile file;
     protected final Runnable postCloseAction;
 
-    protected boolean closed;
+    protected volatile boolean closed;
 
     protected ClickHouseOutputStream(ClickHouseFile file, Runnable postCloseAction) {
         this.file = file != null ? file : ClickHouseFile.NULL;

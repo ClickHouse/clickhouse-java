@@ -37,8 +37,10 @@ import com.clickhouse.client.ClickHouseDataStreamFactory;
 import com.clickhouse.client.ClickHouseDataType;
 import com.clickhouse.client.ClickHouseFormat;
 import com.clickhouse.client.ClickHouseInputStream;
+import com.clickhouse.client.ClickHouseOutputStream;
 import com.clickhouse.client.ClickHousePipedOutputStream;
 import com.clickhouse.client.ClickHouseProtocol;
+import com.clickhouse.client.ClickHouseWriter;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.data.ClickHouseBitmap;
 import com.clickhouse.client.data.ClickHouseExternalTable;
@@ -46,6 +48,7 @@ import com.clickhouse.client.data.UnsignedInteger;
 import com.clickhouse.client.data.UnsignedLong;
 import com.clickhouse.jdbc.internal.InputBasedPreparedStatement;
 import com.clickhouse.jdbc.internal.SqlBasedPreparedStatement;
+import com.clickhouse.jdbc.internal.StreamBasedPreparedStatement;
 
 import org.testng.Assert;
 import org.testng.SkipException;
@@ -1574,6 +1577,79 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
 
             try (ResultSet rs = s.executeQuery("select * from test_insert_with_null_datetime order by a")) {
                 Assert.assertTrue(rs.next());
+                Assert.assertFalse(rs.next());
+            }
+        }
+    }
+
+    @Test(groups = "integration")
+    public void testInsertWithFormat() throws SQLException {
+        Properties props = new Properties();
+        try (ClickHouseConnection conn = newConnection(props); Statement s = conn.createStatement()) {
+            s.execute("drop table if exists test_insert_with_format; "
+                    + "CREATE TABLE test_insert_with_format(i Int32, s String) ENGINE=Memory");
+            try (PreparedStatement ps = conn.prepareStatement("INSERT INTO test_insert_with_format format CSV")) {
+                Assert.assertTrue(ps instanceof StreamBasedPreparedStatement);
+                Assert.assertEquals(ps.getParameterMetaData().getParameterCount(), 1);
+                Assert.assertEquals(ps.getParameterMetaData().getParameterClassName(1), String.class.getName());
+                ps.setObject(1, ClickHouseInputStream.of("1,\\N\n2,two"));
+                Assert.assertEquals(ps.executeUpdate(), 2);
+            }
+
+            try (ResultSet rs = s.executeQuery("select * from test_insert_with_format order by i")) {
+                Assert.assertTrue(rs.next());
+                Assert.assertEquals(rs.getInt(1), 1);
+                Assert.assertEquals(rs.getString(2), "");
+                Assert.assertTrue(rs.next());
+                Assert.assertEquals(rs.getInt(1), 2);
+                Assert.assertEquals(rs.getString(2), "two");
+                Assert.assertFalse(rs.next());
+            }
+
+            s.execute("truncate table test_insert_with_format");
+
+            try (PreparedStatement ps = conn
+                    .prepareStatement(
+                            "INSERT INTO test_insert_with_format(s,i)SETTINGS insert_null_as_default=1 format JSONEachRow")) {
+                Assert.assertTrue(ps instanceof StreamBasedPreparedStatement);
+                ps.setString(1, "{\"i\":null,\"s\":null}");
+                ps.addBatch();
+                ps.setObject(1, "{\"i\":1,\"s\":\"one\"}");
+                ps.addBatch();
+                ps.setObject(1, new ClickHouseWriter() {
+                    @Override
+                    public void write(ClickHouseOutputStream out) throws IOException {
+                        out.write("{\"i\":2,\"s\":\"22\"}".getBytes());
+                    }
+                });
+                ps.addBatch();
+                Assert.assertEquals(ps.executeBatch(), new int[] { 1, 1, 1 });
+            }
+
+            try (PreparedStatement ps = conn
+                    .prepareStatement(
+                            "INSERT INTO test_insert_with_format(s,i) select * from input('s String, i Int32') format CSV")) {
+                Assert.assertFalse(ps instanceof StreamBasedPreparedStatement);
+                ps.setInt(2, 3);
+                ps.setString(1, "three");
+                Assert.assertEquals(ps.executeUpdate(), 1);
+            }
+
+            try (PreparedStatement ps = conn.prepareStatement(
+                    "select i,s from test_insert_with_format order by i format RowBinaryWithNamesAndTypes");
+                    ResultSet rs = ps.executeQuery()) {
+                Assert.assertTrue(rs.next());
+                Assert.assertEquals(rs.getInt(1), 0);
+                Assert.assertEquals(rs.getString(2), "");
+                Assert.assertTrue(rs.next());
+                Assert.assertEquals(rs.getInt(1), 1);
+                Assert.assertEquals(rs.getString(2), "one");
+                Assert.assertTrue(rs.next());
+                Assert.assertEquals(rs.getInt(1), 2);
+                Assert.assertEquals(rs.getString(2), "22");
+                Assert.assertTrue(rs.next());
+                Assert.assertEquals(rs.getInt(1), 3);
+                Assert.assertEquals(rs.getString(2), "three");
                 Assert.assertFalse(rs.next());
             }
         }

@@ -15,6 +15,8 @@ import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -28,6 +30,7 @@ import com.clickhouse.client.stream.BlockingInputStream;
 import com.clickhouse.client.stream.DeferredInputStream;
 import com.clickhouse.client.stream.EmptyInputStream;
 import com.clickhouse.client.stream.Lz4InputStream;
+import com.clickhouse.client.stream.RestrictedInputStream;
 import com.clickhouse.client.stream.IterableByteArrayInputStream;
 import com.clickhouse.client.stream.IterableByteBufferInputStream;
 import com.clickhouse.client.stream.IterableMultipleInputStream;
@@ -83,6 +86,29 @@ public abstract class ClickHouseInputStream extends InputStream {
             }
         }
         return chInput;
+    }
+
+    /**
+     * Wraps the given input stream with length limitation. Please pay attention
+     * that calling close() method of the wrapper will never close the inner input
+     * stream.
+     *
+     * @param input           non-null input stream
+     * @param bufferSize      buffer size
+     * @param length          maximum bytes can be read from the input
+     * @param postCloseAction custom action will be performed right after closing
+     *                        the wrapped input stream
+     * @return non-null wrapped input stream
+     */
+    public static ClickHouseInputStream wrap(InputStream input, int bufferSize, long length, Runnable postCloseAction) {
+        if (input instanceof RestrictedInputStream) {
+            RestrictedInputStream ris = (RestrictedInputStream) input;
+            if (ris.getRemaining() == length) {
+                return ris;
+            }
+        }
+
+        return new RestrictedInputStream(null, input, bufferSize, length, postCloseAction);
     }
 
     /**
@@ -505,15 +531,20 @@ public abstract class ClickHouseInputStream extends InputStream {
      * Optional post close action.
      */
     protected final Runnable postCloseAction;
+    /**
+     * User data shared between multiple calls.
+     */
+    protected final Map<String, Object> userData;
 
-    protected boolean closed;
+    protected volatile boolean closed;
+
     protected OutputStream copyTo;
 
     protected ClickHouseInputStream(ClickHouseFile file, OutputStream copyTo, Runnable postCloseAction) {
         this.byteBuffer = ClickHouseByteBuffer.newInstance();
         this.file = file != null ? file : ClickHouseFile.NULL;
         this.postCloseAction = postCloseAction;
-
+        this.userData = new HashMap<>();
         this.closed = false;
         this.copyTo = copyTo;
     }
@@ -548,6 +579,37 @@ public abstract class ClickHouseInputStream extends InputStream {
      */
     public ClickHouseFile getUnderlyingFile() {
         return file;
+    }
+
+    /**
+     * Gets user data associated with this input stream.
+     *
+     * @param key key
+     * @return value, could be null
+     */
+    public final Object getUserData(String key) {
+        return userData.get(key);
+    }
+
+    /**
+     * Removes user data.
+     *
+     * @param key key
+     * @return removed user data, could be null
+     */
+    public final Object removeUserData(String key) {
+        return userData.remove(key);
+    }
+
+    /**
+     * Sets user data.
+     *
+     * @param key   key
+     * @param value value
+     * @return overidded value, could be null
+     */
+    public final Object setUserData(String key, Object value) {
+        return userData.put(key, value);
     }
 
     /**
@@ -849,6 +911,8 @@ public abstract class ClickHouseInputStream extends InputStream {
     public void close() throws IOException {
         if (!closed) {
             closed = true;
+            // clear user data if any
+            userData.clear();
             // don't want to hold the last byte array reference for too long
             byteBuffer.reset();
             if (postCloseAction != null) {

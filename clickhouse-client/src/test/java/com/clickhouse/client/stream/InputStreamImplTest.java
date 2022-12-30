@@ -170,6 +170,7 @@ public class InputStreamImplTest {
                 { ClickHouseInputStream.of(new ByteArrayInputStream(new byte[0]),
                         new ByteArrayInputStream(new byte[0])) },
                 { ClickHouseInputStream.of((ByteArrayInputStream) null, (ByteArrayInputStream) null) },
+                { ClickHouseInputStream.wrap(new ByteArrayInputStream(new byte[] { 1, 2, 3 }), 2048, 0L, null) },
                 // strings
                 { ClickHouseInputStream.of(new String[0]) },
                 { ClickHouseInputStream.of("") },
@@ -252,6 +253,9 @@ public class InputStreamImplTest {
                         .of(new InputStream[] { new ByteArrayInputStream(new byte[] { 0x65 }), null,
                                 new ByteArrayInputStream(new byte[] { 0x66, 0x67, 0x68 }), null,
                                 new ByteArrayInputStream(new byte[] { 0x69, 0x70 }) }) },
+                { ClickHouseInputStream.wrap(
+                        new ByteArrayInputStream(new byte[] { 1, 2, 0x65, 0x66, 0x67, 0x68, 0x69, 0x70, 1, 2 }, 2, 6),
+                        2048, 6L, null) },
                 // strings
                 { ClickHouseInputStream.of("efghip") },
                 { ClickHouseInputStream.of("e", "fg", "hip") },
@@ -322,7 +326,10 @@ public class InputStreamImplTest {
                                 ByteBuffer.wrap(new byte[] { -1, 1, 2, 3, -4 }, 1, 3),
                                 ByteBuffer.allocate(0), null, ByteBuffer.wrap(new byte[] { 4, 5 }), null,
                                 ByteBuffer.allocate(0), null),
-                        null) }
+                        null) },
+                new Object[] {
+                        new RestrictedInputStream(null, new ByteArrayInputStream(new byte[] { 1, 2, 3, 4, 5 }), 2048,
+                                5L, null) },
         };
     }
 
@@ -720,5 +727,42 @@ public class InputStreamImplTest {
             Assert.assertTrue(in.isClosed(), "Stream should have been closed");
             Assert.assertThrows(IOException.class, () -> in.readCustom(new CustomReader((byte) 1, (byte) 2)::read));
         }
+    }
+
+    @Test(groups = { "unit" })
+    public void testRestrictedInputStream() throws IOException {
+        ByteArrayInputStream bytes = new ByteArrayInputStream(new byte[] { 1, 2, 3, 4, 5, 6 });
+        Assert.assertThrows(IllegalArgumentException.class, () -> ClickHouseInputStream.wrap(bytes, 0, -1, null));
+
+        ClickHouseInputStream in = ClickHouseInputStream.wrap(bytes, 0, 0, null);
+        Assert.assertTrue(in instanceof RestrictedInputStream);
+        Assert.assertFalse(in.isClosed());
+        Assert.assertEquals(in.available(), 0);
+        Assert.assertEquals(((RestrictedInputStream) in).getRemaining(), 0);
+
+        in = ClickHouseInputStream.wrap(bytes, 0, 1, null);
+        Assert.assertEquals(in.available(), 1);
+        Assert.assertEquals(in.read(), 1);
+        Assert.assertEquals(in.available(), 0);
+        Assert.assertEquals(in.read(), -1);
+
+        in = ClickHouseInputStream.wrap(bytes, 0, 3, null);
+        Assert.assertEquals(in.available(), 3);
+        Assert.assertEquals(in.read(), 2);
+        Assert.assertEquals(in.available(), 2);
+        Assert.assertEquals(in.read(), 3);
+        Assert.assertEquals(in.available(), 1);
+        Assert.assertEquals(in.read(), 4);
+        Assert.assertEquals(in.available(), 0);
+        Assert.assertEquals(in.read(), -1);
+
+        in = ClickHouseInputStream.wrap(bytes, 0, 3, null);
+        Assert.assertEquals(in.available(), 2);
+        Assert.assertEquals(in.read(), 5);
+        Assert.assertEquals(in.available(), 1);
+        Assert.assertEquals(in.read(), 6);
+        Assert.assertEquals(in.available(), 0);
+        Assert.assertEquals(in.read(), -1);
+        Assert.assertEquals(((RestrictedInputStream) in).getRemaining(), 1);
     }
 }

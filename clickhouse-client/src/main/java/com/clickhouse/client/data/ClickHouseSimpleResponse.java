@@ -122,7 +122,7 @@ public class ClickHouseSimpleResponse implements ClickHouseResponse {
     private final List<ClickHouseRecord> records;
     private final ClickHouseResponseSummary summary;
 
-    private boolean isClosed;
+    private volatile boolean closed;
 
     protected ClickHouseSimpleResponse(List<ClickHouseColumn> columns, List<ClickHouseRecord> records,
             ClickHouseResponseSummary summary) {
@@ -169,11 +169,11 @@ public class ClickHouseSimpleResponse implements ClickHouseResponse {
     @Override
     public void close() {
         // nothing to close
-        isClosed = true;
+        closed = true;
     }
 
     @Override
     public boolean isClosed() {
-        return isClosed;
+        return closed;
     }
 }
