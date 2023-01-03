@@ -60,7 +60,7 @@
     </repositories>
 
     <properties>
-        <project.current.year>2022</project.current.year>
+        <project.current.year>2023</project.current.year>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
