@@ -99,7 +99,7 @@ public final class ClickHouseDeferredValue<T> implements Supplier<T> {
      * @return optional value
      */
     public Optional<T> getOptional() {
-        if (value != null) {
+        if (value != null) { // NOSONAR
             return value;
         }
 

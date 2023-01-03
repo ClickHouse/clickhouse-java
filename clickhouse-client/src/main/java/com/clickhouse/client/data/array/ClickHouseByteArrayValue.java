@@ -4,8 +4,6 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
-import java.nio.charset.Charset;
-import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -19,49 +17,135 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.Map.Entry;
-
+import com.clickhouse.client.ClickHouseArraySequence;
 import com.clickhouse.client.ClickHouseChecker;
 import com.clickhouse.client.ClickHouseUtils;
 import com.clickhouse.client.ClickHouseValue;
 import com.clickhouse.client.ClickHouseValues;
 import com.clickhouse.client.data.ClickHouseObjectValue;
+import com.clickhouse.client.data.UnsignedByte;
 
 /**
  * Wrapper of {@code byte[]}.
  */
-public class ClickHouseByteArrayValue extends ClickHouseObjectValue<byte[]> {
+public class ClickHouseByteArrayValue extends ClickHouseObjectValue<byte[]> implements ClickHouseArraySequence {
+    static final class UnsignedByteArrayValue extends ClickHouseByteArrayValue {
+        @Override
+        public Object[] asArray() {
+            byte[] v = getValue();
+            int len = v.length;
+            UnsignedByte[] array = new UnsignedByte[len];
+            for (int i = 0; i < len; i++) {
+                array[i] = UnsignedByte.valueOf(v[i]);
+            }
+            return array;
+        }
+
+        @Override
+        public String asString() {
+            byte[] v = getValue();
+            int len = v.length;
+            if (len == 0) {
+                return ClickHouseValues.EMPTY_ARRAY_EXPR;
+            }
+            StringBuilder builder = new StringBuilder().append('[').append(UnsignedByte.toString(v[0]));
+            for (int i = 1; i < len; i++) {
+                builder.append(',').append(UnsignedByte.toString(v[i]));
+            }
+            return builder.append(']').toString();
+        }
+
+        @Override
+        public ClickHouseByteArrayValue copy(boolean deep) {
+            if (!deep) {
+                return new UnsignedByteArrayValue(getValue());
+            }
+
+            byte[] value = getValue();
+            return new UnsignedByteArrayValue(Arrays.copyOf(value, value.length));
+        }
+
+        @Override
+        public ClickHouseByteArrayValue update(String value) {
+            if (ClickHouseChecker.isNullOrBlank(value)) {
+                set(ClickHouseValues.EMPTY_BYTE_ARRAY);
+            } else {
+                List<String> list = ClickHouseUtils.readValueArray(value, 0, value.length());
+                if (list.isEmpty()) {
+                    set(ClickHouseValues.EMPTY_BYTE_ARRAY);
+                } else {
+                    byte[] arr = new byte[list.size()];
+                    int index = 0;
+                    for (String v : list) {
+                        arr[index++] = v == null ? (byte) 0 : UnsignedByte.valueOf(v).byteValue();
+                    }
+                    set(arr);
+                }
+            }
+            return this;
+        }
+
+        protected UnsignedByteArrayValue(byte[] value) {
+            super(value);
+        }
+    }
+
     private static final String TYPE_NAME = "byte[]";
 
     /**
-     * Creates an empty array.
+     * Creates a new instance representing empty {@code Int8} array.
      *
-     * @return empty array
+     * @return new instance representing an empty array
      */
-
     public static ClickHouseByteArrayValue ofEmpty() {
-        return of(ClickHouseValues.EMPTY_BYTE_ARRAY);
+        return of(null, ClickHouseValues.EMPTY_BYTE_ARRAY, false);
     }
 
     /**
-     * Wrap the given value.
+     * Creates a new instance representing empty {@code UInt8} array.
+     *
+     * @return new instance representing an empty array
+     */
+    public static ClickHouseByteArrayValue ofUnsignedEmpty() {
+        return of(null, ClickHouseValues.EMPTY_BYTE_ARRAY, true);
+    }
+
+    /**
+     * Wraps the given {@code Int8} array.
      *
      * @param value value
      * @return object representing the value
      */
     public static ClickHouseByteArrayValue of(byte[] value) {
-        return of(null, value);
+        return of(null, value, false);
+    }
+
+    /**
+     * Wraps the given {@code UInt8} array.
+     *
+     * @param value value
+     * @return object representing the value
+     */
+    public static ClickHouseByteArrayValue ofUnsigned(byte[] value) {
+        return of(null, value, true);
     }
 
     /**
      * Update value of the given object or create a new instance if {@code ref} is
      * null.
      *
-     * @param ref   object to update, could be null
-     * @param value value
+     * @param ref      object to update, could be null
+     * @param value    value
+     * @param unsigned true if {@code value} is unsigned; false otherwise
      * @return same object as {@code ref} or a new instance if it's null
      */
 
-    public static ClickHouseByteArrayValue of(ClickHouseValue ref, byte[] value) {
+    public static ClickHouseByteArrayValue of(ClickHouseValue ref, byte[] value, boolean unsigned) {
+        if (unsigned) {
+            return ref instanceof UnsignedByteArrayValue ? ((UnsignedByteArrayValue) ref).set(value)
+                    : new UnsignedByteArrayValue(value);
+        }
+
         return ref instanceof ClickHouseByteArrayValue ? ((ClickHouseByteArrayValue) ref).set(value)
                 : new ClickHouseByteArrayValue(value);
     }
@@ -71,7 +155,7 @@ public class ClickHouseByteArrayValue extends ClickHouseObjectValue<byte[]> {
     }
 
     @Override
-    protected ClickHouseByteArrayValue set(byte[] value) {
+    protected final ClickHouseByteArrayValue set(byte[] value) {
         super.set(ClickHouseChecker.nonNull(value, ClickHouseValues.TYPE_ARRAY));
         return this;
     }
@@ -121,14 +205,18 @@ public class ClickHouseByteArrayValue extends ClickHouseObjectValue<byte[]> {
     }
 
     @Override
-    public String asString(int length, Charset charset) {
-        String str = Arrays.toString(getValue());
-        if (length > 0) {
-            ClickHouseChecker.notWithDifferentLength(str.getBytes(charset == null ? StandardCharsets.UTF_8 : charset),
-                    length);
+    public String asString() {
+        byte[] value = getValue();
+        int len = value == null ? 0 : value.length;
+        if (len == 0) {
+            return ClickHouseValues.EMPTY_ARRAY_EXPR;
         }
 
-        return str;
+        StringBuilder builder = new StringBuilder().append('[').append(value[0]);
+        for (int i = 1; i < len; i++) {
+            builder.append(',').append(value[i]);
+        }
+        return builder.append(']').toString();
     }
 
     @Override
@@ -142,12 +230,12 @@ public class ClickHouseByteArrayValue extends ClickHouseObjectValue<byte[]> {
     }
 
     @Override
-    public boolean isNullable() {
+    public final boolean isNullable() {
         return false;
     }
 
     @Override
-    public boolean isNullOrEmpty() {
+    public final boolean isNullOrEmpty() {
         return getValue().length == 0;
     }
 
@@ -164,18 +252,7 @@ public class ClickHouseByteArrayValue extends ClickHouseObjectValue<byte[]> {
 
     @Override
     public String toSqlExpression() {
-        byte[] value = getValue();
-        int len = value == null ? 0 : value.length;
-        if (len == 0) {
-            return ClickHouseValues.EMPTY_ARRAY_EXPR;
-        }
-
-        StringBuilder builder = new StringBuilder().append('[');
-        for (int i = 0; i < len; i++) {
-            builder.append(value[i]).append(',');
-        }
-        builder.setLength(builder.length() - 1);
-        return builder.append(']').toString();
+        return asString();
     }
 
     @Override
@@ -218,7 +295,7 @@ public class ClickHouseByteArrayValue extends ClickHouseObjectValue<byte[]> {
             return resetToNullOrEmpty();
         }
 
-        return set(Arrays.copyOf(value, len));
+        return set(value);
     }
 
     @Override
@@ -522,5 +599,32 @@ public class ClickHouseByteArrayValue extends ClickHouseObjectValue<byte[]> {
     @Override
     public int hashCode() {
         return Arrays.hashCode(getValue());
+    }
+
+    @Override
+    public ClickHouseArraySequence allocate(int length, Class<?> clazz, int level) {
+        if (length < 1) {
+            resetToDefault();
+        } else if (length() != length) {
+            set(new byte[length]);
+        }
+        return this;
+    }
+
+    @Override
+    public int length() {
+        return isNullOrEmpty() ? 0 : getValue().length;
+    }
+
+    @Override
+    public <V extends ClickHouseValue> V getValue(int index, V value) {
+        value.update(getValue()[index]);
+        return value;
+    }
+
+    @Override
+    public ClickHouseArraySequence setValue(int index, ClickHouseValue value) {
+        getValue()[index] = value.asByte();
+        return this;
     }
 }

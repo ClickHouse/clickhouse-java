@@ -5,8 +5,6 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
-import java.nio.charset.Charset;
-import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -69,9 +67,10 @@ public class ClickHouseNestedValue extends ClickHouseObjectValue<Object[][]> {
             throw new IllegalArgumentException("Non-null columns and value are required");
         }
 
-        if (columns.isEmpty()) {
-            throw new IllegalArgumentException("At least one column must be specified for nested type");
-        }
+        // if (columns.isEmpty()) {
+        // throw new IllegalArgumentException("At least one column must be specified for
+        // nested type");
+        // }
 
         if (value.length != 0 && value.length != columns.size()) {
             throw new IllegalArgumentException("Columns and values should have same length");
@@ -177,14 +176,8 @@ public class ClickHouseNestedValue extends ClickHouseObjectValue<Object[][]> {
     }
 
     @Override
-    public String asString(int length, Charset charset) {
-        String str = Arrays.deepToString(getValue());
-        if (length > 0) {
-            ClickHouseChecker.notWithDifferentLength(str.getBytes(charset == null ? StandardCharsets.UTF_8 : charset),
-                    length);
-        }
-
-        return str;
+    public String asString() {
+        return Arrays.deepToString(getValue());
     }
 
     @Override
@@ -518,7 +511,7 @@ public class ClickHouseNestedValue extends ClickHouseObjectValue<Object[][]> {
 
     @Override
     public ClickHouseNestedValue update(ClickHouseValue value) {
-        if (value == null) {
+        if (value == null || value.isNullOrEmpty()) {
             return resetToNullOrEmpty();
         } else if (value instanceof ClickHouseNestedValue) {
             set(((ClickHouseNestedValue) value).getValue());

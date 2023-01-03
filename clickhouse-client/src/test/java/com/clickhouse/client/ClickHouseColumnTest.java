@@ -1,5 +1,6 @@
 package com.clickhouse.client;
 
+import java.math.BigInteger;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
@@ -7,6 +8,8 @@ import java.util.List;
 import org.testng.Assert;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
+
+import com.clickhouse.client.config.ClickHouseClientOption;
 
 public class ClickHouseColumnTest {
     @DataProvider(name = "enumTypesProvider")
@@ -141,7 +144,7 @@ public class ClickHouseColumnTest {
     }
 
     @Test(groups = { "unit" })
-    public void testParse() throws Exception {
+    public void testParse() {
         ClickHouseColumn column = ClickHouseColumn.of("arr", "Nullable(Array(Nullable(UInt8))");
         Assert.assertNotNull(column);
 
@@ -156,7 +159,7 @@ public class ClickHouseColumnTest {
     }
 
     @Test(groups = { "unit" })
-    public void testAggregationFunction() throws Exception {
+    public void testAggregationFunction() {
         ClickHouseColumn column = ClickHouseColumn.of("aggFunc", "AggregateFunction(groupBitmap, UInt32)");
         Assert.assertTrue(column.isAggregateFunction());
         Assert.assertEquals(column.getDataType(), ClickHouseDataType.AggregateFunction);
@@ -178,7 +181,7 @@ public class ClickHouseColumnTest {
     }
 
     @Test(groups = { "unit" })
-    public void testArray() throws Exception {
+    public void testArray() {
         ClickHouseColumn column = ClickHouseColumn.of("arr",
                 "Array(Array(Array(Array(Array(Map(LowCardinality(String), Tuple(Array(UInt8),LowCardinality(String))))))))");
         Assert.assertTrue(column.isArray());
@@ -204,7 +207,7 @@ public class ClickHouseColumnTest {
     }
 
     @Test(dataProvider = "enumTypesProvider", groups = { "unit" })
-    public void testEnum(String typeName) throws Exception {
+    public void testEnum(String typeName) {
         Assert.assertThrows(IllegalArgumentException.class,
                 () -> ClickHouseColumn.of("e", typeName + "('Query''Start' = a)"));
         Assert.assertThrows(IllegalArgumentException.class, () -> ClickHouseColumn.of("e", typeName + "(aa,1)"));
@@ -236,9 +239,72 @@ public class ClickHouseColumnTest {
     }
 
     @Test(groups = { "unit" })
-    public void testSimpleAggregationFunction() throws Exception {
+    public void testSimpleAggregationFunction() {
         ClickHouseColumn c = ClickHouseColumn.of("a", "SimpleAggregateFunction(max, UInt64)");
         Assert.assertEquals(c.getDataType(), ClickHouseDataType.SimpleAggregateFunction);
         Assert.assertEquals(c.getNestedColumns().get(0).getDataType(), ClickHouseDataType.UInt64);
+    }
+
+    @Test(groups = { "unit" })
+    public void testNewArray() {
+        ClickHouseConfig config = new ClickHouseConfig(
+                Collections.singletonMap(ClickHouseClientOption.WIDEN_UNSIGNED_TYPES, true));
+        ClickHouseValue v = ClickHouseColumn.of("a", "Array(UInt32)").newValue(config);
+        Assert.assertEquals(v.update(new long[] { 1L }).asObject(), new long[] { 1L });
+        v = ClickHouseColumn.of("a", "Array(Nullable(UInt64))").newValue(config);
+        Assert.assertEquals(v.update(new Long[] { 1L }).asObject(), new Long[] { 1L });
+        v = ClickHouseColumn.of("a", "Array(Array(UInt16))").newValue(config);
+        Assert.assertEquals(v.asObject(), new int[0][]);
+        v = ClickHouseColumn.of("a", "Array(Array(Array(UInt8)))").newValue(config);
+        Assert.assertEquals(v.asObject(), new short[0][][]);
+        v = ClickHouseColumn.of("a", "Array(Array(Array(Nullable(UInt8))))").newValue(config);
+        Assert.assertEquals(v.update(new Short[][][] { new Short[][] { new Short[] { (short) 1 } } }).asObject(),
+                new Short[][][] { new Short[][] { new Short[] { (short) 1 } } });
+        v = ClickHouseColumn.of("a", "Array(Array(Array(Array(LowCardinality(String)))))").newValue(config);
+        Assert.assertEquals(v.asObject(), new String[0][][][]);
+
+        config = new ClickHouseConfig(Collections.singletonMap(ClickHouseClientOption.WIDEN_UNSIGNED_TYPES, false));
+        v = ClickHouseColumn.of("", "Array(UInt8)").newValue(config);
+        Assert.assertEquals(v.update(new byte[] { Byte.MIN_VALUE, 0, Byte.MAX_VALUE }).asObject(),
+                new byte[] { Byte.MIN_VALUE, 0, Byte.MAX_VALUE });
+        Assert.assertEquals(v.update(new int[] { -1, 0, 1 }).asObject(), new byte[] { -1, 0, 1 });
+        v = ClickHouseColumn.of("", "Array(UInt16)").newValue(config);
+        Assert.assertEquals(v.update(new byte[] { -1, 0, 1 }).asObject(), new short[] { 255, 0, 1 });
+        Assert.assertEquals(v.update(new int[] { -1, 0, 1 }).asObject(), new short[] { -1, 0, 1 });
+        v = ClickHouseColumn.of("", "Array(UInt32)").newValue(config);
+        Assert.assertEquals(v.update(new short[] { -1, 0, 1 }).asObject(), new int[] { 65535, 0, 1 });
+        Assert.assertEquals(v.update(new int[] { -1, 0, 1 }).asObject(), new int[] { -1, 0, 1 });
+        v = ClickHouseColumn.of("", "Array(UInt64)").newValue(config);
+        Assert.assertEquals(v.update(new int[] { -1, 0, 1 }).asObject(), new long[] { 4294967295L, 0, 1 });
+        Assert.assertEquals(v.update(new long[] { -1L, 0L, 1L }).asObject(), new long[] { -1L, 0L, 1L });
+        Assert.assertEquals(v.update(new BigInteger[] { new BigInteger("18446744073709551615"), BigInteger.ZERO, BigInteger.ONE }).asObject(), new long[] { -1L, 0L, 1L });
+    }
+
+    @Test(groups = { "unit" })
+    public void testNewBasicValues() {
+        ClickHouseConfig config = new ClickHouseConfig(
+                Collections.singletonMap(ClickHouseClientOption.WIDEN_UNSIGNED_TYPES, true));
+        for (ClickHouseDataType type : ClickHouseDataType.values()) {
+            // skip advanced types
+            if (type.isNested() || type == ClickHouseDataType.AggregateFunction
+                    || type == ClickHouseDataType.SimpleAggregateFunction) {
+                continue;
+            }
+
+            ClickHouseValue value = ClickHouseColumn.of("", type, false).newValue(config);
+            Assert.assertNotNull(value);
+
+            if (type == ClickHouseDataType.Point) {
+                Assert.assertEquals(value.asObject(), new double[] { 0D, 0D });
+            } else if (type == ClickHouseDataType.Ring) {
+                Assert.assertEquals(value.asObject(), new double[0][]);
+            } else if (type == ClickHouseDataType.Polygon) {
+                Assert.assertEquals(value.asObject(), new double[0][][]);
+            } else if (type == ClickHouseDataType.MultiPolygon) {
+                Assert.assertEquals(value.asObject(), new double[0][][][]);
+            } else {
+                Assert.assertNull(value.asObject());
+            }
+        }
     }
 }

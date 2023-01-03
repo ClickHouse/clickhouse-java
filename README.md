@@ -25,7 +25,7 @@ Note: in general, the new driver(v0.3.2+) is a few times faster with less memory
 | API               | [JDBC](https://docs.oracle.com/javase/8/docs/technotes/guides/jdbc/)                | :white_check_mark: |                                                                                                                                                                      |
 |                   | [R2DBC](https://r2dbc.io/)                                                          | :x:                | will be supported in 0.3.3                                                                                                                                           |
 |                   | [GraphQL](https://graphql.org/)                                                     | :x:                |                                                                                                                                                                      |
-| Protocol          | [HTTP](https://clickhouse.com/docs/en/interfaces/http/)                             | :white_check_mark: | recommended, defaults to `java.net.HttpURLConnection` and can be changed to `java.net.http.HttpClient`(less stable)                                                  |
+| Protocol          | [HTTP](https://clickhouse.com/docs/en/interfaces/http/)                             | :white_check_mark: | recommended, defaults to `java.net.HttpURLConnection` and can be changed to `apache http client` and java.net.http.HttpClient`(less stable). Note that `apache http client` support socket options.|
 |                   | [gRPC](https://clickhouse.com/docs/en/interfaces/grpc/)                             | :white_check_mark: | still experimental, works with 22.3+, known to has [issue](https://github.com/ClickHouse/ClickHouse/issues/28671#issuecomment-1087049993) when using LZ4 compression |
 |                   | [TCP/Native](https://clickhouse.com/docs/en/interfaces/tcp/)                        | :white_check_mark: | `clickhouse-cli-client`(wrapper of ClickHouse native command-line client) was added in 0.3.2-patch10, `clickhouse-tcp-client` will be available in 0.3.3             |
 |                   | [Local/File](https://clickhouse.com/docs/en/operations/utilities/clickhouse-local/) | :x:                | `clickhouse-cli-client` will be enhanced to support `clickhouse-local`                                                                                               |
@@ -179,7 +179,7 @@ Use `mvn -DskipITs clean verify` to compile and generate packages if you're usin
 
 ## Testing
 
-By default, [docker](https://docs.docker.com/engine/install/) is required to run integration test. Docker image(defaults to `clickhouse/clickhouse-server`) will be pulled from Internet, and containers will be created automatically by [testcontainers](https://www.testcontainers.org/) before testing. To test against specific version of ClickHouse, you can pass parameter like `-DclickhouseVersion=22.3` to Maven.
+By default, [docker](https://docs.docker.com/engine/install/) is required to run integration test. Docker image(defaults to `clickhouse/clickhouse-server`) will be pulled from Internet, and containers will be created automatically by [testcontainers](https://www.testcontainers.org/) before testing. To test against specific version of ClickHouse, you can pass parameter like `-DclickhouseVersion=22.8` to Maven.
 
 In the case you don't want to use docker and/or prefer to test against an existing server, please follow instructions below:
 

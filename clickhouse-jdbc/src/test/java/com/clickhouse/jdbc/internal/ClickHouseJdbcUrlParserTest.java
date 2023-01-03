@@ -137,7 +137,7 @@ public class ClickHouseJdbcUrlParserTest {
     }
 
     @Test(groups = "unit")
-    public void testParseCredentials() throws Exception {
+    public void testParseCredentials() throws SQLException {
         Properties props = new Properties();
         props.setProperty("user", "default1");
         props.setProperty("password", "password1");

@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
+import java.net.UnknownHostException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -42,7 +43,7 @@ public class ClickHouseOffsetDateTimeValueTest extends BaseClickHouseValueTest {
     }
 
     @Test(groups = { "unit" })
-    public void testValueWithoutScale() throws Exception {
+    public void testValueWithoutScale() throws UnknownHostException {
         // null value
         checkNull(ClickHouseOffsetDateTimeValue.ofNull(0, null));
         checkNull(ClickHouseOffsetDateTimeValue.of(LocalDateTime.now(), 0, null).resetToNullOrEmpty());
@@ -162,7 +163,7 @@ public class ClickHouseOffsetDateTimeValueTest extends BaseClickHouseValueTest {
     }
 
     @Test(groups = { "unit" })
-    public void testValueWithScale() throws Exception {
+    public void testValueWithScale() throws UnknownHostException {
         // null value
         checkNull(ClickHouseOffsetDateTimeValue.ofNull(3, null));
         checkNull(ClickHouseOffsetDateTimeValue.of(LocalDateTime.now(), 9, null).resetToNullOrEmpty());
@@ -207,7 +208,7 @@ public class ClickHouseOffsetDateTimeValueTest extends BaseClickHouseValueTest {
     }
 
     @Test(groups = { "unit" })
-    public void testValueWithTimeZone() throws Exception {
+    public void testValueWithTimeZone() {
         LocalDateTime dateTime = LocalDateTime.of(2020, 2, 11, 0, 23, 33);
         TimeZone tz = null;
         ClickHouseOffsetDateTimeValue v = ClickHouseOffsetDateTimeValue.of(dateTime, 0, tz);

@@ -109,100 +109,6 @@ public class ClickHouseByteBuffer implements Serializable {
     }
 
     /**
-     * Converts 4 bytes(little-endian) to Int32. Same as {@code getInteger(0)}.
-     *
-     * @return Int32 value
-     * @deprecated will be removed in v0.3.3, please use {@link #asInteger()}
-     *             instead
-     */
-    @Deprecated
-    public int asInt32() {
-        return getInteger(0);
-    }
-
-    /**
-     * Converts 4 bytes(little-endian) to UInt32. Same as
-     * {@code getUnsignedInteger(0)}.
-     *
-     * @return UInt32 value
-     * @deprecated will be removed in v0.3.3, please use
-     *             {@link #asUnsignedInteger()} instead
-     */
-    @Deprecated
-    public long asUnsignedInt32() {
-        return getUnsignedInteger(0);
-    }
-
-    /**
-     * Converts 4 bytes(little-endian) starting from {@code position() + offset} to
-     * Int32.
-     *
-     * @param offset zero-based relative offset, 1 means the second byte starting
-     *               from {@link #position()}
-     * @return Int32 value
-     * @deprecated will be removed in v0.3.3, please use {@link #getInteger(int)}
-     *             instead
-     */
-    @Deprecated
-    public int getInt32(int offset) {
-        return getInteger(offset);
-    }
-
-    /**
-     * Converts 4 bytes(little-endian) starting from {@code position() + offset} to
-     * UInt32.
-     *
-     * @param offset zero-based relative offset, 1 means the second byte starting
-     *               from {@link #position()}
-     * @return UInt32 value
-     * @deprecated will be removed in v0.3.3, please use
-     *             {@link #getUnsignedInteger(int)} instead
-     */
-    @Deprecated
-    public long getUnsignedInt32(int offset) {
-        return getUnsignedInteger(offset);
-    }
-
-    /**
-     * Converts 8 bytes(little-endian) to Int64. Same as {@code getLong(0)}.
-     *
-     * @return Int64 value
-     * @deprecated will be removed in v0.3.3, please use {@link #asLong()} instead
-     */
-    @Deprecated
-    public long asInt64() {
-        return asLong();
-    }
-
-    /**
-     * Converts 8 bytes(little-endian) to unsigned Int64. Same as
-     * {@code getBigInteger(0, 8, true)}.
-     *
-     * @return unsigned Int64 value
-     * @deprecated will be removed in v0.3.3, please use {@link #asUnsignedLong()}
-     *             instead
-     */
-    @Deprecated
-    public BigInteger asUnsignedInt64() {
-        return getBigInteger(0, 8, true);
-    }
-
-    /**
-     * Converts 8 bytes(little-endian) starting from {@code position() + offset} to
-     * Int64.
-     *
-     * @param offset zero-based relative offset, 1 means the second byte starting
-     *               from {@link #position()}
-     * @return Int64 value
-     * @deprecated will be removed in v0.3.3, please use {@link #getLong(int)}
-     *             instead
-     */
-    @Deprecated
-    public long getInt64(int offset) {
-        return getLong(offset);
-    }
-
-    /**
      * Converts all bytes(little-endian) to signed big integer. Same as
      * {@code getBigInteger(0, length(), false)}.
      *
@@ -212,12 +118,25 @@ public class ClickHouseByteBuffer implements Serializable {
         return getBigInteger(0, length, false);
     }
 
+    public boolean asBoolean() {
+        return getBoolean(0);
+    }
+
+    public boolean[] asBooleanArray() {
+        int len = length;
+        boolean[] values = new boolean[len];
+        for (int i = 0; i < len; i++) {
+            values[i] = array[position + i] == (byte) 1;
+        }
+        return values;
+    }
+
     public double asDouble() {
         return getDouble(0);
     }
 
     public double[] asDoubleArray() {
-        int step = 8;
+        int step = Double.BYTES;
         int len = length / step;
         double[] values = new double[len];
         for (int i = 0, offset = 0; i < len; i++, offset += step) {
@@ -231,7 +150,7 @@ public class ClickHouseByteBuffer implements Serializable {
     }
 
     public float[] asFloatArray() {
-        int step = 4;
+        int step = Float.BYTES;
         int len = length / step;
         float[] values = new float[len];
         for (int i = 0, offset = 0; i < len; i++, offset += step) {
@@ -267,6 +186,17 @@ public class ClickHouseByteBuffer implements Serializable {
             bytes[j] = array[i];
         }
         return unsigned ? new BigInteger(1, bytes) : new BigInteger(bytes);
+    }
+
+    /**
+     * Converts the byte at {@code position() + offset} in array to boolean.
+     *
+     * @param offset zero-based relative offset, 1 means the second byte
+     *               starting from {@link #position()}
+     * @return boolean
+     */
+    public boolean getBoolean(int offset) {
+        return array[offset + position] == (byte) 1;
     }
 
     /**
@@ -394,7 +324,7 @@ public class ClickHouseByteBuffer implements Serializable {
     }
 
     public int[] asIntegerArray() {
-        int step = 4;
+        int step = Integer.BYTES;
         int len = length / step;
         int[] values = new int[len];
         for (int i = 0, offset = 0; i < len; i++, offset += step) {
@@ -404,7 +334,7 @@ public class ClickHouseByteBuffer implements Serializable {
     }
 
     public long[] asLongArray() {
-        int step = 8;
+        int step = Long.BYTES;
         int len = length / step;
         long[] values = new long[len];
         for (int i = 0, offset = 0; i < len; i++, offset += step) {
@@ -414,7 +344,7 @@ public class ClickHouseByteBuffer implements Serializable {
     }
 
     public short[] asShortArray() {
-        int step = 2;
+        int step = Short.BYTES;
         int len = length / step;
         short[] values = new short[len];
         for (int i = 0, offset = 0; i < len; i++, offset += step) {
@@ -436,7 +366,7 @@ public class ClickHouseByteBuffer implements Serializable {
     }
 
     public long[] asUnsignedIntegerArray() {
-        int step = 4;
+        int step = Integer.BYTES;
         int len = length / step;
         long[] values = new long[len];
         for (int i = 0, offset = 0; i < len; i++, offset += step) {
@@ -446,7 +376,7 @@ public class ClickHouseByteBuffer implements Serializable {
     }
 
     public int[] asUnsignedShortArray() {
-        int step = 2;
+        int step = Short.BYTES;
         int len = length / step;
         int[] values = new int[len];
         for (int i = 0, offset = 0; i < len; i++, offset += step) {
@@ -533,6 +463,28 @@ public class ClickHouseByteBuffer implements Serializable {
      */
     public boolean isEmpty() {
         return length < 1;
+    }
+
+    /**
+     * Checks if the byte buffer is same as the given byte array.
+     *
+     * @param bytes bytes to check
+     * @return true if the byte buffer is same as the given byte array; false
+     *         otherwise
+     */
+    public boolean match(byte[] bytes) {
+        boolean matched = false;
+        int len = bytes == null ? 0 : bytes.length;
+        if (len == this.length) {
+            matched = true;
+            for (int i = 0; i < len; i++) {
+                if (bytes[i] != array[position + i]) {
+                    matched = false;
+                    break;
+                }
+            }
+        }
+        return matched;
     }
 
     /**
@@ -711,6 +663,10 @@ public class ClickHouseByteBuffer implements Serializable {
         return array[position];
     }
 
+    public byte getByte(int offset) {
+        return array[position + ClickHouseChecker.between(offset, "Offset", 0, length)];
+    }
+
     public byte lastByte() {
         return array[position + length - 1];
     }
@@ -752,6 +708,15 @@ public class ClickHouseByteBuffer implements Serializable {
      */
     public int limit() {
         return position + length;
+    }
+
+    /**
+     * Sets new length.
+     *
+     * @param newLength new length
+     */
+    public void setLength(int newLength) {
+        this.length = ClickHouseChecker.between(newLength, "Length", 0, this.array.length - this.position);
     }
 
     @Override

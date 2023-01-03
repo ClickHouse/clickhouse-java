@@ -2,15 +2,11 @@ package com.clickhouse.client.data;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
-import java.nio.charset.Charset;
-import java.nio.charset.StandardCharsets;
-
-import com.clickhouse.client.ClickHouseChecker;
 import com.clickhouse.client.ClickHouseValue;
 import com.clickhouse.client.ClickHouseValues;
 
 /**
- * Wraper class of double.
+ * Wrapper class of {@code double}.
  */
 public class ClickHouseDoubleValue implements ClickHouseValue {
     /**
@@ -167,16 +163,12 @@ public class ClickHouseDoubleValue implements ClickHouseValue {
     }
 
     @Override
-    public String asString(int length, Charset charset) {
+    public String asString() {
         if (isNull) {
             return null;
         }
-        String str = String.valueOf(value);
-        if (length > 0) {
-            ClickHouseChecker.notWithDifferentLength(str.getBytes(charset == null ? StandardCharsets.UTF_8 : charset),
-                    length);
-        }
-        return str;
+
+        return String.valueOf(value);
     }
 
     @Override
@@ -265,7 +257,7 @@ public class ClickHouseDoubleValue implements ClickHouseValue {
 
     @Override
     public ClickHouseDoubleValue update(ClickHouseValue value) {
-        return value == null ? resetToNullOrEmpty() : set(false, value.asDouble());
+        return value == null || value.isNullOrEmpty() ? resetToNullOrEmpty() : set(false, value.asDouble());
     }
 
     @Override

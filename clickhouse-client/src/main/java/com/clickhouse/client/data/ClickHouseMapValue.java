@@ -4,7 +4,6 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
-import java.nio.charset.Charset;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -138,7 +137,7 @@ public class ClickHouseMapValue extends ClickHouseObjectValue<Map<?, ?>> {
     }
 
     @Override
-    public String asString(int length, Charset charset) {
+    public String asString() {
         Map<?, ?> value = getValue();
         if (value == null || value.isEmpty()) {
             return "{}";
@@ -149,8 +148,7 @@ public class ClickHouseMapValue extends ClickHouseObjectValue<Map<?, ?>> {
         }
         builder.setLength(builder.length() - 1);
 
-        String str = builder.append('}').toString();
-        return length > 0 ? ClickHouseChecker.notWithDifferentLength(str, length) : str;
+        return builder.append('}').toString();
     }
 
     @Override
@@ -350,7 +348,7 @@ public class ClickHouseMapValue extends ClickHouseObjectValue<Map<?, ?>> {
 
     @Override
     public ClickHouseMapValue update(ClickHouseValue value) {
-        if (value == null) {
+        if (value == null || value.isNullOrEmpty()) {
             resetToNullOrEmpty();
         } else if (value instanceof ClickHouseMapValue) {
             set(((ClickHouseMapValue) value).getValue());

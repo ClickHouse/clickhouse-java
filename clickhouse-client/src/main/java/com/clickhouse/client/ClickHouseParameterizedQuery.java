@@ -42,7 +42,7 @@ public class ClickHouseParameterizedQuery implements Serializable {
             this.paramName = paramName != null ? paramName : String.valueOf(paramIndex);
             if (paramType != null) {
                 this.paramType = ClickHouseColumn.of("", paramType);
-                map.put(paramName, ClickHouseValues.newValue(config, this.paramType));
+                map.put(paramName, this.paramType.newValue(config));
             } else {
                 this.paramType = null;
                 map.putIfAbsent(paramName, null);
@@ -181,7 +181,7 @@ public class ClickHouseParameterizedQuery implements Serializable {
      * @param query  non-blank query
      */
     protected ClickHouseParameterizedQuery(ClickHouseConfig config, String query) {
-        this.config = ClickHouseChecker.nonNull(config, "config");
+        this.config = ClickHouseChecker.nonNull(config, ClickHouseConfig.TYPE_NAME);
         originalQuery = ClickHouseChecker.nonBlank(query, "query");
 
         parts = new LinkedList<>();
@@ -390,8 +390,8 @@ public class ClickHouseParameterizedQuery implements Serializable {
                 map.put(e.getKey(),
                         v != null ? v.update(param).toSqlExpression() : ClickHouseValues.convertToSqlExpression(param));
             } else if (index < len) {
-                map.put(e.getKey(), v != null ? v.update(more[index]).toSqlExpression()
-                        : ClickHouseValues.convertToSqlExpression(more[index]));
+                map.put(e.getKey(), v != null ? v.update(more[index]).toSqlExpression() // NOSONAR
+                        : ClickHouseValues.convertToSqlExpression(more[index])); // NOSONAR
             } else {
                 break;
             }
@@ -452,7 +452,7 @@ public class ClickHouseParameterizedQuery implements Serializable {
             if (index < 0) {
                 map.put(n, param);
             } else if (index < len) {
-                map.put(n, more[index]);
+                map.put(n, more[index]); // NOSONAR
             } else {
                 break;
             }

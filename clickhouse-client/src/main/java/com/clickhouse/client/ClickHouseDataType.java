@@ -17,6 +17,11 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.UUID;
 
+import com.clickhouse.client.data.UnsignedByte;
+import com.clickhouse.client.data.UnsignedInteger;
+import com.clickhouse.client.data.UnsignedLong;
+import com.clickhouse.client.data.UnsignedShort;
+
 /**
  * Basic ClickHouse data types.
  *
@@ -39,19 +44,23 @@ public enum ClickHouseDataType {
     IntervalHour(Long.class, false, true, true, 8, 19, 0, 0, 0, false),
     IntervalMinute(Long.class, false, true, true, 8, 19, 0, 0, 0, false),
     IntervalSecond(Long.class, false, true, true, 8, 19, 0, 0, 0, false),
-    UInt8(Short.class, false, true, false, 1, 3, 0, 0, 0, false, "INT1 UNSIGNED", "TINYINT UNSIGNED"),
-    UInt16(Integer.class, false, true, false, 2, 5, 0, 0, 0, false, "SMALLINT UNSIGNED"),
-    UInt32(Long.class, false, true, false, 4, 10, 0, 0, 0, false, "INT UNSIGNED", "INTEGER UNSIGNED",
+    IntervalMicrosecond(Long.class, false, true, true, 8, 19, 0, 0, 0, false),
+    IntervalMillisecond(Long.class, false, true, true, 8, 19, 0, 0, 0, false),
+    IntervalNanosecond(Long.class, false, true, true, 8, 19, 0, 0, 0, false),
+    UInt8(UnsignedByte.class, false, true, false, 1, 3, 0, 0, 0, false, "INT1 UNSIGNED", "TINYINT UNSIGNED"),
+    UInt16(UnsignedShort.class, false, true, false, 2, 5, 0, 0, 0, false, "SMALLINT UNSIGNED", "YEAR"),
+    // https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html#PageTitle
+    UInt32(UnsignedInteger.class, false, true, false, 4, 10, 0, 0, 0, false, "INT UNSIGNED", "INTEGER UNSIGNED",
             "MEDIUMINT UNSIGNED"),
-    UInt64(Long.class, false, true, false, 8, 20, 0, 0, 0, false, "BIGINT UNSIGNED"),
+    UInt64(UnsignedLong.class, false, true, false, 8, 20, 0, 0, 0, false, "BIGINT UNSIGNED", "BIT", "SET"),
     UInt128(BigInteger.class, false, true, false, 16, 39, 0, 0, 0, false),
     UInt256(BigInteger.class, false, true, false, 32, 78, 0, 0, 0, false),
     Int8(Byte.class, false, true, true, 1, 3, 0, 0, 0, false, "BYTE", "INT1", "INT1 SIGNED", "TINYINT",
             "TINYINT SIGNED"),
     Int16(Short.class, false, true, true, 2, 5, 0, 0, 0, false, "SMALLINT", "SMALLINT SIGNED"),
-    Int32(Integer.class, false, true, true, 4, 10, 0, 0, 0, false, "INT", "INTEGER", "MEDIUMINT", "INT SIGNED",
-            "INTEGER SIGNED", "MEDIUMINT SIGNED"),
-    Int64(Long.class, false, true, true, 8, 19, 0, 0, 0, false, "BIGINT", "BIGINT SIGNED"),
+    Int32(Integer.class, false, true, true, 4, 10, 0, 0, 0, false, "INT", "INT SIGNED", "INTEGER", "INTEGER SIGNED",
+            "MEDIUMINT", "MEDIUMINT SIGNED"),
+    Int64(Long.class, false, true, true, 8, 19, 0, 0, 0, false, "BIGINT", "BIGINT SIGNED", "TIME"),
     Int128(BigInteger.class, false, true, true, 16, 39, 0, 0, 0, false),
     Int256(BigInteger.class, false, true, true, 32, 77, 0, 0, 0, false),
     Bool(Boolean.class, false, false, true, 1, 1, 0, 0, 0, false, "BOOLEAN"),
@@ -60,35 +69,27 @@ public enum ClickHouseDataType {
     DateTime(LocalDateTime.class, true, false, false, 0, 29, 0, 0, 9, false, "TIMESTAMP"),
     DateTime32(LocalDateTime.class, true, false, false, 4, 19, 0, 0, 0, false),
     DateTime64(LocalDateTime.class, true, false, false, 8, 29, 3, 0, 9, false),
-    Decimal(BigDecimal.class, true, false, true, 0, 76, 0, 0, 76, false, "DEC", "NUMERIC", "FIXED"),
+    Decimal(BigDecimal.class, true, false, true, 0, 76, 0, 0, 76, false, "DEC", "FIXED", "NUMERIC"),
     Decimal32(BigDecimal.class, true, false, true, 4, 9, 9, 0, 9, false),
     Decimal64(BigDecimal.class, true, false, true, 8, 18, 18, 0, 18, false),
     Decimal128(BigDecimal.class, true, false, true, 16, 38, 38, 0, 38, false),
     Decimal256(BigDecimal.class, true, false, true, 32, 76, 20, 0, 76, false),
     UUID(UUID.class, false, true, false, 16, 69, 0, 0, 0, false),
-    /**
-     * Enum data type.
-     *
-     * @deprecated will be removed in v0.3.3, please use {@link #Enum8} instead
-     */
-    @Deprecated
-    Enum(String.class, true, true, false, 1, 0, 0, 0, 0, false),
-    Enum8(String.class, true, true, false, 1, 0, 0, 0, 0, false), // "ENUM"),
+    Enum8(String.class, true, true, false, 1, 0, 0, 0, 0, false, "ENUM"),
     Enum16(String.class, true, true, false, 2, 0, 0, 0, 0, false),
     Float32(Float.class, false, true, true, 4, 12, 0, 0, 38, false, "FLOAT", "REAL", "SINGLE"),
-    Float64(Double.class, false, true, true, 16, 22, 0, 0, 308, false, "DOUBLE", "DOUBLE PRECISION"),
+    Float64(Double.class, false, true, true, 8, 22, 0, 0, 308, false, "DOUBLE", "DOUBLE PRECISION"),
     IPv4(Inet4Address.class, false, true, false, 4, 10, 0, 0, 0, false, "INET4"),
     IPv6(Inet6Address.class, false, true, false, 16, 39, 0, 0, 0, false, "INET6"),
     FixedString(String.class, true, true, false, 0, 0, 0, 0, 0, false, "BINARY"),
     String(String.class, false, true, false, 0, 0, 0, 0, 0, false, "BINARY LARGE OBJECT", "BINARY VARYING", "BLOB",
-            "BYTEA",
-            "CHAR", "CHARACTER", "CHARACTER LARGE OBJECT", "CHARACTER VARYING", "CHAR LARGE OBJECT", "CHAR VARYING",
-            "CLOB", "LONGBLOB", "LONGTEXT", "MEDIUMBLOB", "MEDIUMTEXT", "NATIONAL CHAR", "NATIONAL CHARACTER",
-            "NATIONAL CHARACTER LARGE OBJECT", "NATIONAL CHARACTER VARYING", "NATIONAL CHAR VARYING", "NCHAR",
-            "NCHAR LARGE OBJECT", "NCHAR VARYING", "NVARCHAR", "TEXT", "TINYBLOB", "TINYTEXT", "VARBINARY", "VARCHAR",
-            "VARCHAR2"),
-    AggregateFunction(String.class, true, true, false, 0, 0, 0, 0, 0, true), // implementation-defined intermediate
-                                                                             // state
+            "BYTEA", "CHAR", "CHAR LARGE OBJECT", "CHAR VARYING", "CHARACTER", "CHARACTER LARGE OBJECT",
+            "CHARACTER VARYING", "CLOB", "GEOMETRY", "LONGBLOB", "LONGTEXT", "MEDIUMBLOB", "MEDIUMTEXT",
+            "NATIONAL CHAR", "NATIONAL CHAR VARYING", "NATIONAL CHARACTER", "NATIONAL CHARACTER LARGE OBJECT",
+            "NATIONAL CHARACTER VARYING", "NCHAR", "NCHAR LARGE OBJECT", "NCHAR VARYING", "NVARCHAR", "TEXT",
+            "TINYBLOB", "TINYTEXT", "VARBINARY", "VARCHAR", "VARCHAR2"),
+    // implementation-defined intermediate state
+    AggregateFunction(String.class, true, true, false, 0, 0, 0, 0, 0, true),
     SimpleAggregateFunction(String.class, true, true, false, 0, 0, 0, 0, 0, false),
     Array(Object.class, true, true, false, 0, 0, 0, 0, 0, true),
     Map(Map.class, true, true, false, 0, 0, 0, 0, 0, true),
@@ -241,14 +242,46 @@ public enum ClickHouseDataType {
      * @return wrapper object
      */
     public static Class<?> toObjectType(Class<?> javaClass) {
-        if (byte.class == javaClass || boolean.class == javaClass || Boolean.class == javaClass) {
+        if (boolean.class == javaClass) {
+            javaClass = Boolean.class;
+        } else if (byte.class == javaClass) {
             javaClass = Byte.class;
-        } else if (short.class == javaClass) {
-            javaClass = Short.class;
-        } else if (int.class == javaClass || char.class == javaClass || Character.class == javaClass) {
+        } else if (int.class == javaClass) {
             javaClass = Integer.class;
         } else if (long.class == javaClass) {
             javaClass = Long.class;
+        } else if (short.class == javaClass || char.class == javaClass || Character.class == javaClass) {
+            javaClass = Short.class;
+        } else if (float.class == javaClass) {
+            javaClass = Float.class;
+        } else if (double.class == javaClass) {
+            javaClass = Double.class;
+        } else if (javaClass == null) {
+            javaClass = Object.class;
+        }
+
+        return javaClass;
+    }
+
+    /**
+     * Converts given Java class to wider wrapper object(e.g. {@code int.class} to
+     * {@code Long.class}) if applicable.
+     *
+     * @param javaClass Java class
+     * @return wrapper object
+     */
+    public static Class<?> toWiderObjectType(Class<?> javaClass) {
+        if (boolean.class == javaClass) {
+            javaClass = Boolean.class;
+        } else if (byte.class == javaClass || Byte.class == javaClass || UnsignedByte.class == javaClass) {
+            javaClass = Short.class;
+        } else if (int.class == javaClass || Integer.class == javaClass || UnsignedInteger.class == javaClass) {
+            javaClass = Long.class;
+        } else if (long.class == javaClass || Long.class == javaClass) {
+            javaClass = UnsignedLong.class;
+        } else if (short.class == javaClass || Short.class == javaClass || UnsignedShort.class == javaClass
+                || char.class == javaClass || Character.class == javaClass) {
+            javaClass = Integer.class;
         } else if (float.class == javaClass) {
             javaClass = Float.class;
         } else if (double.class == javaClass) {
@@ -268,14 +301,47 @@ public enum ClickHouseDataType {
      * @return primitive type
      */
     public static Class<?> toPrimitiveType(Class<?> javaClass) {
-        if (Byte.class == javaClass || Boolean.class == javaClass || boolean.class == javaClass) {
+        if (Boolean.class == javaClass) {
+            javaClass = boolean.class;
+        } else if (Byte.class == javaClass || UnsignedByte.class == javaClass) {
             javaClass = byte.class;
-        } else if (Short.class == javaClass) {
-            javaClass = short.class;
-        } else if (Integer.class == javaClass || Character.class == javaClass || char.class == javaClass) {
+        } else if (Integer.class == javaClass || UnsignedInteger.class == javaClass) {
             javaClass = int.class;
-        } else if (Long.class == javaClass) {
+        } else if (Long.class == javaClass || UnsignedLong.class == javaClass) {
             javaClass = long.class;
+        } else if (Short.class == javaClass || UnsignedShort.class == javaClass || Character.class == javaClass
+                || char.class == javaClass) {
+            javaClass = short.class;
+        } else if (Float.class == javaClass) {
+            javaClass = float.class;
+        } else if (Double.class == javaClass) {
+            javaClass = double.class;
+        } else if (javaClass == null) {
+            javaClass = Object.class;
+        }
+
+        return javaClass;
+    }
+
+    /**
+     * Converts given Java class to wider primitive types(e.g. {@code Integer.class}
+     * to {@code long.class}) if applicable.
+     *
+     * @param javaClass Java class
+     * @return primitive type
+     */
+    public static Class<?> toWiderPrimitiveType(Class<?> javaClass) {
+        if (Boolean.class == javaClass || boolean.class == javaClass) {
+            javaClass = boolean.class;
+        } else if (Byte.class == javaClass || UnsignedByte.class == javaClass || byte.class == javaClass) {
+            javaClass = short.class;
+        } else if (Integer.class == javaClass || UnsignedInteger.class == javaClass || int.class == javaClass) {
+            javaClass = long.class;
+        } else if (Long.class == javaClass || long.class == javaClass) {
+            javaClass = UnsignedLong.class;
+        } else if (Short.class == javaClass || UnsignedShort.class == javaClass || short.class == javaClass
+                || Character.class == javaClass || char.class == javaClass) {
+            javaClass = int.class;
         } else if (Float.class == javaClass) {
             javaClass = float.class;
         } else if (Double.class == javaClass) {
@@ -288,7 +354,9 @@ public enum ClickHouseDataType {
     }
 
     private final Class<?> objectType;
+    private final Class<?> widerObjectType;
     private final Class<?> primitiveType;
+    private final Class<?> widerPrimitiveType;
     private final boolean parameter;
     private final boolean caseSensitive;
     private final boolean signed;
@@ -303,7 +371,9 @@ public enum ClickHouseDataType {
     ClickHouseDataType(Class<?> javaClass, boolean parameter, boolean caseSensitive, boolean signed, int byteLength,
             int maxPrecision, int defaultScale, int minScale, int maxScale, boolean nestedType, String... aliases) {
         this.objectType = toObjectType(javaClass);
+        this.widerObjectType = !signed ? toWiderObjectType(javaClass) : this.objectType;
         this.primitiveType = toPrimitiveType(javaClass);
+        this.widerPrimitiveType = !signed ? toWiderPrimitiveType(javaClass) : this.primitiveType;
         this.parameter = parameter;
         this.caseSensitive = caseSensitive;
         this.signed = signed;
@@ -331,6 +401,16 @@ public enum ClickHouseDataType {
     }
 
     /**
+     * Gets Java class for this data type. Prefer wrapper objects to primitives(e.g.
+     * {@code Integer.class} instead of {@code int.class}).
+     *
+     * @return Java class
+     */
+    public Class<?> getWiderObjectClass() {
+        return widerObjectType;
+    }
+
+    /**
      * Gets Java class for this data type. Prefer primitives to wrapper objects(e.g.
      * {@code int.class} instead of {@code Integer.class}).
      *
@@ -338,6 +418,16 @@ public enum ClickHouseDataType {
      */
     public Class<?> getPrimitiveClass() {
         return primitiveType;
+    }
+
+    /**
+     * Gets Java class for this data type. Prefer primitives to wrapper objects(e.g.
+     * {@code int.class} instead of {@code Integer.class}).
+     *
+     * @return Java class
+     */
+    public Class<?> getWiderPrimitiveClass() {
+        return widerPrimitiveType;
     }
 
     /**

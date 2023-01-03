@@ -11,7 +11,7 @@ import org.testng.annotations.Test;
 
 public class CaffeineCacheTest {
     @Test(groups = { "unit" })
-    public void testCache() throws Exception {
+    public void testCache() {
         int capacity = 3;
         ClickHouseCache<String, String> cache = CaffeineCache.create(capacity, 1L, (k) -> k);
         Assert.assertNotNull(cache);
@@ -32,7 +32,11 @@ public class CaffeineCacheTest {
         Assert.assertEquals(c.asMap().size(), 3);
         Assert.assertEquals(c.asMap(), m);
 
-        Thread.sleep(1500L);
+        try {
+            Thread.sleep(1500L);
+        } catch (InterruptedException e) {
+            Assert.fail("Sleep was interrupted", e);
+        }
         c.cleanUp();
 
         Assert.assertEquals(cache.get("D"), "D");

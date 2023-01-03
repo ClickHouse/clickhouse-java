@@ -82,24 +82,27 @@ public abstract class AbstractByteBufferInputStream extends ClickHouseInputStrea
         }
         ensureOpen();
 
-        ByteBuffer b = buffer;
-        int remain = b.remaining();
-        while (b != ClickHouseByteBuffer.EMPTY_BUFFER) {
-            if (remain > 0) {
-                if (b.hasArray()) {
-                    output.transferBytes(b.array(), b.position(), remain);
-                    ((Buffer) b).limit(b.position());
-                } else {
-                    byte[] bytes = new byte[remain];
-                    buffer.get(bytes);
-                    output.transferBytes(bytes, 0, remain);
+        try {
+            ByteBuffer b = buffer;
+            int remain = b.remaining();
+            while (b != ClickHouseByteBuffer.EMPTY_BUFFER) {
+                if (remain > 0) {
+                    if (b.hasArray()) {
+                        output.transferBytes(b.array(), b.position(), remain);
+                        ((Buffer) b).limit(b.position());
+                    } else {
+                        byte[] bytes = new byte[remain];
+                        buffer.get(bytes);
+                        output.transferBytes(bytes, 0, remain);
+                    }
+                    count += remain;
                 }
-                count += remain;
+                remain = updateBuffer();
+                b = buffer;
             }
-            remain = updateBuffer();
-            b = buffer;
+        } finally {
+            close();
         }
-        close();
         return count;
     }
 

@@ -116,11 +116,14 @@ public class ClickHouseRequestTest {
         Assert.assertEquals(changedOptions.toArray(new Object[0]),
                 new Object[][] {
                         new Object[] { request, ClickHouseClientOption.ASYNC, null, false },
-                        new Object[] { request, ClickHouseClientOption.FORMAT, null, ClickHouseFormat.Arrow },
-                        new Object[] { request, ClickHouseClientOption.FORMAT, ClickHouseFormat.Arrow,
+                        new Object[] { request, ClickHouseClientOption.FORMAT, null,
+                                ClickHouseFormat.Arrow },
+                        new Object[] { request, ClickHouseClientOption.FORMAT,
+                                ClickHouseFormat.Arrow,
                                 ClickHouseFormat.Avro },
                         new Object[] { request, ClickHouseClientOption.ASYNC, false, null },
-                        new Object[] { request, ClickHouseClientOption.FORMAT, ClickHouseFormat.Avro, null } });
+                        new Object[] { request, ClickHouseClientOption.FORMAT,
+                                ClickHouseFormat.Avro, null } });
         Assert.assertEquals(changedProperties.toArray(new Object[0]), new Object[][] {
                 { request, ClickHouseRequest.PROP_QUERY, null, "select 1" },
                 { request, ClickHouseRequest.PROP_QUERY, "select 1", "select 2" },
@@ -160,15 +163,18 @@ public class ClickHouseRequestTest {
         ClickHouseRequest<?> request = ClickHouseClient.newInstance().connect(ClickHouseNode.builder().build());
         final List<Object[]> serverChanges = new ArrayList<>();
         request.setServerListener(
-                (currentServer, newServer) -> serverChanges.add(new Object[] { currentServer, newServer }));
+                (currentServer, newServer) -> serverChanges
+                        .add(new Object[] { currentServer, newServer }));
         ClickHouseNode s11 = ClickHouseNode.of("http://node1");
         ClickHouseNode s12 = ClickHouseNode.of("grpc://node1/system");
         ClickHouseNode s21 = ClickHouseNode.of("tcp://node2");
         ClickHouseNode s22 = ClickHouseNode.of("https://node2");
         request.changeServer(request.getServer(), s11);
-        Assert.assertEquals(serverChanges.toArray(new Object[0]), new Object[][] { { ClickHouseNode.DEFAULT, s11 } });
+        Assert.assertEquals(serverChanges.toArray(new Object[0]),
+                new Object[][] { { ClickHouseNode.DEFAULT, s11 } });
         request.changeServer(ClickHouseNode.DEFAULT, s12);
-        Assert.assertEquals(serverChanges.toArray(new Object[0]), new Object[][] { { ClickHouseNode.DEFAULT, s11 } });
+        Assert.assertEquals(serverChanges.toArray(new Object[0]),
+                new Object[][] { { ClickHouseNode.DEFAULT, s11 } });
         request.changeServer(s11, s21);
         Assert.assertEquals(serverChanges.toArray(new Object[0]),
                 new Object[][] { { ClickHouseNode.DEFAULT, s11 }, { s11, s21 } });
@@ -183,7 +189,8 @@ public class ClickHouseRequestTest {
         ClickHouseRequest<?> request = ClickHouseClient.newInstance().connect(ClickHouseNode.builder().build());
         request.compressServerResponse(true, ClickHouseCompression.BROTLI, 2);
         request.decompressClientRequest(true, ClickHouseCompression.ZSTD, 5);
-        request.external(ClickHouseExternalTable.builder().content(new ByteArrayInputStream(new byte[0])).build());
+        request.external(ClickHouseExternalTable.builder().content(new ByteArrayInputStream(new byte[0]))
+                .build());
         request.format(ClickHouseFormat.Avro);
         request.table("table1", "query_id1");
         request.query("select :a", UUID.randomUUID().toString());
@@ -236,18 +243,47 @@ public class ClickHouseRequestTest {
                 (ClickHouseFormat) ClickHouseDefaults.FORMAT.getEffectiveDefaultValue());
         request.format(ClickHouseFormat.TabSeparatedRawWithNamesAndTypes);
         Assert.assertEquals(request.getFormat(), ClickHouseFormat.TabSeparatedRawWithNamesAndTypes);
-        Assert.assertEquals(request.getInputFormat(), ClickHouseFormat.TabSeparatedRaw);
+        Assert.assertEquals(request.getFormat().defaultInputFormat(), ClickHouseFormat.TabSeparatedRaw);
         request.format(ClickHouseFormat.ArrowStream);
         Assert.assertEquals(request.getFormat(), ClickHouseFormat.ArrowStream);
-        Assert.assertEquals(request.getInputFormat(), ClickHouseFormat.ArrowStream);
+        Assert.assertEquals(request.getFormat().defaultInputFormat(), ClickHouseFormat.ArrowStream);
         request.format(null);
         Assert.assertEquals(request.getFormat(),
                 (ClickHouseFormat) ClickHouseDefaults.FORMAT.getEffectiveDefaultValue());
-        Assert.assertEquals(request.getInputFormat(),
-                ((ClickHouseFormat) ClickHouseDefaults.FORMAT.getEffectiveDefaultValue()).defaultInputFormat());
+        Assert.assertEquals(request.getFormat().defaultInputFormat(),
+                ((ClickHouseFormat) ClickHouseDefaults.FORMAT.getEffectiveDefaultValue())
+                        .defaultInputFormat());
         request.format(ClickHouseFormat.Arrow);
         Assert.assertEquals(request.getFormat(), ClickHouseFormat.Arrow);
-        Assert.assertEquals(request.getInputFormat(), ClickHouseFormat.Arrow);
+        Assert.assertEquals(request.getFormat().defaultInputFormat(), ClickHouseFormat.Arrow);
+    }
+
+    @Test(groups = { "unit" })
+    public void testGetSetting() {
+        ClickHouseRequest<?> request = ClickHouseClient.newInstance()
+                .connect("http://localhost?custom_settings=a%3D1%2Cb%3D2");
+        Assert.assertEquals(request.getSetting("a", boolean.class), true);
+        Assert.assertEquals(request.getSetting("a", Boolean.class), true);
+        Assert.assertEquals(request.getSetting("a", false), true);
+        Assert.assertEquals(request.getSetting("a", int.class), 1);
+        Assert.assertEquals(request.getSetting("a", Integer.class), 1);
+        Assert.assertEquals(request.getSetting("a", 9), 1);
+        Assert.assertEquals(request.getSetting("b", "3"), "2");
+        // request.settings(null);
+        request.clearSettings();
+        Assert.assertTrue(request.getSettings().isEmpty());
+        Assert.assertEquals(request.getSetting("b", 9), 9);
+    }
+
+    @Test(groups = { "unit" })
+    public void testNamedParameters() {
+        // String sql = "select xxx from xxx settings max_execution_time =
+        // :max_execution_time";
+        ClickHouseRequest<?> request = ClickHouseClient.newInstance().connect(ClickHouseNode.builder().build());
+
+        String sql = "select :a,:b,:a";
+        request.query(sql).params("1", "2");
+        Assert.assertEquals(request.getStatements(false).get(0), "select 1,2,1");
     }
 
     @Test(groups = { "unit" })
@@ -282,7 +318,8 @@ public class ClickHouseRequestTest {
                 "select -128 as one, NULL as two, * from my_table where key=NULL and arr[NULL] in numbers(NULL)");
 
         request.params(ClickHouseStringValue.of(""),
-                ClickHouseDateTimeValue.of("2012-12-12 12:23:34.56789", 2, ClickHouseValues.UTC_TIMEZONE),
+                ClickHouseDateTimeValue.of("2012-12-12 12:23:34.56789", 2,
+                        ClickHouseValues.UTC_TIMEZONE),
                 ClickHouseStringValue.of("key"), ClickHouseIntegerValue.of(1),
                 ClickHouseBigIntegerValue.of(BigInteger.TEN));
         Assert.assertEquals(request.getQuery(), sql);
@@ -299,8 +336,10 @@ public class ClickHouseRequestTest {
                 "select 1.0 as one, NULL as two, * from my_table where key=NULL and arr[NULL] in numbers(NULL)");
 
         params.put("one", ClickHouseStringValue.of("").toSqlExpression());
-        params.put("two", ClickHouseDateTimeValue.of("2012-12-12 12:23:34.56789", 2, ClickHouseValues.UTC_TIMEZONE)
-                .toSqlExpression());
+        params.put("two",
+                ClickHouseDateTimeValue
+                        .of("2012-12-12 12:23:34.56789", 2, ClickHouseValues.UTC_TIMEZONE)
+                        .toSqlExpression());
         params.put("key", ClickHouseStringValue.of("key").toSqlExpression());
         params.put("some", ClickHouseBigIntegerValue.of(BigInteger.ONE).toSqlExpression());
         params.put("idx", ClickHouseIntegerValue.of(1).toSqlExpression());
@@ -317,7 +356,8 @@ public class ClickHouseRequestTest {
         ClickHouseRequest<?> request = ClickHouseClient.newInstance().connect(ClickHouseNode.builder().build());
         request.compressServerResponse(true, ClickHouseCompression.BROTLI, 2);
         request.decompressClientRequest(true, ClickHouseCompression.ZSTD, 5);
-        request.external(ClickHouseExternalTable.builder().content(new ByteArrayInputStream(new byte[0])).build());
+        request.external(ClickHouseExternalTable.builder().content(new ByteArrayInputStream(new byte[0]))
+                .build());
         request.format(ClickHouseFormat.Avro);
         request.table("table1", "query_id1");
         request.query("select :a", UUID.randomUUID().toString());
@@ -371,6 +411,32 @@ public class ClickHouseRequestTest {
         Assert.assertEquals(request.getSessionId(), Optional.empty());
         Assert.assertEquals(request.getConfig().isSessionCheck(), false);
         Assert.assertEquals(request.getConfig().getSessionTimeout(), 0);
+
+        request.clearSession();
+        Assert.assertEquals(request.getSessionId(), Optional.empty());
+        Assert.assertEquals(request.getConfig().isSessionCheck(), false);
+        Assert.assertEquals(request.getConfig().getSessionTimeout(), 0);
+        request.set("session_id", sessionId);
+        request.set("session_check", true);
+        request.set("session_timeout", "7");
+        Assert.assertEquals(request.getSessionId().get(), sessionId);
+        Assert.assertEquals(request.getConfig().isSessionCheck(), true);
+        Assert.assertEquals(request.getConfig().getSessionTimeout(), 7);
+        Assert.assertTrue(request.getSettings().isEmpty());
+        request.removeSetting("session_id");
+        Assert.assertEquals(request.getSessionId().get(), sessionId);
+
+        request.clearSession();
+        Assert.assertEquals(request.getSessionId(), Optional.empty());
+        Assert.assertEquals(request.getConfig().isSessionCheck(), false);
+        Assert.assertEquals(request.getConfig().getSessionTimeout(), 0);
+        request.option(ClickHouseClientOption.SESSION_CHECK, true);
+        request.option(ClickHouseClientOption.SESSION_TIMEOUT, 3);
+        request.option(ClickHouseClientOption.CUSTOM_SETTINGS,
+                "session_check=false,a=1,session_id=" + sessionId + ",session_timeout=5");
+        Assert.assertEquals(request.getSessionId().get(), sessionId);
+        Assert.assertEquals(request.getConfig().isSessionCheck(), false);
+        Assert.assertEquals(request.getConfig().getSessionTimeout(), 5);
     }
 
     @Test(groups = { "unit" })
@@ -382,7 +448,8 @@ public class ClickHouseRequestTest {
         Assert.assertEquals(request.getStatements().get(0), "SET enable_optimize_predicate_expression=1");
         request.set("log_queries_min_type", "EXCEPTION_WHILE_PROCESSING");
         Assert.assertEquals(request.getStatements().size(), 2);
-        Assert.assertEquals(request.getStatements().get(1), "SET log_queries_min_type='EXCEPTION_WHILE_PROCESSING'");
+        Assert.assertEquals(request.getStatements().get(1),
+                "SET log_queries_min_type='EXCEPTION_WHILE_PROCESSING'");
     }
 
     @Test(groups = { "unit" })

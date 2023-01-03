@@ -13,7 +13,7 @@ import com.clickhouse.client.ClickHouseValue;
 import com.clickhouse.client.ClickHouseValues;
 
 /**
- * Wraper class of string.
+ * Wrapper class of {@link UUID}.
  */
 public class ClickHouseUuidValue extends ClickHouseObjectValue<UUID> {
     /**
@@ -75,22 +75,22 @@ public class ClickHouseUuidValue extends ClickHouseObjectValue<UUID> {
 
     @Override
     public byte asByte() {
-        return isNullOrEmpty() ? (byte) 0 : asBigInteger().byteValueExact();
+        return isNullOrEmpty() ? (byte) 0 : asBigInteger().byteValue();
     }
 
     @Override
     public short asShort() {
-        return isNullOrEmpty() ? (short) 0 : asBigInteger().shortValueExact();
+        return isNullOrEmpty() ? (short) 0 : asBigInteger().shortValue();
     }
 
     @Override
     public int asInteger() {
-        return isNullOrEmpty() ? 0 : asBigInteger().intValueExact();
+        return isNullOrEmpty() ? 0 : asBigInteger().intValue();
     }
 
     @Override
     public long asLong() {
-        return isNullOrEmpty() ? 0L : asBigInteger().longValueExact();
+        return isNullOrEmpty() ? 0L : asBigInteger().longValue();
     }
 
     @Override
@@ -159,12 +159,12 @@ public class ClickHouseUuidValue extends ClickHouseObjectValue<UUID> {
 
     @Override
     public ClickHouseUuidValue update(float value) {
-        return update(BigDecimal.valueOf(value).toBigIntegerExact());
+        return update(BigDecimal.valueOf(value).toBigInteger());
     }
 
     @Override
     public ClickHouseUuidValue update(double value) {
-        return update(BigDecimal.valueOf(value).toBigIntegerExact());
+        return update(BigDecimal.valueOf(value).toBigInteger());
     }
 
     @Override
@@ -251,7 +251,7 @@ public class ClickHouseUuidValue extends ClickHouseObjectValue<UUID> {
 
     @Override
     public ClickHouseUuidValue update(ClickHouseValue value) {
-        if (value == null) {
+        if (value == null || value.isNullOrEmpty()) {
             resetToNullOrEmpty();
         } else {
             set(value.asUuid());

@@ -5,7 +5,6 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
-import java.nio.charset.Charset;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -21,7 +20,7 @@ import com.clickhouse.client.ClickHouseValue;
 import com.clickhouse.client.ClickHouseValues;
 
 /**
- * Wraper class of MultiPolygon.
+ * Wrapper class of {@code MultiPolygon}.
  */
 public class ClickHouseGeoMultiPolygonValue extends ClickHouseObjectValue<double[][][][]> {
     static final double[][][][] EMPTY_VALUE = new double[0][][][];
@@ -66,17 +65,16 @@ public class ClickHouseGeoMultiPolygonValue extends ClickHouseObjectValue<double
         return value;
     }
 
-    protected static String convert(double[][][][] value, int length) {
+    protected static String convert(double[][][][] value) {
         StringBuilder builder = new StringBuilder().append('[');
         for (int i = 0, len = value.length; i < len; i++) {
-            builder.append(ClickHouseGeoPolygonValue.convert(value[i], 0)).append(',');
+            builder.append(ClickHouseGeoPolygonValue.convert(value[i])).append(',');
         }
 
         if (builder.length() > 1) {
             builder.setLength(builder.length() - 1);
         }
-        String str = builder.append(']').toString();
-        return length > 0 ? ClickHouseChecker.notWithDifferentLength(str, length) : str;
+        return builder.append(']').toString();
     }
 
     protected ClickHouseGeoMultiPolygonValue(double[][][][] value) {
@@ -145,8 +143,8 @@ public class ClickHouseGeoMultiPolygonValue extends ClickHouseObjectValue<double
     }
 
     @Override
-    public String asString(int length, Charset charset) {
-        return convert(getValue(), length);
+    public String asString() {
+        return convert(getValue());
     }
 
     @Override
@@ -172,7 +170,7 @@ public class ClickHouseGeoMultiPolygonValue extends ClickHouseObjectValue<double
 
     @Override
     public String toSqlExpression() {
-        return convert(getValue(), 0);
+        return convert(getValue());
     }
 
     @Override
@@ -400,7 +398,7 @@ public class ClickHouseGeoMultiPolygonValue extends ClickHouseObjectValue<double
 
     @Override
     public ClickHouseGeoMultiPolygonValue update(ClickHouseValue value) {
-        if (value == null) {
+        if (value == null || value.isNullOrEmpty()) {
             resetToNullOrEmpty();
         } else if (value instanceof ClickHouseGeoMultiPolygonValue) {
             set(((ClickHouseGeoMultiPolygonValue) value).getValue());
@@ -412,8 +410,10 @@ public class ClickHouseGeoMultiPolygonValue extends ClickHouseObjectValue<double
 
     @Override
     public ClickHouseGeoMultiPolygonValue update(Object[] value) {
-        if (value == null || value.length != 2) {
-            throw new IllegalArgumentException(ClickHouseValues.ERROR_INVALID_POINT + value);
+        if (value instanceof double[][][][]) {
+            return set((double[][][][]) value);
+        } else if (value == null || value.length != 2) {
+            throw new IllegalArgumentException(ClickHouseValues.ERROR_INVALID_POINT + Arrays.toString(value));
         }
         Object v1 = value[0];
         Object v2 = value[1];
@@ -430,7 +430,7 @@ public class ClickHouseGeoMultiPolygonValue extends ClickHouseObjectValue<double
     @Override
     public ClickHouseGeoMultiPolygonValue update(Object value) {
         if (value instanceof double[][][][]) {
-            update((double[]) value);
+            set((double[][][][]) value);
         } else {
             super.update(value);
         }

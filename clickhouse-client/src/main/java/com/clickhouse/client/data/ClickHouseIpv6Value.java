@@ -6,19 +6,16 @@ import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.nio.charset.Charset;
-import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneOffset;
 import java.util.UUID;
-import com.clickhouse.client.ClickHouseChecker;
 import com.clickhouse.client.ClickHouseValue;
 import com.clickhouse.client.ClickHouseValues;
 
 /**
- * Wraper class of Inet6Address.
+ * Wrapper class of {@link Inet6Address}.
  */
 public class ClickHouseIpv6Value extends ClickHouseObjectValue<Inet6Address> {
     public static final Inet6Address DEFAULT;
@@ -87,25 +84,25 @@ public class ClickHouseIpv6Value extends ClickHouseObjectValue<Inet6Address> {
     @Override
     public byte asByte() {
         BigInteger bigInt = asBigInteger();
-        return bigInt == null ? (byte) 0 : bigInt.byteValueExact();
+        return bigInt == null ? (byte) 0 : bigInt.byteValue();
     }
 
     @Override
     public short asShort() {
         BigInteger bigInt = asBigInteger();
-        return bigInt == null ? (short) 0 : bigInt.shortValueExact();
+        return bigInt == null ? (short) 0 : bigInt.shortValue();
     }
 
     @Override
     public int asInteger() {
         BigInteger bigInt = asBigInteger();
-        return bigInt == null ? 0 : bigInt.intValueExact();
+        return bigInt == null ? 0 : bigInt.intValue();
     }
 
     @Override
     public long asLong() {
         BigInteger bigInt = asBigInteger();
-        return bigInt == null ? 0L : bigInt.longValueExact();
+        return bigInt == null ? 0L : bigInt.longValue();
     }
 
     @Override
@@ -147,18 +144,12 @@ public class ClickHouseIpv6Value extends ClickHouseObjectValue<Inet6Address> {
     }
 
     @Override
-    public String asString(int length, Charset charset) {
+    public String asString() {
         if (isNullOrEmpty()) {
             return null;
         }
 
-        String str = String.valueOf(getValue().getHostAddress());
-        if (length > 0) {
-            ClickHouseChecker.notWithDifferentLength(str.getBytes(charset == null ? StandardCharsets.UTF_8 : charset),
-                    length);
-        }
-
-        return str;
+        return String.valueOf(getValue().getHostAddress());
     }
 
     @Override
@@ -197,12 +188,12 @@ public class ClickHouseIpv6Value extends ClickHouseObjectValue<Inet6Address> {
 
     @Override
     public ClickHouseIpv6Value update(float value) {
-        return update(BigDecimal.valueOf(value).toBigIntegerExact());
+        return update(BigDecimal.valueOf(value).toBigInteger());
     }
 
     @Override
     public ClickHouseIpv6Value update(double value) {
-        return update(BigDecimal.valueOf(value).toBigIntegerExact());
+        return update(BigDecimal.valueOf(value).toBigInteger());
     }
 
     @Override
@@ -292,7 +283,7 @@ public class ClickHouseIpv6Value extends ClickHouseObjectValue<Inet6Address> {
 
     @Override
     public ClickHouseIpv6Value update(ClickHouseValue value) {
-        if (value == null) {
+        if (value == null || value.isNullOrEmpty()) {
             resetToNullOrEmpty();
         } else {
             set(value.asInet6Address());

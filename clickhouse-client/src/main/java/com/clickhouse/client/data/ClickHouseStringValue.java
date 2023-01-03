@@ -12,12 +12,13 @@ import java.time.LocalTime;
 import java.util.Arrays;
 import java.util.Objects;
 import java.util.UUID;
-import com.clickhouse.client.ClickHouseChecker;
+
+import com.clickhouse.client.ClickHouseUtils;
 import com.clickhouse.client.ClickHouseValue;
 import com.clickhouse.client.ClickHouseValues;
 
 /**
- * Wraper class of string.
+ * Wrapper class of {@link String}.
  */
 public class ClickHouseStringValue implements ClickHouseValue {
     /**
@@ -126,6 +127,10 @@ public class ClickHouseStringValue implements ClickHouseValue {
         return new ClickHouseStringValue(b);
     }
 
+    public boolean isBinary() {
+        return binary;
+    }
+
     @Override
     public boolean isNullOrEmpty() {
         return bytes == null && value == null;
@@ -134,6 +139,18 @@ public class ClickHouseStringValue implements ClickHouseValue {
     @Override
     public boolean asBoolean() {
         return ClickHouseValues.convertToBoolean(asString());
+    }
+
+    @Override
+    public char asCharacter() {
+        String s = asString();
+        if (s == null) {
+            return '\0';
+        } else if (s.length() != 1) {
+            throw new IllegalArgumentException(
+                    ClickHouseUtils.format("Expect single-character string but we got [%s]", s));
+        }
+        return s.charAt(0);
     }
 
     @Override
@@ -208,7 +225,12 @@ public class ClickHouseStringValue implements ClickHouseValue {
 
     @Override
     public Object asObject() {
-        return asString(); // bytes != null ? bytes : value;
+        return asString();
+    }
+
+    @Override
+    public Object asRawObject() {
+        return isBinary() ? bytes : value;
     }
 
     @Override
@@ -222,33 +244,21 @@ public class ClickHouseStringValue implements ClickHouseValue {
 
     @Override
     public byte[] asBinary(int length, Charset charset) {
-        if (value != null && bytes == null) {
-            bytes = value.getBytes(charset == null ? StandardCharsets.UTF_8 : charset);
+        byte[] b = bytes;
+        if (value != null && b == null) {
+            bytes = b = value.getBytes(charset == null ? StandardCharsets.UTF_8 : charset);
         }
 
-        if (bytes != null && length > 0) {
-            return ClickHouseChecker.notWithDifferentLength(bytes, length);
-        } else {
-            return bytes;
+        if (b != null && b.length < length) {
+            b = Arrays.copyOf(b, length);
         }
+        return b;
     }
 
     @Override
     public String asString() {
         if (bytes != null && value == null) {
             value = new String(bytes, StandardCharsets.UTF_8);
-        }
-
-        return value;
-    }
-
-    @Override
-    public String asString(int length, Charset charset) {
-        if (value != null && length > 0) {
-            if (bytes == null) {
-                bytes = value.getBytes(charset == null ? StandardCharsets.UTF_8 : charset);
-            }
-            ClickHouseChecker.notWithDifferentLength(bytes, length);
         }
 
         return value;
@@ -377,12 +387,21 @@ public class ClickHouseStringValue implements ClickHouseValue {
 
     @Override
     public ClickHouseStringValue update(ClickHouseValue value) {
-        return set(value == null ? null : value.asString());
+        return set(value == null || value.isNullOrEmpty() ? null : value.asString());
     }
 
     @Override
     public ClickHouseStringValue update(Object value) {
-        return update(value == null ? null : value.toString());
+        if (value instanceof byte[]) {
+            return set((byte[]) value);
+        } else if (value instanceof String) { // or CharSequence?
+            return set((String) value);
+        } else if (value instanceof ClickHouseStringValue) {
+            ClickHouseStringValue s = (ClickHouseStringValue) value;
+            return s.isBinary() ? set(s.asBinary()) : set(s.asString());
+        }
+
+        return set(value == null ? null : value.toString());
     }
 
     @Override

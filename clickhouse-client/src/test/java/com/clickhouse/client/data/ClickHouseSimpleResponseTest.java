@@ -58,8 +58,8 @@ public class ClickHouseSimpleResponseTest {
                     break;
                 case 4:
                     Assert.assertEquals(r.getValue(0).asObject(), "123");
-                    Assert.assertEquals(r.getValue(1).asObject(), (short) 1);
-                    Assert.assertEquals(r.getValue(2).asObject(), new long[] { 3L, 2L, 1L });
+                    Assert.assertEquals(r.getValue(1).asObject(), UnsignedByte.ONE);
+                    Assert.assertEquals(r.getValue(2).asObject(), new int[] { 3, 2, 1 });
                     break;
                 default:
                     Assert.fail("Should not fail");
@@ -76,7 +76,7 @@ public class ClickHouseSimpleResponseTest {
                 new Object[][] { new Object[] { "aaa", 2, "ccc" }, null });
         ClickHouseRecord record = resp.firstRecord();
         Assert.assertEquals(record.getValue("A"), ClickHouseStringValue.of("aaa"));
-        Assert.assertEquals(record.getValue("B"), ClickHouseShortValue.of(2));
+        Assert.assertEquals(record.getValue("B"), ClickHouseByteValue.ofUnsigned(2));
         Assert.assertEquals(record.getValue("C"), ClickHouseStringValue.of("ccc"));
 
         ClickHouseRecord sameRecord = resp.firstRecord();
@@ -99,12 +99,12 @@ public class ClickHouseSimpleResponseTest {
                     break;
                 case 1:
                     Assert.assertEquals(r.getValue("a").asObject(), "aaa2");
-                    Assert.assertEquals(r.getValue("B").asObject(), (short) 2);
+                    Assert.assertEquals(r.getValue("B").asObject(), UnsignedByte.valueOf((byte) 2));
                     Assert.assertEquals(r.getValue("c").asObject(), "ccc2");
                     break;
                 case 2:
                     Assert.assertNull(r.getValue(0).asObject());
-                    Assert.assertEquals(r.getValue(1).asObject(), (short) 3);
+                    Assert.assertEquals(r.getValue(1).asObject(), UnsignedByte.valueOf((byte) 3));
                     Assert.assertNull(r.getValue(0).asObject());
                     break;
                 default:

@@ -52,23 +52,9 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
          */
         HEALTHY,
         /**
-         * Faulty status.
-         * 
-         * @deprecated will be removed in v0.3.3, please use {@link #FAULTY} instead
-         */
-        @Deprecated
-        UNHEALTHY,
-        /**
          * Managed status.
          */
         MANAGED,
-        /**
-         * Unmanaged status.
-         * 
-         * @deprecated will be removed in v0.3.3, please use {@link #STANDALONE} instead
-         */
-        @Deprecated
-        UNMANAGED,
         /**
          * Faulty status.
          */
@@ -140,7 +126,7 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
         /**
          * Sets cluster name.
          *
-         * @param cluster cluster name, null means {@link ClickHouseDefaults#CLUSTER}
+         * @param cluster cluster name, null means no cluster name
          * @return this builder
          */
         public Builder cluster(String cluster) {
@@ -166,7 +152,8 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
         /**
          * Sets port number.
          *
-         * @param port port number, null means {@link ClickHouseDefaults#PORT}
+         * @param port port number, null means default port of
+         *             {@link ClickHouseDefaults#PROTOCOL}
          * @return this builder
          */
         public Builder port(Integer port) {
@@ -187,7 +174,7 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
          * Sets protocol and port number.
          *
          * @param protocol protocol, null means {@link ClickHouseDefaults#PROTOCOL}
-         * @param port     number, null means {@link ClickHouseDefaults#PORT}
+         * @param port     number, null means default port of {@code protocol}
          * @return this builder
          */
         public Builder port(ClickHouseProtocol protocol, Integer port) {
@@ -200,7 +187,7 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
          * Sets socket address.
          *
          * @param address socket address, null means {@link ClickHouseDefaults#HOST} and
-         *                {@link ClickHouseDefaults#PORT}
+         *                default port of {@link ClickHouseDefaults#PROTOCOL}
          * @return this builder
          */
         public Builder address(InetSocketAddress address) {
@@ -212,7 +199,7 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
          *
          * @param protocol protocol, null means {@link ClickHouseDefaults#PROTOCOL}
          * @param address  socket address, null means {@link ClickHouseDefaults#HOST}
-         *                 and {@link ClickHouseDefaults#PORT}
+         *                 and default port of {@code protocol}
          * @return this builder
          */
         public Builder address(ClickHouseProtocol protocol, InetSocketAddress address) {
@@ -399,8 +386,7 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
         /**
          * Sets weight of this node.
          *
-         * @param weight weight of the node, null means
-         *               {@link ClickHouseDefaults#WEIGHT}
+         * @param weight weight of the node, null means default weight
          * @return this builder
          */
         public Builder weight(Integer weight) {
@@ -561,7 +547,7 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
         if (index < 0) {
             normalized = new StringBuilder()
                     .append((defaultProtocol != null ? defaultProtocol : ClickHouseProtocol.ANY).name()
-                            .toLowerCase())
+                            .toLowerCase(Locale.ROOT))
                     .append(SCHEME_DELIMITER)
                     .append(uri.trim()).toString();
         } else {
@@ -661,7 +647,7 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
         options.put(ClickHouseClientOption.SSL_ROOT_CERTIFICATE, rootCaFile);
         options.put(ClickHouseClientOption.SSL_CERTIFICATE, certFile);
         options.put(ClickHouseClientOption.SSL_KEY, keyFile);
-        ClickHouseConfig config = new ClickHouseConfig(options, null, null, null);
+        ClickHouseConfig config = new ClickHouseConfig(options);
         SSLContext sslContext = null;
         try {
             sslContext = ClickHouseSslContextProvider.getProvider().getSslContext(SSLContext.class, config)
@@ -965,7 +951,7 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
         this.config = new ClickHouseConfig(ClickHouseConfig.toClientOptions(options), credentials, null, null);
         this.manager = new AtomicReference<>(null);
 
-        StringBuilder builder = new StringBuilder().append(protocol.name().toLowerCase());
+        StringBuilder builder = new StringBuilder().append(this.protocol.name().toLowerCase(Locale.ROOT));
         if (config.isSsl()) {
             builder.append('s');
         }
@@ -1046,7 +1032,8 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
      * @return credentials for accessing this node
      */
     public ClickHouseCredentials getCredentials(ClickHouseConfig config) {
-        return credentials != null ? credentials : ClickHouseChecker.nonNull(config, "config").getDefaultCredentials();
+        return credentials != null ? credentials
+                : ClickHouseChecker.nonNull(config, ClickHouseConfig.TYPE_NAME).getDefaultCredentials();
     }
 
     /**
@@ -1084,7 +1071,7 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
      * @return database of the node
      */
     public String getDatabase(ClickHouseConfig config) {
-        return !ClickHouseChecker.nonNull(config, "config").hasOption(ClickHouseClientOption.DATABASE)
+        return !ClickHouseChecker.nonNull(config, ClickHouseConfig.TYPE_NAME).hasOption(ClickHouseClientOption.DATABASE)
                 && hasPreferredDatabase() ? this.config.getDatabase() : config.getDatabase();
     }
 
@@ -1135,7 +1122,7 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
      */
     public TimeZone getTimeZone(ClickHouseConfig config) {
         return this.config.hasOption(ClickHouseClientOption.SERVER_TIME_ZONE) ? this.config.getServerTimeZone()
-                : ClickHouseChecker.nonNull(config, "config").getServerTimeZone();
+                : ClickHouseChecker.nonNull(config, ClickHouseConfig.TYPE_NAME).getServerTimeZone();
     }
 
     /**
@@ -1158,7 +1145,7 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
      */
     public ClickHouseVersion getVersion(ClickHouseConfig config) {
         return this.config.hasOption(ClickHouseClientOption.SERVER_VERSION) ? this.config.getServerVersion()
-                : ClickHouseChecker.nonNull(config, "config").getServerVersion();
+                : ClickHouseChecker.nonNull(config, ClickHouseConfig.TYPE_NAME).getServerVersion();
     }
 
     /**

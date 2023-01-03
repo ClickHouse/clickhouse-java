@@ -46,11 +46,15 @@ public class ClickHouseDefaultSslContextProvider implements ClickHouseSslContext
         }
 
         @Override
+        @SuppressWarnings("squid:S4830")
         public void checkClientTrusted(X509Certificate[] certs, String authType) {
+            // ignore
         }
 
         @Override
+        @SuppressWarnings("squid:S4830")
         public void checkServerTrusted(X509Certificate[] certs, String authType) {
+            // ignore
         }
     }
 

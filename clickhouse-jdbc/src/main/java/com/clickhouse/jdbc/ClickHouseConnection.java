@@ -1,5 +1,6 @@
 package com.clickhouse.jdbc;
 
+import java.io.Serializable;
 import java.net.URI;
 import java.sql.CallableStatement;
 import java.sql.Connection;
@@ -9,6 +10,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Calendar;
 import java.util.Collections;
+import java.util.Map;
 import java.util.Optional;
 import java.util.TimeZone;
 
@@ -16,13 +18,16 @@ import com.clickhouse.client.ClickHouseColumn;
 import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseDataType;
 import com.clickhouse.client.ClickHouseTransaction;
+import com.clickhouse.client.ClickHouseUtils;
 import com.clickhouse.client.ClickHouseValue;
-import com.clickhouse.client.ClickHouseValues;
 import com.clickhouse.client.ClickHouseVersion;
 import com.clickhouse.client.data.ClickHouseSimpleResponse;
 import com.clickhouse.jdbc.parser.ClickHouseSqlStatement;
 
 public interface ClickHouseConnection extends Connection {
+    static final String COLUMN_ELEMENT = "element";
+    static final String COLUMN_ARRAY = "array";
+
     // The name of the application currently utilizing the connection
     static final String PROP_APPLICATION_NAME = "ApplicationName";
     static final String PROP_CUSTOM_HTTP_HEADERS = "CustomHttpHeaders";
@@ -38,12 +43,23 @@ public interface ClickHouseConnection extends Connection {
     @Override
     default ClickHouseArray createArrayOf(String typeName, Object[] elements) throws SQLException {
         ClickHouseConfig config = getConfig();
-        ClickHouseColumn column = ClickHouseColumn.of("", ClickHouseDataType.Array, false,
-                ClickHouseColumn.of("", typeName));
-        ClickHouseValue v = ClickHouseValues.newValue(config, column).update(elements);
-        ClickHouseResultSet rs = new ClickHouseResultSet("", "", createStatement(),
-                ClickHouseSimpleResponse.of(config, Collections.singletonList(column),
-                        new Object[][] { new Object[] { v.asObject() } }));
+        ClickHouseColumn col = ClickHouseColumn.of(COLUMN_ELEMENT, typeName);
+        ClickHouseColumn arrCol = ClickHouseColumn.of(COLUMN_ARRAY, ClickHouseDataType.Array, false, col);
+        ClickHouseValue val = arrCol.newValue(config);
+        if (elements == null && !col.isNestedType() && !col.isNullable()) {
+            int nullAsDefault = getJdbcConfig().getNullAsDefault();
+            if (nullAsDefault > 1) {
+                val.resetToDefault();
+            } else if (nullAsDefault < 1) {
+                throw SqlExceptionUtils
+                        .clientError(ClickHouseUtils.format("Cannot set null to non-nullable column [%s]", col));
+            }
+        } else {
+            val.update(elements);
+        }
+        ClickHouseResultSet rs = new ClickHouseResultSet(getCurrentDatabase(), ClickHouseSqlStatement.DEFAULT_TABLE,
+                createStatement(), ClickHouseSimpleResponse.of(config, Collections.singletonList(arrCol),
+                        new Object[][] { new Object[] { val.asObject() } }));
         rs.next();
         return new ClickHouseArray(rs, 1);
     }
@@ -228,6 +244,24 @@ public interface ClickHouseConnection extends Connection {
     JdbcConfig getJdbcConfig();
 
     /**
+     * Gets JDBC type mapping. Same as {@code getJdbcConfig().getMapper()}.
+     *
+     * @return non-null JDBC type mapping
+     */
+    default JdbcTypeMapping getJdbcTypeMapping() {
+        return getJdbcConfig().getDialect();
+    }
+
+    /**
+     * Gets max insert block size. Pay attention that INSERT into one partition in
+     * one table of MergeTree family up to max_insert_block_size rows is
+     * transactional.
+     *
+     * @return value of max_insert_block_size
+     */
+    long getMaxInsertBlockSize();
+
+    /**
      * Checks whether transaction is supported.
      *
      * @return true if transaction is supported; false otherwise
@@ -254,6 +288,21 @@ public interface ClickHouseConnection extends Connection {
      * @param sql    sql to parse
      * @param config configuration which might be used for parsing, could be null
      * @return non-null parsed sql statements
+     * @deprecated will be removed in v0.3.3, please use
+     *             {@link #parse(String, ClickHouseConfig, Map)} instead
      */
-    ClickHouseSqlStatement[] parse(String sql, ClickHouseConfig config);
+    @Deprecated
+    default ClickHouseSqlStatement[] parse(String sql, ClickHouseConfig config) {
+        return parse(sql, config, null);
+    }
+
+    /**
+     * Parses the given sql.
+     *
+     * @param sql      sql to parse
+     * @param config   configuration which might be used for parsing, could be null
+     * @param settings server settings
+     * @return non-null parsed sql statements
+     */
+    ClickHouseSqlStatement[] parse(String sql, ClickHouseConfig config, Map<String, Serializable> settings);
 }

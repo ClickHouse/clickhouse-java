@@ -46,7 +46,6 @@ public class ClickHouseResultSet extends AbstractResultSet {
     private Iterator<ClickHouseRecord> rowCursor;
     private int rowNumber;
     private int lastReadColumn; // 1-based
-    private int fetchSize;
 
     protected final String database;
     protected final String table;
@@ -61,6 +60,7 @@ public class ClickHouseResultSet extends AbstractResultSet {
     protected final boolean nullAsDefault;
     protected final ClickHouseResultSetMetaData metaData;
 
+    protected final JdbcTypeMapping mapper;
     protected final Map<String, Class<?>> defaultTypeMap;
 
     // only for testing purpose
@@ -74,11 +74,12 @@ public class ClickHouseResultSet extends AbstractResultSet {
         this.wrapObject = false;
         this.defaultCalendar = new GregorianCalendar(TimeZone.getTimeZone("UTC"));
 
+        this.mapper = JdbcTypeMapping.getDefaultMapping();
         this.defaultTypeMap = Collections.emptyMap();
         this.currentRow = null;
         try {
             this.columns = response.getColumns();
-            this.metaData = new ClickHouseResultSetMetaData(database, table, columns, defaultTypeMap);
+            this.metaData = new ClickHouseResultSetMetaData(database, table, columns, this.mapper, defaultTypeMap);
 
             this.rowCursor = response.records().iterator();
         } catch (Exception e) {
@@ -90,7 +91,6 @@ public class ClickHouseResultSet extends AbstractResultSet {
 
         this.maxRows = 0;
         this.nullAsDefault = false;
-        this.fetchSize = 0;
     }
 
     public ClickHouseResultSet(String database, String table, ClickHouseStatement statement,
@@ -109,13 +109,14 @@ public class ClickHouseResultSet extends AbstractResultSet {
         this.wrapObject = statement.getConnection().getJdbcConfig().useWrapperObject();
         this.defaultCalendar = conn.getDefaultCalendar();
 
+        this.mapper = statement.getConnection().getJdbcTypeMapping();
         Map<String, Class<?>> typeMap = conn.getTypeMap();
         this.defaultTypeMap = typeMap != null && !typeMap.isEmpty() ? Collections.unmodifiableMap(typeMap)
                 : Collections.emptyMap();
         this.currentRow = null;
         try {
             this.columns = response.getColumns();
-            this.metaData = new ClickHouseResultSetMetaData(database, table, columns, defaultTypeMap);
+            this.metaData = new ClickHouseResultSetMetaData(database, table, columns, this.mapper, defaultTypeMap);
 
             this.rowCursor = response.records().iterator();
         } catch (Exception e) {
@@ -127,7 +128,6 @@ public class ClickHouseResultSet extends AbstractResultSet {
 
         this.maxRows = statement.getMaxRows();
         this.nullAsDefault = statement.getNullAsDefault() > 1;
-        this.fetchSize = statement.getFetchSize();
     }
 
     protected void ensureRead(int columnIndex) throws SQLException {
@@ -137,7 +137,7 @@ public class ClickHouseResultSet extends AbstractResultSet {
             throw new SQLException("No data available for reading", SqlExceptionUtils.SQL_STATE_NO_DATA);
         } else if (columnIndex < 1 || columnIndex > columns.size()) {
             throw SqlExceptionUtils.clientError(ClickHouseUtils
-                    .format("Column index must between 1 and %d but we got %d", columns.size(), columnIndex));
+                    .format("Column index must between 1 and %d but we got %d", columns.size() + 1, columnIndex));
         }
     }
 
@@ -380,7 +380,7 @@ public class ClickHouseResultSet extends AbstractResultSet {
     public int getFetchSize() throws SQLException {
         ensureOpen();
 
-        return fetchSize;
+        return statement != null ? statement.getFetchSize() : 0;
     }
 
     @Override
@@ -480,7 +480,7 @@ public class ClickHouseResultSet extends AbstractResultSet {
             value = javaType != null ? v.asObject(javaType) : v.asObject();
         } else if (c.isArray()) {
             value = new ClickHouseArray(this, columnIndex);
-        } else if (c.isTuple() || c.isNested()) {
+        } else if (c.isTuple() || c.isNested() || c.isMap()) {
             value = new ClickHouseStruct(c.getDataType().name(), v.asArray());
         } else {
             value = javaType != null ? v.asObject(javaType) : v.asObject();
@@ -726,8 +726,6 @@ public class ClickHouseResultSet extends AbstractResultSet {
     @Override
     public void setFetchSize(int rows) throws SQLException {
         ensureOpen();
-
-        this.fetchSize = rows;
     }
 
     @Override

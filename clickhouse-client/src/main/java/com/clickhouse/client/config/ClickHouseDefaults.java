@@ -31,13 +31,6 @@ public enum ClickHouseDefaults implements ClickHouseOption {
      */
     BUFFERING("buffering", ClickHouseBufferingMode.RESOURCE_EFFICIENT, "Buffering mode."),
     /**
-     * Default cluster.
-     *
-     * @deprecated will be removed in v0.3.3
-     */
-    @Deprecated
-    CLUSTER("cluster", "", "Cluster name."),
-    /**
      * Default server host.
      */
     HOST("host", "localhost", "Host to connect to."),
@@ -45,20 +38,6 @@ public enum ClickHouseDefaults implements ClickHouseOption {
      * Default protocol.
      */
     PROTOCOL("protocol", ClickHouseProtocol.ANY, "Protocol to use."),
-    /**
-     * Default server port.
-     *
-     * @deprecated will be removed in v0.3.3
-     */
-    @Deprecated
-    PORT("port", 8123, "Port to connect to."),
-    /**
-     * Default server weight.
-     *
-     * @deprecated will be removed in v0.3.3
-     */
-    @Deprecated
-    WEIGHT("weight", 1, "Server weight which might be used for load balancing."),
     /**
      * Default database.
      */

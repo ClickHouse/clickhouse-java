@@ -4,8 +4,6 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
-import java.nio.charset.Charset;
-import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -19,49 +17,135 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.Map.Entry;
-
+import com.clickhouse.client.ClickHouseArraySequence;
 import com.clickhouse.client.ClickHouseChecker;
 import com.clickhouse.client.ClickHouseUtils;
 import com.clickhouse.client.ClickHouseValue;
 import com.clickhouse.client.ClickHouseValues;
 import com.clickhouse.client.data.ClickHouseObjectValue;
+import com.clickhouse.client.data.UnsignedInteger;
 
 /**
  * Wrapper of {@code int[]}.
  */
-public class ClickHouseIntArrayValue extends ClickHouseObjectValue<int[]> {
-    private final static String TYPE_NAME = "int[]";
+public class ClickHouseIntArrayValue extends ClickHouseObjectValue<int[]> implements ClickHouseArraySequence {
+    static final class UnsignedIntArrayValue extends ClickHouseIntArrayValue {
+        @Override
+        public Object[] asArray() {
+            int[] v = getValue();
+            int len = v.length;
+            UnsignedInteger[] array = new UnsignedInteger[len];
+            for (int i = 0; i < len; i++) {
+                array[i] = UnsignedInteger.valueOf(v[i]);
+            }
+            return array;
+        }
+
+        @Override
+        public String asString() {
+            int[] v = getValue();
+            int len = v.length;
+            if (len == 0) {
+                return ClickHouseValues.EMPTY_ARRAY_EXPR;
+            }
+            StringBuilder builder = new StringBuilder().append('[').append(Integer.toUnsignedString(v[0]));
+            for (int i = 1; i < len; i++) {
+                builder.append(',').append(Integer.toUnsignedString(v[i]));
+            }
+            return builder.append(']').toString();
+        }
+
+        @Override
+        public UnsignedIntArrayValue copy(boolean deep) {
+            if (!deep) {
+                return new UnsignedIntArrayValue(getValue());
+            }
+
+            int[] value = getValue();
+            return new UnsignedIntArrayValue(Arrays.copyOf(value, value.length));
+        }
+
+        @Override
+        public UnsignedIntArrayValue update(String value) {
+            if (ClickHouseChecker.isNullOrBlank(value)) {
+                set(ClickHouseValues.EMPTY_INT_ARRAY);
+            } else {
+                List<String> list = ClickHouseUtils.readValueArray(value, 0, value.length());
+                if (list.isEmpty()) {
+                    set(ClickHouseValues.EMPTY_INT_ARRAY);
+                } else {
+                    int[] arr = new int[list.size()];
+                    int index = 0;
+                    for (String v : list) {
+                        arr[index++] = v == null ? 0 : Integer.parseUnsignedInt(v);
+                    }
+                    set(arr);
+                }
+            }
+            return this;
+        }
+
+        protected UnsignedIntArrayValue(int[] value) {
+            super(value);
+        }
+    }
+
+    private static final String TYPE_NAME = "int[]";
 
     /**
-     * Creates an empty array.
+     * Creates a new instance representing empty {@code Int32} array.
      *
-     * @return empty array
+     * @return new instance representing an empty array
      */
-
     public static ClickHouseIntArrayValue ofEmpty() {
-        return of(ClickHouseValues.EMPTY_INT_ARRAY);
+        return of(null, ClickHouseValues.EMPTY_INT_ARRAY, false);
     }
 
     /**
-     * Wrap the given value.
+     * Creates a new instance representing empty {@code UInt32} array.
+     *
+     * @return new instance representing an empty array
+     */
+    public static ClickHouseIntArrayValue ofUnsignedEmpty() {
+        return of(null, ClickHouseValues.EMPTY_INT_ARRAY, true);
+    }
+
+    /**
+     * Wraps the given {@code Int32} array.
      *
      * @param value value
      * @return object representing the value
      */
     public static ClickHouseIntArrayValue of(int[] value) {
-        return of(null, value);
+        return of(null, value, false);
+    }
+
+    /**
+     * Wraps the given {@code UInt32} array.
+     *
+     * @param value value
+     * @return object representing the value
+     */
+    public static ClickHouseIntArrayValue ofUnsigned(int[] value) {
+        return of(null, value, true);
     }
 
     /**
      * Update value of the given object or create a new instance if {@code ref} is
      * null.
      *
-     * @param ref   object to update, could be null
-     * @param value value
+     * @param ref      object to update, could be null
+     * @param value    value
+     * @param unsigned true if {@code value} is unsigned; false otherwise
      * @return same object as {@code ref} or a new instance if it's null
      */
 
-    public static ClickHouseIntArrayValue of(ClickHouseValue ref, int[] value) {
+    public static ClickHouseIntArrayValue of(ClickHouseValue ref, int[] value, boolean unsigned) {
+        if (unsigned) {
+            return ref instanceof UnsignedIntArrayValue ? ((UnsignedIntArrayValue) ref).set(value)
+                    : new UnsignedIntArrayValue(value);
+        }
+
         return ref instanceof ClickHouseIntArrayValue ? ((ClickHouseIntArrayValue) ref).set(value)
                 : new ClickHouseIntArrayValue(value);
     }
@@ -113,14 +197,18 @@ public class ClickHouseIntArrayValue extends ClickHouseObjectValue<int[]> {
     }
 
     @Override
-    public String asString(int length, Charset charset) {
-        String str = Arrays.toString(getValue());
-        if (length > 0) {
-            ClickHouseChecker.notWithDifferentLength(str.getBytes(charset == null ? StandardCharsets.UTF_8 : charset),
-                    length);
+    public String asString() {
+        int[] value = getValue();
+        int len = value == null ? 0 : value.length;
+        if (len == 0) {
+            return ClickHouseValues.EMPTY_ARRAY_EXPR;
         }
 
-        return str;
+        StringBuilder builder = new StringBuilder().append('[').append(value[0]);
+        for (int i = 1; i < len; i++) {
+            builder.append(',').append(value[i]);
+        }
+        return builder.append(']').toString();
     }
 
     @Override
@@ -156,18 +244,7 @@ public class ClickHouseIntArrayValue extends ClickHouseObjectValue<int[]> {
 
     @Override
     public String toSqlExpression() {
-        int[] value = getValue();
-        int len = value == null ? 0 : value.length;
-        if (len == 0) {
-            return ClickHouseValues.EMPTY_ARRAY_EXPR;
-        }
-
-        StringBuilder builder = new StringBuilder().append('[');
-        for (int i = 0; i < len; i++) {
-            builder.append(value[i]).append(',');
-        }
-        builder.setLength(builder.length() - 1);
-        return builder.append(']').toString();
+        return asString();
     }
 
     @Override
@@ -212,7 +289,7 @@ public class ClickHouseIntArrayValue extends ClickHouseObjectValue<int[]> {
 
         int[] v = new int[len];
         for (int i = 0; i < len; i++) {
-            v[i] = value[i];
+            v[i] = 0xFF & value[i];
         }
         return set(v);
     }
@@ -231,7 +308,7 @@ public class ClickHouseIntArrayValue extends ClickHouseObjectValue<int[]> {
 
         int[] v = new int[len];
         for (int i = 0; i < len; i++) {
-            v[i] = value[i];
+            v[i] = 0xFFFF & value[i];
         }
         return set(v);
     }
@@ -248,7 +325,7 @@ public class ClickHouseIntArrayValue extends ClickHouseObjectValue<int[]> {
             return resetToNullOrEmpty();
         }
 
-        return set(Arrays.copyOf(value, len));
+        return set(value);
     }
 
     @Override
@@ -500,5 +577,32 @@ public class ClickHouseIntArrayValue extends ClickHouseObjectValue<int[]> {
     @Override
     public int hashCode() {
         return Arrays.hashCode(getValue());
+    }
+
+    @Override
+    public ClickHouseArraySequence allocate(int length, Class<?> clazz, int level) {
+        if (length < 1) {
+            resetToDefault();
+        } else if (length() != length) {
+            set(new int[length]);
+        }
+        return this;
+    }
+
+    @Override
+    public int length() {
+        return isNullOrEmpty() ? 0 : getValue().length;
+    }
+
+    @Override
+    public <V extends ClickHouseValue> V getValue(int index, V value) {
+        value.update(getValue()[index]);
+        return value;
+    }
+
+    @Override
+    public ClickHouseArraySequence setValue(int index, ClickHouseValue value) {
+        getValue()[index] = value.asInteger();
+        return this;
     }
 }

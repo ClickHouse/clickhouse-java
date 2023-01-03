@@ -38,6 +38,10 @@ import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseValues;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.data.ClickHouseDateTimeValue;
+import com.clickhouse.client.data.UnsignedByte;
+import com.clickhouse.client.data.UnsignedInteger;
+import com.clickhouse.client.data.UnsignedLong;
+import com.clickhouse.client.data.UnsignedShort;
 import com.clickhouse.client.http.config.ClickHouseHttpOption;
 
 import org.testng.Assert;
@@ -59,6 +63,30 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
         sessionProps.setProperty(ClickHouseClientOption.SESSION_ID.getKey(), UUID.randomUUID().toString());
         return new Object[][] {
                 new Object[] { emptyProps }, new Object[] { sessionProps } };
+    }
+
+    @Test(groups = "integration")
+    public void testDialect() throws SQLException {
+        Properties props = new Properties();
+        String sql = "select cast(1 as UInt64) a, cast([1, 2] as Array(Int8)) b";
+        try (ClickHouseConnection conn = newConnection(props);
+                ClickHouseStatement stmt = conn.createStatement();
+                ResultSet rs = stmt.executeQuery(sql);) {
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getMetaData().getColumnTypeName(1), ClickHouseDataType.UInt64.name());
+            Assert.assertEquals(rs.getMetaData().getColumnTypeName(2), "Array(Int8)");
+            Assert.assertFalse(rs.next());
+        }
+
+        props.setProperty(JdbcConfig.PROP_DIALECT, "ansi");
+        try (ClickHouseConnection conn = newConnection(props);
+                ClickHouseStatement stmt = conn.createStatement();
+                ResultSet rs = stmt.executeQuery(sql);) {
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getMetaData().getColumnTypeName(1), "DECIMAL(20,0)");
+            Assert.assertEquals(rs.getMetaData().getColumnTypeName(2), "ARRAY(BYTE)");
+            Assert.assertFalse(rs.next());
+        }
     }
 
     @Test(groups = "integration")
@@ -247,7 +275,7 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
     }
 
     @Test(dataProvider = "connectionProperties", groups = "integration")
-    public void testCancelQuery(Properties props) throws Exception {
+    public void testCancelQuery(Properties props) throws SQLException {
         try (ClickHouseConnection conn = newConnection(props);
                 ClickHouseStatement stmt = conn.createStatement();) {
             CountDownLatch c = new CountDownLatch(1);
@@ -270,6 +298,8 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
                     });
             try {
                 c.await(5, TimeUnit.SECONDS);
+            } catch (Exception e) {
+                Assert.fail("Failed to wait", e);
             } finally {
                 stmt.cancel();
             }
@@ -469,6 +499,27 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
     }
 
     @Test(groups = "integration")
+    public void testFetchSize() throws SQLException {
+        try (Connection conn = newConnection(new Properties()); Statement stmt = conn.createStatement()) {
+            Assert.assertEquals(stmt.getFetchSize(), 0);
+
+            stmt.setFetchSize(0);
+            Assert.assertEquals(stmt.getFetchSize(), 0);
+            stmt.setFetchSize(-1);
+            Assert.assertEquals(stmt.getFetchSize(), 0);
+            stmt.setFetchSize(Integer.MIN_VALUE);
+            Assert.assertEquals(stmt.getFetchSize(), 0);
+
+            stmt.setFetchSize(1);
+            Assert.assertEquals(stmt.getFetchSize(), 1);
+            stmt.setFetchSize(Integer.MAX_VALUE);
+            Assert.assertEquals(stmt.getFetchSize(), Integer.MAX_VALUE);
+            stmt.setFetchSize(0);
+            Assert.assertEquals(stmt.getFetchSize(), 0);
+        }
+    }
+
+    @Test(groups = "integration")
     public void testSimpleAggregateFunction() throws SQLException {
         try (ClickHouseConnection conn = newConnection(new Properties());
                 ClickHouseStatement stmt = conn.createStatement();) {
@@ -611,6 +662,33 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
         }
     }
 
+    @Test(groups = "integration")
+    public void testTimestampWithNanoSeconds() throws SQLException {
+        Properties props = new Properties();
+        try (ClickHouseConnection conn = newConnection(props);
+                ClickHouseStatement stmt = conn.createStatement()) {
+            stmt.execute("drop table if exists test_timetamp_with_nanos;"
+                    + "create table test_timetamp_with_nanos(d DateTime64(9))engine=Memory");
+            Instant instant = Instant.now();
+            Timestamp now = new Timestamp(instant.toEpochMilli());
+            now.setNanos(instant.getNano());
+            try (PreparedStatement ps1 = conn.prepareStatement("insert into test_timetamp_with_nanos");
+                    PreparedStatement ps2 = conn
+                            .prepareStatement(
+                                    "insert into test_timetamp_with_nanos values(toDateTime64(?, 9))")) {
+                ps1.setTimestamp(1, now);
+                ps1.executeUpdate();
+
+                ps2.setTimestamp(1, now);
+                ps2.executeUpdate();
+            }
+            ResultSet rs = stmt.executeQuery("select distinct * from test_timetamp_with_nanos");
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getObject(1, Instant.class), instant);
+            Assert.assertFalse(rs.next());
+        }
+    }
+
     // @Test(groups = "integration")
     // public void testAggregateFunction() throws SQLException {
     // Properties props = new Properties();
@@ -667,24 +745,132 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
     }
 
     @Test(groups = "integration")
+    public void testPrimitiveTypes() throws SQLException {
+        String sql = "select toInt8(1), toUInt8(1), toInt16(1), toUInt16(1), toInt32(1), toUInt32(1), toInt64(1), toUInt64(1), "
+                + "cast([1] as Array(Int8)), cast([1] as Array(UInt8)), cast([1] as Array(Int16)), cast([1] as Array(UInt16)), "
+                + "cast([1] as Array(Int32)), cast([1] as Array(UInt32)), cast([1] as Array(Int64)), cast([1] as Array(UInt64))";
+
+        Properties props = new Properties();
+        try (ClickHouseConnection conn = newConnection(props);
+                ClickHouseStatement stmt = conn.createStatement();
+                ResultSet rs = stmt.executeQuery(sql)) {
+            Assert.assertTrue(rs.next());
+            int index = 1;
+            Assert.assertEquals(rs.getObject(index++), (byte) 1);
+            Assert.assertEquals(rs.getObject(index++), UnsignedByte.ONE);
+            Assert.assertEquals(rs.getObject(index++), (short) 1);
+            Assert.assertEquals(rs.getObject(index++), UnsignedShort.ONE);
+            Assert.assertEquals(rs.getObject(index++), 1);
+            Assert.assertEquals(rs.getObject(index++), UnsignedInteger.ONE);
+            Assert.assertEquals(rs.getObject(index++), 1L);
+            Assert.assertEquals(rs.getObject(index++), UnsignedLong.ONE);
+            Assert.assertEquals(rs.getObject(index++), new byte[] { (byte) 1 });
+            Assert.assertEquals(rs.getObject(index++), new byte[] { (byte) 1 });
+            Assert.assertEquals(rs.getObject(index++), new short[] { (short) 1 });
+            Assert.assertEquals(rs.getObject(index++), new short[] { (short) 1 });
+            Assert.assertEquals(rs.getObject(index++), new int[] { 1 });
+            Assert.assertEquals(rs.getObject(index++), new int[] { 1 });
+            Assert.assertEquals(rs.getObject(index++), new long[] { 1L });
+            Assert.assertEquals(rs.getObject(index++), new long[] { 1L });
+            Assert.assertFalse(rs.next());
+        }
+
+        props.clear();
+        props.setProperty("use_objects_in_arrays", "true");
+        try (ClickHouseConnection conn = newConnection(props);
+                ClickHouseStatement stmt = conn.createStatement();
+                ResultSet rs = stmt.executeQuery(sql)) {
+            Assert.assertTrue(rs.next());
+            int index = 1;
+            Assert.assertEquals(rs.getObject(index++), (byte) 1);
+            Assert.assertEquals(rs.getObject(index++), UnsignedByte.ONE);
+            Assert.assertEquals(rs.getObject(index++), (short) 1);
+            Assert.assertEquals(rs.getObject(index++), UnsignedShort.ONE);
+            Assert.assertEquals(rs.getObject(index++), 1);
+            Assert.assertEquals(rs.getObject(index++), UnsignedInteger.ONE);
+            Assert.assertEquals(rs.getObject(index++), 1L);
+            Assert.assertEquals(rs.getObject(index++), UnsignedLong.ONE);
+            Assert.assertEquals(rs.getObject(index++), new byte[] { (byte) 1 });
+            Assert.assertEquals(rs.getObject(index++), new UnsignedByte[] { UnsignedByte.ONE });
+            Assert.assertEquals(rs.getObject(index++), new short[] { (short) 1 });
+            Assert.assertEquals(rs.getObject(index++), new UnsignedShort[] { UnsignedShort.ONE });
+            Assert.assertEquals(rs.getObject(index++), new int[] { 1 });
+            Assert.assertEquals(rs.getObject(index++), new UnsignedInteger[] { UnsignedInteger.ONE });
+            Assert.assertEquals(rs.getObject(index++), new Long[] { 1L });
+            Assert.assertEquals(rs.getObject(index++), new UnsignedLong[] { UnsignedLong.ONE });
+            Assert.assertFalse(rs.next());
+        }
+
+        props.clear();
+        props.setProperty("widen_unsigned_types", "false");
+        try (ClickHouseConnection conn = newConnection(props);
+                ClickHouseStatement stmt = conn.createStatement();
+                ResultSet rs = stmt.executeQuery(sql)) {
+            Assert.assertTrue(rs.next());
+            int index = 1;
+            Assert.assertEquals(rs.getObject(index++), (byte) 1);
+            Assert.assertEquals(rs.getObject(index++), UnsignedByte.ONE);
+            Assert.assertEquals(rs.getObject(index++), (short) 1);
+            Assert.assertEquals(rs.getObject(index++), UnsignedShort.ONE);
+            Assert.assertEquals(rs.getObject(index++), 1);
+            Assert.assertEquals(rs.getObject(index++), UnsignedInteger.ONE);
+            Assert.assertEquals(rs.getObject(index++), 1L);
+            Assert.assertEquals(rs.getObject(index++), UnsignedLong.ONE);
+            Assert.assertEquals(rs.getObject(index++), new byte[] { (byte) 1 });
+            Assert.assertEquals(rs.getObject(index++), new byte[] { (byte) 1 });
+            Assert.assertEquals(rs.getObject(index++), new short[] { (short) 1 });
+            Assert.assertEquals(rs.getObject(index++), new short[] { (short) 1 });
+            Assert.assertEquals(rs.getObject(index++), new int[] { 1 });
+            Assert.assertEquals(rs.getObject(index++), new int[] { 1 });
+            Assert.assertEquals(rs.getObject(index++), new long[] { 1L });
+            Assert.assertEquals(rs.getObject(index++), new long[] { 1L });
+            Assert.assertFalse(rs.next());
+        }
+    }
+
+    @Test(groups = "integration")
     public void testNestedDataTypes() throws SQLException {
+        String sql = "select (1,2) as t, [3,4] as a";
         Properties props = new Properties();
         try (ClickHouseConnection conn = newConnection(props);
                 ClickHouseStatement stmt = conn.createStatement()) {
-            ResultSet rs = stmt.executeQuery("select (1,2) as t, [3,4] as a");
+            ResultSet rs = stmt.executeQuery(sql);
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getObject(1), Arrays.asList(UnsignedByte.ONE, UnsignedByte.valueOf((byte) 2)));
+            Assert.assertEquals(rs.getObject(2), new byte[] { (byte) 3, (byte) 4 });
+            Assert.assertFalse(rs.next());
+        }
+
+        props.setProperty("use_objects_in_arrays", "true");
+        try (ClickHouseConnection conn = newConnection(props);
+                ClickHouseStatement stmt = conn.createStatement()) {
+            ResultSet rs = stmt.executeQuery(sql);
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getObject(1), Arrays.asList(UnsignedByte.ONE, UnsignedByte.valueOf((byte) 2)));
+            Assert.assertEquals(rs.getObject(2),
+                    new UnsignedByte[] { UnsignedByte.valueOf((byte) 3), UnsignedByte.valueOf((byte) 4) });
+            Assert.assertFalse(rs.next());
+        }
+
+        props.clear();
+        props.setProperty("widen_unsigned_types", "true");
+        try (ClickHouseConnection conn = newConnection(props);
+                ClickHouseStatement stmt = conn.createStatement()) {
+            ResultSet rs = stmt.executeQuery(sql);
             Assert.assertTrue(rs.next());
             Assert.assertEquals(rs.getObject(1), Arrays.asList((short) 1, (short) 2));
             Assert.assertEquals(rs.getObject(2), new short[] { (short) 3, (short) 4 });
             Assert.assertFalse(rs.next());
         }
 
+        props.clear();
         props.setProperty("wrapperObject", "true");
         try (ClickHouseConnection conn = newConnection(props);
                 ClickHouseStatement stmt = conn.createStatement()) {
-            ResultSet rs = stmt.executeQuery("select (1,2) as t, [3,4] as a");
+            ResultSet rs = stmt.executeQuery(sql);
             Assert.assertTrue(rs.next());
             Assert.assertEquals(((ClickHouseStruct) rs.getObject(1)).getAttributes(),
-                    new Object[] { (short) 1, (short) 2 });
+                    new Object[] { UnsignedByte.ONE, UnsignedByte.valueOf((byte) 2) });
             Assert.assertEquals(((ClickHouseArray) rs.getObject(2)).getArray(), rs.getArray(2).getArray());
             Assert.assertFalse(rs.next());
         }

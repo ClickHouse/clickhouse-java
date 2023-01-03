@@ -1,9 +1,12 @@
 package com.clickhouse.client;
 
+import java.util.Locale;
+
 /**
  * All formats supported by ClickHouse. More information at:
  * https://clickhouse.com/docs/en/interfaces/formats/.
  */
+@SuppressWarnings("squid:S115")
 public enum ClickHouseFormat {
     // start with the most common ones
     RowBinary(true, true, true, false, true), // https://clickhouse.com/docs/en/interfaces/formats/#rowbinary
@@ -22,16 +25,25 @@ public enum ClickHouseFormat {
     AvroConfluent(true, false, true, false, false), // https://clickhouse.com/docs/en/interfaces/formats/#avroconfluent
     CSV(true, true, false, false, true), // https://clickhouse.com/docs/en/interfaces/formats/#csv
     CSVWithNames(true, true, false, true, true, CSV), // https://clickhouse.com/docs/en/interfaces/formats/#csvwithnames
+    CSVWithNamesAndTypes(true, true, false, true, true, CSV), // https://clickhouse.com/docs/en/interfaces/formats/#csvwithnamesandtypes
     CapnProto(true, false, true, false, false), // https://clickhouse.com/docs/en/interfaces/formats/#capnproto
-    CustomSeparated(true, true, false, false, true), // https://clickhouse.com/docs/en/interfaces/formats/#customseparated
-    CustomSeparatedIgnoreSpaces(true, true, false, false, true),
+    CustomSeparated(true, true, false, false, true), // https://clickhouse.com/docs/en/interfaces/formats/#format-customseparated
+    CustomSeparatedWithNames(true, true, false, true, true, CustomSeparated), // https://clickhouse.com/docs/en/interfaces/formats/#customseparatedwithnames
+    CustomSeparatedWithNamesAndTypes(true, true, false, true, true, CustomSeparated), // https://clickhouse.com/docs/en/interfaces/formats/#customseparatedwithnamesandtypes
+    CustomSeparatedIgnoreSpaces(true, false, false, false, true),
+    CustomSeparatedIgnoreSpacesWithNames(true, false, false, true, true, CustomSeparatedIgnoreSpaces),
+    CustomSeparatedIgnoreSpacesWithNamesAndTypes(true, false, false, true, true, CustomSeparatedIgnoreSpaces),
+    HiveText(true, false, false, false, true),
     JSONCompactEachRow(true, true, false, false, true), // https://clickhouse.com/docs/en/interfaces/formats/#jsoncompacteachrow
     JSONCompactEachRowWithNames(true, true, false, true, true), // https://clickhouse.com/docs/en/interfaces/formats/#jsoncompacteachrowwithnames
     JSONCompactEachRowWithNamesAndTypes(true, true, false, true, true), // https://clickhouse.com/docs/en/interfaces/formats/#jsoncompacteachrowwithnamesandtypes
     JSON(false, true, false, false, false, JSONCompactEachRow), // https://clickhouse.com/docs/en/interfaces/formats/#json
     JSONAsObject(true, false, false, false, false), // https://clickhouse.com/docs/en/interfaces/formats/#jsonasobject
     JSONAsString(true, false, false, false, false), // https://clickhouse.com/docs/en/interfaces/formats/#jsonasstring
+    JSONColumns(true, true, false, false, false), // https://clickhouse.com/docs/en/interfaces/formats/#jsoncolumns
+    JSONColumnsWithMetadata(true, true, false, false, false), // https://clickhouse.com/docs/en/interfaces/formats/#jsoncolumnsmonoblock
     JSONCompact(false, true, false, false, false, JSONCompactEachRow), // https://clickhouse.com/docs/en/interfaces/formats/#jsoncompact
+    JSONCompactColumns(true, true, false, false, false), // https://clickhouse.com/docs/en/interfaces/formats/#jsoncompactcolumns
     JSONCompactStringsEachRow(true, true, false, false, true), // https://clickhouse.com/docs/en/interfaces/formats/#jsoncompactstringeachrow
     JSONCompactStringsEachRowWithNames(true, true, false, true, true, JSONCompactStringsEachRow), // https://clickhouse.com/docs/en/interfaces/formats/#jsoncompactstringeachrowwithnames
     JSONCompactStringsEachRowWithNamesAndTypes(true, true, false, true, true, JSONCompactStringsEachRow), // https://clickhouse.com/docs/en/interfaces/formats/#jsoncompactstringeachrowwithnamesandtypes
@@ -40,6 +52,7 @@ public enum ClickHouseFormat {
     JSONEachRowWithProgress(false, true, false, false, true, JSONEachRow), // https://clickhouse.com/docs/en/interfaces/formats/#jsoneachrowwithprogress
     JSONLines(true, true, false, false, true), // alias of JSONEachRow
     NDJSON(true, true, true, true, true), // alias of JSONEachRow
+    JSONObjectEachRow(true, false, false, false, false), // https://clickhouse.com/docs/en/interfaces/formats/#jsonobjecteachrow
     JSONStringsEachRow(true, true, false, false, true), // https://clickhouse.com/docs/en/interfaces/formats/#jsonstringseachrow
     JSONStringsEachRowWithProgress(false, true, false, false, true, JSONStringsEachRow), // https://clickhouse.com/docs/en/interfaces/formats/#jsonstringseachrowwithprogress
     JSONStringEachRow(false, false, false, false, true, JSONStringsEachRow), // https://clickhouse.com/docs/en/interfaces/formats/#jsoneachrow
@@ -54,22 +67,27 @@ public enum ClickHouseFormat {
     Native(true, true, true, true, false), // https://clickhouse.com/docs/en/interfaces/formats/#native
     Null(false, true, false, false, false), // https://clickhouse.com/docs/en/interfaces/formats/#null
     ODBCDriver2(false, true, true, false, false),
-    ORC(true, false, true, true, false), // https://clickhouse.com/docs/en/interfaces/formats/#orc
+    ORC(true, true, true, true, false), // https://clickhouse.com/docs/en/interfaces/formats/#orc
     Parquet(true, true, true, true, false), // https://clickhouse.com/docs/en/interfaces/formats/#parquet
     PostgreSQLWire(false, true, true, false, false),
     Pretty(false, true, false, false, false), // https://clickhouse.com/docs/en/interfaces/formats/#pretty
     PrettyCompact(false, true, false, false, false), // https://clickhouse.com/docs/en/interfaces/formats/#prettycompact
     PrettyCompactMonoBlock(false, true, false, false, false), // https://clickhouse.com/docs/en/interfaces/formats/#prettycompactmonoblock
     PrettyCompactNoEscapes(false, true, false, false, false),
+    PrettyMonoBlock(false, true, false, false, false), // https://clickhouse.com/docs/en/interfaces/formats/#prettymonoblock
     PrettyNoEscapes(false, true, false, false, false), // https://clickhouse.com/docs/en/interfaces/formats/#prettynoescapes
+    PrettyNoEscapesMonoBlock(false, true, false, false, false), // https://clickhouse.com/docs/en/interfaces/formats/#prettynoescapes
     PrettySpace(false, true, false, false, false), // https://clickhouse.com/docs/en/interfaces/formats/#prettyspace
+    PrettySpaceMonoBlock(false, true, false, false, false),
     PrettySpaceNoEscapes(false, true, false, false, false),
+    PrettySpaceNoEscapesMonoBlock(false, true, false, false, false),
     Prometheus(false, true, false, false, true), // https://clickhouse.com/docs/en/interfaces/formats/#prometheus
     Protobuf(true, true, true, true, false), // https://clickhouse.com/docs/en/interfaces/formats/#protobuf
     ProtobufList(true, true, true, true, false), // https://clickhouse.com/docs/en/interfaces/formats/#protobuflist
     ProtobufSingle(true, true, true, true, false), // https://clickhouse.com/docs/en/interfaces/formats/#protobufsingle
     RawBLOB(true, true, true, false, false), // https://clickhouse.com/docs/en/interfaces/formats/#rawblob
     Regexp(true, false, false, false, false), // https://clickhouse.com/docs/en/interfaces/formats/#regexp
+    SQLInsert(false, true, false, false, false), // https://clickhouse.com/docs/en/interfaces/formats/#sqlinsert
     TSKV(true, true, false, false, false), // https://clickhouse.com/docs/en/interfaces/formats/#tskv
     TSV(true, true, false, false, true), // alias of TabSeparated
     TSVRaw(true, true, false, false, true), // alias of TabSeparatedRaw
@@ -98,7 +116,7 @@ public enum ClickHouseFormat {
 
         int index = 0;
         if (file != null && (index = file.lastIndexOf('.')) > 0) {
-            String ext = file.substring(index + 1).toLowerCase();
+            String ext = file.substring(index + 1).toLowerCase(Locale.ROOT);
             switch (ext) {
                 case "arrow":
                     format = Arrow;

@@ -2,8 +2,6 @@ package com.clickhouse.client.data;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
-import java.nio.charset.Charset;
-import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -11,13 +9,12 @@ import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZonedDateTime;
 import java.util.TimeZone;
-
 import com.clickhouse.client.ClickHouseChecker;
 import com.clickhouse.client.ClickHouseValue;
 import com.clickhouse.client.ClickHouseValues;
 
 /**
- * Wraper class of Instant.
+ * Wrapper class of {@link Instant}.
  */
 public class ClickHouseInstantValue extends ClickHouseObjectValue<Instant> {
     /**
@@ -220,20 +217,14 @@ public class ClickHouseInstantValue extends ClickHouseObjectValue<Instant> {
     }
 
     @Override
-    public String asString(int length, Charset charset) {
+    public String asString() {
         if (isNullOrEmpty()) {
             return null;
         }
 
         // different formatter for each scale?
-        String str = asDateTime()
+        return asDateTime()
                 .format(scale > 0 ? ClickHouseValues.DATETIME_FORMATTER : ClickHouseDateTimeValue.dateTimeFormatter);
-        if (length > 0) {
-            ClickHouseChecker.notWithDifferentLength(str.getBytes(charset == null ? StandardCharsets.UTF_8 : charset),
-                    length);
-        }
-
-        return str;
     }
 
     @Override
@@ -387,7 +378,7 @@ public class ClickHouseInstantValue extends ClickHouseObjectValue<Instant> {
 
     @Override
     public ClickHouseInstantValue update(ClickHouseValue value) {
-        if (value == null) {
+        if (value == null || value.isNullOrEmpty()) {
             resetToNullOrEmpty();
         } else {
             set(value.asInstant(scale));

@@ -2,8 +2,6 @@ package com.clickhouse.client.data;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
-import java.nio.charset.Charset;
-import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -12,13 +10,12 @@ import java.time.LocalTime;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.TimeZone;
-
 import com.clickhouse.client.ClickHouseChecker;
 import com.clickhouse.client.ClickHouseValue;
 import com.clickhouse.client.ClickHouseValues;
 
 /**
- * Wraper class of OffsetDateTime.
+ * Wrapper class of {@link OffsetDateTime}.
  */
 public class ClickHouseOffsetDateTimeValue extends ClickHouseObjectValue<OffsetDateTime> {
     /**
@@ -92,10 +89,14 @@ public class ClickHouseOffsetDateTimeValue extends ClickHouseObjectValue<OffsetD
     protected ClickHouseOffsetDateTimeValue(OffsetDateTime value, int scale, TimeZone tz) {
         super(value);
         this.scale = ClickHouseChecker.between(scale, ClickHouseValues.PARAM_SCALE, 0, 9);
-        this.tz = tz == null || tz.equals(ClickHouseValues.UTC_TIMEZONE) ? ClickHouseValues.UTC_TIMEZONE : tz;
-        this.defaultValue = this.tz.equals(ClickHouseValues.UTC_TIMEZONE) ? DEFAULT
-                : ClickHouseInstantValue.DEFAULT
-                        .atOffset(tz.toZoneId().getRules().getOffset(ClickHouseInstantValue.DEFAULT));
+        if (tz == null || tz.equals(ClickHouseValues.UTC_TIMEZONE)) {
+            this.tz = ClickHouseValues.UTC_TIMEZONE;
+            this.defaultValue = DEFAULT;
+        } else {
+            this.tz = tz;
+            this.defaultValue = ClickHouseInstantValue.DEFAULT
+                    .atOffset(this.tz.toZoneId().getRules().getOffset(ClickHouseInstantValue.DEFAULT));
+        }
     }
 
     public int getScale() {
@@ -207,20 +208,14 @@ public class ClickHouseOffsetDateTimeValue extends ClickHouseObjectValue<OffsetD
     }
 
     @Override
-    public String asString(int length, Charset charset) {
+    public String asString() {
         if (isNullOrEmpty()) {
             return null;
         }
 
         // different formatter for each scale?
-        String str = asDateTime(scale)
+        return asDateTime(scale)
                 .format(scale > 0 ? ClickHouseValues.DATETIME_FORMATTER : ClickHouseDateTimeValue.dateTimeFormatter);
-        if (length > 0) {
-            ClickHouseChecker.notWithDifferentLength(
-                    str.getBytes(charset == null ? StandardCharsets.US_ASCII : charset), length);
-        }
-
-        return str;
     }
 
     @Override
@@ -378,7 +373,7 @@ public class ClickHouseOffsetDateTimeValue extends ClickHouseObjectValue<OffsetD
 
     @Override
     public ClickHouseOffsetDateTimeValue update(ClickHouseValue value) {
-        if (value == null) {
+        if (value == null || value.isNullOrEmpty()) {
             resetToNullOrEmpty();
         } else {
             set(value.asOffsetDateTime(scale));

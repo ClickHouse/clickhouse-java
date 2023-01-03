@@ -12,22 +12,11 @@ import com.clickhouse.client.ClickHouseRecord;
 import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.ClickHouseResponseSummary;
 import com.clickhouse.client.ClickHouseValue;
-import com.clickhouse.client.ClickHouseValues;
 
 /**
  * A simple response built on top of two lists: columns and records.
  */
 public class ClickHouseSimpleResponse implements ClickHouseResponse {
-    /**
-     * Empty response.
-     *
-     * @deprecated will be removed in v0.3.3, please use
-     *             {@link ClickHouseResponse#EMPTY} instead
-     */
-    @Deprecated
-    public static final ClickHouseSimpleResponse EMPTY = new ClickHouseSimpleResponse(Collections.emptyList(),
-            new ClickHouseValue[0][], ClickHouseResponseSummary.EMPTY);
-
     /**
      * Creates a response object using columns definition and raw values.
      *
@@ -62,7 +51,7 @@ public class ClickHouseSimpleResponse implements ClickHouseResponse {
         if (len > 0) {
             ClickHouseValue[] templates = new ClickHouseValue[size];
             for (int i = 0; i < size; i++) {
-                templates[i] = ClickHouseValues.newValue(config, columns.get(i));
+                templates[i] = columns.get(i).newValue(config);
             }
 
             for (int i = 0; i < len; i++) {
@@ -70,7 +59,7 @@ public class ClickHouseSimpleResponse implements ClickHouseResponse {
                 int count = input != null ? input.length : 0;
                 ClickHouseValue[] v = new ClickHouseValue[size];
                 for (int j = 0; j < size; j++) {
-                    v[j] = templates[j].copy().update(j < count ? input[j] : null);
+                    v[j] = templates[j].copy().update(j < count ? input[j] : null); // NOSONAR
                 }
                 wrappedValues[i] = v;
             }
@@ -133,7 +122,7 @@ public class ClickHouseSimpleResponse implements ClickHouseResponse {
     private final List<ClickHouseRecord> records;
     private final ClickHouseResponseSummary summary;
 
-    private boolean isClosed;
+    private volatile boolean closed;
 
     protected ClickHouseSimpleResponse(List<ClickHouseColumn> columns, List<ClickHouseRecord> records,
             ClickHouseResponseSummary summary) {
@@ -180,11 +169,11 @@ public class ClickHouseSimpleResponse implements ClickHouseResponse {
     @Override
     public void close() {
         // nothing to close
-        isClosed = true;
+        closed = true;
     }
 
     @Override
     public boolean isClosed() {
-        return isClosed;
+        return closed;
     }
 }

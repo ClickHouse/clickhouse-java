@@ -13,7 +13,7 @@ import com.clickhouse.client.ClickHouseValue;
 import com.clickhouse.client.ClickHouseValues;
 
 /**
- * Wraper class of BigDecimal.
+ * Wrapper class of {@link BigDecimal}.
  */
 public class ClickHouseBigDecimalValue extends ClickHouseObjectValue<BigDecimal> {
     /**
@@ -72,22 +72,22 @@ public class ClickHouseBigDecimalValue extends ClickHouseObjectValue<BigDecimal>
 
     @Override
     public byte asByte() {
-        return isNullOrEmpty() ? (byte) 0 : getValue().byteValueExact();
+        return isNullOrEmpty() ? (byte) 0 : getValue().byteValue();
     }
 
     @Override
     public short asShort() {
-        return isNullOrEmpty() ? (short) 0 : getValue().shortValueExact();
+        return isNullOrEmpty() ? (short) 0 : getValue().shortValue();
     }
 
     @Override
     public int asInteger() {
-        return isNullOrEmpty() ? 0 : getValue().intValueExact();
+        return isNullOrEmpty() ? 0 : getValue().intValue();
     }
 
     @Override
     public long asLong() {
-        return isNullOrEmpty() ? 0L : getValue().longValueExact();
+        return isNullOrEmpty() ? 0L : getValue().longValue();
     }
 
     @Override
@@ -101,7 +101,7 @@ public class ClickHouseBigDecimalValue extends ClickHouseObjectValue<BigDecimal>
             throw new IllegalArgumentException("Failed to convert BigDecimal to BigInteger: " + value);
         }
 
-        return value.toBigInteger();
+        return value.toBigIntegerExact();
     }
 
     @Override
@@ -295,7 +295,7 @@ public class ClickHouseBigDecimalValue extends ClickHouseObjectValue<BigDecimal>
 
     @Override
     public ClickHouseBigDecimalValue update(ClickHouseValue value) {
-        if (value == null) {
+        if (value == null || value.isNullOrEmpty()) {
             resetToNullOrEmpty();
         } else {
             set(value.asBigDecimal(getScale()));

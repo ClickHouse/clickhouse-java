@@ -60,10 +60,10 @@ public final class FastByteArrayInputStream extends InputStream {
     public long skip(long n) {
         if (pos + n > count) {
             // noinspection AssignmentToMethodParameter
-            n = count - pos;
+            n = (long) count - pos;
         }
-        if (n < 0) {
-            return 0;
+        if (n < 0L) {
+            return 0L;
         }
         pos += (int) n;
         return n;
@@ -106,8 +106,7 @@ public final class FastByteArrayInputStream extends InputStream {
     }
 
     @Override
-    public void reset() {
+    public void reset() { // NOSONAR
         pos = 0;
     }
-
 }

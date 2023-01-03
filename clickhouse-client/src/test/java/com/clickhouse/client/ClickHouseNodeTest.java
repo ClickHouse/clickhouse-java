@@ -4,6 +4,7 @@ import org.testng.Assert;
 import org.testng.annotations.Test;
 
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -18,7 +19,6 @@ import com.clickhouse.client.config.ClickHouseSslMode;
 public class ClickHouseNodeTest extends BaseIntegrationTest {
     private void checkDefaultValues(ClickHouseNode node) {
         Assert.assertNotNull(node);
-        Assert.assertEquals(node.getCluster(), ClickHouseDefaults.CLUSTER.getEffectiveDefaultValue());
         Assert.assertEquals(node.getDatabase().orElse(null), null);
         Assert.assertEquals(node.getProtocol(), ClickHouseDefaults.PROTOCOL.getEffectiveDefaultValue());
         Assert.assertFalse(node.getCredentials().isPresent());
@@ -26,7 +26,6 @@ public class ClickHouseNodeTest extends BaseIntegrationTest {
         Assert.assertNotNull(node.getAddress());
         Assert.assertEquals(node.getHost(), ClickHouseDefaults.HOST.getEffectiveDefaultValue());
         Assert.assertEquals(node.getPort(), ClickHouseProtocol.ANY.getDefaultPort());
-        Assert.assertEquals(node.getWeight(), ClickHouseDefaults.WEIGHT.getEffectiveDefaultValue());
     }
 
     private void checkCustomValues(ClickHouseNode node, String cluster, String host, int port, int weight,
@@ -99,15 +98,11 @@ public class ClickHouseNodeTest extends BaseIntegrationTest {
         ClickHouseProtocol protocol = ClickHouseProtocol.TCP;
         int port = 19000;
         ClickHouseNode node = ClickHouseNode.of(host, protocol, port, database);
-        checkCustomValues(node, (String) ClickHouseDefaults.CLUSTER.getEffectiveDefaultValue(), host, port,
-                (int) ClickHouseDefaults.WEIGHT.getEffectiveDefaultValue(), protocol, database, null,
-                new String[0]);
+        checkCustomValues(node, "", host, port, 1, protocol, database, null, new String[0]);
 
         protocol = ClickHouseProtocol.GRPC;
         node = ClickHouseNode.of(host, protocol, port, database, "read-only", "primary");
-        checkCustomValues(node, (String) ClickHouseDefaults.CLUSTER.getEffectiveDefaultValue(), host, port,
-                (int) ClickHouseDefaults.WEIGHT.getEffectiveDefaultValue(), protocol, database, null,
-                new String[] { "read-only", "primary" });
+        checkCustomValues(node, "", host, port, 1, protocol, database, null, new String[] { "read-only", "primary" });
     }
 
     @Test(groups = { "unit" })
@@ -367,7 +362,7 @@ public class ClickHouseNodeTest extends BaseIntegrationTest {
     }
 
     @Test(groups = { "unit" })
-    public void testQueryWithSlash() throws Exception {
+    public void testQueryWithSlash() throws URISyntaxException {
         ClickHouseNode server = ClickHouseNode.of("http://localhost?a=/b/c/d");
         Assert.assertEquals(server.getDatabase().orElse(null), null);
         Assert.assertEquals(server.getOptions(), Collections.singletonMap("a", "/b/c/d"));

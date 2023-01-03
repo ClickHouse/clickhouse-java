@@ -5,8 +5,6 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
-import java.nio.charset.Charset;
-import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -19,6 +17,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.Map.Entry;
+import com.clickhouse.client.ClickHouseArraySequence;
 import com.clickhouse.client.ClickHouseChecker;
 import com.clickhouse.client.ClickHouseValue;
 import com.clickhouse.client.ClickHouseValues;
@@ -26,7 +25,7 @@ import com.clickhouse.client.ClickHouseValues;
 /**
  * Wrapper class of Array.
  */
-public class ClickHouseArrayValue<T> extends ClickHouseObjectValue<T[]> {
+public class ClickHouseArrayValue<T> extends ClickHouseObjectValue<T[]> implements ClickHouseArraySequence {
     /**
      * Creates an empty array.
      *
@@ -36,6 +35,18 @@ public class ClickHouseArrayValue<T> extends ClickHouseObjectValue<T[]> {
     @SuppressWarnings("unchecked")
     public static <T> ClickHouseArrayValue<T> ofEmpty() {
         return of((T[]) ClickHouseValues.EMPTY_OBJECT_ARRAY);
+    }
+
+    /**
+     * Creates an empty array.
+     *
+     * @param <T>   type of the array
+     * @param clazz non-null component class
+     * @return empty array
+     */
+    @SuppressWarnings("unchecked")
+    public static <T> ClickHouseArrayValue<T> ofEmpty(Class<T> clazz) {
+        return of((T[]) Array.newInstance(clazz, new int[1]));
     }
 
     /**
@@ -65,8 +76,13 @@ public class ClickHouseArrayValue<T> extends ClickHouseObjectValue<T[]> {
                 : new ClickHouseArrayValue<>(value);
     }
 
+    private final T[] emptyValue;
+
+    @SuppressWarnings("unchecked")
     protected ClickHouseArrayValue(T[] value) {
         super(value);
+        emptyValue = value.length == 0 ? value
+                : (T[]) Array.newInstance(value.getClass().getComponentType(), new int[1]);
     }
 
     @Override
@@ -107,14 +123,8 @@ public class ClickHouseArrayValue<T> extends ClickHouseObjectValue<T[]> {
     }
 
     @Override
-    public String asString(int length, Charset charset) {
-        String str = Arrays.deepToString(getValue());
-        if (length > 0) {
-            ClickHouseChecker.notWithDifferentLength(str.getBytes(charset == null ? StandardCharsets.UTF_8 : charset),
-                    length);
-        }
-
-        return str;
+    public String asString() {
+        return Arrays.deepToString(getValue());
     }
 
     @Override
@@ -139,9 +149,8 @@ public class ClickHouseArrayValue<T> extends ClickHouseObjectValue<T[]> {
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public ClickHouseArrayValue<T> resetToDefault() {
-        set((T[]) ClickHouseValues.EMPTY_OBJECT_ARRAY);
+        set(emptyValue);
         return this;
     }
 
@@ -153,16 +162,15 @@ public class ClickHouseArrayValue<T> extends ClickHouseObjectValue<T[]> {
     @Override
     public String toSqlExpression() {
         T[] value = getValue();
-        if (value == null || value.length == 0) {
+        int len = value == null ? 0 : value.length;
+        if (len == 0) {
             return ClickHouseValues.EMPTY_ARRAY_EXPR;
         }
 
-        StringBuilder builder = new StringBuilder().append('[');
-        for (T v : value) {
-            builder.append(ClickHouseValues.convertToSqlExpression(v)).append(',');
-        }
-        if (builder.length() > 1) {
-            builder.setLength(builder.length() - 1);
+        StringBuilder builder = new StringBuilder().append('[')
+                .append(ClickHouseValues.convertToSqlExpression(value[0]));
+        for (int i = 1; i < len; i++) {
+            builder.append(',').append(ClickHouseValues.convertToSqlExpression(value[i]));
         }
         return builder.append(']').toString();
     }
@@ -491,7 +499,7 @@ public class ClickHouseArrayValue<T> extends ClickHouseObjectValue<T[]> {
     @Override
     @SuppressWarnings("unchecked")
     public ClickHouseArrayValue<T> update(ClickHouseValue value) {
-        if (value == null) {
+        if (value == null || value.isNullOrEmpty()) {
             return resetToNullOrEmpty();
         } else if (value instanceof ClickHouseArrayValue) {
             set(((ClickHouseArrayValue<T>) value).getValue());
@@ -546,5 +554,41 @@ public class ClickHouseArrayValue<T> extends ClickHouseObjectValue<T[]> {
     @Override
     public int hashCode() {
         return Arrays.deepHashCode(getValue());
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public ClickHouseArraySequence allocate(int length, Class<?> clazz, int level) {
+        if (length < 1) {
+            // resetToNullOrEmpty / resetToDefault will replace the value to Object[0]
+            if (!isNullOrEmpty() || getValue().getClass().getComponentType() != clazz) {
+                set((T[]) (clazz.isPrimitive()
+                        ? ClickHouseValues.createPrimitiveArray(clazz, 0, level)
+                        : ClickHouseValues.createObjectArray(clazz, 0, level)));
+            }
+        } else if (length() != length) {
+            set((T[]) (clazz.isPrimitive()
+                    ? ClickHouseValues.createPrimitiveArray(clazz, length, level)
+                    : ClickHouseValues.createObjectArray(clazz, length, level)));
+        }
+        return this;
+    }
+
+    @Override
+    public int length() {
+        return isNullOrEmpty() ? 0 : getValue().length;
+    }
+
+    @Override
+    public <V extends ClickHouseValue> V getValue(int index, V value) {
+        value.update(getValue()[index]);
+        return value;
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public ClickHouseArraySequence setValue(int index, ClickHouseValue value) {
+        getValue()[index] = (T) value.asRawObject();
+        return this;
     }
 }

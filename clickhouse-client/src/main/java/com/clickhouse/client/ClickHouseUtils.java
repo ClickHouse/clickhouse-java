@@ -7,7 +7,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
-import java.lang.reflect.Array;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.URLDecoder;
@@ -18,7 +17,6 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Deque;
 import java.util.LinkedHashMap;
@@ -42,7 +40,7 @@ public final class ClickHouseUtils {
     private static final String HOME_DIR;
 
     static {
-        HOME_DIR = System.getProperty("os.name").toLowerCase().contains("windows")
+        HOME_DIR = System.getProperty("os.name").toLowerCase(Locale.ROOT).contains("windows")
                 ? Paths.get(System.getenv("APPDATA"), "clickhouse").toFile().getAbsolutePath()
                 : Paths.get(System.getProperty("user.home"), ".clickhouse").toFile().getAbsolutePath();
     }
@@ -162,6 +160,27 @@ public final class ClickHouseUtils {
         }
 
         return service;
+    }
+
+    public static int indexOf(byte[] bytes, byte[] search) {
+        if (bytes == null || search == null) {
+            return -1;
+        }
+        int slen = search.length;
+        if (slen == 0) {
+            return 0;
+        }
+        int blen = bytes.length;
+
+        outer: for (int i = 0, len = blen - slen + 1; i < len; i++) {
+            for (int j = 0; j < slen; j++) {
+                if (bytes[i + j] != search[j]) {
+                    continue outer;
+                }
+            }
+            return i;
+        }
+        return -1;
     }
 
     public static ExecutorService newThreadPool(Object owner, int maxThreads, int maxRequests) {
@@ -725,7 +744,11 @@ public final class ClickHouseUtils {
      * 
      * @param str string
      * @return non-null map containing extracted key value pairs
+     * @deprecated will be removed in v0.3.3, please use
+     *             {@link com.clickhouse.client.config.ClickHouseOption#toKeyValuePairs(String)}
+     *             instead
      */
+    @Deprecated
     public static Map<String, String> getKeyValuePairs(String str) {
         if (str == null || str.isEmpty()) {
             return Collections.emptyMap();
@@ -1336,19 +1359,6 @@ public final class ClickHouseUtils {
         }
 
         return len;
-    }
-
-    @SuppressWarnings("unchecked")
-    protected static <T> T[] toArray(Class<T> clazz, Collection<T> list) {
-        int size = list == null ? 0 : list.size();
-        T[] array = (T[]) Array.newInstance(clazz, size);
-        if (size > 0) {
-            int i = 0;
-            for (T t : list) {
-                array[i++] = t;
-            }
-        }
-        return array;
     }
 
     private ClickHouseUtils() {

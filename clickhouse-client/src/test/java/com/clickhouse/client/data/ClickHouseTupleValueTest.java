@@ -6,7 +6,7 @@ import com.clickhouse.client.BaseClickHouseValueTest;
 
 public class ClickHouseTupleValueTest extends BaseClickHouseValueTest {
     @Test(groups = { "unit" })
-    public void testMultipleValues() throws Exception {
+    public void testMultipleValues() {
         // single type
         checkValue(ClickHouseTupleValue.of("one", "two"), UnsupportedOperationException.class, // isInfinity
                 UnsupportedOperationException.class, // isNan
@@ -78,7 +78,7 @@ public class ClickHouseTupleValueTest extends BaseClickHouseValueTest {
     }
 
     @Test(groups = { "unit" })
-    public void testSingleValue() throws Exception {
+    public void testSingleValue() {
         // null value
         checkNull(ClickHouseTupleValue.of().resetToNullOrEmpty(), false, 3, 9);
         checkNull(ClickHouseTupleValue.of(ClickHouseByteValue.of(0).asByte()).resetToNullOrEmpty(), false, 3, 9);

@@ -34,7 +34,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import java.util.TimeZone;
-import java.util.UUID;
 import java.util.Map.Entry;
 import java.util.concurrent.ExecutorService;
 
@@ -45,12 +44,19 @@ import javax.net.ssl.SSLContext;
 public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
     private static final Logger log = LoggerFactory.getLogger(HttpUrlConnectionImpl.class);
 
-    private static final byte[] HEADER_CONTENT_DISPOSITION = "Content-Disposition: form-data; name=\""
+    private static final byte[] HEADER_CONTENT_DISPOSITION = "content-disposition: form-data; name=\""
             .getBytes(StandardCharsets.US_ASCII);
-    private static final byte[] HEADER_OCTET_STREAM = "Content-Type: application/octet-stream\r\n"
+    private static final byte[] HEADER_OCTET_STREAM = "content-type: application/octet-stream\r\n"
             .getBytes(StandardCharsets.US_ASCII);
-    private static final byte[] HEADER_BINARY_ENCODING = "Content-Transfer-Encoding: binary\r\n\r\n"
+    private static final byte[] HEADER_BINARY_ENCODING = "content-transfer-encoding: binary\r\n\r\n"
             .getBytes(StandardCharsets.US_ASCII);
+
+    private static final byte[] ERROR_MSG_PREFIX = "Code: ".getBytes(StandardCharsets.US_ASCII);
+
+    private static final byte[] DOUBLE_DASH = new byte[] { '-', '-' };
+    private static final byte[] END_OF_NAME = new byte[] { '"', '\r', '\n' };
+    private static final byte[] LINE_PREFIX = new byte[] { '\r', '\n', '-', '-' };
+    private static final byte[] LINE_SUFFIX = new byte[] { '\r', '\n' };
 
     private static final byte[] SUFFIX_QUERY = "query\"\r\n\r\n".getBytes(StandardCharsets.US_ASCII);
     private static final byte[] SUFFIX_FORMAT = "_format\"\r\n\r\n".getBytes(StandardCharsets.US_ASCII);
@@ -123,10 +129,12 @@ public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
                     .orElse(null);
             HostnameVerifier verifier = config.getSslMode() == ClickHouseSslMode.STRICT
                     ? HttpsURLConnection.getDefaultHostnameVerifier()
-                    : (hostname, session) -> true;
+                    : (hostname, session) -> true; // NOSONAR
 
             secureConn.setHostnameVerifier(verifier);
-            secureConn.setSSLSocketFactory(sslContext.getSocketFactory());
+            if (sslContext != null) {
+                secureConn.setSSLSocketFactory(sslContext.getSocketFactory());
+            }
         }
 
         if (post) {
@@ -188,7 +196,9 @@ public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
             } catch (IOException e) {
                 log.debug("Failed to read error message[code=%s] from server [%s] due to: %s", errorCode, serverName,
                         e.getMessage());
-                errorMsg = new String(bytes, StandardCharsets.UTF_8);
+                int index = ClickHouseUtils.indexOf(bytes, ERROR_MSG_PREFIX);
+                errorMsg = index > 0 ? new String(bytes, index, bytes.length - index, StandardCharsets.UTF_8)
+                        : new String(bytes, StandardCharsets.UTF_8);
             }
 
             throw new IOException(errorMsg);
@@ -211,14 +221,14 @@ public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
     protected ClickHouseHttpResponse post(String sql, ClickHouseInputStream data, List<ClickHouseExternalTable> tables,
             String url, Map<String, String> headers, ClickHouseConfig config, Runnable postCloseAction)
             throws IOException {
-        Charset charset = StandardCharsets.US_ASCII;
+        Charset ascii = StandardCharsets.US_ASCII;
         byte[] boundary = null;
         if (tables != null && !tables.isEmpty()) {
-            String uuid = UUID.randomUUID().toString();
-            conn.setRequestProperty("Content-Type", "multipart/form-data; boundary=".concat(uuid));
-            boundary = uuid.getBytes(charset);
+            String uuid = rm.createUniqueId();
+            conn.setRequestProperty("content-type", "multipart/form-data; boundary=".concat(uuid));
+            boundary = uuid.getBytes(ascii);
         } else {
-            conn.setRequestProperty("Content-Type", "text/plain; charset=UTF-8");
+            conn.setRequestProperty("content-type", "text/plain; charset=UTF-8");
         }
         setHeaders(conn, headers);
 
@@ -235,34 +245,33 @@ public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
                 : (hasInput
                         ? ClickHouseClient.getAsyncRequestOutputStream(config, conn.getOutputStream(), null) // latch::countDown)
                         : ClickHouseClient.getRequestOutputStream(c, conn.getOutputStream(), null))) {
-            byte[] sqlBytes = hasFile ? new byte[0] : sql.getBytes(StandardCharsets.UTF_8);
+            Charset utf8 = StandardCharsets.UTF_8;
+            byte[] sqlBytes = hasFile ? new byte[0] : sql.getBytes(utf8);
             if (boundary != null) {
-                byte[] linePrefix = new byte[] { '\r', '\n', '-', '-' };
-                byte[] lineSuffix = new byte[] { '\r', '\n' };
-                out.writeBytes(linePrefix);
+                out.writeBytes(LINE_PREFIX);
                 out.writeBytes(boundary);
-                out.writeBytes(lineSuffix);
+                out.writeBytes(LINE_SUFFIX);
                 out.writeBytes(HEADER_CONTENT_DISPOSITION);
                 out.writeBytes(SUFFIX_QUERY);
                 out.writeBytes(sqlBytes);
                 for (ClickHouseExternalTable t : tables) {
-                    byte[] tableName = t.getName().getBytes(StandardCharsets.UTF_8);
+                    byte[] tableName = t.getName().getBytes(utf8);
                     for (int i = 0; i < 3; i++) {
-                        out.writeBytes(linePrefix);
+                        out.writeBytes(LINE_PREFIX);
                         out.writeBytes(boundary);
-                        out.writeBytes(lineSuffix);
+                        out.writeBytes(LINE_SUFFIX);
                         out.writeBytes(HEADER_CONTENT_DISPOSITION);
                         out.writeBytes(tableName);
                         if (i == 0) {
                             out.writeBytes(SUFFIX_FORMAT);
-                            out.writeBytes(t.getFormat().name().getBytes(charset));
+                            out.writeBytes(t.getFormat().name().getBytes(ascii));
                         } else if (i == 1) {
                             out.writeBytes(SUFFIX_STRUCTURE);
-                            out.writeBytes(t.getStructure().getBytes(StandardCharsets.UTF_8));
+                            out.writeBytes(t.getStructure().getBytes(utf8));
                         } else {
                             out.writeBytes(SUFFIX_FILENAME);
                             out.writeBytes(tableName);
-                            out.writeBytes(new byte[] { '"', '\r', '\n' });
+                            out.writeBytes(END_OF_NAME);
                             break;
                         }
                     }
@@ -270,10 +279,10 @@ public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
                     out.writeBytes(HEADER_BINARY_ENCODING);
                     ClickHouseInputStream.pipe(t.getContent(), out, c.getWriteBufferSize());
                 }
-                out.writeBytes(linePrefix);
+                out.writeBytes(LINE_PREFIX);
                 out.writeBytes(boundary);
-                out.writeBytes(new byte[] { '-', '-' });
-                out.writeBytes(lineSuffix);
+                out.writeBytes(DOUBLE_DASH);
+                out.writeBytes(LINE_SUFFIX);
             } else {
                 out.writeBytes(sqlBytes);
                 if (data != null && data.available() > 0) {
@@ -293,7 +302,7 @@ public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
 
     @Override
     public boolean ping(int timeout) {
-        String response = (String) config.getOption(ClickHouseHttpOption.DEFAULT_RESPONSE);
+        String response = config.getStrOption(ClickHouseHttpOption.DEFAULT_RESPONSE);
         String url = null;
         HttpURLConnection c = null;
         try {

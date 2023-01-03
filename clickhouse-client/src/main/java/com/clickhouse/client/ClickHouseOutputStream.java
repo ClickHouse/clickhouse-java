@@ -149,7 +149,7 @@ public abstract class ClickHouseOutputStream extends OutputStream {
     protected final ClickHouseFile file;
     protected final Runnable postCloseAction;
 
-    protected boolean closed;
+    protected volatile boolean closed;
 
     protected ClickHouseOutputStream(ClickHouseFile file, Runnable postCloseAction) {
         this.file = file != null ? file : ClickHouseFile.NULL;
@@ -259,6 +259,18 @@ public abstract class ClickHouseOutputStream extends OutputStream {
                 postCloseAction.run();
             }
         }
+    }
+
+    /**
+     * Writes a byte (true=1, false=0) into output stream.
+     *
+     * @param b boolean value to write
+     * @return current output stream
+     * @throws IOException when failed to write value into output stream, not able
+     *                     to sent all bytes, or opereate on a closed stream
+     */
+    public ClickHouseOutputStream writeBoolean(boolean b) throws IOException {
+        return writeByte(b ? (byte) 1 : (byte) 0);
     }
 
     /**

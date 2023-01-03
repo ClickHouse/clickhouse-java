@@ -4,8 +4,6 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
-import java.nio.charset.Charset;
-import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -19,7 +17,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.Map.Entry;
-
+import com.clickhouse.client.ClickHouseArraySequence;
 import com.clickhouse.client.ClickHouseChecker;
 import com.clickhouse.client.ClickHouseUtils;
 import com.clickhouse.client.ClickHouseValue;
@@ -29,7 +27,7 @@ import com.clickhouse.client.data.ClickHouseObjectValue;
 /**
  * Wrapper of {@code float[]}.
  */
-public class ClickHouseFloatArrayValue extends ClickHouseObjectValue<float[]> {
+public class ClickHouseFloatArrayValue extends ClickHouseObjectValue<float[]> implements ClickHouseArraySequence {
     private static final String TYPE_NAME = "float[]";
 
     /**
@@ -113,14 +111,18 @@ public class ClickHouseFloatArrayValue extends ClickHouseObjectValue<float[]> {
     }
 
     @Override
-    public String asString(int length, Charset charset) {
-        String str = Arrays.toString(getValue());
-        if (length > 0) {
-            ClickHouseChecker.notWithDifferentLength(str.getBytes(charset == null ? StandardCharsets.UTF_8 : charset),
-                    length);
+    public String asString() {
+        float[] value = getValue();
+        int len = value == null ? 0 : value.length;
+        if (len == 0) {
+            return ClickHouseValues.EMPTY_ARRAY_EXPR;
         }
 
-        return str;
+        StringBuilder builder = new StringBuilder().append('[').append(value[0]);
+        for (int i = 1; i < len; i++) {
+            builder.append(',').append(value[i]);
+        }
+        return builder.append(']').toString();
     }
 
     @Override
@@ -156,18 +158,7 @@ public class ClickHouseFloatArrayValue extends ClickHouseObjectValue<float[]> {
 
     @Override
     public String toSqlExpression() {
-        float[] value = getValue();
-        int len = value == null ? 0 : value.length;
-        if (len == 0) {
-            return ClickHouseValues.EMPTY_ARRAY_EXPR;
-        }
-
-        StringBuilder builder = new StringBuilder().append('[');
-        for (int i = 0; i < len; i++) {
-            builder.append(value[i]).append(',');
-        }
-        builder.setLength(builder.length() - 1);
-        return builder.append(']').toString();
+        return asString();
     }
 
     @Override
@@ -286,7 +277,7 @@ public class ClickHouseFloatArrayValue extends ClickHouseObjectValue<float[]> {
             return resetToNullOrEmpty();
         }
 
-        return set(Arrays.copyOf(value, len));
+        return set(value);
     }
 
     @Override
@@ -500,5 +491,32 @@ public class ClickHouseFloatArrayValue extends ClickHouseObjectValue<float[]> {
     @Override
     public int hashCode() {
         return Arrays.hashCode(getValue());
+    }
+
+    @Override
+    public ClickHouseArraySequence allocate(int length, Class<?> clazz, int level) {
+        if (length < 1) {
+            resetToDefault();
+        } else if (length() != length) {
+            set(new float[length]);
+        }
+        return this;
+    }
+
+    @Override
+    public int length() {
+        return isNullOrEmpty() ? 0 : getValue().length;
+    }
+
+    @Override
+    public <V extends ClickHouseValue> V getValue(int index, V value) {
+        value.update(getValue()[index]);
+        return value;
+    }
+
+    @Override
+    public ClickHouseArraySequence setValue(int index, ClickHouseValue value) {
+        getValue()[index] = value.asFloat();
+        return this;
     }
 }

@@ -4,6 +4,11 @@ on:
   schedule:
     # Build and publish nightly snapshot at 3:55pm every day
     - cron: "55 15 * * *"
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: "Pull request#"
+        required: false
 
 env:
   CHC_BRANCH: "develop"
@@ -14,17 +19,25 @@ jobs:
     if: ${{ startsWith(github.repository, 'ClickHouse/') }}
     name: "Build and Publish Nightly Snapshot"
     runs-on: "ubuntu-latest"
-
+    timeout-minutes: 20
     steps:
       - name: Check out Git repository
         uses: actions/checkout@v3
         with:
           ref: ${{ env.CHC_BRANCH }}
-      - name: Install JDK 11
-        uses: AdoptOpenJDK/install-jdk@v1
+      - name: Check out PR
+        run: |
+          git fetch --no-tags --prune --progress --no-recurse-submodules --depth=1 \
+            origin pull/${{ github.event.inputs.pr }}/merge:merged-pr && git checkout merged-pr
+        if: github.event.inputs.pr != ''
+      - name: Install JDK 8 and Maven
+        uses: actions/setup-java@v3
         with:
-          version: "11"
-          targets: "JDK11_HOME"
+          distribution: "temurin"
+          java-version: |
+            8
+            11
+          cache: 'maven'
       - name: Setup Toolchain
         shell: bash
         run: |
@@ -38,16 +51,11 @@ jobs:
                 <version>11</version>
               </provides>
               <configuration>
-                <jdkHome>${{ env.JDK11_HOME }}</jdkHome>
+                <jdkHome>${{ env.JAVA_HOME }}</jdkHome>
               </configuration>
             </toolchain>
           </toolchains>
           EOF
-      - name: Install JDK 8 and Maven
-        uses: actions/setup-java@v2
-        with:
-          distribution: "temurin"
-          java-version: 8
       - name: Update Configuration
         run: |
           find . -type f -name "pom.xml" -exec sed -i -e 's|${revision}|${{ env.CHC_VERSION }}-SNAPSHOT|g' \
@@ -59,6 +67,16 @@ jobs:
         with:
           maven_profiles: release
           maven_args: -q --batch-mode
+          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
+          gpg_passphrase: ${{ secrets.GPG_PASSPHRASE }}
+          nexus_username: ${{ secrets.SONATYPE_USER }}
+          nexus_password: ${{ secrets.SONATYPE_PASSWD }}
+      - name: Release R2DBC 0.9.1 Snapshot
+        uses: samuelmeuli/action-maven-publish@v1
+        with:
+          directory: clickhouse-r2dbc
+          maven_profiles: release
+          maven_args: -q --batch-mode -Dr2dbc-spi.version=0.9.1.RELEASE
           gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
           gpg_passphrase: ${{ secrets.GPG_PASSPHRASE }}
           nexus_username: ${{ secrets.SONATYPE_USER }}

@@ -88,8 +88,8 @@ public final class ClickHouseVersion implements Comparable<ClickHouseVersion>, S
      */
     public static ClickHouseVersion of(int yearOrMajor, int... more) {
         int len = more != null ? more.length : 0;
-        return new ClickHouseVersion(false, yearOrMajor, len > 0 ? more[0] : 0, len > 1 ? more[1] : 0,
-                len > 2 ? more[2] : 0);
+        return new ClickHouseVersion(false, yearOrMajor, len > 0 ? more[0] : 0,
+                len > 1 ? more[1] : 0, len > 2 ? more[2] : 0); // NOSONAR
     }
 
     /**
@@ -115,7 +115,7 @@ public final class ClickHouseVersion implements Comparable<ClickHouseVersion>, S
                 }
             }
         } else {
-            version = version.trim().toLowerCase();
+            version = version.trim().toLowerCase(Locale.ROOT);
 
             int index = Math.max(version.lastIndexOf(' '), version.lastIndexOf(':'));
             latest = STR_LATEST.equals(index == -1 ? version : version.substring(index + 1));

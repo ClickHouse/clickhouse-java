@@ -10,25 +10,26 @@ import com.clickhouse.client.ClickHouseUtils;
 
 public class ClickHouseResultSetMetaData extends JdbcWrapper implements ResultSetMetaData {
     public static ResultSetMetaData of(String database, String table, List<ClickHouseColumn> columns,
-            Map<String, Class<?>> typeMap)
-            throws SQLException {
+            JdbcTypeMapping mapper, Map<String, Class<?>> typeMap) throws SQLException {
         if (database == null || table == null || columns == null) {
             throw SqlExceptionUtils.clientError("Non-null database, table, and column list are required");
         }
 
-        return new ClickHouseResultSetMetaData(database, table, columns, typeMap);
+        return new ClickHouseResultSetMetaData(database, table, columns, mapper, typeMap);
     }
 
     private final String database;
     private final String table;
     private final List<ClickHouseColumn> columns;
+    private final JdbcTypeMapping mapper;
     private final Map<String, Class<?>> typeMap;
 
     protected ClickHouseResultSetMetaData(String database, String table, List<ClickHouseColumn> columns,
-            Map<String, Class<?>> typeMap) {
+            JdbcTypeMapping mapper, Map<String, Class<?>> typeMap) {
         this.database = database;
         this.table = table;
         this.columns = columns;
+        this.mapper = mapper;
         this.typeMap = typeMap;
     }
 
@@ -39,7 +40,8 @@ public class ClickHouseResultSetMetaData extends JdbcWrapper implements ResultSe
     protected ClickHouseColumn getColumn(int index) throws SQLException {
         if (index < 1 || index > columns.size()) {
             throw SqlExceptionUtils.clientError(
-                    ClickHouseUtils.format("Column index must between 1 and %d but we got %d", columns.size(), index));
+                    ClickHouseUtils.format("Column index must between 1 and %d but we got %d", columns.size() + 1,
+                            index));
         }
         return columns.get(index - 1);
     }
@@ -121,12 +123,12 @@ public class ClickHouseResultSetMetaData extends JdbcWrapper implements ResultSe
 
     @Override
     public int getColumnType(int column) throws SQLException {
-        return JdbcTypeMapping.toJdbcType(typeMap, getColumn(column));
+        return mapper.toSqlType(getColumn(column), typeMap);
     }
 
     @Override
     public String getColumnTypeName(int column) throws SQLException {
-        return getColumn(column).getOriginalTypeName();
+        return mapper.toNativeType(getColumn(column));
     }
 
     @Override
@@ -146,6 +148,6 @@ public class ClickHouseResultSetMetaData extends JdbcWrapper implements ResultSe
 
     @Override
     public String getColumnClassName(int column) throws SQLException {
-        return JdbcTypeMapping.toJavaClass(typeMap, getColumn(column)).getCanonicalName();
+        return mapper.toJavaClass(getColumn(column), typeMap).getCanonicalName();
     }
 }

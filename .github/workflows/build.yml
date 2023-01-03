@@ -3,13 +3,12 @@ name: Build
 on:
   push:
     branches:
+      - main
       - master
       - develop
-      - 0.2.x
     paths-ignore:
       - "**.md"
       - "docs/**"
-      - "examples/**"
       - "**/CHANGELOG"
 
   pull_request:
@@ -20,7 +19,6 @@ on:
     paths-ignore:
       - "**.md"
       - "docs/**"
-      - "examples/**"
       - "**/CHANGELOG"
 
   workflow_dispatch:
@@ -34,33 +32,94 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build:
+  compile:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        # most recent LTS releases as well as latest stable builds
-        clickhouse: ["21.8", "22.3", "latest"]
-        # http2 here represents http protocol + JDK HttpClient(http_connection_provider=HTTP_CLIENT)
-        protocol: ["http", "http2", "grpc"]
-        exclude:
-          - clickhouse: "21.8"
-            protocol: grpc
-      fail-fast: false
-    timeout-minutes: 30
-    name: Build against ClickHouse ${{ matrix.clickhouse }} (${{ matrix.protocol }})
+    timeout-minutes: 10
+    name: Compile using JDK 8
     steps:
-      - name: Check out Git repository
-        uses: actions/checkout@v2
+      - name: Check out repository
+        uses: actions/checkout@v3
       - name: Check out PR
         run: |
           git fetch --no-tags --prune --progress --no-recurse-submodules --depth=1 \
             origin pull/${{ github.event.inputs.pr }}/merge:merged-pr && git checkout merged-pr
         if: github.event.inputs.pr != ''
-      - name: Install JDK 11
-        uses: AdoptOpenJDK/install-jdk@v1
+      - name: Install JDK 8 and Maven
+        uses: actions/setup-java@v3
         with:
-          version: '11'
-          targets: 'JDK11_HOME'
+          distribution: 'temurin'
+          java-version: 8
+          cache: 'maven'
+      - name: Build and install libraries
+        run: mvn --batch-mode --show-version --strict-checksums --threads C1 -Dmaven.wagon.rto=30000 -DskipITs install
+      - name: Compile examples
+        run: for d in $(ls -d `pwd`/examples/*/); do cd $d && mvn clean compile; done
+
+  test-cli-client:
+    runs-on: ubuntu-latest
+    needs: compile
+    timeout-minutes: 10
+    name: CLI client against ClickHouse 22.8
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v3
+      - name: Check out PR
+        run: |
+          git fetch --no-tags --prune --progress --no-recurse-submodules --depth=1 \
+            origin pull/${{ github.event.inputs.pr }}/merge:merged-pr && git checkout merged-pr
+        if: github.event.inputs.pr != ''
+      - name: Install JDK 8 and Maven
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: 8
+          cache: 'maven'
+      - name: Install ClickHouse native command line
+        run: |
+          sudo apt-get update \
+            && sudo apt-get install -y apt-transport-https ca-certificates dirmngr \
+            && sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv 8919F6BD2B48D754 \
+            && echo "deb https://packages.clickhouse.com/deb lts main" | sudo tee /etc/apt/sources.list.d/clickhouse.list \
+            && sudo apt-get update && sudo apt-get install -y clickhouse-client \
+            && clickhouse client --version
+      - name: Test CLI client
+        run: |
+          mvn --also-make --batch-mode --projects clickhouse-cli-client -DclickhouseVersion=22.8 -DskipUTs verify
+      - name: Upload test results
+        uses: actions/upload-artifact@v2
+        if: failure()
+        with:
+          name: result ${{ github.job }}
+          path: |
+            **/target/failsafe-reports
+            **/target/surefire-reports
+
+  test-java-client:
+    runs-on: ubuntu-latest
+    needs: compile
+    strategy:
+      matrix:
+        # most recent LTS releases as well as latest stable builds
+        clickhouse: ["21.8", "22.3", "22.8", "latest"]
+      fail-fast: false
+    timeout-minutes: 15
+    name: Java client against ClickHouse ${{ matrix.clickhouse }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v3
+      - name: Check out PR
+        run: |
+          git fetch --no-tags --prune --progress --no-recurse-submodules --depth=1 \
+            origin pull/${{ github.event.inputs.pr }}/merge:merged-pr && git checkout merged-pr
+        if: github.event.inputs.pr != ''
+      - name: Install JDK 8 and Maven
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: |
+            8
+            11
+          cache: 'maven'
       - name: Setup Toolchain
         shell: bash
         run: |
@@ -74,24 +133,177 @@ jobs:
                 <version>11</version>
               </provides>
               <configuration>
-                <jdkHome>${{ env.JDK11_HOME }}</jdkHome>
+                <jdkHome>${{ env.JAVA_HOME }}</jdkHome>
               </configuration>
             </toolchain>
           </toolchains>
           EOF
+      - name: Test Java client
+        run: |
+          mvn --also-make --batch-mode --projects clickhouse-cli-client,clickhouse-grpc-client,clickhouse-http-client -Drelease -DclickhouseVersion=${{ matrix.clickhouse }} verify
+      - name: Upload test results
+        uses: actions/upload-artifact@v2
+        if: failure()
+        with:
+          name: result ${{ github.job }}
+          path: |
+            **/target/failsafe-reports
+            **/target/surefire-reports
+
+  test-jdbc-driver:
+    runs-on: ubuntu-latest
+    needs: compile
+    strategy:
+      matrix:
+        clickhouse: ["21.8", "22.3", "22.8", "latest"]
+        # http2 here represents http protocol + JDK HttpClient(http_connection_provider=HTTP_CLIENT)
+        protocol: ["http", "http2", "grpc"]
+        exclude:
+          - clickhouse: "21.8"
+            protocol: grpc
+      fail-fast: false
+    timeout-minutes: 15
+    name: JDBC driver against ClickHouse ${{ matrix.clickhouse }} (${{ matrix.protocol }})
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v3
+      - name: Check out PR
+        run: |
+          git fetch --no-tags --prune --progress --no-recurse-submodules --depth=1 \
+            origin pull/${{ github.event.inputs.pr }}/merge:merged-pr && git checkout merged-pr
+        if: github.event.inputs.pr != ''
+      - name: Install JDK 8 and Maven
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: |
+            8
+            11
+          cache: 'maven'
+      - name: Setup Toolchain
+        shell: bash
+        run: |
+          mkdir -p $HOME/.m2 \
+          && cat << EOF > $HOME/.m2/toolchains.xml
+          <?xml version="1.0" encoding="UTF8"?>
+          <toolchains>
+            <toolchain>
+              <type>jdk</type>
+              <provides>
+                <version>11</version>
+              </provides>
+              <configuration>
+                <jdkHome>${{ env.JAVA_HOME }}</jdkHome>
+              </configuration>
+            </toolchain>
+          </toolchains>
+          EOF
+      - name: Install Java client
+        run: mvn --also-make --batch-mode --projects clickhouse-cli-client,clickhouse-grpc-client,clickhouse-http-client -Drelease -DskipTests install
+      - name: Test JDBC driver
+        run: |
+          mvn --batch-mode --projects clickhouse-jdbc -Drelease -DclickhouseVersion=${{ matrix.clickhouse }} -Dprotocol=${{ matrix.protocol }} verify
+      - name: Upload test results
+        uses: actions/upload-artifact@v2
+        if: failure()
+        with:
+          name: result ${{ github.job }}
+          path: |
+            **/target/failsafe-reports
+            **/target/surefire-reports
+
+  test-r2dbc-driver:
+    runs-on: ubuntu-latest
+    needs: compile
+    strategy:
+      matrix:
+        clickhouse: ["21.8", "22.3", "22.8", "latest"]
+        # grpc is not fully supported, and http2 does not work in CI environment(due to limited threads?)
+        protocol: ["http"]
+        r2dbc: ["1.0.0.RELEASE", "0.9.1.RELEASE"]
+      fail-fast: false
+    timeout-minutes: 10
+    name: R2DBC ${{ matrix.r2dbc }} against ClickHouse ${{ matrix.clickhouse }} (${{ matrix.protocol }})
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v3
+      - name: Check out PR
+        run: |
+          git fetch --no-tags --prune --progress --no-recurse-submodules --depth=1 \
+            origin pull/${{ github.event.inputs.pr }}/merge:merged-pr && git checkout merged-pr
+        if: github.event.inputs.pr != ''
+      - name: Install JDK 8 and Maven
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: |
+            8
+            11
+          cache: 'maven'
+      - name: Setup Toolchain
+        shell: bash
+        run: |
+          mkdir -p $HOME/.m2 \
+          && cat << EOF > $HOME/.m2/toolchains.xml
+          <?xml version="1.0" encoding="UTF8"?>
+          <toolchains>
+            <toolchain>
+              <type>jdk</type>
+              <provides>
+                <version>11</version>
+              </provides>
+              <configuration>
+                <jdkHome>${{ env.JAVA_HOME }}</jdkHome>
+              </configuration>
+            </toolchain>
+          </toolchains>
+          EOF
+      - name: Install Java client
+        run: mvn --also-make --batch-mode --projects clickhouse-jdbc -Drelease -DskipTests install
+      - name: Test R2DBC ${{ matrix.r2dbc }}
+        run: |
+          mvn --batch-mode --projects clickhouse-r2dbc -Drelease -DclickhouseVersion=${{ matrix.clickhouse }} \
+            -D'r2dbc-spi.version=${{ matrix.r2dbc }}' -Dprotocol=${{ matrix.protocol }} verify
+      - name: Upload test results
+        uses: actions/upload-artifact@v2
+        if: failure()
+        with:
+          name: result ${{ github.job }}
+          path: |
+            **/target/failsafe-reports
+            **/target/surefire-reports
+
+  test-timezone-support:
+    runs-on: ubuntu-latest
+    needs: compile
+    strategy:
+      matrix:
+        serverTz: ["Asia/Chongqing", "America/Los_Angeles", "Etc/UTC", "Europe/Berlin", "Europe/Moscow"]
+        clientTz: ["Asia/Chongqing", "America/Los_Angeles", "Etc/UTC", "Europe/Berlin", "Europe/Moscow"]
+      fail-fast: false
+    timeout-minutes: 20
+    name: "TimeZone(C/S): ${{ matrix.clientTz }} vs. ${{ matrix.serverTz }}"
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v3
+      - name: Check out PR
+        run: |
+          git fetch --no-tags --prune --progress --no-recurse-submodules --depth=1 \
+            origin pull/${{ github.event.inputs.pr }}/merge:merged-pr && git checkout merged-pr
+        if: github.event.inputs.pr != ''
       - name: Install JDK 8 and Maven
         uses: actions/setup-java@v3
         with:
           distribution: 'temurin'
           java-version: 8
           cache: 'maven'
-      # or take below workaround as mentioned at https://github.com/actions/virtual-environments/issues/1499#issuecomment-689467080
-      # -Dhttp.keepAlive=false -Dmaven.wagon.http.pool=false -Dmaven.wagon.httpconnectionManager.ttlSeconds=120
-      - name: Check
-        run: mvn --batch-mode --update-snapshots -Drelease -DskipTests install
-      - name: Build
+      - name: Install Java client
+        run: mvn --also-make --batch-mode --projects clickhouse-cli-client,clickhouse-grpc-client,clickhouse-http-client -DskipTests install
+      - name: Test JDBC and R2DBC drivers
         run: |
-          mvn --batch-mode -Drelease -DclickhouseVersion=${{ matrix.clickhouse }} -Dprotocol=${{ matrix.protocol }} verify
+          mvn --batch-mode --projects clickhouse-jdbc,clickhouse-r2dbc -DclickhouseVersion=22.8 \
+            -DclickhouseTimezone=${{ matrix.serverTz }} -Duser.timezone=${{ matrix.clientTz }} \
+            -DskipUTs verify
       - name: Upload test results
         uses: actions/upload-artifact@v2
         if: failure()

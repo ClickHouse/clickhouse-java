@@ -46,7 +46,7 @@ public abstract class ClickHouseLoadBalancingPolicy implements Serializable {
 
         @Override
         protected void update(ClickHouseNodes manager, ClickHouseNode node, Status status) {
-            if (status != Status.HEALTHY && status != Status.FAULTY && status != Status.UNHEALTHY) {
+            if (status != Status.HEALTHY && status != Status.FAULTY) {
                 super.update(manager, node, status);
                 return;
             }
@@ -64,7 +64,7 @@ public abstract class ClickHouseLoadBalancingPolicy implements Serializable {
         private final Random rand;
 
         protected RandomPolicy() {
-            this.rand = new Random(System.currentTimeMillis());
+            this.rand = new Random(System.currentTimeMillis()); // NOSONAR
         }
 
         @Override
@@ -307,7 +307,6 @@ public abstract class ClickHouseLoadBalancingPolicy implements Serializable {
                     manager.nodes.add(node);
                 }
                 break;
-            case UNHEALTHY:
             case FAULTY:
                 manager.nodes.remove(node);
                 if (!manager.faultyNodes.contains(node)) {
@@ -316,7 +315,6 @@ public abstract class ClickHouseLoadBalancingPolicy implements Serializable {
                     manager.scheduleHealthCheck();
                 }
                 break;
-            case UNMANAGED:
             case STANDALONE:
                 boolean removed = manager.nodes.remove(node);
                 removed = manager.faultyNodes.remove(node) || removed;

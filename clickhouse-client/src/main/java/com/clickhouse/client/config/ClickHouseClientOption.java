@@ -26,6 +26,10 @@ public enum ClickHouseClientOption implements ClickHouseOption {
     AUTO_DISCOVERY("auto_discovery", false,
             "Whether the client should discover more nodes from system tables and/or clickhouse-keeper/zookeeper."),
     /**
+     * Custom server settings for all queries.
+     */
+    CUSTOM_SETTINGS("custom_settings", "", "Custom server settings for all queries."),
+    /**
      * Load balancing policy.
      */
     LOAD_BALANCING_POLICY("load_balancing_policy", "",
@@ -173,14 +177,6 @@ public enum ClickHouseClientOption implements ClickHouseOption {
     MAX_BUFFER_SIZE("max_buffer_size", 1024 * 1024 * 1024,
             "Maximum buffer size in byte can be used for streaming."),
     /**
-     * Maximum comression block size in byte, only useful when {@link #DECOMPRESS}
-     * is {@code true}.
-     *
-     * @deprecated will be removed in v0.3.3
-     */
-    @Deprecated
-    MAX_COMPRESS_BLOCK_SIZE("max_compress_block_size", 1024 * 1024, "Maximum comression block size in byte."),
-    /**
      * Maximum query execution time in seconds.
      */
     MAX_EXECUTION_TIME("max_execution_time", 0, "Maximum query execution time in seconds, 0 means no limit."),
@@ -198,7 +194,7 @@ public enum ClickHouseClientOption implements ClickHouseOption {
      * Maximum rows allowed in the result.
      */
     MAX_RESULT_ROWS("max_result_rows", 0L,
-            "Limit on the number of rows in the result."
+            "Limit on the number of rows in the result. "
                     + "Also checked for subqueries, and on remote servers when running parts of a distributed query."),
     /**
      * Maximum size of thread pool for each client.
@@ -239,13 +235,6 @@ public enum ClickHouseClientOption implements ClickHouseOption {
      * Server version.
      */
     SERVER_VERSION("server_version", "", "Server version."),
-    /**
-     * Server weight.
-     *
-     * @deprecated will be removed in v0.3.3
-     */
-    @Deprecated
-    SERVER_WEIGHT("server_weight", 1, "Server weight. Only will be considered in load balancing mode."),
     /**
      * Session id.
      */
@@ -290,11 +279,24 @@ public enum ClickHouseClientOption implements ClickHouseOption {
     TRANSACTION_TIMEOUT("transaction_timeout", 0,
             "Transaction timeout in seconds. 0 or negative number means same as session_timeout."),
     /**
+     * Whether to convert unsigned types to the next widest type(e.g. use
+     * {@code short} for UInt8 instead of {@code byte}, and {@code UnsignedLong} for
+     * UInt64).
+     */
+    WIDEN_UNSIGNED_TYPES("widen_unsigned_types", false,
+            "Whether to convert unsigned types to the next widest type(e.g. use short for UInt8 instead of byte, and UnsignedLong for UInt64)."),
+    /**
+     * Whether to support binary string. Enable this option to treat
+     * {@code FixedString} and {@code String} as byte array.
+     */
+    USE_BINARY_STRING("use_binary_string", false, "Whether to support binary string. "
+            + "Enable this option to treat FixedString and String as byte array."),
+    /**
      * Whether to use blocking queue for buffering.
      */
-    USE_BLOCKING_QUEUE("use_blocking_queue", true, "Whether to use blocking queue for buffering"),
+    USE_BLOCKING_QUEUE("use_blocking_queue", true, "Whether to use blocking queue for buffering."),
     /**
-     * Whether to use objects in array or not.
+     * Whether Object[] should be used instead of primitive arrays.
      */
     USE_OBJECTS_IN_ARRAYS("use_objects_in_arrays", false,
             "Whether Object[] should be used instead of primitive arrays."),
@@ -321,7 +323,13 @@ public enum ClickHouseClientOption implements ClickHouseOption {
      * false.
      */
     USE_TIME_ZONE("use_time_zone", "", "Time zone of all DateTime* values. "
-            + "Only used when use_server_time_zone is false. Empty value means client time zone.");
+            + "Only used when use_server_time_zone is false. Empty value means client time zone."),
+
+    /**
+     * Socket IP_TOS option which indicates IP package priority.
+     */
+    IP_TOS("socket_op_ip_tos", 0, "Socket IP_TOS option which indicates IP package priority.");
+
 
     private final String key;
     private final Serializable defaultValue;

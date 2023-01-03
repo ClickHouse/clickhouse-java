@@ -11,6 +11,7 @@ import java.util.UUID;
 
 import com.clickhouse.client.ClickHouseUtils;
 import com.clickhouse.client.config.ClickHouseClientOption;
+import com.clickhouse.client.data.UnsignedByte;
 
 import org.testng.Assert;
 import org.testng.annotations.Test;
@@ -24,13 +25,51 @@ public class ClickHouseConnectionTest extends JdbcIntegrationTest {
     @Test(groups = "integration")
     public void testCreateArray() throws SQLException {
         try (ClickHouseConnection conn = newConnection(new Properties())) {
-            Array array = conn.createArrayOf("Array(Int8)", null);
-            Assert.assertEquals(array.getArray(), new byte[0]);
+            Assert.assertThrows(SQLException.class, () -> conn.createArrayOf("Int8", null));
+            Assert.assertThrows(SQLException.class, () -> conn.createArrayOf("UInt8", null));
+
+            Array array = conn.createArrayOf("Nullable(Int8)", null);
+            Assert.assertEquals(array.getArray(), new Byte[0]);
+            array = conn.createArrayOf("Nullable(UInt8)", null);
+            Assert.assertEquals(array.getArray(), new UnsignedByte[0]);
+            array = conn.createArrayOf("Array(Int8)", null);
+            Assert.assertEquals(array.getArray(), new byte[0][]);
+            array = conn.createArrayOf("Array(UInt8)", null);
+            Assert.assertEquals(array.getArray(), new byte[0][]);
+            array = conn.createArrayOf("Array(Nullable(Int8))", null);
+            Assert.assertEquals(array.getArray(), new Byte[0][]);
+            array = conn.createArrayOf("Array(Nullable(UInt8))", null);
+            Assert.assertEquals(array.getArray(), new UnsignedByte[0][]);
+
+            array = conn.createArrayOf("Int8", new Byte[] { -1, 0, 1 });
+            Assert.assertEquals(array.getArray(), new byte[] { -1, 0, 1 });
+            array = conn.createArrayOf("UInt8", new Byte[] { -1, 0, 1 });
+            Assert.assertEquals(array.getArray(), new byte[] { -1, 0, 1 });
+
+            array = conn.createArrayOf("Nullable(Int8)", new Byte[] { -1, null, 1 });
+            Assert.assertEquals(array.getArray(), new Byte[] { -1, null, 1 });
+            array = conn.createArrayOf("Nullable(UInt8)", new Byte[] { -1, null, 1 });
+            Assert.assertEquals(array.getArray(), new Byte[] { -1, null, 1 });
+            array = conn.createArrayOf("Nullable(UInt8)",
+                    new UnsignedByte[] { UnsignedByte.MAX_VALUE, null, UnsignedByte.ONE });
+            Assert.assertEquals(array.getArray(),
+                    new UnsignedByte[] { UnsignedByte.MAX_VALUE, null, UnsignedByte.ONE });
+
+            array = conn.createArrayOf("Array(Int8)", new byte[][] { { -1, 0, 1 } });
+            Assert.assertEquals(array.getArray(), new byte[][] { { -1, 0, 1 } });
+            array = conn.createArrayOf("Array(UInt8)", new Byte[][] { { -1, 0, 1 } });
+            Assert.assertEquals(array.getArray(), new Byte[][] { { -1, 0, 1 } });
+
+            // invalid but works
+            array = conn.createArrayOf("Array(Int8)", new Byte[] { -1, 0, 1 });
+            Assert.assertEquals(array.getArray(), new Byte[] { -1, 0, 1 });
+            array = conn.createArrayOf("Array(UInt8)", new byte[][] { { -1, 0, 1 } });
+            Assert.assertEquals(array.getArray(), new byte[][] { { -1, 0, 1 } });
         }
     }
 
     @Test // (groups = "integration")
-    public void testAutoCommitMode() throws Exception {
+    public void testAutoCommitMode() throws SQLException {
         Properties props = new Properties();
         props.setProperty("transactionSupport", "true");
 
@@ -50,7 +89,7 @@ public class ClickHouseConnectionTest extends JdbcIntegrationTest {
     }
 
     @Test(groups = "integration")
-    public void testNonExistDatabase() throws Exception {
+    public void testNonExistDatabase() throws SQLException {
         String database = UUID.randomUUID().toString();
         Properties props = new Properties();
         props.setProperty(ClickHouseClientOption.DATABASE.getKey(), database);
@@ -199,7 +238,7 @@ public class ClickHouseConnectionTest extends JdbcIntegrationTest {
     }
 
     @Test // (groups = "integration")
-    public void testTransaction() throws Exception {
+    public void testTransaction() throws SQLException {
         testAutoCommit();
         testManualCommit();
         testNestedTransactions();
@@ -207,7 +246,7 @@ public class ClickHouseConnectionTest extends JdbcIntegrationTest {
     }
 
     @Test // (groups = "integration")
-    public void testAutoCommit() throws Exception {
+    public void testAutoCommit() throws SQLException {
         Properties props = new Properties();
         props.setProperty("transactionSupport", "true");
         String tableName = "test_jdbc_tx_auto_commit";
@@ -294,7 +333,7 @@ public class ClickHouseConnectionTest extends JdbcIntegrationTest {
     }
 
     @Test // (groups = "integration")
-    public void testManualCommit() throws Exception {
+    public void testManualCommit() throws SQLException {
         Properties props = new Properties();
         props.setProperty("autoCommit", "false");
         Properties txProps = new Properties();
@@ -397,7 +436,7 @@ public class ClickHouseConnectionTest extends JdbcIntegrationTest {
     }
 
     @Test // (groups = "integration")
-    public void testNestedTransactions() throws Exception {
+    public void testNestedTransactions() throws SQLException {
         Properties props = new Properties();
         props.setProperty("autoCommit", "false");
         props.setProperty("transactionSupport", "true");
@@ -436,7 +475,7 @@ public class ClickHouseConnectionTest extends JdbcIntegrationTest {
     }
 
     @Test // (groups = "integration")
-    public void testParallelTransactions() throws Exception {
+    public void testParallelTransactions() throws SQLException {
         Properties props = new Properties();
         props.setProperty("autoCommit", "false");
         props.setProperty("transactionSupport", "true");

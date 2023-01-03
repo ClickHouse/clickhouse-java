@@ -1,5 +1,7 @@
 package com.clickhouse.client;
 
+import java.util.Locale;
+
 /**
  * Supported compression algoritms.
  */
@@ -90,7 +92,7 @@ public enum ClickHouseCompression {
 
         int index = 0;
         if (file != null && (index = file.lastIndexOf('.')) > 0) {
-            String ext = file.substring(index + 1).toLowerCase();
+            String ext = file.substring(index + 1).toLowerCase(Locale.ROOT);
             for (ClickHouseCompression c : values()) {
                 if (c.fileExt.equals(ext)) {
                     compression = c;

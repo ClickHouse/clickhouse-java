@@ -36,7 +36,7 @@ public final class SqlExceptionUtils {
         Throwable cause = e.getCause();
         if (cause instanceof ClickHouseException) {
             return handle((ClickHouseException) cause);
-        } else if (e instanceof SQLException) {
+        } else if (cause instanceof SQLException) {
             return (SQLException) cause;
         } else if (cause == null) {
             cause = e;
@@ -115,8 +115,8 @@ public final class SqlExceptionUtils {
             return (BatchUpdateException) e;
         } else if (cause instanceof ClickHouseException) {
             return batchUpdateError(cause, updateCounts);
-        } else if (e instanceof SQLException) {
-            SQLException sqlExp = (SQLException) e;
+        } else if (cause instanceof SQLException) {
+            SQLException sqlExp = (SQLException) cause;
             return new BatchUpdateException(sqlExp.getMessage(), sqlExp.getSQLState(), sqlExp.getErrorCode(),
                     updateCounts, null);
         } else if (cause == null) {
@@ -127,11 +127,11 @@ public final class SqlExceptionUtils {
     }
 
     public static BatchUpdateException queryInBatchError(int[] updateCounts) {
-        return new BatchUpdateException("Query is not allow in batch update", SQL_STATE_CLIENT_ERROR, updateCounts);
+        return new BatchUpdateException("Query is not allowed in batch update", SQL_STATE_CLIENT_ERROR, updateCounts);
     }
 
     public static BatchUpdateException queryInBatchError(long[] updateCounts) {
-        return new BatchUpdateException("Query is not allow in batch update", SQL_STATE_CLIENT_ERROR, 0, updateCounts,
+        return new BatchUpdateException("Query is not allowed in batch update", SQL_STATE_CLIENT_ERROR, 0, updateCounts,
                 null);
     }
 

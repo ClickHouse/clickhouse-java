@@ -1,6 +1,5 @@
 package com.clickhouse.client;
 
-import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -79,19 +78,11 @@ public abstract class BaseClickHouseValueTest {
             Assert.assertNull(v.asObject());
             Assert.assertNull(v.asObject(Object.class));
             Assert.assertNull(v.asString());
-            Assert.assertNull(v.asString(StandardCharsets.UTF_16));
-            Assert.assertNull(v.asString(1));
-            Assert.assertNull(v.asString(1, StandardCharsets.UTF_16));
             Assert.assertEquals(v.toSqlExpression(), ClickHouseValues.NULL_EXPR);
         } else {
             Assert.assertNotNull(v.asObject());
             Assert.assertNotNull(v.asObject(Object.class));
             Assert.assertNotNull(v.asString());
-            Assert.assertNotNull(v.asString(StandardCharsets.UTF_16));
-            Assert.assertNotNull(v.asString(v.asString().length()));
-            Assert.assertNotNull(
-                    v.asString(v.asString(StandardCharsets.UTF_16).getBytes(StandardCharsets.UTF_16).length,
-                            StandardCharsets.UTF_16));
             Assert.assertNotNull(v.toSqlExpression());
             Assert.assertNotEquals(v.toSqlExpression(), ClickHouseValues.NULL_EXPR);
         }

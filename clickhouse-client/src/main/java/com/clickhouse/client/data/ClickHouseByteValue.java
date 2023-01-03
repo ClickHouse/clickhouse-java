@@ -2,75 +2,225 @@ package com.clickhouse.client.data;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
-import java.nio.charset.Charset;
-import java.nio.charset.StandardCharsets;
-import com.clickhouse.client.ClickHouseChecker;
+
 import com.clickhouse.client.ClickHouseValue;
 import com.clickhouse.client.ClickHouseValues;
 
 /**
- * Wraper class of byte.
+ * Wrapper class of {@code byte}.
  */
 public class ClickHouseByteValue implements ClickHouseValue {
     /**
-     * Create a new instance representing null value.
+     * Unsigned version of {@code ClickHouseByteValue}.
+     */
+    static final class UnsignedByteValue extends ClickHouseByteValue {
+        protected UnsignedByteValue(boolean isNull, byte value) {
+            super(isNull, value);
+        }
+
+        @Override
+        public short asShort() {
+            return (short) (0xFF & getValue());
+        }
+
+        @Override
+        public int asInteger() {
+            return 0xFF & getValue();
+        }
+
+        @Override
+        public long asLong() {
+            return 0xFFL & getValue();
+        }
+
+        @Override
+        public BigInteger asBigInteger() {
+            return isNullOrEmpty() ? null : BigInteger.valueOf(asLong());
+        }
+
+        @Override
+        public float asFloat() {
+            return asInteger();
+        }
+
+        @Override
+        public double asDouble() {
+            return asLong();
+        }
+
+        @Override
+        public BigDecimal asBigDecimal(int scale) {
+            return isNullOrEmpty() ? null : BigDecimal.valueOf(asLong(), scale);
+        }
+
+        @Override
+        public Object asObject() {
+            return isNullOrEmpty() ? null : UnsignedByte.valueOf(getValue());
+        }
+
+        @Override
+        public String asString() {
+            return isNullOrEmpty() ? null : Integer.toString(asInteger());
+        }
+
+        @Override
+        public ClickHouseByteValue copy(boolean deep) {
+            return new UnsignedByteValue(isNullOrEmpty(), getValue());
+        }
+
+        @Override
+        public String toSqlExpression() {
+            return isNullOrEmpty() ? ClickHouseValues.NULL_EXPR : Integer.toString(asInteger());
+        }
+
+        @Override
+        public ClickHouseByteValue update(BigInteger value) {
+            return value == null ? resetToNullOrEmpty() : set(false, value.byteValue());
+        }
+
+        @Override
+        public ClickHouseByteValue update(BigDecimal value) {
+            return value == null ? resetToNullOrEmpty() : set(false, value.byteValue());
+        }
+
+        @Override
+        public ClickHouseByteValue update(String value) {
+            return value == null ? resetToNullOrEmpty() : set(false, (byte) UnsignedByte.valueOf(value).byteValue());
+        }
+    }
+
+    /**
+     * Creates a new instance representing null {@code Int8} value.
      *
      * @return new instance representing null value
      */
     public static ClickHouseByteValue ofNull() {
-        return ofNull(null);
+        return ofNull(null, false);
     }
 
     /**
-     * Update given value to null or create a new instance if {@code ref} is null.
+     * Creates a new instance representing null {@code UInt8} value.
+     *
+     * @return new instance representing null value
+     */
+    public static ClickHouseByteValue ofUnsignedNull() {
+        return ofNull(null, true);
+    }
+
+    /**
+     * Creates a new instance representing null value.
+     *
+     * @param unsigned true if the value is unsigned; false otherwise
+     * @return new instance representing null value
+     */
+    public static ClickHouseByteValue ofNull(boolean unsigned) {
+        return ofNull(null, unsigned);
+    }
+
+    /**
+     * Updates the given value to null or creates a new instance when {@code ref} is
+     * null.
      * 
-     * @param ref object to update, could be null
+     * @param ref      object to update, could be null
+     * @param unsigned true if the value is unsigned; false otherwise
      * @return same object as {@code ref} or a new instance if it's null
      */
-    public static ClickHouseByteValue ofNull(ClickHouseValue ref) {
+    public static ClickHouseByteValue ofNull(ClickHouseValue ref, boolean unsigned) {
+        if (unsigned) {
+            return ref instanceof UnsignedByteValue ? ((UnsignedByteValue) ref).set(true, (byte) 0)
+                    : new UnsignedByteValue(true, (byte) 0);
+        }
         return ref instanceof ClickHouseByteValue ? ((ClickHouseByteValue) ref).set(true, (byte) 0)
                 : new ClickHouseByteValue(true, (byte) 0);
     }
 
     /**
-     * Wrap the given value.
+     * Wraps the given {@code Int8} value.
      *
      * @param value value
      * @return object representing the value
      */
     public static ClickHouseByteValue of(byte value) {
-        return of(null, value);
+        return of(null, value, false);
     }
 
     /**
-     * Wrap the given value.
+     * Wraps the given {@code UInt8} value.
+     *
+     * @param value value
+     * @return object representing the value
+     */
+    public static ClickHouseByteValue ofUnsigned(byte value) {
+        return of(null, value, true);
+    }
+
+    /**
+     * Wraps the given value.
+     *
+     * @param value    value
+     * @param unsigned true if {@code value} is unsigned; false otherwise
+     * @return object representing the value
+     */
+    public static ClickHouseByteValue of(byte value, boolean unsigned) {
+        return of(null, value, unsigned);
+    }
+
+    /**
+     * Wraps the given {@code Int8} value.
      *
      * @param value value
      * @return object representing the value
      */
     public static ClickHouseByteValue of(int value) {
-        return of(null, (byte) value);
+        return of(null, (byte) value, false);
     }
 
     /**
-     * Wrap the given value.
+     * Wraps the given {@code UInt8} value.
      *
      * @param value value
      * @return object representing the value
      */
-    public static ClickHouseByteValue of(Number value) {
-        return value == null ? ofNull(null) : of(null, value.byteValue());
+    public static ClickHouseByteValue ofUnsigned(int value) {
+        return of(null, (byte) value, true);
     }
 
     /**
-     * Update value of the given object or create a new instance if {@code ref} is
-     * null.
+     * Wraps the given value.
      *
-     * @param ref   object to update, could be null
-     * @param value value
+     * @param value    value
+     * @param unsigned true if {@code value} is unsigned; false otherwise
+     * @return object representing the value
+     */
+    public static ClickHouseByteValue of(int value, boolean unsigned) {
+        return of(null, (byte) value, unsigned);
+    }
+
+    /**
+     * Wraps the given value.
+     *
+     * @param value    value
+     * @param unsigned true if {@code value} is unsigned; false otherwise
+     * @return object representing the value
+     */
+    public static ClickHouseByteValue of(Number value, boolean unsigned) {
+        return value == null ? ofNull(null, unsigned) : of(null, value.byteValue(), unsigned);
+    }
+
+    /**
+     * Updates value of the given object or create a new instance when {@code ref}
+     * is null.
+     *
+     * @param ref      object to update, could be null
+     * @param value    value
+     * @param unsigned true if {@code value} is unsigned; false otherwise
      * @return same object as {@code ref} or a new instance if it's null
      */
-    public static ClickHouseByteValue of(ClickHouseValue ref, byte value) {
+    public static ClickHouseByteValue of(ClickHouseValue ref, byte value, boolean unsigned) {
+        if (unsigned) {
+            return ref instanceof UnsignedByteValue ? ((UnsignedByteValue) ref).set(false, value)
+                    : new UnsignedByteValue(false, value);
+        }
         return ref instanceof ClickHouseByteValue ? ((ClickHouseByteValue) ref).set(false, value)
                 : new ClickHouseByteValue(false, value);
     }
@@ -82,7 +232,7 @@ public class ClickHouseByteValue implements ClickHouseValue {
         set(isNull, value);
     }
 
-    protected ClickHouseByteValue set(boolean isNull, byte value) {
+    protected final ClickHouseByteValue set(boolean isNull, byte value) {
         this.isNull = isNull;
         this.value = isNull ? (byte) 0 : value;
 
@@ -94,7 +244,7 @@ public class ClickHouseByteValue implements ClickHouseValue {
      *
      * @return value
      */
-    public byte getValue() {
+    public final byte getValue() {
         return value;
     }
 
@@ -104,7 +254,7 @@ public class ClickHouseByteValue implements ClickHouseValue {
     }
 
     @Override
-    public boolean isNullOrEmpty() {
+    public final boolean isNullOrEmpty() {
         return isNull;
     }
 
@@ -154,18 +304,8 @@ public class ClickHouseByteValue implements ClickHouseValue {
     }
 
     @Override
-    public String asString(int length, Charset charset) {
-        if (isNull) {
-            return null;
-        }
-
-        String str = String.valueOf(value);
-        if (length > 0) {
-            ClickHouseChecker.notWithDifferentLength(str.getBytes(charset == null ? StandardCharsets.UTF_8 : charset),
-                    length);
-        }
-
-        return str;
+    public String asString() {
+        return isNull ? null : Byte.toString(value);
     }
 
     @Override
@@ -180,7 +320,7 @@ public class ClickHouseByteValue implements ClickHouseValue {
 
     @Override
     public String toSqlExpression() {
-        return isNull ? ClickHouseValues.NULL_EXPR : String.valueOf(value);
+        return isNull ? ClickHouseValues.NULL_EXPR : Byte.toString(value);
     }
 
     @Override
@@ -240,7 +380,7 @@ public class ClickHouseByteValue implements ClickHouseValue {
 
     @Override
     public ClickHouseByteValue update(ClickHouseValue value) {
-        return value == null ? resetToNullOrEmpty() : set(false, value.asByte());
+        return value == null || value.isNullOrEmpty() ? resetToNullOrEmpty() : set(false, value.asByte());
     }
 
     @Override

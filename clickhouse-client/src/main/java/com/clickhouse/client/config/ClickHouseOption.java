@@ -1,9 +1,14 @@
 package com.clickhouse.client.config;
 
 import java.io.Serializable;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.TimeZone;
+
+import com.clickhouse.client.ClickHouseChecker;
 
 /**
  * This defines a configuration option. To put it in a nutshell, an option is
@@ -12,40 +17,95 @@ import java.util.TimeZone;
  */
 public interface ClickHouseOption extends Serializable {
     /**
+     * Converts given string to key value pairs.
+     * 
+     * @param str string
+     * @return non-null key value pairs
+     */
+    public static Map<String, String> toKeyValuePairs(String str) {
+        if (str == null || str.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        Map<String, String> map = new LinkedHashMap<>();
+        String key = null;
+        StringBuilder builder = new StringBuilder();
+        for (int i = 0, len = str.length(); i < len; i++) {
+            char ch = str.charAt(i);
+            if (ch == '\\' && i + 1 < len) {
+                ch = str.charAt(++i);
+                builder.append(ch);
+                continue;
+            }
+
+            if (Character.isWhitespace(ch)) {
+                if (builder.length() > 0) {
+                    builder.append(ch);
+                }
+            } else if (ch == '=' && key == null) {
+                key = builder.toString().trim();
+                builder.setLength(0);
+            } else if (ch == ',' && key != null) {
+                String value = builder.toString().trim();
+                builder.setLength(0);
+                if (!key.isEmpty() && !value.isEmpty()) {
+                    map.put(key, value);
+                }
+                key = null;
+            } else {
+                builder.append(ch);
+            }
+        }
+
+        if (key != null && builder.length() > 0) {
+            String value = builder.toString().trim();
+            if (!key.isEmpty() && !value.isEmpty()) {
+                map.put(key, value);
+            }
+        }
+
+        return Collections.unmodifiableMap(map);
+    }
+
+    /**
      * Converts given string to a typed value.
      *
      * @param <T>   type of the value
      * @param value value in string format
      * @param clazz non-null class of the value
-     * @return typed value
+     * @return non-null typed value
      */
     @SuppressWarnings("unchecked")
-    static <T extends Serializable> T fromString(String value, Class<T> clazz) {
-        if (value == null || clazz == null) {
-            throw new IllegalArgumentException("Non-null value and class are required");
+    public static <T extends Serializable> T fromString(String value, Class<T> clazz) {
+        if (clazz == null) {
+            throw new IllegalArgumentException("Non-null value type is required");
+        } else if (value == null) {
+            value = "";
         }
 
         T result;
         if (clazz == boolean.class || clazz == Boolean.class) {
             final Boolean boolValue;
-            if ("1".equals(value) || "0".equals(value)) {
+            if (value.isEmpty()) {
+                boolValue = Boolean.FALSE;
+            } else if (value.length() == 1) {
                 boolValue = "1".equals(value);
             } else {
                 boolValue = Boolean.valueOf(value);
             }
-            result = clazz.cast(boolValue);
+            result = (T) boolValue;
         } else if (byte.class == clazz || Byte.class == clazz) {
-            result = clazz.cast(value.isEmpty() ? Byte.valueOf((byte) 0) : Byte.valueOf(value));
+            result = (T) (value.isEmpty() ? Byte.valueOf((byte) 0) : Byte.valueOf(value));
         } else if (short.class == clazz || Short.class == clazz) {
-            result = clazz.cast(value.isEmpty() ? Short.valueOf((short) 0) : Short.valueOf(value));
+            result = (T) (value.isEmpty() ? Short.valueOf((short) 0) : Short.valueOf(value));
         } else if (int.class == clazz || Integer.class == clazz) {
-            result = clazz.cast(value.isEmpty() ? Integer.valueOf(0) : Integer.valueOf(value));
+            result = (T) (value.isEmpty() ? Integer.valueOf(0) : Integer.valueOf(value));
         } else if (long.class == clazz || Long.class == clazz) {
-            result = clazz.cast(value.isEmpty() ? Long.valueOf(0L) : Long.valueOf(value));
+            result = (T) (value.isEmpty() ? Long.valueOf(0L) : Long.valueOf(value));
         } else if (float.class == clazz || Float.class == clazz) {
-            result = clazz.cast(value.isEmpty() ? Float.valueOf(0F) : Float.valueOf(value));
+            result = (T) (value.isEmpty() ? Float.valueOf(0F) : Float.valueOf(value));
         } else if (double.class == clazz || Double.class == clazz) {
-            result = clazz.cast(value.isEmpty() ? Double.valueOf(0D) : Double.valueOf(value));
+            result = (T) (value.isEmpty() ? Double.valueOf(0D) : Double.valueOf(value));
         } else if (Enum.class.isAssignableFrom(clazz)) {
             Enum enumValue = null;
             try {
@@ -63,12 +123,35 @@ public interface ClickHouseOption extends Serializable {
             } else {
                 result = (T) enumValue;
             }
+        } else if (Map.class.isAssignableFrom(clazz)) { // treat as Map<String, String> & Serializable
+            result = (T) toKeyValuePairs(value);
         } else if (TimeZone.class.isAssignableFrom(clazz)) {
             result = (T) TimeZone.getTimeZone(value);
         } else {
             result = clazz.cast(value);
         }
         return result;
+    }
+
+    /**
+     * Converts given string to typed value. When {@code value} is null or blank,
+     * {@code defaultValue} will be returned.
+     *
+     * @param <T>          type of the value
+     * @param value        value in string format
+     * @param defaultValue non-null default value
+     * @return non-null typed value
+     */
+    @SuppressWarnings("unchecked")
+    public static <T extends Serializable> T fromString(String value, T defaultValue) {
+        if (defaultValue == null) {
+            throw new IllegalArgumentException("Non-null default value is required");
+        }
+        if (ClickHouseChecker.isNullOrBlank(value)) {
+            return defaultValue;
+        }
+
+        return (T) fromString(value, defaultValue.getClass());
     }
 
     /**

@@ -1,12 +1,12 @@
 package com.clickhouse.client.grpc;
 
 import java.io.IOException;
+import java.io.Serializable;
 import java.net.SocketTimeoutException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
-import java.util.UUID;
 import java.util.Map.Entry;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
@@ -80,7 +80,7 @@ public class ClickHouseGrpcClient extends AbstractClient<ManagedChannel> {
         builder.setOutputCompressionType(outputCompression.encoding());
 
         // builder.setNextQueryInfo(true);
-        for (Entry<String, Object> s : request.getSettings().entrySet()) {
+        for (Entry<String, Serializable> s : request.getSettings().entrySet()) {
             builder.putSettings(s.getKey(), String.valueOf(s.getValue()));
         }
 
@@ -129,7 +129,7 @@ public class ClickHouseGrpcClient extends AbstractClient<ManagedChannel> {
             }
 
             if (ClickHouseChecker.isNullOrEmpty(builder.getSessionId())) {
-                builder.setSessionId(UUID.randomUUID().toString());
+                builder.setSessionId(request.getManager().createSessionId());
             }
 
             // builder.getSessionTimeout()
@@ -222,7 +222,7 @@ public class ClickHouseGrpcClient extends AbstractClient<ManagedChannel> {
             throw ClickHouseException.of(e, sealedRequest.getServer());
         }
 
-        ClickHouseResponse response = new ClickHouseGrpcResponse(sealedRequest.getConfig(),
+        ClickHouseResponse response = new ClickHouseGrpcResponse(sealedRequest.getConfig(), // NOSONAR
                 sealedRequest.getSettings(), responseObserver);
         Throwable cause = responseObserver.getError();
         if (cause != null) {
@@ -239,7 +239,7 @@ public class ClickHouseGrpcClient extends AbstractClient<ManagedChannel> {
 
         Result result = stub.executeQuery(convert(sealedRequest));
 
-        ClickHouseResponse response = new ClickHouseGrpcResponse(sealedRequest.getConfig(),
+        ClickHouseResponse response = new ClickHouseGrpcResponse(sealedRequest.getConfig(), // NOSONAR
                 sealedRequest.getSettings(), result);
         if (result.hasException()) {
             throw new ClickHouseException(result.getException().getCode(), result.getException().getDisplayText(),

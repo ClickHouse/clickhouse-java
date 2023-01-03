@@ -13,7 +13,10 @@ import java.net.URL;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -27,6 +30,7 @@ import com.clickhouse.client.stream.BlockingInputStream;
 import com.clickhouse.client.stream.DeferredInputStream;
 import com.clickhouse.client.stream.EmptyInputStream;
 import com.clickhouse.client.stream.Lz4InputStream;
+import com.clickhouse.client.stream.RestrictedInputStream;
 import com.clickhouse.client.stream.IterableByteArrayInputStream;
 import com.clickhouse.client.stream.IterableByteBufferInputStream;
 import com.clickhouse.client.stream.IterableMultipleInputStream;
@@ -41,23 +45,6 @@ import com.clickhouse.client.stream.WrappedInputStream;
  * class is also responsible for creating various input stream as needed.
  */
 public abstract class ClickHouseInputStream extends InputStream {
-    /**
-     * Empty byte array.
-     *
-     * @deprecated will be removed in v0.3.3, please use
-     *             {@link ClickHouseByteBuffer#EMPTY_BYTES} instead
-     */
-    @Deprecated
-    public static final byte[] EMPTY_BYTES = ClickHouseByteBuffer.EMPTY_BYTES;
-    /**
-     * Empty and read-only byte buffer.
-     *
-     * @deprecated will be removed in v0.3.3, please use
-     *             {@link ClickHouseByteBuffer#EMPTY_BUFFER} instead
-     */
-    @Deprecated
-    public static final ByteBuffer EMPTY_BUFFER = ClickHouseByteBuffer.EMPTY_BUFFER;
-
     protected static final String ERROR_INCOMPLETE_READ = "Reached end of input stream after reading %d of %d bytes";
     protected static final String ERROR_NULL_BYTES = "Non-null byte array is required";
     protected static final String ERROR_REUSE_BUFFER = "Please pass a different byte array instead of the same internal buffer for reading";
@@ -99,6 +86,29 @@ public abstract class ClickHouseInputStream extends InputStream {
             }
         }
         return chInput;
+    }
+
+    /**
+     * Wraps the given input stream with length limitation. Please pay attention
+     * that calling close() method of the wrapper will never close the inner input
+     * stream.
+     *
+     * @param input           non-null input stream
+     * @param bufferSize      buffer size
+     * @param length          maximum bytes can be read from the input
+     * @param postCloseAction custom action will be performed right after closing
+     *                        the wrapped input stream
+     * @return non-null wrapped input stream
+     */
+    public static ClickHouseInputStream wrap(InputStream input, int bufferSize, long length, Runnable postCloseAction) {
+        if (input instanceof RestrictedInputStream) {
+            RestrictedInputStream ris = (RestrictedInputStream) input;
+            if (ris.getRemaining() == length) {
+                return ris;
+            }
+        }
+
+        return new RestrictedInputStream(null, input, bufferSize, length, postCloseAction);
     }
 
     /**
@@ -146,7 +156,7 @@ public abstract class ClickHouseInputStream extends InputStream {
      */
     public static ClickHouseInputStream of(ClickHouseDeferredValue<InputStream> deferredInput, int bufferSize,
             Runnable postCloseAction) {
-        return new WrappedInputStream(null, new DeferredInputStream(deferredInput), bufferSize, postCloseAction);
+        return new WrappedInputStream(null, new DeferredInputStream(deferredInput), bufferSize, postCloseAction); // NOSONAR
     }
 
     /**
@@ -474,7 +484,7 @@ public abstract class ClickHouseInputStream extends InputStream {
             }
         } else {
             try {
-                tmp = File.createTempFile("chc", "data");
+                tmp = Files.createTempFile("chc", "data").toFile();
                 tmp.deleteOnExit();
             } catch (IOException e) {
                 throw new UncheckedIOException("Failed to create temp file", e);
@@ -521,15 +531,20 @@ public abstract class ClickHouseInputStream extends InputStream {
      * Optional post close action.
      */
     protected final Runnable postCloseAction;
+    /**
+     * User data shared between multiple calls.
+     */
+    protected final Map<String, Object> userData;
 
-    protected boolean closed;
+    protected volatile boolean closed;
+
     protected OutputStream copyTo;
 
     protected ClickHouseInputStream(ClickHouseFile file, OutputStream copyTo, Runnable postCloseAction) {
         this.byteBuffer = ClickHouseByteBuffer.newInstance();
         this.file = file != null ? file : ClickHouseFile.NULL;
         this.postCloseAction = postCloseAction;
-
+        this.userData = new HashMap<>();
         this.closed = false;
         this.copyTo = copyTo;
     }
@@ -567,6 +582,37 @@ public abstract class ClickHouseInputStream extends InputStream {
     }
 
     /**
+     * Gets user data associated with this input stream.
+     *
+     * @param key key
+     * @return value, could be null
+     */
+    public final Object getUserData(String key) {
+        return userData.get(key);
+    }
+
+    /**
+     * Removes user data.
+     *
+     * @param key key
+     * @return removed user data, could be null
+     */
+    public final Object removeUserData(String key) {
+        return userData.remove(key);
+    }
+
+    /**
+     * Sets user data.
+     *
+     * @param key   key
+     * @param value value
+     * @return overidded value, could be null
+     */
+    public final Object setUserData(String key, Object value) {
+        return userData.put(key, value);
+    }
+
+    /**
      * Peeks one byte. It's similar as {@link #read()} except it never changes
      * cursor.
      *
@@ -596,8 +642,8 @@ public abstract class ClickHouseInputStream extends InputStream {
      * @throws IOException when failed to read value from input stream or reached
      *                     end of the stream
      */
-    public int readUnsignedByte() throws IOException {
-        return 0xFF & readByte();
+    public short readUnsignedByte() throws IOException {
+        return (short) (0xFF & readByte());
     }
 
     /**
@@ -614,6 +660,24 @@ public abstract class ClickHouseInputStream extends InputStream {
         }
 
         return byteBuffer.update(readBytes(length));
+    }
+
+    /**
+     * Reads a byte as boolean. The byte value can be either 0 (false) or 1 (true).
+     *
+     * @return boolean value
+     * @throws IOException when failed to read boolean value from input stream or
+     *                     reached end of the stream
+     */
+    public boolean readBoolean() throws IOException {
+        byte b = readByte();
+        if (b == (byte) 0) {
+            return false;
+        } else if (b == (byte) 1) {
+            return true;
+        } else {
+            throw new IOException("Failed to read boolean value, expect 0 (false) or 1 (true) but we got: " + b);
+        }
     }
 
     /**
@@ -847,6 +911,8 @@ public abstract class ClickHouseInputStream extends InputStream {
     public void close() throws IOException {
         if (!closed) {
             closed = true;
+            // clear user data if any
+            userData.clear();
             // don't want to hold the last byte array reference for too long
             byteBuffer.reset();
             if (postCloseAction != null) {

@@ -238,10 +238,10 @@ public class ClickHouseSqlParserTest {
         checkSingleStatement(parse(sql = "INSERT INTO insert_select_testtable (* EXCEPT(b)) Values (2, 2)"),
                 sql, StatementType.INSERT, "system", "insert_select_testtable");
         checkSingleStatement(
-                parse(sql = "insert into `test` (num) values (?) SETTINGS input_format_null_as_default = 1"),
+                parse(sql = "insert into `test` (num)SETTINGS input_format_null_as_default = 1 values (?)"),
                 sql, StatementType.INSERT, "system", "test");
         checkSingleStatement(
-                parse(sql = "insert into `test` (id, name) values (1,2)(3,4),(5,6) SETTINGS input_format_null_as_default = 1"),
+                parse(sql = "insert into `test` (id, name) SETTINGS input_format_null_as_default = 1 values (1,2)(3,4),(5,6)"),
                 sql, StatementType.INSERT, "system", "test");
         s = checkSingleStatement(
                 parse(sql = "insert into `test`"), sql, StatementType.INSERT, "system", "test");
@@ -768,7 +768,7 @@ public class ClickHouseSqlParserTest {
     }
 
     // TODO: add a sub-module points to ClickHouse/tests/queries?
-    public static void main(String[] args) throws Exception {
+    public static void main(String[] args) throws IOException {
         String chTestQueryDir = "D:/Sources/Github/ch/queries";
         if (args != null && args.length > 0) {
             chTestQueryDir = args[0];

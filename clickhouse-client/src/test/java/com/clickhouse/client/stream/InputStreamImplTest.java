@@ -12,6 +12,7 @@ import java.math.BigInteger;
 import java.net.URL;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -101,7 +102,7 @@ public class InputStreamImplTest {
 
     private File generateTempFile(int... bytes) {
         try {
-            File f = File.createTempFile("test_", "_input_stream");
+            File f = Files.createTempFile("test_", "_input_stream").toFile();
             if (bytes != null && bytes.length > 0) {
                 try (FileOutputStream out = new FileOutputStream(f)) {
                     for (int b : bytes) {
@@ -169,6 +170,7 @@ public class InputStreamImplTest {
                 { ClickHouseInputStream.of(new ByteArrayInputStream(new byte[0]),
                         new ByteArrayInputStream(new byte[0])) },
                 { ClickHouseInputStream.of((ByteArrayInputStream) null, (ByteArrayInputStream) null) },
+                { ClickHouseInputStream.wrap(new ByteArrayInputStream(new byte[] { 1, 2, 3 }), 2048, 0L, null) },
                 // strings
                 { ClickHouseInputStream.of(new String[0]) },
                 { ClickHouseInputStream.of("") },
@@ -190,7 +192,7 @@ public class InputStreamImplTest {
                         new LinkedBlockingQueue<>(Collections.singletonList(ClickHouseByteBuffer.EMPTY_BUFFER)), 0,
                         null) },
                 { new NonBlockingInputStream(
-                        new AdaptiveQueue<>(CapacityPolicy.linearDynamicCapacity(0, 0, 0),
+                        AdaptiveQueue.create(CapacityPolicy.linearDynamicCapacity(0, 0, 0),
                                 ClickHouseByteBuffer.EMPTY_BYTES),
                         0, null) }
         };
@@ -251,6 +253,9 @@ public class InputStreamImplTest {
                         .of(new InputStream[] { new ByteArrayInputStream(new byte[] { 0x65 }), null,
                                 new ByteArrayInputStream(new byte[] { 0x66, 0x67, 0x68 }), null,
                                 new ByteArrayInputStream(new byte[] { 0x69, 0x70 }) }) },
+                { ClickHouseInputStream.wrap(
+                        new ByteArrayInputStream(new byte[] { 1, 2, 0x65, 0x66, 0x67, 0x68, 0x69, 0x70, 1, 2 }, 2, 6),
+                        2048, 6L, null) },
                 // strings
                 { ClickHouseInputStream.of("efghip") },
                 { ClickHouseInputStream.of("e", "fg", "hip") },
@@ -279,18 +284,18 @@ public class InputStreamImplTest {
                                 ByteBuffer.wrap(new byte[] { 0x68, 0x69 }),
                                 ByteBuffer.wrap(new byte[] { 0x70 }), ClickHouseByteBuffer.EMPTY_BUFFER)),
                         0, null) },
-                { new NonBlockingInputStream(new AdaptiveQueue<byte[]>(CapacityPolicy.linearDynamicCapacity(0, 0, 0),
+                { new NonBlockingInputStream(AdaptiveQueue.create(CapacityPolicy.linearDynamicCapacity(0, 0, 0),
                         Arrays.asList(new byte[] { 0x65, 0x66, 0x67, 0x68, 0x69, 0x70 },
                                 ClickHouseByteBuffer.EMPTY_BYTES)),
                         0, null) },
                 { new NonBlockingInputStream(
-                        new AdaptiveQueue<byte[]>(CapacityPolicy.linearDynamicCapacity(0, 0, 0),
+                        AdaptiveQueue.create(CapacityPolicy.linearDynamicCapacity(0, 0, 0),
                                 Arrays.asList(new byte[] { 0x65 }, new byte[] { 0x66 }, new byte[] { 0x67 },
                                         new byte[] { 0x68 }, new byte[] { 0x69 }, new byte[] { 0x70 },
                                         ClickHouseByteBuffer.EMPTY_BYTES)),
                         0, null) },
                 { new NonBlockingInputStream(
-                        new AdaptiveQueue<byte[]>(CapacityPolicy.linearDynamicCapacity(0, 0, 0),
+                        AdaptiveQueue.create(CapacityPolicy.linearDynamicCapacity(0, 0, 0),
                                 Arrays.asList(new byte[] { 0x65, 0x66 }, new byte[] { 0x67 }, new byte[] { 0x68, 0x69 },
                                         new byte[] { 0x70 }, ClickHouseByteBuffer.EMPTY_BYTES)),
                         0, null) },
@@ -321,7 +326,10 @@ public class InputStreamImplTest {
                                 ByteBuffer.wrap(new byte[] { -1, 1, 2, 3, -4 }, 1, 3),
                                 ByteBuffer.allocate(0), null, ByteBuffer.wrap(new byte[] { 4, 5 }), null,
                                 ByteBuffer.allocate(0), null),
-                        null) }
+                        null) },
+                new Object[] {
+                        new RestrictedInputStream(null, new ByteArrayInputStream(new byte[] { 1, 2, 3, 4, 5 }), 2048,
+                                5L, null) },
         };
     }
 
@@ -719,5 +727,42 @@ public class InputStreamImplTest {
             Assert.assertTrue(in.isClosed(), "Stream should have been closed");
             Assert.assertThrows(IOException.class, () -> in.readCustom(new CustomReader((byte) 1, (byte) 2)::read));
         }
+    }
+
+    @Test(groups = { "unit" })
+    public void testRestrictedInputStream() throws IOException {
+        ByteArrayInputStream bytes = new ByteArrayInputStream(new byte[] { 1, 2, 3, 4, 5, 6 });
+        Assert.assertThrows(IllegalArgumentException.class, () -> ClickHouseInputStream.wrap(bytes, 0, -1, null));
+
+        ClickHouseInputStream in = ClickHouseInputStream.wrap(bytes, 0, 0, null);
+        Assert.assertTrue(in instanceof RestrictedInputStream);
+        Assert.assertFalse(in.isClosed());
+        Assert.assertEquals(in.available(), 0);
+        Assert.assertEquals(((RestrictedInputStream) in).getRemaining(), 0);
+
+        in = ClickHouseInputStream.wrap(bytes, 0, 1, null);
+        Assert.assertEquals(in.available(), 1);
+        Assert.assertEquals(in.read(), 1);
+        Assert.assertEquals(in.available(), 0);
+        Assert.assertEquals(in.read(), -1);
+
+        in = ClickHouseInputStream.wrap(bytes, 0, 3, null);
+        Assert.assertEquals(in.available(), 3);
+        Assert.assertEquals(in.read(), 2);
+        Assert.assertEquals(in.available(), 2);
+        Assert.assertEquals(in.read(), 3);
+        Assert.assertEquals(in.available(), 1);
+        Assert.assertEquals(in.read(), 4);
+        Assert.assertEquals(in.available(), 0);
+        Assert.assertEquals(in.read(), -1);
+
+        in = ClickHouseInputStream.wrap(bytes, 0, 3, null);
+        Assert.assertEquals(in.available(), 2);
+        Assert.assertEquals(in.read(), 5);
+        Assert.assertEquals(in.available(), 1);
+        Assert.assertEquals(in.read(), 6);
+        Assert.assertEquals(in.available(), 0);
+        Assert.assertEquals(in.read(), -1);
+        Assert.assertEquals(((RestrictedInputStream) in).getRemaining(), 1);
     }
 }

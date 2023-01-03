@@ -1,10 +1,13 @@
 package com.clickhouse.jdbc;
 
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
+import java.net.MalformedURLException;
 import java.net.URL;
+import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
 import java.sql.BatchUpdateException;
 import java.sql.Connection;
@@ -27,21 +30,25 @@ import java.util.TimeZone;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutionException;
 
 import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseDataStreamFactory;
 import com.clickhouse.client.ClickHouseDataType;
 import com.clickhouse.client.ClickHouseFormat;
 import com.clickhouse.client.ClickHouseInputStream;
+import com.clickhouse.client.ClickHouseOutputStream;
 import com.clickhouse.client.ClickHousePipedOutputStream;
 import com.clickhouse.client.ClickHouseProtocol;
+import com.clickhouse.client.ClickHouseWriter;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.data.ClickHouseBitmap;
-import com.clickhouse.client.data.ClickHouseDateTimeValue;
 import com.clickhouse.client.data.ClickHouseExternalTable;
-import com.clickhouse.client.data.ClickHouseOffsetDateTimeValue;
+import com.clickhouse.client.data.UnsignedInteger;
+import com.clickhouse.client.data.UnsignedLong;
 import com.clickhouse.jdbc.internal.InputBasedPreparedStatement;
 import com.clickhouse.jdbc.internal.SqlBasedPreparedStatement;
+import com.clickhouse.jdbc.internal.StreamBasedPreparedStatement;
 
 import org.testng.Assert;
 import org.testng.SkipException;
@@ -238,6 +245,7 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
     @Test(groups = "integration")
     public void testReadWriteBinaryString() throws SQLException {
         Properties props = new Properties();
+        props.setProperty(ClickHouseClientOption.USE_BINARY_STRING.getKey(), "true");
         try (ClickHouseConnection conn = newConnection(props);
                 Statement s = conn.createStatement()) {
             s.execute("drop table if exists test_binary_string; "
@@ -542,6 +550,57 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
     }
 
     @Test(groups = "integration")
+    public void testReadWriteArrayWithNullableTypes() throws SQLException {
+        try (ClickHouseConnection conn = newConnection(new Properties());
+                Statement s = conn.createStatement()) {
+            s.execute("drop table if exists test_read_write_nullable_unsigned_types;"
+                    + "create table test_read_write_nullable_unsigned_types(id Int32, a1 Array(Nullable(Int8)), a2 Array(Nullable(UInt64)))engine=Memory");
+            try (PreparedStatement stmt = conn
+                    .prepareStatement("insert into test_read_write_nullable_unsigned_types")) {
+                stmt.setInt(1, 1);
+                stmt.setObject(2, new byte[0]);
+                stmt.setObject(3, new long[0]);
+                stmt.execute();
+            }
+            try (PreparedStatement stmt = conn
+                    .prepareStatement("insert into test_read_write_nullable_unsigned_types")) {
+                stmt.setInt(1, 2);
+                stmt.setObject(2, new byte[] { 2, 2 });
+                stmt.setObject(3, new Long[] { 2L, null });
+                stmt.addBatch();
+                stmt.setInt(1, 3);
+                stmt.setArray(2, conn.createArrayOf("Nullable(Int8)", new Byte[] { null, 3 }));
+                stmt.setArray(3,
+                        conn.createArrayOf("Nullable(UInt64)", new UnsignedLong[] { null, UnsignedLong.valueOf(3L) }));
+                stmt.addBatch();
+                int[] results = stmt.executeBatch();
+                Assert.assertEquals(results, new int[] { 1, 1 });
+            }
+
+            ResultSet rs = s.executeQuery("select * from test_read_write_nullable_unsigned_types order by id");
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getInt(1), 1);
+            Assert.assertEquals(rs.getObject(2), new Byte[0]);
+            Assert.assertEquals(rs.getArray(2).getArray(), new Byte[0]);
+            Assert.assertEquals(rs.getObject(3), new UnsignedLong[0]);
+            Assert.assertEquals(rs.getArray(3).getArray(), new UnsignedLong[0]);
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getInt(1), 2);
+            Assert.assertEquals(rs.getObject(2), new Byte[] { 2, 2 });
+            Assert.assertEquals(rs.getArray(2).getArray(), new Byte[] { 2, 2 });
+            Assert.assertEquals(rs.getObject(3), new UnsignedLong[] { UnsignedLong.valueOf(2L), null });
+            Assert.assertEquals(rs.getArray(3).getArray(), new UnsignedLong[] { UnsignedLong.valueOf(2L), null });
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getInt(1), 3);
+            Assert.assertEquals(rs.getObject(2), new Byte[] { null, 3 });
+            Assert.assertEquals(rs.getArray(2).getArray(), new Byte[] { null, 3 });
+            Assert.assertEquals(rs.getObject(3), new UnsignedLong[] { null, UnsignedLong.valueOf(3L) });
+            Assert.assertEquals(rs.getArray(3).getArray(), new UnsignedLong[] { null, UnsignedLong.valueOf(3L) });
+            Assert.assertFalse(rs.next());
+        }
+    }
+
+    @Test(groups = "integration")
     public void testReadWriteString() throws SQLException {
         try (ClickHouseConnection conn = newConnection(new Properties());
                 Statement s = conn.createStatement()) {
@@ -714,7 +773,7 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
     }
 
     @Test(groups = "integration")
-    public void testBatchInsertWithoutUnboundedQueue() throws Exception {
+    public void testBatchInsertWithoutUnboundedQueue() throws SQLException {
         Properties props = new Properties();
         props.setProperty(ClickHouseClientOption.WRITE_BUFFER_SIZE.getKey(), "1");
         props.setProperty(ClickHouseClientOption.MAX_QUEUED_BUFFERS.getKey(), "1");
@@ -1000,7 +1059,7 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
     }
 
     @Test(groups = "integration")
-    public void testLoadRawData() throws Exception {
+    public void testLoadRawData() throws IOException, SQLException {
         try (ClickHouseConnection conn = newConnection(new Properties());
                 ClickHouseStatement stmt = conn.createStatement();
                 PreparedStatement ps = conn.prepareStatement(
@@ -1029,7 +1088,11 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
                 }
             }
 
-            Assert.assertTrue(future.get() >= 0);
+            try {
+                Assert.assertTrue(future.get() >= 0);
+            } catch (InterruptedException | ExecutionException ex) {
+                Assert.fail("Failed to get result", ex);
+            }
         }
     }
 
@@ -1145,7 +1208,7 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
     }
 
     @Test(dataProvider = "columnsWithDefaultValue", groups = "integration")
-    public void testInsertDefaultValue(String columnType, String defaultExpr, String defaultValue) throws Exception {
+    public void testInsertDefaultValue(String columnType, String defaultExpr, String defaultValue) throws SQLException {
         Properties props = new Properties();
         props.setProperty(JdbcConfig.PROP_NULL_AS_DEFAULT, "1");
         props.setProperty(ClickHouseClientOption.COMPRESS.getKey(), "false");
@@ -1202,10 +1265,11 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
     }
 
     @Test(dataProvider = "columnsWithoutDefaultValue", groups = "integration")
-    public void testInsertNullValue(String columnType, String defaultValue) throws Exception {
+    public void testInsertNullValue(String columnType, String defaultValue) throws SQLException {
         Properties props = new Properties();
         props.setProperty(ClickHouseClientOption.FORMAT.getKey(),
                 ClickHouseFormat.TabSeparatedWithNamesAndTypes.name());
+        props.setProperty(ClickHouseClientOption.CUSTOM_SETTINGS.getKey(), "input_format_null_as_default=0");
         String tableName = "test_insert_null_value_" + columnType.split("\\(")[0].trim().toLowerCase();
         try (ClickHouseConnection conn = newConnection(props); Statement s = conn.createStatement()) {
             if (conn.getUri().toString().contains(":grpc:")) {
@@ -1227,6 +1291,7 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
                     sqlException = e;
                 }
                 Assert.assertNotNull(sqlException, "Should end-up with SQL exception when nullAsDefault < 1");
+                sqlException = null;
 
                 try {
                     ((ClickHouseStatement) stmt).setNullAsDefault(1);
@@ -1272,7 +1337,7 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
     }
 
     @Test(groups = "integration")
-    public void testInsertStringAsArray() throws Exception {
+    public void testInsertStringAsArray() throws SQLException {
         try (ClickHouseConnection conn = newConnection(new Properties());
                 Statement s = conn.createStatement();
                 PreparedStatement stmt = conn.prepareStatement(
@@ -1289,7 +1354,8 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
             Assert.assertTrue(rs.next());
             Assert.assertEquals(rs.getInt(1), 1);
             Assert.assertEquals(rs.getObject(2), new short[] { 1, 2, 3 });
-            Assert.assertEquals(rs.getObject(3), new Long[] { 3L, null, 1L });
+            Assert.assertEquals(rs.getObject(3),
+                    new UnsignedInteger[] { UnsignedInteger.valueOf(3), null, UnsignedInteger.ONE });
             Assert.assertFalse(rs.next());
         }
 
@@ -1316,7 +1382,7 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
     }
 
     @Test(groups = "integration")
-    public void testInsertWithFunction() throws Exception {
+    public void testInsertWithFunction() throws SQLException, UnknownHostException {
         try (ClickHouseConnection conn = newConnection(new Properties());
                 Statement s = conn.createStatement();
                 PreparedStatement stmt = conn.prepareStatement(
@@ -1354,7 +1420,7 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
     }
 
     @Test(groups = "integration")
-    public void testInsertWithSelect() throws Exception {
+    public void testInsertWithSelect() throws SQLException {
         try (ClickHouseConnection conn = newConnection(new Properties());
                 Statement s = conn.createStatement();
                 PreparedStatement ps1 = conn
@@ -1416,7 +1482,7 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
     }
 
     @Test(groups = "integration")
-    public void testInsertWithAndSelect() throws Exception {
+    public void testInsertWithAndSelect() throws SQLException {
         try (ClickHouseConnection conn = newConnection(new Properties());
                 Statement s = conn.createStatement()) {
             s.execute("drop table if exists test_insert_with_and_select; "
@@ -1442,7 +1508,7 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
     }
 
     @Test(groups = "integration")
-    public void testInsertWithMultipleValues() throws Exception {
+    public void testInsertWithMultipleValues() throws MalformedURLException, SQLException {
         try (ClickHouseConnection conn = newConnection(new Properties());
                 Statement s = conn.createStatement()) {
             s.execute("drop table if exists test_insert_with_multiple_values; "
@@ -1484,7 +1550,7 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
     }
 
     @Test(groups = "integration")
-    public void testInsertWithNullDateTime() throws Exception {
+    public void testInsertWithNullDateTime() throws SQLException {
         Properties props = new Properties();
         props.setProperty(JdbcConfig.PROP_NULL_AS_DEFAULT, "2");
         try (ClickHouseConnection conn = newConnection(props);
@@ -1517,7 +1583,112 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
     }
 
     @Test(groups = "integration")
-    public void testGetParameterMetaData() throws Exception {
+    public void testInsertWithFormat() throws SQLException {
+        Properties props = new Properties();
+        try (ClickHouseConnection conn = newConnection(props); Statement s = conn.createStatement()) {
+            if (!conn.getServerVersion().check("[22.5,)")) {
+                throw new SkipException(
+                        "Skip due to breaking change introduced by https://github.com/ClickHouse/ClickHouse/pull/35883");
+            }
+
+            s.execute("drop table if exists test_insert_with_format; "
+                    + "CREATE TABLE test_insert_with_format(i Int32, s String) ENGINE=Memory");
+            try (PreparedStatement ps = conn.prepareStatement("INSERT INTO test_insert_with_format format CSV")) {
+                Assert.assertTrue(ps instanceof StreamBasedPreparedStatement);
+                Assert.assertEquals(ps.getParameterMetaData().getParameterCount(), 1);
+                Assert.assertEquals(ps.getParameterMetaData().getParameterClassName(1), String.class.getName());
+                ps.setObject(1, ClickHouseInputStream.of("1,\\N\n2,two"));
+                Assert.assertEquals(ps.executeUpdate(), 2);
+            }
+
+            try (ResultSet rs = s.executeQuery("select * from test_insert_with_format order by i")) {
+                Assert.assertTrue(rs.next());
+                Assert.assertEquals(rs.getInt(1), 1);
+                Assert.assertEquals(rs.getString(2), "");
+                Assert.assertTrue(rs.next());
+                Assert.assertEquals(rs.getInt(1), 2);
+                Assert.assertEquals(rs.getString(2), "two");
+                Assert.assertFalse(rs.next());
+            }
+
+            s.execute("truncate table test_insert_with_format");
+
+            try (PreparedStatement ps = conn
+                    .prepareStatement(
+                            "INSERT INTO test_insert_with_format(s,i)SETTINGS insert_null_as_default=1 format JSONEachRow")) {
+                Assert.assertTrue(ps instanceof StreamBasedPreparedStatement);
+                ps.setString(1, "{\"i\":null,\"s\":null}");
+                ps.addBatch();
+                ps.setObject(1, "{\"i\":1,\"s\":\"one\"}");
+                ps.addBatch();
+                ps.setObject(1, new ClickHouseWriter() {
+                    @Override
+                    public void write(ClickHouseOutputStream out) throws IOException {
+                        out.write("{\"i\":2,\"s\":\"22\"}".getBytes());
+                    }
+                });
+                ps.addBatch();
+                Assert.assertEquals(ps.executeBatch(), new int[] { 1, 1, 1 });
+            }
+
+            try (PreparedStatement ps = conn
+                    .prepareStatement(
+                            "INSERT INTO test_insert_with_format(s,i) select * from input('s String, i Int32') format CSV")) {
+                Assert.assertFalse(ps instanceof StreamBasedPreparedStatement);
+                ps.setInt(2, 3);
+                ps.setString(1, "three");
+                Assert.assertEquals(ps.executeUpdate(), 1);
+            }
+
+            try (PreparedStatement ps = conn.prepareStatement(
+                    "select i,s from test_insert_with_format order by i format RowBinaryWithNamesAndTypes");
+                    ResultSet rs = ps.executeQuery()) {
+                Assert.assertTrue(rs.next());
+                Assert.assertEquals(rs.getInt(1), 0);
+                Assert.assertEquals(rs.getString(2), "");
+                Assert.assertTrue(rs.next());
+                Assert.assertEquals(rs.getInt(1), 1);
+                Assert.assertEquals(rs.getString(2), "one");
+                Assert.assertTrue(rs.next());
+                Assert.assertEquals(rs.getInt(1), 2);
+                Assert.assertEquals(rs.getString(2), "22");
+                Assert.assertTrue(rs.next());
+                Assert.assertEquals(rs.getInt(1), 3);
+                Assert.assertEquals(rs.getString(2), "three");
+                Assert.assertFalse(rs.next());
+            }
+        }
+    }
+
+    @Test(groups = "integration")
+    public void testInsertWithSettings() throws SQLException {
+        Properties props = new Properties();
+        try (ClickHouseConnection conn = newConnection(props); Statement s = conn.createStatement()) {
+            if (!conn.getServerVersion().check("[22.5,)")) {
+                throw new SkipException(
+                        "Skip due to breaking change introduced by https://github.com/ClickHouse/ClickHouse/pull/35883");
+            }
+
+            s.execute("drop table if exists test_insert_with_settings; "
+                    + "CREATE TABLE test_insert_with_settings(i Int32, s String) ENGINE=Memory");
+            try (PreparedStatement ps = conn
+                    .prepareStatement(
+                            "INSERT INTO test_insert_with_settings SETTINGS async_insert=1,wait_for_async_insert=1 values(?, ?)")) {
+                ps.setInt(1, 1);
+                ps.setString(2, "1");
+                ps.addBatch();
+                ps.executeBatch();
+            }
+
+            try (ResultSet rs = s.executeQuery("select * from test_insert_with_settings order by i")) {
+                Assert.assertTrue(rs.next());
+                Assert.assertFalse(rs.next());
+            }
+        }
+    }
+
+    @Test(groups = "integration")
+    public void testGetParameterMetaData() throws SQLException {
         try (Connection conn = newConnection(new Properties());
                 PreparedStatement emptyPs = conn.prepareStatement("select 1");
                 PreparedStatement inputPs = conn.prepareStatement(
@@ -1533,7 +1704,7 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
                         "parameter mete data should be singleton");
                 Assert.assertEquals(ps.getParameterMetaData().getParameterCount(), 3);
                 Assert.assertEquals(ps.getParameterMetaData().getParameterMode(3), ParameterMetaData.parameterModeIn);
-                Assert.assertEquals(ps.getParameterMetaData().getParameterType(3), Types.OTHER);
+                Assert.assertEquals(ps.getParameterMetaData().getParameterType(3), Types.VARCHAR);
                 Assert.assertEquals(ps.getParameterMetaData().getPrecision(3), 0);
                 Assert.assertEquals(ps.getParameterMetaData().getScale(3), 0);
                 Assert.assertEquals(ps.getParameterMetaData().getParameterClassName(3), Object.class.getName());

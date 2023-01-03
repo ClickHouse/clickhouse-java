@@ -1,0 +1,10 @@
+services:
+  db:
+    image: clickhouse/clickhouse-server:22.8
+    ports:
+      - 8123:8123
+      - 9009:9009
+      - 9100:9100
+      - 9000:9000
+    volumes:
+      - ./clickhouse-docker-mount:/etc/clickhouse-server

@@ -67,52 +67,6 @@ public class ClickHouseValuesTest extends BaseClickHouseValueTest {
     }
 
     @Test(groups = { "unit" })
-    public void testNewArray() {
-        ClickHouseConfig config = new ClickHouseConfig();
-        ClickHouseValue v = ClickHouseValues.newValue(config, ClickHouseColumn.of("a", "Array(UInt32)"));
-        Assert.assertEquals(v.update(new long[] { 1L }).asObject(), new long[] { 1L });
-        v = ClickHouseValues.newValue(config, ClickHouseColumn.of("a", "Array(Nullable(UInt64))"));
-        Assert.assertEquals(v.update(new Long[] { 1L }).asObject(), new Long[] { 1L });
-        v = ClickHouseValues.newValue(config, ClickHouseColumn.of("a", "Array(Array(UInt16))"));
-        Assert.assertEquals(v.asObject(), new int[0][]);
-        v = ClickHouseValues.newValue(config, ClickHouseColumn.of("a", "Array(Array(Array(UInt8)))"));
-        Assert.assertEquals(v.asObject(), new short[0][][]);
-        v = ClickHouseValues.newValue(config, ClickHouseColumn.of("a", "Array(Array(Array(Nullable(UInt8))))"));
-        Assert.assertEquals(v.update(new Short[][][] { new Short[][] { new Short[] { (short) 1 } } }).asObject(),
-                new Short[][][] { new Short[][] { new Short[] { (short) 1 } } });
-        v = ClickHouseValues.newValue(config,
-                ClickHouseColumn.of("a", "Array(Array(Array(Array(LowCardinality(String)))))"));
-        Assert.assertEquals(v.asObject(), new String[0][][][]);
-    }
-
-    @Test(groups = { "unit" })
-    public void testNewBasicValues() {
-        ClickHouseConfig config = new ClickHouseConfig();
-        for (ClickHouseDataType type : ClickHouseDataType.values()) {
-            // skip advanced types
-            if (type.isNested() || type == ClickHouseDataType.AggregateFunction
-                    || type == ClickHouseDataType.SimpleAggregateFunction) {
-                continue;
-            }
-
-            ClickHouseValue value = ClickHouseValues.newValue(config, type);
-            Assert.assertNotNull(value);
-
-            if (type == ClickHouseDataType.Point) {
-                Assert.assertEquals(value.asObject(), new double[] { 0D, 0D });
-            } else if (type == ClickHouseDataType.Ring) {
-                Assert.assertEquals(value.asObject(), new double[0][]);
-            } else if (type == ClickHouseDataType.Polygon) {
-                Assert.assertEquals(value.asObject(), new double[0][][]);
-            } else if (type == ClickHouseDataType.MultiPolygon) {
-                Assert.assertEquals(value.asObject(), new double[0][][][]);
-            } else {
-                Assert.assertNull(value.asObject());
-            }
-        }
-    }
-
-    @Test(groups = { "unit" })
     public void testConvertToDateTime() {
         Assert.assertEquals(ClickHouseValues.convertToDateTime(null), null);
         Assert.assertEquals(ClickHouseValues.convertToDateTime(BigDecimal.valueOf(0L)),
@@ -124,7 +78,7 @@ public class ClickHouseValuesTest extends BaseClickHouseValueTest {
             Assert.assertEquals(
                     ClickHouseValues.convertToDateTime(
                             BigDecimal.valueOf(1L).add(BigDecimal.valueOf(1L).divide(d))),
-                    LocalDateTime.ofEpochSecond(1L, BigDecimal.TEN.pow(9 - i).intValueExact(),
+                    LocalDateTime.ofEpochSecond(1L, BigDecimal.TEN.pow(9 - i).intValue(),
                             ZoneOffset.UTC));
         }
 
@@ -136,13 +90,13 @@ public class ClickHouseValuesTest extends BaseClickHouseValueTest {
                     ClickHouseValues.convertToDateTime(
                             BigDecimal.valueOf(-1L).add(BigDecimal.valueOf(-1L).divide(d))),
                     LocalDateTime.ofEpochSecond(-1L, 0, ZoneOffset.UTC)
-                            .minus(BigDecimal.TEN.pow(9 - i).longValueExact(),
+                            .minus(BigDecimal.TEN.pow(9 - i).longValue(),
                                     ChronoUnit.NANOS));
         }
     }
 
     @Test(groups = { "unit" })
-    public void testConvertToIpv4() throws Exception {
+    public void testConvertToIpv4() throws UnknownHostException {
         Assert.assertEquals(ClickHouseValues.convertToIpv4((String) null), null);
         Assert.assertEquals(ClickHouseValues.convertToIpv4("127.0.0.1"), Inet4Address.getByName("127.0.0.1"));
         Assert.assertEquals(ClickHouseValues.convertToIpv4("0:0:0:0:0:ffff:7f00:1"),
@@ -150,7 +104,7 @@ public class ClickHouseValuesTest extends BaseClickHouseValueTest {
     }
 
     @Test(groups = { "unit" })
-    public void testConvertToIpv6() throws Exception {
+    public void testConvertToIpv6() throws UnknownHostException {
         Assert.assertEquals(ClickHouseValues.convertToIpv6((String) null), null);
         Assert.assertEquals(ClickHouseValues.convertToIpv6("::1"), Inet6Address.getByName("::1"));
         Assert.assertEquals(ClickHouseValues.convertToIpv6("127.0.0.1").getClass(), Inet6Address.class);
@@ -163,8 +117,8 @@ public class ClickHouseValuesTest extends BaseClickHouseValueTest {
         Assert.assertEquals(ClickHouseValues.convertToSqlExpression(null), ClickHouseValues.NULL_EXPR);
 
         // primitives
-        Assert.assertEquals(ClickHouseValues.convertToSqlExpression(true), String.valueOf(1));
-        Assert.assertEquals(ClickHouseValues.convertToSqlExpression(false), String.valueOf(0));
+        Assert.assertEquals(ClickHouseValues.convertToSqlExpression(true), String.valueOf(true));
+        Assert.assertEquals(ClickHouseValues.convertToSqlExpression(false), String.valueOf(false));
         Assert.assertEquals(ClickHouseValues.convertToSqlExpression('\0'), String.valueOf(0));
         Assert.assertEquals(ClickHouseValues.convertToSqlExpression('a'), String.valueOf(97));
         Assert.assertEquals(ClickHouseValues.convertToSqlExpression(Byte.MAX_VALUE),
@@ -233,11 +187,10 @@ public class ClickHouseValuesTest extends BaseClickHouseValueTest {
         // arrays
         Assert.assertEquals(ClickHouseValues.convertToSqlExpression(new Object[0]), "[]");
         Assert.assertEquals(ClickHouseValues.convertToSqlExpression(new boolean[] { true, false, true }),
-                "[1,0,1]");
+                "[true,false,true]");
         Assert.assertEquals(
-                ClickHouseValues.convertToSqlExpression(
-                        new boolean[][] { new boolean[] { true, false, true } }),
-                "[[1,0,1]]");
+                ClickHouseValues.convertToSqlExpression(new boolean[][] { new boolean[] { true, false, true } }),
+                "[[true,false,true]]");
         Assert.assertEquals(ClickHouseValues.convertToSqlExpression(new char[] { 'a', '\0', '囧' }),
                 "[97,0,22247]");
         Assert.assertEquals(
@@ -262,7 +215,7 @@ public class ClickHouseValuesTest extends BaseClickHouseValueTest {
         // tuple
         Assert.assertEquals(ClickHouseValues.convertToSqlExpression(new ArrayList<>(0)), "()");
         Assert.assertEquals(ClickHouseValues.convertToSqlExpression(Arrays.asList('a', true, "'x'", 233)),
-                "(97,1,'\\'x\\'',233)");
+                "(97,true,'\\'x\\'',233)");
 
         // map
         Assert.assertEquals(ClickHouseValues.convertToSqlExpression(new HashMap<>()), "{}");
@@ -283,6 +236,8 @@ public class ClickHouseValuesTest extends BaseClickHouseValueTest {
                         LocalDateTime.of(LocalDate.of(2021, 11, 12),
                                 LocalTime.of(11, 12, 13, 123456789)),
                         new boolean[] { false, true } }),
-                "[1,97,1,2,3,4,5.555,6.666666,'\\'x\\'','00000000-0000-0000-0000-000000000002','127.0.0.1','0:0:0:0:0:0:0:1',30,123456789,1.23456789,NULL,'2021-11-12','11:12:13.123456789','2021-11-12 11:12:13.123456789',[0,1]]");
+                "[true,97,1,2,3,4,5.555,6.666666,'\\'x\\'','00000000-0000-0000-0000-000000000002','127.0.0.1','0:0:0:0:0:0:0:1',"
+                        + ClickHouseDataType.Decimal256.ordinal()
+                        + ",123456789,1.23456789,NULL,'2021-11-12','11:12:13.123456789','2021-11-12 11:12:13.123456789',[false,true]]");
     }
 }

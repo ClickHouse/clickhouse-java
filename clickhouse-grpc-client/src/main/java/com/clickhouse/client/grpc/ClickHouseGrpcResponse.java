@@ -2,6 +2,7 @@ package com.clickhouse.client.grpc;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.Serializable;
 import java.io.UncheckedIOException;
 import java.util.Map;
 
@@ -50,7 +51,7 @@ public class ClickHouseGrpcResponse extends ClickHouseStreamResponse {
         return in;
     }
 
-    protected ClickHouseGrpcResponse(ClickHouseConfig config, Map<String, Object> settings,
+    protected ClickHouseGrpcResponse(ClickHouseConfig config, Map<String, Serializable> settings,
             ClickHouseStreamObserver observer) throws IOException {
         super(config, observer.getInputStream(), settings, null, observer.getSummary());
 
@@ -58,7 +59,7 @@ public class ClickHouseGrpcResponse extends ClickHouseStreamResponse {
         this.result = null;
     }
 
-    protected ClickHouseGrpcResponse(ClickHouseConfig config, Map<String, Object> settings, Result result)
+    protected ClickHouseGrpcResponse(ClickHouseConfig config, Map<String, Serializable> settings, Result result)
             throws IOException {
         super(config,
                 result.getOutput().isEmpty()

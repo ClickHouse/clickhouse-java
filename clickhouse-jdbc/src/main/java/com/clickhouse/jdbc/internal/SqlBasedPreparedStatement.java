@@ -37,7 +37,6 @@ import com.clickhouse.client.logging.Logger;
 import com.clickhouse.client.logging.LoggerFactory;
 import com.clickhouse.jdbc.ClickHousePreparedStatement;
 import com.clickhouse.jdbc.JdbcParameterizedQuery;
-import com.clickhouse.jdbc.JdbcTypeMapping;
 import com.clickhouse.jdbc.SqlExceptionUtils;
 import com.clickhouse.jdbc.parser.ClickHouseSqlStatement;
 
@@ -103,7 +102,8 @@ public class SqlBasedPreparedStatement extends AbstractPreparedStatement impleme
         for (int i = 1; i <= tlen; i++) {
             list.add(ClickHouseColumn.of("parameter" + i, ClickHouseDataType.JSON, true));
         }
-        paramMetaData = new ClickHouseParameterMetaData(Collections.unmodifiableList(list));
+        paramMetaData = new ClickHouseParameterMetaData(Collections.unmodifiableList(list), mapper,
+                connection.getTypeMap());
         batch = new LinkedList<>();
         builder = new StringBuilder();
         if ((insertValuesQuery = prefix) != null) {
@@ -148,8 +148,7 @@ public class SqlBasedPreparedStatement extends AbstractPreparedStatement impleme
             long rows = 0L;
             try {
                 r = executeStatement(builder.toString(), null, null, null);
-                updateResult(parsedStmt, r);
-                if (asBatch && getResultSet() != null) {
+                if (updateResult(parsedStmt, r) != null && asBatch) {
                     throw SqlExceptionUtils.queryInBatchError(results);
                 }
                 rows = r.getSummary().getWrittenRows();
@@ -196,8 +195,7 @@ public class SqlBasedPreparedStatement extends AbstractPreparedStatement impleme
                     preparedQuery.apply(builder, params);
                     try {
                         r = executeStatement(builder.toString(), null, null, null);
-                        updateResult(parsedStmt, r);
-                        if (asBatch && getResultSet() != null) {
+                        if (updateResult(parsedStmt, r) != null && asBatch) {
                             throw SqlExceptionUtils.queryInBatchError(results);
                         }
                         int count = getUpdateCount();
@@ -562,7 +560,7 @@ public class SqlBasedPreparedStatement extends AbstractPreparedStatement impleme
         } else {
             Calendar c = (Calendar) cal.clone();
             c.setTime(x);
-            dt = c.toInstant().atZone(tz).withZoneSameInstant(timeZoneForTs).toLocalDateTime();
+            dt = c.toInstant().atZone(tz).withNano(x.getNanos()).withZoneSameInstant(timeZoneForTs).toLocalDateTime();
         }
 
         ClickHouseValue value = templates[idx];
@@ -598,7 +596,7 @@ public class SqlBasedPreparedStatement extends AbstractPreparedStatement impleme
         int idx = toArrayIndex(parameterIndex);
         ClickHouseValue value = templates[idx];
         if (value == null) {
-            value = ClickHouseValues.newValue(getConfig(), JdbcTypeMapping.fromJdbcType(targetSqlType, scaleOrLength));
+            value = mapper.toColumn(targetSqlType, scaleOrLength).newValue(getConfig());
             templates[idx] = value;
         }
 

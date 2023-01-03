@@ -1,6 +1,7 @@
 package com.clickhouse.client;
 
 import java.io.Serializable;
+import java.lang.reflect.Array;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -10,10 +11,46 @@ import java.util.List;
 import java.util.Objects;
 import java.util.TimeZone;
 
+import com.clickhouse.client.data.ClickHouseArrayValue;
+import com.clickhouse.client.data.ClickHouseBigDecimalValue;
+import com.clickhouse.client.data.ClickHouseBigIntegerValue;
+import com.clickhouse.client.data.ClickHouseBitmapValue;
+import com.clickhouse.client.data.ClickHouseBoolValue;
+import com.clickhouse.client.data.ClickHouseByteValue;
+import com.clickhouse.client.data.ClickHouseDateTimeValue;
+import com.clickhouse.client.data.ClickHouseDateValue;
+import com.clickhouse.client.data.ClickHouseDoubleValue;
+import com.clickhouse.client.data.ClickHouseEmptyValue;
+import com.clickhouse.client.data.ClickHouseEnumValue;
+import com.clickhouse.client.data.ClickHouseFloatValue;
+import com.clickhouse.client.data.ClickHouseGeoMultiPolygonValue;
+import com.clickhouse.client.data.ClickHouseGeoPointValue;
+import com.clickhouse.client.data.ClickHouseGeoPolygonValue;
+import com.clickhouse.client.data.ClickHouseGeoRingValue;
+import com.clickhouse.client.data.ClickHouseIntegerValue;
+import com.clickhouse.client.data.ClickHouseIpv4Value;
+import com.clickhouse.client.data.ClickHouseIpv6Value;
+import com.clickhouse.client.data.ClickHouseLongValue;
+import com.clickhouse.client.data.ClickHouseMapValue;
+import com.clickhouse.client.data.ClickHouseNestedValue;
+import com.clickhouse.client.data.ClickHouseOffsetDateTimeValue;
+import com.clickhouse.client.data.ClickHouseShortValue;
+import com.clickhouse.client.data.ClickHouseStringValue;
+import com.clickhouse.client.data.ClickHouseTupleValue;
+import com.clickhouse.client.data.ClickHouseUuidValue;
+import com.clickhouse.client.data.array.ClickHouseBoolArrayValue;
+import com.clickhouse.client.data.array.ClickHouseByteArrayValue;
+import com.clickhouse.client.data.array.ClickHouseDoubleArrayValue;
+import com.clickhouse.client.data.array.ClickHouseFloatArrayValue;
+import com.clickhouse.client.data.array.ClickHouseIntArrayValue;
+import com.clickhouse.client.data.array.ClickHouseLongArrayValue;
+import com.clickhouse.client.data.array.ClickHouseShortArrayValue;
+
 /**
  * This class represents a column defined in database.
  */
 public final class ClickHouseColumn implements Serializable {
+    public static final String TYPE_NAME = "Column";
     public static final ClickHouseColumn[] EMPTY_ARRAY = new ClickHouseColumn[0];
 
     private static final long serialVersionUID = 8228660689532259640L;
@@ -38,6 +75,7 @@ public final class ClickHouseColumn implements Serializable {
     private ClickHouseDataType dataType;
     private boolean nullable;
     private boolean lowCardinality;
+    private boolean lowCardinalityDisabled;
     private TimeZone timeZone;
     private int precision;
     private int scale;
@@ -50,6 +88,8 @@ public final class ClickHouseColumn implements Serializable {
 
     private boolean fixedByteLength;
     private int estimatedByteLength;
+
+    private ClickHouseValue template;
 
     private static ClickHouseColumn update(ClickHouseColumn column) {
         column.enumConstants = ClickHouseEnum.EMPTY;
@@ -70,34 +110,80 @@ public final class ClickHouseColumn implements Serializable {
                     }
                 }
                 break;
-            case Enum:
+            case Bool:
+                column.template = ClickHouseBoolValue.ofNull();
+                break;
             case Enum8:
             case Enum16:
-                column.enumConstants = new ClickHouseEnum(column.parameters);
+                column.template = ClickHouseEnumValue
+                        .ofNull(column.enumConstants = new ClickHouseEnum(column.parameters));
+                break;
+            case Int8:
+                column.template = ClickHouseByteValue.ofNull();
+                break;
+            case Int16:
+                column.template = ClickHouseShortValue.ofNull();
+                break;
+            case Int32:
+                column.template = ClickHouseIntegerValue.ofNull();
+                break;
+            case IntervalYear:
+            case IntervalQuarter:
+            case IntervalMonth:
+            case IntervalWeek:
+            case IntervalDay:
+            case IntervalHour:
+            case IntervalMinute:
+            case IntervalSecond:
+            case IntervalMicrosecond:
+            case IntervalMillisecond:
+            case IntervalNanosecond:
+            case Int64:
+                column.template = ClickHouseLongValue.ofNull(false);
+                break;
+            case UInt64:
+                column.template = ClickHouseLongValue.ofUnsignedNull();
+                break;
+            case Int128:
+            case UInt128:
+            case Int256:
+            case UInt256:
+                column.template = ClickHouseBigIntegerValue.ofNull();
+                break;
+            case Float32:
+                column.template = ClickHouseFloatValue.ofNull();
+                break;
+            case Float64:
+                column.template = ClickHouseDoubleValue.ofNull();
+                break;
+            case Date:
+            case Date32:
+                column.template = ClickHouseDateValue.ofNull();
                 break;
             case DateTime:
                 if (size >= 2) { // same as DateTime64
-                    column.scale = Integer.parseInt(column.parameters.get(0));
-                    column.timeZone = TimeZone.getTimeZone(column.parameters.get(1).replace("'", ""));
                     if (!column.nullable) {
                         column.estimatedByteLength += ClickHouseDataType.DateTime64.getByteLength();
                     }
+                    column.template = ClickHouseOffsetDateTimeValue.ofNull(
+                            column.scale = Integer.parseInt(column.parameters.get(0)),
+                            column.timeZone = TimeZone.getTimeZone(column.parameters.get(1).replace("'", "")));
                 } else if (size == 1) { // same as DateTime32
-                    // unfortunately this will fall back to GMT if the time zone
-                    // cannot be resolved
-                    TimeZone tz = TimeZone.getTimeZone(column.parameters.get(0).replace("'", ""));
-                    column.timeZone = tz;
                     if (!column.nullable) {
                         column.estimatedByteLength += ClickHouseDataType.DateTime32.getByteLength();
                     }
+                    column.template = ClickHouseOffsetDateTimeValue.ofNull(
+                            column.scale,
+                            // unfortunately this will fall back to GMT if the time zone cannot be resolved
+                            column.timeZone = TimeZone.getTimeZone(column.parameters.get(0).replace("'", "")));
                 }
                 break;
             case DateTime32:
                 if (size > 0) {
-                    // unfortunately this will fall back to GMT if the time zone
-                    // cannot be resolved
-                    TimeZone tz = TimeZone.getTimeZone(column.parameters.get(0).replace("'", ""));
-                    column.timeZone = tz;
+                    column.template = ClickHouseOffsetDateTimeValue.ofNull(
+                            column.scale,
+                            // unfortunately this will fall back to GMT if the time zone cannot be resolved
+                            column.timeZone = TimeZone.getTimeZone(column.parameters.get(0).replace("'", "")));
                 }
                 break;
             case DateTime64:
@@ -105,7 +191,9 @@ public final class ClickHouseColumn implements Serializable {
                     column.scale = Integer.parseInt(column.parameters.get(0));
                 }
                 if (size > 1) {
-                    column.timeZone = TimeZone.getTimeZone(column.parameters.get(1).replace("'", ""));
+                    column.template = ClickHouseOffsetDateTimeValue.ofNull(
+                            column.scale,
+                            column.timeZone = TimeZone.getTimeZone(column.parameters.get(1).replace("'", "")));
                 }
                 break;
             case Decimal:
@@ -125,6 +213,7 @@ public final class ClickHouseColumn implements Serializable {
                         }
                     }
                 }
+                column.template = ClickHouseBigDecimalValue.ofNull();
                 break;
             case Decimal32:
             case Decimal64:
@@ -133,6 +222,13 @@ public final class ClickHouseColumn implements Serializable {
                 if (size > 0) {
                     column.scale = Integer.parseInt(column.parameters.get(0));
                 }
+                column.template = ClickHouseBigDecimalValue.ofNull();
+                break;
+            case IPv4:
+                column.template = ClickHouseIpv4Value.ofNull();
+                break;
+            case IPv6:
+                column.template = ClickHouseIpv6Value.ofNull();
                 break;
             case FixedString:
                 if (size > 0) {
@@ -141,12 +237,40 @@ public final class ClickHouseColumn implements Serializable {
                         column.estimatedByteLength += column.precision;
                     }
                 }
+                column.template = ClickHouseStringValue.ofNull();
                 break;
+            case Object:
+            case JSON:
             case String:
                 column.fixedByteLength = false;
                 if (!column.nullable) {
                     column.estimatedByteLength += 1;
                 }
+                column.template = ClickHouseStringValue.ofNull();
+                break;
+            case UUID:
+                column.template = ClickHouseUuidValue.ofNull();
+                break;
+            case Point:
+                column.template = ClickHouseGeoPointValue.ofOrigin();
+                break;
+            case Ring:
+                column.template = ClickHouseGeoRingValue.ofEmpty();
+                break;
+            case Polygon:
+                column.template = ClickHouseGeoPolygonValue.ofEmpty();
+                break;
+            case MultiPolygon:
+                column.template = ClickHouseGeoMultiPolygonValue.ofEmpty();
+                break;
+            case Nested:
+                column.template = ClickHouseNestedValue.ofEmpty(column.nested);
+                break;
+            case Tuple:
+                column.template = ClickHouseTupleValue.of();
+                break;
+            case Nothing:
+                column.template = ClickHouseEmptyValue.INSTANCE;
                 break;
             default:
                 break;
@@ -202,7 +326,7 @@ public final class ClickHouseColumn implements Serializable {
             List<ClickHouseColumn> nestedColumns = new LinkedList<>();
             for (String p : params) {
                 if (isFirst) {
-                    if (matchedKeyword == KEYWORD_AGGREGATE_FUNCTION) {
+                    if (matchedKeyword == KEYWORD_AGGREGATE_FUNCTION) { // NOSONAR
                         int pIndex = p.indexOf('(');
                         aggFunc = ClickHouseAggregateFunction.of(pIndex > 0 ? p.substring(0, pIndex) : p);
                     }
@@ -503,8 +627,7 @@ public final class ClickHouseColumn implements Serializable {
     }
 
     public boolean isEnum() {
-        return dataType == ClickHouseDataType.Enum || dataType == ClickHouseDataType.Enum8
-                || dataType == ClickHouseDataType.Enum16;
+        return dataType == ClickHouseDataType.Enum8 || dataType == ClickHouseDataType.Enum16;
     }
 
     public boolean isFixedLength() {
@@ -539,12 +662,31 @@ public final class ClickHouseColumn implements Serializable {
         return dataType;
     }
 
-    public Class<?> getObjectClass() {
-        return timeZone != null ? OffsetDateTime.class : dataType.getObjectClass();
+    public Class<?> getObjectClass(ClickHouseConfig config) {
+        if (timeZone != null) {
+            return OffsetDateTime.class;
+        }
+
+        return config != null && config.isWidenUnsignedTypes() ? dataType.getWiderObjectClass()
+                : dataType.getObjectClass();
     }
 
-    public Class<?> getPrimitiveClass() {
-        return timeZone != null ? OffsetDateTime.class : dataType.getPrimitiveClass();
+    public Class<?> getObjectClassForArray(ClickHouseConfig config) {
+        Class<?> javaClass = config.isUseObjectsInArray() || isNullable() ? getObjectClass(config)
+                : getPrimitiveClass(config);
+        if (config.isUseBinaryString() && javaClass == String.class) {
+            javaClass = Object.class; // more specific to use byte[][]?
+        }
+        return javaClass;
+    }
+
+    public Class<?> getPrimitiveClass(ClickHouseConfig config) {
+        if (timeZone != null) {
+            return OffsetDateTime.class;
+        }
+
+        return config != null && config.isWidenUnsignedTypes() ? dataType.getWiderPrimitiveClass()
+                : dataType.getPrimitiveClass();
     }
 
     public ClickHouseEnum getEnumConstants() {
@@ -583,8 +725,20 @@ public final class ClickHouseColumn implements Serializable {
         return nullable;
     }
 
-    boolean isLowCardinality() {
-        return lowCardinality;
+    public boolean isLowCardinality() {
+        return !lowCardinalityDisabled && lowCardinality;
+    }
+
+    public boolean isLowCardinalityDisabled() {
+        return lowCardinalityDisabled;
+    }
+
+    public void disableLowCardinality() {
+        lowCardinalityDisabled = true;
+    }
+
+    public boolean hasTimeZone() {
+        return timeZone != null;
     }
 
     public TimeZone getTimeZone() {
@@ -645,6 +799,122 @@ public final class ClickHouseColumn implements Serializable {
      */
     public ClickHouseAggregateFunction getAggregateFunction() {
         return aggFuncType;
+    }
+
+    public ClickHouseArraySequence newArrayValue(ClickHouseConfig config) {
+        int level = arrayLevel;
+        ClickHouseArraySequence value;
+        if (level < 1 || arrayBaseColumn == null || arrayBaseColumn.nullable || config.isUseObjectsInArray()) {
+            value = arrayBaseColumn == null ? ClickHouseArrayValue.ofEmpty()
+                    : ClickHouseArrayValue.ofEmpty(arrayBaseColumn.getObjectClass(config));
+        } else if (level > 255) {
+            throw new IllegalArgumentException(
+                    "Nested level of array should be less than or equal to 255 but we got: " + level);
+        } else if (level > 1) {
+            value = ClickHouseArrayValue
+                    .of((Object[]) Array.newInstance(arrayBaseColumn.getPrimitiveClass(config), new int[level]));
+        } else { // primitive arrays
+            switch (arrayBaseColumn.dataType) {
+                case Bool:
+                    value = ClickHouseBoolArrayValue.ofEmpty();
+                    break;
+                case Int8:
+                    value = ClickHouseByteArrayValue.ofEmpty();
+                    break;
+                case UInt8:
+                    value = config.isWidenUnsignedTypes() ? ClickHouseShortArrayValue.ofEmpty()
+                            : ClickHouseByteArrayValue.ofUnsignedEmpty();
+                    break;
+                case Int16:
+                    value = ClickHouseShortArrayValue.ofEmpty();
+                    break;
+                case UInt16:
+                    value = config.isWidenUnsignedTypes() ? ClickHouseIntArrayValue.ofEmpty()
+                            : ClickHouseShortArrayValue.ofUnsignedEmpty();
+                    break;
+                case Int32:
+                    value = ClickHouseIntArrayValue.ofEmpty();
+                    break;
+                case UInt32:
+                    value = config.isWidenUnsignedTypes() ? ClickHouseLongArrayValue.ofEmpty()
+                            : ClickHouseIntArrayValue.ofUnsignedEmpty();
+                    break;
+                case Int64:
+                    value = ClickHouseLongArrayValue.ofEmpty();
+                    break;
+                case UInt64:
+                    value = ClickHouseLongArrayValue.ofUnsignedEmpty();
+                    break;
+                case Float32:
+                    value = ClickHouseFloatArrayValue.ofEmpty();
+                    break;
+                case Float64:
+                    value = ClickHouseDoubleArrayValue.ofEmpty();
+                    break;
+                default:
+                    value = ClickHouseArrayValue.ofEmpty(arrayBaseColumn.getObjectClass(config));
+                    break;
+            }
+        }
+        return value;
+    }
+
+    public ClickHouseValue newValue(ClickHouseConfig config) {
+        if (template != null) {
+            return template.copy();
+        }
+
+        ClickHouseValue value = null;
+        switch (dataType) {
+            case UInt8:
+                value = config.isWidenUnsignedTypes() ? ClickHouseShortValue.ofNull()
+                        : ClickHouseByteValue.ofUnsignedNull();
+                break;
+            case UInt16:
+                value = config.isWidenUnsignedTypes() ? ClickHouseIntegerValue.ofNull()
+                        : ClickHouseShortValue.ofUnsignedNull();
+                break;
+            case UInt32:
+                value = config.isWidenUnsignedTypes() ? ClickHouseLongValue.ofNull()
+                        : ClickHouseIntegerValue.ofUnsignedNull();
+                break;
+            case DateTime:
+            case DateTime32:
+            case DateTime64:
+                value = ClickHouseDateTimeValue.ofNull(getScale(), config.getUseTimeZone());
+                break;
+            case SimpleAggregateFunction:
+                value = nested.get(0).newValue(config);
+                break;
+            case AggregateFunction:
+                value = ClickHouseEmptyValue.INSTANCE;
+                switch (aggFuncType) {
+                    case any:
+                        value = nested.get(0).newValue(config);
+                        break;
+                    case groupBitmap:
+                        value = ClickHouseBitmapValue.ofEmpty(nested.get(0).getDataType());
+                        break;
+                    default:
+                        break;
+                }
+                break;
+            case Array:
+                value = newArrayValue(config);
+                break;
+            case Map:
+                value = ClickHouseMapValue.ofEmpty(getKeyInfo().getObjectClass(config),
+                        getValueInfo().getObjectClass(config));
+                break;
+            default:
+                break;
+        }
+
+        if (value == null) {
+            throw new IllegalArgumentException("Unsupported data type: " + dataType.name());
+        }
+
+        return value;
     }
 
     @Override

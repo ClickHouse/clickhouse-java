@@ -1,5 +1,6 @@
 package com.clickhouse.jdbc.internal;
 
+import java.io.Serializable;
 import java.net.URI;
 import java.sql.ClientInfoStatus;
 import java.sql.Connection;
@@ -28,6 +29,7 @@ import com.clickhouse.client.ClickHouseClient;
 import com.clickhouse.client.ClickHouseClientBuilder;
 import com.clickhouse.client.ClickHouseColumn;
 import com.clickhouse.client.ClickHouseConfig;
+import com.clickhouse.client.ClickHouseDataType;
 import com.clickhouse.client.ClickHouseException;
 import com.clickhouse.client.ClickHouseFormat;
 import com.clickhouse.client.ClickHouseNode;
@@ -41,7 +43,9 @@ import com.clickhouse.client.ClickHouseTransaction;
 import com.clickhouse.client.ClickHouseUtils;
 import com.clickhouse.client.ClickHouseValues;
 import com.clickhouse.client.ClickHouseVersion;
+import com.clickhouse.client.ClickHouseRequest.Mutation;
 import com.clickhouse.client.config.ClickHouseClientOption;
+import com.clickhouse.client.config.ClickHouseOption;
 import com.clickhouse.client.config.ClickHouseRenameMethod;
 import com.clickhouse.client.http.config.ClickHouseHttpOption;
 import com.clickhouse.client.logging.Logger;
@@ -58,24 +62,50 @@ import com.clickhouse.jdbc.JdbcWrapper;
 import com.clickhouse.jdbc.internal.ClickHouseJdbcUrlParser.ConnectionInfo;
 import com.clickhouse.jdbc.parser.ClickHouseSqlParser;
 import com.clickhouse.jdbc.parser.ClickHouseSqlStatement;
+import com.clickhouse.jdbc.parser.ParseHandler;
 import com.clickhouse.jdbc.parser.StatementType;
 
 public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseConnection {
     private static final Logger log = LoggerFactory.getLogger(ClickHouseConnectionImpl.class);
 
-    private static final String SETTING_READONLY = "readonly";
+    static final String SETTING_READONLY = "readonly";
+    static final String SETTING_MAX_INSERT_BLOCK = "max_insert_block_size";
+    static final String SETTING_LW_DELETE = "allow_experimental_lightweight_delete";
 
     private static final String SQL_GET_SERVER_INFO = "select currentUser() user, timezone() timezone, version() version, "
-            + "toInt8(ifnull((select value from system.settings where name = 'readonly'), '0')) as readonly, "
-            + "toInt8(ifnull((select value from system.settings where name = '"
-            + ClickHouseTransaction.SETTING_THROW_ON_UNSUPPORTED_QUERY_INSIDE_TRANSACTION
-            + "'), '-1')) as non_transational_query, "
-            + "lower(ifnull((select value from system.settings where name = '"
-            + ClickHouseTransaction.SETTING_WAIT_CHANGES_BECOME_VISIBLE_AFTER_COMMIT_MODE
-            + "'), '')) as commit_wait_mode, "
-            + "toInt8(ifnull((select value from system.settings where name = '"
-            + ClickHouseTransaction.SETTING_IMPLICIT_TRANSACTION + "'), '-1')) as implicit_transaction "
-            + "FORMAT RowBinaryWithNamesAndTypes";
+            + getSetting(SETTING_READONLY, ClickHouseDataType.UInt8) + ", "
+            + getSetting(ClickHouseTransaction.SETTING_THROW_ON_UNSUPPORTED_QUERY_INSIDE_TRANSACTION,
+                    ClickHouseDataType.Int8)
+            + ", "
+            + getSetting(ClickHouseTransaction.SETTING_WAIT_CHANGES_BECOME_VISIBLE_AFTER_COMMIT_MODE,
+                    ClickHouseDataType.String)
+            + ","
+            + getSetting(ClickHouseTransaction.SETTING_IMPLICIT_TRANSACTION, ClickHouseDataType.Int8) + ", "
+            + getSetting(SETTING_MAX_INSERT_BLOCK, ClickHouseDataType.UInt64) + ", "
+            + getSetting(SETTING_LW_DELETE, ClickHouseDataType.Int8)
+            + " FORMAT RowBinaryWithNamesAndTypes";
+
+    private static String getSetting(String setting, ClickHouseDataType type) {
+        return getSetting(setting, type, null);
+    }
+
+    private static String getSetting(String setting, ClickHouseDataType type, String defaultValue) {
+        StringBuilder builder = new StringBuilder();
+        if (type == ClickHouseDataType.String) {
+            builder.append("lower(ifnull((select value from system.settings where name = '").append(setting)
+                    .append("'), ");
+        } else {
+            builder.append("to").append(type.name())
+                    .append("(ifnull((select value from system.settings where name = '").append(setting)
+                    .append("'), ");
+        }
+        if (ClickHouseChecker.isNullOrEmpty(defaultValue)) {
+            builder.append(type.getMaxPrecision() > 0 ? (type.isSigned() ? "'-1'" : "'0'") : "''");
+        } else {
+            builder.append('\'').append(defaultValue).append('\'');
+        }
+        return builder.append(")) as ").append(setting).toString();
+    }
 
     protected static ClickHouseRecord getServerInfo(ClickHouseNode node, ClickHouseRequest<?> request,
             boolean createDbIfNotExist) throws SQLException {
@@ -85,7 +115,8 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
             newReq.option(ClickHouseClientOption.DATABASE, "");
         }
         try (ClickHouseResponse response = newReq.option(ClickHouseClientOption.ASYNC, false)
-                .option(ClickHouseClientOption.COMPRESS, false).option(ClickHouseClientOption.DECOMPRESS, false)
+                .option(ClickHouseClientOption.COMPRESS, false)
+                .option(ClickHouseClientOption.DECOMPRESS, false)
                 .option(ClickHouseClientOption.FORMAT, ClickHouseFormat.RowBinaryWithNamesAndTypes)
                 .query(SQL_GET_SERVER_INFO).executeAndWait()) {
             return response.firstRecord();
@@ -94,7 +125,7 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
             if (createDbIfNotExist && sqlExp.getErrorCode() == 81) {
                 String db = node.getDatabase(request.getConfig());
                 try (ClickHouseResponse resp = newReq.use("")
-                        .query(new StringBuilder("create database if not exists `")
+                        .query(new StringBuilder("CREATE DATABASE IF NOT EXISTS `")
                                 .append(ClickHouseUtils.escape(db, '`')).append('`').toString())
                         .executeAndWait()) {
                     return getServerInfo(node, request, false);
@@ -132,6 +163,8 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
     private final int initialNonTxQuerySupport;
     private final String initialTxCommitWaitMode;
     private final int initialImplicitTx;
+    private final long initialMaxInsertBlockSize;
+    private final int initialDeleteSupport;
 
     private final Map<String, Class<?>> typeMap;
 
@@ -284,15 +317,17 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
                 initialNonTxQuerySupport = r.getValue(4).asInteger();
                 initialTxCommitWaitMode = r.getValue(5).asString();
                 initialImplicitTx = r.getValue(6).asInteger();
+                initialMaxInsertBlockSize = r.getValue(7).asLong();
+                initialDeleteSupport = r.getValue(8).asInteger();
             } else {
-                initialReadOnly = (int) clientRequest.getSettings().getOrDefault(SETTING_READONLY, 0);
-                initialNonTxQuerySupport = (int) clientRequest.getSettings()
-                        .getOrDefault(ClickHouseTransaction.SETTING_THROW_ON_UNSUPPORTED_QUERY_INSIDE_TRANSACTION, 1);
-                initialTxCommitWaitMode = (String) clientRequest.getSettings()
-                        .getOrDefault(ClickHouseTransaction.SETTING_WAIT_CHANGES_BECOME_VISIBLE_AFTER_COMMIT_MODE,
-                                "wait_unknown");
-                initialImplicitTx = (int) clientRequest.getSettings()
-                        .getOrDefault(ClickHouseTransaction.SETTING_IMPLICIT_TRANSACTION, 0);
+                initialReadOnly = clientRequest.getSetting(SETTING_READONLY, 0);
+                initialNonTxQuerySupport = clientRequest
+                        .getSetting(ClickHouseTransaction.SETTING_THROW_ON_UNSUPPORTED_QUERY_INSIDE_TRANSACTION, 1);
+                initialTxCommitWaitMode = clientRequest.getSetting(
+                        ClickHouseTransaction.SETTING_WAIT_CHANGES_BECOME_VISIBLE_AFTER_COMMIT_MODE, "wait_unknown");
+                initialImplicitTx = clientRequest.getSetting(ClickHouseTransaction.SETTING_IMPLICIT_TRANSACTION, 0);
+                initialMaxInsertBlockSize = clientRequest.getSetting(SETTING_MAX_INSERT_BLOCK, 0L);
+                initialDeleteSupport = clientRequest.getSetting(SETTING_LW_DELETE, 0);
             }
         } else {
             ClickHouseRecord r = getServerInfo(node, clientRequest, jdbcConf.isCreateDbIfNotExist());
@@ -314,6 +349,8 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
             initialNonTxQuerySupport = r.getValue(4).asInteger();
             initialTxCommitWaitMode = r.getValue(5).asString();
             initialImplicitTx = r.getValue(6).asInteger();
+            initialMaxInsertBlockSize = r.getValue(7).asLong();
+            initialDeleteSupport = r.getValue(8).asInteger();
 
             // update request and corresponding config
             clientRequest.option(ClickHouseClientOption.SERVER_TIME_ZONE, tz)
@@ -324,13 +361,17 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
         this.closed = false;
         this.database = config.getDatabase();
         this.clientRequest.use(this.database);
-        this.readOnly = initialReadOnly != 0;
+        this.readOnly = clientRequest.getSetting(SETTING_READONLY, initialReadOnly) != 0;
         this.networkTimeout = 0;
         this.rsHoldability = ResultSet.HOLD_CURSORS_OVER_COMMIT;
         if (isTransactionSupported()) {
             this.txIsolation = Connection.TRANSACTION_REPEATABLE_READ;
-            if (jdbcConf.isJdbcCompliant()) {
-                this.clientRequest.set(ClickHouseTransaction.SETTING_THROW_ON_UNSUPPORTED_QUERY_INSIDE_TRANSACTION, 0);
+            if (jdbcConf.isJdbcCompliant() && !this.readOnly) {
+                if (!this.clientRequest
+                        .hasSetting(ClickHouseTransaction.SETTING_THROW_ON_UNSUPPORTED_QUERY_INSIDE_TRANSACTION)) {
+                    this.clientRequest.set(ClickHouseTransaction.SETTING_THROW_ON_UNSUPPORTED_QUERY_INSIDE_TRANSACTION,
+                            0);
+                }
                 // .set(ClickHouseTransaction.SETTING_WAIT_CHANGES_BECOME_VISIBLE_AFTER_COMMIT_MODE,
                 // "wait_unknown");
             }
@@ -679,7 +720,7 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
 
         ClickHouseConfig config = clientRequest.getConfig();
         // TODO remove the extra parsing
-        ClickHouseSqlStatement[] stmts = parse(sql, config);
+        ClickHouseSqlStatement[] stmts = parse(sql, config, clientRequest.getSettings());
         if (stmts.length != 1) {
             throw SqlExceptionUtils
                     .clientError("Prepared statement only supports one query but we got: " + stmts.length);
@@ -734,24 +775,33 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
             if (parsedStmt.hasTempTable()) {
                 // queries using external/temporary table
                 ps = new TableBasedPreparedStatement(this,
-                        clientRequest.write().query(parsedStmt.getSQL(), newQueryId()), parsedStmt,
+                        clientRequest.copy().query(parsedStmt.getSQL(), newQueryId()), parsedStmt,
                         resultSetType, resultSetConcurrency, resultSetHoldability);
             } else if (parsedStmt.getStatementType() == StatementType.INSERT) {
                 if (!ClickHouseChecker.isNullOrBlank(parsedStmt.getInput())) {
+                    // an ugly workaround of https://github.com/ClickHouse/ClickHouse/issues/39866
+                    // would be replace JSON and Object('json') types in the query to String
+
+                    Mutation m = clientRequest.write();
+                    if (parsedStmt.hasFormat()) {
+                        m.format(ClickHouseFormat.valueOf(parsedStmt.getFormat()));
+                    }
                     // insert query using input function
-                    ps = new InputBasedPreparedStatement(this,
-                            clientRequest.write().query(parsedStmt.getSQL(), newQueryId()),
-                            ClickHouseColumn.parse(parsedStmt.getInput()), resultSetType,
-                            resultSetConcurrency, resultSetHoldability);
-                } else if (!parsedStmt.containsKeyword("SELECT") && !parsedStmt.hasValues() &&
-                        (!parsedStmt.hasFormat() || clientRequest.getFormat().name().equals(parsedStmt.getFormat()))) {
-                    ps = new InputBasedPreparedStatement(this,
-                            clientRequest.write().query(parsedStmt.getSQL(), newQueryId()),
-                            getTableColumns(parsedStmt.getDatabase(), parsedStmt.getTable(),
-                                    parsedStmt.getContentBetweenKeywords(
-                                            ClickHouseSqlStatement.KEYWORD_TABLE_COLUMNS_START,
-                                            ClickHouseSqlStatement.KEYWORD_TABLE_COLUMNS_END)),
-                            resultSetType, resultSetConcurrency, resultSetHoldability);
+                    ps = new InputBasedPreparedStatement(this, m.query(parsedStmt.getSQL(), newQueryId()),
+                            ClickHouseColumn.parse(parsedStmt.getInput()), resultSetType, resultSetConcurrency,
+                            resultSetHoldability);
+                } else if (!parsedStmt.containsKeyword("SELECT") && !parsedStmt.hasValues()) {
+                    ps = parsedStmt.hasFormat()
+                            ? new StreamBasedPreparedStatement(this,
+                                    clientRequest.write().query(parsedStmt.getSQL(), newQueryId()), parsedStmt,
+                                    resultSetType, resultSetConcurrency, resultSetHoldability)
+                            : new InputBasedPreparedStatement(this,
+                                    clientRequest.write().query(parsedStmt.getSQL(), newQueryId()),
+                                    getTableColumns(parsedStmt.getDatabase(), parsedStmt.getTable(),
+                                            parsedStmt.getContentBetweenKeywords(
+                                                    ClickHouseSqlStatement.KEYWORD_TABLE_COLUMNS_START,
+                                                    ClickHouseSqlStatement.KEYWORD_TABLE_COLUMNS_END)),
+                                    resultSetType, resultSetConcurrency, resultSetHoldability);
                 }
             }
         }
@@ -863,9 +913,9 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
         if (PROP_APPLICATION_NAME.equals(name)) {
             value = config.getClientName();
         } else if (PROP_CUSTOM_HTTP_HEADERS.equals(name)) {
-            value = (String) config.getOption(ClickHouseHttpOption.CUSTOM_HEADERS);
+            value = config.getStrOption(ClickHouseHttpOption.CUSTOM_HEADERS);
         } else if (PROP_CUSTOM_HTTP_PARAMS.equals(name)) {
-            value = (String) config.getOption(ClickHouseHttpOption.CUSTOM_PARAMS);
+            value = config.getStrOption(ClickHouseHttpOption.CUSTOM_PARAMS);
         }
         return value;
     }
@@ -877,8 +927,8 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
         ClickHouseConfig config = clientRequest.getConfig();
         Properties props = new Properties();
         props.setProperty(PROP_APPLICATION_NAME, config.getClientName());
-        props.setProperty(PROP_CUSTOM_HTTP_HEADERS, (String) config.getOption(ClickHouseHttpOption.CUSTOM_HEADERS));
-        props.setProperty(PROP_CUSTOM_HTTP_PARAMS, (String) config.getOption(ClickHouseHttpOption.CUSTOM_PARAMS));
+        props.setProperty(PROP_CUSTOM_HTTP_HEADERS, config.getStrOption(ClickHouseHttpOption.CUSTOM_HEADERS));
+        props.setProperty(PROP_CUSTOM_HTTP_PARAMS, config.getStrOption(ClickHouseHttpOption.CUSTOM_PARAMS));
         return props;
     }
 
@@ -1004,6 +1054,11 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
     }
 
     @Override
+    public long getMaxInsertBlockSize() {
+        return initialMaxInsertBlockSize;
+    }
+
+    @Override
     public boolean isTransactionSupported() {
         return jdbcConf.isTransactionSupported() && initialNonTxQuerySupport >= 0
                 && !ClickHouseChecker.isNullOrEmpty(initialTxCommitWaitMode);
@@ -1022,9 +1077,20 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
     }
 
     @Override
-    public ClickHouseSqlStatement[] parse(String sql, ClickHouseConfig config) {
-        return ClickHouseSqlParser.parse(sql, config != null ? config : clientRequest.getConfig(),
-                jdbcConf.isJdbcCompliant() ? JdbcParseHandler.INSTANCE : null);
+    public ClickHouseSqlStatement[] parse(String sql, ClickHouseConfig config, Map<String, Serializable> settings) {
+        ParseHandler handler = null;
+        if (jdbcConf.isJdbcCompliant()) {
+            handler = JdbcParseHandler.INSTANCE;
+            if (settings != null) {
+                Serializable value = settings.get(SETTING_LW_DELETE);
+                if (value == null ? initialDeleteSupport == 1
+                        : ClickHouseOption.fromString(value.toString(), Boolean.class)) {
+                    handler = JdbcParseHandler.WITHOUT_DELETE;
+                }
+
+            }
+        }
+        return ClickHouseSqlParser.parse(sql, config != null ? config : clientRequest.getConfig(), handler);
     }
 
     @Override

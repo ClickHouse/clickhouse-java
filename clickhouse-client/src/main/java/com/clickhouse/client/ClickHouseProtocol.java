@@ -13,6 +13,10 @@ public enum ClickHouseProtocol {
      */
     ANY(0, "anys"),
     /**
+     * Local/File interface.
+     */
+    LOCAL(0, "local", "file"),
+    /**
      * HTTP/HTTPS interface.
      */
     HTTP(8123, 8443, "http", "https"),

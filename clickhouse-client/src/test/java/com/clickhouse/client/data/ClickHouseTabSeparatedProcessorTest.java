@@ -3,6 +3,7 @@ package com.clickhouse.client.data;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.Serializable;
+import java.math.BigInteger;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -21,10 +22,11 @@ import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.config.ClickHouseOption;
 
 import org.testng.Assert;
+import org.testng.SkipException;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
-public class ClickHouseTabSeparatedProcessorTest {
+public class ClickHouseTabSeparatedProcessorTest extends BaseDataProcessorTest {
     @DataProvider(name = "simpleTsvDataProvider")
     private Object[][] getSimpleTsvData() {
         return new Object[][] {
@@ -33,6 +35,125 @@ public class ClickHouseTabSeparatedProcessorTest {
                 { UUID.randomUUID().toString(), 2 },
                 { UUID.randomUUID().toString(), 3 },
                 { UUID.randomUUID().toString(), 256 } };
+    }
+
+    @Override
+    protected ClickHouseDataProcessor getDataProcessor(ClickHouseConfig config, ClickHouseColumn column,
+            ClickHouseInputStream input, ClickHouseOutputStream output) throws IOException {
+        return new ClickHouseTabSeparatedProcessor(config, input, output, Collections.singletonList(column), null);
+    }
+
+    @Override
+    protected byte[] getRawData(String typeName, String key) {
+        byte[] data = null;
+        while (typeName.indexOf("LowCardinality(") >= 0) {
+            typeName = typeName.replaceFirst("LowCardinality\\(", "").replaceFirst("\\)", "");
+        }
+        if (typeName.startsWith("Nullable(")) {
+            if ("null".equals(key)) {
+                return toBytes("\\N\n");
+            } else {
+                return getRawData(typeName.replaceFirst("Nullable\\(", "").replaceFirst("\\)", ""), key);
+            }
+        }
+        switch (typeName) {
+            case "Array(Nullable(Bool))":
+                if ("0,1".equals(key)) { // first one will be null
+                    data = toBytes("[\\N,false,true]");
+                }
+                break;
+            case "Array(Bool)":
+                if ("0,1".equals(key)) {
+                    data = toBytes("[false,true]");
+                }
+                break;
+            case "Array(Int8)":
+            case "Array(Int16)":
+            case "Array(Int32)":
+            case "Array(Int64)":
+            case "Array(Float32)":
+            case "Array(Float64)":
+                if ("0,1,-1".equals(key)) {
+                    data = toBytes("0,1,-1");
+                }
+                break;
+            case "Array(UInt8)":
+                if ("0,1,-1".equals(key)) {
+                    data = toBytes("0,1,255");
+                }
+                break;
+            case "Array(UInt16)":
+                if ("0,1,-1".equals(key)) {
+                    data = toBytes("0,1,65535");
+                }
+                break;
+            case "Array(UInt32)":
+                if ("0,1,-1".equals(key)) {
+                    data = toBytes("0,1,4294967295");
+                }
+                break;
+            case "Array(UInt64)":
+                if ("0,1,-1".equals(key)) {
+                    data = toBytes("0,1,18446744073709551615");
+                }
+                break;
+            case "Array(String)":
+                if ("4bcd".equals(key)) {
+                    data = toBytes("['','B','BC','BCD']");
+                }
+                break;
+            case "Bool":
+                if ("0".equals(key)) {
+                    data = toBytes("false");
+                } else if ("1".equals(key)) {
+                    data = toBytes("true");
+                }
+                break;
+            case "Int8":
+            case "Int16":
+            case "Int32":
+            case "Int64":
+                data = toBytes(key);
+                break;
+            case "Float32":
+            case "Float64":
+                data = toBytes(key + ".0");
+                break;
+            case "UInt8":
+                data = toBytes(String.valueOf(0xFF & Byte.parseByte(key)));
+                break;
+            case "UInt16":
+                data = toBytes(String.valueOf(0xFFFF & Short.parseShort(key)));
+                break;
+            case "UInt32":
+                data = toBytes(String.valueOf(0xFFFFFFFFL & Integer.parseInt(key)));
+                break;
+            case "UInt64":
+                data = toBytes(String.valueOf(new BigInteger(key).and(UnsignedLong.MASK)));
+                break;
+            case "String":
+                data = toBytes(key);
+                break;
+            default:
+                break;
+        }
+
+        if (data == null) {
+            Assert.fail(String.format("No raw data defined for type=[%s] and key=[%s]", typeName, key));
+        }
+        return toBytes(data, '\n');
+    }
+
+    @Override
+    public void testDeserializeNestedTypes(ClickHouseConfig config, String typeName, String dataKey, String valueClass,
+            Object arrVal, Object objVal, String strVal, String sqlExpr) throws IOException {
+        throw new SkipException("Skip as it's not fully implemented");
+    }
+
+    @Override
+    public void testSerializeNestedTypes(ClickHouseConfig config, String typeName, String dataKey,
+            ClickHouseValue... values) throws IOException {
+        throw new SkipException("Skip as it's not fully implemented");
     }
 
     @Test(dataProvider = "simpleTsvDataProvider", groups = { "unit" })
@@ -68,7 +189,7 @@ public class ClickHouseTabSeparatedProcessorTest {
                 ClickHouseOutputStream out = ClickHouseOutputStream.of(bas)) {
             ClickHouseTabSeparatedProcessor p = new ClickHouseTabSeparatedProcessor(config, null, out,
                     ClickHouseDataProcessor.DEFAULT_COLUMNS, null);
-            p.write(value, ClickHouseDataProcessor.DEFAULT_COLUMNS.get(0));
+            p.write(value);
             out.flush();
             Assert.assertEquals(bas.toByteArray(), new byte[] { 97, 97, 97, 10 });
         }
@@ -77,8 +198,8 @@ public class ClickHouseTabSeparatedProcessorTest {
             try (ByteArrayOutputStream bas = new ByteArrayOutputStream();
                     ClickHouseOutputStream out = ClickHouseOutputStream.of(bas, i)) {
                 ClickHouseTabSeparatedProcessor p = new ClickHouseTabSeparatedProcessor(config, null, out, list, null);
-                p.write(value, list.get(0));
-                p.write(ClickHouseEmptyValue.INSTANCE, list.get(1));
+                p.write(value);
+                p.write(ClickHouseEmptyValue.INSTANCE);
                 out.flush();
                 Assert.assertEquals(bas.toByteArray(), new byte[] { 97, 97, 97, 9, 92, 78, 10 });
             }

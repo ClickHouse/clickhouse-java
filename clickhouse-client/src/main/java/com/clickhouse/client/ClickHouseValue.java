@@ -84,8 +84,7 @@ public interface ClickHouseValue extends Serializable {
      * @return true if the value is NaN; false otherwise
      */
     default boolean isNaN() {
-        double v = asDouble();
-        return v != v;
+        return Double.isNaN(asDouble());
     }
 
     /**
@@ -150,8 +149,7 @@ public interface ClickHouseValue extends Serializable {
      * @return non-null byte stream for reading
      */
     default InputStream asByteStream() {
-        byte[] bytes = isNullOrEmpty() ? new byte[0] : new byte[] { asByte() };
-        return new ByteArrayInputStream(bytes);
+        return isNullOrEmpty() ? ClickHouseInputStream.empty() : new ByteArrayInputStream(new byte[] { asByte() });
     }
 
     /**
@@ -161,8 +159,8 @@ public interface ClickHouseValue extends Serializable {
      * @return non-null character stream for reading
      */
     default Reader asCharacterStream() {
-        String s = isNullOrEmpty() ? "" : asString();
-        return new StringReader(s);
+        // Reader.nullReader() requires JDK 11+
+        return new StringReader(isNullOrEmpty() ? "" : asString());
     }
 
     /**
@@ -189,9 +187,6 @@ public interface ClickHouseValue extends Serializable {
      * @return byte value
      */
     byte asByte();
-
-    // not a good idea as this may confuse people, use asString(byteLength) instead
-    // byte[] asBytes()
 
     /**
      * Gets value as short.
@@ -487,6 +482,16 @@ public interface ClickHouseValue extends Serializable {
     Object asObject();
 
     /**
+     * Gets raw value as an object. This method is probably only useful for
+     * {@code String} as it can be either a byte array or text.
+     * 
+     * @return an object representing the raw value, could be null
+     */
+    default Object asRawObject() {
+        return asObject();
+    }
+
+    /**
      * Gets value as a typed object.
      *
      * @param <T>   type of the object
@@ -592,8 +597,8 @@ public interface ClickHouseValue extends Serializable {
         }
 
         byte[] bytes = asString().getBytes(charset == null ? StandardCharsets.UTF_8 : charset);
-        if (length > 0) {
-            ClickHouseChecker.notWithDifferentLength(bytes, length);
+        if (bytes.length < length) {
+            bytes = Arrays.copyOf(bytes, length);
         }
 
         return bytes;
@@ -605,50 +610,11 @@ public interface ClickHouseValue extends Serializable {
      * @return string value, could be null
      */
     default String asString() {
-        return asString(0, null);
-    }
-
-    /**
-     * Gets value as fixed length(in bytes) string, using default charset(usually
-     * UTF-8).
-     *
-     * @param length byte length of the string, 0 or negative number means unbounded
-     * @return string value, could be null
-     */
-    default String asString(int length) {
-        return asString(length, null);
-    }
-
-    /**
-     * Gets value as unbounded string.
-     *
-     * @param charset charset, null is same as default(UTF-8)
-     * @return string value, could be null
-     */
-    default String asString(Charset charset) {
-        return asString(0, charset);
-    }
-
-    /**
-     * Gets value as fixed length(in bytes) string.
-     *
-     * @param length  byte length of the string, 0 or negative number means
-     *                unbounded
-     * @param charset charset, null is same as default(UTF-8)
-     * @return string value, could be null
-     */
-    default String asString(int length, Charset charset) {
         if (isNullOrEmpty()) {
             return null;
         }
 
-        String str = String.valueOf(asObject());
-        if (length > 0) {
-            ClickHouseChecker.notWithDifferentLength(str.getBytes(charset == null ? StandardCharsets.UTF_8 : charset),
-                    length);
-        }
-
-        return str;
+        return String.valueOf(asObject());
     }
 
     /**

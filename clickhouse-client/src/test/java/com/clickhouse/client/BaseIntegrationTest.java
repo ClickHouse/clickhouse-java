@@ -19,6 +19,10 @@ public abstract class BaseIntegrationTest {
         return ClickHouseServerForTest.getClickHouseNode(protocol, true, ClickHouseNode.builder().build());
     }
 
+    protected ClickHouseNode getSecureServer(ClickHouseProtocol protocol, ClickHouseNode base) {
+        return ClickHouseServerForTest.getClickHouseNode(protocol, true, base);
+    }
+
     protected ClickHouseNode getServer(ClickHouseProtocol protocol) {
         return ClickHouseServerForTest.getClickHouseNode(protocol, false, ClickHouseNode.builder().build());
     }

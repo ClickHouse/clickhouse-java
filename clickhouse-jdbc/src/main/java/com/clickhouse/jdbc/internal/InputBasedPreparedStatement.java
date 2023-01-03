@@ -21,6 +21,7 @@ import java.util.List;
 
 import com.clickhouse.client.ClickHouseColumn;
 import com.clickhouse.client.ClickHouseConfig;
+import com.clickhouse.client.ClickHouseDataProcessor;
 import com.clickhouse.client.ClickHouseDataStreamFactory;
 import com.clickhouse.client.ClickHousePipedOutputStream;
 import com.clickhouse.client.ClickHouseRequest;
@@ -68,11 +69,12 @@ public class InputBasedPreparedStatement extends AbstractPreparedStatement imple
         int i = 0;
         for (ClickHouseColumn col : columns) {
             this.columns[i] = col;
-            this.values[i] = ClickHouseValues.newValue(config, col);
+            this.values[i] = col.newValue(config);
             list.add(col);
             i++;
         }
-        paramMetaData = new ClickHouseParameterMetaData(Collections.unmodifiableList(list));
+        paramMetaData = new ClickHouseParameterMetaData(Collections.unmodifiableList(list), mapper,
+                connection.getTypeMap());
         flags = new boolean[size];
 
         counter = 0;
@@ -104,10 +106,15 @@ public class InputBasedPreparedStatement extends AbstractPreparedStatement imple
             }
             continueOnError = getConnection().getJdbcConfig().isContinueBatchOnError();
         } else {
-            if (counter != 0) {
-                throw SqlExceptionUtils.undeterminedExecutionError();
+            try {
+                if (counter != 0) {
+                    throw SqlExceptionUtils.undeterminedExecutionError();
+                }
+                addBatch();
+            } catch (SQLException e) {
+                clearBatch();
+                throw e;
             }
-            addBatch();
         }
 
         long[] results = new long[counter];
@@ -118,8 +125,13 @@ public class InputBasedPreparedStatement extends AbstractPreparedStatement imple
             if (asBatch && getResultSet() != null) {
                 throw SqlExceptionUtils.queryInBatchError(results);
             }
-            // FIXME grpc and tcp by default can provides accurate result
-            Arrays.fill(results, 1);
+
+            if (counter == 1) {
+                results[0] = rows;
+            } else {
+                // FIXME grpc and tcp by default can provides accurate result
+                Arrays.fill(results, 1);
+            }
         } catch (Exception e) {
             if (!asBatch) {
                 throw SqlExceptionUtils.handle(e);
@@ -312,7 +324,7 @@ public class InputBasedPreparedStatement extends AbstractPreparedStatement imple
     public void addBatch() throws SQLException {
         ensureOpen();
 
-        ClickHouseConfig config = getConfig();
+        ClickHouseDataProcessor processor = getDataProcessor(stream, null, columns);
         int nullAsDefault = getNullAsDefault();
         for (int i = 0, len = values.length; i < len; i++) {
             if (!flags[i]) {
@@ -330,7 +342,7 @@ public class InputBasedPreparedStatement extends AbstractPreparedStatement imple
                 }
             }
             try {
-                serializer.serialize(val, config, col, stream);
+                processor.write(val);
             } catch (IOException e) {
                 // should not happen
                 throw SqlExceptionUtils.handle(e);
@@ -356,6 +368,7 @@ public class InputBasedPreparedStatement extends AbstractPreparedStatement imple
         ClickHouseConfig config = getConfig();
         stream = ClickHouseDataStreamFactory.getInstance().createPipedOutputStream(config.getWriteBufferSize(), 0,
                 config.getSocketTimeout(), null);
+        resetDataProcessor();
     }
 
     @Override
@@ -434,7 +447,7 @@ public class InputBasedPreparedStatement extends AbstractPreparedStatement imple
             } else {
                 Calendar c = (Calendar) cal.clone();
                 c.setTime(x);
-                dt = c.toInstant().atZone(tz).withZoneSameInstant(timeZoneForTs).toLocalDateTime();
+                dt = c.toInstant().atZone(tz).withNano(x.getNanos()).withZoneSameInstant(timeZoneForTs).toLocalDateTime();
             }
             values[idx].update(dt);
         } else {

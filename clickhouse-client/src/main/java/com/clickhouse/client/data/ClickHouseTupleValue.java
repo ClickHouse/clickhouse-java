@@ -5,8 +5,6 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
-import java.nio.charset.Charset;
-import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -137,14 +135,8 @@ public class ClickHouseTupleValue extends ClickHouseObjectValue<List<Object>> {
     }
 
     @Override
-    public String asString(int length, Charset charset) {
-        String str = Arrays.deepToString(asArray());
-        if (length > 0) {
-            ClickHouseChecker.notWithDifferentLength(str.getBytes(charset == null ? StandardCharsets.UTF_8 : charset),
-                    length);
-        }
-
-        return str;
+    public String asString() {
+        return Arrays.deepToString(asArray());
     }
 
     @Override
@@ -421,11 +413,7 @@ public class ClickHouseTupleValue extends ClickHouseObjectValue<List<Object>> {
             return this;
         }
 
-        List<Object> v = new ArrayList<>(size);
-        for (Object o : value) {
-            v.add(o);
-        }
-        set(v);
+        set(new ArrayList<>(value));
         return this;
     }
 
@@ -480,7 +468,7 @@ public class ClickHouseTupleValue extends ClickHouseObjectValue<List<Object>> {
 
     @Override
     public ClickHouseTupleValue update(ClickHouseValue value) {
-        if (value == null) {
+        if (value == null || value.isNullOrEmpty()) {
             set(Collections.emptyList());
             return this;
         }
