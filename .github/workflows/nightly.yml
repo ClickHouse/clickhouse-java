@@ -12,7 +12,7 @@ on:
 
 env:
   CHC_BRANCH: "develop"
-  CHC_VERSION: "0.3.3"
+  CHC_VERSION: "0.4.0"
 
 jobs:
   nightly:

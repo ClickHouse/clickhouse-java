@@ -1,6 +1,6 @@
 # ClickHouse JDBC driver
 
-Build on top of `clickhouse-client`, `clickhouse-jdbc` follows JDBC standards and provides additional features like custom type mapping, fake transaction, and standard synchronous UPDATE and DELETE statement etc., so that it can be easily used together with legacy applications and tools.
+Build on top of `clickhouse-client`, `clickhouse-jdbc` follows JDBC standards and provides additional features like custom type mapping, transaction support, and standard synchronous UPDATE and DELETE statement etc., so that it can be easily used together with legacy applications and tools.
 
 Keep in mind that `clickhouse-jdbc` is synchronous, and in general it has more overheads(e.g. SQL parsing and type mapping/conversion etc.). You should consider `clickhouse-client` when performance is critical and/or you prefer more direct way to access ClickHouse.
 
@@ -11,7 +11,7 @@ Keep in mind that `clickhouse-jdbc` is synchronous, and in general it has more o
     <!-- please stop using ru.yandex.clickhouse as it's been deprecated -->
     <groupId>com.clickhouse</groupId>
     <artifactId>clickhouse-jdbc</artifactId>
-    <version>0.3.2-patch11</version>
+    <version>0.4.0</version>
     <!-- use uber jar with all dependencies included, change classifier to http for smaller jar -->
     <classifier>all</classifier>
     <exclusions>
@@ -267,9 +267,9 @@ ClickHouseFormat.RowBinary); // RowBinary or Native are supported
 
 </details>
 
-## Upgrade to 0.3.2
+## Upgrade to 0.3.2+
 
-Please refer to cheatsheet below to upgrade JDBC driver to 0.3.2.
+Please refer to cheatsheet below to upgrade JDBC driver to 0.3.2+.
 
 <table>
 <thead>
@@ -360,7 +360,25 @@ ClickHouseDataSource ds = new ClickHouseDataSource(connString);
 ClickHouseConnection conn = ds.getConnection("default", "");
 </code></pre></td>
 </tr>
+<tr>
 <td>6</td>
+<td>DateTime</td>
+<td><pre><code class="language-java">try (PreparedStatement ps = conn.preparedStatement("insert into mytable(start_datetime, string_value) values(?,?)") {
+    ps.setObject(1, LocalDateTime.now());
+    ps.setString(2, "value");
+    ps.executeUpdate();
+}
+</code></pre></td>
+<td><pre><code class="language-java">try (PreparedStatement ps = conn.preparedStatement("insert into mytable(start_datetime, string_value) values(?,?)") {
+    // resolution of DateTime32 or DateTime without scale is 1 second
+    ps.setObject(1, LocalDateTime.now().truncatedTo(ChronoUnit.SECONDS));
+    ps.setString(2, "value");
+    ps.executeUpdate();
+}
+</code></pre></td>
+</tr>
+<tr>
+<td>7</td>
 <td>extended API</td>
 <td><pre><code class="language-java">ClickHouseStatement sth = connection.createStatement();
 sth.write().send("INSERT INTO test.writer", new ClickHouseStreamCallback() {
@@ -373,7 +391,8 @@ sth.write().send("INSERT INTO test.writer", new ClickHouseStreamCallback() {
     }
 }, ClickHouseFormat.RowBinary); // RowBinary or Native are supported
 </code></pre></td>
-<td><pre><code class="language-java">Statement sth = connection.createStatement();
+<td><pre><code class="language-java">// 0.3.2
+Statement sth = connection.createStatement();
 sth.unwrap(ClickHouseRequest.class).write().table("test.writer")
     .format(ClickHouseFormat.RowBinary).data(out -> {
     for (int i = 0; i < 10; i++) {
@@ -381,8 +400,24 @@ sth.unwrap(ClickHouseRequest.class).write().table("test.writer")
         BinaryStreamUtils.writeInt32(out, i);
         BinaryStreamUtils.writeString(out, "Name " + i);
     }
-}).sendAndWait(); // query happens in a separate thread
+}).sendAndWait();
+
+// since 0.4
+PreparedStatement ps = connection.preparedStatement("insert into test.writer format RowBinary");
+ps.setObject(new ClickHouseWriter() {
+@Override
+public void write(ClickHouseOutputStream out) throws IOException {
+for (int i = 0; i < 10; i++) {
+// write data into the piped stream in current thread
+BinaryStreamUtils.writeInt32(out, i);
+BinaryStreamUtils.writeString(out, "Name " + i);
+}
+}
+});
+// ClickHouseWriter will be executed in a separate thread
+ps.executeUpdate();
 </code></pre></td>
+
 </tr>
 </tbody>
 </table>

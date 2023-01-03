@@ -19,7 +19,7 @@
         <clickhouse4j-driver.version>1.4.4</clickhouse4j-driver.version>
         <native-driver.version>2.6.5</native-driver.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <jmh.version>1.35</jmh.version>
+        <jmh.version>1.36</jmh.version>
         <shade.name>benchmarks</shade.name>
     </properties>
 
