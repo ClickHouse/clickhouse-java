@@ -21,7 +21,7 @@ public abstract class JdbcIntegrationTest extends BaseIntegrationTest {
 
     protected static final String CUSTOM_PROTOCOL_NAME = System.getProperty("protocol", "http").toUpperCase();
     protected static final ClickHouseProtocol DEFAULT_PROTOCOL = ClickHouseProtocol
-            .valueOf(CUSTOM_PROTOCOL_NAME.startsWith("HTTP") ? "HTTP" : CUSTOM_PROTOCOL_NAME);
+            .valueOf(CUSTOM_PROTOCOL_NAME.indexOf("HTTP") >= 0 ? "HTTP" : CUSTOM_PROTOCOL_NAME);
 
     protected final String dbName;
 
@@ -53,8 +53,9 @@ public abstract class JdbcIntegrationTest extends BaseIntegrationTest {
             builder.append(url);
         }
 
-        if ("HTTP2".equals(CUSTOM_PROTOCOL_NAME)) {
-            builder.append('?').append(ClickHouseHttpOption.CONNECTION_PROVIDER.getKey()).append("=HTTP_CLIENT");
+        if (CUSTOM_PROTOCOL_NAME.indexOf("HTTP") >= 0 && !"HTTP".equals(CUSTOM_PROTOCOL_NAME)) {
+            builder.append('?').append(ClickHouseHttpOption.CONNECTION_PROVIDER.getKey()).append('=')
+                    .append(CUSTOM_PROTOCOL_NAME);
         }
         return builder.toString();
     }
