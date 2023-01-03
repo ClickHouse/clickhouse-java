@@ -15,7 +15,6 @@ import java.util.Objects;
  * Used to encapsulate post request.
  */
 public class ClickHouseHttpEntity extends AbstractHttpEntity {
-
     /**
      * Data to send
      */
@@ -31,8 +30,7 @@ public class ClickHouseHttpEntity extends AbstractHttpEntity {
     private final boolean hasInput;
 
     public ClickHouseHttpEntity(ClickHouseInputStream in, ClickHouseConfig config, String contentType,
-                                String contentEncoding,
-                                boolean hasFile, boolean hasInput) {
+            String contentEncoding, boolean hasFile, boolean hasInput) {
         super(contentType, contentEncoding, hasInput);
         this.in = in;
         this.config = config;
@@ -59,17 +57,12 @@ public class ClickHouseHttpEntity extends AbstractHttpEntity {
     public void writeTo(OutputStream outStream) throws IOException {
         Objects.requireNonNull(outStream, "outStream");
         try {
-            OutputStream wrappedOut = hasFile
+            ClickHouseOutputStream wrappedOut = hasFile
                     ? ClickHouseOutputStream.of(outStream, config.getWriteBufferSize())
                     : (hasInput
-                    ? ClickHouseClient.getAsyncRequestOutputStream(config, outStream, null)
-                    : ClickHouseClient.getRequestOutputStream(config, outStream, null)
-            );
-            final byte[] buffer = new byte[config.getBufferSize()];
-            int readLen;
-            while ((readLen = in.read(buffer)) != -1) {
-                wrappedOut.write(buffer, 0, readLen);
-            }
+                            ? ClickHouseClient.getAsyncRequestOutputStream(config, outStream, null)
+                            : ClickHouseClient.getRequestOutputStream(config, outStream, null));
+            in.pipe(wrappedOut);
             wrappedOut.flush();
         } finally {
             in.close();

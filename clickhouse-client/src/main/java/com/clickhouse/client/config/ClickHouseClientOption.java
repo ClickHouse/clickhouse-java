@@ -253,14 +253,58 @@ public enum ClickHouseClientOption implements ClickHouseOption {
      */
     SOCKET_TIMEOUT("socket_timeout", 30 * 1000, "Socket timeout in milliseconds."),
     /**
+     * Whether allows for the reuse of local addresses and ports. See
+     * {@link java.net.StandardSocketOptions#SO_REUSEADDR}.
+     */
+    SOCKET_REUSEADDR("socket_reuseaddr", false,
+            "Whether allows for the reuse of local addresses and ports. "
+                    + "Only works for client using custom Socket(e.g. TCP client or HTTP provider with custom SocketFactory etc.)."),
+    /**
+     * Whether to enable keep-alive packets for a socket connection. See
+     * {@link java.net.StandardSocketOptions#SO_KEEPALIVE}.
+     */
+    SOCKET_KEEPALIVE("socket_keepalive", false,
+            "Whether to enable keep-alive packets for a socket connection. Only works for client using custom Socket."),
+    /**
+     * Seconds to wait while data is being transmitted before closing the socket.
+     * Use negative number to disable the option. See
+     * {@link java.net.StandardSocketOptions#SO_LINGER}.
+     */
+    SOCKET_LINGER("socket_linger", -1,
+            "Seconds to wait while data is being transmitted before closing the socket. Use negative number to disable the option. "
+                    + "Only works for client using custom Socket(e.g. TCP client or HTTP provider with custom SocketFactory etc.)."),
+    /**
+     * Type-of-service(TOS) or traffic class field in the IP header for a socket.
+     * See {@link java.net.StandardSocketOptions#IP_TOS}.
+     */
+    SOCKET_IP_TOS("socket_ip_tos", 0,
+            "Socket IP_TOS option which indicates IP package priority. Only works for client using custom Socket."),
+    /**
+     * See {@link java.net.StandardSocketOptions#TCP_NODELAY}.
+     */
+    SOCKET_TCP_NODELAY("socket_tcp_nodelay", false, ""),
+    /**
+     * Size of the socket receive buffer in bytes. See
+     * {@link java.net.StandardSocketOptions#SO_RCVBUF}.
+     */
+    SOCKET_RCVBUF("socket_rcvbuf", 0,
+            "Size of the socket receive buffer in bytes. Only works for client using custom Socket."),
+    /**
+     * Size of the socket send buffer in bytes. See
+     * {@link java.net.StandardSocketOptions#SO_SNDBUF}.
+     */
+    SOCKET_SNDBUF("socket_sndbuf", 0,
+            "Size of the socket send buffer in bytes. Only works for client using custom Socket."),
+    // TODO: new and extended socket options(e.g SO_REUSEPORT and TCP_QUICKACK etc.)
+
+    /**
      * Whether to enable SSL for the connection.
      */
     SSL("ssl", false, "Whether to enable SSL/TLS for the connection."),
     /**
      * SSL mode.
      */
-    SSL_MODE("sslmode", ClickHouseSslMode.STRICT,
-            "verify or not certificate: none (don't verify), strict (verify)"),
+    SSL_MODE("sslmode", ClickHouseSslMode.STRICT, "verify or not certificate: none (don't verify), strict (verify)"),
     /**
      * SSL root certificiate.
      */
@@ -289,8 +333,8 @@ public enum ClickHouseClientOption implements ClickHouseOption {
      * Whether to support binary string. Enable this option to treat
      * {@code FixedString} and {@code String} as byte array.
      */
-    USE_BINARY_STRING("use_binary_string", false, "Whether to support binary string. "
-            + "Enable this option to treat FixedString and String as byte array."),
+    USE_BINARY_STRING("use_binary_string", false,
+            "Whether to support binary string. Enable this option to treat FixedString and String as byte array."),
     /**
      * Whether to use blocking queue for buffering.
      */
@@ -323,13 +367,7 @@ public enum ClickHouseClientOption implements ClickHouseOption {
      * false.
      */
     USE_TIME_ZONE("use_time_zone", "", "Time zone of all DateTime* values. "
-            + "Only used when use_server_time_zone is false. Empty value means client time zone."),
-
-    /**
-     * Socket IP_TOS option which indicates IP package priority.
-     */
-    IP_TOS("socket_op_ip_tos", 0, "Socket IP_TOS option which indicates IP package priority.");
-
+            + "Only used when use_server_time_zone is false. Empty value means client time zone.");
 
     private final String key;
     private final Serializable defaultValue;
