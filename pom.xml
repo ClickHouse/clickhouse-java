@@ -39,11 +39,9 @@
         <module>clickhouse-cli-client</module>
         <module>clickhouse-grpc-client</module>
         <module>clickhouse-http-client</module>
-        <!-- module>clickhouse-tcp-client</module>
-        <module>clickhouse-sql-parser</module -->
         <module>clickhouse-jdbc</module>
-        <module>clickhouse-benchmark</module>
         <module>clickhouse-r2dbc</module>
+        <module>clickhouse-benchmark</module>
     </modules>
 
     <scm>
@@ -76,7 +74,7 @@
 
     <properties>
         <revision>0.3.3-SNAPSHOT</revision>
-        <project.current.year>2022</project.current.year>
+        <project.current.year>2023</project.current.year>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
