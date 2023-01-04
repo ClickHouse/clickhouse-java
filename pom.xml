@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd" xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+<project
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd"
+    xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>com.clickhouse</groupId>
@@ -81,6 +83,8 @@
         <annotations-api.version>6.0.53</annotations-api.version>
         <apache.httpclient.version>5.2.1</apache.httpclient.version>
         <avro.version>1.11.1</avro.version>
+        <brotli.version>0.1.2</brotli.version>
+        <brotli4j.version>1.9.0</brotli4j.version>
         <byte-buddy.version>1.12.13</byte-buddy.version>
         <caffeine.version>3.1.2</caffeine.version>
         <compress.version>1.22</compress.version>
@@ -95,6 +99,8 @@
         <roaring-bitmap.version>0.9.36</roaring-bitmap.version>
         <slf4j.version>2.0.6</slf4j.version>
         <snappy.version>1.1.8.4</snappy.version>
+        <xz.version>1.9</xz.version>
+        <zstd-jni.version>1.5.2-5</zstd-jni.version>
         <testcontainers.version>1.17.6</testcontainers.version>
         <!-- stay 7.5 for JDK 8 support -->
         <testng.version>7.5</testng.version>
@@ -162,6 +168,11 @@
             </dependency>
 
             <dependency>
+                <groupId>com.aayushatharva.brotli4j</groupId>
+                <artifactId>brotli4j</artifactId>
+                <version>${brotli4j.version}</version>
+            </dependency>
+            <dependency>
                 <groupId>com.google.code.gson</groupId>
                 <artifactId>gson</artifactId>
                 <version>${gson.version}</version>
@@ -170,6 +181,11 @@
                 <groupId>com.github.ben-manes.caffeine</groupId>
                 <artifactId>caffeine</artifactId>
                 <version>${caffeine.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.github.luben</groupId>
+                <artifactId>zstd-jni</artifactId>
+                <version>${zstd-jni.version}</version>
             </dependency>
             <dependency>
                 <groupId>dnsjava</groupId>
@@ -219,6 +235,11 @@
                 <version>${annotations-api.version}</version>
             </dependency>
             <dependency>
+                <groupId>org.brotli</groupId>
+                <artifactId>dec</artifactId>
+                <version>${brotli.version}</version>
+            </dependency>
+            <dependency>
                 <groupId>org.jctools</groupId>
                 <artifactId>jctools-core</artifactId>
                 <version>${jctools.version}</version>
@@ -247,6 +268,11 @@
                 <groupId>org.slf4j</groupId>
                 <artifactId>slf4j-simple</artifactId>
                 <version>${slf4j.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.tukaani</groupId>
+                <artifactId>xz</artifactId>
+                <version>${xz.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.xerial.snappy</groupId>
@@ -545,7 +571,7 @@
                             <multiReleaseOutput>true</multiReleaseOutput>
                         </configuration>
                     </execution>
-                    <!-- execution>
+                    <execution>
                         <id>java17</id>
                         <phase>none</phase>
                         <goals>
@@ -561,7 +587,7 @@
                             </compileSourceRoots>
                             <multiReleaseOutput>true</multiReleaseOutput>
                         </configuration>
-                    </execution -->
+                    </execution>
                 </executions>
             </plugin>
             <plugin>
@@ -774,7 +800,7 @@
                 </plugins>
             </build>
         </profile>
-        <!-- profile>
+        <profile>
             <id>compile-java17</id>
             <activation>
                 <jdk>[17,)</jdk>
@@ -793,7 +819,7 @@
                     </plugin>
                 </plugins>
             </build>
-        </profile -->
+        </profile>
         <profile>
             <id>release</id>
             <build>
@@ -834,10 +860,10 @@
                                 <id>java11</id>
                                 <phase>compile</phase>
                             </execution>
-                            <!-- execution>
+                            <execution>
                                 <id>java17</id>
                                 <phase>compile</phase>
-                            </execution -->
+                            </execution>
                         </executions>
                     </plugin>
                     <plugin>
@@ -1052,10 +1078,10 @@
                                 <id>java11</id>
                                 <phase>compile</phase>
                             </execution>
-                            <!-- execution>
+                            <execution>
                                 <id>java17</id>
                                 <phase>compile</phase>
-                            </execution -->
+                            </execution>
                         </executions>
                     </plugin>
                     <plugin>

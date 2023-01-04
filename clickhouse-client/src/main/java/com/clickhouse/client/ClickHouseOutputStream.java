@@ -7,9 +7,9 @@ import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
-import java.util.zip.GZIPOutputStream;
 
 import com.clickhouse.client.config.ClickHouseClientOption;
+import com.clickhouse.client.stream.CompressionUtils;
 import com.clickhouse.client.stream.EmptyOutputStream;
 import com.clickhouse.client.stream.Lz4OutputStream;
 import com.clickhouse.client.stream.WrappedOutputStream;
@@ -42,18 +42,54 @@ public abstract class ClickHouseOutputStream extends OutputStream {
         if (compression == null || compression == ClickHouseCompression.NONE) {
             chOutput = new WrappedOutputStream(file, output, bufferSize, postCloseAction);
         } else {
+            // never got brotli, bz2, deflate, gzip, and xz working :<
             switch (compression) {
-                case GZIP:
-                    try {
-                        chOutput = new WrappedOutputStream(file, new GZIPOutputStream(output), bufferSize,
-                                postCloseAction);
-                    } catch (IOException e) {
-                        throw new IllegalArgumentException("Failed to wrap input stream", e);
-                    }
-                    break;
+                // case BROTLI:
+                // chOutput = new WrappedOutputStream(file,
+                // CompressionUtils.createBrotliOutputStream(output, compressionLevel,
+                // bufferSize), bufferSize, postCloseAction);
+                // break;
+                // case BZ2:
+                // chOutput = new WrappedOutputStream(file,
+                // CompressionUtils.createBz2OutputStream(output, compressionLevel), bufferSize,
+                // postCloseAction);
+                // break;
+                // case DEFLATE:
+                // chOutput = new WrappedOutputStream(file, new InflaterOutputStream(output),
+                // bufferSize,
+                // postCloseAction);
+                // break;
+                // case GZIP:
+                // try {
+                // GzipParameters params = new GzipParameters();
+                // params.setBufferSize(bufferSize);
+                // params.setCompressionLevel(3);
+                // chOutput = new WrappedOutputStream(file, new
+                // GzipCompressorOutputStream(output, params),
+                // bufferSize, postCloseAction);
+                // } catch (IOException e) {
+                // throw new
+                // IllegalArgumentException(CompressionUtils.ERROR_FAILED_TO_WRAP_OUTPUT, e);
+                // }
+                // break;
                 case LZ4:
                     chOutput = new Lz4OutputStream(file, output, bufferSize, postCloseAction);
                     break;
+                case SNAPPY:
+                    chOutput = new WrappedOutputStream(file,
+                            CompressionUtils.createSnappyOutputStream(output, compressionLevel), bufferSize,
+                            postCloseAction);
+                    break;
+                case ZSTD:
+                    chOutput = new WrappedOutputStream(file,
+                            CompressionUtils.createZstdOutputStream(output, compressionLevel), bufferSize,
+                            postCloseAction);
+                    break;
+                // case XZ:
+                // chOutput = new WrappedOutputStream(file,
+                // CompressionUtils.createXzOutputStream(output, 6), bufferSize,
+                // postCloseAction);
+                // break;
                 default:
                     throw new UnsupportedOperationException("Unsupported compression algorithm: " + compression);
             }
@@ -101,7 +137,7 @@ public abstract class ClickHouseOutputStream extends OutputStream {
      *         {@link ClickHouseOutputStream}
      */
     public static ClickHouseOutputStream of(OutputStream output) {
-        return of(output, (int) ClickHouseClientOption.BUFFER_SIZE.getDefaultValue(), null, null);
+        return of(output, (int) ClickHouseClientOption.BUFFER_SIZE.getDefaultValue(), null, -1, null);
     }
 
     /**
@@ -114,7 +150,7 @@ public abstract class ClickHouseOutputStream extends OutputStream {
      *         {@link ClickHouseOutputStream}
      */
     public static ClickHouseOutputStream of(OutputStream output, int bufferSize) {
-        return of(output, bufferSize, null, null);
+        return of(output, bufferSize, null, -1, null);
     }
 
     /**
@@ -126,13 +162,14 @@ public abstract class ClickHouseOutputStream extends OutputStream {
      * @param compression     compression algorithm, null or
      *                        {@link ClickHouseCompression#NONE} means no
      *                        compression
+     * @param level           compression level
      * @param postCloseAction custom action will be performed right after closing
      *                        the output stream
      * @return wrapped output, or the same output if it's instance of
      *         {@link ClickHouseOutputStream}
      */
     public static ClickHouseOutputStream of(OutputStream output, int bufferSize, ClickHouseCompression compression,
-            Runnable postCloseAction) {
+            int level, Runnable postCloseAction) {
         final ClickHouseOutputStream chOutput;
         if (output == null) {
             chOutput = EmptyOutputStream.INSTANCE;
@@ -141,7 +178,7 @@ public abstract class ClickHouseOutputStream extends OutputStream {
                     ? (ClickHouseOutputStream) output
                     : new WrappedOutputStream(null, output, bufferSize, postCloseAction);
         } else {
-            chOutput = wrap(null, output, bufferSize, postCloseAction, compression, 0);
+            chOutput = wrap(null, output, bufferSize, postCloseAction, compression, level);
         }
         return chOutput;
     }
