@@ -22,7 +22,7 @@ import org.apache.hc.client5.http.config.ConnectionConfig;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse;
 import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
-import org.apache.hc.client5.http.impl.io.BasicHttpClientConnectionManager;
+import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
 import org.apache.hc.client5.http.socket.ConnectionSocketFactory;
 import org.apache.hc.client5.http.socket.PlainConnectionSocketFactory;
 import org.apache.hc.client5.http.ssl.SSLConnectionSocketFactory;
@@ -56,7 +56,6 @@ import java.util.Objects;
 import java.util.TimeZone;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLException;
@@ -88,7 +87,6 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
     private static final byte[] SUFFIX_FILENAME = "\"; filename=\"".getBytes(StandardCharsets.US_ASCII);
 
     private final CloseableHttpClient client;
-    private final AtomicBoolean isBusy = new AtomicBoolean(false);
 
     protected ApacheHttpConnectionImpl(ClickHouseNode server, ClickHouseRequest<?> request, ExecutorService executor)
             throws IOException, URISyntaxException {
@@ -224,10 +222,6 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
     protected ClickHouseHttpResponse post(String sql, ClickHouseInputStream data, List<ClickHouseExternalTable> tables,
             String url, Map<String, String> headers, ClickHouseConfig config,
             Runnable postCloseAction) throws IOException {
-        // Connection is reusable, ensure that only one request is on fly.
-        if (!isBusy.compareAndSet(false, true))
-            throw new IOException("Connection is busy");
-
         HttpPost post = new HttpPost(url == null ? this.url : url);
         setHeaders(post, headers);
         byte[] boundary = null;
@@ -314,12 +308,7 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
         checkResponse(response);
         // buildResponse should use the config of current request in case of reusable
         // connection.
-        return buildResponse(response, config, () -> {
-            isBusy.compareAndSet(true, false);
-            if (postCloseAction != null) {
-                postCloseAction.run();
-            }
-        });
+        return buildResponse(response, config, postCloseAction);
     }
 
     @Override
@@ -386,7 +375,7 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
         }
     }
 
-    static class HttpConnectionManager extends BasicHttpClientConnectionManager {
+    static class HttpConnectionManager extends PoolingHttpClientConnectionManager {
         public HttpConnectionManager(Registry<ConnectionSocketFactory> socketFactory, ClickHouseConfig config)
                 throws SSLException {
             super(socketFactory);
@@ -394,13 +383,13 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
             ConnectionConfig connConfig = ConnectionConfig.custom()
                     .setConnectTimeout(Timeout.of(config.getConnectionTimeout(), TimeUnit.MILLISECONDS))
                     .build();
-            setConnectionConfig(connConfig);
+            setDefaultConnectionConfig(connConfig);
             SocketConfig socketConfig = SocketConfig.custom()
                     .setSoTimeout(Timeout.of(config.getSocketTimeout(), TimeUnit.MILLISECONDS))
                     .setRcvBufSize(config.getReadBufferSize())
                     .setSndBufSize(config.getWriteBufferSize())
                     .build();
-            setSocketConfig(socketConfig);
+            setDefaultSocketConfig(socketConfig);
         }
     }
 }
