@@ -89,6 +89,14 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
         }
     }
 
+    protected boolean checkServerVersion(ClickHouseClient client, ClickHouseNode server, String range)
+            throws ClickHouseException {
+        try (ClickHouseResponse response = newRequest(client, server)
+                .format(ClickHouseFormat.RowBinaryWithNamesAndTypes).query("select version()").executeAndWait()) {
+            return ClickHouseVersion.of(response.firstRecord().getValue(0).asString()).check(range);
+        }
+    }
+
     protected List<ClickHouseResponseSummary> sendAndWait(ClickHouseNode server, String sql, String... more)
             throws ClickHouseException {
         try {
