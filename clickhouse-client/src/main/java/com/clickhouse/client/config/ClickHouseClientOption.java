@@ -140,11 +140,11 @@ public enum ClickHouseClientOption implements ClickHouseOption {
     /**
      * Compression level for compressing server response.
      */
-    COMPRESS_LEVEL("compress_level", 3, "Compression level for response, from 0 to 9(low to high)"),
+    COMPRESS_LEVEL("compress_level", -1, "Compression level for response, -1 standards for default"),
     /**
      * Compression level for decompress client request.
      */
-    DECOMPRESS_LEVEL("decompress_level", 3, "Compression level for request, from 0 to 9(low to high)"),
+    DECOMPRESS_LEVEL("decompress_level", -1, "Compression level for request, -1 standards for default"),
 
     /**
      * Connection timeout in milliseconds.

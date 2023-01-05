@@ -18,7 +18,9 @@ import com.clickhouse.client.ClickHouseCompression;
 import com.clickhouse.client.ClickHouseDeferredValue;
 import com.clickhouse.client.ClickHouseFile;
 import com.clickhouse.client.ClickHouseFormat;
+import com.clickhouse.client.ClickHouseInputStream;
 import com.clickhouse.client.ClickHouseUtils;
+import com.clickhouse.client.config.ClickHouseClientOption;
 
 /**
  * "Attached" temporary table.
@@ -182,7 +184,6 @@ public class ClickHouseExternalTable implements Serializable {
             boolean asTempTable) {
         this.name = name == null ? "" : name.trim();
         this.file = file != null ? file : ClickHouseFile.NULL;
-        this.content = ClickHouseChecker.nonNull(content, "content");
         if (compression == null) {
             compression = ClickHouseCompression.fromFileName(this.name);
             this.compression = Optional.ofNullable(compression == ClickHouseCompression.NONE ? null : compression);
@@ -190,6 +191,18 @@ public class ClickHouseExternalTable implements Serializable {
             this.compression = Optional.of(compression);
         }
         this.format = format == null ? ClickHouseFormat.TabSeparated : format;
+
+        if (content == null) {
+            throw new IllegalArgumentException("Non-null content is required");
+        }
+        this.content = compression == ClickHouseCompression.NONE ? content
+                // unfortunately ClickHouse does not support compressed external data
+                : ClickHouseDeferredValue
+                        .of(() -> ClickHouseInputStream.of(content.get(), ClickHouseUtils.getBufferSize(
+                                (int) ClickHouseClientOption.READ_BUFFER_SIZE.getDefaultValue(),
+                                (int) ClickHouseClientOption.BUFFER_SIZE.getDefaultValue(),
+                                (int) ClickHouseClientOption.MAX_BUFFER_SIZE.getDefaultValue()), this.compression.get(),
+                                null));
 
         int size = columns == null ? 0 : columns.size();
         if (size == 0) {

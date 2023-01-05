@@ -51,16 +51,24 @@ public class Lz4OutputStream extends AbstractByteArrayOutputStream {
     }
 
     public Lz4OutputStream(OutputStream stream, int maxCompressBlockSize, Runnable postCloseAction) {
-        this(null, stream, maxCompressBlockSize, postCloseAction);
+        this(null, stream, -1, maxCompressBlockSize, postCloseAction);
     }
 
-    public Lz4OutputStream(ClickHouseFile file, OutputStream stream, int maxCompressBlockSize,
+    public Lz4OutputStream(OutputStream stream, int compressLevel, int maxCompressBlockSize, Runnable postCloseAction) {
+        this(null, stream, compressLevel, maxCompressBlockSize, postCloseAction);
+    }
+
+    public Lz4OutputStream(ClickHouseFile file, OutputStream stream, int compressLevel, int maxCompressBlockSize,
             Runnable postCloseAction) {
         super(file, maxCompressBlockSize, postCloseAction);
 
         output = ClickHouseChecker.nonNull(stream, "OutputStream");
 
-        compressor = factory.fastCompressor();
+        if (compressLevel < 0) {
+            compressor = factory.fastCompressor();
+        } else {
+            compressor = factory.highCompressor(compressLevel);
+        }
         // reserve the first 9 bytes for calculating checksum
         compressedBlock = new byte[compressor.maxCompressedLength(maxCompressBlockSize) + 15];
     }
