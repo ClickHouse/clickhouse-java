@@ -218,7 +218,7 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
 
     @Override
     protected boolean isReusable() {
-        return !isBusy.get();
+        return true;
     }
 
     protected ClickHouseHttpResponse post(String sql, ClickHouseInputStream data, List<ClickHouseExternalTable> tables,
