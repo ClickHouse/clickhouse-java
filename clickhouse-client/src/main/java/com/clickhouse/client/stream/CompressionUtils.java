@@ -13,6 +13,26 @@ public final class CompressionUtils {
     public static final String ERROR_UNSUPPORTED_COMPRESS_ALG = "Compression algorithm [%s] is not supported due to %s";
     public static final String ERROR_UNSUPPORTED_DECOMPRESS_ALG = "Decompression algorithm [%s] is not supported due to %s";
 
+    private static class Brotli4jUtils {
+        static {
+            com.aayushatharva.brotli4j.Brotli4jLoader.ensureAvailability();
+        }
+
+        static InputStream createInputStream(InputStream input, int bufferSize) throws IOException {
+            return new com.aayushatharva.brotli4j.decoder.BrotliInputStream(input, bufferSize);
+        }
+
+        static OutputStream createOutputStream(OutputStream output, int quality, int bufferSize)
+                throws IOException {
+            com.aayushatharva.brotli4j.encoder.Encoder.Parameters params = new com.aayushatharva.brotli4j.encoder.Encoder.Parameters()
+                    .setQuality(quality);
+            return new com.aayushatharva.brotli4j.encoder.BrotliOutputStream(output, params, bufferSize);
+        }
+
+        private Brotli4jUtils() {
+        }
+    }
+
     public static InputStream createBrotliInputStream(InputStream input, int bufferSize) {
         try {
             // Brotli4jUtils.createInputStream(input, bufferSize)
@@ -96,7 +116,7 @@ public final class CompressionUtils {
 
     public static InputStream createZstdInputStream(InputStream input) {
         try {
-            return new com.github.luben.zstd.ZstdInputStream(input);
+            return new com.github.luben.zstd.ZstdInputStream(input).setContinuous(true);
         } catch (IOException e) {
             throw new IllegalArgumentException(ERROR_FAILED_TO_WRAP_INPUT, e);
         } catch (NoClassDefFoundError e) {

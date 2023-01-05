@@ -819,12 +819,6 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
                     : ClickHouseCompression.NONE;
         }
 
-        if (compressLevel < 0) {
-            compressLevel = 0;
-        } else if (compressLevel > 9) {
-            compressLevel = 9;
-        }
-
         return option(ClickHouseClientOption.COMPRESS, enable)
                 .option(ClickHouseClientOption.COMPRESS_ALGORITHM, compressAlgorithm)
                 .option(ClickHouseClientOption.COMPRESS_LEVEL, compressLevel);
@@ -892,12 +886,6 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
             compressAlgorithm = enable
                     ? (ClickHouseCompression) ClickHouseClientOption.DECOMPRESS_ALGORITHM.getEffectiveDefaultValue()
                     : ClickHouseCompression.NONE;
-        }
-
-        if (compressLevel < 0) {
-            compressLevel = 0;
-        } else if (compressLevel > 9) {
-            compressLevel = 9;
         }
 
         return option(ClickHouseClientOption.DECOMPRESS, enable)

@@ -73,7 +73,7 @@ public abstract class ClickHouseOutputStream extends OutputStream {
                 // }
                 // break;
                 case LZ4:
-                    chOutput = new Lz4OutputStream(file, output, bufferSize, postCloseAction);
+                    chOutput = new Lz4OutputStream(file, output, compressionLevel, bufferSize, postCloseAction);
                     break;
                 case SNAPPY:
                     chOutput = new WrappedOutputStream(file,

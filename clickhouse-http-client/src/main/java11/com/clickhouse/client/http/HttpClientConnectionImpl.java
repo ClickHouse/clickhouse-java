@@ -7,11 +7,9 @@ import com.clickhouse.client.ClickHouseDataStreamFactory;
 import com.clickhouse.client.ClickHouseFormat;
 import com.clickhouse.client.ClickHouseInputStream;
 import com.clickhouse.client.ClickHouseNode;
-import com.clickhouse.client.ClickHouseOutputStream;
 import com.clickhouse.client.ClickHousePipedOutputStream;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseSslContextProvider;
-import com.clickhouse.client.ClickHouseUtils;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.data.ClickHouseExternalTable;
 import com.clickhouse.client.http.config.ClickHouseHttpOption;
@@ -19,14 +17,12 @@ import com.clickhouse.client.logging.Logger;
 import com.clickhouse.client.logging.LoggerFactory;
 
 import java.io.BufferedReader;
-import java.io.BufferedWriter;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
-import java.io.OutputStreamWriter;
 import java.io.Reader;
 import java.io.UncheckedIOException;
 import java.net.ConnectException;
@@ -42,7 +38,6 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.net.http.HttpClient.Redirect;
 import java.net.http.HttpClient.Version;
-import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
@@ -53,7 +48,6 @@ import java.util.Map.Entry;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
-import java.util.function.Function;
 
 import javax.net.ssl.SSLContext;
 
@@ -78,25 +72,6 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
     }
 
     private static final Logger log = LoggerFactory.getLogger(HttpClientConnectionImpl.class);
-
-    private static final byte[] HEADER_CONTENT_DISPOSITION = "content-disposition: form-data; name=\""
-            .getBytes(StandardCharsets.US_ASCII);
-    private static final byte[] HEADER_OCTET_STREAM = "content-type: application/octet-stream\r\n"
-            .getBytes(StandardCharsets.US_ASCII);
-    private static final byte[] HEADER_BINARY_ENCODING = "content-transfer-encoding: binary\r\n\r\n"
-            .getBytes(StandardCharsets.US_ASCII);
-
-    private static final byte[] ERROR_MSG_PREFIX = "Code: ".getBytes(StandardCharsets.US_ASCII);
-
-    private static final byte[] DOUBLE_DASH = new byte[] { '-', '-' };
-    private static final byte[] END_OF_NAME = new byte[] { '"', '\r', '\n' };
-    private static final byte[] LINE_PREFIX = new byte[] { '\r', '\n', '-', '-' };
-    private static final byte[] LINE_SUFFIX = new byte[] { '\r', '\n' };
-
-    private static final byte[] SUFFIX_QUERY = "query\"\r\n\r\n".getBytes(StandardCharsets.US_ASCII);
-    private static final byte[] SUFFIX_FORMAT = "_format\"\r\n\r\n".getBytes(StandardCharsets.US_ASCII);
-    private static final byte[] SUFFIX_STRUCTURE = "_structure\"\r\n\r\n".getBytes(StandardCharsets.US_ASCII);
-    private static final byte[] SUFFIX_FILENAME = "\"; filename=\"".getBytes(StandardCharsets.US_ASCII);
 
     private final HttpClient httpClient;
     private final HttpRequest pingRequest;
@@ -177,11 +152,7 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
                 }
                 errorMsg = builder.toString();
             } catch (IOException e) {
-                log.debug("Failed to read error message[code=%s] from server [%s] due to: %s", errorCode, serverName,
-                        e.getMessage());
-                int index = ClickHouseUtils.indexOf(bytes, ERROR_MSG_PREFIX);
-                errorMsg = index > 0 ? new String(bytes, index, bytes.length - index, StandardCharsets.UTF_8)
-                        : new String(bytes, StandardCharsets.UTF_8);
+                errorMsg = parseErrorFromException(errorCode, serverName, e, bytes);
             }
 
             throw new IOException(errorMsg);
@@ -231,68 +202,13 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
     private ClickHouseHttpResponse postStream(ClickHouseConfig config, HttpRequest.Builder reqBuilder, byte[] boundary,
             String sql, ClickHouseInputStream data, List<ClickHouseExternalTable> tables, Runnable postAction)
             throws IOException {
-        Charset ascii = StandardCharsets.US_ASCII;
-        ClickHouseConfig c = config;
-        final boolean hasFile = data != null && data.getUnderlyingFile().isAvailable();
-
-        ClickHousePipedOutputStream stream = ClickHouseDataStreamFactory.getInstance().createPipedOutputStream(c,
+        ClickHousePipedOutputStream stream = ClickHouseDataStreamFactory.getInstance().createPipedOutputStream(config,
                 null);
         reqBuilder.POST(HttpRequest.BodyPublishers.ofInputStream(stream::getInputStream));
         // running in async is necessary to avoid deadlock of the piped stream
         CompletableFuture<HttpResponse<InputStream>> f = postRequest(reqBuilder.build());
 
-        try (ClickHouseOutputStream out = stream) {
-            Charset utf8 = StandardCharsets.UTF_8;
-            byte[] sqlBytes = hasFile ? new byte[0] : sql.getBytes(utf8);
-
-            if (boundary != null) {
-                out.writeBytes(LINE_PREFIX);
-                out.writeBytes(boundary);
-                out.writeBytes(LINE_SUFFIX);
-                out.writeBytes(HEADER_CONTENT_DISPOSITION);
-                out.writeBytes(SUFFIX_QUERY);
-                out.writeBytes(sqlBytes);
-                for (ClickHouseExternalTable t : tables) {
-                    byte[] tableName = t.getName().getBytes(utf8);
-                    for (int i = 0; i < 3; i++) {
-                        out.writeBytes(LINE_PREFIX);
-                        out.writeBytes(boundary);
-                        out.writeBytes(LINE_SUFFIX);
-                        out.writeBytes(HEADER_CONTENT_DISPOSITION);
-                        out.writeBytes(tableName);
-                        if (i == 0) {
-                            out.writeBytes(SUFFIX_FORMAT);
-                            out.writeBytes(t.getFormat().name().getBytes(ascii));
-                        } else if (i == 1) {
-                            out.writeBytes(SUFFIX_STRUCTURE);
-                            out.writeBytes(t.getStructure().getBytes(utf8));
-                        } else {
-                            out.writeBytes(SUFFIX_FILENAME);
-                            out.writeBytes(tableName);
-                            out.writeBytes(END_OF_NAME);
-                            break;
-                        }
-                    }
-                    out.writeBytes(HEADER_OCTET_STREAM);
-                    out.writeBytes(HEADER_BINARY_ENCODING);
-                    ClickHouseInputStream.pipe(t.getContent(), out, c.getWriteBufferSize());
-                }
-
-                out.writeBytes(LINE_PREFIX);
-                out.writeBytes(boundary);
-                out.writeBytes(DOUBLE_DASH);
-                out.writeBytes(LINE_SUFFIX);
-            } else {
-                out.writeBytes(sqlBytes);
-                if (data != null && data.available() > 0) {
-                    // append \n
-                    if (sqlBytes.length > 0 && sqlBytes[sqlBytes.length - 1] != (byte) '\n') {
-                        out.write(10);
-                    }
-                    ClickHouseInputStream.pipe(data, out, c.getWriteBufferSize());
-                }
-            }
-        }
+        postData(config, boundary, sql, data, tables, stream);
 
         HttpResponse<InputStream> r;
         try {
@@ -355,7 +271,8 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
             }
         }
 
-        return boundary != null || data != null ? postStream(c, reqBuilder, boundary, sql, data, tables, postAction)
+        return boundary != null || data != null || c.isRequestCompressed()
+                ? postStream(c, reqBuilder, boundary, sql, data, tables, postAction)
                 : postString(c, reqBuilder, sql, postAction);
     }
 

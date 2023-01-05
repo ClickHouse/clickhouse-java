@@ -22,7 +22,7 @@ import org.apache.hc.client5.http.config.ConnectionConfig;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse;
 import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
-import org.apache.hc.client5.http.impl.io.BasicHttpClientConnectionManager;
+import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
 import org.apache.hc.client5.http.socket.ConnectionSocketFactory;
 import org.apache.hc.client5.http.socket.PlainConnectionSocketFactory;
 import org.apache.hc.client5.http.ssl.SSLConnectionSocketFactory;
@@ -45,18 +45,15 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.net.ConnectException;
+import java.net.HttpURLConnection;
 import java.net.Socket;
-import java.net.URISyntaxException;
-import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.TimeZone;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLException;
@@ -65,33 +62,12 @@ import javax.net.ssl.SSLException;
  * Created by wujianchao on 2022/12/1.
  */
 public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
-
     private static final Logger log = LoggerFactory.getLogger(ApacheHttpConnectionImpl.class);
 
-    private static final byte[] HEADER_CONTENT_DISPOSITION = "content-disposition: form-data; name=\""
-            .getBytes(StandardCharsets.US_ASCII);
-    private static final byte[] HEADER_OCTET_STREAM = "content-type: application/octet-stream\r\n"
-            .getBytes(StandardCharsets.US_ASCII);
-    private static final byte[] HEADER_BINARY_ENCODING = "content-transfer-encoding: binary\r\n\r\n"
-            .getBytes(StandardCharsets.US_ASCII);
-
-    private static final byte[] ERROR_MSG_PREFIX = "Code: ".getBytes(StandardCharsets.US_ASCII);
-
-    private static final byte[] DOUBLE_DASH = new byte[] { '-', '-' };
-    private static final byte[] END_OF_NAME = new byte[] { '"', '\r', '\n' };
-    private static final byte[] LINE_PREFIX = new byte[] { '\r', '\n', '-', '-' };
-    private static final byte[] LINE_SUFFIX = new byte[] { '\r', '\n' };
-
-    private static final byte[] SUFFIX_QUERY = "query\"\r\n\r\n".getBytes(StandardCharsets.US_ASCII);
-    private static final byte[] SUFFIX_FORMAT = "_format\"\r\n\r\n".getBytes(StandardCharsets.US_ASCII);
-    private static final byte[] SUFFIX_STRUCTURE = "_structure\"\r\n\r\n".getBytes(StandardCharsets.US_ASCII);
-    private static final byte[] SUFFIX_FILENAME = "\"; filename=\"".getBytes(StandardCharsets.US_ASCII);
-
     private final CloseableHttpClient client;
-    private final AtomicBoolean isBusy = new AtomicBoolean(false);
 
     protected ApacheHttpConnectionImpl(ClickHouseNode server, ClickHouseRequest<?> request, ExecutorService executor)
-            throws IOException, URISyntaxException {
+            throws IOException {
         super(server, request);
         client = newConnection();
     }
@@ -176,17 +152,19 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
     }
 
     private void checkResponse(CloseableHttpResponse response) throws IOException {
-        if (response.getEntity() == null) {
-            throw new ConnectException(
-                    ClickHouseUtils.format("HTTP response %d, %s", response.getCode(), response.getReasonPhrase()));
-        }
-
-        if (response.getCode() == 200) {
+        if (response.getCode() == HttpURLConnection.HTTP_OK) {
             return;
         }
 
-        Header errorCode = response.getFirstHeader("X-ClickHouse-Exception-Code");
-        Header serverName = response.getFirstHeader("X-ClickHouse-Server-Display-Name");
+        final Header errorCode = response.getFirstHeader("X-ClickHouse-Exception-Code");
+        final Header serverName = response.getFirstHeader("X-ClickHouse-Server-Display-Name");
+        if (response.getEntity() == null) {
+            throw new ConnectException(
+                    ClickHouseUtils.format("HTTP response %d %s(code %s returned from server %s)",
+                            response.getCode(), response.getReasonPhrase(),
+                            errorCode == null ? null : errorCode.getValue(),
+                            serverName == null ? null : serverName.getValue()));
+        }
 
         String errorMsg;
 
@@ -203,123 +181,42 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
                 builder.append(errorMsg).append('\n');
             }
             errorMsg = builder.toString();
-
         } catch (IOException e) {
-            log.debug("Failed to read error message[code=%s] from server [%s] due to: %s",
-                    errorCode.getValue(),
-                    serverName.getValue(),
-                    e.getMessage());
-            int index = ClickHouseUtils.indexOf(bytes, ERROR_MSG_PREFIX);
-            errorMsg = index > 0 ? new String(bytes, index, bytes.length - index, StandardCharsets.UTF_8)
-                    : new String(bytes, StandardCharsets.UTF_8);
+            errorMsg = parseErrorFromException(errorCode != null ? errorCode.getValue() : null,
+                    serverName != null ? serverName.getValue() : null, e, bytes);
         }
         throw new IOException(errorMsg);
     }
 
     @Override
     protected boolean isReusable() {
-        return !isBusy.get();
+        return true;
     }
 
     protected ClickHouseHttpResponse post(String sql, ClickHouseInputStream data, List<ClickHouseExternalTable> tables,
-            String url, Map<String, String> headers, ClickHouseConfig config,
-            Runnable postCloseAction) throws IOException {
-        // Connection is reusable, ensure that only one request is on fly.
-        if (!isBusy.compareAndSet(false, true))
-            throw new IOException("Connection is busy");
-
+            String url, Map<String, String> headers, ClickHouseConfig config, Runnable postCloseAction)
+            throws IOException {
         HttpPost post = new HttpPost(url == null ? this.url : url);
         setHeaders(post, headers);
         byte[] boundary = null;
         String contentType = "text/plain; charset=UTF-8";
-
         if (tables != null && !tables.isEmpty()) {
             String uuid = rm.createUniqueId();
             contentType = "multipart/form-data; boundary=".concat(uuid);
             boundary = uuid.getBytes(StandardCharsets.US_ASCII);
         }
-
         post.setHeader("Content-Type", contentType);
 
-        final boolean hasFile = data != null && data.getUnderlyingFile().isAvailable();
-        final boolean hasInput = data != null || boundary != null;
-
-        Charset ascii = StandardCharsets.US_ASCII;
-        Charset utf8 = StandardCharsets.UTF_8;
-
-        List<InputStream> inputParts = new ArrayList<>();
-
-        byte[] sqlBytes = hasFile ? new byte[0] : sql.getBytes(utf8);
-        if (boundary != null) {
-            // head
-            inputParts.add(ClickHouseInputStream.of(LINE_PREFIX, boundary, LINE_SUFFIX, HEADER_CONTENT_DISPOSITION,
-                    SUFFIX_QUERY, sqlBytes));
-
-            for (ClickHouseExternalTable t : tables) {
-                byte[] tableName = t.getName().getBytes(utf8);
-                // table head
-                List<byte[]> tableHead = new ArrayList<>();
-                for (int i = 0; i < 3; i++) {
-                    tableHead.add(LINE_PREFIX);
-                    tableHead.add(boundary);
-                    tableHead.add(LINE_SUFFIX);
-                    tableHead.add(HEADER_CONTENT_DISPOSITION);
-                    tableHead.add(tableName);
-                    if (i == 0) {
-                        tableHead.add(SUFFIX_FORMAT);
-                        tableHead.add(t.getFormat().name().getBytes(ascii));
-                    } else if (i == 1) {
-                        tableHead.add(SUFFIX_STRUCTURE);
-                        tableHead.add(t.getStructure().getBytes(utf8));
-                    } else {
-                        tableHead.add(SUFFIX_FILENAME);
-                        tableHead.add(tableName);
-                        tableHead.add(END_OF_NAME);
-                        break;
-                    }
-                }
-                tableHead.add(HEADER_OCTET_STREAM);
-                tableHead.add(HEADER_BINARY_ENCODING);
-                inputParts.add(ClickHouseInputStream.of(tableHead, byte[].class, null, null));
-
-                // table content
-                inputParts.add(t.getContent());
-            }
-            // tail
-            inputParts.add(ClickHouseInputStream.of(LINE_PREFIX, boundary, DOUBLE_DASH, LINE_SUFFIX));
-        } else {
-            List<byte[]> content = new ArrayList<>(2);
-            content.add(sqlBytes);
-            if (data != null && data.available() > 0) {
-                // append \n
-                if (sqlBytes.length > 0 && sqlBytes[sqlBytes.length - 1] != (byte) '\n') {
-                    content.add(new byte[] { '\n' });
-                }
-                inputParts.add(ClickHouseInputStream.of(content, byte[].class, null, null));
-                inputParts.add(data);
-            } else {
-                inputParts.add(ClickHouseInputStream.of(content, byte[].class, null, null));
-            }
-        }
-
-        ClickHouseInputStream input = ClickHouseInputStream.of(inputParts, InputStream.class, null, null);
-
         String contentEncoding = headers == null ? null : headers.getOrDefault("content-encoding", null);
-        ClickHouseHttpEntity postBody = new ClickHouseHttpEntity(input, config, contentType, contentEncoding, hasFile,
-                hasInput);
-
+        ClickHouseHttpEntity postBody = new ClickHouseHttpEntity(config, contentType, contentEncoding, boundary, sql,
+                data, tables);
         post.setEntity(postBody);
         CloseableHttpResponse response = client.execute(post);
 
         checkResponse(response);
         // buildResponse should use the config of current request in case of reusable
         // connection.
-        return buildResponse(response, config, () -> {
-            isBusy.compareAndSet(true, false);
-            if (postCloseAction != null) {
-                postCloseAction.run();
-            }
-        });
+        return buildResponse(response, config, postCloseAction);
     }
 
     @Override
@@ -372,7 +269,7 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
                             .orElse(SSLContexts.createDefault())),
                     config.getSslMode() == ClickHouseSslMode.STRICT
                             ? HttpsURLConnection.getDefaultHostnameVerifier()
-                            : (hostname, session) -> true);
+                            : (hostname, session) -> true); // NOSONAR
             this.config = config;
         }
 
@@ -386,21 +283,41 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
         }
     }
 
-    static class HttpConnectionManager extends BasicHttpClientConnectionManager {
-        public HttpConnectionManager(Registry<ConnectionSocketFactory> socketFactory, ClickHouseConfig config)
-                throws SSLException {
+    static class HttpConnectionManager extends PoolingHttpClientConnectionManager {
+        public HttpConnectionManager(Registry<ConnectionSocketFactory> socketFactory, ClickHouseConfig config) {
             super(socketFactory);
 
             ConnectionConfig connConfig = ConnectionConfig.custom()
                     .setConnectTimeout(Timeout.of(config.getConnectionTimeout(), TimeUnit.MILLISECONDS))
                     .build();
-            setConnectionConfig(connConfig);
-            SocketConfig socketConfig = SocketConfig.custom()
+            setDefaultConnectionConfig(connConfig);
+
+            SocketConfig.Builder builder = SocketConfig.custom()
                     .setSoTimeout(Timeout.of(config.getSocketTimeout(), TimeUnit.MILLISECONDS))
                     .setRcvBufSize(config.getReadBufferSize())
-                    .setSndBufSize(config.getWriteBufferSize())
-                    .build();
-            setSocketConfig(socketConfig);
+                    .setSndBufSize(config.getWriteBufferSize());
+            if (config.hasOption(ClickHouseClientOption.SOCKET_KEEPALIVE)) {
+                builder.setSoKeepAlive(config.getBoolOption(ClickHouseClientOption.SOCKET_KEEPALIVE));
+            }
+            if (config.hasOption(ClickHouseClientOption.SOCKET_LINGER)) {
+                int solinger = config.getIntOption(ClickHouseClientOption.SOCKET_LINGER);
+                builder.setSoLinger(solinger, TimeUnit.SECONDS);
+            }
+            if (config.hasOption(ClickHouseClientOption.SOCKET_REUSEADDR)) {
+                builder.setSoReuseAddress(config.getBoolOption(ClickHouseClientOption.SOCKET_REUSEADDR));
+            }
+            if (config.hasOption(ClickHouseClientOption.SOCKET_RCVBUF)) {
+                int bufferSize = config.getIntOption(ClickHouseClientOption.SOCKET_RCVBUF);
+                builder.setRcvBufSize(bufferSize > 0 ? bufferSize : config.getReadBufferSize());
+            }
+            if (config.hasOption(ClickHouseClientOption.SOCKET_SNDBUF)) {
+                int bufferSize = config.getIntOption(ClickHouseClientOption.SOCKET_SNDBUF);
+                builder.setSndBufSize(bufferSize > 0 ? bufferSize : config.getWriteBufferSize());
+            }
+            if (config.hasOption(ClickHouseClientOption.SOCKET_TCP_NODELAY)) {
+                builder.setTcpNoDelay(config.getBoolOption(ClickHouseClientOption.SOCKET_TCP_NODELAY));
+            }
+            setDefaultSocketConfig(builder.build());
         }
     }
 }
