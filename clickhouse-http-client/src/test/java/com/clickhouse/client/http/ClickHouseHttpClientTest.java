@@ -37,6 +37,7 @@ import com.clickhouse.client.http.config.ClickHouseHttpOption;
 
 import com.clickhouse.client.http.config.HttpConnectionProvider;
 import org.testng.Assert;
+import org.testng.SkipException;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
@@ -96,6 +97,12 @@ public class ClickHouseHttpClientTest extends ClientIntegrationTest {
                 (int) ClickHouseClientOption.BUFFER_SIZE.getDefaultValue(),
                 (int) ClickHouseClientOption.MAX_BUFFER_SIZE.getDefaultValue());
 
+        if (compression == ClickHouseCompression.SNAPPY) {
+            if (!checkServerVersion(getClient(), server, "[22.3,)")) {
+                throw new SkipException("Snappy decompression was supported since 22.3");
+            }
+        }
+
         for (int i = startLevel; i <= endLevel; i += step) {
             final ByteArrayOutputStream o = new ByteArrayOutputStream();
             try (ClickHouseOutputStream out = ClickHouseOutputStream.of(o, readBufferSize, compression, i, null)) {
@@ -135,6 +142,12 @@ public class ClickHouseHttpClientTest extends ClientIntegrationTest {
     @Test(dataProvider = "mixedCompressionMatrix", groups = "integration")
     public void testDecompressResponse(ClickHouseCompression reqComp, ClickHouseCompression respComp)
             throws ClickHouseException {
+        if (reqComp == ClickHouseCompression.SNAPPY || respComp == ClickHouseCompression.BZ2) {
+            if (!checkServerVersion(getClient(), getServer(), "[22.10,)")) {
+                throw new SkipException("Snappy and bz2 were all supported since 22.10");
+            }
+        }
+
         try (ClickHouseClient client = getClient();
                 ClickHouseResponse response = newRequest(client, getServer())
                         .format(ClickHouseFormat.RowBinaryWithNamesAndTypes)
