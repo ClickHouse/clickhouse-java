@@ -11,9 +11,9 @@ public enum ClickHouseCompression {
     BZ2("application/x-bzip2", "bz2", "bz2"),
     DEFLATE("application/deflate", "deflate", "zz"),
     GZIP("application/gzip", "gzip", "gz"),
-    LZMA("application/x-lzma", "lzma", "xz"),
     LZ4("application/x-lz4", "lz4", "lz4"),
-    ZIP("application/zip", "zip", "zip"),
+    SNAPPY("application/x-snappy", "snappy", "sz"),
+    XZ("application/x-xz", "xz", "xz"),
     ZSTD("application/zstd", "zstd", "zst");
 
     private String mimeType;

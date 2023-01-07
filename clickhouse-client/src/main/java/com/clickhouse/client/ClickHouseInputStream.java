@@ -24,9 +24,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
 import java.util.zip.GZIPInputStream;
+import java.util.zip.InflaterInputStream;
 
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.stream.BlockingInputStream;
+import com.clickhouse.client.stream.CompressionUtils;
 import com.clickhouse.client.stream.DeferredInputStream;
 import com.clickhouse.client.stream.EmptyInputStream;
 import com.clickhouse.client.stream.Lz4InputStream;
@@ -71,18 +73,42 @@ public abstract class ClickHouseInputStream extends InputStream {
                     : new WrappedInputStream(file, input, bufferSize, postCloseAction);
         } else {
             switch (compression) {
+                case BROTLI:
+                    chInput = new WrappedInputStream(file, CompressionUtils.createBrotliInputStream(input, bufferSize),
+                            bufferSize, postCloseAction);
+                    break;
+                case BZ2:
+                    chInput = new WrappedInputStream(file, CompressionUtils.createBz2InputStream(input), bufferSize,
+                            postCloseAction);
+                    break;
+                case DEFLATE:
+                    chInput = new WrappedInputStream(file, new InflaterInputStream(input), bufferSize, postCloseAction);
+                    break;
                 case GZIP:
                     try {
                         chInput = new WrappedInputStream(file, new GZIPInputStream(input), bufferSize, postCloseAction);
                     } catch (IOException e) {
-                        throw new IllegalArgumentException("Failed to wrap input stream", e);
+                        throw new IllegalArgumentException(CompressionUtils.ERROR_FAILED_TO_WRAP_INPUT, e);
                     }
                     break;
                 case LZ4:
                     chInput = new Lz4InputStream(file, input, postCloseAction);
                     break;
+                case SNAPPY:
+                    // https://github.com/ClickHouse/ClickHouse/issues/44885
+                    chInput = new WrappedInputStream(file, CompressionUtils.createSnappyInputStream(input),
+                            bufferSize, postCloseAction);
+                    break;
+                case ZSTD:
+                    chInput = new WrappedInputStream(file, CompressionUtils.createZstdInputStream(input), bufferSize,
+                            postCloseAction);
+                    break;
+                case XZ:
+                    chInput = new WrappedInputStream(file, CompressionUtils.createXzInputStream(input), bufferSize,
+                            postCloseAction);
+                    break;
                 default:
-                    throw new UnsupportedOperationException("Unsupported compression algorithm: " + compression);
+                    throw new UnsupportedOperationException("Unsupported decompression algorithm: " + compression);
             }
         }
         return chInput;

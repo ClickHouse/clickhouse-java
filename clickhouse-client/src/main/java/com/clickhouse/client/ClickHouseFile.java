@@ -127,7 +127,8 @@ public class ClickHouseFile implements Serializable {
     /**
      * Gets compression level.
      *
-     * @return compression level, which is always greater than or equal to zero
+     * @return compression level, which in general should be greater than or equal
+     *         to zero
      */
     public int getCompressionLevel() {
         return compressLevel;

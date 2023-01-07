@@ -1,48 +1,40 @@
 package com.clickhouse.client.http;
 
-import com.clickhouse.client.ClickHouseClient;
 import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseInputStream;
-import com.clickhouse.client.ClickHouseOutputStream;
+import com.clickhouse.client.data.ClickHouseExternalTable;
+
 import org.apache.hc.core5.http.io.entity.AbstractHttpEntity;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.util.Objects;
+import java.util.List;
 
 /**
  * Used to encapsulate post request.
  */
 public class ClickHouseHttpEntity extends AbstractHttpEntity {
-
-    /**
-     * Data to send
-     */
-    private final ClickHouseInputStream in;
     private final ClickHouseConfig config;
-    /**
-     * Indicate that there is extra data which comes from file.
-     */
-    private final boolean hasFile;
-    /**
-     * Indicate that there is extra data which comes from external tables.
-     */
-    private final boolean hasInput;
+    private final byte[] boundary;
+    private final String sql;
+    private final ClickHouseInputStream data;
+    private final List<ClickHouseExternalTable> tables;
 
-    public ClickHouseHttpEntity(ClickHouseInputStream in, ClickHouseConfig config, String contentType,
-                                String contentEncoding,
-                                boolean hasFile, boolean hasInput) {
-        super(contentType, contentEncoding, hasInput);
-        this.in = in;
+    protected ClickHouseHttpEntity(ClickHouseConfig config, String contentType, String contentEncoding, byte[] boundary,
+            String sql, ClickHouseInputStream data, List<ClickHouseExternalTable> tables) {
+        super(contentType, contentEncoding, data != null || boundary != null);
+
         this.config = config;
-        this.hasFile = hasFile;
-        this.hasInput = hasInput;
+        this.boundary = boundary;
+        this.sql = sql;
+        this.data = data;
+        this.tables = tables;
     }
 
     @Override
-    public boolean isRepeatable() {
-        return false;
+    public InputStream getContent() throws IOException, UnsupportedOperationException {
+        return ClickHouseInputStream.empty();
     }
 
     @Override
@@ -51,29 +43,8 @@ public class ClickHouseHttpEntity extends AbstractHttpEntity {
     }
 
     @Override
-    public InputStream getContent() throws IOException, UnsupportedOperationException {
-        return in;
-    }
-
-    @Override
-    public void writeTo(OutputStream outStream) throws IOException {
-        Objects.requireNonNull(outStream, "outStream");
-        try {
-            OutputStream wrappedOut = hasFile
-                    ? ClickHouseOutputStream.of(outStream, config.getWriteBufferSize())
-                    : (hasInput
-                    ? ClickHouseClient.getAsyncRequestOutputStream(config, outStream, null)
-                    : ClickHouseClient.getRequestOutputStream(config, outStream, null)
-            );
-            final byte[] buffer = new byte[config.getBufferSize()];
-            int readLen;
-            while ((readLen = in.read(buffer)) != -1) {
-                wrappedOut.write(buffer, 0, readLen);
-            }
-            wrappedOut.flush();
-        } finally {
-            in.close();
-        }
+    public boolean isRepeatable() {
+        return false;
     }
 
     @Override
@@ -82,9 +53,12 @@ public class ClickHouseHttpEntity extends AbstractHttpEntity {
     }
 
     @Override
+    public void writeTo(OutputStream outStream) throws IOException {
+        ClickHouseHttpConnection.postData(config, boundary, sql, data, tables, outStream);
+    }
+
+    @Override
     public void close() throws IOException {
-        if (in != null) {
-            in.close();
-        }
+        // nothing to do
     }
 }

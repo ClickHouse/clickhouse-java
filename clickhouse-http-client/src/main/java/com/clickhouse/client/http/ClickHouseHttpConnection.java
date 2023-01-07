@@ -1,6 +1,7 @@
 package com.clickhouse.client.http;
 
 import java.io.IOException;
+import java.io.OutputStream;
 import java.io.Serializable;
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
@@ -15,6 +16,7 @@ import java.util.Optional;
 import java.util.Map.Entry;
 
 import com.clickhouse.client.ClickHouseChecker;
+import com.clickhouse.client.ClickHouseClient;
 import com.clickhouse.client.ClickHouseCompression;
 import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseCredentials;
@@ -28,8 +30,31 @@ import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.config.ClickHouseOption;
 import com.clickhouse.client.data.ClickHouseExternalTable;
 import com.clickhouse.client.http.config.ClickHouseHttpOption;
+import com.clickhouse.client.logging.Logger;
+import com.clickhouse.client.logging.LoggerFactory;
 
 public abstract class ClickHouseHttpConnection implements AutoCloseable {
+    private static final Logger log = LoggerFactory.getLogger(ClickHouseHttpConnection.class);
+
+    private static final byte[] HEADER_CONTENT_DISPOSITION = "content-disposition: form-data; name=\""
+            .getBytes(StandardCharsets.US_ASCII);
+    private static final byte[] HEADER_OCTET_STREAM = "content-type: application/octet-stream\r\n"
+            .getBytes(StandardCharsets.US_ASCII);
+    private static final byte[] HEADER_BINARY_ENCODING = "content-transfer-encoding: binary\r\n\r\n"
+            .getBytes(StandardCharsets.US_ASCII);
+
+    private static final byte[] ERROR_MSG_PREFIX = "Code: ".getBytes(StandardCharsets.US_ASCII);
+
+    private static final byte[] DOUBLE_DASH = new byte[] { '-', '-' };
+    private static final byte[] END_OF_NAME = new byte[] { '"', '\r', '\n' };
+    private static final byte[] LINE_PREFIX = new byte[] { '\r', '\n', '-', '-' };
+    private static final byte[] LINE_SUFFIX = new byte[] { '\r', '\n' };
+
+    private static final byte[] SUFFIX_QUERY = "query\"\r\n\r\n".getBytes(StandardCharsets.US_ASCII);
+    private static final byte[] SUFFIX_FORMAT = "_format\"\r\n\r\n".getBytes(StandardCharsets.US_ASCII);
+    private static final byte[] SUFFIX_STRUCTURE = "_structure\"\r\n\r\n".getBytes(StandardCharsets.US_ASCII);
+    private static final byte[] SUFFIX_FILENAME = "\"; filename=\"".getBytes(StandardCharsets.US_ASCII);
+
     private static StringBuilder appendQueryParameter(StringBuilder builder, String key, String value) {
         return builder.append(urlEncode(key, StandardCharsets.UTF_8)).append('=')
                 .append(urlEncode(value, StandardCharsets.UTF_8)).append('&');
@@ -210,6 +235,85 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
             map.put("content-encoding", config.getRequestCompressAlgorithm().encoding());
         }
         return map;
+    }
+
+    protected static String parseErrorFromException(String errorCode, String serverName, IOException e, byte[] bytes) {
+        log.debug("Failed to read error message[code=%s] from server [%s] due to: %s", errorCode, serverName,
+                e.getMessage());
+
+        int index = ClickHouseUtils.indexOf(bytes, ERROR_MSG_PREFIX);
+        final String errorMsg;
+        if (index > 0) {
+            errorMsg = new String(bytes, index, bytes.length - index, StandardCharsets.UTF_8);
+        } else if (!ClickHouseChecker.isNullOrBlank(errorCode)) {
+            errorMsg = new StringBuilder().append("Code: ").append(errorCode).append(", server: ").append(serverName)
+                    .append(", ").append(new String(bytes, StandardCharsets.UTF_8)).toString();
+        } else {
+            errorMsg = new String(bytes, StandardCharsets.UTF_8);
+        }
+        return errorMsg;
+    }
+
+    protected static void postData(ClickHouseConfig config, byte[] boundary, String sql, ClickHouseInputStream data,
+            List<ClickHouseExternalTable> tables, OutputStream requestStream) throws IOException {
+        final boolean hasFile = data != null && data.getUnderlyingFile().isAvailable();
+
+        try (OutputStream rawOut = requestStream;
+                ClickHouseOutputStream out = hasFile
+                        ? ClickHouseOutputStream.of(rawOut, config.getWriteBufferSize())
+                        : (data != null || boundary != null // NOSONAR
+                                ? ClickHouseClient.getAsyncRequestOutputStream(config, rawOut, null) // latch::countDown)
+                                : ClickHouseClient.getRequestOutputStream(config, rawOut, null))) {
+            byte[] sqlBytes = hasFile ? new byte[0] : sql.getBytes(StandardCharsets.UTF_8);
+            if (boundary != null) {
+                rawOut.write(LINE_PREFIX);
+                rawOut.write(boundary);
+                rawOut.write(LINE_SUFFIX);
+                rawOut.write(HEADER_CONTENT_DISPOSITION);
+                rawOut.write(SUFFIX_QUERY);
+                rawOut.write(sqlBytes);
+
+                final int writeBufferSize = config.getWriteBufferSize();
+                for (ClickHouseExternalTable t : tables) {
+                    byte[] tableName = t.getName().getBytes(StandardCharsets.UTF_8);
+                    for (int i = 0; i < 3; i++) {
+                        rawOut.write(LINE_PREFIX);
+                        rawOut.write(boundary);
+                        rawOut.write(LINE_SUFFIX);
+                        rawOut.write(HEADER_CONTENT_DISPOSITION);
+                        rawOut.write(tableName);
+                        if (i == 0) {
+                            rawOut.write(SUFFIX_FORMAT);
+                            rawOut.write(t.getFormat().name().getBytes(StandardCharsets.US_ASCII));
+                        } else if (i == 1) {
+                            rawOut.write(SUFFIX_STRUCTURE);
+                            rawOut.write(t.getStructure().getBytes(StandardCharsets.UTF_8));
+                        } else {
+                            rawOut.write(SUFFIX_FILENAME);
+                            rawOut.write(tableName);
+                            rawOut.write(END_OF_NAME);
+                            break;
+                        }
+                    }
+                    rawOut.write(HEADER_OCTET_STREAM);
+                    rawOut.write(HEADER_BINARY_ENCODING);
+                    ClickHouseInputStream.pipe(t.getContent(), rawOut, writeBufferSize);
+                }
+                rawOut.write(LINE_PREFIX);
+                rawOut.write(boundary);
+                rawOut.write(DOUBLE_DASH);
+                rawOut.write(LINE_SUFFIX);
+            } else {
+                out.writeBytes(sqlBytes);
+                if (data != null && data.available() > 0) {
+                    // append \n
+                    if (sqlBytes.length > 0 && sqlBytes[sqlBytes.length - 1] != (byte) '\n') {
+                        out.write(10);
+                    }
+                    ClickHouseInputStream.pipe(data, out, config.getWriteBufferSize());
+                }
+            }
+        }
     }
 
     protected final ClickHouseConfig config;

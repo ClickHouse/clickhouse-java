@@ -46,7 +46,7 @@
         <dependency>
             <groupId>io.grpc</groupId>
             <artifactId>grpc-protobuf</artifactId>
-            <scope>provided</scope>
+            <optional>true</optional>
         </dependency>
         <!-- necessary for Java 9+ -->
         <dependency>

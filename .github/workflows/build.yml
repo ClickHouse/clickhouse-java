@@ -47,9 +47,9 @@ jobs:
       - name: Install JDK 8 and Maven
         uses: actions/setup-java@v3
         with:
-          distribution: 'temurin'
+          distribution: "temurin"
           java-version: 8
-          cache: 'maven'
+          cache: "maven"
       - name: Build and install libraries
         run: mvn --batch-mode --show-version --strict-checksums --threads C1 -Dmaven.wagon.rto=30000 -DskipITs install
       - name: Compile examples
@@ -71,9 +71,9 @@ jobs:
       - name: Install JDK 8 and Maven
         uses: actions/setup-java@v3
         with:
-          distribution: 'temurin'
+          distribution: "temurin"
           java-version: 8
-          cache: 'maven'
+          cache: "maven"
       - name: Install ClickHouse native command line
         run: |
           sudo apt-get update \
@@ -115,11 +115,11 @@ jobs:
       - name: Install JDK 8 and Maven
         uses: actions/setup-java@v3
         with:
-          distribution: 'temurin'
+          distribution: "temurin"
           java-version: |
             8
             11
-          cache: 'maven'
+          cache: "maven"
       - name: Setup Toolchain
         shell: bash
         run: |
@@ -156,8 +156,8 @@ jobs:
     strategy:
       matrix:
         clickhouse: ["21.8", "22.3", "22.8", "latest"]
-        # http2 here represents http protocol + JDK HttpClient(http_connection_provider=HTTP_CLIENT)
-        protocol: ["http", "http2", "grpc"]
+        # here http, http_client and apache_http_client represent different value of http_connection_provider
+        protocol: ["http", "http_client", "apache_http_client", "grpc"]
         exclude:
           - clickhouse: "21.8"
             protocol: grpc
@@ -175,11 +175,11 @@ jobs:
       - name: Install JDK 8 and Maven
         uses: actions/setup-java@v3
         with:
-          distribution: 'temurin'
+          distribution: "temurin"
           java-version: |
             8
             11
-          cache: 'maven'
+          cache: "maven"
       - name: Setup Toolchain
         shell: bash
         run: |
@@ -218,7 +218,7 @@ jobs:
     strategy:
       matrix:
         clickhouse: ["21.8", "22.3", "22.8", "latest"]
-        # grpc is not fully supported, and http2 does not work in CI environment(due to limited threads?)
+        # grpc is not fully supported, and http_client and apache_http_client do not work in CI environment(due to limited threads?)
         protocol: ["http"]
         r2dbc: ["1.0.0.RELEASE", "0.9.1.RELEASE"]
       fail-fast: false
@@ -235,11 +235,11 @@ jobs:
       - name: Install JDK 8 and Maven
         uses: actions/setup-java@v3
         with:
-          distribution: 'temurin'
+          distribution: "temurin"
           java-version: |
             8
             11
-          cache: 'maven'
+          cache: "maven"
       - name: Setup Toolchain
         shell: bash
         run: |
@@ -278,8 +278,22 @@ jobs:
     needs: compile
     strategy:
       matrix:
-        serverTz: ["Asia/Chongqing", "America/Los_Angeles", "Etc/UTC", "Europe/Berlin", "Europe/Moscow"]
-        clientTz: ["Asia/Chongqing", "America/Los_Angeles", "Etc/UTC", "Europe/Berlin", "Europe/Moscow"]
+        serverTz:
+          [
+            "Asia/Chongqing",
+            "America/Los_Angeles",
+            "Etc/UTC",
+            "Europe/Berlin",
+            "Europe/Moscow",
+          ]
+        clientTz:
+          [
+            "Asia/Chongqing",
+            "America/Los_Angeles",
+            "Etc/UTC",
+            "Europe/Berlin",
+            "Europe/Moscow",
+          ]
       fail-fast: false
     timeout-minutes: 20
     name: "TimeZone(C/S): ${{ matrix.clientTz }} vs. ${{ matrix.serverTz }}"
@@ -294,9 +308,9 @@ jobs:
       - name: Install JDK 8 and Maven
         uses: actions/setup-java@v3
         with:
-          distribution: 'temurin'
+          distribution: "temurin"
           java-version: 8
-          cache: 'maven'
+          cache: "maven"
       - name: Install Java client
         run: mvn --also-make --batch-mode --projects clickhouse-cli-client,clickhouse-grpc-client,clickhouse-http-client -DskipTests install
       - name: Test JDBC and R2DBC drivers

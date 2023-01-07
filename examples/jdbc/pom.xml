@@ -60,11 +60,11 @@
     </repositories>
 
     <properties>
-        <project.current.year>2022</project.current.year>
+        <project.current.year>2023</project.current.year>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
-        <clickhouse-jdbc.version>0.3.3-SNAPSHOT</clickhouse-jdbc.version>
+        <clickhouse-jdbc.version>0.4.0-SNAPSHOT</clickhouse-jdbc.version>
 
         <compiler-plugin.version>3.8.1</compiler-plugin.version>
 

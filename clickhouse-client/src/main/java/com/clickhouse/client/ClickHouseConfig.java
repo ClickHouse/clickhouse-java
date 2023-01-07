@@ -378,12 +378,12 @@ public class ClickHouseConfig implements Serializable {
 
     /**
      * Gets input compress level. When {@link #isResponseCompressed()} is
-     * {@code false}, this will return {@code 0}.
+     * {@code false}, this will return {@code -1}.
      *
      * @return compress level
      */
     public int getResponseCompressLevel() {
-        return decompressResponse ? decompressLevel : 0;
+        return decompressResponse ? decompressLevel : -1;
     }
 
     /**
@@ -407,12 +407,12 @@ public class ClickHouseConfig implements Serializable {
 
     /**
      * Gets input compress level. When {@link #isRequestCompressed()} is
-     * {@code false}, this will return {@code 0}.
+     * {@code false}, this will return {@code -1}.
      *
      * @return compress level
      */
     public int getRequestCompressLevel() {
-        return compressRequest ? compressLevel : 0;
+        return compressRequest ? compressLevel : -1;
     }
 
     public int getConnectionTimeout() {

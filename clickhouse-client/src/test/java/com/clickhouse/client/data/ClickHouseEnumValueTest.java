@@ -35,31 +35,30 @@ public class ClickHouseEnumValueTest extends BaseClickHouseValueTest {
                 Object.class,
                 ClickHouseDataType.class, Object.class, Object.class);
 
-        sameValue(ClickHouseEnumValue.of(ClickHouseDataType.IntervalYear),
+        sameValue(ClickHouseEnumValue.of(ClickHouseDataType.Bool),
                 ClickHouseEnumValue.of(ClickHouseDataType.String).update(false), 3, 9, Object.class,
                 ClickHouseDataType.class, Object.class, Object.class);
-        sameValue(ClickHouseEnumValue.of(ClickHouseDataType.IntervalYear),
+        sameValue(ClickHouseEnumValue.of(ClickHouseDataType.Bool),
                 ClickHouseEnumValue.of(ClickHouseDataType.String).update(new boolean[] { false }), 3, 9,
                 Object.class,
                 ClickHouseDataType.class, Object.class, Object.class);
-        sameValue(ClickHouseEnumValue.of(ClickHouseDataType.IntervalYear),
+        sameValue(ClickHouseEnumValue.of(ClickHouseDataType.Bool),
                 ClickHouseEnumValue.of(ClickHouseDataType.String).update('\0'), 3, 9, Object.class,
                 ClickHouseDataType.class, Object.class, Object.class);
-        sameValue(ClickHouseEnumValue.of(ClickHouseDataType.IntervalYear),
+        sameValue(ClickHouseEnumValue.of(ClickHouseDataType.Bool),
                 ClickHouseEnumValue.of(ClickHouseDataType.String).update((byte) 0), 3, 9, Object.class,
                 ClickHouseDataType.class, Object.class, Object.class);
-        sameValue(ClickHouseEnumValue.of(ClickHouseDataType.IntervalYear),
+        sameValue(ClickHouseEnumValue.of(ClickHouseDataType.Bool),
                 ClickHouseEnumValue.of(ClickHouseDataType.String).update((short) 0), 3, 9, Object.class,
                 ClickHouseDataType.class, Object.class, Object.class);
-        sameValue(ClickHouseEnumValue.of(ClickHouseDataType.IntervalYear),
+        sameValue(ClickHouseEnumValue.of(ClickHouseDataType.Bool),
                 ClickHouseEnumValue.of(ClickHouseDataType.String).update(0), 3, 9, Object.class,
                 ClickHouseDataType.class, Object.class, Object.class);
-        sameValue(ClickHouseEnumValue.of(ClickHouseDataType.IntervalYear),
+        sameValue(ClickHouseEnumValue.of(ClickHouseDataType.Bool),
                 ClickHouseEnumValue.of(ClickHouseDataType.String).update(0L), 3, 9, Object.class,
                 ClickHouseDataType.class, Object.class, Object.class);
-        sameValue(ClickHouseEnumValue.of(ClickHouseDataType.IntervalYear),
-                ClickHouseEnumValue.of(ClickHouseDataType.String).update("IntervalYear"), 3, 9,
-                Object.class,
-                ClickHouseDataType.class, Object.class, Object.class);
+        sameValue(ClickHouseEnumValue.of(ClickHouseDataType.Bool),
+                ClickHouseEnumValue.of(ClickHouseDataType.String).update("Bool"), 3, 9,
+                Object.class, ClickHouseDataType.class, Object.class, Object.class);
     }
 }

@@ -36,6 +36,26 @@ import com.clickhouse.client.data.UnsignedShort;
  */
 @SuppressWarnings("squid:S115")
 public enum ClickHouseDataType {
+    Bool(Boolean.class, false, false, true, 1, 1, 0, 0, 0, false, "BOOLEAN"),
+    Date(LocalDate.class, false, false, false, 2, 10, 0, 0, 0, false),
+    Date32(LocalDate.class, false, false, false, 4, 10, 0, 0, 0, false),
+    DateTime(LocalDateTime.class, true, false, false, 0, 29, 0, 0, 9, false, "TIMESTAMP"),
+    DateTime32(LocalDateTime.class, true, false, false, 4, 19, 0, 0, 0, false),
+    DateTime64(LocalDateTime.class, true, false, false, 8, 29, 3, 0, 9, false),
+    Enum8(String.class, true, true, false, 1, 0, 0, 0, 0, false, "ENUM"),
+    Enum16(String.class, true, true, false, 2, 0, 0, 0, 0, false),
+    FixedString(String.class, true, true, false, 0, 0, 0, 0, 0, false, "BINARY"),
+    Int8(Byte.class, false, true, true, 1, 3, 0, 0, 0, false, "BYTE", "INT1", "INT1 SIGNED", "TINYINT",
+            "TINYINT SIGNED"),
+    UInt8(UnsignedByte.class, false, true, false, 1, 3, 0, 0, 0, false, "INT1 UNSIGNED", "TINYINT UNSIGNED"),
+    Int16(Short.class, false, true, true, 2, 5, 0, 0, 0, false, "SMALLINT", "SMALLINT SIGNED"),
+    UInt16(UnsignedShort.class, false, true, false, 2, 5, 0, 0, 0, false, "SMALLINT UNSIGNED", "YEAR"),
+    Int32(Integer.class, false, true, true, 4, 10, 0, 0, 0, false, "INT", "INT SIGNED", "INTEGER", "INTEGER SIGNED",
+            "MEDIUMINT", "MEDIUMINT SIGNED"),
+    // https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html#PageTitle
+    UInt32(UnsignedInteger.class, false, true, false, 4, 10, 0, 0, 0, false, "INT UNSIGNED", "INTEGER UNSIGNED",
+            "MEDIUMINT UNSIGNED"),
+    Int64(Long.class, false, true, true, 8, 19, 0, 0, 0, false, "BIGINT", "BIGINT SIGNED", "TIME"),
     IntervalYear(Long.class, false, true, true, 8, 19, 0, 0, 0, false),
     IntervalQuarter(Long.class, false, true, true, 8, 19, 0, 0, 0, false),
     IntervalMonth(Long.class, false, true, true, 8, 19, 0, 0, 0, false),
@@ -47,61 +67,41 @@ public enum ClickHouseDataType {
     IntervalMicrosecond(Long.class, false, true, true, 8, 19, 0, 0, 0, false),
     IntervalMillisecond(Long.class, false, true, true, 8, 19, 0, 0, 0, false),
     IntervalNanosecond(Long.class, false, true, true, 8, 19, 0, 0, 0, false),
-    UInt8(UnsignedByte.class, false, true, false, 1, 3, 0, 0, 0, false, "INT1 UNSIGNED", "TINYINT UNSIGNED"),
-    UInt16(UnsignedShort.class, false, true, false, 2, 5, 0, 0, 0, false, "SMALLINT UNSIGNED", "YEAR"),
-    // https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html#PageTitle
-    UInt32(UnsignedInteger.class, false, true, false, 4, 10, 0, 0, 0, false, "INT UNSIGNED", "INTEGER UNSIGNED",
-            "MEDIUMINT UNSIGNED"),
     UInt64(UnsignedLong.class, false, true, false, 8, 20, 0, 0, 0, false, "BIGINT UNSIGNED", "BIT", "SET"),
-    UInt128(BigInteger.class, false, true, false, 16, 39, 0, 0, 0, false),
-    UInt256(BigInteger.class, false, true, false, 32, 78, 0, 0, 0, false),
-    Int8(Byte.class, false, true, true, 1, 3, 0, 0, 0, false, "BYTE", "INT1", "INT1 SIGNED", "TINYINT",
-            "TINYINT SIGNED"),
-    Int16(Short.class, false, true, true, 2, 5, 0, 0, 0, false, "SMALLINT", "SMALLINT SIGNED"),
-    Int32(Integer.class, false, true, true, 4, 10, 0, 0, 0, false, "INT", "INT SIGNED", "INTEGER", "INTEGER SIGNED",
-            "MEDIUMINT", "MEDIUMINT SIGNED"),
-    Int64(Long.class, false, true, true, 8, 19, 0, 0, 0, false, "BIGINT", "BIGINT SIGNED", "TIME"),
     Int128(BigInteger.class, false, true, true, 16, 39, 0, 0, 0, false),
+    UInt128(BigInteger.class, false, true, false, 16, 39, 0, 0, 0, false),
     Int256(BigInteger.class, false, true, true, 32, 77, 0, 0, 0, false),
-    Bool(Boolean.class, false, false, true, 1, 1, 0, 0, 0, false, "BOOLEAN"),
-    Date(LocalDate.class, false, false, false, 2, 10, 0, 0, 0, false),
-    Date32(LocalDate.class, false, false, false, 4, 10, 0, 0, 0, false),
-    DateTime(LocalDateTime.class, true, false, false, 0, 29, 0, 0, 9, false, "TIMESTAMP"),
-    DateTime32(LocalDateTime.class, true, false, false, 4, 19, 0, 0, 0, false),
-    DateTime64(LocalDateTime.class, true, false, false, 8, 29, 3, 0, 9, false),
+    UInt256(BigInteger.class, false, true, false, 32, 78, 0, 0, 0, false),
     Decimal(BigDecimal.class, true, false, true, 0, 76, 0, 0, 76, false, "DEC", "FIXED", "NUMERIC"),
     Decimal32(BigDecimal.class, true, false, true, 4, 9, 9, 0, 9, false),
     Decimal64(BigDecimal.class, true, false, true, 8, 18, 18, 0, 18, false),
     Decimal128(BigDecimal.class, true, false, true, 16, 38, 38, 0, 38, false),
     Decimal256(BigDecimal.class, true, false, true, 32, 76, 20, 0, 76, false),
-    UUID(UUID.class, false, true, false, 16, 69, 0, 0, 0, false),
-    Enum8(String.class, true, true, false, 1, 0, 0, 0, 0, false, "ENUM"),
-    Enum16(String.class, true, true, false, 2, 0, 0, 0, 0, false),
     Float32(Float.class, false, true, true, 4, 12, 0, 0, 38, false, "FLOAT", "REAL", "SINGLE"),
     Float64(Double.class, false, true, true, 8, 22, 0, 0, 308, false, "DOUBLE", "DOUBLE PRECISION"),
     IPv4(Inet4Address.class, false, true, false, 4, 10, 0, 0, 0, false, "INET4"),
     IPv6(Inet6Address.class, false, true, false, 16, 39, 0, 0, 0, false, "INET6"),
-    FixedString(String.class, true, true, false, 0, 0, 0, 0, 0, false, "BINARY"),
+    UUID(UUID.class, false, true, false, 16, 69, 0, 0, 0, false),
+    Point(Object.class, false, true, true, 33, 0, 0, 0, 0, true), // same as Tuple(Float64, Float64)
+    Polygon(Object.class, false, true, true, 0, 0, 0, 0, 0, true), // same as Array(Ring)
+    MultiPolygon(Object.class, false, true, true, 0, 0, 0, 0, 0, true), // same as Array(Polygon)
+    Ring(Object.class, false, true, true, 0, 0, 0, 0, 0, true), // same as Array(Point)
+    JSON(Object.class, false, false, false, 0, 0, 0, 0, 0, true), // same as Object('JSON')
+    Object(Object.class, true, true, false, 0, 0, 0, 0, 0, true),
     String(String.class, false, true, false, 0, 0, 0, 0, 0, false, "BINARY LARGE OBJECT", "BINARY VARYING", "BLOB",
             "BYTEA", "CHAR", "CHAR LARGE OBJECT", "CHAR VARYING", "CHARACTER", "CHARACTER LARGE OBJECT",
             "CHARACTER VARYING", "CLOB", "GEOMETRY", "LONGBLOB", "LONGTEXT", "MEDIUMBLOB", "MEDIUMTEXT",
             "NATIONAL CHAR", "NATIONAL CHAR VARYING", "NATIONAL CHARACTER", "NATIONAL CHARACTER LARGE OBJECT",
             "NATIONAL CHARACTER VARYING", "NCHAR", "NCHAR LARGE OBJECT", "NCHAR VARYING", "NVARCHAR", "TEXT",
             "TINYBLOB", "TINYTEXT", "VARBINARY", "VARCHAR", "VARCHAR2"),
-    // implementation-defined intermediate state
-    AggregateFunction(String.class, true, true, false, 0, 0, 0, 0, 0, true),
-    SimpleAggregateFunction(String.class, true, true, false, 0, 0, 0, 0, 0, false),
     Array(Object.class, true, true, false, 0, 0, 0, 0, 0, true),
     Map(Map.class, true, true, false, 0, 0, 0, 0, 0, true),
     Nested(Object.class, true, true, false, 0, 0, 0, 0, 0, true),
     Tuple(List.class, true, true, false, 0, 0, 0, 0, 0, true),
-    Object(Object.class, true, true, false, 0, 0, 0, 0, 0, true),
-    JSON(Object.class, false, false, false, 0, 0, 0, 0, 0, true), // same as Object('JSON')
-    Point(Object.class, false, true, true, 33, 0, 0, 0, 0, true), // same as Tuple(Float64, Float64)
-    Polygon(Object.class, false, true, true, 0, 0, 0, 0, 0, true), // same as Array(Ring)
-    MultiPolygon(Object.class, false, true, true, 0, 0, 0, 0, 0, true), // same as Array(Polygon)
-    Ring(Object.class, false, true, true, 0, 0, 0, 0, 0, true), // same as Array(Point)
-    Nothing(Object.class, false, true, false, 0, 0, 0, 0, 0, true);
+    Nothing(Object.class, false, true, false, 0, 0, 0, 0, 0, true),
+    SimpleAggregateFunction(String.class, true, true, false, 0, 0, 0, 0, 0, false),
+    // implementation-defined intermediate state
+    AggregateFunction(String.class, true, true, false, 0, 0, 0, 0, 0, true);
 
     /**
      * Immutable set(sorted) for all aliases.
@@ -153,6 +153,13 @@ public enum ClickHouseDataType {
         return typeName != null && !typeName.isEmpty() && allAliases.contains(typeName.trim().toUpperCase());
     }
 
+    /**
+     * Finds list of matched aliases and/or types based on given part.
+     *
+     * @param part prefix, alias or type name
+     * @return list of matched aliases and/or types
+     */
+    @SuppressWarnings("squid:S3776")
     public static List<String> match(String part) {
         List<String> types = new LinkedList<>();
 
@@ -174,9 +181,8 @@ public enum ClickHouseDataType {
             part = part.toUpperCase();
             String prefix = part + ' ';
             for (String alias : allAliases) {
-                if (alias.length() == part.length() && alias.equals(part)) {
-                    types.add(alias);
-                } else if (alias.length() > part.length() && alias.startsWith(prefix)) {
+                if ((alias.length() == part.length() && alias.equals(part))
+                        || (alias.length() > part.length() && alias.startsWith(prefix))) {
                     types.add(alias);
                 }
             }
@@ -219,7 +225,7 @@ public enum ClickHouseDataType {
      * @return data type
      */
     public static ClickHouseDataType of(String typeName) {
-        if (typeName == null || (typeName = typeName.trim()).isEmpty()) {
+        if (typeName == null || (typeName = typeName.trim()).isEmpty()) { // NOSONAR
             throw new IllegalArgumentException("Non-empty typeName is required");
         }
 
@@ -368,6 +374,22 @@ public enum ClickHouseDataType {
     private final int maxScale;
     private final boolean nestedType;
 
+    /**
+     * Default constructor.
+     *
+     * @param javaClass     Java class
+     * @param parameter     whether supports parameter
+     * @param caseSensitive whether the type is case sensitive
+     * @param signed        whether it's signed data type
+     * @param byteLength    length in byte
+     * @param maxPrecision  maximum precision supported
+     * @param defaultScale  default scale
+     * @param minScale      minimum scale supported
+     * @param maxScale      maximum scale supported
+     * @param nestedType    whether it's a nested data type
+     * @param aliases       list of aliases
+     */
+    @SuppressWarnings("squid:S107")
     ClickHouseDataType(Class<?> javaClass, boolean parameter, boolean caseSensitive, boolean signed, int byteLength,
             int maxPrecision, int defaultScale, int minScale, int maxScale, boolean nestedType, String... aliases) {
         this.objectType = toObjectType(javaClass);

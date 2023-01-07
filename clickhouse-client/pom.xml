@@ -1,4 +1,6 @@
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
@@ -18,7 +20,7 @@
         <dependency>
             <groupId>${project.parent.groupId}</groupId>
             <artifactId>org.roaringbitmap</artifactId>
-            <scope>provided</scope>
+            <optional>true</optional>
             <exclusions>
                 <exclusion>
                     <groupId>*</groupId>
@@ -28,49 +30,69 @@
         </dependency>
 
         <dependency>
+            <groupId>com.aayushatharva.brotli4j</groupId>
+            <artifactId>brotli4j</artifactId>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
             <groupId>com.github.ben-manes.caffeine</groupId>
             <artifactId>caffeine</artifactId>
-            <scope>provided</scope>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>com.github.luben</groupId>
+            <artifactId>zstd-jni</artifactId>
+            <optional>true</optional>
         </dependency>
         <dependency>
             <groupId>com.google.code.gson</groupId>
             <artifactId>gson</artifactId>
-            <scope>provided</scope>
+            <optional>true</optional>
         </dependency>
         <dependency>
             <groupId>dnsjava</groupId>
             <artifactId>dnsjava</artifactId>
-            <scope>provided</scope>
+            <optional>true</optional>
         </dependency>
         <dependency>
             <groupId>org.apache.avro</groupId>
             <artifactId>avro</artifactId>
-            <scope>provided</scope>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>org.brotli</groupId>
+            <artifactId>dec</artifactId>
+            <optional>true</optional>
         </dependency>
         <dependency>
             <groupId>org.jctools</groupId>
             <artifactId>jctools-core</artifactId>
-            <scope>provided</scope>
+            <optional>true</optional>
         </dependency>
         <dependency>
             <groupId>org.lz4</groupId>
             <artifactId>lz4-java</artifactId>
-            <scope>provided</scope>
+            <optional>true</optional>
         </dependency>
         <dependency>
             <groupId>org.msgpack</groupId>
             <artifactId>msgpack-core</artifactId>
-            <scope>provided</scope>
+            <optional>true</optional>
         </dependency>
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
-            <scope>provided</scope>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>org.tukaani</groupId>
+            <artifactId>xz</artifactId>
+            <optional>true</optional>
         </dependency>
         <dependency>
             <groupId>org.xerial.snappy</groupId>
             <artifactId>snappy-java</artifactId>
-            <scope>provided</scope>
+            <optional>true</optional>
         </dependency>
 
         <dependency>

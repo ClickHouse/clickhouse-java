@@ -34,7 +34,6 @@ import static com.clickhouse.client.ClickHouseServerForTest.getClickHouseAddress
 import static java.lang.String.format;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-
 public class R2DBCTestKitImplTest implements TestKit<String> {
 
     private static final String DATABASE = "default";
@@ -43,8 +42,9 @@ public class R2DBCTestKitImplTest implements TestKit<String> {
 
     private static final String CUSTOM_PROTOCOL_NAME = System.getProperty("protocol", "http").toUpperCase();
     private static final ClickHouseProtocol DEFAULT_PROTOCOL = ClickHouseProtocol
-            .valueOf(CUSTOM_PROTOCOL_NAME.startsWith("HTTP") ? "HTTP" : CUSTOM_PROTOCOL_NAME);
-    private static final String EXTRA_PARAM = "HTTP2".equals(CUSTOM_PROTOCOL_NAME) ? "http_connection_provider=HTTP_CLIENT" : "";
+            .valueOf(CUSTOM_PROTOCOL_NAME.indexOf("HTTP") >= 0 ? "HTTP" : CUSTOM_PROTOCOL_NAME);
+    private static final String EXTRA_PARAM = CUSTOM_PROTOCOL_NAME.indexOf("HTTP") >= 0
+            && !"HTTP".equals(CUSTOM_PROTOCOL_NAME) ? "http_connection_provider=" + CUSTOM_PROTOCOL_NAME : "";
 
     static ConnectionFactory connectionFactory;
     static JdbcTemplate jdbcTemplate;
@@ -85,9 +85,11 @@ public class R2DBCTestKitImplTest implements TestKit<String> {
         Driver driver = new ClickHouseDriver();
         DriverManager.registerDriver(driver);
         if (database == null) {
-            source.setJdbcUrl(format("jdbc:clickhouse:%s://%s?%s", DEFAULT_PROTOCOL, getClickHouseAddress(DEFAULT_PROTOCOL, false), EXTRA_PARAM));
+            source.setJdbcUrl(format("jdbc:clickhouse:%s://%s?%s", DEFAULT_PROTOCOL,
+                    getClickHouseAddress(DEFAULT_PROTOCOL, false), EXTRA_PARAM));
         } else {
-            source.setJdbcUrl(format("jdbc:clickhouse:%s://%s/%s?%s", DEFAULT_PROTOCOL, getClickHouseAddress(DEFAULT_PROTOCOL, false), DATABASE, EXTRA_PARAM));
+            source.setJdbcUrl(format("jdbc:clickhouse:%s://%s/%s?%s", DEFAULT_PROTOCOL,
+                    getClickHouseAddress(DEFAULT_PROTOCOL, false), DATABASE, EXTRA_PARAM));
         }
 
         source.setUsername(USER);
@@ -107,13 +109,17 @@ public class R2DBCTestKitImplTest implements TestKit<String> {
     @Test
     public void blobInsert() {
         Flux.usingWhen(getConnectionFactory().create(),
-                        connection -> {
+                connection -> {
 
-                            Statement statement = connection.createStatement(expand(TestStatement.INSERT_VALUE_PLACEHOLDER, getPlaceholder(0)));
-                            assertThrows(IllegalArgumentException.class, () -> statement.bind(0, Blob.from(Mono.just(ByteBuffer.wrap("Unsupported type".getBytes())))), "bind(0, Blob) should fail");
-                            return Mono.empty();
-                        },
-                        Connection::close)
+                    Statement statement = connection
+                            .createStatement(expand(TestStatement.INSERT_VALUE_PLACEHOLDER, getPlaceholder(0)));
+                    assertThrows(IllegalArgumentException.class,
+                            () -> statement.bind(0,
+                                    Blob.from(Mono.just(ByteBuffer.wrap("Unsupported type".getBytes())))),
+                            "bind(0, Blob) should fail");
+                    return Mono.empty();
+                },
+                Connection::close)
                 .as(StepVerifier::create)
                 .verifyComplete();
     }
@@ -122,13 +128,16 @@ public class R2DBCTestKitImplTest implements TestKit<String> {
     @Test
     public void clobInsert() {
         Flux.usingWhen(getConnectionFactory().create(),
-                        connection -> {
+                connection -> {
 
-                            Statement statement = connection.createStatement(expand(TestStatement.INSERT_VALUE_PLACEHOLDER, getPlaceholder(0)));
-                            assertThrows(IllegalArgumentException.class, () -> statement.bind(0, Clob.from(Mono.just("Unsupported type"))), "bind(0, Clob) should fail");
-                            return Mono.empty();
-                        },
-                        Connection::close)
+                    Statement statement = connection
+                            .createStatement(expand(TestStatement.INSERT_VALUE_PLACEHOLDER, getPlaceholder(0)));
+                    assertThrows(IllegalArgumentException.class,
+                            () -> statement.bind(0, Clob.from(Mono.just("Unsupported type"))),
+                            "bind(0, Clob) should fail");
+                    return Mono.empty();
+                },
+                Connection::close)
                 .as(StepVerifier::create)
                 .verifyComplete();
     }
@@ -151,11 +160,11 @@ public class R2DBCTestKitImplTest implements TestKit<String> {
         getJdbcOperations().execute(expand(TestStatement.INSERT_TWO_COLUMNS));
 
         Flux.usingWhen(getConnectionFactory().create(),
-                        connection -> Flux.from(connection
+                connection -> Flux.from(connection
 
-                                        .createStatement(expand(TestStatement.SELECT_VALUE_TWO_COLUMNS))
-                                        .execute()),
-                        Connection::close)
+                        .createStatement(expand(TestStatement.SELECT_VALUE_TWO_COLUMNS))
+                        .execute()),
+                Connection::close)
                 .as(StepVerifier::create)
                 .expectErrorMatches(ClickHouseException.class::isInstance)
                 .verify();
@@ -163,17 +172,17 @@ public class R2DBCTestKitImplTest implements TestKit<String> {
 
     @Override
     @Test
-    // TODO:  check if it is doable.
+    // TODO: check if it is doable.
     public void compoundStatement() {
-        //compound statements are not supported by clickhouse.
+        // compound statements are not supported by clickhouse.
         getJdbcOperations().execute(expand(TestStatement.INSERT_VALUE100));
 
         Flux.usingWhen(getConnectionFactory().create(),
-                        connection -> Flux.from(connection
+                connection -> Flux.from(connection
 
-                                        .createStatement(expand(TestStatement.SELECT_VALUE_BATCH))
-                                        .execute()),
-                        Connection::close)
+                        .createStatement(expand(TestStatement.SELECT_VALUE_BATCH))
+                        .execute()),
+                Connection::close)
                 .as(StepVerifier::create)
                 .expectErrorMatches(ClickHouseException.class::isInstance)
                 .verify();
@@ -185,11 +194,11 @@ public class R2DBCTestKitImplTest implements TestKit<String> {
         getJdbcOperations().execute(expand(TestStatement.INSERT_TWO_COLUMNS));
 
         Flux.usingWhen(getConnectionFactory().create(),
-                        connection -> Flux.from(connection
+                connection -> Flux.from(connection
 
-                                        .createStatement(expand(TestStatement.SELECT_VALUE_TWO_COLUMNS))
-                                        .execute()),
-                        Connection::close)
+                        .createStatement(expand(TestStatement.SELECT_VALUE_TWO_COLUMNS))
+                        .execute()),
+                Connection::close)
 
                 .as(StepVerifier::create)
                 .expectErrorMatches(ClickHouseException.class::isInstance)
@@ -202,16 +211,16 @@ public class R2DBCTestKitImplTest implements TestKit<String> {
         getJdbcOperations().execute(expand(TestStatement.DROP_TABLE));
         getJdbcOperations().execute(getCreateTableWithAutogeneratedKey());
         Flux.usingWhen(getConnectionFactory().create(),
-                        connection -> {
-                            Statement statement = connection.createStatement(getInsertIntoWithAutogeneratedKey());
+                connection -> {
+                    Statement statement = connection.createStatement(getInsertIntoWithAutogeneratedKey());
 
-                            statement.returnGeneratedValues();
+                    statement.returnGeneratedValues();
 
-                            return Flux.from(statement
-                                            .execute())
-                                    .flatMap(it -> it.map((row, rowMetadata) -> row.get(0)));
-                        },
-                        Connection::close)
+                    return Flux.from(statement
+                            .execute())
+                            .flatMap(it -> it.map((row, rowMetadata) -> row.get(0)));
+                },
+                Connection::close)
                 .as(StepVerifier::create)
                 .expectErrorMatches(UnsupportedOperationException.class::isInstance)
                 .verify();
@@ -222,13 +231,14 @@ public class R2DBCTestKitImplTest implements TestKit<String> {
     public void returnGeneratedValuesFails() {
 
         Flux.usingWhen(getConnectionFactory().create(),
-                        connection -> {
-                            Statement statement = connection.createStatement(expand(TestStatement.INSERT_VALUE100));
+                connection -> {
+                    Statement statement = connection.createStatement(expand(TestStatement.INSERT_VALUE100));
 
-                            assertThrows(UnsupportedOperationException.class, () -> statement.returnGeneratedValues((String[]) null));
-                            return Mono.empty();
-                        },
-                        Connection::close)
+                    assertThrows(UnsupportedOperationException.class,
+                            () -> statement.returnGeneratedValues((String[]) null));
+                    return Mono.empty();
+                },
+                Connection::close)
                 .as(StepVerifier::create)
                 .verifyComplete();
     }
@@ -267,19 +277,20 @@ public class R2DBCTestKitImplTest implements TestKit<String> {
             String sql = ClickHouseTestStatement.get(statement).getSql();
             return String.format(sql, args);
         } catch (IllegalArgumentException e) {
-           return String.format(statement.getSql(), args);
+            return String.format(statement.getSql(), args);
         }
     }
 
-
     private enum ClickHouseTestStatement {
         CREATE_TABLE(TestStatement.CREATE_TABLE, "CREATE TABLE test ( test_value INTEGER ) ENGINE = Memory"),
-        CREATE_TABLE_TWO_COLUMNS(TestStatement.CREATE_TABLE_TWO_COLUMNS, "CREATE TABLE test_two_column ( col1 INTEGER, col2 VARCHAR(100) ) ENGINE = Memory"),
+        CREATE_TABLE_TWO_COLUMNS(TestStatement.CREATE_TABLE_TWO_COLUMNS,
+                "CREATE TABLE test_two_column ( col1 INTEGER, col2 VARCHAR(100) ) ENGINE = Memory"),
         CREATE_BLOB_TABLE(TestStatement.CREATE_BLOB_TABLE, "CREATE TABLE blob_test ( test_value %s ) ENGINE = Memory"),
         CREATE_CLOB_TABLE(TestStatement.CREATE_CLOB_TABLE, "CREATE TABLE clob_test ( test_value %s ) ENGINE = Memory"),
-        CREATE_TABLE_AUTOGENERATED_KEY(TestStatement.CREATE_TABLE_AUTOGENERATED_KEY, "CREATE TABLE test ( id DATE DEFAULT toDate(now()) ,  test_value INTEGER ) ENGINE = Memory"),
-        INSERT_VALUE_AUTOGENERATED_KEY(TestStatement.INSERT_VALUE_AUTOGENERATED_KEY, "INSERT INTO test(test_value) VALUES(100)");
-
+        CREATE_TABLE_AUTOGENERATED_KEY(TestStatement.CREATE_TABLE_AUTOGENERATED_KEY,
+                "CREATE TABLE test ( id DATE DEFAULT toDate(now()) ,  test_value INTEGER ) ENGINE = Memory"),
+        INSERT_VALUE_AUTOGENERATED_KEY(TestStatement.INSERT_VALUE_AUTOGENERATED_KEY,
+                "INSERT INTO test(test_value) VALUES(100)");
 
         ClickHouseTestStatement(TestStatement testStatement, String sql) {
             this.testStatementToBeOverwridden = testStatement;
