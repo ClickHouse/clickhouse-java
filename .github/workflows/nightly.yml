@@ -11,7 +11,7 @@ on:
         required: false
 
 env:
-  CHC_BRANCH: "develop"
+  CHC_BRANCH: "master"
   CHC_VERSION: "0.4.0"
 
 jobs:
