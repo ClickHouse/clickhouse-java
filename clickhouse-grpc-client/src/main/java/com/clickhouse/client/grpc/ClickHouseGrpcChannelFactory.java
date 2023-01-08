@@ -202,11 +202,13 @@ public abstract class ClickHouseGrpcChannelFactory {
         String userAgent = config.getClientName();
         if (ClickHouseOption.DEFAULT_CLIENT_NAME.equals(userAgent)) {
             userAgent = getDefaultUserAgent();
+
+            String name = config.getProductName();
+            if (!ClickHouseOption.DEFAULT_PRODUCT_NAME.equals(name)) {
+                userAgent = new StringBuilder(name).append(userAgent.substring(userAgent.indexOf('/'))).toString();
+            }
         }
-        String name = config.getProductName();
-        builder.userAgent(ClickHouseOption.DEFAULT_PRODUCT_NAME.equals(name) ? userAgent
-                : new StringBuilder(name).append(userAgent.substring(userAgent.indexOf('/'))).toString());
-        ManagedChannel c = builder.build();
+        ManagedChannel c = builder.userAgent(userAgent).build();
         log.debug("Channel established: %s", c);
         return c;
     }
