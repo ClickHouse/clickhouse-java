@@ -85,7 +85,9 @@ public class ClickHouseConfigTest {
         Assert.assertEquals(ClickHouseClientOption.buildUserAgent(null, null),
                 "ClickHouse-JavaClient/unknown (" + System.getProperty("os.name") + "/"
                         + System.getProperty("os.version") + "; " + System.getProperty("java.vm.name") + "/"
-                        + System.getProperty("java.vendor.version") + "; rv:unknown)");
+                        + System.getProperty("java.vendor.version",
+                                System.getProperty("java.vm.version", System.getProperty("java.version", "unknown")))
+                        + "; rv:unknown)");
         Assert.assertEquals(ClickHouseClientOption.buildUserAgent(null, null),
                 ClickHouseClientOption.buildUserAgent("", null));
 
