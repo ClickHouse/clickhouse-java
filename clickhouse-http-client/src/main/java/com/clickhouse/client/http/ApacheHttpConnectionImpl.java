@@ -25,6 +25,7 @@ import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
 import org.apache.hc.client5.http.socket.ConnectionSocketFactory;
 import org.apache.hc.client5.http.socket.PlainConnectionSocketFactory;
+import org.apache.hc.client5.http.ssl.DefaultHostnameVerifier;
 import org.apache.hc.client5.http.ssl.SSLConnectionSocketFactory;
 import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpRequest;
@@ -54,7 +55,6 @@ import java.util.Map;
 import java.util.TimeZone;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
-import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLException;
 
@@ -272,7 +272,7 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
             super(ClickHouseSslContextProvider.getProvider().getSslContext(SSLContext.class, config)
                     .orElse(SSLContexts.createDefault()),
                     config.getSslMode() == ClickHouseSslMode.STRICT
-                            ? HttpsURLConnection.getDefaultHostnameVerifier()
+                            ? new DefaultHostnameVerifier()
                             : (hostname, session) -> true); // NOSONAR
             this.config = config;
         }
