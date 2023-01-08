@@ -7,8 +7,10 @@ on:
       - master
     paths-ignore:
       - "**.md"
-      - "docs/**"
+      - "**/docs/**"
       - "**/CHANGELOG"
+      - "**/LICENSE"
+      - "**/NOTICE"
 
   pull_request:
     types:
@@ -17,8 +19,10 @@ on:
       - reopened
     paths-ignore:
       - "**.md"
-      - "docs/**"
+      - "**/docs/**"
       - "**/CHANGELOG"
+      - "**/LICENSE"
+      - "**/NOTICE"
 
   workflow_dispatch:
     inputs:
@@ -58,7 +62,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: compile
     timeout-minutes: 10
-    name: CLI client against ClickHouse 22.8
+    name: CLI client + CH 22.8
     steps:
       - name: Check out repository
         uses: actions/checkout@v3
@@ -102,7 +106,7 @@ jobs:
         clickhouse: ["21.8", "22.3", "22.8", "latest"]
       fail-fast: false
     timeout-minutes: 15
-    name: Java client against ClickHouse ${{ matrix.clickhouse }}
+    name: Java client + CH ${{ matrix.clickhouse }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v3
@@ -162,7 +166,7 @@ jobs:
             protocol: grpc
       fail-fast: false
     timeout-minutes: 15
-    name: JDBC driver against ClickHouse ${{ matrix.clickhouse }} (${{ matrix.protocol }})
+    name: JDBC driver + CH ${{ matrix.clickhouse }} (${{ matrix.protocol }})
     steps:
       - name: Check out repository
         uses: actions/checkout@v3
@@ -222,7 +226,7 @@ jobs:
         r2dbc: ["1.0.0.RELEASE", "0.9.1.RELEASE"]
       fail-fast: false
     timeout-minutes: 10
-    name: R2DBC ${{ matrix.r2dbc }} against ClickHouse ${{ matrix.clickhouse }} (${{ matrix.protocol }})
+    name: R2DBC ${{ matrix.r2dbc }} + CH ${{ matrix.clickhouse }} (${{ matrix.protocol }})
     steps:
       - name: Check out repository
         uses: actions/checkout@v3
