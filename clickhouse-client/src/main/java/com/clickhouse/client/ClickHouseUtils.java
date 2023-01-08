@@ -162,6 +162,24 @@ public final class ClickHouseUtils {
         return service;
     }
 
+    public static String toJavaByteArrayExpression(byte[] bytes) {
+        if (bytes == null) {
+            return "null";
+        }
+        int len = bytes.length;
+        if (len == 0) {
+            return "{}";
+        }
+
+        String prefix = "(byte)0x";
+        StringBuilder builder = new StringBuilder(10 * len).append('{');
+        for (int i = 0; i < len; i++) {
+            builder.append(prefix).append(String.format("%02X", 0xFF & bytes[i])).append(',');
+        }
+        builder.setCharAt(builder.length() - 1, '}');
+        return builder.toString();
+    }
+
     public static int indexOf(byte[] bytes, byte[] search) {
         if (bytes == null || search == null) {
             return -1;
@@ -172,7 +190,7 @@ public final class ClickHouseUtils {
         }
         int blen = bytes.length;
 
-        outer: for (int i = 0, len = blen - slen + 1; i < len; i++) {
+        outer: for (int i = 0, len = blen - slen + 1; i < len; i++) { // NOSONAR
             for (int j = 0; j < slen; j++) {
                 if (bytes[i + j] != search[j]) {
                     continue outer;

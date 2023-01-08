@@ -43,7 +43,7 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
     private static final byte[] HEADER_BINARY_ENCODING = "content-transfer-encoding: binary\r\n\r\n"
             .getBytes(StandardCharsets.US_ASCII);
 
-    private static final byte[] ERROR_MSG_PREFIX = "Code: ".getBytes(StandardCharsets.US_ASCII);
+    private static final byte[] ERROR_MSG_PREFIX = "ode: ".getBytes(StandardCharsets.US_ASCII);
 
     private static final byte[] DOUBLE_DASH = new byte[] { '-', '-' };
     private static final byte[] END_OF_NAME = new byte[] { '"', '\r', '\n' };
@@ -245,11 +245,15 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
         int index = ClickHouseUtils.indexOf(bytes, ERROR_MSG_PREFIX);
         final String errorMsg;
         if (index > 0) {
+            bytes[--index] = (byte) 'C';
             errorMsg = new String(bytes, index, bytes.length - index, StandardCharsets.UTF_8);
         } else if (!ClickHouseChecker.isNullOrBlank(errorCode)) {
             errorMsg = new StringBuilder().append("Code: ").append(errorCode).append(", server: ").append(serverName)
                     .append(", ").append(new String(bytes, StandardCharsets.UTF_8)).toString();
         } else {
+            // uncomment to debug
+            // log.debug("Unparsable error message[code=%s] returned from server[%s]: %s",
+            // errorCode, serverName, ClickHouseUtils.toJavaByteArrayExpression(bytes));
             errorMsg = new String(bytes, StandardCharsets.UTF_8);
         }
         return errorMsg;
