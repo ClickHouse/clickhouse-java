@@ -9,9 +9,12 @@ import io.grpc.okhttp.OkHttpChannelBuilder;
 import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseSslContextProvider;
+import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.grpc.config.ClickHouseGrpcOption;
 
 final class OkHttpChannelFactoryImpl extends ClickHouseGrpcChannelFactory {
+    private static final String USER_AGENT = ClickHouseClientOption.buildUserAgent(null, "gRPC-OkHttp");
+
     private final OkHttpChannelBuilder builder;
 
     OkHttpChannelFactoryImpl(ClickHouseConfig config, ClickHouseNode server) {
@@ -28,6 +31,11 @@ final class OkHttpChannelFactoryImpl extends ClickHouseGrpcChannelFactory {
     @Override
     protected ManagedChannelBuilder<?> getChannelBuilder() {
         return builder;
+    }
+
+    @Override
+    protected String getDefaultUserAgent() {
+        return USER_AGENT;
     }
 
     @Override

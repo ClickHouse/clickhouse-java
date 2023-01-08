@@ -73,6 +73,8 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
 
     private static final Logger log = LoggerFactory.getLogger(HttpClientConnectionImpl.class);
 
+    private static final String USER_AGENT = ClickHouseClientOption.buildUserAgent(null, "HttpClient");
+
     private final HttpClient httpClient;
     private final HttpRequest pingRequest;
 
@@ -246,6 +248,11 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
             }
         }
         return buildResponse(config, r, postAction);
+    }
+
+    @Override
+    protected final String getDefaultUserAgent() {
+        return USER_AGENT;
     }
 
     @Override

@@ -20,6 +20,7 @@ import com.clickhouse.client.ClickHouseChecker;
 import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseUtils;
+import com.clickhouse.client.config.ClickHouseOption;
 import com.clickhouse.client.grpc.config.ClickHouseGrpcOption;
 import com.clickhouse.client.grpc.impl.ClickHouseGrpc;
 import com.clickhouse.client.logging.Logger;
@@ -106,6 +107,8 @@ public abstract class ClickHouseGrpcChannelFactory {
     }
 
     protected abstract ManagedChannelBuilder<?> getChannelBuilder();
+
+    protected abstract String getDefaultUserAgent();
 
     @SuppressWarnings("unchecked")
     protected void setupRetry() {
@@ -195,7 +198,15 @@ public abstract class ClickHouseGrpcChannelFactory {
         setupSsl();
         setupMisc();
 
-        ManagedChannel c = getChannelBuilder().build();
+        ManagedChannelBuilder<?> builder = getChannelBuilder();
+        String userAgent = config.getClientName();
+        if (ClickHouseOption.DEFAULT_CLIENT_NAME.equals(userAgent)) {
+            userAgent = getDefaultUserAgent();
+        }
+        String name = config.getProductName();
+        builder.userAgent(ClickHouseOption.DEFAULT_PRODUCT_NAME.equals(name) ? userAgent
+                : new StringBuilder(name).append(userAgent.substring(userAgent.indexOf('/'))).toString());
+        ManagedChannel c = builder.build();
         log.debug("Channel established: %s", c);
         return c;
     }

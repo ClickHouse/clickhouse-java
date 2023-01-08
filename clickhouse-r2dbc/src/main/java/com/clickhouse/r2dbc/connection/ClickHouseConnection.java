@@ -29,6 +29,8 @@ public class ClickHouseConnection implements Connection {
 
     private static final Logger log = LoggerFactory.getLogger(ClickHouseConnection.class);
 
+    private static final String PRODUCT_NAME = "ClickHouse-R2dbcDriver";
+
     public static final int DEFAULT_TIMEOUT_FOR_CONNECTION_HEALTH_CHECK = (Integer) ClickHouseClientOption.CONNECTION_TIMEOUT.getDefaultValue();
     final ClickHouseClient client;
     final ClickHouseNode node;
@@ -85,7 +87,7 @@ public class ClickHouseConnection implements Connection {
      */
     @Override
     public Batch createBatch() {
-        ClickHouseRequest<?> req = client.connect(node);
+        ClickHouseRequest<?> req = client.connect(node).option(ClickHouseClientOption.PRODUCT_NAME, PRODUCT_NAME);
         if (isHttp()) {
             req = req.set("send_progress_in_http_headers", 1);
         }
@@ -105,7 +107,7 @@ public class ClickHouseConnection implements Connection {
 
     @Override
     public Statement createStatement(String sql) {
-        ClickHouseRequest<?> req = client.connect(node);
+        ClickHouseRequest<?> req = client.connect(node).option(ClickHouseClientOption.PRODUCT_NAME, PRODUCT_NAME);
         if (isHttp()) {
             req = req.set("send_progress_in_http_headers", 1);
         }

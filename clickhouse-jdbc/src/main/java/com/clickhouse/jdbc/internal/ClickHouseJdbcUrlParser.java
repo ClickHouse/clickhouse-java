@@ -84,6 +84,7 @@ public class ClickHouseJdbcUrlParser {
         Properties props = new Properties();
         props.setProperty(ClickHouseClientOption.ASYNC.getKey(), Boolean.FALSE.toString());
         props.setProperty(ClickHouseClientOption.FORMAT.getKey(), ClickHouseFormat.RowBinaryWithNamesAndTypes.name());
+        props.setProperty(ClickHouseClientOption.PRODUCT_NAME.getKey(), "ClickHouse-JdbcDriver");
         return props;
     }
 

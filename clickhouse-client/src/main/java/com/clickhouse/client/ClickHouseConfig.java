@@ -149,6 +149,7 @@ public class ClickHouseConfig implements Serializable {
                 }
 
                 String key = e.getKey().toString();
+                // no need to enable option overidding for now
                 ClickHouseOption o = ClickHouseClientOption.fromKey(key);
                 if (o == null) {
                     o = customOptions.get(key);
@@ -190,6 +191,7 @@ public class ClickHouseConfig implements Serializable {
     private final int maxQueuedRequests;
     private final long maxResultRows;
     private final int maxThreads;
+    private final String productName;
     private final int nodeCheckInterval;
     private final int failover;
     private final int retry;
@@ -297,6 +299,7 @@ public class ClickHouseConfig implements Serializable {
         this.maxQueuedRequests = getIntOption(ClickHouseClientOption.MAX_QUEUED_REQUESTS);
         this.maxResultRows = getLongOption(ClickHouseClientOption.MAX_RESULT_ROWS);
         this.maxThreads = getIntOption(ClickHouseClientOption.MAX_THREADS_PER_CLIENT);
+        this.productName = getStrOption(ClickHouseClientOption.PRODUCT_NAME);
         this.nodeCheckInterval = getIntOption(ClickHouseClientOption.NODE_CHECK_INTERVAL);
         this.failover = getIntOption(ClickHouseClientOption.FAILOVER);
         this.retry = getIntOption(ClickHouseClientOption.RETRY);
@@ -525,6 +528,10 @@ public class ClickHouseConfig implements Serializable {
         return maxThreads;
     }
 
+    public String getProductName() {
+        return productName;
+    }
+
     public int getFailover() {
         return failover;
     }
@@ -640,6 +647,60 @@ public class ClickHouseConfig implements Serializable {
      */
     public TimeZone getUseTimeZone() {
         return useTimeZone;
+    }
+
+    /**
+     * Same as {@link ClickHouseClientOption#PRODUCT_VERSION}.
+     *
+     * @return non-empty semantic version
+     */
+    public final String getProductVersion() {
+        return ClickHouseClientOption.PRODUCT_VERSION;
+    }
+
+    /**
+     * Same as {@link ClickHouseClientOption#PRODUCT_REVISION}.
+     *
+     * @return non-empty revision
+     */
+    public final String getProductRevision() {
+        return ClickHouseClientOption.PRODUCT_REVISION;
+    }
+
+    /**
+     * Same as {@link ClickHouseClientOption#CLIENT_OS_INFO}.
+     *
+     * @return non-empty O/S information
+     */
+    public final String getClientOsInfo() {
+        return ClickHouseClientOption.CLIENT_OS_INFO;
+    }
+
+    /**
+     * Same as {@link ClickHouseClientOption#CLIENT_JVM_INFO}.
+     *
+     * @return non-empty JVM information
+     */
+    public final String getClientJvmInfo() {
+        return ClickHouseClientOption.CLIENT_JVM_INFO;
+    }
+
+    /**
+     * Same as {@link ClickHouseClientOption#CLIENT_USER}.
+     *
+     * @return non-empty user name
+     */
+    public final String getClientUser() {
+        return ClickHouseClientOption.CLIENT_USER;
+    }
+
+    /**
+     * Same as {@link ClickHouseClientOption#CLIENT_HOST}.
+     *
+     * @return non-empty host name
+     */
+    public final String getClientHost() {
+        return ClickHouseClientOption.CLIENT_HOST;
     }
 
     public ClickHouseCredentials getDefaultCredentials() {
