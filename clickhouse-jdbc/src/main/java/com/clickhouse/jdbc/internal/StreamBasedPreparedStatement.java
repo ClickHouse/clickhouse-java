@@ -238,7 +238,7 @@ public class StreamBasedPreparedStatement extends AbstractPreparedStatement impl
 
         if (x instanceof ClickHouseWriter) {
             final ClickHouseWriter writer = (ClickHouseWriter) x;
-            final ClickHousePipedOutputStream stream = ClickHouseDataStreamFactory.getInstance()
+            final ClickHousePipedOutputStream stream = ClickHouseDataStreamFactory.getInstance() // NOSONAR
                     .createPipedOutputStream(getConfig(), null);
             value = stream.getInputStream();
 
