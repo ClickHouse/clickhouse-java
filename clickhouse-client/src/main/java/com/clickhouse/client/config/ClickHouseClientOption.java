@@ -1,6 +1,8 @@
 package com.clickhouse.client.config;
 
 import java.io.Serializable;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -115,7 +117,7 @@ public enum ClickHouseClientOption implements ClickHouseOption {
     /**
      * Client name.
      */
-    CLIENT_NAME("client_name", "ClickHouse Java Client",
+    CLIENT_NAME("client_name", DEFAULT_CLIENT_NAME,
             "Client name, which is either 'client_name' or 'http_user_agent' shows up in system.query_log table."),
     /**
      * Whether server will compress response to client or not.
@@ -201,6 +203,10 @@ public enum ClickHouseClientOption implements ClickHouseOption {
      */
     MAX_THREADS_PER_CLIENT("max_threads_per_client", 0,
             "Size of thread pool for each client instance, 0 or negative number means the client will use shared thread pool."),
+    /**
+     * Product name usered in user agent.
+     */
+    PRODUCT_NAME("product_name", DEFAULT_PRODUCT_NAME, "Product name used in user agent."),
     /**
      * Method to rename response columns.
      */
@@ -376,16 +382,105 @@ public enum ClickHouseClientOption implements ClickHouseOption {
 
     private static final Map<String, ClickHouseClientOption> options;
 
+    static final String UNKNOWN = "unknown";
+
+    /**
+     * Semantic version of the product.
+     */
+    public static final String PRODUCT_VERSION;
+    /**
+     * Revision(shortened git commit hash) of the product.
+     */
+    public static final String PRODUCT_REVISION;
+    /**
+     * Client O/S information in format of {@code <o/s name>/<o/s version>}.
+     */
+    public static final String CLIENT_OS_INFO;
+    /**
+     * Client JVM information in format of {@code <jvm name>/<jvm version>}.
+     */
+    public static final String CLIENT_JVM_INFO;
+    /**
+     * Client user name.
+     */
+    public static final String CLIENT_USER;
+    /**
+     * Client host name.
+     */
+    public static final String CLIENT_HOST;
+
     static {
         Map<String, ClickHouseClientOption> map = new HashMap<>();
-
         for (ClickHouseClientOption o : values()) {
             if (map.put(o.getKey(), o) != null) {
                 throw new IllegalStateException("Duplicated key found: " + o.getKey());
             }
         }
-
         options = Collections.unmodifiableMap(map);
+
+        // <artifact-id> <version> (revision: <revision>)
+        String ver = ClickHouseClientOption.class.getPackage().getImplementationVersion();
+        String[] parts = ver == null || ver.isEmpty() ? null : ver.split("\\s");
+        if (parts != null && parts.length == 4 && parts[1].length() > 0 && parts[3].length() > 1
+                && ver.charAt(ver.length() - 1) == ')') {
+            PRODUCT_VERSION = parts[1];
+            ver = parts[3];
+            PRODUCT_REVISION = ver.substring(0, ver.length() - 1);
+        } else { // perhaps try harder by checking version from pom.xml?
+            PRODUCT_VERSION = UNKNOWN;
+            PRODUCT_REVISION = UNKNOWN;
+        }
+        CLIENT_OS_INFO = new StringBuilder().append(getSystemConfig("os.name", "O/S")).append('/')
+                .append(getSystemConfig("os.version", UNKNOWN)).toString();
+        String javaVersion = System.getProperty("java.vendor.version");
+        if (javaVersion == null || javaVersion.isEmpty() || javaVersion.indexOf(' ') >= 0) {
+            javaVersion = getSystemConfig("java.vm.version", getSystemConfig("java.version", UNKNOWN));
+        }
+        CLIENT_JVM_INFO = new StringBuilder().append(getSystemConfig("java.vm.name", "Java")).append('/')
+                .append(javaVersion).toString();
+        CLIENT_USER = getSystemConfig("user.name", UNKNOWN);
+        try {
+            ver = InetAddress.getLocalHost().getHostName();
+        } catch (UnknownHostException e1) {
+            // ignore
+        }
+        CLIENT_HOST = ver == null || ver.isEmpty() ? UNKNOWN : ver;
+    }
+
+    /**
+     * Builds user-agent based on given product name. The user-agent will be
+     * something look like
+     * {@code <product name>/<product version> (<o/s name>/<o/s version>; <jvm name>/<jvm version>[; <additionalProperty>]; rv:<product revision>)}.
+     * 
+     * @param productName        product name, null or blank string is treated as
+     *                           {@code ClickHouse Java Client}
+     * @param additionalProperty additional property if any
+     * @return non-empty user-agent
+     */
+    public static final String buildUserAgent(String productName, String additionalProperty) {
+        productName = productName == null || productName.isEmpty() ? DEFAULT_PRODUCT_NAME : productName.trim();
+        StringBuilder builder = new StringBuilder(productName).append('/').append(PRODUCT_VERSION).append(" (")
+                .append(CLIENT_OS_INFO).append("; ").append(CLIENT_JVM_INFO);
+        if (additionalProperty != null && !additionalProperty.isEmpty()) {
+            builder.append("; ").append(additionalProperty.trim());
+        }
+        return builder.append("; rv:").append(PRODUCT_REVISION).append(')').toString();
+    }
+
+    /**
+     * Gets system property and fall back to the given value as needed.
+     *
+     * @param propertyName non-null property name
+     * @param defaultValue default value, only useful if it's not null
+     * @return property value
+     */
+    public static String getSystemConfig(String propertyName, String defaultValue) {
+        final String propertyValue = System.getProperty(propertyName);
+        if (defaultValue == null) {
+            return propertyValue;
+        }
+
+        return propertyValue == null || propertyValue.isEmpty() ? defaultValue : propertyValue;
     }
 
     /**

@@ -28,7 +28,7 @@ import com.clickhouse.jdbc.internal.ClickHouseJdbcUrlParser;
 /**
  * JDBC driver for ClickHouse. It takes a connection string like below for
  * connecting to ClickHouse server:
- * {@code jdbc:clickhouse://[<user>:<password>@]<server>[:<port>][/<db>][?parameter1=value1&parameter2=value2]}
+ * {@code jdbc:(ch|clickhouse)[:<protocol>]://[<user>[:<password>]@]<host>[:<port>][/<db>][?<parameter=value>,[<parameter=value]]][#<tag>[,<tag>]]}
  *
  * <p>
  * For examples:

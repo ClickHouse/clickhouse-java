@@ -436,7 +436,7 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
             } catch (ClickHouseException e) {
                 exp = e;
             }
-            Assert.assertEquals(exp.getErrorCode(), 81);
+            Assert.assertEquals(exp.getErrorCode(), 81, "Expected error code 81 but we got: " + exp.getMessage());
         }
     }
 
@@ -486,7 +486,7 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
             Assert.fail("Exception is excepted");
         } catch (ExecutionException e) {
             ClickHouseException ce = ClickHouseException.of(e.getCause(), server);
-            Assert.assertEquals(ce.getErrorCode(), 81);
+            Assert.assertEquals(ce.getErrorCode(), 81, "Expected error code 81 but we got: " + ce.getMessage());
         } catch (InterruptedException e) {
             Assert.fail("Failed execute due to interruption", e);
         }
@@ -497,7 +497,7 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
             Assert.fail("Exception is excepted");
         } catch (ExecutionException e) {
             ClickHouseException ce = ClickHouseException.of(e.getCause(), server);
-            Assert.assertEquals(ce.getErrorCode(), 81);
+            Assert.assertEquals(ce.getErrorCode(), 81, "Expected error code 81 but we got: " + ce.getMessage());
         } catch (InterruptedException e) {
             Assert.fail("Failed execute due to interruption", e);
         }

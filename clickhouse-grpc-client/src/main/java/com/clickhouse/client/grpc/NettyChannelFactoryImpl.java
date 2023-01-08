@@ -15,10 +15,13 @@ import com.clickhouse.client.ClickHouseChecker;
 import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseUtils;
+import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.config.ClickHouseSslMode;
 import com.clickhouse.client.grpc.config.ClickHouseGrpcOption;
 
 final class NettyChannelFactoryImpl extends ClickHouseGrpcChannelFactory {
+    private static final String USER_AGENT = ClickHouseClientOption.buildUserAgent(null, "gRPC-Netty");
+
     private final NettyChannelBuilder builder;
 
     NettyChannelFactoryImpl(ClickHouseConfig config, ClickHouseNode server) {
@@ -68,6 +71,11 @@ final class NettyChannelFactoryImpl extends ClickHouseGrpcChannelFactory {
     @Override
     protected ManagedChannelBuilder<?> getChannelBuilder() {
         return builder;
+    }
+
+    @Override
+    protected String getDefaultUserAgent() {
+        return USER_AGENT;
     }
 
     @Override

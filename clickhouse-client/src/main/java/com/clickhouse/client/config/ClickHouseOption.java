@@ -17,12 +17,21 @@ import com.clickhouse.client.ClickHouseChecker;
  */
 public interface ClickHouseOption extends Serializable {
     /**
+     * Default client name.
+     */
+    static final String DEFAULT_CLIENT_NAME = "ClickHouse Java Client";
+    /**
+     * Default product name.
+     */
+    static final String DEFAULT_PRODUCT_NAME = "ClickHouse-JavaClient";
+
+    /**
      * Converts given string to key value pairs.
      * 
      * @param str string
      * @return non-null key value pairs
      */
-    public static Map<String, String> toKeyValuePairs(String str) {
+    static Map<String, String> toKeyValuePairs(String str) {
         if (str == null || str.isEmpty()) {
             return Collections.emptyMap();
         }
@@ -76,7 +85,7 @@ public interface ClickHouseOption extends Serializable {
      * @return non-null typed value
      */
     @SuppressWarnings("unchecked")
-    public static <T extends Serializable> T fromString(String value, Class<T> clazz) {
+    static <T extends Serializable> T fromString(String value, Class<T> clazz) {
         if (clazz == null) {
             throw new IllegalArgumentException("Non-null value type is required");
         } else if (value == null) {
@@ -143,7 +152,7 @@ public interface ClickHouseOption extends Serializable {
      * @return non-null typed value
      */
     @SuppressWarnings("unchecked")
-    public static <T extends Serializable> T fromString(String value, T defaultValue) {
+    static <T extends Serializable> T fromString(String value, T defaultValue) {
         if (defaultValue == null) {
             throw new IllegalArgumentException("Non-null default value is required");
         }

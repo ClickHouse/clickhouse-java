@@ -1,6 +1,9 @@
 package com.clickhouse.client;
 
 import java.io.Serializable;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import org.testng.Assert;
@@ -65,5 +68,32 @@ public class ClickHouseConfigTest {
         Assert.assertEquals(config.getPreferredProtocols().size(), 0);
         Assert.assertEquals(config.getPreferredTags().size(), 0);
         Assert.assertEquals(config.getMetricRegistry().get(), metricRegistry);
+    }
+
+    @Test(groups = { "unit" })
+    public void testClientInfo() throws UnknownHostException {
+        ClickHouseConfig config = new ClickHouseConfig();
+        Assert.assertEquals(config.getProductVersion(), "unknown");
+        Assert.assertEquals(config.getProductRevision(), "unknown");
+        Assert.assertEquals(config.getClientOsInfo(),
+                System.getProperty("os.name") + "/" + System.getProperty("os.version"));
+        Assert.assertEquals(config.getClientJvmInfo(),
+                System.getProperty("java.vm.name") + "/" + System.getProperty("java.vendor.version",
+                        System.getProperty("java.vm.version", System.getProperty("java.version", "unknown"))));
+        Assert.assertEquals(config.getClientUser(), System.getProperty("user.name"));
+        Assert.assertEquals(config.getClientHost(), InetAddress.getLocalHost().getHostName());
+
+        Assert.assertEquals(ClickHouseClientOption.buildUserAgent(null, null),
+                "ClickHouse-JavaClient/unknown (" + System.getProperty("os.name") + "/"
+                        + System.getProperty("os.version") + "; " + System.getProperty("java.vm.name") + "/"
+                        + System.getProperty("java.vendor.version",
+                                System.getProperty("java.vm.version", System.getProperty("java.version", "unknown")))
+                        + "; rv:unknown)");
+        Assert.assertEquals(ClickHouseClientOption.buildUserAgent(null, null),
+                ClickHouseClientOption.buildUserAgent("", null));
+
+        config = new ClickHouseConfig(
+                Collections.singletonMap(ClickHouseClientOption.CLIENT_NAME, "custom client name"));
+        Assert.assertEquals(config.getClientName(), "custom client name");
     }
 }

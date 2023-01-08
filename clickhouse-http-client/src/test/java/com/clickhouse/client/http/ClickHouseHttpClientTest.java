@@ -190,6 +190,66 @@ public class ClickHouseHttpClientTest extends ClientIntegrationTest {
         }
     }
 
+    @Test(groups = "integration")
+    public void testUserAgent() throws Exception {
+        final ClickHouseNode server = getServer();
+        final String sql = "select :uuid(String)";
+
+        String uuid = UUID.randomUUID().toString();
+        try (ClickHouseClient client = getClient();
+                ClickHouseResponse response = newRequest(client, server)
+                        .query(ClickHouseParameterizedQuery.of(client.getConfig(), sql))
+                        .params(ClickHouseStringValue.of(uuid))
+                        .executeAndWait()) {
+            Assert.assertEquals(response.firstRecord().getValue(0).asString(), uuid);
+        }
+        ClickHouseClient.send(server, "SYSTEM FLUSH LOGS").get();
+        try (ClickHouseClient client = getClient();
+                ClickHouseResponse response = newRequest(client, server)
+                        .query("select http_user_agent from system.query_log where query='select ''" + uuid + "'''")
+                        .executeAndWait()) {
+            String result = response.firstRecord().getValue(0).asString();
+            Assert.assertTrue(result.startsWith(client.getConfig().getProductName()));
+            Assert.assertTrue(result.indexOf("Http") > 0);
+        }
+
+        uuid = UUID.randomUUID().toString();
+        try (ClickHouseClient client = getClient();
+                ClickHouseResponse response = newRequest(client, server)
+                        .option(ClickHouseClientOption.PRODUCT_NAME, "MyCustomClient")
+                        .query(ClickHouseParameterizedQuery.of(client.getConfig(), sql))
+                        .params(ClickHouseStringValue.of(uuid))
+                        .executeAndWait()) {
+            Assert.assertEquals(response.firstRecord().getValue(0).asString(), uuid);
+        }
+        ClickHouseClient.send(server, "SYSTEM FLUSH LOGS").get();
+        try (ClickHouseClient client = getClient();
+                ClickHouseResponse response = newRequest(client, server)
+                        .query("select http_user_agent from system.query_log where query='select ''" + uuid + "'''")
+                        .executeAndWait()) {
+            String result = response.firstRecord().getValue(0).asString();
+            Assert.assertTrue(result.startsWith("MyCustomClient"));
+            Assert.assertTrue(result.indexOf("Http") > 0);
+        }
+
+        uuid = UUID.randomUUID().toString();
+        try (ClickHouseClient client = getClient();
+                ClickHouseResponse response = newRequest(client, server)
+                        .option(ClickHouseClientOption.CLIENT_NAME, "MyCustomClient")
+                        .query(ClickHouseParameterizedQuery.of(client.getConfig(), sql))
+                        .params(ClickHouseStringValue.of(uuid))
+                        .executeAndWait()) {
+            Assert.assertEquals(response.firstRecord().getValue(0).asString(), uuid);
+        }
+        ClickHouseClient.send(server, "SYSTEM FLUSH LOGS").get();
+        try (ClickHouseClient client = getClient();
+                ClickHouseResponse response = newRequest(client, server)
+                        .query("select http_user_agent from system.query_log where query='select ''" + uuid + "'''")
+                        .executeAndWait()) {
+            Assert.assertEquals(response.firstRecord().getValue(0).asString(), "MyCustomClient");
+        }
+    }
+
     @Override
     @Test(groups = "integration")
     public void testSession() throws ClickHouseException {

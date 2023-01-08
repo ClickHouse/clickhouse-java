@@ -42,6 +42,8 @@ import javax.net.ssl.SSLContext;
 public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
     private static final Logger log = LoggerFactory.getLogger(HttpUrlConnectionImpl.class);
 
+    private static final String USER_AGENT = ClickHouseClientOption.buildUserAgent(null, "HttpURLConnection");
+
     private final HttpURLConnection conn;
 
     private ClickHouseHttpResponse buildResponse(Runnable postCloseAction) throws IOException {
@@ -185,6 +187,11 @@ public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
         super(server, request);
 
         conn = newConnection(url, true);
+    }
+
+    @Override
+    protected final String getDefaultUserAgent() {
+        return USER_AGENT;
     }
 
     @Override
