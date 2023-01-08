@@ -99,6 +99,10 @@ public class StreamBasedPreparedStatement extends AbstractPreparedStatement impl
                 }
             }
         } catch (Exception e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+
             if (!asBatch) {
                 throw SqlExceptionUtils.handle(e);
             }
