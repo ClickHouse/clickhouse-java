@@ -1,5 +1,6 @@
 package com.clickhouse.examples.jdbc;
 
+import java.io.IOException;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
@@ -8,6 +9,9 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.time.LocalDateTime;
 import java.util.Properties;
+
+import com.clickhouse.client.ClickHouseOutputStream;
+import com.clickhouse.client.ClickHouseWriter;
 
 public class Basic {
     static final String TABLE_NAME = "jdbc_example_basic";
@@ -41,7 +45,8 @@ public class Basic {
     }
 
     static int batchInsert(Connection conn) throws SQLException {
-        // 1. NOT recommended when inserting lots of rows, because it's based on a large statement
+        // 1. NOT recommended when inserting lots of rows, because it's based on a large
+        // statement
         String sql = String.format("insert into %s values(? || ' - 1', ?)", TABLE_NAME);
         int count = 0;
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -84,7 +89,8 @@ public class Basic {
             }
         }
 
-        // 3. fastest but inconvenient and NOT portable(as it's limited to ClickHouse)
+        // 3. faster than above but inconvenient and NOT portable(as it's limited to
+        // ClickHouse)
         // see https://clickhouse.com/docs/en/sql-reference/table-functions/input/
         sql = String.format("insert into %s select a, b from input('a String, b Nullable(String)')", TABLE_NAME);
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -101,6 +107,28 @@ public class Basic {
                     count += i;
                 }
             }
+        }
+
+        // 4. fastest(close to Java client) but requires manual serialization and it's
+        // NOT portable(as it's limited to ClickHouse)
+        // 'format RowBinary' is the hint to use streaming mode, you may use different
+        // format like JSONEachRow as needed
+        sql = String.format("insert into %s format RowBinary", TABLE_NAME);
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            // it's streaming so there's only one parameter(could be one of String, byte[],
+            // InputStream, File, ClickHouseWriter), and you don't have to process batch by
+            // batch
+            ps.setObject(1, new ClickHouseWriter() {
+                @Override
+                public void write(ClickHouseOutputStream output) throws IOException {
+                    // this will be executed in a separate thread
+                    for (int i = 0; i < 1_000_000; i++) {
+                        output.writeUnicodeString("a-" + i);
+                        output.writeUnicodeString("b-" + i);
+                    }
+                }
+            });
+            ps.executeUpdate();
         }
 
         return count;
