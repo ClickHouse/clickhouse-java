@@ -903,8 +903,8 @@ public final class ClickHouseColumn implements Serializable {
                 value = newArrayValue(config);
                 break;
             case Map:
-                value = ClickHouseMapValue.ofEmpty(getKeyInfo().getObjectClass(config),
-                        getValueInfo().getObjectClass(config));
+                value = ClickHouseMapValue.ofEmpty(getKeyInfo().getObjectClass(config), // NOSONAR
+                        getValueInfo().getObjectClass(config)); // NOSONAR
                 break;
             default:
                 break;
