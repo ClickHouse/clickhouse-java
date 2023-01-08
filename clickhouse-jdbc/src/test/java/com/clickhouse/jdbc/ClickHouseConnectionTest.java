@@ -108,7 +108,7 @@ public class ClickHouseConnectionTest extends JdbcIntegrationTest {
             exp = e;
         }
         Assert.assertNotNull(exp, "Should have SQLException since the database does not exist");
-        Assert.assertEquals(exp.getErrorCode(), 81);
+        Assert.assertEquals(exp.getErrorCode(), 81, "Expected error code 81 but we got: " + exp.getMessage());
 
         props.setProperty(JdbcConfig.PROP_CREATE_DATABASE, Boolean.TRUE.toString());
         try (ClickHouseConnection conn = newConnection(props)) {
