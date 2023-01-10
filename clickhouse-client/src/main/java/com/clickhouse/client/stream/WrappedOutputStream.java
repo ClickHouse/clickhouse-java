@@ -36,4 +36,16 @@ public class WrappedOutputStream extends AbstractByteArrayOutputStream {
         }
         output.flush();
     }
+
+    @Override
+    public void close() throws IOException {
+        if (!closed) {
+            try {
+                // flush before closing the inner output stream
+                super.close();
+            } finally {
+                output.close();
+            }
+        }
+    }
 }
