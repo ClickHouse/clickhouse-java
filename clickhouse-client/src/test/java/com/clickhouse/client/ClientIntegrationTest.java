@@ -1761,11 +1761,11 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
             Assert.fail("Insert should be aborted");
         } catch (UncheckedIOException e) {
             ClickHouseException ex = ClickHouseException.of(e, server);
-            Assert.assertEquals(ex.getErrorCode(), 395);
+            Assert.assertEquals(ex.getErrorCode(), 395, "Expected error code 395 but we got: " + ex.getMessage());
             Assert.assertTrue(ex.getCause() instanceof IOException, "Should end up with IOException");
             success = false;
         } catch (ClickHouseException e) {
-            Assert.assertEquals(e.getErrorCode(), 395);
+            Assert.assertEquals(e.getErrorCode(), 395, "Expected error code 395 but we got: " + e.getMessage());
             Assert.assertTrue(e.getCause() instanceof IOException, "Should end up with IOException");
             success = false;
         }
@@ -1838,7 +1838,8 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
             try (ClickHouseResponse resp = req2.executeAndWait()) {
                 Assert.fail("Should fail due to session is locked by previous query");
             } catch (ClickHouseException e) {
-                Assert.assertEquals(e.getErrorCode(), ClickHouseException.ERROR_SESSION_IS_LOCKED);
+                Assert.assertEquals(e.getErrorCode(), ClickHouseException.ERROR_SESSION_IS_LOCKED,
+                        "Expected error code 373 but we got: " + e.getMessage());
             }
             new Thread(() -> {
                 try {
@@ -1880,7 +1881,8 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
                 checkRowCount(txRequest, tableName, 0);
                 Assert.fail("Should fail as the transaction is invalid");
             } catch (ClickHouseException e) {
-                Assert.assertEquals(e.getErrorCode(), ClickHouseTransactionException.ERROR_INVALID_TRANSACTION);
+                Assert.assertEquals(e.getErrorCode(), ClickHouseTransactionException.ERROR_INVALID_TRANSACTION,
+                        "Expected error code 649 but we got: " + e.getMessage());
             }
         }
     }
@@ -2098,7 +2100,8 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
             try {
                 req2.getTransaction().snapshot(5);
             } catch (ClickHouseTransactionException e) {
-                Assert.assertEquals(e.getErrorCode(), ClickHouseTransactionException.ERROR_INVALID_TRANSACTION);
+                Assert.assertEquals(e.getErrorCode(), ClickHouseTransactionException.ERROR_INVALID_TRANSACTION,
+                        "Expected error code 649 but we got: " + e.getMessage());
             }
 
             req1.getTransaction().commit();
@@ -2108,7 +2111,8 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
             try {
                 req1.getTransaction().snapshot(5);
             } catch (ClickHouseTransactionException e) {
-                Assert.assertEquals(e.getErrorCode(), ClickHouseTransactionException.ERROR_INVALID_TRANSACTION);
+                Assert.assertEquals(e.getErrorCode(), ClickHouseTransactionException.ERROR_INVALID_TRANSACTION,
+                        "Expected error code 649 but we got: " + e.getMessage());
             }
         }
     }
@@ -2142,7 +2146,8 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
                 Assert.fail("Query should fail due to session timed out");
             } catch (ClickHouseException e) {
                 // session not found(since it's timed out)
-                Assert.assertEquals(e.getErrorCode(), ClickHouseException.ERROR_SESSION_NOT_FOUND);
+                Assert.assertEquals(e.getErrorCode(), ClickHouseException.ERROR_SESSION_NOT_FOUND,
+                        "Expected error code 372 but we got: " + e.getMessage());
             }
             Assert.assertEquals(tx.getState(), ClickHouseTransaction.ACTIVE);
 
@@ -2150,7 +2155,8 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
                 tx.commit();
                 Assert.fail("Should fail to commit due to session timed out");
             } catch (ClickHouseTransactionException e) {
-                Assert.assertEquals(e.getErrorCode(), ClickHouseTransactionException.ERROR_INVALID_TRANSACTION);
+                Assert.assertEquals(e.getErrorCode(), ClickHouseTransactionException.ERROR_INVALID_TRANSACTION,
+                        "Expected error code 649 but we got: " + e.getMessage());
             }
             Assert.assertEquals(tx.getState(), ClickHouseTransaction.FAILED);
 
@@ -2158,7 +2164,8 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
                 tx.rollback();
                 Assert.fail("Should fail to roll back due to session timed out");
             } catch (ClickHouseTransactionException e) {
-                Assert.assertEquals(e.getErrorCode(), ClickHouseTransactionException.ERROR_INVALID_TRANSACTION);
+                Assert.assertEquals(e.getErrorCode(), ClickHouseTransactionException.ERROR_INVALID_TRANSACTION,
+                        "Expected error code 649 but we got: " + e.getMessage());
             }
             Assert.assertEquals(tx.getState(), ClickHouseTransaction.FAILED);
 
@@ -2166,7 +2173,8 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
                 tx.begin();
                 Assert.fail("Should fail to restart due to session timed out");
             } catch (ClickHouseTransactionException e) {
-                Assert.assertEquals(e.getErrorCode(), ClickHouseTransactionException.ERROR_INVALID_TRANSACTION);
+                Assert.assertEquals(e.getErrorCode(), ClickHouseTransactionException.ERROR_INVALID_TRANSACTION,
+                        "Expected error code 649 but we got: " + e.getMessage());
             }
             Assert.assertEquals(tx.getState(), ClickHouseTransaction.FAILED);
 
@@ -2191,7 +2199,8 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
                 checkRowCount(request, tableName, 3);
                 Assert.fail("Should fail to query due to session timed out");
             } catch (ClickHouseException e) {
-                Assert.assertEquals(e.getErrorCode(), ClickHouseException.ERROR_SESSION_NOT_FOUND);
+                Assert.assertEquals(e.getErrorCode(), ClickHouseException.ERROR_SESSION_NOT_FOUND,
+                        "Expected error code 372 but we got: " + e.getMessage());
             }
             Assert.assertEquals(request.getTransaction().getState(), ClickHouseTransaction.ACTIVE);
         }

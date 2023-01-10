@@ -80,7 +80,7 @@ public class ClickHouseConnectionTest extends JdbcIntegrationTest {
                         + " from numbers(100000)");
             } catch (SQLException e) {
                 if (i % 3 == 0 || i % 5 == 0) {
-                    Assert.assertEquals(e.getErrorCode(), 395);
+                    Assert.assertEquals(e.getErrorCode(), 395, "Expected error code 395 but we got: " + e.getMessage());
                 } else {
                     Assert.fail("Should not have exception");
                 }
@@ -157,7 +157,7 @@ public class ClickHouseConnectionTest extends JdbcIntegrationTest {
                     exp = e;
                 }
                 Assert.assertNotNull(exp, "Should fail with SQL exception");
-                Assert.assertEquals(exp.getErrorCode(), 164);
+                Assert.assertEquals(exp.getErrorCode(), 164, "Expected error code 164 but we got: " + exp.getMessage());
             }
 
             conn.setReadOnly(false);
@@ -181,7 +181,7 @@ public class ClickHouseConnectionTest extends JdbcIntegrationTest {
                 exp = e;
             }
             Assert.assertNotNull(exp, "Should fail with SQL exception");
-            Assert.assertEquals(exp.getErrorCode(), 164);
+            Assert.assertEquals(exp.getErrorCode(), 164, "Expected error code 164 but we got: " + exp.getMessage());
 
             exp = null;
             try {
@@ -191,7 +191,7 @@ public class ClickHouseConnectionTest extends JdbcIntegrationTest {
                 exp = e;
             }
             Assert.assertNotNull(exp, "Should fail with SQL exception");
-            Assert.assertEquals(exp.getErrorCode(), 164);
+            Assert.assertEquals(exp.getErrorCode(), 164, "Expected error code 164 but we got: " + exp.getMessage());
         }
 
         props.setProperty("user", "readonly2");
@@ -209,7 +209,7 @@ public class ClickHouseConnectionTest extends JdbcIntegrationTest {
                 exp = e;
             }
             Assert.assertNotNull(exp, "Should fail with SQL exception");
-            Assert.assertEquals(exp.getErrorCode(), 164);
+            Assert.assertEquals(exp.getErrorCode(), 164, "Expected error code 164 but we got: " + exp.getMessage());
 
             conn.setReadOnly(true);
             Assert.assertTrue(conn.isReadOnly(), "Connection should be readonly");
@@ -233,7 +233,7 @@ public class ClickHouseConnectionTest extends JdbcIntegrationTest {
                 exp = e;
             }
             Assert.assertNotNull(exp, "Should fail with SQL exception");
-            Assert.assertEquals(exp.getErrorCode(), 164);
+            Assert.assertEquals(exp.getErrorCode(), 164, "Expected error code 164 but we got: " + exp.getMessage());
         }
     }
 
