@@ -364,15 +364,16 @@ public class ClickHouseCommandLine implements AutoCloseable {
             final Process process;
             if (in.isPresent()) {
                 final ClickHouseInputStream chInput = in.get();
+                final ClickHouseFile fileStream = chInput.getUnderlyingFile();
                 final File inputFile;
-                if (chInput.getUnderlyingFile().isAvailable()) {
-                    inputFile = chInput.getUnderlyingFile().getFile();
+                if (fileStream.isAvailable()) {
+                    inputFile = fileStream.getFile();
                 } else {
                     CompletableFuture<File> data = ClickHouseClient.submit(() -> {
                         File tmp = Files.createTempFile("tmp", "data").toFile();
                         tmp.deleteOnExit();
                         try (ClickHouseOutputStream out = ClickHouseOutputStream.of(new FileOutputStream(tmp))) {
-                            request.getInputStream().get().pipe(out);
+                            chInput.pipe(out);
                         }
                         return tmp;
                     });
@@ -415,7 +416,7 @@ public class ClickHouseCommandLine implements AutoCloseable {
                 throw new UncheckedIOException(exp);
             }
         };
-        if (out != null && !out.getUnderlyingFile().isAvailable()) {
+        if (out != null && !out.getUnderlyingStream().isAvailable()) {
             try (OutputStream o = out) {
                 ClickHouseInputStream.pipe(process.getInputStream(), o, request.getConfig().getWriteBufferSize());
             }

@@ -1,7 +1,5 @@
 package com.clickhouse.client;
 
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
@@ -10,6 +8,7 @@ import java.nio.charset.StandardCharsets;
 
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.stream.CompressionUtils;
+import com.clickhouse.client.stream.DeferredOutputStream;
 import com.clickhouse.client.stream.EmptyOutputStream;
 import com.clickhouse.client.stream.Lz4OutputStream;
 import com.clickhouse.client.stream.WrappedOutputStream;
@@ -27,7 +26,7 @@ public abstract class ClickHouseOutputStream extends OutputStream {
     /**
      * Wraps the given output stream.
      *
-     * @param file             wrapped file, could be null
+     * @param stream           pass-thru stream, could be null
      * @param output           non-null output stream
      * @param bufferSize       buffer size
      * @param postCloseAction  custom action will be performed right after closing
@@ -36,26 +35,26 @@ public abstract class ClickHouseOutputStream extends OutputStream {
      * @param compressionLevel compression level
      * @return non-null wrapped output stream
      */
-    static ClickHouseOutputStream wrap(ClickHouseFile file, OutputStream output, int bufferSize,
+    static ClickHouseOutputStream wrap(ClickHousePassThruStream stream, OutputStream output, int bufferSize,
             Runnable postCloseAction, ClickHouseCompression compression, int compressionLevel) {
         final ClickHouseOutputStream chOutput;
         if (compression == null || compression == ClickHouseCompression.NONE) {
-            chOutput = new WrappedOutputStream(file, output, bufferSize, postCloseAction);
+            chOutput = new WrappedOutputStream(stream, output, bufferSize, postCloseAction);
         } else {
             // never got brotli, bz2, deflate, gzip, and xz working :<
             switch (compression) {
                 // case BROTLI:
-                // chOutput = new WrappedOutputStream(file,
+                // chOutput = new WrappedOutputStream(stream,
                 // CompressionUtils.createBrotliOutputStream(output, compressionLevel,
                 // bufferSize), bufferSize, postCloseAction);
                 // break;
                 // case BZ2:
-                // chOutput = new WrappedOutputStream(file,
+                // chOutput = new WrappedOutputStream(stream,
                 // CompressionUtils.createBz2OutputStream(output, compressionLevel), bufferSize,
                 // postCloseAction);
                 // break;
                 // case DEFLATE:
-                // chOutput = new WrappedOutputStream(file, new InflaterOutputStream(output),
+                // chOutput = new WrappedOutputStream(stream, new InflaterOutputStream(output),
                 // bufferSize,
                 // postCloseAction);
                 // break;
@@ -64,7 +63,7 @@ public abstract class ClickHouseOutputStream extends OutputStream {
                 // GzipParameters params = new GzipParameters();
                 // params.setBufferSize(bufferSize);
                 // params.setCompressionLevel(3);
-                // chOutput = new WrappedOutputStream(file, new
+                // chOutput = new WrappedOutputStream(stream, new
                 // GzipCompressorOutputStream(output, params),
                 // bufferSize, postCloseAction);
                 // } catch (IOException e) {
@@ -73,20 +72,20 @@ public abstract class ClickHouseOutputStream extends OutputStream {
                 // }
                 // break;
                 case LZ4:
-                    chOutput = new Lz4OutputStream(file, output, compressionLevel, bufferSize, postCloseAction);
+                    chOutput = new Lz4OutputStream(stream, output, compressionLevel, bufferSize, postCloseAction);
                     break;
                 case SNAPPY:
-                    chOutput = new WrappedOutputStream(file,
+                    chOutput = new WrappedOutputStream(stream,
                             CompressionUtils.createSnappyOutputStream(output, compressionLevel), bufferSize,
                             postCloseAction);
                     break;
                 case ZSTD:
-                    chOutput = new WrappedOutputStream(file,
+                    chOutput = new WrappedOutputStream(stream,
                             CompressionUtils.createZstdOutputStream(output, compressionLevel), bufferSize,
                             postCloseAction);
                     break;
                 // case XZ:
-                // chOutput = new WrappedOutputStream(file,
+                // chOutput = new WrappedOutputStream(stream,
                 // CompressionUtils.createXzOutputStream(output, 6), bufferSize,
                 // postCloseAction);
                 // break;
@@ -107,26 +106,36 @@ public abstract class ClickHouseOutputStream extends OutputStream {
     }
 
     /**
-     * Wraps the given file as output stream.
+     * Wraps the deferred output stream.
      *
-     * @param file            non-null file
+     * @param deferredOutput  non-null deferred output stream
+     * @param bufferSize      buffer size which is always greater than zero(usually
+     *                        8192 or larger)
+     * @param postCloseAction custom action will be performed right after closing
+     *                        the input stream
+     * @return wrapped output
+     */
+    public static ClickHouseOutputStream of(ClickHouseDeferredValue<OutputStream> deferredOutput, int bufferSize,
+            Runnable postCloseAction) {
+        return new WrappedOutputStream(null, new DeferredOutputStream(deferredOutput), bufferSize, postCloseAction); // NOSONAR
+    }
+
+    /**
+     * Wraps the given pass-thru stream as output stream.
+     *
+     * @param stream          non-null pass-thru stream
      * @param postCloseAction custom action will be performed right after closing
      *                        the output stream
      * @param bufferSize      buffer size which is always greater than zero(usually
-     *                        8192
-     *                        or larger)
+     *                        8192 or larger)
      * @return wrapped output
      */
-    public static ClickHouseOutputStream of(ClickHouseFile file, int bufferSize, Runnable postCloseAction) {
-        if (file == null || file == ClickHouseFile.NULL) {
-            throw new IllegalArgumentException("Non-null file required");
+    public static ClickHouseOutputStream of(ClickHousePassThruStream stream, int bufferSize, Runnable postCloseAction) {
+        if (stream == null || stream == ClickHousePassThruStream.NULL) {
+            throw new IllegalArgumentException("Non-null pass-thru stream required");
         }
-        try {
-            return wrap(file, new FileOutputStream(file.getFile()), bufferSize, postCloseAction,
-                    ClickHouseCompression.NONE, file.getCompressionLevel());
-        } catch (FileNotFoundException e) {
-            throw new IllegalArgumentException(e);
-        }
+
+        return stream.asOutputStream(bufferSize, postCloseAction);
     }
 
     /**
@@ -183,13 +192,13 @@ public abstract class ClickHouseOutputStream extends OutputStream {
         return chOutput;
     }
 
-    protected final ClickHouseFile file;
+    protected final ClickHousePassThruStream stream;
     protected final Runnable postCloseAction;
 
     protected volatile boolean closed;
 
-    protected ClickHouseOutputStream(ClickHouseFile file, Runnable postCloseAction) {
-        this.file = file != null ? file : ClickHouseFile.NULL;
+    protected ClickHouseOutputStream(ClickHousePassThruStream stream, Runnable postCloseAction) {
+        this.stream = stream != null ? stream : ClickHousePassThruStream.NULL;
         this.postCloseAction = postCloseAction;
         this.closed = false;
     }
@@ -206,7 +215,16 @@ public abstract class ClickHouseOutputStream extends OutputStream {
      * @return non-null underlying file
      */
     public ClickHouseFile getUnderlyingFile() {
-        return file;
+        return stream instanceof ClickHouseFile ? ((ClickHouseFile) stream) : ClickHouseFile.NULL;
+    }
+
+    /**
+     * Gets underlying stream.
+     *
+     * @return non-null underlying stream
+     */
+    public ClickHousePassThruStream getUnderlyingStream() {
+        return stream;
     }
 
     /**

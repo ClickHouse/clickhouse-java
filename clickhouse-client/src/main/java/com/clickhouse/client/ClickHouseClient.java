@@ -228,19 +228,62 @@ public interface ClickHouseClient extends AutoCloseable {
     }
 
     /**
+     * Runs the given task immediately in current thread. Exception will be wrapped
+     * as {@link CompletionException}.
+     *
+     * @param task non-null task to run
+     * @throws CompletionException when failed to execute the task
+     */
+    static void run(Runnable task) {
+        try {
+            task.run();
+        } catch (CompletionException e) {
+            throw e;
+        } catch (Exception e) {
+            Throwable cause = e instanceof ClickHouseException ? e : e.getCause();
+            if (cause instanceof CompletionException) {
+                throw (CompletionException) cause;
+            } else if (cause == null) {
+                cause = e;
+            }
+            throw new CompletionException(cause);
+        }
+    }
+
+    /**
      * Submits task for execution. Depending on {@link ClickHouseDefaults#ASYNC}, it
      * may or may not use {@link #getExecutorService()} to run the task in a
      * separate thread.
-     * 
+     *
      * @param <T>  return type of the task
      * @param task non-null task
      * @return non-null future object to get result
-     * @throws CompletionException when failed to complete the task
+     * @throws CompletionException when failed to complete the task in synchronous
+     *                             mode
      */
     static <T> CompletableFuture<T> submit(Callable<T> task) {
         return (boolean) ClickHouseDefaults.ASYNC.getEffectiveDefaultValue()
                 ? CompletableFuture.supplyAsync(() -> run(task), getExecutorService())
                 : CompletableFuture.completedFuture(run(task));
+    }
+
+    /**
+     * Submits task for execution. Depending on {@link ClickHouseDefaults#ASYNC}, it
+     * may or may not use {@link #getExecutorService()} to run the task in a
+     * separate thread.
+     *
+     * @param task non-null task
+     * @return null
+     * @throws CompletionException when failed to complete the task in synchronous
+     *                             mode
+     */
+    static CompletableFuture<Void> submit(Runnable task) {
+        if ((boolean) ClickHouseDefaults.ASYNC.getEffectiveDefaultValue()) {
+            return CompletableFuture.runAsync(() -> run(task), getExecutorService());
+        }
+
+        run(task);
+        return CompletableFuture.completedFuture(null);
     }
 
     /**

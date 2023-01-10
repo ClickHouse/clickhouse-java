@@ -63,7 +63,7 @@ public class ClickHouseStreamObserver implements StreamObserver<Result> {
             ClickHousePipedOutputStream pipedStream = ClickHouseDataStreamFactory.getInstance()
                     .createPipedOutputStream(config, null);
             this.stream = pipedStream;
-            this.input = ClickHouseGrpcResponse.getInput(config, pipedStream.getInputStream(), postCloseAction);
+            this.input = ClickHouseGrpcClient.getInput(config, pipedStream.getInputStream(), postCloseAction);
         }
 
         this.summary = new ClickHouseResponseSummary(null, null);

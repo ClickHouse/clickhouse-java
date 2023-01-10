@@ -97,7 +97,7 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
         ClickHouseConfig c = config;
         ClickHouseFormat format = c.getFormat();
         TimeZone timeZone = c.getServerTimeZone();
-        boolean hasOutputFile = output != null && output.getUnderlyingFile().isAvailable();
+        boolean hasOutputFile = output != null && output.getUnderlyingStream().isAvailable();
         boolean hasQueryResult = false;
         // queryId, format and timeZone are only available for queries
         if (!ClickHouseChecker.isNullOrEmpty(queryId)) {

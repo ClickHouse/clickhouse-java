@@ -97,7 +97,7 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
                     : timeZone;
         }
 
-        boolean hasOutputFile = output != null && output.getUnderlyingFile().isAvailable();
+        boolean hasOutputFile = output != null && output.getUnderlyingStream().isAvailable();
         final InputStream source;
         final Runnable action;
         if (output != null) {
