@@ -91,9 +91,10 @@ public class ClickHouseFile extends ClickHousePassThruStream {
     }
 
     /**
-     * Gets file, which only works when {@link #isAvailable()} returns {@code true}.
+     * Gets file. Use {@code #hasInput()} or {@code #hasOutput()} to check file
+     * availability first.
      *
-     * @return non-null file, except {@code null} for {@link #NULL}
+     * @return file, could be null
      */
     public File getFile() {
         return file;

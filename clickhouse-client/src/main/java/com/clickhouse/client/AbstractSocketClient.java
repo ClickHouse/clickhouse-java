@@ -61,6 +61,7 @@ public class AbstractSocketClient implements AutoCloseable {
      * @param config non-null configuration
      * @param socket non-null socket
      * @return the given socket
+     * @throws SocketException when there's error setting socket options
      */
     public static Socket setSocketOptions(ClickHouseConfig config, Socket socket) throws SocketException {
         if (socket == null || socket.isClosed()) {
@@ -108,6 +109,7 @@ public class AbstractSocketClient implements AutoCloseable {
      * @param config non-null configuration
      * @param socket non-null socket channel
      * @return the given socket channel
+     * @throws IOException when there's error setting socket options
      */
     public static SocketChannel setSocketOptions(ClickHouseConfig config, SocketChannel socket) throws IOException {
         if (socket == null || socket.socket().isClosed()) {
