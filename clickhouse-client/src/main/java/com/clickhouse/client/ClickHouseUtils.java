@@ -267,11 +267,11 @@ public final class ClickHouseUtils {
             long keepAliveTimeoutMs, boolean allowCoreThreadTimeout) {
         BlockingQueue<Runnable> queue = maxRequests > 0 ? new ArrayBlockingQueue<>(maxRequests)
                 : new LinkedBlockingQueue<>();
-        if (coreThreads < 2) {
-            coreThreads = 2;
+        if (coreThreads < 3) {
+            coreThreads = 3;
         }
-        if (maxThreads < coreThreads) {
-            maxThreads = coreThreads;
+        if (maxThreads <= coreThreads) {
+            maxThreads = coreThreads + 1;
         }
         if (keepAliveTimeoutMs <= 0L) {
             keepAliveTimeoutMs = allowCoreThreadTimeout ? 1000L : 0L;
