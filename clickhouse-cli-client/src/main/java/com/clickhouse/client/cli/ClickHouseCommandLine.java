@@ -266,7 +266,7 @@ public class ClickHouseCommandLine implements AutoCloseable {
             ClickHouseFile tableFile = table.getFile();
             commands.add("--external");
             String filePath;
-            if (!tableFile.isAvailable() || !tableFile.getFile().getAbsolutePath().startsWith(hostDir)) {
+            if (!tableFile.hasOutput() || !tableFile.getFile().getAbsolutePath().startsWith(hostDir)) {
                 // creating a hard link is faster but it's not platform-independent
                 File f = ClickHouseInputStream.save(
                         Paths.get(hostDir, "chc_".concat(request.getManager().createUniqueId())).toFile(),

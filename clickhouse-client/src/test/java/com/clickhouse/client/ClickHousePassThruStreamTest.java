@@ -18,7 +18,8 @@ public class ClickHousePassThruStreamTest {
                 null);
         Assert.assertNotEquals(stream.asInputStream(), ClickHouseInputStream.empty());
         Assert.assertEquals(stream.asOutputStream(), ClickHouseOutputStream.empty());
-        Assert.assertTrue(stream.isAvailable());
+        Assert.assertTrue(stream.hasInput());
+        Assert.assertFalse(stream.hasOutput());
         Assert.assertFalse(stream.isCompressed());
         Assert.assertFalse(stream.hasFormat());
         Assert.assertEquals(stream.getCompressionAlgorithm(), ClickHouseCompression.NONE);
@@ -28,7 +29,8 @@ public class ClickHousePassThruStreamTest {
         stream = ClickHousePassThruStream.of(out, null, -1, null);
         Assert.assertEquals(stream.asInputStream(), ClickHouseInputStream.empty());
         Assert.assertNotEquals(stream.asOutputStream(), ClickHouseOutputStream.empty());
-        Assert.assertTrue(stream.isAvailable());
+        Assert.assertFalse(stream.hasInput());
+        Assert.assertTrue(stream.hasOutput());
         Assert.assertFalse(stream.isCompressed());
         Assert.assertFalse(stream.hasFormat());
         Assert.assertEquals(stream.getCompressionAlgorithm(), ClickHouseCompression.NONE);
@@ -38,7 +40,8 @@ public class ClickHousePassThruStreamTest {
         stream = ClickHousePassThruStream.of(in, out, ClickHouseCompression.ZSTD, 22, ClickHouseFormat.JSON);
         Assert.assertNotEquals(stream.asInputStream(), ClickHouseInputStream.empty());
         Assert.assertNotEquals(stream.asOutputStream(), ClickHouseOutputStream.empty());
-        Assert.assertTrue(stream.isAvailable());
+        Assert.assertTrue(stream.hasInput());
+        Assert.assertTrue(stream.hasOutput());
         Assert.assertTrue(stream.isCompressed());
         Assert.assertTrue(stream.hasFormat());
         Assert.assertEquals(stream.getCompressionAlgorithm(), ClickHouseCompression.ZSTD);

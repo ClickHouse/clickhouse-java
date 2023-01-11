@@ -197,7 +197,7 @@ public abstract class ClickHouseInputStream extends InputStream {
      * @return wrapped input
      */
     public static ClickHouseInputStream of(ClickHousePassThruStream stream, int bufferSize, Runnable postCloseAction) {
-        if (stream == null || !stream.isAvailable()) {
+        if (stream == null || !stream.hasInput()) {
             throw new IllegalArgumentException("Non-null pass-thru stream required");
         }
 

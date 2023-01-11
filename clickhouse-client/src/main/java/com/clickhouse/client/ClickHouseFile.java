@@ -59,7 +59,7 @@ public class ClickHouseFile extends ClickHousePassThruStream {
 
     @Override
     public ClickHouseInputStream asInputStream(int bufferSize, Runnable postCloseAction) {
-        if (!isAvailable()) {
+        if (!hasInput()) {
             return ClickHouseInputStream.empty();
         }
 
@@ -78,7 +78,7 @@ public class ClickHouseFile extends ClickHousePassThruStream {
 
     @Override
     public ClickHouseOutputStream asOutputStream(int bufferSize, Runnable postCloseAction) {
-        if (!isAvailable()) {
+        if (!hasOutput()) {
             return ClickHouseOutputStream.empty();
         }
 
@@ -101,16 +101,11 @@ public class ClickHouseFile extends ClickHousePassThruStream {
 
     @Override
     public boolean hasInput() {
-        return isAvailable();
+        return file != null && file.exists();
     }
 
     @Override
     public boolean hasOutput() {
-        return isAvailable();
-    }
-
-    @Override
-    public boolean isAvailable() {
-        return file != null && file.exists();
+        return file != null;
     }
 }
