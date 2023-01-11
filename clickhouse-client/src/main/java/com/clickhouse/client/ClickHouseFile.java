@@ -100,6 +100,16 @@ public class ClickHouseFile extends ClickHousePassThruStream {
     }
 
     @Override
+    public boolean hasInput() {
+        return isAvailable();
+    }
+
+    @Override
+    public boolean hasOutput() {
+        return isAvailable();
+    }
+
+    @Override
     public boolean isAvailable() {
         return file != null && file.exists();
     }

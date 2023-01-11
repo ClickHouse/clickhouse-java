@@ -230,7 +230,7 @@ public class AbstractSocketClient implements AutoCloseable {
         final long socketTimeout = config.getSocketTimeout();
         final long startTime = socketTimeout > 0L ? System.currentTimeMillis() : 0L;
 
-        // final ClickHouseFile f = out.getUnderlyingFile();
+        // final ClickHousePassThruStream s = out.getUnderlyingStream();
         ByteBuffer buffer = ByteBuffer.allocate(config.getWriteBufferSize());
         byte[] bytes = buffer.array();
         int len = 0;
@@ -251,9 +251,9 @@ public class AbstractSocketClient implements AutoCloseable {
         final long socketTimeout = config.getSocketTimeout();
         final long startTime = socketTimeout > 0L ? System.currentTimeMillis() : 0L;
 
-        final ClickHouseFile f = in.getUnderlyingFile();
-        if (f.isAvailable()) {
-            try (FileChannel fc = FileChannel.open(f.getFile().toPath())) {
+        final ClickHousePassThruStream s = in.getUnderlyingStream();
+        if (s.hasInput() && s instanceof ClickHouseFile) {
+            try (FileChannel fc = FileChannel.open(((ClickHouseFile) s).getFile().toPath())) {
                 long size = fc.size();
                 long chunkSize = config.getRequestChunkSize();
                 long offset = startPosition;

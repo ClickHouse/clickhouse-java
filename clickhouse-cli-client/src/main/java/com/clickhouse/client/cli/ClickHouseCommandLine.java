@@ -37,6 +37,7 @@ import com.clickhouse.client.ClickHouseFile;
 import com.clickhouse.client.ClickHouseInputStream;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseOutputStream;
+import com.clickhouse.client.ClickHousePassThruStream;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseUtils;
 import com.clickhouse.client.cli.config.ClickHouseCommandLineOption;
@@ -321,10 +322,13 @@ public class ClickHouseCommandLine implements AutoCloseable {
 
         if (request.hasOutputStream()) {
             final ClickHouseOutputStream chOutput = request.getOutputStream().get(); // NOSONAR
-            final ClickHouseFile outputFile = chOutput.getUnderlyingFile();
+            final ClickHousePassThruStream customStream = chOutput.getUnderlyingStream();
 
-            if (outputFile.isAvailable()) {
-                File f = outputFile.getFile();
+            if (customStream.hasOutput()) {
+                File f = customStream instanceof ClickHouseFile ? ((ClickHouseFile) customStream).getFile() : null;
+                if (f == null) {
+                    throw new UncheckedIOException(new IOException("Output file not found in " + customStream));
+                }
                 if (hostDir.equals(containerDir)) {
                     builder.redirectOutput(f);
                 } else if (f.getAbsolutePath().startsWith(hostDir)) {
@@ -364,14 +368,13 @@ public class ClickHouseCommandLine implements AutoCloseable {
             final Process process;
             if (in.isPresent()) {
                 final ClickHouseInputStream chInput = in.get();
-                final ClickHouseFile fileStream = chInput.getUnderlyingFile();
+                final ClickHousePassThruStream customStream = chInput.getUnderlyingStream();
                 final File inputFile;
-                if (fileStream.isAvailable()) {
-                    inputFile = fileStream.getFile();
+                if (customStream.hasInput() && customStream instanceof ClickHouseFile) {
+                    inputFile = ((ClickHouseFile) customStream).getFile();
                 } else {
                     CompletableFuture<File> data = ClickHouseClient.submit(() -> {
-                        File tmp = Files.createTempFile("tmp", "data").toFile();
-                        tmp.deleteOnExit();
+                        File tmp = ClickHouseUtils.createTempFile("tmp", "data", true);
                         try (ClickHouseOutputStream out = ClickHouseOutputStream.of(new FileOutputStream(tmp))) {
                             chInput.pipe(out);
                         }
@@ -416,7 +419,7 @@ public class ClickHouseCommandLine implements AutoCloseable {
                 throw new UncheckedIOException(exp);
             }
         };
-        if (out != null && !out.getUnderlyingStream().isAvailable()) {
+        if (out != null && !out.getUnderlyingStream().hasOutput()) {
             try (OutputStream o = out) {
                 ClickHouseInputStream.pipe(process.getInputStream(), o, request.getConfig().getWriteBufferSize());
             }

@@ -1121,7 +1121,7 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
         if (ClickHouseChecker.nonNull(file, "File").hasFormat()) {
             format(file.getFormat());
         }
-        compressServerResponse(file.isCompressed(), file.getCompressionAlgorithm());
+        compressServerResponse(file.isCompressed(), file.getCompressionAlgorithm(), file.getCompressionLevel());
         this.output = changeProperty(PROP_OUTPUT, this.output, ClickHouseDeferredValue
                 .of(() -> ClickHouseOutputStream.of(file, bufferSize, null)));
 

@@ -143,9 +143,27 @@ public class ClickHousePassThruStream implements Serializable {
     }
 
     /**
-     * Checks if the stream is available or not.
+     * Checks if input stream is available or not.
      *
-     * @return true if the stream is available; false otherwise
+     * @return true if input stream is available; false otherwise
+     */
+    public boolean hasInput() {
+        return input != null;
+    }
+
+    /**
+     * Checks if output stream is available or not.
+     *
+     * @return true if output stream is available; false otherwise
+     */
+    public boolean hasOutput() {
+        return output != null;
+    }
+
+    /**
+     * Checks if either input or output stream is available or not.
+     *
+     * @return true if either input or output stream is available; false otherwise
      */
     public boolean isAvailable() {
         return input != null || output != null;

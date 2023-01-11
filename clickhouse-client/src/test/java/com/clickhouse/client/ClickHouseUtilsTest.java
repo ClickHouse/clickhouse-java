@@ -1,6 +1,8 @@
 package com.clickhouse.client;
 
+import java.io.File;
 import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -13,6 +15,23 @@ import org.testng.Assert;
 import org.testng.annotations.Test;
 
 public class ClickHouseUtilsTest {
+    @Test(groups = { "unit" })
+    public void testCreateTempFile() throws IOException {
+        File f = ClickHouseUtils.createTempFile(null, null);
+        Assert.assertNotNull(f);
+        Assert.assertTrue(f.exists(), f.getAbsolutePath() + " should exist");
+        Assert.assertTrue(f.getName().endsWith(".tmp"),
+                "By default temporary file should end with .tmp, but it's " + f.getName());
+
+        f = ClickHouseUtils.createTempFile("prefix__", "__suffix", true);
+        Assert.assertNotNull(f);
+        Assert.assertTrue(f.exists(), f.getAbsolutePath() + " should exist");
+        Assert.assertTrue(f.getName().startsWith("prefix__"),
+                "The temporary file should start with prefix__, but it's " + f.getName());
+        Assert.assertTrue(f.getName().endsWith("__suffix"),
+                "The temporary file should end with __suffix, but it's " + f.getName());
+    }
+
     @Test(groups = { "unit" })
     public void testEscape() {
         Assert.assertEquals(ClickHouseUtils.escape(null, '\0'), null);

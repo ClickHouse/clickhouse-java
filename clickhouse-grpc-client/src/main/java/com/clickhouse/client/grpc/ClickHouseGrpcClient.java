@@ -37,6 +37,7 @@ import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.ClickHouseUtils;
+import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.config.ClickHouseOption;
 import com.clickhouse.client.data.ClickHouseExternalTable;
 import com.clickhouse.client.grpc.config.ClickHouseGrpcOption;
@@ -77,8 +78,8 @@ public class ClickHouseGrpcClient extends AbstractClient<ManagedChannel> {
                 }), config.getReadBufferSize(), postCloseAction);
                 break;
             default:
-                in = ClickHouseInputStream.of(input, config.getReadBufferSize(), config.getResponseCompressAlgorithm(),
-                        postCloseAction);
+                in = ClickHouseInputStream.wrap(null, input, config.getReadBufferSize(), postCloseAction,
+                        config.getResponseCompressAlgorithm(), config.getResponseCompressLevel());
                 break;
         }
         return in;
@@ -175,6 +176,10 @@ public class ClickHouseGrpcClient extends AbstractClient<ManagedChannel> {
 
         ClickHouseCompression outputCompression = config.getResponseCompressAlgorithm();
         builder.setOutputCompressionType(outputCompression.encoding());
+        if (outputCompression != ClickHouseCompression.NONE
+                && config.hasOption(ClickHouseClientOption.COMPRESS_LEVEL)) {
+            builder.setOutputCompressionLevel(config.getResponseCompressLevel());
+        }
 
         for (Entry<String, Serializable> s : request.getSettings().entrySet()) {
             builder.putSettings(s.getKey(), String.valueOf(s.getValue()));
@@ -226,6 +231,12 @@ public class ClickHouseGrpcClient extends AbstractClient<ManagedChannel> {
             }
             sql = sb.toString();
         }
+
+        // let server to decide if transport compression should be used
+        // usually it should not be used due to limited options and conflict with input
+        // data compression
+        // builder.setTransportCompressionType("none");
+        // builder.setTransportCompressionLevel(0);
 
         Optional<ClickHouseInputStream> input = request.getInputStream();
         if (input.isPresent()) {
@@ -286,7 +297,7 @@ public class ClickHouseGrpcClient extends AbstractClient<ManagedChannel> {
                 final ClickHouseNode server = request.getServer();
                 final ClickHouseConfig config = request.getConfig();
                 try (ClickHouseInputStream input = getCompressedInputStream(config, request.getInputStream().get())) { // NOSONAR
-                    byte[] bytes = new byte[config.getWriteBufferSize()];
+                    byte[] bytes = new byte[config.getRequestChunkSize()];
                     while (hasNext) {
                         queryInfo = getChunkedInputData(server, input, bytes);
                         hasNext = queryInfo.getNextQueryInfo();
