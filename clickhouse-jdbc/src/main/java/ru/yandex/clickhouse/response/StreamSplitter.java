@@ -22,7 +22,7 @@ public class StreamSplitter {
     // position until which the values from buf already passed out through next()
     private int posNext;
 
-    private int markedRead;
+    private boolean marked;
     private int markedNext;
 
     private boolean readOnce;
@@ -98,11 +98,11 @@ public class StreamSplitter {
     }
 
 
-    // if we have read till the end of buffer, we have to create a new buffer 
-    // and move data by posNext (already send data position)
-    // if there is no sent data and buffer is still full - expand the buffer
+	  // if we have read till the end of buffer, and there is no mark, we have to create a new buffer
+	  // and move data by posNext (already send data position)
+	  // if there is no sent data and buffer is still full, or there is a mark, expand the buffer
     private void shiftOrResize() {
-        if (posNext > 0) {
+        if (!marked && posNext > 0) {
             byte[] oldBuf = buf;
             buf = new byte[buf.length];
             System.arraycopy(oldBuf, posNext, buf, 0, oldBuf.length - posNext);
@@ -152,12 +152,12 @@ public class StreamSplitter {
     }
 
     public void mark() {
-        markedRead = posRead;
+	      marked = true;
         markedNext = posNext;
     }
 
     public void reset() {
-        posRead = markedRead;
+	      marked = false;
         posNext = markedNext;
     }
 }
