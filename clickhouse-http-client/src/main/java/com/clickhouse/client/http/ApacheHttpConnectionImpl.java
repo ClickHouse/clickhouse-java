@@ -309,7 +309,7 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
         static {
             String versionInfo = null;
             try {
-                String pkg = VersionInfo.class.getPackageName();
+                String pkg = VersionInfo.class.getPackage().getName();
                 pkg = pkg.substring(0, pkg.lastIndexOf('.'));
                 versionInfo = VersionInfo.getSoftwareInfo(PROVIDER, pkg, HttpClientBuilder.class).split("\\s")[0];
             } catch (Throwable e) { // NOSONAR
