@@ -9,8 +9,11 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
-import com.clickhouse.client.logging.Logger;
-import com.clickhouse.client.logging.LoggerFactory;
+import com.clickhouse.data.ClickHouseFormat;
+import com.clickhouse.data.ClickHouseRecord;
+import com.clickhouse.data.ClickHouseUtils;
+import com.clickhouse.logging.Logger;
+import com.clickhouse.logging.LoggerFactory;
 
 /**
  * This class represents a transaction in ClickHouse. Besides transaction ID

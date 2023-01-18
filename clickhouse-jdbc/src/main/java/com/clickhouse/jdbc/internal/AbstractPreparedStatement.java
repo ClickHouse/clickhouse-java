@@ -5,7 +5,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 
 import com.clickhouse.client.ClickHouseRequest;
-import com.clickhouse.client.ClickHouseUtils;
+import com.clickhouse.data.ClickHouseUtils;
 import com.clickhouse.jdbc.SqlExceptionUtils;
 
 public abstract class AbstractPreparedStatement extends ClickHouseStatementImpl implements PreparedStatement {

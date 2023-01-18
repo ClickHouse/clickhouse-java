@@ -8,17 +8,17 @@ import java.util.concurrent.ExecutionException;
 import com.clickhouse.client.ClickHouseClient;
 import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseCredentials;
-import com.clickhouse.client.ClickHouseDataStreamFactory;
 import com.clickhouse.client.ClickHouseException;
-import com.clickhouse.client.ClickHouseFormat;
 import com.clickhouse.client.ClickHouseNode;
-import com.clickhouse.client.ClickHousePipedOutputStream;
 import com.clickhouse.client.ClickHouseProtocol;
-import com.clickhouse.client.ClickHouseRecord;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.ClickHouseResponseSummary;
-import com.clickhouse.client.data.BinaryStreamUtils;
+import com.clickhouse.data.ClickHouseDataStreamFactory;
+import com.clickhouse.data.ClickHouseFormat;
+import com.clickhouse.data.ClickHousePipedOutputStream;
+import com.clickhouse.data.ClickHouseRecord;
+import com.clickhouse.data.format.BinaryStreamUtils;
 
 public class Main {
     static void dropAndCreateTable(ClickHouseNode server, String table) throws ClickHouseException {

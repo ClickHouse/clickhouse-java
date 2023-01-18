@@ -19,6 +19,11 @@
     <dependencies>
         <dependency>
             <groupId>${project.parent.groupId}</groupId>
+            <artifactId>clickhouse-data</artifactId>
+            <version>${revision}</version>
+        </dependency>
+        <dependency>
+            <groupId>${project.parent.groupId}</groupId>
             <artifactId>org.roaringbitmap</artifactId>
             <optional>true</optional>
             <exclusions>
@@ -30,21 +35,6 @@
         </dependency>
 
         <dependency>
-            <groupId>com.aayushatharva.brotli4j</groupId>
-            <artifactId>brotli4j</artifactId>
-            <optional>true</optional>
-        </dependency>
-        <dependency>
-            <groupId>com.github.ben-manes.caffeine</groupId>
-            <artifactId>caffeine</artifactId>
-            <optional>true</optional>
-        </dependency>
-        <dependency>
-            <groupId>com.github.luben</groupId>
-            <artifactId>zstd-jni</artifactId>
-            <optional>true</optional>
-        </dependency>
-        <dependency>
             <groupId>com.google.code.gson</groupId>
             <artifactId>gson</artifactId>
             <optional>true</optional>
@@ -55,43 +45,8 @@
             <optional>true</optional>
         </dependency>
         <dependency>
-            <groupId>org.apache.avro</groupId>
-            <artifactId>avro</artifactId>
-            <optional>true</optional>
-        </dependency>
-        <dependency>
-            <groupId>org.brotli</groupId>
-            <artifactId>dec</artifactId>
-            <optional>true</optional>
-        </dependency>
-        <dependency>
-            <groupId>org.jctools</groupId>
-            <artifactId>jctools-core</artifactId>
-            <optional>true</optional>
-        </dependency>
-        <dependency>
-            <groupId>org.lz4</groupId>
-            <artifactId>lz4-java</artifactId>
-            <optional>true</optional>
-        </dependency>
-        <dependency>
-            <groupId>org.msgpack</groupId>
-            <artifactId>msgpack-core</artifactId>
-            <optional>true</optional>
-        </dependency>
-        <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
-            <optional>true</optional>
-        </dependency>
-        <dependency>
-            <groupId>org.tukaani</groupId>
-            <artifactId>xz</artifactId>
-            <optional>true</optional>
-        </dependency>
-        <dependency>
-            <groupId>org.xerial.snappy</groupId>
-            <artifactId>snappy-java</artifactId>
             <optional>true</optional>
         </dependency>
 

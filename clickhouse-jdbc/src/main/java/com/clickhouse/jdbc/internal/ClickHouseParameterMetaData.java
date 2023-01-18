@@ -6,9 +6,9 @@ import java.sql.Types;
 import java.util.List;
 import java.util.Map;
 
-import com.clickhouse.client.ClickHouseChecker;
-import com.clickhouse.client.ClickHouseColumn;
-import com.clickhouse.client.ClickHouseUtils;
+import com.clickhouse.data.ClickHouseChecker;
+import com.clickhouse.data.ClickHouseColumn;
+import com.clickhouse.data.ClickHouseUtils;
 import com.clickhouse.jdbc.JdbcTypeMapping;
 import com.clickhouse.jdbc.SqlExceptionUtils;
 import com.clickhouse.jdbc.JdbcWrapper;

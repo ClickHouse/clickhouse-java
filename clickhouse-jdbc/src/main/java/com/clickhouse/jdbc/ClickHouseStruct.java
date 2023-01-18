@@ -4,7 +4,7 @@ import java.sql.SQLException;
 import java.sql.Struct;
 import java.util.Map;
 
-import com.clickhouse.client.ClickHouseChecker;
+import com.clickhouse.data.ClickHouseChecker;
 
 public class ClickHouseStruct implements Struct {
     private final String typeName;

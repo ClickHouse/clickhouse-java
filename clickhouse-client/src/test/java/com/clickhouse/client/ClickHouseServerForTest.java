@@ -13,6 +13,10 @@ import org.testcontainers.images.builder.ImageFromDockerfile;
 import org.testng.annotations.AfterSuite;
 import org.testng.annotations.BeforeSuite;
 
+import com.clickhouse.data.ClickHouseChecker;
+import com.clickhouse.data.ClickHouseUtils;
+import com.clickhouse.data.ClickHouseVersion;
+
 /**
  * Adaptive ClickHouse server environment for integration test. Two modes are
  * supported: 1) existing server(when system property {@code clickhouseServer}

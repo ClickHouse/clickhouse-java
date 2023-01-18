@@ -1,20 +1,21 @@
 package com.clickhouse.client.http;
 
-import com.clickhouse.client.ClickHouseChecker;
 import com.clickhouse.client.ClickHouseClient;
 import com.clickhouse.client.ClickHouseConfig;
-import com.clickhouse.client.ClickHouseDataStreamFactory;
-import com.clickhouse.client.ClickHouseFormat;
-import com.clickhouse.client.ClickHouseInputStream;
 import com.clickhouse.client.ClickHouseNode;
-import com.clickhouse.client.ClickHousePipedOutputStream;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseSslContextProvider;
 import com.clickhouse.client.config.ClickHouseClientOption;
-import com.clickhouse.client.data.ClickHouseExternalTable;
 import com.clickhouse.client.http.config.ClickHouseHttpOption;
-import com.clickhouse.client.logging.Logger;
-import com.clickhouse.client.logging.LoggerFactory;
+import com.clickhouse.data.ClickHouseChecker;
+import com.clickhouse.data.ClickHouseDataStreamFactory;
+import com.clickhouse.data.ClickHouseExternalTable;
+import com.clickhouse.data.ClickHouseFormat;
+import com.clickhouse.data.ClickHouseInputStream;
+import com.clickhouse.data.ClickHouseOutputStream;
+import com.clickhouse.data.ClickHousePipedOutputStream;
+import com.clickhouse.logging.Logger;
+import com.clickhouse.logging.LoggerFactory;
 
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
@@ -48,6 +49,7 @@ import java.util.Map.Entry;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import javax.net.ssl.SSLContext;
 
@@ -75,11 +77,12 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
 
     private static final String USER_AGENT = ClickHouseClientOption.buildUserAgent(null, "HttpClient");
 
+    private final AtomicBoolean busy;
     private final HttpClient httpClient;
     private final HttpRequest pingRequest;
 
     private ClickHouseHttpResponse buildResponse(ClickHouseConfig config, HttpResponse<InputStream> r,
-            Runnable postAction) throws IOException {
+            ClickHouseOutputStream output, Runnable postAction) throws IOException {
         HttpHeaders headers = r.headers();
         String displayName = headers.firstValue("X-ClickHouse-Server-Display-Name").orElse(server.getHost());
         String queryId = headers.firstValue("X-ClickHouse-Query-Id").orElse("");
@@ -97,7 +100,7 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
                     : timeZone;
         }
 
-        boolean hasOutputFile = output != null && output.getUnderlyingStream().hasOutput();
+        boolean hasCustomOutput = output != null && output.getUnderlyingStream().hasOutput();
         final InputStream source;
         final Runnable action;
         if (output != null) {
@@ -125,9 +128,9 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
         }
 
         return new ClickHouseHttpResponse(this,
-                hasOutputFile ? ClickHouseInputStream.of(source, config.getReadBufferSize(), action)
-                        : ClickHouseInputStream.wrap(null, source, config.getReadBufferSize(), action,
-                                config.getResponseCompressAlgorithm(), config.getResponseCompressLevel()),
+                hasCustomOutput ? ClickHouseInputStream.of(source, config.getReadBufferSize(), action)
+                        : ClickHouseInputStream.wrap(null, source, config.getReadBufferSize(),
+                                config.getResponseCompressAlgorithm(), config.getResponseCompressLevel(), action),
                 displayName, queryId, summary, format, timeZone);
     }
 
@@ -185,13 +188,14 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
                     .orElse(null));
         }
 
+        busy = new AtomicBoolean(false);
         httpClient = builder.build();
         pingRequest = newRequest(getBaseUrl() + "ping");
     }
 
     @Override
     protected boolean isReusable() {
-        return true;
+        return busy.get();
     }
 
     private CompletableFuture<HttpResponse<InputStream>> postRequest(HttpRequest request) {
@@ -202,52 +206,61 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
     }
 
     private ClickHouseHttpResponse postStream(ClickHouseConfig config, HttpRequest.Builder reqBuilder, byte[] boundary,
-            String sql, ClickHouseInputStream data, List<ClickHouseExternalTable> tables, Runnable postAction)
-            throws IOException {
-        ClickHousePipedOutputStream stream = ClickHouseDataStreamFactory.getInstance().createPipedOutputStream(config,
-                null);
-        reqBuilder.POST(HttpRequest.BodyPublishers.ofInputStream(stream::getInputStream));
-        // running in async is necessary to avoid deadlock of the piped stream
-        CompletableFuture<HttpResponse<InputStream>> f = postRequest(reqBuilder.build());
-
-        postData(config, boundary, sql, data, tables, stream);
-
-        HttpResponse<InputStream> r;
+            String sql, ClickHouseInputStream data, List<ClickHouseExternalTable> tables, ClickHouseOutputStream output,
+            Runnable postAction) throws IOException {
         try {
-            r = f.get();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IOException("Thread was interrupted when posting request or receiving response", e);
-        } catch (ExecutionException e) {
-            Throwable cause = e.getCause();
-            if (cause instanceof HttpConnectTimeoutException) {
-                throw new ConnectException(cause.getMessage());
-            } else {
-                throw new IOException("Failed to post request", cause);
-            }
-        }
+            ClickHousePipedOutputStream stream = ClickHouseDataStreamFactory.getInstance().createPipedOutputStream(
+                    config,
+                    null);
+            reqBuilder.POST(HttpRequest.BodyPublishers.ofInputStream(stream::getInputStream));
+            // running in async is necessary to avoid deadlock of the piped stream
+            CompletableFuture<HttpResponse<InputStream>> f = postRequest(reqBuilder.build());
 
-        return buildResponse(config, r, postAction);
+            postData(config, boundary, sql, data, tables, stream);
+
+            HttpResponse<InputStream> r;
+            try {
+                r = f.get();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IOException("Thread was interrupted when posting request or receiving response", e);
+            } catch (ExecutionException e) {
+                Throwable cause = e.getCause();
+                if (cause instanceof HttpConnectTimeoutException) {
+                    throw new ConnectException(cause.getMessage());
+                } else {
+                    throw new IOException("Failed to post request", cause);
+                }
+            }
+
+            return buildResponse(config, r, output, postAction);
+        } finally {
+            busy.set(false);
+        }
     }
 
     private ClickHouseHttpResponse postString(ClickHouseConfig config, HttpRequest.Builder reqBuilder, String sql,
-            Runnable postAction) throws IOException {
-        reqBuilder.POST(HttpRequest.BodyPublishers.ofString(sql));
-        HttpResponse<InputStream> r;
+            ClickHouseOutputStream output, Runnable postAction) throws IOException {
         try {
-            r = postRequest(reqBuilder.build()).get();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IOException("Thread was interrupted when posting request or receiving response", e);
-        } catch (ExecutionException e) {
-            Throwable cause = e.getCause();
-            if (cause instanceof HttpConnectTimeoutException) {
-                throw new ConnectException(cause.getMessage());
-            } else {
-                throw new IOException("Failed to post query", cause);
+            reqBuilder.POST(HttpRequest.BodyPublishers.ofString(sql));
+            HttpResponse<InputStream> r;
+            try {
+                r = postRequest(reqBuilder.build()).get();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IOException("Thread was interrupted when posting request or receiving response", e);
+            } catch (ExecutionException e) {
+                Throwable cause = e.getCause();
+                if (cause instanceof HttpConnectTimeoutException) {
+                    throw new ConnectException(cause.getMessage());
+                } else {
+                    throw new IOException("Failed to post query", cause);
+                }
             }
+            return buildResponse(config, r, output, postAction);
+        } finally {
+            busy.set(false);
         }
-        return buildResponse(config, r, postAction);
     }
 
     @Override
@@ -256,8 +269,12 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
     }
 
     @Override
-    protected ClickHouseHttpResponse post(String sql, ClickHouseInputStream data, List<ClickHouseExternalTable> tables,
-            String url, Map<String, String> headers, ClickHouseConfig config, Runnable postAction) throws IOException {
+    protected ClickHouseHttpResponse post(ClickHouseConfig config, String sql, ClickHouseInputStream data,
+            List<ClickHouseExternalTable> tables, ClickHouseOutputStream output, String url,
+            Map<String, String> headers, Runnable postAction) throws IOException {
+        if (!busy.compareAndSet(false, true)) {
+            throw new ConnectException("Connection is busy");
+        }
         ClickHouseConfig c = config == null ? this.config : config;
         HttpRequest.Builder reqBuilder = HttpRequest.newBuilder()
                 .uri(URI.create(ClickHouseChecker.isNullOrEmpty(url) ? this.url : url))
@@ -279,8 +296,8 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
         }
 
         return boundary != null || data != null || c.isRequestCompressed()
-                ? postStream(c, reqBuilder, boundary, sql, data, tables, postAction)
-                : postString(c, reqBuilder, sql, postAction);
+                ? postStream(c, reqBuilder, boundary, sql, data, tables, output, postAction)
+                : postString(c, reqBuilder, sql, output, postAction);
     }
 
     @Override

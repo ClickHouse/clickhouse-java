@@ -17,11 +17,11 @@ import java.util.ServiceLoader;
 import java.util.Map.Entry;
 
 import com.clickhouse.client.ClickHouseClient;
-import com.clickhouse.client.ClickHouseVersion;
 import com.clickhouse.client.config.ClickHouseClientOption;
-import com.clickhouse.client.config.ClickHouseOption;
-import com.clickhouse.client.logging.Logger;
-import com.clickhouse.client.logging.LoggerFactory;
+import com.clickhouse.config.ClickHouseOption;
+import com.clickhouse.data.ClickHouseVersion;
+import com.clickhouse.logging.Logger;
+import com.clickhouse.logging.LoggerFactory;
 import com.clickhouse.jdbc.internal.ClickHouseConnectionImpl;
 import com.clickhouse.jdbc.internal.ClickHouseJdbcUrlParser;
 
@@ -50,7 +50,19 @@ public class ClickHouseDriver implements Driver {
     static final java.util.logging.Logger parentLogger = java.util.logging.Logger.getLogger("com.clickhouse.jdbc");
 
     static {
-        driverVersionString = ClickHouseDriver.class.getPackage().getImplementationVersion();
+        String str = ClickHouseDriver.class.getPackage().getImplementationVersion();
+        if (str != null && !str.isEmpty()) {
+            char[] chars = str.toCharArray();
+            for (int i = 0, len = chars.length; i < len; i++) {
+                if (Character.isDigit(chars[i])) {
+                    str = str.substring(i);
+                    break;
+                }
+            }
+            driverVersionString = str;
+        } else {
+            driverVersionString = "";
+        }
         driverVersion = ClickHouseVersion.of(driverVersionString);
         specVersion = ClickHouseVersion.of(ClickHouseDriver.class.getPackage().getSpecificationVersion());
 

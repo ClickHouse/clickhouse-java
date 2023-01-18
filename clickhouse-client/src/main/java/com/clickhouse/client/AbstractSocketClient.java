@@ -19,8 +19,16 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.LockSupport;
 
 import com.clickhouse.client.config.ClickHouseClientOption;
-import com.clickhouse.client.logging.Logger;
-import com.clickhouse.client.logging.LoggerFactory;
+import com.clickhouse.data.ClickHouseChecker;
+import com.clickhouse.data.ClickHouseDataStreamFactory;
+import com.clickhouse.data.ClickHouseFile;
+import com.clickhouse.data.ClickHouseInputStream;
+import com.clickhouse.data.ClickHouseOutputStream;
+import com.clickhouse.data.ClickHousePassThruStream;
+import com.clickhouse.data.ClickHousePipedOutputStream;
+import com.clickhouse.data.ClickHouseUtils;
+import com.clickhouse.logging.Logger;
+import com.clickhouse.logging.LoggerFactory;
 
 public class AbstractSocketClient implements AutoCloseable {
     static class SocketRequest {
@@ -318,14 +326,14 @@ public class AbstractSocketClient implements AutoCloseable {
                     if (key.isValid() && key.isWritable()) {
                         final ClickHouseInputStream in = req.in;
                         // socket output buffer was full due to slow/jammed network
-                        long offset = (long) in.userData.getOrDefault("offset", 0L);
+                        long offset = (long) in.getUserData("offset", 0L);
                         if ((offset = onWrite(req.config, sc, in, offset)) > 0L && in.available() > 0) {
                             // processRequest(in, socketTimeout);
                         } else {
                             in.close();
                             removeInterestOp(SelectionKey.OP_WRITE);
                         }
-                        in.userData.put("offset", offset);
+                        in.setUserData("offset", offset);
                     }
 
                     if (key.isValid() && key.isReadable()) {

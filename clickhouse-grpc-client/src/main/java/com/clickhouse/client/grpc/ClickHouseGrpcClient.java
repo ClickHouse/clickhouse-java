@@ -20,26 +20,15 @@ import io.grpc.StatusException;
 import io.grpc.stub.StreamObserver;
 
 import com.clickhouse.client.AbstractClient;
-import com.clickhouse.client.ClickHouseChecker;
 import com.clickhouse.client.ClickHouseClient;
-import com.clickhouse.client.ClickHouseColumn;
-import com.clickhouse.client.ClickHouseCompression;
 import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseCredentials;
-import com.clickhouse.client.ClickHouseDataStreamFactory;
-import com.clickhouse.client.ClickHouseDeferredValue;
 import com.clickhouse.client.ClickHouseException;
-import com.clickhouse.client.ClickHouseInputStream;
 import com.clickhouse.client.ClickHouseNode;
-import com.clickhouse.client.ClickHouseOutputStream;
-import com.clickhouse.client.ClickHousePipedOutputStream;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseResponse;
-import com.clickhouse.client.ClickHouseUtils;
 import com.clickhouse.client.config.ClickHouseClientOption;
-import com.clickhouse.client.config.ClickHouseOption;
-import com.clickhouse.client.data.ClickHouseExternalTable;
 import com.clickhouse.client.grpc.config.ClickHouseGrpcOption;
 import com.clickhouse.client.grpc.impl.ClickHouseGrpc;
 import com.clickhouse.client.grpc.impl.ExternalTable;
@@ -47,8 +36,19 @@ import com.clickhouse.client.grpc.impl.NameAndType;
 import com.clickhouse.client.grpc.impl.QueryInfo;
 import com.clickhouse.client.grpc.impl.Result;
 import com.clickhouse.client.grpc.impl.QueryInfo.Builder;
-import com.clickhouse.client.logging.Logger;
-import com.clickhouse.client.logging.LoggerFactory;
+import com.clickhouse.config.ClickHouseOption;
+import com.clickhouse.data.ClickHouseChecker;
+import com.clickhouse.data.ClickHouseColumn;
+import com.clickhouse.data.ClickHouseCompression;
+import com.clickhouse.data.ClickHouseDataStreamFactory;
+import com.clickhouse.data.ClickHouseDeferredValue;
+import com.clickhouse.data.ClickHouseExternalTable;
+import com.clickhouse.data.ClickHouseInputStream;
+import com.clickhouse.data.ClickHouseOutputStream;
+import com.clickhouse.data.ClickHousePipedOutputStream;
+import com.clickhouse.data.ClickHouseUtils;
+import com.clickhouse.logging.Logger;
+import com.clickhouse.logging.LoggerFactory;
 
 import org.apache.commons.compress.compressors.lz4.FramedLZ4CompressorInputStream;
 import org.apache.commons.compress.compressors.lz4.FramedLZ4CompressorOutputStream;
@@ -78,8 +78,8 @@ public class ClickHouseGrpcClient extends AbstractClient<ManagedChannel> {
                 }), config.getReadBufferSize(), postCloseAction);
                 break;
             default:
-                in = ClickHouseInputStream.wrap(null, input, config.getReadBufferSize(), postCloseAction,
-                        config.getResponseCompressAlgorithm(), config.getResponseCompressLevel());
+                in = ClickHouseInputStream.wrap(null, input, config.getReadBufferSize(),
+                        config.getResponseCompressAlgorithm(), config.getResponseCompressLevel(), postCloseAction);
                 break;
         }
         return in;
@@ -114,6 +114,10 @@ public class ClickHouseGrpcClient extends AbstractClient<ManagedChannel> {
 
     protected static ClickHouseInputStream getCompressedInputStream(ClickHouseConfig config,
             ClickHouseInputStream input) {
+        if (input.getUnderlyingStream().hasInput()) {
+            return input;
+        }
+
         final int bufferSize = config.getWriteBufferSize();
         final ClickHousePipedOutputStream stream = ClickHouseDataStreamFactory.getInstance() // NOSONAR
                 .createPipedOutputStream(bufferSize, 0, config.getSocketTimeout(), null);
@@ -243,7 +247,7 @@ public class ClickHouseGrpcClient extends AbstractClient<ManagedChannel> {
             ClickHouseCompression inputCompression = config.getRequestCompressAlgorithm();
             builder.setInputCompressionType(inputCompression.encoding());
             if (streaming) {
-                builder.setInputData(ByteString.EMPTY);
+                // builder.setInputData(ByteString.EMPTY);
                 builder.setNextQueryInfo(true);
             } else {
                 try {

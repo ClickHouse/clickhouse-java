@@ -7,12 +7,12 @@ import java.util.Map;
 
 import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseException;
-import com.clickhouse.client.ClickHouseInputStream;
 import com.clickhouse.client.ClickHouseResponseSummary;
-import com.clickhouse.client.data.ClickHouseStreamResponse;
+import com.clickhouse.client.ClickHouseStreamResponse;
 import com.clickhouse.client.grpc.impl.Progress;
 import com.clickhouse.client.grpc.impl.Result;
 import com.clickhouse.client.grpc.impl.Stats;
+import com.clickhouse.data.ClickHouseInputStream;
 
 public class ClickHouseGrpcResponse extends ClickHouseStreamResponse {
     private final ClickHouseStreamObserver observer;

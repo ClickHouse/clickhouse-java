@@ -1,6 +1,6 @@
 package com.clickhouse.r2dbc.types;
 
-import com.clickhouse.client.ClickHouseDataType;
+import com.clickhouse.data.ClickHouseDataType;
 import io.r2dbc.spi.Type;
 
 

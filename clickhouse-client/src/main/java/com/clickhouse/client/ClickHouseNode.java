@@ -33,10 +33,13 @@ import javax.net.ssl.SSLSocketFactory;
 
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.config.ClickHouseDefaults;
-import com.clickhouse.client.config.ClickHouseOption;
 import com.clickhouse.client.config.ClickHouseSslMode;
-import com.clickhouse.client.logging.Logger;
-import com.clickhouse.client.logging.LoggerFactory;
+import com.clickhouse.config.ClickHouseOption;
+import com.clickhouse.data.ClickHouseChecker;
+import com.clickhouse.data.ClickHouseUtils;
+import com.clickhouse.data.ClickHouseVersion;
+import com.clickhouse.logging.Logger;
+import com.clickhouse.logging.LoggerFactory;
 
 /**
  * This class depicts a ClickHouse server, essentially a combination of host,

@@ -2,28 +2,48 @@ package com.clickhouse.client;
 
 import com.clickhouse.client.ClickHouseClientBuilder.Agent;
 import com.clickhouse.client.ClickHouseTransaction.XID;
-import com.clickhouse.client.config.ClickHouseBufferingMode;
 import com.clickhouse.client.config.ClickHouseClientOption;
-import com.clickhouse.client.config.ClickHouseOption;
-import com.clickhouse.client.config.ClickHouseRenameMethod;
 import com.clickhouse.client.config.ClickHouseSslMode;
-import com.clickhouse.client.data.BinaryStreamUtils;
-import com.clickhouse.client.data.ClickHouseBigDecimalValue;
-import com.clickhouse.client.data.ClickHouseBigIntegerValue;
-import com.clickhouse.client.data.ClickHouseByteValue;
-import com.clickhouse.client.data.ClickHouseDateTimeValue;
-import com.clickhouse.client.data.ClickHouseEnumValue;
-import com.clickhouse.client.data.ClickHouseExternalTable;
-import com.clickhouse.client.data.ClickHouseIntegerValue;
-import com.clickhouse.client.data.ClickHouseIpv4Value;
-import com.clickhouse.client.data.ClickHouseIpv6Value;
-import com.clickhouse.client.data.ClickHouseLongValue;
-import com.clickhouse.client.data.ClickHouseOffsetDateTimeValue;
-import com.clickhouse.client.data.ClickHouseStringValue;
-import com.clickhouse.client.data.UnsignedByte;
-import com.clickhouse.client.data.UnsignedInteger;
-import com.clickhouse.client.data.UnsignedLong;
-import com.clickhouse.client.data.UnsignedShort;
+import com.clickhouse.config.ClickHouseBufferingMode;
+import com.clickhouse.config.ClickHouseOption;
+import com.clickhouse.config.ClickHouseRenameMethod;
+import com.clickhouse.data.ClickHouseArraySequence;
+import com.clickhouse.data.ClickHouseColumn;
+import com.clickhouse.data.ClickHouseCompression;
+import com.clickhouse.data.ClickHouseDataConfig;
+import com.clickhouse.data.ClickHouseDataProcessor;
+import com.clickhouse.data.ClickHouseDataStreamFactory;
+import com.clickhouse.data.ClickHouseDataType;
+import com.clickhouse.data.ClickHouseExternalTable;
+import com.clickhouse.data.ClickHouseFile;
+import com.clickhouse.data.ClickHouseFormat;
+import com.clickhouse.data.ClickHouseInputStream;
+import com.clickhouse.data.ClickHouseOutputStream;
+import com.clickhouse.data.ClickHousePipedOutputStream;
+import com.clickhouse.data.ClickHouseRecord;
+import com.clickhouse.data.ClickHouseUtils;
+import com.clickhouse.data.ClickHouseValue;
+import com.clickhouse.data.ClickHouseValues;
+import com.clickhouse.data.ClickHouseVersion;
+import com.clickhouse.data.ClickHouseWriter;
+import com.clickhouse.data.format.BinaryStreamUtils;
+import com.clickhouse.data.value.ClickHouseBigDecimalValue;
+import com.clickhouse.data.value.ClickHouseBigIntegerValue;
+import com.clickhouse.data.value.ClickHouseByteValue;
+import com.clickhouse.data.value.ClickHouseDateTimeValue;
+import com.clickhouse.data.value.ClickHouseEnumValue;
+import com.clickhouse.data.value.ClickHouseIntegerValue;
+import com.clickhouse.data.value.ClickHouseIpv4Value;
+import com.clickhouse.data.value.ClickHouseIpv6Value;
+import com.clickhouse.data.value.ClickHouseLongValue;
+import com.clickhouse.data.value.ClickHouseOffsetDateTimeValue;
+import com.clickhouse.data.value.ClickHouseStringValue;
+import com.clickhouse.data.value.UnsignedByte;
+import com.clickhouse.data.value.UnsignedInteger;
+import com.clickhouse.data.value.UnsignedLong;
+import com.clickhouse.data.value.UnsignedShort;
+
+import org.apache.commons.compress.compressors.lz4.FramedLZ4CompressorInputStream;
 import org.testng.Assert;
 import org.testng.SkipException;
 import org.testng.annotations.DataProvider;
@@ -207,6 +227,39 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
             }
         }
         return array;
+    }
+
+    @DataProvider(name = "requestCompressionMatrix")
+    protected Object[][] getRequestCompressionMatrix() {
+        return new Object[][] {
+                { ClickHouseCompression.NONE, -2, 2, 1 },
+                { ClickHouseCompression.BROTLI, -2, 12, 1 }, // [-1, 11]
+                { ClickHouseCompression.BZ2, -2, 2, 1 },
+                { ClickHouseCompression.DEFLATE, -2, 10, 1 }, // [0, 9]
+                { ClickHouseCompression.GZIP, -2, 10, 1 }, // [-1, 9]
+                { ClickHouseCompression.LZ4, -2, 19, 1 }, // [0, 18]
+                { ClickHouseCompression.SNAPPY, -2, 513, 1024 }, // [1 * 1024, 32 * 1024]
+                { ClickHouseCompression.XZ, -2, 10, 1 }, // [0, 9]
+                { ClickHouseCompression.ZSTD, -2, 23, 1 }, // [0, 22]
+        };
+    }
+
+    @DataProvider(name = "mixedCompressionMatrix")
+    protected Object[][] getMixedCompressionMatrix() {
+        ClickHouseCompression[] supportedRequestCompression = { ClickHouseCompression.NONE, ClickHouseCompression.LZ4,
+                ClickHouseCompression.ZSTD };
+        ClickHouseCompression[] supportedResponseCompression = { ClickHouseCompression.NONE,
+                ClickHouseCompression.BROTLI, ClickHouseCompression.BZ2, ClickHouseCompression.DEFLATE,
+                ClickHouseCompression.GZIP, ClickHouseCompression.LZ4, ClickHouseCompression.XZ,
+                ClickHouseCompression.SNAPPY, ClickHouseCompression.ZSTD };
+        Object[][] matrix = new Object[supportedRequestCompression.length * supportedResponseCompression.length][];
+        int i = 0;
+        for (ClickHouseCompression reqComp : supportedRequestCompression) {
+            for (ClickHouseCompression respComp : supportedResponseCompression) {
+                matrix[i++] = new Object[] { reqComp, respComp };
+            }
+        }
+        return matrix;
     }
 
     @DataProvider(name = "primitiveArrayMatrix")
@@ -435,6 +488,125 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
                 exp = e;
             }
             Assert.assertEquals(exp.getErrorCode(), 81, "Expected error code 81 but we got: " + exp.getMessage());
+        }
+    }
+
+    @Test(dataProvider = "requestCompressionMatrix", groups = "integration")
+    public void testCompressedRequest(ClickHouseCompression compression, int startLevel, int endLevel, int step)
+            throws Exception {
+        final ClickHouseNode server = getServer();
+        final int readBufferSize = ClickHouseDataConfig.getDefaultReadBufferSize();
+
+        if (compression == ClickHouseCompression.SNAPPY) {
+            if (!checkServerVersion(getClient(), server, "[22.3,)")) {
+                throw new SkipException("Snappy decompression was supported since 22.3");
+            }
+        }
+
+        final int chunkSize = new ClickHouseConfig().getRequestChunkSize();
+        final int randomLength = chunkSize * 5 + (int) (System.currentTimeMillis() % chunkSize);
+        for (int i = startLevel; i <= endLevel; i += step) {
+            final String tableName = ClickHouseUtils.format("test_%s_request_compress_%s_level%s",
+                    server.getProtocol().name().toLowerCase(), compression.encoding(),
+                    i < 0 ? "_" + Math.abs(i) : Integer.toString(i));
+            final ByteArrayOutputStream o = new ByteArrayOutputStream();
+            try (ClickHouseOutputStream out = ClickHouseOutputStream.of(o, readBufferSize, compression, i, null)) {
+                out.write("1,23\n4,56".getBytes());
+                out.flush();
+            } catch (IOException e) {
+                throw ClickHouseException.of(e, server);
+            }
+            try (ClickHouseClient client = getClient()) {
+                final ClickHouseRequest<?> request = newRequest(client, server)
+                        .format(ClickHouseFormat.RowBinaryWithNamesAndTypes)
+                        .compressServerResponse(false)
+                        .decompressClientRequest(true, compression, i);
+                ClickHouseClient.send(server, "drop table if exists " + tableName,
+                        "create table " + tableName + "(i Int32, s String)engine=MergeTree() order by i").get();
+                try (ClickHouseResponse response = request.write().table(tableName).data(w -> {
+                    for (int k = 0; k < randomLength; k++) {
+                        BinaryStreamUtils.writeInt32(w, k);
+                        w.writeUnicodeString(Integer.toString(k));
+                    }
+                }).executeAndWait()) {
+                    // ignore
+                }
+
+                try (ClickHouseResponse response = request
+                        .external(
+                                // external table with compressed data
+                                ClickHouseExternalTable.builder().name("x").columns("i Int32, s String")
+                                        .compression(compression)
+                                        .format(ClickHouseFormat.CSV)
+                                        .content(new ByteArrayInputStream(o.toByteArray())).build(),
+                                // external table without compression
+                                ClickHouseExternalTable.builder().name("y").columns("s String, i Int32")
+                                        .format(ClickHouseFormat.TSV)
+                                        .content(new ByteArrayInputStream("32\t1\n43\t2\n54\t3\n65\t4".getBytes()))
+                                        .build())
+                        .query("select x.* from x inner join y on x.i = y.i where i in (select i from " + tableName
+                                + ")")
+                        .executeAndWait()) {
+                    int j = 0;
+                    for (ClickHouseRecord r : response.records()) {
+                        Assert.assertEquals(r.getValue(0).asInteger(), j == 0 ? 1 : 4);
+                        Assert.assertEquals(r.getValue(1).asInteger(), j == 0 ? 23 : 56);
+                        j++;
+                    }
+                    Assert.assertEquals(j, 2);
+                }
+            }
+        }
+    }
+
+    @Test(dataProvider = "mixedCompressionMatrix", groups = "integration")
+    public void testDecompressResponse(ClickHouseCompression reqComp, ClickHouseCompression respComp) throws Exception {
+        if (reqComp == ClickHouseCompression.SNAPPY || respComp == ClickHouseCompression.BZ2) {
+            if (!checkServerVersion(getClient(), getServer(), "[22.10,)")) {
+                throw new SkipException("Snappy and bz2 were all supported since 22.10");
+            }
+        }
+
+        final ClickHouseNode server = getServer();
+        final int rows = 50_000;
+        final String sql = ClickHouseUtils.format("select number n, toString(number+1) s from numbers(%d)", rows);
+        try (ClickHouseClient client = getClient()) {
+            ClickHouseRequest<?> request = newRequest(client, server)
+                    .format(ClickHouseFormat.RowBinaryWithNamesAndTypes)
+                    .decompressClientRequest(true, reqComp)
+                    .compressServerResponse(true, respComp)
+                    .query(sql);
+            try (ClickHouseResponse response = request.executeAndWait()) {
+                int i = 0;
+                for (ClickHouseRecord r : response.records()) {
+                    Assert.assertEquals(r.getValue(0).asInteger(), i++);
+                    Assert.assertEquals(r.getValue(1).asInteger(), i);
+                }
+                Assert.assertEquals(i, rows);
+            }
+
+            File tmp = ClickHouseUtils.createTempFile(respComp.encoding(), respComp.fileExtension(), true);
+            try (ClickHouseResponse response = request.output(tmp.toString()).format(ClickHouseFormat.CSV)
+                    .executeAndWait()) {
+                response.close();
+
+                Assert.assertTrue(tmp.exists());
+                Assert.assertNotEquals(Files.size(tmp.toPath()), 0L);
+
+                int i = 0;
+                try (BufferedReader reader = new BufferedReader(new InputStreamReader(
+                        ClickHouseProtocol.GRPC == server.getProtocol() && respComp == ClickHouseCompression.LZ4
+                                ? new FramedLZ4CompressorInputStream(new FileInputStream(tmp))
+                                : ClickHouseInputStream.of(new FileInputStream(tmp),
+                                        request.getConfig().getReadBufferSize(), respComp,
+                                        request.getConfig().getResponseCompressLevel(), null)))) {
+                    String line = null;
+                    while ((line = reader.readLine()) != null) {
+                        Assert.assertEquals(line, ClickHouseUtils.format("%d,\"%d\"", i++, i));
+                    }
+                }
+                Assert.assertEquals(i, rows);
+            }
         }
     }
 
@@ -1295,7 +1467,7 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
                 "create table test_dump_load_file(a UInt64, b Nullable(String)) engine=MergeTree() order by tuple()");
 
         final int rows = 10000;
-        final Path tmp = Paths.get(System.getProperty("java.io.tmpdir"), "file.json");
+        final Path tmp = Paths.get(System.getProperty("java.io.tmpdir"), "file.csv");
         ClickHouseFile file = ClickHouseFile.of(tmp);
         try {
             ClickHouseClient.dump(server,
@@ -1485,8 +1657,8 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
     @Test(dataProvider = "fileProcessMatrix", groups = "integration")
     public void testLoadFile(boolean gzipCompressed, boolean useOneLiner) throws ClickHouseException, IOException {
         ClickHouseNode server = getServer();
-        if (server.getProtocol() != ClickHouseProtocol.HTTP) {
-            throw new SkipException("Skip as only http implementation works well");
+        if (server.getProtocol() != ClickHouseProtocol.GRPC && server.getProtocol() != ClickHouseProtocol.HTTP) {
+            throw new SkipException("Skip as only http and grpc implementation work well");
         }
 
         File file = File.createTempFile("chc", ".data");
@@ -1511,8 +1683,7 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
         sendAndWait(server, "drop table if exists test_load_file",
                 "create table test_load_file(a Int32, b Nullable(String))engine=Memory");
         ClickHouseFile wrappedFile = ClickHouseFile.of(file,
-                gzipCompressed ? ClickHouseCompression.GZIP : ClickHouseCompression.NONE, 0,
-                ClickHouseFormat.CSV);
+                gzipCompressed ? ClickHouseCompression.GZIP : ClickHouseCompression.NONE, -1, ClickHouseFormat.CSV);
         if (useOneLiner) {
             try {
                 ClickHouseClient.load(server, "test_load_file", wrappedFile).get();
@@ -1631,7 +1802,7 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
     }
 
     @Test(groups = { "integration" })
-    public void testInsertWithCustomFormat() throws ClickHouseException, IOException {
+    public void testInsertWithCustomFormat() throws ClickHouseException {
         ClickHouseNode server = getServer();
         sendAndWait(server, "drop table if exists test_custom_input_format",
                 "create table test_custom_input_format(i Int8, f String)engine=Memory");
@@ -1653,9 +1824,11 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
             Assert.assertEquals(Files.size(temp), 0L);
             Files.write(temp, "i,f\n4,CSVWithNames\n5,CSVWithNames\n".getBytes(StandardCharsets.US_ASCII));
             Assert.assertTrue(Files.size(temp) > 0L);
-            try (ClickHouseResponse response = request.write().format(ClickHouseFormat.CSVWithNames)
+            try (ClickHouseResponse response = request.write()
                     .table("test_custom_input_format")
-                    .data(temp.toFile().getAbsolutePath()).executeAndWait()) {
+                    .data(temp.toFile().getAbsolutePath()) // format is now CSV
+                    .format(ClickHouseFormat.CSVWithNames) // change format to CSVWithNames
+                    .executeAndWait()) {
                 // ignore
             }
 
@@ -1669,6 +1842,8 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
                 }
                 Assert.assertEquals(count, 5);
             }
+        } catch (IOException e) {
+            throw ClickHouseException.of(e, server);
         }
     }
 

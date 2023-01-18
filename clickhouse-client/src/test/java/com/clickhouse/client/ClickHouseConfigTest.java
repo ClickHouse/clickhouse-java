@@ -9,8 +9,8 @@ import java.util.Map;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 import com.clickhouse.client.config.ClickHouseClientOption;
-import com.clickhouse.client.config.ClickHouseOption;
 import com.clickhouse.client.config.ClickHouseDefaults;
+import com.clickhouse.config.ClickHouseOption;
 
 public class ClickHouseConfigTest {
     @Test(groups = { "unit" })

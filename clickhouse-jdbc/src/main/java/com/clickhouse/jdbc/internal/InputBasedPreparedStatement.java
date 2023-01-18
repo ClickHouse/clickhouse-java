@@ -19,17 +19,17 @@ import java.util.Calendar;
 import java.util.Collections;
 import java.util.List;
 
-import com.clickhouse.client.ClickHouseColumn;
 import com.clickhouse.client.ClickHouseConfig;
-import com.clickhouse.client.ClickHouseDataProcessor;
-import com.clickhouse.client.ClickHouseDataStreamFactory;
-import com.clickhouse.client.ClickHousePipedOutputStream;
 import com.clickhouse.client.ClickHouseRequest;
-import com.clickhouse.client.ClickHouseUtils;
-import com.clickhouse.client.ClickHouseValue;
-import com.clickhouse.client.ClickHouseValues;
-import com.clickhouse.client.logging.Logger;
-import com.clickhouse.client.logging.LoggerFactory;
+import com.clickhouse.data.ClickHouseColumn;
+import com.clickhouse.data.ClickHouseDataProcessor;
+import com.clickhouse.data.ClickHouseDataStreamFactory;
+import com.clickhouse.data.ClickHousePipedOutputStream;
+import com.clickhouse.data.ClickHouseUtils;
+import com.clickhouse.data.ClickHouseValue;
+import com.clickhouse.data.ClickHouseValues;
+import com.clickhouse.logging.Logger;
+import com.clickhouse.logging.LoggerFactory;
 import com.clickhouse.jdbc.ClickHousePreparedStatement;
 import com.clickhouse.jdbc.SqlExceptionUtils;
 

@@ -1,21 +1,23 @@
 package com.clickhouse.client.http;
 
 import com.clickhouse.client.AbstractSocketClient;
-import com.clickhouse.client.ClickHouseChecker;
+
 import com.clickhouse.client.ClickHouseClient;
 import com.clickhouse.client.ClickHouseConfig;
-import com.clickhouse.client.ClickHouseFormat;
-import com.clickhouse.client.ClickHouseInputStream;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseSslContextProvider;
-import com.clickhouse.client.ClickHouseUtils;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.config.ClickHouseSslMode;
-import com.clickhouse.client.data.ClickHouseExternalTable;
 import com.clickhouse.client.http.config.ClickHouseHttpOption;
-import com.clickhouse.client.logging.Logger;
-import com.clickhouse.client.logging.LoggerFactory;
+import com.clickhouse.data.ClickHouseChecker;
+import com.clickhouse.data.ClickHouseExternalTable;
+import com.clickhouse.data.ClickHouseFormat;
+import com.clickhouse.data.ClickHouseInputStream;
+import com.clickhouse.data.ClickHouseOutputStream;
+import com.clickhouse.data.ClickHouseUtils;
+import com.clickhouse.logging.Logger;
+import com.clickhouse.logging.LoggerFactory;
 import org.apache.hc.client5.http.classic.methods.HttpGet;
 import org.apache.hc.client5.http.classic.methods.HttpPost;
 import org.apache.hc.client5.http.config.ConnectionConfig;
@@ -55,6 +57,8 @@ import java.util.Map;
 import java.util.TimeZone;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLException;
 
@@ -64,26 +68,29 @@ import javax.net.ssl.SSLException;
 public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
     private static final Logger log = LoggerFactory.getLogger(ApacheHttpConnectionImpl.class);
 
+    private final AtomicBoolean busy;
     private final CloseableHttpClient client;
 
     protected ApacheHttpConnectionImpl(ClickHouseNode server, ClickHouseRequest<?> request, ExecutorService executor)
             throws IOException {
         super(server, request);
-        client = newConnection();
+
+        busy = new AtomicBoolean(false);
+        client = newConnection(config);
     }
 
-    private CloseableHttpClient newConnection() throws IOException {
+    private CloseableHttpClient newConnection(ClickHouseConfig c) throws IOException {
         RegistryBuilder<ConnectionSocketFactory> r = RegistryBuilder.<ConnectionSocketFactory>create()
-                .register("http", SocketFactory.create(config));
-        if (config.isSsl()) {
-            r.register("https", SSLSocketFactory.create(config));
+                .register("http", SocketFactory.create(c));
+        if (c.isSsl()) {
+            r.register("https", SSLSocketFactory.create(c));
         }
-        return HttpClientBuilder.create().setConnectionManager(new HttpConnectionManager(r.build(), config))
+        return HttpClientBuilder.create().setConnectionManager(new HttpConnectionManager(r.build(), c))
                 .disableContentCompression().build();
     }
 
-    private ClickHouseHttpResponse buildResponse(CloseableHttpResponse response, ClickHouseConfig config,
-            Runnable postCloseAction) throws IOException {
+    private ClickHouseHttpResponse buildResponse(ClickHouseConfig config, CloseableHttpResponse response,
+            ClickHouseOutputStream output, Runnable postCloseAction) throws IOException {
         // X-ClickHouse-Server-Display-Name: xxx
         // X-ClickHouse-Query-Id: xxx
         // X-ClickHouse-Format: RowBinaryWithNamesAndTypes
@@ -94,10 +101,9 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
         String queryId = getResponseHeader(response, "X-ClickHouse-Query-Id", "");
         String summary = getResponseHeader(response, "X-ClickHouse-Summary", "{}");
 
-        ClickHouseConfig c = config;
-        ClickHouseFormat format = c.getFormat();
-        TimeZone timeZone = c.getServerTimeZone();
-        boolean hasOutputFile = output != null && output.getUnderlyingStream().hasOutput();
+        ClickHouseFormat format = config.getFormat();
+        TimeZone timeZone = config.getServerTimeZone();
+        boolean hasCustomOutput = output != null && output.getUnderlyingStream().hasOutput();
         boolean hasQueryResult = false;
         // queryId, format and timeZone are only available for queries
         if (!ClickHouseChecker.isNullOrEmpty(queryId)) {
@@ -117,7 +123,7 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
             source = ClickHouseInputStream.empty();
             action = () -> {
                 try (OutputStream o = output) {
-                    ClickHouseInputStream.pipe(response.getEntity().getContent(), o, c.getWriteBufferSize());
+                    ClickHouseInputStream.pipe(response.getEntity().getContent(), o, config.getWriteBufferSize());
                     if (postCloseAction != null) {
                         postCloseAction.run();
                     }
@@ -130,9 +136,9 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
             action = postCloseAction;
         }
         return new ClickHouseHttpResponse(this,
-                hasOutputFile ? ClickHouseInputStream.of(source, c.getReadBufferSize(), action)
-                        : (hasQueryResult ? ClickHouseClient.getAsyncResponseInputStream(c, source, action)
-                                : ClickHouseClient.getResponseInputStream(c, source, action)),
+                hasCustomOutput ? ClickHouseInputStream.of(source, config.getReadBufferSize(), action)
+                        : (hasQueryResult ? ClickHouseClient.getAsyncResponseInputStream(config, source, action)
+                                : ClickHouseClient.getResponseInputStream(config, source, action)),
                 displayName, queryId, summary, format, timeZone);
     }
 
@@ -151,7 +157,7 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
         }
     }
 
-    private void checkResponse(CloseableHttpResponse response) throws IOException {
+    private void checkResponse(ClickHouseConfig config, CloseableHttpResponse response) throws IOException {
         if (response.getCode() == HttpURLConnection.HTTP_OK) {
             return;
         }
@@ -168,7 +174,7 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
 
         String errorMsg;
 
-        int bufferSize = (int) ClickHouseClientOption.BUFFER_SIZE.getDefaultValue();
+        int bufferSize = config.getReadBufferSize();
         ByteArrayOutputStream output = new ByteArrayOutputStream(bufferSize);
         ClickHouseInputStream.pipe(response.getEntity().getContent(), output, bufferSize);
         byte[] bytes = output.toByteArray();
@@ -195,33 +201,42 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
 
     @Override
     protected boolean isReusable() {
-        return true;
+        return busy.get();
     }
 
-    protected ClickHouseHttpResponse post(String sql, ClickHouseInputStream data, List<ClickHouseExternalTable> tables,
-            String url, Map<String, String> headers, ClickHouseConfig config, Runnable postCloseAction)
-            throws IOException {
-        HttpPost post = new HttpPost(url == null ? this.url : url);
-        setHeaders(post, headers);
-        byte[] boundary = null;
-        String contentType = "text/plain; charset=UTF-8";
-        if (tables != null && !tables.isEmpty()) {
-            String uuid = rm.createUniqueId();
-            contentType = "multipart/form-data; boundary=".concat(uuid);
-            boundary = uuid.getBytes(StandardCharsets.US_ASCII);
+    @Override
+    protected ClickHouseHttpResponse post(ClickHouseConfig config, String sql, ClickHouseInputStream data,
+            List<ClickHouseExternalTable> tables, ClickHouseOutputStream output, String url,
+            Map<String, String> headers, Runnable postCloseAction) throws IOException {
+        if (!busy.compareAndSet(false, true)) {
+            throw new ConnectException("Connection is busy");
         }
-        post.setHeader("Content-Type", contentType);
 
-        String contentEncoding = headers == null ? null : headers.getOrDefault("content-encoding", null);
-        ClickHouseHttpEntity postBody = new ClickHouseHttpEntity(config, contentType, contentEncoding, boundary, sql,
-                data, tables);
-        post.setEntity(postBody);
-        CloseableHttpResponse response = client.execute(post);
+        try {
+            HttpPost post = new HttpPost(url == null ? this.url : url);
+            setHeaders(post, headers);
+            byte[] boundary = null;
+            String contentType = "text/plain; charset=UTF-8";
+            if (tables != null && !tables.isEmpty()) {
+                String uuid = rm.createUniqueId();
+                contentType = "multipart/form-data; boundary=".concat(uuid);
+                boundary = uuid.getBytes(StandardCharsets.US_ASCII);
+            }
+            post.setHeader("Content-Type", contentType);
 
-        checkResponse(response);
-        // buildResponse should use the config of current request in case of reusable
-        // connection.
-        return buildResponse(response, config, postCloseAction);
+            String contentEncoding = headers == null ? null : headers.getOrDefault("content-encoding", null);
+            ClickHouseHttpEntity postBody = new ClickHouseHttpEntity(config, contentType, contentEncoding, boundary,
+                    sql, data, tables);
+            post.setEntity(postBody);
+            CloseableHttpResponse response = client.execute(post);
+
+            checkResponse(config, response);
+            // buildResponse should use the config of current request in case of reusable
+            // connection.
+            return buildResponse(config, response, output, postCloseAction);
+        } finally {
+            busy.set(false);
+        }
     }
 
     @Override
@@ -229,11 +244,12 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
         String url = getBaseUrl().concat("ping");
         HttpGet ping = new HttpGet(url);
 
-        try (CloseableHttpClient httpClient = newConnection();
+        ClickHouseConfig c = config;
+        try (CloseableHttpClient httpClient = newConnection(c);
                 CloseableHttpResponse response = httpClient.execute(ping)) {
             // TODO set timeout
-            checkResponse(response);
-            String ok = config.getStrOption(ClickHouseHttpOption.DEFAULT_RESPONSE);
+            checkResponse(c, response);
+            String ok = c.getStrOption(ClickHouseHttpOption.DEFAULT_RESPONSE);
             return ok.equals(EntityUtils.toString(response.getEntity()));
 
         } catch (Exception e) {
@@ -293,9 +309,9 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
         static {
             String versionInfo = null;
             try {
-                versionInfo = VersionInfo
-                        .getSoftwareInfo(PROVIDER, "org.apache.hc.client5", HttpClientBuilder.class)
-                        .split("\\s")[0];
+                String pkg = VersionInfo.class.getPackage().getName();
+                pkg = pkg.substring(0, pkg.lastIndexOf('.'));
+                versionInfo = VersionInfo.getSoftwareInfo(PROVIDER, pkg, HttpClientBuilder.class).split("\\s")[0];
             } catch (Throwable e) { // NOSONAR
                 // ignore
             }

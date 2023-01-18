@@ -3,6 +3,8 @@ package com.clickhouse.client;
 import java.util.Optional;
 import javax.net.ssl.SSLException;
 
+import com.clickhouse.data.ClickHouseUtils;
+
 /**
  * This interface defines how to build Netty SSL context based on given
  * configuration and target server.

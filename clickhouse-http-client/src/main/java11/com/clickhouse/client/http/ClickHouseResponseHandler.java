@@ -13,8 +13,8 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.Flow.Subscription;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import com.clickhouse.client.ClickHouseByteBuffer;
-import com.clickhouse.client.ClickHouseInputStream;
+import com.clickhouse.data.ClickHouseByteBuffer;
+import com.clickhouse.data.ClickHouseInputStream;
 
 public class ClickHouseResponseHandler implements BodySubscriber<InputStream> {
     // An immutable ByteBuffer sentinel to mark that the last byte was received.

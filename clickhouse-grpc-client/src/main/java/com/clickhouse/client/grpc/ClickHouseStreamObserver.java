@@ -10,23 +10,24 @@ import io.grpc.Status;
 import io.grpc.StatusException;
 import io.grpc.stub.StreamObserver;
 
-import com.clickhouse.client.ClickHouseCompression;
 import com.clickhouse.client.ClickHouseConfig;
-import com.clickhouse.client.ClickHouseDataStreamFactory;
 import com.clickhouse.client.ClickHouseException;
-import com.clickhouse.client.ClickHouseInputStream;
 import com.clickhouse.client.ClickHouseNode;
-import com.clickhouse.client.ClickHouseOutputStream;
-import com.clickhouse.client.ClickHousePipedOutputStream;
 import com.clickhouse.client.ClickHouseResponseSummary;
-import com.clickhouse.client.ClickHouseUtils;
 import com.clickhouse.client.grpc.impl.Exception;
 import com.clickhouse.client.grpc.impl.LogEntry;
 import com.clickhouse.client.grpc.impl.Progress;
 import com.clickhouse.client.grpc.impl.Result;
 import com.clickhouse.client.grpc.impl.Stats;
-import com.clickhouse.client.logging.Logger;
-import com.clickhouse.client.logging.LoggerFactory;
+import com.clickhouse.data.ClickHouseCompression;
+import com.clickhouse.data.ClickHouseDataConfig;
+import com.clickhouse.data.ClickHouseDataStreamFactory;
+import com.clickhouse.data.ClickHouseInputStream;
+import com.clickhouse.data.ClickHouseOutputStream;
+import com.clickhouse.data.ClickHousePipedOutputStream;
+import com.clickhouse.data.ClickHouseUtils;
+import com.clickhouse.logging.Logger;
+import com.clickhouse.logging.LoggerFactory;
 
 public class ClickHouseStreamObserver implements StreamObserver<Result> {
     private static final Logger log = LoggerFactory.getLogger(ClickHouseStreamObserver.class);
@@ -58,7 +59,8 @@ public class ClickHouseStreamObserver implements StreamObserver<Result> {
         if (output != null) {
             this.stream = output;
             this.input = ClickHouseInputStream.wrap(null, ClickHouseInputStream.empty(),
-                    config.getReadBufferSize(), postCloseAction, ClickHouseCompression.NONE, 0);
+                    config.getReadBufferSize(), ClickHouseCompression.NONE,
+                    ClickHouseDataConfig.DEFAULT_READ_COMPRESS_LEVEL, postCloseAction);
         } else {
             ClickHousePipedOutputStream pipedStream = ClickHouseDataStreamFactory.getInstance()
                     .createPipedOutputStream(config, null);

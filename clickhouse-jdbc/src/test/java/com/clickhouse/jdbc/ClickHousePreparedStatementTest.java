@@ -33,19 +33,19 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 
 import com.clickhouse.client.ClickHouseConfig;
-import com.clickhouse.client.ClickHouseDataStreamFactory;
-import com.clickhouse.client.ClickHouseDataType;
-import com.clickhouse.client.ClickHouseFormat;
-import com.clickhouse.client.ClickHouseInputStream;
-import com.clickhouse.client.ClickHouseOutputStream;
-import com.clickhouse.client.ClickHousePipedOutputStream;
 import com.clickhouse.client.ClickHouseProtocol;
-import com.clickhouse.client.ClickHouseWriter;
 import com.clickhouse.client.config.ClickHouseClientOption;
-import com.clickhouse.client.data.ClickHouseBitmap;
-import com.clickhouse.client.data.ClickHouseExternalTable;
-import com.clickhouse.client.data.UnsignedInteger;
-import com.clickhouse.client.data.UnsignedLong;
+import com.clickhouse.data.ClickHouseDataStreamFactory;
+import com.clickhouse.data.ClickHouseDataType;
+import com.clickhouse.data.ClickHouseExternalTable;
+import com.clickhouse.data.ClickHouseFormat;
+import com.clickhouse.data.ClickHouseInputStream;
+import com.clickhouse.data.ClickHouseOutputStream;
+import com.clickhouse.data.ClickHousePipedOutputStream;
+import com.clickhouse.data.ClickHouseWriter;
+import com.clickhouse.data.value.ClickHouseBitmap;
+import com.clickhouse.data.value.UnsignedInteger;
+import com.clickhouse.data.value.UnsignedLong;
 import com.clickhouse.jdbc.internal.InputBasedPreparedStatement;
 import com.clickhouse.jdbc.internal.SqlBasedPreparedStatement;
 import com.clickhouse.jdbc.internal.StreamBasedPreparedStatement;
@@ -1203,6 +1203,30 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
                     exp = e;
                 }
                 Assert.assertTrue(exp.getClass() == SQLException.class);
+            }
+        }
+    }
+
+    @Test(groups = "integration")
+    public void testInsertByteArray() throws SQLException {
+        Properties props = new Properties();
+        props.setProperty("use_binary_string", "true");
+        try (ClickHouseConnection conn = newConnection(props); Statement s = conn.createStatement()) {
+            s.execute("drop table if exists test_insert_byte_array;"
+                    + "create table test_insert_byte_array(id String, b Array(Int8), s Array(Array(Int8))) engine=Memory");
+            try (PreparedStatement stmt = conn.prepareStatement(
+                    "insert into test_insert_byte_array(id, b, s) values (?,?,?)")) {
+                stmt.setString(1, "1");
+                stmt.setObject(2, new byte[] { 1, 2, 3 });
+                stmt.setObject(3, new byte[][] { { 1, 2, 3 }, { 4, 5, 6 } });
+                Assert.assertEquals(stmt.executeUpdate(), 1);
+
+                ResultSet rs = s.executeQuery("select * from test_insert_byte_array order by id");
+                Assert.assertTrue(rs.next());
+                Assert.assertEquals(rs.getInt(1), 1);
+                Assert.assertEquals(rs.getObject(2), new byte[] { 1, 2, 3 });
+                Assert.assertEquals(rs.getObject(3), new byte[][] { { 1, 2, 3 }, { 4, 5, 6 } });
+                Assert.assertFalse(rs.next());
             }
         }
     }

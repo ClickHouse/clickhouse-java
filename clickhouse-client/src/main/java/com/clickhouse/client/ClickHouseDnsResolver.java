@@ -3,9 +3,10 @@ package com.clickhouse.client;
 import java.net.InetSocketAddress;
 
 import com.clickhouse.client.config.ClickHouseDefaults;
-import com.clickhouse.client.logging.Logger;
-import com.clickhouse.client.logging.LoggerFactory;
 import com.clickhouse.client.naming.SrvResolver;
+import com.clickhouse.data.ClickHouseUtils;
+import com.clickhouse.logging.Logger;
+import com.clickhouse.logging.LoggerFactory;
 
 /**
  * Default DNS resolver. It tries to look up service record (SRV record) when

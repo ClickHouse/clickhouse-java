@@ -15,23 +15,23 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Map.Entry;
 
-import com.clickhouse.client.ClickHouseChecker;
 import com.clickhouse.client.ClickHouseClient;
-import com.clickhouse.client.ClickHouseCompression;
 import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseCredentials;
-import com.clickhouse.client.ClickHouseInputStream;
 import com.clickhouse.client.ClickHouseNode;
-import com.clickhouse.client.ClickHouseOutputStream;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseRequestManager;
-import com.clickhouse.client.ClickHouseUtils;
 import com.clickhouse.client.config.ClickHouseClientOption;
-import com.clickhouse.client.config.ClickHouseOption;
-import com.clickhouse.client.data.ClickHouseExternalTable;
 import com.clickhouse.client.http.config.ClickHouseHttpOption;
-import com.clickhouse.client.logging.Logger;
-import com.clickhouse.client.logging.LoggerFactory;
+import com.clickhouse.config.ClickHouseOption;
+import com.clickhouse.data.ClickHouseChecker;
+import com.clickhouse.data.ClickHouseCompression;
+import com.clickhouse.data.ClickHouseExternalTable;
+import com.clickhouse.data.ClickHouseInputStream;
+import com.clickhouse.data.ClickHouseOutputStream;
+import com.clickhouse.data.ClickHouseUtils;
+import com.clickhouse.logging.Logger;
+import com.clickhouse.logging.LoggerFactory;
 
 public abstract class ClickHouseHttpConnection implements AutoCloseable {
     private static final Logger log = LoggerFactory.getLogger(ClickHouseHttpConnection.class);
@@ -261,15 +261,15 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
 
     protected static void postData(ClickHouseConfig config, byte[] boundary, String sql, ClickHouseInputStream data,
             List<ClickHouseExternalTable> tables, OutputStream requestStream) throws IOException {
-        final boolean hasFile = data != null && data.getUnderlyingStream().hasInput();
+        final boolean hasCustomInput = data != null && data.getUnderlyingStream().hasInput();
 
         try (OutputStream rawOut = requestStream;
-                ClickHouseOutputStream out = hasFile
+                ClickHouseOutputStream out = hasCustomInput
                         ? ClickHouseOutputStream.of(rawOut, config.getWriteBufferSize())
                         : (data != null || boundary != null // NOSONAR
                                 ? ClickHouseClient.getAsyncRequestOutputStream(config, rawOut, null) // latch::countDown)
                                 : ClickHouseClient.getRequestOutputStream(config, rawOut, null))) {
-            byte[] sqlBytes = hasFile ? new byte[0] : sql.getBytes(StandardCharsets.UTF_8);
+            byte[] sqlBytes = hasCustomInput ? new byte[0] : sql.getBytes(StandardCharsets.UTF_8);
             if (boundary != null) {
                 rawOut.write(LINE_PREFIX);
                 rawOut.write(boundary);
@@ -321,24 +321,25 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
         }
     }
 
-    protected final ClickHouseConfig config;
     protected final ClickHouseNode server;
-    protected final ClickHouseOutputStream output;
-    protected final String url;
-    protected final Map<String, String> defaultHeaders;
     protected final ClickHouseRequestManager rm;
+
+    protected final ClickHouseConfig config;
+    protected final Map<String, String> defaultHeaders;
+    protected final String url;
 
     protected ClickHouseHttpConnection(ClickHouseNode server, ClickHouseRequest<?> request) {
         if (server == null || request == null) {
             throw new IllegalArgumentException("Non-null server and request are required");
         }
 
-        this.config = request.getConfig();
         this.server = server;
-        this.output = request.getOutputStream().orElse(null);
-        this.url = buildUrl(server.getBaseUri(), request);
-        this.defaultHeaders = Collections.unmodifiableMap(createDefaultHeaders(config, server, getUserAgent()));
         this.rm = request.getManager();
+
+        ClickHouseConfig c = request.getConfig();
+        this.config = c;
+        this.defaultHeaders = Collections.unmodifiableMap(createDefaultHeaders(c, server, getUserAgent()));
+        this.url = buildUrl(server.getBaseUri(), request);
     }
 
     protected void closeQuietly() {
@@ -350,13 +351,14 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
     }
 
     protected String getBaseUrl() {
-        int index = url.indexOf('?');
+        String u = url;
+        int index = u.indexOf('?');
         if (index < 1) {
-            index = url.length();
+            index = u.length();
         }
 
-        String baseUrl = url.substring(0, index);
-        if (url.charAt(index - 1) != '/') {
+        String baseUrl = u.substring(0, index);
+        if (u.charAt(index - 1) != '/') {
             baseUrl = baseUrl.concat("/");
         }
 
@@ -368,14 +370,15 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
     }
 
     protected final String getUserAgent() {
-        String name = config.getClientName();
-        if (!ClickHouseOption.DEFAULT_CLIENT_NAME.equals(name)) {
+        final ClickHouseConfig c = config;
+        String name = c.getClientName();
+        if (!ClickHouseClientOption.CLIENT_NAME.getDefaultValue().equals(name)) {
             return name;
         }
 
         String userAgent = getDefaultUserAgent();
-        name = config.getProductName();
-        return ClickHouseOption.DEFAULT_PRODUCT_NAME.equals(name) ? userAgent
+        name = c.getProductName();
+        return ClickHouseClientOption.PRODUCT_NAME.getDefaultValue().equals(name) ? userAgent
                 : new StringBuilder(name).append(userAgent.substring(userAgent.indexOf('/'))).toString();
     }
 
@@ -410,19 +413,20 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
      * Posts query and data to server.
      *
      * @param query           non-blank query
+     * @param config          non-null configuration
      * @param data            optionally input stream for batch updating
      * @param tables          optionally external tables for query
+     * @param output          optionally output stream
      * @param url             optionally url
      * @param headers         optionally request headers
-     * @param config          optionally configuration
      * @param postCloseAction optionally post action
      * @return response
      * @throws IOException when error occured posting request and/or server failed
      *                     to respond
      */
-    protected abstract ClickHouseHttpResponse post(String query, ClickHouseInputStream data,
-            List<ClickHouseExternalTable> tables, String url, Map<String, String> headers, ClickHouseConfig config,
-            Runnable postCloseAction) throws IOException;
+    protected abstract ClickHouseHttpResponse post(ClickHouseConfig config, String query, ClickHouseInputStream data,
+            List<ClickHouseExternalTable> tables, ClickHouseOutputStream output, String url,
+            Map<String, String> headers, Runnable postCloseAction) throws IOException;
 
     /**
      * Checks whether the connection is reusable or not. This method will be called
@@ -447,36 +451,41 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
     public abstract boolean ping(int timeout);
 
     public ClickHouseHttpResponse update(String query) throws IOException {
-        return post(query, null, null, null, null, null, null);
+        return post(config, query, null, null, null, null, null, null);
     }
 
     public ClickHouseHttpResponse update(String query, Map<String, String> headers) throws IOException {
-        return post(query, null, null, null, headers, null, null);
+        return post(config, query, null, null, null, null, headers, null);
     }
 
     public ClickHouseHttpResponse update(String query, ClickHouseInputStream data) throws IOException {
-        return post(query, data, null, null, null, null, null);
+        return post(config, query, data, null, null, null, null, null);
     }
 
     public ClickHouseHttpResponse update(String query, ClickHouseInputStream data, Map<String, String> headers)
             throws IOException {
-        return post(query, data, null, null, headers, null, null);
+        return post(config, query, data, null, null, null, headers, null);
     }
 
     public ClickHouseHttpResponse query(String query) throws IOException {
-        return post(query, null, null, null, null, null, null);
+        return post(config, query, null, null, null, null, null, null);
     }
 
     public ClickHouseHttpResponse query(String query, Map<String, String> headers) throws IOException {
-        return post(query, null, null, null, headers, null, null);
+        return post(config, query, null, null, null, null, headers, null);
     }
 
     public ClickHouseHttpResponse query(String query, List<ClickHouseExternalTable> tables) throws IOException {
-        return post(query, null, tables, null, null, null, null);
+        return post(config, query, null, tables, null, null, null, null);
     }
 
     public ClickHouseHttpResponse query(String query, List<ClickHouseExternalTable> tables, Map<String, String> headers)
             throws IOException {
-        return post(query, null, tables, null, headers, null, null);
+        return post(config, query, null, tables, null, null, headers, null);
+    }
+
+    @Override
+    public void close() throws IOException {
+        // ignore
     }
 }

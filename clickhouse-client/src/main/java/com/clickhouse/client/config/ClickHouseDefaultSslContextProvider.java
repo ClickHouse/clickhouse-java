@@ -29,7 +29,7 @@ import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.X509TrustManager;
 import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseSslContextProvider;
-import com.clickhouse.client.ClickHouseUtils;
+import com.clickhouse.data.ClickHouseUtils;
 
 public class ClickHouseDefaultSslContextProvider implements ClickHouseSslContextProvider {
     static final String PEM_BEGIN_PART1 = "---BEGIN ";

@@ -54,7 +54,7 @@ jobs:
           java-version: 8
           cache: "maven"
       - name: Build and install libraries
-        run: mvn --batch-mode --show-version --strict-checksums --threads C1 -Dmaven.wagon.rto=30000 -DskipITs install
+        run: mvn --batch-mode --show-version --strict-checksums --threads C1 -Dmaven.wagon.rto=30000 -Dj8 -DskipITs install
       - name: Compile examples
         run: for d in $(ls -d `pwd`/examples/*/); do cd $d && mvn clean compile; done
 
@@ -87,7 +87,7 @@ jobs:
             && clickhouse client --version
       - name: Test CLI client
         run: |
-          mvn --also-make --batch-mode --projects clickhouse-cli-client -DclickhouseVersion=22.8 -DskipUTs verify
+          mvn --also-make --batch-mode --projects clickhouse-cli-client -DclickhouseVersion=22.8 -Dj8 -DskipUTs verify
       - name: Upload test results
         uses: actions/upload-artifact@v2
         if: failure()
@@ -121,7 +121,7 @@ jobs:
           distribution: "temurin"
           java-version: |
             8
-            11
+            17
           cache: "maven"
       - name: Setup Toolchain
         shell: bash
@@ -133,7 +133,7 @@ jobs:
             <toolchain>
               <type>jdk</type>
               <provides>
-                <version>11</version>
+                <version>17</version>
               </provides>
               <configuration>
                 <jdkHome>${{ env.JAVA_HOME }}</jdkHome>
@@ -143,7 +143,7 @@ jobs:
           EOF
       - name: Test Java client
         run: |
-          mvn --also-make --batch-mode --projects clickhouse-cli-client,clickhouse-grpc-client,clickhouse-http-client -Drelease -DclickhouseVersion=${{ matrix.clickhouse }} verify
+          mvn --also-make --batch-mode --projects clickhouse-cli-client,clickhouse-grpc-client,clickhouse-http-client -DclickhouseVersion=${{ matrix.clickhouse }} verify
       - name: Upload test results
         uses: actions/upload-artifact@v2
         if: failure()
@@ -181,7 +181,7 @@ jobs:
           distribution: "temurin"
           java-version: |
             8
-            11
+            17
           cache: "maven"
       - name: Setup Toolchain
         shell: bash
@@ -193,7 +193,7 @@ jobs:
             <toolchain>
               <type>jdk</type>
               <provides>
-                <version>11</version>
+                <version>17</version>
               </provides>
               <configuration>
                 <jdkHome>${{ env.JAVA_HOME }}</jdkHome>
@@ -202,10 +202,10 @@ jobs:
           </toolchains>
           EOF
       - name: Install Java client
-        run: mvn --also-make --batch-mode --projects clickhouse-cli-client,clickhouse-grpc-client,clickhouse-http-client -Drelease -DskipTests install
+        run: mvn --also-make --batch-mode --projects clickhouse-cli-client,clickhouse-grpc-client,clickhouse-http-client -DskipTests install
       - name: Test JDBC driver
         run: |
-          mvn --batch-mode --projects clickhouse-jdbc -Drelease -DclickhouseVersion=${{ matrix.clickhouse }} -Dprotocol=${{ matrix.protocol }} verify
+          mvn --batch-mode --projects clickhouse-jdbc -DclickhouseVersion=${{ matrix.clickhouse }} -Dprotocol=${{ matrix.protocol }} verify
       - name: Upload test results
         uses: actions/upload-artifact@v2
         if: failure()
@@ -241,7 +241,7 @@ jobs:
           distribution: "temurin"
           java-version: |
             8
-            11
+            17
           cache: "maven"
       - name: Setup Toolchain
         shell: bash
@@ -253,7 +253,7 @@ jobs:
             <toolchain>
               <type>jdk</type>
               <provides>
-                <version>11</version>
+                <version>17</version>
               </provides>
               <configuration>
                 <jdkHome>${{ env.JAVA_HOME }}</jdkHome>
@@ -262,10 +262,10 @@ jobs:
           </toolchains>
           EOF
       - name: Install Java client
-        run: mvn --also-make --batch-mode --projects clickhouse-jdbc -Drelease -DskipTests install
+        run: mvn --also-make --batch-mode --projects clickhouse-jdbc -DskipTests install
       - name: Test R2DBC ${{ matrix.r2dbc }}
         run: |
-          mvn --batch-mode --projects clickhouse-r2dbc -Drelease -DclickhouseVersion=${{ matrix.clickhouse }} \
+          mvn --batch-mode --projects clickhouse-r2dbc -DclickhouseVersion=${{ matrix.clickhouse }} \
             -D'r2dbc-spi.version=${{ matrix.r2dbc }}' -Dprotocol=${{ matrix.protocol }} verify
       - name: Upload test results
         uses: actions/upload-artifact@v2
@@ -315,12 +315,12 @@ jobs:
           java-version: 8
           cache: "maven"
       - name: Install Java client
-        run: mvn --also-make --batch-mode --projects clickhouse-cli-client,clickhouse-grpc-client,clickhouse-http-client -DskipTests install
+        run: mvn --also-make --batch-mode --projects clickhouse-cli-client,clickhouse-grpc-client,clickhouse-http-client -Dj8 -DskipTests install
       - name: Test JDBC and R2DBC drivers
         run: |
           mvn --batch-mode --projects clickhouse-jdbc,clickhouse-r2dbc -DclickhouseVersion=22.8 \
             -DclickhouseTimezone=${{ matrix.serverTz }} -Duser.timezone=${{ matrix.clientTz }} \
-            -DskipUTs verify
+            -Dj8 -DskipUTs verify
       - name: Upload test results
         uses: actions/upload-artifact@v2
         if: failure()

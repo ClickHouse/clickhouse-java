@@ -16,16 +16,16 @@ import java.util.Properties;
 import java.util.TimeZone;
 import java.util.function.BiFunction;
 
-import com.clickhouse.client.ClickHouseColumn;
 import com.clickhouse.client.ClickHouseConfig;
-import com.clickhouse.client.ClickHouseDataType;
-import com.clickhouse.client.ClickHouseRecord;
-import com.clickhouse.client.ClickHouseValues;
-import com.clickhouse.client.data.ClickHouseDateTimeValue;
-import com.clickhouse.client.data.ClickHouseOffsetDateTimeValue;
-import com.clickhouse.client.data.ClickHouseSimpleResponse;
-import com.clickhouse.client.data.UnsignedByte;
-import com.clickhouse.client.data.UnsignedInteger;
+import com.clickhouse.client.ClickHouseSimpleResponse;
+import com.clickhouse.data.ClickHouseColumn;
+import com.clickhouse.data.ClickHouseDataType;
+import com.clickhouse.data.ClickHouseRecord;
+import com.clickhouse.data.ClickHouseValues;
+import com.clickhouse.data.value.ClickHouseDateTimeValue;
+import com.clickhouse.data.value.ClickHouseOffsetDateTimeValue;
+import com.clickhouse.data.value.UnsignedByte;
+import com.clickhouse.data.value.UnsignedInteger;
 
 import org.testng.Assert;
 import org.testng.SkipException;

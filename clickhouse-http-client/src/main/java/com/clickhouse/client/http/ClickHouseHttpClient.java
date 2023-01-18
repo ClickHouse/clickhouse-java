@@ -17,11 +17,11 @@ import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.ClickHouseTransaction;
-import com.clickhouse.client.config.ClickHouseOption;
-import com.clickhouse.client.data.ClickHouseStreamResponse;
+import com.clickhouse.client.ClickHouseStreamResponse;
 import com.clickhouse.client.http.config.ClickHouseHttpOption;
-import com.clickhouse.client.logging.Logger;
-import com.clickhouse.client.logging.LoggerFactory;
+import com.clickhouse.config.ClickHouseOption;
+import com.clickhouse.logging.Logger;
+import com.clickhouse.logging.LoggerFactory;
 
 public class ClickHouseHttpClient extends AbstractClient<ClickHouseHttpConnection> {
     private static final Logger log = LoggerFactory.getLogger(ClickHouseHttpClient.class);
@@ -101,7 +101,7 @@ public class ClickHouseHttpClient extends AbstractClient<ClickHouseHttpConnectio
         }
 
         log.debug("Query: %s", sql);
-        ClickHouseConfig config = sealedRequest.getConfig();
+        final ClickHouseConfig config = sealedRequest.getConfig();
         final ClickHouseHttpResponse httpResponse;
         final ClickHouseTransaction tx = sealedRequest.getTransaction();
         final Runnable postAction = tx != null && tx.isImplicit()
@@ -115,14 +115,15 @@ public class ClickHouseHttpClient extends AbstractClient<ClickHouseHttpConnectio
                 : null;
         if (conn.isReusable()) {
             ClickHouseNode server = sealedRequest.getServer();
-            httpResponse = conn.post(sql, sealedRequest.getInputStream().orElse(null),
-                    sealedRequest.getExternalTables(),
+            httpResponse = conn.post(config, sql, sealedRequest.getInputStream().orElse(null),
+                    sealedRequest.getExternalTables(), sealedRequest.getOutputStream().orElse(null),
                     ClickHouseHttpConnection.buildUrl(server.getBaseUri(), sealedRequest),
-                    ClickHouseHttpConnection.createDefaultHeaders(config, server, conn.getUserAgent()), config,
+                    ClickHouseHttpConnection.createDefaultHeaders(config, server, conn.getUserAgent()),
                     postAction);
         } else {
-            httpResponse = conn.post(sql, sealedRequest.getInputStream().orElse(null),
-                    sealedRequest.getExternalTables(), null, null, config, postAction);
+            httpResponse = conn.post(config, sql, sealedRequest.getInputStream().orElse(null),
+                    sealedRequest.getExternalTables(), sealedRequest.getOutputStream().orElse(null), null, null,
+                    postAction);
         }
         return ClickHouseStreamResponse.of(httpResponse.getConfig(sealedRequest), httpResponse.getInputStream(),
                 sealedRequest.getSettings(), null, httpResponse.summary);

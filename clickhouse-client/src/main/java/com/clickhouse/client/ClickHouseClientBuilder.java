@@ -19,11 +19,14 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 
-import com.clickhouse.client.config.ClickHouseOption;
-import com.clickhouse.client.logging.Logger;
-import com.clickhouse.client.logging.LoggerFactory;
 import com.clickhouse.client.ClickHouseNode.Status;
 import com.clickhouse.client.config.ClickHouseDefaults;
+import com.clickhouse.config.ClickHouseOption;
+import com.clickhouse.data.ClickHouseChecker;
+import com.clickhouse.data.ClickHouseThreadFactory;
+import com.clickhouse.data.ClickHouseUtils;
+import com.clickhouse.logging.Logger;
+import com.clickhouse.logging.LoggerFactory;
 
 /**
  * Builder class for creating {@link ClickHouseClient}. Please use
@@ -518,7 +521,7 @@ public class ClickHouseClientBuilder {
 
     /**
      * Adds an option, which is usually an Enum type that implements
-     * {@link com.clickhouse.client.config.ClickHouseOption}.
+     * {@link com.clickhouse.config.ClickHouseOption}.
      *
      * @param option non-null option
      * @param value  value

@@ -3,9 +3,9 @@ package com.clickhouse.r2dbc.connection;
 import com.clickhouse.client.ClickHouseClient;
 import com.clickhouse.client.ClickHouseNodes;
 import com.clickhouse.client.ClickHouseProtocol;
-import com.clickhouse.client.ClickHouseUtils;
 import com.clickhouse.client.config.ClickHouseDefaults;
-import com.clickhouse.client.config.ClickHouseOption;
+import com.clickhouse.config.ClickHouseOption;
+import com.clickhouse.data.ClickHouseUtils;
 
 import io.r2dbc.spi.ConnectionFactory;
 import io.r2dbc.spi.ConnectionFactoryOptions;

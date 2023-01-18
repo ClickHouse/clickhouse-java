@@ -16,16 +16,16 @@ import com.clickhouse.client.ClickHouseClient;
 import com.clickhouse.client.ClickHouseClientBuilder;
 import com.clickhouse.client.ClickHouseCredentials;
 import com.clickhouse.client.ClickHouseException;
-import com.clickhouse.client.ClickHouseCompression;
-import com.clickhouse.client.ClickHouseFormat;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseProtocol;
-import com.clickhouse.client.ClickHouseRecord;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseResponse;
-import com.clickhouse.client.ClickHouseValue;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.grpc.config.ClickHouseGrpcOption;
+import com.clickhouse.data.ClickHouseCompression;
+import com.clickhouse.data.ClickHouseFormat;
+import com.clickhouse.data.ClickHouseRecord;
+import com.clickhouse.data.ClickHouseValue;
 
 @State(Scope.Thread)
 public class ClientState extends BaseState {

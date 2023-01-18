@@ -16,15 +16,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.TimeZone;
 
-import com.clickhouse.client.ClickHouseColumn;
-import com.clickhouse.client.ClickHouseDataType;
-import com.clickhouse.client.ClickHouseUtils;
+import com.clickhouse.data.ClickHouseColumn;
+import com.clickhouse.data.ClickHouseDataType;
+import com.clickhouse.data.ClickHouseUtils;
 
 /**
  * This class defines mappings among {@link Types}, {@link JDBCType},
  * {@link ClickHouseDataType}, {@link ClickHouseColumn}, and {@link Class}. It
  * does not impact serialization and deserialization, which is handled
- * separately by {@link com.clickhouse.client.ClickHouseDataProcessor}.
+ * separately by {@link com.clickhouse.data.ClickHouseDataProcessor}.
  */
 public class JdbcTypeMapping {
     static final class AnsiTypeMapping extends JdbcTypeMapping {

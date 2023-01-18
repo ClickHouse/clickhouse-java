@@ -45,7 +45,7 @@ jobs:
           distribution: "temurin"
           java-version: |
             8
-            11
+            17
           cache: "maven"
       - name: Setup Toolchain
         shell: bash
@@ -57,7 +57,7 @@ jobs:
             <toolchain>
               <type>jdk</type>
               <provides>
-                <version>11</version>
+                <version>17</version>
               </provides>
               <configuration>
                 <jdkHome>${{ env.JAVA_HOME }}</jdkHome>
@@ -79,12 +79,12 @@ jobs:
       - name: Build and install
         run: |
           find . -type f -name "simplelogger.*" -exec rm -fv '{}' \;
-          mvn -q --batch-mode --projects '!clickhouse-benchmark' -Drelease -DclickhouseVersion=22.8 -DskipTests install
+          mvn -q --batch-mode --projects '!clickhouse-benchmark' -DclickhouseVersion=22.8 -DskipTests install
       - name: Analyze
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Needed to get PR information, if any
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
-          mvn --batch-mode --projects '!clickhouse-benchmark' -Drelease -DclickhouseVersion=22.8 \
+          mvn --batch-mode --projects '!clickhouse-benchmark' -DclickhouseVersion=22.8 \
             -Panalysis verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar
         continue-on-error: true

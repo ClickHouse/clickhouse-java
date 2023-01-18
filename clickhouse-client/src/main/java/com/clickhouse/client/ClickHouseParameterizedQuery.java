@@ -13,6 +13,12 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Map.Entry;
 
+import com.clickhouse.data.ClickHouseChecker;
+import com.clickhouse.data.ClickHouseColumn;
+import com.clickhouse.data.ClickHouseUtils;
+import com.clickhouse.data.ClickHouseValue;
+import com.clickhouse.data.ClickHouseValues;
+
 /**
  * A parameterized query is a parsed query with parameters being extracted for
  * substitution.

@@ -9,9 +9,9 @@ import java.sql.Statement;
 import java.util.Properties;
 import java.util.UUID;
 
-import com.clickhouse.client.ClickHouseUtils;
 import com.clickhouse.client.config.ClickHouseClientOption;
-import com.clickhouse.client.data.UnsignedByte;
+import com.clickhouse.data.ClickHouseUtils;
+import com.clickhouse.data.value.UnsignedByte;
 
 import org.testng.Assert;
 import org.testng.annotations.Test;

@@ -31,9 +31,24 @@ import java.util.function.BiConsumer;
 import java.util.function.Function;
 
 import com.clickhouse.client.config.ClickHouseClientOption;
-import com.clickhouse.client.config.ClickHouseConfigChangeListener;
-import com.clickhouse.client.config.ClickHouseOption;
-import com.clickhouse.client.data.ClickHouseExternalTable;
+import com.clickhouse.config.ClickHouseBufferingMode;
+import com.clickhouse.config.ClickHouseConfigChangeListener;
+import com.clickhouse.config.ClickHouseOption;
+import com.clickhouse.data.ClickHouseChecker;
+import com.clickhouse.data.ClickHouseCompression;
+import com.clickhouse.data.ClickHouseDataStreamFactory;
+import com.clickhouse.data.ClickHouseDeferredValue;
+import com.clickhouse.data.ClickHouseExternalTable;
+import com.clickhouse.data.ClickHouseFile;
+import com.clickhouse.data.ClickHouseFormat;
+import com.clickhouse.data.ClickHouseInputStream;
+import com.clickhouse.data.ClickHouseOutputStream;
+import com.clickhouse.data.ClickHousePassThruStream;
+import com.clickhouse.data.ClickHousePipedOutputStream;
+import com.clickhouse.data.ClickHouseUtils;
+import com.clickhouse.data.ClickHouseValue;
+import com.clickhouse.data.ClickHouseValues;
+import com.clickhouse.data.ClickHouseWriter;
 
 /**
  * Request object holding references to {@link ClickHouseClient},
@@ -41,8 +56,6 @@ import com.clickhouse.client.data.ClickHouseExternalTable;
  */
 @SuppressWarnings("squid:S119")
 public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implements Serializable {
-    private static final String TYPE_EXTERNAL_TABLE = "ExternalTable";
-
     private static final Set<String> SPECIAL_SETTINGS;
 
     static final String PARAM_SETTING = "setting";
@@ -60,7 +73,7 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
      * Mutation request.
      */
     public static class Mutation extends ClickHouseRequest<Mutation> {
-        private ClickHouseWriter writer;
+        private transient ClickHouseWriter writer;
 
         protected Mutation(ClickHouseRequest<?> request, boolean sealed) {
             super(request.getClient(), request.server, request.serverRef, request.options, sealed);
@@ -152,22 +165,32 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
         }
 
         /**
-         * Loads data from given file which may or may not be compressed.
+         * Loads data from given pass-thru stream which may or may not be compressed.
          *
-         * @param file absolute or relative path of the file, file extension will be
-         *             used to determine if it's compressed or not
+         * @param stream pass-thru stream, could be a file and may or may not be
+         *               compressed
          * @return mutation request
          */
-        public Mutation data(ClickHouseFile file) {
+        public Mutation data(ClickHousePassThruStream stream) {
             checkSealed();
 
-            final ClickHouseRequest<?> self = this;
-            if (ClickHouseChecker.nonNull(file, "File").hasFormat()) {
-                format(file.getFormat());
+            if (!ClickHouseChecker.nonNull(stream, ClickHousePassThruStream.TYPE_NAME).hasInput()) {
+                throw new IllegalArgumentException(ClickHousePassThruStream.ERROR_NO_INPUT);
             }
-            decompressClientRequest(file.isCompressed(), file.getCompressionAlgorithm());
+
+            final ClickHouseConfig c = getConfig();
+            if (stream.hasCompression()) {
+                decompressClientRequest(stream.isCompressed(), stream.getCompressionAlgorithm(),
+                        stream.getCompressionLevel());
+            } else if (c.isRequestCompressed()) {
+                decompressClientRequest(false);
+            }
+            if (stream.hasFormat()) {
+                format(stream.getFormat());
+            }
+            final int bufferSize = c.getReadBufferSize();
             this.input = changeProperty(PROP_DATA, this.input, ClickHouseDeferredValue
-                    .of(() -> ClickHouseInputStream.of(file, self.getConfig().getReadBufferSize(), null)));
+                    .of(() -> ClickHouseInputStream.of(stream, bufferSize, null)));
             return this;
         }
 
@@ -179,7 +202,7 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
          * @return mutation request
          */
         public Mutation data(String file) {
-            return data(file, ClickHouseCompression.fromFileName(file));
+            return data(ClickHouseFile.of(file));
         }
 
         /**
@@ -190,18 +213,23 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
          *                    means no compression
          * @return mutation request
          */
-        @SuppressWarnings("squid:S2095")
         public Mutation data(String file, ClickHouseCompression compression) {
-            checkSealed();
+            return data(ClickHouseFile.of(file, compression,
+                    (int) ClickHouseClientOption.DECOMPRESS_LEVEL.getDefaultValue(), null));
+        }
 
-            final ClickHouseRequest<?> self = this;
-            final ClickHouseFile wrappedFile = ClickHouseFile.of(file, compression, 0, null);
-            if (wrappedFile.hasFormat() && getFormat().defaultInputFormat() != wrappedFile.getFormat()) {
-                format(wrappedFile.getFormat());
-            }
-            this.input = changeProperty(PROP_DATA, this.input, ClickHouseDeferredValue
-                    .of(() -> ClickHouseInputStream.of(wrappedFile, self.getConfig().getReadBufferSize(), null)));
-            return this;
+        /**
+         * Loads compressed data from given file.
+         *
+         * @param file             absolute or relative path of the file
+         * @param compression      compression algorithm,
+         *                         {@link ClickHouseCompression#NONE}
+         *                         means no compression
+         * @param compressionLevel compression level
+         * @return mutation request
+         */
+        public Mutation data(String file, ClickHouseCompression compression, int compressionLevel) {
+            return data(ClickHouseFile.of(file, compression, compressionLevel, null));
         }
 
         /**
@@ -221,11 +249,16 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
          * @return mutation request
          */
         public Mutation data(ClickHouseInputStream input) {
+            ClickHousePassThruStream stream = ClickHouseChecker.nonNull(input, ClickHouseInputStream.TYPE_NAME)
+                    .getUnderlyingStream();
+            if (stream.hasInput()) {
+                return data(stream);
+            }
+
             checkSealed();
 
             this.input = changeProperty(PROP_DATA, this.input,
                     ClickHouseDeferredValue.of(input, ClickHouseInputStream.class));
-
             return this;
         }
 
@@ -246,19 +279,28 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
         @Override
         public CompletableFuture<ClickHouseResponse> execute() {
             if (writer != null) {
-                ClickHouseConfig c = getConfig();
-                ClickHousePipedOutputStream stream = ClickHouseDataStreamFactory.getInstance()
+                final ClickHouseConfig c = getConfig();
+                final boolean perfMode = c.getResponseBuffering() == ClickHouseBufferingMode.PERFORMANCE;
+                final ClickHousePipedOutputStream stream = ClickHouseDataStreamFactory.getInstance()
                         .createPipedOutputStream(c, null);
                 data(stream.getInputStream());
                 CompletableFuture<ClickHouseResponse> future = null;
                 if (c.isAsync()) {
                     future = getClient().execute(this);
                 }
-                try (ClickHouseOutputStream out = stream) {
-                    writer.write(out);
-                } catch (IOException e) {
-                    throw new CompletionException(e);
+
+                if (perfMode) {
+                    ClickHouseClient.submit(() -> {
+
+                    });
+                } else {
+                    try (ClickHouseOutputStream out = stream) {
+                        writer.write(out);
+                    } catch (IOException e) {
+                        throw new CompletionException(e);
+                    }
                 }
+
                 if (future != null) {
                     return future;
                 }
@@ -903,7 +945,7 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
     public SelfT addExternal(ClickHouseExternalTable table) {
         checkSealed();
 
-        if (externalTables.add(ClickHouseChecker.nonNull(table, TYPE_EXTERNAL_TABLE))) {
+        if (externalTables.add(ClickHouseChecker.nonNull(table, ClickHouseExternalTable.TYPE_NAME))) {
             resetCache();
         }
 
@@ -922,10 +964,10 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
         checkSealed();
 
         externalTables.clear();
-        externalTables.add(ClickHouseChecker.nonNull(table, TYPE_EXTERNAL_TABLE));
+        externalTables.add(ClickHouseChecker.nonNull(table, ClickHouseExternalTable.TYPE_NAME));
         if (more != null) {
             for (ClickHouseExternalTable e : more) {
-                externalTables.add(ClickHouseChecker.nonNull(e, TYPE_EXTERNAL_TABLE));
+                externalTables.add(ClickHouseChecker.nonNull(e, ClickHouseExternalTable.TYPE_NAME));
             }
         }
 
@@ -945,7 +987,7 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
         externalTables.clear();
         if (tables != null) {
             for (ClickHouseExternalTable e : tables) {
-                externalTables.add(ClickHouseChecker.nonNull(e, TYPE_EXTERNAL_TABLE));
+                externalTables.add(ClickHouseChecker.nonNull(e, ClickHouseExternalTable.TYPE_NAME));
             }
         }
 
@@ -1108,22 +1150,32 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
     }
 
     /**
-     * Sets output file, to which response will be redirected.
+     * Sets pass-thru stream, to which response will be redirected.
      *
-     * @param file non-null output file
+     * @param stream non-null pass-thru stream
      * @return the request itself
      */
     @SuppressWarnings("unchecked")
-    public SelfT output(ClickHouseFile file) {
+    public SelfT output(ClickHousePassThruStream stream) {
         checkSealed();
 
-        final int bufferSize = getConfig().getWriteBufferSize();
-        if (ClickHouseChecker.nonNull(file, "File").hasFormat()) {
-            format(file.getFormat());
+        if (!ClickHouseChecker.nonNull(stream, ClickHousePassThruStream.TYPE_NAME).hasOutput()) {
+            throw new IllegalArgumentException(ClickHousePassThruStream.ERROR_NO_OUTPUT);
         }
-        compressServerResponse(file.isCompressed(), file.getCompressionAlgorithm(), file.getCompressionLevel());
+
+        final ClickHouseConfig c = getConfig();
+        if (stream.hasCompression()) {
+            compressServerResponse(stream.isCompressed(), stream.getCompressionAlgorithm(),
+                    stream.getCompressionLevel());
+        } else if (c.isResponseCompressed()) {
+            compressServerResponse(false);
+        }
+        if (stream.hasFormat()) {
+            format(stream.getFormat());
+        }
+        final int bufferSize = c.getWriteBufferSize();
         this.output = changeProperty(PROP_OUTPUT, this.output, ClickHouseDeferredValue
-                .of(() -> ClickHouseOutputStream.of(file, bufferSize, null)));
+                .of(() -> ClickHouseOutputStream.of(stream, bufferSize, null)));
 
         return (SelfT) this;
     }
@@ -1135,7 +1187,7 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
      * @return the request itself
      */
     public SelfT output(String file) {
-        return output(file, ClickHouseCompression.fromFileName(file));
+        return output(ClickHouseFile.of(file));
     }
 
     /**
@@ -1146,18 +1198,23 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
      *                    {@link ClickHouseCompression#NONE} means no compression
      * @return the request itself
      */
-    @SuppressWarnings("unchecked")
     public SelfT output(String file, ClickHouseCompression compression) {
-        checkSealed();
+        return output(ClickHouseFile.of(file, compression,
+                (int) ClickHouseClientOption.COMPRESS_LEVEL.getDefaultValue(), null));
+    }
 
-        final int bufferSize = getConfig().getWriteBufferSize();
-        final ClickHouseFile wrappedFile = ClickHouseFile.of(file, compression, 0, null);
-        if (wrappedFile.hasFormat()) {
-            format(wrappedFile.getFormat());
-        }
-        this.output = changeProperty(PROP_OUTPUT, this.output, ClickHouseDeferredValue
-                .of(() -> ClickHouseOutputStream.of(wrappedFile, bufferSize, null)));
-        return (SelfT) this;
+    /**
+     * Sets compressed output file, to which response will be redirected.
+     *
+     * @param file             non-empty path to the file
+     * @param compression      compression algorithm, {@code null} or
+     *                         {@link ClickHouseCompression#NONE} means no
+     *                         compression
+     * @param compressionLevel compression level
+     * @return the request itself
+     */
+    public SelfT output(String file, ClickHouseCompression compression, int compressionLevel) {
+        return output(ClickHouseFile.of(file, compression, compressionLevel, null));
     }
 
     /**
@@ -1178,6 +1235,12 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
      */
     @SuppressWarnings("unchecked")
     public SelfT output(ClickHouseOutputStream output) {
+        ClickHousePassThruStream stream = ClickHouseChecker.nonNull(output, ClickHouseOutputStream.TYPE_NAME)
+                .getUnderlyingStream();
+        if (stream.hasOutput()) {
+            return output(stream);
+        }
+
         checkSealed();
 
         this.output = changeProperty(PROP_OUTPUT, this.output,
@@ -1850,7 +1913,7 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
     public SelfT removeExternal(ClickHouseExternalTable external) {
         checkSealed();
 
-        if (externalTables.remove(ClickHouseChecker.nonNull(external, TYPE_EXTERNAL_TABLE))) {
+        if (externalTables.remove(ClickHouseChecker.nonNull(external, ClickHouseExternalTable.TYPE_NAME))) {
             resetCache();
         }
 

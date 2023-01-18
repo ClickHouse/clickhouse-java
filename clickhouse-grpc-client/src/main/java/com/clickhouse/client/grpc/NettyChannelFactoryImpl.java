@@ -11,13 +11,13 @@ import io.grpc.netty.shaded.io.netty.handler.ssl.SslContextBuilder;
 import io.grpc.netty.shaded.io.netty.handler.ssl.SslProvider;
 import io.grpc.netty.shaded.io.netty.handler.ssl.SupportedCipherSuiteFilter;
 import io.grpc.netty.shaded.io.netty.handler.ssl.util.InsecureTrustManagerFactory;
-import com.clickhouse.client.ClickHouseChecker;
 import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseNode;
-import com.clickhouse.client.ClickHouseUtils;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.config.ClickHouseSslMode;
 import com.clickhouse.client.grpc.config.ClickHouseGrpcOption;
+import com.clickhouse.data.ClickHouseChecker;
+import com.clickhouse.data.ClickHouseUtils;
 
 final class NettyChannelFactoryImpl extends ClickHouseGrpcChannelFactory {
     private static final String USER_AGENT = ClickHouseClientOption.buildUserAgent(null, "gRPC-Netty");

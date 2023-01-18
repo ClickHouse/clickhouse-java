@@ -37,12 +37,21 @@
     </developers>
 
     <modules>
+        <!-- shared -->
+        <module>clickhouse-data</module>
+        <!-- module>clickhouse-parser</module -->
+        <!-- client -->
         <module>clickhouse-client</module>
         <module>clickhouse-cli-client</module>
         <module>clickhouse-grpc-client</module>
         <module>clickhouse-http-client</module>
+        <!-- driver -->
         <module>clickhouse-jdbc</module>
         <module>clickhouse-r2dbc</module>
+        <!-- server -->
+        <!-- module>clickhouse-bridge-server</module -->
+        <!-- module>clickhouse-graphql-server</module -->
+        <!-- misc -->
         <module>clickhouse-benchmark</module>
     </modules>
 
@@ -82,6 +91,7 @@
 
         <annotations-api.version>6.0.53</annotations-api.version>
         <apache.httpclient.version>5.2.1</apache.httpclient.version>
+        <arrow.version>10.0.1</arrow.version>
         <avro.version>1.11.1</avro.version>
         <brotli.version>0.1.2</brotli.version>
         <brotli4j.version>1.9.0</brotli4j.version>
@@ -90,13 +100,13 @@
         <compress.version>1.22</compress.version>
         <dnsjava.version>3.5.2</dnsjava.version>
         <fastutil.version>8.5.11</fastutil.version>
-        <grpc.version>1.51.1</grpc.version>
-        <gson.version>2.10</gson.version>
+        <grpc.version>1.52.1</grpc.version>
+        <gson.version>2.10.1</gson.version>
         <jctools.version>4.0.1</jctools.version>
         <protobuf.version>3.21.4</protobuf.version>
         <lz4.version>1.8.0</lz4.version>
         <msgpack.version>0.9.3</msgpack.version>
-        <roaring-bitmap.version>0.9.36</roaring-bitmap.version>
+        <roaring-bitmap.version>0.9.38</roaring-bitmap.version>
         <slf4j.version>2.0.6</slf4j.version>
         <snappy.version>1.1.8.4</snappy.version>
         <xz.version>1.9</xz.version>
@@ -105,11 +115,11 @@
         <!-- stay 7.5 for JDK 8 support -->
         <testng.version>7.5</testng.version>
 
-        <mariadb-driver.version>3.1.0</mariadb-driver.version>
+        <mariadb-driver.version>3.1.1</mariadb-driver.version>
         <mysql-driver.version>8.0.31</mysql-driver.version>
         <postgresql-driver.version>42.5.1</postgresql-driver.version>
 
-        <repackaged.version>1.6.0</repackaged.version>
+        <repackaged.version>1.7.0</repackaged.version>
         <shade.base>${project.groupId}.client.internal</shade.base>
 
         <antrun-plugin.version>3.1.0</antrun-plugin.version>
@@ -173,6 +183,26 @@
                 <version>${brotli4j.version}</version>
             </dependency>
             <dependency>
+                <groupId>com.aayushatharva.brotli4j</groupId>
+                <artifactId>native-linux-x86_64</artifactId>
+                <version>${brotli4j.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.aayushatharva.brotli4j</groupId>
+                <artifactId>native-osx-aarch64</artifactId>
+                <version>${brotli4j.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.aayushatharva.brotli4j</groupId>
+                <artifactId>native-osx-x86_64</artifactId>
+                <version>${brotli4j.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.aayushatharva.brotli4j</groupId>
+                <artifactId>native-windows-x86_64</artifactId>
+                <version>${brotli4j.version}</version>
+            </dependency>
+            <dependency>
                 <groupId>com.google.code.gson</groupId>
                 <artifactId>gson</artifactId>
                 <version>${gson.version}</version>
@@ -218,6 +248,17 @@
                 <groupId>it.unimi.dsi</groupId>
                 <artifactId>fastutil</artifactId>
                 <version>${fastutil.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.arrow</groupId>
+                <artifactId>arrow-memory</artifactId>
+                <type>pom</type>
+                <version>${arrow.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.arrow</groupId>
+                <artifactId>arrow-vector</artifactId>
+                <version>${arrow.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.apache.avro</groupId>
@@ -842,9 +883,9 @@
                                 <jdk>
                                     <version>11</version>
                                 </jdk>
-                                <!-- jdk>
+                                <jdk>
                                     <version>17</version>
-                                </jdk -->
+                                </jdk>
                             </toolchains>
                         </configuration>
                     </plugin>
@@ -999,7 +1040,7 @@
             <id>build8</id>
             <activation>
                 <property>
-                    <name>!release</name>
+                    <name>j8</name>
                 </property>
             </activation>
             <build>
@@ -1037,7 +1078,7 @@
             <id>build9</id>
             <activation>
                 <property>
-                    <name>release</name>
+                    <name>!j8</name>
                 </property>
             </activation>
             <build>
@@ -1060,9 +1101,9 @@
                                 <jdk>
                                     <version>11</version>
                                 </jdk>
-                                <!-- jdk>
+                                <jdk>
                                     <version>17</version>
-                                </jdk -->
+                                </jdk>
                             </toolchains>
                         </configuration>
                     </plugin>

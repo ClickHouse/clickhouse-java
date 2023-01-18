@@ -34,12 +34,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.TimeZone;
 
-import com.clickhouse.client.ClickHouseColumn;
 import com.clickhouse.client.ClickHouseConfig;
-import com.clickhouse.client.ClickHouseRecord;
 import com.clickhouse.client.ClickHouseResponse;
-import com.clickhouse.client.ClickHouseUtils;
-import com.clickhouse.client.ClickHouseValue;
+import com.clickhouse.data.ClickHouseColumn;
+import com.clickhouse.data.ClickHouseRecord;
+import com.clickhouse.data.ClickHouseUtils;
+import com.clickhouse.data.ClickHouseValue;
 
 public class ClickHouseResultSet extends AbstractResultSet {
     private ClickHouseRecord currentRow;

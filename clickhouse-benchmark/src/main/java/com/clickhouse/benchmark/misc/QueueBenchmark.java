@@ -21,17 +21,17 @@ import org.openjdk.jmh.annotations.Threads;
 import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
 import com.clickhouse.benchmark.BaseState;
-import com.clickhouse.client.ClickHouseByteBuffer;
 import com.clickhouse.client.ClickHouseClient;
 import com.clickhouse.client.ClickHouseConfig;
-import com.clickhouse.client.ClickHouseDataStreamFactory;
-import com.clickhouse.client.ClickHouseInputStream;
-import com.clickhouse.client.ClickHouseOutputStream;
-import com.clickhouse.client.ClickHousePipedOutputStream;
-import com.clickhouse.client.config.ClickHouseBufferingMode;
 import com.clickhouse.client.config.ClickHouseClientOption;
-import com.clickhouse.client.config.ClickHouseOption;
-import com.clickhouse.client.data.BinaryStreamUtils;
+import com.clickhouse.config.ClickHouseBufferingMode;
+import com.clickhouse.config.ClickHouseOption;
+import com.clickhouse.data.ClickHouseByteBuffer;
+import com.clickhouse.data.ClickHouseDataStreamFactory;
+import com.clickhouse.data.ClickHouseInputStream;
+import com.clickhouse.data.ClickHouseOutputStream;
+import com.clickhouse.data.ClickHousePipedOutputStream;
+import com.clickhouse.data.format.BinaryStreamUtils;
 
 @State(Scope.Benchmark)
 @Warmup(iterations = 10, timeUnit = TimeUnit.SECONDS, time = 1)

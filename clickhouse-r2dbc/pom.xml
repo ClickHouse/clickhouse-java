@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
@@ -38,43 +40,24 @@
         <dependency>
             <groupId>${project.parent.groupId}</groupId>
             <artifactId>clickhouse-cli-client</artifactId>
-            <classifier>shaded</classifier>
             <version>${revision}</version>
-            <exclusions>
-                <exclusion>
-                    <groupId>*</groupId>
-                    <artifactId>*</artifactId>
-                </exclusion>
-            </exclusions>
+            <optional>true</optional>
         </dependency>
         <dependency>
             <groupId>${project.parent.groupId}</groupId>
             <artifactId>clickhouse-grpc-client</artifactId>
-            <classifier>shaded</classifier>
             <version>${revision}</version>
-            <exclusions>
-                <exclusion>
-                    <groupId>*</groupId>
-                    <artifactId>*</artifactId>
-                </exclusion>
-            </exclusions>
+            <optional>true</optional>
         </dependency>
         <dependency>
             <groupId>${project.parent.groupId}</groupId>
             <artifactId>clickhouse-http-client</artifactId>
-            <classifier>shaded</classifier>
             <version>${revision}</version>
-            <exclusions>
-                <exclusion>
-                    <groupId>*</groupId>
-                    <artifactId>*</artifactId>
-                </exclusion>
-            </exclusions>
         </dependency>
         <dependency>
             <groupId>${project.parent.groupId}</groupId>
             <artifactId>org.roaringbitmap</artifactId>
-            <optional>true</optional>
+            <scope>provided</scope>
             <exclusions>
                 <exclusion>
                     <groupId>*</groupId>
@@ -84,28 +67,21 @@
         </dependency>
 
         <dependency>
-            <groupId>${project.parent.groupId}</groupId>
-            <artifactId>clickhouse-client</artifactId>
-            <version>${revision}</version>
-            <scope>provided</scope>
-        </dependency>
-        <dependency>
             <groupId>org.lz4</groupId>
             <artifactId>lz4-java</artifactId>
-            <scope>provided</scope>
         </dependency>
 
         <dependency>
             <groupId>com.clickhouse</groupId>
             <artifactId>clickhouse-client</artifactId>
-            <version>${project.version}</version>
+            <version>${revision}</version>
             <type>test-jar</type>
             <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>com.clickhouse</groupId>
             <artifactId>clickhouse-jdbc</artifactId>
-            <version>${project.version}</version>
+            <version>${revision}</version>
             <scope>test</scope>
         </dependency>
         <dependency>
@@ -247,23 +223,43 @@
                             <shadedClassifierName>all</shadedClassifierName>
                             <relocations>
                                 <relocation>
-                                    <pattern>com.google.gson</pattern>
-                                    <shadedPattern>${shade.base}.gson</shadedPattern>
+                                    <pattern>com.google</pattern>
+                                    <shadedPattern>${shade.base}.google</shadedPattern>
                                 </relocation>
                                 <relocation>
-                                    <pattern>org.apache</pattern>
-                                    <shadedPattern>${shade.base}.apache</shadedPattern>
+                                    <pattern>io.grpc</pattern>
+                                    <shadedPattern>${shade.base}.grpc</shadedPattern>
+                                </relocation>
+                                <relocation>
+                                    <pattern>io.opencensus</pattern>
+                                    <shadedPattern>${shade.base}.opencensus</shadedPattern>
+                                </relocation>
+                                <relocation>
+                                    <pattern>io.perfmark</pattern>
+                                    <shadedPattern>${shade.base}.perfmark</shadedPattern>
                                 </relocation>
                                 <relocation>
                                     <pattern>net.jpountz</pattern>
                                     <shadedPattern>${shade.base}.jpountz</shadedPattern>
                                 </relocation>
+                                <relocation>
+                                    <pattern>okio</pattern>
+                                    <shadedPattern>${shade.base}.okio</shadedPattern>
+                                </relocation>
+                                <relocation>
+                                    <pattern>org.apache</pattern>
+                                    <shadedPattern>${shade.base}.apache</shadedPattern>
+                                </relocation>
                             </relocations>
                             <transformers>
-                                <transformer implementation="org.apache.maven.plugins.shade.resource.ApacheLicenseResourceTransformer" />
-                                <transformer implementation="org.apache.maven.plugins.shade.resource.ApacheNoticeResourceTransformer" />
-                                <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer" />
-                                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                                <transformer
+                                    implementation="org.apache.maven.plugins.shade.resource.ApacheLicenseResourceTransformer" />
+                                <transformer
+                                    implementation="org.apache.maven.plugins.shade.resource.ApacheNoticeResourceTransformer" />
+                                <transformer
+                                    implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer" />
+                                <transformer
+                                    implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                                     <manifestEntries>
                                         <Automatic-Module-Name>${project.groupId}.r2dbc</Automatic-Module-Name>
                                         <Specification-Title>${spec.title}</Specification-Title>
@@ -273,13 +269,25 @@
                             </transformers>
                             <filters>
                                 <filter>
+                                    <artifact>io.projectreactor:reactor-core</artifact>
+                                    <excludes>
+                                        <exclude>**</exclude>
+                                    </excludes>
+                                </filter>
+                                <filter>
                                     <artifact>io.r2dbc:r2dbc-spi</artifact>
                                     <excludes>
                                         <exclude>**</exclude>
                                     </excludes>
                                 </filter>
                                 <filter>
-                                    <artifact>io.projectreactor:reactor-core</artifact>
+                                    <artifact>org.reactivestreams:reactive-streams</artifact>
+                                    <excludes>
+                                        <exclude>**</exclude>
+                                    </excludes>
+                                </filter>
+                                <filter>
+                                    <artifact>org.slf4j:slf4j-api</artifact>
                                     <excludes>
                                         <exclude>**</exclude>
                                     </excludes>
@@ -287,7 +295,10 @@
                                 <filter>
                                     <artifact>*:*</artifact>
                                     <excludes>
+                                        <exclude>google/**</exclude>
                                         <exclude>mozilla/**</exclude>
+                                        <exclude>org/checkerframework/**</exclude>
+                                        <exclude>org/codehaus/**</exclude>
                                         <exclude>**/module-info.class</exclude>
                                         <exclude>META-INF/DEPENDENCIES</exclude>
                                         <exclude>META-INF/MANIFEST.MF</exclude>
@@ -310,11 +321,21 @@
                             <createDependencyReducedPom>true</createDependencyReducedPom>
                             <promoteTransitiveDependencies>true</promoteTransitiveDependencies>
                             <shadedClassifierName>http</shadedClassifierName>
+                            <relocations>
+                                <relocation>
+                                    <pattern>net.jpountz</pattern>
+                                    <shadedPattern>${shade.base}.jpountz</shadedPattern>
+                                </relocation>
+                            </relocations>
                             <transformers>
-                                <transformer implementation="org.apache.maven.plugins.shade.resource.ApacheLicenseResourceTransformer" />
-                                <transformer implementation="org.apache.maven.plugins.shade.resource.ApacheNoticeResourceTransformer" />
-                                <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer" />
-                                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                                <transformer
+                                    implementation="org.apache.maven.plugins.shade.resource.ApacheLicenseResourceTransformer" />
+                                <transformer
+                                    implementation="org.apache.maven.plugins.shade.resource.ApacheNoticeResourceTransformer" />
+                                <transformer
+                                    implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer" />
+                                <transformer
+                                    implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                                     <manifestEntries>
                                         <Automatic-Module-Name>${project.groupId}.r2dbc</Automatic-Module-Name>
                                         <Specification-Title>${spec.title}</Specification-Title>
@@ -323,18 +344,6 @@
                                 </transformer>
                             </transformers>
                             <filters>
-                                <filter>
-                                    <artifact>io.r2dbc:r2dbc-spi</artifact>
-                                    <excludes>
-                                        <exclude>**</exclude>
-                                    </excludes>
-                                </filter>
-                                <filter>
-                                    <artifact>io.projectreactor:reactor-core</artifact>
-                                    <excludes>
-                                        <exclude>**</exclude>
-                                    </excludes>
-                                </filter>
                                 <filter>
                                     <artifact>${project.parent.groupId}:clickhouse-cli-client</artifact>
                                     <excludes>
@@ -348,11 +357,55 @@
                                     </excludes>
                                 </filter>
                                 <filter>
+                                    <artifact>${project.parent.groupId}:io.grpc</artifact>
+                                    <excludes>
+                                        <exclude>**</exclude>
+                                    </excludes>
+                                </filter>
+                                <filter>
+                                    <artifact>${project.parent.groupId}:org.roaringbitmap</artifact>
+                                    <excludes>
+                                        <exclude>**</exclude>
+                                    </excludes>
+                                </filter>
+                                <filter>
+                                    <artifact>com.google.code.gson:gson</artifact>
+                                    <excludes>
+                                        <exclude>**</exclude>
+                                    </excludes>
+                                </filter>
+                                <filter>
+                                    <artifact>io.projectreactor:reactor-core</artifact>
+                                    <excludes>
+                                        <exclude>**</exclude>
+                                    </excludes>
+                                </filter>
+                                <filter>
+                                    <artifact>io.r2dbc:r2dbc-spi</artifact>
+                                    <excludes>
+                                        <exclude>**</exclude>
+                                    </excludes>
+                                </filter>
+                                <filter>
+                                    <artifact>org.reactivestreams:reactive-streams</artifact>
+                                    <excludes>
+                                        <exclude>**</exclude>
+                                    </excludes>
+                                </filter>
+                                <filter>
+                                    <artifact>org.slf4j:slf4j-api</artifact>
+                                    <excludes>
+                                        <exclude>**</exclude>
+                                    </excludes>
+                                </filter>
+                                <filter>
                                     <artifact>*:*</artifact>
                                     <excludes>
-                                        <exclude>com/google/**</exclude>
+                                        <exclude>google/**</exclude>
                                         <exclude>mozilla/**</exclude>
-                                        <exclude>org/**</exclude>
+                                        <exclude>org/apache/**</exclude>
+                                        <exclude>org/checkerframework/**</exclude>
+                                        <exclude>org/codehaus/**</exclude>
                                         <exclude>**/darwin/**</exclude>
                                         <exclude>**/linux/**</exclude>
                                         <exclude>**/win32/**</exclude>
@@ -360,6 +413,7 @@
                                         <exclude>META-INF/DEPENDENCIES</exclude>
                                         <exclude>META-INF/MANIFEST.MF</exclude>
                                         <exclude>META-INF/maven/**</exclude>
+                                        <exclude>META-INF/native/**</exclude>
                                         <exclude>META-INF/native-image/**</exclude>
                                         <exclude>META-INF/*.xml</exclude>
                                     </excludes>

@@ -8,6 +8,7 @@ import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseServerForTest;
 import com.clickhouse.client.ClientIntegrationTest;
 import com.clickhouse.client.cli.config.ClickHouseCommandLineOption;
+import com.clickhouse.data.ClickHouseCompression;
 
 import java.io.IOException;
 
@@ -15,6 +16,7 @@ import org.testcontainers.containers.GenericContainer;
 import org.testng.Assert;
 import org.testng.SkipException;
 import org.testng.annotations.BeforeClass;
+import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 public class ClickHouseCommandLineClientTest extends ClientIntegrationTest {
@@ -22,6 +24,30 @@ public class ClickHouseCommandLineClientTest extends ClientIntegrationTest {
     static void init() {
         System.setProperty(ClickHouseCommandLineOption.CLI_CONTAINER_DIRECTORY.getSystemProperty(),
                 ClickHouseServerForTest.getClickHouseContainerTmpDir());
+    }
+
+    @DataProvider(name = "requestCompressionMatrix")
+    protected Object[][] getRequestCompressionMatrix() {
+        return new Object[][] {
+                { ClickHouseCompression.NONE, -2, 2, 1 },
+                { ClickHouseCompression.LZ4, -2, 19, 1 }, // [0, 18]
+        };
+    }
+
+    @DataProvider(name = "mixedCompressionMatrix")
+    protected Object[][] getMixedCompressionMatrix() {
+        ClickHouseCompression[] supportedRequestCompression = { ClickHouseCompression.NONE, ClickHouseCompression.LZ4 };
+        ClickHouseCompression[] supportedResponseCompression = { ClickHouseCompression.NONE,
+                // ClickHouseCompression.LZ4
+        };
+        Object[][] matrix = new Object[supportedRequestCompression.length * supportedResponseCompression.length][];
+        int i = 0;
+        for (ClickHouseCompression reqComp : supportedRequestCompression) {
+            for (ClickHouseCompression respComp : supportedResponseCompression) {
+                matrix[i++] = new Object[] { reqComp, respComp };
+            }
+        }
+        return matrix;
     }
 
     @Override
@@ -48,6 +74,10 @@ public class ClickHouseCommandLineClientTest extends ClientIntegrationTest {
         }
 
         return super.getServer();
+    }
+
+    @Test(groups = { "integration" })
+    public void testNothing() throws Exception {
     }
 
     @Test(groups = { "integration" })

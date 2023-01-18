@@ -16,8 +16,8 @@ module com.clickhouse.r2dbc {
     requires static org.roaringbitmap;
 
     uses com.clickhouse.client.ClickHouseClient;
-    uses com.clickhouse.client.ClickHouseDataStreamFactory;
     uses com.clickhouse.client.ClickHouseDnsResolver;
     uses com.clickhouse.client.ClickHouseSslContextProvider;
-    uses com.clickhouse.client.logging.LoggerFactory;
+    uses com.clickhouse.data.ClickHouseDataStreamFactory;
+    uses com.clickhouse.logging.LoggerFactory;
 }
