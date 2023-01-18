@@ -400,14 +400,12 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
                 Assert.assertNotNull(resp);
             }
             int expectedRows = 1;
-            if (server.getProtocol() != ClickHouseProtocol.GRPC) {
-                try (ClickHouseResponse resp = request.write().table("test_compress_decompress")
-                        .format(ClickHouseFormat.CSV).data(ClickHouseInputStream.of("'" + uuid + "'\n'" + uuid + "'"))
-                        .executeAndWait()) {
-                    Assert.assertNotNull(resp);
-                }
-                expectedRows += 2;
+            try (ClickHouseResponse resp = request.write().table("test_compress_decompress")
+                    .format(ClickHouseFormat.CSV).data(ClickHouseInputStream.of("'" + uuid + "'\n'" + uuid + "'"))
+                    .executeAndWait()) {
+                Assert.assertNotNull(resp);
             }
+            expectedRows += 2;
 
             boolean hasResult = false;
             try (ClickHouseResponse resp = request

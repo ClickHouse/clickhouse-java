@@ -61,6 +61,7 @@ public class AbstractSocketClient implements AutoCloseable {
      * @param config non-null configuration
      * @param socket non-null socket
      * @return the given socket
+     * @throws SocketException when there's error setting socket options
      */
     public static Socket setSocketOptions(ClickHouseConfig config, Socket socket) throws SocketException {
         if (socket == null || socket.isClosed()) {
@@ -108,6 +109,7 @@ public class AbstractSocketClient implements AutoCloseable {
      * @param config non-null configuration
      * @param socket non-null socket channel
      * @return the given socket channel
+     * @throws IOException when there's error setting socket options
      */
     public static SocketChannel setSocketOptions(ClickHouseConfig config, SocketChannel socket) throws IOException {
         if (socket == null || socket.socket().isClosed()) {
@@ -230,7 +232,7 @@ public class AbstractSocketClient implements AutoCloseable {
         final long socketTimeout = config.getSocketTimeout();
         final long startTime = socketTimeout > 0L ? System.currentTimeMillis() : 0L;
 
-        // final ClickHouseFile f = out.getUnderlyingFile();
+        // final ClickHousePassThruStream s = out.getUnderlyingStream();
         ByteBuffer buffer = ByteBuffer.allocate(config.getWriteBufferSize());
         byte[] bytes = buffer.array();
         int len = 0;
@@ -251,9 +253,9 @@ public class AbstractSocketClient implements AutoCloseable {
         final long socketTimeout = config.getSocketTimeout();
         final long startTime = socketTimeout > 0L ? System.currentTimeMillis() : 0L;
 
-        final ClickHouseFile f = in.getUnderlyingFile();
-        if (f.isAvailable()) {
-            try (FileChannel fc = FileChannel.open(f.getFile().toPath())) {
+        final ClickHousePassThruStream s = in.getUnderlyingStream();
+        if (s.hasInput() && s instanceof ClickHouseFile) {
+            try (FileChannel fc = FileChannel.open(((ClickHouseFile) s).getFile().toPath())) {
                 long size = fc.size();
                 long chunkSize = config.getRequestChunkSize();
                 long offset = startPosition;

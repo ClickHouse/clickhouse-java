@@ -1,6 +1,8 @@
 package com.clickhouse.client.grpc;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.Serializable;
 import java.net.SocketTimeoutException;
 import java.util.Collection;
@@ -19,17 +21,23 @@ import io.grpc.stub.StreamObserver;
 
 import com.clickhouse.client.AbstractClient;
 import com.clickhouse.client.ClickHouseChecker;
+import com.clickhouse.client.ClickHouseClient;
 import com.clickhouse.client.ClickHouseColumn;
 import com.clickhouse.client.ClickHouseCompression;
 import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseCredentials;
+import com.clickhouse.client.ClickHouseDataStreamFactory;
+import com.clickhouse.client.ClickHouseDeferredValue;
 import com.clickhouse.client.ClickHouseException;
 import com.clickhouse.client.ClickHouseInputStream;
 import com.clickhouse.client.ClickHouseNode;
+import com.clickhouse.client.ClickHouseOutputStream;
+import com.clickhouse.client.ClickHousePipedOutputStream;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.ClickHouseUtils;
+import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.config.ClickHouseOption;
 import com.clickhouse.client.data.ClickHouseExternalTable;
 import com.clickhouse.client.grpc.config.ClickHouseGrpcOption;
@@ -42,12 +50,102 @@ import com.clickhouse.client.grpc.impl.QueryInfo.Builder;
 import com.clickhouse.client.logging.Logger;
 import com.clickhouse.client.logging.LoggerFactory;
 
+import org.apache.commons.compress.compressors.lz4.FramedLZ4CompressorInputStream;
+import org.apache.commons.compress.compressors.lz4.FramedLZ4CompressorOutputStream;
+
 public class ClickHouseGrpcClient extends AbstractClient<ManagedChannel> {
     private static final Logger log = LoggerFactory.getLogger(ClickHouseGrpcClient.class);
 
     static final List<ClickHouseProtocol> SUPPORTED = Collections.singletonList(ClickHouseProtocol.GRPC);
 
-    protected static QueryInfo convert(ClickHouseRequest<?> request) {
+    static ClickHouseInputStream getInput(ClickHouseConfig config, InputStream input, Runnable postCloseAction) {
+        final ClickHouseInputStream in;
+        switch (config.getResponseCompressAlgorithm()) {
+            // case BROTLI:
+            // in = new WrappedInputStream(file,
+            // CompressionUtils.createBrotliInputStream(input, bufferSize),
+            // bufferSize, postCloseAction);
+            // break;
+            // case BZ2:
+
+            case LZ4:
+                in = ClickHouseInputStream.of(ClickHouseDeferredValue.of(() -> {
+                    try {
+                        return new FramedLZ4CompressorInputStream(input);
+                    } catch (IOException e) {
+                        return input;
+                    }
+                }), config.getReadBufferSize(), postCloseAction);
+                break;
+            default:
+                in = ClickHouseInputStream.wrap(null, input, config.getReadBufferSize(), postCloseAction,
+                        config.getResponseCompressAlgorithm(), config.getResponseCompressLevel());
+                break;
+        }
+        return in;
+    }
+
+    static ClickHouseOutputStream getOutput(ClickHouseConfig config, OutputStream output, Runnable postCloseAction) {
+        final ClickHouseOutputStream out;
+        switch (config.getRequestCompressAlgorithm()) {
+            // case BROTLI:
+            // in = new WrappedInputStream(file,
+            // CompressionUtils.createBrotliInputStream(input, bufferSize),
+            // bufferSize, postCloseAction);
+            // break;
+            // case BZ2:
+
+            case LZ4:
+                out = ClickHouseOutputStream.of(ClickHouseDeferredValue.of(() -> {
+                    try {
+                        return new FramedLZ4CompressorOutputStream(output);
+                    } catch (IOException e) {
+                        return output;
+                    }
+                }), config.getWriteBufferSize(), postCloseAction);
+                break;
+            default:
+                out = ClickHouseOutputStream.of(output, config.getWriteBufferSize(),
+                        config.getRequestCompressAlgorithm(), config.getRequestCompressLevel(), postCloseAction);
+                break;
+        }
+        return out;
+    }
+
+    protected static ClickHouseInputStream getCompressedInputStream(ClickHouseConfig config,
+            ClickHouseInputStream input) {
+        final int bufferSize = config.getWriteBufferSize();
+        final ClickHousePipedOutputStream stream = ClickHouseDataStreamFactory.getInstance() // NOSONAR
+                .createPipedOutputStream(bufferSize, 0, config.getSocketTimeout(), null);
+        final ClickHouseInputStream compressedInput = stream.getInputStream();
+
+        ClickHouseClient.submit(() -> {
+            try (ClickHouseInputStream in = input; ClickHouseOutputStream out = getOutput(config, stream, null)) {
+                in.pipe(out);
+            } catch (Exception e) {
+                log.warn("Failed to pipe data", e);
+            }
+        });
+        return compressedInput;
+    }
+
+    protected static QueryInfo getChunkedInputData(ClickHouseNode server, ClickHouseInputStream input, byte[] bytes) {
+        QueryInfo.Builder builder = QueryInfo.newBuilder();
+
+        try {
+            int read = input.read(bytes);
+            // FIXME get rid of byte array copying
+            ByteString bs = read > 0 ? ByteString.copyFrom(bytes, 0, read) : ByteString.empty();
+            builder.setInputData(bs);
+            builder.setNextQueryInfo(read == bytes.length && input.available() > 0);
+        } catch (IOException e) {
+            throw new CompletionException(ClickHouseException.of(e, server));
+        }
+
+        return builder.build();
+    }
+
+    protected static QueryInfo convert(ClickHouseRequest<?> request, boolean streaming) {
         ClickHouseConfig config = request.getConfig();
         ClickHouseNode server = request.getServer();
         ClickHouseCredentials credentials = server.getCredentials(config);
@@ -78,21 +176,13 @@ public class ClickHouseGrpcClient extends AbstractClient<ManagedChannel> {
 
         ClickHouseCompression outputCompression = config.getResponseCompressAlgorithm();
         builder.setOutputCompressionType(outputCompression.encoding());
-
-        // builder.setNextQueryInfo(true);
-        for (Entry<String, Serializable> s : request.getSettings().entrySet()) {
-            builder.putSettings(s.getKey(), String.valueOf(s.getValue()));
+        if (outputCompression != ClickHouseCompression.NONE
+                && config.hasOption(ClickHouseClientOption.COMPRESS_LEVEL)) {
+            builder.setOutputCompressionLevel(config.getResponseCompressLevel());
         }
 
-        ClickHouseCompression inputCompression = config.getRequestCompressAlgorithm();
-        Optional<ClickHouseInputStream> input = request.getInputStream();
-        if (input.isPresent()) {
-            builder.setInputCompressionType(inputCompression.encoding());
-            try {
-                builder.setInputData(ByteString.readFrom(input.get()));
-            } catch (IOException e) {
-                throw new CompletionException(ClickHouseException.of(e, server));
-            }
+        for (Entry<String, Serializable> s : request.getSettings().entrySet()) {
+            builder.putSettings(s.getKey(), String.valueOf(s.getValue()));
         }
 
         List<ClickHouseExternalTable> externalTables = request.getExternalTables();
@@ -103,12 +193,14 @@ public class ClickHouseGrpcClient extends AbstractClient<ManagedChannel> {
                     b.addColumns(NameAndType.newBuilder().setName(c.getColumnName()).setType(c.getOriginalTypeName())
                             .build());
                 }
-                b.setCompressionType(inputCompression.encoding());
+                // doesn't matter because ClickHouse does not support compressed ExternalTable
+                // b.setCompressionType(inputCompression.encoding());
                 if (external.getFormat() != null) {
                     b.setFormat(external.getFormat().name());
                 }
 
                 try {
+                    // FIXME chunking is not supported for ExternalTable
                     builder.addExternalTables(b.setData(ByteString.readFrom(external.getContent())).build());
                 } catch (IOException e) {
                     throw new CompletionException(ClickHouseException.of(e, server));
@@ -138,6 +230,28 @@ public class ClickHouseGrpcClient extends AbstractClient<ManagedChannel> {
                 sb.append(s).append(';').append('\n');
             }
             sql = sb.toString();
+        }
+
+        // let server to decide if transport compression should be used
+        // usually it should not be used due to limited options and conflict with input
+        // data compression
+        // builder.setTransportCompressionType("none");
+        // builder.setTransportCompressionLevel(0);
+
+        Optional<ClickHouseInputStream> input = request.getInputStream();
+        if (input.isPresent()) {
+            ClickHouseCompression inputCompression = config.getRequestCompressAlgorithm();
+            builder.setInputCompressionType(inputCompression.encoding());
+            if (streaming) {
+                builder.setInputData(ByteString.EMPTY);
+                builder.setNextQueryInfo(true);
+            } else {
+                try {
+                    builder.setInputData(ByteString.readFrom(getCompressedInputStream(config, input.get())));
+                } catch (IOException e) {
+                    throw new CompletionException(ClickHouseException.of(e, server));
+                }
+            }
         }
 
         log.debug("Query: %s", sql);
@@ -176,7 +290,23 @@ public class ClickHouseGrpcClient extends AbstractClient<ManagedChannel> {
 
     protected void fill(ClickHouseRequest<?> request, StreamObserver<QueryInfo> observer) {
         try {
-            observer.onNext(convert(request));
+            QueryInfo queryInfo = convert(request, true);
+            boolean hasNext = queryInfo.getNextQueryInfo();
+            observer.onNext(queryInfo);
+            if (hasNext) {
+                final ClickHouseNode server = request.getServer();
+                final ClickHouseConfig config = request.getConfig();
+                try (ClickHouseInputStream input = getCompressedInputStream(config, request.getInputStream().get())) { // NOSONAR
+                    byte[] bytes = new byte[config.getRequestChunkSize()];
+                    while (hasNext) {
+                        queryInfo = getChunkedInputData(server, input, bytes);
+                        hasNext = queryInfo.getNextQueryInfo();
+                        observer.onNext(queryInfo);
+                    }
+                } catch (IOException e) {
+                    throw new CompletionException(ClickHouseException.of(e, server));
+                }
+            }
         } finally {
             observer.onCompleted();
         }
@@ -237,7 +367,7 @@ public class ClickHouseGrpcClient extends AbstractClient<ManagedChannel> {
 
         ClickHouseGrpc.ClickHouseBlockingStub stub = ClickHouseGrpc.newBlockingStub(channel);
 
-        Result result = stub.executeQuery(convert(sealedRequest));
+        Result result = stub.executeQuery(convert(sealedRequest, false));
 
         ClickHouseResponse response = new ClickHouseGrpcResponse(sealedRequest.getConfig(), // NOSONAR
                 sealedRequest.getSettings(), result);

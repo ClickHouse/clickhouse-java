@@ -1,5 +1,6 @@
 package com.clickhouse.client;
 
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
@@ -15,6 +16,9 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.attribute.FileAttribute;
+import java.nio.file.attribute.PosixFilePermission;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -26,6 +30,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Properties;
 import java.util.ServiceLoader;
+import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutorService;
@@ -37,10 +42,22 @@ import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
 public final class ClickHouseUtils {
+    private static final boolean IS_UNIX;
+    private static final boolean IS_WINDOWS;
+
     private static final String HOME_DIR;
 
     static {
-        HOME_DIR = System.getProperty("os.name").toLowerCase(Locale.ROOT).contains("windows")
+        final String osName = System.getProperty("os.name", "");
+
+        // https://github.com/apache/commons-lang/blob/5a3904c8678574a4ddb8502ebbc606be1091fb3f/src/main/java/org/apache/commons/lang3/SystemUtils.java#L1370
+        IS_UNIX = osName.startsWith("AIX") || osName.startsWith("HP-UX") || osName.startsWith("OS/400")
+                || osName.startsWith("Irix") || osName.startsWith("Linux") || osName.startsWith("LINUX")
+                || osName.startsWith("Mac OS X") || osName.startsWith("Solaris") || osName.startsWith("SunOS")
+                || osName.startsWith("FreeBSD") || osName.startsWith("OpenBSD") || osName.startsWith("NetBSD");
+        IS_WINDOWS = osName.toLowerCase(Locale.ROOT).contains("windows");
+
+        HOME_DIR = IS_WINDOWS
                 ? Paths.get(System.getenv("APPDATA"), "clickhouse").toFile().getAbsolutePath()
                 : Paths.get(System.getProperty("user.home"), ".clickhouse").toFile().getAbsolutePath();
     }
@@ -107,6 +124,47 @@ public final class ClickHouseUtils {
 
     public static String applyVariables(String template, Map<String, String> variables) {
         return applyVariables(template, variables == null || variables.isEmpty() ? null : variables::get);
+    }
+
+    /**
+     * Creates a temporary file with given prefix and suffix. Same as
+     * {@code createTempFile(prefix, suffix, false)}.
+     *
+     * @param prefix prefix, could be null
+     * @param suffix suffix, could be null
+     * @return non-null temporary file
+     * @throws IOException when failed to create the temporary file
+     */
+    public static File createTempFile(String prefix, String suffix) throws IOException {
+        return createTempFile(prefix, suffix, false);
+    }
+
+    /**
+     * Creates a temporary file with given prefix and suffix.
+     *
+     * @param prefix       prefix, could be null
+     * @param suffix       suffix, could be null
+     * @param deleteOnExit whether the file be deleted on exit
+     * @return non-null temporary file
+     * @throws IOException when failed to create the temporary file
+     */
+    public static File createTempFile(String prefix, String suffix, boolean deleteOnExit) throws IOException {
+        final File f;
+        if (IS_UNIX) {
+            FileAttribute<Set<PosixFilePermission>> attr = PosixFilePermissions
+                    .asFileAttribute(PosixFilePermissions.fromString("rwx------"));
+            f = Files.createTempFile(prefix, suffix, attr).toFile();
+        } else {
+            f = Files.createTempFile(prefix, suffix).toFile();
+            f.setReadable(true, true); // NOSONAR
+            f.setWritable(true, true); // NOSONAR
+            f.setExecutable(true, true); // NOSONAR
+        }
+
+        if (deleteOnExit) {
+            f.deleteOnExit();
+        }
+        return f;
     }
 
     /**
@@ -209,11 +267,11 @@ public final class ClickHouseUtils {
             long keepAliveTimeoutMs, boolean allowCoreThreadTimeout) {
         BlockingQueue<Runnable> queue = maxRequests > 0 ? new ArrayBlockingQueue<>(maxRequests)
                 : new LinkedBlockingQueue<>();
-        if (coreThreads < 2) {
-            coreThreads = 2;
+        if (coreThreads < 3) {
+            coreThreads = 3;
         }
-        if (maxThreads < coreThreads) {
-            maxThreads = coreThreads;
+        if (maxThreads <= coreThreads) {
+            maxThreads = coreThreads + 1;
         }
         if (keepAliveTimeoutMs <= 0L) {
             keepAliveTimeoutMs = allowCoreThreadTimeout ? 1000L : 0L;

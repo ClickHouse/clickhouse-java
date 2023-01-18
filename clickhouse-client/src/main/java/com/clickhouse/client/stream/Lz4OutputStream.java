@@ -4,7 +4,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 
 import com.clickhouse.client.ClickHouseChecker;
-import com.clickhouse.client.ClickHouseFile;
+import com.clickhouse.client.ClickHousePassThruStream;
 import com.clickhouse.client.data.BinaryStreamUtils;
 import com.clickhouse.client.data.ClickHouseCityHash;
 
@@ -50,19 +50,19 @@ public class Lz4OutputStream extends AbstractByteArrayOutputStream {
         output.write(block, 0, compressed + 25);
     }
 
-    public Lz4OutputStream(OutputStream stream, int maxCompressBlockSize, Runnable postCloseAction) {
-        this(null, stream, -1, maxCompressBlockSize, postCloseAction);
+    public Lz4OutputStream(OutputStream out, int maxCompressBlockSize, Runnable postCloseAction) {
+        this(null, out, -1, maxCompressBlockSize, postCloseAction);
     }
 
-    public Lz4OutputStream(OutputStream stream, int compressLevel, int maxCompressBlockSize, Runnable postCloseAction) {
-        this(null, stream, compressLevel, maxCompressBlockSize, postCloseAction);
+    public Lz4OutputStream(OutputStream out, int compressLevel, int maxCompressBlockSize, Runnable postCloseAction) {
+        this(null, out, compressLevel, maxCompressBlockSize, postCloseAction);
     }
 
-    public Lz4OutputStream(ClickHouseFile file, OutputStream stream, int compressLevel, int maxCompressBlockSize,
-            Runnable postCloseAction) {
-        super(file, maxCompressBlockSize, postCloseAction);
+    public Lz4OutputStream(ClickHousePassThruStream stream, OutputStream out, int compressLevel,
+            int maxCompressBlockSize, Runnable postCloseAction) {
+        super(stream, maxCompressBlockSize, postCloseAction);
 
-        output = ClickHouseChecker.nonNull(stream, "OutputStream");
+        output = ClickHouseChecker.nonNull(out, "OutputStream");
 
         if (compressLevel < 0) {
             compressor = factory.fastCompressor();

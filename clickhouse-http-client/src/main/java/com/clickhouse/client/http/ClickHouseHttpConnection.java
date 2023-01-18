@@ -89,7 +89,7 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
         }
 
         ClickHouseInputStream chIn = request.getInputStream().orElse(null);
-        if (chIn != null && chIn.getUnderlyingFile().isAvailable()) {
+        if (chIn != null && chIn.getUnderlyingStream().hasInput()) {
             appendQueryParameter(builder, "query", request.getStatements().get(0));
         }
         if (config.isRequestCompressed() && config.getRequestCompressAlgorithm() == ClickHouseCompression.LZ4) {
@@ -261,7 +261,7 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
 
     protected static void postData(ClickHouseConfig config, byte[] boundary, String sql, ClickHouseInputStream data,
             List<ClickHouseExternalTable> tables, OutputStream requestStream) throws IOException {
-        final boolean hasFile = data != null && data.getUnderlyingFile().isAvailable();
+        final boolean hasFile = data != null && data.getUnderlyingStream().hasInput();
 
         try (OutputStream rawOut = requestStream;
                 ClickHouseOutputStream out = hasFile
