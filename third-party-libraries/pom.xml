@@ -36,7 +36,6 @@
 
     <modules>
         <module>com.javacc</module>
-        <module>io.airlift</module>
         <module>io.grpc</module>
         <!-- module>org.prqllang</module -->
         <module>org.roaringbitmap</module>
@@ -77,7 +76,6 @@
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
         <annotations-api.version>6.0.53</annotations-api.version>
-        <aircompressor.version>0.21</aircompressor.version>
         <grpc.version>1.52.1</grpc.version>
         <gson.version>2.10.1</gson.version>
         <opencensus.version>0.31.1</opencensus.version>
@@ -108,11 +106,6 @@
                 <groupId>org.roaringbitmap</groupId>
                 <artifactId>RoaringBitmap</artifactId>
                 <version>${roaring-bitmap.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>io.airlift</groupId>
-                <artifactId>aircompressor</artifactId>
-                <version>${aircompressor.version}</version>
             </dependency>
             <dependency>
                 <groupId>io.grpc</groupId>
