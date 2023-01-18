@@ -88,7 +88,6 @@ public class ClickHouseGrpcClientTest extends ClientIntegrationTest {
 
     @Test(groups = { "integration" })
     public void testNothing() throws Exception {
-        testDumpFile(true, true);
     }
 
     @Test(groups = "integration")
@@ -130,6 +129,17 @@ public class ClickHouseGrpcClientTest extends ClientIntegrationTest {
                         .readCustom((b, o, l) -> -1).asAsciiString(),
                 expected);
 
+    }
+
+    @Test(dataProvider = "mixedCompressionMatrix", groups = "integration")
+    @Override
+    public void testDecompressResponse(ClickHouseCompression reqComp, ClickHouseCompression respComp) throws Exception {
+        if (!checkServerVersion(getClient(), getServer(), "[22.8,)")) {
+            throw new SkipException(
+                    "Skip due to unexpected end of input error on 22.3 when using brotli for decompression");
+        }
+
+        super.testDecompressResponse(reqComp, respComp);
     }
 
     @Test(groups = { "integration" })
