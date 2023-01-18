@@ -14,17 +14,23 @@ import java.util.Set;
 import java.util.TimeZone;
 import java.util.Map.Entry;
 
-import com.clickhouse.client.config.ClickHouseBufferingMode;
 import com.clickhouse.client.config.ClickHouseClientOption;
-import com.clickhouse.client.config.ClickHouseOption;
 import com.clickhouse.client.config.ClickHouseDefaults;
 import com.clickhouse.client.config.ClickHouseSslMode;
+import com.clickhouse.config.ClickHouseBufferingMode;
+import com.clickhouse.config.ClickHouseOption;
+import com.clickhouse.config.ClickHouseRenameMethod;
+import com.clickhouse.data.ClickHouseChecker;
+import com.clickhouse.data.ClickHouseCompression;
+import com.clickhouse.data.ClickHouseDataConfig;
+import com.clickhouse.data.ClickHouseFormat;
+import com.clickhouse.data.ClickHouseVersion;
 
 /**
  * An immutable class holding client-specific options like
  * {@link ClickHouseCredentials} and {@link ClickHouseNodeSelector} etc.
  */
-public class ClickHouseConfig implements Serializable {
+public class ClickHouseConfig implements ClickHouseDataConfig {
     static final class ClientOptions {
         private static final ClientOptions INSTANCE = new ClientOptions();
 
@@ -283,8 +289,8 @@ public class ClickHouseConfig implements Serializable {
         this.connectionTimeout = getIntOption(ClickHouseClientOption.CONNECTION_TIMEOUT);
         this.database = (String) getOption(ClickHouseClientOption.DATABASE, ClickHouseDefaults.DATABASE);
         this.format = (ClickHouseFormat) getOption(ClickHouseClientOption.FORMAT, ClickHouseDefaults.FORMAT);
-        this.maxBufferSize = ClickHouseUtils.getBufferSize(getIntOption(ClickHouseClientOption.MAX_BUFFER_SIZE), -1,
-                -1);
+        this.maxBufferSize = ClickHouseDataConfig.getBufferSize(getIntOption(ClickHouseClientOption.MAX_BUFFER_SIZE),
+                -1, -1);
         this.bufferSize = getIntOption(ClickHouseClientOption.BUFFER_SIZE);
         this.bufferQueueVariation = getIntOption(ClickHouseClientOption.BUFFER_QUEUE_VARIATION);
         this.readBufferSize = getIntOption(ClickHouseClientOption.READ_BUFFER_SIZE);
@@ -344,6 +350,7 @@ public class ClickHouseConfig implements Serializable {
         this.nodeSelector = nodeSelector == null ? ClickHouseNodeSelector.EMPTY : nodeSelector;
     }
 
+    @Override
     public boolean isAsync() {
         return async;
     }
@@ -426,6 +433,7 @@ public class ClickHouseConfig implements Serializable {
         return database;
     }
 
+    @Override
     public ClickHouseFormat getFormat() {
         return format;
     }
@@ -434,51 +442,29 @@ public class ClickHouseConfig implements Serializable {
         return nodeCheckInterval;
     }
 
-    /**
-     * Gets max buffer size in byte can be used for streaming.
-     *
-     * @return max buffer size in byte
-     */
+    @Override
     public int getMaxBufferSize() {
         return maxBufferSize;
     }
 
-    /**
-     * Gets default buffer size in byte for both read and write.
-     *
-     * @return default buffer size in byte
-     */
+    @Override
     public int getBufferSize() {
         return bufferSize;
     }
 
-    /**
-     * Gets number of times the buffer queue is filled up before
-     * increasing capacity of buffer queue. Zero or negative value means the queue
-     * length is fixed.
-     *
-     * @return variation
-     */
+    @Override
     public int getBufferQueueVariation() {
         return bufferQueueVariation;
     }
 
-    /**
-     * Gets read buffer size in byte.
-     *
-     * @return read buffer size in byte
-     */
+    @Override
     public int getReadBufferSize() {
-        return ClickHouseUtils.getBufferSize(readBufferSize, getBufferSize(), getMaxBufferSize());
+        return ClickHouseDataConfig.getBufferSize(readBufferSize, getBufferSize(), getMaxBufferSize());
     }
 
-    /**
-     * Gets write buffer size in byte.
-     *
-     * @return write buffer size in byte
-     */
+    @Override
     public int getWriteBufferSize() {
-        return ClickHouseUtils.getBufferSize(writeBufferSize, getBufferSize(), getMaxBufferSize());
+        return ClickHouseDataConfig.getBufferSize(writeBufferSize, getBufferSize(), getMaxBufferSize());
     }
 
     /**
@@ -487,7 +473,7 @@ public class ClickHouseConfig implements Serializable {
      * @return request chunk size
      */
     public int getRequestChunkSize() {
-        return ClickHouseUtils.getBufferSize(requestChunkSize, getWriteBufferSize(), getMaxBufferSize());
+        return ClickHouseDataConfig.getBufferSize(requestChunkSize, getWriteBufferSize(), getMaxBufferSize());
     }
 
     /**
@@ -512,6 +498,7 @@ public class ClickHouseConfig implements Serializable {
         return maxExecutionTime;
     }
 
+    @Override
     public int getMaxQueuedBuffers() {
         return maxQueuedBuffers;
     }
@@ -544,6 +531,7 @@ public class ClickHouseConfig implements Serializable {
         return repeatOnSessionLock;
     }
 
+    @Override
     public boolean isReuseValueWrapper() {
         return reuseValueWrapper;
     }
@@ -601,18 +589,22 @@ public class ClickHouseConfig implements Serializable {
         return transactionTimeout < 1 ? sessionTimeout : transactionTimeout;
     }
 
+    @Override
     public boolean isWidenUnsignedTypes() {
         return widenUnsignedTypes;
     }
 
+    @Override
     public boolean isUseBinaryString() {
         return useBinaryString;
     }
 
+    @Override
     public boolean isUseBlockingQueue() {
         return useBlockingQueue;
     }
 
+    @Override
     public boolean isUseObjectsInArray() {
         return useObjectsInArray;
     }
@@ -635,6 +627,7 @@ public class ClickHouseConfig implements Serializable {
      * @return time zone, could be null when {@code use_server_time_zone_for_date}
      *         is set to {@code false}.
      */
+    @Override
     public TimeZone getTimeZoneForDate() {
         return timeZoneForDate;
     }
@@ -645,6 +638,7 @@ public class ClickHouseConfig implements Serializable {
      *
      * @return non-null preferred time zone
      */
+    @Override
     public TimeZone getUseTimeZone() {
         return useTimeZone;
     }
@@ -849,5 +843,30 @@ public class ClickHouseConfig implements Serializable {
         return Objects.equals(options, other.options) && Objects.equals(credentials, other.credentials)
                 && Objects.equals(metricRegistry.orElse(null), other.metricRegistry.orElse(null))
                 && Objects.equals(nodeSelector, other.nodeSelector);
+    }
+
+    @Override
+    public int getReadTimeout() {
+        return getSocketTimeout();
+    }
+
+    @Override
+    public int getWriteTimeout() {
+        return getSocketTimeout();
+    }
+
+    @Override
+    public ClickHouseBufferingMode getReadBufferingMode() {
+        return getResponseBuffering();
+    }
+
+    @Override
+    public ClickHouseBufferingMode getWriteBufferingMode() {
+        return getRequestBuffering();
+    }
+
+    @Override
+    public ClickHouseRenameMethod getColumnRenameMethod() {
+        return (ClickHouseRenameMethod) getOption(ClickHouseClientOption.RENAME_RESPONSE_COLUMN);
     }
 }

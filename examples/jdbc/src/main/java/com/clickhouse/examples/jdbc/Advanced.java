@@ -14,12 +14,12 @@ import java.util.Properties;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.clickhouse.client.ClickHouseException;
-import com.clickhouse.client.ClickHouseFormat;
-import com.clickhouse.client.ClickHouseRecord;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseRequestManager;
 import com.clickhouse.client.ClickHouseResponse;
-import com.clickhouse.client.data.ClickHouseExternalTable;
+import com.clickhouse.data.ClickHouseExternalTable;
+import com.clickhouse.data.ClickHouseFormat;
+import com.clickhouse.data.ClickHouseRecord;
 import com.clickhouse.jdbc.ClickHouseConnection;
 import com.clickhouse.jdbc.SqlExceptionUtils;
 

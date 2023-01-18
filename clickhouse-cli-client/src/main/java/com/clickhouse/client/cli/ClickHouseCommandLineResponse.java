@@ -5,7 +5,7 @@ import java.io.UncheckedIOException;
 
 import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseResponseSummary;
-import com.clickhouse.client.data.ClickHouseStreamResponse;
+import com.clickhouse.client.ClickHouseStreamResponse;
 
 public class ClickHouseCommandLineResponse extends ClickHouseStreamResponse {
     private final transient ClickHouseCommandLine cli;

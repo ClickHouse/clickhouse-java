@@ -11,6 +11,8 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
 import com.clickhouse.client.ClickHouseNode.Status;
+import com.clickhouse.data.ClickHouseChecker;
+import com.clickhouse.data.ClickHouseUtils;
 
 /**
  * Load balancing policy. In general, a policy is responsible for 3 things: 1)

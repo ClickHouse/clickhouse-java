@@ -5,8 +5,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import com.clickhouse.client.ClickHouseClient;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseResponse;
-import com.clickhouse.client.logging.Logger;
-import com.clickhouse.client.logging.LoggerFactory;
+import com.clickhouse.logging.Logger;
+import com.clickhouse.logging.LoggerFactory;
 import io.r2dbc.spi.ConnectionMetadata;
 
 public class ClickHouseConnectionMetadata implements ConnectionMetadata {

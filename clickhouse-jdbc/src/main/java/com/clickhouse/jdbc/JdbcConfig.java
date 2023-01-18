@@ -9,10 +9,10 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.Map.Entry;
 
-import com.clickhouse.client.ClickHouseChecker;
-import com.clickhouse.client.config.ClickHouseOption;
-import com.clickhouse.client.logging.Logger;
-import com.clickhouse.client.logging.LoggerFactory;
+import com.clickhouse.config.ClickHouseOption;
+import com.clickhouse.data.ClickHouseChecker;
+import com.clickhouse.logging.Logger;
+import com.clickhouse.logging.LoggerFactory;
 
 /**
  * JDBC-specific configuration.

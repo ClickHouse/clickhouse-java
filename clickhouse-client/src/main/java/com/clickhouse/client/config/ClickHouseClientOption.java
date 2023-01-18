@@ -7,9 +7,10 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-import com.clickhouse.client.ClickHouseChecker;
-import com.clickhouse.client.ClickHouseCompression;
-import com.clickhouse.client.ClickHouseFormat;
+import com.clickhouse.config.ClickHouseOption;
+import com.clickhouse.data.ClickHouseChecker;
+import com.clickhouse.data.ClickHouseCompression;
+import com.clickhouse.data.ClickHouseDataConfig;
 
 /**
  * Generic client options.
@@ -20,7 +21,7 @@ public enum ClickHouseClientOption implements ClickHouseOption {
      * {@link com.clickhouse.client.ClickHouseClient#execute(com.clickhouse.client.ClickHouseRequest)}
      * in a separate thread).
      */
-    ASYNC("async", true, "Whether the client should run in async mode."),
+    ASYNC("async", ClickHouseDataConfig.DEFAULT_ASYNC, "Whether the client should run in async mode."),
     /**
      * Whether the client should discover more nodes from system tables and/or
      * clickhouse-keeper/zookeeper.
@@ -78,12 +79,13 @@ public enum ClickHouseClientOption implements ClickHouseOption {
      * Default buffer size in byte for both request and response. It will be reset
      * to {@link #MAX_BUFFER_SIZE} if it's too large.
      */
-    BUFFER_SIZE("buffer_size", 8192, "Default buffer size in byte for both request and response."),
+    BUFFER_SIZE("buffer_size", ClickHouseDataConfig.DEFAULT_BUFFER_SIZE,
+            "Default buffer size in byte for both request and response."),
     /**
      * Number of times the buffer queue is filled up before increasing capacity of
      * buffer queue. Zero or negative value means the queue length is fixed.
      */
-    BUFFER_QUEUE_VARIATION("buffer_queue_variation", 100,
+    BUFFER_QUEUE_VARIATION("buffer_queue_variation", ClickHouseDataConfig.DEFAULT_BUFFER_QUEUE_VARIATION,
             "Number of times the buffer queue is filled up before increasing capacity of buffer queue. Zero or negative value means the queue length is fixed."),
     /**
      * Read buffer size in byte. It's mainly for input stream(e.g. reading data from
@@ -117,7 +119,7 @@ public enum ClickHouseClientOption implements ClickHouseOption {
     /**
      * Client name.
      */
-    CLIENT_NAME("client_name", DEFAULT_CLIENT_NAME,
+    CLIENT_NAME("client_name", "ClickHouse Java Client",
             "Client name, which is either 'client_name' or 'http_user_agent' shows up in system.query_log table."),
     /**
      * Whether server will compress response to client or not.
@@ -142,11 +144,13 @@ public enum ClickHouseClientOption implements ClickHouseOption {
     /**
      * Compression level for compressing server response.
      */
-    COMPRESS_LEVEL("compress_level", -1, "Compression level for response, -1 standards for default"),
+    COMPRESS_LEVEL("compress_level", ClickHouseDataConfig.DEFAULT_READ_COMPRESS_LEVEL,
+            "Compression level for response, -1 standards for default"),
     /**
      * Compression level for decompress client request.
      */
-    DECOMPRESS_LEVEL("decompress_level", -1, "Compression level for request, -1 standards for default"),
+    DECOMPRESS_LEVEL("decompress_level", ClickHouseDataConfig.DEFAULT_WRITE_COMPRESS_LEVEL,
+            "Compression level for request, -1 standards for default"),
 
     /**
      * Connection timeout in milliseconds.
@@ -165,7 +169,7 @@ public enum ClickHouseClientOption implements ClickHouseOption {
     /**
      * Default format.
      */
-    FORMAT("format", ClickHouseFormat.TabSeparated, "Default format."),
+    FORMAT("format", ClickHouseDataConfig.DEFAULT_FORMAT, "Default format."),
     /**
      * Whether to log leading comment(as log_comment in system.query_log) of the
      * query.
@@ -176,7 +180,7 @@ public enum ClickHouseClientOption implements ClickHouseOption {
      * Maximum buffer size in byte can be used for streaming. It's not supposed to
      * be larger than {@code Integer.MAX_VALUE - 8}.
      */
-    MAX_BUFFER_SIZE("max_buffer_size", 1024 * 1024 * 1024,
+    MAX_BUFFER_SIZE("max_buffer_size", ClickHouseDataConfig.DEFAULT_MAX_BUFFER_SIZE,
             "Maximum buffer size in byte can be used for streaming."),
     /**
      * Maximum query execution time in seconds.
@@ -185,7 +189,7 @@ public enum ClickHouseClientOption implements ClickHouseOption {
     /**
      * Maximum queued in-memory buffers.
      */
-    MAX_QUEUED_BUFFERS("max_queued_buffers", 512,
+    MAX_QUEUED_BUFFERS("max_queued_buffers", ClickHouseDataConfig.DEFAULT_MAX_QUEUED_BUFFERS,
             "Maximum queued in-memory buffers, 0 or negative number means no limit."),
     /**
      * Maxium queued requests. When {@link #MAX_THREADS_PER_CLIENT} is greater than
@@ -206,11 +210,11 @@ public enum ClickHouseClientOption implements ClickHouseOption {
     /**
      * Product name usered in user agent.
      */
-    PRODUCT_NAME("product_name", DEFAULT_PRODUCT_NAME, "Product name used in user agent."),
+    PRODUCT_NAME("product_name", "ClickHouse-JavaClient", "Product name used in user agent."),
     /**
      * Method to rename response columns.
      */
-    RENAME_RESPONSE_COLUMN("rename_response_column", ClickHouseRenameMethod.NONE,
+    RENAME_RESPONSE_COLUMN("rename_response_column", ClickHouseDataConfig.DEFAULT_COLUMN_RENAME_METHOD,
             "Method to rename response columns."),
     /**
      * Maximum number of times retry can happen for a request.
@@ -227,7 +231,7 @@ public enum ClickHouseClientOption implements ClickHouseOption {
      * Whether to reuse wrapper of value(e.g. ClickHouseValue or
      * ClickHouseRecord) for memory efficiency.
      */
-    REUSE_VALUE_WRAPPER("reuse_value_wrapper", true,
+    REUSE_VALUE_WRAPPER("reuse_value_wrapper", ClickHouseDataConfig.DEFAULT_REUSE_VALUE_WRAPPER,
             "Whether to reuse wrapper of value(e.g. ClickHouseValue or ClickHouseRecord) for memory efficiency."),
     /**
      * Server revision.
@@ -333,22 +337,23 @@ public enum ClickHouseClientOption implements ClickHouseOption {
      * {@code short} for UInt8 instead of {@code byte}, and {@code UnsignedLong} for
      * UInt64).
      */
-    WIDEN_UNSIGNED_TYPES("widen_unsigned_types", false,
+    WIDEN_UNSIGNED_TYPES("widen_unsigned_types", ClickHouseDataConfig.DEFAULT_WIDEN_UNSIGNED_TYPE,
             "Whether to convert unsigned types to the next widest type(e.g. use short for UInt8 instead of byte, and UnsignedLong for UInt64)."),
     /**
      * Whether to support binary string. Enable this option to treat
      * {@code FixedString} and {@code String} as byte array.
      */
-    USE_BINARY_STRING("use_binary_string", false,
+    USE_BINARY_STRING("use_binary_string", ClickHouseDataConfig.DEFAULT_USE_BINARY_STRING,
             "Whether to support binary string. Enable this option to treat FixedString and String as byte array."),
     /**
      * Whether to use blocking queue for buffering.
      */
-    USE_BLOCKING_QUEUE("use_blocking_queue", true, "Whether to use blocking queue for buffering."),
+    USE_BLOCKING_QUEUE("use_blocking_queue", ClickHouseDataConfig.DEFAULT_USE_BLOCKING_QUEUE,
+            "Whether to use blocking queue for buffering."),
     /**
      * Whether Object[] should be used instead of primitive arrays.
      */
-    USE_OBJECTS_IN_ARRAYS("use_objects_in_arrays", false,
+    USE_OBJECTS_IN_ARRAYS("use_objects_in_arrays", ClickHouseDataConfig.DEFAULT_USE_OBJECT_IN_ARRAY,
             "Whether Object[] should be used instead of primitive arrays."),
     /**
      * Whether to access ClickHouse server directly without using system wide proxy
@@ -458,7 +463,8 @@ public enum ClickHouseClientOption implements ClickHouseOption {
      * @return non-empty user-agent
      */
     public static final String buildUserAgent(String productName, String additionalProperty) {
-        productName = productName == null || productName.isEmpty() ? DEFAULT_PRODUCT_NAME : productName.trim();
+        productName = productName == null || productName.isEmpty() ? (String) PRODUCT_NAME.getEffectiveDefaultValue()
+                : productName.trim();
         StringBuilder builder = new StringBuilder(productName).append('/').append(PRODUCT_VERSION).append(" (")
                 .append(CLIENT_OS_INFO).append("; ").append(CLIENT_JVM_INFO);
         if (additionalProperty != null && !additionalProperty.isEmpty()) {

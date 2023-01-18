@@ -15,6 +15,8 @@ import java.util.Set;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.config.ClickHouseDefaults;
 import com.clickhouse.client.config.ClickHouseSslMode;
+import com.clickhouse.data.ClickHouseFormat;
+import com.clickhouse.data.ClickHouseVersion;
 
 public class ClickHouseNodeTest extends BaseIntegrationTest {
     private void checkDefaultValues(ClickHouseNode node) {

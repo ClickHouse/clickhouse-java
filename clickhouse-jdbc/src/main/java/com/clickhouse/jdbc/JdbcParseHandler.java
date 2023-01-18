@@ -4,7 +4,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import com.clickhouse.client.ClickHouseChecker;
+import com.clickhouse.data.ClickHouseChecker;
 import com.clickhouse.jdbc.parser.ClickHouseSqlStatement;
 import com.clickhouse.jdbc.parser.ParseHandler;
 import com.clickhouse.jdbc.parser.StatementType;

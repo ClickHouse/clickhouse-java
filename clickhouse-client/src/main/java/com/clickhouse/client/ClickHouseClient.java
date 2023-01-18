@@ -18,10 +18,23 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
 
-import com.clickhouse.client.config.ClickHouseBufferingMode;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.config.ClickHouseDefaults;
-import com.clickhouse.client.config.ClickHouseOption;
+import com.clickhouse.config.ClickHouseBufferingMode;
+import com.clickhouse.config.ClickHouseOption;
+import com.clickhouse.data.ClickHouseChecker;
+import com.clickhouse.data.ClickHouseColumn;
+import com.clickhouse.data.ClickHouseCompression;
+import com.clickhouse.data.ClickHouseDataConfig;
+import com.clickhouse.data.ClickHouseDataStreamFactory;
+import com.clickhouse.data.ClickHouseFile;
+import com.clickhouse.data.ClickHouseFormat;
+import com.clickhouse.data.ClickHouseInputStream;
+import com.clickhouse.data.ClickHouseOutputStream;
+import com.clickhouse.data.ClickHousePipedOutputStream;
+import com.clickhouse.data.ClickHouseValue;
+import com.clickhouse.data.ClickHouseValues;
+import com.clickhouse.data.ClickHouseWriter;
 
 /**
  * A unified interface defines Java client for ClickHouse. A client can only
@@ -142,12 +155,12 @@ public interface ClickHouseClient extends AutoCloseable {
     static ClickHouseInputStream getResponseInputStream(ClickHouseConfig config, InputStream input,
             Runnable postCloseAction) {
         if (config == null) {
-            return ClickHouseInputStream.of(input, (int) ClickHouseClientOption.BUFFER_SIZE.getDefaultValue(),
-                    ClickHouseCompression.NONE, postCloseAction);
+            return ClickHouseInputStream.of(input, ClickHouseDataConfig.getDefaultReadBufferSize(),
+                    ClickHouseCompression.NONE, ClickHouseDataConfig.DEFAULT_READ_COMPRESS_LEVEL, postCloseAction);
         }
 
         return ClickHouseInputStream.of(input, config.getReadBufferSize(), config.getResponseCompressAlgorithm(),
-                postCloseAction);
+                config.getResponseCompressLevel(), postCloseAction);
     }
 
     /**
@@ -183,7 +196,8 @@ public interface ClickHouseClient extends AutoCloseable {
             wrappedInput = getResponseInputStream(config, decompressedStream.getInputStream(), postCloseAction);
             submit(() -> {
                 try (ClickHouseInputStream in = ClickHouseInputStream.of(input, config.getReadBufferSize(),
-                        config.getResponseCompressAlgorithm(), null); ClickHouseOutputStream out = decompressedStream) {
+                        config.getResponseCompressAlgorithm(), config.getResponseCompressLevel(), null);
+                        ClickHouseOutputStream out = decompressedStream) {
                     in.pipe(out);
                 }
                 return null;

@@ -5,8 +5,8 @@ import java.sql.SQLException;
 import java.util.List;
 import java.util.Map;
 
-import com.clickhouse.client.ClickHouseColumn;
-import com.clickhouse.client.ClickHouseUtils;
+import com.clickhouse.data.ClickHouseColumn;
+import com.clickhouse.data.ClickHouseUtils;
 
 public class ClickHouseResultSetMetaData extends JdbcWrapper implements ResultSetMetaData {
     public static ResultSetMetaData of(String database, String table, List<ClickHouseColumn> columns,

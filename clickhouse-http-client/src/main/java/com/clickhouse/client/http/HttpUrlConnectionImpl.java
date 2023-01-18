@@ -1,20 +1,21 @@
 package com.clickhouse.client.http;
 
-import com.clickhouse.client.ClickHouseChecker;
 import com.clickhouse.client.ClickHouseClient;
 import com.clickhouse.client.ClickHouseConfig;
-import com.clickhouse.client.ClickHouseFormat;
-import com.clickhouse.client.ClickHouseInputStream;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseSslContextProvider;
-import com.clickhouse.client.ClickHouseUtils;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.config.ClickHouseSslMode;
-import com.clickhouse.client.data.ClickHouseExternalTable;
 import com.clickhouse.client.http.config.ClickHouseHttpOption;
-import com.clickhouse.client.logging.Logger;
-import com.clickhouse.client.logging.LoggerFactory;
+import com.clickhouse.data.ClickHouseChecker;
+import com.clickhouse.data.ClickHouseExternalTable;
+import com.clickhouse.data.ClickHouseFormat;
+import com.clickhouse.data.ClickHouseInputStream;
+import com.clickhouse.data.ClickHouseOutputStream;
+import com.clickhouse.data.ClickHouseUtils;
+import com.clickhouse.logging.Logger;
+import com.clickhouse.logging.LoggerFactory;
 
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
@@ -46,7 +47,8 @@ public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
 
     private final HttpURLConnection conn;
 
-    private ClickHouseHttpResponse buildResponse(Runnable postCloseAction) throws IOException {
+    private ClickHouseHttpResponse buildResponse(ClickHouseOutputStream output, Runnable postCloseAction)
+            throws IOException {
         // X-ClickHouse-Server-Display-Name: xxx
         // X-ClickHouse-Query-Id: xxx
         // X-ClickHouse-Format: RowBinaryWithNamesAndTypes
@@ -60,7 +62,7 @@ public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
         ClickHouseConfig c = config;
         ClickHouseFormat format = c.getFormat();
         TimeZone timeZone = c.getServerTimeZone();
-        boolean hasOutputFile = output != null && output.getUnderlyingStream().hasOutput();
+        boolean hasCustomOutput = output != null && output.getUnderlyingStream().hasOutput();
         boolean hasQueryResult = false;
         // queryId, format and timeZone are only available for queries
         if (!ClickHouseChecker.isNullOrEmpty(queryId)) {
@@ -93,22 +95,23 @@ public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
             action = postCloseAction;
         }
         return new ClickHouseHttpResponse(this,
-                hasOutputFile ? ClickHouseInputStream.of(source, c.getReadBufferSize(), action)
+                hasCustomOutput ? ClickHouseInputStream.of(source, c.getReadBufferSize(), action)
                         : (hasQueryResult ? ClickHouseClient.getAsyncResponseInputStream(c, source, action)
                                 : ClickHouseClient.getResponseInputStream(c, source, action)),
                 displayName, queryId, summary, format, timeZone);
     }
 
     private HttpURLConnection newConnection(String url, boolean post) throws IOException {
-        HttpURLConnection newConn = config.isUseNoProxy()
+        ClickHouseConfig c = config;
+        HttpURLConnection newConn = c.isUseNoProxy()
                 ? (HttpURLConnection) new URL(url).openConnection(Proxy.NO_PROXY)
                 : (HttpURLConnection) new URL(url).openConnection();
 
-        if ((newConn instanceof HttpsURLConnection) && config.isSsl()) {
+        if ((newConn instanceof HttpsURLConnection) && c.isSsl()) {
             HttpsURLConnection secureConn = (HttpsURLConnection) newConn;
-            SSLContext sslContext = ClickHouseSslContextProvider.getProvider().getSslContext(SSLContext.class, config)
+            SSLContext sslContext = ClickHouseSslContextProvider.getProvider().getSslContext(SSLContext.class, c)
                     .orElse(null);
-            HostnameVerifier verifier = config.getSslMode() == ClickHouseSslMode.STRICT
+            HostnameVerifier verifier = c.getSslMode() == ClickHouseSslMode.STRICT
                     ? HttpsURLConnection.getDefaultHostnameVerifier()
                     : (hostname, session) -> true; // NOSONAR
 
@@ -126,8 +129,8 @@ public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
         newConn.setAllowUserInteraction(false);
         newConn.setDoInput(true);
         newConn.setDoOutput(true);
-        newConn.setConnectTimeout(config.getConnectionTimeout());
-        newConn.setReadTimeout(config.getSocketTimeout());
+        newConn.setConnectTimeout(c.getConnectionTimeout());
+        newConn.setReadTimeout(c.getSocketTimeout());
 
         return newConn;
     }
@@ -200,9 +203,9 @@ public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
     }
 
     @Override
-    protected ClickHouseHttpResponse post(String sql, ClickHouseInputStream data, List<ClickHouseExternalTable> tables,
-            String url, Map<String, String> headers, ClickHouseConfig config, Runnable postCloseAction)
-            throws IOException {
+    protected ClickHouseHttpResponse post(ClickHouseConfig config, String sql, ClickHouseInputStream data,
+            List<ClickHouseExternalTable> tables, ClickHouseOutputStream output, String url,
+            Map<String, String> headers, Runnable postCloseAction) throws IOException {
         byte[] boundary = null;
         if (tables != null && !tables.isEmpty()) {
             String uuid = rm.createUniqueId();
@@ -223,7 +226,7 @@ public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
 
         checkResponse(conn);
 
-        return buildResponse(postCloseAction);
+        return buildResponse(output, postCloseAction);
     }
 
     @Override

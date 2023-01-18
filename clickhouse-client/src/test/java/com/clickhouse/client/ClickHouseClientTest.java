@@ -8,6 +8,8 @@ import java.io.IOException;
 import java.util.concurrent.ExecutionException;
 
 import com.clickhouse.client.ClickHouseRequest.Mutation;
+import com.clickhouse.data.ClickHouseFormat;
+import com.clickhouse.data.ClickHouseOutputStream;
 
 public class ClickHouseClientTest {
     @Test(groups = { "unit" })

@@ -20,8 +20,8 @@ import java.sql.Time;
 import java.sql.Timestamp;
 import java.sql.Types;
 
-import com.clickhouse.client.ClickHouseInputStream;
-import com.clickhouse.client.data.BinaryStreamUtils;
+import com.clickhouse.data.ClickHouseInputStream;
+import com.clickhouse.data.format.BinaryStreamUtils;
 
 public interface ClickHousePreparedStatement extends PreparedStatement {
     @Override

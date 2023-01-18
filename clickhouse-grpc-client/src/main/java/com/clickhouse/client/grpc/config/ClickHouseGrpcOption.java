@@ -2,8 +2,8 @@ package com.clickhouse.client.grpc.config;
 
 import java.io.Serializable;
 
-import com.clickhouse.client.ClickHouseChecker;
-import com.clickhouse.client.config.ClickHouseOption;
+import com.clickhouse.config.ClickHouseOption;
+import com.clickhouse.data.ClickHouseChecker;
 
 /**
  * gRPC client options.

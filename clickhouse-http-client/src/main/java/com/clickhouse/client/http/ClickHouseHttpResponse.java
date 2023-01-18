@@ -5,15 +5,15 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.TimeZone;
 
-import com.clickhouse.client.ClickHouseChecker;
 import com.clickhouse.client.ClickHouseConfig;
-import com.clickhouse.client.ClickHouseFormat;
-import com.clickhouse.client.ClickHouseInputStream;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseResponseSummary;
-import com.clickhouse.client.ClickHouseUtils;
 import com.clickhouse.client.config.ClickHouseClientOption;
-import com.clickhouse.client.config.ClickHouseOption;
+import com.clickhouse.config.ClickHouseOption;
+import com.clickhouse.data.ClickHouseChecker;
+import com.clickhouse.data.ClickHouseFormat;
+import com.clickhouse.data.ClickHouseInputStream;
+import com.clickhouse.data.ClickHouseUtils;
 
 public class ClickHouseHttpResponse {
     private static long getLongValue(Map<String, String> map, String key) {

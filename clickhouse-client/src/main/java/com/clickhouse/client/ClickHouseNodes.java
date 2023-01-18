@@ -23,8 +23,12 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import com.clickhouse.client.ClickHouseNode.Status;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.config.ClickHouseDefaults;
-import com.clickhouse.client.logging.Logger;
-import com.clickhouse.client.logging.LoggerFactory;
+import com.clickhouse.data.ClickHouseChecker;
+import com.clickhouse.data.ClickHouseFormat;
+import com.clickhouse.data.ClickHouseRecord;
+import com.clickhouse.data.ClickHouseValues;
+import com.clickhouse.logging.Logger;
+import com.clickhouse.logging.LoggerFactory;
 
 /**
  * A generic node manager for managing one or more nodes which may or may not

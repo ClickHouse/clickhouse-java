@@ -1,8 +1,8 @@
 package com.clickhouse.client.http;
 
 import com.clickhouse.client.ClickHouseConfig;
-import com.clickhouse.client.ClickHouseInputStream;
-import com.clickhouse.client.data.ClickHouseExternalTable;
+import com.clickhouse.data.ClickHouseInputStream;
+import com.clickhouse.data.ClickHouseExternalTable;
 
 import org.apache.hc.core5.http.io.entity.AbstractHttpEntity;
 

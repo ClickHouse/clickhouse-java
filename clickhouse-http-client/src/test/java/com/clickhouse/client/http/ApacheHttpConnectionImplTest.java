@@ -5,9 +5,9 @@ import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseResponse;
-import com.clickhouse.client.config.ClickHouseOption;
 import com.clickhouse.client.http.config.ClickHouseHttpOption;
 import com.clickhouse.client.http.config.HttpConnectionProvider;
+import com.clickhouse.config.ClickHouseOption;
 
 import java.io.Serializable;
 import java.util.Collections;

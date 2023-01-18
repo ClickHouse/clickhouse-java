@@ -13,12 +13,18 @@ import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import com.clickhouse.client.config.ClickHouseClientOption;
+import com.clickhouse.data.ClickHouseChecker;
+import com.clickhouse.data.ClickHouseColumn;
+import com.clickhouse.data.ClickHouseDataConfig;
+import com.clickhouse.data.ClickHouseInputStream;
+import com.clickhouse.data.ClickHouseRecord;
 
 /**
  * This encapsulates a server reponse. Depending on concrete implementation, it
  * could be either an in-memory list or a wrapped input stream with
- * {@link ClickHouseDataProcessor} attached for deserialization. To get data
- * returned from server, depending on actual needs, you have 3 options:
+ * {@link com.clickhouse.data.ClickHouseDataProcessor} attached for
+ * deserialization. To get data returned from server, depending on actual needs,
+ * you have 3 options:
  *
  * <ul>
  * <li>use {@link #records()} or {@link #stream()} to get deserialized
@@ -125,7 +131,7 @@ public interface ClickHouseResponse extends AutoCloseable, Serializable {
      */
     default void pipe(OutputStream output, int bufferSize) throws IOException {
         ClickHouseInputStream.pipe(getInputStream(), ClickHouseChecker.nonNull(output, "output"),
-                ClickHouseUtils.getBufferSize(bufferSize,
+                ClickHouseDataConfig.getBufferSize(bufferSize,
                         (int) ClickHouseClientOption.BUFFER_SIZE.getDefaultValue(),
                         (int) ClickHouseClientOption.MAX_BUFFER_SIZE.getDefaultValue()));
     }

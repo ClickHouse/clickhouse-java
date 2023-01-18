@@ -16,15 +16,15 @@ import io.grpc.ManagedChannelBuilder;
 import io.grpc.ProxiedSocketAddress;
 import io.grpc.ProxyDetector;
 import io.grpc.Status;
-import com.clickhouse.client.ClickHouseChecker;
 import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseNode;
-import com.clickhouse.client.ClickHouseUtils;
-import com.clickhouse.client.config.ClickHouseOption;
+import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.grpc.config.ClickHouseGrpcOption;
 import com.clickhouse.client.grpc.impl.ClickHouseGrpc;
-import com.clickhouse.client.logging.Logger;
-import com.clickhouse.client.logging.LoggerFactory;
+import com.clickhouse.data.ClickHouseChecker;
+import com.clickhouse.data.ClickHouseUtils;
+import com.clickhouse.logging.Logger;
+import com.clickhouse.logging.LoggerFactory;
 
 public abstract class ClickHouseGrpcChannelFactory {
     static class NoProxyDetector implements ProxyDetector {
@@ -200,11 +200,11 @@ public abstract class ClickHouseGrpcChannelFactory {
 
         ManagedChannelBuilder<?> builder = getChannelBuilder();
         String userAgent = config.getClientName();
-        if (ClickHouseOption.DEFAULT_CLIENT_NAME.equals(userAgent)) {
+        if (ClickHouseClientOption.CLIENT_NAME.getDefaultValue().equals(userAgent)) {
             userAgent = getDefaultUserAgent();
 
             String name = config.getProductName();
-            if (!ClickHouseOption.DEFAULT_PRODUCT_NAME.equals(name)) {
+            if (!ClickHouseClientOption.PRODUCT_NAME.getDefaultValue().equals(name)) {
                 userAgent = new StringBuilder(name).append(userAgent.substring(userAgent.indexOf('/'))).toString();
             }
         }

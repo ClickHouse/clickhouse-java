@@ -3,6 +3,8 @@ package com.clickhouse.client;
 import java.io.Serializable;
 import java.util.Objects;
 
+import com.clickhouse.data.ClickHouseChecker;
+
 /**
  * This encapsulates access token, certificate or user name password combination
  * for accessing ClickHouse.

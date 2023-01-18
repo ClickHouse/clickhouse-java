@@ -5,8 +5,8 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.Map;
 
-import com.clickhouse.client.ClickHouseChecker;
-import com.clickhouse.client.ClickHouseColumn;
+import com.clickhouse.data.ClickHouseChecker;
+import com.clickhouse.data.ClickHouseColumn;
 
 public class ClickHouseArray implements Array {
     private final int columnIndex;

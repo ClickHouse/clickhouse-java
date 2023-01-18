@@ -6,13 +6,14 @@ import java.util.Map;
 
 import com.clickhouse.client.ClickHouseClient;
 import com.clickhouse.client.ClickHouseConfig;
-import com.clickhouse.client.ClickHouseFormat;
-import com.clickhouse.client.ClickHouseInputStream;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseRequest;
-import com.clickhouse.client.data.ClickHouseExternalTable;
 import com.clickhouse.client.http.config.ClickHouseHttpOption;
+import com.clickhouse.data.ClickHouseExternalTable;
+import com.clickhouse.data.ClickHouseFormat;
+import com.clickhouse.data.ClickHouseInputStream;
+import com.clickhouse.data.ClickHouseOutputStream;
 
 import org.testng.Assert;
 import org.testng.annotations.Test;
@@ -24,9 +25,9 @@ public class ClickHouseHttpConnectionTest {
         }
 
         @Override
-        protected ClickHouseHttpResponse post(String query, ClickHouseInputStream data,
-                List<ClickHouseExternalTable> tables, String url, Map<String, String> headers,
-                ClickHouseConfig config, Runnable postAction) throws IOException {
+        protected ClickHouseHttpResponse post(ClickHouseConfig config, String query, ClickHouseInputStream data,
+                List<ClickHouseExternalTable> tables, ClickHouseOutputStream output, String url,
+                Map<String, String> headers, Runnable postAction) throws IOException {
             return null;
         }
 

@@ -1,7 +1,7 @@
 package com.clickhouse.r2dbc;
 
-import com.clickhouse.client.ClickHouseColumn;
-import com.clickhouse.client.ClickHouseRecord;
+import com.clickhouse.data.ClickHouseColumn;
+import com.clickhouse.data.ClickHouseRecord;
 import io.r2dbc.spi.Row;
 import io.r2dbc.spi.RowMetadata;
 

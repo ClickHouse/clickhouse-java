@@ -1,7 +1,7 @@
 package com.clickhouse.r2dbc;
 
-import com.clickhouse.client.ClickHouseFormat;
 import com.clickhouse.client.ClickHouseRequest;
+import com.clickhouse.data.ClickHouseFormat;
 import io.r2dbc.spi.Batch;
 import io.r2dbc.spi.Result;
 import org.reactivestreams.Publisher;

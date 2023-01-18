@@ -10,7 +10,9 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.NoSuchElementException;
 
-import com.clickhouse.client.data.ClickHouseDateTimeValue;
+import com.clickhouse.data.ClickHouseValue;
+import com.clickhouse.data.ClickHouseValues;
+import com.clickhouse.data.value.ClickHouseDateTimeValue;
 
 import org.testng.Assert;
 import org.testng.annotations.DataProvider;

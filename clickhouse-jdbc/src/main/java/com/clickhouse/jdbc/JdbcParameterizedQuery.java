@@ -6,8 +6,8 @@ import java.util.Iterator;
 
 import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseParameterizedQuery;
-import com.clickhouse.client.ClickHouseUtils;
-import com.clickhouse.client.ClickHouseValues;
+import com.clickhouse.data.ClickHouseUtils;
+import com.clickhouse.data.ClickHouseValues;
 
 /**
  * A parameterized query is a parsed query with parameters being extracted for

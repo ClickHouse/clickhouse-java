@@ -4,14 +4,14 @@ import java.net.URISyntaxException;
 import java.sql.SQLException;
 import java.util.Properties;
 
-import com.clickhouse.client.ClickHouseChecker;
 import com.clickhouse.client.ClickHouseCredentials;
-import com.clickhouse.client.ClickHouseFormat;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseNodes;
-import com.clickhouse.client.ClickHouseUtils;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.config.ClickHouseDefaults;
+import com.clickhouse.data.ClickHouseChecker;
+import com.clickhouse.data.ClickHouseFormat;
+import com.clickhouse.data.ClickHouseUtils;
 import com.clickhouse.jdbc.JdbcConfig;
 import com.clickhouse.jdbc.SqlExceptionUtils;
 

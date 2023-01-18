@@ -31,18 +31,18 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import com.clickhouse.client.ClickHouseClient;
-import com.clickhouse.client.ClickHouseDataType;
 import com.clickhouse.client.ClickHouseParameterizedQuery;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseRequest;
-import com.clickhouse.client.ClickHouseValues;
 import com.clickhouse.client.config.ClickHouseClientOption;
-import com.clickhouse.client.data.ClickHouseDateTimeValue;
-import com.clickhouse.client.data.UnsignedByte;
-import com.clickhouse.client.data.UnsignedInteger;
-import com.clickhouse.client.data.UnsignedLong;
-import com.clickhouse.client.data.UnsignedShort;
 import com.clickhouse.client.http.config.ClickHouseHttpOption;
+import com.clickhouse.data.ClickHouseDataType;
+import com.clickhouse.data.ClickHouseValues;
+import com.clickhouse.data.value.ClickHouseDateTimeValue;
+import com.clickhouse.data.value.UnsignedByte;
+import com.clickhouse.data.value.UnsignedInteger;
+import com.clickhouse.data.value.UnsignedLong;
+import com.clickhouse.data.value.UnsignedShort;
 
 import org.testng.Assert;
 import org.testng.SkipException;
@@ -729,7 +729,7 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
         }
 
         props.setProperty("typeMappings",
-                "Enum8=java.lang.Byte,DateTime64=java.lang.String, String=com.clickhouse.client.ClickHouseDataType");
+                "Enum8=java.lang.Byte,DateTime64=java.lang.String, String=com.clickhouse.data.ClickHouseDataType");
         try (ClickHouseConnection conn = newConnection(props);
                 ClickHouseStatement stmt = conn.createStatement()) {
             ResultSet rs = stmt.executeQuery(

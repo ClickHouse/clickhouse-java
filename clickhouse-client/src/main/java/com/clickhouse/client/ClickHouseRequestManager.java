@@ -2,6 +2,9 @@ package com.clickhouse.client;
 
 import java.util.UUID;
 
+import com.clickhouse.data.ClickHouseChecker;
+import com.clickhouse.data.ClickHouseUtils;
+
 /**
  * Request manager is responsible for generating query and session ID, as well
  * as transaction creation. {@link java.util.ServiceLoader} will search and

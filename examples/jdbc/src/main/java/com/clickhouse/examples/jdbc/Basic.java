@@ -8,10 +8,11 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.Properties;
 
-import com.clickhouse.client.ClickHouseOutputStream;
-import com.clickhouse.client.ClickHouseWriter;
+import com.clickhouse.data.ClickHouseOutputStream;
+import com.clickhouse.data.ClickHouseWriter;
 
 public class Basic {
     static final String TABLE_NAME = "jdbc_example_basic";
@@ -164,17 +165,59 @@ public class Basic {
         }
     }
 
+    static void insertByteArray(Connection conn) throws SQLException {
+        try (Statement s = conn.createStatement()) {
+            s.execute("drop table if exists t_map;"
+                    + "CREATE TABLE t_map"
+                    + "("
+                    + "    `audit_seq` Int64 CODEC(Delta(8), LZ4),"
+                    + "`timestamp` Int64 CODEC(Delta(8), LZ4),"
+                    + "`event_type` LowCardinality(String),"
+                    + "`event_subtype` LowCardinality(String),"
+                    + "`actor_type` LowCardinality(String),"
+                    + "`actor_id` String,"
+                    + "`actor_tenant_id` LowCardinality(String),"
+                    + "`actor_tenant_name` String,"
+                    + "`actor_firstname` String,"
+                    + "`actor_lastname` String,"
+                    + "`resource_type` LowCardinality(String),"
+                    + "`resource_id` String,"
+                    + "`resource_container` LowCardinality(String),"
+                    + "`resource_path` String,"
+                    + "`origin_ip` String,"
+                    + "`origin_app_name` LowCardinality(String),"
+                    + "`origin_app_instance` String,"
+                    + "`description` String,"
+                    + "`attributes` Map(String, String)"
+                    + ")"
+                    + "ENGINE = MergeTree "
+                    + "ORDER BY (resource_container, event_type, event_subtype) "
+                    + "SETTINGS index_granularity = 8192");
+            try (PreparedStatement stmt = conn.prepareStatement(
+                    "INSERT INTO t_map VALUES (8481365034795008,1673349039830,'operation-9','a','service', 'bc3e47b8-2b34-4c1a-9004-123656fa0000','b', 'c', 'service-56','d', 'object','e', 'my-value-62', 'mypath', 'some.hostname.address.com', 'app-9', 'instance-6','x', ?) SETTINGS async_insert=1,wait_for_async_insert=0")) {
+                stmt.setObject(1, Collections.singletonMap("key1", "value1"));
+                stmt.execute();
+
+                try (ResultSet rs = s.executeQuery("select attributes from t_map")) {
+                    System.out.println(rs.next());
+                    System.out.println(rs.getObject(1));
+                }
+            }
+        }
+    }
+
     public static void main(String[] args) {
         // jdbc:ch:https://explorer@play.clickhouse.com:443
         // jdbc:ch:https://demo:demo@github.demo.trial.altinity.cloud
         String url = System.getProperty("chUrl", "jdbc:ch://localhost");
 
         try (Connection conn = getConnection(url)) {
-            connectWithCustomSettings(url);
+            // connectWithCustomSettings(url);
+            insertByteArray(conn);
 
-            System.out.println("Update Count: " + dropAndCreateTable(conn));
-            System.out.println("Inserted Rows: " + batchInsert(conn));
-            System.out.println("Result Rows: " + query(conn));
+            // System.out.println("Update Count: " + dropAndCreateTable(conn));
+            // System.out.println("Inserted Rows: " + batchInsert(conn));
+            // System.out.println("Result Rows: " + query(conn));
         } catch (SQLException e) {
             e.printStackTrace();
         }

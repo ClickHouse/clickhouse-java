@@ -4,7 +4,7 @@
 
 Java libraries for connecting to ClickHouse and processing data in various formats. Java client is async, lightweight, and low-overhead library for ClickHouse; while JDBC and R2DBC drivers are built on top of the Java client with more dependencies and features. Java 8 or higher is required to use the libraries. In addition, please use ClickHouse 20.7+ or any of [active releases](https://github.com/ClickHouse/ClickHouse/pulls?q=is%3Aopen+is%3Apr+label%3Arelease).
 
-![image](https://user-images.githubusercontent.com/4270380/210317525-d548fbe5-8f66-4cc9-b34c-fd09d289b08e.png)
+![image](https://user-images.githubusercontent.com/4270380/212460181-2b806482-bc1c-492c-bd69-cdeb2c8845b5.png)
 
 ## Features
 
@@ -140,7 +140,7 @@ More examples can be found at [here](../../tree/master/examples/jdbc).
 
 ## Build with Maven
 
-Use `mvn -DskipITs clean verify` to compile and generate packages if you're using JDK 8. To create a multi-release jar (see [JEP-238](https://openjdk.java.net/jeps/238)), please use JDK 11+ with `~/.m2/toolchains.xml` like below, and run `mvn -Drelease -DskipITs clean verify` instead.
+Use `mvn -Dj8 -DskipITs clean verify` to compile and generate packages if you're using JDK 8. To create a multi-release jar (see [JEP-238](https://openjdk.java.net/jeps/238)), please use JDK 11+ with `~/.m2/toolchains.xml` like below, and run `mvn -DskipITs clean verify` instead.
 
 ```xml
 <?xml version="1.0" encoding="UTF8"?>
@@ -194,7 +194,7 @@ To benchmark JDBC drivers:
 
 ```bash
 cd clickhouse-benchmark
-mvn -Drelease clean package
+mvn clean package
 # single thread mode
 java -DdbHost=localhost -jar target/benchmarks.jar -t 1 \
     -p client=clickhouse-jdbc -p connection=reuse \

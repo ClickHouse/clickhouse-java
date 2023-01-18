@@ -9,8 +9,9 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
 
-import com.clickhouse.client.logging.Logger;
-import com.clickhouse.client.logging.LoggerFactory;
+import com.clickhouse.data.ClickHouseChecker;
+import com.clickhouse.logging.Logger;
+import com.clickhouse.logging.LoggerFactory;
 
 /**
  * This class maintains two immutable collections: preferred protocols and tags.

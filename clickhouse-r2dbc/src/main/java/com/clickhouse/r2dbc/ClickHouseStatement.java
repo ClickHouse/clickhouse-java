@@ -1,11 +1,11 @@
 package com.clickhouse.r2dbc;
 
-import com.clickhouse.client.ClickHouseFormat;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.config.ClickHouseClientOption;
-import com.clickhouse.client.logging.Logger;
-import com.clickhouse.client.logging.LoggerFactory;
+import com.clickhouse.data.ClickHouseFormat;
+import com.clickhouse.logging.Logger;
+import com.clickhouse.logging.LoggerFactory;
 import io.r2dbc.spi.Blob;
 import io.r2dbc.spi.Clob;
 import io.r2dbc.spi.Parameter;

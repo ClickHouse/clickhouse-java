@@ -16,19 +16,19 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import com.clickhouse.client.ClickHouseChecker;
-import com.clickhouse.client.ClickHouseColumn;
-import com.clickhouse.client.ClickHouseDataType;
-import com.clickhouse.client.ClickHouseFormat;
 import com.clickhouse.client.ClickHouseParameterizedQuery;
-import com.clickhouse.client.ClickHouseUtils;
-import com.clickhouse.client.ClickHouseValues;
 import com.clickhouse.client.config.ClickHouseClientOption;
-import com.clickhouse.client.config.ClickHouseRenameMethod;
-import com.clickhouse.client.data.ClickHouseRecordTransformer;
-import com.clickhouse.client.data.ClickHouseSimpleResponse;
-import com.clickhouse.client.logging.Logger;
-import com.clickhouse.client.logging.LoggerFactory;
+import com.clickhouse.config.ClickHouseRenameMethod;
+import com.clickhouse.data.ClickHouseChecker;
+import com.clickhouse.data.ClickHouseColumn;
+import com.clickhouse.data.ClickHouseDataType;
+import com.clickhouse.data.ClickHouseFormat;
+import com.clickhouse.data.ClickHouseUtils;
+import com.clickhouse.data.ClickHouseValues;
+import com.clickhouse.data.ClickHouseRecordTransformer;
+import com.clickhouse.client.ClickHouseSimpleResponse;
+import com.clickhouse.logging.Logger;
+import com.clickhouse.logging.LoggerFactory;
 
 public class ClickHouseDatabaseMetaData extends JdbcWrapper implements DatabaseMetaData {
     private static final Logger log = LoggerFactory.getLogger(ClickHouseDatabaseMetaData.class);

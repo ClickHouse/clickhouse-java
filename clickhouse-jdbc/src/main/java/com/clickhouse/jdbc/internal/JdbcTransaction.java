@@ -6,12 +6,12 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 
-import com.clickhouse.client.ClickHouseChecker;
 import com.clickhouse.client.ClickHouseException;
 import com.clickhouse.client.ClickHouseRequestManager;
 import com.clickhouse.client.ClickHouseTransaction;
-import com.clickhouse.client.ClickHouseUtils;
-import com.clickhouse.client.logging.Logger;
+import com.clickhouse.data.ClickHouseChecker;
+import com.clickhouse.data.ClickHouseUtils;
+import com.clickhouse.logging.Logger;
 import com.clickhouse.jdbc.SqlExceptionUtils;
 
 public class JdbcTransaction {

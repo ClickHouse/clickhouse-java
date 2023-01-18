@@ -1,11 +1,11 @@
 package com.clickhouse.client.config;
 
 import java.io.Serializable;
-import java.math.RoundingMode;
 
-import com.clickhouse.client.ClickHouseChecker;
-import com.clickhouse.client.ClickHouseFormat;
 import com.clickhouse.client.ClickHouseProtocol;
+import com.clickhouse.config.ClickHouseOption;
+import com.clickhouse.data.ClickHouseChecker;
+import com.clickhouse.data.ClickHouseDataConfig;
 
 /**
  * System-wide default options. System properties and environment variables can
@@ -21,7 +21,7 @@ public enum ClickHouseDefaults implements ClickHouseOption {
     /**
      * Default execution mode.
      */
-    ASYNC("async", true, "Whether the client should run in async mode."),
+    ASYNC("async", ClickHouseDataConfig.DEFAULT_ASYNC, "Whether the client should run in async mode."),
     /**
      * Whether to create session automatically when there are multiple queries.
      */
@@ -29,7 +29,7 @@ public enum ClickHouseDefaults implements ClickHouseOption {
     /**
      * Default buffering mode.
      */
-    BUFFERING("buffering", ClickHouseBufferingMode.RESOURCE_EFFICIENT, "Buffering mode."),
+    BUFFERING("buffering", ClickHouseDataConfig.DEFAULT_BUFFERING_MODE, "Buffering mode."),
     /**
      * Default server host.
      */
@@ -53,7 +53,8 @@ public enum ClickHouseDefaults implements ClickHouseOption {
     /**
      * Default format.
      */
-    FORMAT("format", ClickHouseFormat.TabSeparated, "Preferred data format for serialization and deserialization."),
+    FORMAT("format", ClickHouseDataConfig.DEFAULT_FORMAT,
+            "Preferred data format for serialization and deserialization."),
     /**
      * Maximum number of threads that the scheduler(shared by all client instances)
      * can use to run the adhoc/scheduled tasks like discovery and health check.
@@ -71,7 +72,7 @@ public enum ClickHouseDefaults implements ClickHouseOption {
     /**
      * Rounding mode for type conversion.
      */
-    ROUNDING_MODE("rounding_mode", RoundingMode.DOWN, "Default rounding mode for BigDecimal."),
+    ROUNDING_MODE("rounding_mode", ClickHouseDataConfig.DEFAULT_ROUNDING_MODE, "Default rounding mode for BigDecimal."),
     /**
      * Thread keep alive timeout in milliseconds.
      */

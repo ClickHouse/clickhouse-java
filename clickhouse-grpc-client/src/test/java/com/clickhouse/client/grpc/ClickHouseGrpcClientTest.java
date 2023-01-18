@@ -3,6 +3,7 @@ package com.clickhouse.client.grpc;
 import org.apache.commons.compress.compressors.lz4.FramedLZ4CompressorInputStream;
 import org.testng.Assert;
 import org.testng.SkipException;
+import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 import java.io.ByteArrayInputStream;
@@ -12,16 +13,65 @@ import com.clickhouse.client.ClickHouseClient;
 import com.clickhouse.client.ClickHouseException;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseProtocol;
-import com.clickhouse.client.ClickHouseRecord;
 import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.ClickHouseResponseSummary;
-import com.clickhouse.client.ClickHouseVersion;
 import com.clickhouse.client.ClientIntegrationTest;
 import com.clickhouse.client.config.ClickHouseClientOption;
-import com.clickhouse.client.ClickHouseFormat;
-import com.clickhouse.client.ClickHouseInputStream;
+import com.clickhouse.data.ClickHouseCompression;
+import com.clickhouse.data.ClickHouseFormat;
+import com.clickhouse.data.ClickHouseInputStream;
+import com.clickhouse.data.ClickHouseRecord;
+import com.clickhouse.data.ClickHouseVersion;
 
 public class ClickHouseGrpcClientTest extends ClientIntegrationTest {
+    @DataProvider(name = "requestCompressionMatrix")
+    @Override
+    protected Object[][] getRequestCompressionMatrix() {
+        return new Object[][] {
+                { ClickHouseCompression.NONE, -2, 2, 1 },
+                { ClickHouseCompression.BROTLI, -2, 12, 1 }, // [-1, 11]
+                { ClickHouseCompression.BZ2, -2, 2, 1 },
+                { ClickHouseCompression.DEFLATE, -2, 10, 1 }, // [0, 9]
+                { ClickHouseCompression.GZIP, -2, 10, 1 }, // [-1, 9]
+                { ClickHouseCompression.LZ4, -2, 19, 1 }, // [0, 18]
+                // Code: 638, DB::Exception: hadoop snappy decode error:INVALID_INPUT: While
+                // executing BinaryRowInputFormat
+                // { ClickHouseCompression.SNAPPY, -2, 513, 1024 }, // [1 * 1024, 32 * 1024]
+                { ClickHouseCompression.XZ, -2, 10, 1 }, // [0, 9]
+                { ClickHouseCompression.ZSTD, -2, 23, 1 }, // [0, 22]
+        };
+    }
+
+    @DataProvider(name = "mixedCompressionMatrix")
+    @Override
+    protected Object[][] getMixedCompressionMatrix() {
+        ClickHouseCompression[] supportedRequestCompression = {
+                ClickHouseCompression.NONE,
+                ClickHouseCompression.BROTLI,
+                ClickHouseCompression.BZ2,
+                ClickHouseCompression.DEFLATE,
+                ClickHouseCompression.GZIP,
+                ClickHouseCompression.LZ4,
+                ClickHouseCompression.XZ,
+                ClickHouseCompression.ZSTD
+        };
+        ClickHouseCompression[] supportedResponseCompression = {
+                ClickHouseCompression.NONE,
+                ClickHouseCompression.BROTLI,
+                ClickHouseCompression.DEFLATE,
+                ClickHouseCompression.LZ4,
+                ClickHouseCompression.ZSTD
+        };
+        Object[][] matrix = new Object[supportedRequestCompression.length * supportedResponseCompression.length][];
+        int i = 0;
+        for (ClickHouseCompression reqComp : supportedRequestCompression) {
+            for (ClickHouseCompression respComp : supportedResponseCompression) {
+                matrix[i++] = new Object[] { reqComp, respComp };
+            }
+        }
+        return matrix;
+    }
+
     @Override
     protected ClickHouseProtocol getProtocol() {
         if (!ClickHouseVersion.of(System.getProperty("clickhouseVersion", "latest")).check("[22.3,)")) {
@@ -34,6 +84,10 @@ public class ClickHouseGrpcClientTest extends ClientIntegrationTest {
     @Override
     protected Class<? extends ClickHouseClient> getClientClass() {
         return ClickHouseGrpcClient.class;
+    }
+
+    @Test(groups = { "integration" })
+    public void testNothing() throws Exception {
     }
 
     @Test(groups = "integration")

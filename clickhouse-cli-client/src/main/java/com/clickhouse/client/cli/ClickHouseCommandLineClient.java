@@ -12,10 +12,10 @@ import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseResponse;
-import com.clickhouse.client.config.ClickHouseOption;
-import com.clickhouse.client.logging.Logger;
-import com.clickhouse.client.logging.LoggerFactory;
 import com.clickhouse.client.cli.config.ClickHouseCommandLineOption;
+import com.clickhouse.config.ClickHouseOption;
+import com.clickhouse.logging.Logger;
+import com.clickhouse.logging.LoggerFactory;
 
 /**
  * Wrapper of ClickHouse native command-line client.

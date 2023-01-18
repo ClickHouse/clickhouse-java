@@ -16,16 +16,19 @@ import org.testng.Assert;
 import org.testng.annotations.Test;
 import com.clickhouse.client.ClickHouseRequest.Mutation;
 import com.clickhouse.client.config.ClickHouseClientOption;
-import com.clickhouse.client.config.ClickHouseConfigChangeListener;
 import com.clickhouse.client.config.ClickHouseDefaults;
-import com.clickhouse.client.config.ClickHouseOption;
-import com.clickhouse.client.data.ClickHouseBigIntegerValue;
-import com.clickhouse.client.data.ClickHouseByteValue;
-import com.clickhouse.client.data.ClickHouseDateTimeValue;
-import com.clickhouse.client.data.ClickHouseExternalTable;
-import com.clickhouse.client.data.ClickHouseFloatValue;
-import com.clickhouse.client.data.ClickHouseIntegerValue;
-import com.clickhouse.client.data.ClickHouseStringValue;
+import com.clickhouse.config.ClickHouseConfigChangeListener;
+import com.clickhouse.config.ClickHouseOption;
+import com.clickhouse.data.ClickHouseCompression;
+import com.clickhouse.data.ClickHouseExternalTable;
+import com.clickhouse.data.ClickHouseFormat;
+import com.clickhouse.data.ClickHouseValues;
+import com.clickhouse.data.value.ClickHouseBigIntegerValue;
+import com.clickhouse.data.value.ClickHouseByteValue;
+import com.clickhouse.data.value.ClickHouseDateTimeValue;
+import com.clickhouse.data.value.ClickHouseFloatValue;
+import com.clickhouse.data.value.ClickHouseIntegerValue;
+import com.clickhouse.data.value.ClickHouseStringValue;
 
 public class ClickHouseRequestTest {
     @Test(groups = { "unit" })

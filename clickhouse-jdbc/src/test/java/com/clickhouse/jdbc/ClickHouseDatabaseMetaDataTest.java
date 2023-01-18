@@ -6,8 +6,8 @@ import java.sql.Statement;
 import java.util.Locale;
 import java.util.Properties;
 
-import com.clickhouse.client.ClickHouseColumn;
 import com.clickhouse.client.config.ClickHouseClientOption;
+import com.clickhouse.data.ClickHouseColumn;
 
 import org.testng.Assert;
 import org.testng.annotations.DataProvider;
