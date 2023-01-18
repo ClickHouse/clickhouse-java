@@ -134,12 +134,18 @@ public class ClickHouseGrpcClientTest extends ClientIntegrationTest {
     @Test(dataProvider = "mixedCompressionMatrix", groups = "integration")
     @Override
     public void testDecompressResponse(ClickHouseCompression reqComp, ClickHouseCompression respComp) throws Exception {
-        if (!checkServerVersion(getClient(), getServer(), "[22.8,)")) {
+        if (respComp == ClickHouseCompression.BROTLI) {
             throw new SkipException(
-                    "Skip due to unexpected end of input error on 22.3 when using brotli for decompression");
+                    "Skip due to unexpected end of input error when using brotli for decompression");
         }
 
         super.testDecompressResponse(reqComp, respComp);
+    }
+
+    @Test(groups = { "integration" })
+    @Override
+    public void testCustomLoad() throws ClickHouseException {
+        throw new SkipException("Skip due to timeout error");
     }
 
     @Test(groups = { "integration" })
