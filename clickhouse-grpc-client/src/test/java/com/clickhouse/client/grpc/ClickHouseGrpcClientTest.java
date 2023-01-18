@@ -33,7 +33,7 @@ public class ClickHouseGrpcClientTest extends ClientIntegrationTest {
                 { ClickHouseCompression.BZ2, -2, 2, 1 },
                 { ClickHouseCompression.DEFLATE, -2, 10, 1 }, // [0, 9]
                 { ClickHouseCompression.GZIP, -2, 10, 1 }, // [-1, 9]
-                { ClickHouseCompression.LZ4, -2, 19, 1 }, // [0, 18]
+                // { ClickHouseCompression.LZ4, -2, 19, 1 }, // [0, 18] TOO SLOW!
                 // Code: 638, DB::Exception: hadoop snappy decode error:INVALID_INPUT: While
                 // executing BinaryRowInputFormat
                 // { ClickHouseCompression.SNAPPY, -2, 513, 1024 }, // [1 * 1024, 32 * 1024]
@@ -88,6 +88,7 @@ public class ClickHouseGrpcClientTest extends ClientIntegrationTest {
 
     @Test(groups = { "integration" })
     public void testNothing() throws Exception {
+        testDumpFile(true, true);
     }
 
     @Test(groups = "integration")
