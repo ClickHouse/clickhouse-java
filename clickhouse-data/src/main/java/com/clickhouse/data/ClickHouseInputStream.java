@@ -24,6 +24,7 @@ import java.util.function.Function;
 
 import com.clickhouse.data.stream.BlockingInputStream;
 import com.clickhouse.data.stream.DeferredInputStream;
+import com.clickhouse.data.stream.DelegatedInputStream;
 import com.clickhouse.data.stream.EmptyInputStream;
 import com.clickhouse.data.stream.RestrictedInputStream;
 import com.clickhouse.data.stream.IterableByteArrayInputStream;
@@ -152,6 +153,19 @@ public abstract class ClickHouseInputStream extends InputStream {
         }
 
         return stream.newInputStream(bufferSize, postCloseAction);
+    }
+
+    /**
+     * Creates an input stream using the given customer writer. Behind the scene, a
+     * piped stream will be created, writer will be called in a separate worker
+     * thread for writing.
+     *
+     * @param config configuration, could be null
+     * @param writer non-null customer writer
+     * @return wrapped input
+     */
+    public static ClickHouseInputStream of(ClickHouseDataConfig config, ClickHouseWriter writer) {
+        return new DelegatedInputStream(config, writer);
     }
 
     /**

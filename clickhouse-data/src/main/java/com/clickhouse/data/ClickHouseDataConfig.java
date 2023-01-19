@@ -139,6 +139,8 @@ public interface ClickHouseDataConfig extends Serializable {
     static final int DEFAULT_READ_COMPRESS_LEVEL = -1;
     static final int DEFAULT_WRITE_COMPRESS_LEVEL = -1;
 
+    static final int DEFAULT_TIMEOUT = 30 * 1000; // 30 seconds
+
     static final RoundingMode DEFAULT_ROUNDING_MODE = RoundingMode.DOWN;
 
     /**
@@ -348,14 +350,18 @@ public interface ClickHouseDataConfig extends Serializable {
      *
      * @return read time out in milliseconds
      */
-    int getReadTimeout();
+    default int getReadTimeout() {
+        return DEFAULT_TIMEOUT;
+    }
 
     /**
      * Gets write timeout in milliseconds.
      *
      * @return write time out in milliseconds
      */
-    int getWriteTimeout();
+    default int getWriteTimeout() {
+        return DEFAULT_TIMEOUT;
+    }
 
     /**
      * Gets time zone for date values.

@@ -37,7 +37,6 @@ public interface ClickHouseCompressionAlgorithm {
                 alg = preferredInstance.getDeclaredConstructor().newInstance();
             } catch (Throwable t) { // NOSONAR
                 // ignore
-                t.printStackTrace();
             }
         }
 

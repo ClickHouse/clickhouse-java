@@ -193,6 +193,9 @@ public class ClickHouseCommandLine implements AutoCloseable {
         final ClickHouseNode server = request.getServer();
         final int timeout = config.getSocketTimeout();
 
+        // FIXME potential timing issue
+        final Optional<ClickHouseInputStream> in = request.getInputStream();
+
         String hostDir = config.getStrOption(ClickHouseCommandLineOption.CLI_WORK_DIRECTORY);
         hostDir = ClickHouseUtils.normalizeDirectory(
                 ClickHouseChecker.isNullOrBlank(hostDir) ? System.getProperty("java.io.tmpdir") : hostDir);
@@ -382,7 +385,7 @@ public class ClickHouseCommandLine implements AutoCloseable {
                 builder.redirectOutput(f);
             }
         }
-        final Optional<ClickHouseInputStream> in = request.getInputStream();
+        
         try {
             final Process process;
             if (in.isPresent()) {

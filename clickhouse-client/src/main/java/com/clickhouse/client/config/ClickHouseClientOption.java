@@ -261,7 +261,7 @@ public enum ClickHouseClientOption implements ClickHouseOption {
     /**
      * Socket timeout in milliseconds.
      */
-    SOCKET_TIMEOUT("socket_timeout", 30 * 1000, "Socket timeout in milliseconds."),
+    SOCKET_TIMEOUT("socket_timeout", ClickHouseDataConfig.DEFAULT_TIMEOUT, "Socket timeout in milliseconds."),
     /**
      * Whether allows for the reuse of local addresses and ports. See
      * {@link java.net.StandardSocketOptions#SO_REUSEADDR}.

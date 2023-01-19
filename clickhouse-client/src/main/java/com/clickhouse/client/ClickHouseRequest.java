@@ -4,7 +4,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.Serializable;
-import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -17,12 +16,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Map.Entry;
-import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.Optional;
 import java.util.Properties;
@@ -31,12 +26,10 @@ import java.util.function.BiConsumer;
 import java.util.function.Function;
 
 import com.clickhouse.client.config.ClickHouseClientOption;
-import com.clickhouse.config.ClickHouseBufferingMode;
 import com.clickhouse.config.ClickHouseConfigChangeListener;
 import com.clickhouse.config.ClickHouseOption;
 import com.clickhouse.data.ClickHouseChecker;
 import com.clickhouse.data.ClickHouseCompression;
-import com.clickhouse.data.ClickHouseDataStreamFactory;
 import com.clickhouse.data.ClickHouseDeferredValue;
 import com.clickhouse.data.ClickHouseExternalTable;
 import com.clickhouse.data.ClickHouseFile;
@@ -44,7 +37,6 @@ import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.data.ClickHouseInputStream;
 import com.clickhouse.data.ClickHouseOutputStream;
 import com.clickhouse.data.ClickHousePassThruStream;
-import com.clickhouse.data.ClickHousePipedOutputStream;
 import com.clickhouse.data.ClickHouseUtils;
 import com.clickhouse.data.ClickHouseValue;
 import com.clickhouse.data.ClickHouseValues;
@@ -69,12 +61,26 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
         SPECIAL_SETTINGS = Collections.unmodifiableSet(set);
     }
 
+    static class PipedWriter implements ClickHouseWriter {
+        private final ClickHouseDeferredValue<ClickHouseInputStream> input;
+
+        PipedWriter(ClickHouseDeferredValue<ClickHouseInputStream> input) {
+            this.input = input;
+        }
+
+        @Override
+        public void write(ClickHouseOutputStream output) throws IOException {
+            ClickHouseInputStream in = input.get();
+            if (in != null) {
+                in.pipe(output);
+            }
+        }
+    }
+
     /**
      * Mutation request.
      */
     public static class Mutation extends ClickHouseRequest<Mutation> {
-        private transient ClickHouseWriter writer;
-
         protected Mutation(ClickHouseRequest<?> request, boolean sealed) {
             super(request.getClient(), request.server, request.serverRef, request.options, sealed);
 
@@ -151,8 +157,8 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
         }
 
         /**
-         * Sets custom writer for streaming. This will create a piped stream between the
-         * writer and ClickHouse server.
+         * Sets custom writer for streaming. This will remove input stream set by other
+         * {@code data()} methods.
          *
          * @param writer writer
          * @return mutation request
@@ -160,7 +166,9 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
         public Mutation data(ClickHouseWriter writer) {
             checkSealed();
 
+            this.input = changeProperty(PROP_DATA, this.input, null);
             this.writer = changeProperty(PROP_WRITER, this.writer, writer);
+
             return this;
         }
 
@@ -191,6 +199,7 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
             final int bufferSize = c.getReadBufferSize();
             this.input = changeProperty(PROP_DATA, this.input, ClickHouseDeferredValue
                     .of(() -> ClickHouseInputStream.of(stream, bufferSize, null)));
+            this.writer = changeProperty(PROP_WRITER, this.writer, null);
             return this;
         }
 
@@ -259,6 +268,7 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
 
             this.input = changeProperty(PROP_DATA, this.input,
                     ClickHouseDeferredValue.of(input, ClickHouseInputStream.class));
+            this.writer = changeProperty(PROP_WRITER, this.writer, null);
             return this;
         }
 
@@ -272,81 +282,9 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
             checkSealed();
 
             this.input = changeProperty(PROP_DATA, this.input, input);
+            this.writer = changeProperty(PROP_WRITER, this.writer, null);
 
             return this;
-        }
-
-        @Override
-        public CompletableFuture<ClickHouseResponse> execute() {
-            if (writer != null) {
-                final ClickHouseConfig c = getConfig();
-                final boolean perfMode = c.getResponseBuffering() == ClickHouseBufferingMode.PERFORMANCE;
-                final ClickHousePipedOutputStream stream = ClickHouseDataStreamFactory.getInstance()
-                        .createPipedOutputStream(c, null);
-                data(stream.getInputStream());
-                CompletableFuture<ClickHouseResponse> future = null;
-                if (c.isAsync()) {
-                    future = getClient().execute(this);
-                }
-
-                if (perfMode) {
-                    ClickHouseClient.submit(() -> {
-
-                    });
-                } else {
-                    try (ClickHouseOutputStream out = stream) {
-                        writer.write(out);
-                    } catch (IOException e) {
-                        throw new CompletionException(e);
-                    }
-                }
-
-                if (future != null) {
-                    return future;
-                }
-            }
-
-            return getClient().execute(this);
-        }
-
-        @Override
-        public ClickHouseResponse executeAndWait() throws ClickHouseException {
-            if (writer != null) {
-                ClickHouseConfig c = getConfig();
-                ClickHousePipedOutputStream stream = ClickHouseDataStreamFactory.getInstance()
-                        .createPipedOutputStream(c, null);
-                data(stream.getInputStream());
-                CompletableFuture<ClickHouseResponse> future = null;
-                if (c.isAsync()) {
-                    future = getClient().execute(this);
-                }
-                try (ClickHouseOutputStream out = stream) {
-                    writer.write(out);
-                } catch (IOException e) {
-                    throw ClickHouseException.of(e, getServer());
-                }
-                if (future != null) {
-                    try {
-                        return future.get(c.getSocketTimeout(), TimeUnit.MILLISECONDS);
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                        throw ClickHouseException.forCancellation(e, getServer());
-                    } catch (CancellationException e) {
-                        throw ClickHouseException.forCancellation(e, getServer());
-                    } catch (ExecutionException | TimeoutException | UncheckedIOException e) {
-                        Throwable cause = e.getCause();
-                        if (cause == null) {
-                            cause = e;
-                        }
-                        throw cause instanceof ClickHouseException ? (ClickHouseException) cause
-                                : ClickHouseException.of(cause, getServer());
-                    } catch (RuntimeException e) { // unexpected
-                        throw ClickHouseException.of(e, getServer());
-                    }
-                }
-            }
-
-            return getClient().executeAndWait(this);
         }
 
         @Override
@@ -369,6 +307,7 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
                 req.namedParameters.putAll(namedParameters);
 
                 req.input = input;
+                req.writer = writer;
                 req.queryId = queryId;
                 req.sql = sql;
 
@@ -407,6 +346,7 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
 
     protected final Map<String, String> namedParameters;
 
+    protected transient ClickHouseWriter writer;
     protected transient ClickHouseDeferredValue<ClickHouseInputStream> input;
     protected transient ClickHouseDeferredValue<ClickHouseOutputStream> output;
     protected String queryId;
@@ -508,6 +448,7 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
         req.settings.putAll(settings);
         req.namedParameters.putAll(namedParameters);
         req.input = input;
+        req.writer = writer;
         req.output = output;
         req.queryId = queryId;
         req.sql = sql;
@@ -555,12 +496,12 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
     }
 
     /**
-     * Checks if the request contains any input stream.
+     * Checks if the request contains any input stream or custom writer.
      *
-     * @return true if there's input stream; false otherwise
+     * @return true if there's input stream or customer writer; false otherwise
      */
     public boolean hasInputStream() {
-        return this.input != null || !this.externalTables.isEmpty();
+        return this.input != null || this.writer != null || !this.externalTables.isEmpty();
     }
 
     /**
@@ -632,7 +573,25 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
      * @return input stream
      */
     public Optional<ClickHouseInputStream> getInputStream() {
+        if (this.input == null && this.writer != null) {
+            final ClickHouseConfig c = getConfig();
+            final ClickHouseWriter w = this.writer;
+            this.input = changeProperty(PROP_DATA, this.input,
+                    ClickHouseDeferredValue.of(() -> ClickHouseInputStream.of(c, w)));
+        }
         return input != null ? input.getOptional() : Optional.empty();
+    }
+
+    /**
+     * Gets custom writer for writing raw request.
+     *
+     * @return custom writer
+     */
+    public Optional<ClickHouseWriter> getWriter() {
+        if (this.writer == null && this.input != null) {
+            this.writer = changeProperty(PROP_WRITER, this.writer, new PipedWriter(input));
+        }
+        return Optional.ofNullable(this.writer);
     }
 
     /**
@@ -2026,6 +1985,7 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
             }
         }
         this.input = changeProperty(PROP_DATA, this.input, null);
+        this.writer = changeProperty(PROP_WRITER, this.writer, null);
         this.output = changeProperty(PROP_OUTPUT, this.output, null);
         this.sql = changeProperty(PROP_QUERY, this.sql, null);
         this.preparedQuery = changeProperty(PROP_PREPARED_QUERY, this.preparedQuery, null);
@@ -2065,6 +2025,7 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
             req.namedParameters.putAll(namedParameters);
 
             req.input = input;
+            req.writer = writer;
             req.output = output;
             req.queryId = queryId;
             req.sql = sql;
