@@ -1434,7 +1434,7 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
                 try (ClickHouseResponse resp = req.execute().get()) {
                     Assert.assertNotNull(resp);
                 } catch (Exception e) {
-                    Assert.fail("Failed to call send() followed by get()", e);
+                    Assert.fail("Failed to call send() followed by get(): async=" + b, e);
                 }
 
                 try (ClickHouseResponse resp = req.executeAndWait()) {
@@ -1444,7 +1444,7 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
                 try (ClickHouseResponse resp = req.execute().get()) {
                     Assert.assertNotNull(resp);
                 } catch (Exception e) {
-                    Assert.fail("Failed to call execute() followed by get()", e);
+                    Assert.fail("Failed to call execute() followed by get(): async=" + b, e);
                 }
 
                 try (ClickHouseResponse resp = req.executeAndWait()) {

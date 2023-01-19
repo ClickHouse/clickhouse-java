@@ -114,7 +114,7 @@ public class ClickHouseGrpcClient extends AbstractClient<ManagedChannel> {
 
     protected static ClickHouseInputStream getCompressedInputStream(ClickHouseConfig config,
             ClickHouseInputStream input) {
-        if (input.getUnderlyingStream().hasInput()) {
+        if (!config.isRequestCompressed() || input.getUnderlyingStream().hasInput()) {
             return input;
         }
 
@@ -153,6 +153,9 @@ public class ClickHouseGrpcClient extends AbstractClient<ManagedChannel> {
         ClickHouseConfig config = request.getConfig();
         ClickHouseNode server = request.getServer();
         ClickHouseCredentials credentials = server.getCredentials(config);
+
+        // FIXME potential timing issue
+        Optional<ClickHouseInputStream> input = request.getInputStream();
 
         Builder builder = QueryInfo.newBuilder();
         String database = server.getDatabase(config);
@@ -242,10 +245,10 @@ public class ClickHouseGrpcClient extends AbstractClient<ManagedChannel> {
         // builder.setTransportCompressionType("none");
         // builder.setTransportCompressionLevel(0);
 
-        Optional<ClickHouseInputStream> input = request.getInputStream();
         if (input.isPresent()) {
-            ClickHouseCompression inputCompression = config.getRequestCompressAlgorithm();
-            builder.setInputCompressionType(inputCompression.encoding());
+            if (config.isRequestCompressed()) {
+                builder.setInputCompressionType(config.getRequestCompressAlgorithm().encoding());
+            }
             if (streaming) {
                 // builder.setInputData(ByteString.EMPTY);
                 builder.setNextQueryInfo(true);
@@ -258,7 +261,7 @@ public class ClickHouseGrpcClient extends AbstractClient<ManagedChannel> {
             }
         }
 
-        log.debug("Query: %s", sql);
+        log.debug("Query(stream=%s): %s", streaming, sql);
 
         return builder.setQuery(sql).build();
     }

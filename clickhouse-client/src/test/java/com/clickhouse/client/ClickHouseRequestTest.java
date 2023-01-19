@@ -1,8 +1,11 @@
 package com.clickhouse.client;
 
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.Serializable;
 import java.math.BigInteger;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -22,6 +25,7 @@ import com.clickhouse.config.ClickHouseOption;
 import com.clickhouse.data.ClickHouseCompression;
 import com.clickhouse.data.ClickHouseExternalTable;
 import com.clickhouse.data.ClickHouseFormat;
+import com.clickhouse.data.ClickHouseOutputStream;
 import com.clickhouse.data.ClickHouseValues;
 import com.clickhouse.data.value.ClickHouseBigIntegerValue;
 import com.clickhouse.data.value.ClickHouseByteValue;
@@ -276,6 +280,49 @@ public class ClickHouseRequestTest {
         request.clearSettings();
         Assert.assertTrue(request.getSettings().isEmpty());
         Assert.assertEquals(request.getSetting("b", 9), 9);
+    }
+
+    @Test(groups = { "unit" })
+    public void testInputData() throws IOException {
+        ClickHouseRequest<?> request = ClickHouseClient.newInstance().connect(ClickHouseNode.builder().build());
+        Assert.assertFalse(request.hasInputStream());
+        Assert.assertFalse(request.getInputStream().isPresent());
+        Assert.assertFalse(request.getWriter().isPresent());
+
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        String uuid = UUID.randomUUID().toString();
+        Mutation m = request.write();
+        m.data(w -> w.write(uuid.getBytes(StandardCharsets.US_ASCII)));
+        Assert.assertTrue(m.hasInputStream());
+        try (ClickHouseOutputStream o = ClickHouseOutputStream.of(out)) {
+            m.getWriter().get().write(o);
+        }
+        Assert.assertEquals(new String(out.toByteArray(), StandardCharsets.US_ASCII), uuid);
+        out = new ByteArrayOutputStream();
+        try (ClickHouseOutputStream o = ClickHouseOutputStream.of(out)) {
+            m.getInputStream().get().pipe(o);
+        }
+        Assert.assertEquals(new String(out.toByteArray(), StandardCharsets.US_ASCII), uuid);
+
+        m.reset();
+        Assert.assertFalse(request.hasInputStream());
+        Assert.assertFalse(request.getInputStream().isPresent());
+        Assert.assertFalse(request.getWriter().isPresent());
+
+        out = new ByteArrayOutputStream();
+        m.data(new ByteArrayInputStream(uuid.getBytes(StandardCharsets.US_ASCII)));
+        Assert.assertTrue(m.hasInputStream());
+        try (ClickHouseOutputStream o = ClickHouseOutputStream.of(out)) {
+            m.getWriter().get().write(o);
+        }
+        Assert.assertEquals(new String(out.toByteArray(), StandardCharsets.US_ASCII), uuid);
+        // unlike ClickHouseWriter, InputStream cannot be reused
+        m.data(new ByteArrayInputStream(uuid.getBytes(StandardCharsets.US_ASCII)));
+        out = new ByteArrayOutputStream();
+        try (ClickHouseOutputStream o = ClickHouseOutputStream.of(out)) {
+            m.getInputStream().get().pipe(o);
+        }
+        Assert.assertEquals(new String(out.toByteArray(), StandardCharsets.US_ASCII), uuid);
     }
 
     @Test(groups = { "unit" })

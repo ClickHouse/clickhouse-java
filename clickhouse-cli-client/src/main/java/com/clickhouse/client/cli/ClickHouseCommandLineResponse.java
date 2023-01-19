@@ -8,6 +8,8 @@ import com.clickhouse.client.ClickHouseResponseSummary;
 import com.clickhouse.client.ClickHouseStreamResponse;
 
 public class ClickHouseCommandLineResponse extends ClickHouseStreamResponse {
+    private static final long serialVersionUID = 4253185543390807162L;
+
     private final transient ClickHouseCommandLine cli;
 
     protected ClickHouseCommandLineResponse(ClickHouseConfig config, ClickHouseCommandLine cli) throws IOException {
