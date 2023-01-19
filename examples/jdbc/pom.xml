@@ -64,7 +64,7 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
-        <clickhouse-jdbc.version>0.4.0-SNAPSHOT</clickhouse-jdbc.version>
+        <clickhouse-jdbc.version>0.4.0</clickhouse-jdbc.version>
 
         <compiler-plugin.version>3.8.1</compiler-plugin.version>
 

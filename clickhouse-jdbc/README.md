@@ -8,7 +8,6 @@ Keep in mind that `clickhouse-jdbc` is synchronous, and in general it has more o
 
 ```xml
 <dependency>
-    <!-- please stop using ru.yandex.clickhouse as it's been deprecated -->
     <groupId>com.clickhouse</groupId>
     <artifactId>clickhouse-jdbc</artifactId>
     <version>0.4.0</version>
@@ -26,8 +25,6 @@ Keep in mind that `clickhouse-jdbc` is synchronous, and in general it has more o
 ## Configuration
 
 **Driver Class**: `com.clickhouse.jdbc.ClickHouseDriver`
-
-Note: `ru.yandex.clickhouse.ClickHouseDriver` has been deprecated and everything under `ru.yandex.clickhouse` will be removed in 0.3.3.
 
 **URL Syntax**: `jdbc:(ch|clickhouse)[:<protocol>]://endpoint1[,endpoint2,...][/<database>][?param1=value1&param2=value2][#tag1,tag2,...]`, for examples:
 
