@@ -25,22 +25,30 @@ public class ClickHouseFile extends ClickHousePassThruStream {
             ClickHouseDataConfig.DEFAULT_READ_COMPRESS_LEVEL, null);
 
     public static ClickHouseFile of(File file) {
-        return of(file, null, 0, null);
+        return of(file, null, ClickHouseDataConfig.DEFAULT_COMPRESS_LEVEL, null);
     }
 
     public static ClickHouseFile of(Path path) {
         return of(ClickHouseChecker.nonNull(path, "Path").toFile(), null,
-                ClickHouseDataConfig.DEFAULT_READ_COMPRESS_LEVEL, null);
+                ClickHouseDataConfig.DEFAULT_COMPRESS_LEVEL, null);
     }
 
     public static ClickHouseFile of(String file) {
         return of(new File(ClickHouseChecker.nonEmpty(file, FILE_TYPE_NAME)), null,
-                ClickHouseDataConfig.DEFAULT_READ_COMPRESS_LEVEL, null);
+                ClickHouseDataConfig.DEFAULT_COMPRESS_LEVEL, null);
+    }
+
+    public static ClickHouseFile of(String file, ClickHouseCompression compression, ClickHouseFormat format) {
+        return of(file, compression, ClickHouseDataConfig.DEFAULT_COMPRESS_LEVEL, format);
     }
 
     public static ClickHouseFile of(String file, ClickHouseCompression compression, int compressionLevel,
             ClickHouseFormat format) {
         return of(new File(ClickHouseChecker.nonEmpty(file, FILE_TYPE_NAME)), compression, compressionLevel, format);
+    }
+
+    public static ClickHouseFile of(File file, ClickHouseCompression compression, ClickHouseFormat format) {
+        return of(file, compression, ClickHouseDataConfig.DEFAULT_COMPRESS_LEVEL, format);
     }
 
     public static ClickHouseFile of(File file, ClickHouseCompression compression, int compressionLevel,
@@ -166,6 +174,16 @@ public class ClickHouseFile extends ClickHousePassThruStream {
      */
     public File getFile() {
         return file;
+    }
+
+    /**
+     * Checks if the given file is recogonized or not. Same as
+     * {@code hasCompression() || hasFormat()}.
+     *
+     * @return true if the file is recogonized
+     */
+    public boolean isRecognized() {
+        return hasCompression() || hasFormat();
     }
 
     @Override

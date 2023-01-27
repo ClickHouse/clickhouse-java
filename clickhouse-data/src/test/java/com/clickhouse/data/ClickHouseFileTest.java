@@ -18,7 +18,7 @@ public class ClickHouseFileTest {
         Assert.assertTrue(file.hasOutput());
         Assert.assertTrue(file.hasCompression());
         Assert.assertEquals(file.getCompressionAlgorithm(), ClickHouseCompression.LZ4);
-        Assert.assertEquals(file.getCompressionLevel(), -1);
+        Assert.assertEquals(file.getCompressionLevel(), ClickHouseDataConfig.DEFAULT_COMPRESS_LEVEL);
         Assert.assertTrue(file.hasFormat());
         Assert.assertEquals(file.getFormat(), ClickHouseFormat.CSV);
         Assert.assertEquals(file.getFile().getAbsolutePath(), nonExistingFile);

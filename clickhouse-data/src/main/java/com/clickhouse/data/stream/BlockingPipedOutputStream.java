@@ -5,16 +5,20 @@ import java.nio.Buffer;
 import java.nio.ByteBuffer;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
 import com.clickhouse.data.ClickHouseByteBuffer;
+import com.clickhouse.data.ClickHouseChecker;
 import com.clickhouse.data.ClickHouseDataConfig;
+import com.clickhouse.data.ClickHouseDataStreamFactory;
 import com.clickhouse.data.ClickHouseDataUpdater;
 import com.clickhouse.data.ClickHouseInputStream;
 import com.clickhouse.data.ClickHouseOutputStream;
 import com.clickhouse.data.ClickHousePipedOutputStream;
 import com.clickhouse.data.ClickHouseUtils;
+import com.clickhouse.data.ClickHouseWriter;
 
 /**
  * A combination of {@link java.io.PipedOutputStream} and
@@ -26,12 +30,31 @@ public class BlockingPipedOutputStream extends ClickHousePipedOutputStream {
     protected final BlockingQueue<ByteBuffer> queue;
 
     private final int bufferSize;
-    private final int timeout;
+    private final CompletableFuture<Void> future;
+    private final long timeout;
 
     private ByteBuffer buffer;
 
-    public BlockingPipedOutputStream(int bufferSize, int queueLength, int timeout, Runnable postCloseAction) {
+    public BlockingPipedOutputStream(int bufferSize, int queueLength, long timeout) {
+        this(bufferSize, queueLength, timeout, (Runnable) null);
+    }
+
+    public BlockingPipedOutputStream(int bufferSize, int queueLength, long timeout, Runnable postCloseAction) {
         super(postCloseAction);
+
+        // DisruptorBlockingQueue? Did not see much difference here...
+        this.queue = queueLength <= 0 ? new LinkedBlockingQueue<>() : new ArrayBlockingQueue<>(queueLength);
+
+        // may need an initialBufferSize and a monitor to update bufferSize in runtime
+        this.bufferSize = ClickHouseDataConfig.getBufferSize(bufferSize);
+        this.future = ClickHouseUtils.NULL_FUTURE;
+        this.timeout = timeout;
+
+        this.buffer = ByteBuffer.allocate(this.bufferSize);
+    }
+
+    public BlockingPipedOutputStream(int bufferSize, int queueLength, long timeout, ClickHouseWriter writer) {
+        super(null);
 
         // DisruptorBlockingQueue? Did not see much difference here...
         this.queue = queueLength <= 0 ? new LinkedBlockingQueue<>() : new ArrayBlockingQueue<>(queueLength);
@@ -41,6 +64,8 @@ public class BlockingPipedOutputStream extends ClickHousePipedOutputStream {
         this.timeout = timeout;
 
         this.buffer = ByteBuffer.allocate(this.bufferSize);
+
+        this.future = writeAsync(ClickHouseChecker.nonNull(writer, ClickHouseWriter.TYPE_NAME), this);
     }
 
     private void updateBuffer(boolean allocateNewBuffer) throws IOException {
@@ -59,7 +84,7 @@ public class BlockingPipedOutputStream extends ClickHousePipedOutputStream {
 
     private void updateBuffer(ByteBuffer b) throws IOException {
         try {
-            if (timeout > 0) {
+            if (timeout > 0L) {
                 if (!queue.offer(b, timeout, TimeUnit.MILLISECONDS)) {
                     throw new IOException(ClickHouseUtils.format("Write timed out after %d ms", timeout));
                 }
@@ -74,7 +99,7 @@ public class BlockingPipedOutputStream extends ClickHousePipedOutputStream {
 
     @Override
     public ClickHouseInputStream getInputStream(Runnable postCloseAction) {
-        return new BlockingInputStream(queue, timeout, postCloseAction);
+        return new BlockingInputStream(queue, timeout, () -> handleWriteResult(future, timeout, postCloseAction));
     }
 
     @Override
@@ -89,7 +114,7 @@ public class BlockingPipedOutputStream extends ClickHousePipedOutputStream {
 
         buffer = ClickHouseByteBuffer.EMPTY_BUFFER;
         try {
-            if (timeout > 0) {
+            if (timeout > 0L) {
                 if (!queue.offer(buffer, timeout, TimeUnit.MILLISECONDS)) {
                     throw new IOException(ClickHouseUtils.format("Close stream timed out after %d ms", timeout));
                 }
@@ -101,9 +126,7 @@ public class BlockingPipedOutputStream extends ClickHousePipedOutputStream {
             throw new IOException("Thread was interrupted when putting EMPTY buffer into queue", e);
         } finally {
             closed = true;
-            if (postCloseAction != null) {
-                postCloseAction.run();
-            }
+            ClickHouseDataStreamFactory.handleCustomAction(postCloseAction);
         }
     }
 

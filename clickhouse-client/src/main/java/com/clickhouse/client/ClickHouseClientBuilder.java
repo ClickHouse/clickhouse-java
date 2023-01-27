@@ -12,18 +12,13 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 
 import com.clickhouse.client.ClickHouseNode.Status;
-import com.clickhouse.client.config.ClickHouseDefaults;
 import com.clickhouse.config.ClickHouseOption;
 import com.clickhouse.data.ClickHouseChecker;
-import com.clickhouse.data.ClickHouseThreadFactory;
 import com.clickhouse.data.ClickHouseUtils;
 import com.clickhouse.logging.Logger;
 import com.clickhouse.logging.LoggerFactory;
@@ -85,9 +80,9 @@ public class ClickHouseClientBuilder {
     static final class Agent implements ClickHouseClient {
         private static final Logger log = LoggerFactory.getLogger(Agent.class);
 
-        private static final long INITIAL_REPEAT_DELAY = 100;
-        private static final long MAX_REPEAT_DELAY = 1000;
-        private static final long REPEAT_DELAY_BACKOFF = 100;
+        private static final long INITIAL_REPEAT_DELAY = 100L;
+        private static final long MAX_REPEAT_DELAY = 1000L;
+        private static final long REPEAT_DELAY_BACKOFF = 100L;
 
         private final AtomicReference<ClickHouseClient> client;
 
@@ -186,7 +181,7 @@ public class ClickHouseClientBuilder {
          * @throws CompletionException when error occurred or timed out
          */
         ClickHouseResponse repeat(ClickHouseRequest<?> sealedRequest, ClickHouseException exception, long timeout) {
-            if (timeout > 0) {
+            if (timeout > 0L) {
                 final int errorCode = exception.getErrorCode();
                 final long startTime = System.currentTimeMillis();
 
@@ -366,38 +361,6 @@ public class ClickHouseClientBuilder {
     }
 
     private static final Logger log = LoggerFactory.getLogger(ClickHouseClientBuilder.class);
-
-    // expose method to change default thread pool in runtime? JMX?
-    static final ExecutorService defaultExecutor;
-    static final ScheduledExecutorService defaultScheduler;
-
-    static {
-        int maxSchedulers = (int) ClickHouseDefaults.MAX_SCHEDULER_THREADS.getEffectiveDefaultValue();
-        int maxThreads = (int) ClickHouseDefaults.MAX_THREADS.getEffectiveDefaultValue();
-        int maxRequests = (int) ClickHouseDefaults.MAX_REQUESTS.getEffectiveDefaultValue();
-        long keepAliveTimeoutMs = (long) ClickHouseDefaults.THREAD_KEEPALIVE_TIMEOUT.getEffectiveDefaultValue();
-
-        if (maxThreads <= 0) {
-            maxThreads = Runtime.getRuntime().availableProcessors();
-        }
-        if (maxSchedulers <= 0) {
-            maxSchedulers = Runtime.getRuntime().availableProcessors();
-        } else if (maxSchedulers > maxThreads) {
-            maxSchedulers = maxThreads;
-        }
-
-        if (maxRequests <= 0) {
-            maxRequests = 0;
-        }
-
-        String prefix = "ClickHouseClientWorker";
-        defaultExecutor = ClickHouseUtils.newThreadPool(prefix, maxThreads, maxThreads * 3 + 1, maxRequests,
-                keepAliveTimeoutMs, false);
-        prefix = "ClickHouseClientScheduler";
-        defaultScheduler = maxSchedulers == 1 ? Executors
-                .newSingleThreadScheduledExecutor(new ClickHouseThreadFactory(prefix))
-                : Executors.newScheduledThreadPool(maxSchedulers, new ClickHouseThreadFactory(prefix));
-    }
 
     static ServiceLoader<ClickHouseClient> loadClients() {
         return ServiceLoader.load(ClickHouseClient.class, ClickHouseClientBuilder.class.getClassLoader());

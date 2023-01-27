@@ -19,8 +19,8 @@ import org.testng.annotations.Test;
 public class NonBlockingPipedOutputStreamTest {
     @Test(groups = { "unit" })
     public void testRead() throws IOException {
-        NonBlockingPipedOutputStream stream = new NonBlockingPipedOutputStream(4, 3, 1, CapacityPolicy.fixedCapacity(3),
-                null);
+        NonBlockingPipedOutputStream stream = new NonBlockingPipedOutputStream(4, 3, 1,
+                CapacityPolicy.fixedCapacity(3));
         Assert.assertEquals(stream.queue.size(), 0);
         try (InputStream in = stream.getInputStream()) {
             in.read();
@@ -78,8 +78,8 @@ public class NonBlockingPipedOutputStreamTest {
 
     @Test(groups = { "unit" })
     public void testReadBytes() throws IOException {
-        NonBlockingPipedOutputStream stream = new NonBlockingPipedOutputStream(4, 3, 1, CapacityPolicy.fixedCapacity(3),
-                null);
+        NonBlockingPipedOutputStream stream = new NonBlockingPipedOutputStream(4, 3, 1,
+                CapacityPolicy.fixedCapacity(3));
         Assert.assertEquals(stream.queue.size(), 0);
         byte[] bytes = new byte[3];
         try (InputStream in = stream.getInputStream()) {
@@ -141,8 +141,8 @@ public class NonBlockingPipedOutputStreamTest {
 
     @Test(groups = { "unit" })
     public void testWrite() throws IOException {
-        NonBlockingPipedOutputStream stream = new NonBlockingPipedOutputStream(2, 3, 2, CapacityPolicy.fixedCapacity(3),
-                null);
+        NonBlockingPipedOutputStream stream = new NonBlockingPipedOutputStream(2, 3, 2,
+                CapacityPolicy.fixedCapacity(3));
         Assert.assertEquals(stream.queue.size(), 0);
         try (OutputStream out = stream) {
             out.write(5);
@@ -157,7 +157,7 @@ public class NonBlockingPipedOutputStreamTest {
             Assert.assertEquals(stream.queue.poll(), new byte[] { (byte) 7 });
         }
 
-        stream = new NonBlockingPipedOutputStream(1, 1, 2, CapacityPolicy.fixedCapacity(1), null);
+        stream = new NonBlockingPipedOutputStream(1, 1, 2, CapacityPolicy.fixedCapacity(1));
         Assert.assertEquals(stream.queue.size(), 0);
         try (OutputStream out = stream) {
             out.write(5);
@@ -182,8 +182,8 @@ public class NonBlockingPipedOutputStreamTest {
 
     @Test(groups = { "unit" })
     public void testWriteBytes() throws IOException {
-        NonBlockingPipedOutputStream stream = new NonBlockingPipedOutputStream(2, 3, 2, CapacityPolicy.fixedCapacity(3),
-                null);
+        NonBlockingPipedOutputStream stream = new NonBlockingPipedOutputStream(2, 3, 2,
+                CapacityPolicy.fixedCapacity(3));
         Assert.assertEquals(stream.queue.size(), 0);
         try (OutputStream out = stream) {
             out.write(new byte[] { (byte) 9, (byte) 10 });
@@ -214,7 +214,7 @@ public class NonBlockingPipedOutputStreamTest {
         for (int bufferSize = -1; bufferSize < 10; bufferSize++) {
             for (int queueLength = -1; queueLength < 10; queueLength++) {
                 final NonBlockingPipedOutputStream stream = new NonBlockingPipedOutputStream(bufferSize, queueLength,
-                        timeout, CapacityPolicy.fixedCapacity(queueLength), null);
+                        timeout, CapacityPolicy.fixedCapacity(queueLength));
                 try (InputStream in = stream.getInputStream(); OutputStream out = stream) {
                     final int count = 10000;
                     final AtomicInteger p = new AtomicInteger(0);

@@ -33,6 +33,7 @@ import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
@@ -66,6 +67,9 @@ public final class ClickHouseUtils {
      * Default charset.
      */
     public static final String DEFAULT_CHARSET = StandardCharsets.UTF_8.name();
+
+    public static final int MIN_CORE_THREADS = 3;
+    public static final CompletableFuture<Void> NULL_FUTURE = CompletableFuture.completedFuture(null);
 
     public static final String VARIABLE_PREFIX = "{{";
     public static final String VARIABLE_SUFFIX = "}}";
@@ -140,24 +144,33 @@ public final class ClickHouseUtils {
     }
 
     /**
-     * Creates a temporary file with given prefix and suffix.
+     * Creates a temporary file with the given prefix and suffix. The file has only
+     * read and write access granted to the owner.
      *
-     * @param prefix       prefix, could be null
-     * @param suffix       suffix, could be null
+     * @param prefix       prefix, null or empty string is taken as {@code "ch"}
+     * @param suffix       suffix, null or empty string is taken as {@code ".data"}
      * @param deleteOnExit whether the file be deleted on exit
      * @return non-null temporary file
      * @throws IOException when failed to create the temporary file
      */
     public static File createTempFile(String prefix, String suffix, boolean deleteOnExit) throws IOException {
+        if (prefix == null || prefix.isEmpty()) {
+            prefix = "ch";
+        }
+        if (suffix == null || suffix.isEmpty()) {
+            suffix = ".data";
+        }
+
         final File f;
         if (IS_UNIX) {
             FileAttribute<Set<PosixFilePermission>> attr = PosixFilePermissions
                     .asFileAttribute(PosixFilePermissions.fromString("rw-------"));
             f = Files.createTempFile(prefix, suffix, attr).toFile();
         } else {
-            f = Files.createTempFile(prefix == null ? "chc" : prefix, suffix == null ? ".data" : suffix).toFile();
+            f = Files.createTempFile(prefix, suffix).toFile(); // NOSONAR
             f.setReadable(true, true); // NOSONAR
             f.setWritable(true, true); // NOSONAR
+            f.setExecutable(false, false); // NOSONAR
         }
 
         if (deleteOnExit) {
@@ -266,8 +279,8 @@ public final class ClickHouseUtils {
             long keepAliveTimeoutMs, boolean allowCoreThreadTimeout) {
         BlockingQueue<Runnable> queue = maxRequests > 0 ? new ArrayBlockingQueue<>(maxRequests)
                 : new LinkedBlockingQueue<>();
-        if (coreThreads < 3) {
-            coreThreads = 3;
+        if (coreThreads < MIN_CORE_THREADS) {
+            coreThreads = MIN_CORE_THREADS;
         }
         if (maxThreads <= coreThreads) {
             maxThreads = coreThreads + 1;

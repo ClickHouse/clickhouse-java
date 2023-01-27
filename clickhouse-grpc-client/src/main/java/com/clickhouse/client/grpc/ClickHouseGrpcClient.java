@@ -120,7 +120,7 @@ public class ClickHouseGrpcClient extends AbstractClient<ManagedChannel> {
 
         final int bufferSize = config.getWriteBufferSize();
         final ClickHousePipedOutputStream stream = ClickHouseDataStreamFactory.getInstance() // NOSONAR
-                .createPipedOutputStream(bufferSize, 0, config.getSocketTimeout(), null);
+                .createPipedOutputStream(bufferSize, 0, config.getSocketTimeout());
         final ClickHouseInputStream compressedInput = stream.getInputStream();
 
         ClickHouseClient.submit(() -> {

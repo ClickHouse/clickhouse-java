@@ -8,31 +8,27 @@ import java.util.concurrent.TimeUnit;
 
 import com.clickhouse.data.ClickHouseChecker;
 import com.clickhouse.data.ClickHouseUtils;
-import com.clickhouse.logging.Logger;
-import com.clickhouse.logging.LoggerFactory;
 
 /**
  * {@link java.nio.ByteBuffer} backed input stream with
  * {@link java.util.concurrent.BlockingQueue}.
  */
 public class BlockingInputStream extends AbstractByteBufferInputStream {
-    private static final Logger log = LoggerFactory.getLogger(BlockingInputStream.class);
-
     private final BlockingQueue<ByteBuffer> queue;
-    private final int timeout;
+    private final long timeout;
 
-    public BlockingInputStream(BlockingQueue<ByteBuffer> queue, int timeout, Runnable postCloseAction) {
+    public BlockingInputStream(BlockingQueue<ByteBuffer> queue, long timeout, Runnable postCloseAction) {
         super(null, null, postCloseAction);
 
         this.queue = ClickHouseChecker.nonNull(queue, "Queue");
-        this.timeout = timeout > 0 ? timeout : 0;
+        this.timeout = timeout < 0L ? 0L : timeout;
     }
 
     @Override
     protected int updateBuffer() throws IOException {
         ByteBuffer b;
         try {
-            if (timeout > 0) {
+            if (timeout > 0L) {
                 b = queue.poll(timeout, TimeUnit.MILLISECONDS);
                 if (b == null) {
                     throw new IOException(ClickHouseUtils.format("Read timed out after %d ms", timeout));

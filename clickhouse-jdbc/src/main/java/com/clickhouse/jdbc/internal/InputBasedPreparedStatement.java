@@ -80,7 +80,7 @@ public class InputBasedPreparedStatement extends AbstractPreparedStatement imple
         counter = 0;
         // it's important to make sure the queue has unlimited length
         stream = ClickHouseDataStreamFactory.getInstance().createPipedOutputStream(config.getWriteBufferSize(), 0,
-                config.getSocketTimeout(), null);
+                config.getSocketTimeout());
     }
 
     protected void ensureParams() throws SQLException {
@@ -367,7 +367,7 @@ public class InputBasedPreparedStatement extends AbstractPreparedStatement imple
 
         ClickHouseConfig config = getConfig();
         stream = ClickHouseDataStreamFactory.getInstance().createPipedOutputStream(config.getWriteBufferSize(), 0,
-                config.getSocketTimeout(), null);
+                config.getSocketTimeout());
         resetDataProcessor();
     }
 
@@ -447,7 +447,8 @@ public class InputBasedPreparedStatement extends AbstractPreparedStatement imple
             } else {
                 Calendar c = (Calendar) cal.clone();
                 c.setTime(x);
-                dt = c.toInstant().atZone(tz).withNano(x.getNanos()).withZoneSameInstant(timeZoneForTs).toLocalDateTime();
+                dt = c.toInstant().atZone(tz).withNano(x.getNanos()).withZoneSameInstant(timeZoneForTs)
+                        .toLocalDateTime();
             }
             values[idx].update(dt);
         } else {

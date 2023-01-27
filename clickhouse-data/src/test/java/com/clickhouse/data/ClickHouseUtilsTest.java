@@ -20,8 +20,8 @@ public class ClickHouseUtilsTest {
         File f = ClickHouseUtils.createTempFile(null, null);
         Assert.assertNotNull(f);
         Assert.assertTrue(f.exists(), f.getAbsolutePath() + " should exist");
-        Assert.assertTrue(f.getName().endsWith(".tmp"),
-                "By default temporary file should end with .tmp, but it's " + f.getName());
+        Assert.assertTrue(f.getName().endsWith(".data"),
+                "By default temporary file should end with .data, but it's " + f.getName());
 
         f = ClickHouseUtils.createTempFile("prefix__", "__suffix", true);
         Assert.assertNotNull(f);

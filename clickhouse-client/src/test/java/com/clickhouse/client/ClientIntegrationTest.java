@@ -1532,10 +1532,9 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
             throw new SkipException("Skip as only http implementation works well");
         }
 
-        File file = Files.createTempFile("chc", ".data").toFile();
+        File file = ClickHouseUtils.createTempFile("chc", ".data", false);
         ClickHouseFile wrappedFile = ClickHouseFile.of(file,
-                gzipCompressed ? ClickHouseCompression.GZIP : ClickHouseCompression.NONE, 0,
-                ClickHouseFormat.CSV);
+                gzipCompressed ? ClickHouseCompression.GZIP : ClickHouseCompression.NONE, ClickHouseFormat.CSV);
         String query = "select number, if(number % 2 = 0, null, toString(number)) str from numbers(10)";
         if (useOneLiner) {
             ClickHouseClient.dump(server, query, wrappedFile).get();
@@ -1683,7 +1682,7 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
         sendAndWait(server, "drop table if exists test_load_file",
                 "create table test_load_file(a Int32, b Nullable(String))engine=Memory");
         ClickHouseFile wrappedFile = ClickHouseFile.of(file,
-                gzipCompressed ? ClickHouseCompression.GZIP : ClickHouseCompression.NONE, -1, ClickHouseFormat.CSV);
+                gzipCompressed ? ClickHouseCompression.GZIP : ClickHouseCompression.NONE, ClickHouseFormat.CSV);
         if (useOneLiner) {
             try {
                 ClickHouseClient.load(server, "test_load_file", wrappedFile).get();
@@ -1735,7 +1734,7 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
             // single producer → single consumer
             // important to close the stream *before* retrieving response
             try (ClickHousePipedOutputStream stream = ClickHouseDataStreamFactory.getInstance()
-                    .createPipedOutputStream(config, null)) {
+                    .createPipedOutputStream(config)) {
                 // start the worker thread which transfer data from the input into ClickHouse
                 future = request.data(stream.getInputStream()).execute();
                 // write bytes into the piped stream

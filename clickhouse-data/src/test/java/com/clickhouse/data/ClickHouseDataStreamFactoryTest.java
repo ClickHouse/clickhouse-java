@@ -22,8 +22,8 @@ public class ClickHouseDataStreamFactoryTest {
         for (int i = 0; i < 256; i++) {
             CompletableFuture<Integer> future;
             try (ClickHousePipedOutputStream out = ClickHouseDataStreamFactory.getInstance()
-                    .createPipedOutputStream(config, null)) {
-                future = CompletableFuture.supplyAsync(() -> {
+                    .createPipedOutputStream(config)) {
+                future = ClickHouseDataStreamFactory.getInstance().runBlockingTask(() -> {
                     try (ClickHouseInputStream in = out.getInputStream()) {
                         return in.read();
                     } catch (IOException e) {
@@ -37,11 +37,10 @@ public class ClickHouseDataStreamFactoryTest {
 
         // write in worker thread
         for (int i = 0; i < 256; i++) {
-            ClickHousePipedOutputStream out = ClickHouseDataStreamFactory.getInstance().createPipedOutputStream(config,
-                    null);
+            ClickHousePipedOutputStream out = ClickHouseDataStreamFactory.getInstance().createPipedOutputStream(config);
             final int num = i;
             try (ClickHouseInputStream in = out.getInputStream()) {
-                CompletableFuture.supplyAsync(() -> {
+                ClickHouseDataStreamFactory.getInstance().runBlockingTask(() -> {
                     try (ClickHouseOutputStream o = out) {
                         o.write(num);
                     } catch (IOException e) {
@@ -52,5 +51,20 @@ public class ClickHouseDataStreamFactoryTest {
                 Assert.assertEquals(in.read(), num);
             }
         }
+    }
+
+    @Test(groups = { "unit" })
+    public void testHandleCustomAction() throws IOException {
+        // nothing will happen
+        ClickHouseDataStreamFactory.handleCustomAction(null);
+        ClickHouseDataStreamFactory.handleCustomAction(() -> {
+        });
+        ClickHouseDataStreamFactory.handleCustomAction(() -> {
+            new Exception();
+        });
+
+        Assert.assertThrows(IOException.class, () -> ClickHouseDataStreamFactory.handleCustomAction(() -> {
+            throw new UncheckedIOException(new IOException("fake exception"));
+        }));
     }
 }

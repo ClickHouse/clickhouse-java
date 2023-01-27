@@ -13,16 +13,16 @@ import com.clickhouse.data.ClickHouseUtils;
 
 public class NonBlockingInputStream extends ClickHouseInputStream {
     private final AdaptiveQueue<byte[]> queue;
-    private final int timeout;
+    private final long timeout;
 
     private byte[] buffer;
     private int position;
 
-    public NonBlockingInputStream(AdaptiveQueue<byte[]> queue, int timeout, Runnable postCloseAction) {
+    public NonBlockingInputStream(AdaptiveQueue<byte[]> queue, long timeout, Runnable postCloseAction) {
         super(null, null, postCloseAction);
 
         this.queue = ClickHouseChecker.nonNull(queue, "Queue");
-        this.timeout = timeout > 0 ? timeout : 0;
+        this.timeout = timeout < 0L ? 0L : timeout;
 
         this.buffer = null;
         this.position = 0;

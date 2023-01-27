@@ -1,14 +1,18 @@
 package com.clickhouse.data.stream;
 
 import java.io.IOException;
+import java.util.concurrent.CompletableFuture;
 
 import com.clickhouse.data.ClickHouseByteBuffer;
+import com.clickhouse.data.ClickHouseChecker;
 import com.clickhouse.data.ClickHouseDataConfig;
+import com.clickhouse.data.ClickHouseDataStreamFactory;
 import com.clickhouse.data.ClickHouseDataUpdater;
 import com.clickhouse.data.ClickHouseInputStream;
 import com.clickhouse.data.ClickHouseOutputStream;
 import com.clickhouse.data.ClickHousePipedOutputStream;
 import com.clickhouse.data.ClickHouseUtils;
+import com.clickhouse.data.ClickHouseWriter;
 
 /**
  * A combination of {@link java.io.PipedOutputStream} and
@@ -20,8 +24,9 @@ public class NonBlockingPipedOutputStream extends ClickHousePipedOutputStream {
     protected final AdaptiveQueue<byte[]> queue;
 
     protected final int bufferSize;
-    protected final int timeout;
     protected final byte[][] buckets;
+    protected final CompletableFuture<Void> future;
+    protected final long timeout;
 
     protected int current;
 
@@ -78,7 +83,11 @@ public class NonBlockingPipedOutputStream extends ClickHousePipedOutputStream {
         }
     }
 
-    public NonBlockingPipedOutputStream(int bufferSize, int queueLength, int timeout, CapacityPolicy policy,
+    public NonBlockingPipedOutputStream(int bufferSize, int queueLength, long timeout, CapacityPolicy policy) {
+        this(bufferSize, queueLength, timeout, policy, (Runnable) null);
+    }
+
+    public NonBlockingPipedOutputStream(int bufferSize, int queueLength, long timeout, CapacityPolicy policy,
             Runnable postCloseAction) {
         super(postCloseAction);
 
@@ -86,16 +95,34 @@ public class NonBlockingPipedOutputStream extends ClickHousePipedOutputStream {
 
         // may need an initialBufferSize and a monitor to update bufferSize in runtime
         this.bufferSize = ClickHouseDataConfig.getBufferSize(bufferSize);
-        this.timeout = timeout;
         this.buckets = queueLength < 2 ? new byte[0][] : new byte[queueLength][];
+        this.future = ClickHouseUtils.NULL_FUTURE;
+        this.timeout = timeout;
 
         this.current = queueLength < 2 ? -1 : 0;
         this.buffer = allocateBuffer();
     }
 
+    public NonBlockingPipedOutputStream(int bufferSize, int queueLength, long timeout, CapacityPolicy policy,
+            ClickHouseWriter writer) {
+        super(null);
+
+        this.queue = AdaptiveQueue.create(policy);
+
+        // may need an initialBufferSize and a monitor to update bufferSize in runtime
+        this.bufferSize = ClickHouseDataConfig.getBufferSize(bufferSize);
+        this.buckets = queueLength < 2 ? new byte[0][] : new byte[queueLength][];
+        this.timeout = timeout;
+
+        this.current = queueLength < 2 ? -1 : 0;
+        this.buffer = allocateBuffer();
+
+        this.future = writeAsync(ClickHouseChecker.nonNull(writer, ClickHouseWriter.TYPE_NAME), this);
+    }
+
     @Override
     public ClickHouseInputStream getInputStream(Runnable postCloseAction) {
-        return new NonBlockingInputStream(queue, timeout, postCloseAction);
+        return new NonBlockingInputStream(queue, timeout, () -> handleWriteResult(future, timeout, postCloseAction));
     }
 
     @Override
@@ -115,9 +142,7 @@ public class NonBlockingPipedOutputStream extends ClickHousePipedOutputStream {
             }
 
             closed = true;
-            if (postCloseAction != null) {
-                postCloseAction.run();
-            }
+            ClickHouseDataStreamFactory.handleCustomAction(postCloseAction);
         }
     }
 

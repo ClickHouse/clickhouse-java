@@ -30,7 +30,7 @@ public class DelegatedInputStreamTest {
 
     @Test(groups = { "unit" })
     public void testReadBytes() throws IOException {
-        try (DelegatedInputStream in = new DelegatedInputStream(null, w -> {
+        try (DelegatedInputStream in = new DelegatedInputStream(w -> {
             for (int i = 0; i < Byte.MAX_VALUE; i++) {
                 w.writeBytes(new byte[] { 1, 2, 3, 4, 5, 6 });
             }

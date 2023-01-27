@@ -209,12 +209,6 @@
                                     </excludes>
                                 </filter>
                                 <filter>
-                                    <artifact>org.slf4j:slf4j-api</artifact>
-                                    <excludes>
-                                        <exclude>**</exclude>
-                                    </excludes>
-                                </filter>
-                                <filter>
                                     <artifact>org.tukaani:xz</artifact>
                                     <excludes>
                                         <exclude>**</exclude>
@@ -303,12 +297,6 @@
                                 </filter>
                                 <filter>
                                     <artifact>org.apache.commons:commons-compress</artifact>
-                                    <excludes>
-                                        <exclude>**</exclude>
-                                    </excludes>
-                                </filter>
-                                <filter>
-                                    <artifact>org.slf4j:slf4j-api</artifact>
                                     <excludes>
                                         <exclude>**</exclude>
                                     </excludes>
@@ -404,12 +392,6 @@
                                 </filter>
                                 <filter>
                                     <artifact>org.apache.commons:commons-compress</artifact>
-                                    <excludes>
-                                        <exclude>**</exclude>
-                                    </excludes>
-                                </filter>
-                                <filter>
-                                    <artifact>org.slf4j:slf4j-api</artifact>
                                     <excludes>
                                         <exclude>**</exclude>
                                     </excludes>

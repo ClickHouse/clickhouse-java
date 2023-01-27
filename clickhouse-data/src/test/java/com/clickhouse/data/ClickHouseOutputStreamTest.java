@@ -4,6 +4,7 @@ import java.io.BufferedOutputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 
 import org.testng.Assert;
@@ -61,5 +62,16 @@ public class ClickHouseOutputStreamTest {
         empty.close();
         Assert.assertEquals(empty.isClosed(), true);
         Assert.assertThrows(IOException.class, () -> empty.write(1));
+    }
+
+    @Test(groups = { "unit" })
+    public void testPostCloseAction() throws IOException {
+        try (ClickHouseOutputStream out = ClickHouseOutputStream.of(new ByteArrayOutputStream(), 0,
+                ClickHouseCompression.NONE,
+                ClickHouseTestDataConfig.DEFAULT_COMPRESS_LEVEL, () -> {
+                    throw new UncheckedIOException(new IOException("fake exception"));
+                })) {
+            Assert.assertThrows(IOException.class, () -> out.close());
+        }
     }
 }

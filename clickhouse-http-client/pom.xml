@@ -41,6 +41,12 @@
             <groupId>org.apache.httpcomponents.client5</groupId>
             <artifactId>httpclient5</artifactId>
             <optional>true</optional>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.slf4j</groupId>
+                    <artifactId>slf4j-api</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <dependency>
             <groupId>org.brotli</groupId>
@@ -151,12 +157,6 @@
                                 </filter>
                                 <filter>
                                     <artifact>org.brotli:dec</artifact>
-                                    <excludes>
-                                        <exclude>**</exclude>
-                                    </excludes>
-                                </filter>
-                                <filter>
-                                    <artifact>org.slf4j:slf4j-api</artifact>
                                     <excludes>
                                         <exclude>**</exclude>
                                     </excludes>

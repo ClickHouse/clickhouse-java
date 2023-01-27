@@ -157,8 +157,9 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
         }
 
         /**
-         * Sets custom writer for streaming. This will remove input stream set by other
-         * {@code data()} methods.
+         * Sets custom writer for writing uncompressed data, use
+         * {@link #data(ClickHousePassThruStream)} when the data is compressed. This
+         * will remove input stream set by other {@code data(...)} methods.
          *
          * @param writer writer
          * @return mutation request
@@ -173,7 +174,9 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
         }
 
         /**
-         * Loads data from given pass-thru stream which may or may not be compressed.
+         * Loads data from the given pass-thru stream which may or may not be
+         * compressed. This will not only remove custom writer set by
+         * {@link #data(ClickHouseWriter)}, but may also update compression and format.
          *
          * @param stream pass-thru stream, could be a file and may or may not be
          *               compressed
@@ -204,22 +207,28 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
         }
 
         /**
-         * Loads data from given file which may or may not be compressed.
+         * Loads data from the given file. It's same as
+         * {@code data(ClickHouseFile.of(file))} if the file name implies compression
+         * algorithm and/or format(e.g. {@code some_file.csv.gz}). It fall back to
+         * {@link #data(InputStream)} if no clue. This will remove custom writer set by
+         * {@link #data(ClickHouseWriter)}.
          *
          * @param file absolute or relative path of the file, file extension will be
          *             used to determine if it's compressed or not
          * @return mutation request
          */
         public Mutation data(String file) {
-            return data(ClickHouseFile.of(file));
+            ClickHouseFile f = ClickHouseFile.of(file);
+            return f.isRecognized() ? data(f) : data(f.getInputStream());
         }
 
         /**
-         * Loads compressed data from given file.
+         * Loads compressed data from the given file. This will remove custom writer set
+         * by {@link #data(ClickHouseWriter)}.
          *
          * @param file        absolute or relative path of the file
-         * @param compression compression algorithm, {@link ClickHouseCompression#NONE}
-         *                    means no compression
+         * @param compression compression algorithm, null or
+         *                    {@link ClickHouseCompression#NONE} means no compression
          * @return mutation request
          */
         public Mutation data(String file, ClickHouseCompression compression) {
@@ -228,13 +237,16 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
         }
 
         /**
-         * Loads compressed data from given file.
+         * Loads compressed data from the given file. This will remove custom writer set
+         * by {@link #data(ClickHouseWriter)}.
          *
          * @param file             absolute or relative path of the file
-         * @param compression      compression algorithm,
-         *                         {@link ClickHouseCompression#NONE}
-         *                         means no compression
-         * @param compressionLevel compression level
+         * @param compression      compression algorithm, null or
+         *                         {@link ClickHouseCompression#NONE} means no
+         *                         compression
+         * @param compressionLevel compression level, use
+         *                         {@code com.clickhouse.data.ClickHouseDataConfig#DEFAULT_READ_COMPRESS_LEVEL}
+         *                         to use recommended level for the algorithm
          * @return mutation request
          */
         public Mutation data(String file, ClickHouseCompression compression, int compressionLevel) {
@@ -242,7 +254,8 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
         }
 
         /**
-         * Loads data from input stream.
+         * Loads data from input stream. This will remove custom writer set by
+         * {@link #data(ClickHouseWriter)}.
          *
          * @param input input stream
          * @return mutation request
@@ -252,7 +265,8 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
         }
 
         /**
-         * Loads data from input stream.
+         * Loads data from input stream. This will remove custom writer set by
+         * {@link #data(ClickHouseWriter)}.
          *
          * @param input input stream
          * @return mutation request
@@ -273,7 +287,8 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
         }
 
         /**
-         * Loads data from input stream.
+         * Loads data from deferred input stream. This will remove custom writer set by
+         * {@link #data(ClickHouseWriter)}.
          *
          * @param input input stream
          * @return mutation request
@@ -1804,7 +1819,7 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
     @SuppressWarnings("unchecked")
     public SelfT transaction(int timeout) throws ClickHouseException {
         ClickHouseTransaction tx = txRef.get();
-        if (tx != null && tx.getTimeout() == (timeout > 0 ? timeout : 0)) {
+        if (tx != null && tx.getTimeout() == (timeout < 0 ? 0 : timeout)) {
             return (SelfT) this;
         }
         return transaction(getManager().getOrStartTransaction(this, timeout));

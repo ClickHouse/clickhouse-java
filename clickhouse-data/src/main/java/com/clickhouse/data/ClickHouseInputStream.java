@@ -160,6 +160,18 @@ public abstract class ClickHouseInputStream extends InputStream {
      * piped stream will be created, writer will be called in a separate worker
      * thread for writing.
      *
+     * @param writer non-null customer writer
+     * @return wrapped input
+     */
+    public static ClickHouseInputStream of(ClickHouseWriter writer) {
+        return new DelegatedInputStream(null, writer);
+    }
+
+    /**
+     * Creates an input stream using the given customer writer. Behind the scene, a
+     * piped stream will be created, writer will be called in a separate worker
+     * thread for writing.
+     *
      * @param config configuration, could be null
      * @param writer non-null customer writer
      * @return wrapped input
@@ -493,10 +505,138 @@ public abstract class ClickHouseInputStream extends InputStream {
         return count;
     }
 
+    /**
+     * Saves data from the given input stream to a temporary file, which will be
+     * deleted after JVM exited.
+     *
+     * @param input non-null input stream
+     * @return non-null temporary file
+     */
+    public static File save(InputStream input) {
+        return save(null, input, null);
+    }
+
+    /**
+     * Saves data from the given input stream to the specified file.
+     *
+     * @param input non-null input stream
+     * @param file  target file, could be null
+     * @return non-null file
+     */
+    public static File save(InputStream input, File file) {
+        return save(null, input, file);
+    }
+
+    /**
+     * Saves data from the given input stream to a temporary file, which will be
+     * deleted after JVM exited.
+     *
+     * @param config config, could be null
+     * @param input  non-null input stream
+     * @return non-null temporary file
+     */
+    public static File save(ClickHouseDataConfig config, InputStream input) {
+        return save(config, input, null);
+    }
+
+    /**
+     * Saves data from the given input stream to the specified file.
+     *
+     * @param config config, could be null
+     * @param input  non-null input stream
+     * @param file   target file, could be null
+     * @return non-null file
+     */
+    public static File save(ClickHouseDataConfig config, InputStream input, File file) {
+        final File tmp;
+        if (file != null) {
+            tmp = file;
+        } else {
+            try {
+                tmp = ClickHouseUtils.createTempFile();
+            } catch (IOException e) {
+                throw new UncheckedIOException("Failed to create temp file", e);
+            }
+        }
+
+        final int bufferSize;
+        final long timeout;
+        if (config != null) {
+            bufferSize = config.getWriteBufferSize();
+            timeout = config.getWriteTimeout();
+        } else {
+            bufferSize = ClickHouseDataConfig.DEFAULT_WRITE_BUFFER_SIZE;
+            timeout = ClickHouseDataConfig.DEFAULT_TIMEOUT;
+        }
+
+        if (timeout <= 0L) {
+            try {
+                try (OutputStream out = new FileOutputStream(tmp)) {
+                    pipe(input, out, bufferSize);
+                }
+                return tmp;
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        } else {
+            CompletableFuture<File> data = ClickHouseDataStreamFactory.getInstance().runBlockingTask(() -> {
+                try {
+                    try (OutputStream out = new FileOutputStream(tmp)) {
+                        pipe(input, out, bufferSize);
+                    }
+                    return tmp;
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            });
+
+            try {
+                return data.get(timeout, TimeUnit.MILLISECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException(e);
+            } catch (TimeoutException e) {
+                throw new IllegalStateException(e);
+            } catch (ExecutionException e) {
+                Throwable cause = e.getCause();
+                if (cause instanceof UncheckedIOException) {
+                    throw ((UncheckedIOException) cause);
+                } else if (cause instanceof IOException) {
+                    throw new UncheckedIOException((IOException) cause);
+                }
+                throw new IllegalStateException(cause);
+            }
+        }
+    }
+
+    /**
+     * Saves data from the given input stream to a temporary file.
+     *
+     * @param in         non-null input stream
+     * @param bufferSize buffer size
+     * @param timeout    timeout in milliseconds
+     * @return non-null temporary file
+     * @deprecated will be dropped in 0.5, please use {@link #save(InputStream)}
+     *             instead
+     */
+    @Deprecated
     public static File save(InputStream in, int bufferSize, int timeout) {
         return save(null, in, bufferSize, timeout, true);
     }
 
+    /**
+     * Saves data from the given input stream to the specified file.
+     *
+     * @param file         target file, could be null
+     * @param in           non-null input stream
+     * @param bufferSize   buffer size
+     * @param timeout      timeout in milliseconds
+     * @param deleteOnExit whether the file should be deleted after JVM exit
+     * @return non-null file
+     * @deprecated will be dropped in 0.5, please use
+     *             {@link #save(InputStream, File)} instead
+     */
+    @Deprecated
     public static File save(File file, InputStream in, int bufferSize, int timeout, boolean deleteOnExit) {
         final File tmp;
         if (file != null) {
@@ -511,7 +651,7 @@ public abstract class ClickHouseInputStream extends InputStream {
                 throw new UncheckedIOException("Failed to create temp file", e);
             }
         }
-        CompletableFuture<File> data = CompletableFuture.supplyAsync(() -> {
+        CompletableFuture<File> data = ClickHouseDataStreamFactory.getInstance().runBlockingTask(() -> {
             try {
                 try (OutputStream out = new FileOutputStream(tmp)) {
                     pipe(in, out, bufferSize);
@@ -610,6 +750,16 @@ public abstract class ClickHouseInputStream extends InputStream {
      */
     public ClickHousePassThruStream getUnderlyingStream() {
         return stream;
+    }
+
+    /**
+     * Checks if there's underlying input stream. Same as
+     * {@code getUnderlyingStream().hasInput()}.
+     *
+     * @return true if there's underlying input stream; false otherwise
+     */
+    public boolean hasUnderlyingStream() {
+        return stream.hasInput();
     }
 
     /**
@@ -960,9 +1110,7 @@ public abstract class ClickHouseInputStream extends InputStream {
             userData.clear();
             // don't want to hold the last byte array reference for too long
             byteBuffer.reset();
-            if (postCloseAction != null) {
-                postCloseAction.run();
-            }
+            ClickHouseDataStreamFactory.handleCustomAction(postCloseAction);
         }
     }
 }

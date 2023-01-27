@@ -20,11 +20,32 @@ public class ClickHousePassThruStream implements Serializable {
      * Null stream which has no compression and format.
      */
     public static final ClickHousePassThruStream NULL = new ClickHousePassThruStream(null, null,
-            ClickHouseCompression.NONE, -1, null);
+            ClickHouseCompression.NONE, ClickHouseDataConfig.DEFAULT_COMPRESS_LEVEL, null);
+
+    public static ClickHousePassThruStream of(InputStream in, ClickHouseCompression compression,
+            ClickHouseFormat format) {
+        return of(in, null, compression, ClickHouseDataConfig.DEFAULT_READ_COMPRESS_LEVEL, format);
+    }
 
     public static ClickHousePassThruStream of(InputStream in, ClickHouseCompression compression,
             int compressionLevel, ClickHouseFormat format) {
         return of(in, null, compression, compressionLevel, format);
+    }
+
+    public static ClickHousePassThruStream of(ClickHouseWriter writer, ClickHouseCompression compression,
+            ClickHouseFormat format) {
+        return of(ClickHouseInputStream.of(writer), null, compression,
+                ClickHouseDataConfig.DEFAULT_READ_COMPRESS_LEVEL, format);
+    }
+
+    public static ClickHousePassThruStream of(ClickHouseWriter writer, ClickHouseCompression compression,
+            int compressionLevel, ClickHouseFormat format) {
+        return of(ClickHouseInputStream.of(writer), null, compression, compressionLevel, format);
+    }
+
+    public static ClickHousePassThruStream of(OutputStream out, ClickHouseCompression compression,
+            ClickHouseFormat format) {
+        return of(null, out, compression, ClickHouseDataConfig.DEFAULT_WRITE_COMPRESS_LEVEL, format);
     }
 
     public static ClickHousePassThruStream of(OutputStream out, ClickHouseCompression compression,
@@ -34,7 +55,8 @@ public class ClickHousePassThruStream implements Serializable {
 
     public static ClickHousePassThruStream of(InputStream in, OutputStream out, ClickHouseCompression compression,
             int compressionLevel, ClickHouseFormat format) {
-        if (in == null && out == null && compression == null && compressionLevel == -1 && format == null) {
+        if (in == null && out == null && compression == null
+                && compressionLevel == ClickHouseDataConfig.DEFAULT_COMPRESS_LEVEL && format == null) {
             return NULL;
         }
 
@@ -57,7 +79,9 @@ public class ClickHousePassThruStream implements Serializable {
     }
 
     /**
-     * Gets the input stream for reading.
+     * Gets the input stream for reading. Please pay attention that the returned
+     * input stream has nothing to do with this pass-thru stream, as
+     * {@code getInputStream().getUnderlyingStream()} is always {@link #NULL}.
      *
      * @return non-null input stream
      */
@@ -66,8 +90,13 @@ public class ClickHousePassThruStream implements Serializable {
     }
 
     /**
-     * Creates a wrapped input stream for reading. This method is supposed to be
-     * called once and only once.
+     * Creates a wrapped input stream for reading. Calling this method multiple
+     * times will generate multiple {@link ClickHouseInputStream} instances pointing
+     * to the same input stream, so it does not make sense to call this more than
+     * once. Unlike {@link #getInputStream()}, the returned input stream is
+     * associated with this pass-thru stream, so
+     * {@code newInputStream(...).getUnderlyingStream()} simply returns the current
+     * pass-thru stream.
      *
      * @param bufferSize      buffer size which is always greater than zero(usually
      *                        4096 or larger)
@@ -83,7 +112,9 @@ public class ClickHousePassThruStream implements Serializable {
     }
 
     /**
-     * Gets the output stream for writing.
+     * Gets the output stream for writing. Please pay attention that the returned
+     * output stream has nothing to do with this pass-thru stream, as
+     * {@code getOutputStream().getUnderlyingStream()} is always {@link #NULL}.
      *
      * @return non-null output stream
      */
@@ -92,8 +123,13 @@ public class ClickHousePassThruStream implements Serializable {
     }
 
     /**
-     * Creates a wrapped output stream for writing. This method is supposed to be
-     * called once and only once.
+     * Creates a wrapped output stream for writing. Calling this method multiple
+     * times will generate multiple {@link ClickHouseOutputStream} instances, so it
+     * does not make sense to call this more than once. Unlike
+     * {@link #getOutputStream()}, the returned
+     * output stream is associated with this pass-thru stream, so
+     * {@code newOutputStream(...).getUnderlyingStream()} simply returns the current
+     * pass-thru stream.
      *
      * @param bufferSize      buffer size which is always greater than zero(usually
      *                        4096 or larger)

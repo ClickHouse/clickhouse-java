@@ -5,8 +5,7 @@ module com.clickhouse.client {
     exports com.clickhouse.client;
     exports com.clickhouse.client.config;
 
-    requires static java.logging;
-    requires static org.slf4j;
+    requires static org.dnsjava;
 
     requires transitive com.clickhouse.data;
 

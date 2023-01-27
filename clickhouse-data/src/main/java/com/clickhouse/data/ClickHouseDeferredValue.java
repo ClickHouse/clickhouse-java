@@ -24,7 +24,7 @@ public final class ClickHouseDeferredValue<T> implements Supplier<T> {
      * @return deferred value of a future object
      */
     public static <T> ClickHouseDeferredValue<T> of(CompletableFuture<T> future) {
-        return of(future, 0);
+        return of(future, 0L);
     }
 
     /**
@@ -36,13 +36,14 @@ public final class ClickHouseDeferredValue<T> implements Supplier<T> {
      *                timeout
      * @return deferred vaue of a future object
      */
-    public static <T> ClickHouseDeferredValue<T> of(CompletableFuture<T> future, int timeout) {
-        final CompletableFuture<T> f = future != null ? future : CompletableFuture.completedFuture(null);
-        final int t = timeout < 0 ? 0 : timeout;
+    @SuppressWarnings("unchecked")
+    public static <T> ClickHouseDeferredValue<T> of(CompletableFuture<T> future, long timeout) {
+        final CompletableFuture<T> f = future != null ? future : (CompletableFuture<T>) ClickHouseUtils.NULL_FUTURE;
+        final long t = timeout < 0L ? 0L : timeout;
 
         Supplier<T> supplier = () -> {
             try {
-                return f.get(t, TimeUnit.MILLISECONDS);
+                return t > 0L ? f.get(t, TimeUnit.MILLISECONDS) : f.get();
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 f.cancel(false);

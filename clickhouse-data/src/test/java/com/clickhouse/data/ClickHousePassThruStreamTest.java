@@ -14,8 +14,7 @@ public class ClickHousePassThruStreamTest {
         final InputStream in = new ByteArrayInputStream(new byte[0]);
         final OutputStream out = new ByteArrayOutputStream();
 
-        ClickHousePassThruStream stream = ClickHousePassThruStream.of(in, null, -1,
-                null);
+        ClickHousePassThruStream stream = ClickHousePassThruStream.of(in, null, null);
         Assert.assertNotEquals(stream.getInputStream(), ClickHouseInputStream.empty());
         Assert.assertEquals(stream.getOutputStream(), ClickHouseOutputStream.empty());
         Assert.assertFalse(stream.hasCompression());
@@ -24,7 +23,7 @@ public class ClickHousePassThruStreamTest {
         Assert.assertFalse(stream.isCompressed());
         Assert.assertFalse(stream.hasFormat());
         Assert.assertNull(stream.getCompressionAlgorithm());
-        Assert.assertEquals(stream.getCompressionLevel(), -1);
+        Assert.assertEquals(stream.getCompressionLevel(), ClickHouseDataConfig.DEFAULT_COMPRESS_LEVEL);
         Assert.assertNull(stream.getFormat());
 
         stream = ClickHousePassThruStream.of(out, null, -1, null);
