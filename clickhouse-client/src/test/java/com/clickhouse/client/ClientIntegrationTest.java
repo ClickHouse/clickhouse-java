@@ -1502,9 +1502,10 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
         Assert.assertEquals(Files.size(temp), 0L);
 
         int lines = 10000;
-        ClickHouseResponseSummary summary = ClickHouseClient.dump(server,
-                ClickHouseUtils.format("select * from numbers(%d)", lines),
-                ClickHouseFormat.TabSeparated, ClickHouseCompression.NONE, temp.toString()).get();
+        ClickHouseResponseSummary summary = ClickHouseClient
+                .dump(server, ClickHouseUtils.format("select * from numbers(%d)", lines), temp.toString(),
+                        ClickHouseCompression.NONE, ClickHouseFormat.TabSeparated)
+                .get();
         Assert.assertNotNull(summary);
         // Assert.assertEquals(summary.getReadRows(), lines);
 
@@ -1521,23 +1522,25 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
     public void testDumpFile(boolean gzipCompressed, boolean useOneLiner)
             throws ExecutionException, InterruptedException, IOException {
         ClickHouseNode server = getServer();
-        if (server.getProtocol() != ClickHouseProtocol.HTTP) {
-            throw new SkipException("Skip as only http implementation works well");
+        if (server.getProtocol() != ClickHouseProtocol.GRPC && server.getProtocol() != ClickHouseProtocol.HTTP) {
+            throw new SkipException("Skip as only http and grpc implementation work well");
         }
 
-        File file = ClickHouseUtils.createTempFile("chc", ".data", false);
-        ClickHouseFile wrappedFile = ClickHouseFile.of(file,
+        final File file = ClickHouseUtils.createTempFile();
+        final ClickHouseFile wrappedFile = ClickHouseFile.of(file,
                 gzipCompressed ? ClickHouseCompression.GZIP : ClickHouseCompression.NONE, ClickHouseFormat.CSV);
         String query = "select number, if(number % 2 = 0, null, toString(number)) str from numbers(10)";
+        final ClickHouseResponseSummary summary;
         if (useOneLiner) {
-            ClickHouseClient.dump(server, query, wrappedFile).get();
+            summary = ClickHouseClient.dump(server, query, wrappedFile).get();
         } else {
             try (ClickHouseClient client = getClient();
-                    ClickHouseResponse response = newRequest(client, server).query(query)
-                            .output(wrappedFile).execute().get()) {
-                // ignore
+                    ClickHouseResponse response = newRequest(client, server).output(wrappedFile).query(query).execute()
+                            .get()) {
+                summary = response.getSummary();
             }
         }
+        Assert.assertNotNull(summary);
         try (InputStream in = gzipCompressed ? new GZIPInputStream(new FileInputStream(file))
                 : new FileInputStream(file); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             ClickHouseInputStream.pipe(in, out, 512);
@@ -1566,14 +1569,14 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
                 "create table test_custom_load(n UInt32, s Nullable(String)) engine = Memory");
 
         try {
-            ClickHouseClient.load(server, "test_custom_load", ClickHouseFormat.TabSeparated,
-                    ClickHouseCompression.NONE, new ClickHouseWriter() {
+            ClickHouseClient.load(server, "test_custom_load",
+                    new ClickHouseWriter() {
                         @Override
                         public void write(ClickHouseOutputStream output) throws IOException {
                             output.write("1\t\\N\n".getBytes(StandardCharsets.US_ASCII));
                             output.write("2\t123".getBytes(StandardCharsets.US_ASCII));
                         }
-                    }).get();
+                    }, ClickHouseCompression.NONE, ClickHouseFormat.TabSeparated).get();
         } catch (Exception e) {
             Assert.fail("Faile to load data", e);
         }
@@ -1619,8 +1622,8 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
         Files.write(temp, builder.toString().getBytes(StandardCharsets.US_ASCII));
         Assert.assertTrue(Files.size(temp) > 0L);
 
-        ClickHouseResponseSummary summary = ClickHouseClient.load(server, "test_load_csv",
-                ClickHouseFormat.TabSeparated, ClickHouseCompression.NONE, temp.toString()).get();
+        ClickHouseResponseSummary summary = ClickHouseClient.load(server, "test_load_csv", temp.toString(),
+                ClickHouseCompression.NONE, ClickHouseFormat.TabSeparated).get();
         Assert.assertNotNull(summary);
         try (ClickHouseClient client = getClient();
                 ClickHouseResponse resp = newRequest(client, server)

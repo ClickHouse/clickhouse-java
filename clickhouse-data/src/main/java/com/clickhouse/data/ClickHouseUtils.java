@@ -68,7 +68,7 @@ public final class ClickHouseUtils {
      */
     public static final String DEFAULT_CHARSET = StandardCharsets.UTF_8.name();
 
-    public static final int MIN_CORE_THREADS = 3;
+    public static final int MIN_CORE_THREADS = 4;
 
     public static final CompletableFuture<Void> NULL_FUTURE = CompletableFuture.completedFuture(null);
     public static final Supplier<?> NULL_SUPPLIER = () -> null;
@@ -279,13 +279,20 @@ public final class ClickHouseUtils {
 
     public static ExecutorService newThreadPool(Object owner, int coreThreads, int maxThreads, int maxRequests,
             long keepAliveTimeoutMs, boolean allowCoreThreadTimeout) {
-        BlockingQueue<Runnable> queue = maxRequests > 0 ? new ArrayBlockingQueue<>(maxRequests)
-                : new LinkedBlockingQueue<>();
+        final BlockingQueue<Runnable> queue;
         if (coreThreads < MIN_CORE_THREADS) {
             coreThreads = MIN_CORE_THREADS;
         }
-        if (maxThreads <= coreThreads) {
-            maxThreads = coreThreads + 1;
+        if (maxRequests > 0) {
+            queue = new ArrayBlockingQueue<>(maxRequests);
+            if (maxThreads <= coreThreads) {
+                maxThreads = coreThreads * 2;
+            }
+        } else {
+            queue = new LinkedBlockingQueue<>();
+            if (maxThreads != coreThreads) {
+                maxThreads = coreThreads;
+            }
         }
         if (keepAliveTimeoutMs <= 0L) {
             keepAliveTimeoutMs = allowCoreThreadTimeout ? 1000L : 0L;

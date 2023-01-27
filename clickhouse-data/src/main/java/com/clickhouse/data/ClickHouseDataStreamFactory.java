@@ -29,13 +29,12 @@ public class ClickHouseDataStreamFactory {
         protected static final ScheduledExecutorService scheduler;
 
         static {
-            int coreThreads = Runtime.getRuntime().availableProcessors();
+            int coreThreads = 2 * Runtime.getRuntime().availableProcessors() + 1;
             if (coreThreads < ClickHouseUtils.MIN_CORE_THREADS) {
                 coreThreads = ClickHouseUtils.MIN_CORE_THREADS;
             }
 
-            executor = ClickHouseUtils.newThreadPool("ClickHouseWorker-", coreThreads,
-                    coreThreads * 2 + 1, 0, 0, false);
+            executor = ClickHouseUtils.newThreadPool("ClickHouseWorker-", coreThreads, coreThreads, 0, 0, false);
             scheduler = Executors.newSingleThreadScheduledExecutor(new ClickHouseThreadFactory("ClickHouseScheduler-"));
         }
 

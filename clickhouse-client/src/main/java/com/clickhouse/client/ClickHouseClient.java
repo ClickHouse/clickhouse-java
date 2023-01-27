@@ -515,9 +515,8 @@ public interface ClickHouseClient extends AutoCloseable {
 
         return submit(() -> {
             try (ClickHouseClient client = newInstance(theServer.getProtocol());
-                    ClickHouseResponse response = client.connect(theServer).write().table(table)
-                            .decompressClientRequest(compression).format(format).data(writer)
-                            .executeAndWait()) {
+                    ClickHouseResponse response = client.connect(theServer).write().table(table).data(writer)
+                            .decompressClientRequest(compression).format(format).executeAndWait()) {
                 return response.getSummary();
             }
         });
@@ -611,8 +610,8 @@ public interface ClickHouseClient extends AutoCloseable {
 
         return submit(() -> {
             try (ClickHouseClient client = newInstance(theServer.getProtocol());
-                    ClickHouseResponse response = client.connect(theServer).write().table(table)
-                            .decompressClientRequest(compression).format(format).data(input).executeAndWait()) {
+                    ClickHouseResponse response = client.connect(theServer).write().table(table).data(input)
+                            .decompressClientRequest(compression).format(format).executeAndWait()) {
                 return response.getSummary();
             } finally {
                 try {
