@@ -154,9 +154,6 @@ public class ClickHouseGrpcClient extends AbstractClient<ManagedChannel> {
         ClickHouseNode server = request.getServer();
         ClickHouseCredentials credentials = server.getCredentials(config);
 
-        // FIXME potential timing issue
-        Optional<ClickHouseInputStream> input = request.getInputStream();
-
         Builder builder = QueryInfo.newBuilder();
         String database = server.getDatabase(config);
         if (!ClickHouseChecker.isNullOrEmpty(database)) {
@@ -245,6 +242,7 @@ public class ClickHouseGrpcClient extends AbstractClient<ManagedChannel> {
         // builder.setTransportCompressionType("none");
         // builder.setTransportCompressionLevel(0);
 
+        Optional<ClickHouseInputStream> input = request.getInputStream();
         if (input.isPresent()) {
             if (config.isRequestCompressed()) {
                 builder.setInputCompressionType(config.getRequestCompressAlgorithm().encoding());
@@ -253,8 +251,8 @@ public class ClickHouseGrpcClient extends AbstractClient<ManagedChannel> {
                 // builder.setInputData(ByteString.EMPTY);
                 builder.setNextQueryInfo(true);
             } else {
-                try {
-                    builder.setInputData(ByteString.readFrom(getCompressedInputStream(config, input.get())));
+                try (ClickHouseInputStream in = input.get()) {
+                    builder.setInputData(ByteString.readFrom(getCompressedInputStream(config, in)));
                 } catch (IOException e) {
                     throw new CompletionException(ClickHouseException.of(e, server));
                 }

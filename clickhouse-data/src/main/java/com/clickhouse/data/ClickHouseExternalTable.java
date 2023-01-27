@@ -68,9 +68,8 @@ public class ClickHouseExternalTable implements Serializable {
         }
 
         public Builder content(ClickHouseInputStream input) {
-            ClickHousePassThruStream stream = ClickHouseChecker.nonNull(input, ClickHouseInputStream.TYPE_NAME)
-                    .getUnderlyingStream();
-            if (stream.hasInput()) {
+            if (ClickHouseChecker.nonNull(input, ClickHouseInputStream.TYPE_NAME).hasUnderlyingStream()) {
+                ClickHousePassThruStream stream = input.getUnderlyingStream();
                 this.compression = ClickHouseCompression.NONE;
                 this.compressionLevel = ClickHouseDataConfig.DEFAULT_WRITE_COMPRESS_LEVEL;
                 this.content = ClickHouseDeferredValue.of(stream.getInputStream(), InputStream.class);

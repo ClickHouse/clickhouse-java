@@ -90,7 +90,7 @@ public interface ClickHouseClient extends AutoCloseable {
             Runnable postCloseAction) {
         if (config == null) {
             return ClickHouseOutputStream.of(output, (int) ClickHouseClientOption.BUFFER_SIZE.getDefaultValue(),
-                    ClickHouseCompression.NONE, -1, postCloseAction);
+                    ClickHouseCompression.NONE, ClickHouseConfig.DEFAULT_READ_COMPRESS_LEVEL, postCloseAction);
         }
 
         return ClickHouseOutputStream.of(output, config.getWriteBufferSize(), config.getRequestCompressAlgorithm(),

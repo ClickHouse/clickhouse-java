@@ -1423,33 +1423,26 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
 
         try (ClickHouseClient client = getClient()) {
             AtomicInteger i = new AtomicInteger(1);
+            ClickHouseWriter w = o -> {
+                o.write(i.getAndIncrement());
+            };
             ClickHouseRequest.Mutation req = newRequest(client, server).write()
                     .format(ClickHouseFormat.RowBinary)
-                    .table("test_custom_writer").data(o -> {
-                        o.write(i.getAndIncrement());
-                    });
+                    .table("test_custom_writer");
             for (boolean b : new boolean[] { true, false }) {
                 req.option(ClickHouseClientOption.ASYNC, b);
 
-                try (ClickHouseResponse resp = req.execute().get()) {
-                    Assert.assertNotNull(resp);
-                } catch (Exception e) {
-                    Assert.fail("Failed to call send() followed by get(): async=" + b, e);
-                }
-
-                try (ClickHouseResponse resp = req.executeAndWait()) {
-                    Assert.assertNotNull(resp);
-                }
-
-                try (ClickHouseResponse resp = req.execute().get()) {
+                try (ClickHouseResponse resp = req.data(w).execute().get()) {
                     Assert.assertNotNull(resp);
                 } catch (Exception e) {
                     Assert.fail("Failed to call execute() followed by get(): async=" + b, e);
                 }
+                Assert.assertTrue(req.getInputStream().get().isClosed(), "Input stream should have been closed");
 
-                try (ClickHouseResponse resp = req.executeAndWait()) {
+                try (ClickHouseResponse resp = req.data(w).executeAndWait()) {
                     Assert.assertNotNull(resp);
                 }
+                Assert.assertTrue(req.getInputStream().get().isClosed(), "Input stream should have been closed");
             }
 
             try (ClickHouseResponse resp = newRequest(client, server)
