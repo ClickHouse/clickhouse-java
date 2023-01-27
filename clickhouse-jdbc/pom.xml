@@ -14,7 +14,7 @@
 
     <name>ClickHouse JDBC Driver</name>
     <description>JDBC driver for ClickHouse</description>
-    <url>https://github.com/ClickHouse/clickhouse-jdbc/tree/master/clickhouse-jdbc</url>
+    <url>https://github.com/ClickHouse/clickhouse-jdbc/tree/main/clickhouse-jdbc</url>
 
     <properties>
         <httpclient.version>4.5.13</httpclient.version>

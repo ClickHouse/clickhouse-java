@@ -11,7 +11,7 @@ on:
         required: false
 
 env:
-  CHC_BRANCH: "master"
+  CHC_BRANCH: "main"
   CHC_VERSION: "0.4.1"
 
 jobs:

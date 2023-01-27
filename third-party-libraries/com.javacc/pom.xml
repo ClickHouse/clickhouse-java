@@ -12,7 +12,7 @@
 
     <name>${project.artifactId}</name>
     <description>Repackaged JavaCC for generating SQL parser</description>
-    <url>https://github.com/ClickHouse/clickhouse-jdbc/tree/master/third-party-libraries/com.javacc</url>
+    <url>https://github.com/ClickHouse/clickhouse-jdbc/tree/main/third-party-libraries/com.javacc</url>
 
     <properties>
         <javacc.dir>javacc21-master</javacc.dir>

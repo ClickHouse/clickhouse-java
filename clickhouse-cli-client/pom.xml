@@ -12,7 +12,7 @@
 
     <name>ClickHouse Native Command-line Wrapper</name>
     <description>Wrapper of ClickHouse native command-line client</description>
-    <url>https://github.com/ClickHouse/clickhouse-jdbc/tree/master/clickhouse-cli-client</url>
+    <url>https://github.com/ClickHouse/clickhouse-jdbc/tree/main/clickhouse-cli-client</url>
 
     <dependencies>
         <dependency>
