@@ -1,6 +1,6 @@
 # ClickHouse Java Libraries
 
-[![GitHub release (latest SemVer including pre-releases)](https://img.shields.io/github/v/release/ClickHouse/clickhouse-jdbc?style=plastic&include_prereleases&label=Latest%20Release)](https://github.com/ClickHouse/clickhouse-jdbc/releases/) ![GitHub release (by tag)](https://img.shields.io/github/downloads/ClickHouse/clickhouse-jdbc/latest/total?style=plastic) [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=ClickHouse_clickhouse-jdbc&metric=coverage)](https://sonarcloud.io/summary/new_code?id=ClickHouse_clickhouse-jdbc) [![Sonatype Nexus (Snapshots)](https://img.shields.io/nexus/s/com.clickhouse/clickhouse-jdbc?style=plastic&label=Nightly%20Build&server=https%3A%2F%2Fs01.oss.sonatype.org)](https://s01.oss.sonatype.org/content/repositories/snapshots/com/clickhouse/) ![GitHub milestone](https://img.shields.io/github/milestones/progress-percent/ClickHouse/clickhouse-jdbc/12?style=social)
+[![GitHub release (latest SemVer including pre-releases)](https://img.shields.io/github/v/release/ClickHouse/clickhouse-jdbc?style=plastic&include_prereleases&label=Latest%20Release)](https://github.com/ClickHouse/clickhouse-jdbc/releases/) [![GitHub release (by tag)](https://img.shields.io/github/downloads/ClickHouse/clickhouse-jdbc/latest/total?style=plastic)](https://github.com/ClickHouse/clickhouse-jdbc/releases/) [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=ClickHouse_clickhouse-jdbc&metric=coverage)](https://sonarcloud.io/summary/new_code?id=ClickHouse_clickhouse-jdbc) [![Sonatype Nexus (Snapshots)](https://img.shields.io/nexus/s/com.clickhouse/clickhouse-jdbc?style=plastic&label=Nightly%20Build&server=https%3A%2F%2Fs01.oss.sonatype.org)](https://s01.oss.sonatype.org/content/repositories/snapshots/com/clickhouse/) [![GitHub milestone](https://img.shields.io/github/milestones/progress-percent/ClickHouse/clickhouse-jdbc/12?style=social)](https://github.com/ClickHouse/clickhouse-jdbc/milestone/12)
 
 Java libraries for connecting to ClickHouse and processing data in various formats. Java client is async, lightweight, and low-overhead library for ClickHouse; while JDBC and R2DBC drivers are built on top of the Java client with more dependencies and features. Java 8 or higher is required to use the libraries. In addition, please use ClickHouse 20.7+ or any of [active releases](https://github.com/ClickHouse/ClickHouse/pulls?q=is%3Aopen+is%3Apr+label%3Arelease).
 
@@ -132,7 +132,7 @@ try (Connection conn = dataSource.getConnection();
 }
 ```
 
-More examples can be found at [here](../../tree/master/examples/jdbc).
+More examples can be found at [here](../../tree/main/examples/jdbc).
 
 ## Build with Maven
 
@@ -170,8 +170,8 @@ In the case you don't want to use docker and/or prefer to test against an existi
 
 - make sure the server can be accessed using default account(user `default` and no password), which has both DDL and DML privileges
 - add below two configuration files to the existing server and expose all defaults ports for external access
-  - [ports.xml](../../blob/master/clickhouse-client/src/test/resources/containers/clickhouse-server/config.d/ports.xml) - enable all ports
-  - and [users.xml](../../blob/master/clickhouse-client/src/test/resources/containers/clickhouse-server/users.d/users.xml) - accounts used for integration test
+  - [ports.xml](../../blob/main/clickhouse-client/src/test/resources/containers/clickhouse-server/config.d/ports.xml) - enable all ports
+  - and [users.xml](../../blob/main/clickhouse-client/src/test/resources/containers/clickhouse-server/users.d/users.xml) - accounts used for integration test
     Note: you may need to change root element from `clickhouse` to `yandex` when testing old version of ClickHouse.
 - make sure ClickHouse binary(usually `/usr/bin/clickhouse`) is available in PATH, as it's required to test `clickhouse-cli-client`
 - put `test.properties` under either `~/.clickhouse` or `src/test/resources` of your project, with content like below:
