@@ -167,8 +167,10 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
         public Mutation data(ClickHouseWriter writer) {
             checkSealed();
 
-            this.input = changeProperty(PROP_DATA, this.input, null);
-            this.writer = changeProperty(PROP_WRITER, this.writer, writer);
+            this.writer = changeProperty(PROP_WRITER, this.writer,
+                    ClickHouseChecker.nonNull(writer, ClickHouseWriter.TYPE_NAME));
+            this.input = changeProperty(PROP_DATA, this.input,
+                    ClickHouseDeferredValue.of(() -> ClickHouseInputStream.of(getConfig(), writer)));
 
             return this;
         }
@@ -202,7 +204,7 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
             final int bufferSize = c.getReadBufferSize();
             this.input = changeProperty(PROP_DATA, this.input, ClickHouseDeferredValue
                     .of(() -> ClickHouseInputStream.of(stream, bufferSize, null)));
-            this.writer = changeProperty(PROP_WRITER, this.writer, null);
+            this.writer = changeProperty(PROP_WRITER, this.writer, new PipedWriter(this.input));
             return this;
         }
 
@@ -272,17 +274,15 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
          * @return mutation request
          */
         public Mutation data(ClickHouseInputStream input) {
-            ClickHousePassThruStream stream = ClickHouseChecker.nonNull(input, ClickHouseInputStream.TYPE_NAME)
-                    .getUnderlyingStream();
-            if (stream.hasInput()) {
-                return data(stream);
+            if (ClickHouseChecker.nonNull(input, ClickHouseInputStream.TYPE_NAME).hasUnderlyingStream()) {
+                return data(input.getUnderlyingStream());
             }
 
             checkSealed();
 
             this.input = changeProperty(PROP_DATA, this.input,
                     ClickHouseDeferredValue.of(input, ClickHouseInputStream.class));
-            this.writer = changeProperty(PROP_WRITER, this.writer, null);
+            this.writer = changeProperty(PROP_WRITER, this.writer, new PipedWriter(this.input));
             return this;
         }
 
@@ -297,7 +297,7 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
             checkSealed();
 
             this.input = changeProperty(PROP_DATA, this.input, input);
-            this.writer = changeProperty(PROP_WRITER, this.writer, null);
+            this.writer = changeProperty(PROP_WRITER, this.writer, input != null ? new PipedWriter(input) : null);
 
             return this;
         }
@@ -588,12 +588,6 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
      * @return input stream
      */
     public Optional<ClickHouseInputStream> getInputStream() {
-        if (this.input == null && this.writer != null) {
-            final ClickHouseConfig c = getConfig();
-            final ClickHouseWriter w = this.writer;
-            this.input = changeProperty(PROP_DATA, this.input,
-                    ClickHouseDeferredValue.of(() -> ClickHouseInputStream.of(c, w)));
-        }
         return input != null ? input.getOptional() : Optional.empty();
     }
 
@@ -603,9 +597,6 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
      * @return custom writer
      */
     public Optional<ClickHouseWriter> getWriter() {
-        if (this.writer == null && this.input != null) {
-            this.writer = changeProperty(PROP_WRITER, this.writer, new PipedWriter(input));
-        }
         return Optional.ofNullable(this.writer);
     }
 
