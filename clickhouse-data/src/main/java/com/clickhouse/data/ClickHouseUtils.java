@@ -69,7 +69,9 @@ public final class ClickHouseUtils {
     public static final String DEFAULT_CHARSET = StandardCharsets.UTF_8.name();
 
     public static final int MIN_CORE_THREADS = 3;
+
     public static final CompletableFuture<Void> NULL_FUTURE = CompletableFuture.completedFuture(null);
+    public static final Supplier<?> NULL_SUPPLIER = () -> null;
 
     public static final String VARIABLE_PREFIX = "{{";
     public static final String VARIABLE_SUFFIX = "}}";
