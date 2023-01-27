@@ -5,7 +5,9 @@ import java.io.ByteArrayInputStream;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Random;
 import java.util.concurrent.ArrayBlockingQueue;
@@ -181,6 +183,16 @@ public class ClickHouseInputStreamTest {
         in.close();
         Assert.assertTrue(in.available() == 0, "Should have all bytes read");
         Assert.assertTrue(in.isClosed(), "Should have been closed");
+    }
+
+    @Test(groups = { "unit" })
+    public void testPostCloseAction() throws IOException {
+        try (ClickHouseInputStream in = ClickHouseInputStream
+                .of(generateInputStream("abc".getBytes(StandardCharsets.US_ASCII)), 0, () -> {
+                    throw new UncheckedIOException(new IOException("fake exception"));
+                })) {
+            Assert.assertThrows(IOException.class, () -> in.close());
+        }
     }
 
     @Test(groups = { "unit" })

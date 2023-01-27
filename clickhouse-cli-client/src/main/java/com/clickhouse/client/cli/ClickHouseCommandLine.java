@@ -32,6 +32,7 @@ import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.config.ClickHouseSslMode;
 import com.clickhouse.data.ClickHouseChecker;
 import com.clickhouse.data.ClickHouseCompression;
+import com.clickhouse.data.ClickHouseDataConfig;
 import com.clickhouse.data.ClickHouseExternalTable;
 import com.clickhouse.data.ClickHouseFile;
 import com.clickhouse.data.ClickHouseInputStream;
@@ -193,9 +194,6 @@ public class ClickHouseCommandLine implements AutoCloseable {
         final ClickHouseNode server = request.getServer();
         final int timeout = config.getSocketTimeout();
 
-        // FIXME potential timing issue
-        final Optional<ClickHouseInputStream> in = request.getInputStream();
-
         String hostDir = config.getStrOption(ClickHouseCommandLineOption.CLI_WORK_DIRECTORY);
         hostDir = ClickHouseUtils.normalizeDirectory(
                 ClickHouseChecker.isNullOrBlank(hostDir) ? System.getProperty("java.io.tmpdir") : hostDir);
@@ -343,9 +341,9 @@ public class ClickHouseCommandLine implements AutoCloseable {
 
         if (request.hasOutputStream()) {
             final ClickHouseOutputStream chOutput = request.getOutputStream().get(); // NOSONAR
-            final ClickHousePassThruStream customStream = chOutput.getUnderlyingStream();
 
-            if (customStream.hasOutput()) {
+            if (chOutput.hasUnderlyingStream()) {
+                final ClickHousePassThruStream customStream = chOutput.getUnderlyingStream();
                 File f = customStream instanceof ClickHouseFile ? ((ClickHouseFile) customStream).getFile() : null;
                 if (f == null) {
                     throw new UncheckedIOException(new IOException("Output file not found in " + customStream));
@@ -385,14 +383,15 @@ public class ClickHouseCommandLine implements AutoCloseable {
                 builder.redirectOutput(f);
             }
         }
-        
+
+        final Optional<ClickHouseInputStream> in = request.getInputStream();
         try {
             final Process process;
             if (in.isPresent()) {
                 final ClickHouseInputStream chInput = in.get();
-                final ClickHousePassThruStream customStream = chInput.getUnderlyingStream();
                 final File inputFile;
-                if (customStream.hasInput()) {
+                if (chInput.hasUnderlyingStream()) {
+                    final ClickHousePassThruStream customStream = chInput.getUnderlyingStream();
                     inputFile = customStream instanceof ClickHouseFile ? ((ClickHouseFile) customStream).getFile()
                             : ClickHouseFile.of(customStream.getInputStream(), config.getRequestCompressAlgorithm(),
                                     config.getRequestCompressLevel(), config.getFormat()).getFile();
@@ -434,12 +433,12 @@ public class ClickHouseCommandLine implements AutoCloseable {
                 throw new UncheckedIOException(exp);
             }
         };
-        if (out != null && !out.getUnderlyingStream().hasOutput()) {
+        if (out != null && !out.hasUnderlyingStream()) {
             try (OutputStream o = out) {
                 ClickHouseInputStream.pipe(process.getInputStream(), o, c.getWriteBufferSize());
             }
             return ClickHouseInputStream.wrap(null, ClickHouseInputStream.empty(), c.getReadBufferSize(),
-                    ClickHouseCompression.NONE, -1, postCloseAction);
+                    ClickHouseCompression.NONE, ClickHouseDataConfig.DEFAULT_READ_COMPRESS_LEVEL, postCloseAction);
         } else {
             return ClickHouseInputStream.of(process.getInputStream(), c.getReadBufferSize(), postCloseAction);
         }

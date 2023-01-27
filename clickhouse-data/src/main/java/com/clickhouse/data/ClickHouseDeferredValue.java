@@ -8,6 +8,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
 /**
@@ -24,7 +25,7 @@ public final class ClickHouseDeferredValue<T> implements Supplier<T> {
      * @return deferred value of a future object
      */
     public static <T> ClickHouseDeferredValue<T> of(CompletableFuture<T> future) {
-        return of(future, 0);
+        return of(future, 0L);
     }
 
     /**
@@ -36,13 +37,14 @@ public final class ClickHouseDeferredValue<T> implements Supplier<T> {
      *                timeout
      * @return deferred vaue of a future object
      */
-    public static <T> ClickHouseDeferredValue<T> of(CompletableFuture<T> future, int timeout) {
-        final CompletableFuture<T> f = future != null ? future : CompletableFuture.completedFuture(null);
-        final int t = timeout < 0 ? 0 : timeout;
+    @SuppressWarnings("unchecked")
+    public static <T> ClickHouseDeferredValue<T> of(CompletableFuture<T> future, long timeout) {
+        final CompletableFuture<T> f = future != null ? future : (CompletableFuture<T>) ClickHouseUtils.NULL_FUTURE;
+        final long t = timeout < 0L ? 0L : timeout;
 
-        Supplier<T> supplier = () -> {
+        final Supplier<T> supplier = () -> {
             try {
-                return f.get(t, TimeUnit.MILLISECONDS);
+                return t > 0L ? f.get(t, TimeUnit.MILLISECONDS) : f.get();
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 f.cancel(false);
@@ -64,8 +66,10 @@ public final class ClickHouseDeferredValue<T> implements Supplier<T> {
      * @param supplier supplier function, could be null
      * @return deferred value of return value from supplier function
      */
+    @SuppressWarnings("unchecked")
     public static <T> ClickHouseDeferredValue<T> of(Supplier<T> supplier) {
-        return new ClickHouseDeferredValue<>(supplier != null ? supplier : () -> null, null);
+        return new ClickHouseDeferredValue<>(supplier != null ? supplier : (Supplier<T>) ClickHouseUtils.NULL_SUPPLIER,
+                null);
     }
 
     /**
@@ -76,16 +80,17 @@ public final class ClickHouseDeferredValue<T> implements Supplier<T> {
      * @param clazz class of the value
      * @return deferred value
      */
+    @SuppressWarnings("unchecked")
     public static <T> ClickHouseDeferredValue<T> of(T value, Class<T> clazz) { // NOSONAR
-        return new ClickHouseDeferredValue<>(null, Optional.ofNullable(value));
+        return new ClickHouseDeferredValue<>((Supplier<T>) ClickHouseUtils.NULL_SUPPLIER, Optional.ofNullable(value));
     }
 
-    private Supplier<T> supplier;
-    private Optional<T> value;
+    private final Supplier<T> supplier;
+    private final AtomicReference<Optional<T>> value;
 
     private ClickHouseDeferredValue(Supplier<T> supplier, Optional<T> value) {
         this.supplier = supplier;
-        this.value = value;
+        this.value = new AtomicReference<>(value);
     }
 
     @Override
@@ -99,10 +104,11 @@ public final class ClickHouseDeferredValue<T> implements Supplier<T> {
      * @return optional value
      */
     public Optional<T> getOptional() {
-        if (value != null) { // NOSONAR
-            return value;
+        Optional<T> v = value.get();
+        if (v == null && !value.compareAndSet(null, v = Optional.ofNullable(supplier.get()))) { // NOSONAR
+            v = value.get();
         }
 
-        return value = (supplier == null ? Optional.empty() : Optional.ofNullable(supplier.get())); // NOSONAR
+        return v != null ? v : Optional.empty(); // NOSONAR
     }
 }

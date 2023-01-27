@@ -76,8 +76,8 @@ public class QueueBenchmark {
         // options.put(ClickHouseClientOption.SOCKET_TIMEOUT, 0);
         options.put(ClickHouseClientOption.USE_BLOCKING_QUEUE, false);
         final ClickHouseConfig config = new ClickHouseConfig(options);
-        final ClickHousePipedOutputStream stream = ClickHouseDataStreamFactory.getInstance().createPipedOutputStream(
-                config, null);
+        final ClickHousePipedOutputStream stream = ClickHouseDataStreamFactory.getInstance()
+                .createPipedOutputStream(config);
         CompletableFuture<Long> future = ClickHouseClient.submit(() -> {
             long range = state.samples;
             try (ClickHouseOutputStream out = stream) {
@@ -99,8 +99,8 @@ public class QueueBenchmark {
     public void nonBlocking(CompareState state, Blackhole consumer) throws Exception {
         final ClickHouseConfig config = new ClickHouseConfig(Collections
                 .singletonMap(ClickHouseClientOption.RESPONSE_BUFFERING, ClickHouseBufferingMode.PERFORMANCE));
-        final ClickHousePipedOutputStream stream = ClickHouseDataStreamFactory.getInstance().createPipedOutputStream(
-                config, null);
+        final ClickHousePipedOutputStream stream = ClickHouseDataStreamFactory.getInstance()
+                .createPipedOutputStream(config);
         CompletableFuture<Long> future = ClickHouseClient.submit(() -> {
             long range = state.samples;
             try (ClickHouseOutputStream out = stream) {

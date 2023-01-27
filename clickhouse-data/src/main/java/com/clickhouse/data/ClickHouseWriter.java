@@ -4,8 +4,10 @@ import java.io.IOException;
 
 @FunctionalInterface
 public interface ClickHouseWriter {
+    static final String TYPE_NAME = "Writer";
+
     /**
-     * Writes value to output stream.
+     * Writes data to output stream.
      *
      * @param output non-null output stream
      * @throws IOException when failed to write data to output stream

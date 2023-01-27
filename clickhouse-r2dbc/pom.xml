@@ -287,12 +287,6 @@
                                     </excludes>
                                 </filter>
                                 <filter>
-                                    <artifact>org.slf4j:slf4j-api</artifact>
-                                    <excludes>
-                                        <exclude>**</exclude>
-                                    </excludes>
-                                </filter>
-                                <filter>
                                     <artifact>*:*</artifact>
                                     <excludes>
                                         <exclude>google/**</exclude>
@@ -388,12 +382,6 @@
                                 </filter>
                                 <filter>
                                     <artifact>org.reactivestreams:reactive-streams</artifact>
-                                    <excludes>
-                                        <exclude>**</exclude>
-                                    </excludes>
-                                </filter>
-                                <filter>
-                                    <artifact>org.slf4j:slf4j-api</artifact>
                                     <excludes>
                                         <exclude>**</exclude>
                                     </excludes>

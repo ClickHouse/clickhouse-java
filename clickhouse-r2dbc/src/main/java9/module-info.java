@@ -9,12 +9,6 @@ module com.clickhouse.r2dbc {
     requires transitive reactor.core;
     requires transitive org.lz4.java;
 
-    requires static java.logging;
-    // requires static com.github.benmanes.caffeine;
-    // requires static org.dnsjava;
-    // requires static org.slf4j;
-    requires static org.roaringbitmap;
-
     uses com.clickhouse.client.ClickHouseClient;
     uses com.clickhouse.client.ClickHouseDnsResolver;
     uses com.clickhouse.client.ClickHouseSslContextProvider;

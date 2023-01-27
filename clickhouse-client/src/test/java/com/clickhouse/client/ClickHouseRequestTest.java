@@ -2,6 +2,8 @@ package com.clickhouse.client;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.Serializable;
 import java.math.BigInteger;
@@ -23,9 +25,13 @@ import com.clickhouse.client.config.ClickHouseDefaults;
 import com.clickhouse.config.ClickHouseConfigChangeListener;
 import com.clickhouse.config.ClickHouseOption;
 import com.clickhouse.data.ClickHouseCompression;
+import com.clickhouse.data.ClickHouseDataConfig;
 import com.clickhouse.data.ClickHouseExternalTable;
 import com.clickhouse.data.ClickHouseFormat;
+import com.clickhouse.data.ClickHouseInputStream;
 import com.clickhouse.data.ClickHouseOutputStream;
+import com.clickhouse.data.ClickHousePassThruStream;
+import com.clickhouse.data.ClickHouseUtils;
 import com.clickhouse.data.ClickHouseValues;
 import com.clickhouse.data.value.ClickHouseBigIntegerValue;
 import com.clickhouse.data.value.ClickHouseByteValue;
@@ -284,6 +290,72 @@ public class ClickHouseRequestTest {
 
     @Test(groups = { "unit" })
     public void testInputData() throws IOException {
+        Mutation request = ClickHouseClient.newInstance().connect(ClickHouseNode.builder().build()).write();
+        Assert.assertEquals(request.getConfig().getFormat(), ClickHouseDataConfig.DEFAULT_FORMAT);
+        Assert.assertEquals(request.getConfig().getRequestCompressAlgorithm(), ClickHouseCompression.NONE);
+        Assert.assertEquals(request.getConfig().getRequestCompressLevel(),
+                ClickHouseDataConfig.DEFAULT_WRITE_COMPRESS_LEVEL);
+        Assert.assertEquals(request.getConfig().getResponseCompressAlgorithm(), ClickHouseCompression.LZ4);
+        Assert.assertEquals(request.getConfig().getResponseCompressLevel(),
+                ClickHouseDataConfig.DEFAULT_READ_COMPRESS_LEVEL);
+        Assert.assertFalse(request.hasInputStream());
+
+        request.data("/non-existing-file/" + UUID.randomUUID().toString()); // unrecognized file
+        Assert.assertEquals(request.getConfig().getFormat(), ClickHouseDataConfig.DEFAULT_FORMAT);
+        Assert.assertEquals(request.getConfig().getRequestCompressAlgorithm(), ClickHouseCompression.NONE);
+        Assert.assertEquals(request.getConfig().getRequestCompressLevel(),
+                ClickHouseDataConfig.DEFAULT_WRITE_COMPRESS_LEVEL);
+        Assert.assertEquals(request.getConfig().getResponseCompressAlgorithm(), ClickHouseCompression.LZ4);
+        Assert.assertEquals(request.getConfig().getResponseCompressLevel(),
+                ClickHouseDataConfig.DEFAULT_READ_COMPRESS_LEVEL);
+        Assert.assertTrue(request.hasInputStream());
+
+        Assert.assertThrows(IllegalArgumentException.class,
+                () -> request.data("/non-existing-file/" + UUID.randomUUID().toString() + ".csv.gz"));
+
+        File tmp = ClickHouseUtils.createTempFile(null, ".csv.gz");
+        request.data(tmp.getAbsolutePath());
+        Assert.assertEquals(request.getConfig().getFormat(), ClickHouseFormat.CSV);
+        Assert.assertEquals(request.getConfig().getRequestCompressAlgorithm(), ClickHouseCompression.GZIP);
+        Assert.assertEquals(request.getConfig().getRequestCompressLevel(),
+                ClickHouseDataConfig.DEFAULT_WRITE_COMPRESS_LEVEL);
+        Assert.assertEquals(request.getConfig().getResponseCompressAlgorithm(), ClickHouseCompression.LZ4);
+        Assert.assertEquals(request.getConfig().getResponseCompressLevel(),
+                ClickHouseDataConfig.DEFAULT_READ_COMPRESS_LEVEL);
+        Assert.assertTrue(request.hasInputStream());
+
+        request.data(ClickHousePassThruStream.of(ClickHouseInputStream.empty(), ClickHouseCompression.BROTLI, 2,
+                ClickHouseFormat.Arrow));
+        Assert.assertEquals(request.getConfig().getFormat(), ClickHouseFormat.Arrow);
+        Assert.assertEquals(request.getConfig().getRequestCompressAlgorithm(), ClickHouseCompression.BROTLI);
+        Assert.assertEquals(request.getConfig().getRequestCompressLevel(), 2);
+        Assert.assertEquals(request.getConfig().getResponseCompressAlgorithm(), ClickHouseCompression.LZ4);
+        Assert.assertEquals(request.getConfig().getResponseCompressLevel(),
+                ClickHouseDataConfig.DEFAULT_READ_COMPRESS_LEVEL);
+        Assert.assertTrue(request.hasInputStream());
+
+        request.data(new FileInputStream(tmp));
+        Assert.assertEquals(request.getConfig().getFormat(), ClickHouseFormat.Arrow);
+        Assert.assertEquals(request.getConfig().getRequestCompressAlgorithm(), ClickHouseCompression.BROTLI);
+        Assert.assertEquals(request.getConfig().getRequestCompressLevel(), 2);
+        Assert.assertEquals(request.getConfig().getResponseCompressAlgorithm(), ClickHouseCompression.LZ4);
+        Assert.assertEquals(request.getConfig().getResponseCompressLevel(),
+                ClickHouseDataConfig.DEFAULT_READ_COMPRESS_LEVEL);
+        Assert.assertTrue(request.hasInputStream());
+
+        request.data(ClickHousePassThruStream.of(ClickHouseInputStream.empty(), ClickHouseCompression.XZ, 3,
+                ClickHouseFormat.ArrowStream).newInputStream(64, null));
+        Assert.assertEquals(request.getConfig().getFormat(), ClickHouseFormat.ArrowStream);
+        Assert.assertEquals(request.getConfig().getRequestCompressAlgorithm(), ClickHouseCompression.XZ);
+        Assert.assertEquals(request.getConfig().getRequestCompressLevel(), 3);
+        Assert.assertEquals(request.getConfig().getResponseCompressAlgorithm(), ClickHouseCompression.LZ4);
+        Assert.assertEquals(request.getConfig().getResponseCompressLevel(),
+                ClickHouseDataConfig.DEFAULT_READ_COMPRESS_LEVEL);
+        Assert.assertTrue(request.hasInputStream());
+    }
+
+    @Test(groups = { "unit" })
+    public void testInputStreamAndCustomWriter() throws IOException {
         ClickHouseRequest<?> request = ClickHouseClient.newInstance().connect(ClickHouseNode.builder().build());
         Assert.assertFalse(request.hasInputStream());
         Assert.assertFalse(request.getInputStream().isPresent());

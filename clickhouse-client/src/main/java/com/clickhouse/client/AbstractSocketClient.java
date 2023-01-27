@@ -432,7 +432,7 @@ public class AbstractSocketClient implements AutoCloseable {
         }
 
         ClickHousePipedOutputStream responeStream = ClickHouseDataStreamFactory.getInstance()
-                .createPipedOutputStream(ClickHouseChecker.nonNull(config, ClickHouseConfig.TYPE_NAME), null);
+                .createPipedOutputStream(ClickHouseChecker.nonNull(config, ClickHouseConfig.TYPE_NAME));
         processRequest(config, rawRequest, responeStream);
         return responeStream.getInputStream();
     }

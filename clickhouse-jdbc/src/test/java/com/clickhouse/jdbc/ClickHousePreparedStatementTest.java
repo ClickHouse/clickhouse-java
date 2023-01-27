@@ -1069,7 +1069,7 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
             ClickHouseConfig config = stmt.getConfig();
             CompletableFuture<Integer> future;
             try (ClickHousePipedOutputStream stream = ClickHouseDataStreamFactory.getInstance()
-                    .createPipedOutputStream(config, null)) {
+                    .createPipedOutputStream(config)) {
                 ps.setObject(1, ClickHouseExternalTable.builder().name("raw_data")
                         .columns("s String").format(ClickHouseFormat.RowBinary)
                         .content(stream.getInputStream())

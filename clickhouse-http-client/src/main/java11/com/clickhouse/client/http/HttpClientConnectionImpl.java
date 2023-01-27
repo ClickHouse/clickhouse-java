@@ -209,9 +209,8 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
             String sql, ClickHouseInputStream data, List<ClickHouseExternalTable> tables, ClickHouseOutputStream output,
             Runnable postAction) throws IOException {
         try {
-            ClickHousePipedOutputStream stream = ClickHouseDataStreamFactory.getInstance().createPipedOutputStream(
-                    config,
-                    null);
+            ClickHousePipedOutputStream stream = ClickHouseDataStreamFactory.getInstance()
+                    .createPipedOutputStream(config);
             reqBuilder.POST(HttpRequest.BodyPublishers.ofInputStream(stream::getInputStream));
             // running in async is necessary to avoid deadlock of the piped stream
             CompletableFuture<HttpResponse<InputStream>> f = postRequest(reqBuilder.build());

@@ -1423,33 +1423,26 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
 
         try (ClickHouseClient client = getClient()) {
             AtomicInteger i = new AtomicInteger(1);
+            ClickHouseWriter w = o -> {
+                o.write(i.getAndIncrement());
+            };
             ClickHouseRequest.Mutation req = newRequest(client, server).write()
                     .format(ClickHouseFormat.RowBinary)
-                    .table("test_custom_writer").data(o -> {
-                        o.write(i.getAndIncrement());
-                    });
+                    .table("test_custom_writer");
             for (boolean b : new boolean[] { true, false }) {
                 req.option(ClickHouseClientOption.ASYNC, b);
 
-                try (ClickHouseResponse resp = req.execute().get()) {
-                    Assert.assertNotNull(resp);
-                } catch (Exception e) {
-                    Assert.fail("Failed to call send() followed by get(): async=" + b, e);
-                }
-
-                try (ClickHouseResponse resp = req.executeAndWait()) {
-                    Assert.assertNotNull(resp);
-                }
-
-                try (ClickHouseResponse resp = req.execute().get()) {
+                try (ClickHouseResponse resp = req.data(w).execute().get()) {
                     Assert.assertNotNull(resp);
                 } catch (Exception e) {
                     Assert.fail("Failed to call execute() followed by get(): async=" + b, e);
                 }
+                Assert.assertTrue(req.getInputStream().get().isClosed(), "Input stream should have been closed");
 
-                try (ClickHouseResponse resp = req.executeAndWait()) {
+                try (ClickHouseResponse resp = req.data(w).executeAndWait()) {
                     Assert.assertNotNull(resp);
                 }
+                Assert.assertTrue(req.getInputStream().get().isClosed(), "Input stream should have been closed");
             }
 
             try (ClickHouseResponse resp = newRequest(client, server)
@@ -1509,9 +1502,10 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
         Assert.assertEquals(Files.size(temp), 0L);
 
         int lines = 10000;
-        ClickHouseResponseSummary summary = ClickHouseClient.dump(server,
-                ClickHouseUtils.format("select * from numbers(%d)", lines),
-                ClickHouseFormat.TabSeparated, ClickHouseCompression.NONE, temp.toString()).get();
+        ClickHouseResponseSummary summary = ClickHouseClient
+                .dump(server, ClickHouseUtils.format("select * from numbers(%d)", lines), temp.toString(),
+                        ClickHouseCompression.NONE, ClickHouseFormat.TabSeparated)
+                .get();
         Assert.assertNotNull(summary);
         // Assert.assertEquals(summary.getReadRows(), lines);
 
@@ -1528,24 +1522,25 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
     public void testDumpFile(boolean gzipCompressed, boolean useOneLiner)
             throws ExecutionException, InterruptedException, IOException {
         ClickHouseNode server = getServer();
-        if (server.getProtocol() != ClickHouseProtocol.HTTP) {
-            throw new SkipException("Skip as only http implementation works well");
+        if (server.getProtocol() != ClickHouseProtocol.GRPC && server.getProtocol() != ClickHouseProtocol.HTTP) {
+            throw new SkipException("Skip as only http and grpc implementation work well");
         }
 
-        File file = Files.createTempFile("chc", ".data").toFile();
-        ClickHouseFile wrappedFile = ClickHouseFile.of(file,
-                gzipCompressed ? ClickHouseCompression.GZIP : ClickHouseCompression.NONE, 0,
-                ClickHouseFormat.CSV);
+        final File file = ClickHouseUtils.createTempFile();
+        final ClickHouseFile wrappedFile = ClickHouseFile.of(file,
+                gzipCompressed ? ClickHouseCompression.GZIP : ClickHouseCompression.NONE, ClickHouseFormat.CSV);
         String query = "select number, if(number % 2 = 0, null, toString(number)) str from numbers(10)";
+        final ClickHouseResponseSummary summary;
         if (useOneLiner) {
-            ClickHouseClient.dump(server, query, wrappedFile).get();
+            summary = ClickHouseClient.dump(server, query, wrappedFile).get();
         } else {
             try (ClickHouseClient client = getClient();
-                    ClickHouseResponse response = newRequest(client, server).query(query)
-                            .output(wrappedFile).execute().get()) {
-                // ignore
+                    ClickHouseResponse response = newRequest(client, server).output(wrappedFile).query(query).execute()
+                            .get()) {
+                summary = response.getSummary();
             }
         }
+        Assert.assertNotNull(summary);
         try (InputStream in = gzipCompressed ? new GZIPInputStream(new FileInputStream(file))
                 : new FileInputStream(file); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             ClickHouseInputStream.pipe(in, out, 512);
@@ -1574,14 +1569,14 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
                 "create table test_custom_load(n UInt32, s Nullable(String)) engine = Memory");
 
         try {
-            ClickHouseClient.load(server, "test_custom_load", ClickHouseFormat.TabSeparated,
-                    ClickHouseCompression.NONE, new ClickHouseWriter() {
+            ClickHouseClient.load(server, "test_custom_load",
+                    new ClickHouseWriter() {
                         @Override
                         public void write(ClickHouseOutputStream output) throws IOException {
                             output.write("1\t\\N\n".getBytes(StandardCharsets.US_ASCII));
                             output.write("2\t123".getBytes(StandardCharsets.US_ASCII));
                         }
-                    }).get();
+                    }, ClickHouseCompression.NONE, ClickHouseFormat.TabSeparated).get();
         } catch (Exception e) {
             Assert.fail("Faile to load data", e);
         }
@@ -1627,8 +1622,8 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
         Files.write(temp, builder.toString().getBytes(StandardCharsets.US_ASCII));
         Assert.assertTrue(Files.size(temp) > 0L);
 
-        ClickHouseResponseSummary summary = ClickHouseClient.load(server, "test_load_csv",
-                ClickHouseFormat.TabSeparated, ClickHouseCompression.NONE, temp.toString()).get();
+        ClickHouseResponseSummary summary = ClickHouseClient.load(server, "test_load_csv", temp.toString(),
+                ClickHouseCompression.NONE, ClickHouseFormat.TabSeparated).get();
         Assert.assertNotNull(summary);
         try (ClickHouseClient client = getClient();
                 ClickHouseResponse resp = newRequest(client, server)
@@ -1683,7 +1678,7 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
         sendAndWait(server, "drop table if exists test_load_file",
                 "create table test_load_file(a Int32, b Nullable(String))engine=Memory");
         ClickHouseFile wrappedFile = ClickHouseFile.of(file,
-                gzipCompressed ? ClickHouseCompression.GZIP : ClickHouseCompression.NONE, -1, ClickHouseFormat.CSV);
+                gzipCompressed ? ClickHouseCompression.GZIP : ClickHouseCompression.NONE, ClickHouseFormat.CSV);
         if (useOneLiner) {
             try {
                 ClickHouseClient.load(server, "test_load_file", wrappedFile).get();
@@ -1735,7 +1730,7 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
             // single producer → single consumer
             // important to close the stream *before* retrieving response
             try (ClickHousePipedOutputStream stream = ClickHouseDataStreamFactory.getInstance()
-                    .createPipedOutputStream(config, null)) {
+                    .createPipedOutputStream(config)) {
                 // start the worker thread which transfer data from the input into ClickHouse
                 future = request.data(stream.getInputStream()).execute();
                 // write bytes into the piped stream

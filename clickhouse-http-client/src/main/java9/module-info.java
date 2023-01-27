@@ -4,7 +4,5 @@ module com.clickhouse.client.http {
 
     provides com.clickhouse.client.ClickHouseClient with com.clickhouse.client.http.ClickHouseHttpClient;
 
-    requires static com.google.gson;
-
     requires transitive com.clickhouse.client;
 }

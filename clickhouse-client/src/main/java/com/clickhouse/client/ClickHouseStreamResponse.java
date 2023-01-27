@@ -111,6 +111,7 @@ public class ClickHouseStreamResponse implements ClickHouseResponse {
             // ignore
             log.debug("Failed to skip reading input stream due to: %s", e.getMessage());
         } finally {
+            // close forcibly without skipping won't help much when network is slow/unstable
             try {
                 input.close();
             } catch (IOException e) {

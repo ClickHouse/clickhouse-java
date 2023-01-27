@@ -31,7 +31,9 @@ import com.clickhouse.data.ClickHouseFile;
 import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.data.ClickHouseInputStream;
 import com.clickhouse.data.ClickHouseOutputStream;
+import com.clickhouse.data.ClickHousePassThruStream;
 import com.clickhouse.data.ClickHousePipedOutputStream;
+import com.clickhouse.data.ClickHouseUtils;
 import com.clickhouse.data.ClickHouseValue;
 import com.clickhouse.data.ClickHouseValues;
 import com.clickhouse.data.ClickHouseWriter;
@@ -71,7 +73,7 @@ public interface ClickHouseClient extends AutoCloseable {
      * @return non-null default executor service
      */
     static ExecutorService getExecutorService() {
-        return ClickHouseClientBuilder.defaultExecutor;
+        return ClickHouseDataStreamFactory.getInstance().getExecutor();
     }
 
     /**
@@ -88,7 +90,7 @@ public interface ClickHouseClient extends AutoCloseable {
             Runnable postCloseAction) {
         if (config == null) {
             return ClickHouseOutputStream.of(output, (int) ClickHouseClientOption.BUFFER_SIZE.getDefaultValue(),
-                    ClickHouseCompression.NONE, -1, postCloseAction);
+                    ClickHouseCompression.NONE, ClickHouseConfig.DEFAULT_READ_COMPRESS_LEVEL, postCloseAction);
         }
 
         return ClickHouseOutputStream.of(output, config.getWriteBufferSize(), config.getRequestCompressAlgorithm(),
@@ -187,12 +189,12 @@ public interface ClickHouseClient extends AutoCloseable {
 
         // raw response -> input
         final ClickHousePipedOutputStream stream = ClickHouseDataStreamFactory.getInstance()
-                .createPipedOutputStream(config, null);
+                .createPipedOutputStream(config);
         final ClickHouseInputStream wrappedInput;
         // raw response -> decompressed response -> input
         if (config.isResponseCompressed()) { // one more thread for decompression?
             final ClickHousePipedOutputStream decompressedStream = ClickHouseDataStreamFactory.getInstance()
-                    .createPipedOutputStream(config, null);
+                    .createPipedOutputStream(config);
             wrappedInput = getResponseInputStream(config, decompressedStream.getInputStream(), postCloseAction);
             submit(() -> {
                 try (ClickHouseInputStream in = ClickHouseInputStream.of(input, config.getReadBufferSize(),
@@ -297,25 +299,26 @@ public interface ClickHouseClient extends AutoCloseable {
         }
 
         run(task);
-        return CompletableFuture.completedFuture(null);
+        return ClickHouseUtils.NULL_FUTURE;
     }
 
     /**
-     * Dumps a table or query result from server into a file. File will be
-     * created/overwrited as needed.
+     * Dumps a table or query result from server into the given pass-thru stream.
+     * Pass {@link com.clickhouse.data.ClickHouseFile} to dump data into a file,
+     * which may or may not be compressed.
      *
      * @param server       non-null server to connect to
      * @param tableOrQuery table name or a select query
-     * @param file         output file
+     * @param stream       non-null pass-thru stream
      * @return non-null future object to get result
      * @throws IllegalArgumentException if any of server, tableOrQuery, and output
      *                                  is null
      * @throws CompletionException      when error occurred during execution
      */
     static CompletableFuture<ClickHouseResponseSummary> dump(ClickHouseNode server, String tableOrQuery,
-            ClickHouseFile file) {
-        if (server == null || tableOrQuery == null || file == null) {
-            throw new IllegalArgumentException("Non-null server, tableOrQuery, and file are required");
+            ClickHousePassThruStream stream) {
+        if (server == null || tableOrQuery == null || stream == null) {
+            throw new IllegalArgumentException("Non-null server, tableOrQuery, and pass-thru stream are required");
         }
 
         // in case the protocol is ANY
@@ -325,7 +328,7 @@ public interface ClickHouseClient extends AutoCloseable {
 
         return submit(() -> {
             try (ClickHouseClient client = newInstance(theServer.getProtocol())) {
-                ClickHouseRequest<?> request = client.connect(theServer).output(file);
+                ClickHouseRequest<?> request = client.connect(theServer).output(stream);
                 // FIXME what if the table name is `try me`?
                 if (theQuery.indexOf(' ') < 0) {
                     request.table(theQuery);
@@ -346,6 +349,25 @@ public interface ClickHouseClient extends AutoCloseable {
      *
      * @param server       non-null server to connect to
      * @param tableOrQuery table name or a select query
+     * @param file         output file
+     * @param compression  compression algorithm to use
+     * @param format       output format to use
+     * @return non-null future object to get result
+     * @throws IllegalArgumentException if any of server, tableOrQuery, and output
+     *                                  is null
+     * @throws CompletionException      when error occurred during execution
+     */
+    static CompletableFuture<ClickHouseResponseSummary> dump(ClickHouseNode server, String tableOrQuery, String file,
+            ClickHouseCompression compression, ClickHouseFormat format) {
+        return dump(server, tableOrQuery, ClickHouseFile.of(file, compression, format));
+    }
+
+    /**
+     * Dumps a table or query result from server into a file. File will be
+     * created/overwrited as needed.
+     *
+     * @param server       non-null server to connect to
+     * @param tableOrQuery table name or a select query
      * @param format       output format to use
      * @param compression  compression algorithm to use
      * @param file         output file
@@ -353,10 +375,14 @@ public interface ClickHouseClient extends AutoCloseable {
      * @throws IllegalArgumentException if any of server, tableOrQuery, and output
      *                                  is null
      * @throws CompletionException      when error occurred during execution
+     * @deprecated will be dropped in 0.5, please use
+     *             {@link #dump(ClickHouseNode, String, String, ClickHouseCompression, ClickHouseFormat)}
+     *             instead
      */
+    @Deprecated
     static CompletableFuture<ClickHouseResponseSummary> dump(ClickHouseNode server, String tableOrQuery,
             ClickHouseFormat format, ClickHouseCompression compression, String file) {
-        return dump(server, tableOrQuery, ClickHouseFile.of(file, compression, 0, format));
+        return dump(server, tableOrQuery, file, compression, format);
     }
 
     /**
@@ -376,7 +402,7 @@ public interface ClickHouseClient extends AutoCloseable {
      * @throws CompletionException      when error occurred during execution
      */
     static CompletableFuture<ClickHouseResponseSummary> dump(ClickHouseNode server, String tableOrQuery,
-            ClickHouseFormat format, ClickHouseCompression compression, OutputStream output) {
+            OutputStream output, ClickHouseCompression compression, ClickHouseFormat format) {
         if (server == null || tableOrQuery == null || output == null) {
             throw new IllegalArgumentException("Non-null server, tableOrQuery, and output are required");
         }
@@ -411,18 +437,46 @@ public interface ClickHouseClient extends AutoCloseable {
     }
 
     /**
-     * Loads data from given file into a table.
+     * Dumps a table or query result from server into output stream.
+     *
+     * @param server       non-null server to connect to
+     * @param tableOrQuery table name or a select query
+     * @param format       output format to use, null means
+     *                     {@link ClickHouseFormat#TabSeparated}
+     * @param compression  compression algorithm to use, null means
+     *                     {@link ClickHouseCompression#NONE}
+     * @param output       output stream, which will be closed automatically at the
+     *                     end of the call
+     * @return future object to get result
+     * @throws IllegalArgumentException if any of server, tableOrQuery, and output
+     *                                  is null
+     * @throws CompletionException      when error occurred during execution
+     * @deprecated will be dropped in 0.5, please use
+     *             {@link #dump(ClickHouseNode, String, OutputStream, ClickHouseCompression, ClickHouseFormat)}
+     *             instead
+     */
+    @Deprecated
+    static CompletableFuture<ClickHouseResponseSummary> dump(ClickHouseNode server, String tableOrQuery,
+            ClickHouseFormat format, ClickHouseCompression compression, OutputStream output) {
+        return dump(server, tableOrQuery, output, compression, format);
+    }
+
+    /**
+     * Loads data from the given pass-thru stream into a table. Pass
+     * {@link com.clickhouse.data.ClickHouseFile} to load data from a file, which
+     * may or may not be compressed.
      *
      * @param server non-null server to connect to
      * @param table  non-null target table
-     * @param file   non-null file
+     * @param stream non-null pass-thru stream
      * @return future object to get result
      * @throws IllegalArgumentException if any of server, table, and input is null
      * @throws CompletionException      when error occurred during execution
      */
-    static CompletableFuture<ClickHouseResponseSummary> load(ClickHouseNode server, String table, ClickHouseFile file) {
-        if (server == null || table == null || file == null) {
-            throw new IllegalArgumentException("Non-null server, table, and file are required");
+    static CompletableFuture<ClickHouseResponseSummary> load(ClickHouseNode server, String table,
+            ClickHousePassThruStream stream) {
+        if (server == null || table == null || stream == null) {
+            throw new IllegalArgumentException("Non-null server, table, and pass-thru stream are required");
         }
 
         // in case the protocol is ANY
@@ -430,11 +484,61 @@ public interface ClickHouseClient extends AutoCloseable {
 
         return submit(() -> {
             try (ClickHouseClient client = newInstance(theServer.getProtocol());
-                    ClickHouseResponse response = client.connect(theServer).write().table(table).data(file)
+                    ClickHouseResponse response = client.connect(theServer).write().table(table).data(stream)
                             .executeAndWait()) {
                 return response.getSummary();
             }
         });
+    }
+
+    /**
+     * Loads data from a customer writer into table using specified format and
+     * compression algorithm.
+     *
+     * @param server      non-null server to connect to
+     * @param table       non-null target table
+     * @param writer      non-null custom writer to produce data
+     * @param compression compression algorithm to use
+     * @param format      input format to use
+     * @return future object to get result
+     * @throws IllegalArgumentException if any of server, table, and input is null
+     * @throws CompletionException      when error occurred during execution
+     */
+    static CompletableFuture<ClickHouseResponseSummary> load(ClickHouseNode server, String table,
+            ClickHouseWriter writer, ClickHouseCompression compression, ClickHouseFormat format) {
+        if (server == null || table == null || writer == null) {
+            throw new IllegalArgumentException("Non-null server, table, and custom writer are required");
+        }
+
+        // in case the protocol is ANY
+        final ClickHouseNode theServer = server.probe();
+
+        return submit(() -> {
+            try (ClickHouseClient client = newInstance(theServer.getProtocol());
+                    ClickHouseResponse response = client.connect(theServer).write().table(table).data(writer)
+                            .decompressClientRequest(compression).format(format).executeAndWait()) {
+                return response.getSummary();
+            }
+        });
+    }
+
+    /**
+     * Loads data from a file into table using specified format and compression
+     * algorithm. Same as
+     * {@code load(server, table, ClickHouseFile.of(file, compression, format))}
+     *
+     * @param server      non-null server to connect to
+     * @param table       non-null target table
+     * @param file        file to load
+     * @param compression compression algorithm to use
+     * @param format      input format to use
+     * @return future object to get result
+     * @throws IllegalArgumentException if any of server, table, and input is null
+     * @throws CompletionException      when error occurred during execution
+     */
+    static CompletableFuture<ClickHouseResponseSummary> load(ClickHouseNode server, String table,
+            String file, ClickHouseCompression compression, ClickHouseFormat format) {
+        return load(server, table, ClickHouseFile.of(file, compression, format));
     }
 
     /**
@@ -449,10 +553,14 @@ public interface ClickHouseClient extends AutoCloseable {
      * @return future object to get result
      * @throws IllegalArgumentException if any of server, table, and input is null
      * @throws CompletionException      when error occurred during execution
+     * @deprecated will be dropped in 0.5, please use
+     *             {@link #load(ClickHouseNode, String, String, ClickHouseCompression, ClickHouseFormat)}
+     *             instead
      */
+    @Deprecated
     static CompletableFuture<ClickHouseResponseSummary> load(ClickHouseNode server, String table,
             ClickHouseFormat format, ClickHouseCompression compression, String file) {
-        return load(server, table, ClickHouseFile.of(file, compression, 0, format));
+        return load(server, table, file, compression, format);
     }
 
     /**
@@ -461,59 +569,55 @@ public interface ClickHouseClient extends AutoCloseable {
      *
      * @param server      non-null server to connect to
      * @param table       non-null target table
-     * @param format      input format to use
-     * @param compression compression algorithm to use
      * @param writer      non-null custom writer to generate data
+     * @param compression compression algorithm to use
+     * @param format      input format to use
      * @return future object to get result
      * @throws IllegalArgumentException if any of server, table, and writer is null
      * @throws CompletionException      when error occurred during execution
+     * @deprecated will be dropped in 0.5, please use
+     *             {@link #load(ClickHouseNode, String, ClickHouseWriter, ClickHouseCompression, ClickHouseFormat)}
+     *             instead
      */
+    @Deprecated
     static CompletableFuture<ClickHouseResponseSummary> load(ClickHouseNode server, String table,
             ClickHouseFormat format, ClickHouseCompression compression, ClickHouseWriter writer) {
-        if (server == null || table == null || writer == null) {
-            throw new IllegalArgumentException("Non-null server, table, and writer are required");
+        return load(server, table, writer, compression, format);
+    }
+
+    /**
+     * Loads data from input stream into a table using specified format and
+     * compression algorithm.
+     *
+     * @param server      non-null server to connect to
+     * @param table       non-null target table
+     * @param input       input stream, which will be closed automatically at the
+     *                    end of the call
+     * @param compression compression algorithm to use
+     * @param format      input format to use
+     * @return future object to get result
+     * @throws IllegalArgumentException if any of server, table, and input is null
+     * @throws CompletionException      when error occurred during execution
+     */
+    static CompletableFuture<ClickHouseResponseSummary> load(ClickHouseNode server, String table, InputStream input,
+            ClickHouseCompression compression, ClickHouseFormat format) {
+        if (server == null || table == null || input == null) {
+            throw new IllegalArgumentException("Non-null server, table, and input are required");
         }
 
         // in case the protocol is ANY
         final ClickHouseNode theServer = server.probe();
 
         return submit(() -> {
-            InputStream input = null;
-            // must run in async mode so that we won't hold everything in memory
-            try (ClickHouseClient client = ClickHouseClient.builder()
-                    .nodeSelector(ClickHouseNodeSelector.of(theServer.getProtocol()))
-                    .option(ClickHouseClientOption.ASYNC, true).build()) {
-                ClickHousePipedOutputStream stream = ClickHouseDataStreamFactory.getInstance()
-                        .createPipedOutputStream(client.getConfig(), null);
-                // execute query in a separate thread(because async is explicitly set to true)
-                CompletableFuture<ClickHouseResponse> future = client.connect(theServer).write().table(table)
-                        .decompressClientRequest(compression).format(format).data(input = stream.getInputStream())
-                        .execute();
-                try {
-                    // write data into stream in current thread
-                    writer.write(stream);
-                } finally {
-                    stream.close();
-                }
-                // wait until write & read acomplished
-                try (ClickHouseResponse response = future.get(client.getConfig().getSocketTimeout(),
-                        TimeUnit.MILLISECONDS)) {
-                    return response.getSummary();
-                }
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw ClickHouseException.forCancellation(e, theServer);
-            } catch (CancellationException e) {
-                throw ClickHouseException.forCancellation(e, theServer);
-            } catch (ExecutionException | TimeoutException e) {
-                throw ClickHouseException.of(e, theServer);
+            try (ClickHouseClient client = newInstance(theServer.getProtocol());
+                    ClickHouseResponse response = client.connect(theServer).write().table(table).data(input)
+                            .decompressClientRequest(compression).format(format).executeAndWait()) {
+                return response.getSummary();
             } finally {
-                if (input != null) {
-                    try {
-                        input.close();
-                    } catch (IOException e) {
-                        // ignore
-                    }
+                try {
+                    input.close();
+                } catch (IOException e) {
+                    // ignore
                 }
             }
         });
@@ -532,29 +636,14 @@ public interface ClickHouseClient extends AutoCloseable {
      * @return future object to get result
      * @throws IllegalArgumentException if any of server, table, and input is null
      * @throws CompletionException      when error occurred during execution
+     * @deprecated will be dropped in 0.5, please use
+     *             {@link #load(ClickHouseNode, String, InputStream, ClickHouseCompression, ClickHouseFormat)}
+     *             instead
      */
+    @Deprecated
     static CompletableFuture<ClickHouseResponseSummary> load(ClickHouseNode server, String table,
             ClickHouseFormat format, ClickHouseCompression compression, InputStream input) {
-        if (server == null || table == null || input == null) {
-            throw new IllegalArgumentException("Non-null server, table, and input are required");
-        }
-
-        // in case the protocol is ANY
-        final ClickHouseNode theServer = server.probe();
-
-        return submit(() -> {
-            try (ClickHouseClient client = newInstance(theServer.getProtocol());
-                    ClickHouseResponse response = client.connect(theServer).write().table(table)
-                            .decompressClientRequest(compression).format(format).data(input).executeAndWait()) {
-                return response.getSummary();
-            } finally {
-                try {
-                    input.close();
-                } catch (IOException e) {
-                    // ignore
-                }
-            }
-        });
+        return load(server, table, input, compression, format);
     }
 
     /**

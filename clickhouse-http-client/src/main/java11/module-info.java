@@ -6,7 +6,5 @@ module com.clickhouse.client.http {
 
     requires java.net.http;
 
-    requires static com.google.gson;
-
     requires transitive com.clickhouse.client;
 }

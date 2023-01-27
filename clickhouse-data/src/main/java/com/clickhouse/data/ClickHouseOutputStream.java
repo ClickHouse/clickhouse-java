@@ -173,6 +173,16 @@ public abstract class ClickHouseOutputStream extends OutputStream {
     }
 
     /**
+     * Checks if there's underlying output stream. Same as
+     * {@code getUnderlyingStream().hasOutput()}.
+     *
+     * @return true if there's underlying output stream; false otherwise
+     */
+    public boolean hasUnderlyingStream() {
+        return stream.hasOutput();
+    }
+
+    /**
      * Transfers bytes into output stream without creating a copy.
      *
      * @param bytes non-null byte array
@@ -255,9 +265,7 @@ public abstract class ClickHouseOutputStream extends OutputStream {
             flush();
         } finally {
             closed = true;
-            if (postCloseAction != null) {
-                postCloseAction.run();
-            }
+            ClickHouseDataStreamFactory.handleCustomAction(postCloseAction);
         }
     }
 

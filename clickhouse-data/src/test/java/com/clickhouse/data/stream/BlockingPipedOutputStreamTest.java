@@ -21,7 +21,7 @@ import org.testng.annotations.Test;
 public class BlockingPipedOutputStreamTest {
     @Test(groups = { "unit" })
     public void testRead() throws InterruptedException, IOException {
-        BlockingPipedOutputStream stream = new BlockingPipedOutputStream(4, 3, 1, null);
+        BlockingPipedOutputStream stream = new BlockingPipedOutputStream(4, 3, 1);
         Assert.assertEquals(stream.queue.size(), 0);
         try (InputStream in = stream.getInputStream()) {
             in.read();
@@ -81,7 +81,7 @@ public class BlockingPipedOutputStreamTest {
 
     @Test(groups = { "unit" })
     public void testReadBytes() throws InterruptedException, IOException {
-        BlockingPipedOutputStream stream = new BlockingPipedOutputStream(4, 3, 1, null);
+        BlockingPipedOutputStream stream = new BlockingPipedOutputStream(4, 3, 1);
         Assert.assertEquals(stream.queue.size(), 0);
         byte[] bytes = new byte[3];
         try (InputStream in = stream.getInputStream()) {
@@ -145,7 +145,7 @@ public class BlockingPipedOutputStreamTest {
 
     @Test(groups = { "unit" })
     public void testWrite() throws InterruptedException, IOException {
-        BlockingPipedOutputStream stream = new BlockingPipedOutputStream(2, 3, 2, null);
+        BlockingPipedOutputStream stream = new BlockingPipedOutputStream(2, 3, 2);
         Assert.assertEquals(stream.queue.size(), 0);
         try (OutputStream out = stream) {
             out.write(5);
@@ -160,7 +160,7 @@ public class BlockingPipedOutputStreamTest {
             Assert.assertEquals(stream.queue.take().array(), new byte[] { (byte) 7, (byte) 0 });
         }
 
-        stream = new BlockingPipedOutputStream(1, 1, 2, null);
+        stream = new BlockingPipedOutputStream(1, 1, 2);
         Assert.assertEquals(stream.queue.size(), 0);
         try (OutputStream out = stream) {
             out.write(5);
@@ -185,7 +185,7 @@ public class BlockingPipedOutputStreamTest {
 
     @Test(groups = { "unit" })
     public void testWriteBytes() throws InterruptedException, IOException {
-        BlockingPipedOutputStream stream = new BlockingPipedOutputStream(2, 3, 2, null);
+        BlockingPipedOutputStream stream = new BlockingPipedOutputStream(2, 3, 2);
         Assert.assertEquals(stream.queue.size(), 0);
         try (OutputStream out = stream) {
             out.write(new byte[] { (byte) 9, (byte) 10 });
@@ -215,8 +215,7 @@ public class BlockingPipedOutputStreamTest {
         ExecutorService executor = Executors.newFixedThreadPool(2);
         for (int bufferSize = -1; bufferSize < 10; bufferSize++) {
             for (int queueLength = -1; queueLength < 10; queueLength++) {
-                BlockingPipedOutputStream stream = new BlockingPipedOutputStream(bufferSize, queueLength, timeout,
-                        null);
+                BlockingPipedOutputStream stream = new BlockingPipedOutputStream(bufferSize, queueLength, timeout);
                 try (InputStream in = stream.getInputStream(); OutputStream out = stream) {
                     final int count = 10000;
                     final AtomicInteger p = new AtomicInteger(0);

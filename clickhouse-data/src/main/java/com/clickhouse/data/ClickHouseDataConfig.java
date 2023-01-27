@@ -18,6 +18,11 @@ public interface ClickHouseDataConfig extends Serializable {
         }
 
         @Override
+        public boolean isAsync() {
+            return config.isAsync();
+        }
+
+        @Override
         public ClickHouseFormat getFormat() {
             return config.getFormat();
         }
@@ -136,8 +141,9 @@ public interface ClickHouseDataConfig extends Serializable {
     static final boolean DEFAULT_USE_OBJECT_IN_ARRAY = false;
     static final boolean DEFAULT_WIDEN_UNSIGNED_TYPE = false;
 
-    static final int DEFAULT_READ_COMPRESS_LEVEL = -1;
-    static final int DEFAULT_WRITE_COMPRESS_LEVEL = -1;
+    static final int DEFAULT_COMPRESS_LEVEL = -1;
+    static final int DEFAULT_READ_COMPRESS_LEVEL = DEFAULT_COMPRESS_LEVEL;
+    static final int DEFAULT_WRITE_COMPRESS_LEVEL = DEFAULT_COMPRESS_LEVEL;
 
     static final int DEFAULT_TIMEOUT = 30 * 1000; // 30 seconds
 

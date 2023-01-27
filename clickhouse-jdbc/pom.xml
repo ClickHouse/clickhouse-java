@@ -54,6 +54,12 @@
         <dependency>
             <groupId>org.apache.httpcomponents.client5</groupId>
             <artifactId>httpclient5</artifactId>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.slf4j</groupId>
+                    <artifactId>slf4j-api</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <dependency>
             <groupId>org.lz4</groupId>
@@ -218,12 +224,6 @@
                                     </excludes>
                                 </filter>
                                 <filter>
-                                    <artifact>org.slf4j:slf4j-api</artifact>
-                                    <excludes>
-                                        <exclude>**</exclude>
-                                    </excludes>
-                                </filter>
-                                <filter>
                                     <artifact>*:*</artifact>
                                     <excludes>
                                         <exclude>mozilla/**</exclude>
@@ -297,12 +297,6 @@
                                 </transformer>
                             </transformers>
                             <filters>
-                                <filter>
-                                    <artifact>org.slf4j:slf4j-api</artifact>
-                                    <excludes>
-                                        <exclude>**</exclude>
-                                    </excludes>
-                                </filter>
                                 <filter>
                                     <artifact>*:*</artifact>
                                     <excludes>
@@ -387,12 +381,6 @@
                                 </filter>
                                 <filter>
                                     <artifact>${project.parent.groupId}:clickhouse-http-client</artifact>
-                                    <excludes>
-                                        <exclude>**</exclude>
-                                    </excludes>
-                                </filter>
-                                <filter>
-                                    <artifact>org.slf4j:slf4j-api</artifact>
                                     <excludes>
                                         <exclude>**</exclude>
                                     </excludes>
@@ -484,12 +472,6 @@
                                     </excludes>
                                 </filter>
                                 <filter>
-                                    <artifact>org.slf4j:slf4j-api</artifact>
-                                    <excludes>
-                                        <exclude>**</exclude>
-                                    </excludes>
-                                </filter>
-                                <filter>
                                     <artifact>*:*</artifact>
                                     <excludes>
                                         <exclude>google/**</exclude>
@@ -572,12 +554,6 @@
                                 </filter>
                                 <filter>
                                     <artifact>com.google.code.gson:gson</artifact>
-                                    <excludes>
-                                        <exclude>**</exclude>
-                                    </excludes>
-                                </filter>
-                                <filter>
-                                    <artifact>org.slf4j:slf4j-api</artifact>
                                     <excludes>
                                         <exclude>**</exclude>
                                     </excludes>

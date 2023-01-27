@@ -12,6 +12,7 @@ import java.util.concurrent.TimeUnit;
 
 import com.clickhouse.client.ClickHouseNode.Status;
 import com.clickhouse.data.ClickHouseChecker;
+import com.clickhouse.data.ClickHouseDataStreamFactory;
 import com.clickhouse.data.ClickHouseUtils;
 
 /**
@@ -336,7 +337,7 @@ public abstract class ClickHouseLoadBalancingPolicy implements Serializable {
      *         health check
      */
     protected ScheduledExecutorService getScheduler() {
-        return ClickHouseClientBuilder.defaultScheduler;
+        return ClickHouseDataStreamFactory.getInstance().getScheduler();
     }
 
     /**

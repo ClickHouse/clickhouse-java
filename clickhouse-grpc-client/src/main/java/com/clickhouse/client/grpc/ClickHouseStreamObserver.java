@@ -63,7 +63,7 @@ public class ClickHouseStreamObserver implements StreamObserver<Result> {
                     ClickHouseDataConfig.DEFAULT_READ_COMPRESS_LEVEL, postCloseAction);
         } else {
             ClickHousePipedOutputStream pipedStream = ClickHouseDataStreamFactory.getInstance()
-                    .createPipedOutputStream(config, null);
+                    .createPipedOutputStream(config);
             this.stream = pipedStream;
             this.input = ClickHouseGrpcClient.getInput(config, pipedStream.getInputStream(), postCloseAction);
         }
