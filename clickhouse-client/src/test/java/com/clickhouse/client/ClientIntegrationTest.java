@@ -1528,7 +1528,7 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
     public void testDumpFile(boolean gzipCompressed, boolean useOneLiner)
             throws ExecutionException, InterruptedException, IOException {
         ClickHouseNode server = getServer();
-        if (server.getProtocol() != ClickHouseProtocol.GRPC && server.getProtocol() != ClickHouseProtocol.HTTP) {
+        if (server.getProtocol() != ClickHouseProtocol.HTTP) {
             throw new SkipException("Skip as only http implementation works well");
         }
 
