@@ -12,7 +12,7 @@
 
     <name>${project.artifactId}</name>
     <description>Repackaged RoaringBitmap for JPMS support</description>
-    <url>https://github.com/ClickHouse/clickhouse-jdbc/tree/master/third-party-libraries/org.roaringbitmap</url>
+    <url>https://github.com/ClickHouse/clickhouse-jdbc/tree/main/third-party-libraries/org.roaringbitmap</url>
 
     <dependencies>
         <dependency>

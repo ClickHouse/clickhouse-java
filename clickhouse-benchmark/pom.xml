@@ -14,7 +14,7 @@
 
     <name>ClickHouse Client Benchmarks</name>
     <description>Benchmarks for ClickHouse clients</description>
-    <url>https://github.com/ClickHouse/clickhouse-jdbc/tree/master/clickhouse-benchmark</url>
+    <url>https://github.com/ClickHouse/clickhouse-jdbc/tree/main/clickhouse-benchmark</url>
 
     <properties>
         <legacy-driver.version>0.3.1-patch</legacy-driver.version>

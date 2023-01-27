@@ -14,7 +14,7 @@
 
     <name>ClickHouse HTTP Client</name>
     <description>HTTP client for ClickHouse</description>
-    <url>https://github.com/ClickHouse/clickhouse-jdbc/tree/master/clickhouse-http-client</url>
+    <url>https://github.com/ClickHouse/clickhouse-jdbc/tree/main/clickhouse-http-client</url>
 
     <dependencies>
         <dependency>

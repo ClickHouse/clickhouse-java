@@ -9,7 +9,7 @@
 
     <name>${project.artifactId}</name>
     <description>Repackaged third party libraries for JPMS compatibility</description>
-    <url>https://github.com/ClickHouse/clickhouse-jdbc/tree/master/third-party-libraries</url>
+    <url>https://github.com/ClickHouse/clickhouse-jdbc/tree/main/third-party-libraries</url>
     <inceptionYear>2022</inceptionYear>
 
     <organization>
