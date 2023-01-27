@@ -4,6 +4,12 @@ on:
   push:
     branches:
       - main
+    paths-ignore:
+      - "**.md"
+      - "**/docs/**"
+      - "**/CHANGELOG"
+      - "**/LICENSE"
+      - "**/NOTICE"
   pull_request:
     branches:
       - main
@@ -11,6 +17,12 @@ on:
       - opened
       - synchronize
       - reopened
+    paths-ignore:
+      - "**.md"
+      - "**/docs/**"
+      - "**/CHANGELOG"
+      - "**/LICENSE"
+      - "**/NOTICE"
   workflow_dispatch:
     inputs:
       pr:
