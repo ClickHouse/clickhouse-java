@@ -10,8 +10,8 @@
     <packaging>pom</packaging>
 
     <name>clickhouse-java</name>
-    <description>Java Client and JDBC driver for ClickHouse</description>
-    <url>https://github.com/ClickHouse/clickhouse-jdbc</url>
+    <description>Java libraries for ClickHouse</description>
+    <url>https://github.com/ClickHouse/clickhouse-java</url>
     <inceptionYear>2015</inceptionYear>
 
     <organization>
@@ -56,20 +56,20 @@
     </modules>
 
     <scm>
-        <url>https://github.com/ClickHouse/clickhouse-jdbc</url>
-        <connection>scm:git@github.com:ClickHouse/clickhouse-jdbc.git</connection>
-        <developerConnection>scm:git@github.com:ClickHouse/clickhouse-jdbc.git</developerConnection>
+        <url>https://github.com/ClickHouse/clickhouse-java</url>
+        <connection>scm:git@github.com:ClickHouse/clickhouse-java.git</connection>
+        <developerConnection>scm:git@github.com:ClickHouse/clickhouse-java.git</developerConnection>
         <tag>HEAD</tag>
     </scm>
 
     <issueManagement>
         <system>Github</system>
-        <url>https://github.com/ClickHouse/clickhouse-jdbc/issues</url>
+        <url>https://github.com/ClickHouse/clickhouse-java/issues</url>
     </issueManagement>
 
     <ciManagement>
         <system>Github</system>
-        <url>https://github.com/ClickHouse/clickhouse-jdbc/actions</url>
+        <url>https://github.com/ClickHouse/clickhouse-java/actions</url>
     </ciManagement>
 
     <distributionManagement>

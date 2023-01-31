@@ -15,7 +15,7 @@
 
     <name>ClickHouse R2DBC Driver</name>
     <description>R2DBC driver for ClickHouse</description>
-    <url>https://github.com/ClickHouse/clickhouse-jdbc/tree/main/clickhouse-r2dbc</url>
+    <url>https://github.com/ClickHouse/clickhouse-java/tree/main/clickhouse-r2dbc</url>
 
     <properties>
         <hikari-cp.version>4.0.3</hikari-cp.version>

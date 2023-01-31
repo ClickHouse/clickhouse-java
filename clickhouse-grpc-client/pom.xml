@@ -14,7 +14,7 @@
 
     <name>ClickHouse gRPC Client</name>
     <description>gRPC client for ClickHouse</description>
-    <url>https://github.com/ClickHouse/clickhouse-jdbc/tree/main/clickhouse-grpc-client</url>
+    <url>https://github.com/ClickHouse/clickhouse-java/tree/main/clickhouse-grpc-client</url>
 
     <dependencies>
         <dependency>

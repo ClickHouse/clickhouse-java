@@ -13,7 +13,7 @@
 
     <name>${project.artifactId}</name>
     <description>Repackaged grpc-java for JPMS support</description>
-    <url>https://github.com/ClickHouse/clickhouse-jdbc/tree/main/third-party-libraries/io.grpc</url>
+    <url>https://github.com/ClickHouse/clickhouse-java/tree/main/third-party-libraries/io.grpc</url>
 
     <dependencies>
         <dependency>
