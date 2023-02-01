@@ -44,12 +44,12 @@ public class Main {
             CompletableFuture<ClickHouseResponse> future;
             // back-pressuring is not supported, you can adjust the first two arguments
             try (ClickHousePipedOutputStream stream = ClickHouseDataStreamFactory.getInstance()
-                    .createPipedOutputStream(config, null)) {
+                    .createPipedOutputStream(config, (Runnable) null)) {
                 // in async mode, which is default, execution happens in a worker thread
                 future = request.data(stream.getInputStream()).execute();
 
                 // writing happens in main thread
-                for (int i = 0; i < 1000000; i++) {
+                for (int i = 0; i < 10_000; i++) {
                     BinaryStreamUtils.writeString(stream, String.valueOf(i % 16));
                     BinaryStreamUtils.writeNonNull(stream);
                     BinaryStreamUtils.writeString(stream, UUID.randomUUID().toString());
@@ -74,7 +74,7 @@ public class Main {
                 ClickHouseResponse response = client.connect(server).query("select * from " + table).execute().get()) {
             int count = 0;
             // or use stream API via response.stream()
-            for (ClickHouseRecord rec : response.records()) {
+            for (ClickHouseRecord r : response.records()) {
                 count++;
             }
             return count;
@@ -88,7 +88,7 @@ public class Main {
 
     public static void main(String[] args) {
         ClickHouseNode server = ClickHouseNode.builder()
-                .host(System.getProperty("chHost", "192.168.3.16"))
+                .host(System.getProperty("chHost", "127.0.0.1"))
                 .port(ClickHouseProtocol.GRPC, Integer.parseInt(System.getProperty("chPort", "9100")))
                 .database("system").credentials(ClickHouseCredentials.fromUserAndPassword(
                         System.getProperty("chUser", "default"), System.getProperty("chPassword", "")))
@@ -99,9 +99,9 @@ public class Main {
         try {
             dropAndCreateTable(server, table);
 
-            insert(server, table);
+            System.out.println("Insert: " + insert(server, table));
 
-            query(server, table);
+            System.out.println("Query: " + query(server, table));
         } catch (ClickHouseException e) {
             e.printStackTrace();
         }

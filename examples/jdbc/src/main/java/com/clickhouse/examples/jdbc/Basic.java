@@ -13,6 +13,9 @@ import java.util.Properties;
 
 import com.clickhouse.data.ClickHouseOutputStream;
 import com.clickhouse.data.ClickHouseWriter;
+import com.clickhouse.jdbc.ClickHouseDataSource;
+import com.zaxxer.hikari.HikariConfig;
+import com.zaxxer.hikari.HikariDataSource;
 
 public class Basic {
     static final String TABLE_NAME = "jdbc_example_basic";
@@ -125,6 +128,7 @@ public class Basic {
                     // this will be executed in a separate thread
                     for (int i = 0; i < 1_000_000; i++) {
                         output.writeUnicodeString("a-" + i);
+                        output.writeBoolean(false); // non-null
                         output.writeUnicodeString("b-" + i);
                     }
                 }
@@ -137,11 +141,11 @@ public class Basic {
 
     static int connectWithCustomSettings(String url) throws SQLException {
         // comma separated settings
-        String customSettings = "session_check=0,max_query_size=100";
+        String customSettings = "session_check=0,max_query_size=1000";
         Properties properties = new Properties();
-        // properties.setProperty(ClickHouseHttpClientOption.CUSTOM_PARAMS.getKey(),
+        // properties.setProperty(ClickHouseClientOption.CUSTOM_SETTINGS.getKey(),
         // customSettings);
-        properties.setProperty("custom_http_params", customSettings); // limited to http protocol
+        properties.setProperty("custom_settings", customSettings);
         try (Connection conn = getConnection(url, properties);
                 Statement stmt = conn.createStatement();
                 ResultSet rs = stmt.executeQuery("select 5")) {
@@ -194,7 +198,7 @@ public class Basic {
                     + "ORDER BY (resource_container, event_type, event_subtype) "
                     + "SETTINGS index_granularity = 8192");
             try (PreparedStatement stmt = conn.prepareStatement(
-                    "INSERT INTO t_map VALUES (8481365034795008,1673349039830,'operation-9','a','service', 'bc3e47b8-2b34-4c1a-9004-123656fa0000','b', 'c', 'service-56','d', 'object','e', 'my-value-62', 'mypath', 'some.hostname.address.com', 'app-9', 'instance-6','x', ?) SETTINGS async_insert=1,wait_for_async_insert=0")) {
+                    "INSERT INTO t_map SETTINGS async_insert=1,wait_for_async_insert=1 VALUES (8481365034795008,1673349039830,'operation-9','a','service', 'bc3e47b8-2b34-4c1a-9004-123656fa0000','b', 'c', 'service-56','d', 'object','e', 'my-value-62', 'mypath', 'some.hostname.address.com', 'app-9', 'instance-6','x', ?)")) {
                 stmt.setObject(1, Collections.singletonMap("key1", "value1"));
                 stmt.execute();
 
@@ -206,18 +210,44 @@ public class Basic {
         }
     }
 
+    static void usedPooledConnection(String url) throws SQLException {
+        // connection pooling won't help much in terms of performance,
+        // because the underlying implementation has its own pool.
+        // for example: HttpURLConnection has a pool for sockets
+        HikariConfig poolConfig = new HikariConfig();
+        poolConfig.setConnectionTimeout(5000L);
+        poolConfig.setMaximumPoolSize(20);
+        poolConfig.setMaxLifetime(300_000L);
+        poolConfig.setDataSource(new ClickHouseDataSource(url));
+
+        HikariDataSource ds = new HikariDataSource(poolConfig);
+
+        try (Connection conn = ds.getConnection();
+                Statement s = conn.createStatement();
+                ResultSet rs = s.executeQuery("select 123")) {
+            System.out.println(rs.next());
+            System.out.println(rs.getInt(1));
+        }
+    }
+
     public static void main(String[] args) {
         // jdbc:ch:https://explorer@play.clickhouse.com:443
         // jdbc:ch:https://demo:demo@github.demo.trial.altinity.cloud
         String url = System.getProperty("chUrl", "jdbc:ch://localhost");
 
+        try {
+            usedPooledConnection(url);
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+
         try (Connection conn = getConnection(url)) {
-            // connectWithCustomSettings(url);
+            connectWithCustomSettings(url);
             insertByteArray(conn);
 
-            // System.out.println("Update Count: " + dropAndCreateTable(conn));
-            // System.out.println("Inserted Rows: " + batchInsert(conn));
-            // System.out.println("Result Rows: " + query(conn));
+            System.out.println("Update Count: " + dropAndCreateTable(conn));
+            System.out.println("Inserted Rows: " + batchInsert(conn));
+            System.out.println("Result Rows: " + query(conn));
         } catch (SQLException e) {
             e.printStackTrace();
         }
