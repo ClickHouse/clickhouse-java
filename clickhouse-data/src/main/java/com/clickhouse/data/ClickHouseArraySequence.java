@@ -5,7 +5,7 @@ package com.clickhouse.data;
  */
 public interface ClickHouseArraySequence extends ClickHouseValue {
     /**
-     * Allocate an array according to given length. Same as
+     * Allocates an array according to given length. Same as
      * {@code allocate(length, Object.class, 1)}.
      *
      * @param length length of the array
@@ -16,7 +16,7 @@ public interface ClickHouseArraySequence extends ClickHouseValue {
     }
 
     /**
-     * Allocate an array according to given arguments. Same as
+     * Allocates an array according to given arguments. Same as
      * {@code allocate(length, clazz, 1)}.
      *
      * @param length length of the array
@@ -28,7 +28,9 @@ public interface ClickHouseArraySequence extends ClickHouseValue {
     }
 
     /**
-     * Allocate an array according to given arguments.
+     * Allocates an array according to given arguments. Pay attention that this will
+     * will not create new array but reuse existing one, when {@code length} are
+     * {@code clazz} not changed.
      *
      * @param length length of the array
      * @param clazz  optional value type, null means {@code Object.class}

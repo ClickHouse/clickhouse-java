@@ -341,10 +341,9 @@ public enum ClickHouseDataType {
             javaClass = boolean.class;
         } else if (Byte.class == javaClass || UnsignedByte.class == javaClass || byte.class == javaClass) {
             javaClass = short.class;
-        } else if (Integer.class == javaClass || UnsignedInteger.class == javaClass || int.class == javaClass) {
+        } else if (Integer.class == javaClass || UnsignedInteger.class == javaClass || int.class == javaClass
+                || Long.class == javaClass || UnsignedLong.class == javaClass) {
             javaClass = long.class;
-        } else if (Long.class == javaClass || long.class == javaClass) {
-            javaClass = UnsignedLong.class;
         } else if (Short.class == javaClass || UnsignedShort.class == javaClass || short.class == javaClass
                 || Character.class == javaClass || char.class == javaClass) {
             javaClass = int.class;

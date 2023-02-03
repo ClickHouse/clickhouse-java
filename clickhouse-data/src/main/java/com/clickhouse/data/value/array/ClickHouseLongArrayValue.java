@@ -77,7 +77,7 @@ public class ClickHouseLongArrayValue extends ClickHouseObjectValue<long[]> impl
                     long[] arr = new long[list.size()];
                     int index = 0;
                     for (String v : list) {
-                        arr[index++] = v == null ? 0 : Integer.parseUnsignedInt(v);
+                        arr[index++] = v == null ? 0L : Long.parseUnsignedLong(v);
                     }
                     set(arr);
                 }

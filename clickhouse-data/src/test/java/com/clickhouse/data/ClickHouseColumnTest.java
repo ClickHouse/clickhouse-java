@@ -9,6 +9,11 @@ import org.testng.Assert;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
+import com.clickhouse.data.value.ClickHouseArrayValue;
+import com.clickhouse.data.value.ClickHouseLongValue;
+import com.clickhouse.data.value.UnsignedLong;
+import com.clickhouse.data.value.array.ClickHouseLongArrayValue;
+
 public class ClickHouseColumnTest {
     @DataProvider(name = "enumTypesProvider")
     private Object[][] getEnumTypes() {
@@ -257,6 +262,16 @@ public class ClickHouseColumnTest {
         Assert.assertEquals(v.update(new Long[] { 1L }).asObject(), new Long[] { 1L });
         v = ClickHouseColumn.of("a", "Array(Array(UInt16))").newValue(config);
         Assert.assertEquals(v.asObject(), new int[0][]);
+        v = ClickHouseColumn.of("a", "Array(UInt64)").newValue(config);
+        Assert.assertEquals(v.asObject(), new UnsignedLong[0]);
+        Assert.assertEquals(((ClickHouseLongArrayValue) v).allocate(1)
+                .setValue(0, ClickHouseLongValue.of(1L)).asObject(), new long[] { 1L });
+        Assert.assertEquals(((ClickHouseLongArrayValue) v).allocate(1)
+                .setValue(0, ClickHouseLongValue.ofUnsigned(1L)).asObject(), new long[] { 1L });
+        v = ClickHouseColumn.of("a", "Array(Array(UInt64))").newValue(config);
+        Assert.assertEquals(v.asObject(), new long[0][]);
+        Assert.assertEquals(((ClickHouseArrayValue<?>) v).allocate(1)
+                .setValue(0, ClickHouseLongArrayValue.of(new long[] { 1L })).asObject(), new long[][] { { 1L } });
         v = ClickHouseColumn.of("a", "Array(Array(Array(UInt8)))").newValue(config);
         Assert.assertEquals(v.asObject(), new short[0][][]);
         v = ClickHouseColumn.of("a", "Array(Array(Array(Nullable(UInt8))))").newValue(config);
