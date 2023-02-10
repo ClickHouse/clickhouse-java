@@ -150,8 +150,7 @@ public class ClickHouseTabSeparatedProcessorTest extends BaseDataProcessorTest {
 
     @Override
     public void testDeserializeNestedTypes(ClickHouseDataConfig config, String typeName, String dataKey,
-            String valueClass,
-            Object arrVal, Object objVal, String strVal, String sqlExpr) throws IOException {
+            String valueClass, Object arrVal, Object objVal, String strVal, String sqlExpr) throws IOException {
         throw new SkipException("Skip as it's not fully implemented");
     }
 

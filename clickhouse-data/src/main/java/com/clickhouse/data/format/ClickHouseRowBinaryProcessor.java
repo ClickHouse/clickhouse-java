@@ -311,23 +311,25 @@ public class ClickHouseRowBinaryProcessor extends ClickHouseDataProcessor {
 
     protected ClickHouseDeserializer[] getArrayDeserializers(ClickHouseDataConfig config,
             List<ClickHouseColumn> columns) {
-        List<ClickHouseDeserializer> list = new ArrayList<>(columns.size());
+        ClickHouseDeserializer[] array = new ClickHouseDeserializer[columns.size()];
         ClickHouseDataConfig modifiedConfig = new UseObjectConfig(config);
+        int i = 0;
         for (ClickHouseColumn column : columns) {
-            list.add(getDeserializer(modifiedConfig,
-                    ClickHouseColumn.of(column.getColumnName(), ClickHouseDataType.Array, false, column)));
+            array[i++] = getDeserializer(modifiedConfig,
+                    ClickHouseColumn.of(column.getColumnName(), ClickHouseDataType.Array, false, column));
         }
-        return list.toArray(new ClickHouseDeserializer[0]);
+        return array;
     }
 
     protected ClickHouseSerializer[] getArraySerializers(ClickHouseDataConfig config, List<ClickHouseColumn> columns) {
-        List<ClickHouseSerializer> list = new ArrayList<>(columns.size());
+        ClickHouseSerializer[] array = new ClickHouseSerializer[columns.size()];
         ClickHouseDataConfig modifiedConfig = new UseObjectConfig(config);
+        int i = 0;
         for (ClickHouseColumn column : columns) {
-            list.add(getSerializer(modifiedConfig,
-                    ClickHouseColumn.of(column.getColumnName(), ClickHouseDataType.Array, false, column)));
+            array[i++] = getSerializer(modifiedConfig,
+                    ClickHouseColumn.of(column.getColumnName(), ClickHouseDataType.Array, false, column));
         }
-        return list.toArray(new ClickHouseSerializer[0]);
+        return array;
     }
 
     @Override
@@ -462,29 +464,35 @@ public class ClickHouseRowBinaryProcessor extends ClickHouseDataProcessor {
                 break;
             // nested
             case Array: {
-                ClickHouseColumn baseColumn = column.getArrayBaseColumn();
-                Class<?> javaClass = baseColumn.getObjectClassForArray(config);
-                if (column.getArrayNestedLevel() == 1 && !baseColumn.isNullable() && javaClass.isPrimitive()) {
-                    int byteLength = baseColumn.getDataType().getByteLength();
-                    if (byteLength == Byte.BYTES) { // Bool, *Int8
-                        deserializer = BinaryDataProcessor::readByteArray;
-                    } else if (byteLength == Short.BYTES) { // *Int16
-                        deserializer = BinaryDataProcessor::readShortArray;
-                    } else if (int.class == javaClass) { // Int32
-                        deserializer = BinaryDataProcessor::readIntegerArray;
-                    } else if (long.class == javaClass) { // UInt32, *Int64
-                        deserializer = byteLength == Long.BYTES ? BinaryDataProcessor::readLongArray
-                                : BinaryDataProcessor::readIntegerArray;
-                    } else if (float.class == javaClass) { // Float32
-                        deserializer = BinaryDataProcessor::readFloatArray;
-                    } else if (double.class == javaClass) { // Float64
-                        deserializer = BinaryDataProcessor::readDoubleArray;
+                if (column.getArrayNestedLevel() == 1) {
+                    ClickHouseColumn baseColumn = column.getArrayBaseColumn();
+                    Class<?> javaClass = baseColumn.getObjectClassForArray(config);
+                    if (!baseColumn.isNullable() && javaClass.isPrimitive()) {
+                        int byteLength = baseColumn.getDataType().getByteLength();
+                        if (byteLength == Byte.BYTES) { // Bool, *Int8
+                            deserializer = BinaryDataProcessor::readByteArray;
+                        } else if (byteLength == Short.BYTES) { // *Int16
+                            deserializer = BinaryDataProcessor::readShortArray;
+                        } else if (int.class == javaClass) { // Int32
+                            deserializer = BinaryDataProcessor::readIntegerArray;
+                        } else if (long.class == javaClass) { // UInt32, *Int64
+                            deserializer = byteLength == Long.BYTES ? BinaryDataProcessor::readLongArray
+                                    : BinaryDataProcessor::readIntegerArray;
+                        } else if (float.class == javaClass) { // Float32
+                            deserializer = BinaryDataProcessor::readFloatArray;
+                        } else if (double.class == javaClass) { // Float64
+                            deserializer = BinaryDataProcessor::readDoubleArray;
+                        } else {
+                            throw new IllegalArgumentException("Unsupported primitive type: " + javaClass);
+                        }
                     } else {
-                        throw new IllegalArgumentException("Unsupported primitive type: " + javaClass);
+                        deserializer = new BinaryDataProcessor.ArrayDeserializer(config, column, true,
+                                getDeserializer(config, column.getNestedColumns().get(0)));
                     }
                 } else {
                     deserializer = new BinaryDataProcessor.ArrayDeserializer(config, column, true,
-                            getDeserializer(config, column.getNestedColumns().get(0)));
+                            new ClickHouseDeserializer.ResetValueDeserializer(
+                                    getDeserializer(config, column.getNestedColumns().get(0))));
                 }
                 break;
             }

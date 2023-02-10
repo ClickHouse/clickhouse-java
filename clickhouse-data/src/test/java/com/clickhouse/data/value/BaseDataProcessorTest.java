@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.function.Consumer;
 
 import org.testng.Assert;
@@ -350,6 +351,29 @@ public abstract class BaseDataProcessorTest {
                         "[null, , B, BC, BCD]", "[NULL,'','B','BC','BCD']" },
                 { defaultConf, "Array(String)", "4bcd", "ClickHouseArrayValue", new String[] { "", "B", "BC", "BCD" },
                         new String[] { "", "B", "BC", "BCD" }, "[, B, BC, BCD]", "['','B','BC','BCD']" },
+                { defaultConf, "Array(Array(Array(UInt8)))", "[[3]],[[1,2],[2,1]],[[4,5],[5,4]]",
+                        "ClickHouseArrayValue",
+                        new Byte[][][] { { { 3 } }, { { 1, 2 }, { 2, 1 } }, { { 4, 5 }, { 5, 4 } } },
+                        new byte[][][] { { { 3 } }, { { 1, 2 }, { 2, 1 } }, { { 4, 5 }, { 5, 4 } } },
+                        "[[[3]], [[1, 2], [2, 1]], [[4, 5], [5, 4]]]", "[[[3]],[[1,2],[2,1]],[[4,5],[5,4]]]" },
+                { defaultConf, "Array(Array(UInt64))", "[1,2,3],[3,2,1],[4,5]", "ClickHouseArrayValue",
+                        new Long[][] { { 1L, 2L, 3L }, { 3L, 2L, 1L }, { 4L, 5L } },
+                        new long[][] { { 1L, 2L, 3L }, { 3L, 2L, 1L }, { 4L, 5L } }, "[[1, 2, 3], [3, 2, 1], [4, 5]]",
+                        "[[1,2,3],[3,2,1],[4,5]]" },
+                { defaultConf, "Map(String,Array(UInt8))", "[1,2,3],[3,2,1],[4,5]", "ClickHouseMapValue",
+                        new Long[][] { { 1L, 2L, 3L }, { 3L, 2L, 1L }, { 4L, 5L } },
+                        new long[][] { { 1L, 2L, 3L }, { 3L, 2L, 1L }, { 4L, 5L } }, "[[1, 2, 3], [3, 2, 1], [4, 5]]",
+                        "{'a' : [1,2,3],'b' : [3,2,1],'c' : [4,5]}" },
+                { defaultConf, "Tuple(Array(UInt8),Array(UInt8),Array(UInt8))", "[1,2,3],[3,2,1],[4,5]",
+                        "ClickHouseTupleValue",
+                        new Object[] { new byte[] { 1, 2, 3 }, new byte[] { 3, 2, 1 }, new byte[] { 4, 5 } },
+                        Arrays.asList(
+                                new Object[] { new byte[] { 1, 2, 3 }, new byte[] { 3, 2, 1 }, new byte[] { 4, 5 } }),
+                        "[[1, 2, 3], [3, 2, 1], [4, 5]]", "([1,2,3],[3,2,1],[4,5])" },
+                { defaultConf, "Array(Array(String))", "[foo,bar],[qaz,qux]", "ClickHouseArrayValue",
+                        new String[][] { { "foo", "bar" }, { "qaz", "qux" } },
+                        new String[][] { { "foo", "bar" }, { "qaz", "qux" } }, "[[foo, bar], [qaz, qux]]",
+                        "[['foo','bar'],['qaz','qux']]" },
 
                 { binStrConf, "Array(Nullable(String))", "4bcd", "ClickHouseArrayValue",
                         new byte[][] { null, new byte[0], { 66 }, { 66, 67 }, { 66, 67, 68 } },
@@ -359,6 +383,13 @@ public abstract class BaseDataProcessorTest {
                         new byte[][] { new byte[0], { 66 }, { 66, 67 }, { 66, 67, 68 } },
                         new byte[][] { new byte[0], { 66 }, { 66, 67 }, { 66, 67, 68 } },
                         "[[], [66], [66, 67], [66, 67, 68]]", "[[],[66],[66,67],[66,67,68]]" },
+                { binStrConf, "Array(Array(String))", "[foo,bar],[qaz,qux]", "ClickHouseArrayValue",
+                        new byte[][][] { { { 0x66, 0x6F, 0x6F }, { 0x62, 0x61, 0x72 } },
+                                { { 0x71, 0x61, 0x7A }, { 0x71, 0x75, 0x78 } } },
+                        new byte[][][] { { { 0x66, 0x6F, 0x6F }, { 0x62, 0x61, 0x72 } },
+                                { { 0x71, 0x61, 0x7A }, { 0x71, 0x75, 0x78 } } },
+                        "[[[102, 111, 111], [98, 97, 114]], [[113, 97, 122], [113, 117, 120]]]",
+                        "[[[102,111,111],[98,97,114]],[[113,97,122],[113,117,120]]]" },
 
                 { widenUtConf, "Array(Nullable(Bool))", "0,1", "ClickHouseArrayValue",
                         new Boolean[] { null, false, true }, new Boolean[] { null, false, true }, "[null, false, true]",
@@ -420,6 +451,16 @@ public abstract class BaseDataProcessorTest {
                         "[null, , B, BC, BCD]", "[NULL,'','B','BC','BCD']" },
                 { widenUtConf, "Array(String)", "4bcd", "ClickHouseArrayValue", new String[] { "", "B", "BC", "BCD" },
                         new String[] { "", "B", "BC", "BCD" }, "[, B, BC, BCD]", "['','B','BC','BCD']" },
+                { widenUtConf, "Array(Array(Array(UInt8)))", "[[3]],[[1,2],[2,1]],[[4,5],[5,4]]",
+                        "ClickHouseArrayValue",
+                        new Short[][][] { { { 3 } }, { { 1, 2 }, { 2, 1 } }, { { 4, 5 }, { 5, 4 } } },
+                        new short[][][] { { { 3 } }, { { 1, 2 }, { 2, 1 } }, { { 4, 5 }, { 5, 4 } } },
+                        "[[[3]], [[1, 2], [2, 1]], [[4, 5], [5, 4]]]", "[[[3]],[[1,2],[2,1]],[[4,5],[5,4]]]" },
+                // better to use UnsignedLong and fix the ArrayStoreException
+                { widenUtConf, "Array(Array(UInt64))", "[1,2,3],[3,2,1],[4,5]", "ClickHouseArrayValue",
+                        new Long[][] { { 1L, 2L, 3L }, { 3L, 2L, 1L }, { 4L, 5L } },
+                        new long[][] { { 1L, 2L, 3L }, { 3L, 2L, 1L }, { 4L, 5L } },
+                        "[[1, 2, 3], [3, 2, 1], [4, 5]]", "[[1,2,3],[3,2,1],[4,5]]" },
 
                 { useObjsConf, "Array(Bool)", "0,1", "ClickHouseArrayValue", new Boolean[] { false, true },
                         new Boolean[] { false, true }, "[false, true]", "[false,true]" },
@@ -453,6 +494,31 @@ public abstract class BaseDataProcessorTest {
                         new Double[] { 0D, 1D, -1D }, "[0.0, 1.0, -1.0]", "[0.0,1.0,-1.0]" },
                 { useObjsConf, "Array(String)", "4bcd", "ClickHouseArrayValue", new String[] { "", "B", "BC", "BCD" },
                         new String[] { "", "B", "BC", "BCD" }, "[, B, BC, BCD]", "['','B','BC','BCD']" },
+                { useObjsConf, "Array(Array(Array(UInt8)))", "[[3]],[[1,2],[2,1]],[[4,5],[5,4]]",
+                        "ClickHouseArrayValue",
+                        new UnsignedByte[][][] { { { UnsignedByte.valueOf((byte) 3) } },
+                                { { UnsignedByte.ONE, UnsignedByte.valueOf((byte) 2) },
+                                        { UnsignedByte.valueOf((byte) 2), UnsignedByte.ONE } },
+                                { { UnsignedByte.valueOf((byte) 4), UnsignedByte.valueOf((byte) 5) },
+                                        { UnsignedByte.valueOf((byte) 5), UnsignedByte.valueOf((byte) 4) } } },
+                        new UnsignedByte[][][] { { { UnsignedByte.valueOf((byte) 3) } },
+                                { { UnsignedByte.ONE, UnsignedByte.valueOf((byte) 2) },
+                                        { UnsignedByte.valueOf((byte) 2), UnsignedByte.ONE } },
+                                { { UnsignedByte.valueOf((byte) 4), UnsignedByte.valueOf((byte) 5) },
+                                        { UnsignedByte.valueOf((byte) 5), UnsignedByte.valueOf((byte) 4) } } },
+                        "[[[3]], [[1, 2], [2, 1]], [[4, 5], [5, 4]]]", "[[[3]],[[1,2],[2,1]],[[4,5],[5,4]]]" },
+                { useObjsConf, "Array(Array(UInt64))", "[1,2,3],[3,2,1],[4,5]", "ClickHouseArrayValue",
+                        new UnsignedLong[][] { { UnsignedLong.ONE, UnsignedLong.TWO, UnsignedLong.valueOf(3L) },
+                                { UnsignedLong.valueOf(3L), UnsignedLong.TWO, UnsignedLong.ONE },
+                                { UnsignedLong.valueOf(4L), UnsignedLong.valueOf(5L) } },
+                        new UnsignedLong[][] { { UnsignedLong.ONE, UnsignedLong.TWO, UnsignedLong.valueOf(3L) },
+                                { UnsignedLong.valueOf(3L), UnsignedLong.TWO, UnsignedLong.ONE },
+                                { UnsignedLong.valueOf(4L), UnsignedLong.valueOf(5L) } },
+                        "[[1, 2, 3], [3, 2, 1], [4, 5]]", "[[1,2,3],[3,2,1],[4,5]]" },
+                { useObjsConf, "Array(Array(String))", "[foo,bar],[qaz,qux]", "ClickHouseArrayValue",
+                        new String[][] { { "foo", "bar" }, { "qaz", "qux" } },
+                        new String[][] { { "foo", "bar" }, { "qaz", "qux" } }, "[[foo, bar], [qaz, qux]]",
+                        "[['foo','bar'],['qaz','qux']]" },
 
                 { combinedConf, "Array(Bool)", "0,1", "ClickHouseArrayValue", new Boolean[] { false, true },
                         new Boolean[] { false, true }, "[false, true]", "[false,true]" },
@@ -480,6 +546,23 @@ public abstract class BaseDataProcessorTest {
                         new Double[] { 0D, 1D, -1D }, "[0.0, 1.0, -1.0]", "[0.0,1.0,-1.0]" },
                 { combinedConf, "Array(String)", "4bcd", "ClickHouseArrayValue", new String[] { "", "B", "BC", "BCD" },
                         new String[] { "", "B", "BC", "BCD" }, "[, B, BC, BCD]", "['','B','BC','BCD']" },
+                { combinedConf, "Array(Array(Array(UInt8)))", "[[3]],[[1,2],[2,1]],[[4,5],[5,4]]",
+                        "ClickHouseArrayValue",
+                        new Short[][][] { { { 3 } }, { { 1, 2 }, { 2, 1 } }, { { 4, 5 }, { 5, 4 } } },
+                        new short[][][] { { { 3 } }, { { 1, 2 }, { 2, 1 } }, { { 4, 5 }, { 5, 4 } } },
+                        "[[[3]], [[1, 2], [2, 1]], [[4, 5], [5, 4]]]", "[[[3]],[[1,2],[2,1]],[[4,5],[5,4]]]" },
+                { combinedConf, "Array(Array(UInt64))", "[1,2,3],[3,2,1],[4,5]", "ClickHouseArrayValue",
+                        new UnsignedLong[][] { { UnsignedLong.ONE, UnsignedLong.TWO, UnsignedLong.valueOf(3L) },
+                                { UnsignedLong.valueOf(3L), UnsignedLong.TWO, UnsignedLong.ONE },
+                                { UnsignedLong.valueOf(4L), UnsignedLong.valueOf(5L) } },
+                        new UnsignedLong[][] { { UnsignedLong.ONE, UnsignedLong.TWO, UnsignedLong.valueOf(3L) },
+                                { UnsignedLong.valueOf(3L), UnsignedLong.TWO, UnsignedLong.ONE },
+                                { UnsignedLong.valueOf(4L), UnsignedLong.valueOf(5L) } },
+                        "[[1, 2, 3], [3, 2, 1], [4, 5]]", "[[1,2,3],[3,2,1],[4,5]]" },
+                { combinedConf, "Array(Array(String))", "[foo,bar],[qaz,qux]", "ClickHouseArrayValue",
+                        new String[][] { { "foo", "bar" }, { "qaz", "qux" } },
+                        new String[][] { { "foo", "bar" }, { "qaz", "qux" } }, "[[foo, bar], [qaz, qux]]",
+                        "[['foo','bar'],['qaz','qux']]" },
         };
     }
 
@@ -1000,13 +1083,19 @@ public abstract class BaseDataProcessorTest {
             String valueClass, Object arrVal, Object objVal, String strVal, String sqlExpr) throws IOException {
         try (ClickHouseInputStream in = getInputData(typeName, dataKey)) {
             ClickHouseColumn column = ClickHouseColumn.of("a", typeName);
-            Assert.assertTrue(column.isArray());
-
             ClickHouseValue value = deserialize(null, config, column, in);
+
             Assert.assertEquals(value.getClass().getSimpleName(), valueClass);
-            Assert.assertEquals(value.asArray(), arrVal);
-            Assert.assertEquals(value.asObject(), objVal);
-            Assert.assertEquals(value.asString(), strVal);
+            if (column.isArray()) {
+                Assert.assertEquals(value.asArray(), arrVal);
+                Assert.assertEquals(value.asObject(), objVal);
+                Assert.assertEquals(value.asString(), strVal);
+            } else if (column.isMap()) {
+                // Assert.assertEquals(value.asObject(), objVal);
+            } else if (column.isTuple()) {
+                Assert.assertEquals(value.asArray(), arrVal);
+                Assert.assertEquals(value.asString(), strVal);
+            }
             Assert.assertEquals(value.toSqlExpression(), sqlExpr);
         }
     }

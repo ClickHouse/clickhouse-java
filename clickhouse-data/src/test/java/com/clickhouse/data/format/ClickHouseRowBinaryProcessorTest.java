@@ -156,6 +156,34 @@ public class ClickHouseRowBinaryProcessorTest extends BaseDataProcessorTest {
                     data = toBytes(4, 0, 1, 66, 2, 66, 67, 3, 66, 67, 68);
                 }
                 break;
+            case "Array(Array(Array(UInt8)))":
+                if ("[[3]],[[1,2],[2,1]],[[4,5],[5,4]]".equals(key)) {
+                    data = toBytes(3, 1, 1, 3, 2, 2, 1, 2, 2, 2, 1, 2, 2, 4, 5, 2, 5, 4);
+                }
+                break;
+            case "Array(Array(UInt64))":
+                if ("[1,2,3],[3,2,1],[4,5]".equals(key)) {
+                    data = toBytes(3, 3, 1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 3, 3,
+                            0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 2, 4, 0, 0, 0, 0, 0, 0,
+                            0, 5, 0, 0, 0, 0, 0, 0, 0);
+                }
+                break;
+            case "Map(String,Array(UInt8))":
+                if ("[1,2,3],[3,2,1],[4,5]".equals(key)) {
+                    data = toBytes(3, 1, 0x61, 3, 1, 2, 3, 1, 0x62, 3, 3, 2, 1, 1, 0x63, 2, 4, 5);
+                }
+                break;
+            case "Tuple(Array(UInt8),Array(UInt8),Array(UInt8))":
+                if ("[1,2,3],[3,2,1],[4,5]".equals(key)) {
+                    data = toBytes(3, 1, 2, 3, 3, 3, 2, 1, 2, 4, 5);
+                }
+                break;
+            case "Array(Array(String))":
+                if ("[foo,bar],[qaz,qux]".equals(key)) {
+                    data = toBytes(2, 2, 3, 0X66, 0X6F, 0X6F, 3, 0X62, 0X61, 0X72, 2, 3, 0X71, 0X61, 0X7A, 3, 0X71,
+                            0X75, 0X78);
+                }
+                break;
             case "Bool":
             case "Int8":
             case "UInt8":

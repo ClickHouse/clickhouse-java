@@ -1,3 +1,8 @@
+## 0.4.1
+
+### Bug Fixes
+* incorrect nested array value. [#1221](https://github.com/ClickHouse/clickhouse-java/issues/1221)
+
 ## 0.4.0, 2023-01-19
 ### Breaking changes
 * refactored `JdbcTypeMapping` to make it extensible. [#1075](https://github.com/ClickHouse/clickhouse-java/pull/1075)
