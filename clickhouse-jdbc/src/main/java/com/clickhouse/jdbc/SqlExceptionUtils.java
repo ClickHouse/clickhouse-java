@@ -102,8 +102,6 @@ public final class SqlExceptionUtils {
                     0, updateCounts, null);
         } else if (e instanceof BatchUpdateException) {
             return (BatchUpdateException) e;
-        } else if (e instanceof ClickHouseException) {
-            return batchUpdateError(e, updateCounts);
         } else if (e instanceof SQLException) {
             SQLException sqlExp = (SQLException) e;
             return new BatchUpdateException(sqlExp.getMessage(), sqlExp.getSQLState(), sqlExp.getErrorCode(),
