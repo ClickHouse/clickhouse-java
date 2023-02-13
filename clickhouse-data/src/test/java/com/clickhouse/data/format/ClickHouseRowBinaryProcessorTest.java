@@ -378,7 +378,8 @@ public class ClickHouseRowBinaryProcessorTest extends BaseDataProcessorTest {
                 ClickHouseColumn.of("a", "Array(FixedString(2))"),
                 BinaryStreamUtilsTest.generateInput(1, 0x41, 0x31));
         Assert.assertTrue(value instanceof ClickHouseArrayValue);
-        Assert.assertEquals(value.asObject(), new Object[] { new byte[] { 65, 49 } });
+        Assert.assertEquals(value.asArray().length, 1);
+        Assert.assertEquals(value.asArray()[0], new byte[] { 65, 49 });
 
         value = deserialize(null, config,
                 ClickHouseColumn.of("a", "Array(String)"),
@@ -389,7 +390,8 @@ public class ClickHouseRowBinaryProcessorTest extends BaseDataProcessorTest {
                 ClickHouseColumn.of("a", "Array(String)"),
                 BinaryStreamUtilsTest.generateInput(1, 2, 0x41, 0x31));
         Assert.assertTrue(value instanceof ClickHouseArrayValue);
-        Assert.assertEquals(value.asObject(), new Object[] { new byte[] { 65, 49 } });
+        Assert.assertEquals(value.asArray().length, 1);
+        Assert.assertEquals(value.asArray()[0], new byte[] { 65, 49 });
     }
 
     @Test(groups = { "unit" })
