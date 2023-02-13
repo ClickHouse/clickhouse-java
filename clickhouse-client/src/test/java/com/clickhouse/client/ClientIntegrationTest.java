@@ -415,7 +415,7 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
             for (ClickHouseClient client : new ClickHouseClient[] { client1, client2, client3, client4, client5 }) {
                 Assert.assertEquals(client.getClass(), Agent.class);
                 Assert.assertEquals(((Agent) client).getClient().getClass(), getClientClass());
-                Assert.assertTrue(client.accept(getProtocol()), "The client should support protocl: " + getProtocol());
+                Assert.assertTrue(client.accept(getProtocol()), "The client should support protocol: " + getProtocol());
             }
         }
     }
