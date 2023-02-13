@@ -362,7 +362,8 @@ public class ClickHouseRowBinaryProcessor extends ClickHouseDataProcessor {
                 deserializer = BinaryDataProcessor::readEnum16;
                 break;
             case FixedString:
-                deserializer = new BinaryDataProcessor.FixedStringSerDe(column);
+                deserializer = config.isUseBinaryString() ? new BinaryDataProcessor.FixedBytesSerDe(column)
+                        : new BinaryDataProcessor.FixedStringSerDe(column);
                 break;
             case Int8:
                 deserializer = BinaryDataProcessor::readByte;
@@ -558,7 +559,8 @@ public class ClickHouseRowBinaryProcessor extends ClickHouseDataProcessor {
                 serializer = BinaryDataProcessor::writeEnum16;
                 break;
             case FixedString:
-                serializer = new BinaryDataProcessor.FixedStringSerDe(column);
+                serializer = config.isUseBinaryString() ? new BinaryDataProcessor.FixedBytesSerDe(column)
+                        : new BinaryDataProcessor.FixedStringSerDe(column);
                 break;
             case Int8:
             case UInt8:
