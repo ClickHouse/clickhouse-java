@@ -24,6 +24,7 @@ import com.clickhouse.data.ClickHouseDataStreamFactory;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseInputStream;
 import com.clickhouse.data.ClickHouseOutputStream;
+import com.clickhouse.data.ClickHousePassThruStream;
 import com.clickhouse.data.ClickHousePipedOutputStream;
 import com.clickhouse.data.ClickHouseValues;
 import com.clickhouse.data.ClickHouseWriter;
@@ -236,7 +237,13 @@ public class StreamBasedPreparedStatement extends AbstractPreparedStatement impl
     public void setObject(int parameterIndex, Object x) throws SQLException {
         ensureOpen();
 
-        if (x instanceof ClickHouseWriter) {
+        if (x instanceof ClickHousePassThruStream) {
+            ClickHousePassThruStream stream = (ClickHousePassThruStream) x;
+            if (!stream.hasInput()) {
+                throw SqlExceptionUtils.clientError("No input available in the given pass-thru stream");
+            }
+            value = stream.newInputStream(getConfig().getWriteBufferSize(), null);
+        } else if (x instanceof ClickHouseWriter) {
             final ClickHouseWriter writer = (ClickHouseWriter) x;
             final ClickHousePipedOutputStream stream = ClickHouseDataStreamFactory.getInstance() // NOSONAR
                     .createPipedOutputStream(getConfig());
@@ -259,7 +266,8 @@ public class StreamBasedPreparedStatement extends AbstractPreparedStatement impl
             value = ClickHouseInputStream.of((File) x);
         } else {
             throw SqlExceptionUtils
-                    .clientError("Only byte[], String, File, InputStream and ClickHouseWriter are supported");
+                    .clientError(
+                            "Only byte[], String, File, InputStream, ClickHousePassThruStream, and ClickHouseWriter are supported");
         }
     }
 

@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.io.Serializable;
 import java.io.UncheckedIOException;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseException;
@@ -15,8 +16,7 @@ import com.clickhouse.client.grpc.impl.Stats;
 import com.clickhouse.data.ClickHouseInputStream;
 
 public class ClickHouseGrpcResponse extends ClickHouseStreamResponse {
-    private final ClickHouseStreamObserver observer;
-    private final Result result;
+    private final transient ClickHouseStreamObserver observer;
 
     static void checkError(Result result) {
         if (result != null && result.hasException()) {
@@ -31,7 +31,6 @@ public class ClickHouseGrpcResponse extends ClickHouseStreamResponse {
         super(config, observer.getInputStream(), settings, null, observer.getSummary());
 
         this.observer = observer;
-        this.result = null;
     }
 
     protected ClickHouseGrpcResponse(ClickHouseConfig config, Map<String, Serializable> settings, Result result)
@@ -46,7 +45,6 @@ public class ClickHouseGrpcResponse extends ClickHouseStreamResponse {
                 new ClickHouseResponseSummary(null, null));
 
         this.observer = null;
-        this.result = result;
         if (result.hasProgress()) {
             Progress p = result.getProgress();
             summary.update(new ClickHouseResponseSummary.Progress(p.getReadRows(), p.getReadBytes(),
@@ -63,5 +61,18 @@ public class ClickHouseGrpcResponse extends ClickHouseStreamResponse {
     @Override
     public ClickHouseResponseSummary getSummary() {
         return summary;
+    }
+
+    @Override
+    public void close() {
+        try {
+            if (observer != null) {
+                observer.awaitCompletion(config.getSocketTimeout(), TimeUnit.MILLISECONDS);
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } finally {
+            super.close();
+        }
     }
 }

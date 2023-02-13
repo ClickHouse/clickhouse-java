@@ -336,6 +336,7 @@ public class ClickHouseGrpcClient extends AbstractClient<ManagedChannel> {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     protected ClickHouseResponse sendAsync(ClickHouseRequest<?> sealedRequest, Object... args)
             throws ClickHouseException, IOException {
         StreamObserver<QueryInfo> requestObserver = (StreamObserver<QueryInfo>) args[0];

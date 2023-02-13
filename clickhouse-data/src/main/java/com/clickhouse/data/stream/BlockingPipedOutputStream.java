@@ -112,14 +112,14 @@ public class BlockingPipedOutputStream extends ClickHousePipedOutputStream {
             updateBuffer(false);
         }
 
-        buffer = ClickHouseByteBuffer.EMPTY_BUFFER;
+        // buffer = ClickHouseByteBuffer.EMPTY_BUFFER;
         try {
             if (timeout > 0L) {
-                if (!queue.offer(buffer, timeout, TimeUnit.MILLISECONDS)) {
+                if (!queue.offer(ClickHouseByteBuffer.EMPTY_BUFFER, timeout, TimeUnit.MILLISECONDS)) {
                     throw new IOException(ClickHouseUtils.format("Close stream timed out after %d ms", timeout));
                 }
             } else {
-                queue.put(buffer);
+                queue.put(ClickHouseByteBuffer.EMPTY_BUFFER);
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();

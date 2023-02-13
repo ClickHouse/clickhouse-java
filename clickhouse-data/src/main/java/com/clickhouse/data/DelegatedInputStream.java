@@ -1,31 +1,30 @@
-package com.clickhouse.data.stream;
+package com.clickhouse.data;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.util.Iterator;
 
-import com.clickhouse.data.ClickHouseByteBuffer;
-import com.clickhouse.data.ClickHouseChecker;
-import com.clickhouse.data.ClickHouseDataConfig;
-import com.clickhouse.data.ClickHouseDataStreamFactory;
-import com.clickhouse.data.ClickHouseDataUpdater;
-import com.clickhouse.data.ClickHouseFile;
-import com.clickhouse.data.ClickHouseInputStream;
-import com.clickhouse.data.ClickHouseOutputStream;
-import com.clickhouse.data.ClickHousePassThruStream;
-import com.clickhouse.data.ClickHousePipedOutputStream;
-import com.clickhouse.data.ClickHouseWriter;
-
-public class DelegatedInputStream extends ClickHouseInputStream {
+final class DelegatedInputStream extends ClickHouseInputStream {
     private final ClickHouseInputStream input;
 
-    public DelegatedInputStream(ClickHousePassThruStream stream, ClickHouseInputStream input, OutputStream copyTo,
+    @Override
+    protected ClickHouseByteBuffer getBuffer() {
+        return input.getBuffer();
+    }
+
+    @Override
+    protected ClickHouseByteBuffer nextBuffer() throws IOException {
+        return input.nextBuffer();
+    }
+
+    DelegatedInputStream(ClickHousePassThruStream stream, ClickHouseInputStream input, OutputStream copyTo,
             Runnable postCloseAction) {
         super(stream, copyTo, postCloseAction);
 
         this.input = ClickHouseChecker.nonNull(input, TYPE_NAME);
     }
 
-    public DelegatedInputStream(ClickHouseDataConfig config, ClickHouseWriter writer) {
+    DelegatedInputStream(ClickHouseDataConfig config, ClickHouseWriter writer) {
         super(null, null, null);
 
         if (writer == null) {
@@ -42,7 +41,7 @@ public class DelegatedInputStream extends ClickHouseInputStream {
         this.input = stream.getInputStream();
     }
 
-    public DelegatedInputStream(ClickHouseWriter writer) {
+    DelegatedInputStream(ClickHouseWriter writer) {
         this(null, writer);
     }
 
@@ -69,6 +68,11 @@ public class DelegatedInputStream extends ClickHouseInputStream {
     @Override
     public int read() throws IOException {
         return input.read();
+    }
+
+    @Override
+    public int read(byte[] b, int off, int len) throws IOException {
+        return input.read(b, off, len);
     }
 
     @Override
@@ -107,5 +111,10 @@ public class DelegatedInputStream extends ClickHouseInputStream {
     @Override
     public long skip(long n) throws IOException {
         return input.skip(n);
+    }
+
+    @Override
+    public Iterator<ClickHouseByteBuffer> iterator() {
+        return input.iterator();
     }
 }

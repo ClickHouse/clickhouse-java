@@ -1,4 +1,4 @@
-package com.clickhouse.data.stream;
+package com.clickhouse.data;
 
 import java.io.IOException;
 

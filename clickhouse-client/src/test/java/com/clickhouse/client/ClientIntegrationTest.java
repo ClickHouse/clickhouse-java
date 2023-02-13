@@ -1541,6 +1541,8 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
             }
         }
         Assert.assertNotNull(summary);
+        long fileSize = Files.size(file.toPath());
+        Assert.assertTrue(fileSize > 0L, "Expects an non-empty file being created");
         try (InputStream in = gzipCompressed ? new GZIPInputStream(new FileInputStream(file))
                 : new FileInputStream(file); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             ClickHouseInputStream.pipe(in, out, 512);

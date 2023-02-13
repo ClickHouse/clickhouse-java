@@ -10,11 +10,15 @@ import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.math.BigInteger;
 import java.net.URL;
+import java.nio.Buffer;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Random;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
@@ -22,6 +26,7 @@ import java.util.function.BiFunction;
 import com.clickhouse.data.ClickHouseByteBuffer;
 import com.clickhouse.data.ClickHouseInputStream;
 import com.clickhouse.data.ClickHouseOutputStream;
+import com.clickhouse.data.format.BinaryStreamUtils;
 
 import org.testng.Assert;
 import org.testng.annotations.DataProvider;
@@ -193,7 +198,7 @@ public class InputStreamImplTest {
                         null) },
                 { new NonBlockingInputStream(
                         AdaptiveQueue.create(CapacityPolicy.linearDynamicCapacity(0, 0, 0),
-                                ClickHouseByteBuffer.EMPTY_BYTES),
+                                ClickHouseByteBuffer.EMPTY_BUFFER),
                         0, null) }
         };
     }
@@ -285,19 +290,23 @@ public class InputStreamImplTest {
                                 ByteBuffer.wrap(new byte[] { 0x70 }), ClickHouseByteBuffer.EMPTY_BUFFER)),
                         0, null) },
                 { new NonBlockingInputStream(AdaptiveQueue.create(CapacityPolicy.linearDynamicCapacity(0, 0, 0),
-                        Arrays.asList(new byte[] { 0x65, 0x66, 0x67, 0x68, 0x69, 0x70 },
-                                ClickHouseByteBuffer.EMPTY_BYTES)),
+                        Arrays.asList(ByteBuffer.wrap(new byte[] { 0x65, 0x66, 0x67, 0x68, 0x69, 0x70 }),
+                                ClickHouseByteBuffer.EMPTY_BUFFER)),
                         0, null) },
                 { new NonBlockingInputStream(
                         AdaptiveQueue.create(CapacityPolicy.linearDynamicCapacity(0, 0, 0),
-                                Arrays.asList(new byte[] { 0x65 }, new byte[] { 0x66 }, new byte[] { 0x67 },
-                                        new byte[] { 0x68 }, new byte[] { 0x69 }, new byte[] { 0x70 },
-                                        ClickHouseByteBuffer.EMPTY_BYTES)),
+                                Arrays.asList(ByteBuffer.wrap(new byte[] { 0x65 }),
+                                        ByteBuffer.wrap(new byte[] { 0x66 }), ByteBuffer.wrap(new byte[] { 0x67 }),
+                                        ByteBuffer.wrap(new byte[] { 0x68 }), ByteBuffer.wrap(new byte[] { 0x69 }),
+                                        ByteBuffer.wrap(new byte[] { 0x70 }),
+                                        ClickHouseByteBuffer.EMPTY_BUFFER)),
                         0, null) },
                 { new NonBlockingInputStream(
                         AdaptiveQueue.create(CapacityPolicy.linearDynamicCapacity(0, 0, 0),
-                                Arrays.asList(new byte[] { 0x65, 0x66 }, new byte[] { 0x67 }, new byte[] { 0x68, 0x69 },
-                                        new byte[] { 0x70 }, ClickHouseByteBuffer.EMPTY_BYTES)),
+                                Arrays.asList(ByteBuffer.wrap(new byte[] { 0x65, 0x66 }),
+                                        ByteBuffer.wrap(new byte[] { 0x67 }),
+                                        ByteBuffer.wrap(new byte[] { 0x68, 0x69 }),
+                                        ByteBuffer.wrap(new byte[] { 0x70 }), ClickHouseByteBuffer.EMPTY_BUFFER)),
                         0, null) },
 
         };
@@ -677,6 +686,48 @@ public class InputStreamImplTest {
                     return -1;
                 });
             });
+        }
+    }
+
+    @Test(groups = { "unit" })
+    public void testReadAllBuffers() throws IOException {
+        Random r = new Random(System.currentTimeMillis());
+        int bufferSize = 32 + r.nextInt(256);
+        byte[] bytes = new byte[2000 + r.nextInt(100000)];
+        for (int i = 0; i < bytes.length; i++) {
+            bytes[i] = (byte) i;
+        }
+
+        try (ClickHouseInputStream in = ClickHouseInputStream.of(new ByteArrayInputStream(bytes), bufferSize, null)) {
+            int i = 0;
+            for (ClickHouseByteBuffer buf : in) {
+                Assert.assertFalse(buf.isEmpty());
+                for (int j = buf.position(); j < buf.length(); j++) {
+                    Assert.assertEquals(buf.array()[j], (byte) (i++));
+                }
+            }
+            Assert.assertEquals(i, bytes.length);
+        }
+
+        List<ByteBuffer> buffers = new LinkedList<>();
+        for (int i = 0; i < bytes.length;) {
+            int size = 3 + r.nextInt(bufferSize * 2);
+            ByteBuffer b = size % 7 == 0 ? ByteBuffer.allocateDirect(size) : ByteBuffer.allocate(size);
+            b.put(bytes, i, Math.min(size, bytes.length - i));
+            i += b.position();
+            ((Buffer) b).limit(b.position());
+            ((Buffer) b).rewind();
+            buffers.add(b);
+        }
+        try (ClickHouseInputStream in = ClickHouseInputStream.of(buffers.toArray(new ByteBuffer[0]))) {
+            int i = 0;
+            for (ClickHouseByteBuffer buf : in) {
+                Assert.assertFalse(buf.isEmpty());
+                for (int j = buf.position(); j < buf.length(); j++) {
+                    Assert.assertEquals(buf.array()[j], bytes[i++]);
+                }
+            }
+            Assert.assertEquals(i, bytes.length);
         }
     }
 

@@ -1,5 +1,6 @@
 package com.clickhouse.data;
 
+import java.nio.Buffer;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Collections;
@@ -26,12 +27,15 @@ public class ClickHouseByteBufferTest {
                 ClickHouseByteBuffer.newInstance());
         Assert.assertEquals(ClickHouseByteBuffer.of(new byte[] { 1, 2, 3 }).update(ByteBuffer.allocate(0)),
                 ClickHouseByteBuffer.newInstance());
-        Assert.assertEquals(ClickHouseByteBuffer.of(new byte[] { 1, 2, 3 }).update(ByteBuffer.allocate(1).limit(0)),
+        Assert.assertEquals(
+                ClickHouseByteBuffer.of(new byte[] { 1, 2, 3 })
+                        .update((ByteBuffer) ((Buffer) ByteBuffer.allocate(1)).limit(0)),
                 ClickHouseByteBuffer.newInstance());
         Assert.assertEquals(ClickHouseByteBuffer.of(new byte[] { 1, 2, 3 }).update(ByteBuffer.allocateDirect(0)),
                 ClickHouseByteBuffer.newInstance());
         Assert.assertEquals(
-                ClickHouseByteBuffer.of(new byte[] { 1, 2, 3 }).update(ByteBuffer.allocateDirect(1).limit(0)),
+                ClickHouseByteBuffer.of(new byte[] { 1, 2, 3 })
+                        .update((ByteBuffer) ((Buffer) ByteBuffer.allocateDirect(1)).limit(0)),
                 ClickHouseByteBuffer.newInstance());
 
         Assert.assertEquals(ClickHouseByteBuffer.of(new byte[] { 1, 2, 3 }).update((byte[]) null),

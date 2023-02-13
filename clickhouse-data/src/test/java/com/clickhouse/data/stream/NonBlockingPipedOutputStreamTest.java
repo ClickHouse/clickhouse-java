@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -29,7 +30,7 @@ public class NonBlockingPipedOutputStreamTest {
             Assert.assertTrue(e.getMessage().indexOf("Read timed out") == 0);
         }
 
-        stream.queue.add(new byte[] { (byte) 3 });
+        stream.queue.add(ByteBuffer.wrap(new byte[] { (byte) 3 }));
         Assert.assertEquals(stream.queue.size(), 1);
         try (InputStream in = stream.getInputStream()) {
             Assert.assertEquals(in.read(), 3);
@@ -39,7 +40,7 @@ public class NonBlockingPipedOutputStreamTest {
             Assert.assertTrue(e.getMessage().indexOf("Read timed out") == 0);
         }
 
-        stream.queue.add(new byte[] { (byte) 3, (byte) 4 });
+        stream.queue.add(ByteBuffer.wrap(new byte[] { (byte) 3, (byte) 4 }));
         Assert.assertEquals(stream.queue.size(), 1);
         try (InputStream in = stream.getInputStream()) {
             Assert.assertEquals(in.read(), 3);
@@ -51,15 +52,15 @@ public class NonBlockingPipedOutputStreamTest {
         }
 
         stream.queue.clear();
-        stream.queue.add(ClickHouseByteBuffer.EMPTY_BYTES);
+        stream.queue.add(ClickHouseByteBuffer.EMPTY_BUFFER);
         Assert.assertEquals(stream.queue.size(), 1);
         try (InputStream in = stream.getInputStream()) {
             Assert.assertEquals(in.read(), -1);
         }
 
-        stream.queue.add(new byte[] { (byte) 3, (byte) 4 });
+        stream.queue.add(ByteBuffer.wrap(new byte[] { (byte) 3, (byte) 4 }));
         // stream.queue.put(buf);
-        stream.queue.add(ClickHouseByteBuffer.EMPTY_BYTES);
+        stream.queue.add(ClickHouseByteBuffer.EMPTY_BUFFER);
         Assert.assertEquals(stream.queue.size(), 2);
         try (InputStream in = stream.getInputStream()) {
             Assert.assertEquals(in.read(), 3);
@@ -95,7 +96,7 @@ public class NonBlockingPipedOutputStreamTest {
             Assert.assertTrue(e.getMessage().indexOf("Read timed out") == 0);
         }
 
-        stream.queue.add(new byte[] { (byte) 3, (byte) 4 });
+        stream.queue.add(ByteBuffer.wrap(new byte[] { (byte) 3, (byte) 4 }));
         Assert.assertEquals(stream.queue.size(), 1);
         try (InputStream in = stream.getInputStream()) {
             in.read(bytes);
@@ -103,7 +104,7 @@ public class NonBlockingPipedOutputStreamTest {
         } catch (IOException e) {
             Assert.assertTrue(e.getMessage().indexOf("Read timed out") == 0);
         }
-        stream.queue.add(new byte[] { (byte) 3, (byte) 4 });
+        stream.queue.add(ByteBuffer.wrap(new byte[] { (byte) 3, (byte) 4 }));
         Assert.assertEquals(stream.queue.size(), 1);
         try (InputStream in = stream.getInputStream()) {
             Assert.assertEquals(in.read(bytes, 0, 2), 2);
@@ -112,7 +113,7 @@ public class NonBlockingPipedOutputStreamTest {
         } catch (IOException e) {
             Assert.assertTrue(e.getMessage().indexOf("Read timed out") == 0);
         }
-        stream.queue.add(new byte[] { (byte) 3, (byte) 4 });
+        stream.queue.add(ByteBuffer.wrap(new byte[] { (byte) 3, (byte) 4 }));
         Assert.assertEquals(stream.queue.size(), 1);
         try (InputStream in = stream.getInputStream()) {
             in.read(bytes, 0, 3);
@@ -121,8 +122,8 @@ public class NonBlockingPipedOutputStreamTest {
             Assert.assertTrue(e.getMessage().indexOf("Read timed out") == 0);
         }
 
-        stream.queue.add(new byte[] { (byte) 3, (byte) 4 });
-        stream.queue.add(ClickHouseByteBuffer.EMPTY_BYTES);
+        stream.queue.add(ByteBuffer.wrap(new byte[] { (byte) 3, (byte) 4 }));
+        stream.queue.add(ClickHouseByteBuffer.EMPTY_BUFFER);
         Assert.assertEquals(stream.queue.size(), 2);
         try (InputStream in = stream.getInputStream()) {
             Assert.assertEquals(in.read(bytes, 0, 3), 2);
@@ -153,8 +154,8 @@ public class NonBlockingPipedOutputStreamTest {
             Assert.assertEquals(stream.queue.size(), 1);
             out.flush();
             Assert.assertEquals(stream.queue.size(), 2);
-            Assert.assertEquals(stream.queue.poll(), new byte[] { (byte) 5, (byte) 6 });
-            Assert.assertEquals(stream.queue.poll(), new byte[] { (byte) 7 });
+            Assert.assertEquals(stream.queue.poll().array(), new byte[] { (byte) 5, (byte) 6 });
+            Assert.assertEquals(stream.queue.poll().array(), new byte[] { (byte) 7, 0 });
         }
 
         stream = new NonBlockingPipedOutputStream(1, 1, 2, CapacityPolicy.fixedCapacity(1));
@@ -194,8 +195,8 @@ public class NonBlockingPipedOutputStreamTest {
             Assert.assertEquals(stream.queue.size(), 1);
             out.flush();
             Assert.assertEquals(stream.queue.size(), 2);
-            Assert.assertEquals(stream.queue.poll(), new byte[] { (byte) 9, (byte) 10 });
-            Assert.assertEquals(stream.queue.poll(), new byte[] { (byte) 12 });
+            Assert.assertEquals(stream.queue.poll().array(), new byte[] { (byte) 9, (byte) 10 });
+            Assert.assertEquals(stream.queue.poll().array(), new byte[] { (byte) 12, 0 });
         }
 
         try (OutputStream out = stream) {

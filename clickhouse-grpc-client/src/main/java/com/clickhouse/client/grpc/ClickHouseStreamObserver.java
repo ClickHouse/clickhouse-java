@@ -2,8 +2,8 @@ package com.clickhouse.client.grpc;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import io.grpc.Status;
@@ -34,8 +34,8 @@ public class ClickHouseStreamObserver implements StreamObserver<Result> {
 
     private final ClickHouseNode server;
 
-    private final CountDownLatch startLatch;
-    private final CountDownLatch finishLatch;
+    private final AtomicBoolean started;
+    private final AtomicBoolean completed;
 
     private final ClickHouseOutputStream stream;
     private final ClickHouseInputStream input;
@@ -47,8 +47,8 @@ public class ClickHouseStreamObserver implements StreamObserver<Result> {
     protected ClickHouseStreamObserver(ClickHouseConfig config, ClickHouseNode server, ClickHouseOutputStream output) {
         this.server = server;
 
-        this.startLatch = new CountDownLatch(1);
-        this.finishLatch = new CountDownLatch(1);
+        this.started = new AtomicBoolean(false);
+        this.completed = new AtomicBoolean(false);
 
         Runnable postCloseAction = () -> {
             IOException exp = getError();
@@ -74,7 +74,7 @@ public class ClickHouseStreamObserver implements StreamObserver<Result> {
     }
 
     protected void checkClosed() {
-        if (finishLatch.getCount() == 0) {
+        if (completed.get()) {
             throw new IllegalStateException("closed observer");
         }
     }
@@ -82,19 +82,21 @@ public class ClickHouseStreamObserver implements StreamObserver<Result> {
     protected boolean updateStatus(Result result) {
         summary.update();
 
-        log.debug(() -> {
-            for (LogEntry e : result.getLogsList()) {
-                String logLevel = e.getLevel().name();
-                int index = logLevel.indexOf('_');
-                if (index > 0) {
-                    logLevel = logLevel.substring(index + 1);
+        if (log.isDebugEnabled()) {
+            log.debug(() -> {
+                for (LogEntry e : result.getLogsList()) {
+                    String logLevel = e.getLevel().name();
+                    int index = logLevel.indexOf('_');
+                    if (index > 0) {
+                        logLevel = logLevel.substring(index + 1);
+                    }
+                    log.info("%s.%s [ %s ] {%s} <%s> %s: %s", e.getTime(), e.getTimeMicroseconds(), e.getThreadId(),
+                            e.getQueryId(), logLevel, e.getSource(), e.getText());
                 }
-                log.info("%s.%s [ %s ] {%s} <%s> %s: %s", e.getTime(), e.getTimeMicroseconds(), e.getThreadId(),
-                        e.getQueryId(), logLevel, e.getSource(), e.getText());
-            }
 
-            return ClickHouseUtils.format("Logged %d entries from server", result.getLogsList().size());
-        });
+                return ClickHouseUtils.format("Logged %d entries from server", result.getLogsList().size());
+            });
+        }
 
         boolean proceed = true;
 
@@ -130,7 +132,7 @@ public class ClickHouseStreamObserver implements StreamObserver<Result> {
     }
 
     public boolean isCompleted() {
-        return finishLatch.getCount() == 0;
+        return completed.get();
     }
 
     public boolean isCancelled() {
@@ -156,13 +158,13 @@ public class ClickHouseStreamObserver implements StreamObserver<Result> {
             if (updateStatus(value)) {
                 try {
                     // TODO close output stream if value.getOutput().isEmpty()?
-                    stream.transferBytes(value.getOutput().toByteArray());
+                    stream.writeBytes(value.getOutput().toByteArray());
                 } catch (IOException e) {
                     onError(e);
                 }
             }
         } finally {
-            startLatch.countDown();
+            started.compareAndSet(false, true);
         }
     }
 
@@ -171,8 +173,11 @@ public class ClickHouseStreamObserver implements StreamObserver<Result> {
         try {
             log.error("Query failed", t);
 
-            errorRef.compareAndSet(null, new IOException(t));
+            if (!errorRef.compareAndSet(null, new IOException(t))) {
+                log.warn("Overriding exception", errorRef.get());
+            }
             try {
+                log.debug("Closing output stream: " + stream);
                 stream.close();
             } catch (IOException e) {
                 // ignore
@@ -180,8 +185,8 @@ public class ClickHouseStreamObserver implements StreamObserver<Result> {
             checkClosed();
             // Status status = Status.fromThrowable(error = t);
         } finally {
-            startLatch.countDown();
-            finishLatch.countDown();
+            started.compareAndSet(false, true);
+            completed.compareAndSet(false, true);
         }
     }
 
@@ -195,9 +200,8 @@ public class ClickHouseStreamObserver implements StreamObserver<Result> {
             errorRef.compareAndSet(null, e);
             log.error("Failed to flush output", e);
         } finally {
-            startLatch.countDown();
-            finishLatch.countDown();
-
+            started.compareAndSet(false, true);
+            completed.compareAndSet(false, true);
             try {
                 stream.close();
             } catch (IOException e) {
@@ -207,11 +211,11 @@ public class ClickHouseStreamObserver implements StreamObserver<Result> {
     }
 
     public boolean await(long timeout, TimeUnit unit) throws InterruptedException {
-        return startLatch.await(timeout, unit);
+        return ClickHouseUtils.waitFor(started, timeout, unit);
     }
 
     public boolean awaitCompletion(long timeout, TimeUnit unit) throws InterruptedException {
-        return finishLatch.await(timeout, unit);
+        return ClickHouseUtils.waitFor(completed, timeout, unit);
     }
 
     public ClickHouseInputStream getInputStream() {

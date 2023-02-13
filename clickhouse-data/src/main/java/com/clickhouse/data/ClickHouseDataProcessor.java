@@ -3,7 +3,9 @@ package com.clickhouse.data;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.Serializable;
+import java.io.StreamCorruptedException;
 import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -130,6 +132,19 @@ public abstract class ClickHouseDataProcessor {
         final ClickHouseRecord r = config.isReuseValueWrapper() ? currentRecord : currentRecord.copy();
         try {
             readAndFill(r);
+        } catch (StreamCorruptedException e) {
+            byte[] search = "ode: ".getBytes(StandardCharsets.US_ASCII);
+            byte[] bytes = input.getBuffer().array();
+            int index = ClickHouseUtils.indexOf(bytes, search);
+            if (index > 0 && bytes[--index] == (byte) 'C') {
+                throw new UncheckedIOException(new String(bytes, index, bytes.length - index, StandardCharsets.UTF_8),
+                        e);
+            } else {
+                throw new UncheckedIOException(
+                        ClickHouseUtils.format(ERROR_FAILED_TO_READ, readPosition + 1, columns.length,
+                                columns[readPosition]),
+                        e);
+            }
         } catch (EOFException e) {
             if (readPosition == 0) { // end of the stream, which is fine
                 throw new NoSuchElementException("No more record");
