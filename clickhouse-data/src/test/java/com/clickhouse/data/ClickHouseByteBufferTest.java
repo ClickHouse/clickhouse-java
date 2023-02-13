@@ -1,5 +1,6 @@
 package com.clickhouse.data;
 
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -10,7 +11,7 @@ import org.testng.annotations.Test;
 public class ClickHouseByteBufferTest {
     @Test(groups = { "unit" })
     public void testEmptyArray() {
-        Assert.assertEquals(ClickHouseByteBuffer.of(null), ClickHouseByteBuffer.newInstance());
+        Assert.assertEquals(ClickHouseByteBuffer.of((byte[]) null), ClickHouseByteBuffer.newInstance());
         Assert.assertEquals(ClickHouseByteBuffer.of((byte[]) null, -1, -1), ClickHouseByteBuffer.newInstance());
         Assert.assertEquals(ClickHouseByteBuffer.of((List<byte[]>) null, -1, -1),
                 ClickHouseByteBuffer.newInstance());
@@ -21,7 +22,19 @@ public class ClickHouseByteBufferTest {
         Assert.assertEquals(ClickHouseByteBuffer.of(new byte[] { 1, 2, 3 }, -1, 0),
                 ClickHouseByteBuffer.newInstance());
 
-        Assert.assertEquals(ClickHouseByteBuffer.of(new byte[] { 1, 2, 3 }).update(null),
+        Assert.assertEquals(ClickHouseByteBuffer.of(new byte[] { 1, 2, 3 }).update((ByteBuffer) null),
+                ClickHouseByteBuffer.newInstance());
+        Assert.assertEquals(ClickHouseByteBuffer.of(new byte[] { 1, 2, 3 }).update(ByteBuffer.allocate(0)),
+                ClickHouseByteBuffer.newInstance());
+        Assert.assertEquals(ClickHouseByteBuffer.of(new byte[] { 1, 2, 3 }).update(ByteBuffer.allocate(1).limit(0)),
+                ClickHouseByteBuffer.newInstance());
+        Assert.assertEquals(ClickHouseByteBuffer.of(new byte[] { 1, 2, 3 }).update(ByteBuffer.allocateDirect(0)),
+                ClickHouseByteBuffer.newInstance());
+        Assert.assertEquals(
+                ClickHouseByteBuffer.of(new byte[] { 1, 2, 3 }).update(ByteBuffer.allocateDirect(1).limit(0)),
+                ClickHouseByteBuffer.newInstance());
+
+        Assert.assertEquals(ClickHouseByteBuffer.of(new byte[] { 1, 2, 3 }).update((byte[]) null),
                 ClickHouseByteBuffer.newInstance());
         Assert.assertEquals(ClickHouseByteBuffer.of(new byte[] { 1, 2, 3 }).update((byte[]) null, -1, -1),
                 ClickHouseByteBuffer.newInstance());
@@ -31,6 +44,27 @@ public class ClickHouseByteBufferTest {
         Assert.assertEquals(
                 ClickHouseByteBuffer.of(new byte[] { 1, 2, 3 }).update(Collections.emptyList(), -1, -1),
                 ClickHouseByteBuffer.newInstance());
+    }
+
+    @Test(groups = { "unit" })
+    public void testCopy() {
+        ClickHouseByteBuffer buf = ClickHouseByteBuffer.newInstance();
+        Assert.assertFalse(buf == buf.copy(false));
+        Assert.assertFalse(buf == buf.copy(true));
+        Assert.assertEquals(buf.copy(false), buf);
+        Assert.assertEquals(buf.copy(true), buf);
+
+        buf = ClickHouseByteBuffer.of(new byte[] { 1, 2, 3, 4, 5, 6 });
+        Assert.assertFalse(buf == buf.copy(false));
+        Assert.assertFalse(buf == buf.copy(true));
+        Assert.assertEquals(buf.copy(false), buf);
+        Assert.assertEquals(buf.copy(true), buf);
+
+        buf = ClickHouseByteBuffer.of(new byte[] { 1, 2, 3, 4, 5, 6 }, 3, 2);
+        Assert.assertFalse(buf == buf.copy(false));
+        Assert.assertFalse(buf == buf.copy(true));
+        Assert.assertEquals(buf.copy(false), buf);
+        Assert.assertNotEquals(buf.copy(true), buf);
     }
 
     @Test(groups = { "unit" })
@@ -103,6 +137,11 @@ public class ClickHouseByteBufferTest {
 
     @Test(groups = { "unit" })
     public void testUpdate() {
+        Assert.assertEquals(ClickHouseByteBuffer.of(ByteBuffer.wrap(new byte[] { 1, 2, 3 }, 1, 2)).reset(),
+                ClickHouseByteBuffer.newInstance());
+        Assert.assertEquals(ClickHouseByteBuffer.newInstance().update(ByteBuffer.wrap(new byte[] { 1, 2, 3 }, 1, 2)),
+                ClickHouseByteBuffer.of(new byte[] { 1, 2, 3 }, 1, 2));
+
         Assert.assertEquals(ClickHouseByteBuffer.of(new byte[] { 1, 2, 3 }, 1, 2).reset(),
                 ClickHouseByteBuffer.newInstance());
         Assert.assertEquals(ClickHouseByteBuffer.newInstance().update(new byte[] { 1, 2, 3 }, 1, 2),
