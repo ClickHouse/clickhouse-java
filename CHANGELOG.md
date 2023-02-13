@@ -3,6 +3,7 @@
 ### Bug Fixes
 * incorrect nested array value. [#1221](https://github.com/ClickHouse/clickhouse-java/issues/1221)
 * potential endless loop when handling batch update error. [#1233](https://github.com/ClickHouse/clickhouse-java/issues/1233)
+* exception when deserializing Array(FixedString(2)) from RowBinary. [#1235](https://github.com/ClickHouse/clickhouse-java/issues/1235)
 
 ## 0.4.0, 2023-01-19
 ### Breaking changes

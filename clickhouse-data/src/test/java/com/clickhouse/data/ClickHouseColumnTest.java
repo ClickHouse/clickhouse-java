@@ -97,6 +97,36 @@ public class ClickHouseColumnTest {
         Assert.assertEquals(column.getEstimatedLength(), 1);
         list.clear();
 
+        args = "Array(FixedString(2))";
+        Assert.assertEquals(ClickHouseColumn.readColumn(args, 0, args.length(), null, list), args.length());
+        Assert.assertEquals(list.size(), 1);
+        column = list.get(0);
+        Assert.assertEquals(column.getNestedColumns().size(), 1);
+        Assert.assertTrue(column.getArrayBaseColumn() == column.getNestedColumns().get(0),
+                "Nested column should be same as base column of the array");
+        Assert.assertFalse(column.isFixedLength(), "Should not have fixed length in byte");
+        Assert.assertEquals(column.getEstimatedLength(), 1);
+        column = column.getNestedColumns().get(0);
+        Assert.assertTrue(column.isFixedLength(), "FixedString should have fixed length in byte");
+        Assert.assertEquals(column.getNestedColumns().size(), 0);
+        Assert.assertEquals(column.getEstimatedLength(), 2);
+        list.clear();
+
+        args = "Array(String)";
+        Assert.assertEquals(ClickHouseColumn.readColumn(args, 0, args.length(), null, list), args.length());
+        Assert.assertEquals(list.size(), 1);
+        column = list.get(0);
+        Assert.assertEquals(column.getNestedColumns().size(), 1);
+        Assert.assertTrue(column.getArrayBaseColumn() == column.getNestedColumns().get(0),
+                "Nested column should be same as base column of the array");
+        Assert.assertFalse(column.isFixedLength(), "Should not have fixed length in byte");
+        Assert.assertEquals(column.getEstimatedLength(), 1);
+        column = column.getNestedColumns().get(0);
+        Assert.assertFalse(column.isFixedLength(), "Should not have fixed length in byte");
+        Assert.assertEquals(column.getNestedColumns().size(), 0);
+        Assert.assertEquals(column.getEstimatedLength(), 1);
+        list.clear();
+
         args = " Tuple(Nullable(FixedString(3)), Array(UInt8),String not null) ";
         Assert.assertEquals(ClickHouseColumn.readColumn(args, 1, args.length(), null, list), args.length() - 2);
         Assert.assertEquals(list.size(), 1);
@@ -246,6 +276,59 @@ public class ClickHouseColumnTest {
         ClickHouseColumn c = ClickHouseColumn.of("a", "SimpleAggregateFunction(max, UInt64)");
         Assert.assertEquals(c.getDataType(), ClickHouseDataType.SimpleAggregateFunction);
         Assert.assertEquals(c.getNestedColumns().get(0).getDataType(), ClickHouseDataType.UInt64);
+    }
+
+    @Test(groups = { "unit" })
+    public void testGetObjectClassForArray() {
+        ClickHouseDataConfig defaultConfig = new ClickHouseTestDataConfig();
+        ClickHouseDataConfig widenUnsignedConfig = new ClickHouseTestDataConfig() {
+            @Override
+            public boolean isWidenUnsignedTypes() {
+                return true;
+            };
+        };
+        ClickHouseDataConfig binStringConfig = new ClickHouseTestDataConfig() {
+            @Override
+            public boolean isUseBinaryString() {
+                return true;
+            };
+        };
+        ClickHouseDataConfig objArrayConfig = new ClickHouseTestDataConfig() {
+            @Override
+            public boolean isUseObjectsInArray() {
+                return true;
+            };
+        };
+
+        Assert.assertEquals(ClickHouseColumn.of("a", "UInt64").getObjectClassForArray(defaultConfig), long.class);
+        Assert.assertEquals(
+                ClickHouseColumn.of("a", "Array(UInt64)").getArrayBaseColumn().getObjectClassForArray(defaultConfig),
+                long.class);
+        Assert.assertEquals(ClickHouseColumn.of("a", "UInt64").getObjectClassForArray(widenUnsignedConfig), long.class);
+        Assert.assertEquals(ClickHouseColumn.of("a", "Array(UInt64)").getArrayBaseColumn()
+                .getObjectClassForArray(widenUnsignedConfig), long.class);
+        Assert.assertEquals(ClickHouseColumn.of("a", "UInt64").getObjectClassForArray(objArrayConfig),
+                UnsignedLong.class);
+        Assert.assertEquals(
+                ClickHouseColumn.of("a", "Array(UInt64)").getArrayBaseColumn().getObjectClassForArray(objArrayConfig),
+                UnsignedLong.class);
+
+        Assert.assertEquals(ClickHouseColumn.of("a", "FixedString(2)").getObjectClassForArray(defaultConfig),
+                String.class);
+        Assert.assertEquals(ClickHouseColumn.of("a", "Array(FixedString(2))").getArrayBaseColumn()
+                .getObjectClassForArray(defaultConfig), String.class);
+        Assert.assertEquals(ClickHouseColumn.of("a", "FixedString(2)").getObjectClassForArray(binStringConfig),
+                Object.class);
+        Assert.assertEquals(ClickHouseColumn.of("a", "Array(FixedString(2))").getArrayBaseColumn()
+                .getObjectClassForArray(binStringConfig), Object.class);
+        Assert.assertEquals(ClickHouseColumn.of("a", "String").getObjectClassForArray(defaultConfig),
+                String.class);
+        Assert.assertEquals(ClickHouseColumn.of("a", "Array(String)").getArrayBaseColumn()
+                .getObjectClassForArray(defaultConfig), String.class);
+        Assert.assertEquals(ClickHouseColumn.of("a", "String").getObjectClassForArray(binStringConfig),
+                Object.class);
+        Assert.assertEquals(ClickHouseColumn.of("a", "Array(String)").getArrayBaseColumn()
+                .getObjectClassForArray(binStringConfig), Object.class);
     }
 
     @Test(groups = { "unit" })
