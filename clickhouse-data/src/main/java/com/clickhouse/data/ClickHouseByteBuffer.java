@@ -2,6 +2,7 @@ package com.clickhouse.data;
 
 import java.io.Serializable;
 import java.math.BigInteger;
+import java.nio.Buffer;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
@@ -34,6 +35,31 @@ public class ClickHouseByteBuffer implements Serializable {
      */
     public static ClickHouseByteBuffer newInstance() {
         return new ClickHouseByteBuffer(EMPTY_BYTES, 0, 0);
+    }
+
+    /**
+     * Wraps given byte buffer.
+     *
+     * @param buffer byte buffer
+     * @return non-null wrapped byte buffer
+     */
+    public static ClickHouseByteBuffer of(ByteBuffer buffer) {
+        if (buffer == null || !buffer.hasRemaining()) {
+            return newInstance();
+        }
+
+        int pos = buffer.position();
+        int len = buffer.remaining();
+        byte[] bytes;
+        if (buffer.hasArray()) {
+            bytes = buffer.array();
+        } else {
+            bytes = new byte[len];
+            buffer.get(bytes);
+            ((Buffer) buffer).position(pos);
+            pos = 0;
+        }
+        return new ClickHouseByteBuffer(bytes, pos, len);
     }
 
     /**
@@ -549,6 +575,31 @@ public class ClickHouseByteBuffer implements Serializable {
     /**
      * Updates buffer.
      *
+     * @param buffer byte buffer
+     * @return this byte buffer
+     */
+    public ClickHouseByteBuffer update(ByteBuffer buffer) {
+        if (buffer == null || !buffer.hasRemaining()) {
+            return reset();
+        }
+
+        int pos = buffer.position();
+        int len = buffer.remaining();
+        byte[] bytes;
+        if (buffer.hasArray()) {
+            bytes = buffer.array();
+        } else {
+            bytes = new byte[len];
+            buffer.get(bytes);
+            ((Buffer) buffer).position(pos);
+            pos = 0;
+        }
+        return update(bytes, pos, len);
+    }
+
+    /**
+     * Updates buffer.
+     *
      * @param bytes byte array, null is same as empty byte array
      * @return this byte buffer
      */
@@ -657,6 +708,26 @@ public class ClickHouseByteBuffer implements Serializable {
      */
     public byte[] array() {
         return array;
+    }
+
+    /**
+     * Creates a copy of the current byte buffer.
+     *
+     * @param deep true to copy the underlying byte array; false to reuse
+     * @return non-null copy of the current byte buffer
+     */
+    public ClickHouseByteBuffer copy(boolean deep) {
+        byte[] bytes;
+        int pos;
+        if (deep) {
+            bytes = new byte[length];
+            pos = 0;
+            System.arraycopy(array, position, bytes, 0, length);
+        } else {
+            bytes = array;
+            pos = position;
+        }
+        return ClickHouseByteBuffer.of(bytes, pos, length);
     }
 
     public byte firstByte() {

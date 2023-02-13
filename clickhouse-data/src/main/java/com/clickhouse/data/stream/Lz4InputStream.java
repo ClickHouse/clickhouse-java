@@ -2,11 +2,14 @@ package com.clickhouse.data.stream;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InvalidObjectException;
+import java.io.StreamCorruptedException;
 
 import com.clickhouse.data.ClickHouseByteUtils;
 import com.clickhouse.data.ClickHouseByteBuffer;
 import com.clickhouse.data.ClickHouseChecker;
 import com.clickhouse.data.ClickHouseCityHash;
+import com.clickhouse.data.ClickHouseInputStream;
 import com.clickhouse.data.ClickHousePassThruStream;
 import com.clickhouse.data.ClickHouseUtils;
 
@@ -36,7 +39,7 @@ public class Lz4InputStream extends AbstractByteArrayInputStream {
                 if (n == 0) {
                     return false;
                 }
-                throw new IOException(ClickHouseUtils.format(ERROR_INCOMPLETE_READ, n, len));
+                throw new StreamCorruptedException(ClickHouseUtils.format(ERROR_INCOMPLETE_READ, n, len));
             }
             n += count;
         }
@@ -70,19 +73,20 @@ public class Lz4InputStream extends AbstractByteArrayInputStream {
         ClickHouseByteUtils.setInt32LE(block, 5, uncompressedSize);
         // compressed data: compressed_size - 9 bytes
         if (!readFully(block, offset, compressedSizeWithHeader - offset)) {
-            throw new IOException(ClickHouseUtils.format(ERROR_INCOMPLETE_READ, 0, compressedSizeWithHeader - offset));
+            throw new StreamCorruptedException(
+                    ClickHouseUtils.format(ERROR_INCOMPLETE_READ, 0, compressedSizeWithHeader - offset));
         }
 
         long[] real = ClickHouseCityHash.cityHash128(block, 0, compressedSizeWithHeader);
         if (real[0] != ClickHouseByteUtils.getInt64LE(header, 0)
                 || real[1] != ClickHouseByteUtils.getInt64LE(header, 8)) {
-            throw new IOException("Checksum doesn't match: corrupted data.");
+            throw new InvalidObjectException("Checksum doesn't match: corrupted data.");
         }
 
         final byte[] buf = buffer.length >= uncompressedSize ? buffer : (buffer = new byte[uncompressedSize]);
         decompressor.decompress(block, offset, buf, 0, uncompressedSize);
         if (copyTo != null) {
-            copyTo.write(buf);
+            copyTo.write(buf, 0, uncompressedSize);
         }
         return limit = uncompressedSize;
     }
@@ -95,7 +99,7 @@ public class Lz4InputStream extends AbstractByteArrayInputStream {
         super(stream, null, postCloseAction);
 
         this.decompressor = factory.fastDecompressor();
-        this.input = ClickHouseChecker.nonNull(input, "InputStream");
+        this.input = ClickHouseChecker.nonNull(input, ClickHouseInputStream.TYPE_NAME);
         this.header = new byte[HEADER_LENGTH];
 
         this.compressedBlock = ClickHouseByteBuffer.EMPTY_BYTES;

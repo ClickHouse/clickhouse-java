@@ -175,6 +175,10 @@
                                     <pattern>okio</pattern>
                                     <shadedPattern>${shade.base}.okio</shadedPattern>
                                 </relocation>
+                                <relocation>
+                                    <pattern>org.apache</pattern>
+                                    <shadedPattern>${shade.base}.apache</shadedPattern>
+                                </relocation>
                             </relocations>
                             <transformers>
                                 <transformer
@@ -199,12 +203,6 @@
                                 </filter>
                                 <filter>
                                     <artifact>com.github.luben:zstd-jni</artifact>
-                                    <excludes>
-                                        <exclude>**</exclude>
-                                    </excludes>
-                                </filter>
-                                <filter>
-                                    <artifact>org.apache.commons:commons-compress</artifact>
                                     <excludes>
                                         <exclude>**</exclude>
                                     </excludes>
@@ -275,6 +273,10 @@
                                     <pattern>net.jpountz</pattern>
                                     <shadedPattern>${shade.base}.jpountz</shadedPattern>
                                 </relocation>
+                                <relocation>
+                                    <pattern>org.apache</pattern>
+                                    <shadedPattern>${shade.base}.apache</shadedPattern>
+                                </relocation>
                             </relocations>
                             <transformers>
                                 <transformer
@@ -293,12 +295,6 @@
                                 </filter>
                                 <filter>
                                     <artifact>com.github.luben:zstd-jni</artifact>
-                                    <excludes>
-                                        <exclude>**</exclude>
-                                    </excludes>
-                                </filter>
-                                <filter>
-                                    <artifact>org.apache.commons:commons-compress</artifact>
                                     <excludes>
                                         <exclude>**</exclude>
                                     </excludes>
@@ -371,6 +367,10 @@
                                     <pattern>okio</pattern>
                                     <shadedPattern>${shade.base}.okio</shadedPattern>
                                 </relocation>
+                                <relocation>
+                                    <pattern>org.apache</pattern>
+                                    <shadedPattern>${shade.base}.apache</shadedPattern>
+                                </relocation>
                             </relocations>
                             <transformers>
                                 <transformer
@@ -389,12 +389,6 @@
                                 </filter>
                                 <filter>
                                     <artifact>com.github.luben:zstd-jni</artifact>
-                                    <excludes>
-                                        <exclude>**</exclude>
-                                    </excludes>
-                                </filter>
-                                <filter>
-                                    <artifact>org.apache.commons:commons-compress</artifact>
                                     <excludes>
                                         <exclude>**</exclude>
                                     </excludes>

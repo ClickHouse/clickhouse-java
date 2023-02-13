@@ -15,7 +15,6 @@ import com.clickhouse.data.stream.WrappedOutputStream;
  * class providing static methods for creating output stream as needed.
  */
 public abstract class ClickHouseOutputStream extends OutputStream {
-    protected static final String ERROR_INCOMPLETE_READ = "Reached end of input stream after reading %d of %d bytes";
     protected static final String ERROR_NULL_BYTES = "Non-null byte array is required";
     protected static final String ERROR_REUSE_BUFFER = "Please pass a different byte array instead of the same internal buffer for reading";
     protected static final String ERROR_STREAM_CLOSED = "Output stream has been closed";
@@ -188,8 +187,11 @@ public abstract class ClickHouseOutputStream extends OutputStream {
      * @param bytes non-null byte array
      * @return current output stream
      * @throws IOException when failed to write value into output stream, not able
-     *                     to sent all bytes, or opereate on a closed stream
+     *                     to sent all bytes, or operate on a closed stream
+     * @deprecated will be dropped in 0.5, please use
+     *             {@link #writeBuffer(ClickHouseByteBuffer)} instead
      */
+    @Deprecated
     public final ClickHouseOutputStream transferBytes(byte[] bytes) throws IOException {
         return transferBytes(bytes, 0, bytes.length);
     }
@@ -201,8 +203,11 @@ public abstract class ClickHouseOutputStream extends OutputStream {
      * @param length bytes to write
      * @return current output stream
      * @throws IOException when failed to write value into output stream, not able
-     *                     to sent all bytes, or opereate on a closed stream
+     *                     to sent all bytes, or operate on a closed stream
+     * @deprecated will be dropped in 0.5, please use
+     *             {@link #writeBuffer(ClickHouseByteBuffer)} instead
      */
+    @Deprecated
     public ClickHouseOutputStream transferBytes(ByteBuffer buffer, int length) throws IOException {
         if (buffer == null || length < 0) {
             throw new IllegalArgumentException("Non-null ByteBuffer and positive length are required");
@@ -227,8 +232,11 @@ public abstract class ClickHouseOutputStream extends OutputStream {
      * @param length bytes to write
      * @return current output stream
      * @throws IOException when failed to write value into output stream, not able
-     *                     to sent all bytes, or opereate on a closed stream
+     *                     to sent all bytes, or operate on a closed stream
+     * @deprecated will be dropped in 0.5, please use
+     *             {@link #writeBuffer(ClickHouseByteBuffer)} instead
      */
+    @Deprecated
     public abstract ClickHouseOutputStream transferBytes(byte[] bytes, int offset, int length) throws IOException;
 
     @Override
@@ -275,7 +283,7 @@ public abstract class ClickHouseOutputStream extends OutputStream {
      * @param b boolean value to write
      * @return current output stream
      * @throws IOException when failed to write value into output stream, not able
-     *                     to sent all bytes, or opereate on a closed stream
+     *                     to sent all bytes, or operate on a closed stream
      */
     public ClickHouseOutputStream writeBoolean(boolean b) throws IOException {
         return writeByte(b ? (byte) 1 : (byte) 0);
@@ -287,7 +295,7 @@ public abstract class ClickHouseOutputStream extends OutputStream {
      * @param b byte to write
      * @return current output stream
      * @throws IOException when failed to write value into output stream, not able
-     *                     to sent all bytes, or opereate on a closed stream
+     *                     to sent all bytes, or operate on a closed stream
      */
     public abstract ClickHouseOutputStream writeByte(byte b) throws IOException;
 
@@ -298,7 +306,7 @@ public abstract class ClickHouseOutputStream extends OutputStream {
      * @param length bytes to write
      * @return current output stream
      * @throws IOException when failed to write value into output stream, not able
-     *                     to sent all bytes, or opereate on a closed stream
+     *                     to sent all bytes, or operate on a closed stream
      */
     public ClickHouseOutputStream writeBytes(ByteBuffer buffer, int length) throws IOException {
         if (buffer == null || length < 0) {
@@ -321,7 +329,7 @@ public abstract class ClickHouseOutputStream extends OutputStream {
      * @param bytes non-null byte array
      * @return current output stream
      * @throws IOException when failed to write value into output stream, not able
-     *                     to sent all bytes, or opereate on a closed stream
+     *                     to sent all bytes, or operate on a closed stream
      */
     public final ClickHouseOutputStream writeBytes(byte[] bytes) throws IOException {
         return writeBytes(bytes, 0, bytes.length);
@@ -335,17 +343,20 @@ public abstract class ClickHouseOutputStream extends OutputStream {
      * @param length bytes to write
      * @return current output stream
      * @throws IOException when failed to write value into output stream, not able
-     *                     to sent all bytes, or opereate on a closed stream
+     *                     to sent all bytes, or operate on a closed stream
      */
     public abstract ClickHouseOutputStream writeBytes(byte[] bytes, int offset, int length) throws IOException;
 
     /**
-     * Writes bytes into output stream.
+     * Writes bytes into output stream. Unlike
+     * {@link #writeBytes(byte[], int, int)}, which always writes bytes into a
+     * fixed-size buffer first, this may skip the internal buffer for less memory
+     * footprint and better performance.
      *
      * @param buffer wrapped byte array with offset and limit
      * @return current output stream
      * @throws IOException when failed to write value into output stream, not able
-     *                     to sent all bytes, or opereate on a closed stream
+     *                     to sent all bytes, or operate on a closed stream
      */
     public ClickHouseOutputStream writeBuffer(ClickHouseByteBuffer buffer) throws IOException {
         if (buffer == null || buffer.isEmpty()) {
@@ -360,7 +371,7 @@ public abstract class ClickHouseOutputStream extends OutputStream {
      * @param writer non-null data writer
      * @return current output stream
      * @throws IOException when failed to write value into output stream, not able
-     *                     to sent all bytes, or opereate on a closed stream
+     *                     to sent all bytes, or operate on a closed stream
      */
     public abstract ClickHouseOutputStream writeCustom(ClickHouseDataUpdater writer) throws IOException;
 
@@ -373,7 +384,7 @@ public abstract class ClickHouseOutputStream extends OutputStream {
      * @param charset charset, null is treated as {@link StandardCharsets#UTF_8}
      * @return this output stream
      * @throws IOException when failed to write value into output stream, not able
-     *                     to sent all bytes, or opereate on a closed stream
+     *                     to sent all bytes, or operate on a closed stream
      */
     public ClickHouseOutputStream writeString(String value, Charset charset) throws IOException {
         if (value == null || value.isEmpty()) {
@@ -394,7 +405,7 @@ public abstract class ClickHouseOutputStream extends OutputStream {
      * @param value ascii string to write
      * @return this output stream
      * @throws IOException when failed to write value into output stream, not able
-     *                     to sent all bytes, or opereate on a closed stream
+     *                     to sent all bytes, or operate on a closed stream
      */
     public ClickHouseOutputStream writeAsciiString(String value) throws IOException {
         return writeString(value, StandardCharsets.US_ASCII);
@@ -408,7 +419,7 @@ public abstract class ClickHouseOutputStream extends OutputStream {
      * @param value unicode string to write
      * @return this output stream
      * @throws IOException when failed to write value into output stream, not able
-     *                     to sent all bytes, or opereate on a closed stream
+     *                     to sent all bytes, or operate on a closed stream
      */
     public ClickHouseOutputStream writeUnicodeString(String value) throws IOException {
         return writeString(value, StandardCharsets.UTF_8);
@@ -420,7 +431,7 @@ public abstract class ClickHouseOutputStream extends OutputStream {
      * @param value varint
      * @return this output stream
      * @throws IOException when failed to write value into output stream, not able
-     *                     to sent all bytes, or opereate on a closed stream
+     *                     to sent all bytes, or operate on a closed stream
      */
     public ClickHouseOutputStream writeVarInt(int value) throws IOException {
         return writeUnsignedVarInt(value);
@@ -432,7 +443,7 @@ public abstract class ClickHouseOutputStream extends OutputStream {
      * @param value varint
      * @return this output stream
      * @throws IOException when failed to write value into output stream, not able
-     *                     to sent all bytes, or opereate on a closed stream
+     *                     to sent all bytes, or operate on a closed stream
      */
     public ClickHouseOutputStream writeUnsignedVarInt(long value) throws IOException {
         // https://github.com/ClickHouse/ClickHouse/blob/abe314feecd1647d7c2b952a25da7abf5c19f352/src/IO/VarInt.h#L187

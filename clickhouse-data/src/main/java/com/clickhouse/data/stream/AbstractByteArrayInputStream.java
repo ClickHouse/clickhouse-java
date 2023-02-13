@@ -3,12 +3,12 @@ package com.clickhouse.data.stream;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.io.StreamCorruptedException;
 import java.util.LinkedList;
 
 import com.clickhouse.data.ClickHouseByteBuffer;
 import com.clickhouse.data.ClickHouseDataUpdater;
 import com.clickhouse.data.ClickHouseInputStream;
-import com.clickhouse.data.ClickHouseOutputStream;
 import com.clickhouse.data.ClickHousePassThruStream;
 import com.clickhouse.data.ClickHouseUtils;
 
@@ -38,6 +38,26 @@ public abstract class AbstractByteArrayInputStream extends ClickHouseInputStream
         }
     }
 
+    @Override
+    protected ClickHouseByteBuffer getBuffer() {
+        return position < limit ? byteBuffer.update(buffer, position, limit - position) : byteBuffer.reset();
+    }
+
+    @Override
+    protected ClickHouseByteBuffer nextBuffer() throws IOException {
+        if (closed) {
+            return byteBuffer.reset();
+        }
+
+        if (limit > position || updateBuffer() > 0) {
+            byteBuffer.update(buffer, position, limit - position);
+            position = limit;
+        } else {
+            byteBuffer.setLength(0);
+        }
+        return byteBuffer;
+    }
+
     /**
      * Update inner byte array along with {@code position} and {@code limit} as
      * needed.
@@ -62,7 +82,7 @@ public abstract class AbstractByteArrayInputStream extends ClickHouseInputStream
         if (closed) {
             return;
         }
-        buffer = ClickHouseByteBuffer.EMPTY_BYTES;
+        // buffer = ClickHouseByteBuffer.EMPTY_BYTES;
         super.close();
     }
 
@@ -71,34 +91,6 @@ public abstract class AbstractByteArrayInputStream extends ClickHouseInputStream
         ensureOpen();
 
         return position < limit ? 0xFF & buffer[position] : -1;
-    }
-
-    @Override
-    public long pipe(ClickHouseOutputStream output) throws IOException {
-        long count = 0L;
-        if (output == null || output.isClosed()) {
-            return count;
-        }
-        ensureOpen();
-
-        try {
-            byte[] b = buffer;
-            int l = limit;
-            int p = position;
-            int remain = l - p;
-            if (remain > 0) {
-                output.transferBytes(b, p, remain);
-                count += remain;
-                while ((remain = updateBuffer()) > 0) {
-                    b = buffer;
-                    output.transferBytes(b, 0, remain);
-                    count += remain;
-                }
-            }
-        } finally {
-            close();
-        }
-        return count;
     }
 
     @Override
@@ -242,7 +234,7 @@ public abstract class AbstractByteArrayInputStream extends ClickHouseInputStream
             if (remain < 1) {
                 closeQuietly();
                 throw count == 0 ? new EOFException()
-                        : new IOException(ClickHouseUtils.format(ERROR_INCOMPLETE_READ, count, bytes.length));
+                        : new StreamCorruptedException(ClickHouseUtils.format(ERROR_INCOMPLETE_READ, count, bytes.length));
             }
 
             if (remain >= length) {

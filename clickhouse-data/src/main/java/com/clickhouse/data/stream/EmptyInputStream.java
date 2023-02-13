@@ -19,6 +19,16 @@ public final class EmptyInputStream extends ClickHouseInputStream {
     }
 
     @Override
+    protected ClickHouseByteBuffer getBuffer() {
+        return byteBuffer.reset();
+    }
+
+    @Override
+    protected ClickHouseByteBuffer nextBuffer() throws IOException {
+        return byteBuffer.reset();
+    }
+
+    @Override
     public void close() throws IOException {
         // do nothing
     }
@@ -40,12 +50,17 @@ public final class EmptyInputStream extends ClickHouseInputStream {
 
     @Override
     public ClickHouseByteBuffer readCustom(ClickHouseDataUpdater reader) throws IOException {
-        return byteBuffer.reset();
+        return getBuffer();
     }
 
     @Override
     public int read() throws IOException {
         return -1;
+    }
+
+    @Override
+    public int read(byte[] b, int off, int len) throws IOException {
+        return len < 1 ? 0 : -1;
     }
 
     @Override

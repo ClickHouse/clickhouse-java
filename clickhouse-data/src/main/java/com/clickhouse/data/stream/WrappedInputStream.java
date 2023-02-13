@@ -8,7 +8,6 @@ import com.clickhouse.data.ClickHouseByteBuffer;
 import com.clickhouse.data.ClickHouseChecker;
 import com.clickhouse.data.ClickHouseDataConfig;
 import com.clickhouse.data.ClickHouseDataUpdater;
-import com.clickhouse.data.ClickHouseOutputStream;
 import com.clickhouse.data.ClickHousePassThruStream;
 
 /**
@@ -105,33 +104,5 @@ public class WrappedInputStream extends AbstractByteArrayInputStream {
             }
         }
         return byteBuffer.update(list, offset, length);
-    }
-
-    @Override
-    public long pipe(ClickHouseOutputStream output) throws IOException {
-        long count = 0L;
-        if (output == null || output.isClosed()) {
-            return count;
-        }
-        ensureOpen();
-
-        try {
-            int l = limit;
-            int p = position;
-            int remain = l - p;
-            if (remain > 0) {
-                output.writeBytes(buffer, p, remain);
-                count += remain;
-                position = l;
-            }
-
-            while ((remain = updateBuffer()) > 0) {
-                output.writeBytes(buffer, 0, remain);
-                count += remain;
-            }
-        } finally {
-            close();
-        }
-        return count;
     }
 }

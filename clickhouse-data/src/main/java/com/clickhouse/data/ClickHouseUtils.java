@@ -37,6 +37,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -1373,6 +1374,32 @@ public final class ClickHouseUtils {
         }
 
         return len;
+    }
+
+    /**
+     * Waits until the flag turns to {@code true} or timed out.
+     *
+     * @param flag    non-null boolean flag to check
+     * @param timeout timeout, negative or zero means forever
+     * @param unit    non-null time unit
+     * @return true if the flag turns to true within given timeout; false otherwise
+     * @throws InterruptedException when thread was interrupted
+     */
+    public static boolean waitFor(AtomicBoolean flag, long timeout, TimeUnit unit) throws InterruptedException {
+        if (flag == null || unit == null) {
+            throw new IllegalArgumentException("Non-null flag and time unit required");
+        }
+
+        final long timeoutMs = timeout > 0L ? unit.toMillis(timeout) : 0L;
+        final long startTime = timeoutMs < 1L ? 0L : System.currentTimeMillis();
+        while (!flag.get()) {
+            if (Thread.interrupted()) {
+                throw new InterruptedException();
+            } else if (startTime > 0L && System.currentTimeMillis() - startTime >= timeoutMs) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private ClickHouseUtils() {

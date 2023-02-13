@@ -7,6 +7,7 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 
 import com.clickhouse.data.ClickHouseByteBuffer;
+import com.clickhouse.data.ClickHouseInputStream;
 import com.clickhouse.data.ClickHouseOutputStream;
 
 import org.testng.Assert;
@@ -37,20 +38,21 @@ public class OutputStreamImplTest {
         return new Object[][] {
                 new Object[] { new WrappedInputStream(null,
                         new ByteArrayInputStream(new byte[] { -1, 1, 2, 3, 4, 5, 6 }, 1, 5), 1,
-                        null) },
+                        null), 2 },
                 new Object[] {
                         new IterableByteArrayInputStream(
                                 Arrays.asList(new byte[] { 1 }, new byte[] { 2, 3, 4 },
                                         new byte[] { 5 }),
-                                null)
-                },
+                                null),
+                        1 },
                 new Object[] {
                         new IterableByteArrayInputStream(
                                 Arrays.asList(null, new byte[0], new byte[] { 1, 2, 3 },
                                         new byte[0], null,
                                         new byte[] { 4, 5 }, null,
                                         new byte[0], null),
-                                null)
+                                null),
+                        5
                 },
                 new Object[] { new IterableByteBufferInputStream(
                         Arrays.asList(null, ByteBuffer.allocateDirect(0),
@@ -58,8 +60,9 @@ public class OutputStreamImplTest {
                                 ByteBuffer.allocate(0), null,
                                 ByteBuffer.wrap(new byte[] { 4, 5 }), null,
                                 ByteBuffer.allocate(0), null),
-                        null) }
+                        null), 6 }
         };
+
     }
 
     @Test(dataProvider = "bufferSizeProvider", groups = { "unit" })
@@ -70,6 +73,20 @@ public class OutputStreamImplTest {
             out.write(12);
             out.flush();
             Assert.assertEquals(bas.toByteArray(), new byte[] { 12 });
+        }
+    }
+
+    @Test(dataProvider = "streamWithData", groups = { "unit" })
+    public void testWriteBuffer(ClickHouseInputStream input, int bufferSize) throws IOException {
+        try (ClickHouseInputStream in = input;
+                ByteArrayOutputStream bas = new ByteArrayOutputStream();
+                ClickHouseOutputStream out = ClickHouseOutputStream.of(bas, bufferSize)) {
+            for (ClickHouseByteBuffer buf : in) {
+                out.writeBuffer(buf);
+            }
+            out.flush();
+
+            Assert.assertEquals(bas.toByteArray(), new byte[] { 1, 2, 3, 4, 5 });
         }
     }
 

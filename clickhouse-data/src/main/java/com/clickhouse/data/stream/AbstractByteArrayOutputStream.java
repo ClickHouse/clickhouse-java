@@ -2,6 +2,7 @@ package com.clickhouse.data.stream;
 
 import java.io.IOException;
 
+import com.clickhouse.data.ClickHouseByteBuffer;
 import com.clickhouse.data.ClickHouseDataUpdater;
 import com.clickhouse.data.ClickHousePassThruStream;
 import com.clickhouse.data.ClickHouseOutputStream;
@@ -11,11 +12,26 @@ public abstract class AbstractByteArrayOutputStream extends ClickHouseOutputStre
 
     protected int position;
 
+    /**
+     * Writes {@code buffer} by calling {@link #flushBuffer(byte[], int, int)} and
+     * reset {@code position} to zero.
+     *
+     * @throws IOException when failed to flush buffer
+     */
     protected void flushBuffer() throws IOException {
         flushBuffer(buffer, 0, position);
         position = 0;
     }
 
+    /**
+     * Writes the given byte array without using {@code buffer} and
+     * {@code position}.
+     *
+     * @param bytes  non-null byte array to write
+     * @param offset offset
+     * @param length length in byte
+     * @throws IOException when failed to write data
+     */
     protected abstract void flushBuffer(byte[] bytes, int offset, int length) throws IOException;
 
     protected AbstractByteArrayOutputStream(ClickHousePassThruStream stream, int bufferSize, Runnable postCloseAction) {
@@ -41,7 +57,28 @@ public abstract class AbstractByteArrayOutputStream extends ClickHouseOutputStre
             flushBuffer();
         }
         flushBuffer(bytes, offset, length);
-        position = 0;
+        return this;
+    }
+
+    @Override
+    public ClickHouseOutputStream writeBuffer(ClickHouseByteBuffer buffer) throws IOException {
+        if (buffer == null) {
+            throw new NullPointerException();
+        } else if (buffer.isEmpty()) {
+            return this;
+        }
+        ensureOpen();
+
+        byte[] b = this.buffer;
+        int limit = b.length;
+        int length = buffer.length();
+        if (length <= limit - position) {
+            System.arraycopy(buffer.array(), buffer.position(), b, position, length);
+            position += length;
+        } else {
+            flushBuffer();
+            flushBuffer(buffer.array(), buffer.position(), buffer.length());
+        }
         return this;
     }
 

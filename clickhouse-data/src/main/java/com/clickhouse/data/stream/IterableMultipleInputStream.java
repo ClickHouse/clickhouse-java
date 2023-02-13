@@ -53,8 +53,7 @@ public final class IterableMultipleInputStream<T> extends AbstractByteArrayInput
         if (copyTo != null) {
             copyTo.write(buffer, 0, off);
         }
-        limit = off;
-        return limit - position;
+        return limit = off;
     }
 
     public IterableMultipleInputStream(Iterable<T> source, Function<T, InputStream> converter,
@@ -155,7 +154,7 @@ public final class IterableMultipleInputStream<T> extends AbstractByteArrayInput
         try {
             int remain = limit - position;
             if (remain > 0) {
-                output.transferBytes(buffer, position, remain);
+                output.writeBuffer(getBuffer());
                 count += remain;
                 position = limit;
             }

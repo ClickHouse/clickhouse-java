@@ -6,6 +6,7 @@ import java.io.OutputStream;
 import com.clickhouse.data.ClickHouseByteUtils;
 import com.clickhouse.data.ClickHouseChecker;
 import com.clickhouse.data.ClickHouseCityHash;
+import com.clickhouse.data.ClickHouseOutputStream;
 import com.clickhouse.data.ClickHousePassThruStream;
 
 import net.jpountz.lz4.LZ4Compressor;
@@ -62,7 +63,7 @@ public class Lz4OutputStream extends AbstractByteArrayOutputStream {
             int maxCompressBlockSize, Runnable postCloseAction) {
         super(stream, maxCompressBlockSize, postCloseAction);
 
-        output = ClickHouseChecker.nonNull(out, "OutputStream");
+        output = ClickHouseChecker.nonNull(out, ClickHouseOutputStream.TYPE_NAME);
 
         if (compressLevel < 0) {
             compressor = factory.fastCompressor();

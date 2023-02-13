@@ -1,6 +1,8 @@
 package com.clickhouse.data.stream;
 
 import java.io.IOException;
+import java.nio.Buffer;
+import java.nio.ByteBuffer;
 import java.util.concurrent.CompletableFuture;
 
 import com.clickhouse.data.ClickHouseByteBuffer;
@@ -21,57 +23,30 @@ import com.clickhouse.data.ClickHouseWriter;
  * reader are on two separate threads.
  */
 public class NonBlockingPipedOutputStream extends ClickHousePipedOutputStream {
-    protected final AdaptiveQueue<byte[]> queue;
+    protected final AdaptiveQueue<ByteBuffer> queue;
 
     protected final int bufferSize;
-    protected final byte[][] buckets;
     protected final CompletableFuture<Void> future;
     protected final long timeout;
 
-    protected int current;
-
-    protected byte[] buffer;
-    protected int position;
-
-    private byte[] allocateBuffer() {
-        position = 0;
-        byte[] b;
-        if (buckets.length - queue.size() > 1) {
-            b = buckets[current];
-            if (b == null) {
-                b = new byte[bufferSize];
-                buckets[current] = b;
-            }
-
-            if (++current >= buckets.length) {
-                current = 0;
-            }
-        } else {
-            b = new byte[bufferSize];
-        }
-        return b;
-    }
+    protected ByteBuffer buffer;
 
     private void updateBuffer(boolean allocateNewBuffer) throws IOException {
-        updateBuffer(buffer, 0, position);
+        ByteBuffer b = buffer;
+        if (b.hasRemaining()) {
+            ((Buffer) b).limit(b.position());
+        }
+        ((Buffer) b).rewind();
+
+        updateBuffer(b);
 
         if (allocateNewBuffer) {
-            buffer = allocateBuffer();
-        } else {
-            position = 0;
+            buffer = ByteBuffer.allocate(bufferSize);
         }
     }
 
-    private void updateBuffer(byte[] bytes, int offset, int length) throws IOException {
-        byte[] b;
-        if (length < buffer.length) {
-            b = new byte[length];
-            System.arraycopy(bytes, offset, b, 0, length);
-        } else {
-            b = bytes;
-        }
-
-        AdaptiveQueue<byte[]> q = queue;
+    private void updateBuffer(ByteBuffer b) throws IOException {
+        AdaptiveQueue<ByteBuffer> q = queue;
         long t = timeout;
         long startTime = t < 1L ? 0L : System.currentTimeMillis();
 
@@ -95,12 +70,10 @@ public class NonBlockingPipedOutputStream extends ClickHousePipedOutputStream {
 
         // may need an initialBufferSize and a monitor to update bufferSize in runtime
         this.bufferSize = ClickHouseDataConfig.getBufferSize(bufferSize);
-        this.buckets = queueLength < 2 ? new byte[0][] : new byte[queueLength][];
         this.future = ClickHouseUtils.NULL_FUTURE;
         this.timeout = timeout;
 
-        this.current = queueLength < 2 ? -1 : 0;
-        this.buffer = allocateBuffer();
+        this.buffer = ByteBuffer.allocate(this.bufferSize);
     }
 
     public NonBlockingPipedOutputStream(int bufferSize, int queueLength, long timeout, CapacityPolicy policy,
@@ -111,11 +84,9 @@ public class NonBlockingPipedOutputStream extends ClickHousePipedOutputStream {
 
         // may need an initialBufferSize and a monitor to update bufferSize in runtime
         this.bufferSize = ClickHouseDataConfig.getBufferSize(bufferSize);
-        this.buckets = queueLength < 2 ? new byte[0][] : new byte[queueLength][];
         this.timeout = timeout;
 
-        this.current = queueLength < 2 ? -1 : 0;
-        this.buffer = allocateBuffer();
+        this.buffer = ByteBuffer.allocate(this.bufferSize);
 
         this.future = writeAsync(ClickHouseChecker.nonNull(writer, ClickHouseWriter.TYPE_NAME), this);
     }
@@ -132,14 +103,11 @@ public class NonBlockingPipedOutputStream extends ClickHousePipedOutputStream {
         }
 
         try {
-            if (position > 0) {
+            if (buffer.position() > 0) {
                 updateBuffer(false);
             }
         } finally {
-            queue.add(buffer = ClickHouseByteBuffer.EMPTY_BYTES);
-            for (int i = 0, len = buckets.length; i < len; i++) {
-                buckets[i] = null;
-            }
+            queue.add(ClickHouseByteBuffer.EMPTY_BUFFER);
 
             closed = true;
             ClickHouseDataStreamFactory.handleCustomAction(postCloseAction);
@@ -150,7 +118,7 @@ public class NonBlockingPipedOutputStream extends ClickHousePipedOutputStream {
     public void flush() throws IOException {
         ensureOpen();
 
-        if (position > 0) {
+        if (buffer.position() > 0) {
             updateBuffer(true);
         }
     }
@@ -166,20 +134,29 @@ public class NonBlockingPipedOutputStream extends ClickHousePipedOutputStream {
         }
         ensureOpen();
 
-        if (position > 0) {
+        if (buffer.position() > 0) {
             updateBuffer(true);
         }
-        updateBuffer(bytes, offset, length);
+        byte[] copy = new byte[length];
+        System.arraycopy(bytes, offset, copy, 0, length);
+        updateBuffer(ByteBuffer.wrap(copy));
 
         return this;
+    }
+
+    @Override
+    public ClickHouseOutputStream writeBuffer(ClickHouseByteBuffer buffer) throws IOException {
+        if (buffer == null || buffer.isEmpty()) {
+            return this;
+        }
+        return writeBytes(buffer.array(), buffer.position(), buffer.length());
     }
 
     @Override
     public ClickHouseOutputStream writeByte(byte b) throws IOException {
         ensureOpen();
 
-        buffer[position++] = b;
-        if (position >= buffer.length) {
+        if (!buffer.put(b).hasRemaining()) {
             updateBuffer(true);
         }
         return this;
@@ -196,19 +173,25 @@ public class NonBlockingPipedOutputStream extends ClickHousePipedOutputStream {
         }
         ensureOpen();
 
+        ByteBuffer b = buffer;
         while (length > 0) {
-            int limit = buffer.length;
-            int remain = limit - position;
+            int remain = b.remaining();
             if (length < remain) {
-                System.arraycopy(bytes, offset, buffer, position, length);
-                position += length;
+                b.put(bytes, offset, length);
+                length = 0;
+            } else if (b.position() == 0) { // empty buffer
+                // it's unsafe to reuse 'bytes' here as it could be a shared buffer
+                // updateBuffer(ByteBuffer.wrap(bytes, offset, length));
+                byte[] copy = new byte[length];
+                System.arraycopy(bytes, offset, copy, 0, length);
+                updateBuffer(ByteBuffer.wrap(copy));
                 length = 0;
             } else {
-                System.arraycopy(bytes, offset, buffer, position, remain);
-                position = limit;
+                b.put(bytes, offset, remain);
                 offset += remain;
                 length -= remain;
                 updateBuffer(true);
+                b = buffer;
             }
         }
         return this;
@@ -218,12 +201,25 @@ public class NonBlockingPipedOutputStream extends ClickHousePipedOutputStream {
     public ClickHouseOutputStream writeCustom(ClickHouseDataUpdater writer) throws IOException {
         ensureOpen();
 
+        int position = 0;
         int written = 0;
-        while ((written = writer.update(buffer, position, buffer.length)) < 0) {
-            position = buffer.length;
-            updateBuffer(true);
-        }
-        position += written;
+        do {
+            position = buffer.position();
+            int limit = buffer.limit();
+            byte[] bytes;
+            if (buffer.hasArray()) {
+                bytes = buffer.array();
+            } else {
+                bytes = new byte[limit - position];
+                buffer.get(bytes);
+            }
+            written = writer.update(bytes, position, limit);
+            if (written < 0) {
+                ((Buffer) buffer).position(limit);
+                updateBuffer(true);
+            }
+        } while (written < 0);
+        ((Buffer) buffer).position(position + written);
         return this;
     }
 }

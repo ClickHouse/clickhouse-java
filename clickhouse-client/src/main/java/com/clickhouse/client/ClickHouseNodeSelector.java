@@ -192,7 +192,7 @@ public class ClickHouseNodeSelector implements Serializable {
      * Checks if the given protocol matches any of the preferred protocols.
      *
      * @param protocol protocol to check
-     * @return true if the protocl matches at least one of preferred protocols;
+     * @return true if the protocol matches at least one of preferred protocols;
      *         false otherwise
      */
     public boolean matchAnyOfPreferredProtocols(ClickHouseProtocol protocol) {

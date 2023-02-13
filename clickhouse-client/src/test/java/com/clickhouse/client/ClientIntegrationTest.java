@@ -415,7 +415,7 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
             for (ClickHouseClient client : new ClickHouseClient[] { client1, client2, client3, client4, client5 }) {
                 Assert.assertEquals(client.getClass(), Agent.class);
                 Assert.assertEquals(((Agent) client).getClient().getClass(), getClientClass());
-                Assert.assertTrue(client.accept(getProtocol()), "The client should support protocl: " + getProtocol());
+                Assert.assertTrue(client.accept(getProtocol()), "The client should support protocol: " + getProtocol());
             }
         }
     }
@@ -1541,6 +1541,8 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
             }
         }
         Assert.assertNotNull(summary);
+        long fileSize = Files.size(file.toPath());
+        Assert.assertTrue(fileSize > 0L, "Expects an non-empty file being created");
         try (InputStream in = gzipCompressed ? new GZIPInputStream(new FileInputStream(file))
                 : new FileInputStream(file); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             ClickHouseInputStream.pipe(in, out, 512);

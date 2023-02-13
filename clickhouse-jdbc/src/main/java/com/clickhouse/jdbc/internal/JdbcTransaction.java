@@ -85,21 +85,23 @@ public class JdbcTransaction {
                     savepoints.size(), action);
         }
 
-        log.debug(() -> {
-            log.debug("[JDBC Compliant Mode] Transaction [%s] is %s - begin", id, action);
-            int total = queries.size();
-            int counter = 1;
-            for (String queryId : queries) {
-                log.debug("    '%s', -- query (%d of %d) in transaction [%s]", queryId, counter++, total, id);
-            }
+        if (log.isDebugEnabled()) {
+            log.debug(() -> {
+                log.debug("[JDBC Compliant Mode] Transaction [%s] is %s - begin", id, action);
+                int total = queries.size();
+                int counter = 1;
+                for (String queryId : queries) {
+                    log.debug("    '%s', -- query (%d of %d) in transaction [%s]", queryId, counter++, total, id);
+                }
 
-            total = savepoints.size();
-            counter = 1;
-            for (JdbcSavepoint savepoint : savepoints) {
-                log.debug("    %s (%d of %d) in transaction [%s]", savepoint, counter++, total, id);
-            }
-            return ClickHouseUtils.format("[JDBC Compliant Mode] Transaction [%s] is %s - end", id, action);
-        });
+                total = savepoints.size();
+                counter = 1;
+                for (JdbcSavepoint savepoint : savepoints) {
+                    log.debug("    %s (%d of %d) in transaction [%s]", savepoint, counter++, total, id);
+                }
+                return ClickHouseUtils.format("[JDBC Compliant Mode] Transaction [%s] is %s - end", id, action);
+            });
+        }
     }
 
     synchronized String newQuery(String queryId) {

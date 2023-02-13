@@ -7,6 +7,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.StreamCorruptedException;
 import java.io.UncheckedIOException;
 import java.net.URL;
 import java.nio.ByteBuffer;
@@ -14,7 +15,9 @@ import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -24,7 +27,6 @@ import java.util.function.Function;
 
 import com.clickhouse.data.stream.BlockingInputStream;
 import com.clickhouse.data.stream.DeferredInputStream;
-import com.clickhouse.data.stream.DelegatedInputStream;
 import com.clickhouse.data.stream.EmptyInputStream;
 import com.clickhouse.data.stream.RestrictedInputStream;
 import com.clickhouse.data.stream.IterableByteArrayInputStream;
@@ -40,13 +42,44 @@ import com.clickhouse.data.stream.WrappedInputStream;
  * creation as well as closing the stream when it reaches end of stream. This
  * class is also responsible for creating various input stream as needed.
  */
-public abstract class ClickHouseInputStream extends InputStream {
+public abstract class ClickHouseInputStream extends InputStream implements Iterable<ClickHouseByteBuffer> {
     protected static final String ERROR_INCOMPLETE_READ = "Reached end of input stream after reading %d of %d bytes";
     protected static final String ERROR_NULL_BYTES = "Non-null byte array is required";
     protected static final String ERROR_REUSE_BUFFER = "Please pass a different byte array instead of the same internal buffer for reading";
     protected static final String ERROR_STREAM_CLOSED = "Input stream has been closed";
 
     public static final String TYPE_NAME = "InputStream";
+
+    static class ByteBufferIterator implements Iterator<ClickHouseByteBuffer> {
+        private final ClickHouseInputStream input;
+
+        private ByteBufferIterator(ClickHouseInputStream input) {
+            this.input = input;
+        }
+
+        @Override
+        public boolean hasNext() {
+            try {
+                return input.available() > 0;
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
+
+        @Override
+        public ClickHouseByteBuffer next() {
+            try {
+                ClickHouseByteBuffer buffer = input.nextBuffer();
+                if (buffer.isEmpty() && input.available() < 1) {
+                    throw new NoSuchElementException(
+                            "No more byte buffer for read as we reached end of the stream");
+                }
+                return buffer;
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
+    }
 
     /**
      * Wraps the given input stream.
@@ -734,6 +767,22 @@ public abstract class ClickHouseInputStream extends InputStream {
     }
 
     /**
+     * Gets reference to current byte buffer.
+     *
+     * @return non-null byte buffer
+     */
+    protected abstract ClickHouseByteBuffer getBuffer();
+
+    /**
+     * Gets reference to next byte buffer available for read. An empty byte buffer
+     * will be returned ({@code nextBuffer().isEmpty() == true}), when it reaches
+     * end of the input stream.
+     *
+     * @return non-null byte buffer
+     */
+    protected abstract ClickHouseByteBuffer nextBuffer() throws IOException;
+
+    /**
      * Gets underlying file. Same as
      * {@code ClickHouseFile.of(getUnderlyingStream())}.
      *
@@ -827,7 +876,21 @@ public abstract class ClickHouseInputStream extends InputStream {
      * @throws IOException when failed to read value from input stream or reached
      *                     end of the stream
      */
-    public abstract long pipe(ClickHouseOutputStream output) throws IOException;
+    public long pipe(ClickHouseOutputStream output) throws IOException {
+        long count = 0L;
+        if (output == null || output.isClosed()) {
+            return count;
+        }
+        ensureOpen();
+
+        try (ClickHouseInputStream in = this) {
+            for (ClickHouseByteBuffer buf : in) {
+                count += buf.length();
+                output.writeBuffer(buf);
+            }
+        }
+        return count;
+    }
 
     /**
      * Reads an unsigned byte from the input stream. Unlike {@link #read()}, it will
@@ -910,7 +973,7 @@ public abstract class ClickHouseInputStream extends InputStream {
             if (read == -1) {
                 closeQuietly();
                 throw offset == 0 ? new EOFException()
-                        : new IOException(ClickHouseUtils.format(ERROR_INCOMPLETE_READ, offset, length));
+                        : new StreamCorruptedException(ClickHouseUtils.format(ERROR_INCOMPLETE_READ, offset, length));
             } else {
                 offset += read;
             }
@@ -1082,13 +1145,10 @@ public abstract class ClickHouseInputStream extends InputStream {
         if (this.copyTo != null) {
             this.copyTo.flush();
         } else if (out != null) {
-            // process remaining bytes in current buffer
-            readCustom((b, p, l) -> {
-                if (p < l) {
-                    out.write(b, p, l - p);
-                }
-                return 0;
-            });
+            ClickHouseByteBuffer buf = getBuffer();
+            if (!buf.isEmpty()) {
+                out.write(buf.array(), buf.position(), buf.length());
+            }
         }
         this.copyTo = out;
     }
@@ -1112,5 +1172,10 @@ public abstract class ClickHouseInputStream extends InputStream {
             byteBuffer.reset();
             ClickHouseDataStreamFactory.handleCustomAction(postCloseAction);
         }
+    }
+
+    @Override
+    public Iterator<ClickHouseByteBuffer> iterator() {
+        return new ByteBufferIterator(this);
     }
 }
