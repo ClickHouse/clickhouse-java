@@ -464,14 +464,14 @@ public interface BinaryDataProcessor {
         }
     }
 
-    static class FixedStringSerDe implements ClickHouseDeserializer, ClickHouseSerializer {
-        private final int length;
+    static class FixedBytesSerDe implements ClickHouseDeserializer, ClickHouseSerializer {
+        protected final int length;
 
-        public FixedStringSerDe(ClickHouseColumn column) {
+        public FixedBytesSerDe(ClickHouseColumn column) {
             this(ClickHouseChecker.nonNull(column, ClickHouseColumn.TYPE_NAME).getPrecision());
         }
 
-        public FixedStringSerDe(int length) {
+        public FixedBytesSerDe(int length) {
             if (length < 1) {
                 throw new IllegalArgumentException("Length should be greater than zero");
             }
@@ -493,6 +493,21 @@ public interface BinaryDataProcessor {
             } else {
                 output.write(bytes);
             }
+        }
+    }
+
+    static class FixedStringSerDe extends FixedBytesSerDe {
+        public FixedStringSerDe(ClickHouseColumn column) {
+            super(column);
+        }
+
+        public FixedStringSerDe(int length) {
+            super(length);
+        }
+
+        @Override
+        public ClickHouseValue deserialize(ClickHouseValue ref, ClickHouseInputStream input) throws IOException {
+            return ref.update(input.readBuffer(length).asUnicodeString());
         }
     }
 

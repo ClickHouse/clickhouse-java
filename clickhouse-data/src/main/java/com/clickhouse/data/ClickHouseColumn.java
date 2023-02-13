@@ -492,6 +492,9 @@ public final class ClickHouseColumn implements Serializable {
         if (nullable) {
             fixedLength = false;
             estimatedLength++;
+        } else if (column.dataType == ClickHouseDataType.FixedString) {
+            fixedLength = true;
+            estimatedLength = column.precision;
         } else if (column.dataType.getByteLength() == 0) {
             fixedLength = false;
         } else {

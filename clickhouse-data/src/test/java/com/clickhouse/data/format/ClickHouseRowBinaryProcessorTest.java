@@ -361,6 +361,37 @@ public class ClickHouseRowBinaryProcessorTest extends BaseDataProcessorTest {
         Assert.assertEquals(l.size(), 2);
         Assert.assertEquals(l.get(0), UnsignedByte.valueOf((byte) 2));
         Assert.assertEquals(l.get(1), UnsignedShort.valueOf((short) 1));
+
+        // now FixedString and String
+        ClickHouseDataConfig binConf = new ClickHouseTestDataConfig() {
+            @Override
+            public boolean isUseBinaryString() {
+                return true;
+            }
+        };
+        value = deserialize(null, config,
+                ClickHouseColumn.of("a", "Array(FixedString(2))"),
+                BinaryStreamUtilsTest.generateInput(1, 0x41, 0x31));
+        Assert.assertTrue(value instanceof ClickHouseArrayValue);
+        Assert.assertEquals(value.asObject(), new String[] { "A1" });
+        value = deserialize(null, binConf,
+                ClickHouseColumn.of("a", "Array(FixedString(2))"),
+                BinaryStreamUtilsTest.generateInput(1, 0x41, 0x31));
+        Assert.assertTrue(value instanceof ClickHouseArrayValue);
+        Assert.assertEquals(value.asArray().length, 1);
+        Assert.assertEquals(value.asArray()[0], new byte[] { 65, 49 });
+
+        value = deserialize(null, config,
+                ClickHouseColumn.of("a", "Array(String)"),
+                BinaryStreamUtilsTest.generateInput(1, 2, 0x41, 0x31));
+        Assert.assertTrue(value instanceof ClickHouseArrayValue);
+        Assert.assertEquals(value.asObject(), new String[] { "A1" });
+        value = deserialize(null, binConf,
+                ClickHouseColumn.of("a", "Array(String)"),
+                BinaryStreamUtilsTest.generateInput(1, 2, 0x41, 0x31));
+        Assert.assertTrue(value instanceof ClickHouseArrayValue);
+        Assert.assertEquals(value.asArray().length, 1);
+        Assert.assertEquals(value.asArray()[0], new byte[] { 65, 49 });
     }
 
     @Test(groups = { "unit" })
@@ -389,6 +420,32 @@ public class ClickHouseRowBinaryProcessorTest extends BaseDataProcessorTest {
                 ClickHouseColumn.of("a", "Array(Array(UInt8))"), out);
         out.flush();
         Assert.assertEquals(bas.toByteArray(), BinaryStreamUtilsTest.generateBytes(1, 2, 1, 2));
+
+        ClickHouseDataConfig binConf = new ClickHouseTestDataConfig() {
+            @Override
+            public boolean isUseBinaryString() {
+                return true;
+            }
+        };
+
+        for (ClickHouseArrayValue<?> arrVal : new ClickHouseArrayValue[] {
+                ClickHouseArrayValue.of(new Object[] { "A1" }),
+                ClickHouseArrayValue.of(new Object[] { new byte[] { 65, 49 } })
+        }) {
+            for (ClickHouseDataConfig c : new ClickHouseDataConfig[] { config, binConf }) {
+                bas = new ByteArrayOutputStream();
+                try (ClickHouseOutputStream o = ClickHouseOutputStream.of(bas)) {
+                    serialize(arrVal, c, ClickHouseColumn.of("a", "Array(FixedString(2))"), o);
+                }
+                Assert.assertEquals(bas.toByteArray(), BinaryStreamUtilsTest.generateBytes(1, 0x41, 0x31));
+
+                bas = new ByteArrayOutputStream();
+                try (ClickHouseOutputStream o = ClickHouseOutputStream.of(bas)) {
+                    serialize(arrVal, c, ClickHouseColumn.of("a", "Array(String)"), o);
+                }
+                Assert.assertEquals(bas.toByteArray(), BinaryStreamUtilsTest.generateBytes(1, 2, 0x41, 0x31));
+            }
+        }
 
         // SELECT arrayZip(['a', 'b', 'c'], [3, 2, 1])
         value = ClickHouseArrayValue
