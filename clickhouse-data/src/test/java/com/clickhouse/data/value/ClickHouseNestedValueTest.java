@@ -105,7 +105,7 @@ public class ClickHouseNestedValueTest extends BaseClickHouseValueTest {
                 false, 3, 9);
         checkNull(
                 ClickHouseNestedValue.of(ClickHouseColumn.parse("a String not null, b Int8"),
-                        new Object[][] { new String[] { "a" }, new Byte[] { (byte) 1 } }).resetToNullOrEmpty(),
+                        new Object[][] { { "a", (byte) 1 }, { "b", (byte) 2 } }).resetToNullOrEmpty(),
                 false, 3, 9);
 
         checkValue(

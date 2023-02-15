@@ -4,6 +4,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.net.InetAddress;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -560,8 +561,9 @@ public class ClickHouseRowBinaryProcessorTest extends BaseDataProcessorTest {
     public void testDeserializeNested() throws IOException {
         ClickHouseDataConfig config = new ClickHouseTestDataConfig();
         ClickHouseValue value = deserialize(null, config,
-                ClickHouseColumn.of("n", "Nested(n1 UInt8, n2 Nullable(String), n3 Int16)"),
-                BinaryStreamUtilsTest.generateInput(1, 1, 1, 0, 1, 0x32, 1, 3, 0));
+                ClickHouseColumn.of("n", "Nested(n1 UInt8, n2 Nullable(String), n3 Tuple(x Int16))"),
+                // two nested rows: values([(1,'a',(0)),(0,'b',(1))])
+                BinaryStreamUtilsTest.generateInput(2, 1, 0, 1, 0x61, 0, 0, 0, 0, 1, 0x62, 1, 0));
         Assert.assertTrue(value instanceof ClickHouseNestedValue);
 
         List<ClickHouseColumn> columns = ((ClickHouseNestedValue) value).getColumns();
@@ -570,27 +572,28 @@ public class ClickHouseRowBinaryProcessorTest extends BaseDataProcessorTest {
         Assert.assertEquals(columns.get(0).getColumnName(), "n1");
         Assert.assertEquals(columns.get(1).getColumnName(), "n2");
         Assert.assertEquals(columns.get(2).getColumnName(), "n3");
-        Assert.assertEquals(values.length, 3);
-        Assert.assertEquals(values[0], new UnsignedByte[] { UnsignedByte.ONE });
-        Assert.assertEquals(values[1], new String[] { "2" });
-        Assert.assertEquals(values[2], new Short[] { (short) 3 });
+        Assert.assertEquals(values.length, 2);
+        Assert.assertEquals(values[0],
+                new Object[] { UnsignedByte.ONE, "a", new ArrayList<>(Collections.singleton((short) 0)) });
+        Assert.assertEquals(values[1],
+                new Object[] { UnsignedByte.ZERO, "b", new ArrayList<>(Collections.singleton((short) 1)) });
     }
 
     @Test(groups = { "unit" })
     public void testSerializeNested() throws IOException {
         ClickHouseDataConfig config = new ClickHouseTestDataConfig();
         ClickHouseValue value = ClickHouseNestedValue.of(
-                ClickHouseColumn.of("n", "Nested(n1 UInt8, n2 Nullable(String), n3 Int16)")
+                ClickHouseColumn.of("n", "Nested(n1 UInt8, n2 Nullable(String), n3 Tuple(x Int16))")
                         .getNestedColumns(),
-                new Object[][] { new Short[] { Short.valueOf("1") }, new String[] { "2" },
-                        new Short[] { Short.valueOf("3") } });
+                new Object[][] { { UnsignedByte.ONE, "a", new ArrayList<>(Collections.singleton((short) 0)) },
+                        { UnsignedByte.ZERO, "b", new ArrayList<>(Collections.singleton((short) 1)) } });
         ByteArrayOutputStream bas = new ByteArrayOutputStream();
         ClickHouseOutputStream out = ClickHouseOutputStream.of(bas);
         serialize(value, config,
-                ClickHouseColumn.of("n", "Nested(n1 UInt8, n2 Nullable(String), n3 Int16)"), out);
+                ClickHouseColumn.of("n", "Nested(n1 UInt8, n2 Nullable(String), n3 Tuple(x Int16))"), out);
         out.flush();
         Assert.assertEquals(bas.toByteArray(),
-                BinaryStreamUtilsTest.generateBytes(1, 1, 1, 0, 1, 0x32, 1, 3, 0));
+                BinaryStreamUtilsTest.generateBytes(2, 1, 0, 1, 0x61, 0, 0, 0, 0, 1, 0x62, 1, 0));
     }
 
     @Test(groups = { "unit" })
@@ -638,5 +641,47 @@ public class ClickHouseRowBinaryProcessorTest extends BaseDataProcessorTest {
         Assert.assertEquals(bas.toByteArray(),
                 BinaryStreamUtilsTest.generateBytes(1, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0,
                         0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0x05, 0xa8, 0xc0));
+    }
+
+    @Test(groups = { "unit" })
+    public void testDeserializeJson() throws IOException {
+        ClickHouseDataConfig config = new ClickHouseTestDataConfig();
+        // '{"n":7,"s":"string","o":{"x":1,"y":[3,2,1]},"a":[{"a":1},{"b":{"c":2}}]}'
+        // ([(1,(0)),(0,(2))],7,(1,[3,2,1]),'string')
+        ClickHouseColumn column = ClickHouseColumn.of("t",
+                "Tuple(a Nested(a Int8, b Tuple(c Int8)), n Int8, o Tuple(x Int8, y Array(Int8)), s String)");
+        ClickHouseValue value = deserialize(null, config, column, BinaryStreamUtilsTest.generateInput(2, 1, 0, 0, 2, 7,
+                1, 3, 3, 2, 1, 6, 0x73, 0x74, 0x72, 0x69, 0x6E, 0x67));
+        Assert.assertTrue(value instanceof ClickHouseTupleValue);
+        List<Object> values = (List<Object>) value.asObject();
+        Assert.assertEquals(values.size(), 4);
+        Object[] objs = (Object[]) values.get(0);
+        Assert.assertEquals(objs.length, 2);
+        Assert.assertEquals(objs[0], new Object[] { (byte) 1, Arrays.asList((byte) 0) });
+        Assert.assertEquals(objs[1], new Object[] { (byte) 0, Arrays.asList((byte) 2) });
+        Assert.assertEquals(values.get(1), (byte) 7);
+        List<Object> list = (List<Object>) values.get(2);
+        Assert.assertEquals(list.size(), 2);
+        Assert.assertEquals(list.get(0), (byte) 1);
+        Assert.assertEquals(list.get(1), new byte[] { 3, 2, 1 });
+        Assert.assertEquals(values.get(3), "string");
+    }
+
+    @Test(groups = { "unit" })
+    public void testSerializeJson() throws IOException {
+        ClickHouseDataConfig config = new ClickHouseTestDataConfig();
+        ClickHouseValue value = ClickHouseTupleValue.of(new Object[][] {
+                { (byte) 1, Arrays.asList((byte) 0) },
+                { (byte) 0, Arrays.asList((byte) 2) }
+        }, (byte) 7, Arrays.asList((byte) 1, new byte[] { 3, 2, 1 }), "string");
+        ByteArrayOutputStream bas = new ByteArrayOutputStream();
+        ClickHouseOutputStream out = ClickHouseOutputStream.of(bas);
+        serialize(value, config,
+                ClickHouseColumn.of("t",
+                        "Tuple(a Nested(a Int8, b Tuple(c Int8)), n Int8, o Tuple(x Int8, y Array(Int8)), s String)"),
+                out);
+        out.flush();
+        Assert.assertEquals(bas.toByteArray(), BinaryStreamUtilsTest.generateBytes(2, 1, 0, 0, 2, 7,
+                1, 3, 3, 2, 1, 6, 0x73, 0x74, 0x72, 0x69, 0x6E, 0x67));
     }
 }

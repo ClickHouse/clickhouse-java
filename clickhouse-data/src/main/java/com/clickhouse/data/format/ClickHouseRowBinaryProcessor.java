@@ -132,17 +132,22 @@ public class ClickHouseRowBinaryProcessor extends ClickHouseDataProcessor {
             }
             values = new ClickHouseValue[len];
             for (int i = 0; i < len; i++) {
-                values[i] = nestedCols.get(i).newArrayValue(config);
+                values[i] = nestedCols.get(i).newValue(config);
             }
         }
 
         @Override
         public ClickHouseValue deserialize(ClickHouseValue ref, ClickHouseInputStream input) throws IOException {
+            int size = input.readVarInt();
             int len = values.length;
-            Object[][] vals = new Object[len][];
-            for (int i = 0; i < len; i++) {
-                ClickHouseDeserializer d = deserializers[i];
-                vals[i] = d.deserialize(values[i], input).asArray();
+            Object[][] vals = new Object[size][];
+            for (int i = 0; i < size; i++) {
+                Object[] objs = new Object[len];
+                for (int j = 0; j < len; j++) {
+                    ClickHouseDeserializer d = deserializers[j];
+                    objs[j] = d.deserialize(values[j], input).asObject();
+                }
+                vals[i] = objs;
             }
             // ClickHouseNestedValue.of(r, c.getNestedColumns(), values)
             return ref.update(vals);
@@ -150,7 +155,7 @@ public class ClickHouseRowBinaryProcessor extends ClickHouseDataProcessor {
     }
 
     public static class NestedSerializer extends ClickHouseSerializer.CompositeSerializer {
-        private final ClickHouseArraySequence[] values;
+        private final ClickHouseValue[] values;
 
         public NestedSerializer(ClickHouseDataConfig config, ClickHouseColumn column,
                 ClickHouseSerializer... serializers) {
@@ -162,17 +167,23 @@ public class ClickHouseRowBinaryProcessor extends ClickHouseDataProcessor {
                 throw new IllegalArgumentException(
                         ClickHouseUtils.format("Expect %d serializers but got %d", len, serializers.length));
             }
-            values = new ClickHouseArraySequence[len];
+            values = new ClickHouseValue[len];
             for (int i = 0; i < len; i++) {
-                values[i] = nestedCols.get(i).newArrayValue(config);
+                values[i] = nestedCols.get(i).newValue(config);
             }
         }
 
         @Override
         public void serialize(ClickHouseValue value, ClickHouseOutputStream output) throws IOException {
             Object[][] vals = (Object[][]) value.asObject();
-            for (int i = 0, len = values.length; i < len; i++) {
-                serializers[i].serialize(values[i].update(vals[i]), output);
+            int size = vals.length;
+            int len = values.length;
+            output.writeVarInt(size);
+            for (int i = 0; i < size; i++) {
+                Object[] objs = vals[i];
+                for (int j = 0; j < len; j++) {
+                    serializers[j].serialize(values[j].update(objs[j]), output);
+                }
             }
         }
     }
@@ -503,7 +514,7 @@ public class ClickHouseRowBinaryProcessor extends ClickHouseDataProcessor {
                 break;
             case Nested:
                 deserializer = new NestedDeserializer(config, column,
-                        getArrayDeserializers(config, column.getNestedColumns()));
+                        getDeserializers(config, column.getNestedColumns()));
                 break;
             case Tuple:
                 deserializer = new TupleDeserializer(config, column,
@@ -657,16 +668,13 @@ public class ClickHouseRowBinaryProcessor extends ClickHouseDataProcessor {
                         getSerializer(config, column.getNestedColumns().get(0)));
                 break;
             case Map:
-                serializer = new MapSerializer(config, column,
-                        getSerializers(config, column.getNestedColumns()));
+                serializer = new MapSerializer(config, column, getSerializers(config, column.getNestedColumns()));
                 break;
             case Nested:
-                serializer = new NestedSerializer(config, column,
-                        getArraySerializers(config, column.getNestedColumns()));
+                serializer = new NestedSerializer(config, column, getSerializers(config, column.getNestedColumns()));
                 break;
             case Tuple:
-                serializer = new TupleSerializer(config, column,
-                        getSerializers(config, column.getNestedColumns()));
+                serializer = new TupleSerializer(config, column, getSerializers(config, column.getNestedColumns()));
                 break;
             // special
             case Nothing:

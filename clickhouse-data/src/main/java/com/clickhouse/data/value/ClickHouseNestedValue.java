@@ -67,13 +67,12 @@ public class ClickHouseNestedValue extends ClickHouseObjectValue<Object[][]> {
             throw new IllegalArgumentException("Non-null columns and value are required");
         }
 
-        // if (columns.isEmpty()) {
-        // throw new IllegalArgumentException("At least one column must be specified for
-        // nested type");
-        // }
-
-        if (value.length != 0 && value.length != columns.size()) {
-            throw new IllegalArgumentException("Columns and values should have same length");
+        int size = columns.size();
+        for (int i = 0, len = value.length; i < len; i++) {
+            Object[] objs = value[i];
+            if (objs == null || objs.length != size) {
+                throw new IllegalArgumentException("Columns and values should have same length");
+            }
         }
 
         return value;
