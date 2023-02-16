@@ -13,9 +13,9 @@ If the client supplies a valid  `Calendar` object as optional argument, the driv
 
 Two regular time zones are initialized like this:
 
-* `tz_datetime`: value from `ru.yandex.clickhouse.settings.ClickHouseConnectionSettings.USE_TIME_ZONE`. If null, either ClickHouse server time zone (`ru.yandex.clickhouse.settings.ClickHouseConnectionSettings.USE_SERVER_TIME_ZONE` is `true`) or JVM time zone (else)
+* `tz_datetime`: value from `com.clickhouse.client.config.ClickHouseClientOption.USE_TIME_ZONE`. If null, either ClickHouse server time zone (`com.clickhouse.client.config.ClickHouseClientOption.USE_SERVER_TIME_ZONE` is `true`) or JVM time zone (else)
 
-* `tz_date`: same as `tz_datetime` if `ru.yandex.clickhouse.settings.ClickHouseConnectionSettings.USE_SERVER_TIME_ZONE_FOR_DATES` is `true`, JVM time zone else
+* `tz_date`: same as `tz_datetime` if `com.clickhouse.client.config.ClickHouseClientOption.USE_SERVER_TIME_ZONE_FOR_DATES` is `true`, JVM time zone else
 
 The JDBC driver supports all explicit methods, e.g. setDate, setTimestamp etc. with their optional Calendar argument. Providing hints via target SQL type does not have any effect.
 

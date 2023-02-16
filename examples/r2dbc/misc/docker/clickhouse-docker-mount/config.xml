@@ -154,7 +154,7 @@
       -->
 
     <!--
-    <interserver_http_host>example.yandex.ru</interserver_http_host>
+    <interserver_http_host>example.clickhouse.com</interserver_http_host>
     -->
 
     <!-- You can specify credentials for authenthication between replicas.
@@ -593,14 +593,14 @@
 
          To install and run JDBC bridge in background:
          * [Debian/Ubuntu]
-           export MVN_URL=https://repo1.maven.org/maven2/ru/yandex/clickhouse/clickhouse-jdbc-bridge
+           export MVN_URL=https://repo1.maven.org/maven2/com/clickhouse/clickhouse-jdbc-bridge
            export PKG_VER=$(curl -sL $MVN_URL/maven-metadata.xml | grep '<release>' | sed -e 's|.*>\(.*\)<.*|\1|')
            wget https://github.com/ClickHouse/clickhouse-jdbc-bridge/releases/download/v$PKG_VER/clickhouse-jdbc-bridge_$PKG_VER-1_all.deb
            apt install --no-install-recommends -f ./clickhouse-jdbc-bridge_$PKG_VER-1_all.deb
            clickhouse-jdbc-bridge &
 
          * [CentOS/RHEL]
-           export MVN_URL=https://repo1.maven.org/maven2/ru/yandex/clickhouse/clickhouse-jdbc-bridge
+           export MVN_URL=https://repo1.maven.org/maven2/com/clickhouse/clickhouse-jdbc-bridge
            export PKG_VER=$(curl -sL $MVN_URL/maven-metadata.xml | grep '<release>' | sed -e 's|.*>\(.*\)<.*|\1|')
            wget https://github.com/ClickHouse/clickhouse-jdbc-bridge/releases/download/v$PKG_VER/clickhouse-jdbc-bridge-$PKG_VER-1.noarch.rpm
            yum localinstall -y clickhouse-jdbc-bridge-$PKG_VER-1.noarch.rpm
@@ -762,14 +762,14 @@
     -->
     <!--<remote_url_allow_hosts>-->
         <!-- Host should be specified exactly as in URL. The name is checked before DNS resolution.
-            Example: "yandex.ru", "yandex.ru." and "www.yandex.ru" are different hosts.
+            Example: "clickhouse.com", "clickhouse.com." and "www.clickhouse.com" are different hosts.
                     If port is explicitly specified in URL, the host:port is checked as a whole.
                     If host specified here without port, any port with this host allowed.
-                    "yandex.ru" -> "yandex.ru:443", "yandex.ru:80" etc. is allowed, but "yandex.ru:80" -> only "yandex.ru:80" is allowed.
+                    "clickhouse.com" -> "clickhouse.com:443", "clickhouse.com:80" etc. is allowed, but "clickhouse.com:80" -> only "clickhouse.com:80" is allowed.
             If the host is specified as IP address, it is checked as specified in URL. Example: "[2a02:6b8:a::a]".
             If there are redirects and support for redirects is enabled, every redirect (the Location field) is checked.
             Host should be specified using the host xml tag:
-                    <host>yandex.ru</host>
+                    <host>clickhouse.com</host>
         -->
 
         <!-- Regular expression can be specified. RE2 engine is used for regexps.
