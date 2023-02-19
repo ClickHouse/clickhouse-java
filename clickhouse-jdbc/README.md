@@ -10,15 +10,9 @@ Keep in mind that `clickhouse-jdbc` is synchronous, and in general it has more o
 <dependency>
     <groupId>com.clickhouse</groupId>
     <artifactId>clickhouse-jdbc</artifactId>
-    <version>0.4.0</version>
+    <version>0.4.1</version>
     <!-- use uber jar with all dependencies included, change classifier to http for smaller jar -->
     <classifier>all</classifier>
-    <exclusions>
-        <exclusion>
-            <groupId>*</groupId>
-            <artifactId>*</artifactId>
-        </exclusion>
-    </exclusions>
 </dependency>
 ```
 

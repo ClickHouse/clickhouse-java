@@ -20,7 +20,7 @@ Either [clickhouse](https://clickhouse.com/docs/en/interfaces/cli/) or [docker](
 <dependency>
     <groupId>com.clickhouse</groupId>
     <artifactId>clickhouse-cli-client</artifactId>
-    <version>0.4.0</version>
+    <version>0.4.1</version>
 </dependency>
 ```
 

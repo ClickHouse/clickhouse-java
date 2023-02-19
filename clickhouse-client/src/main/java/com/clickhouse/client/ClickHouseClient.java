@@ -329,7 +329,7 @@ public interface ClickHouseClient extends AutoCloseable {
 
         return submit(() -> {
             try (ClickHouseClient client = newInstance(theServer.getProtocol())) {
-                ClickHouseRequest<?> request = client.connect(theServer).output(stream);
+                ClickHouseRequest<?> request = client.read(theServer).output(stream);
                 // FIXME what if the table name is `try me`?
                 if (theQuery.indexOf(' ') < 0) {
                     request.table(theQuery);
@@ -415,7 +415,7 @@ public interface ClickHouseClient extends AutoCloseable {
 
         return submit(() -> {
             try (ClickHouseClient client = newInstance(theServer.getProtocol())) {
-                ClickHouseRequest<?> request = client.connect(theServer).compressServerResponse(compression)
+                ClickHouseRequest<?> request = client.read(theServer).compressServerResponse(compression)
                         .format(format).output(output);
                 // FIXME what if the table name is `try me`?
                 if (theQuery.indexOf(' ') < 0) {
@@ -485,7 +485,7 @@ public interface ClickHouseClient extends AutoCloseable {
 
         return submit(() -> {
             try (ClickHouseClient client = newInstance(theServer.getProtocol());
-                    ClickHouseResponse response = client.connect(theServer).write().table(table).data(stream)
+                    ClickHouseResponse response = client.write(theServer).table(table).data(stream)
                             .executeAndWait()) {
                 return response.getSummary();
             }
@@ -516,7 +516,7 @@ public interface ClickHouseClient extends AutoCloseable {
 
         return submit(() -> {
             try (ClickHouseClient client = newInstance(theServer.getProtocol());
-                    ClickHouseResponse response = client.connect(theServer).write().table(table).data(writer)
+                    ClickHouseResponse response = client.write(theServer).table(table).data(writer)
                             .decompressClientRequest(compression).format(format).executeAndWait()) {
                 return response.getSummary();
             }
@@ -611,7 +611,7 @@ public interface ClickHouseClient extends AutoCloseable {
 
         return submit(() -> {
             try (ClickHouseClient client = newInstance(theServer.getProtocol());
-                    ClickHouseResponse response = client.connect(theServer).write().table(table).data(input)
+                    ClickHouseResponse response = client.write(theServer).table(table).data(input)
                             .decompressClientRequest(compression).format(format).executeAndWait()) {
                 return response.getSummary();
             } finally {
@@ -697,7 +697,7 @@ public interface ClickHouseClient extends AutoCloseable {
             try (ClickHouseClient client = ClickHouseClient.builder()
                     .nodeSelector(ClickHouseNodeSelector.of(theServer.getProtocol()))
                     .option(ClickHouseClientOption.ASYNC, false).build()) {
-                ClickHouseRequest<?> request = client.connect(theServer).format(ClickHouseFormat.RowBinary);
+                ClickHouseRequest<?> request = client.read(theServer).format(ClickHouseFormat.RowBinary);
                 if ((boolean) ClickHouseDefaults.AUTO_SESSION.getEffectiveDefaultValue() && queries.size() > 1) {
                     request.session(request.getManager().createSessionId(), false);
                 }
@@ -736,7 +736,7 @@ public interface ClickHouseClient extends AutoCloseable {
             try (ClickHouseClient client = ClickHouseClient.builder()
                     .nodeSelector(ClickHouseNodeSelector.of(theServer.getProtocol()))
                     .option(ClickHouseClientOption.ASYNC, false).build();
-                    ClickHouseResponse resp = client.connect(theServer).format(ClickHouseFormat.RowBinary).query(sql)
+                    ClickHouseResponse resp = client.read(theServer).format(ClickHouseFormat.RowBinary).query(sql)
                             .params(params).executeAndWait()) {
                 return resp.getSummary();
             }
@@ -806,7 +806,7 @@ public interface ClickHouseClient extends AutoCloseable {
                     .nodeSelector(ClickHouseNodeSelector.of(theServer.getProtocol()))
                     .option(ClickHouseClientOption.ASYNC, false).build()) {
                 // format doesn't matter here as we only need a summary
-                ClickHouseRequest<?> request = client.connect(theServer).format(ClickHouseFormat.RowBinary).query(sql);
+                ClickHouseRequest<?> request = client.read(theServer).format(ClickHouseFormat.RowBinary).query(sql);
                 for (int i = 0; i < size; i++) {
                     Object[] o = params[i];
                     String[] arr = new String[len];
@@ -859,7 +859,7 @@ public interface ClickHouseClient extends AutoCloseable {
                     .nodeSelector(ClickHouseNodeSelector.of(theServer.getProtocol()))
                     .option(ClickHouseClientOption.ASYNC, false).build()) {
                 // format doesn't matter here as we only need a summary
-                ClickHouseRequest<?> request = client.connect(theServer).format(ClickHouseFormat.RowBinary);
+                ClickHouseRequest<?> request = client.read(theServer).format(ClickHouseFormat.RowBinary);
                 ClickHouseParameterizedQuery query = ClickHouseParameterizedQuery.of(request.getConfig(), sql);
                 StringBuilder builder = new StringBuilder();
                 for (String[] p : params) {
@@ -1093,7 +1093,7 @@ public interface ClickHouseClient extends AutoCloseable {
             if (server.getProtocol() == ClickHouseProtocol.ANY) {
                 server = ClickHouseNode.probe(server.getHost(), server.getPort(), timeout);
             }
-            try (ClickHouseResponse resp = connect(server) // create request
+            try (ClickHouseResponse resp = read(server) // create request
                     .option(ClickHouseClientOption.ASYNC, false) // use current thread
                     .option(ClickHouseClientOption.CONNECTION_TIMEOUT, timeout)
                     .option(ClickHouseClientOption.SOCKET_TIMEOUT, timeout)

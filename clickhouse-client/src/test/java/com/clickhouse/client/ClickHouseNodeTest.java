@@ -108,6 +108,17 @@ public class ClickHouseNodeTest extends BaseIntegrationTest {
     }
 
     @Test(groups = { "unit" })
+    public void testCredentials() {
+        ClickHouseNode node = ClickHouseNode.builder().build();
+        Assert.assertEquals(node.getCredentials().orElse(null), null);
+
+        ClickHouseCredentials credentials = ClickHouseCredentials.fromUserAndPassword("default", "password");
+        node = ClickHouseNode.builder().credentials(credentials).build();
+        Assert.assertEquals(node.getCredentials().orElse(null), credentials);
+        Assert.assertTrue(node.getCredentials().orElse(null) == credentials, "Should be the exact same instance");
+    }
+
+    @Test(groups = { "unit" })
     public void testDatabase() {
         ClickHouseConfig config = new ClickHouseConfig(
                 Collections.singletonMap(ClickHouseClientOption.DATABASE, "ttt"),

@@ -1441,6 +1441,8 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
 
                 try (ClickHouseResponse resp = req.data(w).executeAndWait()) {
                     Assert.assertNotNull(resp);
+                } catch (Exception e) {
+                    Assert.fail("Failed to call executeAndWait(): async=" + b, e);
                 }
                 Assert.assertTrue(req.getInputStream().get().isClosed(), "Input stream should have been closed");
             }

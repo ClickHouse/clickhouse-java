@@ -9,7 +9,7 @@
     <groupId>com.clickhouse</groupId>
     <!-- change to clickhouse-r2dbc_0.9.1 for SPI 0.9.1.RELEASE -->
     <artifactId>clickhouse-r2dbc</artifactId>
-    <version>0.4.0</version>
+    <version>0.4.1</version>
     <!-- use uber jar with all dependencies included, change classifier to http or grpc for smaller jar -->
     <classifier>all</classifier>
     <exclusions>

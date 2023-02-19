@@ -143,6 +143,10 @@
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-javadoc-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
                 <executions>
                     <execution>
@@ -162,9 +166,20 @@
                             </transformers>
                             <filters>
                                 <filter>
+                                    <artifact>cc.blynk.clickhouse:clickhouse4j</artifact>
+                                    <excludes>
+                                        <exclude>net/**</exclude>
+                                        <exclude>org/**</exclude>
+                                    </excludes>
+                                </filter>
+                                <filter>
                                     <artifact>*:*</artifact>
                                     <excludes>
+                                        <exclude>**/maven</exclude>
                                         <exclude>**/module-info.class</exclude>
+                                        <exclude>**/DEPENDENCIES*</exclude>
+                                        <exclude>**/LICENSE*</exclude>
+                                        <exclude>**/NOTICE*</exclude>
                                         <exclude>META-INF/MANIFEST.MF</exclude>
                                         <exclude>META-INF/*.SF</exclude>
                                         <exclude>META-INF/*.DSA</exclude>
