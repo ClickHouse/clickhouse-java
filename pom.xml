@@ -100,6 +100,7 @@
         <compress.version>1.22</compress.version>
         <dnsjava.version>3.5.2</dnsjava.version>
         <fastutil.version>8.5.11</fastutil.version>
+        <graphql.version>20.0</graphql.version>
         <grpc.version>1.52.1</grpc.version>
         <gson.version>2.10.1</gson.version>
         <jctools.version>4.0.1</jctools.version>
@@ -137,6 +138,7 @@
         <jacoco-plugin.version>0.8.8</jacoco-plugin.version>
         <jar-plugin.version>3.2.2</jar-plugin.version>
         <javadoc-plugin.version>3.4.0</javadoc-plugin.version>
+        <native-plugin.version>0.9.20</native-plugin.version>
         <os-plugin.version>1.7.0</os-plugin.version>
         <protobuf-plugin.version>0.6.1</protobuf-plugin.version>
         <shade-plugin.version>3.3.0</shade-plugin.version>
@@ -218,6 +220,11 @@
                 <version>${zstd-jni.version}</version>
             </dependency>
             <dependency>
+                <groupId>com.graphql-java</groupId>
+                <artifactId>graphql-java</artifactId>
+                <version>${graphql.version}</version>
+            </dependency>
+            <dependency>
                 <groupId>dnsjava</groupId>
                 <artifactId>dnsjava</artifactId>
                 <version>${dnsjava.version}</version>
@@ -291,6 +298,11 @@
                 <version>${lz4.version}</version>
             </dependency>
             <dependency>
+                <groupId>org.lz4</groupId>
+                <artifactId>lz4-pure-java</artifactId>
+                <version>${lz4.version}</version>
+            </dependency>
+            <dependency>
                 <groupId>org.msgpack</groupId>
                 <artifactId>msgpack-core</artifactId>
                 <version>${msgpack.version}</version>
@@ -333,6 +345,11 @@
             <dependency>
                 <groupId>org.apache.httpcomponents.client5</groupId>
                 <artifactId>httpclient5</artifactId>
+                <version>${apache.httpclient.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.httpcomponents.core5</groupId>
+                <artifactId>httpcore5</artifactId>
                 <version>${apache.httpclient.version}</version>
             </dependency>
 
@@ -515,6 +532,11 @@
                     <groupId>org.codehaus.mojo</groupId>
                     <artifactId>versions-maven-plugin</artifactId>
                     <version>${versions-plugin.version}</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.graalvm.buildtools</groupId>
+                    <artifactId>native-maven-plugin</artifactId>
+                    <version>${native-plugin.version}</version>
                 </plugin>
                 <plugin>
                     <groupId>org.sonatype.plugins</groupId>
@@ -919,6 +941,7 @@
                                 <id>default-jar</id>
                                 <configuration>
                                     <archive>
+                                        <addMavenDescriptor>false</addMavenDescriptor>
                                         <manifest>
                                             <addDefaultEntries>true</addDefaultEntries>
                                             <addDefaultImplementationEntries>true</addDefaultImplementationEntries>
@@ -929,7 +952,7 @@
                                             <Implementation-URL>${project.url}</Implementation-URL>
                                             <Implementation-Vendor>ClickHouse, Inc.</Implementation-Vendor>
                                             <Implementation-Vendor-Id>${project.groupId}</Implementation-Vendor-Id>
-                                            <Implementation-Version>${project.artifactId} ${project.version} (revision: ${git.commit.id.abbrev})</Implementation-Version>
+                                            <Implementation-Version><![CDATA[${project.artifactId} ${project.version} (revision: ${git.commit.id.abbrev})]]></Implementation-Version>
                                             <SCM-Revision>${git.commit.id.full}</SCM-Revision>
                                         </manifestEntries>
                                     </archive>
@@ -1141,6 +1164,7 @@
                                 <id>default-jar</id>
                                 <configuration>
                                     <archive>
+                                        <addMavenDescriptor>false</addMavenDescriptor>
                                         <manifest>
                                             <addDefaultEntries>true</addDefaultEntries>
                                             <addDefaultImplementationEntries>true</addDefaultImplementationEntries>
@@ -1151,7 +1175,7 @@
                                             <Implementation-URL>${project.url}</Implementation-URL>
                                             <Implementation-Vendor>ClickHouse, Inc.</Implementation-Vendor>
                                             <Implementation-Vendor-Id>${project.groupId}</Implementation-Vendor-Id>
-                                            <Implementation-Version>${project.artifactId} ${project.version} (revision: ${git.commit.id.abbrev})</Implementation-Version>
+                                            <Implementation-Version><![CDATA[${project.artifactId} ${project.version} (revision: ${git.commit.id.abbrev})]]></Implementation-Version>
                                             <SCM-Revision>${git.commit.id.full}</SCM-Revision>
                                         </manifestEntries>
                                     </archive>

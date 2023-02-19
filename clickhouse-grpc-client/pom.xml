@@ -32,10 +32,6 @@
                 </exclusion>
             </exclusions>
         </dependency>
-        <dependency>
-            <groupId>org.lz4</groupId>
-            <artifactId>lz4-java</artifactId>
-        </dependency>
 
         <dependency>
             <groupId>com.aayushatharva.brotli4j</groupId>
@@ -70,15 +66,35 @@
         <dependency>
             <groupId>com.google.code.gson</groupId>
             <artifactId>gson</artifactId>
+            <optional>true</optional>
         </dependency>
         <dependency>
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-compress</artifactId>
+            <optional>true</optional>
         </dependency>
         <dependency>
             <groupId>io.grpc</groupId>
             <artifactId>grpc-protobuf</artifactId>
             <optional>true</optional>
+            <exclusions>
+                <exclusion>
+                    <groupId>com.google.errorprone</groupId>
+                    <artifactId>error_prone_annotations</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>com.google.code.findbugs</groupId>
+                    <artifactId>jsr305</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.checkerframework</groupId>
+                    <artifactId>checker-qual</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>com.google.j2objc</groupId>
+                    <artifactId>j2objc-annotations</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <dependency>
             <groupId>org.tukaani</groupId>
@@ -150,6 +166,16 @@
                             <createDependencyReducedPom>true</createDependencyReducedPom>
                             <createSourcesJar>true</createSourcesJar>
                             <promoteTransitiveDependencies>true</promoteTransitiveDependencies>
+                            <artifactSet>
+                                <includes>
+                                    <include>com.clickhouse:clickhouse-data</include>
+                                    <include>com.clickhouse:clickhouse-client</include>
+                                    <include>com.clickhouse:io.grpc</include>
+                                    <include>io.grpc:grpc-netty-shaded</include>
+                                    <include>io.grpc:grpc-okhttp</include>
+                                    <include>org.apache.commons:commons-compress</include>
+                                </includes>
+                            </artifactSet>
                             <relocations>
                                 <relocation>
                                     <pattern>com.google</pattern>
@@ -166,10 +192,6 @@
                                 <relocation>
                                     <pattern>io.perfmark</pattern>
                                     <shadedPattern>${shade.base}.perfmark</shadedPattern>
-                                </relocation>
-                                <relocation>
-                                    <pattern>net.jpountz</pattern>
-                                    <shadedPattern>${shade.base}.jpountz</shadedPattern>
                                 </relocation>
                                 <relocation>
                                     <pattern>okio</pattern>
@@ -196,229 +218,12 @@
                             </transformers>
                             <filters>
                                 <filter>
-                                    <artifact>com.aayushatharva.brotli4j:*</artifact>
-                                    <excludes>
-                                        <exclude>**</exclude>
-                                    </excludes>
-                                </filter>
-                                <filter>
-                                    <artifact>com.github.luben:zstd-jni</artifact>
-                                    <excludes>
-                                        <exclude>**</exclude>
-                                    </excludes>
-                                </filter>
-                                <filter>
-                                    <artifact>org.tukaani:xz</artifact>
-                                    <excludes>
-                                        <exclude>**</exclude>
-                                    </excludes>
-                                </filter>
-                                <filter>
-                                    <artifact>org.xerial.snappy:snappy-java</artifact>
-                                    <excludes>
-                                        <exclude>**</exclude>
-                                    </excludes>
-                                </filter>
-                                <filter>
                                     <artifact>*:*</artifact>
                                     <excludes>
                                         <exclude>google/**</exclude>
-                                        <exclude>javax/**</exclude>
-                                        <exclude>mozilla/**</exclude>
-                                        <exclude>org/checkerframework/**</exclude>
-                                        <exclude>org/codehaus/**</exclude>
-                                        <exclude>**/darwin/**</exclude>
-                                        <exclude>**/linux/**</exclude>
-                                        <exclude>**/win32/**</exclude>
-                                        <exclude>**/module-info.class</exclude>
-                                        <exclude>META-INF/MANIFEST.MF</exclude>
-                                        <exclude>META-INF/maven/**</exclude>
-                                        <exclude>META-INF/native/**</exclude>
-                                        <exclude>META-INF/native-image/**</exclude>
-                                    </excludes>
-                                </filter>
-                            </filters>
-                        </configuration>
-                    </execution>
-                    <execution>
-                        <id>shade-netty</id>
-                        <phase>package</phase>
-                        <goals>
-                            <goal>shade</goal>
-                        </goals>
-                        <configuration>
-                            <shadedArtifactAttached>true</shadedArtifactAttached>
-                            <createDependencyReducedPom>true</createDependencyReducedPom>
-                            <createSourcesJar>true</createSourcesJar>
-                            <promoteTransitiveDependencies>true</promoteTransitiveDependencies>
-                            <shadedClassifierName>netty</shadedClassifierName>
-                            <relocations>
-                                <relocation>
-                                    <pattern>com.google</pattern>
-                                    <shadedPattern>${shade.base}.google</shadedPattern>
-                                </relocation>
-                                <relocation>
-                                    <pattern>io.grpc</pattern>
-                                    <shadedPattern>${shade.base}.grpc</shadedPattern>
-                                </relocation>
-                                <relocation>
-                                    <pattern>io.opencensus</pattern>
-                                    <shadedPattern>${shade.base}.opencensus</shadedPattern>
-                                </relocation>
-                                <relocation>
-                                    <pattern>io.perfmark</pattern>
-                                    <shadedPattern>${shade.base}.perfmark</shadedPattern>
-                                </relocation>
-                                <relocation>
-                                    <pattern>net.jpountz</pattern>
-                                    <shadedPattern>${shade.base}.jpountz</shadedPattern>
-                                </relocation>
-                                <relocation>
-                                    <pattern>org.apache</pattern>
-                                    <shadedPattern>${shade.base}.apache</shadedPattern>
-                                </relocation>
-                            </relocations>
-                            <transformers>
-                                <transformer
-                                    implementation="org.apache.maven.plugins.shade.resource.ApacheLicenseResourceTransformer" />
-                                <transformer
-                                    implementation="org.apache.maven.plugins.shade.resource.ApacheNoticeResourceTransformer" />
-                                <transformer
-                                    implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer" />
-                            </transformers>
-                            <filters>
-                                <filter>
-                                    <artifact>com.aayushatharva.brotli4j:*</artifact>
-                                    <excludes>
-                                        <exclude>**</exclude>
-                                    </excludes>
-                                </filter>
-                                <filter>
-                                    <artifact>com.github.luben:zstd-jni</artifact>
-                                    <excludes>
-                                        <exclude>**</exclude>
-                                    </excludes>
-                                </filter>
-                                <filter>
-                                    <artifact>org.tukaani:xz</artifact>
-                                    <excludes>
-                                        <exclude>**</exclude>
-                                    </excludes>
-                                </filter>
-                                <filter>
-                                    <artifact>org.xerial.snappy:snappy-java</artifact>
-                                    <excludes>
-                                        <exclude>**</exclude>
-                                    </excludes>
-                                </filter>
-                                <filter>
-                                    <artifact>*:*</artifact>
-                                    <excludes>
-                                        <exclude>google/**</exclude>
-                                        <exclude>io/grpc/okhttp/**</exclude>
-                                        <exclude>javax/**</exclude>
-                                        <exclude>mozilla/**</exclude>
-                                        <exclude>okio/**</exclude>
                                         <exclude>org/checkerframework/**</exclude>
                                         <exclude>org/codehaus/**</exclude>
                                         <exclude>**/module-info.class</exclude>
-                                        <exclude>META-INF/MANIFEST.MF</exclude>
-                                        <exclude>META-INF/maven/**</exclude>
-                                        <exclude>META-INF/native-image/**</exclude>
-                                    </excludes>
-                                </filter>
-                            </filters>
-                        </configuration>
-                    </execution>
-                    <execution>
-                        <id>shade-okhttp</id>
-                        <phase>package</phase>
-                        <goals>
-                            <goal>shade</goal>
-                        </goals>
-                        <configuration>
-                            <shadedArtifactAttached>true</shadedArtifactAttached>
-                            <createDependencyReducedPom>true</createDependencyReducedPom>
-                            <createSourcesJar>true</createSourcesJar>
-                            <promoteTransitiveDependencies>true</promoteTransitiveDependencies>
-                            <shadedClassifierName>okhttp</shadedClassifierName>
-                            <relocations>
-                                <relocation>
-                                    <pattern>com.google</pattern>
-                                    <shadedPattern>${shade.base}.google</shadedPattern>
-                                </relocation>
-                                <relocation>
-                                    <pattern>io.grpc</pattern>
-                                    <shadedPattern>${shade.base}.grpc</shadedPattern>
-                                </relocation>
-                                <relocation>
-                                    <pattern>io.perfmark</pattern>
-                                    <shadedPattern>${shade.base}.perfmark</shadedPattern>
-                                </relocation>
-                                <relocation>
-                                    <pattern>io.opencensus</pattern>
-                                    <shadedPattern>${shade.base}.opencensus</shadedPattern>
-                                </relocation>
-                                <relocation>
-                                    <pattern>net.jpountz</pattern>
-                                    <shadedPattern>${shade.base}.jpountz</shadedPattern>
-                                </relocation>
-                                <relocation>
-                                    <pattern>okio</pattern>
-                                    <shadedPattern>${shade.base}.okio</shadedPattern>
-                                </relocation>
-                                <relocation>
-                                    <pattern>org.apache</pattern>
-                                    <shadedPattern>${shade.base}.apache</shadedPattern>
-                                </relocation>
-                            </relocations>
-                            <transformers>
-                                <transformer
-                                    implementation="org.apache.maven.plugins.shade.resource.ApacheLicenseResourceTransformer" />
-                                <transformer
-                                    implementation="org.apache.maven.plugins.shade.resource.ApacheNoticeResourceTransformer" />
-                                <transformer
-                                    implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer" />
-                            </transformers>
-                            <filters>
-                                <filter>
-                                    <artifact>com.aayushatharva.brotli4j:*</artifact>
-                                    <excludes>
-                                        <exclude>**</exclude>
-                                    </excludes>
-                                </filter>
-                                <filter>
-                                    <artifact>com.github.luben:zstd-jni</artifact>
-                                    <excludes>
-                                        <exclude>**</exclude>
-                                    </excludes>
-                                </filter>
-                                <filter>
-                                    <artifact>org.tukaani:xz</artifact>
-                                    <excludes>
-                                        <exclude>**</exclude>
-                                    </excludes>
-                                </filter>
-                                <filter>
-                                    <artifact>org.xerial.snappy:snappy-java</artifact>
-                                    <excludes>
-                                        <exclude>**</exclude>
-                                    </excludes>
-                                </filter>
-                                <filter>
-                                    <artifact>*:*</artifact>
-                                    <excludes>
-                                        <exclude>google/**</exclude>
-                                        <exclude>io/grpc/netty/**</exclude>
-                                        <exclude>javax/**</exclude>
-                                        <exclude>mozilla/**</exclude>
-                                        <exclude>org/checkerframework/**</exclude>
-                                        <exclude>org/codehaus/**</exclude>
-                                        <exclude>**/module-info.class</exclude>
-                                        <exclude>META-INF/MANIFEST.MF</exclude>
-                                        <exclude>META-INF/maven/**</exclude>
-                                        <exclude>META-INF/native/**</exclude>
-                                        <exclude>META-INF/native-image/**</exclude>
                                     </excludes>
                                 </filter>
                             </filters>

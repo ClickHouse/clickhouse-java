@@ -1,4 +1,6 @@
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
@@ -22,7 +24,8 @@
         </dependency>
         <dependency>
             <groupId>org.lz4</groupId>
-            <artifactId>lz4-java</artifactId>
+            <artifactId>lz4-pure-java</artifactId>
+            <optional>true</optional>
         </dependency>
 
         <!-- necessary for Java 9+ -->
@@ -87,6 +90,13 @@
                             <createDependencyReducedPom>true</createDependencyReducedPom>
                             <createSourcesJar>true</createSourcesJar>
                             <promoteTransitiveDependencies>true</promoteTransitiveDependencies>
+                            <artifactSet>
+                                <includes>
+                                    <include>com.clickhouse:clickhouse-data</include>
+                                    <include>com.clickhouse:clickhouse-client</include>
+                                    <include>org.lz4:lz4-pure-java</include>
+                                </includes>
+                            </artifactSet>
                             <relocations>
                                 <relocation>
                                     <pattern>net.jpountz</pattern>
@@ -94,10 +104,8 @@
                                 </relocation>
                             </relocations>
                             <transformers>
-                                <transformer implementation="org.apache.maven.plugins.shade.resource.ApacheLicenseResourceTransformer" />
-                                <transformer implementation="org.apache.maven.plugins.shade.resource.ApacheNoticeResourceTransformer" />
-                                <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer" />
-                                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                                <transformer
+                                    implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                                     <manifestEntries>
                                         <Automatic-Module-Name>com.clickhouse.client.cli</Automatic-Module-Name>
                                     </manifestEntries>
@@ -107,13 +115,7 @@
                                 <filter>
                                     <artifact>*:*</artifact>
                                     <excludes>
-                                        <exclude>**/darwin/**</exclude>
-                                        <exclude>**/linux/**</exclude>
-                                        <exclude>**/win32/**</exclude>
                                         <exclude>**/module-info.class</exclude>
-                                        <exclude>META-INF/MANIFEST.MF</exclude>
-                                        <exclude>META-INF/maven/**</exclude>
-                                        <exclude>META-INF/native-image/**</exclude>
                                     </excludes>
                                 </filter>
                             </filters>

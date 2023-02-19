@@ -79,7 +79,17 @@ public abstract class ClickHouseGrpcChannelFactory {
     }
 
     public static ClickHouseGrpcChannelFactory getFactory(ClickHouseConfig config, ClickHouseNode server) {
-        return (config.getBoolOption(ClickHouseGrpcOption.USE_OKHTTP))
+        if (!config.hasOption(ClickHouseGrpcOption.USE_OKHTTP)) { // default
+            ClickHouseGrpcChannelFactory factory = null;
+            try {
+                factory = new NettyChannelFactoryImpl(config, server);
+            } catch (NoClassDefFoundError e) {
+                factory = new OkHttpChannelFactoryImpl(config, server);
+            }
+            return factory;
+        }
+
+        return config.getBoolOption(ClickHouseGrpcOption.USE_OKHTTP)
                 ? new OkHttpChannelFactoryImpl(config, server)
                 : new NettyChannelFactoryImpl(config, server);
     }

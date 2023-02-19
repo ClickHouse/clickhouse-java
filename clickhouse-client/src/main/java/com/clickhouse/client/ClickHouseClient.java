@@ -18,6 +18,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
 
+import com.clickhouse.client.ClickHouseRequest.Mutation;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.config.ClickHouseDefaults;
 import com.clickhouse.config.ClickHouseBufferingMode;
@@ -891,12 +892,14 @@ public interface ClickHouseClient extends AutoCloseable {
      * Connects to one or more ClickHouse servers. Same as
      * {@code connect(ClickHouseNodes.of(uri))}.
      *
-     * @param enpoints non-empty URIs separated by comman
+     * @param endpoints non-empty URIs separated by comma
      * @return non-null request object holding references to this client and node
      *         provider
+     * @deprecated will be dropped in 0.5, please use {@link #read(String)} instead
      */
-    default ClickHouseRequest<?> connect(String enpoints) {
-        return connect(ClickHouseNodes.of(enpoints));
+    @Deprecated
+    default ClickHouseRequest<?> connect(String endpoints) {
+        return read(endpoints);
     }
 
     /**
@@ -905,22 +908,71 @@ public interface ClickHouseClient extends AutoCloseable {
      * @param nodes non-null list of servers to connect to
      * @return non-null request object holding references to this client and node
      *         provider
+     * @deprecated will be dropped in 0.5, please use {@link #read(ClickHouseNodes)}
+     *             instead
      */
+    @Deprecated
     default ClickHouseRequest<?> connect(ClickHouseNodes nodes) {
-        return new ClickHouseRequest<>(this, ClickHouseChecker.nonNull(nodes, "Nodes"),
-                null, nodes.template.config.getAllOptions(), false);
+        return read(nodes);
     }
 
     /**
      * Connects to a ClickHouse server.
      *
-     * @param node non-null server to connect to
+     * @param node non-null server for read
+     * @return non-null request object holding references to this client and node
+     *         provider
+     * @deprecated will be dropped in 0.5, please use {@link #read(ClickHouseNode)}
+     *             instead
+     */
+    @Deprecated
+    default ClickHouseRequest<?> connect(ClickHouseNode node) {
+        return read(node);
+    }
+
+    /**
+     * Reads from one or more ClickHouse servers. Same as
+     * {@code read(ClickHouseNodes.of(uri))}.
+     *
+     * @param endpoints non-empty connection string separated by comma
      * @return non-null request object holding references to this client and node
      *         provider
      */
-    default ClickHouseRequest<?> connect(ClickHouseNode node) {
+    default ClickHouseRequest<?> read(String endpoints) {
+        return read(ClickHouseNodes.of(endpoints));
+    }
+
+    /**
+     * Reads from a list of managed ClickHouse servers.
+     *
+     * @param nodes non-null list of servers for read
+     * @return non-null request object holding references to this client and node
+     *         provider
+     */
+    default ClickHouseRequest<?> read(ClickHouseNodes nodes) {
+        return new ClickHouseRequest<>(this, ClickHouseChecker.nonNull(nodes, "Nodes"),
+                null, nodes.template.config.getAllOptions(), false);
+    }
+
+    /**
+     * Reads from a ClickHouse server.
+     *
+     * @param node non-null server for read
+     * @return non-null request object holding references to this client and server
+     */
+    default ClickHouseRequest<?> read(ClickHouseNode node) {
         return new ClickHouseRequest<>(this, ClickHouseChecker.nonNull(node, "Node"), null, node.config.getAllOptions(),
                 false);
+    }
+
+    /**
+     * Writes into a ClickHouse server.
+     *
+     * @param server non-null server for write
+     * @return non-null request object holding references to this client and server
+     */
+    default Mutation write(ClickHouseNode server) {
+        return read(server).write();
     }
 
     /**

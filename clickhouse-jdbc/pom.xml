@@ -20,6 +20,9 @@
         <javacc-plugin.version>4.1.4</javacc-plugin.version>
         <spec.title>JDBC</spec.title>
         <spec.version>4.2</spec.version>
+
+        <imageName>clickhouse-jdbc-bin</imageName>
+        <mainClass>com.clickhouse.jdbc.Main</mainClass>
     </properties>
 
     <dependencies>
@@ -27,16 +30,31 @@
             <groupId>${project.parent.groupId}</groupId>
             <artifactId>clickhouse-cli-client</artifactId>
             <version>${revision}</version>
+            <optional>true</optional>
+            <exclusions>
+                <exclusion>
+                    <groupId>com.clickhouse</groupId>
+                    <artifactId>clickhouse-client</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <dependency>
             <groupId>${project.parent.groupId}</groupId>
             <artifactId>clickhouse-grpc-client</artifactId>
             <version>${revision}</version>
+            <optional>true</optional>
+            <exclusions>
+                <exclusion>
+                    <groupId>com.clickhouse</groupId>
+                    <artifactId>clickhouse-client</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <dependency>
             <groupId>${project.parent.groupId}</groupId>
             <artifactId>clickhouse-http-client</artifactId>
             <version>${revision}</version>
+            <optional>true</optional>
         </dependency>
         <dependency>
             <groupId>${project.parent.groupId}</groupId>
@@ -49,20 +67,36 @@
                 </exclusion>
             </exclusions>
         </dependency>
-
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-compress</artifactId>
+            <optional>true</optional>
+        </dependency>
         <dependency>
             <groupId>org.apache.httpcomponents.client5</groupId>
             <artifactId>httpclient5</artifactId>
             <exclusions>
                 <exclusion>
-                    <groupId>org.slf4j</groupId>
-                    <artifactId>slf4j-api</artifactId>
+                    <groupId>*</groupId>
+                    <artifactId>*</artifactId>
                 </exclusion>
             </exclusions>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.httpcomponents.core5</groupId>
+            <artifactId>httpcore5</artifactId>
+            <optional>true</optional>
         </dependency>
         <dependency>
             <groupId>org.lz4</groupId>
             <artifactId>lz4-java</artifactId>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>org.lz4</groupId>
+            <artifactId>lz4-pure-java</artifactId>
+            <optional>true</optional>
         </dependency>
 
         <dependency>
@@ -93,6 +127,91 @@
             <scope>test</scope>
         </dependency>
     </dependencies>
+
+    <profiles>
+        <!--
+        slower than pure Java due to lack of PGO
+        https://github.com/oracle/graal/issues/979#issuecomment-480786612
+        more on
+        https://blogs.oracle.com/javamagazine/post/pedal-to-the-metal-high-performance-java-with-graalvm-native-image
+        -->
+        <profile>
+            <id>native</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.graalvm.buildtools</groupId>
+                        <artifactId>native-maven-plugin</artifactId>
+                        <extensions>true</extensions>
+                        <executions>
+                            <execution>
+                                <id>build-native</id>
+                                <goals>
+                                    <goal>compile-no-fork</goal>
+                                </goals>
+                                <phase>package</phase>
+                            </execution>
+                            <execution>
+                                <id>test-native</id>
+                                <goals>
+                                    <goal>test</goal>
+                                </goals>
+                                <phase>test</phase>
+                            </execution>
+                        </executions>
+                        <configuration>
+                            <imageName>${imageName}</imageName>
+                            <mainClass>${mainClass}</mainClass>
+                            <buildArgs>
+                                <buildArg>--no-fallback</buildArg>
+                            </buildArgs>
+                            <classpath>
+                                <param>
+                                    ${project.build.directory}/${project.artifactId}-${project.version}-shaded.jar</param>
+                            </classpath>
+                            <agent>
+                                <enabled>true</enabled>
+                            </agent>
+                        </configuration>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>exec-maven-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>java-agent</id>
+                                <goals>
+                                    <goal>exec</goal>
+                                </goals>
+                                <configuration>
+                                    <executable>java</executable>
+                                    <workingDirectory>${project.build.directory}</workingDirectory>
+                                    <arguments>
+                                        <argument>-classpath</argument>
+                                        <classpath>
+                                            <param>
+                                                ${project.build.directory}/${project.artifactId}-${project.version}-shaded.jar</param>
+                                        </classpath>
+                                        <argument>${mainClass}</argument>
+                                    </arguments>
+                                </configuration>
+                            </execution>
+                            <execution>
+                                <id>native</id>
+                                <goals>
+                                    <goal>exec</goal>
+                                </goals>
+                                <configuration>
+                                    <executable>${project.build.directory}/${imageName}</executable>
+                                    <workingDirectory>${project.build.directory}</workingDirectory>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 
     <build>
         <plugins>
@@ -130,6 +249,7 @@
                 <artifactId>maven-jar-plugin</artifactId>
                 <configuration>
                     <archive>
+                        <addMavenDescriptor>false</addMavenDescriptor>
                         <manifestEntries>
                             <Specification-Title>${spec.title}</Specification-Title>
                             <Specification-Version>${spec.version}</Specification-Version>
@@ -145,6 +265,7 @@
                         <descriptorRef>jar-with-dependencies</descriptorRef>
                     </descriptorRefs>
                     <archive>
+                        <addMavenDescriptor>false</addMavenDescriptor>
                         <manifest>
                             <addDefaultImplementationEntries>true</addDefaultImplementationEntries>
                             <addDefaultSpecificationEntries>true</addDefaultSpecificationEntries>
@@ -157,9 +278,8 @@
                 <artifactId>maven-shade-plugin</artifactId>
                 <executions>
                     <!-- '-cli', '-grpc', and '-http' are minimal jars(without native libraries) for
-                    specific protocol; '-shaded' is a combination of '-cli' and '-http' with native
-                    libs and Apache http client; '-all' is fat for a reason as it includes all
-                    others ;) -->
+                    specific protocol; '-shaded' is a combination of '-cli' and '-http' with Apache http client; 
+                    '-all' is fat for a reason as it includes everything we have ;) -->
                     <execution>
                         <id>shade</id>
                         <phase>package</phase>
@@ -172,6 +292,17 @@
                             <createSourcesJar>true</createSourcesJar>
                             <promoteTransitiveDependencies>true</promoteTransitiveDependencies>
                             <shadedClassifierName>shaded</shadedClassifierName>
+                            <artifactSet>
+                                <includes>
+                                    <include>com.clickhouse:clickhouse-data</include>
+                                    <include>com.clickhouse:clickhouse-client</include>
+                                    <include>com.clickhouse:clickhouse-cli-client</include>
+                                    <include>com.clickhouse:clickhouse-http-client</include>
+                                    <include>org.apache.httpcomponents.client5:httpclient5</include>
+                                    <include>org.apache.httpcomponents.core5:httpcore5</include>
+                                    <include>org.lz4:lz4-pure-java</include>
+                                </includes>
+                            </artifactSet>
                             <relocations>
                                 <relocation>
                                     <pattern>org.apache</pattern>
@@ -193,6 +324,7 @@
                                     implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                                     <manifestEntries>
                                         <Automatic-Module-Name>${project.groupId}.jdbc</Automatic-Module-Name>
+                                        <Main-Class>${mainClass}</Main-Class>
                                         <Specification-Title>${spec.title}</Specification-Title>
                                         <Specification-Version>${spec.version}</Specification-Version>
                                     </manifestEntries>
@@ -200,40 +332,9 @@
                             </transformers>
                             <filters>
                                 <filter>
-                                    <artifact>${project.parent.groupId}:clickhouse-grpc-client</artifact>
-                                    <excludes>
-                                        <exclude>**</exclude>
-                                    </excludes>
-                                </filter>
-                                <filter>
-                                    <artifact>${project.parent.groupId}:io.grpc</artifact>
-                                    <excludes>
-                                        <exclude>**</exclude>
-                                    </excludes>
-                                </filter>
-                                <filter>
-                                    <artifact>${project.parent.groupId}:org.roaringbitmap</artifact>
-                                    <excludes>
-                                        <exclude>**</exclude>
-                                    </excludes>
-                                </filter>
-                                <filter>
-                                    <artifact>com.google.code.gson:gson</artifact>
-                                    <excludes>
-                                        <exclude>**</exclude>
-                                    </excludes>
-                                </filter>
-                                <filter>
                                     <artifact>*:*</artifact>
                                     <excludes>
-                                        <exclude>mozilla/**</exclude>
                                         <exclude>**/module-info.class</exclude>
-                                        <exclude>META-INF/DEPENDENCIES</exclude>
-                                        <exclude>META-INF/MANIFEST.MF</exclude>
-                                        <exclude>META-INF/maven/**</exclude>
-                                        <exclude>META-INF/native/**</exclude>
-                                        <exclude>META-INF/native-image/**</exclude>
-                                        <exclude>META-INF/*.xml</exclude>
                                     </excludes>
                                 </filter>
                             </filters>
@@ -292,6 +393,7 @@
                                     implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                                     <manifestEntries>
                                         <Automatic-Module-Name>${project.groupId}.jdbc</Automatic-Module-Name>
+                                        <Main-Class>${mainClass}</Main-Class>
                                         <Specification-Title>${spec.title}</Specification-Title>
                                         <Specification-Version>${spec.version}</Specification-Version>
                                     </manifestEntries>
@@ -302,15 +404,9 @@
                                     <artifact>*:*</artifact>
                                     <excludes>
                                         <exclude>google/**</exclude>
-                                        <exclude>mozilla/**</exclude>
                                         <exclude>org/checkerframework/**</exclude>
                                         <exclude>org/codehaus/**</exclude>
                                         <exclude>**/module-info.class</exclude>
-                                        <exclude>META-INF/DEPENDENCIES</exclude>
-                                        <exclude>META-INF/MANIFEST.MF</exclude>
-                                        <exclude>META-INF/maven/**</exclude>
-                                        <exclude>META-INF/native-image/**</exclude>
-                                        <exclude>META-INF/*.xml</exclude>
                                     </excludes>
                                 </filter>
                             </filters>
@@ -328,6 +424,17 @@
                             <createSourcesJar>true</createSourcesJar>
                             <promoteTransitiveDependencies>true</promoteTransitiveDependencies>
                             <shadedClassifierName>grpc</shadedClassifierName>
+                            <artifactSet>
+                                <includes>
+                                    <include>com.clickhouse:clickhouse-data</include>
+                                    <include>com.clickhouse:clickhouse-client</include>
+                                    <include>com.clickhouse:clickhouse-grpc-client</include>
+                                    <include>com.clickhouse:io.grpc</include>
+                                    <include>io.grpc:grpc-netty-shaded</include>
+                                    <include>io.grpc:grpc-okhttp</include>
+                                    <include>org.apache.commons:commons-compress</include>
+                                </includes>
+                            </artifactSet>
                             <relocations>
                                 <relocation>
                                     <pattern>com.google</pattern>
@@ -344,10 +451,6 @@
                                 <relocation>
                                     <pattern>io.perfmark</pattern>
                                     <shadedPattern>${shade.base}.perfmark</shadedPattern>
-                                </relocation>
-                                <relocation>
-                                    <pattern>net.jpountz</pattern>
-                                    <shadedPattern>${shade.base}.jpountz</shadedPattern>
                                 </relocation>
                                 <relocation>
                                     <pattern>okio</pattern>
@@ -369,6 +472,7 @@
                                     implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                                     <manifestEntries>
                                         <Automatic-Module-Name>${project.groupId}.jdbc</Automatic-Module-Name>
+                                        <Main-Class>${mainClass}</Main-Class>
                                         <Specification-Title>${spec.title}</Specification-Title>
                                         <Specification-Version>${spec.version}</Specification-Version>
                                     </manifestEntries>
@@ -376,34 +480,12 @@
                             </transformers>
                             <filters>
                                 <filter>
-                                    <artifact>${project.parent.groupId}:clickhouse-cli-client</artifact>
-                                    <excludes>
-                                        <exclude>**</exclude>
-                                    </excludes>
-                                </filter>
-                                <filter>
-                                    <artifact>${project.parent.groupId}:clickhouse-http-client</artifact>
-                                    <excludes>
-                                        <exclude>**</exclude>
-                                    </excludes>
-                                </filter>
-                                <filter>
                                     <artifact>*:*</artifact>
                                     <excludes>
                                         <exclude>google/**</exclude>
-                                        <exclude>mozilla/**</exclude>
                                         <exclude>org/checkerframework/**</exclude>
                                         <exclude>org/codehaus/**</exclude>
-                                        <exclude>**/darwin/**</exclude>
-                                        <exclude>**/linux/**</exclude>
-                                        <exclude>**/win32/**</exclude>
                                         <exclude>**/module-info.class</exclude>
-                                        <exclude>META-INF/DEPENDENCIES</exclude>
-                                        <exclude>META-INF/MANIFEST.MF</exclude>
-                                        <exclude>META-INF/maven/**</exclude>
-                                        <exclude>META-INF/native/**</exclude>
-                                        <exclude>META-INF/native-image/**</exclude>
-                                        <exclude>META-INF/*.xml</exclude>
                                     </excludes>
                                 </filter>
                             </filters>
@@ -421,6 +503,14 @@
                             <createSourcesJar>true</createSourcesJar>
                             <promoteTransitiveDependencies>true</promoteTransitiveDependencies>
                             <shadedClassifierName>http</shadedClassifierName>
+                            <artifactSet>
+                                <includes>
+                                    <include>com.clickhouse:clickhouse-data</include>
+                                    <include>com.clickhouse:clickhouse-client</include>
+                                    <include>com.clickhouse:clickhouse-http-client</include>
+                                    <include>org.lz4:lz4-pure-java</include>
+                                </includes>
+                            </artifactSet>
                             <relocations>
                                 <relocation>
                                     <pattern>net.jpountz</pattern>
@@ -429,15 +519,10 @@
                             </relocations>
                             <transformers>
                                 <transformer
-                                    implementation="org.apache.maven.plugins.shade.resource.ApacheLicenseResourceTransformer" />
-                                <transformer
-                                    implementation="org.apache.maven.plugins.shade.resource.ApacheNoticeResourceTransformer" />
-                                <transformer
-                                    implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer" />
-                                <transformer
                                     implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                                     <manifestEntries>
                                         <Automatic-Module-Name>${project.groupId}.jdbc</Automatic-Module-Name>
+                                        <Main-Class>${mainClass}</Main-Class>
                                         <Specification-Title>${spec.title}</Specification-Title>
                                         <Specification-Version>${spec.version}</Specification-Version>
                                     </manifestEntries>
@@ -445,53 +530,9 @@
                             </transformers>
                             <filters>
                                 <filter>
-                                    <artifact>${project.parent.groupId}:clickhouse-cli-client</artifact>
-                                    <excludes>
-                                        <exclude>**</exclude>
-                                    </excludes>
-                                </filter>
-                                <filter>
-                                    <artifact>${project.parent.groupId}:clickhouse-grpc-client</artifact>
-                                    <excludes>
-                                        <exclude>**</exclude>
-                                    </excludes>
-                                </filter>
-                                <filter>
-                                    <artifact>${project.parent.groupId}:io.grpc</artifact>
-                                    <excludes>
-                                        <exclude>**</exclude>
-                                    </excludes>
-                                </filter>
-                                <filter>
-                                    <artifact>${project.parent.groupId}:org.roaringbitmap</artifact>
-                                    <excludes>
-                                        <exclude>**</exclude>
-                                    </excludes>
-                                </filter>
-                                <filter>
-                                    <artifact>com.google.code.gson:gson</artifact>
-                                    <excludes>
-                                        <exclude>**</exclude>
-                                    </excludes>
-                                </filter>
-                                <filter>
                                     <artifact>*:*</artifact>
                                     <excludes>
-                                        <exclude>google/**</exclude>
-                                        <exclude>mozilla/**</exclude>
-                                        <exclude>org/apache/**</exclude>
-                                        <exclude>org/checkerframework/**</exclude>
-                                        <exclude>org/codehaus/**</exclude>
-                                        <exclude>**/darwin/**</exclude>
-                                        <exclude>**/linux/**</exclude>
-                                        <exclude>**/win32/**</exclude>
                                         <exclude>**/module-info.class</exclude>
-                                        <exclude>META-INF/DEPENDENCIES</exclude>
-                                        <exclude>META-INF/MANIFEST.MF</exclude>
-                                        <exclude>META-INF/maven/**</exclude>
-                                        <exclude>META-INF/native/**</exclude>
-                                        <exclude>META-INF/native-image/**</exclude>
-                                        <exclude>META-INF/*.xml</exclude>
                                     </excludes>
                                 </filter>
                             </filters>
@@ -509,6 +550,14 @@
                             <createSourcesJar>true</createSourcesJar>
                             <promoteTransitiveDependencies>true</promoteTransitiveDependencies>
                             <shadedClassifierName>cli</shadedClassifierName>
+                            <artifactSet>
+                                <includes>
+                                    <include>com.clickhouse:clickhouse-data</include>
+                                    <include>com.clickhouse:clickhouse-client</include>
+                                    <include>com.clickhouse:clickhouse-cli-client</include>
+                                    <include>org.lz4:lz4-pure-java</include>
+                                </includes>
+                            </artifactSet>
                             <relocations>
                                 <relocation>
                                     <pattern>net.jpountz</pattern>
@@ -517,15 +566,10 @@
                             </relocations>
                             <transformers>
                                 <transformer
-                                    implementation="org.apache.maven.plugins.shade.resource.ApacheLicenseResourceTransformer" />
-                                <transformer
-                                    implementation="org.apache.maven.plugins.shade.resource.ApacheNoticeResourceTransformer" />
-                                <transformer
-                                    implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer" />
-                                <transformer
                                     implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                                     <manifestEntries>
                                         <Automatic-Module-Name>${project.groupId}.jdbc</Automatic-Module-Name>
+                                        <Main-Class>${mainClass}</Main-Class>
                                         <Specification-Title>${spec.title}</Specification-Title>
                                         <Specification-Version>${spec.version}</Specification-Version>
                                     </manifestEntries>
@@ -533,53 +577,9 @@
                             </transformers>
                             <filters>
                                 <filter>
-                                    <artifact>${project.parent.groupId}:clickhouse-grpc-client</artifact>
-                                    <excludes>
-                                        <exclude>**</exclude>
-                                    </excludes>
-                                </filter>
-                                <filter>
-                                    <artifact>${project.parent.groupId}:clickhouse-http-client</artifact>
-                                    <excludes>
-                                        <exclude>**</exclude>
-                                    </excludes>
-                                </filter>
-                                <filter>
-                                    <artifact>${project.parent.groupId}:io.grpc</artifact>
-                                    <excludes>
-                                        <exclude>**</exclude>
-                                    </excludes>
-                                </filter>
-                                <filter>
-                                    <artifact>${project.parent.groupId}:org.roaringbitmap</artifact>
-                                    <excludes>
-                                        <exclude>**</exclude>
-                                    </excludes>
-                                </filter>
-                                <filter>
-                                    <artifact>com.google.code.gson:gson</artifact>
-                                    <excludes>
-                                        <exclude>**</exclude>
-                                    </excludes>
-                                </filter>
-                                <filter>
                                     <artifact>*:*</artifact>
                                     <excludes>
-                                        <exclude>google/**</exclude>
-                                        <exclude>mozilla/**</exclude>
-                                        <exclude>org/apache/**</exclude>
-                                        <exclude>org/checkerframework/**</exclude>
-                                        <exclude>org/codehaus/**</exclude>
-                                        <exclude>**/darwin/**</exclude>
-                                        <exclude>**/linux/**</exclude>
-                                        <exclude>**/win32/**</exclude>
                                         <exclude>**/module-info.class</exclude>
-                                        <exclude>META-INF/DEPENDENCIES</exclude>
-                                        <exclude>META-INF/MANIFEST.MF</exclude>
-                                        <exclude>META-INF/maven/**</exclude>
-                                        <exclude>META-INF/native/**</exclude>
-                                        <exclude>META-INF/native-image/**</exclude>
-                                        <exclude>META-INF/*.xml</exclude>
                                     </excludes>
                                 </filter>
                             </filters>

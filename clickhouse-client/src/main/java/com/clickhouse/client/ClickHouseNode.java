@@ -1017,6 +1017,15 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
     }
 
     /**
+     * Gets configuration.
+     *
+     * @return non-null configuration
+     */
+    public ClickHouseConfig getConfig() {
+        return this.config;
+    }
+
+    /**
      * Gets credentials for accessing this node. Use
      * {@link ClickHouseConfig#getDefaultCredentials()} if this is not present.
      *
