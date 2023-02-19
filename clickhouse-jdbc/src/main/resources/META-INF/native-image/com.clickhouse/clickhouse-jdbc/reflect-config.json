@@ -1,0 +1,36 @@
+[
+  {
+    "name": "com.clickhouse.client.internal.jpountz.lz4.LZ4HCJNICompressor",
+    "fields": [{ "name": "INSTANCE" }],
+    "methods": [{ "name": "<init>", "parameterTypes": ["int"] }]
+  },
+  {
+    "name": "com.clickhouse.client.internal.jpountz.lz4.LZ4HCJavaUnsafeCompressor",
+    "fields": [{ "name": "INSTANCE" }],
+    "methods": [{ "name": "<init>", "parameterTypes": ["int"] }]
+  },
+  {
+    "name": "com.clickhouse.client.internal.jpountz.lz4.LZ4JNICompressor",
+    "fields": [{ "name": "INSTANCE" }]
+  },
+  {
+    "name": "com.clickhouse.client.internal.jpountz.lz4.LZ4JNIFastDecompressor",
+    "fields": [{ "name": "INSTANCE" }]
+  },
+  {
+    "name": "com.clickhouse.client.internal.jpountz.lz4.LZ4JNISafeDecompressor",
+    "fields": [{ "name": "INSTANCE" }]
+  },
+  {
+    "name": "com.clickhouse.client.internal.jpountz.lz4.LZ4JavaUnsafeCompressor",
+    "fields": [{ "name": "INSTANCE" }]
+  },
+  {
+    "name": "com.clickhouse.client.internal.jpountz.lz4.LZ4JavaUnsafeFastDecompressor",
+    "fields": [{ "name": "INSTANCE" }]
+  },
+  {
+    "name": "com.clickhouse.client.internal.jpountz.lz4.LZ4JavaUnsafeSafeDecompressor",
+    "fields": [{ "name": "INSTANCE" }]
+  }
+]

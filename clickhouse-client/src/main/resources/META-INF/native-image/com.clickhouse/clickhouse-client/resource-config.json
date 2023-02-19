@@ -1,0 +1,13 @@
+{
+  "resources": {
+    "includes": [
+      {
+        "pattern": "\\QMETA-INF/services/com.clickhouse.client.ClickHouseClient\\E"
+      },
+      {
+        "pattern": "\\QMETA-INF/services/com.clickhouse.client.ClickHouseSslContextProvider\\E"
+      }
+    ]
+  },
+  "bundles": []
+}
