@@ -38,12 +38,14 @@ import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.http.config.ClickHouseHttpOption;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseValues;
+import com.clickhouse.data.value.ClickHouseBitmap;
 import com.clickhouse.data.value.ClickHouseDateTimeValue;
 import com.clickhouse.data.value.UnsignedByte;
 import com.clickhouse.data.value.UnsignedInteger;
 import com.clickhouse.data.value.UnsignedLong;
 import com.clickhouse.data.value.UnsignedShort;
 
+import org.roaringbitmap.longlong.Roaring64NavigableMap;
 import org.testng.Assert;
 import org.testng.SkipException;
 import org.testng.annotations.DataProvider;
@@ -63,6 +65,55 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
         sessionProps.setProperty(ClickHouseClientOption.SESSION_ID.getKey(), UUID.randomUUID().toString());
         return new Object[][] {
                 new Object[] { emptyProps }, new Object[] { sessionProps } };
+    }
+
+    @Test(groups = "integration")
+    public void testBitmap64() throws SQLException {
+        Properties props = new Properties();
+        String sql = "select k,\n"
+                + "[ tuple(arraySort(groupUniqArrayIf(n, n > 33)), groupBitmapStateIf(n, n > 33)),\n"
+                + "  tuple(arraySort(groupUniqArrayIf(n, n < 32)), groupBitmapStateIf(n, n < 32)),\n"
+                + "  tuple(arraySort(groupUniqArray(n)), groupBitmapState(n)),\n"
+                + "  tuple(arraySort(groupUniqArray(v)), groupBitmapState(v))\n"
+                + "]::Array(Tuple(Array(UInt64), AggregateFunction(groupBitmap, UInt64))) v\n"
+                + "from (select 'k' k, (number % 33)::UInt64 as n, (9223372036854775807 + number::Int16)::UInt64 v from numbers(300000))\n"
+                + "group by k";
+        try (ClickHouseConnection conn = newConnection(props);
+                ClickHouseStatement stmt = conn.createStatement()) {
+            stmt.execute("drop table if exists test_bitmap64_serde; "
+                    + "create table test_bitmap64_serde(k String, v Array(Tuple(Array(UInt64), AggregateFunction(groupBitmap, UInt64))))engine=Memory");
+            try (PreparedStatement ps = conn.prepareStatement("insert into test_bitmap64_serde");
+                    ResultSet rs = stmt.executeQuery(sql)) {
+                Assert.assertTrue(rs.next());
+                Assert.assertEquals(rs.getString(1), "k");
+                ps.setString(1, rs.getString(1));
+                Object[] values = (Object[]) rs.getObject(2);
+                ps.setObject(2, values);
+                Assert.assertEquals(values.length, 4);
+                for (int i = 0; i < values.length; i++) {
+                    List<?> tuple = (List<?>) values[i];
+                    Assert.assertEquals(tuple.size(), 2);
+                    long[] nums = (long[]) tuple.get(0);
+                    ClickHouseBitmap bitmap = (ClickHouseBitmap) tuple.get(1);
+                    Roaring64NavigableMap bitmap64 = (Roaring64NavigableMap) bitmap.unwrap();
+                    Assert.assertEquals(nums.length, bitmap64.getLongCardinality());
+                    for (int j = 0; j < nums.length; j++) {
+                        Assert.assertTrue(bitmap64.contains(nums[j]), "Bitmap does not contain value: " + nums[j]);
+                    }
+                }
+                Assert.assertFalse(rs.next());
+
+                // Assert.assertThrows(IllegalStateException.class, () -> ps.executeUpdate());
+                Roaring64NavigableMap.SERIALIZATION_MODE = Roaring64NavigableMap.SERIALIZATION_MODE_PORTABLE;
+                ps.executeUpdate();
+            }
+
+            stmt.execute("insert into test_bitmap64_serde\n" + sql);
+            try (ResultSet rs = stmt.executeQuery("select distinct * from test_bitmap64_serde")) {
+                Assert.assertTrue(rs.next(), "Should have at least one row");
+                Assert.assertFalse(rs.next(), "Should have only one unique row");
+            }
+        }
     }
 
     @Test(groups = "integration")
