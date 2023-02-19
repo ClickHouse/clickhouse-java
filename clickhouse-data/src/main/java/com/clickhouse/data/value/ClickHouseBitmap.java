@@ -172,18 +172,14 @@ public abstract class ClickHouseBitmap {
             try (ByteArrayOutputStream bas = new ByteArrayOutputStream(size)) {
                 DataOutput out = new DataOutputStream(bas);
                 try {
-                    // https://github.com/RoaringBitmap/RoaringBitmap/blob/0.9.9/RoaringBitmap/src/main/java/org/roaringbitmap/longlong/Roaring64NavigableMap.java#L1105
-                    rb.serialize(out);
+                    // https://github.com/RoaringBitmap/RoaringBitmap/blob/fd54c0a100629bb578946e2a0bf8b62784878fa8/RoaringBitmap/src/main/java/org/roaringbitmap/longlong/Roaring64NavigableMap.java#L1253
+                    rb.serializePortable(out);
                 } catch (IOException e) {
                     throw new IllegalArgumentException("Failed to serialize given bitmap", e);
                 }
 
                 byte[] bytes = bas.toByteArray();
-                for (int i = 4; i > 0; i--) {
-                    buffer.put(bytes[i]);
-                }
-                buffer.putInt(0);
-                buffer.put(bytes, 5, size - 5);
+                buffer.put(bytes, 0, size);
             } catch (IOException e) {
                 throw new IllegalStateException("Failed to serialize given bitmap", e);
             }
@@ -196,6 +192,13 @@ public abstract class ClickHouseBitmap {
 
         @Override
         public long serializedSizeInBytesAsLong() {
+            // no idea why it's implemented this way...
+            // https://github.com/RoaringBitmap/RoaringBitmap/blob/fd54c0a100629bb578946e2a0bf8b62784878fa8/RoaringBitmap/src/main/java/org/roaringbitmap/longlong/Roaring64NavigableMap.java#L1371-L1380
+            // TODO completely drop RoaringBitmap dependency
+            if (Roaring64NavigableMap.SERIALIZATION_MODE != Roaring64NavigableMap.SERIALIZATION_MODE_PORTABLE) {
+                throw new IllegalStateException(
+                        "Please change Roaring64NavigableMap.SERIALIZATION_MODE to portable first");
+            }
             return rb.serializedSizeInBytes();
         }
 
@@ -364,20 +367,10 @@ public abstract class ClickHouseBitmap {
                 b.deserialize(flip(newBuffer(len).put(bytes)));
                 rb = ClickHouseBitmap.wrap(b, innerType);
             } else {
-                // TODO implement a wrapper of DataInput to get rid of byte array here
-                bytes[0] = (byte) 0; // always unsigned
-                // read map size in big-endian byte order
-                for (int i = 4; i > 0; i--) {
-                    bytes[i] = in.readByte();
-                }
-                if (in.readByte() != 0 || in.readByte() != 0 || in.readByte() != 0 || in.readByte() != 0) { // NOSONAR
-                    throw new IllegalStateException(
-                            "Not able to deserialize ClickHouseBitmap for too many bitmaps(>" + 0xFFFFFFFFL + ")!");
-                }
-                // read the rest
-                in.readFully(bytes, 5, len - 8);
+                in.readFully(bytes, 0, len);
                 Roaring64NavigableMap b = new Roaring64NavigableMap();
-                b.deserialize(new DataInputStream(new ByteArrayInputStream(bytes)));
+                // https://github.com/RoaringBitmap/RoaringBitmap/blob/fd54c0a100629bb578946e2a0bf8b62784878fa8/RoaringBitmap/src/main/java/org/roaringbitmap/longlong/Roaring64NavigableMap.java#L1337
+                b.deserializePortable(new DataInputStream(new ByteArrayInputStream(bytes)));
                 rb = ClickHouseBitmap.wrap(b, innerType);
             }
         }
@@ -564,9 +557,9 @@ public abstract class ClickHouseBitmap {
     public ByteBuffer toByteBuffer() {
         ByteBuffer buf;
 
-        int cardinality = getCardinality();
-        if (cardinality <= 32) {
-            buf = newBuffer(2 + byteLen * cardinality);
+        long cardinality = getLongCardinality();
+        if (cardinality <= 32L) {
+            buf = newBuffer(2 + byteLen * (int) cardinality);
             buf.put((byte) 0);
             buf.put((byte) cardinality);
             if (byteLen == 1) {
@@ -595,12 +588,7 @@ public abstract class ClickHouseBitmap {
             ClickHouseByteUtils.setVarInt(buf, size);
             serialize(buf);
         } else { // 64
-            // 1) deduct one to exclude the leading byte - boolean flag, see below:
-            // https://github.com/RoaringBitmap/RoaringBitmap/blob/0.9.9/RoaringBitmap/src/main/java/org/roaringbitmap/longlong/Roaring64NavigableMap.java#L1107
-            // 2) add 4 bytes because CRoaring uses long to store count of 32-bit bitmaps,
-            // while Java uses int - see
-            // https://github.com/RoaringBitmap/CRoaring/blob/v0.2.66/cpp/roaring64map.hh#L597
-            long size = serializedSizeInBytesAsLong() - 1 + 4;
+            long size = serializedSizeInBytesAsLong();
             int varIntSize = ClickHouseByteUtils.getVarLongSize(size);
             // TODO add serialize(DataOutput) to handle more
             int intSize = (int) size;
