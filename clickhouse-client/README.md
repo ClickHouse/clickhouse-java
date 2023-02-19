@@ -38,7 +38,7 @@ client.connect("http://localhost/system")
 <dependency>
     <groupId>com.clickhouse</groupId>
     <artifactId>clickhouse-http-client</artifactId>
-    <version>0.4.0</version>
+    <version>0.4.1</version>
 </dependency>
 ```
 

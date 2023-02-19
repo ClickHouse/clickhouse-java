@@ -88,13 +88,15 @@ public class Main {
 
     public static void main(String[] args) {
         ClickHouseNode server = ClickHouseNode.builder()
-                .host(System.getProperty("chHost", "127.0.0.1"))
-                .port(ClickHouseProtocol.GRPC, Integer.parseInt(System.getProperty("chPort", "9100")))
+                .host(System.getProperty("chHost", "localhost"))
+                .port(ClickHouseProtocol.HTTP, Integer.getInteger("chPort", 8123))
+                // .port(ClickHouseProtocol.GRPC, Integer.getInteger("chPort", 9000))
+                // .port(ClickHouseProtocol.TCP, Integer.getInteger("chPort", 9100))
                 .database("system").credentials(ClickHouseCredentials.fromUserAndPassword(
                         System.getProperty("chUser", "default"), System.getProperty("chPassword", "")))
                 .build();
 
-        String table = "grpc_example_table";
+        String table = "java_client_example_table";
 
         try {
             dropAndCreateTable(server, table);
