@@ -25,7 +25,7 @@ Java libraries for connecting to ClickHouse and processing data in various forma
 |                   | [zstd](https://facebook.github.io/zstd/)                                            | :white_check_mark: | supported since 0.4.0, works with ClickHouse 22.10+                                                                                                                                                                      |
 | Data Format       | RowBinary                                                                           | :white_check_mark: | `RowBinaryWithNamesAndTypes` for query and `RowBinary` for insertion                                                                                                                                                     |
 |                   | TabSeparated                                                                        | :white_check_mark: | :warning: does not support as many data types as RowBinary                                                                                                                                                               |
-| Data Type         | AggregatedFunction                                                                  | :x:                | :warning: limited to `groupBitmap`; 64bit bitmap was NOT working properly before 0.4.1                                                                                                                                   |
+| Data Type         | AggregateFunction                                                                   | :x:                | :warning: limited to `groupBitmap`; 64bit bitmap was NOT working properly before 0.4.1                                                                                                                                   |
 |                   | Array(\*)                                                                           | :white_check_mark: |                                                                                                                                                                                                                          |
 |                   | Bool                                                                                | :white_check_mark: |                                                                                                                                                                                                                          |
 |                   | Date\*                                                                              | :white_check_mark: |                                                                                                                                                                                                                          |
@@ -133,20 +133,11 @@ More examples can be found at [here](../../tree/main/examples/jdbc).
 
 ## Build with Maven
 
-Use `mvn -Dj8 -DskipITs clean verify` to compile and generate packages if you're using JDK 8. To create a multi-release jar (see [JEP-238](https://openjdk.java.net/jeps/238)), please use JDK 11+ with `~/.m2/toolchains.xml` like below, and run `mvn -DskipITs clean verify` instead.
+Use `mvn -Dj8 -DskipITs clean verify` to compile and generate packages if you're using JDK 8. To create a multi-release jar (see [JEP-238](https://openjdk.java.net/jeps/238)), please use JDK 17+ with `~/.m2/toolchains.xml` like below, and run `mvn -DskipITs clean verify` instead.
 
 ```xml
 <?xml version="1.0" encoding="UTF8"?>
 <toolchains>
-    <toolchain>
-        <type>jdk</type>
-        <provides>
-            <version>11</version>
-        </provides>
-        <configuration>
-            <jdkHome>/usr/lib/jvm/java-11-openjdk</jdkHome>
-        </configuration>
-    </toolchain>
     <toolchain>
         <type>jdk</type>
         <provides>
@@ -158,6 +149,50 @@ Use `mvn -Dj8 -DskipITs clean verify` to compile and generate packages if you're
     </toolchain>
 </toolchains>
 ```
+
+To create a native binary of JDBC driver for evaluation and testing:
+
+- [install GraalVM](https://www.graalvm.org/latest/docs/getting-started/) and optionally [upx](https://upx.github.io/)
+
+- make sure you have [native-image](https://www.graalvm.org/latest/docs/getting-started/#native-image) installed, and then build the native binary
+
+  ```bash
+  cd clickhouse-java
+  mvn -DskipTests clean install
+  cd clickhouse-jdbc
+  mvn -DskipTests -Pnative clean package
+  # only if you have upx installed
+  upx -7 -k target/clickhouse-jdbc-bin
+  ```
+
+- run native binary
+
+  ```bash
+  # print usage
+  ./target/clickhouse-jdbc-bin
+  Usage: clickhouse-jdbc-bin [PROPERTIES] <URL> [QUERY] [FILE]
+  ...
+
+  # test database connection using JDBC driver
+  ./target/clickhouse-jdbc-bin -Dverbose=true 'jdbc:ch:http://localhost'
+  Arguments:
+    -   url=jdbc:ch:http://localhost
+    - query=select 500000000
+    -  file=jdbc.out
+
+  Options: action=read, batch=1000, samples=500000000, serde=true, type=, verbose=true
+  Processed 1 rows in 85.56 ms (11.69 rows/s)
+
+  # test query performance using Java client
+  ./target/clickhouse-jdbc-bin -Dverbose=true -Dtype=uint64 'http://localhost'
+  ...
+  Processed 500,000,000 rows in 52,491.38 ms (9,525,373.89 rows/s)
+
+  # test same query again using JVM for comparison - don't have GraalVM EE so JIT wins in my case
+  java -Dverbose=true -Dtype=uint64 -jar target/clickhouse-jdbc-*-http.jar 'http://localhost'
+  ...
+  Processed 500,000,000 rows in 25,267.89 ms (19,787,963.94 rows/s)
+  ```
 
 ## Testing
 
