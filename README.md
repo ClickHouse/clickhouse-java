@@ -63,73 +63,11 @@ The library can be downloaded from both [Github Releases](../../releases) and [M
 ```
 
 ### Java Client
-
-```xml
-<dependency>
-    <groupId>com.clickhouse</groupId>
-    <!-- or clickhouse-grpc-client if you prefer gRPC -->
-    <artifactId>clickhouse-http-client</artifactId>
-    <version>0.4.1</version>
-</dependency>
-```
-
-```java
-//  endpoint: protocol://host[:port][/database][?param[=value][&param[=value]][#tag[,tag]]
-ClickHouseNode endpoint = ClickHouseNode.of("https://localhost"); // http://localhost:8443?ssl=true&sslmode=NONE
-// endpoints: [defaultProtocol://]endpoint[,endpoint][/defaultDatabase][?defaultParameters][#defaultTags]
-ClickHouseNodes endpoints = ClickHouseNodes.of("http://(https://explorer@play.clickhouse.com:443),localhost,"
-    + "(tcp://localhost?!auto_discovery#experimental),(grpc://localhost#experimental)?failover=3#test")
-
-try (ClickHouseClient client = ClickHouseClient.newInstance(ClickHouseProtocol.HTTP);
-    ClickHouseResponse response = client.connect(endpoint) // or client.connect(endpoints)
-        // you'll have to parse response manually if using a different format
-        .format(ClickHouseFormat.RowBinaryWithNamesAndTypes)
-        .query("select * from numbers(:limit)")
-        .params(1000).executeAndWait()) {
-    // or response.stream() if you prefer stream API
-    for (ClickHouseRecord r : response.records()) {
-        int num = r.getValue(0).asInteger();
-        // type conversion
-        String str = r.getValue(0).asString();
-        LocalDate date = r.getValue(0).asDate();
-    }
-
-    ClickHouseResponseSummary summary = response.getSummary();
-    long totalRows = summary.getTotalRowsToRead();
-}
-```
+See the [client docs on the ClickHouse website](https://clickhouse.com/docs/en/integrations/language-clients/java/client).
 
 ### JDBC Driver
 
-```xml
-<dependency>
-    <groupId>com.clickhouse</groupId>
-    <artifactId>clickhouse-jdbc</artifactId>
-    <version>0.4.1</version>
-    <!-- use uber jar with all dependencies included, change classifier to http for smaller jar -->
-    <classifier>all</classifier>
-</dependency>
-```
-
-```java
-// jdbc:(ch|clickhouse):[defaultProtocol://]endpoint[,endpoint][/defaultDatabase][?defaultParameters][#defaultTags]
-String url = "jdbc:ch:https://play.clickhouse.com:443";
-Properties properties = new Properties();
-properties.setProperty("user", "explorer");
-properties.setProperty("password", "");
-// optional properties
-properties.setProperty("client_name", "Agent #1");
-...
-
-ClickHouseDataSource dataSource = new ClickHouseDataSource(url, properties);
-try (Connection conn = dataSource.getConnection();
-    Statement stmt = conn.createStatement();
-    ResultSet rs = stmt.executeQuery("show databases")) {
-    ...
-}
-```
-
-More examples can be found at [here](../../tree/main/examples/jdbc).
+See the [jdbc driver docs on the ClickHouse website](https://clickhouse.com/docs/en/integrations/language-clients/java/jdbc).
 
 ## Build with Maven
 
