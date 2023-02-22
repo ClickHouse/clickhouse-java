@@ -3,8 +3,8 @@ ClickHouse-JDBC client is an open-source project, and we welcome any contributio
 
 ### Create a fork of the repository and clone it
 ```bash
-git clone https://github.com/[YOUR_USERNAME]/clickhouse-jdbc
-cd clickhouse-jdbc
+git clone https://github.com/[YOUR_USERNAME]/clickhouse-java
+cd clickhouse-java
 ```
 
 ### Set up environment
