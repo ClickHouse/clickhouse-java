@@ -1,14 +1,34 @@
-## 0.4.1
+## 0.4.2
+
+### Bug Fixes
+* error while converting Nested values to Java maps.
+
+## 0.4.1, 2023-02-19
+### Breaking Changes
+* changed option names - [#1203](https://github.com/ClickHouse/clickhouse-java/pull/1203)
+    * compress_alogrithm -> compress_algorithm
+    * decompress_alogrithm -> decompress_algorithm
+
+### New Features
+* added source in shaded jar for IDE friendly. [#1217](https://github.com/ClickHouse/clickhouse-java/pull/1217)
+* iterable ClickHouseInputStream, which slightly improved performance of piping. [#1238](https://github.com/ClickHouse/clickhouse-java/pull/1238)
+* ClickHouseOutputStream.transferBytes() is deprecated and it will be removed in 0.5.
+* read() and write() methods in ClickHouseClient - connect() is deprecated and it will be removed in 0.5.
+* make all dependencies of JDBC driver optional, along with configuration for building native binary. [#1247](https://github.com/ClickHouse/clickhouse-java/pull/1247)
 
 ### Bug Fixes
 * incorrect nested array value. [#1221](https://github.com/ClickHouse/clickhouse-java/issues/1221)
+* incorrect nested array values. [#1223](https://github.com/ClickHouse/clickhouse-java/issues/1223)
 * potential endless loop when handling batch update error. [#1233](https://github.com/ClickHouse/clickhouse-java/issues/1233)
 * exception when deserializing Array(FixedString(2)) from RowBinary. [#1235](https://github.com/ClickHouse/clickhouse-java/issues/1235)
 * deserialization failure of Nested data type. [#1240](https://github.com/ClickHouse/clickhouse-java/issues/1240)
+broken serde for Nested, which also impacted JSON. [#1242](https://github.com/ClickHouse/clickhouse-java/issues/1242)
 * fix 64bit bitmap serialization issue. [#641](https://github.com/ClickHouse/clickhouse-java/issues/641), [#874](https://github.com/ClickHouse/clickhouse-java/issues/874), [#1141](https://github.com/ClickHouse/clickhouse-java/issues/1141)
+* gRPC client may complete execution before closing response stream
+* throw StreamCorruptedException instead of generic IOException when deserialization failed (mostly due to server error)
 
 ## 0.4.0, 2023-01-19
-### Breaking changes
+### Breaking Changes
 * refactored `JdbcTypeMapping` to make it extensible. [#1075](https://github.com/ClickHouse/clickhouse-java/pull/1075)
 * removed legacy driver `ru.yandex.*`.[#1089](https://github.com/ClickHouse/clickhouse-java/pull/1089)
 * removed most deprecated methods and class members
@@ -25,7 +45,7 @@
     mvn -Dj8 clean install # for jdk8, it was 'mvn clean install'
     mvn clean install # for jdk17, it was 'mvn -Drelease clean install'
     ```
-### New Feature
+### New Features
 * added R2DBC driver. [#914](https://github.com/ClickHouse/clickhouse-java/pull/914)
 * enhanced ClickHouseClient for importing and exporting compressed file. [#1004](https://github.com/ClickHouse/clickhouse-java/pull/1004)
 * added new option `custom_settings`. [#1059](https://github.com/ClickHouse/clickhouse-java/pull/1059)
