@@ -453,6 +453,7 @@ public class ClickHouseTupleValue extends ClickHouseObjectValue<List<Object>> {
         if (value == null) {
             return resetToNullOrEmpty();
         }
+        // TODO parse string
         set(Collections.singletonList(value));
         return this;
     }

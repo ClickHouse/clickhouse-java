@@ -58,7 +58,7 @@ public class ClickHouseNestedValue extends ClickHouseObjectValue<Object[][]> {
      */
     public static ClickHouseNestedValue of(ClickHouseValue ref, List<ClickHouseColumn> columns, Object[][] values) {
         return ref instanceof ClickHouseNestedValue
-                ? (ClickHouseNestedValue) ((ClickHouseNestedValue) ref).update(values)
+                ? ((ClickHouseNestedValue) ref).set(values != null ? values : ClickHouseValues.EMPTY_OBJECT_ARRAY2)
                 : new ClickHouseNestedValue(columns, values);
     }
 
@@ -150,12 +150,20 @@ public class ClickHouseNestedValue extends ClickHouseObjectValue<Object[][]> {
 
     @Override
     public Map<Object, Object> asMap() {
-        Map<Object, Object> map = new LinkedHashMap<>();
-        int index = 0;
-        for (Object[] o : getValue()) {
-            map.put(columns.get(index++).getColumnName(), o);
+        Object[][] values = getValue();
+        int len = values.length;
+        if (len == 0) {
+            return Collections.emptyMap();
         }
 
+        Map<Object, Object> map = new LinkedHashMap<>();
+        for (int i = 0, size = columns.size(); i < size; i++) {
+            Object[] v = new Object[len];
+            for (int j = 0; j < len; j++) {
+                v[j] = values[j][i];
+            }
+            map.put(columns.get(i).getColumnName(), v);
+        }
         // why not use Collections.unmodifiableMap(map) here?
         return map;
     }
@@ -165,10 +173,39 @@ public class ClickHouseNestedValue extends ClickHouseObjectValue<Object[][]> {
         if (keyClass == null || valueClass == null) {
             throw new IllegalArgumentException("Non-null key and value classes are required");
         }
+        Object[][] values = getValue();
+        int len = values.length;
+        if (len == 0) {
+            return Collections.emptyMap();
+        }
+
         Map<K, V> map = new LinkedHashMap<>();
-        int index = 0;
-        for (Object[] o : getValue()) {
-            map.put(keyClass.cast(columns.get(index++).getColumnName()), valueClass.cast(o));
+        int size = columns.size();
+        if (len == 1 && !valueClass.isArray()) {
+            for (int i = 0; i < size; i++) {
+                map.put(keyClass.cast(columns.get(i).getColumnName()), valueClass.cast(values[i][0]));
+            }
+        } else if (!valueClass.isArray()) {
+            throw new IllegalArgumentException("Value class should be array");
+        }
+
+        Class<?> compClass = valueClass.getComponentType();
+        if (compClass == Object.class) {
+            for (int i = 0; i < size; i++) {
+                Object[] v = new Object[len];
+                for (int j = 0; j < len; j++) {
+                    v[j] = values[j][i];
+                }
+                map.put(keyClass.cast(columns.get(i).getColumnName()), valueClass.cast(v));
+            }
+        } else {
+            for (int i = 0; i < size; i++) {
+                Object[] v = (Object[]) Array.newInstance(compClass, len);
+                for (int j = 0; j < len; j++) {
+                    v[j] = compClass.cast(values[j][i]);
+                }
+                map.put(keyClass.cast(columns.get(i).getColumnName()), valueClass.cast(v));
+            }
         }
         // why not use Collections.unmodifiableMap(map) here?
         return map;
@@ -497,6 +534,7 @@ public class ClickHouseNestedValue extends ClickHouseObjectValue<Object[][]> {
         if (value == null) {
             return resetToNullOrEmpty();
         }
+        // TODO parse string
         return set(new Object[][] { new String[] { value } });
     }
 
