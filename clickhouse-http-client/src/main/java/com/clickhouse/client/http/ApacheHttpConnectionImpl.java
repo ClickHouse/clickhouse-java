@@ -328,10 +328,11 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
                     .build();
             setDefaultConnectionConfig(connConfig);
 
-            SocketConfig.Builder builder = SocketConfig.custom()
-                    .setSoTimeout(Timeout.of(config.getSocketTimeout(), TimeUnit.MILLISECONDS))
-                    .setRcvBufSize(config.getReadBufferSize())
-                    .setSndBufSize(config.getWriteBufferSize());
+            SocketConfig.Builder builder = SocketConfig.custom();
+
+            if (config.hasOption(ClickHouseClientOption.SOCKET_TIMEOUT)) {
+                builder.setSoTimeout(config.getIntOption(ClickHouseClientOption.SOCKET_TIMEOUT), TimeUnit.MILLISECONDS);
+            }
             if (config.hasOption(ClickHouseClientOption.SOCKET_KEEPALIVE)) {
                 builder.setSoKeepAlive(config.getBoolOption(ClickHouseClientOption.SOCKET_KEEPALIVE));
             }
