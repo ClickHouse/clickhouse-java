@@ -12,7 +12,7 @@ public class ClickHouseNestedValueTest extends BaseClickHouseValueTest {
         // single type
         checkValue(
                 ClickHouseNestedValue.of(ClickHouseColumn.parse("a String not null, b String null"),
-                        new Object[][] { new String[] { "a1", "a2" }, new String[] { null, "b2" } }),
+                        new Object[][] { new String[] { "a1", "b1" }, new String[] { null, "b2" } }),
                 UnsupportedOperationException.class, // isInfinity
                 UnsupportedOperationException.class, // isNan
                 false, // isNull
@@ -27,32 +27,32 @@ public class ClickHouseNestedValueTest extends BaseClickHouseValueTest {
                 UnsupportedOperationException.class, // BigDecimal
                 UnsupportedOperationException.class, // BigInteger
                 UnsupportedOperationException.class, // Enum<ClickHouseDataType>
-                new Object[][] { new String[] { "a1", "a2" }, new String[] { null, "b2" } }, // Object
+                new Object[][] { new String[] { "a1", "b1" }, new String[] { null, "b2" } }, // Object
                 UnsupportedOperationException.class, // Date
                 UnsupportedOperationException.class, // DateTime
                 UnsupportedOperationException.class, // DateTime(9)
                 UnsupportedOperationException.class, // Inet4Address
                 UnsupportedOperationException.class, // Inet6Address
-                "[[a1, a2], [null, b2]]", // String
-                "['a1','a2'],[NULL,'b2']", // SQL Expression
+                "[[a1, b1], [null, b2]]", // String
+                "['a1','b1'],[NULL,'b2']", // SQL Expression
                 UnsupportedOperationException.class, // Time
                 UnsupportedOperationException.class, // UUID
                 String.class, // Key class
-                Object[].class, // Value class
-                new Object[][] { new String[] { "a1", "a2" }, new String[] { null, "b2" } }, // Array
-                new Object[][] { new String[] { "a1", "a2" }, new String[] { null, "b2" } }, // typed Array
+                String[].class, // Value class
+                new Object[][] { new String[] { "a1", "b1" }, new String[] { null, "b2" } }, // Array
+                new Object[][] { new String[] { "a1", "b1" }, new String[] { null, "b2" } }, // typed Array
                 buildMap(new Object[] { "a", "b" },
-                        new Object[][] { new String[] { "a1", "a2" }, new String[] { null, "b2" } }), // Map
+                        new Object[][] { new String[] { "a1", null }, new String[] { "b1", "b2" } }), // Map
                 buildMap(new String[] { "a", "b" },
-                        new Object[][] { new String[] { "a1", "a2" }, new String[] { null, "b2" } }), // typed Map
-                Arrays.asList(new Object[][] { new String[] { "a1", "a2" }, new String[] { null, "b2" } }) // Tuple
+                        new Object[][] { new String[] { "a1", null }, new String[] { "b1", "b2" } }), // typed Map
+                Arrays.asList(new Object[][] { new String[] { "a1", "b1" }, new String[] { null, "b2" } }) // Tuple
         );
 
         // mixed types
         checkValue(
                 ClickHouseNestedValue.of(ClickHouseColumn.parse("a Nullable(UInt8), b Date"),
-                        new Object[][] { new Short[] { (short) 1, null },
-                                new LocalDate[] { LocalDate.ofEpochDay(1L), LocalDate.ofEpochDay(2L) } }),
+                        new Object[][] { { (short) 1, LocalDate.ofEpochDay(1L) }, { null, LocalDate.ofEpochDay(2L) },
+                                { (short) 3, LocalDate.ofEpochDay(3L) } }),
                 UnsupportedOperationException.class, // isInfinity
                 UnsupportedOperationException.class, // isNan
                 false, // isNull
@@ -67,31 +67,32 @@ public class ClickHouseNestedValueTest extends BaseClickHouseValueTest {
                 UnsupportedOperationException.class, // BigDecimal
                 UnsupportedOperationException.class, // BigInteger
                 UnsupportedOperationException.class, // Enum<ClickHouseDataType>
-                new Object[][] { new Short[] { (short) 1, null },
-                        new LocalDate[] { LocalDate.ofEpochDay(1L), LocalDate.ofEpochDay(2L) } }, // Object
+                new Object[][] { { (short) 1, LocalDate.ofEpochDay(1L) }, { null, LocalDate.ofEpochDay(2L) },
+                        { (short) 3, LocalDate.ofEpochDay(3L) } }, // Object
                 UnsupportedOperationException.class, // Date
                 UnsupportedOperationException.class, // DateTime
                 UnsupportedOperationException.class, // DateTime(9)
                 UnsupportedOperationException.class, // Inet4Address
                 UnsupportedOperationException.class, // Inet6Address
-                "[[1, null], [1970-01-02, 1970-01-03]]", // String
-                "[1,NULL],['1970-01-02','1970-01-03']", // SQL Expression
+                "[[1, 1970-01-02], [null, 1970-01-03], [3, 1970-01-04]]", // String
+                "[1,'1970-01-02'],[NULL,'1970-01-03'],[3,'1970-01-04']", // SQL Expression
                 UnsupportedOperationException.class, // Time
                 UnsupportedOperationException.class, // UUID
                 String.class, // Key class
                 Object[].class, // Value class
-                new Object[][] { new Short[] { (short) 1, null },
-                        new LocalDate[] { LocalDate.ofEpochDay(1L), LocalDate.ofEpochDay(2L) } }, // Array
-                new Object[][] { new Short[] { (short) 1, null },
-                        new LocalDate[] { LocalDate.ofEpochDay(1L), LocalDate.ofEpochDay(2L) } }, // typed Array
+                new Object[][] { { (short) 1, LocalDate.ofEpochDay(1L) }, { null, LocalDate.ofEpochDay(2L) },
+                        { (short) 3, LocalDate.ofEpochDay(3L) } }, // Array
+                new Object[][] { { (short) 1, LocalDate.ofEpochDay(1L) }, { null, LocalDate.ofEpochDay(2L) },
+                        { (short) 3, LocalDate.ofEpochDay(3L) } }, // typed Array
                 buildMap(new Object[] { "a", "b" },
-                        new Object[][] { new Short[] { (short) 1, null },
-                                new LocalDate[] { LocalDate.ofEpochDay(1L), LocalDate.ofEpochDay(2L) } }), // Map
+                        new Object[][] { { (short) 1, null, (short) 3 },
+                                { LocalDate.ofEpochDay(1L), LocalDate.ofEpochDay(2L), LocalDate.ofEpochDay(3L) } }), // Map
                 buildMap(new String[] { "a", "b" },
-                        new Object[][] { new Short[] { (short) 1, null },
-                                new LocalDate[] { LocalDate.ofEpochDay(1L), LocalDate.ofEpochDay(2L) } }), // typed Map
-                Arrays.asList(new Object[][] { new Short[] { (short) 1, null },
-                        new LocalDate[] { LocalDate.ofEpochDay(1L), LocalDate.ofEpochDay(2L) } }) // Tuple
+                        new Object[][] { new Short[] { (short) 1, null, (short) 3 },
+                                new LocalDate[] { LocalDate.ofEpochDay(1L), LocalDate.ofEpochDay(2L),
+                                        LocalDate.ofEpochDay(3L) } }), // typed Map
+                Arrays.asList(new Object[][] { { (short) 1, LocalDate.ofEpochDay(1L) },
+                        { null, LocalDate.ofEpochDay(2L) }, { (short) 3, LocalDate.ofEpochDay(3L) } }) // Tuple
         );
     }
 

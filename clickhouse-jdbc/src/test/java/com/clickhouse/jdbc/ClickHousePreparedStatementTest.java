@@ -35,6 +35,7 @@ import java.util.concurrent.ExecutionException;
 import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.config.ClickHouseClientOption;
+import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataStreamFactory;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseExternalTable;
@@ -44,8 +45,11 @@ import com.clickhouse.data.ClickHouseOutputStream;
 import com.clickhouse.data.ClickHousePipedOutputStream;
 import com.clickhouse.data.ClickHouseWriter;
 import com.clickhouse.data.value.ClickHouseBitmap;
+import com.clickhouse.data.value.ClickHouseIntegerValue;
+import com.clickhouse.data.value.ClickHouseNestedValue;
 import com.clickhouse.data.value.UnsignedInteger;
 import com.clickhouse.data.value.UnsignedLong;
+import com.clickhouse.data.value.array.ClickHouseByteArrayValue;
 import com.clickhouse.jdbc.internal.InputBasedPreparedStatement;
 import com.clickhouse.jdbc.internal.SqlBasedPreparedStatement;
 import com.clickhouse.jdbc.internal.StreamBasedPreparedStatement;
@@ -1285,6 +1289,102 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
                 return;
             }
             throw e;
+        }
+    }
+
+    @Test(groups = "integration")
+    public void testInsertNestedValue() throws SQLException {
+        try (ClickHouseConnection conn = newConnection(new Properties()); Statement s = conn.createStatement()) {
+            s.execute("drop table if exists test_nested_insert;"
+                    + "create table test_nested_insert(id UInt32, n Nested(c1 Int8, c2 Int8))engine=Memory");
+            try (PreparedStatement ps = conn.prepareStatement("insert into test_nested_insert")) {
+                // insert into test_nested_insert values(0, [],[])
+                ps.setObject(1, 0);
+                ps.setObject(2, new int[0]);
+                ps.setObject(3, new int[0]);
+                Assert.assertEquals(ps.executeUpdate(), 1);
+
+                // insert into test_nested_insert values(1, [1],[1])
+                ps.setInt(1, 1);
+                ps.setBytes(2, new byte[] { 1 });
+                ps.setArray(3, conn.createArrayOf("Array(Int8)", new Byte[] { 1 }));
+                Assert.assertEquals(ps.executeUpdate(), 1);
+
+                // insert into test_nested_insert values(2, [1,2],[1,2])
+                ps.setObject(1, ClickHouseIntegerValue.of(2));
+                ps.setObject(2, ClickHouseByteArrayValue.of(new byte[] { 1, 2 }));
+                ps.setObject(3, ClickHouseByteArrayValue.of(new byte[] { 1, 2 }));
+                Assert.assertEquals(ps.executeUpdate(), 1);
+
+                // insert into test_nested_insert values(3, [1,2,3],[1,2,3])
+                ps.setString(1, "3");
+                ps.setString(2, "[1,2,3]");
+                ps.setString(3, "[1,2,3]");
+                Assert.assertEquals(ps.executeUpdate(), 1);
+            }
+
+            try (ResultSet rs = s.executeQuery("select * from test_nested_insert order by id")) {
+                for (int i = 0; i < 4; i++) {
+                    Assert.assertTrue(rs.next());
+                    Assert.assertEquals(rs.getInt(1), i);
+                    byte[] bytes = new byte[i];
+                    for (int j = 0; j < i; j++) {
+                        bytes[j] = (byte) (j + 1);
+                    }
+                    Assert.assertEquals(rs.getObject(2), bytes);
+                    Assert.assertEquals(rs.getObject(3), bytes);
+                }
+                Assert.assertFalse(rs.next());
+            }
+
+            // same case but this time disable flatten_nested
+            s.execute("set flatten_nested=0;" + "drop table if exists test_nested_insert;"
+                    + "create table test_nested_insert(id UInt32, n Nested(c1 Int8, c2 Int8))engine=Memory");
+            try (PreparedStatement ps = conn.prepareStatement("insert into test_nested_insert")) {
+                // insert into test_nested_insert values(0, [])
+                ps.setObject(1, 0);
+                ps.setObject(2, new Integer[0][]);
+                Assert.assertEquals(ps.executeUpdate(), 1);
+
+                // insert into test_nested_insert values(1, [(1,1)])
+                ps.setInt(1, 1);
+                ps.setArray(2, conn.createArrayOf("Array(Array(Int8))", new Byte[][] { { 1, 1 } }));
+                Assert.assertEquals(ps.executeUpdate(), 1);
+
+                // insert into test_nested_insert values(2, [(1,1),(2,2)])
+                ps.setObject(1, ClickHouseIntegerValue.of(2));
+                ps.setObject(2,
+                        ClickHouseNestedValue.of(
+                                ClickHouseColumn.of("n", "Nested(c1 Int8, c2 Int8)").getNestedColumns(),
+                                new Byte[][] { { 1, 1 }, { 2, 2 } }));
+                Assert.assertEquals(ps.executeUpdate(), 1);
+
+                // insert into test_nested_insert values(3, [(1,1),(2,2),(3,3)])
+                ps.setString(1, "3");
+                // ps.setString(2, "[(1,1),(2,2),(3,3)]");
+                ps.setObject(2,
+                        ClickHouseNestedValue.of(
+                                ClickHouseColumn.of("n", "Nested(c1 Int8, c2 Int8)").getNestedColumns(),
+                                new Byte[][] { { 1, 1 }, { 2, 2 }, { 3, 3 } }));
+                Assert.assertEquals(ps.executeUpdate(), 1);
+            }
+
+            try (ResultSet rs = s.executeQuery("select * from test_nested_insert order by id")) {
+                for (int i = 0; i < 4; i++) {
+                    Assert.assertTrue(rs.next());
+                    Assert.assertEquals(rs.getInt(1), i);
+                    Byte[][] bytes = new Byte[i][];
+                    for (int j = 0; j < i; j++) {
+                        Byte[] b = new Byte[2];
+                        for (int k = 0; k < 2; k++) {
+                            b[k] = (byte) (j + 1);
+                        }
+                        bytes[j] = b;
+                    }
+                    Assert.assertEquals(rs.getObject(2), bytes);
+                }
+                Assert.assertFalse(rs.next());
+            }
         }
     }
 
