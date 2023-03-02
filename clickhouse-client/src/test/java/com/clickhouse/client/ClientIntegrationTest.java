@@ -400,7 +400,7 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
 
     @Test(groups = { "unit" })
     public void testInitialization() {
-        Assert.assertNotNull(getProtocol(), "The client should support a non-null protocol");
+        Assert.assertNotNull(getProtocol(), "The client should support non-null protocol");
         Assert.assertNotEquals(getProtocol(), ClickHouseProtocol.ANY,
                 "The client should support a specific protocol instead of ANY");
 
@@ -412,10 +412,15 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
                 ClickHouseClient client3 = ClickHouseClient.newInstance();
                 ClickHouseClient client4 = ClickHouseClient.newInstance(getProtocol());
                 ClickHouseClient client5 = getClient()) {
-            for (ClickHouseClient client : new ClickHouseClient[] { client1, client2, client3, client4, client5 }) {
-                Assert.assertEquals(client.getClass(), Agent.class);
-                Assert.assertEquals(((Agent) client).getClient().getClass(), getClientClass());
-                Assert.assertTrue(client.accept(getProtocol()), "The client should support protocol: " + getProtocol());
+            ClickHouseClient[] clients = new ClickHouseClient[] { client1, client2, client3, client4, client5 };
+            for (int i = 0; i < clients.length; i++) {
+                ClickHouseClient client = clients[i];
+                Assert.assertEquals(client.getClass(), Agent.class,
+                        "Client #" + (i + 1) + " should be an agent, but it's " + client.getClass());
+                Assert.assertEquals(((Agent) client).getClient().getClass(), getClientClass(),
+                        "Client #" + (i + 1) + " is not " + getClientClass() + " but " + client.getClass());
+                Assert.assertTrue(client.accept(getProtocol()),
+                        "Client #" + (i + 1) + " should support protocol: " + getProtocol());
             }
         }
     }

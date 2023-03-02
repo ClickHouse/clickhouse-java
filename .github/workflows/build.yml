@@ -58,13 +58,14 @@ jobs:
           find `pwd`/examples -type f -name pom.xml -exec sed -i -e "s|\(<clickhouse-java.version>\).*\(<\)|\1$LIB_VER\2|g" {} \;
           for d in $(ls -d `pwd`/examples/*/); do cd $d && mvn clean compile; done
 
-  test-multi-dist:
+  test-multi-env:
     needs: compile
     strategy:
       matrix:
         # https://whichjdk.com/
         # https://github.com/actions/setup-java/blob/main/docs/advanced-usage.md#selecting-a-java-distribution
-        dist: ["corretto", "liberica", "microsoft", "temurin", "zulu"]
+        # add "corretto", "liberica", "microsoft", "zulu" only when needed
+        dist: ["temurin"]
         os: ["macos-latest", "ubuntu-latest", "windows-latest"]
       fail-fast: false
     runs-on: ${{ matrix.os }}
