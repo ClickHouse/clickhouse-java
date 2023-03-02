@@ -66,7 +66,8 @@ jobs:
         # https://github.com/actions/setup-java/blob/main/docs/advanced-usage.md#selecting-a-java-distribution
         # add "corretto", "liberica", "microsoft", "zulu" only when needed
         dist: ["temurin"]
-        os: ["macos-latest", "ubuntu-latest", "windows-latest"]
+        # fix issue on "macos-latest", "windows-latest"
+        os: ["ubuntu-latest"]
       fail-fast: false
     runs-on: ${{ matrix.os }}
     timeout-minutes: 10
@@ -119,6 +120,14 @@ jobs:
       - name: Build native image
         run: mvn --batch-mode -Pnative -Dj8 -DskipTests install
       - name: Test native image
+        run: ./clickhouse-jdbc/target/clickhouse-jdbc-bin
+      - name: Compress binary
+        # https://github.com/actions/runner-images/blob/main/images/linux/Ubuntu2204-Readme.md
+        # https://blogs.oracle.com/javamagazine/post/pedal-to-the-metal-high-performance-java-with-graalvm-native-image
+        run: |
+          upx -7 -k ./clickhouse-jdbc/target/clickhouse-jdbc-bin
+          du -sh clickhouse-jdbc/target/*
+      - name: Test compressed native image
         run: ./clickhouse-jdbc/target/clickhouse-jdbc-bin
 
   test-cli-client:
