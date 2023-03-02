@@ -14,7 +14,7 @@
 
     <name>${project.artifactId}</name>
     <description>Repackaged Apache commons-compress as an alias</description>
-    <url>https://github.com/ClickHouse/clickhouse-java/tree/main/third-party-libraries/org.apache</url>
+    <url>https://github.com/ClickHouse/clickhouse-java/tree/main/third-party-libraries/org.apache.commons.compress</url>
 
     <dependencies>
         <dependency>
