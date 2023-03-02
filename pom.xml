@@ -120,7 +120,7 @@
         <mysql-driver.version>8.0.32</mysql-driver.version>
         <postgresql-driver.version>42.5.1</postgresql-driver.version>
 
-        <repackaged.version>1.7.0</repackaged.version>
+        <repackaged.version>1.8.0</repackaged.version>
         <shade.base>${project.groupId}.client.internal</shade.base>
 
         <antrun-plugin.version>3.1.0</antrun-plugin.version>
@@ -171,6 +171,11 @@
             <dependency>
                 <groupId>${project.groupId}</groupId>
                 <artifactId>io.grpc</artifactId>
+                <version>${repackaged.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>org.apache.commons.compress</artifactId>
                 <version>${repackaged.version}</version>
             </dependency>
             <dependency>

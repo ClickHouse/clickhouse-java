@@ -14,6 +14,7 @@
     <properties>
         <maven.compiler.source>1.8</maven.compiler.source>
         <maven.compiler.target>1.8</maven.compiler.target>
+        <clickhouse-java.version>0.4.1</clickhouse-java.version>
         <spring-boot-starter.version>2.7.1</spring-boot-starter.version>
     </properties>
 
@@ -37,7 +38,7 @@
         <dependency>
             <groupId>com.clickhouse</groupId>
             <artifactId>clickhouse-r2dbc</artifactId>
-            <version>0.4.1</version>
+            <version>${clickhouse-java.version}</version>
         </dependency>
         <dependency>
             <groupId>com.fasterxml.jackson.datatype</groupId>
@@ -45,6 +46,4 @@
             <version>2.13.3</version>
         </dependency>
     </dependencies>
-
-
 </project>
