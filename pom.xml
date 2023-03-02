@@ -822,7 +822,10 @@
         <profile>
             <id>compile-java8</id>
             <activation>
-                <jdk>(,8]</jdk>
+                <!-- jdk>(,8]</jdk -->
+                <property>
+                    <name>j8</name>
+                </property>
             </activation>
             <properties>
                 <caffeine.version>2.9.2</caffeine.version>
@@ -832,6 +835,9 @@
             <id>compile-java9</id>
             <activation>
                 <jdk>[9,)</jdk>
+                <property>
+                    <name>!j8</name>
+                </property>
             </activation>
             <build>
                 <plugins>
@@ -852,6 +858,9 @@
             <id>compile-java11</id>
             <activation>
                 <jdk>[11,)</jdk>
+                <property>
+                    <name>!j8</name>
+                </property>
             </activation>
             <build>
                 <plugins>
@@ -872,6 +881,9 @@
             <id>compile-java17</id>
             <activation>
                 <jdk>[17,)</jdk>
+                <property>
+                    <name>!j8</name>
+                </property>
             </activation>
             <build>
                 <plugins>
