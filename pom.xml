@@ -104,6 +104,7 @@
         <grpc.version>1.53.0</grpc.version>
         <gson.version>2.10.1</gson.version>
         <jctools.version>4.0.1</jctools.version>
+        <opencensus.version>0.31.1</opencensus.version>
         <protobuf.version>3.22.0</protobuf.version>
         <lz4.version>1.8.0</lz4.version>
         <msgpack.version>0.9.3</msgpack.version>
@@ -236,6 +237,21 @@
             </dependency>
             <dependency>
                 <groupId>io.grpc</groupId>
+                <artifactId>grpc-api</artifactId>
+                <version>${grpc.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.grpc</groupId>
+                <artifactId>grpc-core</artifactId>
+                <version>${grpc.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.grpc</groupId>
+                <artifactId>grpc-context</artifactId>
+                <version>${grpc.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.grpc</groupId>
                 <artifactId>grpc-netty-shaded</artifactId>
                 <version>${grpc.version}</version>
             </dependency>
@@ -255,6 +271,21 @@
                 <groupId>io.grpc</groupId>
                 <artifactId>grpc-stub</artifactId>
                 <version>${grpc.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.opencensus</groupId>
+                <artifactId>opencensus-api</artifactId>
+                <version>${opencensus.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.opencensus</groupId>
+                <artifactId>opencensus-impl</artifactId>
+                <version>${opencensus.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.opencensus</groupId>
+                <artifactId>opencensus-contrib-grpc-metrics</artifactId>
+                <version>${opencensus.version}</version>
             </dependency>
             <dependency>
                 <groupId>it.unimi.dsi</groupId>
