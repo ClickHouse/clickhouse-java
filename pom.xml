@@ -91,62 +91,62 @@
 
         <annotations-api.version>6.0.53</annotations-api.version>
         <apache.httpclient.version>5.2.1</apache.httpclient.version>
-        <arrow.version>10.0.1</arrow.version>
+        <arrow.version>11.0.0</arrow.version>
         <avro.version>1.11.1</avro.version>
         <brotli.version>0.1.2</brotli.version>
-        <brotli4j.version>1.9.0</brotli4j.version>
-        <byte-buddy.version>1.12.13</byte-buddy.version>
-        <caffeine.version>3.1.2</caffeine.version>
+        <brotli4j.version>1.11.0</brotli4j.version>
+        <byte-buddy.version>1.14.0</byte-buddy.version>
+        <caffeine.version>3.1.4</caffeine.version>
         <compress.version>1.22</compress.version>
         <dnsjava.version>3.5.2</dnsjava.version>
         <fastutil.version>8.5.11</fastutil.version>
         <graphql.version>20.0</graphql.version>
-        <grpc.version>1.52.1</grpc.version>
+        <grpc.version>1.53.0</grpc.version>
         <gson.version>2.10.1</gson.version>
         <jctools.version>4.0.1</jctools.version>
-        <protobuf.version>3.21.4</protobuf.version>
+        <protobuf.version>3.22.0</protobuf.version>
         <lz4.version>1.8.0</lz4.version>
         <msgpack.version>0.9.3</msgpack.version>
-        <roaring-bitmap.version>0.9.38</roaring-bitmap.version>
+        <roaring-bitmap.version>0.9.39</roaring-bitmap.version>
         <slf4j.version>2.0.6</slf4j.version>
-        <snappy.version>1.1.8.4</snappy.version>
+        <snappy.version>1.1.9.1</snappy.version>
         <xz.version>1.9</xz.version>
-        <zstd-jni.version>1.5.2-5</zstd-jni.version>
+        <zstd-jni.version>1.5.4-2</zstd-jni.version>
         <testcontainers.version>1.17.6</testcontainers.version>
         <!-- stay 7.5 for JDK 8 support -->
         <testng.version>7.5</testng.version>
 
-        <mariadb-driver.version>3.1.1</mariadb-driver.version>
+        <mariadb-driver.version>3.1.2</mariadb-driver.version>
         <mysql-driver.version>8.0.32</mysql-driver.version>
-        <postgresql-driver.version>42.5.1</postgresql-driver.version>
+        <postgresql-driver.version>42.5.4</postgresql-driver.version>
 
-        <repackaged.version>1.7.0</repackaged.version>
+        <repackaged.version>1.8.0</repackaged.version>
         <shade.base>${project.groupId}.client.internal</shade.base>
 
         <antrun-plugin.version>3.1.0</antrun-plugin.version>
-        <assembly-plugin.version>3.4.2</assembly-plugin.version>
+        <assembly-plugin.version>3.5.0</assembly-plugin.version>
         <clean-plugin.version>3.2.0</clean-plugin.version>
-        <compiler-plugin.version>3.10.1</compiler-plugin.version>
-        <deploy-plugin.version>3.0.0</deploy-plugin.version>
-        <enforcer-plugin.version>3.1.0</enforcer-plugin.version>
+        <compiler-plugin.version>3.11.0</compiler-plugin.version>
+        <deploy-plugin.version>3.1.0</deploy-plugin.version>
+        <enforcer-plugin.version>3.2.1</enforcer-plugin.version>
         <exec-plugin.version>3.1.0</exec-plugin.version>
-        <failsafe-plugin.version>3.0.0-M7</failsafe-plugin.version>
+        <failsafe-plugin.version>3.0.0-M9</failsafe-plugin.version>
         <flatten-plugin.version>1.2.7</flatten-plugin.version>
         <git-plugin.version>4.9.9</git-plugin.version>
         <gpg-plugin.version>3.0.1</gpg-plugin.version>
         <helper-plugin.version>3.3.0</helper-plugin.version>
         <jacoco-plugin.version>0.8.8</jacoco-plugin.version>
-        <jar-plugin.version>3.2.2</jar-plugin.version>
-        <javadoc-plugin.version>3.4.0</javadoc-plugin.version>
+        <jar-plugin.version>3.3.0</jar-plugin.version>
+        <javadoc-plugin.version>3.5.0</javadoc-plugin.version>
         <native-plugin.version>0.9.20</native-plugin.version>
-        <os-plugin.version>1.7.0</os-plugin.version>
+        <os-plugin.version>1.7.1</os-plugin.version>
         <protobuf-plugin.version>0.6.1</protobuf-plugin.version>
-        <shade-plugin.version>3.3.0</shade-plugin.version>
+        <shade-plugin.version>3.4.1</shade-plugin.version>
         <source-plugin.version>3.2.1</source-plugin.version>
         <staging-plugin.version>1.6.13</staging-plugin.version>
-        <surefire-plugin.version>3.0.0-M7</surefire-plugin.version>
+        <surefire-plugin.version>3.0.0-M9</surefire-plugin.version>
         <toolchains-plugin.version>3.1.0</toolchains-plugin.version>
-        <versions-plugin.version>2.11.0</versions-plugin.version>
+        <versions-plugin.version>2.15.0</versions-plugin.version>
 
         <minJdk>1.8</minJdk>
         <skipTests>false</skipTests>
@@ -157,7 +157,7 @@
         <sonar.moduleKey>${project.artifactId}</sonar.moduleKey>
         <sonar.organization>zhicwu</sonar.organization>
         <sonar.host.url>https://sonarcloud.io</sonar.host.url>
-        <sonar.projectVersion>0.4.1</sonar.projectVersion>
+        <sonar.projectVersion>0.4.2</sonar.projectVersion>
         <sonar.cpd.exclusions>**/*0*.java,**/data/*Value.java,**/data/array/*Value.java,**/stream/*Stream.java</sonar.cpd.exclusions>
     </properties>
 
@@ -171,6 +171,11 @@
             <dependency>
                 <groupId>${project.groupId}</groupId>
                 <artifactId>io.grpc</artifactId>
+                <version>${repackaged.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>org.apache.commons.compress</artifactId>
                 <version>${repackaged.version}</version>
             </dependency>
             <dependency>
@@ -817,7 +822,10 @@
         <profile>
             <id>compile-java8</id>
             <activation>
-                <jdk>(,8]</jdk>
+                <!-- jdk>(,8]</jdk -->
+                <property>
+                    <name>j8</name>
+                </property>
             </activation>
             <properties>
                 <caffeine.version>2.9.2</caffeine.version>
@@ -827,6 +835,9 @@
             <id>compile-java9</id>
             <activation>
                 <jdk>[9,)</jdk>
+                <property>
+                    <name>!j8</name>
+                </property>
             </activation>
             <build>
                 <plugins>
@@ -847,6 +858,9 @@
             <id>compile-java11</id>
             <activation>
                 <jdk>[11,)</jdk>
+                <property>
+                    <name>!j8</name>
+                </property>
             </activation>
             <build>
                 <plugins>
@@ -867,6 +881,9 @@
             <id>compile-java17</id>
             <activation>
                 <jdk>[17,)</jdk>
+                <property>
+                    <name>!j8</name>
+                </property>
             </activation>
             <build>
                 <plugins>

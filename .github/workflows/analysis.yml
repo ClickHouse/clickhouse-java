@@ -7,7 +7,6 @@ on:
     paths-ignore:
       - "**.md"
       - "**/docs/**"
-      - "**/CHANGELOG"
       - "**/LICENSE"
       - "**/NOTICE"
   pull_request:
@@ -20,7 +19,6 @@ on:
     paths-ignore:
       - "**.md"
       - "**/docs/**"
-      - "**/CHANGELOG"
       - "**/LICENSE"
       - "**/NOTICE"
   workflow_dispatch:

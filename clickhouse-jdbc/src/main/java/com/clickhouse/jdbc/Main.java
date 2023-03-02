@@ -781,7 +781,7 @@ public final class Main {
     public static void main(String[] args) throws Exception {
         if ((args == null || args.length < 1) || args.length > 3) {
             printUsage();
-            System.exit(1);
+            System.exit(0);
         }
 
         final Options options = new Options(args[0].trim(), args.length > 1 ? args[1].trim() : null,

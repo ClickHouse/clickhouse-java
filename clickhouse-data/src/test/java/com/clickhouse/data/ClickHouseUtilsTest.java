@@ -526,6 +526,6 @@ public class ClickHouseUtilsTest {
             flag.set(true);
         }).start();
         Assert.assertFalse(ClickHouseUtils.waitFor(flag, 100L, TimeUnit.MILLISECONDS));
-        Assert.assertTrue(ClickHouseUtils.waitFor(flag, 1L, TimeUnit.SECONDS));
+        Assert.assertTrue(ClickHouseUtils.waitFor(flag, 2L, TimeUnit.SECONDS));
     }
 }

@@ -2,6 +2,7 @@ package com.clickhouse.data;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
+import java.nio.file.Paths;
 import java.util.UUID;
 
 import org.testng.Assert;
@@ -12,7 +13,9 @@ public class ClickHouseFileTest {
     public void testConstructor() {
         final InputStream in = new ByteArrayInputStream(new byte[0]);
 
-        String nonExistingFile = "/tmp/" + UUID.randomUUID().toString() + ".csv.lz4";
+        String nonExistingFile = Paths
+                .get(System.getProperty("java.io.tmpdir"), UUID.randomUUID().toString() + ".csv.lz4").toFile()
+                .getAbsolutePath();
         ClickHouseFile file = ClickHouseFile.of(nonExistingFile);
         Assert.assertFalse(file.hasInput());
         Assert.assertTrue(file.hasOutput());
