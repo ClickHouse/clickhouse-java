@@ -70,7 +70,7 @@ public interface ClickHouseClient extends AutoCloseable {
      * will be shared among all client instances when
      * {@link ClickHouseClientOption#MAX_THREADS_PER_CLIENT} is less than or equals
      * to zero.
-     * 
+     *
      * @return non-null default executor service
      */
     static ExecutorService getExecutorService() {
@@ -655,6 +655,21 @@ public interface ClickHouseClient extends AutoCloseable {
      */
     static ClickHouseClient newInstance(ClickHouseProtocol... preferredProtocols) {
         return builder().nodeSelector(ClickHouseNodeSelector.of(null, preferredProtocols)).build();
+    }
+
+    /**
+     * Creates a new instance with default credentials compatible with any of the given protocols.
+     *
+     * @param defaultCredentials default credentials
+     * @param preferredProtocols preferred protocols
+     * @return new instance compatible with any of the given protocols using default credentials
+     */
+    static ClickHouseClient newInstance(ClickHouseCredentials defaultCredentials,
+            ClickHouseProtocol... preferredProtocols) {
+        return builder()
+                .nodeSelector(ClickHouseNodeSelector.of(null, preferredProtocols))
+                .defaultCredentials(defaultCredentials)
+                .build();
     }
 
     /**
