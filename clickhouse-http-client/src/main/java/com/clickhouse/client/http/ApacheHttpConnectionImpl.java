@@ -342,14 +342,6 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
             if (config.hasOption(ClickHouseClientOption.SOCKET_REUSEADDR)) {
                 builder.setSoReuseAddress(config.getBoolOption(ClickHouseClientOption.SOCKET_REUSEADDR));
             }
-            if (config.hasOption(ClickHouseClientOption.SOCKET_RCVBUF)) {
-                int bufferSize = config.getIntOption(ClickHouseClientOption.SOCKET_RCVBUF);
-                builder.setRcvBufSize(bufferSize > 0 ? bufferSize : config.getReadBufferSize());
-            }
-            if (config.hasOption(ClickHouseClientOption.SOCKET_SNDBUF)) {
-                int bufferSize = config.getIntOption(ClickHouseClientOption.SOCKET_SNDBUF);
-                builder.setSndBufSize(bufferSize > 0 ? bufferSize : config.getWriteBufferSize());
-            }
             if (config.hasOption(ClickHouseClientOption.SOCKET_TCP_NODELAY)) {
                 builder.setTcpNoDelay(config.getBoolOption(ClickHouseClientOption.SOCKET_TCP_NODELAY));
             }
