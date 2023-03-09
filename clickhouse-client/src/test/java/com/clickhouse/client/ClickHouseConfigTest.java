@@ -78,8 +78,7 @@ public class ClickHouseConfigTest {
         Assert.assertEquals(config.getClientOsInfo(),
                 System.getProperty("os.name") + "/" + System.getProperty("os.version"));
         Assert.assertEquals(config.getClientJvmInfo(),
-                System.getProperty("java.vm.name") + "/" + System.getProperty("java.vendor.version",
-                        System.getProperty("java.vm.version", System.getProperty("java.version", "unknown"))));
+                System.getProperty("java.vm.name") + "/" + System.getProperty("java.version", "unknown"));
         Assert.assertEquals(config.getClientUser(), System.getProperty("user.name"));
         Assert.assertEquals(config.getClientHost(), InetAddress.getLocalHost().getHostName());
 
