@@ -437,10 +437,7 @@ public enum ClickHouseClientOption implements ClickHouseOption {
         }
         CLIENT_OS_INFO = new StringBuilder().append(getSystemConfig("os.name", "O/S")).append('/')
                 .append(getSystemConfig("os.version", UNKNOWN)).toString();
-        String javaVersion = System.getProperty("java.vendor.version");
-        if (javaVersion == null || javaVersion.isEmpty() || javaVersion.indexOf(' ') >= 0) {
-            javaVersion = getSystemConfig("java.vm.version", getSystemConfig("java.version", UNKNOWN));
-        }
+        String javaVersion = getSystemConfig("java.version", UNKNOWN);
         CLIENT_JVM_INFO = new StringBuilder().append(getSystemConfig("java.vm.name", "Java")).append('/')
                 .append(javaVersion).toString();
         CLIENT_USER = getSystemConfig("user.name", UNKNOWN);
