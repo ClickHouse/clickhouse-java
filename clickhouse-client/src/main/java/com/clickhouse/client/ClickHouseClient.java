@@ -3,6 +3,7 @@ package com.clickhouse.client;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.Serializable;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -658,11 +659,13 @@ public interface ClickHouseClient extends AutoCloseable {
     }
 
     /**
-     * Creates a new instance with default credentials compatible with any of the given protocols.
+     * Creates a new instance with default credentials compatible with any of the
+     * given protocols.
      *
      * @param defaultCredentials default credentials
      * @param preferredProtocols preferred protocols
-     * @return new instance compatible with any of the given protocols using default credentials
+     * @return new instance compatible with any of the given protocols using default
+     *         credentials
      */
     static ClickHouseClient newInstance(ClickHouseCredentials defaultCredentials,
             ClickHouseProtocol... preferredProtocols) {
@@ -946,51 +949,6 @@ public interface ClickHouseClient extends AutoCloseable {
     }
 
     /**
-     * Reads from one or more ClickHouse servers. Same as
-     * {@code read(ClickHouseNodes.of(uri))}.
-     *
-     * @param endpoints non-empty connection string separated by comma
-     * @return non-null request object holding references to this client and node
-     *         provider
-     */
-    default ClickHouseRequest<?> read(String endpoints) {
-        return read(ClickHouseNodes.of(endpoints));
-    }
-
-    /**
-     * Reads from a list of managed ClickHouse servers.
-     *
-     * @param nodes non-null list of servers for read
-     * @return non-null request object holding references to this client and node
-     *         provider
-     */
-    default ClickHouseRequest<?> read(ClickHouseNodes nodes) {
-        return new ClickHouseRequest<>(this, ClickHouseChecker.nonNull(nodes, "Nodes"),
-                null, nodes.template.config.getAllOptions(), false);
-    }
-
-    /**
-     * Reads from a ClickHouse server.
-     *
-     * @param node non-null server for read
-     * @return non-null request object holding references to this client and server
-     */
-    default ClickHouseRequest<?> read(ClickHouseNode node) {
-        return new ClickHouseRequest<>(this, ClickHouseChecker.nonNull(node, "Node"), null, node.config.getAllOptions(),
-                false);
-    }
-
-    /**
-     * Writes into a ClickHouse server.
-     *
-     * @param server non-null server for write
-     * @return non-null request object holding references to this client and server
-     */
-    default Mutation write(ClickHouseNode server) {
-        return read(server).write();
-    }
-
-    /**
      * Connects to a ClickHouse server defined by the given
      * {@link java.util.function.Function}. You can pass either
      * {@link ClickHouseCluster}, {@link ClickHouseNodes} or {@link ClickHouseNode}
@@ -1004,9 +962,67 @@ public interface ClickHouseClient extends AutoCloseable {
      * @param nodeFunc function to get a {@link ClickHouseNode} to connect to
      * @return non-null request object holding references to this client and node
      *         provider
+     * @deprecated will be dropped in 0.5, please use {@link #read(Function, Map)}
+     *             instead
      */
+    @Deprecated
     default ClickHouseRequest<?> connect(Function<ClickHouseNodeSelector, ClickHouseNode> nodeFunc) {
-        return new ClickHouseRequest<>(this, ClickHouseChecker.nonNull(nodeFunc, "nodeFunc"), null, null, false);
+        return read(nodeFunc, null);
+    }
+
+    /**
+     * Connects to one or more ClickHouse servers to read. Same as
+     * {@code read(ClickHouseNodes.of(uri))}.
+     *
+     * @param endpoints non-empty connection string separated by comma
+     * @return non-null request object holding references to this client and node
+     *         provider
+     */
+    default ClickHouseRequest<?> read(String endpoints) {
+        return read(ClickHouseNodes.of(endpoints));
+    }
+
+    /**
+     * Connects to a list of managed ClickHouse servers to read.
+     *
+     * @param nodes non-null list of servers for read
+     * @return non-null request object holding references to this client and node
+     *         provider
+     */
+    default ClickHouseRequest<?> read(ClickHouseNodes nodes) {
+        return read(nodes, nodes.template.config.getAllOptions());
+    }
+
+    /**
+     * Connects to a ClickHouse server to read.
+     *
+     * @param node non-null server for read
+     * @return non-null request object holding references to this client and server
+     */
+    default ClickHouseRequest<?> read(ClickHouseNode node) {
+        return read(node, node.config.getAllOptions());
+    }
+
+    /**
+     * Connects to a ClickHouse server to read.
+     *
+     * @param nodeFunc function to get a {@link ClickHouseNode} to connect to
+     * @param options  optional client options for connecting to the server
+     * @return non-null request object holding references to this client and server
+     */
+    default ClickHouseRequest<?> read(Function<ClickHouseNodeSelector, ClickHouseNode> nodeFunc,
+            Map<ClickHouseOption, Serializable> options) {
+        return new ClickHouseRequest<>(this, ClickHouseChecker.nonNull(nodeFunc, "Node"), null, options, false);
+    }
+
+    /**
+     * Writes into a ClickHouse server.
+     *
+     * @param node non-null server for write
+     * @return non-null request object holding references to this client and server
+     */
+    default Mutation write(ClickHouseNode node) {
+        return read(node).write();
     }
 
     /**

@@ -1,7 +1,9 @@
 package com.clickhouse.client;
 
 import java.io.IOException;
+import java.io.Serializable;
 import java.util.Collection;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutorService;
@@ -11,6 +13,7 @@ import java.util.function.Function;
 
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.config.ClickHouseHealthCheckMethod;
+import com.clickhouse.config.ClickHouseOption;
 import com.clickhouse.data.ClickHouseChecker;
 import com.clickhouse.data.ClickHouseUtils;
 import com.clickhouse.logging.Logger;
@@ -212,33 +215,12 @@ public abstract class AbstractClient<T> implements ClickHouseClient {
     }
 
     @Override
-    public ClickHouseRequest<?> connect(ClickHouseNode node) {
+    public ClickHouseRequest<?> read(Function<ClickHouseNodeSelector, ClickHouseNode> nodeFunc,
+            Map<ClickHouseOption, Serializable> options) {
         lock.readLock().lock();
         try {
             ensureInitialized();
-            return ClickHouseClient.super.connect(node);
-        } finally {
-            lock.readLock().unlock();
-        }
-    }
-
-    @Override
-    public ClickHouseRequest<?> connect(ClickHouseNodes nodes) {
-        lock.readLock().lock();
-        try {
-            ensureInitialized();
-            return ClickHouseClient.super.connect(nodes);
-        } finally {
-            lock.readLock().unlock();
-        }
-    }
-
-    @Override
-    public ClickHouseRequest<?> connect(Function<ClickHouseNodeSelector, ClickHouseNode> nodeFunc) {
-        lock.readLock().lock();
-        try {
-            ensureInitialized();
-            return ClickHouseClient.super.connect(nodeFunc);
+            return ClickHouseClient.super.read(nodeFunc, options);
         } finally {
             lock.readLock().unlock();
         }
