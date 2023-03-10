@@ -363,7 +363,7 @@ public final class Main {
                             .hasOption(ClickHouseClientOption.FORMAT)) {
                         format = defaultFormat.defaultInputFormat();
                     }
-                    try (PreparedStatement stmt = conn.prepareStatement(options.query + " format " + format.name())) {
+                    try (PreparedStatement stmt = conn.prepareStatement(options.query + " format " + format.name())) { // NOSONAR
                         stmt.setObject(1, new File(options.file));
                         rows = stmt.executeLargeUpdate();
                     }
@@ -393,7 +393,7 @@ public final class Main {
                     try (ResultSet rs = stmt.executeQuery(options.query)) {
                         try {
                             rs.unwrap(ClickHouseResponse.class).getInputStream()
-                                    .setCopyToTarget(new FileOutputStream(options.file, false));
+                                    .setCopyToTarget(new FileOutputStream(options.file, false)); // NOSONAR
                         } catch (IOException e) {
                             throw SqlExceptionUtils.clientError(e);
                         }
@@ -409,7 +409,7 @@ public final class Main {
                     }
                     try (ClickHouseResponse response = request.executeAndWait()) {
                         try {
-                            response.getInputStream().setCopyToTarget(new FileOutputStream(options.file, false));
+                            response.getInputStream().setCopyToTarget(new FileOutputStream(options.file, false)); // NOSONAR
                         } catch (IOException e) {
                             throw ClickHouseException.of(e, server);
                         }
