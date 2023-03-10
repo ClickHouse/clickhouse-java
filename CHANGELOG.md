@@ -2,6 +2,7 @@
 
 ### Bug Fixes
 * error while converting Nested values to Java maps.
+* incorrect algorithm extracted from PEM. [#1274](https://github.com/ClickHouse/clickhouse-java/issues/1274)
 
 ## 0.4.1, 2023-02-19
 ### Breaking Changes

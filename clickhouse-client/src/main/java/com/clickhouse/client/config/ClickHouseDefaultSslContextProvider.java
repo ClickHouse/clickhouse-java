@@ -9,6 +9,7 @@ import java.security.KeyManagementException;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
+import java.security.PrivateKey;
 import java.security.SecureRandom;
 import java.security.UnrecoverableKeyException;
 import java.security.cert.Certificate;
@@ -32,8 +33,9 @@ import com.clickhouse.client.ClickHouseSslContextProvider;
 import com.clickhouse.data.ClickHouseUtils;
 
 public class ClickHouseDefaultSslContextProvider implements ClickHouseSslContextProvider {
-    static final String PEM_BEGIN_PART1 = "---BEGIN ";
-    static final String PEM_BEGIN_PART2 = " PRIVATE KEY---";
+    static final String PEM_HEADER_PREFIX = "---BEGIN ";
+    static final String PEM_HEADER_SUFFIX = " PRIVATE KEY---";
+    static final String PEM_FOOTER_PREFIX = "---END ";
 
     /**
      * An insecure {@link javax.net.ssl.TrustManager}, that don't validate the
@@ -58,10 +60,41 @@ public class ClickHouseDefaultSslContextProvider implements ClickHouseSslContext
         }
     }
 
-    protected KeyStore getKeyStore(String cert, String key)
-            throws NoSuchAlgorithmException, InvalidKeySpecException, IOException, CertificateException,
-            KeyStoreException {
-        KeyStore ks;
+    static String getAlgorithm(String header, String defaultAlg) {
+        int startIndex = header.indexOf(PEM_HEADER_PREFIX);
+        int endIndex = startIndex < 0 ? startIndex
+                : header.indexOf(PEM_HEADER_SUFFIX, (startIndex += PEM_HEADER_PREFIX.length()));
+        return startIndex < endIndex ? header.substring(startIndex, endIndex) : defaultAlg;
+    }
+
+    static PrivateKey getPrivateKey(String keyFile)
+            throws NoSuchAlgorithmException, InvalidKeySpecException, IOException {
+        String algorithm = (String) ClickHouseDefaults.SSL_KEY_ALGORITHM.getEffectiveDefaultValue();
+        StringBuilder builder = new StringBuilder();
+        try (BufferedReader reader = new BufferedReader(
+                new InputStreamReader(ClickHouseUtils.getFileInputStream(keyFile)))) {
+            String line = reader.readLine();
+            if (line != null) {
+                algorithm = getAlgorithm(line, algorithm);
+
+                while ((line = reader.readLine()) != null) {
+                    if (line.indexOf(PEM_FOOTER_PREFIX) >= 0) {
+                        break;
+                    }
+
+                    builder.append(line);
+                }
+            }
+        }
+        byte[] encoded = Base64.getDecoder().decode(builder.toString());
+        KeyFactory kf = KeyFactory.getInstance(algorithm);
+        PKCS8EncodedKeySpec keySpec = new PKCS8EncodedKeySpec(encoded);
+        return kf.generatePrivate(keySpec);
+    }
+
+    protected KeyStore getKeyStore(String cert, String key) throws NoSuchAlgorithmException, InvalidKeySpecException,
+            IOException, CertificateException, KeyStoreException {
+        final KeyStore ks;
         try {
             ks = KeyStore.getInstance(KeyStore.getDefaultType());
             ks.load(null, null); // needed to initialize the key store
@@ -79,33 +112,8 @@ public class ClickHouseDefaultSslContextProvider implements ClickHouseSslContext
                     ks.setCertificateEntry("cert" + (index++), c);
                 }
             } else {
-                String algorithm = (String) ClickHouseDefaults.SSL_KEY_ALGORITHM.getEffectiveDefaultValue();
-                StringBuilder builder = new StringBuilder();
-                try (BufferedReader reader = new BufferedReader(
-                        new InputStreamReader(ClickHouseUtils.getFileInputStream(key)))) {
-                    String str;
-                    boolean started = false;
-                    while ((str = reader.readLine()) != null) {
-                        if (!started) {
-                            int startIndex = str.indexOf(PEM_BEGIN_PART1);
-                            int endIndex = startIndex < 0 ? -1
-                                    : str.indexOf(PEM_BEGIN_PART2, (startIndex += PEM_BEGIN_PART1.length() - 1));
-                            if (startIndex < endIndex) {
-                                algorithm = str.substring(startIndex, endIndex);
-                            }
-                            started = true;
-                        } else if (str.indexOf("---END ") < 0) {
-                            builder.append(str);
-                        } else {
-                            break;
-                        }
-                    }
-                }
-                byte[] encoded = Base64.getDecoder().decode(builder.toString());
-                KeyFactory kf = KeyFactory.getInstance(algorithm);
-                PKCS8EncodedKeySpec keySpec = new PKCS8EncodedKeySpec(encoded);
                 Certificate[] certChain = factory.generateCertificates(in).toArray(new Certificate[0]);
-                ks.setKeyEntry("key", kf.generatePrivate(keySpec), null, certChain);
+                ks.setKeyEntry("key", getPrivateKey(key), null, certChain);
             }
         }
         return ks;
