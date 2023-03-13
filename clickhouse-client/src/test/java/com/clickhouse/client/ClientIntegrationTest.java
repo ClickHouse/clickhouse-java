@@ -2034,13 +2034,17 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
         }
     }
 
-    @Test // (groups = "integration")
+    @Test(groups = "integration")
     public void testAbortTransaction() throws ClickHouseException {
         ClickHouseNode server = getServer();
         String tableName = "test_abort_transaction";
         sendAndWait(server, "drop table if exists " + tableName,
                 "create table " + tableName + " (id Int64)engine=MergeTree order by id");
         try (ClickHouseClient client = getClient()) {
+            if (!checkServerVersion(client, server, "[22.7,)")) {
+                throw new SkipException("Transaction was supported since 22.7");
+            }
+
             ClickHouseRequest<?> txRequest = newRequest(client, server).transaction();
             try (ClickHouseResponse response = txRequest.query("insert into " + tableName + " values(1)(2)(3)")
                     .executeAndWait()) {
@@ -2064,10 +2068,14 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
         }
     }
 
-    @Test // (groups = "integration")
+    @Test(groups = "integration")
     public void testNewTransaction() throws ClickHouseException {
         ClickHouseNode server = getServer();
         try (ClickHouseClient client = getClient()) {
+            if (!checkServerVersion(client, server, "[22.7,)")) {
+                throw new SkipException("Transaction was supported since 22.7");
+            }
+
             ClickHouseRequest<?> request = newRequest(client, server);
             Assert.assertNull(request.getSessionId().orElse(null), "Should have no session");
             Assert.assertNull(request.getTransaction(), "Should have no transaction");
@@ -2103,10 +2111,14 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
         }
     }
 
-    @Test // (groups = "integration")
+    @Test(groups = "integration")
     public void testJoinTransaction() throws ClickHouseException {
         ClickHouseNode server = getServer();
         try (ClickHouseClient client = getClient()) {
+            if (!checkServerVersion(client, server, "[22.7,)")) {
+                throw new SkipException("Transaction was supported since 22.7");
+            }
+
             ClickHouseRequest<?> request = newRequest(client, server).transaction();
             ClickHouseTransaction tx = request.getTransaction();
 
@@ -2127,12 +2139,16 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
         }
     }
 
-    @Test // (groups = "integration")
+    @Test(groups = "integration")
     public void testCommitTransaction() throws ClickHouseException {
         ClickHouseNode server = getServer();
         sendAndWait(server, "drop table if exists test_tx_commit",
                 "create table test_tx_commit(a Int64, b String)engine=MergeTree order by a");
         try (ClickHouseClient client = getClient()) {
+            if (!checkServerVersion(client, server, "[22.7,)")) {
+                throw new SkipException("Transaction was supported since 22.7");
+            }
+
             ClickHouseRequest<?> request = newRequest(client, server).transaction();
             ClickHouseTransaction tx = request.getTransaction();
 
@@ -2153,7 +2169,7 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
         }
     }
 
-    @Test // (groups = "integration")
+    @Test(groups = "integration")
     public void testRollbackTransaction() throws ClickHouseException {
         String tableName = "test_tx_rollback";
         ClickHouseNode server = getServer();
@@ -2162,6 +2178,10 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
 
         checkRowCount(tableName, 0);
         try (ClickHouseClient client = getClient()) {
+            if (!checkServerVersion(client, server, "[22.7,)")) {
+                throw new SkipException("Transaction was supported since 22.7");
+            }
+
             ClickHouseRequest<?> request = newRequest(client, server).transaction();
             ClickHouseTransaction tx = request.getTransaction();
             try (ClickHouseResponse response = newRequest(client, server)
@@ -2214,13 +2234,17 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
         }
     }
 
-    @Test // (groups = "integration")
+    @Test(groups = "integration")
     public void testTransactionSnapshot() throws ClickHouseException {
         String tableName = "test_tx_snapshots";
         ClickHouseNode server = getServer();
         sendAndWait(server, "drop table if exists " + tableName,
                 "create table " + tableName + "(a Int64)engine=MergeTree order by a");
         try (ClickHouseClient client = getClient()) {
+            if (!checkServerVersion(client, server, "[22.7,)")) {
+                throw new SkipException("Transaction was supported since 22.7");
+            }
+
             ClickHouseRequest<?> req1 = newRequest(client, server).transaction();
             ClickHouseRequest<?> req2 = newRequest(client, server).transaction();
             try (ClickHouseResponse response = req1.query("insert into " + tableName + " values(1)").executeAndWait()) {
@@ -2294,13 +2318,17 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
         }
     }
 
-    @Test // (groups = "integration")
+    @Test(groups = "integration")
     public void testTransactionTimeout() throws ClickHouseException {
         String tableName = "test_tx_timeout";
         ClickHouseNode server = getServer();
         sendAndWait(server, "drop table if exists " + tableName,
                 "create table " + tableName + "(a UInt64)engine=MergeTree order by a");
         try (ClickHouseClient client = getClient()) {
+            if (!checkServerVersion(client, server, "[22.7,)")) {
+                throw new SkipException("Transaction was supported since 22.7");
+            }
+
             ClickHouseRequest<?> request = newRequest(client, server).transaction(1);
             ClickHouseTransaction tx = request.getTransaction();
             Assert.assertEquals(tx.getState(), ClickHouseTransaction.ACTIVE);
@@ -2383,13 +2411,17 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
         }
     }
 
-    @Test // (groups = "integration")
+    @Test(groups = "integration")
     public void testImplicitTransaction() throws ClickHouseException {
         ClickHouseNode server = getServer();
         String tableName = "test_implicit_transaction";
         sendAndWait(server, "drop table if exists " + tableName,
                 "create table " + tableName + " (id Int64)engine=MergeTree order by id");
         try (ClickHouseClient client = getClient()) {
+            if (!checkServerVersion(client, server, "[22.7,)")) {
+                throw new SkipException("Transaction was supported since 22.7");
+            }
+            
             ClickHouseRequest<?> request = newRequest(client, server);
             ClickHouseTransaction.setImplicitTransaction(request, true);
             try (ClickHouseResponse response = request.query("insert into " + tableName + " values(1)")

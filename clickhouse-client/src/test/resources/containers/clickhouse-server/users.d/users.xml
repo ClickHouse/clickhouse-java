@@ -36,12 +36,10 @@
                 <database>system</database>
             </allow_databases>
         </test>
-        <!-- uncomment to test TLS client authentication
         <me>
             <ssl_certificates>
                 <common_name>me</common_name>
             </ssl_certificates>
         </me>
-        -->
     </users>
 </clickhouse>
