@@ -7,7 +7,14 @@
     <postgresql_port>9005</postgresql_port>
     <interserver_http_port>9009</interserver_http_port>
     <grpc_port>9100</grpc_port>
-
+    <!-- grpc>
+        <enable_ssl>true</enable_ssl>
+        <ssl_cert_file>/etc/clickhouse-server/certs/server.crt</ssl_cert_file>
+        <ssl_key_file>/etc/clickhouse-server/certs/server.key</ssl_key_file>
+        <ssl_require_client_auth>false</ssl_require_client_auth>
+        <ssl_ca_cert_file>/etc/clickhouse-server/certs/myCA.crt</ssl_ca_cert_file>
+    </grpc -->
+    <kerberos />
     <openSSL>
         <server>
             <certificateFile>/etc/clickhouse-server/certs/server.crt</certificateFile>
@@ -23,4 +30,62 @@
             <preferServerCiphers>true</preferServerCiphers>
         </server>
     </openSSL>
+
+    <!-- single node cluster: single_node_cluster_localhost -->
+    <keeper_server>
+        <force_recovery>1</force_recovery>
+        <tcp_port>9181</tcp_port>
+        <server_id>1</server_id>
+
+        <log_storage_path>/var/lib/clickhouse/coordination/log</log_storage_path>
+        <snapshot_storage_path>/var/lib/clickhouse/coordination/snapshots</snapshot_storage_path>
+
+        <coordination_settings>
+            <force_sync>false</force_sync>
+            <heart_beat_interval_ms>0</heart_beat_interval_ms>
+            <election_timeout_lower_bound_ms>0</election_timeout_lower_bound_ms>
+            <election_timeout_upper_bound_ms>0</election_timeout_upper_bound_ms>
+        </coordination_settings>
+
+        <raft_configuration>
+            <server>
+                <id>1</id>
+                <hostname>localhost</hostname>
+                <port>9234</port>
+            </server>
+        </raft_configuration>
+    </keeper_server>
+
+    <remote_servers>
+        <single_node_cluster_localhost>
+            <shard>
+                <replica>
+                    <host>localhost</host>
+                    <port>9000</port>
+                </replica>
+            </shard>
+        </single_node_cluster_localhost>
+    </remote_servers>
+
+    <distributed_ddl>
+        <path>/clickhouse/task_queue/ddl</path>
+    </distributed_ddl>
+
+    <format_schema_path>/var/lib/clickhouse/format_schemas/</format_schema_path>
+
+    <macros>
+        <cluster>single_node_cluster_localhost</cluster>
+        <replica>r1</replica>
+        <shard>s1</shard>
+    </macros>
+
+    <zookeeper>
+        <zookeeper_load_balancing>random</zookeeper_load_balancing>
+        <node>
+            <host>localhost</host>
+            <port>9181</port>
+        </node>
+    </zookeeper>
+
+    <allow_experimental_transactions>42</allow_experimental_transactions>
 </clickhouse>
