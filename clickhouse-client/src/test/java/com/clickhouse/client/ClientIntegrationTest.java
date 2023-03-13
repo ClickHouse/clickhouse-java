@@ -2034,7 +2034,7 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
         }
     }
 
-    @Test // (groups = "integration")
+    @Test(groups = "integration")
     public void testAbortTransaction() throws ClickHouseException {
         ClickHouseNode server = getServer();
         String tableName = "test_abort_transaction";
@@ -2064,7 +2064,7 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
         }
     }
 
-    @Test // (groups = "integration")
+    @Test(groups = "integration")
     public void testNewTransaction() throws ClickHouseException {
         ClickHouseNode server = getServer();
         try (ClickHouseClient client = getClient()) {
@@ -2103,7 +2103,7 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
         }
     }
 
-    @Test // (groups = "integration")
+    @Test(groups = "integration")
     public void testJoinTransaction() throws ClickHouseException {
         ClickHouseNode server = getServer();
         try (ClickHouseClient client = getClient()) {
@@ -2127,7 +2127,7 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
         }
     }
 
-    @Test // (groups = "integration")
+    @Test(groups = "integration")
     public void testCommitTransaction() throws ClickHouseException {
         ClickHouseNode server = getServer();
         sendAndWait(server, "drop table if exists test_tx_commit",
@@ -2153,7 +2153,7 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
         }
     }
 
-    @Test // (groups = "integration")
+    @Test(groups = "integration")
     public void testRollbackTransaction() throws ClickHouseException {
         String tableName = "test_tx_rollback";
         ClickHouseNode server = getServer();
@@ -2214,7 +2214,7 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
         }
     }
 
-    @Test // (groups = "integration")
+    @Test(groups = "integration")
     public void testTransactionSnapshot() throws ClickHouseException {
         String tableName = "test_tx_snapshots";
         ClickHouseNode server = getServer();
@@ -2294,7 +2294,7 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
         }
     }
 
-    @Test // (groups = "integration")
+    @Test(groups = "integration")
     public void testTransactionTimeout() throws ClickHouseException {
         String tableName = "test_tx_timeout";
         ClickHouseNode server = getServer();
@@ -2383,7 +2383,7 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
         }
     }
 
-    @Test // (groups = "integration")
+    @Test(groups = "integration")
     public void testImplicitTransaction() throws ClickHouseException {
         ClickHouseNode server = getServer();
         String tableName = "test_implicit_transaction";

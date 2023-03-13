@@ -135,4 +135,52 @@ public class ClickHouseCommandLineClientTest extends ClientIntegrationTest {
     public void testTempTable() {
         throw new SkipException("Skip due to session is not supported");
     }
+
+    @Test(groups = { "integration" })
+    @Override
+    public void testAbortTransaction() throws ClickHouseException {
+        throw new SkipException("Skip due to session is not supported");
+    }
+
+    @Test(groups = { "integration" })
+    @Override
+    public void testCommitTransaction() throws ClickHouseException {
+        throw new SkipException("Skip due to session is not supported");
+    }
+
+    @Test(groups = { "integration" })
+    @Override
+    public void testImplicitTransaction() throws ClickHouseException {
+        throw new SkipException("Skip due to session is not supported");
+    }
+
+    @Test(groups = { "integration" })
+    @Override
+    public void testJoinTransaction() throws ClickHouseException {
+        throw new SkipException("Skip due to session is not supported");
+    }
+
+    @Test(groups = { "integration" })
+    @Override
+    public void testNewTransaction() throws ClickHouseException {
+        throw new SkipException("Skip due to session is not supported");
+    }
+
+    @Test(groups = { "integration" })
+    @Override
+    public void testRollbackTransaction() throws ClickHouseException {
+        throw new SkipException("Skip due to session is not supported");
+    }
+
+    @Test(groups = { "integration" })
+    @Override
+    public void testTransactionSnapshot() throws ClickHouseException {
+        throw new SkipException("Skip due to session is not supported");
+    }
+
+    @Test(groups = { "integration" })
+    @Override
+    public void testTransactionTimeout() throws ClickHouseException {
+        throw new SkipException("Skip due to session is not supported");
+    }
 }

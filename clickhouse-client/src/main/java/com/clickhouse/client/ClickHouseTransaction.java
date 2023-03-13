@@ -12,6 +12,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.data.ClickHouseRecord;
 import com.clickhouse.data.ClickHouseUtils;
+import com.clickhouse.data.value.UnsignedLong;
 import com.clickhouse.logging.Logger;
 import com.clickhouse.logging.LoggerFactory;
 
@@ -42,8 +43,8 @@ public final class ClickHouseTransaction implements Serializable {
                 throw new IllegalArgumentException(
                         "Non-null tuple with 3 elements(long, long, String) is required");
             }
-            long snapshotVersion = (Long) list.get(0);
-            long localTxCounter = (Long) list.get(1);
+            long snapshotVersion = ((UnsignedLong) list.get(0)).longValue();
+            long localTxCounter = ((UnsignedLong) list.get(1)).longValue();
             String hostId = String.valueOf(list.get(2));
             if (EMPTY.snapshotVersion == snapshotVersion && EMPTY.localTxCounter == localTxCounter
                     && EMPTY.hostId.equals(hostId)) {
@@ -278,7 +279,7 @@ public final class ClickHouseTransaction implements Serializable {
     protected ClickHouseRecord issue(String command, boolean sessionCheck, Map<String, Serializable> settings)
             throws ClickHouseException {
         ClickHouseRecord result = ClickHouseRecord.EMPTY;
-        try (ClickHouseResponse response = ClickHouseClient.newInstance(server.getProtocol()).connect(server)
+        try (ClickHouseResponse response = ClickHouseClient.newInstance(server.getProtocol()).read(server)
                 .format(ClickHouseFormat.RowBinaryWithNamesAndTypes)
                 .settings(settings).session(sessionId, sessionCheck, timeout > 0 ? timeout : null)
                 .query(command).executeAndWait()) {
