@@ -2,7 +2,8 @@
 
 ### New Features
 * new options for JDBC driver
-    * databaseTerm(catalog or schema, defaults to the latter) [#1273](https://github.com/ClickHouse/clickhouse-java/issues/1273)
+    * databaseTerm(catalog or schema, defaults to schema) [#1273](https://github.com/ClickHouse/clickhouse-java/issues/1273)
+    * externalDatabase(true or false, defaults to true) [#1245](https://github.com/ClickHouse/clickhouse-java/issues/1245)
 
 ### Bug Fixes
 * error while converting Nested values to Java maps.

@@ -801,8 +801,12 @@ public class ClickHouseDatabaseMetaData extends JdbcWrapper implements DatabaseM
             return empty("TABLE_CAT String");
         }
 
+        ResultSet rs = query("select name as TABLE_CAT from system.databases order by name");
+        if (!connection.getJdbcConfig().isExternalDatabaseSupported()) {
+            return rs;
+        }
         return new CombinedResultSet(
-                query("select name as TABLE_CAT from system.databases order by name"),
+                rs,
                 query("select concat('jdbc(''', name, ''')') as TABLE_CAT from jdbc('', 'SHOW DATASOURCES') order by name",
                         true));
     }
@@ -1250,9 +1254,14 @@ public class ClickHouseDatabaseMetaData extends JdbcWrapper implements DatabaseM
         Map<String, String> params = Collections.singletonMap("pattern",
                 ClickHouseChecker.isNullOrEmpty(schemaPattern) ? "'%'"
                         : ClickHouseValues.convertToQuotedString(schemaPattern));
+        ResultSet rs = query(ClickHouseParameterizedQuery.apply("select name as TABLE_SCHEM, null as TABLE_CATALOG "
+                + "from system.databases where name like :pattern order by name", params));
+        if (!connection.getJdbcConfig().isExternalDatabaseSupported()) {
+            return rs;
+        }
+
         return new CombinedResultSet(
-                query(ClickHouseParameterizedQuery.apply("select name as TABLE_SCHEM, null as TABLE_CATALOG "
-                        + "from system.databases where name like :pattern order by name", params)),
+                rs,
                 query(ClickHouseParameterizedQuery.apply(
                         "select concat('jdbc(''', name, ''')') as TABLE_SCHEM, null as TABLE_CATALOG "
                                 + "from jdbc('', 'SHOW DATASOURCES') where TABLE_SCHEM like :pattern order by name",

@@ -1,9 +1,10 @@
 package com.clickhouse.jdbc;
 
 import java.sql.DriverPropertyInfo;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
@@ -25,6 +26,7 @@ public class JdbcConfig {
     public static final String PROP_CONTINUE_BATCH = "continueBatchOnError";
     public static final String PROP_DATABASE_TERM = "databaseTerm";
     public static final String PROP_DIALECT = "dialect";
+    public static final String PROP_EXTERNAL_DATABASE = "externalDatabase";
     public static final String PROP_FETCH_SIZE = "fetchSize";
     public static final String PROP_JDBC_COMPLIANT = "jdbcCompliant";
     public static final String PROP_NAMED_PARAM = "namedParameter";
@@ -47,6 +49,7 @@ public class JdbcConfig {
     private static final String DEFAULT_CONTINUE_BATCH = BOOLEAN_FALSE;
     private static final String DEFAULT_DATABASE_TERM = TERM_SCHEMA;
     private static final String DEFAULT_DIALECT = "";
+    private static final String DEFAULT_EXTERNAL_DATABASE = BOOLEAN_TRUE;
     private static final String DEFAULT_FETCH_SIZE = "0";
     private static final String DEFAULT_JDBC_COMPLIANT = BOOLEAN_TRUE;
     private static final String DEFAULT_NAMED_PARAM = BOOLEAN_FALSE;
@@ -132,63 +135,48 @@ public class JdbcConfig {
         return Collections.unmodifiableMap(map);
     }
 
+    static DriverPropertyInfo newDriverProperty(String name, String defaultValue, String description,
+            String... choices) {
+        DriverPropertyInfo info = new DriverPropertyInfo(name, defaultValue);
+        info.description = description;
+        if (choices != null && choices.length > 0) {
+            info.choices = choices;
+        }
+        return info;
+    }
+
     public static List<DriverPropertyInfo> getDriverProperties() {
-        List<DriverPropertyInfo> list = new LinkedList<>();
-        DriverPropertyInfo info = new DriverPropertyInfo(PROP_AUTO_COMMIT, DEFAULT_AUTO_COMMIT);
-        info.choices = new String[] { BOOLEAN_TRUE, BOOLEAN_FALSE };
-        info.description = "Whether to enable auto commit when connection is created.";
-        list.add(info);
-
-        info = new DriverPropertyInfo(PROP_CREATE_DATABASE, DEFAULT_CREATE_DATABASE);
-        info.choices = new String[] { BOOLEAN_TRUE, BOOLEAN_FALSE };
-        info.description = "Whether to automatically create database when it does not exist.";
-        list.add(info);
-
-        info = new DriverPropertyInfo(PROP_CONTINUE_BATCH, DEFAULT_CONTINUE_BATCH);
-        info.choices = new String[] { BOOLEAN_TRUE, BOOLEAN_FALSE };
-        info.description = "Whether to continue batch process when error occurred.";
-        list.add(info);
-
-        info = new DriverPropertyInfo(PROP_FETCH_SIZE, DEFAULT_FETCH_SIZE);
-        info.description = "Default fetch size, negative or zero means no preferred option.";
-        list.add(info);
-
-        info = new DriverPropertyInfo(PROP_JDBC_COMPLIANT, DEFAULT_JDBC_COMPLIANT);
-        info.choices = new String[] { BOOLEAN_TRUE, BOOLEAN_FALSE };
-        info.description = "Whether to enable JDBC-compliant features like fake transaction and standard UPDATE and DELETE statements.";
-        list.add(info);
-
-        info = new DriverPropertyInfo(PROP_DATABASE_TERM, DEFAULT_DATABASE_TERM);
-        info.choices = new String[] { TERM_CATALOG, TERM_SCHEMA };
-        info.description = "Default JDBC term as synonymous to database.";
-        list.add(info);
-
-        info = new DriverPropertyInfo(PROP_DIALECT, DEFAULT_DIALECT);
-        info.description = "Dialect mainly for data type mapping, can be set to ansi or a full qualified class name implementing JdbcTypeMapping.";
-        list.add(info);
-
-        info = new DriverPropertyInfo(PROP_NAMED_PARAM, DEFAULT_NAMED_PARAM);
-        info.choices = new String[] { BOOLEAN_TRUE, BOOLEAN_FALSE };
-        info.description = "Whether to use named parameter(e.g. :ts(DateTime64(6)) or :value etc.) instead of standard JDBC question mark placeholder.";
-        list.add(info);
-
-        info = new DriverPropertyInfo(PROP_NULL_AS_DEFAULT, DEFAULT_NULL_AS_DEFAULT);
-        info.description = "Default approach to handle null value, sets to 0 or negative number to throw exception when target column is not nullable, 1 to disable the null-check, and 2 or higher to replace null to default value of corresponding data type.";
-        list.add(info);
-
-        info = new DriverPropertyInfo(PROP_TX_SUPPORT, DEFAULT_TX_SUPPORT);
-        info.choices = new String[] { BOOLEAN_TRUE, BOOLEAN_FALSE };
-        info.description = "Whether to enable transaction support or not.";
-        list.add(info);
-
-        info = new DriverPropertyInfo(PROP_TYPE_MAP, DEFAULT_TYPE_MAP);
-        info.description = "Default type mappings between ClickHouse data type and Java class. You can define multiple mappings using comma as separator.";
-        list.add(info);
-
-        info = new DriverPropertyInfo(PROP_WRAPPER_OBJ, DEFAULT_WRAPPER_OBJ);
-        info.choices = new String[] { BOOLEAN_TRUE, BOOLEAN_FALSE };
-        info.description = "Whether to return wrapper object like Array or Struct in ResultSet.getObject method.";
-        list.add(info);
+        List<DriverPropertyInfo> list = new ArrayList<>(Arrays.asList(
+                newDriverProperty(PROP_AUTO_COMMIT, DEFAULT_AUTO_COMMIT,
+                        "Whether to enable auto commit when connection is created."),
+                newDriverProperty(PROP_CREATE_DATABASE, DEFAULT_CREATE_DATABASE,
+                        "Whether to automatically create database when it does not exist.", BOOLEAN_TRUE,
+                        BOOLEAN_FALSE),
+                newDriverProperty(PROP_CONTINUE_BATCH, DEFAULT_CONTINUE_BATCH,
+                        "Whether to continue batch process when error occurred.", BOOLEAN_TRUE, BOOLEAN_FALSE),
+                newDriverProperty(PROP_FETCH_SIZE, DEFAULT_FETCH_SIZE,
+                        "Default fetch size, negative or zero means no preferred option."),
+                newDriverProperty(PROP_JDBC_COMPLIANT, DEFAULT_JDBC_COMPLIANT,
+                        "Whether to enable JDBC-compliant features like fake transaction and standard UPDATE and DELETE statements.",
+                        BOOLEAN_TRUE, BOOLEAN_FALSE),
+                newDriverProperty(PROP_DATABASE_TERM, DEFAULT_DATABASE_TERM,
+                        "Default JDBC term as synonymous to database.", TERM_CATALOG, TERM_SCHEMA),
+                newDriverProperty(PROP_DIALECT, DEFAULT_DIALECT,
+                        "Dialect mainly for data type mapping, can be set to ansi or a full qualified class name implementing JdbcTypeMapping."),
+                newDriverProperty(PROP_EXTERNAL_DATABASE, DEFAULT_EXTERNAL_DATABASE,
+                        "Whether to enable external database support or not.", BOOLEAN_TRUE, BOOLEAN_FALSE),
+                newDriverProperty(PROP_NAMED_PARAM, DEFAULT_NAMED_PARAM,
+                        "Whether to use named parameter(e.g. :ts(DateTime64(6)) or :value etc.) instead of standard JDBC question mark placeholder.",
+                        BOOLEAN_TRUE, BOOLEAN_FALSE),
+                newDriverProperty(PROP_NULL_AS_DEFAULT, DEFAULT_NULL_AS_DEFAULT,
+                        "Default approach to handle null value, sets to 0 or negative number to throw exception when target column is not nullable, 1 to disable the null-check, and 2 or higher to replace null to default value of corresponding data type."),
+                newDriverProperty(PROP_TX_SUPPORT, DEFAULT_TX_SUPPORT, "Whether to enable transaction support or not.",
+                        BOOLEAN_TRUE, BOOLEAN_FALSE),
+                newDriverProperty(PROP_TYPE_MAP, DEFAULT_TYPE_MAP,
+                        "Default type mappings between ClickHouse data type and Java class. You can define multiple mappings using comma as separator."),
+                newDriverProperty(PROP_WRAPPER_OBJ, DEFAULT_WRAPPER_OBJ,
+                        "Whether to return wrapper object like Array or Struct in ResultSet.getObject method.",
+                        BOOLEAN_TRUE, BOOLEAN_FALSE)));
 
         return Collections.unmodifiableList(list);
     }
@@ -200,6 +188,7 @@ public class JdbcConfig {
     private final boolean jdbcCompliant;
     private final String databaseTerm;
     private final JdbcTypeMapping dialect;
+    private final boolean externalDatabase;
     private final boolean namedParameter;
     private final int nullAsDefault;
     private final boolean txSupport;
@@ -220,6 +209,7 @@ public class JdbcConfig {
         this.continueBatch = extractBooleanValue(props, PROP_CONTINUE_BATCH, DEFAULT_CONTINUE_BATCH);
         this.databaseTerm = extractStringValue(props, PROP_DATABASE_TERM, DEFAULT_DATABASE_TERM);
         this.dialect = extractDialectValue(props, PROP_DIALECT, DEFAULT_DIALECT);
+        this.externalDatabase = extractBooleanValue(props, PROP_EXTERNAL_DATABASE, DEFAULT_EXTERNAL_DATABASE);
         this.fetchSize = extractIntValue(props, PROP_FETCH_SIZE, DEFAULT_FETCH_SIZE);
         this.jdbcCompliant = extractBooleanValue(props, PROP_JDBC_COMPLIANT, DEFAULT_JDBC_COMPLIANT);
         this.namedParameter = extractBooleanValue(props, PROP_NAMED_PARAM, DEFAULT_NAMED_PARAM);
@@ -301,6 +291,15 @@ public class JdbcConfig {
      */
     public JdbcTypeMapping getDialect() {
         return dialect;
+    }
+
+    /**
+     * Checks whether external database is supported or not.
+     *
+     * @return true if external database is supported; false otherwise
+     */
+    public boolean isExternalDatabaseSupported() {
+        return externalDatabase;
     }
 
     /**
