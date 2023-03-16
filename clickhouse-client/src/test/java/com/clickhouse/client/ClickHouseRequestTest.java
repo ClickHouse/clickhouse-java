@@ -43,7 +43,7 @@ import com.clickhouse.data.value.ClickHouseStringValue;
 public class ClickHouseRequestTest {
     @Test(groups = { "unit" })
     public void testBuild() {
-        ClickHouseRequest<?> request = ClickHouseClient.newInstance().connect(ClickHouseNode.builder().build());
+        ClickHouseRequest<?> request = ClickHouseClient.newInstance().read(ClickHouseNode.builder().build());
         Assert.assertNotNull(request);
 
         ClickHouseConfig config = request.getConfig();
@@ -86,6 +86,30 @@ public class ClickHouseRequestTest {
     }
 
     @Test(groups = { "unit" })
+    public void testCredentials() {
+        ClickHouseRequest<?> request = ClickHouseClient.newInstance().read(ClickHouseNode.builder().build());
+        Assert.assertNotNull(request.getConfig().getDefaultCredentials());
+        Assert.assertEquals(request.getConfig().getDefaultCredentials().getUserName(),
+                ClickHouseDefaults.USER.getDefaultValue());
+        Assert.assertEquals(request.getConfig().getDefaultCredentials().getPassword(),
+                ClickHouseDefaults.PASSWORD.getDefaultValue());
+
+        final String user = "somebody";
+        final String password = "seCrets";
+        request = ClickHouseClient.newInstance().read(ClickHouseNode.builder()
+                .credentials(ClickHouseCredentials.fromUserAndPassword(user, password)).build());
+        Assert.assertNotNull(request.getConfig().getDefaultCredentials());
+        Assert.assertEquals(request.getConfig().getDefaultCredentials().getUserName(), user);
+        Assert.assertEquals(request.getConfig().getDefaultCredentials().getPassword(), password);
+
+        request = ClickHouseClient.newInstance()
+                .read(ClickHouseNode.of("tcp://localhost/default?user=" + user + "&password=" + password));
+        Assert.assertNotNull(request.getConfig().getDefaultCredentials());
+        Assert.assertEquals(request.getConfig().getDefaultCredentials().getUserName(), user);
+        Assert.assertEquals(request.getConfig().getDefaultCredentials().getPassword(), password);
+    }
+
+    @Test(groups = { "unit" })
     public void testConfigChangeListener() {
         final ClickHouseConfig config = new ClickHouseConfig();
         final List<Object[]> changedOptions = new ArrayList<>();
@@ -111,7 +135,7 @@ public class ClickHouseRequestTest {
             }
         };
         final ClickHouseParameterizedQuery select3 = ClickHouseParameterizedQuery.of(config, "select 3");
-        ClickHouseRequest<?> request = ClickHouseClient.newInstance().connect(ClickHouseNode.builder().build());
+        ClickHouseRequest<?> request = ClickHouseClient.newInstance().read(ClickHouseNode.builder().build());
         request.setChangeListener(listener);
         Assert.assertTrue(changedOptions.isEmpty(), "Should have no option changed");
         Assert.assertTrue(changedProperties.isEmpty(), "Should have no property changed");
@@ -173,7 +197,7 @@ public class ClickHouseRequestTest {
 
     @Test(groups = { "unit" })
     public void testServerListener() {
-        ClickHouseRequest<?> request = ClickHouseClient.newInstance().connect(ClickHouseNode.builder().build());
+        ClickHouseRequest<?> request = ClickHouseClient.newInstance().read(ClickHouseNode.builder().build());
         final List<Object[]> serverChanges = new ArrayList<>();
         request.setServerListener(
                 (currentServer, newServer) -> serverChanges
@@ -199,7 +223,7 @@ public class ClickHouseRequestTest {
 
     @Test(groups = { "unit" })
     public void testCopy() {
-        ClickHouseRequest<?> request = ClickHouseClient.newInstance().connect(ClickHouseNode.builder().build());
+        ClickHouseRequest<?> request = ClickHouseClient.newInstance().read(ClickHouseNode.builder().build());
         request.compressServerResponse(true, ClickHouseCompression.BROTLI, 2);
         request.decompressClientRequest(true, ClickHouseCompression.ZSTD, 5);
         request.external(ClickHouseExternalTable.builder().content(new ByteArrayInputStream(new byte[0]))
@@ -251,7 +275,7 @@ public class ClickHouseRequestTest {
 
     @Test(groups = { "unit" })
     public void testFormat() {
-        ClickHouseRequest<?> request = ClickHouseClient.newInstance().connect(ClickHouseNode.builder().build());
+        ClickHouseRequest<?> request = ClickHouseClient.newInstance().read(ClickHouseNode.builder().build());
         Assert.assertEquals(request.getFormat(),
                 (ClickHouseFormat) ClickHouseDefaults.FORMAT.getEffectiveDefaultValue());
         request.format(ClickHouseFormat.TabSeparatedRawWithNamesAndTypes);
@@ -274,7 +298,7 @@ public class ClickHouseRequestTest {
     @Test(groups = { "unit" })
     public void testGetSetting() {
         ClickHouseRequest<?> request = ClickHouseClient.newInstance()
-                .connect("http://localhost?custom_settings=a%3D1%2Cb%3D2");
+                .read("http://localhost?custom_settings=a%3D1%2Cb%3D2");
         Assert.assertEquals(request.getSetting("a", boolean.class), true);
         Assert.assertEquals(request.getSetting("a", Boolean.class), true);
         Assert.assertEquals(request.getSetting("a", false), true);
@@ -290,7 +314,7 @@ public class ClickHouseRequestTest {
 
     @Test(groups = { "unit" })
     public void testInputData() throws IOException {
-        Mutation request = ClickHouseClient.newInstance().connect(ClickHouseNode.builder().build()).write();
+        Mutation request = ClickHouseClient.newInstance().read(ClickHouseNode.builder().build()).write();
         Assert.assertEquals(request.getConfig().getFormat(), ClickHouseDataConfig.DEFAULT_FORMAT);
         Assert.assertEquals(request.getConfig().getRequestCompressAlgorithm(), ClickHouseCompression.NONE);
         Assert.assertEquals(request.getConfig().getRequestCompressLevel(),
@@ -356,7 +380,7 @@ public class ClickHouseRequestTest {
 
     @Test(groups = { "unit" })
     public void testInputStreamAndCustomWriter() throws IOException {
-        ClickHouseRequest<?> request = ClickHouseClient.newInstance().connect(ClickHouseNode.builder().build());
+        ClickHouseRequest<?> request = ClickHouseClient.newInstance().read(ClickHouseNode.builder().build());
         Assert.assertFalse(request.hasInputStream());
         Assert.assertFalse(request.getInputStream().isPresent());
         Assert.assertFalse(request.getWriter().isPresent());
@@ -401,7 +425,7 @@ public class ClickHouseRequestTest {
     public void testNamedParameters() {
         // String sql = "select xxx from xxx settings max_execution_time =
         // :max_execution_time";
-        ClickHouseRequest<?> request = ClickHouseClient.newInstance().connect(ClickHouseNode.builder().build());
+        ClickHouseRequest<?> request = ClickHouseClient.newInstance().read(ClickHouseNode.builder().build());
 
         String sql = "select :a,:b,:a";
         request.query(sql).params("1", "2");
@@ -410,7 +434,7 @@ public class ClickHouseRequestTest {
 
     @Test(groups = { "unit" })
     public void testOptions() {
-        ClickHouseRequest<?> request = ClickHouseClient.newInstance().connect(ClickHouseNode.builder().build());
+        ClickHouseRequest<?> request = ClickHouseClient.newInstance().read(ClickHouseNode.builder().build());
 
         Assert.assertEquals(request.options, Collections.emptyMap());
         Properties props = new Properties();
@@ -430,7 +454,7 @@ public class ClickHouseRequestTest {
     @Test(groups = { "unit" })
     public void testParams() {
         String sql = "select :one as one, :two as two, * from my_table where key=:key and arr[:idx] in numbers(:range)";
-        ClickHouseRequest<?> request = ClickHouseClient.newInstance().connect(ClickHouseNode.builder().build())
+        ClickHouseRequest<?> request = ClickHouseClient.newInstance().read(ClickHouseNode.builder().build())
                 .query(sql);
         Assert.assertEquals(request.getQuery(), sql);
         request.params(ClickHouseByteValue.of(Byte.MIN_VALUE));
@@ -475,7 +499,7 @@ public class ClickHouseRequestTest {
 
     @Test(groups = { "unit" })
     public void testSeal() {
-        ClickHouseRequest<?> request = ClickHouseClient.newInstance().connect(ClickHouseNode.builder().build());
+        ClickHouseRequest<?> request = ClickHouseClient.newInstance().read(ClickHouseNode.builder().build());
         request.compressServerResponse(true, ClickHouseCompression.BROTLI, 2);
         request.decompressClientRequest(true, ClickHouseCompression.ZSTD, 5);
         request.external(ClickHouseExternalTable.builder().content(new ByteArrayInputStream(new byte[0]))
@@ -504,7 +528,7 @@ public class ClickHouseRequestTest {
     @Test(groups = { "unit" })
     public void testSession() {
         String sessionId = UUID.randomUUID().toString();
-        ClickHouseRequest<?> request = ClickHouseClient.newInstance().connect(ClickHouseNode.builder().build());
+        ClickHouseRequest<?> request = ClickHouseClient.newInstance().read(ClickHouseNode.builder().build());
         Assert.assertEquals(request.getSessionId().isPresent(), false);
         Assert.assertEquals(request.getSessionId(), Optional.empty());
         Assert.assertEquals(request.getConfig().isSessionCheck(), false);
@@ -563,7 +587,7 @@ public class ClickHouseRequestTest {
 
     @Test(groups = { "unit" })
     public void testSettings() {
-        ClickHouseRequest<?> request = ClickHouseClient.newInstance().connect(ClickHouseNode.builder().build());
+        ClickHouseRequest<?> request = ClickHouseClient.newInstance().read(ClickHouseNode.builder().build());
         Assert.assertEquals(request.getStatements().size(), 0);
         request.set("enable_optimize_predicate_expression", 1);
         Assert.assertEquals(request.getStatements().size(), 1);
@@ -576,7 +600,7 @@ public class ClickHouseRequestTest {
 
     @Test(groups = { "unit" })
     public void testMutation() {
-        Mutation request = ClickHouseClient.newInstance().connect(ClickHouseNode.builder().build()).write();
+        Mutation request = ClickHouseClient.newInstance().read(ClickHouseNode.builder().build()).write();
         request.table("test_table").format(ClickHouseFormat.Arrow).data(new ByteArrayInputStream(new byte[0]));
 
         String expectedSql = "INSERT INTO test_table\n FORMAT Arrow";

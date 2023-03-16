@@ -427,7 +427,12 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
      * @return non-null client
      */
     protected ClickHouseClient getClient() {
-        return client != null ? client : ClickHouseClient.newInstance(getServer().getProtocol());
+        if (client != null) {
+            return client;
+        }
+
+        ClickHouseNode node = getServer();
+        return ClickHouseClient.newInstance(node.getCredentials().orElse(null), node.getProtocol());
     }
 
     /**
@@ -540,7 +545,7 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
     public final ClickHouseNode getServer() {
         ClickHouseNode node = serverRef.get();
         if (node == null) {
-            node = server.apply(getConfig().getNodeSelector());
+            node = server.apply(getClient().getConfig().getNodeSelector());
             if (!serverRef.compareAndSet(null, node)) {
                 node = serverRef.get();
             }
@@ -556,13 +561,15 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
     public ClickHouseConfig getConfig() {
         if (config == null) {
             ClickHouseConfig clientConfig = getClient().getConfig();
-            if (options.isEmpty()) {
+            ClickHouseNode node = getServer();
+            if (options.isEmpty()
+                    && clientConfig.getDefaultCredentials().equals(node.getCredentials(clientConfig))) {
                 config = clientConfig;
             } else {
                 Map<ClickHouseOption, Serializable> merged = new HashMap<>();
                 merged.putAll(clientConfig.getAllOptions());
                 merged.putAll(options);
-                config = new ClickHouseConfig(merged, clientConfig.getDefaultCredentials(),
+                config = new ClickHouseConfig(merged, node.getCredentials(clientConfig),
                         clientConfig.getNodeSelector(), clientConfig.getMetricRegistry().orElse(null));
             }
         }
