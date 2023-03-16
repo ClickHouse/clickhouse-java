@@ -75,7 +75,10 @@ public class ClickHouseConnectionTest extends JdbcIntegrationTest {
         props.setProperty("transactionSupport", "true");
 
         for (int i = 0; i < 10; i++) {
-            try (Connection conn = newConnection(props); Statement stmt = conn.createStatement()) {
+            try (ClickHouseConnection conn = newConnection(props); Statement stmt = conn.createStatement()) {
+                if (!conn.getServerVersion().check("[22.7,)")) {
+                    throw new SkipException("Skip the test as transaction is supported since 22.7");
+                }
                 stmt.execute("select 1, throwIf(" + i + " % 3 = 0)");
                 stmt.executeQuery("select number, toDateTime(number), toString(number), throwIf(" + i + " % 5 = 0)"
                         + " from numbers(100000)");
