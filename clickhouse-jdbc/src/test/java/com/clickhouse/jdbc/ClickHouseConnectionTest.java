@@ -14,6 +14,7 @@ import com.clickhouse.data.ClickHouseUtils;
 import com.clickhouse.data.value.UnsignedByte;
 
 import org.testng.Assert;
+import org.testng.SkipException;
 import org.testng.annotations.Test;
 
 public class ClickHouseConnectionTest extends JdbcIntegrationTest {
@@ -242,7 +243,10 @@ public class ClickHouseConnectionTest extends JdbcIntegrationTest {
         Properties props = new Properties();
         props.setProperty("transactionSupport", "true");
         String tableName = "test_jdbc_tx_auto_commit";
-        try (Connection c = newConnection(props); Statement s = c.createStatement()) {
+        try (ClickHouseConnection c = newConnection(props); Statement s = c.createStatement()) {
+            if (!c.getServerVersion().check("[22.7,)")) {
+                throw new SkipException("Skip the test as transaction is supported since 22.7");
+            }
             s.execute("drop table if exists " + tableName + "; "
                     + "create table " + tableName + "(id UInt64) engine=MergeTree order by id");
         }
@@ -332,7 +336,10 @@ public class ClickHouseConnectionTest extends JdbcIntegrationTest {
         txProps.putAll(props);
         txProps.setProperty("transactionSupport", "true");
         String tableName = "test_jdbc_manual_tx_api";
-        try (Connection c = newConnection(txProps); Statement s = c.createStatement()) {
+        try (ClickHouseConnection c = newConnection(txProps); Statement s = c.createStatement()) {
+            if (!c.getServerVersion().check("[22.7,)")) {
+                throw new SkipException("Skip the test as transaction is supported since 22.7");
+            }
             s.execute("drop table if exists " + tableName + "; "
                     + "create table " + tableName + "(id UInt64, value String) engine=MergeTree order by id");
         }
@@ -440,7 +447,10 @@ public class ClickHouseConnectionTest extends JdbcIntegrationTest {
         txProps.putAll(props);
         txProps.setProperty("transactionSupport", "true");
         String tableName = "test_jdbc_manual_tx_tcl";
-        try (Connection c = newConnection(txProps); Statement s = c.createStatement()) {
+        try (ClickHouseConnection c = newConnection(txProps); Statement s = c.createStatement()) {
+            if (!c.getServerVersion().check("[22.7,)")) {
+                throw new SkipException("Skip the test as transaction is supported since 22.7");
+            }
             s.execute("drop table if exists " + tableName + "; "
                     + "create table " + tableName + "(id UInt64, value String) engine=MergeTree order by id");
         }
@@ -577,7 +587,10 @@ public class ClickHouseConnectionTest extends JdbcIntegrationTest {
         props.setProperty("autoCommit", "false");
         props.setProperty("transactionSupport", "true");
         String tableName = "test_jdbc_nested_tx";
-        try (Connection c = newConnection(props); Statement s = c.createStatement()) {
+        try (ClickHouseConnection c = newConnection(props); Statement s = c.createStatement()) {
+            if (!c.getServerVersion().check("[22.7,)")) {
+                throw new SkipException("Skip the test as transaction is supported since 22.7");
+            }
             s.execute("drop table if exists " + tableName + "; "
                     + "create table " + tableName + "(id UInt64) engine=MergeTree order by id");
         }
@@ -616,7 +629,10 @@ public class ClickHouseConnectionTest extends JdbcIntegrationTest {
         props.setProperty("autoCommit", "false");
         props.setProperty("transactionSupport", "true");
         String tableName = "test_jdbc_parallel_tx";
-        try (Connection c = newConnection(props); Statement s = c.createStatement()) {
+        try (ClickHouseConnection c = newConnection(props); Statement s = c.createStatement()) {
+            if (!c.getServerVersion().check("[22.7,)")) {
+                throw new SkipException("Skip the test as transaction is supported since 22.7");
+            }
             s.execute("drop table if exists " + tableName + "; "
                     + "create table " + tableName + "(id UInt64) engine=MergeTree order by id");
         }
