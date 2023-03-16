@@ -9,23 +9,26 @@ import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseUtils;
 
 public class ClickHouseResultSetMetaData extends JdbcWrapper implements ResultSetMetaData {
-    public static ResultSetMetaData of(String database, String table, List<ClickHouseColumn> columns,
+    public static ResultSetMetaData of(JdbcConfig config, String database, String table, List<ClickHouseColumn> columns,
             JdbcTypeMapping mapper, Map<String, Class<?>> typeMap) throws SQLException {
-        if (database == null || table == null || columns == null) {
-            throw SqlExceptionUtils.clientError("Non-null database, table, and column list are required");
+        if (config == null || database == null || table == null || columns == null) {
+            throw SqlExceptionUtils.clientError("Non-null config, database, table, and column list are required");
         }
 
-        return new ClickHouseResultSetMetaData(database, table, columns, mapper, typeMap);
+        return new ClickHouseResultSetMetaData(config, database, table, columns, mapper, typeMap);
     }
 
+    private final JdbcConfig config;
     private final String database;
     private final String table;
     private final List<ClickHouseColumn> columns;
     private final JdbcTypeMapping mapper;
     private final Map<String, Class<?>> typeMap;
 
-    protected ClickHouseResultSetMetaData(String database, String table, List<ClickHouseColumn> columns,
+    protected ClickHouseResultSetMetaData(JdbcConfig config, String database, String table,
+            List<ClickHouseColumn> columns,
             JdbcTypeMapping mapper, Map<String, Class<?>> typeMap) {
+        this.config = config;
         this.database = database;
         this.table = table;
         this.columns = columns;
@@ -98,7 +101,7 @@ public class ClickHouseResultSetMetaData extends JdbcWrapper implements ResultSe
 
     @Override
     public String getSchemaName(int column) throws SQLException {
-        return database;
+        return config.useSchema() ? database : "";
     }
 
     @Override
@@ -118,7 +121,7 @@ public class ClickHouseResultSetMetaData extends JdbcWrapper implements ResultSe
 
     @Override
     public String getCatalogName(int column) throws SQLException {
-        return "";
+        return config.useCatalog() ? database : "";
     }
 
     @Override

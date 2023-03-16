@@ -79,7 +79,8 @@ public class ClickHouseResultSet extends AbstractResultSet {
         this.currentRow = null;
         try {
             this.columns = response.getColumns();
-            this.metaData = new ClickHouseResultSetMetaData(database, table, columns, this.mapper, defaultTypeMap);
+            this.metaData = new ClickHouseResultSetMetaData(new JdbcConfig(), database, table, columns, this.mapper,
+                    defaultTypeMap);
 
             this.rowCursor = response.records().iterator();
         } catch (Exception e) {
@@ -116,7 +117,8 @@ public class ClickHouseResultSet extends AbstractResultSet {
         this.currentRow = null;
         try {
             this.columns = response.getColumns();
-            this.metaData = new ClickHouseResultSetMetaData(database, table, columns, this.mapper, defaultTypeMap);
+            this.metaData = new ClickHouseResultSetMetaData(conn.getJdbcConfig(), database, table, columns, this.mapper,
+                    defaultTypeMap);
 
             this.rowCursor = response.records().iterator();
         } catch (Exception e) {

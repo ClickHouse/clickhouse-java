@@ -261,6 +261,23 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
         return list;
     }
 
+    protected void setDatabase(String db) throws SQLException {
+        ensureOpen();
+
+        if (db == null || db.isEmpty()) {
+            throw new SQLException("Non-empty database name is required", SqlExceptionUtils.SQL_STATE_INVALID_SCHEMA);
+        } else if (!db.equals(database)) {
+            this.database = db;
+            clientRequest.use(db);
+        }
+    }
+
+    protected String getDatabase() throws SQLException {
+        ensureOpen();
+
+        return getCurrentDatabase();
+    }
+
     // for testing purpose
     final JdbcTransaction getJdbcTrasaction() {
         return txRef.get();
@@ -541,16 +558,17 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
 
     @Override
     public void setCatalog(String catalog) throws SQLException {
-        ensureOpen();
-
-        log.warn("ClickHouse does not support catalog, please use setSchema instead");
+        if (jdbcConf.useCatalog()) {
+            setDatabase(catalog);
+        } else {
+            log.warn(
+                    "setCatalog method is no-op. Please either change databaseTerm to catalog or use setSchema method instead");
+        }
     }
 
     @Override
     public String getCatalog() throws SQLException {
-        ensureOpen();
-
-        return null;
+        return jdbcConf.useCatalog() ? getDatabase() : null;
     }
 
     @Override
@@ -934,21 +952,17 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
 
     @Override
     public void setSchema(String schema) throws SQLException {
-        ensureOpen();
-
-        if (schema == null || schema.isEmpty()) {
-            throw new SQLException("Non-empty schema name is required", SqlExceptionUtils.SQL_STATE_INVALID_SCHEMA);
-        } else if (!schema.equals(database)) {
-            this.database = schema;
-            clientRequest.use(schema);
+        if (jdbcConf.useSchema()) {
+            setDatabase(schema);
+        } else {
+            log.warn(
+                    "setSchema method is no-op. Please either change databaseTerm to schema or use setCatalog method instead");
         }
     }
 
     @Override
     public String getSchema() throws SQLException {
-        ensureOpen();
-
-        return getCurrentDatabase();
+        return jdbcConf.useSchema() ? getDatabase() : null;
     }
 
     @Override

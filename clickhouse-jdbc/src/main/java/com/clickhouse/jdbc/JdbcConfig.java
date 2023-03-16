@@ -23,6 +23,7 @@ public class JdbcConfig {
     public static final String PROP_AUTO_COMMIT = "autoCommit";
     public static final String PROP_CREATE_DATABASE = "createDatabaseIfNotExist";
     public static final String PROP_CONTINUE_BATCH = "continueBatchOnError";
+    public static final String PROP_DATABASE_TERM = "databaseTerm";
     public static final String PROP_DIALECT = "dialect";
     public static final String PROP_FETCH_SIZE = "fetchSize";
     public static final String PROP_JDBC_COMPLIANT = "jdbcCompliant";
@@ -32,12 +33,19 @@ public class JdbcConfig {
     public static final String PROP_TYPE_MAP = "typeMappings";
     public static final String PROP_WRAPPER_OBJ = "wrapperObject";
 
+    static final String TERM_COMMENT = "comment";
+    static final String TERM_DATABASE = "database";
+    static final String TERM_TABLE = "table";
+    static final String TERM_CATALOG = "catalog";
+    static final String TERM_SCHEMA = "schema";
+
     private static final String BOOLEAN_FALSE = "false";
     private static final String BOOLEAN_TRUE = "true";
 
     private static final String DEFAULT_AUTO_COMMIT = BOOLEAN_TRUE;
     private static final String DEFAULT_CREATE_DATABASE = BOOLEAN_FALSE;
     private static final String DEFAULT_CONTINUE_BATCH = BOOLEAN_FALSE;
+    private static final String DEFAULT_DATABASE_TERM = TERM_SCHEMA;
     private static final String DEFAULT_DIALECT = "";
     private static final String DEFAULT_FETCH_SIZE = "0";
     private static final String DEFAULT_JDBC_COMPLIANT = BOOLEAN_TRUE;
@@ -90,6 +98,11 @@ public class JdbcConfig {
             }
         }
         return mapper;
+    }
+
+    static String extractStringValue(Properties props, String key, String defaultValue) {
+        String value = removeAndGetPropertyValue(props, key);
+        return value != null ? value : defaultValue;
     }
 
     static Map<String, Class<?>> extractTypeMapValue(Properties props, String key, String defaultValue) {
@@ -145,6 +158,11 @@ public class JdbcConfig {
         info.description = "Whether to enable JDBC-compliant features like fake transaction and standard UPDATE and DELETE statements.";
         list.add(info);
 
+        info = new DriverPropertyInfo(PROP_DATABASE_TERM, DEFAULT_DATABASE_TERM);
+        info.choices = new String[] { TERM_CATALOG, TERM_SCHEMA };
+        info.description = "Default JDBC term as synonymous to database.";
+        list.add(info);
+
         info = new DriverPropertyInfo(PROP_DIALECT, DEFAULT_DIALECT);
         info.description = "Dialect mainly for data type mapping, can be set to ansi or a full qualified class name implementing JdbcTypeMapping.";
         list.add(info);
@@ -180,6 +198,7 @@ public class JdbcConfig {
     private final boolean continueBatch;
     private final int fetchSize;
     private final boolean jdbcCompliant;
+    private final String databaseTerm;
     private final JdbcTypeMapping dialect;
     private final boolean namedParameter;
     private final int nullAsDefault;
@@ -199,6 +218,7 @@ public class JdbcConfig {
         this.autoCommit = extractBooleanValue(props, PROP_AUTO_COMMIT, DEFAULT_AUTO_COMMIT);
         this.createDb = extractBooleanValue(props, PROP_CREATE_DATABASE, DEFAULT_CREATE_DATABASE);
         this.continueBatch = extractBooleanValue(props, PROP_CONTINUE_BATCH, DEFAULT_CONTINUE_BATCH);
+        this.databaseTerm = extractStringValue(props, PROP_DATABASE_TERM, DEFAULT_DATABASE_TERM);
         this.dialect = extractDialectValue(props, PROP_DIALECT, DEFAULT_DIALECT);
         this.fetchSize = extractIntValue(props, PROP_FETCH_SIZE, DEFAULT_FETCH_SIZE);
         this.jdbcCompliant = extractBooleanValue(props, PROP_JDBC_COMPLIANT, DEFAULT_JDBC_COMPLIANT);
@@ -245,6 +265,33 @@ public class JdbcConfig {
      */
     public int getFetchSize() {
         return fetchSize;
+    }
+
+    /**
+     * Gets database term.
+     *
+     * @return non-null database term
+     */
+    public String getDatabaseTerm() {
+        return databaseTerm;
+    }
+
+    /**
+     * Checks whether to use catalog as synonymous to database.
+     *
+     * @return true if use catalog as synonymous to database; false otherwise
+     */
+    public boolean useCatalog() {
+        return TERM_CATALOG.equals(databaseTerm);
+    }
+
+    /**
+     * Checks whether to use schema as synonymous to database.
+     *
+     * @return true if use schema as synonymous to database; false otherwise
+     */
+    public boolean useSchema() {
+        return TERM_SCHEMA.equals(databaseTerm);
     }
 
     /**
