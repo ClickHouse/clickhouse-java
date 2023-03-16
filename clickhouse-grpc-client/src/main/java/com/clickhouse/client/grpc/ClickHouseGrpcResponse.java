@@ -39,7 +39,7 @@ public class ClickHouseGrpcResponse extends ClickHouseStreamResponse {
                 result.getOutput().isEmpty()
                         ? ClickHouseInputStream.of(result.getOutput().newInput(), config.getReadBufferSize(),
                                 () -> checkError(result))
-                        : ClickHouseGrpcClient.getInput(config, result.getOutput().newInput(),
+                        : ClickHouseGrpcClientImpl.getInput(config, result.getOutput().newInput(),
                                 () -> checkError(result)),
                 settings, null,
                 new ClickHouseResponseSummary(null, null));
