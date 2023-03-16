@@ -1,6 +1,7 @@
 ## 0.4.2
 
 ### New Features
+* support `BEGIN TRANSACTION`, `COMMIT`, and `ROLLBACK` in JDBC driver. [#975](https://github.com/ClickHouse/clickhouse-java/issues/975)
 * new options for JDBC driver
     * databaseTerm(catalog or schema, defaults to schema) [#1273](https://github.com/ClickHouse/clickhouse-java/issues/1273)
     * externalDatabase(true or false, defaults to true) [#1245](https://github.com/ClickHouse/clickhouse-java/issues/1245)

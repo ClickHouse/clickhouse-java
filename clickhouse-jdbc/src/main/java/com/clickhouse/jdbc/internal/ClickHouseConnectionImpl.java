@@ -436,7 +436,7 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
             }
         } else { // start new transaction
             if (!txRef.compareAndSet(null, createTransaction())) {
-                log.warn("[JDBC Compliant Mode] not able to start a new transaction, reuse the exist one");
+                log.warn("Not able to start a new transaction, reuse the exist one: %s", txRef.get());
             }
         }
     }
@@ -449,9 +449,22 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
     }
 
     @Override
-    public void commit() throws SQLException {
-        ensureOpen();
+    public void begin() throws SQLException {
+        if (getAutoCommit()) {
+            throw SqlExceptionUtils.clientError("Cannot start new transaction in auto-commit mode");
+        }
 
+        ensureTransactionSupport();
+
+        JdbcTransaction tx = txRef.get();
+        if (tx == null || !tx.isNew()) {
+            // invalid transaction state
+            throw new SQLException(JdbcTransaction.ERROR_TX_STARTED, SqlExceptionUtils.SQL_STATE_INVALID_TX_STATE);
+        }
+    }
+
+    @Override
+    public void commit() throws SQLException {
         if (getAutoCommit()) {
             throw SqlExceptionUtils.clientError("Cannot commit in auto-commit mode");
         }
@@ -475,8 +488,6 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
 
     @Override
     public void rollback() throws SQLException {
-        ensureOpen();
-
         if (getAutoCommit()) {
             throw SqlExceptionUtils.clientError("Cannot rollback in auto-commit mode");
         }

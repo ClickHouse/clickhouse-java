@@ -130,6 +130,10 @@ public class ClickHouseSqlStatement {
         return this.stmtType.getOperationType() == OperationType.WRITE || this.hasOutfile();
     }
 
+    public boolean isTCL() {
+        return this.stmtType.getLanguageType() == LanguageType.TCL;
+    }
+
     public boolean isIdemponent() {
         boolean result = this.stmtType.isIdempotent() && !this.hasOutfile();
 

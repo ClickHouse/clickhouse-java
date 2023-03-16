@@ -119,6 +119,10 @@ public final class ClickHouseTransaction implements Serializable {
 
     static final String QUERY_SELECT_TX_ID = "SELECT transactionID()";
 
+    public static final String COMMAND_BEGIN = "BEGIN";
+    public static final String COMMAND_COMMIT = "COMMIT";
+    public static final String COMMAND_ROLLBACK = "ROLLBACK";
+
     // transaction state
     public static final int NEW = 0;
     public static final int ACTIVE = 1;
@@ -526,7 +530,7 @@ public final class ClickHouseTransaction implements Serializable {
                 boolean success = false;
                 try {
                     ensureTransactionId();
-                    issue("COMMIT", true, settings);
+                    issue(COMMAND_COMMIT, true, settings);
                     success = state.compareAndSet(currentState, COMMITTED);
                     return x;
                 } catch (ClickHouseException e) {
@@ -582,7 +586,7 @@ public final class ClickHouseTransaction implements Serializable {
                 boolean success = false;
                 try {
                     ensureTransactionId();
-                    issue("ROLLBACK", true, settings);
+                    issue(COMMAND_ROLLBACK, true, settings);
                     success = state.compareAndSet(currentState, ROLLED_BACK);
                     return x;
                 } catch (ClickHouseException e) {
