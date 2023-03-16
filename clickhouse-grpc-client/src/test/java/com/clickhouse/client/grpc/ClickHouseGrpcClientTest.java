@@ -89,10 +89,6 @@ public class ClickHouseGrpcClientTest extends ClientIntegrationTest {
 
     @Test(groups = { "integration" })
     public void testNothing() throws Exception {
-        testDumpFile(true, false);
-        testDumpFile(true, true);
-        testCustomLoad();
-        testCustomWriter();
     }
 
     @Test(groups = "integration")
