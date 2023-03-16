@@ -5,6 +5,7 @@ import java.io.InputStream;
 import java.io.Serializable;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.SQLFeatureNotSupportedException;
 import java.sql.SQLWarning;
 import java.sql.Statement;
 import java.util.ArrayList;
@@ -22,6 +23,7 @@ import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.ClickHouseResponseSummary;
+import com.clickhouse.client.ClickHouseTransaction;
 import com.clickhouse.client.ClickHouseRequest.Mutation;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.config.ClickHouseConfigChangeListener;
@@ -93,6 +95,12 @@ public class ClickHouseStatementImpl extends JdbcWrapper
         ClickHouseResponse response = null;
         for (int i = 0, len = parsedStmts.length; i < len; i++) {
             ClickHouseSqlStatement stmt = parsedStmts[i];
+            response = processSqlStatement(stmt);
+            if (response != null) {
+                updateResult(stmt, response);
+                continue;
+            }
+
             if (stmt.hasFormat()) {
                 request.format(ClickHouseFormat.valueOf(stmt.getFormat()));
             }
@@ -122,6 +130,23 @@ public class ClickHouseStatementImpl extends JdbcWrapper
         if (closed) {
             throw SqlExceptionUtils.clientError("Cannot operate on a closed statement");
         }
+    }
+
+    protected ClickHouseResponse processSqlStatement(ClickHouseSqlStatement stmt) throws SQLException {
+        if (stmt.isTCL()) {
+            if (stmt.containsKeyword(ClickHouseTransaction.COMMAND_BEGIN)) {
+                connection.begin();
+            } else if (stmt.containsKeyword(ClickHouseTransaction.COMMAND_COMMIT)) {
+                connection.commit();
+            } else if (stmt.containsKeyword(ClickHouseTransaction.COMMAND_ROLLBACK)) {
+                connection.rollback();
+            } else {
+                throw new SQLFeatureNotSupportedException("Unsupported TCL: " + stmt.getSQL());
+            }
+            return ClickHouseResponse.EMPTY;
+        }
+
+        return null;
     }
 
     protected ClickHouseResponse executeStatement(String stmt, Map<ClickHouseOption, Serializable> options,
@@ -175,6 +200,10 @@ public class ClickHouseStatementImpl extends JdbcWrapper
     protected ClickHouseResponse executeStatement(ClickHouseSqlStatement stmt,
             Map<ClickHouseOption, Serializable> options, List<ClickHouseExternalTable> tables,
             Map<String, String> settings) throws SQLException {
+        ClickHouseResponse resp = processSqlStatement(stmt);
+        if (resp != null) {
+            return resp;
+        }
         return executeStatement(stmt.getSQL(), options, tables, settings);
     }
 
@@ -261,7 +290,7 @@ public class ClickHouseStatementImpl extends JdbcWrapper
                     stmt.getTable(), this, response);
         } else {
             response.close();
-            currentUpdateCount = stmt.isDDL() ? 0L
+            currentUpdateCount = stmt.isDDL() || stmt.isTCL() ? 0L
                     : (response.getSummary().isEmpty() ? 1L : response.getSummary().getWrittenRows());
             currentResult = null;
         }

@@ -19,6 +19,7 @@ public class JdbcTransaction {
     static final String ACTION_ROLLBACK = "rolled back";
 
     static final String ERROR_TX_NOT_STARTED = "Transaction not started";
+    static final String ERROR_TX_STARTED = "Transaction has been started";
 
     protected final ClickHouseTransaction tx;
     protected final String id;
@@ -34,6 +35,11 @@ public class JdbcTransaction {
         this.id = tx != null ? tx.getId().asTupleString() : ClickHouseRequestManager.getInstance().createUniqueId();
         this.queries = new LinkedList<>();
         this.savepoints = new LinkedList<>();
+    }
+
+    public boolean isNew() {
+        return this.queries.isEmpty() && this.savepoints.isEmpty()
+                && (this.tx == null || this.tx.isNew() || this.tx.isActive());
     }
 
     public void commit(Logger log) throws SQLException {

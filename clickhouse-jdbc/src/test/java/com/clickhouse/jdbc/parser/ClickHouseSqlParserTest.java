@@ -729,6 +729,21 @@ public class ClickHouseSqlParserTest {
         assertEquals(stmts[0].getSQL(), sql);
     }
 
+    @Test(groups = "unit")
+    public void testTcl() {
+        ClickHouseSqlStatement[] stmts = parse("begin transaction; commit;rollback;");
+        assertEquals(stmts.length, 3);
+        assertEquals(stmts[0].isTCL(), true);
+        assertEquals(stmts[0].containsKeyword("bEGin"), true);
+        assertEquals(stmts[0].getSQL(), "begin transaction");
+        assertEquals(stmts[1].isTCL(), true);
+        assertEquals(stmts[1].containsKeyword("Commit"), true);
+        assertEquals(stmts[1].getSQL(), " commit");
+        assertEquals(stmts[2].isTCL(), true);
+        assertEquals(stmts[2].containsKeyword("RollBack"), true);
+        assertEquals(stmts[2].getSQL(), "rollback");
+    }
+
     // known issue
     public void testTernaryOperator() {
         String sql = "select x > 2 ? 'a' : 'b' from (select number as x from system.numbers limit ?)";

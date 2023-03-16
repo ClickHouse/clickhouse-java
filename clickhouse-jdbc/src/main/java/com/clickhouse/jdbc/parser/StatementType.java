@@ -27,7 +27,8 @@ public enum StatementType {
     TRUNCATE(LanguageType.DDL, OperationType.UNKNOWN, true), // truncate statement
     UPDATE(LanguageType.DML, OperationType.WRITE, false), // the upcoming light-weight update statement
     USE(LanguageType.DDL, OperationType.UNKNOWN, true), // use statement
-    WATCH(LanguageType.DDL, OperationType.UNKNOWN, true); // watch statement
+    WATCH(LanguageType.DDL, OperationType.UNKNOWN, true), // watch statement
+    TRANSACTION(LanguageType.TCL, OperationType.WRITE, true); // TCL statement
 
     private LanguageType langType;
     private OperationType opType;

@@ -382,6 +382,7 @@ void stmt(): {} {
     | updateStmt()   { token_source.stmtType = StatementType.UPDATE;   }
     | useStmt()      { token_source.stmtType = StatementType.USE;      }
     | watchStmt()    { token_source.stmtType = StatementType.WATCH;    }
+    | txStmt()       { token_source.stmtType = StatementType.TRANSACTION; }
 }
 
 // https://clickhouse.tech/docs/en/sql-reference/statements/alter/
@@ -639,6 +640,13 @@ void useStmt(): {} {
 // Experimental LIVE VIEW feature
 void watchStmt(): {} { // not interested
     <WATCH> anyExprList()
+}
+
+// TCL
+void txStmt(): {} { // not interested
+    <COMMIT> { token_source.addPosition(token); }
+    | <ROLLBACK> { token_source.addPosition(token); }
+    | (<BEGIN> { token_source.addPosition(token); } <TRANSACTION>)
 }
 
 // columns
@@ -995,6 +1003,9 @@ TOKEN: {
     | <UPDATE   : <U> <P> <D> <A> <T> <E>        >
     | <USE      : <U> <S> <E>                    >
     | <WATCH    : <W> <A> <T> <C> <H>            >
+    | <BEGIN    : <B> <E> <G> <I> <N>            >
+    | <COMMIT   : <C> <O> <M> <M> <I> <T>        >
+    | <ROLLBACK : <R> <O> <L> <L> <B> <A> <C> <K>>
 
     | <ALL      : <A> <L> <L>                        >
     | <AND      : <A> <N> <D>                        >
@@ -1060,6 +1071,7 @@ TOKEN: {
     | <TIMESTAMP: <T> <I> <M> <E> <S> <T> <A> <M> <P>>
     | <TOP      : <T> <O> <P>                        >
     | <TOTALS   : <T> <O> <T> <A> <L> <S>            >
+    | <TRANSACTION : <T> <R> <A> <N> <S> <A> <C> <T> <I> <O> <N>>
     | <UNION    : <U> <N> <I> <O> <N>                >
     | <USER     : <U> <S> <E> <R>                    >
     | <USING    : <U> <S> <I> <N> <G>                >

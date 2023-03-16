@@ -14,6 +14,7 @@ import com.clickhouse.data.ClickHouseUtils;
 import com.clickhouse.data.value.UnsignedByte;
 
 import org.testng.Assert;
+import org.testng.SkipException;
 import org.testng.annotations.Test;
 
 public class ClickHouseConnectionTest extends JdbcIntegrationTest {
@@ -68,13 +69,16 @@ public class ClickHouseConnectionTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test // (groups = "integration")
+    @Test(groups = "integration")
     public void testAutoCommitMode() throws SQLException {
         Properties props = new Properties();
         props.setProperty("transactionSupport", "true");
 
         for (int i = 0; i < 10; i++) {
-            try (Connection conn = newConnection(props); Statement stmt = conn.createStatement()) {
+            try (ClickHouseConnection conn = newConnection(props); Statement stmt = conn.createStatement()) {
+                if (!conn.getServerVersion().check("[22.7,)")) {
+                    throw new SkipException("Skip the test as transaction is supported since 22.7");
+                }
                 stmt.execute("select 1, throwIf(" + i + " % 3 = 0)");
                 stmt.executeQuery("select number, toDateTime(number), toString(number), throwIf(" + i + " % 5 = 0)"
                         + " from numbers(100000)");
@@ -237,20 +241,15 @@ public class ClickHouseConnectionTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test // (groups = "integration")
-    public void testTransaction() throws SQLException {
-        testAutoCommit();
-        testManualCommit();
-        testNestedTransactions();
-        testParallelTransactions();
-    }
-
-    @Test // (groups = "integration")
+    @Test(groups = "integration")
     public void testAutoCommit() throws SQLException {
         Properties props = new Properties();
         props.setProperty("transactionSupport", "true");
         String tableName = "test_jdbc_tx_auto_commit";
-        try (Connection c = newConnection(props); Statement s = c.createStatement()) {
+        try (ClickHouseConnection c = newConnection(props); Statement s = c.createStatement()) {
+            if (!c.getServerVersion().check("[22.7,)")) {
+                throw new SkipException("Skip the test as transaction is supported since 22.7");
+            }
             s.execute("drop table if exists " + tableName + "; "
                     + "create table " + tableName + "(id UInt64) engine=MergeTree order by id");
         }
@@ -332,15 +331,18 @@ public class ClickHouseConnectionTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test // (groups = "integration")
-    public void testManualCommit() throws SQLException {
+    @Test(groups = "integration")
+    public void testManualTxApi() throws SQLException {
         Properties props = new Properties();
         props.setProperty("autoCommit", "false");
         Properties txProps = new Properties();
         txProps.putAll(props);
         txProps.setProperty("transactionSupport", "true");
-        String tableName = "test_jdbc_manual_tx";
-        try (Connection c = newConnection(txProps); Statement s = c.createStatement()) {
+        String tableName = "test_jdbc_manual_tx_api";
+        try (ClickHouseConnection c = newConnection(txProps); Statement s = c.createStatement()) {
+            if (!c.getServerVersion().check("[22.7,)")) {
+                throw new SkipException("Skip the test as transaction is supported since 22.7");
+            }
             s.execute("drop table if exists " + tableName + "; "
                     + "create table " + tableName + "(id UInt64, value String) engine=MergeTree order by id");
         }
@@ -364,10 +366,15 @@ public class ClickHouseConnectionTest extends JdbcIntegrationTest {
                         "Implicit transaction is NOT supported before 22.7");
             }
 
+            Assert.assertThrows(SQLException.class, () -> conn.begin());
+            Assert.assertThrows(SQLException.class, () -> txConn.begin());
+
             checkRowCount(stmt, "select 1", 1);
             checkRowCount(txStmt, "select 1", 1);
+            Assert.assertThrows(SQLException.class, () -> txConn.begin());
             txConn.commit();
 
+            txConn.begin();
             checkRowCount(stmt, "select 1", 1);
             checkRowCount(txStmt, "select 1", 1);
             txConn.rollback();
@@ -435,13 +442,158 @@ public class ClickHouseConnectionTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test // (groups = "integration")
+    @Test(groups = "integration")
+    public void testManualTxTcl() throws SQLException {
+        Properties props = new Properties();
+        props.setProperty("autoCommit", "false");
+        Properties txProps = new Properties();
+        txProps.putAll(props);
+        txProps.setProperty("transactionSupport", "true");
+        String tableName = "test_jdbc_manual_tx_tcl";
+        try (ClickHouseConnection c = newConnection(txProps); Statement s = c.createStatement()) {
+            if (!c.getServerVersion().check("[22.7,)")) {
+                throw new SkipException("Skip the test as transaction is supported since 22.7");
+            }
+            s.execute("drop table if exists " + tableName + "; "
+                    + "create table " + tableName + "(id UInt64, value String) engine=MergeTree order by id");
+        }
+
+        try (ClickHouseConnection conn = newConnection(props);
+                ClickHouseConnection txConn = newConnection(txProps);
+                Statement stmt = conn.createStatement();
+                Statement txStmt = txConn.createStatement();
+                PreparedStatement ps = conn.prepareStatement("insert into " + tableName);
+                PreparedStatement txPs = txConn.prepareStatement("insert into " + tableName)) {
+            Assert.assertFalse(conn.getAutoCommit());
+            Assert.assertFalse(txConn.getAutoCommit());
+            Assert.assertFalse(conn.isTransactionSupported());
+            Assert.assertTrue(txConn.isTransactionSupported());
+            Assert.assertFalse(conn.isImplicitTransactionSupported());
+            if (txConn.getServerVersion().check("[22.7,)")) {
+                Assert.assertTrue(txConn.isImplicitTransactionSupported(),
+                        "Implicit transaction is supported since 22.7");
+            } else {
+                Assert.assertFalse(txConn.isImplicitTransactionSupported(),
+                        "Implicit transaction is NOT supported before 22.7");
+            }
+
+            Assert.assertThrows(SQLException.class, () -> stmt.execute("begin transaction"));
+            Assert.assertThrows(SQLException.class, () -> txStmt.execute("begin transaction"));
+
+            checkRowCount(stmt, "select 1", 1);
+            checkRowCount(txStmt, "select 1", 1);
+            try (Statement s = conn.createStatement()) {
+                Assert.assertEquals(s.executeUpdate("commit"), 0);
+            }
+            try (Statement s = txConn.createStatement()) {
+                Assert.assertEquals(s.executeUpdate("commit"), 0);
+            }
+
+            Assert.assertEquals(stmt.executeUpdate("begin transaction"), 0);
+            Assert.assertEquals(txStmt.executeUpdate("begin transaction"), 0);
+            checkRowCount(stmt, "begin transaction; select 1", 1);
+            checkRowCount(txStmt, "begin transaction; select 1", 1);
+            try (Statement s = txConn.createStatement()) {
+                Assert.assertEquals(s.executeUpdate("rollback"), 0);
+            }
+
+            checkRowCount(stmt, tableName, 0);
+            checkRowCount(txStmt, tableName, 0);
+
+            txStmt.executeUpdate("insert into " + tableName + " values(0, '0')");
+            checkRowCount(stmt, tableName, 1);
+            checkRowCount(txStmt, tableName, 1);
+            try (Statement s = txConn.createStatement()) {
+                Assert.assertEquals(s.executeUpdate("rollback"), 0);
+            }
+            checkRowCount(stmt, tableName, 0);
+            checkRowCount(txStmt, tableName, 0);
+
+            stmt.executeUpdate("insert into " + tableName + " values(1, 'a')");
+            checkRowCount(stmt, tableName, 1);
+            checkRowCount(txStmt, tableName, 1);
+
+            txStmt.executeUpdate("insert into " + tableName + " values(2, 'b')");
+            checkRowCount(stmt, tableName, 2);
+            checkRowCount(txStmt, tableName, 2);
+
+            try (Connection c = newConnection(txProps); Statement s = c.createStatement()) {
+                s.executeUpdate("insert into " + tableName + " values(-1, '-1')");
+                checkRowCount(stmt, tableName, 3);
+                checkRowCount(txStmt, tableName, 2);
+                checkRowCount(s, tableName, 2);
+                try (Statement ss = c.createStatement()) {
+                    Assert.assertEquals(ss.executeUpdate("rollback"), 0);
+                }
+                checkRowCount(stmt, tableName, 2);
+                checkRowCount(txStmt, tableName, 2);
+                checkRowCount(s, tableName, 1);
+            }
+            checkRowCount(stmt, tableName, 2);
+            checkRowCount(txStmt, tableName, 2);
+
+            try (Connection c = newConnection(txProps); Statement s = c.createStatement()) {
+                s.executeUpdate("insert into " + tableName + " values(3, 'c')");
+                checkRowCount(stmt, tableName, 3);
+                checkRowCount(txStmt, tableName, 2);
+                checkRowCount(s, tableName, 2);
+                try (Statement ss = txConn.createStatement()) {
+                    Assert.assertEquals(ss.executeUpdate("commit"), 0);
+                }
+                checkRowCount(stmt, tableName, 3);
+                checkRowCount(txStmt, tableName, 2);
+                checkRowCount(s, tableName, 2);
+            }
+            checkRowCount(stmt, tableName, 3);
+            checkRowCount(txStmt, tableName, 2);
+            try (Statement s = txConn.createStatement()) {
+                Assert.assertEquals(s.executeUpdate("commit"), 0);
+            }
+            checkRowCount(txStmt, tableName, 3);
+
+            try (Statement s = conn.createStatement()) {
+                Assert.assertEquals(s.executeUpdate("commit"), 0);
+            }
+            try (Statement s = txConn.createStatement()) {
+                Assert.assertEquals(s.executeUpdate("commit"), 0);
+            }
+            txStmt.addBatch("begin transaction");
+            txStmt.addBatch("insert into " + tableName + " values(4, 'd')");
+            txStmt.addBatch("insert into " + tableName + " values(5, 'e')");
+            txStmt.addBatch("commit");
+            txStmt.executeBatch();
+
+            txStmt.addBatch("insert into " + tableName + " values(6, 'f')");
+            txStmt.addBatch("rollback");
+            txStmt.executeBatch();
+
+            txConn.setAutoCommit(true);
+            Assert.assertTrue(txConn.getAutoCommit());
+            try (Statement s = txConn.createStatement()) {
+                s.executeUpdate("insert into " + tableName + " values(6, 'f')");
+                checkRowCount(stmt, tableName, 6);
+                checkRowCount(txStmt, tableName, 6);
+                checkRowCount(s, tableName, 6);
+            }
+
+            try (Statement s = txConn.createStatement()) {
+                checkRowCount(stmt, tableName, 6);
+                checkRowCount(txStmt, tableName, 6);
+                checkRowCount(s, tableName, 6);
+            }
+        }
+    }
+
+    @Test(groups = "integration")
     public void testNestedTransactions() throws SQLException {
         Properties props = new Properties();
         props.setProperty("autoCommit", "false");
         props.setProperty("transactionSupport", "true");
         String tableName = "test_jdbc_nested_tx";
-        try (Connection c = newConnection(props); Statement s = c.createStatement()) {
+        try (ClickHouseConnection c = newConnection(props); Statement s = c.createStatement()) {
+            if (!c.getServerVersion().check("[22.7,)")) {
+                throw new SkipException("Skip the test as transaction is supported since 22.7");
+            }
             s.execute("drop table if exists " + tableName + "; "
                     + "create table " + tableName + "(id UInt64) engine=MergeTree order by id");
         }
@@ -474,13 +626,16 @@ public class ClickHouseConnectionTest extends JdbcIntegrationTest {
         }
     }
 
-    @Test // (groups = "integration")
+    @Test(groups = "integration")
     public void testParallelTransactions() throws SQLException {
         Properties props = new Properties();
         props.setProperty("autoCommit", "false");
         props.setProperty("transactionSupport", "true");
         String tableName = "test_jdbc_parallel_tx";
-        try (Connection c = newConnection(props); Statement s = c.createStatement()) {
+        try (ClickHouseConnection c = newConnection(props); Statement s = c.createStatement()) {
+            if (!c.getServerVersion().check("[22.7,)")) {
+                throw new SkipException("Skip the test as transaction is supported since 22.7");
+            }
             s.execute("drop table if exists " + tableName + "; "
                     + "create table " + tableName + "(id UInt64) engine=MergeTree order by id");
         }

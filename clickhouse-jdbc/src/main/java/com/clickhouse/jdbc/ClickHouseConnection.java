@@ -152,6 +152,14 @@ public interface ClickHouseConnection extends Connection {
     }
 
     /**
+     * Starts a new transaction. It's no-op for a newly started transaction.
+     *
+     * @throws SQLException when current transaction is active state or not able to
+     *                      start new transaction
+     */
+    void begin() throws SQLException;
+
+    /**
      * Gets configuration tied to this connection.
      *
      * @return non-null configuration
