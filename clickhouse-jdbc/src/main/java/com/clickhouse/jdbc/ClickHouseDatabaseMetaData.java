@@ -408,7 +408,7 @@ public class ClickHouseDatabaseMetaData extends JdbcWrapper implements DatabaseM
 
     @Override
     public String getSchemaTerm() throws SQLException {
-        return "database";
+        return connection.getJdbcConfig().useSchema() ? JdbcConfig.TERM_DATABASE : JdbcConfig.TERM_SCHEMA;
     }
 
     @Override
@@ -418,12 +418,12 @@ public class ClickHouseDatabaseMetaData extends JdbcWrapper implements DatabaseM
 
     @Override
     public String getCatalogTerm() throws SQLException {
-        return "catalog";
+        return connection.getJdbcConfig().useCatalog() ? JdbcConfig.TERM_DATABASE : JdbcConfig.TERM_CATALOG;
     }
 
     @Override
     public boolean isCatalogAtStart() throws SQLException {
-        return false;
+        return connection.getJdbcConfig().useCatalog();
     }
 
     @Override
@@ -433,52 +433,52 @@ public class ClickHouseDatabaseMetaData extends JdbcWrapper implements DatabaseM
 
     @Override
     public boolean supportsSchemasInDataManipulation() throws SQLException {
-        return true;
+        return connection.getJdbcConfig().useSchema();
     }
 
     @Override
     public boolean supportsSchemasInProcedureCalls() throws SQLException {
-        return true;
+        return connection.getJdbcConfig().useSchema();
     }
 
     @Override
     public boolean supportsSchemasInTableDefinitions() throws SQLException {
-        return true;
+        return connection.getJdbcConfig().useSchema();
     }
 
     @Override
     public boolean supportsSchemasInIndexDefinitions() throws SQLException {
-        return true;
+        return connection.getJdbcConfig().useSchema();
     }
 
     @Override
     public boolean supportsSchemasInPrivilegeDefinitions() throws SQLException {
-        return true;
+        return connection.getJdbcConfig().useSchema();
     }
 
     @Override
     public boolean supportsCatalogsInDataManipulation() throws SQLException {
-        return false;
+        return connection.getJdbcConfig().useCatalog();
     }
 
     @Override
     public boolean supportsCatalogsInProcedureCalls() throws SQLException {
-        return false;
+        return connection.getJdbcConfig().useCatalog();
     }
 
     @Override
     public boolean supportsCatalogsInTableDefinitions() throws SQLException {
-        return false;
+        return connection.getJdbcConfig().useCatalog();
     }
 
     @Override
     public boolean supportsCatalogsInIndexDefinitions() throws SQLException {
-        return false;
+        return connection.getJdbcConfig().useCatalog();
     }
 
     @Override
     public boolean supportsCatalogsInPrivilegeDefinitions() throws SQLException {
-        return false;
+        return connection.getJdbcConfig().useCatalog();
     }
 
     @Override
@@ -736,8 +736,9 @@ public class ClickHouseDatabaseMetaData extends JdbcWrapper implements DatabaseM
         }
         builder.setLength(builder.length() - 1);
 
+        String databasePattern = connection.getJdbcConfig().useCatalog() ? catalog : schemaPattern;
         List<String> databases = new LinkedList<>();
-        if (ClickHouseChecker.isNullOrEmpty(schemaPattern)) {
+        if (ClickHouseChecker.isNullOrEmpty(databasePattern)) {
             try (ResultSet rs = query("select name from system.databases order by name")) {
                 while (rs.next()) {
                     databases.add(rs.getString(1));
@@ -750,19 +751,29 @@ public class ClickHouseDatabaseMetaData extends JdbcWrapper implements DatabaseM
                 }
             }
         } else {
-            databases.add(schemaPattern);
+            databases.add(databasePattern);
         }
 
         List<ResultSet> results = new ArrayList<>(databases.size());
+        String commentColumn = connection.getServerVersion().check("[21.6,)") ? "t.comment" : "''";
+        String catalogColumn = ClickHouseValues.NULL_EXPR;
+        String schemaColumn = catalogColumn;
+        if (connection.getJdbcConfig().useCatalog()) {
+            catalogColumn = "t.database";
+        } else {
+            schemaColumn = "t.database";
+        }
         for (String database : databases) {
             Map<String, String> params = new HashMap<>();
-            params.put("comment", connection.getServerVersion().check("[21.6,)") ? "t.comment" : "''");
-            params.put("database", ClickHouseValues.convertToQuotedString(database));
-            params.put("table", ClickHouseChecker.isNullOrEmpty(tableNamePattern) ? "'%'"
+            params.put(JdbcConfig.TERM_COMMENT, commentColumn);
+            params.put(JdbcConfig.TERM_CATALOG, catalogColumn);
+            params.put(JdbcConfig.TERM_SCHEMA, schemaColumn);
+            params.put(JdbcConfig.TERM_DATABASE, ClickHouseValues.convertToQuotedString(database));
+            params.put(JdbcConfig.TERM_TABLE, ClickHouseChecker.isNullOrEmpty(tableNamePattern) ? "'%'"
                     : ClickHouseValues.convertToQuotedString(tableNamePattern));
             params.put("types", builder.toString());
             String sql = ClickHouseParameterizedQuery
-                    .apply("select null as TABLE_CAT, t.database as TABLE_SCHEM, t.name as TABLE_NAME, "
+                    .apply("select :catalog as TABLE_CAT, :schema as TABLE_SCHEM, t.name as TABLE_NAME, "
                             + "case when t.engine like '%Log' then 'LOG TABLE' "
                             + "when t.engine in ('Buffer', 'Memory', 'Set') then 'MEMORY TABLE' "
                             + "when t.is_temporary != 0 then 'TEMPORARY TABLE' "
@@ -786,7 +797,14 @@ public class ClickHouseDatabaseMetaData extends JdbcWrapper implements DatabaseM
 
     @Override
     public ResultSet getCatalogs() throws SQLException {
-        return empty("TABLE_CAT String");
+        if (!connection.getJdbcConfig().useCatalog()) {
+            return empty("TABLE_CAT String");
+        }
+
+        return new CombinedResultSet(
+                query("select name as TABLE_CAT from system.databases order by name"),
+                query("select concat('jdbc(''', name, ''')') as TABLE_CAT from jdbc('', 'SHOW DATASOURCES') order by name",
+                        true));
     }
 
     @Override
@@ -805,10 +823,19 @@ public class ClickHouseDatabaseMetaData extends JdbcWrapper implements DatabaseM
     public ResultSet getColumns(String catalog, String schemaPattern, String tableNamePattern, String columnNamePattern)
             throws SQLException {
         Map<String, String> params = new HashMap<>();
-        params.put("comment", connection.getServerVersion().check("[18.16,)") ? "comment" : "''");
-        params.put("database", ClickHouseChecker.isNullOrEmpty(schemaPattern) ? "'%'"
-                : ClickHouseValues.convertToQuotedString(schemaPattern));
-        params.put("table", ClickHouseChecker.isNullOrEmpty(tableNamePattern) ? "'%'"
+        params.put(JdbcConfig.TERM_COMMENT,
+                connection.getServerVersion().check("[18.16,)") ? JdbcConfig.TERM_COMMENT : "''");
+        if (connection.getJdbcConfig().useCatalog()) {
+            params.put(JdbcConfig.TERM_CATALOG, JdbcConfig.TERM_DATABASE);
+            params.put(JdbcConfig.TERM_SCHEMA, ClickHouseValues.NULL_EXPR);
+        } else {
+            params.put(JdbcConfig.TERM_CATALOG, ClickHouseValues.NULL_EXPR);
+            params.put(JdbcConfig.TERM_SCHEMA, JdbcConfig.TERM_DATABASE);
+        }
+        String databasePattern = connection.getJdbcConfig().useCatalog() ? catalog : schemaPattern;
+        params.put(JdbcConfig.TERM_DATABASE, ClickHouseChecker.isNullOrEmpty(databasePattern) ? "'%'"
+                : ClickHouseValues.convertToQuotedString(databasePattern));
+        params.put(JdbcConfig.TERM_TABLE, ClickHouseChecker.isNullOrEmpty(tableNamePattern) ? "'%'"
                 : ClickHouseValues.convertToQuotedString(tableNamePattern));
         params.put("column", ClickHouseChecker.isNullOrEmpty(columnNamePattern) ? "'%'"
                 : ClickHouseValues.convertToQuotedString(columnNamePattern));
@@ -816,7 +843,7 @@ public class ClickHouseDatabaseMetaData extends JdbcWrapper implements DatabaseM
         params.put("defaultNonNull", String.valueOf(DatabaseMetaData.typeNoNulls));
         params.put("defaultType", String.valueOf(Types.OTHER));
         String sql = ClickHouseParameterizedQuery
-                .apply("select null as TABLE_CAT, database as TABLE_SCHEM, table as TABLE_NAME, "
+                .apply("select :catalog as TABLE_CAT, :schema as TABLE_SCHEM, table as TABLE_NAME, "
                         + "name as COLUMN_NAME, toInt32(:defaultType) as DATA_TYPE, type as TYPE_NAME, toInt32(0) as COLUMN_SIZE, "
                         + "0 as BUFFER_LENGTH, cast(null as Nullable(Int32)) as DECIMAL_DIGITS, 10 as NUM_PREC_RADIX, "
                         + "toInt32(position(type, 'Nullable(') >= 1 ? :defaultNullable : :defaultNonNull) as NULLABLE, :comment as REMARKS, default_expression as COLUMN_DEF, "
@@ -1006,9 +1033,16 @@ public class ClickHouseDatabaseMetaData extends JdbcWrapper implements DatabaseM
     public ResultSet getIndexInfo(String catalog, String schema, String table, boolean unique, boolean approximate)
             throws SQLException {
         Map<String, String> params = new HashMap<>();
-        params.put("database",
+        if (connection.getJdbcConfig().useCatalog()) {
+            params.put(JdbcConfig.TERM_CATALOG, JdbcConfig.TERM_DATABASE);
+            params.put(JdbcConfig.TERM_SCHEMA, ClickHouseValues.NULL_EXPR);
+        } else {
+            params.put(JdbcConfig.TERM_CATALOG, ClickHouseValues.NULL_EXPR);
+            params.put(JdbcConfig.TERM_SCHEMA, JdbcConfig.TERM_DATABASE);
+        }
+        params.put(JdbcConfig.TERM_DATABASE,
                 ClickHouseChecker.isNullOrEmpty(schema) ? "'%'" : ClickHouseValues.convertToQuotedString(schema));
-        params.put("table",
+        params.put(JdbcConfig.TERM_TABLE,
                 ClickHouseChecker.isNullOrEmpty(table) ? "'%'" : ClickHouseValues.convertToQuotedString(table));
         params.put("statIndex", String.valueOf(DatabaseMetaData.tableIndexStatistic));
         params.put("otherIndex", String.valueOf(DatabaseMetaData.tableIndexOther));
@@ -1018,21 +1052,21 @@ public class ClickHouseDatabaseMetaData extends JdbcWrapper implements DatabaseM
                         + "TYPE Int16, ORDINAL_POSITION Int16, COLUMN_NAME Nullable(String), ASC_OR_DESC Nullable(String), "
                         + "CARDINALITY Int64, PAGES Int64, FILTER_CONDITION Nullable(String)"),
                 query(ClickHouseParameterizedQuery.apply(
-                        "select null as TABLE_CAT, database as TABLE_SCHEM, table as TABLE_NAME, toUInt8(0) as NON_UNIQUE, "
+                        "select :catalog as TABLE_CAT, :schema as TABLE_SCHEM, table as TABLE_NAME, toUInt8(0) as NON_UNIQUE, "
                                 + "null as INDEX_QUALIFIER, null as INDEX_NAME, toInt16(:statIndex) as TYPE, "
                                 + "toInt16(0) as ORDINAL_POSITION, null as COLUMN_NAME, null as ASC_OR_DESC, "
                                 + "sum(rows) as CARDINALITY, uniqExact(name) as PAGES, null as FILTER_CONDITION from system.parts "
                                 + "where active = 1 and database like :database and table like :table group by database, table",
                         params), true),
                 query(ClickHouseParameterizedQuery.apply(
-                        "select null as TABLE_CAT, database as TABLE_SCHEM, table as TABLE_NAME, toUInt8(1) as NON_UNIQUE, "
+                        "select :catalog as TABLE_CAT, :schema as TABLE_SCHEM, table as TABLE_NAME, toUInt8(1) as NON_UNIQUE, "
                                 + "type as INDEX_QUALIFIER, name as INDEX_NAME, toInt16(:otherIndex) as TYPE, "
                                 + "toInt16(1) as ORDINAL_POSITION, expr as COLUMN_NAME, null as ASC_OR_DESC, "
                                 + "0 as CARDINALITY, 0 as PAGES, null as FILTER_CONDITION "
                                 + "from system.data_skipping_indices where database like :database and table like :table",
                         params), true),
                 query(ClickHouseParameterizedQuery.apply(
-                        "select null as TABLE_CAT, database as TABLE_SCHEM, table as TABLE_NAME, toUInt8(1) as NON_UNIQUE, "
+                        "select :catalog as TABLE_CAT, :schema as TABLE_SCHEM, table as TABLE_NAME, toUInt8(1) as NON_UNIQUE, "
                                 + "null as INDEX_QUALIFIER, name as INDEX_NAME, toInt16(:otherIndex) as TYPE, "
                                 + "column_position as ORDINAL_POSITION, column as COLUMN_NAME, null as ASC_OR_DESC, "
                                 + "sum(rows) as CARDINALITY, uniqExact(partition) as PAGES, null as FILTER_CONDITION "
@@ -1209,6 +1243,10 @@ public class ClickHouseDatabaseMetaData extends JdbcWrapper implements DatabaseM
 
     @Override
     public ResultSet getSchemas(String catalog, String schemaPattern) throws SQLException {
+        if (!connection.getJdbcConfig().useSchema()) {
+            return empty("TABLE_SCHEM String, TABLE_CATALOG Nullable(String)");
+        }
+
         Map<String, String> params = Collections.singletonMap("pattern",
                 ClickHouseChecker.isNullOrEmpty(schemaPattern) ? "'%'"
                         : ClickHouseValues.convertToQuotedString(schemaPattern));
@@ -1258,12 +1296,14 @@ public class ClickHouseDatabaseMetaData extends JdbcWrapper implements DatabaseM
     public ResultSet getFunctions(String catalog, String schemaPattern, String functionNamePattern)
             throws SQLException {
         Map<String, String> params = new HashMap<>();
-        boolean systemSchema = ClickHouseChecker.isNullOrEmpty(schemaPattern);
-        if (!systemSchema) {
-            String schemaPatternLower = schemaPattern.toLowerCase(Locale.ROOT);
-            systemSchema = "system".contains(schemaPatternLower) || "information_schema".contains(schemaPatternLower);
+        String databasePattern = connection.getJdbcConfig().useCatalog() ? catalog : schemaPattern;
+        boolean systemDatabase = ClickHouseChecker.isNullOrEmpty(databasePattern);
+        if (!systemDatabase) {
+            String databasePatternLower = databasePattern.toLowerCase(Locale.ROOT);
+            systemDatabase = "system".contains(databasePatternLower)
+                    || "information_schema".contains(databasePatternLower);
         }
-        params.put("filter", systemSchema ? "1" : "0");
+        params.put("filter", systemDatabase ? "1" : "0");
         params.put("pattern", ClickHouseChecker.isNullOrEmpty(functionNamePattern) ? "'%'"
                 : ClickHouseValues.convertToQuotedString(functionNamePattern));
 
@@ -1282,7 +1322,10 @@ public class ClickHouseDatabaseMetaData extends JdbcWrapper implements DatabaseM
     @Override
     public ResultSet getFunctionColumns(String catalog, String schemaPattern, String functionNamePattern,
             String columnNamePattern) throws SQLException {
-        return null;
+        return empty("FUNCTION_CAT Nullable(String), FUNCTION_SCHEM Nullable(String), FUNCTION_NAME String,"
+                + "COLUMN_NAME String, COLUMN_TYPE Int16, DATA_TYPE Int32, TYPE_NAME String, PRECISION Int32,"
+                + "LENGTH Int32, SCALE Int16, RADIX Int16, NULLABLE Int16, REMARKS String, CHAR_OCTET_LENGTH Int32,"
+                + "ORDINAL_POSITION Int32, IS_NULLABLE String, SPECIFIC_NAME String");
     }
 
     @Override

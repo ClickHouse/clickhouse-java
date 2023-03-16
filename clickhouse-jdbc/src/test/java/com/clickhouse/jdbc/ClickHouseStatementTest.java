@@ -177,11 +177,14 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
     }
 
     @Test(groups = "integration")
-    public void testSwitchSchema() throws SQLException {
+    public void testSwitchCatalog() throws SQLException {
         Properties props = new Properties();
+        props.setProperty("databaseTerm", "catalog");
         props.setProperty("database", "system");
         try (ClickHouseConnection conn = newConnection(props);
                 ClickHouseStatement stmt = conn.createStatement()) {
+            Assert.assertEquals(conn.getCatalog(), "system");
+            Assert.assertEquals(conn.getSchema(), null);
             String dbName = "test_switch_schema";
             stmt.execute(
                     ClickHouseParameterizedQuery.apply("drop database if exists :db; "
@@ -193,7 +196,45 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
             Assert.assertEquals(rs.getString(1), "system");
             Assert.assertFalse(rs.next());
             Assert.assertThrows(SQLException.class, () -> stmt.executeQuery("select * from test_switch_schema"));
+            conn.setCatalog(dbName);
+            conn.setSchema("non-existent-catalog");
+            Assert.assertEquals(conn.getCatalog(), dbName);
+            Assert.assertEquals(conn.getSchema(), null);
+            rs = stmt.executeQuery("select currentDatabase()");
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getString(1), "system");
+            Assert.assertFalse(rs.next());
+            rs = conn.createStatement().executeQuery("select currentDatabase()");
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getString(1), dbName);
+            Assert.assertFalse(rs.next());
+        }
+    }
+
+    @Test(groups = "integration")
+    public void testSwitchSchema() throws SQLException {
+        Properties props = new Properties();
+        props.setProperty("databaseTerm", "schema");
+        props.setProperty("database", "system");
+        try (ClickHouseConnection conn = newConnection(props);
+                ClickHouseStatement stmt = conn.createStatement()) {
+            Assert.assertEquals(conn.getCatalog(), null);
+            Assert.assertEquals(conn.getSchema(), "system");
+            String dbName = "test_switch_schema";
+            stmt.execute(
+                    ClickHouseParameterizedQuery.apply("drop database if exists :db; "
+                            + "create database :db; "
+                            + "create table :db.:db (a Int32) engine=Memory",
+                            Collections.singletonMap("db", dbName)));
+            ResultSet rs = stmt.executeQuery("select currentDatabase()");
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getString(1), "system");
+            Assert.assertFalse(rs.next());
+            Assert.assertThrows(SQLException.class, () -> stmt.executeQuery("select * from test_switch_schema"));
+            conn.setCatalog("non-existent-catalog");
             conn.setSchema(dbName);
+            Assert.assertEquals(conn.getCatalog(), null);
+            Assert.assertEquals(conn.getSchema(), dbName);
             rs = stmt.executeQuery("select currentDatabase()");
             Assert.assertTrue(rs.next());
             Assert.assertEquals(rs.getString(1), "system");

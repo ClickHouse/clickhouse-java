@@ -1,5 +1,9 @@
 ## 0.4.2
 
+### New Features
+* new options for JDBC driver
+    * databaseTerm(catalog or schema, defaults to the latter) [#1273](https://github.com/ClickHouse/clickhouse-java/issues/1273)
+
 ### Bug Fixes
 * error while converting Nested values to Java maps.
 * incorrect algorithm extracted from PEM. [#1274](https://github.com/ClickHouse/clickhouse-java/issues/1274)

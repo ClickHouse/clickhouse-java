@@ -1,5 +1,6 @@
 package com.clickhouse.jdbc;
 
+import java.sql.DatabaseMetaData;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
@@ -30,6 +31,50 @@ public class ClickHouseDatabaseMetaDataTest extends JdbcIntegrationTest {
                 new Object[] { "Decimal(12,0)", 12, 0, null },
                 new Object[] { "Float32", 12, 0, null },
                 new Object[] { "Float64", 22, 0, null } };
+    }
+
+    @Test(groups = "integration")
+    public void testDatabaseTerm() throws SQLException {
+        Properties props = new Properties();
+        props.setProperty("databaseTerm", "schema");
+        try (ClickHouseConnection conn = newConnection(props)) {
+            DatabaseMetaData md = conn.getMetaData();
+            Assert.assertEquals(md.getCatalogTerm(), "catalog");
+            Assert.assertFalse(md.getCatalogs().next());
+            Assert.assertFalse(md.supportsCatalogsInDataManipulation());
+            Assert.assertFalse(md.supportsCatalogsInIndexDefinitions());
+            Assert.assertFalse(md.supportsCatalogsInPrivilegeDefinitions());
+            Assert.assertFalse(md.supportsCatalogsInProcedureCalls());
+            Assert.assertFalse(md.supportsCatalogsInTableDefinitions());
+
+            Assert.assertEquals(md.getSchemaTerm(), "database");
+            Assert.assertTrue(md.getSchemas().next());
+            Assert.assertTrue(md.supportsSchemasInDataManipulation());
+            Assert.assertTrue(md.supportsSchemasInIndexDefinitions());
+            Assert.assertTrue(md.supportsSchemasInPrivilegeDefinitions());
+            Assert.assertTrue(md.supportsSchemasInProcedureCalls());
+            Assert.assertTrue(md.supportsSchemasInTableDefinitions());
+        }
+
+        props.setProperty("databaseTerm", "catalog");
+        try (ClickHouseConnection conn = newConnection(props)) {
+            DatabaseMetaData md = conn.getMetaData();
+            Assert.assertEquals(md.getCatalogTerm(), "database");
+            Assert.assertTrue(md.getCatalogs().next());
+            Assert.assertTrue(md.supportsCatalogsInDataManipulation());
+            Assert.assertTrue(md.supportsCatalogsInIndexDefinitions());
+            Assert.assertTrue(md.supportsCatalogsInPrivilegeDefinitions());
+            Assert.assertTrue(md.supportsCatalogsInProcedureCalls());
+            Assert.assertTrue(md.supportsCatalogsInTableDefinitions());
+
+            Assert.assertEquals(md.getSchemaTerm(), "schema");
+            Assert.assertFalse(md.getSchemas().next());
+            Assert.assertFalse(md.supportsSchemasInDataManipulation());
+            Assert.assertFalse(md.supportsSchemasInIndexDefinitions());
+            Assert.assertFalse(md.supportsSchemasInPrivilegeDefinitions());
+            Assert.assertFalse(md.supportsSchemasInProcedureCalls());
+            Assert.assertFalse(md.supportsSchemasInTableDefinitions());
+        }
     }
 
     @Test(groups = "integration")
