@@ -261,17 +261,6 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
         return list;
     }
 
-    protected void setDatabase(String db) throws SQLException {
-        ensureOpen();
-
-        if (db == null || db.isEmpty()) {
-            throw new SQLException("Non-empty database name is required", SqlExceptionUtils.SQL_STATE_INVALID_SCHEMA);
-        } else if (!db.equals(database)) {
-            this.database = db;
-            clientRequest.use(db);
-        }
-    }
-
     protected String getDatabase() throws SQLException {
         ensureOpen();
 
@@ -570,7 +559,7 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
     @Override
     public void setCatalog(String catalog) throws SQLException {
         if (jdbcConf.useCatalog()) {
-            setDatabase(catalog);
+            setCurrentDatabase(catalog);
         } else {
             log.warn(
                     "setCatalog method is no-op. Please either change databaseTerm to catalog or use setSchema method instead");
@@ -964,7 +953,7 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
     @Override
     public void setSchema(String schema) throws SQLException {
         if (jdbcConf.useSchema()) {
-            setDatabase(schema);
+            setCurrentDatabase(schema);
         } else {
             log.warn(
                     "setSchema method is no-op. Please either change databaseTerm to schema or use setCatalog method instead");
@@ -1031,6 +1020,19 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
     @Override
     public String getCurrentDatabase() {
         return database;
+    }
+
+    @Override
+    public void setCurrentDatabase(String db) throws SQLException {
+        ensureOpen();
+
+        if (db == null || db.isEmpty()) {
+            throw new SQLException("Non-empty database name is required", SqlExceptionUtils.SQL_STATE_INVALID_SCHEMA);
+        } else if (!db.equals(database)) {
+            this.database = db;
+            // TODO execute a simple query to validate if the database exists or not
+            clientRequest.use(db);
+        }
     }
 
     @Override

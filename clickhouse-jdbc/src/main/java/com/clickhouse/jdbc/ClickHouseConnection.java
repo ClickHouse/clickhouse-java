@@ -182,6 +182,14 @@ public interface ClickHouseConnection extends Connection {
     String getCurrentDatabase();
 
     /**
+     * Sets current database.
+     *
+     * @param database non-empty database name
+     * @throws SQLException when failed to change current database
+     */
+    void setCurrentDatabase(String database) throws SQLException;
+
+    /**
      * Gets current user.
      *
      * @return non-null user name

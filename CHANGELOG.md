@@ -11,6 +11,7 @@
 * incorrect algorithm extracted from PEM. [#1274](https://github.com/ClickHouse/clickhouse-java/issues/1274)
 * transaction failure introduced 0.4.0.
 * respect node-specific credentials. [#1114](https://github.com/ClickHouse/clickhouse-java/issues/1114)
+* USE statement does nothing. [#1160](https://github.com/ClickHouse/clickhouse-java/issues/1160)
 
 ## 0.4.1, 2023-02-19
 ### Breaking Changes
