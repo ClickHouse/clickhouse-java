@@ -208,6 +208,20 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
             Assert.assertTrue(rs.next());
             Assert.assertEquals(rs.getString(1), dbName);
             Assert.assertFalse(rs.next());
+
+            conn.createStatement().execute("use system");
+            Assert.assertEquals(conn.getCurrentDatabase(), "system");
+            rs = conn.createStatement().executeQuery("select currentDatabase()");
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getString(1), "system");
+            Assert.assertFalse(rs.next());
+
+            conn.createStatement().execute("use `" + dbName + "`");
+            Assert.assertEquals(conn.getCurrentDatabase(), dbName);
+            rs = conn.createStatement().executeQuery("select currentDatabase()");
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getString(1), dbName);
+            Assert.assertFalse(rs.next());
         }
     }
 
@@ -239,6 +253,20 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
             Assert.assertTrue(rs.next());
             Assert.assertEquals(rs.getString(1), "system");
             Assert.assertFalse(rs.next());
+            rs = conn.createStatement().executeQuery("select currentDatabase()");
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getString(1), dbName);
+            Assert.assertFalse(rs.next());
+
+            conn.createStatement().execute("use system");
+            Assert.assertEquals(conn.getCurrentDatabase(), "system");
+            rs = conn.createStatement().executeQuery("select currentDatabase()");
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getString(1), "system");
+            Assert.assertFalse(rs.next());
+
+            conn.createStatement().execute("use `" + dbName + "`");
+            Assert.assertEquals(conn.getCurrentDatabase(), dbName);
             rs = conn.createStatement().executeQuery("select currentDatabase()");
             Assert.assertTrue(rs.next());
             Assert.assertEquals(rs.getString(1), dbName);

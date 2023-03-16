@@ -133,7 +133,10 @@ public class ClickHouseStatementImpl extends JdbcWrapper
     }
 
     protected ClickHouseResponse processSqlStatement(ClickHouseSqlStatement stmt) throws SQLException {
-        if (stmt.isTCL()) {
+        if (stmt.getStatementType() == StatementType.USE) {
+            connection.setCurrentDatabase(stmt.getDatabaseOrDefault(connection.getCurrentDatabase()));
+            return ClickHouseResponse.EMPTY;
+        } else if (stmt.isTCL()) {
             if (stmt.containsKeyword(ClickHouseTransaction.COMMAND_BEGIN)) {
                 connection.begin();
             } else if (stmt.containsKeyword(ClickHouseTransaction.COMMAND_COMMIT)) {
