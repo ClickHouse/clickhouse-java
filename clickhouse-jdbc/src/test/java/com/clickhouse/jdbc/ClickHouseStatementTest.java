@@ -211,6 +211,8 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
 
             conn.createStatement().execute("use system");
             Assert.assertEquals(conn.getCurrentDatabase(), "system");
+            Assert.assertEquals(conn.getCatalog(), "system");
+            Assert.assertEquals(conn.getSchema(), null);
             rs = conn.createStatement().executeQuery("select currentDatabase()");
             Assert.assertTrue(rs.next());
             Assert.assertEquals(rs.getString(1), "system");
@@ -218,10 +220,28 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
 
             conn.createStatement().execute("use `" + dbName + "`");
             Assert.assertEquals(conn.getCurrentDatabase(), dbName);
+            Assert.assertEquals(conn.getCatalog(), dbName);
+            Assert.assertEquals(conn.getSchema(), null);
             rs = conn.createStatement().executeQuery("select currentDatabase()");
             Assert.assertTrue(rs.next());
             Assert.assertEquals(rs.getString(1), dbName);
             Assert.assertFalse(rs.next());
+
+            rs = conn.createStatement().executeQuery("use system;select currentDatabase()");
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getString(1), "system");
+            Assert.assertEquals(conn.getCatalog(), "system");
+            Assert.assertEquals(conn.getSchema(), null);
+            Assert.assertFalse(rs.next());
+
+            // non-existent databse
+            String nonExistentDb = UUID.randomUUID().toString();
+            Assert.assertThrows(SQLException.class, () -> conn.setCatalog(nonExistentDb));
+            Assert.assertThrows(SQLException.class, () -> conn.createStatement().execute("use an invalid query"));
+            Assert.assertThrows(SQLException.class,
+                    () -> conn.createStatement().execute("use `" + nonExistentDb + "`"));
+            Assert.assertThrows(SQLException.class,
+                    () -> conn.createStatement().execute("use `" + nonExistentDb + "`; select 1"));
         }
     }
 
@@ -260,6 +280,8 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
 
             conn.createStatement().execute("use system");
             Assert.assertEquals(conn.getCurrentDatabase(), "system");
+            Assert.assertEquals(conn.getCatalog(), null);
+            Assert.assertEquals(conn.getSchema(), "system");
             rs = conn.createStatement().executeQuery("select currentDatabase()");
             Assert.assertTrue(rs.next());
             Assert.assertEquals(rs.getString(1), "system");
@@ -267,10 +289,28 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
 
             conn.createStatement().execute("use `" + dbName + "`");
             Assert.assertEquals(conn.getCurrentDatabase(), dbName);
+            Assert.assertEquals(conn.getCatalog(), null);
+            Assert.assertEquals(conn.getSchema(), dbName);
             rs = conn.createStatement().executeQuery("select currentDatabase()");
             Assert.assertTrue(rs.next());
             Assert.assertEquals(rs.getString(1), dbName);
             Assert.assertFalse(rs.next());
+
+            rs = conn.createStatement().executeQuery("use system;select currentDatabase()");
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getString(1), "system");
+            Assert.assertEquals(conn.getCatalog(), null);
+            Assert.assertEquals(conn.getSchema(), "system");
+            Assert.assertFalse(rs.next());
+
+            // non-existent databse
+            String nonExistentDb = UUID.randomUUID().toString();
+            Assert.assertThrows(SQLException.class, () -> conn.setSchema(nonExistentDb));
+            Assert.assertThrows(SQLException.class, () -> conn.createStatement().execute("use an invalid query"));
+            Assert.assertThrows(SQLException.class,
+                    () -> conn.createStatement().execute("use `" + nonExistentDb + "`"));
+            Assert.assertThrows(SQLException.class,
+                    () -> conn.createStatement().execute("use `" + nonExistentDb + "`; select 1"));
         }
     }
 
