@@ -559,7 +559,7 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
     @Override
     public void setCatalog(String catalog) throws SQLException {
         if (jdbcConf.useCatalog()) {
-            setCurrentDatabase(catalog);
+            setCurrentDatabase(catalog, true);
         } else {
             log.warn(
                     "setCatalog method is no-op. Please either change databaseTerm to catalog or use setSchema method instead");
@@ -953,7 +953,7 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
     @Override
     public void setSchema(String schema) throws SQLException {
         if (jdbcConf.useSchema()) {
-            setCurrentDatabase(schema);
+            setCurrentDatabase(schema, true);
         } else {
             log.warn(
                     "setSchema method is no-op. Please either change databaseTerm to schema or use setCatalog method instead");
@@ -1023,15 +1023,26 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
     }
 
     @Override
-    public void setCurrentDatabase(String db) throws SQLException {
+    public void setCurrentDatabase(String db, boolean check) throws SQLException {
         ensureOpen();
 
         if (db == null || db.isEmpty()) {
             throw new SQLException("Non-empty database name is required", SqlExceptionUtils.SQL_STATE_INVALID_SCHEMA);
-        } else if (!db.equals(database)) {
-            this.database = db;
-            // TODO execute a simple query to validate if the database exists or not
+        } else {
             clientRequest.use(db);
+            if (check) {
+                try (ClickHouseResponse response = clientRequest.query("select 1").executeAndWait()) {
+                    database = db;
+                } catch (ClickHouseException e) {
+                    throw SqlExceptionUtils.handle(e);
+                } finally {
+                    if (!db.equals(database)) {
+                        clientRequest.use(database);
+                    }
+                }
+            } else {
+                database = db;
+            }
         }
     }
 

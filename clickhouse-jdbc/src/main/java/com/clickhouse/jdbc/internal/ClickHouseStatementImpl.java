@@ -19,6 +19,7 @@ import java.util.concurrent.TimeoutException;
 
 import com.clickhouse.client.ClickHouseClient;
 import com.clickhouse.client.ClickHouseConfig;
+import com.clickhouse.client.ClickHouseException;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseResponse;
@@ -134,7 +135,25 @@ public class ClickHouseStatementImpl extends JdbcWrapper
 
     protected ClickHouseResponse processSqlStatement(ClickHouseSqlStatement stmt) throws SQLException {
         if (stmt.getStatementType() == StatementType.USE) {
-            connection.setCurrentDatabase(stmt.getDatabaseOrDefault(connection.getCurrentDatabase()));
+            String dbName = connection.getCurrentDatabase();
+            final String newDb = stmt.getDatabaseOrDefault(dbName);
+            final boolean hasSession = request.getSessionId().isPresent();
+            if (!hasSession) {
+                request.session(request.getManager().createSessionId());
+            }
+            // execute the query to ensure 1) it's valid; and 2) the database exists
+            try (ClickHouseResponse response = request.use(newDb).query(stmt.getSQL()).executeAndWait()) {
+                connection.setCurrentDatabase(dbName = newDb, false);
+            } catch (ClickHouseException e) {
+                throw SqlExceptionUtils.handle(e);
+            } finally {
+                if (!dbName.equals(newDb)) {
+                    request.use(dbName);
+                }
+                if (!hasSession) {
+                    request.clearSession();
+                }
+            }
             return ClickHouseResponse.EMPTY;
         } else if (stmt.isTCL()) {
             if (stmt.containsKeyword(ClickHouseTransaction.COMMAND_BEGIN)) {
