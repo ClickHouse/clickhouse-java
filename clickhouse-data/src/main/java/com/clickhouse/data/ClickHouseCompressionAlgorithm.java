@@ -20,8 +20,8 @@ public interface ClickHouseCompressionAlgorithm {
     static final String ERROR_FAILED_TO_WRAP_INPUT = "Failed to wrap input stream";
     static final String ERROR_FAILED_TO_WRAP_OUTPUT = "Failed to wrap output stream";
 
-    static final String ERROR_UNSUPPORTED_COMPRESS_ALG = "Compression algorithm [%s] is not supported";
-    static final String ERROR_UNSUPPORTED_DECOMPRESS_ALG = "Decompression algorithm [%s] is not supported";
+    static final String ERROR_UNSUPPORTED_COMPRESS_ALG = "%s is not supported. Please disable decompression(decompress=0), modify the algorithm(e.g. decompress_algorithm=gzip), or add the missing libraries to the classpath.";
+    static final String ERROR_UNSUPPORTED_DECOMPRESS_ALG = "%s is not supported. Please disable compression(compress=0), modify the algorithm(e.g. compress_algorithm=gzip), or add the missing libraries to the classpath.";
 
     static final ClickHouseOption COMPRESSION_LIB_DETECTION = new ClickHouseDefaultOption("compression_lib_detection",
             true);
@@ -56,9 +56,9 @@ public interface ClickHouseCompressionAlgorithm {
             return of(compression).decompress(stream, input, bufferSize, level, postCloseAction);
         } catch (IOException e) {
             throw new IllegalArgumentException(ERROR_FAILED_TO_WRAP_INPUT, e);
-        } catch (NoClassDefFoundError e) {
+        } catch (ExceptionInInitializerError | NoClassDefFoundError e) {
             throw new UnsupportedOperationException(
-                    ClickHouseUtils.format(ERROR_UNSUPPORTED_DECOMPRESS_ALG, compression), e);
+                    ClickHouseUtils.format(ERROR_UNSUPPORTED_DECOMPRESS_ALG, compression));
         }
     }
 
@@ -68,9 +68,9 @@ public interface ClickHouseCompressionAlgorithm {
             return of(compression).compress(stream, output, bufferSize, level, postCloseAction);
         } catch (IOException e) {
             throw new IllegalArgumentException(ERROR_FAILED_TO_WRAP_OUTPUT, e);
-        } catch (NoClassDefFoundError e) {
-            throw new UnsupportedOperationException(ClickHouseUtils.format(ERROR_UNSUPPORTED_COMPRESS_ALG, compression),
-                    e);
+        } catch (ExceptionInInitializerError | NoClassDefFoundError e) {
+            throw new UnsupportedOperationException(
+                    ClickHouseUtils.format(ERROR_UNSUPPORTED_COMPRESS_ALG, compression));
         }
     }
 

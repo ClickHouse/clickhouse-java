@@ -29,14 +29,12 @@ import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.config.ClickHouseClientOption;
-import com.clickhouse.client.grpc.config.ClickHouseGrpcOption;
 import com.clickhouse.client.grpc.impl.ClickHouseGrpc;
 import com.clickhouse.client.grpc.impl.ExternalTable;
 import com.clickhouse.client.grpc.impl.NameAndType;
 import com.clickhouse.client.grpc.impl.QueryInfo;
 import com.clickhouse.client.grpc.impl.Result;
 import com.clickhouse.client.grpc.impl.QueryInfo.Builder;
-import com.clickhouse.config.ClickHouseOption;
 import com.clickhouse.data.ClickHouseChecker;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseCompression;
@@ -50,9 +48,6 @@ import com.clickhouse.data.ClickHouseUtils;
 import com.clickhouse.logging.Logger;
 import com.clickhouse.logging.LoggerFactory;
 
-import org.apache.commons.compress.compressors.lz4.FramedLZ4CompressorInputStream;
-import org.apache.commons.compress.compressors.lz4.FramedLZ4CompressorOutputStream;
-
 public class ClickHouseGrpcClientImpl extends AbstractClient<ManagedChannel> {
     private static final Logger log = LoggerFactory.getLogger(ClickHouseGrpcClientImpl.class);
 
@@ -63,7 +58,7 @@ public class ClickHouseGrpcClientImpl extends AbstractClient<ManagedChannel> {
         if (config.getResponseCompressAlgorithm() == ClickHouseCompression.LZ4) {
             in = ClickHouseInputStream.of(ClickHouseDeferredValue.of(() -> {
                 try {
-                    return new FramedLZ4CompressorInputStream(input);
+                    return new org.apache.commons.compress.compressors.lz4.FramedLZ4CompressorInputStream(input);
                 } catch (IOException e) {
                     return input;
                 }
@@ -80,7 +75,7 @@ public class ClickHouseGrpcClientImpl extends AbstractClient<ManagedChannel> {
         if (config.getRequestCompressAlgorithm() == ClickHouseCompression.LZ4) {
             out = ClickHouseOutputStream.of(ClickHouseDeferredValue.of(() -> {
                 try {
-                    return new FramedLZ4CompressorOutputStream(output);
+                    return new org.apache.commons.compress.compressors.lz4.FramedLZ4CompressorOutputStream(output);
                 } catch (IOException e) {
                     return output;
                 }
@@ -363,15 +358,5 @@ public class ClickHouseGrpcClientImpl extends AbstractClient<ManagedChannel> {
         }
 
         return response;
-    }
-
-    @Override
-    public boolean accept(ClickHouseProtocol protocol) {
-        return ClickHouseProtocol.GRPC == protocol || super.accept(protocol);
-    }
-
-    @Override
-    public Class<? extends ClickHouseOption> getOptionClass() {
-        return ClickHouseGrpcOption.class;
     }
 }

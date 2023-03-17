@@ -428,16 +428,20 @@ public class ClickHouseClientBuilder {
         int counter = 0;
         if (nodeSelector != null) {
             for (ClickHouseClient c : loadClients()) {
+                final boolean matched = nodeSelector == ClickHouseNodeSelector.EMPTY || nodeSelector.match(c);
                 try {
                     c.init(conf);
-
                     counter++;
-                    if (nodeSelector == ClickHouseNodeSelector.EMPTY || nodeSelector.match(c)) {
+                    if (matched) {
                         client = c;
                         break;
                     }
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     log.warn("Skip %s due to: %s", c, e.getMessage());
+                    if (matched) {
+                        // TODO consider scenario like the second match works
+                        throw e;
+                    }
                 }
             }
         }
