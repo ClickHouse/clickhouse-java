@@ -9,6 +9,8 @@ import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseResponse;
+import com.clickhouse.client.UnsupportedProtocolException;
+import com.clickhouse.client.grpc.config.ClickHouseGrpcOption;
 import com.clickhouse.config.ClickHouseOption;
 
 public class ClickHouseGrpcClient implements ClickHouseClient {
@@ -17,7 +19,12 @@ public class ClickHouseGrpcClient implements ClickHouseClient {
     protected ClickHouseClient getInstance() {
         ClickHouseClient instance = ref.get();
         if (instance == null) {
-            instance = new ClickHouseGrpcClientImpl();
+            try {
+                instance = new ClickHouseGrpcClientImpl();
+            } catch (ExceptionInInitializerError | NoClassDefFoundError e) {
+                throw new UnsupportedProtocolException(ClickHouseProtocol.GRPC,
+                        "gRPC is not supported. Please use http protocol or add gRPC libraries to the classpath.");
+            }
             if (!ref.compareAndSet(null, instance)) {
                 instance.close();
                 instance = ref.get();
@@ -31,13 +38,13 @@ public class ClickHouseGrpcClient implements ClickHouseClient {
     }
 
     @Override
-    public boolean accept(ClickHouseProtocol protocol) {
-        return getInstance().accept(protocol);
+    public final boolean accept(ClickHouseProtocol protocol) {
+        return ClickHouseProtocol.GRPC == protocol || ClickHouseClient.super.accept(protocol);
     }
 
     @Override
-    public Class<? extends ClickHouseOption> getOptionClass() {
-        return getInstance().getOptionClass();
+    public final Class<? extends ClickHouseOption> getOptionClass() {
+        return ClickHouseGrpcOption.class;
     }
 
     @Override
