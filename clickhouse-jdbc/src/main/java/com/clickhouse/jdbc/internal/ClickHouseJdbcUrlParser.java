@@ -48,7 +48,7 @@ public class ClickHouseJdbcUrlParser {
          * Gets selected server.
          *
          * @return non-null selected server
-         * @deprecated will be removed in v0.3.3, please use {@link #getNodes()}
+         * @deprecated will be removed in 0.5, please use {@link #getNodes()}
          *             instead
          */
         @Deprecated
