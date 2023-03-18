@@ -449,6 +449,14 @@ public class ClickHouseRequestTest {
         Assert.assertEquals(request.options.get(ClickHouseClientOption.DATABASE), "mydb");
         Assert.assertEquals(request.options.get(ClickHouseClientOption.CLIENT_NAME), "new");
         Assert.assertEquals(request.options.get(ClickHouseClientOption.FORMAT), ClickHouseFormat.CapnProto);
+
+        request.freezeOptions().option(ClickHouseClientOption.ASYNC, true).removeOption(ClickHouseClientOption.FORMAT);
+        Assert.assertEquals(request.options.get(ClickHouseClientOption.ASYNC), false);
+        Assert.assertEquals(request.options.get(ClickHouseClientOption.FORMAT), ClickHouseFormat.CapnProto);
+        request.unfreezeOptions().option(ClickHouseClientOption.ASYNC, true)
+                .removeOption(ClickHouseClientOption.FORMAT);
+        Assert.assertEquals(request.options.get(ClickHouseClientOption.ASYNC), true);
+        Assert.assertEquals(request.options.get(ClickHouseClientOption.FORMAT), null);
     }
 
     @Test(groups = { "unit" })
@@ -596,6 +604,13 @@ public class ClickHouseRequestTest {
         Assert.assertEquals(request.getStatements().size(), 2);
         Assert.assertEquals(request.getStatements().get(1),
                 "SET log_queries_min_type='EXCEPTION_WHILE_PROCESSING'");
+
+        request.freezeSettings().set("enable_optimize_predicate_expression", 2).removeSetting("log_queries_min_type");
+        Assert.assertEquals(request.settings.get("enable_optimize_predicate_expression"), 1);
+        Assert.assertEquals(request.settings.get("log_queries_min_type"), "EXCEPTION_WHILE_PROCESSING");
+        request.unfreezeSettings().set("enable_optimize_predicate_expression", 2).removeSetting("log_queries_min_type");
+        Assert.assertEquals(request.settings.get("enable_optimize_predicate_expression"), 2);
+        Assert.assertEquals(request.settings.get("log_queries_min_type"), null);
     }
 
     @Test(groups = { "unit" })

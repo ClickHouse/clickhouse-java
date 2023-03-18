@@ -23,6 +23,7 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Deque;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -218,6 +219,60 @@ public final class ClickHouseUtils {
         } catch (UnsupportedEncodingException e) {
             return str;
         }
+    }
+
+    /**
+     * Extracts parameters, usually key-value pairs, from the given query string.
+     *
+     * @param query  non-empty query string
+     * @param params mutable map for extracted parameters, a new {@link HashMap}
+     *               will be created when it's null
+     * @return map with extracted parameters, usually same as {@code params}
+     */
+    public static Map<String, String> extractParameters(String query, Map<String, String> params) {
+        if (params == null) {
+            params = new HashMap<>();
+        }
+        if (ClickHouseChecker.isNullOrEmpty(query)) {
+            return params;
+        }
+        int len = query.length();
+        for (int i = 0; i < len; i++) {
+            int index = query.indexOf('&', i);
+            if (index == i) {
+                continue;
+            }
+
+            String param;
+            if (index < 0) {
+                param = query.substring(i);
+                i = len;
+            } else {
+                param = query.substring(i, index);
+                i = index;
+            }
+            index = param.indexOf('=');
+            String key;
+            String value;
+            if (index < 0) {
+                key = decode(param);
+                if (key.charAt(0) == '!') {
+                    key = key.substring(1);
+                    value = Boolean.FALSE.toString();
+                } else {
+                    value = Boolean.TRUE.toString();
+                }
+            } else {
+                key = decode(param.substring(0, index));
+                value = decode(param.substring(index + 1));
+            }
+
+            // any multi-value option? cluster?
+            if (!ClickHouseChecker.isNullOrEmpty(value)) {
+                params.put(key, value);
+            }
+        }
+        return params;
     }
 
     private static <T> T findFirstService(Class<? extends T> serviceInterface) {

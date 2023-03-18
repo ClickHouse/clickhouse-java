@@ -102,4 +102,9 @@ public interface ClickHouseNodeManager extends Function<ClickHouseNodeSelector, 
      * @param status non-null status of the node
      */
     void update(ClickHouseNode node, Status status);
+
+    /**
+     * Shuts down scheduled tasks if any.
+     */
+    void shutdown();
 }

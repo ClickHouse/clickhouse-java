@@ -58,83 +58,6 @@ public class JdbcConfig {
     private static final String DEFAULT_TYPE_MAP = "";
     private static final String DEFAULT_WRAPPER_OBJ = BOOLEAN_FALSE;
 
-    static String removeAndGetPropertyValue(Properties props, String key) {
-        if (props == null || props.isEmpty() || key == null || key.isEmpty()) {
-            return null;
-        }
-
-        // Remove JDBC-specific options so that they won't be treated as server settings
-        // at later stage. Default properties won't be used for the same reason.
-        Object raw = props.remove(key);
-        return raw == null ? null : raw.toString();
-    }
-
-    static boolean extractBooleanValue(Properties props, String key, String defaultValue) {
-        String value = removeAndGetPropertyValue(props, key);
-        return Boolean.parseBoolean(value != null ? value : defaultValue);
-    }
-
-    static int extractIntValue(Properties props, String key, String defaultValue) {
-        String value = removeAndGetPropertyValue(props, key);
-        return Integer.parseInt(value != null ? value : defaultValue);
-    }
-
-    // TODO return JdbcDialect
-    static JdbcTypeMapping extractDialectValue(Properties props, String key, String defaultValue) {
-        String value = removeAndGetPropertyValue(props, key);
-        if (value == null) {
-            value = defaultValue;
-        }
-
-        JdbcTypeMapping mapper;
-        if (ClickHouseChecker.isNullOrBlank(value)) {
-            mapper = JdbcTypeMapping.getDefaultMapping();
-        } else if ("ansi".equalsIgnoreCase(value)) {
-            mapper = JdbcTypeMapping.getAnsiMapping();
-        } else {
-            try {
-                Class<?> clazz = JdbcConfig.class.getClassLoader().loadClass(value);
-                mapper = (JdbcTypeMapping) clazz.getConstructor().newInstance();
-            } catch (Throwable t) {
-                log.warn("Failed to load custom JDBC type mapping [%s], due to: %s", value, t.getMessage());
-                mapper = JdbcTypeMapping.getDefaultMapping();
-            }
-        }
-        return mapper;
-    }
-
-    static String extractStringValue(Properties props, String key, String defaultValue) {
-        String value = removeAndGetPropertyValue(props, key);
-        return value != null ? value : defaultValue;
-    }
-
-    static Map<String, Class<?>> extractTypeMapValue(Properties props, String key, String defaultValue) {
-        String value = removeAndGetPropertyValue(props, key);
-        if (value == null) {
-            value = defaultValue;
-        }
-
-        if (ClickHouseChecker.isNullOrBlank(value)) {
-            return Collections.emptyMap();
-        }
-
-        Map<String, Class<?>> map = new LinkedHashMap<>();
-        ClassLoader loader = JdbcConfig.class.getClassLoader();
-        for (Entry<String, String> e : ClickHouseOption.toKeyValuePairs(value).entrySet()) {
-            Class<?> clazz = null;
-            try {
-                clazz = loader.loadClass(e.getValue());
-            } catch (Throwable t) {
-                log.warn("Failed to add mapping [%s]=[%s], due to: %s", e.getKey(), e.getValue(), t.getMessage());
-            }
-            if (clazz != null) {
-                map.put(e.getKey(), clazz);
-            }
-        }
-
-        return Collections.unmodifiableMap(map);
-    }
-
     static DriverPropertyInfo newDriverProperty(String name, String defaultValue, String description,
             String... choices) {
         DriverPropertyInfo info = new DriverPropertyInfo(name, defaultValue);
@@ -146,7 +69,7 @@ public class JdbcConfig {
     }
 
     public static List<DriverPropertyInfo> getDriverProperties() {
-        List<DriverPropertyInfo> list = new ArrayList<>(Arrays.asList(
+        return Collections.unmodifiableList(new ArrayList<>(Arrays.asList(
                 newDriverProperty(PROP_AUTO_COMMIT, DEFAULT_AUTO_COMMIT,
                         "Whether to enable auto commit when connection is created."),
                 newDriverProperty(PROP_CREATE_DATABASE, DEFAULT_CREATE_DATABASE,
@@ -176,10 +99,92 @@ public class JdbcConfig {
                         "Default type mappings between ClickHouse data type and Java class. You can define multiple mappings using comma as separator."),
                 newDriverProperty(PROP_WRAPPER_OBJ, DEFAULT_WRAPPER_OBJ,
                         "Whether to return wrapper object like Array or Struct in ResultSet.getObject method.",
-                        BOOLEAN_TRUE, BOOLEAN_FALSE)));
-
-        return Collections.unmodifiableList(list);
+                        BOOLEAN_TRUE, BOOLEAN_FALSE))));
     }
+
+    String removeAndGetPropertyValue(Properties props, String key) {
+        if (props == null || props.isEmpty() || key == null || key.isEmpty()) {
+            return null;
+        }
+
+        // Remove JDBC-specific options so that they won't be treated as server settings
+        // at later stage. Default properties won't be used for the same reason.
+        Object raw = props.remove(key);
+        if (raw != null) {
+            this.properties.put(key, raw);
+            return raw.toString();
+        } else {
+            return null;
+        }
+    }
+
+    boolean extractBooleanValue(Properties props, String key, String defaultValue) {
+        String value = removeAndGetPropertyValue(props, key);
+        return Boolean.parseBoolean(value != null ? value : defaultValue);
+    }
+
+    int extractIntValue(Properties props, String key, String defaultValue) {
+        String value = removeAndGetPropertyValue(props, key);
+        return Integer.parseInt(value != null ? value : defaultValue);
+    }
+
+    // TODO return JdbcDialect
+    JdbcTypeMapping extractDialectValue(Properties props, String key, String defaultValue) {
+        String value = removeAndGetPropertyValue(props, key);
+        if (value == null) {
+            value = defaultValue;
+        }
+
+        JdbcTypeMapping mapper;
+        if (ClickHouseChecker.isNullOrBlank(value)) {
+            mapper = JdbcTypeMapping.getDefaultMapping();
+        } else if ("ansi".equalsIgnoreCase(value)) {
+            mapper = JdbcTypeMapping.getAnsiMapping();
+        } else {
+            try {
+                Class<?> clazz = JdbcConfig.class.getClassLoader().loadClass(value);
+                mapper = (JdbcTypeMapping) clazz.getConstructor().newInstance();
+            } catch (Throwable t) {
+                log.warn("Failed to load custom JDBC type mapping [%s], due to: %s", value, t.getMessage());
+                mapper = JdbcTypeMapping.getDefaultMapping();
+            }
+        }
+        return mapper;
+    }
+
+    String extractStringValue(Properties props, String key, String defaultValue) {
+        String value = removeAndGetPropertyValue(props, key);
+        return value != null ? value : defaultValue;
+    }
+
+    Map<String, Class<?>> extractTypeMapValue(Properties props, String key, String defaultValue) {
+        String value = removeAndGetPropertyValue(props, key);
+        if (value == null) {
+            value = defaultValue;
+        }
+
+        if (ClickHouseChecker.isNullOrBlank(value)) {
+            return Collections.emptyMap();
+        }
+
+        Map<String, Class<?>> map = new LinkedHashMap<>();
+        ClassLoader loader = JdbcConfig.class.getClassLoader();
+        for (Entry<String, String> e : ClickHouseOption.toKeyValuePairs(value).entrySet()) {
+            Class<?> clazz = null;
+            try {
+                clazz = loader.loadClass(e.getValue());
+            } catch (Throwable t) {
+                log.warn("Failed to add mapping [%s]=[%s], due to: %s", e.getKey(), e.getValue(), t.getMessage());
+            }
+            if (clazz != null) {
+                map.put(e.getKey(), clazz);
+            }
+        }
+
+        return Collections.unmodifiableMap(map);
+    }
+
+    private final Properties properties;
 
     private final boolean autoCommit;
     private final boolean createDb;
@@ -200,9 +205,7 @@ public class JdbcConfig {
     }
 
     public JdbcConfig(Properties props) {
-        if (props == null) {
-            props = new Properties();
-        }
+        this.properties = new Properties();
 
         this.autoCommit = extractBooleanValue(props, PROP_AUTO_COMMIT, DEFAULT_AUTO_COMMIT);
         this.createDb = extractBooleanValue(props, PROP_CREATE_DATABASE, DEFAULT_CREATE_DATABASE);
@@ -359,5 +362,16 @@ public class JdbcConfig {
      */
     public boolean useWrapperObject() {
         return wrapperObject;
+    }
+
+    /**
+     * Gets properties.
+     *
+     * @return non-null properties
+     */
+    public Properties getProperties() {
+        Properties props = new Properties();
+        props.putAll(this.properties);
+        return props;
     }
 }
