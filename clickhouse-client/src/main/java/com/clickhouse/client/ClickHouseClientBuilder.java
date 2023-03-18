@@ -427,22 +427,26 @@ public class ClickHouseClientBuilder {
         ClickHouseConfig conf = getConfig();
         int counter = 0;
         if (nodeSelector != null) {
+            Throwable lastError = null;
             for (ClickHouseClient c : loadClients()) {
-                final boolean matched = nodeSelector == ClickHouseNodeSelector.EMPTY || nodeSelector.match(c);
                 try {
                     c.init(conf);
                     counter++;
-                    if (matched) {
+                    if (nodeSelector == ClickHouseNodeSelector.EMPTY || nodeSelector.match(c)) {
                         client = c;
                         break;
                     }
+                } catch (UnsupportedProtocolException e) {
+                    if (nodeSelector.matchAnyOfPreferredProtocols(e.getProtocol())) {
+                        lastError = e;
+                    }
                 } catch (Throwable e) {
                     log.warn("Skip %s due to: %s", c, e.getMessage());
-                    if (matched) {
-                        // TODO consider scenario like the second match works
-                        throw e;
-                    }
                 }
+            }
+
+            if (client == null && lastError != null) {
+                throw new ExceptionInInitializerError(lastError.getMessage());
             }
         }
 

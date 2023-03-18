@@ -12,6 +12,7 @@ import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseResponse;
+import com.clickhouse.client.UnsupportedProtocolException;
 import com.clickhouse.client.cli.config.ClickHouseCommandLineOption;
 import com.clickhouse.config.ClickHouseOption;
 import com.clickhouse.logging.Logger;
@@ -83,10 +84,14 @@ public class ClickHouseCommandLineClient extends AbstractClient<ClickHouseComman
                 option = ClickHouseCommandLine.DEFAULT_CLIENT_OPTION;
                 break;
             default:
-                option = null;
-                break;
+                return false;
         }
-        return option != null && ClickHouseCommandLine.getCommandLine(getConfig(), option) != null;
+
+        if (ClickHouseCommandLine.getCommandLine(getConfig(), option) == null) {
+            throw new UnsupportedProtocolException(protocol,
+                    "ClickHouse binary and docker command not found. Please modify option clickhouse_cli_path or docker_cli_path.");
+        }
+        return true;
     }
 
     @Override

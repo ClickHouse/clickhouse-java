@@ -58,9 +58,12 @@ public class ClickHouseGrpcClientImpl extends AbstractClient<ManagedChannel> {
         if (config.getResponseCompressAlgorithm() == ClickHouseCompression.LZ4) {
             in = ClickHouseInputStream.of(ClickHouseDeferredValue.of(() -> {
                 try {
-                    return new org.apache.commons.compress.compressors.lz4.FramedLZ4CompressorInputStream(input);
+                    return FramedLZ4Utils.wrap(input);
                 } catch (IOException e) {
                     return input;
+                } catch (ExceptionInInitializerError | NoClassDefFoundError e) {
+                    throw new UnsupportedOperationException(
+                            "Framed LZ4 is not supported. Please disable compression(compress=0) or add Apache Common Compress library to the classpath.");
                 }
             }), config.getReadBufferSize(), postCloseAction);
         } else {
@@ -75,9 +78,12 @@ public class ClickHouseGrpcClientImpl extends AbstractClient<ManagedChannel> {
         if (config.getRequestCompressAlgorithm() == ClickHouseCompression.LZ4) {
             out = ClickHouseOutputStream.of(ClickHouseDeferredValue.of(() -> {
                 try {
-                    return new org.apache.commons.compress.compressors.lz4.FramedLZ4CompressorOutputStream(output);
+                    return FramedLZ4Utils.wrap(output);
                 } catch (IOException e) {
                     return output;
+                } catch (ExceptionInInitializerError | NoClassDefFoundError e) {
+                    throw new UnsupportedOperationException(
+                            "Framed LZ4 library not found. Please disable decompression(decompress=0) or add Apache Common Compress library to the classpath.");
                 }
             }), config.getWriteBufferSize(), postCloseAction);
         } else {

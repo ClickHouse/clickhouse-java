@@ -9,6 +9,7 @@ import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseResponse;
+import com.clickhouse.client.UnsupportedProtocolException;
 import com.clickhouse.client.grpc.config.ClickHouseGrpcOption;
 import com.clickhouse.config.ClickHouseOption;
 
@@ -21,8 +22,8 @@ public class ClickHouseGrpcClient implements ClickHouseClient {
             try {
                 instance = new ClickHouseGrpcClientImpl();
             } catch (ExceptionInInitializerError | NoClassDefFoundError e) {
-                throw new IllegalStateException(
-                        "Lacking library to support gRPC. Please add gRPC and Apache Common Compress libraries to the classpath.");
+                throw new UnsupportedProtocolException(ClickHouseProtocol.GRPC,
+                        "gRPC is not supported. Please use http protocol or add gRPC libraries to the classpath.");
             }
             if (!ref.compareAndSet(null, instance)) {
                 instance.close();
