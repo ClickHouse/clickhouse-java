@@ -31,6 +31,8 @@
         </server>
     </openSSL>
 
+    <custom_settings_prefixes>custom_</custom_settings_prefixes>
+    
     <!-- single node cluster: single_node_cluster_localhost -->
     <keeper_server>
         <force_recovery>1</force_recovery>

@@ -1,4 +1,14 @@
 <clickhouse>
+    <profiles>
+        <managed1>
+            <!-- overridden parameters -->
+            <custom_jdbc_config><![CDATA['a=1&!b&compress_algorithm=gzip&transactionSupport']]></custom_jdbc_config>
+        </managed1>
+        <managed2>
+            <!-- whitelisted parameters -->
+            <custom_jdbc_config><![CDATA['*&a=1&!b&compress_algorithm=gzip&transactionSupport']]></custom_jdbc_config>
+        </managed2>
+    </profiles>
     <users>
         <dba>
             <access_management>1</access_management>
@@ -25,6 +35,22 @@
             <password></password>
             <quota>default</quota>
         </oof>
+        <poorman1>
+            <profile>managed1</profile>
+            <networks>
+                <ip>::/0</ip>
+            </networks>
+            <password></password>
+            <quota>default</quota>
+        </poorman1>
+        <poorman2>
+            <profile>managed2</profile>
+            <networks>
+                <ip>::/0</ip>
+            </networks>
+            <password></password>
+            <quota>default</quota>
+        </poorman2>
         <test>
             <profile>default</profile>
             <networks incl="networks" replace="replace">
