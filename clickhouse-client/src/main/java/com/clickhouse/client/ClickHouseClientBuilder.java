@@ -526,6 +526,18 @@ public class ClickHouseClientBuilder {
     }
 
     /**
+     * Removes all options.
+     *
+     * @return this builder
+     */
+    public ClickHouseClientBuilder clearOptions() {
+        options.clear();
+        resetConfig();
+
+        return this;
+    }
+
+    /**
      * Sets options.
      *
      * @param options map containing all options

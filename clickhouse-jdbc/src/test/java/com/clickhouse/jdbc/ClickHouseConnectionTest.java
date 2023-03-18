@@ -10,6 +10,7 @@ import java.util.Properties;
 import java.util.UUID;
 
 import com.clickhouse.client.config.ClickHouseClientOption;
+import com.clickhouse.data.ClickHouseCompression;
 import com.clickhouse.data.ClickHouseUtils;
 import com.clickhouse.data.value.UnsignedByte;
 
@@ -21,6 +22,50 @@ public class ClickHouseConnectionTest extends JdbcIntegrationTest {
     @Override
     public ClickHouseConnection newConnection(Properties properties) throws SQLException {
         return newDataSource(properties).getConnection();
+    }
+
+    @Test(groups = "integration")
+    public void testCentralizedConfiguration() throws SQLException {
+        Properties props = new Properties();
+        props.setProperty("custom_settings", "max_result_rows=1");
+        try (ClickHouseConnection conn = newConnection(props)) {
+            Assert.assertEquals(conn.getConfig().getResponseCompressAlgorithm(), ClickHouseCompression.LZ4);
+            Assert.assertTrue(conn.getJdbcConfig().isAutoCommit());
+            Assert.assertFalse(conn.getJdbcConfig().isTransactionSupported());
+            Assert.assertThrows(SQLException.class,
+                    () -> conn.createStatement().executeQuery("select * from numbers(2)"));
+        }
+
+        props.setProperty("user", "poorman1");
+        props.setProperty("password", "");
+        props.setProperty("autoCommit", "false");
+        props.setProperty("compress_algorithm", "lz4");
+        props.setProperty("transactionSupport", "false");
+        try (ClickHouseConnection conn = newConnection(props)) {
+            Assert.assertEquals(conn.getConfig().getResponseCompressAlgorithm(), ClickHouseCompression.GZIP);
+            Assert.assertFalse(conn.getJdbcConfig().isAutoCommit());
+            Assert.assertTrue(conn.getJdbcConfig().isTransactionSupported());
+            Assert.assertThrows(SQLException.class,
+                    () -> conn.createStatement().executeQuery("select * from numbers(2)"));
+            conn.rollback();
+        } catch (SQLException e) {
+            if (e.getErrorCode() != 649) {
+                Assert.fail(e.getMessage());
+            }
+        }
+
+        props.setProperty("user", "poorman2");
+        try (ClickHouseConnection conn = newConnection(props)) {
+            Assert.assertEquals(conn.getConfig().getResponseCompressAlgorithm(), ClickHouseCompression.GZIP);
+            Assert.assertTrue(conn.getJdbcConfig().isAutoCommit());
+            Assert.assertTrue(conn.getJdbcConfig().isTransactionSupported());
+            try (Statement stmt = conn.createStatement();
+                    ResultSet rs = stmt.executeQuery("select * from numbers(2)")) {
+                Assert.assertTrue(rs.next(), "Should have at least one row");
+                Assert.assertTrue(rs.next(), "Should have two rows");
+                Assert.assertFalse(rs.next(), "Should have only two rows");
+            }
+        }
     }
 
     @Test(groups = "integration")

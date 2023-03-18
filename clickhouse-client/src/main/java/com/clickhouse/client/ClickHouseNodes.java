@@ -753,6 +753,17 @@ public class ClickHouseNodes implements ClickHouseNodeManager {
     }
 
     @Override
+    public void shutdown() {
+        for (ScheduledFuture<?> future : new ScheduledFuture<?>[] {
+                discoveryFuture.get(), healthCheckFuture.get()
+        }) {
+            if (future != null && !future.isDone() && !future.isCancelled()) {
+                future.cancel(true);
+            }
+        }
+    }
+
+    @Override
     public int hashCode() {
         final int prime = 31;
         int result = prime + checking.hashCode();

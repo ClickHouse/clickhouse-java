@@ -571,48 +571,6 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
         }
     }
 
-    static void parseOptions(String query, Map<String, String> params) {
-        if (ClickHouseChecker.isNullOrEmpty(query)) {
-            return;
-        }
-        int len = query.length();
-        for (int i = 0; i < len; i++) {
-            int index = query.indexOf('&', i);
-            if (index == i) {
-                continue;
-            }
-
-            String param;
-            if (index < 0) {
-                param = query.substring(i);
-                i = len;
-            } else {
-                param = query.substring(i, index);
-                i = index;
-            }
-            index = param.indexOf('=');
-            String key;
-            String value;
-            if (index < 0) {
-                key = ClickHouseUtils.decode(param);
-                if (key.charAt(0) == '!') {
-                    key = key.substring(1);
-                    value = Boolean.FALSE.toString();
-                } else {
-                    value = Boolean.TRUE.toString();
-                }
-            } else {
-                key = ClickHouseUtils.decode(param.substring(0, index));
-                value = ClickHouseUtils.decode(param.substring(index + 1));
-            }
-
-            // any multi-value option? cluster?
-            if (!ClickHouseChecker.isNullOrEmpty(value)) {
-                params.put(key, value);
-            }
-        }
-    }
-
     static void parseTags(String fragment, Set<String> tags) {
         if (ClickHouseChecker.isNullOrEmpty(fragment)) {
             return;
@@ -809,7 +767,7 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
         Map<String, String> params = new LinkedHashMap<>();
         parseDatabase(normalizedUri.getPath(), params);
 
-        parseOptions(normalizedUri.getRawQuery(), params);
+        ClickHouseUtils.extractParameters(normalizedUri.getRawQuery(), params);
 
         Set<String> tags = new LinkedHashSet<>();
         parseTags(normalizedUri.getRawFragment(), tags);
@@ -867,7 +825,7 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
         Map<String, String> params = new LinkedHashMap<>(template.options);
         parseDatabase(uri.getPath(), params);
 
-        parseOptions(uri.getRawQuery(), params);
+        ClickHouseUtils.extractParameters(uri.getRawQuery(), params);
 
         ClickHouseProtocol protocol = ClickHouseProtocol.fromUriScheme(scheme);
         int port = extract(scheme, uri.getPort(), protocol, params);

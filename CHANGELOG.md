@@ -1,6 +1,7 @@
 ## 0.4.2
 
 ### New Features
+* centralized configuration for JDBC driver using custom server setting `custom_jdbc_config`.
 * support `BEGIN TRANSACTION`, `COMMIT`, and `ROLLBACK` in JDBC driver. [#975](https://github.com/ClickHouse/clickhouse-java/issues/975)
 * new options for JDBC driver
     * databaseTerm(catalog or schema, defaults to schema) [#1273](https://github.com/ClickHouse/clickhouse-java/issues/1273)

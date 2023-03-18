@@ -305,7 +305,7 @@ public interface ClickHouseConnection extends Connection {
      * @param sql    sql to parse
      * @param config configuration which might be used for parsing, could be null
      * @return non-null parsed sql statements
-     * @deprecated will be removed in v0.3.3, please use
+     * @deprecated will be removed in 0.5, please use
      *             {@link #parse(String, ClickHouseConfig, Map)} instead
      */
     @Deprecated

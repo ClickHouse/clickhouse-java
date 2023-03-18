@@ -16,10 +16,12 @@ import java.util.Calendar;
 import java.util.GregorianCalendar;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.TimeZone;
+import java.util.Map.Entry;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -38,6 +40,7 @@ import com.clickhouse.client.ClickHouseTransaction;
 import com.clickhouse.client.ClickHouseRequest.Mutation;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.http.config.ClickHouseHttpOption;
+import com.clickhouse.config.ClickHouseDefaultOption;
 import com.clickhouse.config.ClickHouseOption;
 import com.clickhouse.config.ClickHouseRenameMethod;
 import com.clickhouse.data.ClickHouseChecker;
@@ -72,6 +75,9 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
     static final String SETTING_MAX_INSERT_BLOCK = "max_insert_block_size";
     static final String SETTING_LW_DELETE = "allow_experimental_lightweight_delete";
 
+    static final ClickHouseDefaultOption CUSTOM_CONFIG = new ClickHouseDefaultOption("custom_jdbc_config",
+            "custom_jdbc_config");
+
     private static final String SQL_GET_SERVER_INFO = "select currentUser() user, timezone() timezone, version() version, "
             + getSetting(SETTING_READONLY, ClickHouseDataType.UInt8) + ", "
             + getSetting(ClickHouseTransaction.SETTING_THROW_ON_UNSUPPORTED_QUERY_INSIDE_TRANSACTION,
@@ -82,7 +88,8 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
             + ","
             + getSetting(ClickHouseTransaction.SETTING_IMPLICIT_TRANSACTION, ClickHouseDataType.Int8) + ", "
             + getSetting(SETTING_MAX_INSERT_BLOCK, ClickHouseDataType.UInt64) + ", "
-            + getSetting(SETTING_LW_DELETE, ClickHouseDataType.Int8)
+            + getSetting(SETTING_LW_DELETE, ClickHouseDataType.Int8) + ", "
+            + getSetting((String) CUSTOM_CONFIG.getEffectiveDefaultValue(), ClickHouseDataType.String)
             + " FORMAT RowBinaryWithNamesAndTypes";
 
     private static String getSetting(String setting, ClickHouseDataType type) {
@@ -92,7 +99,7 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
     private static String getSetting(String setting, ClickHouseDataType type, String defaultValue) {
         StringBuilder builder = new StringBuilder();
         if (type == ClickHouseDataType.String) {
-            builder.append("lower(ifnull((select value from system.settings where name = '").append(setting)
+            builder.append("(ifnull((select value from system.settings where name = '").append(setting)
                     .append("'), ");
         } else {
             builder.append("to").append(type.name())
@@ -281,86 +288,138 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
     }
 
     public ClickHouseConnectionImpl(ConnectionInfo connInfo) throws SQLException {
-        jdbcConf = connInfo.getJdbcConfig();
-
+        Properties props = connInfo.getProperties();
         jvmTimeZone = TimeZone.getDefault();
 
         ClickHouseClientBuilder clientBuilder = ClickHouseClient.builder()
-                .options(ClickHouseDriver.toClientOptions(connInfo.getProperties()))
+                .options(ClickHouseDriver.toClientOptions(props))
                 .defaultCredentials(connInfo.getDefaultCredentials());
         ClickHouseNodes nodes = connInfo.getNodes();
+
         final ClickHouseNode node;
+        final ClickHouseClient initialClient;
+        final ClickHouseRequest<?> initialRequest;
         if (nodes.isSingleNode()) {
             try {
                 node = nodes.apply(nodes.getNodeSelector());
             } catch (Exception e) {
                 throw SqlExceptionUtils.clientError("Failed to get single-node", e);
             }
-            client = clientBuilder.nodeSelector(ClickHouseNodeSelector.of(node.getProtocol())).build();
-            clientRequest = client.connect(node);
+            initialClient = clientBuilder.nodeSelector(ClickHouseNodeSelector.of(node.getProtocol())).build();
+            initialRequest = initialClient.read(node);
         } else {
             log.debug("Selecting node from: %s", nodes);
-            client = clientBuilder.build(); // use dummy client
-            clientRequest = client.connect(nodes);
+            initialClient = clientBuilder.build(); // use dummy client
+            initialRequest = initialClient.read(nodes);
             try {
-                node = clientRequest.getServer();
+                node = initialRequest.getServer();
             } catch (Exception e) {
                 throw SqlExceptionUtils.clientError("No healthy node available", e);
             }
         }
 
         log.debug("Connecting to: %s", node);
-        ClickHouseConfig config = clientRequest.getConfig();
+        ClickHouseConfig config = initialRequest.getConfig();
         String currentUser = null;
         TimeZone timeZone = null;
         ClickHouseVersion version = null;
+        ClickHouseRecord r = null;
         if (config.hasServerInfo()) { // when both serverTimeZone and serverVersion are configured
             timeZone = config.getServerTimeZone();
             version = config.getServerVersion();
-            if (jdbcConf.isCreateDbIfNotExist()) {
-                ClickHouseRecord r = getServerInfo(node, clientRequest, true);
-                initialReadOnly = r.getValue(3).asInteger();
-                initialNonTxQuerySupport = r.getValue(4).asInteger();
-                initialTxCommitWaitMode = r.getValue(5).asString();
-                initialImplicitTx = r.getValue(6).asInteger();
-                initialMaxInsertBlockSize = r.getValue(7).asLong();
-                initialDeleteSupport = r.getValue(8).asInteger();
-            } else {
-                initialReadOnly = clientRequest.getSetting(SETTING_READONLY, 0);
-                initialNonTxQuerySupport = clientRequest
-                        .getSetting(ClickHouseTransaction.SETTING_THROW_ON_UNSUPPORTED_QUERY_INSIDE_TRANSACTION, 1);
-                initialTxCommitWaitMode = clientRequest.getSetting(
-                        ClickHouseTransaction.SETTING_WAIT_CHANGES_BECOME_VISIBLE_AFTER_COMMIT_MODE, "wait_unknown");
-                initialImplicitTx = clientRequest.getSetting(ClickHouseTransaction.SETTING_IMPLICIT_TRANSACTION, 0);
-                initialMaxInsertBlockSize = clientRequest.getSetting(SETTING_MAX_INSERT_BLOCK, 0L);
-                initialDeleteSupport = clientRequest.getSetting(SETTING_LW_DELETE, 0);
+            if (connInfo.getJdbcConfig().isCreateDbIfNotExist()) {
+                r = getServerInfo(node, initialRequest, true);
             }
         } else {
-            ClickHouseRecord r = getServerInfo(node, clientRequest, jdbcConf.isCreateDbIfNotExist());
+            r = getServerInfo(node, initialRequest, connInfo.getJdbcConfig().isCreateDbIfNotExist());
             currentUser = r.getValue(0).asString();
             String tz = r.getValue(1).asString();
             String ver = r.getValue(2).asString();
             version = ClickHouseVersion.of(ver);
             // https://github.com/ClickHouse/ClickHouse/commit/486d63864bcc6e15695cd3e9f9a3f83a84ec4009
             if (version.check("(,20.7)")) {
-                throw SqlExceptionUtils
-                        .unsupportedError("Sorry this driver only supports ClickHouse server 20.7 or above");
+                throw SqlExceptionUtils.unsupportedError(
+                        "We apologize, but this driver only works with ClickHouse servers 20.7 and above. "
+                                + "Please consider to upgrade your server to a more recent version.");
             }
             if (ClickHouseChecker.isNullOrBlank(tz)) {
                 tz = "UTC";
             }
             // tsTimeZone.hasSameRules(ClickHouseValues.UTC_TIMEZONE)
             timeZone = "UTC".equals(tz) ? ClickHouseValues.UTC_TIMEZONE : TimeZone.getTimeZone(tz);
+
+            // update request and corresponding config
+            initialRequest.option(ClickHouseClientOption.SERVER_TIME_ZONE, tz)
+                    .option(ClickHouseClientOption.SERVER_VERSION, ver);
+        }
+
+        if (r != null) {
             initialReadOnly = r.getValue(3).asInteger();
             initialNonTxQuerySupport = r.getValue(4).asInteger();
-            initialTxCommitWaitMode = r.getValue(5).asString();
+            initialTxCommitWaitMode = r.getValue(5).asString().toLowerCase(Locale.ROOT);
             initialImplicitTx = r.getValue(6).asInteger();
             initialMaxInsertBlockSize = r.getValue(7).asLong();
             initialDeleteSupport = r.getValue(8).asInteger();
 
-            // update request and corresponding config
-            clientRequest.option(ClickHouseClientOption.SERVER_TIME_ZONE, tz)
-                    .option(ClickHouseClientOption.SERVER_VERSION, ver);
+            String customConf = r.getValue(9).asString();
+            if (!customConf.isEmpty() && customConf.charAt(0) == '\'') {
+                customConf = customConf.substring(1, customConf.length() - 1);
+            }
+            if (ClickHouseChecker.isNullOrBlank(customConf)) {
+                jdbcConf = connInfo.getJdbcConfig();
+                client = initialClient;
+                clientRequest = initialRequest;
+            } else {
+                initialClient.close();
+
+                Properties newProps = ClickHouseJdbcUrlParser.newProperties();
+                Map<String, String> options = ClickHouseUtils.extractParameters(customConf, null);
+                boolean resetAll = Boolean.parseBoolean(options.get("*"));
+                if (resetAll) {
+                    clientBuilder.clearOptions();
+                } else {
+                    newProps.putAll(connInfo.getJdbcConfig().getProperties());
+                    newProps.putAll(props);
+                }
+                newProps.putAll(options);
+
+                jdbcConf = new JdbcConfig(newProps);
+                Map<ClickHouseOption, Serializable> clientOpts = ClickHouseConfig.toClientOptions(newProps);
+                clientBuilder.options(clientOpts);
+
+                client = clientBuilder.build();
+                clientRequest = client.read(node);
+                if (resetAll && !initialRequest.getSettings().isEmpty()) {
+                    clientRequest.clearSettings();
+                }
+                clientRequest.option(ClickHouseClientOption.SERVER_TIME_ZONE, timeZone.getID())
+                        .option(ClickHouseClientOption.SERVER_VERSION, version.toString());
+                // two issues:
+                // 1) inefficient but definitely better than re-creating nodes in a cluster
+                // 2) client.read(node) won't work - you have to use clientRequest.copy()
+                for (Entry<ClickHouseOption, Serializable> o : clientOpts.entrySet()) {
+                    clientRequest.option(o.getKey(), o.getValue());
+                }
+
+                if (resetAll) {
+                    clientRequest.freezeOptions().freezeSettings();
+                }
+                config = clientRequest.getConfig();
+            }
+        } else {
+            jdbcConf = connInfo.getJdbcConfig();
+
+            initialReadOnly = initialRequest.getSetting(SETTING_READONLY, 0);
+            initialNonTxQuerySupport = initialRequest
+                    .getSetting(ClickHouseTransaction.SETTING_THROW_ON_UNSUPPORTED_QUERY_INSIDE_TRANSACTION, 1);
+            initialTxCommitWaitMode = initialRequest.getSetting(
+                    ClickHouseTransaction.SETTING_WAIT_CHANGES_BECOME_VISIBLE_AFTER_COMMIT_MODE, "wait_unknown");
+            initialImplicitTx = initialRequest.getSetting(ClickHouseTransaction.SETTING_IMPLICIT_TRANSACTION, 0);
+            initialMaxInsertBlockSize = initialRequest.getSetting(SETTING_MAX_INSERT_BLOCK, 0L);
+            initialDeleteSupport = initialRequest.getSetting(SETTING_LW_DELETE, 0);
+
+            client = initialClient;
+            clientRequest = initialRequest;
         }
 
         this.autoCommit = !jdbcConf.isJdbcCompliant() || jdbcConf.isAutoCommit();

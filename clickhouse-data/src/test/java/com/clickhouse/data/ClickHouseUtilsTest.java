@@ -45,6 +45,19 @@ public class ClickHouseUtilsTest {
     }
 
     @Test(groups = { "unit" })
+    public void testExtractParameters() {
+        Map<String, String> expected = new HashMap<>();
+        expected.put("*", "true");
+        expected.put("a", "1");
+        expected.put("b", "false");
+        Assert.assertEquals(ClickHouseUtils.extractParameters(null, null), new HashMap<>());
+        Assert.assertEquals(ClickHouseUtils.extractParameters("", null), new HashMap<>());
+        Assert.assertEquals(ClickHouseUtils.extractParameters("*&a=1&!b", null), expected);
+        Assert.assertEquals(ClickHouseUtils.extractParameters("*&a=1&!b", new HashMap<>()), expected);
+        Assert.assertEquals(ClickHouseUtils.extractParameters("*&a=1&!b", expected), expected);
+    }
+
+    @Test(groups = { "unit" })
     public void testGetLeadingComment() {
         Assert.assertEquals(ClickHouseUtils.getLeadingComment(null), "");
         Assert.assertEquals(ClickHouseUtils.getLeadingComment(""), "");

@@ -34,6 +34,7 @@ import com.clickhouse.data.ClickHouseDeferredValue;
 import com.clickhouse.data.ClickHouseExternalTable;
 import com.clickhouse.data.ClickHouseFile;
 import com.clickhouse.data.ClickHouseFormat;
+import com.clickhouse.data.ClickHouseFreezableMap;
 import com.clickhouse.data.ClickHouseInputStream;
 import com.clickhouse.data.ClickHouseOutputStream;
 import com.clickhouse.data.ClickHousePassThruStream;
@@ -84,12 +85,18 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
         protected Mutation(ClickHouseRequest<?> request, boolean sealed) {
             super(request.getClient(), request.server, request.serverRef, request.options, sealed);
 
+            if (request.options.isFreezed()) {
+                this.options.freeze();
+            }
             // use headless format if possible
             if (!sealed) {
                 format(request.getFormat().defaultInputFormat());
             }
 
             this.settings.putAll(request.settings);
+            if (request.settings.isFreezed()) {
+                this.settings.freeze();
+            }
             this.txRef.set(request.txRef.get());
 
             this.changeListener = request.changeListener;
@@ -317,7 +324,13 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
                 req = new Mutation(this, true);
                 req.externalTables.addAll(externalTables);
                 req.options.putAll(options);
+                if (options.isFreezed()) {
+                    req.options.freeze();
+                }
                 req.settings.putAll(settings);
+                if (settings.isFreezed()) {
+                    req.settings.freeze();
+                }
 
                 req.namedParameters.putAll(namedParameters);
 
@@ -356,8 +369,8 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
     protected final AtomicReference<ClickHouseTransaction> txRef;
 
     protected final List<ClickHouseExternalTable> externalTables;
-    protected final Map<ClickHouseOption, Serializable> options;
-    protected final Map<String, Serializable> settings;
+    protected final ClickHouseFreezableMap<ClickHouseOption, Serializable> options;
+    protected final ClickHouseFreezableMap<String, Serializable> settings;
 
     protected final Map<String, String> namedParameters;
 
@@ -390,8 +403,8 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
         this.txRef = new AtomicReference<>(null);
 
         this.externalTables = new LinkedList<>();
-        this.options = new HashMap<>();
-        this.settings = new LinkedHashMap<>(client.getConfig().getCustomSettings());
+        this.options = ClickHouseFreezableMap.of(new HashMap<>());
+        this.settings = ClickHouseFreezableMap.of(new LinkedHashMap<>(client.getConfig().getCustomSettings()));
         options(options);
 
         this.namedParameters = new HashMap<>();
@@ -464,8 +477,14 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
      */
     public ClickHouseRequest<SelfT> copy() {
         ClickHouseRequest<SelfT> req = new ClickHouseRequest<>(getClient(), server, serverRef, options, false);
+        if (options.isFreezed()) {
+            req.options.freeze();
+        }
         req.externalTables.addAll(externalTables);
         req.settings.putAll(settings);
+        if (settings.isFreezed()) {
+            req.settings.freeze();
+        }
         req.namedParameters.putAll(namedParameters);
         req.input = input;
         req.writer = writer;
@@ -656,6 +675,28 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
         }
 
         return preparedQuery;
+    }
+
+    /**
+     * Freezes settings to discard future changes.
+     *
+     * @return the request itself
+     */
+    @SuppressWarnings("unchecked")
+    public SelfT freezeSettings() {
+        settings.freeze();
+        return (SelfT) this;
+    }
+
+    /**
+     * Unfreezes settings to accept future changes.
+     *
+     * @return the request itself
+     */
+    @SuppressWarnings("unchecked")
+    public SelfT unfreezeSettings() {
+        settings.unfreeze();
+        return (SelfT) this;
     }
 
     /**
@@ -995,6 +1036,28 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
     }
 
     /**
+     * Freezes options to discard future changes.
+     *
+     * @return the request itself
+     */
+    @SuppressWarnings("unchecked")
+    public SelfT freezeOptions() {
+        options.freeze();
+        return (SelfT) this;
+    }
+
+    /**
+     * Unfreezes options to accept future changes.
+     *
+     * @return the request itself
+     */
+    @SuppressWarnings("unchecked")
+    public SelfT unfreezeOptions() {
+        options.unfreeze();
+        return (SelfT) this;
+    }
+
+    /**
      * Sets an option. {@code option} is for configuring client's behaviour, while
      * {@code setting} is for server.
      *
@@ -1012,17 +1075,19 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
             value = ClickHouseOption.fromString(value.toString(), option.getValueType());
         }
 
-        Serializable oldValue = options.put(ClickHouseChecker.nonNull(option, ClickHouseConfig.PARAM_OPTION), value); // NOSONAR
-        if (oldValue == null || !oldValue.equals(value)) {
-            if (changeListener != null) {
-                changeListener.optionChanged(this, option, oldValue, value);
+        if (option == ClickHouseClientOption.CUSTOM_SETTINGS) {
+            for (Entry<String, String> entry : ClickHouseOption.toKeyValuePairs(value.toString()).entrySet()) {
+                set(entry.getKey(), entry.getValue());
             }
-            if (option == ClickHouseClientOption.CUSTOM_SETTINGS) {
-                for (Entry<String, String> entry : ClickHouseOption.toKeyValuePairs(value.toString()).entrySet()) {
-                    set(entry.getKey(), entry.getValue());
+        } else {
+            Serializable oldValue = options.put(ClickHouseChecker.nonNull(option, ClickHouseConfig.PARAM_OPTION),
+                    value); // NOSONAR
+            if (oldValue == null || !oldValue.equals(value)) {
+                if (changeListener != null) {
+                    changeListener.optionChanged(this, option, oldValue, value);
                 }
+                resetCache();
             }
-            resetCache();
         }
 
         return (SelfT) this;
@@ -2032,8 +2097,14 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
         if (!isSealed()) {
             // no idea which node we'll connect to until now
             req = new ClickHouseRequest<>(client, getServer(), serverRef, options, true);
+            if (options.isFreezed()) {
+                req.options.freeze();
+            }
             req.externalTables.addAll(externalTables);
             req.settings.putAll(settings);
+            if (settings.isFreezed()) {
+                req.settings.freeze();
+            }
 
             req.namedParameters.putAll(namedParameters);
 
