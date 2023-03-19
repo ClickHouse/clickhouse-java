@@ -21,7 +21,7 @@ public class JdbcParseHandlerTest {
         Assert.assertEquals(ClickHouseSqlParser.parse("INSERT INTO aaa FROM INFILE", null, handler)[0].getSQL(),
                 "INSERT INTO aaa FROM INFILE"); // invalid
         Assert.assertEquals(ClickHouseSqlParser.parse("INSERT INTO aaa FROM INFILE 'a.csv'", null, handler)[0].getSQL(),
-                "INSERT INTO aaa ");
+                "INSERT INTO aaa FORMAT CSV");
         Assert.assertEquals(
                 ClickHouseSqlParser.parse("INSERT INTO aaa FROM INFILE 'a.csv' Format CSV", null, handler)[0].getSQL(),
                 "INSERT INTO aaa Format CSV");
