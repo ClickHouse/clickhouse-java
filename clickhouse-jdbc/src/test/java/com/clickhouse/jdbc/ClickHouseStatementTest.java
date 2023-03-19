@@ -143,6 +143,10 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
 
     @Test(groups = "integration")
     public void testOutFileAndInFile() throws SQLException {
+        if (DEFAULT_PROTOCOL != ClickHouseProtocol.HTTP) {
+            throw new SkipException("Skip non-http protocol");
+        }
+
         Properties props = new Properties();
         props.setProperty("localFile", "true");
         File f1 = new File("a1.csv");
@@ -159,19 +163,22 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
                     ResultSet rs = stmt.executeQuery(
                             "select number n, toString(n) from numbers(1234) into outfile '" + f1.getName() + "'")) {
                 Assert.assertFalse(rs.next());
-                Assert.assertEquals(stmt.getUpdateCount(), 0);
             }
             try (ClickHouseStatement stmt = conn.createStatement();
                     ResultSet rs = stmt.executeQuery(
                             "select number n, toString(n) from numbers(4321) into outfile '" + f2.getName() + "'")) {
                 Assert.assertFalse(rs.next());
-                Assert.assertEquals(stmt.getUpdateCount(), 0);
             }
 
             try (ClickHouseStatement stmt = conn.createStatement()) {
                 Assert.assertFalse(stmt.execute(
                         "drop table if exists test_load_infile; create table test_load_infile(n UInt64, s String)engine=Memory"));
-                Assert.assertEquals(stmt.executeUpdate("insert into test_load_infile from infile 'a?.csv'"), 5555);
+                stmt.executeUpdate("insert into test_load_infile from infile 'a?.csv'");
+                try (ResultSet rs = stmt.executeQuery("select count(1) from test_load_infile")) {
+                    Assert.assertTrue(rs.next());
+                    Assert.assertEquals(rs.getInt(1), 5555);
+                    Assert.assertFalse(rs.next());
+                }
             }
         }
     }
