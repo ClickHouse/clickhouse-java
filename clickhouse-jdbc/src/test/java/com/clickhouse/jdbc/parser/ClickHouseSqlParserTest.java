@@ -301,18 +301,15 @@ public class ClickHouseSqlParserTest {
         String sql;
 
         assertEquals(parse(sql = "select\n1"), new ClickHouseSqlStatement[] { new ClickHouseSqlStatement(sql,
-                StatementType.SELECT, null, null, "unknown", null, null, null, null, null, null,
-                null) });
+                StatementType.SELECT, null, null, "unknown", null, null, null, null, null, null, null, null, null) });
         assertEquals(parse(sql = "select\r\n1"), new ClickHouseSqlStatement[] { new ClickHouseSqlStatement(sql,
-                StatementType.SELECT, null, null, "unknown", null, null, null, null, null, null,
-                null) });
+                StatementType.SELECT, null, null, "unknown", null, null, null, null, null, null, null, null, null) });
 
         assertEquals(parse(sql = "select 314 limit 5\nFORMAT JSONCompact;"),
                 new ClickHouseSqlStatement[] {
                         new ClickHouseSqlStatement("select 314 limit 5\nFORMAT JSONCompact",
-                                StatementType.SELECT, null, null, "unknown", null,
-                                "JSONCompact", null, null, null, null,
-                                null) });
+                                StatementType.SELECT, null, null, "unknown", null, null, null,
+                                "JSONCompact", null, null, Collections.singletonMap("FORMAT", 19), null, null) });
 
         checkSingleStatement(parse(sql = "select (())"), sql, StatementType.SELECT);
         checkSingleStatement(parse(sql = "select []"), sql, StatementType.SELECT);
@@ -354,20 +351,19 @@ public class ClickHouseSqlParserTest {
 
         assertEquals(parse(sql = loadSql("issue-441_with-totals.sql")),
                 new ClickHouseSqlStatement[] { new ClickHouseSqlStatement(sql, StatementType.SELECT,
-                        null, null,
-                        "unknown", null, null, null, null, new HashMap<String, Integer>() {
+                        null, null, "unknown", null, null, null, null, null, null, new HashMap<String, Integer>() {
                             {
                                 put("TOTALS", 208);
                             }
                         }, null, null) });
         assertEquals(parse(sql = loadSql("issue-555_custom-format.sql")),
                 new ClickHouseSqlStatement[] {
-                        new ClickHouseSqlStatement(sql, StatementType.SELECT, null, null, "wrd",
-                                null, "CSVWithNames", null, null, null, null, null) });
+                        new ClickHouseSqlStatement(sql, StatementType.SELECT, null, null, "wrd", null, null, null,
+                                "CSVWithNames", null, null, Collections.singletonMap("FORMAT", 1557), null, null) });
         assertEquals(parse(sql = loadSql("with-clause.sql")),
                 new ClickHouseSqlStatement[] {
-                        new ClickHouseSqlStatement(sql, StatementType.SELECT, null, null,
-                                "unknown", null, null, null, null, null, null, null) });
+                        new ClickHouseSqlStatement(sql, StatementType.SELECT, null, null, "unknown", null, null, null,
+                                null, null, null, null, null, null) });
     }
 
     @Test(groups = "unit")
@@ -453,14 +449,13 @@ public class ClickHouseSqlParserTest {
         assertEquals(parse("use ab;;;select 1; ;\t;\r;\n"),
                 new ClickHouseSqlStatement[] {
                         new ClickHouseSqlStatement("use ab", StatementType.USE, null, "ab",
-                                null,
-                                null, null, null, null, null, null, null),
+                                null, null, null, null, null, null, null, null, null, null),
                         new ClickHouseSqlStatement("select 1", StatementType.SELECT) });
         assertEquals(parse("select * from \"a;1\".`b;c`;;;select 1 as `a ; a`; ;\t;\r;\n"),
                 new ClickHouseSqlStatement[] {
                         new ClickHouseSqlStatement("select * from \"a;1\".`b;c`",
-                                StatementType.SELECT, null, "a;1",
-                                "b;c", null, null, null, null, null, null, null),
+                                StatementType.SELECT, null, "a;1", "b;c", null, null, null, null, null, null, null,
+                                null, null),
                         new ClickHouseSqlStatement("select 1 as `a ; a`",
                                 StatementType.SELECT) });
     }
@@ -552,20 +547,102 @@ public class ClickHouseSqlParserTest {
     }
 
     @Test(groups = "unit")
-    public void testOutfile() throws ParseException {
+    public void testInFile() throws ParseException {
+        String sql = "insert into mytable from infile 'inputs*.csv'";
+        ClickHouseSqlStatement[] stmts = parse(sql);
+        assertEquals(stmts.length, 1);
+        assertEquals(stmts[0].getSQL(), sql);
+        assertEquals(stmts[0].hasCompressAlgorithm(), false);
+        assertEquals(stmts[0].getCompressAlgorithm(), null);
+        assertEquals(stmts[0].hasCompressLevel(), false);
+        assertEquals(stmts[0].getCompressLevel(), null);
+        assertEquals(stmts[0].hasFormat(), false);
+        assertEquals(stmts[0].getFormat(), null);
+        assertEquals(stmts[0].hasFile(), true);
+        assertEquals(stmts[0].getFile(), "'inputs*.csv'");
+
+        sql = "insert into mytable from infile 'inputs{1,2,3}.bin' format RowBinary";
+        stmts = parse(sql);
+        assertEquals(stmts.length, 1);
+        assertEquals(stmts[0].getSQL(), sql);
+        assertEquals(stmts[0].getCompressAlgorithm(), null);
+        assertEquals(stmts[0].getCompressLevel(), null);
+        assertEquals(stmts[0].hasFormat(), true);
+        assertEquals(stmts[0].getFormat(), "RowBinary");
+        assertEquals(stmts[0].hasFile(), true);
+        assertEquals(stmts[0].getFile(), "'inputs{1,2,3}.bin'");
+
+        sql = "insert into mytable from infile 'inputs{1,2,3}.n.gz' compression 'gzip' format Native";
+        stmts = parse(sql);
+        assertEquals(stmts.length, 1);
+        assertEquals(stmts[0].getSQL(), sql);
+        assertEquals(stmts[0].getCompressAlgorithm(), "'gzip'");
+        assertEquals(stmts[0].getCompressLevel(), null);
+        assertEquals(stmts[0].hasFormat(), true);
+        assertEquals(stmts[0].getFormat(), "Native");
+        assertEquals(stmts[0].hasFile(), true);
+        assertEquals(stmts[0].getFile(), "'inputs{1,2,3}.n.gz'");
+
+        // actually ClickHouse does not support compression level for infile
+        sql = "insert into mytable from infile 'inputs{1,2,3}.n.gz' compression 'gzip' level 3 settings a=1, b='2' format Native";
+        stmts = parse(sql);
+        assertEquals(stmts.length, 1);
+        assertEquals(stmts[0].getSQL(), sql);
+        assertEquals(stmts[0].hasCompressAlgorithm(), true);
+        assertEquals(stmts[0].getCompressAlgorithm(), "'gzip'");
+        assertEquals(stmts[0].hasCompressLevel(), true);
+        assertEquals(stmts[0].getCompressLevel(), "3");
+        assertEquals(stmts[0].hasFormat(), true);
+        assertEquals(stmts[0].getFormat(), "Native");
+        assertEquals(stmts[0].hasFile(), true);
+        assertEquals(stmts[0].getFile(), "'inputs{1,2,3}.n.gz'");
+
+        sql = "select * from infile";
+        stmts = parse(sql);
+        assertEquals(stmts.length, 1);
+        assertEquals(stmts[0].getSQL(), sql);
+        assertEquals(stmts[0].getCompressAlgorithm(), null);
+        assertEquals(stmts[0].getCompressLevel(), null);
+        assertEquals(stmts[0].getFormat(), null);
+        assertEquals(stmts[0].getFile(), null);
+    }
+
+    @Test(groups = "unit")
+    public void testOutFile() throws ParseException {
         String sql = "select 1 into outfile '1.txt'";
         ClickHouseSqlStatement[] stmts = parse(sql);
         assertEquals(stmts.length, 1);
         assertEquals(stmts[0].getSQL(), sql);
-        assertEquals(stmts[0].hasOutfile(), true);
-        assertEquals(stmts[0].getOutfile(), "'1.txt'");
+        assertEquals(stmts[0].hasCompressAlgorithm(), false);
+        assertEquals(stmts[0].getCompressAlgorithm(), null);
+        assertEquals(stmts[0].hasCompressLevel(), false);
+        assertEquals(stmts[0].getCompressLevel(), null);
+        assertEquals(stmts[0].hasFormat(), false);
+        assertEquals(stmts[0].getFormat(), null);
+        assertEquals(stmts[0].hasFile(), true);
+        assertEquals(stmts[0].getFile(), "'1.txt'");
+
+        sql = "select * from numbers(10) settings max_result_rows=1 into outfile 'a.csv.gz' compression 'gzip' level 5 format CSV";
+        stmts = parse(sql);
+        assertEquals(stmts.length, 1);
+        assertEquals(stmts[0].getSQL(), sql);
+        assertEquals(stmts[0].hasCompressAlgorithm(), true);
+        assertEquals(stmts[0].getCompressAlgorithm(), "'gzip'");
+        assertEquals(stmts[0].hasCompressLevel(), true);
+        assertEquals(stmts[0].getCompressLevel(), "5");
+        assertEquals(stmts[0].hasFormat(), true);
+        assertEquals(stmts[0].getFormat(), "CSV");
+        assertEquals(stmts[0].hasFile(), true);
+        assertEquals(stmts[0].getFile(), "'a.csv.gz'");
 
         sql = "insert into outfile values(1,2,3)";
         stmts = parse(sql);
         assertEquals(stmts.length, 1);
         assertEquals(stmts[0].getSQL(), sql);
-        assertEquals(stmts[0].hasOutfile(), false);
-        assertEquals(stmts[0].getOutfile(), null);
+        assertEquals(stmts[0].getCompressAlgorithm(), null);
+        assertEquals(stmts[0].getCompressLevel(), null);
+        assertEquals(stmts[0].getFormat(), null);
+        assertEquals(stmts[0].getFile(), null);
     }
 
     @Test(groups = "unit")

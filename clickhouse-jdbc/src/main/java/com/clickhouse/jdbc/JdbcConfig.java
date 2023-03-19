@@ -28,6 +28,7 @@ public class JdbcConfig {
     public static final String PROP_DIALECT = "dialect";
     public static final String PROP_EXTERNAL_DATABASE = "externalDatabase";
     public static final String PROP_FETCH_SIZE = "fetchSize";
+    public static final String PROP_LOCAL_FILE = "localFile";
     public static final String PROP_JDBC_COMPLIANT = "jdbcCompliant";
     public static final String PROP_NAMED_PARAM = "namedParameter";
     public static final String PROP_NULL_AS_DEFAULT = "nullAsDefault";
@@ -51,6 +52,7 @@ public class JdbcConfig {
     private static final String DEFAULT_DIALECT = "";
     private static final String DEFAULT_EXTERNAL_DATABASE = BOOLEAN_TRUE;
     private static final String DEFAULT_FETCH_SIZE = "0";
+    private static final String DEFAULT_LOCAL_FILE = BOOLEAN_FALSE;
     private static final String DEFAULT_JDBC_COMPLIANT = BOOLEAN_TRUE;
     private static final String DEFAULT_NAMED_PARAM = BOOLEAN_FALSE;
     private static final String DEFAULT_NULL_AS_DEFAULT = "0";
@@ -79,6 +81,8 @@ public class JdbcConfig {
                         "Whether to continue batch process when error occurred.", BOOLEAN_TRUE, BOOLEAN_FALSE),
                 newDriverProperty(PROP_FETCH_SIZE, DEFAULT_FETCH_SIZE,
                         "Default fetch size, negative or zero means no preferred option."),
+                newDriverProperty(PROP_LOCAL_FILE, DEFAULT_LOCAL_FILE,
+                        "Whether to use local file for INFILE/OUTFILE or not.", BOOLEAN_TRUE, BOOLEAN_FALSE),
                 newDriverProperty(PROP_JDBC_COMPLIANT, DEFAULT_JDBC_COMPLIANT,
                         "Whether to enable JDBC-compliant features like fake transaction and standard UPDATE and DELETE statements.",
                         BOOLEAN_TRUE, BOOLEAN_FALSE),
@@ -190,6 +194,7 @@ public class JdbcConfig {
     private final boolean createDb;
     private final boolean continueBatch;
     private final int fetchSize;
+    private final boolean localFile;
     private final boolean jdbcCompliant;
     private final String databaseTerm;
     private final JdbcTypeMapping dialect;
@@ -214,6 +219,7 @@ public class JdbcConfig {
         this.dialect = extractDialectValue(props, PROP_DIALECT, DEFAULT_DIALECT);
         this.externalDatabase = extractBooleanValue(props, PROP_EXTERNAL_DATABASE, DEFAULT_EXTERNAL_DATABASE);
         this.fetchSize = extractIntValue(props, PROP_FETCH_SIZE, DEFAULT_FETCH_SIZE);
+        this.localFile = extractBooleanValue(props, PROP_LOCAL_FILE, DEFAULT_LOCAL_FILE);
         this.jdbcCompliant = extractBooleanValue(props, PROP_JDBC_COMPLIANT, DEFAULT_JDBC_COMPLIANT);
         this.namedParameter = extractBooleanValue(props, PROP_NAMED_PARAM, DEFAULT_NAMED_PARAM);
         this.nullAsDefault = extractIntValue(props, PROP_NULL_AS_DEFAULT, DEFAULT_NULL_AS_DEFAULT);
@@ -258,6 +264,15 @@ public class JdbcConfig {
      */
     public int getFetchSize() {
         return fetchSize;
+    }
+
+    /**
+     * Checks whether to use local file for INFILE/OUTFILE.
+     *
+     * @return true to use local file for INFILE/OUTFILE; false otherwise
+     */
+    public boolean useLocalFile() {
+        return localFile;
     }
 
     /**

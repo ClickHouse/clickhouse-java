@@ -58,6 +58,27 @@ public class ClickHouseUtilsTest {
     }
 
     @Test(groups = { "unit" })
+    public void testGetFile() throws IOException {
+        Assert.assertThrows(IllegalArgumentException.class, () -> ClickHouseUtils.getFile(null));
+        Assert.assertThrows(IllegalArgumentException.class, () -> ClickHouseUtils.getFile(""));
+
+        Assert.assertTrue(ClickHouseUtils.getFile("README.md").toFile().exists());
+        Assert.assertTrue(ClickHouseUtils.getFile("../README.md").toFile().exists());
+    }
+
+    @Test(groups = { "unit" })
+    public void testFindFiles() throws IOException {
+        Assert.assertThrows(IllegalArgumentException.class, () -> ClickHouseUtils.findFiles(null));
+        Assert.assertThrows(IllegalArgumentException.class, () -> ClickHouseUtils.findFiles(""));
+
+        Assert.assertEquals(ClickHouseUtils.findFiles("README.md").size(), 1);
+        Assert.assertEquals(ClickHouseUtils.findFiles("glob:*.md").size(), 1);
+        Assert.assertTrue(ClickHouseUtils.findFiles("glob:**.java", "src", "..").size() >= 1);
+        Assert.assertTrue(ClickHouseUtils.findFiles("glob:**.java", "src/test").size() >= 1);
+        Assert.assertTrue(ClickHouseUtils.findFiles("glob:../*.md", "../").size() >= 1);
+    }
+
+    @Test(groups = { "unit" })
     public void testGetLeadingComment() {
         Assert.assertEquals(ClickHouseUtils.getLeadingComment(null), "");
         Assert.assertEquals(ClickHouseUtils.getLeadingComment(""), "");

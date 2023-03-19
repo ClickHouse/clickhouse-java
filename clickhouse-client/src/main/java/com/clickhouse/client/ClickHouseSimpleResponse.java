@@ -41,13 +41,15 @@ public class ClickHouseSimpleResponse implements ClickHouseResponse {
      */
     public static ClickHouseResponse of(ClickHouseConfig config, List<ClickHouseColumn> columns, Object[][] values,
             ClickHouseResponseSummary summary) {
-        if (columns == null || columns.isEmpty()) {
+        if (columns == null) {
+            columns = Collections.emptyList();
+        }
+        if (columns.isEmpty() && (summary == null || summary == ClickHouseResponseSummary.EMPTY)) {
             return ClickHouseResponse.EMPTY;
         }
 
         int size = columns.size();
         int len = values != null ? values.length : 0;
-
         ClickHouseValue[][] wrappedValues = new ClickHouseValue[len][];
         if (len > 0) {
             ClickHouseValue[] templates = new ClickHouseValue[size];

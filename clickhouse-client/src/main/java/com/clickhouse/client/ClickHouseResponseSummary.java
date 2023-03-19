@@ -66,6 +66,16 @@ public class ClickHouseResponseSummary implements Serializable {
             return written_bytes;
         }
 
+        public Progress add(Progress progress) {
+            if (progress == null) {
+                return this;
+            }
+
+            return new Progress(read_rows + progress.read_rows, read_bytes + progress.read_bytes,
+                    total_rows_to_read + progress.total_rows_to_read, written_rows + progress.written_rows,
+                    written_bytes + progress.written_bytes);
+        }
+
         public boolean isEmpty() {
             return read_rows == 0L && read_bytes == 0L && total_rows_to_read == 0L && written_rows == 0L
                     && written_bytes == 0L;
@@ -200,6 +210,15 @@ public class ClickHouseResponseSummary implements Serializable {
         if (progress != null) {
             this.progress.set(progress);
         }
+    }
+
+    public void add(Progress progress) {
+        if (sealed) {
+            throw new IllegalStateException(ERROR_CANNOT_UPDATE);
+        }
+
+        Progress current = this.progress.get();
+        this.progress.set(current.add(progress));
     }
 
     public void update(Statistics stats) {

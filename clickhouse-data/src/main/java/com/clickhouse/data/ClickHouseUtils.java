@@ -13,14 +13,20 @@ import java.math.BigInteger;
 import java.net.URLDecoder;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.FileSystems;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.PathMatcher;
 import java.nio.file.Paths;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.FileAttribute;
 import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Deque;
 import java.util.HashMap;
@@ -77,6 +83,21 @@ public final class ClickHouseUtils {
 
     public static final String VARIABLE_PREFIX = "{{";
     public static final String VARIABLE_SUFFIX = "}}";
+
+    private static <T> T findFirstService(Class<? extends T> serviceInterface) {
+        ClickHouseChecker.nonNull(serviceInterface, "serviceInterface");
+
+        T service = null;
+
+        for (T s : ServiceLoader.load(serviceInterface, ClickHouseUtils.class.getClassLoader())) {
+            if (s != null) {
+                service = s;
+                break;
+            }
+        }
+
+        return service;
+    }
 
     public static String applyVariables(String template, UnaryOperator<String> applyFunc) {
         if (template == null) {
@@ -275,19 +296,65 @@ public final class ClickHouseUtils {
         return params;
     }
 
-    private static <T> T findFirstService(Class<? extends T> serviceInterface) {
-        ClickHouseChecker.nonNull(serviceInterface, "serviceInterface");
+    /**
+     * Gets absolute and normalized path to the given file.
+     *
+     * @param file non-empty file
+     * @return non-null absolute and normalized path to the file
+     */
+    public static Path getFile(String file) {
+        if (file == null || file.isEmpty()) {
+            throw new IllegalArgumentException("Non-empty file is required");
+        }
+        return Paths.get(file).toAbsolutePath().normalize();
+    }
 
-        T service = null;
-
-        for (T s : ServiceLoader.load(serviceInterface, ClickHouseUtils.class.getClassLoader())) {
-            if (s != null) {
-                service = s;
-                break;
-            }
+    /**
+     * Finds files according to the given pattern and path.
+     *
+     * @param pattern non-empty pattern may or may have syntax prefix as in
+     *                {@link java.nio.file.FileSystem#getPathMatcher(String)},
+     *                defaults to {@code glob} syntax
+     * @param paths   path to search, defaults to current work directory
+     * @return non-null list of normalized absolute paths matching the pattern
+     * @throws IOException when failed to find files
+     */
+    public static List<Path> findFiles(String pattern, String... paths) throws IOException {
+        if (pattern == null || pattern.isEmpty()) {
+            throw new IllegalArgumentException("Non-empty pattern is required");
         }
 
-        return service;
+        // FIXME not good for windows
+        if (pattern.indexOf(':') < 0) {
+            pattern = "glob:" + pattern;
+        }
+
+        final Path searchPath;
+        if (paths == null || paths.length == 0) {
+            searchPath = Paths.get("");
+        } else {
+            searchPath = paths.length < 2 ? Paths.get(paths[0])
+                    : Paths.get(paths[0], Arrays.copyOfRange(paths, 1, paths.length)).toAbsolutePath().normalize();
+        }
+
+        final List<Path> files = new ArrayList<>();
+        final PathMatcher matcher = FileSystems.getDefault().getPathMatcher(pattern);
+        Files.walkFileTree(searchPath, new SimpleFileVisitor<Path>() {
+            @Override
+            public FileVisitResult visitFile(Path path, BasicFileAttributes attrs) throws IOException {
+                if (matcher.matches(path)) {
+                    files.add((path.isAbsolute() ? path : path.toAbsolutePath()).normalize());
+                }
+                return FileVisitResult.CONTINUE;
+            }
+
+            @Override
+            public FileVisitResult visitFileFailed(Path file, IOException exc)
+                    throws IOException {
+                return FileVisitResult.CONTINUE;
+            }
+        });
+        return files;
     }
 
     public static String toJavaByteArrayExpression(byte[] bytes) {
