@@ -3,6 +3,7 @@ package com.clickhouse.data;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -63,7 +64,13 @@ public class ClickHouseUtilsTest {
         Assert.assertThrows(IllegalArgumentException.class, () -> ClickHouseUtils.getFile(""));
 
         Assert.assertTrue(ClickHouseUtils.getFile("README.md").toFile().exists());
+
+        Assert.assertTrue(ClickHouseUtils.getFile("README.md").toFile().exists());
         Assert.assertTrue(ClickHouseUtils.getFile("../README.md").toFile().exists());
+
+        Assert.assertEquals(ClickHouseUtils.getFile("~/a.csv"), Paths.get(System.getProperty("user.home"), "a.csv"));
+        Assert.assertEquals(ClickHouseUtils.getFile("~/../a.csv"),
+                Paths.get(System.getProperty("user.home"), "../a.csv").normalize());
     }
 
     @Test(groups = { "unit" })
@@ -72,6 +79,7 @@ public class ClickHouseUtilsTest {
         Assert.assertThrows(IllegalArgumentException.class, () -> ClickHouseUtils.findFiles(""));
 
         Assert.assertEquals(ClickHouseUtils.findFiles("README.md").size(), 1);
+        Assert.assertEquals(ClickHouseUtils.findFiles("READM?.md").size(), 1);
         Assert.assertEquals(ClickHouseUtils.findFiles("glob:*.md").size(), 1);
         Assert.assertTrue(ClickHouseUtils.findFiles("glob:**.java", "src", "..").size() >= 1);
         Assert.assertTrue(ClickHouseUtils.findFiles("glob:**.java", "src/test").size() >= 1);

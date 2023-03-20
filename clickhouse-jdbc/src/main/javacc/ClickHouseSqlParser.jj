@@ -756,8 +756,8 @@ void columnExpr(): { Token t; } {
 
 // interested parts
 void compressionPart(): {} {
-    <COMPRESSION> (LOOKAHEAD(2) <STRING_LITERAL> { token_source.compressAlgorithm = token.image; })?
-    (LOOKAHEAD(2) <LEVEL> <DECIMAL_LITERAL> { token_source.compressLevel = token.image; })?
+    <COMPRESSION> (LOOKAHEAD(2) (<QUERY> | <STRING_LITERAL> | <IDENTIFIER>) { token_source.compressAlgorithm = token.image; })?
+    (LOOKAHEAD(2) <LEVEL> (<QUERY> | <DECIMAL_LITERAL> | <IDENTIFIER>) { token_source.compressLevel = token.image; })?
 }
 
 void formatPart(): {} {
@@ -767,7 +767,7 @@ void formatPart(): {} {
 
 void infilePart(): {} {
     <FROM> { token_source.addPosition(token); }
-    <INFILE> (LOOKAHEAD(2) <STRING_LITERAL> { token_source.file = token.image; })?
+    <INFILE> (LOOKAHEAD(2) (<QUERY> | <STRING_LITERAL> | <IDENTIFIER>) { token_source.file = token.image; })?
     ( compressionPart() )?
     ( settingsPart() )?
     ( formatPart() )?
@@ -775,7 +775,7 @@ void infilePart(): {} {
 
 void outfilePart(): {} {
     <INTO> { token_source.addPosition(token); }
-    <OUTFILE> (LOOKAHEAD(2) <STRING_LITERAL> { token_source.file = token.image; })? 
+    <OUTFILE> (LOOKAHEAD(2) (<QUERY> | <STRING_LITERAL> | <IDENTIFIER>) { token_source.file = token.image; })? 
     (LOOKAHEAD(2) <AND> <STDOUT> { token_source.addPosition(token); })?
     ( compressionPart() )?
 }

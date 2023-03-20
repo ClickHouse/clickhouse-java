@@ -37,6 +37,7 @@ import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseCompression;
 import com.clickhouse.data.ClickHouseDataProcessor;
 import com.clickhouse.data.ClickHouseDataStreamFactory;
+import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseExternalTable;
 import com.clickhouse.data.ClickHouseFile;
 import com.clickhouse.data.ClickHouseFormat;
@@ -190,7 +191,21 @@ public class ClickHouseStatementImpl extends JdbcWrapper
                     throw SqlExceptionUtils
                             .clientError(ClickHouseUtils.format("Output file [%s] already exists!", f.getFile()));
                 }
-                request.output(getFile(f, stmt));
+
+                final ClickHouseResponseSummary summary = new ClickHouseResponseSummary(null, null);
+                try (ClickHouseResponse response = request.query(stmt.getSQL()).output(getFile(f, stmt))
+                        .executeAndWait()) {
+                    summary.add(response.getSummary());
+                } catch (ClickHouseException e) {
+                    throw SqlExceptionUtils.handle(e);
+                }
+                return ClickHouseSimpleResponse.of(getConfig(),
+                        Arrays.asList(ClickHouseColumn.of("file", ClickHouseDataType.String, false),
+                                ClickHouseColumn.of("rows", ClickHouseDataType.UInt64, false),
+                                ClickHouseColumn.of("bytes", ClickHouseDataType.UInt64, false)),
+                        new Object[][] {
+                                { file, summary.getReadRows(), summary.getReadBytes() }
+                        }, summary);
             } else if (stmt.getStatementType() == StatementType.INSERT) {
                 final Mutation m = request.write().query(stmt.getSQL());
                 final ClickHouseResponseSummary summary = new ClickHouseResponseSummary(null, null);
@@ -201,7 +216,7 @@ public class ClickHouseStatementImpl extends JdbcWrapper
                             log.warn("Skip [%s] as it does not exist", f);
                         } else {
                             try (ClickHouseResponse response = m.data(getFile(f, stmt)).executeAndWait()) {
-                                summary.add(response.getSummary().getProgress());
+                                summary.add(response.getSummary());
                                 log.debug("Loaded %d rows from [%s]", response.getSummary().getWrittenRows(),
                                         f.getFile().getAbsolutePath());
                             } catch (ClickHouseException e) {
@@ -209,10 +224,12 @@ public class ClickHouseStatementImpl extends JdbcWrapper
                             }
                         }
                     }
+                    if (summary.getUpdateCount() == 0) {
+                        throw SqlExceptionUtils.clientError("No file imported: " + file);
+                    }
+                    summary.seal();
                 } catch (IOException e) {
                     throw SqlExceptionUtils.handle(e);
-                } finally {
-                    summary.seal();
                 }
                 return ClickHouseSimpleResponse.of(null, null, new Object[0][], summary);
             }

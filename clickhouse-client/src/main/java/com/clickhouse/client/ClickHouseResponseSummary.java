@@ -134,6 +134,15 @@ public class ClickHouseResponseSummary implements Serializable {
             return rows_before_limit;
         }
 
+        public Statistics add(Statistics stats) {
+            if (stats == null) {
+                return this;
+            }
+
+            return new Statistics(rows + stats.rows, blocks + stats.blocks, allocated_bytes + stats.allocated_bytes,
+                    applied_limit || stats.applied_limit, rows_before_limit + stats.rows_before_limit);
+        }
+
         public boolean isEmpty() {
             return rows == 0L && blocks == 0L && allocated_bytes == 0L && !applied_limit && rows_before_limit == 0L;
         }
@@ -219,6 +228,7 @@ public class ClickHouseResponseSummary implements Serializable {
 
         Progress current = this.progress.get();
         this.progress.set(current.add(progress));
+        this.updates.incrementAndGet();
     }
 
     public void update(Statistics stats) {
@@ -229,6 +239,24 @@ public class ClickHouseResponseSummary implements Serializable {
         if (stats != null) {
             this.stats.set(stats);
         }
+    }
+
+    public void add(Statistics stats) {
+        if (sealed) {
+            throw new IllegalStateException(ERROR_CANNOT_UPDATE);
+        }
+
+        Statistics current = this.stats.get();
+        this.stats.set(current.add(stats));
+    }
+
+    public void add(ClickHouseResponseSummary summary) {
+        if (summary == null) {
+            return;
+        }
+
+        add(summary.getProgress());
+        add(summary.getStatistics());
     }
 
     /**

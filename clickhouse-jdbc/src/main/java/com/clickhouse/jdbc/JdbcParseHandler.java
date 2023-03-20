@@ -146,7 +146,7 @@ public class JdbcParseHandler extends ParseHandler {
             String table, String input, String compressAlgorithm, String compressLevel, String format, String file,
             List<Integer> parameters, Map<String, Integer> positions, Map<String, String> settings,
             Set<String> tempTables) {
-        boolean hasFile = allowLocalFile && !ClickHouseChecker.isNullOrEmpty(file);
+        boolean hasFile = allowLocalFile && !ClickHouseChecker.isNullOrEmpty(file) && file.charAt(0) == '\'';
         ClickHouseSqlStatement s = null;
         if (stmtType == StatementType.DELETE) {
             s = allowLightWeightDelete ? s

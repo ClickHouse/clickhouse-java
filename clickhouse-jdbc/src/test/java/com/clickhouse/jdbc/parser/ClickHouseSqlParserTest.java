@@ -605,6 +605,15 @@ public class ClickHouseSqlParserTest {
         assertEquals(stmts[0].getCompressLevel(), null);
         assertEquals(stmts[0].getFormat(), null);
         assertEquals(stmts[0].getFile(), null);
+
+        sql = "insert into mytable from infile :a compression ? level ? format Native";
+        stmts = parse(sql);
+        assertEquals(stmts.length, 1);
+        assertEquals(stmts[0].getSQL(), sql);
+        assertEquals(stmts[0].getCompressAlgorithm(), "?");
+        assertEquals(stmts[0].getCompressLevel(), "?");
+        assertEquals(stmts[0].getFormat(), "Native");
+        assertEquals(stmts[0].getFile(), ":a");
     }
 
     @Test(groups = "unit")
@@ -643,6 +652,19 @@ public class ClickHouseSqlParserTest {
         assertEquals(stmts[0].getCompressLevel(), null);
         assertEquals(stmts[0].getFormat(), null);
         assertEquals(stmts[0].getFile(), null);
+
+        sql = "select * from numbers(10) settings max_result_rows=1 into outfile ? compression :a level :b format CSV";
+        stmts = parse(sql);
+        assertEquals(stmts.length, 1);
+        assertEquals(stmts[0].getSQL(), sql);
+        assertEquals(stmts[0].hasCompressAlgorithm(), true);
+        assertEquals(stmts[0].getCompressAlgorithm(), ":a");
+        assertEquals(stmts[0].hasCompressLevel(), true);
+        assertEquals(stmts[0].getCompressLevel(), ":b");
+        assertEquals(stmts[0].hasFormat(), true);
+        assertEquals(stmts[0].getFormat(), "CSV");
+        assertEquals(stmts[0].hasFile(), true);
+        assertEquals(stmts[0].getFile(), "?");
     }
 
     @Test(groups = "unit")

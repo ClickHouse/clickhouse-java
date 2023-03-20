@@ -162,11 +162,13 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
             try (ClickHouseStatement stmt = conn.createStatement();
                     ResultSet rs = stmt.executeQuery(
                             "select number n, toString(n) from numbers(1234) into outfile '" + f1.getName() + "'")) {
+                Assert.assertTrue(rs.next());
                 Assert.assertFalse(rs.next());
             }
             try (ClickHouseStatement stmt = conn.createStatement();
                     ResultSet rs = stmt.executeQuery(
                             "select number n, toString(n) from numbers(4321) into outfile '" + f2.getName() + "'")) {
+                Assert.assertTrue(rs.next());
                 Assert.assertFalse(rs.next());
             }
 

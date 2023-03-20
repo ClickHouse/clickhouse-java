@@ -361,10 +361,7 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
             initialMaxInsertBlockSize = r.getValue(7).asLong();
             initialDeleteSupport = r.getValue(8).asInteger();
 
-            String customConf = r.getValue(9).asString();
-            if (!customConf.isEmpty() && customConf.charAt(0) == '\'') {
-                customConf = customConf.substring(1, customConf.length() - 1);
-            }
+            String customConf = ClickHouseUtils.unescape(r.getValue(9).asString());
             if (ClickHouseChecker.isNullOrBlank(customConf)) {
                 jdbcConf = connInfo.getJdbcConfig();
                 client = initialClient;

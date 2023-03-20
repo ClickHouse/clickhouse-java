@@ -305,6 +305,8 @@ public final class ClickHouseUtils {
     public static Path getFile(String file) {
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("Non-empty file is required");
+        } else if (file.startsWith("~/")) {
+            return Paths.get(System.getProperty("user.home"), file.substring(2)).normalize();
         }
         return Paths.get(file).toAbsolutePath().normalize();
     }
@@ -322,19 +324,31 @@ public final class ClickHouseUtils {
     public static List<Path> findFiles(String pattern, String... paths) throws IOException {
         if (pattern == null || pattern.isEmpty()) {
             throw new IllegalArgumentException("Non-empty pattern is required");
+        } else if (pattern.startsWith("~/")) {
+            return Collections
+                    .singletonList(Paths.get(System.getProperty("user.home"), pattern.substring(2)).normalize());
         }
 
-        // FIXME not good for windows
-        if (pattern.indexOf(':') < 0) {
-            pattern = "glob:" + pattern;
+        if (!pattern.startsWith("glob:") && !pattern.startsWith("regex:")) {
+            Path path = Paths.get(pattern);
+            if (path.isAbsolute()) {
+                return Collections.singletonList(path);
+            } else {
+                pattern = "glob:" + pattern;
+            }
         }
 
         final Path searchPath;
         if (paths == null || paths.length == 0) {
             searchPath = Paths.get("");
         } else {
-            searchPath = paths.length < 2 ? Paths.get(paths[0])
-                    : Paths.get(paths[0], Arrays.copyOfRange(paths, 1, paths.length)).toAbsolutePath().normalize();
+            String root = paths[0];
+            Path rootPath = root.startsWith("~/")
+                    ? Paths.get(System.getProperty("user.home"), root.substring(2)).normalize()
+                    : Paths.get(root);
+            searchPath = paths.length < 2 ? rootPath
+                    : Paths.get(rootPath.toFile().getAbsolutePath(), Arrays.copyOfRange(paths, 1, paths.length))
+                            .normalize();
         }
 
         final List<Path> files = new ArrayList<>();
@@ -343,7 +357,7 @@ public final class ClickHouseUtils {
             @Override
             public FileVisitResult visitFile(Path path, BasicFileAttributes attrs) throws IOException {
                 if (matcher.matches(path)) {
-                    files.add((path.isAbsolute() ? path : path.toAbsolutePath()).normalize());
+                    files.add(path.normalize());
                 }
                 return FileVisitResult.CONTINUE;
             }
