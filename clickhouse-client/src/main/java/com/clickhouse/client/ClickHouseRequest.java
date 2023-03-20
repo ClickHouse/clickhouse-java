@@ -403,8 +403,10 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
         this.txRef = new AtomicReference<>(null);
 
         this.externalTables = new LinkedList<>();
-        this.options = ClickHouseFreezableMap.of(new HashMap<>());
-        this.settings = ClickHouseFreezableMap.of(new LinkedHashMap<>(client.getConfig().getCustomSettings()));
+        // TODO configurable whitelist? maybe later
+        this.options = ClickHouseFreezableMap.of(new HashMap<>(), ClickHouseClientOption.SESSION_ID);
+        this.settings = ClickHouseFreezableMap.of(new LinkedHashMap<>(client.getConfig().getCustomSettings()),
+                ClickHouseTransaction.SETTING_IMPLICIT_TRANSACTION);
         options(options);
 
         this.namedParameters = new HashMap<>();

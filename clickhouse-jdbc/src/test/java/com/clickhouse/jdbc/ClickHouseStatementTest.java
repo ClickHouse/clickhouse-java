@@ -1,5 +1,6 @@
 package com.clickhouse.jdbc;
 
+import java.io.File;
 import java.io.IOException;
 import java.sql.Array;
 import java.sql.BatchUpdateException;
@@ -137,6 +138,50 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
             Assert.assertEquals(rs.getMetaData().getColumnTypeName(1), "DECIMAL(20,0)");
             Assert.assertEquals(rs.getMetaData().getColumnTypeName(2), "ARRAY(BYTE)");
             Assert.assertFalse(rs.next());
+        }
+    }
+
+    @Test(groups = "integration")
+    public void testOutFileAndInFile() throws SQLException {
+        if (DEFAULT_PROTOCOL != ClickHouseProtocol.HTTP) {
+            throw new SkipException("Skip non-http protocol");
+        }
+
+        Properties props = new Properties();
+        props.setProperty("localFile", "true");
+        File f1 = new File("a1.csv");
+        if (f1.exists()) {
+            f1.delete();
+        }
+        File f2 = new File("a2.csv");
+        if (f2.exists()) {
+            f2.delete();
+        }
+
+        try (ClickHouseConnection conn = newConnection(props)) {
+            try (ClickHouseStatement stmt = conn.createStatement();
+                    ResultSet rs = stmt.executeQuery(
+                            "select number n, toString(n) from numbers(1234) into outfile '" + f1.getName() + "'")) {
+                Assert.assertTrue(rs.next());
+                Assert.assertFalse(rs.next());
+            }
+            try (ClickHouseStatement stmt = conn.createStatement();
+                    ResultSet rs = stmt.executeQuery(
+                            "select number n, toString(n) from numbers(4321) into outfile '" + f2.getName() + "'")) {
+                Assert.assertTrue(rs.next());
+                Assert.assertFalse(rs.next());
+            }
+
+            try (ClickHouseStatement stmt = conn.createStatement()) {
+                Assert.assertFalse(stmt.execute(
+                        "drop table if exists test_load_infile; create table test_load_infile(n UInt64, s String)engine=Memory"));
+                stmt.executeUpdate("insert into test_load_infile from infile 'a?.csv'");
+                try (ResultSet rs = stmt.executeQuery("select count(1) from test_load_infile")) {
+                    Assert.assertTrue(rs.next());
+                    Assert.assertEquals(rs.getInt(1), 5555);
+                    Assert.assertFalse(rs.next());
+                }
+            }
         }
     }
 

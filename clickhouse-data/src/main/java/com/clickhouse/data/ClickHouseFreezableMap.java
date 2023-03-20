@@ -1,6 +1,9 @@
 package com.clickhouse.data;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -10,21 +13,57 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * any error.
  */
 public class ClickHouseFreezableMap<K, V> implements Map<K, V> {
-    public static <K, V> ClickHouseFreezableMap<K, V> of(Map<K, V> map) {
-        return new ClickHouseFreezableMap<>(ClickHouseChecker.nonNull(map, "Map"));
+    /**
+     * Creates a freezable map with initial data and optional whitelisted keys.
+     *
+     * @param <K>             type of the key
+     * @param <V>             type of the value
+     * @param map             non-null map with initial data
+     * @param whiteListedKeys optional whitelisted keys
+     * @return non-null freezable map
+     */
+    public static <K, V> ClickHouseFreezableMap<K, V> of(Map<K, V> map, K... whiteListedKeys) {
+        return new ClickHouseFreezableMap<>(ClickHouseChecker.nonNull(map, "Map"), whiteListedKeys);
     }
 
     private final AtomicBoolean freezed;
     private final Map<K, V> map;
+    private final List<K> whitelist;
 
-    protected ClickHouseFreezableMap(Map<K, V> map) {
+    protected ClickHouseFreezableMap(Map<K, V> map, K... keys) {
         this.freezed = new AtomicBoolean(false);
         this.map = map;
+        if (keys == null || keys.length == 0) {
+            this.whitelist = Collections.emptyList();
+        } else {
+            List<K> list = new ArrayList<>(keys.length);
+            for (K k : keys) {
+                if (k != null && !list.contains(k)) {
+                    list.add(k);
+                }
+            }
+            this.whitelist = Collections.unmodifiableList(list);
+        }
+    }
+
+    /**
+     * Checks whether the given key can be used in mutation(e.g. {@code put()},
+     * {@code remove()}), regardless the map is freezed or not.
+     *
+     * @param key non-null key
+     * @return true if the given key can be used in mutation; false otherwise
+     */
+    protected boolean isMutable(Object key) {
+        return !freezed.get() || whitelist.contains(key);
     }
 
     @Override
     public void clear() {
-        if (!freezed.get()) {
+        if (freezed.get()) {
+            for (K k : whitelist) {
+                map.remove(k);
+            }
+        } else {
             map.clear();
         }
     }
@@ -61,19 +100,26 @@ public class ClickHouseFreezableMap<K, V> implements Map<K, V> {
 
     @Override
     public V put(K key, V value) {
-        return !freezed.get() ? map.put(key, value) : value;
+        return isMutable(key) ? map.put(key, value) : value;
     }
 
     @Override
     public void putAll(Map<? extends K, ? extends V> m) {
-        if (!freezed.get()) {
+        if (freezed.get()) {
+            for (K k : whitelist) {
+                V v = m.get(k);
+                if (v != null) {
+                    map.put(k, v);
+                }
+            }
+        } else {
             map.putAll(m);
         }
     }
 
     @Override
     public V remove(Object key) {
-        return !freezed.get() ? map.remove(key) : null;
+        return isMutable(key) ? map.remove(key) : null;
     }
 
     @Override
@@ -113,5 +159,16 @@ public class ClickHouseFreezableMap<K, V> implements Map<K, V> {
      */
     public boolean isFreezed() {
         return freezed.get();
+    }
+
+    /**
+     * Checks whether the given key is whitelisted, meaning corresponding entry can
+     * be changed even the map is freezed.
+     *
+     * @param key non-null key
+     * @return true if the key is whitelisted; false otherwise
+     */
+    public boolean isWhiteListed(K key) {
+        return key != null && whitelist.contains(key);
     }
 }

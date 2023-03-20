@@ -1,11 +1,15 @@
 ## 0.4.2
 
+### Breaking Changes
+* ClickHouseSqlStatement and *ParserHandler in JDBC driver were refactored to support `compression` and `infile` in insert statement.
+
 ### New Features
 * centralized configuration for JDBC driver using custom server setting `custom_jdbc_config`.
 * support `BEGIN TRANSACTION`, `COMMIT`, and `ROLLBACK` in JDBC driver. [#975](https://github.com/ClickHouse/clickhouse-java/issues/975)
 * new options for JDBC driver
     * databaseTerm(catalog or schema, defaults to schema) [#1273](https://github.com/ClickHouse/clickhouse-java/issues/1273)
     * externalDatabase(true or false, defaults to true) [#1245](https://github.com/ClickHouse/clickhouse-java/issues/1245)
+    * localFile(true of false, defaults to false) - whether to use local file for INFILE and OUTFILE or not
 
 ### Bug Fixes
 * error while converting Nested values to Java maps.

@@ -90,7 +90,7 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
 
         ClickHouseInputStream chIn = request.getInputStream().orElse(null);
         if (chIn != null && chIn.getUnderlyingStream().hasInput()) {
-            appendQueryParameter(builder, "query", request.getStatements().get(0));
+            appendQueryParameter(builder, "query", request.getStatements(false).get(0));
         }
         if (config.isRequestCompressed() && config.getRequestCompressAlgorithm() == ClickHouseCompression.LZ4) {
             // inform server to decompress client request

@@ -33,24 +33,27 @@ public class ClickHouseSqlStatement {
     private final String database;
     private final String table;
     private final String input;
+    private final String compressAlgorithm;
+    private final String compressLevel;
     private final String format;
-    private final String outfile;
+    private final String file;
     private final List<Integer> parameters;
     private final Map<String, Integer> positions;
     private final Map<String, String> settings;
     private final Set<String> tempTables;
 
     public ClickHouseSqlStatement(String sql) {
-        this(sql, StatementType.UNKNOWN, null, null, null, null, null, null, null, null, null, null);
+        this(sql, StatementType.UNKNOWN, null, null, null, null, null, null, null, null, null, null, null, null);
     }
 
     public ClickHouseSqlStatement(String sql, StatementType stmtType) {
-        this(sql, stmtType, null, null, null, null, null, null, null, null, null, null);
+        this(sql, stmtType, null, null, null, null, null, null, null, null, null, null, null, null);
     }
 
     public ClickHouseSqlStatement(String sql, StatementType stmtType, String cluster, String database, String table,
-            String input, String format, String outfile, List<Integer> parameters, Map<String, Integer> positions,
-            Map<String, String> settings, Set<String> tempTables) {
+            String input, String compressAlgorithm, String compressLevel, String format, String file,
+            List<Integer> parameters, Map<String, Integer> positions, Map<String, String> settings,
+            Set<String> tempTables) {
         this.sql = sql;
         this.stmtType = stmtType;
 
@@ -58,8 +61,10 @@ public class ClickHouseSqlStatement {
         this.database = database;
         this.table = table == null || table.isEmpty() ? DEFAULT_TABLE : table;
         this.input = input;
+        this.compressAlgorithm = compressAlgorithm;
+        this.compressLevel = compressLevel;
         this.format = format;
-        this.outfile = outfile;
+        this.file = file;
 
         if (parameters != null && !parameters.isEmpty()) {
             this.parameters = Collections.unmodifiableList(parameters);
@@ -123,11 +128,11 @@ public class ClickHouseSqlStatement {
     }
 
     public boolean isQuery() {
-        return this.stmtType.getOperationType() == OperationType.READ && !this.hasOutfile();
+        return this.stmtType.getOperationType() == OperationType.READ && !this.hasFile();
     }
 
     public boolean isMutation() {
-        return this.stmtType.getOperationType() == OperationType.WRITE || this.hasOutfile();
+        return this.stmtType.getOperationType() == OperationType.WRITE || this.hasFile();
     }
 
     public boolean isTCL() {
@@ -135,7 +140,7 @@ public class ClickHouseSqlStatement {
     }
 
     public boolean isIdemponent() {
-        boolean result = this.stmtType.isIdempotent() && !this.hasOutfile();
+        boolean result = this.stmtType.isIdempotent() && !this.hasFile();
 
         if (!result) { // try harder
             switch (this.stmtType) {
@@ -186,12 +191,20 @@ public class ClickHouseSqlStatement {
         return this.input;
     }
 
+    public String getCompressAlgorithm() {
+        return this.compressAlgorithm;
+    }
+
+    public String getCompressLevel() {
+        return this.compressLevel;
+    }
+
     public String getFormat() {
         return this.format;
     }
 
-    public String getOutfile() {
-        return this.outfile;
+    public String getFile() {
+        return this.file;
     }
 
     public String getContentBetweenKeywords(String startKeyword, String endKeyword) {
@@ -221,6 +234,14 @@ public class ClickHouseSqlStatement {
         return positions.containsKey(keyword.toUpperCase(Locale.ROOT));
     }
 
+    public boolean hasCompressAlgorithm() {
+        return this.compressAlgorithm != null && !this.compressAlgorithm.isEmpty();
+    }
+
+    public boolean hasCompressLevel() {
+        return this.compressLevel != null && !this.compressLevel.isEmpty();
+    }
+
     public boolean hasFormat() {
         return this.format != null && !this.format.isEmpty();
     }
@@ -229,8 +250,8 @@ public class ClickHouseSqlStatement {
         return this.input != null && !this.input.isEmpty();
     }
 
-    public boolean hasOutfile() {
-        return this.outfile != null && !this.outfile.isEmpty();
+    public boolean hasFile() {
+        return this.file != null && !this.file.isEmpty();
     }
 
     public boolean hasSettings() {
@@ -289,10 +310,11 @@ public class ClickHouseSqlStatement {
         StringBuilder sb = new StringBuilder();
 
         sb.append('[').append(stmtType.name()).append(']').append(" cluster=").append(cluster).append(", database=")
-                .append(database).append(", table=").append(table).append(", input=").append(input).append(", format=")
-                .append(format).append(", outfile=").append(outfile).append(", parameters=").append(parameters)
-                .append(", positions=").append(positions).append(", settings=").append(settings).append(", tempTables=")
-                .append(settings).append("\nSQL:\n")
+                .append(database).append(", table=").append(table).append(", input=").append(input)
+                .append(", compressAlgorithm=").append(compressAlgorithm).append(", compressLevel=")
+                .append(compressLevel).append(", format=").append(format).append(", outfile=").append(file)
+                .append(", parameters=").append(parameters).append(", positions=").append(positions)
+                .append(", settings=").append(settings).append(", tempTables=").append(settings).append("\nSQL:\n")
                 .append(sql);
 
         return sb.toString();
@@ -307,8 +329,10 @@ public class ClickHouseSqlStatement {
         result = prime * result + ((database == null) ? 0 : database.hashCode());
         result = prime * result + table.hashCode();
         result = prime * result + ((input == null) ? 0 : input.hashCode());
+        result = prime * result + ((compressAlgorithm == null) ? 0 : compressAlgorithm.hashCode());
+        result = prime * result + ((compressLevel == null) ? 0 : compressLevel.hashCode());
         result = prime * result + ((format == null) ? 0 : format.hashCode());
-        result = prime * result + ((outfile == null) ? 0 : outfile.hashCode());
+        result = prime * result + ((file == null) ? 0 : file.hashCode());
         result = prime * result + ((stmtType == null) ? 0 : stmtType.hashCode());
 
         result = prime * result + parameters.hashCode();
@@ -331,8 +355,9 @@ public class ClickHouseSqlStatement {
         ClickHouseSqlStatement other = (ClickHouseSqlStatement) obj;
         return stmtType == other.stmtType && Objects.equals(sql, other.sql) && Objects.equals(cluster, other.cluster)
                 && Objects.equals(database, other.database) && Objects.equals(table, other.table)
-                && Objects.equals(input, other.input) && Objects.equals(format, other.format)
-                && Objects.equals(outfile, other.outfile) && parameters.equals(other.parameters)
+                && Objects.equals(input, other.input) && Objects.equals(compressAlgorithm, other.compressAlgorithm)
+                && Objects.equals(compressLevel, other.compressLevel) && Objects.equals(format, other.format)
+                && Objects.equals(file, other.file) && parameters.equals(other.parameters)
                 && positions.equals(other.positions) && settings.equals(other.settings)
                 && tempTables.equals(other.tempTables);
     }

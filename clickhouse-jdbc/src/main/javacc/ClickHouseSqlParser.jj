@@ -3,7 +3,7 @@
  * on behalf of server, but only for the following purposes:
  * 1) split given SQL into multiple statements
  * 2) recognize type of each statement(DDL/DML/DCL/TCL, query or mutation etc.)
- * 3) extract cluster, database, table, format, outfile, macros and parameters from a statement
+ * 3) extract cluster, database, table, format, file, compression, macros and parameters from a statement
  * 4) check if specific keywords like "WITH TOTALS" or so exist in the statement or not
  *
  * The ANTLR4 grammar at https://github.com/ClickHouse/ClickHouse/blob/master/src/Parsers/New is incomplete.
@@ -134,15 +134,17 @@ TOKEN_MGR_DECLS: {
     final java.util.Deque<Integer> stack = new java.util.LinkedList<>();
     int parentToken = -1;
 
-    final StringBuilder builder = new StringBuilder();
+    final StringBuilder builder = new StringBuilder(512);
 
     StatementType stmtType = StatementType.UNKNOWN;
     String cluster = null;
     String database = null;
     String table = null;
     String input = null;
+    String compressAlgorithm = null;
+    String compressLevel = null;
     String format = null;
-    String outfile = null;
+    String file = null;
 
     final List<Integer> parameters = new ArrayList<>();
     final Map<String, Integer> positions = new HashMap<>();
@@ -219,8 +221,10 @@ TOKEN_MGR_DECLS: {
         database = null;
         table = null;
         input = null;
+        compressAlgorithm = null;
+        compressLevel = null;
         format = null;
-        outfile = null;
+        file = null;
         parameters.clear();
         positions.clear();
         settings.clear();
@@ -232,12 +236,12 @@ TOKEN_MGR_DECLS: {
         ClickHouseSqlStatement s = null;
         if (handler != null) {
             s = handler.handleStatement(
-                sqlStmt, stmtType, cluster, database, table, input, format, outfile, parameters, positions, settings, tempTables);
+                sqlStmt, stmtType, cluster, database, table, input, compressAlgorithm, compressLevel, format, file, parameters, positions, settings, tempTables);
         }
 
         if (s == null) {
             s = new ClickHouseSqlStatement(
-                sqlStmt, stmtType, cluster, database, table, input, format, outfile, parameters, positions, settings, tempTables);
+                sqlStmt, stmtType, cluster, database, table, input, compressAlgorithm, compressLevel, format, file, parameters, positions, settings, tempTables);
         }
         
         // reset variables
@@ -513,8 +517,12 @@ void insertStmt(): {} {
         LOOKAHEAD({ getToken(1).kind == FUNCTION }) <FUNCTION> functionExpr() 
         | (LOOKAHEAD(2) <TABLE>)? tableIdentifier(true)
     )
-    ( settingsPart() )?
-    dataClause()
+    (
+        LOOKAHEAD(2) infilePart()
+        | (
+            ( settingsPart() )? dataClause()
+        )
+    )
 }
 
 void dataClause(): {} {
@@ -747,12 +755,29 @@ void columnExpr(): { Token t; } {
 }
 
 // interested parts
+void compressionPart(): {} {
+    <COMPRESSION> (LOOKAHEAD(2) (<QUERY> | <STRING_LITERAL> | <IDENTIFIER>) { token_source.compressAlgorithm = token.image; })?
+    (LOOKAHEAD(2) <LEVEL> (<QUERY> | <DECIMAL_LITERAL> | <IDENTIFIER>) { token_source.compressLevel = token.image; })?
+}
+
 void formatPart(): {} {
-    <FORMAT> (LOOKAHEAD(2) <IDENTIFIER> { token_source.format = token.image; })?
+    <FORMAT> { token_source.addPosition(token); }
+    (LOOKAHEAD(2) <IDENTIFIER> { token_source.format = token.image; })?
+}
+
+void infilePart(): {} {
+    <FROM> { token_source.addPosition(token); }
+    <INFILE> (LOOKAHEAD(2) (<QUERY> | <STRING_LITERAL> | <IDENTIFIER>) { token_source.file = token.image; })?
+    ( compressionPart() )?
+    ( settingsPart() )?
+    ( formatPart() )?
 }
 
 void outfilePart(): {} {
-    <INTO> <OUTFILE> (LOOKAHEAD(2) <STRING_LITERAL> { token_source.outfile = token.image; })?
+    <INTO> { token_source.addPosition(token); }
+    <OUTFILE> (LOOKAHEAD(2) (<QUERY> | <STRING_LITERAL> | <IDENTIFIER>) { token_source.file = token.image; })? 
+    (LOOKAHEAD(2) <AND> <STDOUT> { token_source.addPosition(token); })?
+    ( compressionPart() )?
 }
 
 void settingsPart(): {} {
@@ -937,13 +962,13 @@ Token anyKeyword(): { Token t; } {
         | t = <TRUNCATE> | t = <UPDATE> | t = <USE> | t = <WATCH>
         // others
         | t = <ALL> | t = <AND> | t = <APPLY> | t = <ARRAY> | t = <AS> | t = <ASOF> | t = <BETWEEN> | t = <CASE> 
-        | t = <CLUSTER> | t = <DATE> | t = <DATABASE> | t = <DATABASES> | t = <DICTIONARY> | t = <DICTIONARIES> 
+        | t = <CLUSTER> | t = <COMPRESSION> | t = <DATE> | t = <DATABASE> | t = <DATABASES> | t = <DICTIONARY> | t = <DICTIONARIES> 
         | t = <DISTINCT> | t = <ELSE> | t = <END> | t = <EXCEPT> | t = <FORMAT> | t = <FROM> | t = <FINAL> | t = <FULL> 
-        | t = <FUNCTION> | t = <GLOBAL> | t = <GROUP> | t = <HAVING> | t = <IF> | t = <ILIKE> | t = <IN> | t = <INNER> 
-        | t = <INPUT> | t = <INTERVAL> | t = <INTO> | t = <IS> | t = <JOIN> | t = <LEFT> | t = <LIKE> | t = <LIMIT> | t = <LIVE> 
+        | t = <FUNCTION> | t = <GLOBAL> | t = <GROUP> | t = <HAVING> | t = <IF> | t = <ILIKE> | t = <IN> | t = <INFILE> | t = <INNER> 
+        | t = <INPUT> | t = <INTERVAL> | t = <INTO> | t = <IS> | t = <LEVEL> | t = <JOIN> | t = <LEFT> | t = <LIKE> | t = <LIMIT> | t = <LIVE> 
         | t = <MATERIALIZED> | t = <NOT> | t = <OFFSET> | t = <ON> | t = <OR> | t = <ORDER> | t = <OUTFILE> | t = <POLICY>
         | t = <PREWHERE> | t = <PROFILE> | t = <QUOTA> | t = <REPLACE> | t = <RIGHT> | t = <ROLE> | t = <ROW> | t = <SAMPLE>
-        | t = <SETTINGS> | t = <TEMPORARY> | t = <TABLE> | t = <TABLES> | t = <THEN> | t = <TIES> | t = <TIMESTAMP> 
+        | t = <SETTINGS> | t = <STDOUT> | t = <TEMPORARY> | t = <TABLE> | t = <TABLES> | t = <THEN> | t = <TIES> | t = <TIMESTAMP> 
         | t = <TOP> | t = <TOTALS> | t = <VALUES> | t = <VIEW> | t = <USER> | t = <UNION> | t = <USING> 
         | t = <WHEN> | t = <WHERE> | t = <WITH>
         // interval
@@ -964,7 +989,7 @@ Token keyword(): { Token t; } {
         // others
         | t = <CASE> | t = <CLUSTER> | t = <DATE> | t = <DATABASE> | t = <DATABASES> | t = <DICTIONARY> 
         | t = <DICTIONARIES> | t = <DISTINCT> | t = <ELSE> | t = <END> | t = <EXCEPT>| t = <FUNCTION> 
-        | t = <IF> | t = <INTERVAL> | t = <IS> | t = <LIVE>  | t = <MATERIALIZED> | t = <OUTFILE> | t = <POLICY> 
+        | t = <IF> | t = <INTERVAL> | t = <IS> | t = <INFILE> | t = <LIVE>  | t = <MATERIALIZED> | t = <OUTFILE> | t = <POLICY> 
         | t = <PROFILE> | t = <QUOTA> | t = <REPLACE> | t = <ROLE> | t = <ROW> | t = <TEMPORARY> 
         | t = <TABLE> | t = <TABLES> | t = <THEN> | t = <TIES> | t = <TIMESTAMP> | t = <TOP> | t = <TOTALS> 
         | t = <VALUES> | t = <VIEW> | t = <WHEN> | t = <USER>
@@ -1016,6 +1041,7 @@ TOKEN: {
     | <BETWEEN  : <B> <E> <T> <W> <E> <E> <N>        >
     | <CASE     : <C> <A> <S> <E>                    >
     | <CLUSTER  : <C> <L> <U> <S> <T> <E> <R>        >
+    | <COMPRESSION : <C> <O> <M> <P> <R> <E> <S> <S> <I> <O> <N>    >
     | <DATE     : <D> <A> <T> <E>                    >
     | <DATABASE : <D> <A> <T> <A> <B> <A> <S> <E>    >
     | <DATABASES: <D> <A> <T> <A> <B> <A> <S> <E> <S>>
@@ -1036,6 +1062,7 @@ TOKEN: {
     | <IF       : <I> <F>                            >
     | <ILIKE    : <I> <L> <I> <K> <E>                >
     | <IN       : <I> <N>                            >
+    | <INFILE   : <I> <N> <F> <I> <L> <E>            >
     | <INNER    : <I> <N> <N> <E> <R>                >
     | <INPUT    : <I> <N> <P> <U> <T>                >
     | <INTERVAL : <I> <N> <T> <E> <R> <V> <A> <L>    >
@@ -1043,6 +1070,7 @@ TOKEN: {
     | <IS       : <I> <S>                            >
     | <JOIN     : <J> <O> <I> <N>                    >
     | <LEFT     : <L> <E> <F> <T>                    >
+    | <LEVEL    : <L> <E> <V> <E> <L>                >
     | <LIKE     : <L> <I> <K> <E>                    >
     | <LIMIT    : <L> <I> <M> <I> <T>                >
     | <LIVE     : <L> <I> <V> <E>                    >
@@ -1063,6 +1091,7 @@ TOKEN: {
     | <RIGHT    : <R> <I> <G> <H> <T>                >
     | <SAMPLE   : <S> <A> <M> <P> <L> <E>            >
     | <SETTINGS : <S> <E> <T> <T> <I> <N> <G> <S>    >
+    | <STDOUT   : <S> <T> <D> <O> <U> <T>            >
     | <TEMPORARY: <T> <E> <M> <P> <O> <R> <A> <R> <Y>>
     | <TABLE    : <T> <A> <B> <L> <E>                >
     | <TABLES   : <T> <A> <B> <L> <E> <S>            >

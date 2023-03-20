@@ -1,6 +1,7 @@
 package com.clickhouse.jdbc;
 
 import java.io.ByteArrayInputStream;
+import java.io.File;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.net.Inet4Address;
@@ -1231,6 +1232,50 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
                 Assert.assertEquals(rs.getObject(2), new byte[] { 1, 2, 3 });
                 Assert.assertEquals(rs.getObject(3), new byte[][] { { 1, 2, 3 }, { 4, 5, 6 } });
                 Assert.assertFalse(rs.next());
+            }
+        }
+    }
+
+    @Test(groups = "integration")
+    public void testOutFileAndInFile() throws SQLException {
+        if (DEFAULT_PROTOCOL != ClickHouseProtocol.HTTP) {
+            throw new SkipException("Skip non-http protocol");
+        }
+
+        Properties props = new Properties();
+        props.setProperty("localFile", "true");
+        File f = new File("f.csv");
+        if (f.exists()) {
+            f.delete();
+        }
+        try (ClickHouseConnection conn = newConnection(props); Statement s = conn.createStatement()) {
+            s.execute("drop table if exists test_load_infile_with_params;"
+                    + "create table test_load_infile_with_params(n Int32, s String) engine=Memory");
+            try (PreparedStatement stmt = conn
+                    .prepareStatement("select number n, toString(n) from numbers(999) into outfile ?")) {
+                stmt.setString(1, f.getName());
+                try (ResultSet rs = stmt.executeQuery()) {
+                    Assert.assertTrue(rs.next());
+                    Assert.assertEquals(rs.getString(1), f.getName());
+                    Assert.assertFalse(rs.next());
+                }
+                Assert.assertTrue(f.exists());
+            }
+
+            try (PreparedStatement stmt = conn
+                    .prepareStatement("insert into test_load_infile_with_params from infile ? format CSV")) {
+                stmt.setString(1, f.getName());
+                stmt.addBatch();
+                stmt.setString(1, f.getName());
+                stmt.addBatch();
+                stmt.executeBatch();
+            }
+
+            try (ResultSet rs = s.executeQuery("select count(1), uniqExact(n) from test_load_infile_with_params")) {
+                Assert.assertTrue(rs.next(), "Should have at least one row");
+                Assert.assertEquals(rs.getInt(1), 999 * 2);
+                Assert.assertEquals(rs.getInt(2), 999);
+                Assert.assertFalse(rs.next(), "Should have only one row");
             }
         }
     }

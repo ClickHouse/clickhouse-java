@@ -126,6 +126,18 @@ public class SqlBasedPreparedStatement extends AbstractPreparedStatement impleme
         }
     }
 
+    private ClickHouseResponse executeStatement(String sql, boolean reparse) throws SQLException {
+        ClickHouseResponse r = null;
+        if (reparse) {
+            // parse the query for the third time...
+            ClickHouseSqlStatement[] stmts = getConnection().parse(sql, getConfig(), null);
+            if (stmts.length == 1 && stmts[0].hasFile()) {
+                r = executeStatement(stmts[0], null, null, null);
+            }
+        }
+        return r != null ? r : executeStatement(builder.toString(), null, null, null);
+    }
+
     @Override
     protected long[] executeAny(boolean asBatch) throws SQLException {
         ensureOpen();
@@ -144,10 +156,11 @@ public class SqlBasedPreparedStatement extends AbstractPreparedStatement impleme
 
         long[] results = new long[counter];
         ClickHouseResponse r = null;
+        boolean reparse = getConnection().getJdbcConfig().useLocalFile() && this.parsedStmt.hasFile();
         if (builder.length() > 0) { // insert ... values
             long rows = 0L;
             try {
-                r = executeStatement(builder.toString(), null, null, null);
+                r = executeStatement(builder.toString(), reparse);
                 if (updateResult(parsedStmt, r) != null && asBatch) {
                     throw SqlExceptionUtils.queryInBatchError(results);
                 }
@@ -194,7 +207,7 @@ public class SqlBasedPreparedStatement extends AbstractPreparedStatement impleme
                     builder.setLength(0);
                     preparedQuery.apply(builder, params);
                     try {
-                        r = executeStatement(builder.toString(), null, null, null);
+                        r = executeStatement(builder.toString(), reparse);
                         if (updateResult(parsedStmt, r) != null && asBatch) {
                             throw SqlExceptionUtils.queryInBatchError(results);
                         }

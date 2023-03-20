@@ -361,10 +361,7 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
             initialMaxInsertBlockSize = r.getValue(7).asLong();
             initialDeleteSupport = r.getValue(8).asInteger();
 
-            String customConf = r.getValue(9).asString();
-            if (!customConf.isEmpty() && customConf.charAt(0) == '\'') {
-                customConf = customConf.substring(1, customConf.length() - 1);
-            }
+            String customConf = ClickHouseUtils.unescape(r.getValue(9).asString());
             if (ClickHouseChecker.isNullOrBlank(customConf)) {
                 jdbcConf = connInfo.getJdbcConfig();
                 client = initialClient;
@@ -1177,15 +1174,18 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
     public ClickHouseSqlStatement[] parse(String sql, ClickHouseConfig config, Map<String, Serializable> settings) {
         ParseHandler handler = null;
         if (jdbcConf.isJdbcCompliant()) {
-            handler = JdbcParseHandler.INSTANCE;
+            boolean allowLwDelete = false;
+            boolean allowLwUpdate = false;
             if (settings != null) {
                 Serializable value = settings.get(SETTING_LW_DELETE);
                 if (value == null ? initialDeleteSupport == 1
                         : ClickHouseOption.fromString(value.toString(), Boolean.class)) {
-                    handler = JdbcParseHandler.WITHOUT_DELETE;
+                    allowLwDelete = true;
                 }
-
             }
+            handler = JdbcParseHandler.getInstance(allowLwDelete, allowLwUpdate, jdbcConf.useLocalFile());
+        } else if (jdbcConf.useLocalFile()) {
+            handler = JdbcParseHandler.getInstance(false, false, true);
         }
         return ClickHouseSqlParser.parse(sql, config != null ? config : clientRequest.getConfig(), handler);
     }

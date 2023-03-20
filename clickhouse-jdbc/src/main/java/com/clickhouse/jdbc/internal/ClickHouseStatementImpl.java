@@ -3,6 +3,7 @@ package com.clickhouse.jdbc.internal;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.Serializable;
+import java.nio.file.Path;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
@@ -24,16 +25,21 @@ import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.ClickHouseResponseSummary;
+import com.clickhouse.client.ClickHouseSimpleResponse;
 import com.clickhouse.client.ClickHouseTransaction;
 import com.clickhouse.client.ClickHouseRequest.Mutation;
 import com.clickhouse.client.config.ClickHouseClientOption;
+import com.clickhouse.client.config.ClickHouseDefaults;
 import com.clickhouse.config.ClickHouseConfigChangeListener;
 import com.clickhouse.config.ClickHouseOption;
 import com.clickhouse.data.ClickHouseChecker;
 import com.clickhouse.data.ClickHouseColumn;
+import com.clickhouse.data.ClickHouseCompression;
 import com.clickhouse.data.ClickHouseDataProcessor;
 import com.clickhouse.data.ClickHouseDataStreamFactory;
+import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseExternalTable;
+import com.clickhouse.data.ClickHouseFile;
 import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.data.ClickHouseInputStream;
 import com.clickhouse.data.ClickHouseOutputStream;
@@ -133,6 +139,17 @@ public class ClickHouseStatementImpl extends JdbcWrapper
         }
     }
 
+    protected ClickHouseFile getFile(ClickHouseFile f, ClickHouseSqlStatement stmt) {
+        ClickHouseFormat format = stmt.hasFormat() ? ClickHouseFormat.valueOf(stmt.getFormat())
+                : (f.isRecognized() ? f.getFormat()
+                        : (ClickHouseFormat) ClickHouseDefaults.FORMAT.getDefaultValue());
+        ClickHouseCompression compressAlgorithm = stmt.hasCompressAlgorithm()
+                ? ClickHouseCompression.fromEncoding(ClickHouseUtils.unescape(stmt.getCompressAlgorithm()))
+                : (f.isRecognized() ? f.getCompressionAlgorithm() : ClickHouseCompression.NONE);
+        int compressLevel = stmt.hasCompressLevel() ? Integer.parseInt(stmt.getCompressLevel()) : -1;
+        return ClickHouseFile.of(f.getFile(), compressAlgorithm, compressLevel, format);
+    }
+
     protected ClickHouseResponse processSqlStatement(ClickHouseSqlStatement stmt) throws SQLException {
         if (stmt.getStatementType() == StatementType.USE) {
             String dbName = connection.getCurrentDatabase();
@@ -166,6 +183,56 @@ public class ClickHouseStatementImpl extends JdbcWrapper
                 throw new SQLFeatureNotSupportedException("Unsupported TCL: " + stmt.getSQL());
             }
             return ClickHouseResponse.EMPTY;
+        } else if (connection.getJdbcConfig().useLocalFile() && stmt.hasFile()) {
+            final String file = ClickHouseUtils.unescape(stmt.getFile());
+            if (stmt.getStatementType() == StatementType.SELECT) {
+                ClickHouseFile f = ClickHouseFile.of(file);
+                if (f.getFile().exists()) {
+                    throw SqlExceptionUtils
+                            .clientError(ClickHouseUtils.format("Output file [%s] already exists!", f.getFile()));
+                }
+
+                final ClickHouseResponseSummary summary = new ClickHouseResponseSummary(null, null);
+                try (ClickHouseResponse response = request.query(stmt.getSQL()).output(getFile(f, stmt))
+                        .executeAndWait()) {
+                    summary.add(response.getSummary());
+                } catch (ClickHouseException e) {
+                    throw SqlExceptionUtils.handle(e);
+                }
+                return ClickHouseSimpleResponse.of(getConfig(),
+                        Arrays.asList(ClickHouseColumn.of("file", ClickHouseDataType.String, false),
+                                ClickHouseColumn.of("rows", ClickHouseDataType.UInt64, false),
+                                ClickHouseColumn.of("bytes", ClickHouseDataType.UInt64, false)),
+                        new Object[][] {
+                                { file, summary.getReadRows(), summary.getReadBytes() }
+                        }, summary);
+            } else if (stmt.getStatementType() == StatementType.INSERT) {
+                final Mutation m = request.write().query(stmt.getSQL());
+                final ClickHouseResponseSummary summary = new ClickHouseResponseSummary(null, null);
+                try {
+                    for (Path p : ClickHouseUtils.findFiles(file)) {
+                        ClickHouseFile f = ClickHouseFile.of(p.toFile());
+                        if (!f.getFile().exists()) {
+                            log.warn("Skip [%s] as it does not exist", f);
+                        } else {
+                            try (ClickHouseResponse response = m.data(getFile(f, stmt)).executeAndWait()) {
+                                summary.add(response.getSummary());
+                                log.debug("Loaded %d rows from [%s]", response.getSummary().getWrittenRows(),
+                                        f.getFile().getAbsolutePath());
+                            } catch (ClickHouseException e) {
+                                throw SqlExceptionUtils.handle(e);
+                            }
+                        }
+                    }
+                    if (summary.getUpdateCount() == 0) {
+                        throw SqlExceptionUtils.clientError("No file imported: " + file);
+                    }
+                    summary.seal();
+                } catch (IOException e) {
+                    throw SqlExceptionUtils.handle(e);
+                }
+                return ClickHouseSimpleResponse.of(null, null, new Object[0][], summary);
+            }
         }
 
         return null;

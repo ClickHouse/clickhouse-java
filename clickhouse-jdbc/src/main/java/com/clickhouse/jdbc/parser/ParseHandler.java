@@ -32,23 +32,26 @@ public abstract class ParseHandler {
     /**
      * Hanlde statemenet.
      * 
-     * @param sql        sql statement
-     * @param stmtType   statement type
-     * @param cluster    cluster
-     * @param database   database
-     * @param table      table
-     * @param format     format
-     * @param input      input
-     * @param outfile    outfile
-     * @param parameters positions of parameters
-     * @param positions  keyword positions
-     * @param settings   settings
-     * @param tempTables temporary tables
+     * @param sql               sql statement
+     * @param stmtType          statement type
+     * @param cluster           cluster
+     * @param database          database
+     * @param table             table
+     * @param compressAlgorithm compression algorithm
+     * @param compressLevel     compression level
+     * @param format            format
+     * @param input             input
+     * @param file              infile or outfile
+     * @param parameters        positions of parameters
+     * @param positions         keyword positions
+     * @param settings          settings
+     * @param tempTables        temporary tables
      * @return sql statement, or null means no change
      */
     public ClickHouseSqlStatement handleStatement(String sql, StatementType stmtType, String cluster, String database,
-            String table, String input, String format, String outfile, List<Integer> parameters,
-            Map<String, Integer> positions, Map<String, String> settings, Set<String> tempTables) {
+            String table, String input, String compressAlgorithm, String compressLevel, String format, String file,
+            List<Integer> parameters, Map<String, Integer> positions, Map<String, String> settings,
+            Set<String> tempTables) {
         return null;
     }
 }
