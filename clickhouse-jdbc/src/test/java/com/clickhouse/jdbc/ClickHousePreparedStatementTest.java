@@ -695,6 +695,24 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
     }
 
     @Test(groups = "integration")
+    public void testBatchDdl() throws SQLException {
+        Properties props = new Properties();
+        try (ClickHouseConnection conn = newConnection(props)) {
+            try (PreparedStatement stmt = conn.prepareStatement(
+                    "drop table if exists test_batch_dll_on_cluster on cluster test_shard_localhost")) {
+                stmt.addBatch();
+                stmt.addBatch();
+                Assert.assertEquals(stmt.executeBatch(), new int[] { 0, 0 });
+            }
+
+            try (PreparedStatement stmt = conn.prepareStatement("select 1")) {
+                stmt.addBatch();
+                Assert.assertThrows(BatchUpdateException.class, () -> stmt.executeBatch());
+            }
+        }
+    }
+
+    @Test(groups = "integration")
     public void testBatchInsert() throws SQLException {
         try (ClickHouseConnection conn = newConnection(new Properties());
                 ClickHouseStatement s = conn.createStatement();

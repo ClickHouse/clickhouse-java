@@ -69,6 +69,22 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
     }
 
     @Test(groups = "integration")
+    public void testBatchUpdate() throws SQLException {
+        Properties props = new Properties();
+        try (ClickHouseConnection conn = newConnection(props); ClickHouseStatement stmt = conn.createStatement()) {
+            stmt.addBatch("drop table if exists test_batch_dll_on_cluster on cluster test_shard_localhost");
+            stmt.addBatch(
+                    "create table if not exists test_batch_dll_on_cluster on cluster test_shard_localhost(a Int64) Engine=MergeTree order by a;"
+                            + "drop table if exists test_batch_dll_on_cluster on cluster test_shard_localhost;");
+            Assert.assertEquals(stmt.executeBatch(), new int[] { 0, 0, 0 });
+
+            stmt.addBatch("drop table if exists test_batch_queries");
+            stmt.addBatch("select 1");
+            Assert.assertThrows(BatchUpdateException.class, () -> stmt.executeBatch());
+        }
+    }
+
+    @Test(groups = "integration")
     public void testBitmap64() throws SQLException {
         Properties props = new Properties();
         String sql = "select k,\n"

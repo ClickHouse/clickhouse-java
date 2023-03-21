@@ -101,7 +101,7 @@ public class TableBasedPreparedStatement extends AbstractPreparedStatement imple
             for (List<ClickHouseExternalTable> list : batch) {
                 try (ClickHouseResponse r = executeStatement(sql, null, list, null);
                         ResultSet rs = updateResult(parsedStmt, r)) {
-                    if (asBatch && rs != null) {
+                    if (asBatch && rs != null && parsedStmt.isQuery()) {
                         throw SqlExceptionUtils.queryInBatchError(results);
                     }
                     long rows = getLargeUpdateCount();
