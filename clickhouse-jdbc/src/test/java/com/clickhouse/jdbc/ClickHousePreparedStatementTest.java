@@ -698,6 +698,9 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
     public void testBatchDdl() throws SQLException {
         Properties props = new Properties();
         try (ClickHouseConnection conn = newConnection(props)) {
+            if (!conn.getServerVersion().check("[22.8,)")) {
+                throw new SkipException("Skip due to error 'unknown key zookeeper_load_balancing'");
+            }
             try (PreparedStatement stmt = conn.prepareStatement(
                     "drop table if exists test_batch_dll_on_cluster on cluster test_shard_localhost")) {
                 stmt.addBatch();
