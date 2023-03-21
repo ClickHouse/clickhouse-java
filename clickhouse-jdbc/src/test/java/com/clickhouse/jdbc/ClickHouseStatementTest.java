@@ -159,15 +159,27 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
         }
 
         try (ClickHouseConnection conn = newConnection(props)) {
-            try (ClickHouseStatement stmt = conn.createStatement();
-                    ResultSet rs = stmt.executeQuery(
-                            "select number n, toString(n) from numbers(1234) into outfile '" + f1.getName() + "'")) {
+            String sql1 = "select number n, toString(n) from numbers(1234) into outfile '" + f1.getName() + "'";
+            try (ClickHouseStatement stmt = conn.createStatement(); ResultSet rs = stmt.executeQuery(sql1)) {
                 Assert.assertTrue(rs.next());
                 Assert.assertFalse(rs.next());
+                Assert.assertTrue(f1.exists());
+                // end up with exception because the file already exists
+                Assert.assertThrows(SQLException.class, () -> stmt.executeQuery(sql1));
             }
+
+            // try again with ! suffix to override the existing file
+            String sql = "select number n, toString(n) from numbers(1234) into outfile '" + f1.getName() + "!'";
             try (ClickHouseStatement stmt = conn.createStatement();
-                    ResultSet rs = stmt.executeQuery(
-                            "select number n, toString(n) from numbers(4321) into outfile '" + f2.getName() + "'")) {
+                    ResultSet rs = stmt.executeQuery(sql)) {
+                Assert.assertTrue(rs.next());
+                Assert.assertFalse(rs.next());
+                Assert.assertTrue(f1.exists());
+            }
+
+            sql = "select number n, toString(n) from numbers(4321) into outfile '" + f2.getName() + "!'";
+            try (ClickHouseStatement stmt = conn.createStatement();
+                    ResultSet rs = stmt.executeQuery(sql)) {
                 Assert.assertTrue(rs.next());
                 Assert.assertFalse(rs.next());
             }
@@ -176,6 +188,19 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
                 Assert.assertFalse(stmt.execute(
                         "drop table if exists test_load_infile; create table test_load_infile(n UInt64, s String)engine=Memory"));
                 stmt.executeUpdate("insert into test_load_infile from infile 'a?.csv'");
+                try (ResultSet rs = stmt.executeQuery("select count(1) from test_load_infile")) {
+                    Assert.assertTrue(rs.next());
+                    Assert.assertEquals(rs.getInt(1), 5555);
+                    Assert.assertFalse(rs.next());
+                }
+            }
+
+            try (ClickHouseStatement stmt = conn.createStatement()) {
+                // it's fine when no record was inserted
+                stmt.executeUpdate("insert into test_load_infile from infile 'non-existent.csv'");
+                // unless suffix ! was added...
+                Assert.assertThrows(SQLException.class,
+                        () -> stmt.executeUpdate("insert into test_load_infile from infile 'non-existent.csv!'"));
                 try (ResultSet rs = stmt.executeQuery("select count(1) from test_load_infile")) {
                     Assert.assertTrue(rs.next());
                     Assert.assertEquals(rs.getInt(1), 5555);

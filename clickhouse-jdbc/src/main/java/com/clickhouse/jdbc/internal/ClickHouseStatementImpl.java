@@ -184,28 +184,35 @@ public class ClickHouseStatementImpl extends JdbcWrapper
             }
             return ClickHouseResponse.EMPTY;
         } else if (connection.getJdbcConfig().useLocalFile() && stmt.hasFile()) {
-            final String file = ClickHouseUtils.unescape(stmt.getFile());
+            String file = ClickHouseUtils.unescape(stmt.getFile());
+            boolean suffix = file.lastIndexOf('!') == file.length() - 1;
+            if (suffix) {
+                file = file.substring(0, file.length() - 1);
+            }
             if (stmt.getStatementType() == StatementType.SELECT) {
-                ClickHouseFile f = ClickHouseFile.of(file);
-                if (f.getFile().exists()) {
+                ClickHouseFile f = ClickHouseFile.of(ClickHouseUtils.getFile(file));
+                if (!suffix && f.getFile().exists()) {
                     throw SqlExceptionUtils
                             .clientError(ClickHouseUtils.format("Output file [%s] already exists!", f.getFile()));
                 }
 
+                f = getFile(f, stmt);
                 final ClickHouseResponseSummary summary = new ClickHouseResponseSummary(null, null);
-                try (ClickHouseResponse response = request.query(stmt.getSQL()).output(getFile(f, stmt))
-                        .executeAndWait()) {
+                try (ClickHouseResponse response = request.query(stmt.getSQL()).output(f).executeAndWait()) {
                     summary.add(response.getSummary());
                 } catch (ClickHouseException e) {
                     throw SqlExceptionUtils.handle(e);
                 }
                 return ClickHouseSimpleResponse.of(getConfig(),
                         Arrays.asList(ClickHouseColumn.of("file", ClickHouseDataType.String, false),
-                                ClickHouseColumn.of("rows", ClickHouseDataType.UInt64, false),
+                                ClickHouseColumn.of("format", ClickHouseDataType.String, false),
+                                ClickHouseColumn.of("compression", ClickHouseDataType.String, false),
+                                ClickHouseColumn.of("level", ClickHouseDataType.Int32, false),
                                 ClickHouseColumn.of("bytes", ClickHouseDataType.UInt64, false)),
-                        new Object[][] {
-                                { file, summary.getReadRows(), summary.getReadBytes() }
-                        }, summary);
+                        new Object[][] { { file, f.getFormat().name(),
+                                f.hasCompression() ? f.getCompressionAlgorithm().encoding() : "none",
+                                f.getCompressionLevel(), f.getFile().length() } },
+                        summary);
             } else if (stmt.getStatementType() == StatementType.INSERT) {
                 final Mutation m = request.write().query(stmt.getSQL());
                 final ClickHouseResponseSummary summary = new ClickHouseResponseSummary(null, null);
@@ -213,7 +220,12 @@ public class ClickHouseStatementImpl extends JdbcWrapper
                     for (Path p : ClickHouseUtils.findFiles(file)) {
                         ClickHouseFile f = ClickHouseFile.of(p.toFile());
                         if (!f.getFile().exists()) {
-                            log.warn("Skip [%s] as it does not exist", f);
+                            if (suffix) {
+                                throw SqlExceptionUtils
+                                        .clientError(ClickHouseUtils.format("File [%s] does not exist!", f.getFile()));
+                            } else {
+                                log.warn("Skip [%s] as it does not exist - perhaps it was just deleted somehow?", f);
+                            }
                         } else {
                             try (ClickHouseResponse response = m.data(getFile(f, stmt)).executeAndWait()) {
                                 summary.add(response.getSummary());
@@ -224,7 +236,7 @@ public class ClickHouseStatementImpl extends JdbcWrapper
                             }
                         }
                     }
-                    if (summary.getUpdateCount() == 0) {
+                    if (suffix && summary.getUpdateCount() == 0) {
                         throw SqlExceptionUtils.clientError("No file imported: " + file);
                     }
                     summary.seal();
