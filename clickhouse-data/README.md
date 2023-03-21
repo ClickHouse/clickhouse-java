@@ -8,7 +8,7 @@
 <dependency>
     <groupId>com.clickhouse</groupId>
     <artifactId>clickhouse-data</artifactId>
-    <version>0.4.1</version>
+    <version>0.4.2</version>
 </dependency>
 ```
 
