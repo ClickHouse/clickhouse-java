@@ -1,5 +1,4 @@
-## 0.4.2
-
+## 0.4.2, 2023-03-21
 ### Breaking Changes
 * ClickHouseSqlStatement and *ParserHandler in JDBC driver were refactored to support `compression` and `infile` in insert statement.
 
