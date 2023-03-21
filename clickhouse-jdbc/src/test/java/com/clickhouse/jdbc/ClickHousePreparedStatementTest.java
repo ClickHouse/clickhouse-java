@@ -695,6 +695,27 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
     }
 
     @Test(groups = "integration")
+    public void testBatchDdl() throws SQLException {
+        Properties props = new Properties();
+        try (ClickHouseConnection conn = newConnection(props)) {
+            if (!conn.getServerVersion().check("[22.8,)")) {
+                throw new SkipException("Skip due to error 'unknown key zookeeper_load_balancing'");
+            }
+            try (PreparedStatement stmt = conn.prepareStatement(
+                    "drop table if exists test_batch_dll_on_cluster on cluster test_shard_localhost")) {
+                stmt.addBatch();
+                stmt.addBatch();
+                Assert.assertEquals(stmt.executeBatch(), new int[] { 0, 0 });
+            }
+
+            try (PreparedStatement stmt = conn.prepareStatement("select 1")) {
+                stmt.addBatch();
+                Assert.assertThrows(BatchUpdateException.class, () -> stmt.executeBatch());
+            }
+        }
+    }
+
+    @Test(groups = "integration")
     public void testBatchInsert() throws SQLException {
         try (ClickHouseConnection conn = newConnection(new Properties());
                 ClickHouseStatement s = conn.createStatement();

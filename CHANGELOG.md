@@ -17,6 +17,7 @@
 * transaction failure introduced 0.4.0.
 * respect node-specific credentials. [#1114](https://github.com/ClickHouse/clickhouse-java/issues/1114)
 * USE statement does nothing. [#1160](https://github.com/ClickHouse/clickhouse-java/issues/1160)
+* executeBatch does not support on cluster anymore. [#1261](https://github.com/ClickHouse/clickhouse-java/issues/1261)
 
 ## 0.4.1, 2023-02-19
 ### Breaking Changes

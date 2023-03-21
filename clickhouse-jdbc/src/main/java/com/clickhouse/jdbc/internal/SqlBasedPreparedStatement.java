@@ -161,7 +161,7 @@ public class SqlBasedPreparedStatement extends AbstractPreparedStatement impleme
             long rows = 0L;
             try {
                 r = executeStatement(builder.toString(), reparse);
-                if (updateResult(parsedStmt, r) != null && asBatch) {
+                if (updateResult(parsedStmt, r) != null && asBatch && parsedStmt.isQuery()) {
                     throw SqlExceptionUtils.queryInBatchError(results);
                 }
                 rows = r.getSummary().getWrittenRows();
@@ -208,7 +208,7 @@ public class SqlBasedPreparedStatement extends AbstractPreparedStatement impleme
                     preparedQuery.apply(builder, params);
                     try {
                         r = executeStatement(builder.toString(), reparse);
-                        if (updateResult(parsedStmt, r) != null && asBatch) {
+                        if (updateResult(parsedStmt, r) != null && asBatch && parsedStmt.isQuery()) {
                             throw SqlExceptionUtils.queryInBatchError(results);
                         }
                         int count = getUpdateCount();

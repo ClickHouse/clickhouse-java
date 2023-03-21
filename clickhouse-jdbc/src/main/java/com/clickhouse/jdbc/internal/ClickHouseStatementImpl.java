@@ -772,7 +772,7 @@ public class ClickHouseStatementImpl extends JdbcWrapper
             int i = 0;
             for (ClickHouseSqlStatement s : batchStmts) {
                 try (ClickHouseResponse r = executeStatement(s, null, null, null); ResultSet rs = updateResult(s, r)) {
-                    if (rs != null) {
+                    if (rs != null && s.isQuery()) {
                         throw SqlExceptionUtils.queryInBatchError(results);
                     }
                     results[i] = currentUpdateCount <= 0L ? 0L : currentUpdateCount;
