@@ -1260,6 +1260,15 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
                     Assert.assertFalse(rs.next());
                 }
                 Assert.assertTrue(f.exists());
+
+                stmt.setString(1, f.getName());
+                Assert.assertThrows(SQLException.class, () -> stmt.executeQuery());
+                stmt.setString(1, f.getName() + "!");
+                try (ResultSet rs = stmt.executeQuery()) {
+                    Assert.assertTrue(rs.next());
+                    Assert.assertEquals(rs.getString(1), f.getName());
+                    Assert.assertFalse(rs.next());
+                }
             }
 
             try (PreparedStatement stmt = conn
@@ -1268,12 +1277,14 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
                 stmt.addBatch();
                 stmt.setString(1, f.getName());
                 stmt.addBatch();
+                stmt.setString(1, f.getName() + "!");
+                stmt.addBatch();
                 stmt.executeBatch();
             }
 
             try (ResultSet rs = s.executeQuery("select count(1), uniqExact(n) from test_load_infile_with_params")) {
                 Assert.assertTrue(rs.next(), "Should have at least one row");
-                Assert.assertEquals(rs.getInt(1), 999 * 2);
+                Assert.assertEquals(rs.getInt(1), 999 * 3);
                 Assert.assertEquals(rs.getInt(2), 999);
                 Assert.assertFalse(rs.next(), "Should have only one row");
             }
