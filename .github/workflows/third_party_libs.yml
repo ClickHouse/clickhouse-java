@@ -6,7 +6,7 @@ on:
       version:
         description: "Release version"
         required: true
-        default: "1.8.0"
+        default: "1.9.0"
 
 jobs:
   release:

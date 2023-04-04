@@ -7,16 +7,16 @@
         <version>${revision}</version>
     </parent>
 
-    <artifactId>com.javacc</artifactId>
+    <artifactId>org.congocc</artifactId>
     <packaging>jar</packaging>
 
     <name>${project.artifactId}</name>
-    <description>Repackaged JavaCC for generating SQL parser</description>
-    <url>https://github.com/ClickHouse/clickhouse-java/tree/main/third-party-libraries/com.javacc</url>
+    <description>Repackaged CongoCC Parser Generator for generating SQL parser</description>
+    <url>https://github.com/ClickHouse/clickhouse-java/tree/main/third-party-libraries/org.congocc</url>
 
     <properties>
-        <javacc.dir>javacc21-master</javacc.dir>
-        <javacc.src.zip>https://github.com/javacc21/javacc21/archive/refs/heads/master.zip</javacc.src.zip>
+        <congocc.dir>congo-parser-generator-main</congocc.dir>
+        <congocc.src.zip>https://github.com/congo-cc/congo-parser-generator/archive/refs/heads/main.zip</congocc.src.zip>
     </properties>
 
     <build>
@@ -26,12 +26,12 @@
                 <artifactId>maven-antrun-plugin</artifactId>
                 <executions>
                     <execution>
-                        <id>get-javacc</id>
+                        <id>get-congocc</id>
                         <phase>clean</phase>
                         <configuration>
                             <target>
-                                <get src="${javacc.src.zip}" dest="${project.build.directory}/javacc.zip" />
-                                <unzip src="${project.build.directory}/javacc.zip" dest="${project.build.directory}" />
+                                <get src="${congocc.src.zip}" dest="${project.build.directory}/congocc.zip" />
+                                <unzip src="${project.build.directory}/congocc.zip" dest="${project.build.directory}" />
                             </target>
                         </configuration>
                         <goals>
@@ -39,14 +39,14 @@
                         </goals>
                     </execution>
                     <execution>
-                        <id>build-javacc</id>
+                        <id>build-congocc</id>
                         <phase>initialize</phase>
                         <configuration>
                             <target>
-                                <ant antfile="${project.build.directory}/${javacc.dir}/build.xml" dir="${project.build.directory}/${javacc.dir}">
+                                <ant antfile="${project.build.directory}/${congocc.dir}/build.xml" dir="${project.build.directory}/${congocc.dir}">
                                     <target name="full-jar" />
                                 </ant>
-                                <unzip src="${project.build.directory}/${javacc.dir}/javacc-full.jar" dest="${project.build.directory}/classes" />
+                                <unzip src="${project.build.directory}/${congocc.dir}/congocc-full.jar" dest="${project.build.directory}/classes" />
                             </target>
                         </configuration>
                         <goals>
@@ -63,7 +63,7 @@
                         <manifestFile>${project.build.directory}/classes/META-INF/MANIFEST.MF</manifestFile>
                     </archive>
                     <excludes>
-                        <exclude>com/javacc/DummyClass.class</exclude>
+                        <exclude>org/congocc/DummyClass.class</exclude>
                     </excludes>
                 </configuration>
             </plugin>
