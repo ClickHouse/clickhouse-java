@@ -37,9 +37,9 @@
     </developers>
 
     <modules>
-        <module>com.javacc</module>
         <module>io.grpc</module>
         <module>org.apache.commons.compress</module>
+        <module>org.congocc</module>
         <module>org.roaringbitmap</module>
     </modules>
 
@@ -72,27 +72,27 @@
     </distributionManagement>
 
     <properties>
-        <revision>1.8.0</revision>
+        <revision>1.9.0</revision>
         <project.current.year>2023</project.current.year>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
         <annotations-api.version>6.0.53</annotations-api.version>
-        <compress.version>1.22</compress.version>
-        <grpc.version>1.53.0</grpc.version>
+        <compress.version>1.23.0</compress.version>
+        <grpc.version>1.54.0</grpc.version>
         <gson.version>2.10.1</gson.version>
         <opencensus.version>0.31.1</opencensus.version>
         <roaring-bitmap.version>0.9.39</roaring-bitmap.version>
 
         <antrun-plugin.version>3.1.0</antrun-plugin.version>
-        <compiler-plugin.version>3.10.1</compiler-plugin.version>
-        <deploy-plugin.version>3.0.0</deploy-plugin.version>
-        <flatten-plugin.version>1.2.7</flatten-plugin.version>
+        <compiler-plugin.version>3.11.0</compiler-plugin.version>
+        <deploy-plugin.version>3.1.1</deploy-plugin.version>
+        <flatten-plugin.version>1.4.1</flatten-plugin.version>
         <gpg-plugin.version>3.0.1</gpg-plugin.version>
-        <jar-plugin.version>3.2.2</jar-plugin.version>
-        <javadoc-plugin.version>3.4.0</javadoc-plugin.version>
-        <moditect-plugin.version>1.0.0.RC2</moditect-plugin.version>
-        <shade-plugin.version>3.3.0</shade-plugin.version>
+        <jar-plugin.version>3.3.0</jar-plugin.version>
+        <javadoc-plugin.version>3.5.0</javadoc-plugin.version>
+        <moditect-plugin.version>1.0.0.RC3</moditect-plugin.version>
+        <shade-plugin.version>3.4.1</shade-plugin.version>
         <source-plugin.version>3.2.1</source-plugin.version>
         <staging-plugin.version>1.6.13</staging-plugin.version>
     </properties>

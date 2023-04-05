@@ -1,4 +1,4 @@
-package com.javacc;
+package org.congocc;
 
 /**
  * Dummy class for generating sources and javadoc jars.
