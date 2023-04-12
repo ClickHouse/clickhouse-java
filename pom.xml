@@ -97,12 +97,12 @@
         <brotli4j.version>1.11.0</brotli4j.version>
         <byte-buddy.version>1.14.0</byte-buddy.version>
         <caffeine.version>3.1.4</caffeine.version>
-        <compress.version>1.22</compress.version>
+        <compress.version>1.23.0</compress.version>
         <dnsjava.version>3.5.2</dnsjava.version>
         <fastutil.version>8.5.11</fastutil.version>
-        <graphql.version>20.0</graphql.version>
         <grpc.version>1.53.0</grpc.version>
         <gson.version>2.10.1</gson.version>
+        <janino.version>3.1.9</janino.version>
         <jctools.version>4.0.1</jctools.version>
         <opencensus.version>0.31.1</opencensus.version>
         <protobuf.version>3.22.0</protobuf.version>
@@ -121,18 +121,18 @@
         <mysql-driver.version>8.0.32</mysql-driver.version>
         <postgresql-driver.version>42.5.4</postgresql-driver.version>
 
-        <repackaged.version>1.8.0</repackaged.version>
+        <repackaged.version>1.9.0</repackaged.version>
         <shade.base>${project.groupId}.client.internal</shade.base>
 
         <antrun-plugin.version>3.1.0</antrun-plugin.version>
         <assembly-plugin.version>3.5.0</assembly-plugin.version>
         <clean-plugin.version>3.2.0</clean-plugin.version>
         <compiler-plugin.version>3.11.0</compiler-plugin.version>
-        <deploy-plugin.version>3.1.0</deploy-plugin.version>
+        <deploy-plugin.version>3.1.1</deploy-plugin.version>
         <enforcer-plugin.version>3.2.1</enforcer-plugin.version>
         <exec-plugin.version>3.1.0</exec-plugin.version>
         <failsafe-plugin.version>3.0.0-M9</failsafe-plugin.version>
-        <flatten-plugin.version>1.2.7</flatten-plugin.version>
+        <flatten-plugin.version>1.4.1</flatten-plugin.version>
         <git-plugin.version>4.9.9</git-plugin.version>
         <gpg-plugin.version>3.0.1</gpg-plugin.version>
         <helper-plugin.version>3.3.0</helper-plugin.version>
@@ -226,11 +226,6 @@
                 <version>${zstd-jni.version}</version>
             </dependency>
             <dependency>
-                <groupId>com.graphql-java</groupId>
-                <artifactId>graphql-java</artifactId>
-                <version>${graphql.version}</version>
-            </dependency>
-            <dependency>
                 <groupId>dnsjava</groupId>
                 <artifactId>dnsjava</artifactId>
                 <version>${dnsjava.version}</version>
@@ -322,6 +317,11 @@
                 <groupId>org.brotli</groupId>
                 <artifactId>dec</artifactId>
                 <version>${brotli.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.codehaus.janino</groupId>
+                <artifactId>janino</artifactId>
+                <version>${janino.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.jctools</groupId>
