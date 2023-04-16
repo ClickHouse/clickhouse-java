@@ -24,7 +24,6 @@ public class ClickHouseStatement implements Statement {
 
     private static final Logger log = LoggerFactory.getLogger(ClickHouseStatement.class);
 
-    private static final ClickHouseFormat PREFERRED_FORMAT = ClickHouseFormat.TabSeparatedWithNamesAndTypes;
     private static final String NULL_VALUES_ARE_NOT_ALLOWED_AS_VALUE = "null values are not allowed as value.";
     private static final String CLASS_TYPES_ARE_NOT_ALLOWED_AS_VALUE = "class types are not allowed as value.";
     private static final String INVALID_PARAMETER_INDEX = "Invalid parameter index! Parameter index must be greater than 0.";
@@ -43,9 +42,7 @@ public class ClickHouseStatement implements Statement {
     private int fetchSize;
 
     public ClickHouseStatement(String sql, ClickHouseRequest<?> request) {
-        this.request = request
-                .format(PREFERRED_FORMAT)
-                .query(sql);
+        this.request = request.query(sql);
         namedParameters = request.getPreparedQuery().getParameters();
         bindings = new ClickHouseStatementBinding(namedParameters.size());
     }

@@ -1,12 +1,13 @@
 package com.clickhouse.r2dbc.connection;
 
 import com.clickhouse.client.ClickHouseClient;
+import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseNodeSelector;
-import com.clickhouse.client.ClickHouseNodes;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.config.ClickHouseClientOption;
+import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.logging.Logger;
 import com.clickhouse.logging.LoggerFactory;
 import com.clickhouse.r2dbc.ClickHouseBatch;
@@ -22,6 +23,7 @@ import org.reactivestreams.Publisher;
 import reactor.core.publisher.Mono;
 
 import java.time.Duration;
+import java.util.function.Function;
 
 import static reactor.core.publisher.Mono.just;
 
@@ -31,16 +33,20 @@ public class ClickHouseConnection implements Connection {
 
     private static final String PRODUCT_NAME = "ClickHouse-R2dbcDriver";
 
-    public static final int DEFAULT_TIMEOUT_FOR_CONNECTION_HEALTH_CHECK = (Integer) ClickHouseClientOption.CONNECTION_TIMEOUT.getDefaultValue();
+    public static final int DEFAULT_TIMEOUT_FOR_CONNECTION_HEALTH_CHECK = (Integer) ClickHouseClientOption.CONNECTION_TIMEOUT
+            .getDefaultValue();
     final ClickHouseClient client;
     final ClickHouseNode node;
     private boolean closed = false;
 
-    ClickHouseConnection(ClickHouseNodes nodes) {
+    ClickHouseConnection(Function<ClickHouseNodeSelector, ClickHouseNode> nodes) {
         this.node = nodes.apply(ClickHouseNodeSelector.EMPTY);
-        this.client = ClickHouseClient.newInstance(node.getProtocol());
-    }
 
+        ClickHouseConfig config = this.node.getConfig();
+        this.client = ClickHouseClient.builder()
+                .option(ClickHouseClientOption.FORMAT, ClickHouseFormat.RowBinaryWithNamesAndTypes).config(config)
+                .nodeSelector(ClickHouseNodeSelector.of(this.node.getProtocol())).build();
+    }
 
     /**
      * Transactions are not supported so this is a no-op implementation,
@@ -129,7 +135,6 @@ public class ClickHouseConnection implements Connection {
         return true;
     }
 
-
     @Override
     public ConnectionMetadata getMetadata() {
         return new ClickHouseConnectionMetadata(client, node);
@@ -196,7 +201,7 @@ public class ClickHouseConnection implements Connection {
     @Override
     public Publisher<Boolean> validate(ValidationDepth validationDepth) {
         if (validationDepth == ValidationDepth.REMOTE) {
-            return closed ? just(false) :  just(client.ping(node, DEFAULT_TIMEOUT_FOR_CONNECTION_HEALTH_CHECK));
+            return closed ? just(false) : just(client.ping(node, DEFAULT_TIMEOUT_FOR_CONNECTION_HEALTH_CHECK));
         } else { // validationDepth.LOCAL
             return just(client != null && !closed);
         }
