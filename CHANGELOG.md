@@ -1,3 +1,8 @@
+## 0.4.3
+### Bug Fixes
+* r2dbc driver does not support most client options. [#1299](https://github.com/ClickHouse/clickhouse-java/issues/1299)
+* incorrect content from Lz4InputStream when using text-based data format [#48446](https://github.com/ClickHouse/ClickHouse/issues/48446)
+
 ## 0.4.2, 2023-03-21
 ### Breaking Changes
 * ClickHouseSqlStatement and *ParserHandler in JDBC driver were refactored to support `compression` and `infile` in insert statement.

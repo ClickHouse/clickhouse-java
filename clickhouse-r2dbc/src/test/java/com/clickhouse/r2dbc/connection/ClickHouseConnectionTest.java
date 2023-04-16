@@ -24,7 +24,8 @@ public class ClickHouseConnectionTest extends BaseR2dbcTest {
                 .then()
                 .block();
 
-        Assert.assertEquals(builder.toString(), expectedStringResults);
+        Assert.assertNull("Should not run into error", error.get());
+        Assert.assertEquals(expectedStringResults, builder.toString());
     }
 
     @Test
