@@ -9,6 +9,8 @@ import java.sql.Statement;
 import java.util.Properties;
 import java.util.UUID;
 
+import com.clickhouse.client.ClickHouseProtocol;
+import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.data.ClickHouseCompression;
 import com.clickhouse.data.ClickHouseUtils;
@@ -28,7 +30,15 @@ public class ClickHouseConnectionTest extends JdbcIntegrationTest {
     public void testCentralizedConfiguration() throws SQLException {
         Properties props = new Properties();
         props.setProperty("custom_settings", "max_result_rows=1");
-        try (ClickHouseConnection conn = newConnection(props)) {
+        try (ClickHouseConnection conn = newConnection(props); Statement stmt = conn.createStatement()) {
+            // gRPC stopped working since 23.3 with below error:
+            // SQL Code: 649, DB::Exception: Transaction Control Language queries are
+            // allowed only inside session: while starting a transaction with
+            // 'implicit_transaction'
+            if (stmt.unwrap(ClickHouseRequest.class).getServer().getProtocol() == ClickHouseProtocol.GRPC) {
+                throw new SkipException("Skip the test as transaction is supported since 22.7");
+            }
+
             Assert.assertEquals(conn.getConfig().getResponseCompressAlgorithm(), ClickHouseCompression.LZ4);
             Assert.assertTrue(conn.getJdbcConfig().isAutoCommit());
             Assert.assertFalse(conn.getJdbcConfig().isTransactionSupported());
@@ -121,7 +131,12 @@ public class ClickHouseConnectionTest extends JdbcIntegrationTest {
 
         for (int i = 0; i < 10; i++) {
             try (ClickHouseConnection conn = newConnection(props); Statement stmt = conn.createStatement()) {
-                if (!conn.getServerVersion().check("[22.7,)")) {
+                if (!conn.getServerVersion().check("[22.7,)")
+                        // gRPC stopped working since 23.3 with below error:
+                        // SQL Code: 649, DB::Exception: Transaction Control Language queries are
+                        // allowed only inside session: while starting a transaction with
+                        // 'implicit_transaction'
+                        || stmt.unwrap(ClickHouseRequest.class).getServer().getProtocol() == ClickHouseProtocol.GRPC) {
                     throw new SkipException("Skip the test as transaction is supported since 22.7");
                 }
                 stmt.execute("select 1, throwIf(" + i + " % 3 = 0)");
@@ -292,7 +307,12 @@ public class ClickHouseConnectionTest extends JdbcIntegrationTest {
         props.setProperty("transactionSupport", "true");
         String tableName = "test_jdbc_tx_auto_commit";
         try (ClickHouseConnection c = newConnection(props); Statement s = c.createStatement()) {
-            if (!c.getServerVersion().check("[22.7,)")) {
+            if (!c.getServerVersion().check("[22.7,)")
+                    // gRPC stopped working since 23.3 with below error:
+                    // SQL Code: 649, DB::Exception: Transaction Control Language queries are
+                    // allowed only inside session: while starting a transaction with
+                    // 'implicit_transaction'
+                    || s.unwrap(ClickHouseRequest.class).getServer().getProtocol() == ClickHouseProtocol.GRPC) {
                 throw new SkipException("Skip the test as transaction is supported since 22.7");
             }
             s.execute("drop table if exists " + tableName + "; "
@@ -385,7 +405,12 @@ public class ClickHouseConnectionTest extends JdbcIntegrationTest {
         txProps.setProperty("transactionSupport", "true");
         String tableName = "test_jdbc_manual_tx_api";
         try (ClickHouseConnection c = newConnection(txProps); Statement s = c.createStatement()) {
-            if (!c.getServerVersion().check("[22.7,)")) {
+            if (!c.getServerVersion().check("[22.7,)")
+                    // gRPC stopped working since 23.3 with below error:
+                    // SQL Code: 649, DB::Exception: Transaction Control Language queries are
+                    // allowed only inside session: while starting a transaction with
+                    // 'implicit_transaction'
+                    || s.unwrap(ClickHouseRequest.class).getServer().getProtocol() == ClickHouseProtocol.GRPC) {
                 throw new SkipException("Skip the test as transaction is supported since 22.7");
             }
             s.execute("drop table if exists " + tableName + "; "
@@ -496,7 +521,12 @@ public class ClickHouseConnectionTest extends JdbcIntegrationTest {
         txProps.setProperty("transactionSupport", "true");
         String tableName = "test_jdbc_manual_tx_tcl";
         try (ClickHouseConnection c = newConnection(txProps); Statement s = c.createStatement()) {
-            if (!c.getServerVersion().check("[22.7,)")) {
+            if (!c.getServerVersion().check("[22.7,)")
+                    // gRPC stopped working since 23.3 with below error:
+                    // SQL Code: 649, DB::Exception: Transaction Control Language queries are
+                    // allowed only inside session: while starting a transaction with
+                    // 'implicit_transaction'
+                    || s.unwrap(ClickHouseRequest.class).getServer().getProtocol() == ClickHouseProtocol.GRPC) {
                 throw new SkipException("Skip the test as transaction is supported since 22.7");
             }
             s.execute("drop table if exists " + tableName + "; "
