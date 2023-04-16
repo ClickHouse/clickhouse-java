@@ -485,7 +485,14 @@ public class ClickHouseArrayValue<T> extends ClickHouseObjectValue<T[]> implemen
     @Override
     @SuppressWarnings("unchecked")
     public ClickHouseArrayValue<T> update(String value) {
-        set((T[]) new String[] { value });
+        if (value == null) {
+            resetToNullOrEmpty();
+        } else if (value.isEmpty() || ClickHouseValues.EMPTY_ARRAY_EXPR.equals(value)) {
+            resetToDefault();
+        } else {
+            // TODO parse string
+            set((T[]) new String[] { value });
+        }
         return this;
     }
 

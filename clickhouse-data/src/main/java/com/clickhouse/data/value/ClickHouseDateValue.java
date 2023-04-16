@@ -254,6 +254,8 @@ public class ClickHouseDateValue extends ClickHouseObjectValue<LocalDate> {
     public ClickHouseDateValue update(String value) {
         if (value == null) {
             resetToNullOrEmpty();
+        } else if (value.isEmpty()) {
+            resetToDefault();
         } else {
             set(LocalDate.parse(value, ClickHouseValues.DATE_FORMATTER));
         }

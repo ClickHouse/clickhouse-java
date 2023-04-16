@@ -279,6 +279,8 @@ public class ClickHouseBigDecimalValue extends ClickHouseObjectValue<BigDecimal>
     public ClickHouseBigDecimalValue update(String value) {
         if (value == null) {
             resetToNullOrEmpty();
+        } else if (value.isEmpty()) {
+            resetToDefault();
         } else {
             set(new BigDecimal(value));
         }

@@ -1,5 +1,6 @@
 ## 0.4.3
 ### Bug Fixes
+* unable to convert empty string to default value when using text-based data format.
 * r2dbc driver does not support most client options. [#1299](https://github.com/ClickHouse/clickhouse-java/issues/1299)
 * incorrect content from Lz4InputStream when using text-based data format [#48446](https://github.com/ClickHouse/ClickHouse/issues/48446)
 

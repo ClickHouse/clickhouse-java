@@ -284,7 +284,14 @@ public class ClickHouseEnumValue implements ClickHouseValue {
 
     @Override
     public ClickHouseEnumValue update(String value) {
-        return value == null ? resetToNullOrEmpty() : set(false, type.value(value));
+        if (value == null) {
+            resetToNullOrEmpty();
+        } else if (value.isEmpty()) {
+            resetToDefault();
+        } else {
+            set(false, type.value(value));
+        }
+        return this;
     }
 
     @Override
