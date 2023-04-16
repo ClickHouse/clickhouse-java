@@ -105,8 +105,8 @@ public class ClickHouseStringValueTest extends BaseClickHouseValueTest {
                 DateTimeParseException.class, // Date
                 DateTimeParseException.class, // DateTime
                 DateTimeParseException.class, // DateTime(9)
-                Inet4Address.getAllByName("127.0.0.1")[0], // Inet4Address
-                ClickHouseValues.convertToIpv6("127.0.0.1"), // Inet6Address
+                Inet4Address.getAllByName("0.0.0.0")[0], // Inet4Address
+                ClickHouseValues.convertToIpv6("0:0:0:0:0:0:0:0"), // Inet6Address
                 "", // String
                 "''", // SQL Expression
                 DateTimeParseException.class, // Time
