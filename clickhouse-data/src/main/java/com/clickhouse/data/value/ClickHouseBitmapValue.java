@@ -320,6 +320,8 @@ public class ClickHouseBitmapValue extends ClickHouseObjectValue<ClickHouseBitma
     public ClickHouseBitmapValue update(String value) {
         if (value == null) {
             resetToNullOrEmpty();
+        } else if (value.isEmpty()) {
+            resetToDefault();
         } else {
             set(ClickHouseBitmap.wrap(Long.parseLong(value)));
         }

@@ -365,6 +365,8 @@ public class ClickHouseDateTimeValue extends ClickHouseObjectValue<LocalDateTime
     public ClickHouseDateTimeValue update(String value) {
         if (value == null) {
             resetToNullOrEmpty();
+        } else if (value.isEmpty()) {
+            resetToDefault();
         } else {
             set(LocalDateTime.parse(value, ClickHouseValues.DATETIME_FORMATTER));
         }

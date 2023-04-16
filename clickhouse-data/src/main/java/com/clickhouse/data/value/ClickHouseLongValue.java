@@ -99,7 +99,14 @@ public class ClickHouseLongValue implements ClickHouseValue {
 
         @Override
         public ClickHouseLongValue update(String value) {
-            return value == null ? resetToNullOrEmpty() : set(false, Long.parseUnsignedLong(value));
+            if (value == null) {
+                resetToNullOrEmpty();
+            } else if (value.isEmpty()) {
+                resetToDefault();
+            } else {
+                set(false, Long.parseUnsignedLong(value));
+            }
+            return this;
         }
     }
 
@@ -394,7 +401,14 @@ public class ClickHouseLongValue implements ClickHouseValue {
 
     @Override
     public ClickHouseLongValue update(String value) {
-        return value == null ? resetToNullOrEmpty() : set(false, Long.parseLong(value));
+        if (value == null) {
+            resetToNullOrEmpty();
+        } else if (value.isEmpty()) {
+            resetToDefault();
+        } else {
+            set(false, Long.parseLong(value));
+        }
+        return this;
     }
 
     @Override

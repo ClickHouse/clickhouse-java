@@ -237,6 +237,8 @@ public class ClickHouseUuidValue extends ClickHouseObjectValue<UUID> {
     public ClickHouseUuidValue update(String value) {
         if (value == null) {
             resetToNullOrEmpty();
+        } else if (value.isEmpty()) {
+            resetToDefault();
         } else {
             set(UUID.fromString(value));
         }

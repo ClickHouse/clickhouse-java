@@ -254,7 +254,14 @@ public class ClickHouseDoubleValue implements ClickHouseValue {
 
     @Override
     public ClickHouseDoubleValue update(String value) {
-        return value == null ? resetToNullOrEmpty() : set(false, Double.parseDouble(value));
+        if (value == null) {
+            resetToNullOrEmpty();
+        } else if (value.isEmpty()) {
+            resetToDefault();
+        } else {
+            set(false, Double.parseDouble(value));
+        }
+        return this;
     }
 
     @Override

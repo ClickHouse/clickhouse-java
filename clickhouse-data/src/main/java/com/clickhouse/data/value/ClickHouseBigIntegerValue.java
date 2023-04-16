@@ -254,6 +254,8 @@ public class ClickHouseBigIntegerValue extends ClickHouseObjectValue<BigInteger>
     public ClickHouseBigIntegerValue update(String value) {
         if (value == null) {
             resetToNullOrEmpty();
+        } else if (value.isEmpty()) {
+            resetToDefault();
         } else {
             set(new BigInteger(value));
         }

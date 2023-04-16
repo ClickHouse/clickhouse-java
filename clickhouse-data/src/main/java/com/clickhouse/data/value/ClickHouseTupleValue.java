@@ -451,10 +451,13 @@ public class ClickHouseTupleValue extends ClickHouseObjectValue<List<Object>> {
     @Override
     public ClickHouseTupleValue update(String value) {
         if (value == null) {
-            return resetToNullOrEmpty();
+            resetToNullOrEmpty();
+        } else if (value.isEmpty() || ClickHouseValues.EMPTY_TUPLE_EXPR.equals(value)) {
+            resetToDefault();
+        } else {
+            // TODO parse string
+            set(Collections.singletonList(value));
         }
-        // TODO parse string
-        set(Collections.singletonList(value));
         return this;
     }
 

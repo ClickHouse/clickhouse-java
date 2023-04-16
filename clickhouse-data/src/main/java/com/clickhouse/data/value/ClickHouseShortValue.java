@@ -85,7 +85,14 @@ public class ClickHouseShortValue implements ClickHouseValue {
 
         @Override
         public ClickHouseShortValue update(String value) {
-            return value == null ? resetToNullOrEmpty() : set(false, UnsignedShort.valueOf(value).shortValue());
+            if (value == null) {
+                resetToNullOrEmpty();
+            } else if (value.isEmpty()) {
+                resetToDefault();
+            } else {
+                set(false, UnsignedShort.valueOf(value).shortValue());
+            }
+            return this;
         }
     }
 
@@ -380,7 +387,14 @@ public class ClickHouseShortValue implements ClickHouseValue {
 
     @Override
     public ClickHouseShortValue update(String value) {
-        return value == null ? resetToNullOrEmpty() : set(false, Short.parseShort(value));
+        if (value == null) {
+            resetToNullOrEmpty();
+        } else if (value.isEmpty()) {
+            resetToDefault();
+        } else {
+            set(false, Short.parseShort(value));
+        }
+        return this;
     }
 
     @Override

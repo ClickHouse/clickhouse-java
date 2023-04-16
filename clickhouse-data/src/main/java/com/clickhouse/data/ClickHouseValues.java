@@ -30,6 +30,8 @@ import java.util.Map.Entry;
 
 import com.clickhouse.data.value.ClickHouseArrayValue;
 import com.clickhouse.data.value.ClickHouseByteValue;
+import com.clickhouse.data.value.ClickHouseIpv4Value;
+import com.clickhouse.data.value.ClickHouseIpv6Value;
 
 /**
  * Help class for dealing with values.
@@ -55,7 +57,9 @@ public final class ClickHouseValues {
     public static final ClickHouseValue[] EMPTY_VALUES = new ClickHouseValue[0];
 
     public static final String EMPTY_ARRAY_EXPR = "[]";
+    public static final String EMPTY_MAP_EXPR = "{}";
     public static final String EMPTY_STRING_EXPR = "''";
+    public static final String EMPTY_TUPLE_EXPR = "()";
 
     public static final BigDecimal NANOS = new BigDecimal(BigInteger.TEN.pow(9));
 
@@ -386,6 +390,8 @@ public final class ClickHouseValues {
     public static Inet4Address convertToIpv4(String value) {
         if (value == null) {
             return null;
+        } else if (value.isEmpty()) {
+            return ClickHouseIpv4Value.DEFAULT;
         }
 
         try {
@@ -471,6 +477,8 @@ public final class ClickHouseValues {
     public static Inet6Address convertToIpv6(String value) {
         if (value == null) {
             return null;
+        } else if (value.isEmpty()) {
+            return ClickHouseIpv6Value.DEFAULT;
         }
 
         try {
