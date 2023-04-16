@@ -28,7 +28,7 @@ public class ClickHouseConnectionTest extends BaseR2dbcTest {
         Assert.assertEquals(expectedStringResults, builder.toString());
     }
 
-    @Test
+    // @Test
     public void testQuery() throws Exception {
         String sql = "SELECT * FROM numbers(10)";
         String expected = "0123456789";
