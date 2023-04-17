@@ -206,8 +206,8 @@ public class ClickHouseConnectionImplTest extends JdbcIntegrationTest {
         try (ClickHouseConnection conn = newConnection(props)) {
             ClickHouseSqlStatement[] stmts = conn.parse(sql, conn.getConfig(), null);
             Assert.assertEquals(stmts.length, 1);
-            Assert.assertEquals(stmts[0].getSQL(),
-                    "ALTER TABLE `table` DELETE where column=1 SETTINGS mutations_sync=1");
+            Assert.assertEquals(stmts[0].getSQL(), conn.getServerVersion().check("[23.3,)") ? sql
+                    : "ALTER TABLE `table` DELETE where column=1 SETTINGS mutations_sync=1");
             if (conn.getServerVersion().check("[22.8,)")) {
                 supportsLightWeightDelete = true;
             }
@@ -221,8 +221,8 @@ public class ClickHouseConnectionImplTest extends JdbcIntegrationTest {
         try (ClickHouseConnection conn = newConnection(props)) {
             ClickHouseSqlStatement[] stmts = conn.parse(sql, conn.getConfig(), null);
             Assert.assertEquals(stmts.length, 1);
-            Assert.assertEquals(stmts[0].getSQL(),
-                    "ALTER TABLE `table` DELETE where column=1 SETTINGS mutations_sync=1");
+            Assert.assertEquals(stmts[0].getSQL(), conn.getServerVersion().check("[23.3,)") ? sql
+                    : "ALTER TABLE `table` DELETE where column=1 SETTINGS mutations_sync=1");
 
             stmts = conn.parse(sql, conn.getConfig(), conn.unwrap(ClickHouseRequest.class).getSettings());
             Assert.assertEquals(stmts.length, 1);
