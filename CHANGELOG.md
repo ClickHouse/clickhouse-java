@@ -1,4 +1,8 @@
-## 0.4.3
+## 0.4.4, 2023-04-17
+### Bug Fixes
+* flatten plugin 1.4.1 generated non-sense dependencies.
+
+## 0.4.3, 2023-04-17
 ### Bug Fixes
 * unable to convert empty string to default value when using text-based data format.
 * r2dbc driver does not support most client options. [#1299](https://github.com/ClickHouse/clickhouse-java/issues/1299)
