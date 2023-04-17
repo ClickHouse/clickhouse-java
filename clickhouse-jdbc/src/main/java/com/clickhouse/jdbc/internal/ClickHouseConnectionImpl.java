@@ -171,6 +171,7 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
     private final String initialTxCommitWaitMode;
     private final int initialImplicitTx;
     private final long initialMaxInsertBlockSize;
+    // 0 - unsupported; 1 - experimental support; 2 - always support
     private final int initialDeleteSupport;
 
     private final Map<String, Class<?>> typeMap;
@@ -353,13 +354,14 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
                     .option(ClickHouseClientOption.SERVER_VERSION, ver);
         }
 
+        final boolean useLightWeightDelete = version.check("[23.3,)");
         if (r != null) {
             initialReadOnly = r.getValue(3).asInteger();
             initialNonTxQuerySupport = r.getValue(4).asInteger();
             initialTxCommitWaitMode = r.getValue(5).asString().toLowerCase(Locale.ROOT);
             initialImplicitTx = r.getValue(6).asInteger();
             initialMaxInsertBlockSize = r.getValue(7).asLong();
-            initialDeleteSupport = r.getValue(8).asInteger();
+            initialDeleteSupport = useLightWeightDelete ? 2 : r.getValue(8).asInteger();
 
             String customConf = ClickHouseUtils.unescape(r.getValue(9).asString());
             if (ClickHouseChecker.isNullOrBlank(customConf)) {
@@ -413,7 +415,7 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
                     ClickHouseTransaction.SETTING_WAIT_CHANGES_BECOME_VISIBLE_AFTER_COMMIT_MODE, "wait_unknown");
             initialImplicitTx = initialRequest.getSetting(ClickHouseTransaction.SETTING_IMPLICIT_TRANSACTION, 0);
             initialMaxInsertBlockSize = initialRequest.getSetting(SETTING_MAX_INSERT_BLOCK, 0L);
-            initialDeleteSupport = initialRequest.getSetting(SETTING_LW_DELETE, 0);
+            initialDeleteSupport = initialRequest.getSetting(SETTING_LW_DELETE, useLightWeightDelete ? 2 : 0);
 
             client = initialClient;
             clientRequest = initialRequest;
@@ -1174,12 +1176,12 @@ public class ClickHouseConnectionImpl extends JdbcWrapper implements ClickHouseC
     public ClickHouseSqlStatement[] parse(String sql, ClickHouseConfig config, Map<String, Serializable> settings) {
         ParseHandler handler = null;
         if (jdbcConf.isJdbcCompliant()) {
-            boolean allowLwDelete = false;
+            boolean allowLwDelete = initialDeleteSupport > 1;
             boolean allowLwUpdate = false;
             if (settings != null) {
                 Serializable value = settings.get(SETTING_LW_DELETE);
-                if (value == null ? initialDeleteSupport == 1
-                        : ClickHouseOption.fromString(value.toString(), Boolean.class)) {
+                if (!allowLwDelete && (value == null ? initialDeleteSupport == 1
+                        : ClickHouseOption.fromString(value.toString(), Boolean.class))) {
                     allowLwDelete = true;
                 }
             }
