@@ -20,6 +20,7 @@ import com.clickhouse.data.ClickHouseInputStream;
 import com.clickhouse.data.ClickHouseOutputStream;
 import com.clickhouse.data.ClickHouseRecord;
 import com.clickhouse.data.ClickHouseSerializer;
+import com.clickhouse.data.ClickHouseUtils;
 import com.clickhouse.data.ClickHouseValue;
 import com.clickhouse.data.format.tsv.ByteFragment;
 
@@ -38,39 +39,28 @@ public class ClickHouseTabSeparatedProcessor extends ClickHouseDataProcessor {
     }
 
     // initialize in readColumns()
-    private TextDataProcessor.TextSerDe serde;
+    private final TextDataProcessor.TextSerDe text;
+
     private ByteFragment currentRow;
-
-    protected TextDataProcessor.TextSerDe getTextSerDe() {
-        if (serde == null) {
-            serde = TextDataProcessor.getTextSerDe(config.getFormat());
-        }
-        return serde;
-    }
-
-    @Override
-    protected ClickHouseRecord createRecord() {
-        return new ClickHouseSimpleRecord(getColumns(), templates);
-    }
 
     @Override
     protected void readAndFill(ClickHouseRecord r) throws IOException {
-        TextDataProcessor.TextSerDe ds = getTextSerDe();
-        ClickHouseByteBuffer buf = input.readCustom(ds::readRecord);
+        ClickHouseByteBuffer buf = input.readCustom(text::readRecord);
         if (buf.isEmpty() && input.available() < 1) {
             throw new EOFException();
         }
         currentRow = new ByteFragment(buf.array(), buf.position(),
-                buf.lastByte() == ds.getRecordSeparator() ? buf.length() - 1 : buf.length());
+                buf.lastByte() == text.getRecordSeparator() ? buf.length() - 1 : buf.length());
 
+        int len = serde.columns.length;
         int index = readPosition;
         ByteFragment[] currentCols;
-        if (columns.length > 1 && ds.hasValueSeparator()) {
-            currentCols = currentRow.split(ds.getValueSeparator());
+        if (len > 1 && text.hasValueSeparator()) {
+            currentCols = currentRow.split(text.getValueSeparator());
         } else {
             currentCols = new ByteFragment[] { currentRow };
         }
-        for (int i = index, len = columns.length; i < len; i++) {
+        for (int i = index; i < len; i++) {
             r.getValue(i).update(currentCols[i - index].asString(true));
             readPosition = i;
         }
@@ -93,32 +83,31 @@ public class ClickHouseTabSeparatedProcessor extends ClickHouseDataProcessor {
             return DEFAULT_COLUMNS;
         }
 
-        TextDataProcessor.TextSerDe ds = getTextSerDe();
-        ClickHouseByteBuffer buf = input.readCustom(ds::readRecord);
+        ClickHouseByteBuffer buf = input.readCustom(text::readRecord);
         if (buf.isEmpty()) {
             input.close();
             // no result returned
             return Collections.emptyList();
         }
         ByteFragment headerFragment = new ByteFragment(buf.array(), buf.position(),
-                buf.lastByte() == ds.getRecordSeparator() ? buf.length() - 1 : buf.length());
+                buf.lastByte() == text.getRecordSeparator() ? buf.length() - 1 : buf.length());
         String header = headerFragment.asString(true);
         if (header.startsWith("Code: ") && !header.contains("\t")) {
             input.close();
             throw new IllegalArgumentException("ClickHouse error: " + header);
         }
-        String[] cols = toStringArray(headerFragment, ds.getValueSeparator());
+        String[] cols = toStringArray(headerFragment, text.getValueSeparator());
         String[] types = null;
         if (ClickHouseFormat.TSVWithNamesAndTypes == format
                 || ClickHouseFormat.TabSeparatedWithNamesAndTypes == format) {
-            buf = input.readCustom(ds::readRecord);
+            buf = input.readCustom(text::readRecord);
             if (buf.isEmpty()) {
                 input.close();
                 throw new IllegalArgumentException("ClickHouse response without column types");
             }
             ByteFragment typesFragment = new ByteFragment(buf.array(), buf.position(),
-                    buf.lastByte() == ds.getRecordSeparator() ? buf.length() - 1 : buf.length());
-            types = toStringArray(typesFragment, ds.getValueSeparator());
+                    buf.lastByte() == text.getRecordSeparator() ? buf.length() - 1 : buf.length());
+            types = toStringArray(typesFragment, text.getValueSeparator());
         }
 
         ClickHouseRenameMethod m = config.getColumnRenameMethod();
@@ -134,16 +123,32 @@ public class ClickHouseTabSeparatedProcessor extends ClickHouseDataProcessor {
             ClickHouseOutputStream output, List<ClickHouseColumn> columns, Map<String, Serializable> settings)
             throws IOException {
         super(config, input, output, columns, settings);
+
+        text = TextDataProcessor.getTextSerDe(config.getFormat());
     }
 
     @Override
     public void write(ClickHouseValue value) throws IOException {
-        serde.serialize(value, output);
-        if (++writePosition < columns.length) {
-            output.writeByte(serde.getValueSeparator());
-        } else {
-            output.writeByte(serde.getRecordSeparator());
+        if (output == null) {
+            throw new IllegalStateException("No output stream available to write");
+        }
+        DefaultSerDe s = getInitializedSerDe();
+        int len = s.columns.length;
+        int pos = writePosition;
+        if (len == 0 || pos >= len) {
+            throw new IllegalStateException(
+                    ClickHouseUtils.format("No column to write(total=%d, writePosition=%d)", len, pos));
+        }
+        if (value == null) {
+            value = config.isReuseValueWrapper() ? s.templates[pos] : s.templates[pos].copy();
+        }
+        text.serialize(value, output);
+        if (++pos >= len) {
+            output.writeByte(text.getRecordSeparator());
             writePosition = 0;
+        } else {
+            output.writeByte(text.getValueSeparator());
+            writePosition = pos;
         }
     }
 
@@ -151,15 +156,15 @@ public class ClickHouseTabSeparatedProcessor extends ClickHouseDataProcessor {
     public ClickHouseDeserializer getDeserializer(ClickHouseDataConfig config, ClickHouseColumn column) {
         ClickHouseDataType dt = column.getDataType();
         return dt == ClickHouseDataType.FixedString || (config.isUseBinaryString() && dt == ClickHouseDataType.String)
-                ? getTextSerDe()::deserializeBinary
-                : getTextSerDe();
+                ? text::deserializeBinary
+                : text;
     }
 
     @Override
     public ClickHouseSerializer getSerializer(ClickHouseDataConfig config, ClickHouseColumn column) {
         ClickHouseDataType dt = column.getDataType();
         return dt == ClickHouseDataType.FixedString || (config.isUseBinaryString() && dt == ClickHouseDataType.String)
-                ? getTextSerDe()::serializeBinary
-                : getTextSerDe();
+                ? text::serializeBinary
+                : text;
     }
 }

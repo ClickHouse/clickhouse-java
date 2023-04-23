@@ -1,10 +1,8 @@
-package com.clickhouse.data.format;
+package com.clickhouse.data;
 
 import java.util.Arrays;
 import java.util.Collections;
 
-import com.clickhouse.data.ClickHouseColumn;
-import com.clickhouse.data.ClickHouseValue;
 import com.clickhouse.data.value.ClickHouseLongValue;
 import com.clickhouse.data.value.ClickHouseStringValue;
 

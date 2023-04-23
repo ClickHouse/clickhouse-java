@@ -9,8 +9,8 @@ import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseInputStream;
 import com.clickhouse.data.ClickHouseRecord;
 import com.clickhouse.data.ClickHouseRecordTransformer;
+import com.clickhouse.data.ClickHouseSimpleRecord;
 import com.clickhouse.data.ClickHouseValue;
-import com.clickhouse.data.format.ClickHouseSimpleRecord;
 
 /**
  * A simple response built on top of two lists: columns and records.

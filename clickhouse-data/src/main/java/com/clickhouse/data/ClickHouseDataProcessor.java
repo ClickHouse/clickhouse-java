@@ -23,6 +23,79 @@ import java.util.NoSuchElementException;
  * can handle more scenarios like separator between columns and rows.
  */
 public abstract class ClickHouseDataProcessor {
+    protected static final class DefaultSerDe {
+        public final ClickHouseColumn[] columns;
+        public final ClickHouseValue[] templates;
+
+        public final ClickHouseDeserializer[] deserializers;
+        public final ClickHouseSerializer[] serializers;
+
+        private final List<ClickHouseColumn> columnList;
+        private final Map<String, Serializable> settings;
+        private final ClickHouseRecord currentRecord;
+        private final Iterator<ClickHouseRecord> records;
+        private final Iterator<ClickHouseValue> values;
+
+        DefaultSerDe(ClickHouseDataProcessor processor) throws IOException {
+            if (processor.initialSettings == null || processor.initialSettings.isEmpty()) {
+                this.settings = Collections.emptyMap();
+            } else {
+                this.settings = Collections.unmodifiableMap(new HashMap<>(processor.initialSettings));
+            }
+
+            List<ClickHouseColumn> list = processor.initialColumns;
+            if (list == null && processor.input != null) {
+                list = processor.readColumns();
+            }
+
+            int colCount = 0;
+            if (list == null || list.isEmpty()) {
+                this.columns = ClickHouseColumn.EMPTY_ARRAY;
+                this.templates = ClickHouseValues.EMPTY_VALUES;
+            } else {
+                colCount = list.size();
+                int idx = 0;
+                this.columns = new ClickHouseColumn[colCount];
+                this.templates = new ClickHouseValue[colCount];
+                for (ClickHouseColumn column : list) {
+                    column.setColumnIndex(idx, colCount);
+                    this.columns[idx] = column;
+                    this.templates[idx] = column.newValue(processor.config);
+                    idx++;
+                }
+            }
+            this.columnList = Collections.unmodifiableList(Arrays.asList(this.columns));
+
+            if (processor.input == null) {
+                this.currentRecord = ClickHouseRecord.EMPTY;
+
+                this.records = Collections.emptyIterator();
+                this.values = Collections.emptyIterator();
+
+                this.deserializers = new ClickHouseDeserializer[0];
+                this.serializers = new ClickHouseSerializer[colCount];
+                for (int i = 0; i < colCount; i++) {
+                    this.serializers[i] = processor.getSerializer(processor.config, this.columns[i]);
+                }
+            } else {
+                this.currentRecord = new ClickHouseSimpleRecord(this.columnList, this.templates);
+
+                this.records = ClickHouseChecker.nonNull(processor.initRecords(), "Records");
+                this.values = ClickHouseChecker.nonNull(processor.initValues(), "Values");
+
+                this.deserializers = new ClickHouseDeserializer[colCount];
+                this.serializers = new ClickHouseSerializer[0];
+                for (int i = 0; i < colCount; i++) {
+                    this.deserializers[i] = processor.getDeserializer(processor.config, this.columns[i]);
+                }
+            }
+        }
+
+        public Serializable getSetting(String setting) {
+            return this.settings.get(setting);
+        }
+    }
+
     protected static final class UseObjectConfig extends ClickHouseDataConfig.Wrapped {
         public UseObjectConfig(ClickHouseDataConfig config) {
             super(config);
@@ -81,17 +154,8 @@ public abstract class ClickHouseDataProcessor {
     protected final ClickHouseDataConfig config;
     protected final ClickHouseInputStream input;
     protected final ClickHouseOutputStream output;
-    protected final ClickHouseColumn[] columns;
-    protected final ClickHouseRecord currentRecord;
-    protected final ClickHouseValue[] templates;
-    protected final Map<String, Object> settings;
 
-    protected final Iterator<ClickHouseRecord> records;
-    protected final Iterator<ClickHouseValue> values;
-
-    protected final ClickHouseDeserializer[] deserializers;
-    protected final ClickHouseSerializer[] serializers;
-
+    protected DefaultSerDe serde;
     /**
      * Column index shared by {@link #read(ClickHouseValue)}, {@link #records()},
      * and {@link #values()}.
@@ -101,6 +165,9 @@ public abstract class ClickHouseDataProcessor {
      * Column index shared by {@link #write(ClickHouseValue)}.
      */
     protected int writePosition;
+
+    private final List<ClickHouseColumn> initialColumns;
+    private final Map<String, Serializable> initialSettings;
 
     /**
      * Checks whether there's more to read from input stream.
@@ -129,7 +196,8 @@ public abstract class ClickHouseDataProcessor {
      * @throws UncheckedIOException   when failed to read data from input stream
      */
     private ClickHouseRecord nextRecord() throws NoSuchElementException, UncheckedIOException {
-        final ClickHouseRecord r = config.isReuseValueWrapper() ? currentRecord : currentRecord.copy();
+        final DefaultSerDe s = getInitializedSerDe();
+        final ClickHouseRecord r = config.isReuseValueWrapper() ? s.currentRecord : s.currentRecord.copy();
         try {
             readAndFill(r);
         } catch (StreamCorruptedException e) {
@@ -141,8 +209,8 @@ public abstract class ClickHouseDataProcessor {
                         e);
             } else {
                 throw new UncheckedIOException(
-                        ClickHouseUtils.format(ERROR_FAILED_TO_READ, readPosition + 1, columns.length,
-                                columns[readPosition]),
+                        ClickHouseUtils.format(ERROR_FAILED_TO_READ, readPosition + 1, s.columns.length,
+                                s.columns[readPosition]),
                         e);
             }
         } catch (EOFException e) {
@@ -150,12 +218,12 @@ public abstract class ClickHouseDataProcessor {
                 throw new NoSuchElementException("No more record");
             } else {
                 throw new UncheckedIOException(ClickHouseUtils.format(ERROR_REACHED_END_OF_STREAM,
-                        readPosition + 1, columns.length, columns[readPosition]), e);
+                        readPosition + 1, s.columns.length, s.columns[readPosition]), e);
             }
         } catch (IOException e) {
             throw new UncheckedIOException(
-                    ClickHouseUtils.format(ERROR_FAILED_TO_READ, readPosition + 1, columns.length,
-                            columns[readPosition]),
+                    ClickHouseUtils.format(ERROR_FAILED_TO_READ, readPosition + 1, s.columns.length,
+                            s.columns[readPosition]),
                     e);
         }
         return r;
@@ -170,8 +238,9 @@ public abstract class ClickHouseDataProcessor {
      * @throws UncheckedIOException   when failed to read data from input stream
      */
     private ClickHouseValue nextValue() throws NoSuchElementException, UncheckedIOException {
-        final ClickHouseValue value = config.isReuseValueWrapper() ? templates[readPosition]
-                : templates[readPosition].copy();
+        final DefaultSerDe s = getInitializedSerDe();
+        final ClickHouseValue value = config.isReuseValueWrapper() ? s.templates[readPosition]
+                : s.templates[readPosition].copy();
         try {
             readAndFill(value);
         } catch (EOFException e) {
@@ -179,12 +248,12 @@ public abstract class ClickHouseDataProcessor {
                 throw new NoSuchElementException("No more value");
             } else {
                 throw new UncheckedIOException(ClickHouseUtils.format(ERROR_REACHED_END_OF_STREAM,
-                        readPosition + 1, columns.length, columns[readPosition]), e);
+                        readPosition + 1, s.columns.length, s.columns[readPosition]), e);
             }
         } catch (IOException e) {
             throw new UncheckedIOException(
-                    ClickHouseUtils.format(ERROR_FAILED_TO_READ, readPosition + 1, columns.length,
-                            columns[readPosition]),
+                    ClickHouseUtils.format(ERROR_FAILED_TO_READ, readPosition + 1, s.columns.length,
+                            s.columns[readPosition]),
                     e);
         }
 
@@ -211,12 +280,17 @@ public abstract class ClickHouseDataProcessor {
         return new ClickHouseSerializer[0];
     }
 
-    /**
-     * Factory method to create a record.
-     *
-     * @return new record
-     */
-    protected abstract ClickHouseRecord createRecord();
+    protected final DefaultSerDe getInitializedSerDe() throws UncheckedIOException {
+        if (serde == null) {
+            try {
+                serde = new DefaultSerDe(this);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
+
+        return serde;
+    }
 
     /**
      * Initializes iterator of {@link ClickHouseRecord} for reading values record by
@@ -253,7 +327,7 @@ public abstract class ClickHouseDataProcessor {
      * @throws IOException when failed to read columns from input stream
      */
     protected void readAndFill(ClickHouseRecord r) throws IOException {
-        for (int i = readPosition, len = columns.length; i < len; i++) {
+        for (int i = readPosition, len = serde.columns.length; i < len; i++) {
             readAndFill(r.getValue(i));
             readPosition = i;
         }
@@ -271,11 +345,12 @@ public abstract class ClickHouseDataProcessor {
      */
     protected void readAndFill(ClickHouseValue value) throws IOException {
         int pos = readPosition;
-        ClickHouseValue v = deserializers[pos].deserialize(value, input);
+        DefaultSerDe s = serde;
+        ClickHouseValue v = s.deserializers[pos].deserialize(value, input);
         if (v != value) {
-            templates[pos] = v;
+            s.templates[pos] = v;
         }
-        if (++pos >= columns.length) {
+        if (++pos >= s.columns.length) {
             readPosition = 0;
         } else {
             readPosition = pos;
@@ -313,54 +388,11 @@ public abstract class ClickHouseDataProcessor {
 
         this.input = input;
         this.output = output;
-        if (settings == null || settings.isEmpty()) {
-            this.settings = Collections.emptyMap();
-        } else {
-            this.settings = Collections.unmodifiableMap(new HashMap<>(settings));
-        }
 
-        if (columns == null && input != null) {
-            columns = readColumns();
-        }
+        this.initialColumns = columns;
+        this.initialSettings = settings;
+        this.serde = null;
 
-        int colCount = 0;
-        if (columns == null || columns.isEmpty()) {
-            this.columns = ClickHouseColumn.EMPTY_ARRAY;
-            this.templates = ClickHouseValues.EMPTY_VALUES;
-        } else {
-            colCount = columns.size();
-            int idx = 0;
-            this.columns = new ClickHouseColumn[colCount];
-            this.templates = new ClickHouseValue[colCount];
-            for (ClickHouseColumn column : columns) {
-                column.setColumnIndex(idx, colCount);
-                this.columns[idx] = column;
-                this.templates[idx] = column.newValue(config);
-                idx++;
-            }
-        }
-
-        if (input == null) {
-            this.currentRecord = ClickHouseRecord.EMPTY;
-            this.records = Collections.emptyIterator();
-            this.values = Collections.emptyIterator();
-
-            this.deserializers = new ClickHouseDeserializer[0];
-            this.serializers = new ClickHouseSerializer[colCount];
-            for (int i = 0; i < colCount; i++) {
-                this.serializers[i] = getSerializer(config, this.columns[i]);
-            }
-        } else {
-            this.currentRecord = createRecord();
-            this.records = ClickHouseChecker.nonNull(initRecords(), "Records");
-            this.values = ClickHouseChecker.nonNull(initValues(), "Values");
-
-            this.deserializers = new ClickHouseDeserializer[colCount];
-            this.serializers = new ClickHouseSerializer[0];
-            for (int i = 0; i < colCount; i++) {
-                this.deserializers[i] = getDeserializer(config, this.columns[i]);
-            }
-        }
         // this.writer = this.columns.length == 0 || output == null ? null :
         // initWriter();
 
@@ -395,7 +427,25 @@ public abstract class ClickHouseDataProcessor {
      * @return list of columns to process
      */
     public final List<ClickHouseColumn> getColumns() {
-        return Collections.unmodifiableList(Arrays.asList(columns));
+        return getInitializedSerDe().columnList;
+    }
+
+    /**
+     * Gets input stream.
+     *
+     * @return input stream, could be null
+     */
+    public final ClickHouseInputStream getInputStream() {
+        return this.input;
+    }
+
+    /**
+     * Gets output stream.
+     *
+     * @return output stream, could be null
+     */
+    public final ClickHouseOutputStream getOutputStream() {
+        return this.output;
     }
 
     /**
@@ -409,7 +459,7 @@ public abstract class ClickHouseDataProcessor {
      * @throws UncheckedIOException when failed to access the input stream
      */
     public final Iterable<ClickHouseRecord> records() {
-        return () -> records;
+        return () -> getInitializedSerDe().records;
     }
 
     /**
@@ -423,11 +473,12 @@ public abstract class ClickHouseDataProcessor {
      * @throws UncheckedIOException when failed to access the input stream
      */
     public final Iterable<ClickHouseValue> values() {
-        if (columns.length == 0) {
+        final DefaultSerDe s = getInitializedSerDe();
+        if (s.columns.length == 0) {
             return Collections.emptyList();
         }
 
-        return () -> values;
+        return () -> s.values;
     }
 
     /**
@@ -444,14 +495,15 @@ public abstract class ClickHouseDataProcessor {
         if (input == null) {
             throw new IllegalStateException("No input stream available to read");
         }
-        int len = columns.length;
+        DefaultSerDe s = getInitializedSerDe();
+        int len = s.columns.length;
         int pos = readPosition;
         if (len == 0 || pos >= len) {
             throw new IllegalStateException(
                     ClickHouseUtils.format("No column to read(total=%d, readPosition=%d)", len, pos));
         }
         if (value == null) {
-            value = config.isReuseValueWrapper() ? templates[pos] : templates[pos].copy();
+            value = config.isReuseValueWrapper() ? s.templates[pos] : s.templates[pos].copy();
         }
 
         readAndFill(value);
@@ -469,16 +521,17 @@ public abstract class ClickHouseDataProcessor {
         if (output == null) {
             throw new IllegalStateException("No output stream available to write");
         }
-        int len = columns.length;
+        DefaultSerDe s = getInitializedSerDe();
+        int len = s.columns.length;
         int pos = writePosition;
         if (len == 0 || pos >= len) {
             throw new IllegalStateException(
                     ClickHouseUtils.format("No column to write(total=%d, writePosition=%d)", len, pos));
         }
         if (value == null) {
-            value = config.isReuseValueWrapper() ? templates[pos] : templates[pos].copy();
+            value = config.isReuseValueWrapper() ? s.templates[pos] : s.templates[pos].copy();
         }
-        serializers[pos++].serialize(value, output);
+        s.serializers[pos++].serialize(value, output);
         writePosition = pos >= len ? 0 : pos;
     }
 }
