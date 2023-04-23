@@ -1,12 +1,7 @@
-package com.clickhouse.data.format;
+package com.clickhouse.data;
 
 import java.util.Collections;
 import java.util.List;
-
-import com.clickhouse.data.ClickHouseColumn;
-import com.clickhouse.data.ClickHouseRecord;
-import com.clickhouse.data.ClickHouseUtils;
-import com.clickhouse.data.ClickHouseValue;
 
 /**
  * Default implementation of {@link com.clickhouse.data.ClickHouseRecord},

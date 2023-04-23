@@ -16,7 +16,7 @@ public class ClickHouseCommandLineResponse extends ClickHouseStreamResponse {
         super(config, cli.getInputStream(), null, null, ClickHouseResponseSummary.EMPTY);
         this.cli = cli;
 
-        if (this.input.available() < 1) {
+        if (processor.getInputStream().available() < 1) {
             IOException exp = cli.getError();
             if (exp != null) {
                 throw exp;

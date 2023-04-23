@@ -52,9 +52,7 @@ public class ClickHouseStreamResponse implements ClickHouseResponse {
     }
 
     protected final ClickHouseConfig config;
-    protected final transient ClickHouseInputStream input;
     protected final transient ClickHouseDataProcessor processor;
-    protected final List<ClickHouseColumn> columns;
     protected final ClickHouseResponseSummary summary;
 
     private volatile boolean closed;
@@ -62,19 +60,11 @@ public class ClickHouseStreamResponse implements ClickHouseResponse {
     protected ClickHouseStreamResponse(ClickHouseConfig config, ClickHouseInputStream input,
             Map<String, Serializable> settings, List<ClickHouseColumn> columns, ClickHouseResponseSummary summary)
             throws IOException {
-        if (config == null || input == null) {
-            throw new IllegalArgumentException("Non-null configuration and input stream are required");
-        }
-
-        this.config = config;
-        this.input = input;
 
         boolean hasError = true;
         try {
             this.processor = ClickHouseDataStreamFactory.getInstance().getProcessor(config, input, null, settings,
                     columns);
-            this.columns = columns != null ? columns
-                    : (processor != null ? processor.getColumns() : Collections.emptyList());
             hasError = false;
         } finally {
             if (hasError) {
@@ -87,6 +77,9 @@ public class ClickHouseStreamResponse implements ClickHouseResponse {
                 }
             }
         }
+
+        this.config = config;
+
         this.closed = hasError;
         this.summary = summary != null ? summary : ClickHouseResponseSummary.EMPTY;
     }
@@ -98,6 +91,7 @@ public class ClickHouseStreamResponse implements ClickHouseResponse {
 
     @Override
     public void close() {
+        final ClickHouseInputStream input = processor.getInputStream();
         if (closed || input.isClosed()) {
             return;
         }
@@ -124,7 +118,7 @@ public class ClickHouseStreamResponse implements ClickHouseResponse {
 
     @Override
     public List<ClickHouseColumn> getColumns() {
-        return columns;
+        return this.processor.getColumns();
     }
 
     public ClickHouseFormat getFormat() {
@@ -138,7 +132,7 @@ public class ClickHouseStreamResponse implements ClickHouseResponse {
 
     @Override
     public ClickHouseInputStream getInputStream() {
-        return input;
+        return processor.getInputStream();
     }
 
     @Override

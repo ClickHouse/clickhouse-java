@@ -11,7 +11,6 @@ import java.util.Map.Entry;
 
 import com.clickhouse.config.ClickHouseRenameMethod;
 import com.clickhouse.data.ClickHouseAggregateFunction;
-import com.clickhouse.data.ClickHouseArraySequence;
 import com.clickhouse.data.ClickHouseChecker;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseDataConfig;
@@ -247,35 +246,16 @@ public class ClickHouseRowBinaryProcessor extends ClickHouseDataProcessor {
     }
 
     @Override
-    protected ClickHouseRecord createRecord() {
-        return new ClickHouseSimpleRecord(getColumns(), templates);
-    }
-
-    @Override
     protected void readAndFill(ClickHouseRecord r) throws IOException {
         ClickHouseInputStream in = input;
-        ClickHouseDeserializer[] tbl = deserializers;
+        ClickHouseDeserializer[] tbl = serde.deserializers;
 
-        for (int i = readPosition, len = columns.length; i < len; i++) {
+        for (int i = readPosition, len = serde.columns.length; i < len; i++) {
             tbl[i].deserialize(r.getValue(i), in);
             readPosition = i;
         }
 
         readPosition = 0;
-    }
-
-    @Override
-    protected void readAndFill(ClickHouseValue value) throws IOException {
-        int pos = readPosition;
-        ClickHouseValue v = deserializers[pos].deserialize(value, input);
-        if (v != value) {
-            templates[pos] = v;
-        }
-        if (++pos >= columns.length) {
-            readPosition = 0;
-        } else {
-            readPosition = pos;
-        }
     }
 
     @Override

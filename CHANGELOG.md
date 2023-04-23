@@ -1,4 +1,10 @@
 ## 0.5.0
+### Breaking Changes
+* refactor data processors and response classes to ensure input stream remain intact before first read:
+  - move ClickHouseSimpleRecord to com.clickhouse.data
+  - stop reading input stream when instantiating ClickHouseDataProcessor
+  - remove createRecord() method in ClickHouseDataProcessor along with some duplicated code
+
 ### New Features
 * disable SQL rewrite for DELETE statement in ClickHouse 23.3+
 
