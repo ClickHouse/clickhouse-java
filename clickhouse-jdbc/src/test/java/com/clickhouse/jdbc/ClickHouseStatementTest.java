@@ -1079,6 +1079,70 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
     }
 
     @Test(groups = "integration")
+    public void testNestedArrayInTuple() throws SQLException {
+        Properties props = new Properties();
+        try (ClickHouseConnection conn = newConnection(props);
+                ClickHouseStatement stmt = conn.createStatement()) {
+            // nested values on same row
+            Assert.assertFalse(stmt.execute("drop table if exists test_nested_array_in_tuple; "
+                    + "create table test_nested_array_in_tuple(id UInt64, v1 Tuple(Array(Int32)), v2 Tuple(Array(Int32)))engine=Memory; "
+                    + "insert into test_nested_array_in_tuple values(1, ([1, 2]), ([2, 3]))"));
+            try (ResultSet rs = stmt.executeQuery("select * from test_nested_array_in_tuple order by id")) {
+                Assert.assertTrue(rs.next());
+                Assert.assertEquals(rs.getInt(1), 1);
+                Assert.assertEquals(((List<?>) rs.getObject(2)).size(), 1);
+                Assert.assertEquals(((List<?>) rs.getObject(2)).get(0), new int[] { 1, 2 });
+                Assert.assertEquals(((List<?>) rs.getObject(3)).size(), 1);
+                Assert.assertEquals(((List<?>) rs.getObject(3)).get(0), new int[] { 2, 3 });
+                Assert.assertFalse(rs.next());
+            }
+
+            // nested values on same column
+            Assert.assertFalse(stmt.execute("drop table if exists test_nested_array_in_tuple; "
+                    + "create table test_nested_array_in_tuple(id UInt64, val Tuple(Array(Int32)))engine=Memory; "
+                    + "insert into test_nested_array_in_tuple values(1, ([1, 2])), (2, ([2, 3]))"));
+            try (ResultSet rs = stmt.executeQuery("select * from test_nested_array_in_tuple order by id")) {
+                Assert.assertTrue(rs.next());
+                Assert.assertEquals(rs.getInt(1), 1);
+                Assert.assertEquals(((List<?>) rs.getObject(2)).size(), 1);
+                Assert.assertEquals(((List<?>) rs.getObject(2)).get(0), new int[] { 1, 2 });
+                Assert.assertTrue(rs.next());
+                Assert.assertEquals(rs.getInt(1), 2);
+                Assert.assertEquals(((List<?>) rs.getObject(2)).size(), 1);
+                Assert.assertEquals(((List<?>) rs.getObject(2)).get(0), new int[] { 2, 3 });
+                Assert.assertFalse(rs.next());
+            }
+
+            // deeper nested level and more elements
+            Assert.assertFalse(stmt.execute("drop table if exists test_nested_array_in_tuple; "
+                    + "create table test_nested_array_in_tuple(id UInt64, val Array(Tuple(UInt16,Array(UInt32))))engine=Memory; "
+                    + "insert into test_nested_array_in_tuple values(1, [(0, [1, 2]), (1, [2, 3])]), (2, [(2, [4, 5]), (3, [6, 7])])"));
+            try (ResultSet rs = stmt.executeQuery("select * from test_nested_array_in_tuple order by id")) {
+                Assert.assertTrue(rs.next());
+                Assert.assertEquals(rs.getInt(1), 1);
+                Assert.assertEquals(((Object[]) rs.getObject(2)).length, 2);
+                Assert.assertEquals(((List<?>) ((Object[]) rs.getObject(2))[0]).size(), 2);
+                Assert.assertEquals(((List<?>) ((Object[]) rs.getObject(2))[0]).get(0), UnsignedShort.ZERO);
+                Assert.assertEquals(((List<?>) ((Object[]) rs.getObject(2))[0]).get(1), new int[] { 1, 2 });
+                Assert.assertEquals(((List<?>) ((Object[]) rs.getObject(2))[1]).size(), 2);
+                Assert.assertEquals(((List<?>) ((Object[]) rs.getObject(2))[1]).get(0), UnsignedShort.ONE);
+                Assert.assertEquals(((List<?>) ((Object[]) rs.getObject(2))[1]).get(1), new int[] { 2, 3 });
+                Assert.assertTrue(rs.next());
+                Assert.assertEquals(((Object[]) rs.getObject(2)).length, 2);
+                Assert.assertEquals(((List<?>) ((Object[]) rs.getObject(2))[0]).size(), 2);
+                Assert.assertEquals(((List<?>) ((Object[]) rs.getObject(2))[0]).get(0),
+                        UnsignedShort.valueOf((short) 2));
+                Assert.assertEquals(((List<?>) ((Object[]) rs.getObject(2))[0]).get(1), new int[] { 4, 5 });
+                Assert.assertEquals(((List<?>) ((Object[]) rs.getObject(2))[1]).size(), 2);
+                Assert.assertEquals(((List<?>) ((Object[]) rs.getObject(2))[1]).get(0),
+                        UnsignedShort.valueOf((short) 3));
+                Assert.assertEquals(((List<?>) ((Object[]) rs.getObject(2))[1]).get(1), new int[] { 6, 7 });
+                Assert.assertFalse(rs.next());
+            }
+        }
+    }
+
+    @Test(groups = "integration")
     public void testNestedDataTypes() throws SQLException {
         String sql = "select (1,2) as t, [3,4] as a";
         Properties props = new Properties();
