@@ -774,17 +774,24 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
             // header without row
             try (ClickHouseResponse response = newRequest(client, getServer())
                     .format(ClickHouseFormat.RowBinaryWithNamesAndTypes).query(sql).execute().get()) {
+                Assert.assertFalse(response.getInputStream().isClosed(), "Input stream should NOT be closed");
                 Assert.assertEquals(response.getColumns().size(), 1);
                 Assert.assertNotEquals(response.getColumns(), ClickHouseDataProcessor.DEFAULT_COLUMNS);
+                Assert.assertFalse(response.getInputStream().isClosed(), "Input stream should NOT be closed");
                 for (ClickHouseRecord record : response.records()) {
                     Assert.fail(ClickHouseUtils.format("Should have no record, but we got: %s", record));
                 }
+                Assert.assertTrue(response.getInputStream().isClosed(),
+                        "Input stream should have been closed since there's no data");
             }
 
             // no header and row
             try (ClickHouseResponse response = newRequest(client, getServer())
                     .format(ClickHouseFormat.RowBinary).query(sql).execute().get()) {
+                Assert.assertFalse(response.getInputStream().isClosed(), "Input stream should NOT be closed");
                 Assert.assertEquals(response.getColumns(), Collections.emptyList());
+                Assert.assertTrue(response.getInputStream().isClosed(),
+                        "Input stream should have been closed since there's no data");
                 for (ClickHouseRecord record : response.records()) {
                     Assert.fail(ClickHouseUtils.format("Should have no record, but we got: %s", record));
                 }
@@ -793,7 +800,10 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
             // custom header and row
             try (ClickHouseResponse response = newRequest(client, getServer())
                     .format(ClickHouseFormat.RowBinary).query(sql).execute().get()) {
+                Assert.assertFalse(response.getInputStream().isClosed(), "Input stream should NOT be closed");
                 Assert.assertEquals(response.getColumns(), Collections.emptyList());
+                Assert.assertTrue(response.getInputStream().isClosed(),
+                        "Input stream should have been closed since there's no data");
                 for (ClickHouseRecord record : response.records()) {
                     Assert.fail(ClickHouseUtils.format("Should have no record, but we got: %s", record));
                 }
@@ -816,7 +826,9 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
                     .set("enable_optimize_predicate_expression", 1)
                     .set("log_queries_min_type", "EXCEPTION_WHILE_PROCESSING")
                     .query(sql).execute().get()) {
+                Assert.assertFalse(response.getInputStream().isClosed(), "Input stream should NOT be closed");
                 List<ClickHouseColumn> columns = response.getColumns();
+                Assert.assertFalse(response.getInputStream().isClosed(), "Input stream should NOT be closed");
                 int index = 0;
                 for (ClickHouseRecord record : response.records()) {
                     String col1 = String.valueOf(record.getValue(0).asBigInteger());
@@ -825,7 +837,8 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
                     Assert.assertEquals(col1, col2);
                     Assert.assertEquals(col1, String.valueOf(index++));
                 }
-
+                Assert.assertTrue(response.getInputStream().isClosed(),
+                        "Input stream should have been closed since there's no data");
                 // int counter = 0;
                 // for (ClickHouseValue value : response.values()) {
                 // Assert.assertEquals(value.asString(), String.valueOf(index));
@@ -857,13 +870,16 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
             // Assert.assertTrue(future instanceof ClickHouseImmediateFuture);
             Assert.assertTrue(future.isDone());
             try (ClickHouseResponse resp = future.get()) {
+                Assert.assertFalse(resp.getInputStream().isClosed(), "Input stream should NOT be closed");
                 Assert.assertEquals(resp.getColumns().size(), 2);
+                Assert.assertFalse(resp.getInputStream().isClosed(), "Input stream should NOT be closed");
                 for (ClickHouseRecord record : resp.records()) {
                     Assert.assertEquals(record.size(), 2);
                     Assert.assertEquals(record.getValue(0).asInteger(), 1);
                     Assert.assertEquals(record.getValue(1).asInteger(), 2);
                 }
-
+                Assert.assertTrue(resp.getInputStream().isClosed(),
+                        "Input stream should have been closed since there's no data");
                 // ClickHouseResponseSummary summary = resp.getSummary();
                 // Assert.assertEquals(summary.getStatistics().getRows(), 1);
             }
@@ -2421,7 +2437,6 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
             if (!checkServerVersion(client, server, "[22.7,)")) {
                 throw new SkipException("Transaction was supported since 22.7");
             }
-            
             ClickHouseRequest<?> request = newRequest(client, server);
             ClickHouseTransaction.setImplicitTransaction(request, true);
             try (ClickHouseResponse response = request.query("insert into " + tableName + " values(1)")
