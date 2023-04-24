@@ -143,7 +143,7 @@ public interface BinaryDataProcessor {
 
         public static final DateSerDe of(ClickHouseDataConfig config) {
             TimeZone tz = ClickHouseChecker.nonNull(config, ClickHouseDataConfig.TYPE_NAME).getTimeZoneForDate();
-            return cache.computeIfAbsent(tz, DateSerDe::new);
+            return cache.computeIfAbsent(tz == null ? ClickHouseValues.SYS_TIMEZONE : tz, DateSerDe::new);
         }
 
         protected final ZoneId zoneId;
@@ -178,7 +178,7 @@ public interface BinaryDataProcessor {
 
         public static final Date32SerDe of(ClickHouseDataConfig config) {
             TimeZone tz = ClickHouseChecker.nonNull(config, ClickHouseDataConfig.TYPE_NAME).getTimeZoneForDate();
-            return cache.computeIfAbsent(tz, Date32SerDe::new);
+            return cache.computeIfAbsent(tz == null ? ClickHouseValues.SYS_TIMEZONE : tz, Date32SerDe::new);
         }
 
         protected final ZoneId zoneId;
