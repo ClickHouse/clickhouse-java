@@ -3,8 +3,8 @@ package com.clickhouse.data.format;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import com.clickhouse.data.ClickHouseByteBuffer;
 import com.clickhouse.data.ClickHouseChecker;
@@ -17,7 +17,7 @@ import com.clickhouse.data.ClickHouseValue;
 
 public interface TextDataProcessor {
     static class TextSerDe implements ClickHouseDeserializer, ClickHouseSerializer {
-        private static final Map<String, TextSerDe> cache = new HashMap<>();
+        private static final Map<String, TextSerDe> cache = new ConcurrentHashMap<>();
 
         public static final TextSerDe of(byte escapeChar, byte recordSeparator, byte valueSeparator, String nullValue) {
             String key = new StringBuffer().append((char) escapeChar).append((char) recordSeparator)
