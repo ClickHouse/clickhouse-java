@@ -1,4 +1,4 @@
-## 0.5.0
+## 0.4.5
 ### Breaking Changes
 * refactor data processors and response classes to ensure input stream remain intact before first read:
   - move ClickHouseSimpleRecord to com.clickhouse.data
@@ -7,6 +7,11 @@
 
 ### New Features
 * disable SQL rewrite for DELETE statement in ClickHouse 23.3+
+
+### Bug Fixes
+* ClickHouseResponse.getInputStream may return closed input stream.
+* ConcurrentModificationException may occure during deserialization. [#1327](https://github.com/ClickHouse/clickhouse-java/pull/1327)
+* ClickHouseSslContextProvider is not customizable. [#1329](https://github.com/ClickHouse/clickhouse-java/issues/1329)
 
 ## 0.4.4, 2023-04-17
 ### Bug Fixes
