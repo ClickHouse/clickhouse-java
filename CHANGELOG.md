@@ -9,6 +9,7 @@
 * disable SQL rewrite for DELETE statement in ClickHouse 23.3+
 
 ### Bug Fixes
+* Slow when using Apache Http Client. [#1320](https://github.com/ClickHouse/clickhouse-java/issues/1320)
 * ClickHouseResponse.getInputStream may return closed input stream.
 * ConcurrentModificationException may occure during deserialization. [#1327](https://github.com/ClickHouse/clickhouse-java/pull/1327)
 * ClickHouseSslContextProvider is not customizable. [#1329](https://github.com/ClickHouse/clickhouse-java/issues/1329)
