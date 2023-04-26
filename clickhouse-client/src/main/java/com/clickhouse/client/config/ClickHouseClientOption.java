@@ -326,7 +326,7 @@ public enum ClickHouseClientOption implements ClickHouseOption {
     /**
      * SSL key.
      */
-    SSL_KEY("sslkey", "", "RSA key in PKCS#8 format."),
+    SSL_KEY("sslkey", "", "RSA key in PKCS#8 format.", true),
     /**
      * Transaction timeout in seconds.
      */
@@ -384,6 +384,7 @@ public enum ClickHouseClientOption implements ClickHouseOption {
     private final Serializable defaultValue;
     private final Class<? extends Serializable> clazz;
     private final String description;
+    private final boolean sensitive;
 
     private static final Map<String, ClickHouseClientOption> options;
 
@@ -510,10 +511,26 @@ public enum ClickHouseClientOption implements ClickHouseOption {
      * @param description  non-null description of this option
      */
     <T extends Serializable> ClickHouseClientOption(String key, T defaultValue, String description) {
+        this(key, defaultValue, description, false);
+    }
+
+    /**
+     * Constructor of client option.
+     *
+     * @param <T>          type of the value, usually either String or Number(e.g.
+     *                     int, long etc.)
+     * @param key          non-null key, better use snake_case instead of camelCase
+     *                     for consistency
+     * @param defaultValue non-null default value
+     * @param description  non-null description of this option
+     * @param sensitive    whether the option is sensitive or not
+     */
+    <T extends Serializable> ClickHouseClientOption(String key, T defaultValue, String description, boolean sensitive) {
         this.key = ClickHouseChecker.nonNull(key, "key");
         this.defaultValue = ClickHouseChecker.nonNull(defaultValue, "defaultValue");
         this.clazz = defaultValue.getClass();
         this.description = ClickHouseChecker.nonNull(description, "description");
+        this.sensitive = sensitive;
     }
 
     @Override
@@ -534,5 +551,10 @@ public enum ClickHouseClientOption implements ClickHouseOption {
     @Override
     public Class<? extends Serializable> getValueType() {
         return clazz;
+    }
+
+    @Override
+    public boolean isSensitive() {
+        return sensitive;
     }
 }

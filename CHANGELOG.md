@@ -1,4 +1,8 @@
-## 0.4.5
+## 0.4.6, 2023-04-26
+### Bug Fixes
+* client certificate password exposure in exception. [#1331](https://github.com/ClickHouse/clickhouse-java/issues/1331)
+
+## 0.4.5, 2023-04-25
 ### Breaking Changes
 * refactor data processors and response classes to ensure input stream remain intact before first read:
   - move ClickHouseSimpleRecord to com.clickhouse.data

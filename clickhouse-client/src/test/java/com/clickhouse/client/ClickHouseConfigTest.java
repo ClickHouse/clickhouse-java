@@ -96,4 +96,14 @@ public class ClickHouseConfigTest {
                 Collections.singletonMap(ClickHouseClientOption.CLIENT_NAME, "custom client name"));
         Assert.assertEquals(config.getClientName(), "custom client name");
     }
+
+    @Test(groups = { "unit" })
+    public void testClientOptions() {
+        Assert.assertTrue(ClickHouseConfig.ClientOptions.INSTANCE.customOptions.isEmpty(),
+                "Should NOT have any custom option");
+        Assert.assertFalse(ClickHouseConfig.ClientOptions.INSTANCE.sensitiveOptions.isEmpty(),
+                "Should have at least one sensitive option");
+        Assert.assertEquals(ClickHouseConfig.ClientOptions.INSTANCE.sensitiveOptions.get("sslkey"),
+                ClickHouseClientOption.SSL_KEY);
+    }
 }

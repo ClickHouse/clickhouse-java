@@ -280,6 +280,14 @@ public interface ClickHouseOption extends Serializable {
     Class<? extends Serializable> getValueType();
 
     /**
+     * Checks whether the option is sensitive or not. A sensitive option should be
+     * used carefully and be masked in logging for security reason.
+     *
+     * @return true if the option is sensitive; false otherwise
+     */
+    boolean isSensitive();
+
+    /**
      * Gets name of the option.
      *
      * @return name of the option

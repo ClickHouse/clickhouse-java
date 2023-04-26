@@ -32,12 +32,19 @@ import com.clickhouse.data.ClickHouseVersion;
  */
 public class ClickHouseConfig implements ClickHouseDataConfig {
     static final class ClientOptions {
-        private static final ClientOptions INSTANCE = new ClientOptions();
+        static final ClientOptions INSTANCE = new ClientOptions();
 
-        private final Map<String, ClickHouseOption> customOptions;
+        final Map<String, ClickHouseOption> customOptions;
+        final Map<String, ClickHouseOption> sensitiveOptions;
 
         private ClientOptions() {
             Map<String, ClickHouseOption> m = new LinkedHashMap<>();
+            Map<String, ClickHouseOption> s = new LinkedHashMap<>();
+            for (ClickHouseOption o : ClickHouseClientOption.class.getEnumConstants()) {
+                if (o.isSensitive()) {
+                    s.put(o.getKey(), o);
+                }
+            }
             try {
                 for (ClickHouseClient c : ClickHouseClientBuilder.loadClients()) {
                     Class<? extends ClickHouseOption> clazz = c.getOptionClass();
@@ -46,6 +53,9 @@ public class ClickHouseConfig implements ClickHouseDataConfig {
                     }
                     for (ClickHouseOption o : clazz.getEnumConstants()) {
                         m.put(o.getKey(), o);
+                        if (o.isSensitive()) {
+                            s.put(o.getKey(), o);
+                        }
                     }
                 }
             } catch (Exception e) {
@@ -53,6 +63,7 @@ public class ClickHouseConfig implements ClickHouseDataConfig {
             }
 
             customOptions = m.isEmpty() ? Collections.emptyMap() : Collections.unmodifiableMap(m);
+            sensitiveOptions = s.isEmpty() ? Collections.emptyMap() : Collections.unmodifiableMap(s);
         }
     }
 
