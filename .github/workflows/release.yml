@@ -16,7 +16,7 @@ jobs:
     steps:
       - name: Check out Git repository
         uses: actions/checkout@v3
-      - name: Install JDK 8 and Maven
+      - name: Install JDK and Maven
         uses: actions/setup-java@v3
         with:
           distribution: 'temurin'
