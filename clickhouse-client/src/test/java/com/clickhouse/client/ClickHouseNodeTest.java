@@ -409,6 +409,16 @@ public class ClickHouseNodeTest extends BaseIntegrationTest {
     }
 
     @Test(groups = { "unit" })
+    public void testToString() {
+        Assert.assertTrue(ClickHouseNode.of("a?b=1").toString()
+                .startsWith("ClickHouseNode [uri=any://a:0/default, options={b=1}]@"));
+        Assert.assertTrue(ClickHouseNode.of("a?b=1&sslkey=secret").toString()
+                .startsWith("ClickHouseNode [uri=any://a:0/default, options={b=1,sslkey=*}]@"));
+        Assert.assertTrue(ClickHouseNode.of("a?password=*&b=1&sslkey=secret").toString()
+                .startsWith("ClickHouseNode [uri=any://a:0/default, options={b=1,sslkey=*}]@"));
+    }
+
+    @Test(groups = { "unit" })
     public void testToUri() {
         Assert.assertEquals(ClickHouseNode.of("a?b=1").toUri().toString(), "any://a:0?b=1");
         Assert.assertEquals(ClickHouseNode.of("a/b/c?d=1").toUri().toString(), "any://a:0/b/c?d=1");

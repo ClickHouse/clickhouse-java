@@ -1237,12 +1237,13 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
                     .append(",r").append(replicaNum).append(')');
         }
 
+        Map<String, ClickHouseOption> m = ClickHouseConfig.ClientOptions.INSTANCE.sensitiveOptions;
         StringBuilder optsBuilder = new StringBuilder();
         for (Entry<String, String> option : options.entrySet()) {
             String key = option.getKey();
             if (!ClickHouseClientOption.DATABASE.getKey().equals(key)
                     && !ClickHouseClientOption.SSL.getKey().equals(key)) {
-                optsBuilder.append(key).append('=').append(option.getValue()).append(",");
+                optsBuilder.append(key).append('=').append(m.containsKey(key) ? "*" : option.getValue()).append(',');
             }
         }
         if (optsBuilder.length() > 0) {

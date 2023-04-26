@@ -57,6 +57,11 @@ public class ClickHouseOptionTest {
         public String getDescription() {
             return description;
         }
+
+        @Override
+        public boolean isSensitive() {
+            return false;
+        }
     }
 
     @Test(groups = { "unit" })
