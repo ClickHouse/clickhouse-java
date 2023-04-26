@@ -31,6 +31,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.event.number || github.sha }}
   cancel-in-progress: true
 
+env:
+  PREFERRED_LTS_VERSION: "23.3"
+
 jobs:
   compile:
     runs-on: ubuntu-latest
@@ -134,7 +137,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: compile
     timeout-minutes: 10
-    name: CLI client + CH 22.8
+    name: CLI client + CH LTS
     steps:
       - name: Check out repository
         uses: actions/checkout@v3
@@ -159,7 +162,7 @@ jobs:
             && clickhouse client --version
       - name: Test CLI client
         run: |
-          mvn --also-make --batch-mode --projects clickhouse-cli-client -DclickhouseVersion=22.8 -Dj8 -DskipUTs verify
+          mvn --also-make --batch-mode --projects clickhouse-cli-client -DclickhouseVersion=$PREFERRED_LTS_VERSION -Dj8 -DskipUTs verify
       - name: Upload test results
         uses: actions/upload-artifact@v2
         if: failure()
@@ -388,7 +391,7 @@ jobs:
         run: mvn --also-make --batch-mode --projects clickhouse-cli-client,clickhouse-grpc-client,clickhouse-http-client -Dj8 -DskipTests install
       - name: Test JDBC and R2DBC drivers
         run: |
-          mvn --batch-mode --projects clickhouse-jdbc,clickhouse-r2dbc -DclickhouseVersion=22.8 \
+          mvn --batch-mode --projects clickhouse-jdbc,clickhouse-r2dbc -DclickhouseVersion=$PREFERRED_LTS_VERSION \
             -DclickhouseTimezone=${{ matrix.serverTz }} -Duser.timezone=${{ matrix.clientTz }} \
             -Dj8 -DskipUTs verify
       - name: Upload test results

@@ -27,6 +27,9 @@ on:
         description: "Pull request#"
         required: false
 
+env:
+  PREFERRED_LTS_VERSION: "23.3"
+
 jobs:
   static:
     runs-on: ubuntu-latest
@@ -47,7 +50,7 @@ jobs:
           git fetch --no-tags --prune --progress --no-recurse-submodules --depth=1 \
             origin pull/${{ github.event.inputs.pr }}/head:the-pr && git checkout the-pr
         if: github.event.inputs.pr != ''
-      - name: Install JDK 8 and Maven
+      - name: Install JDK and Maven
         uses: actions/setup-java@v3
         with:
           distribution: "temurin"
@@ -87,12 +90,13 @@ jobs:
       - name: Build and install
         run: |
           find . -type f -name "simplelogger.*" -exec rm -fv '{}' \;
-          mvn -q --batch-mode --projects '!clickhouse-benchmark' -DclickhouseVersion=22.8 -DskipTests install
+          mvn -q --batch-mode --projects '!clickhouse-benchmark' -DclickhouseVersion=$PREFERRED_LTS_VERSION \
+            -DskipTests install
       - name: Analyze
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Needed to get PR information, if any
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
-          mvn --batch-mode --projects '!clickhouse-benchmark' -DclickhouseVersion=22.8 \
+          mvn --batch-mode --projects '!clickhouse-benchmark' -DclickhouseVersion=$PREFERRED_LTS_VERSION \
             -Panalysis verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar
         continue-on-error: true

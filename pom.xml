@@ -92,27 +92,26 @@
         <annotations-api.version>6.0.53</annotations-api.version>
         <apache.httpclient.version>5.2.1</apache.httpclient.version>
         <arrow.version>11.0.0</arrow.version>
+        <asm.version>9.5</asm.version>
         <avro.version>1.11.1</avro.version>
         <brotli.version>0.1.2</brotli.version>
         <brotli4j.version>1.11.0</brotli4j.version>
-        <byte-buddy.version>1.14.0</byte-buddy.version>
         <caffeine.version>3.1.6</caffeine.version>
         <compress.version>1.23.0</compress.version>
         <dnsjava.version>3.5.2</dnsjava.version>
         <fastutil.version>8.5.12</fastutil.version>
-        <grpc.version>1.54.0</grpc.version>
+        <grpc.version>1.54.1</grpc.version>
         <gson.version>2.10.1</gson.version>
-        <janino.version>3.1.9</janino.version>
         <jctools.version>4.0.1</jctools.version>
         <opencensus.version>0.31.1</opencensus.version>
-        <protobuf.version>3.22.0</protobuf.version>
+        <protobuf.version>3.22.3</protobuf.version>
         <lz4.version>1.8.0</lz4.version>
         <msgpack.version>0.9.3</msgpack.version>
-        <roaring-bitmap.version>0.9.39</roaring-bitmap.version>
+        <roaring-bitmap.version>0.9.40</roaring-bitmap.version>
         <slf4j.version>2.0.7</slf4j.version>
         <snappy.version>1.1.9.1</snappy.version>
         <xz.version>1.9</xz.version>
-        <zstd-jni.version>1.5.5-1</zstd-jni.version>
+        <zstd-jni.version>1.5.5-2</zstd-jni.version>
         <testcontainers.version>1.18.0</testcontainers.version>
         <!-- stay 7.5 for JDK 8 support -->
         <testng.version>7.5</testng.version>
@@ -121,7 +120,7 @@
         <mysql-driver.version>8.0.33</mysql-driver.version>
         <postgresql-driver.version>42.6.0</postgresql-driver.version>
 
-        <repackaged.version>1.9.0</repackaged.version>
+        <repackaged.version>1.9.1</repackaged.version>
         <shade.base>${project.groupId}.client.internal</shade.base>
 
         <antrun-plugin.version>3.1.0</antrun-plugin.version>
@@ -319,11 +318,6 @@
                 <version>${brotli.version}</version>
             </dependency>
             <dependency>
-                <groupId>org.codehaus.janino</groupId>
-                <artifactId>janino</artifactId>
-                <version>${janino.version}</version>
-            </dependency>
-            <dependency>
                 <groupId>org.jctools</groupId>
                 <artifactId>jctools-core</artifactId>
                 <version>${jctools.version}</version>
@@ -342,6 +336,11 @@
                 <groupId>org.msgpack</groupId>
                 <artifactId>msgpack-core</artifactId>
                 <version>${msgpack.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.ow2.asm</groupId>
+                <artifactId>asm</artifactId>
+                <version>${asm.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.roaringbitmap</groupId>
