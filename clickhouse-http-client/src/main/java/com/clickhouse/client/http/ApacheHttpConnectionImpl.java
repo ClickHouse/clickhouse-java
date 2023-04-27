@@ -25,13 +25,13 @@ import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse;
 import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
 import org.apache.hc.client5.http.impl.io.BasicHttpClientConnectionManager;
-import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
 import org.apache.hc.client5.http.socket.ConnectionSocketFactory;
 import org.apache.hc.client5.http.socket.PlainConnectionSocketFactory;
 import org.apache.hc.client5.http.ssl.DefaultHostnameVerifier;
 import org.apache.hc.client5.http.ssl.SSLConnectionSocketFactory;
 import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpRequest;
+import org.apache.hc.core5.http.HttpResponse;
 import org.apache.hc.core5.http.config.Registry;
 import org.apache.hc.core5.http.config.RegistryBuilder;
 import org.apache.hc.core5.http.io.SocketConfig;
@@ -84,6 +84,10 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
             r.register("https", SSLSocketFactory.create(c));
         }
         return HttpClientBuilder.create().setConnectionManager(new HttpConnectionManager(r.build(), c))
+                // disable keep alive for it may cause too many socket fd.
+                .setKeepAliveStrategy((HttpResponse response, HttpContext context) -> null)
+                .setConnectionReuseStrategy((HttpRequest request, HttpResponse response, HttpContext context)
+                        -> Boolean.parseBoolean(null))
                 .disableContentCompression().build();
     }
 
