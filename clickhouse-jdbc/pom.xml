@@ -405,6 +405,7 @@
                                     <include>com.clickhouse:clickhouse-http-client</include>
                                     <include>org.apache.httpcomponents.client5:httpclient5</include>
                                     <include>org.apache.httpcomponents.core5:httpcore5</include>
+                                    <include>org.apache.httpcomponents.core5:httpcore5-h2</include>
                                     <include>org.lz4:lz4-pure-java</include>
                                 </includes>
                             </artifactSet>
@@ -486,6 +487,7 @@
                                     <include>org.apache.commons:commons-compress</include>
                                     <include>org.apache.httpcomponents.client5:httpclient5</include>
                                     <include>org.apache.httpcomponents.core5:httpcore5</include>
+                                    <include>org.apache.httpcomponents.core5:httpcore5-h2</include>
                                     <include>org.lz4:lz4-pure-java</include>
                                 </includes>
                             </artifactSet>
