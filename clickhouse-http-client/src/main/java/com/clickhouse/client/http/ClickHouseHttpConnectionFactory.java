@@ -7,8 +7,12 @@ import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.http.config.ClickHouseHttpOption;
 import com.clickhouse.client.http.config.HttpConnectionProvider;
+import com.clickhouse.logging.Logger;
+import com.clickhouse.logging.LoggerFactory;
 
 public final class ClickHouseHttpConnectionFactory {
+    private static final Logger log = LoggerFactory.getLogger(ClickHouseHttpConnectionFactory.class);
+
     public static ClickHouseHttpConnection createConnection(ClickHouseNode server, ClickHouseRequest<?> request,
             ExecutorService executor) throws IOException {
         HttpConnectionProvider provider = request.getConfig().getOption(ClickHouseHttpOption.CONNECTION_PROVIDER,
@@ -21,6 +25,7 @@ public final class ClickHouseHttpConnectionFactory {
         } catch (IOException e) {
             throw e;
         } catch (Throwable t) {
+            log.warn("Error when creating http client " + provider.name() + ", will use HTTP_URL_CONNECTION", t);
             return new HttpUrlConnectionImpl(server, request, executor);
         }
     }
