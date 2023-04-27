@@ -387,6 +387,11 @@
                 <artifactId>httpcore5</artifactId>
                 <version>${apache.httpclient.version}</version>
             </dependency>
+            <dependency>
+                <groupId>org.apache.httpcomponents.core5</groupId>
+                <artifactId>httpcore5-h2</artifactId>
+                <version>${apache.httpclient.version}</version>
+            </dependency>
 
             <dependency>
                 <groupId>org.mariadb.jdbc</groupId>
