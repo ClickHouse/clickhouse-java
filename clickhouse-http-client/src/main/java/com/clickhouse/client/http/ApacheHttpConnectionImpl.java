@@ -24,14 +24,13 @@ import org.apache.hc.client5.http.config.ConnectionConfig;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse;
 import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
-import org.apache.hc.client5.http.impl.io.BasicHttpClientConnectionManager;
+import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
 import org.apache.hc.client5.http.socket.ConnectionSocketFactory;
 import org.apache.hc.client5.http.socket.PlainConnectionSocketFactory;
 import org.apache.hc.client5.http.ssl.DefaultHostnameVerifier;
 import org.apache.hc.client5.http.ssl.SSLConnectionSocketFactory;
 import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpRequest;
-import org.apache.hc.core5.http.HttpResponse;
 import org.apache.hc.core5.http.config.Registry;
 import org.apache.hc.core5.http.config.RegistryBuilder;
 import org.apache.hc.core5.http.io.SocketConfig;
@@ -83,12 +82,13 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
         if (c.isSsl()) {
             r.register("https", SSLSocketFactory.create(c));
         }
-        return HttpClientBuilder.create().setConnectionManager(new HttpConnectionManager(r.build(), c))
-                // disable keep alive for it may cause too many socket fd.
-                .setKeepAliveStrategy((HttpResponse response, HttpContext context) -> null)
-                .setConnectionReuseStrategy((HttpRequest request, HttpResponse response, HttpContext context)
-                        -> Boolean.parseBoolean(null))
-                .disableContentCompression().build();
+
+        HttpConnectionManager connManager = new HttpConnectionManager(r.build(), c);
+        int max_connection = config.getIntOption(ClickHouseClientOption.APACHE_HTTP_CLIENT_MAX_CONNECTIONS);
+
+        connManager.setMaxTotal(max_connection);
+        connManager.setDefaultMaxPerRoute(max_connection);
+        return HttpClientBuilder.create().setConnectionManager(connManager).disableContentCompression().build();
     }
 
     private ClickHouseHttpResponse buildResponse(ClickHouseConfig config, CloseableHttpResponse response,
@@ -299,7 +299,7 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
         }
     }
 
-    static class HttpConnectionManager extends BasicHttpClientConnectionManager {
+    static class HttpConnectionManager extends PoolingHttpClientConnectionManager {
         private static final String PROVIDER = "Apache-HttpClient";
         private static final String USER_AGENT;
 
@@ -323,7 +323,7 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
             ConnectionConfig connConfig = ConnectionConfig.custom()
                     .setConnectTimeout(Timeout.of(config.getConnectionTimeout(), TimeUnit.MILLISECONDS))
                     .build();
-            setConnectionConfig(connConfig);
+            setDefaultConnectionConfig(connConfig);
 
             SocketConfig.Builder builder = SocketConfig.custom()
                     .setSoTimeout(Timeout.of(config.getSocketTimeout(), TimeUnit.MILLISECONDS))
@@ -342,7 +342,7 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
             if (config.hasOption(ClickHouseClientOption.SOCKET_TCP_NODELAY)) {
                 builder.setTcpNoDelay(config.getBoolOption(ClickHouseClientOption.SOCKET_TCP_NODELAY));
             }
-            setSocketConfig(builder.build());
+            setDefaultSocketConfig(builder.build());
         }
     }
 }
