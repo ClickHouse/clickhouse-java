@@ -84,7 +84,7 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
         }
 
         HttpConnectionManager connManager = new HttpConnectionManager(r.build(), c);
-        int max_connection = config.getIntOption(ClickHouseClientOption.APACHE_HTTP_CLIENT_MAX_CONNECTIONS);
+        int max_connection = config.getIntOption(ClickHouseHttpOption.MAX_OPEN_CONNECTIONS);
 
         connManager.setMaxTotal(max_connection);
         connManager.setDefaultMaxPerRoute(max_connection);

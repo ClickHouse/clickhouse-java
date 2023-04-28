@@ -378,13 +378,8 @@ public enum ClickHouseClientOption implements ClickHouseOption {
      * false.
      */
     USE_TIME_ZONE("use_time_zone", "", "Time zone of all DateTime* values. "
-            + "Only used when use_server_time_zone is false. Empty value means client time zone."),
+            + "Only used when use_server_time_zone is false. Empty value means client time zone.");
 
-    /**
-     * Max connections of ApacheHttpConnectionImpl
-     */
-    APACHE_HTTP_CLIENT_MAX_CONNECTIONS("apache_http_client_max_connections", 10,
-            "Max connections of ApacheHttpConnectionImpl");
 
     private final String key;
     private final Serializable defaultValue;

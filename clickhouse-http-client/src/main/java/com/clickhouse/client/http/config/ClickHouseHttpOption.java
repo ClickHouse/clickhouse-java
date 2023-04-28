@@ -47,7 +47,13 @@ public enum ClickHouseHttpOption implements ClickHouseOption {
     /**
      * Web context.
      */
-    WEB_CONTEXT("web_context", "/", "Web context.");
+    WEB_CONTEXT("web_context", "/", "Web context."),
+
+    /**
+     * Max connections of ApacheHttpConnectionImpl
+     */
+    MAX_OPEN_CONNECTIONS("max_open_connections", 10,
+            "max open connections for a ClickHouseConnection");
 
     private final String key;
     private final Serializable defaultValue;
