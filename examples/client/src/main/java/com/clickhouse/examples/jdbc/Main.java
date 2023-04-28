@@ -71,7 +71,11 @@ public class Main {
 
     static int query(ClickHouseNode server, String table) throws ClickHouseException {
         try (ClickHouseClient client = ClickHouseClient.newInstance(server.getProtocol());
-                ClickHouseResponse response = client.connect(server).query("select * from " + table).execute().get()) {
+                ClickHouseResponse response = client.read(server)
+                        // prefer to use RowBinaryWithNamesAndTypes as it's fully supported
+                        // see details at https://github.com/ClickHouse/clickhouse-java/issues/928
+                        .format(ClickHouseFormat.RowBinaryWithNamesAndTypes)
+                        .query("select * from " + table).execute().get()) {
             int count = 0;
             // or use stream API via response.stream()
             for (ClickHouseRecord r : response.records()) {
