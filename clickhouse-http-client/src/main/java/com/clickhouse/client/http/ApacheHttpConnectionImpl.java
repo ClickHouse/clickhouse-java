@@ -204,7 +204,7 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
 
     @Override
     protected boolean isReusable() {
-        return false;
+        return true;
     }
 
     @Override
