@@ -1,7 +1,9 @@
 package com.clickhouse.jdbc;
 
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.Reader;
 import java.io.StringReader;
 import java.io.UncheckedIOException;
@@ -109,6 +111,15 @@ public class ClickHouseResultSet extends AbstractResultSet {
         this.config = statement.getConfig();
         this.wrapObject = statement.getConnection().getJdbcConfig().useWrapperObject();
         this.defaultCalendar = conn.getDefaultCalendar();
+
+        OutputStream output = statement.getMirroredOutput();
+        if (output != null) {
+            try {
+                response.getInputStream().setCopyToTarget(output);
+            } catch (IOException e) {
+                throw SqlExceptionUtils.clientError(e);
+            }
+        }
 
         this.mapper = statement.getConnection().getJdbcTypeMapping();
         Map<String, Class<?>> typeMap = conn.getTypeMap();
