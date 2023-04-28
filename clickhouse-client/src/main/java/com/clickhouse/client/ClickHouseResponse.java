@@ -52,11 +52,16 @@ public interface ClickHouseResponse extends AutoCloseable, Serializable {
 
         @Override
         public ClickHouseInputStream getInputStream() {
-            return null;
+            return ClickHouseInputStream.empty();
         }
 
         @Override
         public Iterable<ClickHouseRecord> records() {
+            return Collections.emptyList();
+        }
+
+        @Override
+        public <T> Iterable<T> records(Class<T> objClass) {
             return Collections.emptyList();
         }
 
@@ -93,7 +98,7 @@ public interface ClickHouseResponse extends AutoCloseable, Serializable {
      * also means additional work is required for deserialization, especially when
      * using a binary format.
      *
-     * @return input stream for getting raw data returned from server
+     * @return non-null input stream for getting raw data returned from server
      */
     ClickHouseInputStream getInputStream();
 
@@ -121,6 +126,18 @@ public interface ClickHouseResponse extends AutoCloseable, Serializable {
     Iterable<ClickHouseRecord> records();
 
     /**
+     * Returns an iterable collection of mapped objects which can be walked through
+     * in a foreach loop. When {@code objClass} is null or {@link ClickHouseRecord},
+     * it's same as calling {@link #records()}.
+     *
+     * @param <T>      type of the mapped object
+     * @param objClass non-null class of the mapped object
+     * @return non-null iterable collection
+     * @throws UncheckedIOException when failed to read data(e.g. deserialization)
+     */
+    <T> Iterable<T> records(Class<T> objClass);
+
+    /**
      * Pipes the contents of this response into the given output stream. Keep in
      * mind that it's caller's responsibility to flush and close the output stream.
      *
@@ -143,6 +160,16 @@ public interface ClickHouseResponse extends AutoCloseable, Serializable {
      */
     default Stream<ClickHouseRecord> stream() {
         return StreamSupport.stream(Spliterators.spliteratorUnknownSize(records().iterator(),
+                Spliterator.IMMUTABLE | Spliterator.NONNULL | Spliterator.ORDERED), false);
+    }
+
+    /**
+     * Gets stream of mapped objects to process.
+     *
+     * @return stream of mapped objects
+     */
+    default <T> Stream<T> stream(Class<T> objClass) {
+        return StreamSupport.stream(Spliterators.spliteratorUnknownSize(records(objClass).iterator(),
                 Spliterator.IMMUTABLE | Spliterator.NONNULL | Spliterator.ORDERED), false);
     }
 

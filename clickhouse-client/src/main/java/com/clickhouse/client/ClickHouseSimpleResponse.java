@@ -11,6 +11,7 @@ import com.clickhouse.data.ClickHouseRecord;
 import com.clickhouse.data.ClickHouseRecordTransformer;
 import com.clickhouse.data.ClickHouseSimpleRecord;
 import com.clickhouse.data.ClickHouseValue;
+import com.clickhouse.data.mapper.IterableRecordWrapper;
 
 /**
  * A simple response built on top of two lists: columns and records.
@@ -167,6 +168,16 @@ public class ClickHouseSimpleResponse implements ClickHouseResponse {
     @Override
     public Iterable<ClickHouseRecord> records() {
         return records;
+    }
+
+    @SuppressWarnings("unchecked")
+    @Override
+    public <T> Iterable<T> records(Class<T> objClass) {
+        if (objClass == null || objClass == ClickHouseRecord.class) {
+            return (Iterable<T>) records();
+        }
+
+        return () -> new IterableRecordWrapper<>(columns, records().iterator(), objClass);
     }
 
     @Override

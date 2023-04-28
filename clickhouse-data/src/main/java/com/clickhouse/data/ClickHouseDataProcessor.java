@@ -155,6 +155,8 @@ public abstract class ClickHouseDataProcessor {
     protected final ClickHouseInputStream input;
     protected final ClickHouseOutputStream output;
 
+    protected final Map<String, Serializable> extraProps;
+
     protected DefaultSerDe serde;
     /**
      * Column index shared by {@link #read(ClickHouseValue)}, {@link #records()},
@@ -177,7 +179,7 @@ public abstract class ClickHouseDataProcessor {
      */
     protected boolean hasMoreToRead() throws UncheckedIOException {
         try {
-            if (input.available() <= 0) {
+            if (input.available() < 1) {
                 input.close();
                 return false;
             }
@@ -389,6 +391,8 @@ public abstract class ClickHouseDataProcessor {
         this.input = input;
         this.output = output;
 
+        this.extraProps = new HashMap<>();
+
         this.initialColumns = columns;
         this.initialSettings = settings;
         this.serde = null;
@@ -398,6 +402,27 @@ public abstract class ClickHouseDataProcessor {
 
         this.readPosition = 0;
         this.writePosition = 0;
+    }
+
+    /**
+     * Checks whether the processor contains extra property.
+     *
+     * @return true if the processor has extra property; false otherwise
+     */
+    public boolean hasExtraProperties() {
+        return extraProps.isEmpty();
+    }
+
+    /**
+     * Gets a typed extra property.
+     *
+     * @param <T>        type of the property value
+     * @param key        key of the property
+     * @param valueClass non-null Java class of the property value
+     * @return typed extra property, could be null
+     */
+    public <T extends Serializable> T getExtraProperty(String key, Class<T> valueClass) {
+        return valueClass.cast(extraProps.get(key));
     }
 
     public abstract ClickHouseDeserializer getDeserializer(ClickHouseDataConfig config, ClickHouseColumn column);
@@ -460,6 +485,25 @@ public abstract class ClickHouseDataProcessor {
      */
     public final Iterable<ClickHouseRecord> records() {
         return () -> getInitializedSerDe().records;
+    }
+
+    /**
+     * Returns an iterable collection of mapped objects which can be walked through
+     * in a foreach loop. When {@code objClass} is null or {@link ClickHouseRecord},
+     * it's same as calling {@link #records()}.
+     *
+     * @param <T>      type of the mapped object
+     * @param objClass non-null class of the mapped object
+     * @return non-null iterable collection
+     * @throws UncheckedIOException when failed to read data(e.g. deserialization)
+     */
+    @SuppressWarnings("unchecked")
+    public <T> Iterable<T> records(Class<T> objClass) {
+        if (objClass == null || objClass == ClickHouseRecord.class) {
+            return (Iterable<T>) records();
+        }
+
+        return () -> ClickHouseRecordMapper.wrap(getColumns(), getInitializedSerDe().records, objClass);
     }
 
     /**

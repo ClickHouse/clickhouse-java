@@ -749,6 +749,31 @@ public final class ClickHouseUtils {
     }
 
     /**
+     * Removes specific character from the given string.
+     *
+     * @param str string to remove character from
+     * @param ch  specific character to remove from the string
+     * @return non-null string without the specific character
+     */
+    public static String remove(String str, char ch) {
+        if (str == null || str.isEmpty()) {
+            return "";
+        } else if (str.indexOf(ch) == -1) {
+            return str;
+        }
+
+        int len = str.length();
+        StringBuilder builder = new StringBuilder(len);
+        for (int i = 0; i < len; i++) {
+            char c = str.charAt(i);
+            if (c != ch) {
+                builder.append(c);
+            }
+        }
+        return builder.toString();
+    }
+
+    /**
      * Simple and un-protected JSON parser.
      *
      * @param json non-empty JSON string

@@ -72,7 +72,7 @@ public interface ClickHouseRecord extends Iterable<ClickHouseValue>, Serializabl
     @Override
     default Iterator<ClickHouseValue> iterator() {
         return new Iterator<ClickHouseValue>() {
-            int index = 0;
+            private int index = 0;
 
             @Override
             public boolean hasNext() {

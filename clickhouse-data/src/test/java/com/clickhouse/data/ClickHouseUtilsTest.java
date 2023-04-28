@@ -473,6 +473,14 @@ public class ClickHouseUtilsTest {
     }
 
     @Test(groups = { "unit" })
+    public void testRemove() {
+        Assert.assertEquals(ClickHouseUtils.remove(null, '\0'), "");
+        Assert.assertEquals(ClickHouseUtils.remove("", '\0'), "");
+        Assert.assertEquals(ClickHouseUtils.remove("test", '_'), "test");
+        Assert.assertEquals(ClickHouseUtils.remove("test_1", '_'), "test1");
+    }
+
+    @Test(groups = { "unit" })
     public void testFileInputStream() {
         Assert.assertThrows(FileNotFoundException.class,
                 () -> ClickHouseUtils.getFileInputStream(UUID.randomUUID().toString()));
