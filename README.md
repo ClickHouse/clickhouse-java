@@ -44,8 +44,9 @@ Java libraries for connecting to ClickHouse and processing data in various forma
 | Transaction       | Transaction                                                                         | :white_check_mark: | supported since 0.3.2-patch11, use ClickHouse 22.7+ for native implicit transaction support                                                                                                                              |
 |                   | Savepoint                                                                           | :x:                |                                                                                                                                                                                                                          |
 |                   | XAConnection                                                                        | :x:                |                                                                                                                                                                                                                          |
-| Misc.             | Implicit Type Conversion                                                            | :white_check_mark: | String/number to Date/Time/Timestamp and more                                                                                                                                                                            |
-|                   | Centralized Configuration                                                           | :white_check_mark: | supported since 0.4.2, custom server setting `custom_jdbc_config` for all connected JDBC clients                                                                                                                         |
+| Misc.             | Centralized Configuration                                                           | :white_check_mark: | supported since 0.4.2, limited to JDBC driver and requires custom server setting `custom_jdbc_config` for all connected JDBC clients - [#1290](/ClickHouse/clickhouse-java/pull/1290)                                    |
+|                   | INFILE & OUTFILE                                                                    | :white_check_mark: | supported since 0.4.2, limited to JDBC driver and requires `localFile` option - [#1291](/ClickHouse/clickhouse-java/pull/1291)                                                                                           |
+|                   | Implicit Type Conversion                                                            | :white_check_mark: | String/number to Date/Time/Timestamp and more                                                                                                                                                                            |
 
 ## Usage
 
@@ -63,11 +64,11 @@ The library can be downloaded from both [Github Releases](../../releases) and [M
 
 ### Java Client
 
-See the [client docs on the ClickHouse website](https://clickhouse.com/docs/en/integrations/language-clients/java/client).
+See [examples](../../tree/main/examples/client) and the [docs on the ClickHouse website](https://clickhouse.com/docs/en/integrations/language-clients/java/client).
 
 ### JDBC Driver
 
-See the [jdbc driver docs on the ClickHouse website](https://clickhouse.com/docs/en/integrations/language-clients/java/jdbc).
+See [examples](../../tree/main/examples/jdbc) and the [docs on the ClickHouse website](https://clickhouse.com/docs/en/integrations/language-clients/java/jdbc).
 
 ## Contributing
 
