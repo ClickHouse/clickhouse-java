@@ -2,6 +2,7 @@ package com.clickhouse.jdbc.internal;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.Serializable;
 import java.nio.file.Path;
 import java.sql.ResultSet;
@@ -77,6 +78,7 @@ public class ClickHouseStatementImpl extends JdbcWrapper
     private int fetchSize;
     private int maxFieldSize;
     private long maxRows;
+    private OutputStream mirroredOutput;
     private int nullAsDefault;
     private boolean poolable;
     private volatile String queryId;
@@ -900,6 +902,23 @@ public class ClickHouseStatementImpl extends JdbcWrapper
     @Override
     public ClickHouseConfig getConfig() {
         return request.getConfig();
+    }
+
+    @Override
+    public OutputStream getMirroredOutput() {
+        return mirroredOutput;
+    }
+
+    @Override
+    public void setMirroredOutput(OutputStream out) {
+        if (this.mirroredOutput != null) {
+            try {
+                this.mirroredOutput.flush();
+            } catch (IOException e) {
+                // ignore
+            }
+        }
+        this.mirroredOutput = out;
     }
 
     @Override

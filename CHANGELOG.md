@@ -1,5 +1,9 @@
 ## 0.4.6, 2023-04-26
+### New Features
+* ClickHouseStatement.setMirroredOutput() for dumping ResultSet.
+
 ### Bug Fixes
+* NoClassDefFoundError with clickhouse-apache-http-client-jdbc. [#1319](https://github.com/ClickHouse/clickhouse-java/issues/1319)
 * client certificate password exposure in exception. [#1331](https://github.com/ClickHouse/clickhouse-java/issues/1331)
 
 ## 0.4.5, 2023-04-25

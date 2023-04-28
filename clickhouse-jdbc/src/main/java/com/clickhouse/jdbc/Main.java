@@ -10,7 +10,6 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Statement;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
@@ -75,7 +74,11 @@ public final class Main {
                 this.query = query;
             }
             if (file == null || file.isEmpty()) {
-                this.file = requiresJdbc ? "jdbc.out" : "java.out";
+                if (output) {
+                    this.file = requiresJdbc ? "jdbc.out" : "java.out";
+                } else {
+                    this.file = "";
+                }
             } else {
                 this.file = file;
             }
@@ -103,6 +106,10 @@ public final class Main {
                 s = samples;
             }
             return s;
+        }
+
+        boolean hasFile() {
+            return !file.isEmpty();
         }
 
         boolean isDumpAction() {
@@ -331,7 +338,7 @@ public final class Main {
                 try (ClickHouseConnection conn = new ClickHouseConnectionImpl(options.url)) {
                     ClickHouseRequest<?> request = conn.unwrap(ClickHouseRequest.class).query(options.query);
                     if (!request.getServer().getConfig().hasOption(ClickHouseClientOption.FORMAT)) {
-                        request.format(defaultFormat.defaultInputFormat());
+                        request.format(defaultFormat);
                     }
                     request.output(options.file);
                     try (ClickHouseResponse response = request.executeAndWait()) {
@@ -343,7 +350,7 @@ public final class Main {
                 try (ClickHouseClient client = ClickHouseClient.newInstance(server.getProtocol())) {
                     ClickHouseRequest<?> request = client.read(server).query(options.query);
                     if (!server.getConfig().hasOption(ClickHouseClientOption.FORMAT)) {
-                        request.format(defaultFormat.defaultInputFormat());
+                        request.format(defaultFormat);
                     }
                     request.output(options.file);
                     try (ClickHouseResponse response = request.query(options.query).executeAndWait()) {
@@ -389,14 +396,16 @@ public final class Main {
             final long rows;
             if (options.requiresJdbc) {
                 try (ClickHouseConnection conn = new ClickHouseConnectionImpl(options.url);
-                        Statement stmt = conn.createStatement()) {
-                    try (ResultSet rs = stmt.executeQuery(options.query)) {
+                        ClickHouseStatement stmt = conn.createStatement()) {
+                    if (options.hasFile()) {
                         try {
-                            rs.unwrap(ClickHouseResponse.class).getInputStream()
-                                    .setCopyToTarget(new FileOutputStream(options.file, false)); // NOSONAR
+                            stmt.setMirroredOutput(
+                                    !"-".equals(options.file) ? new FileOutputStream(options.file, false) : System.out); // NOSONAR
                         } catch (IOException e) {
                             throw SqlExceptionUtils.clientError(e);
                         }
+                    }
+                    try (ResultSet rs = stmt.executeQuery(options.query)) {
                         rows = read(rs);
                     }
                 }
@@ -408,10 +417,14 @@ public final class Main {
                         request.format(defaultFormat);
                     }
                     try (ClickHouseResponse response = request.executeAndWait()) {
-                        try {
-                            response.getInputStream().setCopyToTarget(new FileOutputStream(options.file, false)); // NOSONAR
-                        } catch (IOException e) {
-                            throw ClickHouseException.of(e, server);
+                        if (options.hasFile()) {
+                            try {
+                                response.getInputStream().setCopyToTarget(
+                                        !"-".equals(options.file) ? new FileOutputStream(options.file, false)
+                                                : System.out); // NOSONAR
+                            } catch (IOException e) {
+                                throw ClickHouseException.of(e, server);
+                            }
                         }
                         rows = read(response);
                     }
@@ -764,14 +777,14 @@ public final class Main {
         println("Properties: -Dkey=value [-Dkey=value]*");
         println("  action \tAction, one of read(default), write, dump(no deserialization), and load(no serialization)");
         println("  batch  \tBatch size for JDBC writing, defaults to 1000");
-        println("  output \tWhether to write raw response into a file(java.out or jdbc.out), defaults to false");
+        println("  output \tWhether to write raw response into stdout or a file(java.out or jdbc.out), defaults to false");
         println("  samples\tSamples, defaults to 500000000");
         println("  serde  \tWhether to use default serialization/deserializion mechanism in Java client, defaults to true");
         println("  type   \tPredefined QUERY, one of Int8, UInt64, String, Array, Tuple, Nested, and Mixed");
         println("  verbose\tWhether to show logs, defaults to false");
         println();
         println("Examples:");
-        println("  -  %s 'https://localhost?sslmode=none' 'select 1'",
+        println("  -  %s 'https://localhost?sslmode=none' 'select 1' -",
                 index > 0 ? (execFile.substring(0, index) + " -Dverbose=true" + execFile.substring(index))
                         : (execFile + " -Dverbose=true"));
         println("  -  %s 'jdbc:ch://user:password@localhost:8123/default' 'select 1' output.file", execFile);
@@ -802,7 +815,7 @@ public final class Main {
         final long rows = query.run();
         if (options.verbose) {
             long elapsedNanos = System.nanoTime() - startTime;
-            println("Processed %,d rows in %,.2f ms (%,.2f rows/s)", rows, elapsedNanos / 1_000_000D,
+            println("\nProcessed %,d rows in %,.2f ms (%,.2f rows/s)", rows, elapsedNanos / 1_000_000D,
                     rows * 1_000_000_000D / elapsedNanos);
         }
         System.exit(rows > 0L ? 0 : 1);
