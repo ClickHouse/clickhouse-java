@@ -380,6 +380,7 @@ public enum ClickHouseClientOption implements ClickHouseOption {
     USE_TIME_ZONE("use_time_zone", "", "Time zone of all DateTime* values. "
             + "Only used when use_server_time_zone is false. Empty value means client time zone.");
 
+
     private final String key;
     private final Serializable defaultValue;
     private final Class<? extends Serializable> clazz;
