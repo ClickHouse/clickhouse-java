@@ -497,7 +497,7 @@ public class ClickHouseDoubleArrayValue extends ClickHouseObjectValue<double[]> 
     public ClickHouseArraySequence allocate(int length, Class<?> clazz, int level) {
         if (length < 1) {
             resetToDefault();
-        } else if (length() != length) {
+        } else {
             set(new double[length]);
         }
         return this;

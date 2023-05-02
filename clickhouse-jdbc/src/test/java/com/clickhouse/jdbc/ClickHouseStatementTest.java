@@ -2,6 +2,7 @@ package com.clickhouse.jdbc;
 
 import java.io.File;
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.sql.Array;
 import java.sql.BatchUpdateException;
 import java.sql.Connection;
@@ -1137,6 +1138,44 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
                 Assert.assertEquals(((List<?>) ((Object[]) rs.getObject(2))[1]).get(0),
                         UnsignedShort.valueOf((short) 3));
                 Assert.assertEquals(((List<?>) ((Object[]) rs.getObject(2))[1]).get(1), new int[] { 6, 7 });
+                Assert.assertFalse(rs.next());
+            }
+
+            Assert.assertFalse(stmt.execute("drop table if exists test_nested_array_in_tuple; "
+                    + "create table test_nested_array_in_tuple(id UInt64, val Array(Tuple(UInt16,Array(Decimal(10,0)))))engine=Memory; "
+                    + "insert into test_nested_array_in_tuple values(1, [(0, [1, 2]), (1, [2, 3])]), (2, [(2, [4, 5]), (3, [6, 7])])"));
+            try (ResultSet rs = stmt.executeQuery("select * from test_nested_array_in_tuple order by id")) {
+                Assert.assertTrue(rs.next());
+                Assert.assertEquals(rs.getInt(1), 1);
+                Assert.assertEquals(((Object[]) rs.getObject(2)).length, 2);
+                Assert.assertEquals(((List<?>) ((Object[]) rs.getObject(2))[0]).size(), 2);
+                Assert.assertEquals(((List<?>) ((Object[]) rs.getObject(2))[0]).get(0), UnsignedShort.ZERO);
+                Assert.assertEquals(((BigDecimal[]) ((List<?>) ((Object[]) rs.getObject(2))[0]).get(1))[0],
+                        BigDecimal.valueOf(1));
+                Assert.assertEquals(((BigDecimal[]) ((List<?>) ((Object[]) rs.getObject(2))[0]).get(1))[1],
+                        BigDecimal.valueOf(2));
+                Assert.assertEquals(((List<?>) ((Object[]) rs.getObject(2))[1]).size(), 2);
+                Assert.assertEquals(((List<?>) ((Object[]) rs.getObject(2))[1]).get(0), UnsignedShort.ONE);
+                Assert.assertEquals(((BigDecimal[]) ((List<?>) ((Object[]) rs.getObject(2))[1]).get(1))[0],
+                        BigDecimal.valueOf(2));
+                Assert.assertEquals(((BigDecimal[]) ((List<?>) ((Object[]) rs.getObject(2))[1]).get(1))[1],
+                        BigDecimal.valueOf(3));
+                Assert.assertTrue(rs.next());
+                Assert.assertEquals(((Object[]) rs.getObject(2)).length, 2);
+                Assert.assertEquals(((List<?>) ((Object[]) rs.getObject(2))[0]).size(), 2);
+                Assert.assertEquals(((List<?>) ((Object[]) rs.getObject(2))[0]).get(0),
+                        UnsignedShort.valueOf((short) 2));
+                Assert.assertEquals(((BigDecimal[]) ((List<?>) ((Object[]) rs.getObject(2))[0]).get(1))[0],
+                        BigDecimal.valueOf(4));
+                Assert.assertEquals(((BigDecimal[]) ((List<?>) ((Object[]) rs.getObject(2))[0]).get(1))[1],
+                        BigDecimal.valueOf(5));
+                Assert.assertEquals(((List<?>) ((Object[]) rs.getObject(2))[1]).size(), 2);
+                Assert.assertEquals(((List<?>) ((Object[]) rs.getObject(2))[1]).get(0),
+                        UnsignedShort.valueOf((short) 3));
+                Assert.assertEquals(((BigDecimal[]) ((List<?>) ((Object[]) rs.getObject(2))[1]).get(1))[0],
+                        BigDecimal.valueOf(6));
+                Assert.assertEquals(((BigDecimal[]) ((List<?>) ((Object[]) rs.getObject(2))[1]).get(1))[1],
+                        BigDecimal.valueOf(7));
                 Assert.assertFalse(rs.next());
             }
         }

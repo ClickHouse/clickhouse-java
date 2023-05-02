@@ -605,7 +605,7 @@ public class ClickHouseByteArrayValue extends ClickHouseObjectValue<byte[]> impl
     public ClickHouseArraySequence allocate(int length, Class<?> clazz, int level) {
         if (length < 1) {
             resetToDefault();
-        } else if (length() != length) {
+        } else {
             set(new byte[length]);
         }
         return this;

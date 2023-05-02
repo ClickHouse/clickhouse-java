@@ -6,6 +6,7 @@
 
 ### Bug Fixes
 * NoClassDefFoundError with clickhouse-apache-http-client-jdbc. [#1319](https://github.com/ClickHouse/clickhouse-java/issues/1319)
+* Nested array in tuple array is incorrectly deserialized. [#1324](https://github.com/ClickHouse/clickhouse-java/issues/1324)
 * client certificate password exposure in exception. [#1331](https://github.com/ClickHouse/clickhouse-java/issues/1331)
 
 ## 0.4.5, 2023-04-25

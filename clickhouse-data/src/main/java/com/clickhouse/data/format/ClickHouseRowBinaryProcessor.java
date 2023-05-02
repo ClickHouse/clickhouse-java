@@ -483,8 +483,7 @@ public class ClickHouseRowBinaryProcessor extends ClickHouseDataProcessor {
                     }
                 } else {
                     deserializer = new BinaryDataProcessor.ArrayDeserializer(config, column, true,
-                            new ClickHouseDeserializer.ResetValueDeserializer(
-                                    getDeserializer(config, column.getNestedColumns().get(0))));
+                            getDeserializer(config, column.getNestedColumns().get(0)));
                 }
                 break;
             }
