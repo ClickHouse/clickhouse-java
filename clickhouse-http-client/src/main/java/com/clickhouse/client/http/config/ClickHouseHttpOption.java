@@ -34,6 +34,10 @@ public enum ClickHouseHttpOption implements ClickHouseOption {
      */
     KEEP_ALIVE("http_keep_alive", true, "Whether to use keep-alive or not"),
     /**
+     * Max open connections apply with Apache HttpClient only.
+     */
+    MAX_OPEN_CONNECTIONS("max_open_connections", 10, "Max open connections apply with Apache HttpClient only."),
+    /**
      * Whether to receive information about the progress of a query in response
      * headers.
      */
@@ -47,13 +51,7 @@ public enum ClickHouseHttpOption implements ClickHouseOption {
     /**
      * Web context.
      */
-    WEB_CONTEXT("web_context", "/", "Web context."),
-
-    /**
-     * Max connections of ApacheHttpConnectionImpl
-     */
-    MAX_OPEN_CONNECTIONS("max_open_connections", 10,
-            "max open connections for a ClickHouseConnection");
+    WEB_CONTEXT("web_context", "/", "Web context.");
 
     private final String key;
     private final Serializable defaultValue;
