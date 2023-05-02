@@ -1,11 +1,14 @@
 package com.clickhouse.data;
 
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.Buffer;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
@@ -144,6 +147,14 @@ public class ClickHouseByteBuffer implements Serializable {
         return getBigInteger(0, length, false);
     }
 
+    public BigDecimal asBigDecimal() {
+        return asBigDecimal(0);
+    }
+
+    public BigDecimal asBigDecimal(int scale) {
+        return new BigDecimal(asBigInteger(), scale);
+    }
+
     public boolean asBoolean() {
         return getBoolean(0);
     }
@@ -169,6 +180,19 @@ public class ClickHouseByteBuffer implements Serializable {
             values[i] = getDouble(offset);
         }
         return values;
+    }
+
+    public LocalDate asDate() {
+        return LocalDate.ofEpochDay(asUnsignedInteger());
+    }
+
+    public LocalDateTime asDateTime() {
+        return asDateTime(0);
+    }
+
+    public LocalDateTime asDateTime(int scale) {
+        return ClickHouseValues
+                .convertToDateTime(asBigDecimal(ClickHouseChecker.between(scale, ClickHouseValues.PARAM_SCALE, 0, 9)));
     }
 
     public float asFloat() {

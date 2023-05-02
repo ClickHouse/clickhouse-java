@@ -204,6 +204,7 @@ public class ClickHouseConfig implements ClickHouseDataConfig {
     private final ClickHouseBufferingMode requestBuffering;
     private final ClickHouseBufferingMode responseBuffering;
     private final int maxExecutionTime;
+    private final int maxMapperCache;
     private final int maxQueuedBuffers;
     private final int maxQueuedRequests;
     private final long maxResultRows;
@@ -229,6 +230,7 @@ public class ClickHouseConfig implements ClickHouseDataConfig {
     private final boolean widenUnsignedTypes;
     private final boolean useBinaryString;
     private final boolean useBlockingQueue;
+    private final boolean useCompilation;
     private final boolean useObjectsInArray;
     private final boolean useNoProxy;
     private final boolean useServerTimeZone;
@@ -312,6 +314,7 @@ public class ClickHouseConfig implements ClickHouseDataConfig {
         this.responseBuffering = (ClickHouseBufferingMode) getOption(ClickHouseClientOption.RESPONSE_BUFFERING,
                 ClickHouseDefaults.BUFFERING);
         this.maxExecutionTime = getIntOption(ClickHouseClientOption.MAX_EXECUTION_TIME);
+        this.maxMapperCache = getIntOption(ClickHouseClientOption.MAX_MAPPER_CACHE);
         this.maxQueuedBuffers = getIntOption(ClickHouseClientOption.MAX_QUEUED_BUFFERS);
         this.maxQueuedRequests = getIntOption(ClickHouseClientOption.MAX_QUEUED_REQUESTS);
         this.maxResultRows = getLongOption(ClickHouseClientOption.MAX_RESULT_ROWS);
@@ -340,6 +343,7 @@ public class ClickHouseConfig implements ClickHouseDataConfig {
         this.widenUnsignedTypes = getBoolOption(ClickHouseClientOption.WIDEN_UNSIGNED_TYPES);
         this.useBinaryString = getBoolOption(ClickHouseClientOption.USE_BINARY_STRING);
         this.useBlockingQueue = getBoolOption(ClickHouseClientOption.USE_BLOCKING_QUEUE);
+        this.useCompilation = getBoolOption(ClickHouseClientOption.USE_COMPILATION);
         this.useObjectsInArray = getBoolOption(ClickHouseClientOption.USE_OBJECTS_IN_ARRAYS);
         this.useNoProxy = getBoolOption(ClickHouseClientOption.USE_NO_PROXY);
         this.useServerTimeZone = getBoolOption(ClickHouseClientOption.USE_SERVER_TIME_ZONE);
@@ -456,6 +460,11 @@ public class ClickHouseConfig implements ClickHouseDataConfig {
     @Override
     public int getMaxBufferSize() {
         return maxBufferSize;
+    }
+
+    @Override
+    public int getMaxMapperCache() {
+        return maxMapperCache;
     }
 
     @Override
@@ -613,6 +622,11 @@ public class ClickHouseConfig implements ClickHouseDataConfig {
     @Override
     public boolean isUseBlockingQueue() {
         return useBlockingQueue;
+    }
+
+    @Override
+    public boolean isUseCompilation() {
+        return useCompilation;
     }
 
     @Override

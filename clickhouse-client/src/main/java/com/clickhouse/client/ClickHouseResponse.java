@@ -52,11 +52,16 @@ public interface ClickHouseResponse extends AutoCloseable, Serializable {
 
         @Override
         public ClickHouseInputStream getInputStream() {
-            return null;
+            return ClickHouseInputStream.empty();
         }
 
         @Override
         public Iterable<ClickHouseRecord> records() {
+            return Collections.emptyList();
+        }
+
+        @Override
+        public <T> Iterable<T> records(Class<T> objClass) {
             return Collections.emptyList();
         }
 
@@ -93,7 +98,7 @@ public interface ClickHouseResponse extends AutoCloseable, Serializable {
      * also means additional work is required for deserialization, especially when
      * using a binary format.
      *
-     * @return input stream for getting raw data returned from server
+     * @return non-null input stream for getting raw data returned from server
      */
     ClickHouseInputStream getInputStream();
 
@@ -110,6 +115,20 @@ public interface ClickHouseResponse extends AutoCloseable, Serializable {
     }
 
     /**
+     * Gets the first record as mapped object. Please use {@link #records(Class)}
+     * instead if you need to access the rest of records.
+     * 
+     * @param <T>      type of the mapped object
+     * @param objClass non-null class of the mapped object
+     * @return mapped object of the first record
+     * @throws NoSuchElementException when there's no record at all
+     * @throws UncheckedIOException   when failed to read data(e.g. deserialization)
+     */
+    default <T> T firstRecord(Class<T> objClass) {
+        return records(objClass).iterator().next();
+    }
+
+    /**
      * Returns an iterable collection of records which can be walked through in a
      * foreach loop. Please pay attention that: 1) {@link UncheckedIOException}
      * might be thrown when iterating through the collection; and 2) it's not
@@ -119,6 +138,18 @@ public interface ClickHouseResponse extends AutoCloseable, Serializable {
      * @throws UncheckedIOException when failed to read data(e.g. deserialization)
      */
     Iterable<ClickHouseRecord> records();
+
+    /**
+     * Returns an iterable collection of mapped objects which can be walked through
+     * in a foreach loop. When {@code objClass} is null or {@link ClickHouseRecord},
+     * it's same as calling {@link #records()}.
+     *
+     * @param <T>      type of the mapped object
+     * @param objClass non-null class of the mapped object
+     * @return non-null iterable collection
+     * @throws UncheckedIOException when failed to read data(e.g. deserialization)
+     */
+    <T> Iterable<T> records(Class<T> objClass);
 
     /**
      * Pipes the contents of this response into the given output stream. Keep in
@@ -143,6 +174,16 @@ public interface ClickHouseResponse extends AutoCloseable, Serializable {
      */
     default Stream<ClickHouseRecord> stream() {
         return StreamSupport.stream(Spliterators.spliteratorUnknownSize(records().iterator(),
+                Spliterator.IMMUTABLE | Spliterator.NONNULL | Spliterator.ORDERED), false);
+    }
+
+    /**
+     * Gets stream of mapped objects to process.
+     *
+     * @return stream of mapped objects
+     */
+    default <T> Stream<T> stream(Class<T> objClass) {
+        return StreamSupport.stream(Spliterators.spliteratorUnknownSize(records(objClass).iterator(),
                 Spliterator.IMMUTABLE | Spliterator.NONNULL | Spliterator.ORDERED), false);
     }
 

@@ -6,6 +6,7 @@ module com.clickhouse.data {
     exports com.clickhouse.data;
     // exports com.clickhouse.data.cache;
     // exports com.clickhouse.data.format;
+    // exports com.clickhouse.data.mapper;
     // exports com.clickhouse.data.stream;
     exports com.clickhouse.data.value;
     exports com.clickhouse.logging;

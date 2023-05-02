@@ -8,6 +8,7 @@ import java.util.List;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseInputStream;
 import com.clickhouse.data.ClickHouseRecord;
+import com.clickhouse.data.ClickHouseRecordMapper;
 import com.clickhouse.data.ClickHouseRecordTransformer;
 import com.clickhouse.data.ClickHouseSimpleRecord;
 import com.clickhouse.data.ClickHouseValue;
@@ -167,6 +168,16 @@ public class ClickHouseSimpleResponse implements ClickHouseResponse {
     @Override
     public Iterable<ClickHouseRecord> records() {
         return records;
+    }
+
+    @SuppressWarnings("unchecked")
+    @Override
+    public <T> Iterable<T> records(Class<T> objClass) {
+        if (objClass == null || objClass == ClickHouseRecord.class) {
+            return (Iterable<T>) records();
+        }
+
+        return () -> ClickHouseRecordMapper.wrap(null, columns, records().iterator(), objClass, null);
     }
 
     @Override
