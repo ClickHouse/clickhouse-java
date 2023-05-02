@@ -751,22 +751,51 @@ public final class ClickHouseUtils {
     /**
      * Removes specific character from the given string.
      *
-     * @param str string to remove character from
-     * @param ch  specific character to remove from the string
+     * @param str  string to remove character from
+     * @param ch   specific character to be removed from the string
+     * @param more more characters to be removed
      * @return non-null string without the specific character
      */
-    public static String remove(String str, char ch) {
+    public static String remove(String str, char ch, char... more) {
         if (str == null || str.isEmpty()) {
             return "";
-        } else if (str.indexOf(ch) == -1) {
+        }
+
+        int l = more == null ? 0 : more.length;
+        if (l == 0 && str.indexOf(ch) == -1) {
             return str;
+        }
+
+        // deduped array
+        char[] chars = new char[1 + l];
+        chars[0] = ch;
+        int p = 1;
+        for (int i = 0; i < l; i++) {
+            char c = more[i];
+            boolean skip = false;
+            for (int j = 0, k = i + 1; j < k; j++) {
+                if (chars[j] == c) {
+                    skip = true;
+                    break;
+                }
+            }
+            if (!skip) {
+                chars[p++] = c;
+            }
         }
 
         int len = str.length();
         StringBuilder builder = new StringBuilder(len);
         for (int i = 0; i < len; i++) {
             char c = str.charAt(i);
-            if (c != ch) {
+            boolean skip = false;
+            for (int j = 0; j < p; j++) {
+                if (chars[j] == c) {
+                    skip = true;
+                    break;
+                }
+            }
+            if (!skip) {
                 builder.append(c);
             }
         }

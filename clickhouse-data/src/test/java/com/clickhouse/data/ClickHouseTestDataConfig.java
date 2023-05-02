@@ -93,6 +93,11 @@ public class ClickHouseTestDataConfig implements ClickHouseDataConfig {
     }
 
     @Override
+    public boolean isUseCompilation() {
+        return false;
+    }
+
+    @Override
     public boolean isUseObjectsInArray() {
         return false;
     }

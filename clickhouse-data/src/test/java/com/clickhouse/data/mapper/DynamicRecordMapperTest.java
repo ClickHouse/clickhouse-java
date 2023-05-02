@@ -6,9 +6,11 @@ import org.testng.Assert;
 import org.testng.annotations.Test;
 
 import com.clickhouse.data.ClickHouseColumn;
+import com.clickhouse.data.ClickHouseDataConfig;
 import com.clickhouse.data.ClickHouseRecord;
 import com.clickhouse.data.ClickHouseRecordMapper;
 import com.clickhouse.data.ClickHouseSimpleRecord;
+import com.clickhouse.data.ClickHouseTestDataConfig;
 import com.clickhouse.data.ClickHouseValue;
 import com.clickhouse.data.value.ClickHouseIntegerValue;
 import com.clickhouse.data.value.ClickHouseObjectValue;
@@ -52,7 +54,7 @@ public class DynamicRecordMapperTest {
             return description;
         }
 
-        public void setDescription(ClickHouseObjectValue description) {
+        public void setDescription(ClickHouseObjectValue<?> description) {
             this.description = description.asString();
         }
     }
@@ -83,25 +85,27 @@ public class DynamicRecordMapperTest {
 
     @Test(groups = { "unit" })
     public void testInvalidPojo() {
+        ClickHouseDataConfig config = new ClickHouseTestDataConfig();
         List<ClickHouseColumn> columns = ClickHouseColumn.parse("id String, value Int32");
 
         Assert.assertThrows(IllegalArgumentException.class,
-                () -> new DynamicRecordMapper(ClickHouseRecord.class).get(columns).mapTo(ClickHouseRecord.EMPTY,
+                () -> new DynamicRecordMapper(ClickHouseRecord.class).get(config, columns).mapTo(ClickHouseRecord.EMPTY,
                         ClickHouseRecord.class));
         Assert.assertThrows(IllegalArgumentException.class,
-                () -> new DynamicRecordMapper(ClickHouseRecord.class).get(columns).mapTo(ClickHouseRecord.EMPTY,
+                () -> new DynamicRecordMapper(ClickHouseRecord.class).get(config, columns).mapTo(ClickHouseRecord.EMPTY,
                         getClass()));
         Assert.assertThrows(IllegalArgumentException.class,
-                () -> new DynamicRecordMapper(PrivatePojo.class).get(columns).mapTo(ClickHouseRecord.EMPTY,
+                () -> new DynamicRecordMapper(PrivatePojo.class).get(config, columns).mapTo(ClickHouseRecord.EMPTY,
                         PrivatePojo.class));
     }
 
     @Test(groups = { "unit" })
     public void testSimplePojo() {
+        ClickHouseDataConfig config = new ClickHouseTestDataConfig();
         List<ClickHouseColumn> columns = ClickHouseColumn.parse("code String, id Int32, description Nullable(String)");
         ClickHouseValue[] values = new ClickHouseValue[] { ClickHouseStringValue.of("secret"),
                 ClickHouseIntegerValue.of(5), ClickHouseIntArrayValue.of(new int[] { 1, 2, 3 }) };
-        ClickHouseRecordMapper mapper = new DynamicRecordMapper(SimplePojo.class).get(columns);
+        ClickHouseRecordMapper mapper = new DynamicRecordMapper(SimplePojo.class).get(config, columns);
         // Assert.assertThrows(IllegalArgumentException.class,
         // () -> mapper.mapTo(ClickHouseSimpleRecord.of(columns, values),
         // PrivatePojo.class));
@@ -111,7 +115,7 @@ public class DynamicRecordMapperTest {
         Assert.assertEquals(pojo.getName(), "");
         Assert.assertEquals(pojo.getDescription(), values[2].asString());
 
-        RecordPojo rpojo = RecordMapperFactory.of(columns, RecordPojo.class)
+        RecordPojo rpojo = RecordMapperFactory.of(config, columns, RecordPojo.class)
                 .mapTo(ClickHouseSimpleRecord.of(columns, values), RecordPojo.class);
         Assert.assertNotNull(rpojo);
         Assert.assertEquals(rpojo.getId(), values[1].asInteger());

@@ -10,11 +10,13 @@ import java.util.List;
 
 import com.clickhouse.data.ClickHouseChecker;
 import com.clickhouse.data.ClickHouseColumn;
+import com.clickhouse.data.ClickHouseDataConfig;
 import com.clickhouse.data.ClickHouseRecord;
 import com.clickhouse.data.ClickHouseRecordMapper;
 import com.clickhouse.data.ClickHouseUtils;
 
 public abstract class AbstractRecordMapper implements ClickHouseRecordMapper, WrappedMapper {
+
     static final class PropertyInfo {
         final int index;
         final ClickHouseColumn column;
@@ -71,7 +73,7 @@ public abstract class AbstractRecordMapper implements ClickHouseRecordMapper, Wr
             }
 
             final String setter = "set".concat(name);
-            final String alias = ClickHouseUtils.remove(setter, '_');
+            final String alias = ClickHouseUtils.remove(setter, '_', '-', ' ', '\t', '\r', '\n', '\'', '"', '`');
             for (int j = 0; j < len; j++) {
                 Method m = setters[j];
                 String n = m.getName();
@@ -116,7 +118,7 @@ public abstract class AbstractRecordMapper implements ClickHouseRecordMapper, Wr
     }
 
     @Override
-    public ClickHouseRecordMapper get(List<ClickHouseColumn> columns) {
+    public ClickHouseRecordMapper get(ClickHouseDataConfig config, List<ClickHouseColumn> columns) {
         return this;
     }
 }

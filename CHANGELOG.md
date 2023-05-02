@@ -1,6 +1,8 @@
 ## 0.4.6, 2023-04-26
 ### New Features
 * ClickHouseStatement.setMirroredOutput() for dumping ResultSet.
+* ClickHouseResponse.records(Class<?>) for object mapping.
+* Two new options(use_compilation & max_mapper_cache) reserved for future usage.
 
 ### Bug Fixes
 * NoClassDefFoundError with clickhouse-apache-http-client-jdbc. [#1319](https://github.com/ClickHouse/clickhouse-java/issues/1319)

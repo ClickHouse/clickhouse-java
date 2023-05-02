@@ -489,21 +489,36 @@ public abstract class ClickHouseDataProcessor {
 
     /**
      * Returns an iterable collection of mapped objects which can be walked through
-     * in a foreach loop. When {@code objClass} is null or {@link ClickHouseRecord},
-     * it's same as calling {@link #records()}.
+     * in a foreach loop. Same as {@code records(objClass, null)}.
      *
      * @param <T>      type of the mapped object
      * @param objClass non-null class of the mapped object
      * @return non-null iterable collection
      * @throws UncheckedIOException when failed to read data(e.g. deserialization)
      */
+    public final <T> Iterable<T> records(Class<T> objClass) {
+        return records(objClass, null);
+    }
+
+    /**
+     * Returns an iterable collection of mapped objects which can be walked through
+     * in a foreach loop. When {@code objClass} is null or {@link ClickHouseRecord},
+     * this is same as calling {@link #records()}.
+     *
+     * @param <T>      type of the mapped object
+     * @param objClass non-null class of the mapped object
+     * @param template optional template object to reuse
+     * @return non-null iterable collection
+     * @throws UncheckedIOException when failed to read data(e.g. deserialization)
+     */
     @SuppressWarnings("unchecked")
-    public <T> Iterable<T> records(Class<T> objClass) {
+    public <T> Iterable<T> records(Class<T> objClass, T template) {
         if (objClass == null || objClass == ClickHouseRecord.class) {
             return (Iterable<T>) records();
         }
 
-        return () -> ClickHouseRecordMapper.wrap(getColumns(), getInitializedSerDe().records, objClass);
+        return () -> ClickHouseRecordMapper.wrap(config, getColumns(), getInitializedSerDe().records, objClass,
+                template);
     }
 
     /**

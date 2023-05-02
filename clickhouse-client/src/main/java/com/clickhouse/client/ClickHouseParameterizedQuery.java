@@ -548,11 +548,11 @@ public class ClickHouseParameterizedQuery implements Serializable {
      */
     public ClickHouseValue[] getParameterTemplates() {
         int i = 0;
-        ClickHouseValue[] tempaltes = new ClickHouseValue[names.size()];
+        ClickHouseValue[] templates = new ClickHouseValue[names.size()];
         for (ClickHouseValue v : names.values()) {
-            tempaltes[i++] = v;
+            templates[i++] = v;
         }
-        return tempaltes;
+        return templates;
     }
 
     /**

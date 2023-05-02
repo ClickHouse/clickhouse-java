@@ -8,10 +8,10 @@ import java.util.List;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseInputStream;
 import com.clickhouse.data.ClickHouseRecord;
+import com.clickhouse.data.ClickHouseRecordMapper;
 import com.clickhouse.data.ClickHouseRecordTransformer;
 import com.clickhouse.data.ClickHouseSimpleRecord;
 import com.clickhouse.data.ClickHouseValue;
-import com.clickhouse.data.mapper.IterableRecordWrapper;
 
 /**
  * A simple response built on top of two lists: columns and records.
@@ -177,7 +177,7 @@ public class ClickHouseSimpleResponse implements ClickHouseResponse {
             return (Iterable<T>) records();
         }
 
-        return () -> new IterableRecordWrapper<>(columns, records().iterator(), objClass);
+        return () -> ClickHouseRecordMapper.wrap(null, columns, records().iterator(), objClass, null);
     }
 
     @Override

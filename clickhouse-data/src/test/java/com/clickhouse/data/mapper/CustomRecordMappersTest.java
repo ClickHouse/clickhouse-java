@@ -6,9 +6,11 @@ import org.testng.Assert;
 import org.testng.annotations.Test;
 
 import com.clickhouse.data.ClickHouseColumn;
+import com.clickhouse.data.ClickHouseDataConfig;
 import com.clickhouse.data.ClickHouseRecord;
 import com.clickhouse.data.ClickHouseRecordMapper;
 import com.clickhouse.data.ClickHouseSimpleRecord;
+import com.clickhouse.data.ClickHouseTestDataConfig;
 import com.clickhouse.data.ClickHouseValue;
 import com.clickhouse.data.value.ClickHouseStringValue;
 
@@ -46,6 +48,7 @@ public class CustomRecordMappersTest {
 
     @Test(groups = { "unit" })
     public void testCustomConstructor() throws Exception {
+        ClickHouseDataConfig config = new ClickHouseTestDataConfig();
         List<ClickHouseColumn> c = ClickHouseColumn.parse("id UInt32, name String");
         ClickHouseRecord r = ClickHouseSimpleRecord.of(c,
                 new ClickHouseValue[] { ClickHouseStringValue.ofNull(), ClickHouseStringValue.ofNull() });
@@ -56,13 +59,14 @@ public class CustomRecordMappersTest {
                 TestPojo.class.getDeclaredConstructor(ClickHouseSimpleRecord.class));
         Assert.assertTrue(r == m.mapTo(r, TestPojo.class).r);
 
-        m = RecordMapperFactory.of(c, TestPojo.class);
+        m = RecordMapperFactory.of(config, c, TestPojo.class);
         Assert.assertEquals(m.getClass(), CustomRecordMappers.RecordConstructor.class);
         Assert.assertTrue(r == m.mapTo(r, TestPojo.class).r);
     }
 
     @Test(groups = { "unit" })
     public void testCustomCreator() throws Exception {
+        ClickHouseDataConfig config = new ClickHouseTestDataConfig();
         List<ClickHouseColumn> c = ClickHouseColumn.parse("id UInt32, name String");
         ClickHouseRecord r = ClickHouseSimpleRecord.of(c,
                 new ClickHouseValue[] { ClickHouseStringValue.ofNull(), ClickHouseStringValue.ofNull() });
@@ -73,11 +77,11 @@ public class CustomRecordMappersTest {
                 DerivedPojo.class.getDeclaredMethods()[0]);
         Assert.assertTrue(r == m.mapTo(r, DerivedPojo.class).r);
 
-        m = RecordMapperFactory.of(c, DerivedPojo.class);
+        m = RecordMapperFactory.of(config, c, DerivedPojo.class);
         Assert.assertEquals(m.getClass(), CustomRecordMappers.RecordCreator.class);
         Assert.assertTrue(r == m.mapTo(r, DerivedPojo.class).r);
 
-        m = RecordMapperFactory.of(c, ComplexPojo.class);
+        m = RecordMapperFactory.of(config, c, ComplexPojo.class);
         Assert.assertEquals(m.getClass(), CustomRecordMappers.RecordCreator.class);
         Assert.assertTrue(r == m.mapTo(r, ComplexPojo.class).r);
     }

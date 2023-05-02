@@ -150,6 +150,6 @@ public class ClickHouseStreamResponse implements ClickHouseResponse {
             throw new UnsupportedOperationException(
                     "No data processor available for deserialization, please consider to use getInputStream instead");
         }
-        return processor.records(objClass);
+        return processor.records(objClass, null);
     }
 }

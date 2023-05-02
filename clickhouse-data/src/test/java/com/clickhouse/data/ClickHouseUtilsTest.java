@@ -477,7 +477,10 @@ public class ClickHouseUtilsTest {
         Assert.assertEquals(ClickHouseUtils.remove(null, '\0'), "");
         Assert.assertEquals(ClickHouseUtils.remove("", '\0'), "");
         Assert.assertEquals(ClickHouseUtils.remove("test", '_'), "test");
+        Assert.assertEquals(ClickHouseUtils.remove("test", '_', 'x'), "test");
+        Assert.assertEquals(ClickHouseUtils.remove("test", '_', 't', 'e', 's', 'x'), "");
         Assert.assertEquals(ClickHouseUtils.remove("test_1", '_'), "test1");
+        Assert.assertEquals(ClickHouseUtils.remove("\t te s t_1 \t", '_', '\t', ' '), "test1");
     }
 
     @Test(groups = { "unit" })

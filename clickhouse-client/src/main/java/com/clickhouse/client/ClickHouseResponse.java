@@ -115,6 +115,20 @@ public interface ClickHouseResponse extends AutoCloseable, Serializable {
     }
 
     /**
+     * Gets the first record as mapped object. Please use {@link #records(Class)}
+     * instead if you need to access the rest of records.
+     * 
+     * @param <T>      type of the mapped object
+     * @param objClass non-null class of the mapped object
+     * @return mapped object of the first record
+     * @throws NoSuchElementException when there's no record at all
+     * @throws UncheckedIOException   when failed to read data(e.g. deserialization)
+     */
+    default <T> T firstRecord(Class<T> objClass) {
+        return records(objClass).iterator().next();
+    }
+
+    /**
      * Returns an iterable collection of records which can be walked through in a
      * foreach loop. Please pay attention that: 1) {@link UncheckedIOException}
      * might be thrown when iterating through the collection; and 2) it's not
