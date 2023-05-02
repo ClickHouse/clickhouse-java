@@ -1234,6 +1234,38 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
     }
 
     @Test(groups = "integration")
+    public void testInsertAggregateFunction() throws SQLException {
+        // https://kb.altinity.com/altinity-kb-schema-design/ingestion-aggregate-function/
+        Properties props = new Properties();
+        try (ClickHouseConnection conn = newConnection(props);
+                Statement s = conn.createStatement();
+                PreparedStatement ps = conn.prepareStatement(
+                        "insert into test_insert_aggregate_function SELECT uid, updated, arrayReduce('argMaxState', [name], [updated]) "
+                                + "FROM input('uid Int16, updated DateTime, name String')")) {
+            s.execute("drop table if exists test_insert_aggregate_function;"
+                    + "CREATE TABLE test_insert_aggregate_function (uid Int16, updated SimpleAggregateFunction(max, DateTime), "
+                    + "name AggregateFunction(argMax, String, DateTime)) ENGINE=AggregatingMergeTree order by uid");
+            ps.setInt(1, 1);
+            ps.setString(2, "2020-01-02 00:00:00");
+            ps.setString(3, "b");
+            ps.addBatch();
+            ps.setInt(1, 1);
+            ps.setString(2, "2020-01-01 00:00:00");
+            ps.setString(3, "a");
+            ps.addBatch();
+            ps.executeBatch();
+            try (ResultSet rs = s.executeQuery(
+                    "select uid, max(updated) AS updated, argMaxMerge(name) from test_insert_aggregate_function group by uid")) {
+                Assert.assertTrue(rs.next());
+                Assert.assertEquals(rs.getInt(1), 1);
+                Assert.assertEquals(rs.getString(2), "2020-01-02 00:00:00");
+                Assert.assertEquals(rs.getString(3), "b");
+                Assert.assertFalse(rs.next());
+            }
+        }
+    }
+
+    @Test(groups = "integration")
     public void testInsertByteArray() throws SQLException {
         Properties props = new Properties();
         props.setProperty("use_binary_string", "true");
@@ -1252,6 +1284,34 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
                 Assert.assertEquals(rs.getInt(1), 1);
                 Assert.assertEquals(rs.getObject(2), new byte[] { 1, 2, 3 });
                 Assert.assertEquals(rs.getObject(3), new byte[][] { { 1, 2, 3 }, { 4, 5, 6 } });
+                Assert.assertFalse(rs.next());
+            }
+        }
+    }
+
+    @Test(groups = "integration")
+    public void testInsertDefaultValue() throws SQLException {
+        Properties props = new Properties();
+        try (ClickHouseConnection conn = newConnection(props);
+                Statement s = conn.createStatement();
+                PreparedStatement ps = conn.prepareStatement(
+                        "insert into test_insert_default_value select id, name from input('id UInt32, name Nullable(String)')")) {
+            s.execute("drop table if exists test_insert_default_value;"
+                    + "create table test_insert_default_value(n Int32, s String DEFAULT 'secret') engine=Memory");
+            ps.setInt(1, 1);
+            ps.setString(2, null);
+            ps.addBatch();
+            ps.setInt(1, -1);
+            ps.setNull(2, Types.ARRAY);
+            ps.addBatch();
+            ps.executeBatch();
+            try (ResultSet rs = s.executeQuery("select * from test_insert_default_value order by n")) {
+                Assert.assertTrue(rs.next());
+                Assert.assertEquals(rs.getInt(1), -1);
+                Assert.assertEquals(rs.getString(2), "secret");
+                Assert.assertTrue(rs.next());
+                Assert.assertEquals(rs.getInt(1), 1);
+                Assert.assertEquals(rs.getString(2), "secret");
                 Assert.assertFalse(rs.next());
             }
         }
