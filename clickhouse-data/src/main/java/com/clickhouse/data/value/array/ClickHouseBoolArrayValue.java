@@ -519,7 +519,7 @@ public class ClickHouseBoolArrayValue extends ClickHouseObjectValue<boolean[]> i
     public ClickHouseArraySequence allocate(int length, Class<?> clazz, int level) {
         if (length < 1) {
             resetToDefault();
-        } else if (length() != length) {
+        } else {
             set(new boolean[length]);
         }
         return this;

@@ -583,7 +583,7 @@ public class ClickHouseIntArrayValue extends ClickHouseObjectValue<int[]> implem
     public ClickHouseArraySequence allocate(int length, Class<?> clazz, int level) {
         if (length < 1) {
             resetToDefault();
-        } else if (length() != length) {
+        } else {
             set(new int[length]);
         }
         return this;

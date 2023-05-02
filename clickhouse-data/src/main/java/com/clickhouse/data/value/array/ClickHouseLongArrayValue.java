@@ -595,7 +595,7 @@ public class ClickHouseLongArrayValue extends ClickHouseObjectValue<long[]> impl
     public ClickHouseArraySequence allocate(int length, Class<?> clazz, int level) {
         if (length < 1) {
             resetToDefault();
-        } else if (length() != length) {
+        } else {
             set(new long[length]);
         }
         return this;

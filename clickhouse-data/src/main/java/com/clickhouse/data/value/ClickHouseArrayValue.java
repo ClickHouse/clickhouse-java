@@ -573,7 +573,7 @@ public class ClickHouseArrayValue<T> extends ClickHouseObjectValue<T[]> implemen
                         ? ClickHouseValues.createPrimitiveArray(clazz, 0, level)
                         : ClickHouseValues.createObjectArray(clazz, 0, level)));
             }
-        } else if (length() != length) {
+        } else {
             set((T[]) (clazz.isPrimitive()
                     ? ClickHouseValues.createPrimitiveArray(clazz, length, level)
                     : ClickHouseValues.createObjectArray(clazz, length, level)));

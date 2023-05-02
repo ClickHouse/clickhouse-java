@@ -12,19 +12,6 @@ import com.clickhouse.data.value.ClickHouseEmptyValue;
  */
 @FunctionalInterface
 public interface ClickHouseDeserializer {
-    static final class ResetValueDeserializer implements ClickHouseDeserializer {
-        private final ClickHouseDeserializer deserializer;
-
-        public ResetValueDeserializer(ClickHouseDeserializer deserializer) {
-            this.deserializer = deserializer;
-        }
-
-        @Override
-        public ClickHouseValue deserialize(ClickHouseValue ref, ClickHouseInputStream input) throws IOException {
-            return deserializer.deserialize(ref.resetToDefault(), input);
-        }
-    }
-
     static class CompositeDeserializer implements ClickHouseDeserializer {
         protected final ClickHouseDeserializer[] deserializers;
 
