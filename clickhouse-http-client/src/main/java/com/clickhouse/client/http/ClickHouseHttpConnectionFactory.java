@@ -25,7 +25,7 @@ public final class ClickHouseHttpConnectionFactory {
         } catch (IOException e) {
             throw e;
         } catch (Throwable t) {
-            log.warn("Error when creating http client %s, will use HTTP_URL_CONNECTION", provider.name(), t);
+            log.warn("Error when creating http client %s, will use HTTP_URL_CONNECTION", provider, t);
             return new HttpUrlConnectionImpl(server, request, executor);
         }
     }

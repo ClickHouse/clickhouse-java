@@ -510,7 +510,7 @@ public final class Main {
                         if (options.hasFile()) {
                             try {
                                 response.getInputStream().setCopyToTarget(
-                                        !"-".equals(options.file) ? new FileOutputStream(options.file, false)
+                                        !"-".equals(options.file) ? new FileOutputStream(options.file, false) // NOSONAR
                                                 : System.out); // NOSONAR
                             } catch (IOException e) {
                                 throw ClickHouseException.of(e, server);
