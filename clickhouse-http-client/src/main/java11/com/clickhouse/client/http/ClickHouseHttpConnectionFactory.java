@@ -17,19 +17,17 @@ public final class ClickHouseHttpConnectionFactory {
             ExecutorService executor) throws IOException {
         HttpConnectionProvider provider = request.getConfig().getOption(ClickHouseHttpOption.CONNECTION_PROVIDER,
                 HttpConnectionProvider.class);
-
-        try {
-            return provider == null || provider == HttpConnectionProvider.HTTP_URL_CONNECTION
-                    ? new HttpUrlConnectionImpl(server, request, executor)
-                    : provider == HttpConnectionProvider.HTTP_CLIENT
-                        ? new HttpClientConnectionImpl(server, request, executor)
-                        : new ApacheHttpConnectionImpl(server, request, executor);
-        } catch (IOException e) {
-            throw e;
-        } catch (Throwable t) {
-            log.warn("Error when creating http client %s, will use HTTP_URL_CONNECTION", provider.name(), t);
-            return new HttpUrlConnectionImpl(server, request, executor);
+        if (provider == HttpConnectionProvider.APACHE_HTTP_CLIENT) {
+            try {
+                return new ApacheHttpConnectionImpl(server, request, executor);
+            } catch (ExceptionInInitializerError | NoClassDefFoundError t) {
+                log.warn("Error when creating %s, fall back to HTTP_URL_CONNECTION", provider, t);
+            }
+        } else if (provider == HttpConnectionProvider.HTTP_CLIENT) {
+            return new HttpClientConnectionImpl(server, request, executor);
         }
+
+        return new HttpUrlConnectionImpl(server, request, executor);
     }
 
     private ClickHouseHttpConnectionFactory() {

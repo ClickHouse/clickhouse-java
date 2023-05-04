@@ -1,4 +1,8 @@
-## 0.4.6, 2023-04-26
+## 0.5.0
+### Bug Fixes
+* Java client threw confusing error when query is invalid.
+
+## 0.4.6, 2023-05-02
 ### New Features
 * ClickHouseStatement.setMirroredOutput() for dumping ResultSet.
 * ClickHouseResponse.records(Class<?>) for object mapping.

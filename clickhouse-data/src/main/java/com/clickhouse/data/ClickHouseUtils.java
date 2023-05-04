@@ -1094,7 +1094,8 @@ public final class ClickHouseUtils {
             }
         }
 
-        throw new IllegalArgumentException("Missing closing bracket(s): " + stack);
+        throw new IllegalArgumentException(
+                format("Missing '%s' for '%s' at position %d", closeBracket, bracket, startIndex));
     }
 
     /**
