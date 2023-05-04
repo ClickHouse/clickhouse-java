@@ -197,6 +197,20 @@ public final class BinaryStreamUtils {
     }
 
     /**
+     * Writes nullable bytes into given output stream.
+     *
+     * @param output non-null output stream
+     * @param buffer non-null byte buffer
+     * @throws IOException when failed to write value to output stream or reached
+     *                     end of the stream
+     */
+    @SuppressWarnings("squid:S2095")
+    public static void writeNullableByteBuffer(OutputStream output, ByteBuffer buffer) throws IOException {
+        writeNonNull(output);
+        writeByteBuffer(output, buffer);
+    }
+
+    /**
      * Reads bitmap from given input stream. It behaves in a similar way as
      * {@link java.io.DataInput#readFully(byte[])}.
      *
@@ -224,6 +238,19 @@ public final class BinaryStreamUtils {
     }
 
     /**
+     * Writes nullable bitmap into given output stream.
+     *
+     * @param output non-null output stream
+     * @param bitmap non-null bitmap
+     * @throws IOException when failed to write value to output stream or reached
+     *                     end of the stream
+     */
+    public static void writeNullableBitmap(OutputStream output, ClickHouseBitmap bitmap) throws IOException {
+        writeNonNull(output);
+        writeBitmap(output, bitmap);
+    }
+
+    /**
      * Writes bytes into given output stream.
      *
      * @param output non-null output stream
@@ -233,6 +260,19 @@ public final class BinaryStreamUtils {
      */
     public static void writeBytes(OutputStream output, byte[] bytes) throws IOException {
         output.write(bytes);
+    }
+
+    /**
+     * Writes nullable bytes into given output stream.
+     *
+     * @param output non-null output stream
+     * @param bytes  non-null byte array
+     * @throws IOException when failed to write value to output stream or reached
+     *                     end of the stream
+     */
+    public static void writeNullableBytes(OutputStream output, byte[] bytes) throws IOException {
+        writeNonNull(output);
+        writeBytes(output, bytes);
     }
 
     /**
@@ -294,6 +334,19 @@ public final class BinaryStreamUtils {
     }
 
     /**
+     * Write nullable boolean into given output stream.
+     *
+     * @param output non-null output stream
+     * @param value  boolean value, true == 1 and false == 0
+     * @throws IOException when failed to write value to output stream or reached
+     *                     end of the stream
+     */
+    public static void writeNullableBoolean(OutputStream output, boolean value) throws IOException {
+        writeNonNull(output);
+        writeBoolean(output, value);
+    }
+
+    /**
      * Write integer as boolean into given output stream.
      *
      * @param output non-null output stream
@@ -304,6 +357,20 @@ public final class BinaryStreamUtils {
      */
     public static void writeBoolean(OutputStream output, int value) throws IOException {
         output.write(ClickHouseChecker.between(value, ClickHouseValues.TYPE_INT, 0, 1) == 1 ? 1 : 0);
+    }
+
+    /**
+     * Write nullable integer as boolean into given output stream.
+     *
+     * @param output non-null output stream
+     * @param value  integer, everyting else besides one will be treated as
+     *               zero(false)
+     * @throws IOException when failed to write value to output stream or reached
+     *                     end of the stream
+     */
+    public static void writeNullableBoolean(OutputStream output, int value) throws IOException {
+        writeNonNull(output);
+        writeBoolean(output, value);
     }
 
     /**
@@ -347,6 +414,20 @@ public final class BinaryStreamUtils {
     }
 
     /**
+     * Write nullable enum value into given output stream. Same as
+     * {@link #writeInt8(OutputStream, byte)}.
+     *
+     * @param output non-null output stream
+     * @param value  enum value
+     * @throws IOException when failed to write value to output stream or reached
+     *                     end of the stream
+     */
+    public static void writeNullableEnum8(OutputStream output, byte value) throws IOException {
+        writeNonNull(output);
+        writeEnum8(output, value);
+    }
+
+    /**
      * Write enum value into given output stream.
      *
      * @param <T>    type of the value
@@ -357,6 +438,20 @@ public final class BinaryStreamUtils {
      */
     public static <T extends Enum<T>> void writeEnum8(OutputStream output, T value) throws IOException {
         writeEnum8(output, (byte) ClickHouseChecker.nonNull(value, "enum value").ordinal());
+    }
+
+    /**
+     * Write nullable enum value into given output stream.
+     *
+     * @param <T>    type of the value
+     * @param output non-null output stream
+     * @param value  enum value
+     * @throws IOException when failed to write value to output stream or reached
+     *                     end of the stream
+     */
+    public static <T extends Enum<T>> void writeNullableEnum8(OutputStream output, T value) throws IOException {
+        writeNonNull(output);
+        writeEnum8(output, value);
     }
 
     /**
@@ -400,6 +495,20 @@ public final class BinaryStreamUtils {
     }
 
     /**
+     * Write nullable enum value into given output stream. Same as
+     * {@link #writeInt16(OutputStream, int)}.
+     *
+     * @param output non-null output stream
+     * @param value  enum value
+     * @throws IOException when failed to write value to output stream or reached
+     *                     end of the stream
+     */
+    public static void writeNullableEnum16(OutputStream output, int value) throws IOException {
+        writeNonNull(output);
+        writeEnum16(output, value);
+    }
+
+    /**
      * Write enum value into given output stream.
      *
      * @param <T>    type of the value
@@ -410,6 +519,20 @@ public final class BinaryStreamUtils {
      */
     public static <T extends Enum<T>> void writeEnum16(OutputStream output, T value) throws IOException {
         writeEnum16(output, ClickHouseChecker.nonNull(value, "enum value").ordinal());
+    }
+
+    /**
+     * Write nullable enum value into given output stream.
+     *
+     * @param <T>    type of the value
+     * @param output non-null output stream
+     * @param value  enum value
+     * @throws IOException when failed to write value to output stream or reached
+     *                     end of the stream
+     */
+    public static <T extends Enum<T>> void writeNullableEnum16(OutputStream output, T value) throws IOException {
+        writeNonNull(output);
+        writeEnum16(output, value);
     }
 
     /**
@@ -441,6 +564,19 @@ public final class BinaryStreamUtils {
     }
 
     /**
+     * Write nullable geo point(X and Y coordinates).
+     *
+     * @param output non-null output stream
+     * @param value  X and Y coordinates
+     * @throws IOException when failed to write value to output stream or reached
+     *                     end of the stream
+     */
+    public static void writeNullableGeoPoint(OutputStream output, double[] value) throws IOException {
+        writeNonNull(output);
+        writeGeoPoint(output, value);
+    }
+
+    /**
      * Write geo point(X and Y coordinates).
      *
      * @param output non-null output stream
@@ -452,6 +588,20 @@ public final class BinaryStreamUtils {
     public static void writeGeoPoint(OutputStream output, double x, double y) throws IOException {
         writeFloat64(output, x);
         writeFloat64(output, y);
+    }
+
+    /**
+     * Write nullable geo point(X and Y coordinates).
+     *
+     * @param output non-null output stream
+     * @param x      X coordinate
+     * @param y      Y coordinate
+     * @throws IOException when failed to write value to output stream or reached
+     *                     end of the stream
+     */
+    public static void writeNullableGeoPoint(OutputStream output, double x, double y) throws IOException {
+        writeNonNull(output);
+        writeGeoPoint(output, x, y);
     }
 
     /**
@@ -487,6 +637,19 @@ public final class BinaryStreamUtils {
     }
 
     /**
+     * Write nullable geo ring(array of X and Y coordinates).
+     *
+     * @param output non-null output stream
+     * @param value  array of X and Y coordinates
+     * @throws IOException when failed to write value to output stream or reached
+     *                     end of the stream
+     */
+    public static void writeNullableGeoRing(OutputStream output, double[][] value) throws IOException {
+        writeNonNull(output);
+        writeGeoRing(output, value);
+    }
+
+    /**
      * Read geo polygon(array of rings) from given input stream.
      *
      * @param input non-null input stream
@@ -516,6 +679,19 @@ public final class BinaryStreamUtils {
         for (double[][] v : value) {
             writeGeoRing(output, v);
         }
+    }
+
+    /**
+     * Write nullable geo polygon(array of rings).
+     *
+     * @param output non-null output stream
+     * @param value  array of rings
+     * @throws IOException when failed to write value to output stream or reached
+     *                     end of the stream
+     */
+    public static void writeNullableGeoPolygon(OutputStream output, double[][][] value) throws IOException {
+        writeNonNull(output);
+        writeGeoPolygon(output, value);
     }
 
     /**
@@ -551,6 +727,19 @@ public final class BinaryStreamUtils {
     }
 
     /**
+     * Write nullable geo polygon(array of rings).
+     *
+     * @param output non-null output stream
+     * @param value  array of polygons
+     * @throws IOException when failed to write value to output stream or reached
+     *                     end of the stream
+     */
+    public static void writeNullableGeoMultiPolygon(OutputStream output, double[][][][] value) throws IOException {
+        writeNonNull(output);
+        writeGeoMultiPolygon(output, value);
+    }
+
+    /**
      * Read null marker from input stream. Same as
      * {@link #readBoolean(ClickHouseInputStream)}.
      * 
@@ -576,6 +765,7 @@ public final class BinaryStreamUtils {
 
     /**
      * Write non-null marker. Same as {@code writeBoolean(outut, false)}.
+     * Don't call directly. use writeNullable* methods
      *
      * @param output non-null output stream
      * @throws IOException when failed to write value to output stream or reached
@@ -610,6 +800,19 @@ public final class BinaryStreamUtils {
     }
 
     /**
+     * Write nullable Inet4Address to given output stream.
+     *
+     * @param output non-null output stream
+     * @param value  Inet4Address
+     * @throws IOException when failed to write value to output stream or reached
+     *                     end of the stream
+     */
+    public static void writeNullableInet4Address(OutputStream output, Inet4Address value) throws IOException {
+        writeNonNull(output);
+        writeInet4Address(output, value);
+    }
+
+    /**
      * Read Inet6Address from given input stream.
      *
      * @param input non-null input stream
@@ -631,6 +834,19 @@ public final class BinaryStreamUtils {
      */
     public static void writeInet6Address(OutputStream output, Inet6Address value) throws IOException {
         output.write(value.getAddress());
+    }
+
+    /**
+     * Write nullable Inet6Address to given output stream.
+     *
+     * @param output non-null output stream
+     * @param value  Inet6Address
+     * @throws IOException when failed to write value to output stream or reached
+     *                     end of the stream
+     */
+    public static void writeNullableInet6Address(OutputStream output, Inet6Address value) throws IOException {
+        writeNonNull(output);
+        writeInet6Address(output, value);
     }
 
     /**
@@ -659,6 +875,19 @@ public final class BinaryStreamUtils {
     }
 
     /**
+     * Write nullable a byte to given output stream.
+     *
+     * @param output non-null output stream
+     * @param value  byte
+     * @throws IOException when failed to write value to output stream or reached
+     *                     end of the stream
+     */
+    public static void writeNullableInt8(OutputStream output, byte value) throws IOException {
+        writeNonNull(output);
+        writeInt8(output, value);
+    }
+
+    /**
      * Write a byte to given output stream.
      *
      * @param output non-null output stream
@@ -668,6 +897,19 @@ public final class BinaryStreamUtils {
      */
     public static void writeInt8(OutputStream output, int value) throws IOException {
         output.write(ClickHouseChecker.between(value, ClickHouseValues.TYPE_INT, Byte.MIN_VALUE, Byte.MAX_VALUE));
+    }
+
+    /**
+     * Write nullable a byte to given output stream.
+     *
+     * @param output non-null output stream
+     * @param value  byte
+     * @throws IOException when failed to write value to output stream or reached
+     *                     end of the stream
+     */
+    public static void writeNullableInt8(OutputStream output, int value) throws IOException {
+        writeNonNull(output);
+        writeInt8(output, value);
     }
 
     /**
@@ -695,6 +937,19 @@ public final class BinaryStreamUtils {
     }
 
     /**
+     * Write nullable an unsigned byte to given output stream.
+     *
+     * @param output non-null output stream
+     * @param value  unsigned byte
+     * @throws IOException when failed to write value to output stream or reached
+     *                     end of the stream
+     */
+    public static void writeNullableUnsignedInt8(OutputStream output, int value) throws IOException {
+        writeNonNull(output);
+        writeUnsignedInt8(output, value);
+    }
+
+    /**
      * Read a short value from given input stream.
      * 
      * @param input non-null input stream
@@ -719,6 +974,19 @@ public final class BinaryStreamUtils {
     }
 
     /**
+     * Write a nullable short value to given output stream.
+     *
+     * @param output non-null output stream
+     * @param value  short value
+     * @throws IOException when failed to write value to output stream or reached
+     *                     end of the stream
+     */
+    public static void writeNullableInt16(OutputStream output, short value) throws IOException {
+        writeNonNull(output);
+        writeInt16(output, value);
+    }
+
+    /**
      * Write a short value to given output stream.
      *
      * @param output non-null output stream
@@ -729,6 +997,19 @@ public final class BinaryStreamUtils {
     public static void writeInt16(OutputStream output, int value) throws IOException {
         writeInt16(output,
                 (short) ClickHouseChecker.between(value, ClickHouseValues.TYPE_INT, Short.MIN_VALUE, Short.MAX_VALUE));
+    }
+
+    /**
+     * Write a nullable short value to given output stream.
+     *
+     * @param output non-null output stream
+     * @param value  short value
+     * @throws IOException when failed to write value to output stream or reached
+     *                     end of the stream
+     */
+    public static void writeNullableInt16(OutputStream output, int value) throws IOException {
+        writeNonNull(output);
+        writeInt16(output, value);
     }
 
     /**
@@ -757,6 +1038,19 @@ public final class BinaryStreamUtils {
     }
 
     /**
+     * Write an nullable unsigned short value to given output stream.
+     *
+     * @param output non-null output stream
+     * @param value  unsigned short value
+     * @throws IOException when failed to write value to output stream or reached
+     *                     end of the stream
+     */
+    public static void writeNullableUnsignedInt16(OutputStream output, int value) throws IOException {
+        writeNonNull(output);
+        writeUnsignedInt16(output, value);
+    }
+
+    /**
      * Read an integer from given input stream.
      *
      * @param input non-null input stream
@@ -782,6 +1076,19 @@ public final class BinaryStreamUtils {
     }
 
     /**
+     * Write an nullable integer to given output stream.
+     *
+     * @param output non-null output stream
+     * @param value  integer
+     * @throws IOException when failed to write value to output stream or reached
+     *                     end of the stream
+     */
+    public static void writeNullableInt32(OutputStream output, int value) throws IOException {
+        writeNonNull(output);
+        writeInt32(output, value);
+    }
+
+    /**
      * Read an unsigned integer from given input stream.
      *
      * @param input non-null input stream
@@ -804,6 +1111,19 @@ public final class BinaryStreamUtils {
     public static void writeUnsignedInt32(OutputStream output, long value) throws IOException {
         writeInt32(output,
                 (int) (ClickHouseChecker.between(value, ClickHouseValues.TYPE_LONG, 0, U_INT32_MAX) & 0xFFFFFFFFL));
+    }
+
+    /**
+     * Write an nullable unsigned integer to given output stream.
+     *
+     * @param output non-null output stream
+     * @param value  unsigned integer
+     * @throws IOException when failed to write value to output stream or reached
+     *                     end of the stream
+     */
+    public static void writeNullableUnsignedInt32(OutputStream output, long value) throws IOException {
+        writeNonNull(output);
+        writeUnsignedInt32(output, value);
     }
 
     /**
@@ -833,6 +1153,19 @@ public final class BinaryStreamUtils {
     }
 
     /**
+     * Write a nullable long value to given output stream.
+     *
+     * @param output non-null output stream
+     * @param value  long value
+     * @throws IOException when failed to write value to output stream or reached
+     *                     end of the stream
+     */
+    public static void writeUnnableInt64(OutputStream output, long value) throws IOException {
+        writeNonNull(output);
+        writeInt64(output, value);
+    }
+
+    /**
      * Read an unsigned long value from given input stream.
      *
      * @param input non-null input stream
@@ -858,6 +1191,20 @@ public final class BinaryStreamUtils {
     }
 
     /**
+     * Write an nullable unsigned long value to given output stream.
+     *
+     * @param output non-null output stream
+     * @param value  unsigned long value, negative number will be treated as
+     *               positive
+     * @throws IOException when failed to write value to output stream or reached
+     *                     end of the stream
+     */
+    public static void writeNullableUnsignedInt64(OutputStream output, long value) throws IOException {
+        writeNonNull(output);
+        writeInt64(output, value);
+    }
+
+    /**
      * Write an unsigned long value to given output stream. Due to overhead of
      * {@link java.math.BigInteger}, this method in general uses more memory and
      * slower than {@link #writeUnsignedInt64(OutputStream, long)}.
@@ -870,6 +1217,21 @@ public final class BinaryStreamUtils {
     public static void writeUnsignedInt64(OutputStream output, BigInteger value) throws IOException {
         writeInt64(output, ClickHouseChecker
                 .between(value, ClickHouseValues.TYPE_BIG_INTEGER, BigInteger.ZERO, U_INT64_MAX).longValue());
+    }
+
+    /**
+     * Write an nullable unsigned long value to given output stream. Due to overhead of
+     * {@link java.math.BigInteger}, this method in general uses more memory and
+     * slower than {@link #writeUnsignedInt64(OutputStream, long)}.
+     *
+     * @param output non-null output stream
+     * @param value  unsigned long value
+     * @throws IOException when failed to write value to output stream or reached
+     *                     end of the stream
+     */
+    public static void writeNullableUnsignedInt64(OutputStream output, BigInteger value) throws IOException {
+        writeNonNull(output);
+        writeUnsignedInt64(output, value);
     }
 
     /**
@@ -894,6 +1256,19 @@ public final class BinaryStreamUtils {
      */
     public static void writeInt128(OutputStream output, BigInteger value) throws IOException {
         writeBigInteger(output, value, 16);
+    }
+
+    /**
+     * Write a nullable big integer(16 bytes) to given output stream.
+     *
+     * @param output non-null output stream
+     * @param value  big integer
+     * @throws IOException when failed to write value to output stream or reached
+     *                     end of the stream
+     */
+    public static void writeNullableInt128(OutputStream output, BigInteger value) throws IOException {
+        writeNonNull(output);
+        writeInt128(output, value);
     }
 
     /**
@@ -922,6 +1297,19 @@ public final class BinaryStreamUtils {
     }
 
     /**
+     * Write an nullable unsigned big integer(16 bytes) to given output stream.
+     *
+     * @param output non-null output stream
+     * @param value  unsigned big integer
+     * @throws IOException when failed to write value to output stream or reached
+     *                     end of the stream
+     */
+    public static void writeNullableUnsignedInt128(OutputStream output, BigInteger value) throws IOException {
+        writeNonNull(output);
+        writeUnsignedInt128(output, value);
+    }
+
+    /**
      * Read a big integer(32 bytes) from given input stream.
      *
      * @param input non-null input stream
@@ -943,6 +1331,19 @@ public final class BinaryStreamUtils {
      */
     public static void writeInt256(OutputStream output, BigInteger value) throws IOException {
         writeBigInteger(output, value, 32);
+    }
+
+    /**
+     * Write a nullable big integer(32 bytes) to given output stream.
+     *
+     * @param output non-null output stream
+     * @param value  big integer
+     * @throws IOException when failed to write value to output stream or reached
+     *                     end of the stream
+     */
+    public static void writeNullableInt256(OutputStream output, BigInteger value) throws IOException {
+        writeNonNull(output);
+        writeInt256(output, value);
     }
 
     /**
@@ -971,6 +1372,19 @@ public final class BinaryStreamUtils {
     }
 
     /**
+     * Write an nullable unsigned big integer(32 bytes) to given output stream.
+     *
+     * @param output non-null output stream
+     * @param value  unsigned big integer
+     * @throws IOException when failed to write value to output stream or reached
+     *                     end of the stream
+     */
+    public static void writeNullableUnsignedInt256(OutputStream output, BigInteger value) throws IOException {
+        writeNonNull(output);
+        writeUnsignedInt256(output, value);
+    }
+
+    /**
      * Read a float value from given input stream.
      *
      * @param input non-null input stream
@@ -995,6 +1409,19 @@ public final class BinaryStreamUtils {
     }
 
     /**
+     * Write a nullable float value to given output stream.
+     *
+     * @param output non-null output stream
+     * @param value  float value
+     * @throws IOException when failed to write value to output stream or reached
+     *                     end of the stream
+     */
+    public static void writeNullableFloat32(OutputStream output, float value) throws IOException {
+        writeNonNull(output);
+        writeFloat32(output, value);
+    }
+
+    /**
      * Read a double value from given input stream.
      *
      * @param input non-null input stream
@@ -1016,6 +1443,19 @@ public final class BinaryStreamUtils {
      */
     public static void writeFloat64(OutputStream output, double value) throws IOException {
         writeInt64(output, Double.doubleToLongBits(value));
+    }
+
+    /**
+     * Write a nullable double value to given output stream.
+     *
+     * @param output non-null output stream
+     * @param value  double value
+     * @throws IOException when failed to write value to output stream or reached
+     *                     end of the stream
+     */
+    public static void writeNullableFloat64(OutputStream output, double value) throws IOException {
+        writeNonNull(output);
+        writeFloat64(output, value);
     }
 
     /**
@@ -1044,6 +1484,19 @@ public final class BinaryStreamUtils {
     }
 
     /**
+     * Write a nullable UUID to given output stream.
+     *
+     * @param output non-null output stream
+     * @param value  UUID
+     * @throws IOException when failed to write value to output stream or reached
+     *                     end of the stream
+     */
+    public static void writeNullableUuid(OutputStream output, java.util.UUID value) throws IOException {
+        writeNonNull(output);
+        writeUuid(output, value);
+    }
+
+    /**
      * Write a {@code length}-byte long big integer to given output stream.
      *
      * @param output non-null output stream
@@ -1068,6 +1521,20 @@ public final class BinaryStreamUtils {
         for (int i = length - bytes.length; i > 0; i--) {
             output.write(empty);
         }
+    }
+
+    /**
+     * Write a nullable {@code length}-byte long big integer to given output stream.
+     *
+     * @param output non-null output stream
+     * @param value  big integer
+     * @param length byte length of the value
+     * @throws IOException when failed to write value to output stream or reached
+     *                     end of the stream
+     */
+    public static void writeNullableBigInteger(OutputStream output, BigInteger value, int length) throws IOException {
+        writeNonNull(output);
+        writeBigInteger(output, value, length);
     }
 
     /**
@@ -1121,6 +1588,23 @@ public final class BinaryStreamUtils {
     }
 
     /**
+     * Write a nullalbe big decimal(4 - 32 bytes) to given output stream.
+     *
+     * @param output    non-null output stream
+     * @param value     big decimal
+     * @param precision precision of the decimal
+     * @param scale     scale of the decimal, might be different from
+     *                  {@link java.math.BigDecimal#scale()}
+     * @throws IOException when failed to write value to output stream or reached
+     *                     end of the stream
+     */
+    public static void writeNullableDecimal(OutputStream output, BigDecimal value, int precision, int scale)
+            throws IOException {
+        writeNonNull(output);
+        writeDecimal(output, value, precision, scale);
+    }
+
+    /**
      * Read big decimal(4 bytes) from given input stream.
      *
      * @param input non-null input stream
@@ -1150,6 +1634,21 @@ public final class BinaryStreamUtils {
                         value.multiply(BigDecimal.TEN.pow(ClickHouseChecker.between(scale, ClickHouseValues.PARAM_SCALE,
                                 0, ClickHouseDataType.Decimal32.getMaxScale()))),
                         ClickHouseValues.TYPE_BIG_DECIMAL, DECIMAL32_MIN, DECIMAL32_MAX).intValue());
+    }
+
+    /**
+     * Write a nullable big decimal(4 bytes) to given output stream.
+     *
+     * @param output non-null output stream
+     * @param value  big decimal
+     * @param scale  scale of the decimal, might be different from
+     *               {@link java.math.BigDecimal#scale()}
+     * @throws IOException when failed to write value to output stream or reached
+     *                     end of the stream
+     */
+    public static void writeNullableDecimal32(OutputStream output, BigDecimal value, int scale) throws IOException {
+        writeNonNull(output);
+        writeDecimal32(output, value, scale);
     }
 
     /**
@@ -1186,6 +1685,21 @@ public final class BinaryStreamUtils {
     }
 
     /**
+     * Write a nullable big decimal(8 bytes) to given output stream.
+     *
+     * @param output non-null output stream
+     * @param value  big decimal
+     * @param scale  scale of the decimal, might be different from
+     *               {@link java.math.BigDecimal#scale()}
+     * @throws IOException when failed to write value to output stream or reached
+     *                     end of the stream
+     */
+    public static void writeNullableDecimal64(OutputStream output, BigDecimal value, int scale) throws IOException {
+        writeNonNull(output);
+        writeDecimal64(output, value, scale);
+    }
+
+    /**
      * Read big decimal(16 bytes) from given input stream.
      *
      * @param input non-null input stream
@@ -1219,6 +1733,21 @@ public final class BinaryStreamUtils {
     }
 
     /**
+     * Write a nullable big decimal(16 bytes) to given output stream.
+     *
+     * @param output non-null output stream
+     * @param value  big decimal
+     * @param scale  scale of the decimal, might be different from
+     *               {@link java.math.BigDecimal#scale()}
+     * @throws IOException when failed to write value to output stream or reached
+     *                     end of the stream
+     */
+    public static void writeNullableDecimal128(OutputStream output, BigDecimal value, int scale) throws IOException {
+        writeNonNull(output);
+        writeDecimal128(output, value, scale);
+    }
+
+    /**
      * Read big decimal from given input stream.
      *
      * @param input non-null input stream
@@ -1249,6 +1778,21 @@ public final class BinaryStreamUtils {
                                 ClickHouseDataType.Decimal256.getMaxScale()) == 0 ? value
                                         : value.multiply(BigDecimal.TEN.pow(scale)),
                         ClickHouseValues.TYPE_BIG_DECIMAL, DECIMAL256_MIN, DECIMAL256_MAX).toBigInteger());
+    }
+
+    /**
+     * Write a nullable big decimal(32 bytes) to given output stream.
+     *
+     * @param output non-null output stream
+     * @param value  big decimal
+     * @param scale  scale of the decimal, might be different from
+     *               {@link java.math.BigDecimal#scale()}
+     * @throws IOException when failed to write value to output stream or reached
+     *                     end of the stream
+     */
+    public static void writeNullableDecimal256(OutputStream output, BigDecimal value, int scale) throws IOException {
+        writeNonNull(output);
+        writeDecimal256(output, value, scale);
     }
 
     /**
@@ -1300,6 +1844,21 @@ public final class BinaryStreamUtils {
     }
 
     /**
+     * Write a nullable {@link java.time.LocalDate} to given output stream.
+     *
+     * @param output non-null output stream
+     * @param value  local date
+     * @param tz     time zone for date, could be null
+     * @throws IOException when failed to write value to output stream or reached
+     *                     end of the stream
+     */
+    public static void writeNullableDate(OutputStream output, LocalDate value, TimeZone tz)
+            throws IOException {
+        writeNonNull(output);
+        writeDate(output, value, tz);
+    }
+
+    /**
      * Write a {@link java.time.LocalDate} to given output stream.
      *
      * @param output non-null output stream
@@ -1311,6 +1870,20 @@ public final class BinaryStreamUtils {
             throws IOException {
         int days = (int) value.toEpochDay();
         writeUnsignedInt16(output, ClickHouseChecker.between(days, ClickHouseValues.TYPE_DATE, 0, U_INT16_MAX));
+    }
+
+    /**
+     * Write a nullable {@link java.time.LocalDate} to given output stream.
+     *
+     * @param output non-null output stream
+     * @param value  local date
+     * @throws IOException when failed to write value to output stream or reached
+     *                     end of the stream
+     */
+    public static void writeNullableDate(OutputStream output, LocalDate value)
+            throws IOException {
+        writeNonNull(output);
+        writeDate(output, value);
     }
 
     /**
@@ -1362,6 +1935,21 @@ public final class BinaryStreamUtils {
     }
 
     /**
+     * Write a nullable {@link java.time.LocalDate} to given output stream.
+     *
+     * @param output non-null output stream
+     * @param value  local date
+     * @param tz     time zone for date, could be null
+     * @throws IOException when failed to write value to output stream or reached
+     *                     end of the stream
+     */
+    public static void writeNullableDate32(OutputStream output, LocalDate value, TimeZone tz)
+            throws IOException {
+        writeNonNull(output);
+        writeDate32(output, value, tz);
+    }
+
+    /**
      * Write a {@link java.time.LocalDate} to given output stream.
      *
      * @param output non-null output stream
@@ -1373,6 +1961,20 @@ public final class BinaryStreamUtils {
             throws IOException {
         writeInt32(output, ClickHouseChecker.between((int) value.toEpochDay(), ClickHouseValues.TYPE_DATE, DATE32_MIN,
                 DATE32_MAX));
+    }
+
+    /**
+     * Write a nullable {@link java.time.LocalDate} to given output stream.
+     *
+     * @param output non-null output stream
+     * @param value  local date
+     * @throws IOException when failed to write value to output stream or reached
+     *                     end of the stream
+     */
+    public static void writeNullableDate32(OutputStream output, LocalDate value)
+            throws IOException {
+        writeNonNull(output);
+        writeDate32(output, value);
     }
 
     /**
@@ -1418,6 +2020,20 @@ public final class BinaryStreamUtils {
     }
 
     /**
+     * Write a nullable {@link java.time.LocalDateTime} to given output stream.
+     *
+     * @param output non-null output stream
+     * @param value  local datetime
+     * @param tz     time zone, null is treated as UTC
+     * @throws IOException when failed to write value to output stream or reached
+     *                     end of the stream
+     */
+    public static void writeNullableDateTime(OutputStream output, LocalDateTime value, TimeZone tz) throws IOException {
+        writeNonNull(output);
+        writeDateTime(output, value, tz);
+    }
+
+    /**
      * Write a {@link java.time.LocalDateTime} to given output stream.
      *
      * @param output non-null output stream
@@ -1435,6 +2051,22 @@ public final class BinaryStreamUtils {
         } else {
             writeDateTime64(output, value, scale, tz);
         }
+    }
+
+    /**
+     * Write a nullable {@link java.time.LocalDateTime} to given output stream.
+     *
+     * @param output non-null output stream
+     * @param value  local datetime
+     * @param scale  scale of the datetime, must between 0 and 9 inclusive
+     * @param tz     time zone, null is treated as UTC
+     * @throws IOException when failed to write value to output stream or reached
+     *                     end of the stream
+     */
+    public static void writeNullableDateTime(OutputStream output, LocalDateTime value, int scale, TimeZone tz)
+            throws IOException {
+        writeNonNull(output);
+        writeDateTime(output, value, scale, tz);
     }
 
     /**
@@ -1467,6 +2099,20 @@ public final class BinaryStreamUtils {
                 : value.atZone(tz.toZoneId()).toEpochSecond();
 
         writeUnsignedInt32(output, ClickHouseChecker.between(time, ClickHouseValues.TYPE_DATE_TIME, 0L, DATETIME_MAX));
+    }
+
+    /**
+     * Write a nullable {@link java.time.LocalDateTime} to given output stream.
+     *
+     * @param output non-null output stream
+     * @param value  local datetime
+     * @param tz     time zone, null is treated as UTC
+     * @throws IOException when failed to write value to output stream or reached
+     *                     end of the stream
+     */
+    public static void writeNullableDateTime32(OutputStream output, LocalDateTime value, TimeZone tz) throws IOException {
+        writeNonNull(output);
+        writeDateTime32(output, value, tz);
     }
 
     /**
@@ -1528,6 +2174,21 @@ public final class BinaryStreamUtils {
     }
 
     /**
+     * Write a nullable {@link java.time.LocalDateTime} to given output stream. Same as
+     * {@code writeDateTime64(output, value, 3)}.
+     *
+     * @param output non-null output stream
+     * @param value  local datetime
+     * @param tz     time zone, null is treated as UTC
+     * @throws IOException when failed to write value to output stream or reached
+     *                     end of the stream
+     */
+    public static void writeNullableDateTime64(OutputStream output, LocalDateTime value, TimeZone tz) throws IOException {
+        writeNonNull(output);
+        writeDateTime64(output, value, tz);
+    }
+
+    /**
      * Write a {@link java.time.LocalDateTime} to given output stream.
      *
      * @param output non-null output stream
@@ -1552,6 +2213,22 @@ public final class BinaryStreamUtils {
         }
 
         writeInt64(output, v);
+    }
+
+    /**
+     * Write a nullable {@link java.time.LocalDateTime} to given output stream.
+     *
+     * @param output non-null output stream
+     * @param value  local datetime
+     * @param scale  scale of the datetime, must between 0 and 9 inclusive
+     * @param tz     time zone, null is treated as UTC
+     * @throws IOException when failed to write value to output stream or reached
+     *                     end of the stream
+     */
+    public static void writeNullableDateTime64(OutputStream output, LocalDateTime value, int scale, TimeZone tz)
+            throws IOException {
+        writeNonNull(output);
+        writeDateTime64(output, value, scale, tz);
     }
 
     /**
@@ -1595,6 +2272,20 @@ public final class BinaryStreamUtils {
     }
 
     /**
+     * Write a nullable string with fixed length to given output stream.
+     *
+     * @param output non-null output stream
+     * @param value  string
+     * @param length byte length of the string
+     * @throws IOException when failed to write value to output stream or reached
+     *                     end of the stream
+     */
+    public static void writeNullableFixedString(OutputStream output, String value, int length) throws IOException {
+        writeNonNull(output);
+        writeFixedString(output, value, length);
+    }
+
+    /**
      * Write a string with fixed length to given output stream.
      *
      * @param output  non-null output stream
@@ -1613,6 +2304,22 @@ public final class BinaryStreamUtils {
         System.arraycopy(src, 0, bytes, 0, src.length);
 
         output.write(bytes);
+    }
+
+    /**
+     * Write a nullable string with fixed length to given output stream.
+     *
+     * @param output  non-null output stream
+     * @param value   string
+     * @param length  byte length of the string
+     * @param charset charset used to convert string to byte array, null means UTF-8
+     * @throws IOException when failed to write value to output stream or reached
+     *                     end of the stream
+     */
+    public static void writeNullableFixedString(OutputStream output, String value, int length, Charset charset)
+            throws IOException {
+        writeNonNull(output);
+        writeFixedString(output, value, length, charset);
     }
 
     /**
@@ -1641,6 +2348,19 @@ public final class BinaryStreamUtils {
     }
 
     /**
+     * Write a nullable string to given output stream.
+     *
+     * @param output non-null output stream
+     * @param value  string
+     * @throws IOException when failed to write value to output stream or reached
+     *                     end of the stream
+     */
+    public static void writeNullableString(OutputStream output, String value) throws IOException {
+        writeNonNull(output);
+        writeString(output, value);
+    }
+
+    /**
      * Write a string to given output stream.
      *
      * @param output  non-null output stream
@@ -1657,6 +2377,20 @@ public final class BinaryStreamUtils {
     }
 
     /**
+     * Write a nullable string to given output stream.
+     *
+     * @param output  non-null output stream
+     * @param value   string
+     * @param charset charset used to convert string to byte array, null means UTF-8
+     * @throws IOException when failed to write value to output stream or reached
+     *                     end of the stream
+     */
+    public static void writeNullableString(OutputStream output, String value, Charset charset) throws IOException {
+        writeNonNull(output);
+        writeString(output, value, charset);
+    }
+
+    /**
      * Writes a binary string to given output stream.
      *
      * @param output non-null output stream
@@ -1667,6 +2401,19 @@ public final class BinaryStreamUtils {
     public static void writeString(OutputStream output, byte[] value) throws IOException {
         writeVarInt(output, value.length);
         output.write(value);
+    }
+
+    /**
+     * Writes a nullable binary string to given output stream.
+     *
+     * @param output non-null output stream
+     * @param value  non-null byte array
+     * @throws IOException when failed to write value to output stream or reached
+     *                     end of the stream
+     */
+    public static void writeNullableString(OutputStream output, byte[] value) throws IOException {
+        writeNonNull(output);
+        writeString(output, value);
     }
 
     /**
@@ -1748,6 +2495,19 @@ public final class BinaryStreamUtils {
                 return;
             }
         }
+    }
+
+    /**
+     * Write nullable varint to given output stream.
+     *
+     * @param output non-null output stream
+     * @param value  long value
+     * @throws IOException when failed to write value to output stream or reached
+     *                     end of the stream
+     */
+    public static void writeNullableVarInt(OutputStream output, long value) throws IOException {
+        writeNonNull(output);
+        writeVarInt(output, value);
     }
 
     /**
