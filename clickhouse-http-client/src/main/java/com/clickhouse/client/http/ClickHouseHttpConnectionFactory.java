@@ -24,7 +24,7 @@ public final class ClickHouseHttpConnectionFactory {
                     : new ApacheHttpConnectionImpl(server, request, executor);
         } catch (IOException e) {
             throw e;
-        } catch (Throwable t) {
+        } catch (ExceptionInInitializerError | NoClassDefFoundError t) {
             log.warn("Error when creating http client %s, will use HTTP_URL_CONNECTION", provider, t);
             return new HttpUrlConnectionImpl(server, request, executor);
         }

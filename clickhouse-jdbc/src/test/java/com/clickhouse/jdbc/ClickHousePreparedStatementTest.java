@@ -1475,7 +1475,7 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
             }
 
             // same case but this time disable flatten_nested
-            s.execute("set flatten_nested=0;" + "drop table if exists test_nested_insert;"
+            s.execute("set flatten_nested=0; drop table if exists test_nested_insert; "
                     + "create table test_nested_insert(id UInt32, n Nested(c1 Int8, c2 Int8))engine=Memory");
             try (PreparedStatement ps = conn.prepareStatement("insert into test_nested_insert")) {
                 // insert into test_nested_insert values(0, [])
@@ -1520,6 +1520,63 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
                     }
                     Assert.assertEquals(rs.getObject(2), bytes);
                 }
+                Assert.assertFalse(rs.next());
+            }
+
+            // https://github.com/ClickHouse/clickhouse-java/issues/1259
+            s.execute("set flatten_nested=0; drop table if exists test_nested_insert; "
+                    + "create table test_nested_insert(id UInt32, n Nested(c1 Int8, c2 LowCardinality(String)))engine=Memory");
+            try (PreparedStatement ps = conn.prepareStatement("insert into test_nested_insert(id, n)")) {
+                ps.setString(1, "1");
+                ps.setObject(2, new Object[][] { { 1, "foo1" }, { 2, "bar1" }, { 3, "bug1" } });
+                ps.executeUpdate();
+            }
+            // try invalid query
+            try (PreparedStatement ps = conn.prepareStatement(
+                    "insert into test_nested_insert(id, n) select id, n from input('id UInt32, n Nested(c1 Int8, c2 LowCardinality(String)))'")) {
+                ps.setString(1, "2");
+                ps.setObject(2, new Object[][] { { 4, "foo2" }, { 5, "bar2" }, { 6, "bug2" } });
+                ps.executeUpdate();
+                Assert.fail("Query should fail");
+            } catch (SQLException e) {
+                Assert.assertTrue(e.getMessage().startsWith("Missing "));
+            }
+            // now use input function
+            try (PreparedStatement ps = conn.prepareStatement(
+                    "insert into test_nested_insert(id, n) select id, n from input('id UInt32, n Nested(c1 Int8, c2 LowCardinality(String))') settings flatten_nested=0")) {
+                ps.setString(1, "2");
+                ps.setObject(2, new Object[][] { { 4, "foo2" }, { 5, "bar2" }, { 6, "bug2" } });
+                ps.executeUpdate();
+            }
+            try (ResultSet rs = s.executeQuery("select * from test_nested_insert order by id")) {
+                for (int i = 1; i <= 2; i++) {
+                    Assert.assertTrue(rs.next());
+                    Assert.assertEquals(rs.getInt(1), i);
+                    Object[][] nestedValue = (Object[][]) rs.getObject(2);
+                    Assert.assertEquals(nestedValue.length, 3);
+                    String[] arr = new String[] { "foo", "bar", "bug" };
+                    for (int j = 1; j <= 3; j++) {
+                        Assert.assertEquals(nestedValue[j - 1],
+                                new Object[] { (byte) (j + (i - 1) * 3), arr[j - 1] + i });
+                    }
+                }
+                Assert.assertFalse(rs.next());
+            }
+
+            s.execute("set flatten_nested=1; drop table if exists test_nested_insert; "
+                    + "create table test_nested_insert(id UInt32, n Nested(c1 Int8, c2 LowCardinality(String)))engine=Memory");
+            try (PreparedStatement ps = conn.prepareStatement(
+                    "insert into test_nested_insert(id, n.c1, n.c2) select id, c1, c2 from input('id UInt32, c1 Array(Int8), c2 Array(LowCardinality(String))')")) {
+                ps.setString(1, "3");
+                ps.setObject(2, new byte[] { 7, 8, 9 });
+                ps.setObject(3, new String[] { "foo3", "bar3", "bug3" });
+                ps.executeUpdate();
+            }
+            try (ResultSet rs = s.executeQuery("select * from test_nested_insert order by id")) {
+                Assert.assertTrue(rs.next());
+                Assert.assertEquals(rs.getInt(1), 3);
+                Assert.assertEquals(rs.getObject(2), new byte[] { 7, 8, 9 });
+                Assert.assertEquals(rs.getObject(3), new String[] { "foo3", "bar3", "bug3" });
                 Assert.assertFalse(rs.next());
             }
         }
