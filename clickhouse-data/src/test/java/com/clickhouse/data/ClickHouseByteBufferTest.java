@@ -31,7 +31,8 @@ public class ClickHouseByteBufferTest {
                 ClickHouseByteBuffer.of(new byte[] { 1, 2, 3 })
                         .update((ByteBuffer) ((Buffer) ByteBuffer.allocate(1)).limit(0)),
                 ClickHouseByteBuffer.newInstance());
-        Assert.assertEquals(ClickHouseByteBuffer.of(new byte[] { 1, 2, 3 }).update(ByteBuffer.allocateDirect(0)),
+        Assert.assertEquals(
+                ClickHouseByteBuffer.of(new byte[] { 1, 2, 3 }).update(ByteBuffer.allocateDirect(0)),
                 ClickHouseByteBuffer.newInstance());
         Assert.assertEquals(
                 ClickHouseByteBuffer.of(new byte[] { 1, 2, 3 })
@@ -140,10 +141,21 @@ public class ClickHouseByteBufferTest {
     }
 
     @Test(groups = { "unit" })
+    public void testSetLength() {
+        Assert.assertEquals(ClickHouseByteBuffer.newInstance().length(), 0);
+        Assert.assertEquals(ClickHouseByteBuffer.newInstance().setLength(0).length(), 0);
+        Assert.assertEquals(ClickHouseByteBuffer.newInstance().setLength(-1).length(), 0);
+
+        Assert.assertEquals(ClickHouseByteBuffer.of(new byte[] { 1, 2, 3, 4, 5 }, 1, 2).setLength(-1).length(), 0);
+    }
+
+    @Test(groups = { "unit" })
     public void testUpdate() {
         Assert.assertEquals(ClickHouseByteBuffer.of(ByteBuffer.wrap(new byte[] { 1, 2, 3 }, 1, 2)).reset(),
                 ClickHouseByteBuffer.newInstance());
-        Assert.assertEquals(ClickHouseByteBuffer.newInstance().update(ByteBuffer.wrap(new byte[] { 1, 2, 3 }, 1, 2)),
+        Assert.assertEquals(
+                ClickHouseByteBuffer.newInstance()
+                        .update(ByteBuffer.wrap(new byte[] { 1, 2, 3 }, 1, 2)),
                 ClickHouseByteBuffer.of(new byte[] { 1, 2, 3 }, 1, 2));
 
         Assert.assertEquals(ClickHouseByteBuffer.of(new byte[] { 1, 2, 3 }, 1, 2).reset(),

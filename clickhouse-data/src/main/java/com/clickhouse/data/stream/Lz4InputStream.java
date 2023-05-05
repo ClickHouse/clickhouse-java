@@ -4,14 +4,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InvalidObjectException;
 import java.io.StreamCorruptedException;
-import java.util.Arrays;
-import java.util.LinkedList;
 
 import com.clickhouse.data.ClickHouseByteUtils;
 import com.clickhouse.data.ClickHouseByteBuffer;
 import com.clickhouse.data.ClickHouseChecker;
 import com.clickhouse.data.ClickHouseCityHash;
-import com.clickhouse.data.ClickHouseDataUpdater;
 import com.clickhouse.data.ClickHouseInputStream;
 import com.clickhouse.data.ClickHousePassThruStream;
 import com.clickhouse.data.ClickHouseUtils;
@@ -47,6 +44,11 @@ public class Lz4InputStream extends AbstractByteArrayInputStream {
             n += count;
         }
 
+        return true;
+    }
+
+    @Override
+    protected boolean reusableBuffer() {
         return true;
     }
 
@@ -106,46 +108,6 @@ public class Lz4InputStream extends AbstractByteArrayInputStream {
         this.header = new byte[HEADER_LENGTH];
 
         this.compressedBlock = ClickHouseByteBuffer.EMPTY_BYTES;
-    }
-
-    @Override
-    public ClickHouseByteBuffer readCustom(ClickHouseDataUpdater reader) throws IOException {
-        if (reader == null) {
-            return byteBuffer.reset();
-        }
-        ensureOpen();
-
-        LinkedList<byte[]> list = new LinkedList<>();
-        int length = 0;
-        boolean more = true;
-        while (more) {
-            int remain = limit - position;
-            if (remain < 1) {
-                closeQuietly();
-                more = false;
-            } else {
-                int read = reader.update(buffer, position, limit);
-                if (read == -1) {
-                    list.add(Arrays.copyOfRange(buffer, position, limit));
-                    length += remain;
-                    position = limit;
-                    if (updateBuffer() < 1) {
-                        closeQuietly();
-                        more = false;
-                    }
-                } else {
-                    if (read > 0) {
-                        byte[] bytes = new byte[read];
-                        System.arraycopy(buffer, position, bytes, 0, read);
-                        list.add(bytes);
-                        length += read;
-                        position += read;
-                    }
-                    more = false;
-                }
-            }
-        }
-        return byteBuffer.update(list, 0, length);
     }
 
     @Override

@@ -808,10 +808,12 @@ public class ClickHouseByteBuffer implements Serializable {
     /**
      * Sets new length.
      *
-     * @param newLength new length
+     * @param newLength new length, negative number is treated as zero
+     * @return this byte buffer
      */
-    public void setLength(int newLength) {
-        this.length = ClickHouseChecker.between(newLength, "Length", 0, this.array.length - this.position);
+    public ClickHouseByteBuffer setLength(int newLength) {
+        this.length = newLength < 0 ? 0 : newLength;
+        return this;
     }
 
     @Override
