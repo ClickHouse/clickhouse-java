@@ -6,9 +6,11 @@ import java.io.OutputStream;
 import java.io.StreamCorruptedException;
 import java.nio.Buffer;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.LinkedList;
 
 import com.clickhouse.data.ClickHouseByteBuffer;
+import com.clickhouse.data.ClickHouseByteUtils;
 import com.clickhouse.data.ClickHouseDataUpdater;
 import com.clickhouse.data.ClickHouseFile;
 import com.clickhouse.data.ClickHouseInputStream;
@@ -158,14 +160,14 @@ public abstract class AbstractByteBufferInputStream extends ClickHouseInputStrea
     }
 
     @Override
-    public ClickHouseByteBuffer readCustom(ClickHouseDataUpdater reader) throws IOException {
-        if (reader == null) {
+    public ClickHouseByteBuffer readBufferUntil(byte[] separator) throws IOException {
+        if (separator == null || separator.length < 1) {
             return byteBuffer.reset();
         }
         ensureOpen();
 
+        int slen = separator.length;
         LinkedList<byte[]> list = new LinkedList<>();
-        int offset = 0;
         int length = 0;
         boolean more = true;
         while (more) {
@@ -175,28 +177,78 @@ public abstract class AbstractByteBufferInputStream extends ClickHouseInputStrea
                 more = false;
             } else {
                 int position = buffer.position();
-                int startPos = position;
                 int limit = buffer.limit();
-                int endPos = limit;
-                byte[] bytes;
-                if (buffer.hasArray() && buffer.capacity() == buffer.limit()) {
-                    bytes = buffer.array();
-                    if (bytes.length > remain) {
-                        byte[] newBytes = new byte[remain];
-                        System.arraycopy(bytes, position, newBytes, 0, remain);
-                        bytes = newBytes;
-                        startPos = 0;
-                        endPos = remain;
+                byte[] bytes = ClickHouseByteUtils.getOrCopy(buffer, remain);
+                int read = ClickHouseByteUtils.indexOf(bytes, 0, remain, separator, 0, slen, true);
+                int missed = 0;
+                if (read == -1 || (missed = slen + read - limit) > 0) {
+                    while (true) {
+                        list.add(bytes);
+                        length += remain;
+                        ((Buffer) buffer).position(limit);
+                        if ((remain = updateBuffer()) < 1) {
+                            closeQuietly();
+                            more = false;
+                            break;
+                        }
+
+                        if (missed > 0) {
+                            bytes = ClickHouseByteUtils.getOrCopy(buffer, remain);
+                            if (remain < missed) {
+                                if (ClickHouseByteUtils.equals(bytes, 0, missed, separator, slen - missed,
+                                        slen - missed + missed)) {
+                                    missed -= remain;
+                                } else {
+                                    missed = 0;
+                                }
+                            } else {
+                                if (ClickHouseByteUtils.equals(bytes, 0, missed, separator, slen - missed,
+                                        slen)) {
+                                    length += missed;
+                                    ((Buffer) buffer).position(missed);
+                                    list.add(Arrays.copyOfRange(bytes, 0, missed));
+                                    more = false;
+                                }
+                                break;
+                            }
+                        } else {
+                            break;
+                        }
                     }
                 } else {
-                    bytes = new byte[remain];
-                    buffer.get(bytes);
-                    ((Buffer) buffer).position(position);
-                    startPos = 0;
-                    endPos = remain;
+                    read += slen;
+                    list.add(bytes);
+                    length += read;
+                    ((Buffer) buffer).position(position + read);
+                    more = false;
                 }
-                int read = reader.update(bytes, startPos, endPos);
+            }
+        }
+        return byteBuffer.update(list, 0, length);
+    }
+
+    @Override
+    public ClickHouseByteBuffer readCustom(ClickHouseDataUpdater reader) throws IOException {
+        if (reader == null) {
+            return byteBuffer.reset();
+        }
+        ensureOpen();
+
+        LinkedList<byte[]> list = new LinkedList<>();
+        int length = 0;
+        boolean more = true;
+        while (more) {
+            int remain = buffer.remaining();
+            if (remain < 1) {
+                closeQuietly();
+                more = false;
+            } else {
+                int position = buffer.position();
+                int limit = buffer.limit();
+                byte[] bytes = ClickHouseByteUtils.getOrCopy(buffer, remain);
+                int read = reader.update(bytes, 0, remain);
                 if (read == -1) {
+                    list.add(bytes);
                     length += remain;
                     ((Buffer) buffer).position(limit);
                     if (updateBuffer() < 1) {
@@ -205,15 +257,15 @@ public abstract class AbstractByteBufferInputStream extends ClickHouseInputStrea
                     }
                 } else {
                     if (read > 0) {
+                        list.add(Arrays.copyOfRange(bytes, 0, read));
                         length += read;
                         ((Buffer) buffer).position(position + read);
                     }
                     more = false;
                 }
-                list.add(bytes);
             }
         }
-        return byteBuffer.update(list, offset, length);
+        return byteBuffer.update(list, 0, length);
     }
 
     @Override
@@ -243,7 +295,8 @@ public abstract class AbstractByteBufferInputStream extends ClickHouseInputStrea
             if (b == ClickHouseByteBuffer.EMPTY_BUFFER) {
                 closeQuietly();
                 throw offset == 0 ? new EOFException()
-                        : new StreamCorruptedException(ClickHouseUtils.format(ERROR_INCOMPLETE_READ, offset, bytes.length));
+                        : new StreamCorruptedException(
+                                ClickHouseUtils.format(ERROR_INCOMPLETE_READ, offset, bytes.length));
             }
 
             if (remain >= length) {

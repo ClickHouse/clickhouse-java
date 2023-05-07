@@ -26,11 +26,11 @@ public class Lz4OutputStream extends AbstractByteArrayOutputStream {
         block[16] = Lz4InputStream.MAGIC;
         int compressed = compressor.compress(buffer, 0, position, block, 25);
         int compressedSizeWithHeader = compressed + 9;
-        ClickHouseByteUtils.setInt32LE(block, 17, compressedSizeWithHeader); // compressed size with header
-        ClickHouseByteUtils.setInt32LE(block, 21, position); // uncompressed size
+        ClickHouseByteUtils.setInt32(block, 17, compressedSizeWithHeader); // compressed size with header
+        ClickHouseByteUtils.setInt32(block, 21, position); // uncompressed size
         long[] hash = ClickHouseCityHash.cityHash128(block, 16, compressedSizeWithHeader);
-        ClickHouseByteUtils.setInt64LE(block, 0, hash[0]);
-        ClickHouseByteUtils.setInt64LE(block, 8, hash[1]);
+        ClickHouseByteUtils.setInt64(block, 0, hash[0]);
+        ClickHouseByteUtils.setInt64(block, 8, hash[1]);
         output.write(block, 0, compressed + 25);
         position = 0;
     }
@@ -43,11 +43,11 @@ public class Lz4OutputStream extends AbstractByteArrayOutputStream {
 
         int compressed = compressor.compress(bytes, offset, length, block, 25);
         int compressedSizeWithHeader = compressed + 9;
-        ClickHouseByteUtils.setInt32LE(block, 17, compressedSizeWithHeader);
-        ClickHouseByteUtils.setInt32LE(block, 21, length);
+        ClickHouseByteUtils.setInt32(block, 17, compressedSizeWithHeader);
+        ClickHouseByteUtils.setInt32(block, 21, length);
         long[] hash = ClickHouseCityHash.cityHash128(block, 16, compressedSizeWithHeader);
-        ClickHouseByteUtils.setInt64LE(block, 0, hash[0]);
-        ClickHouseByteUtils.setInt64LE(block, 8, hash[1]);
+        ClickHouseByteUtils.setInt64(block, 0, hash[0]);
+        ClickHouseByteUtils.setInt64(block, 8, hash[1]);
         output.write(block, 0, compressed + 25);
     }
 

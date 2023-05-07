@@ -27,14 +27,14 @@ public interface ClickHouseCompressionAlgorithm {
             true);
 
     static ClickHouseCompressionAlgorithm createInstance(String option,
-            Class<? extends ClickHouseCompressionAlgorithm> preferredInstance,
-            Class<? extends ClickHouseCompressionAlgorithm> defaultInstance) {
+            Class<? extends ClickHouseCompressionAlgorithm> preferredClass,
+            Class<? extends ClickHouseCompressionAlgorithm> defaultClass) {
         ClickHouseCompressionAlgorithm alg = null;
         if ((boolean) new ClickHouseDefaultOption(option,
                 (boolean) ClickHouseCompressionAlgorithm.COMPRESSION_LIB_DETECTION.getEffectiveDefaultValue())
                 .getEffectiveDefaultValue()) {
             try {
-                alg = preferredInstance.getDeclaredConstructor().newInstance();
+                alg = preferredClass.getDeclaredConstructor().newInstance();
             } catch (Throwable t) { // NOSONAR
                 // ignore
             }
@@ -42,9 +42,9 @@ public interface ClickHouseCompressionAlgorithm {
 
         if (alg == null) {
             try {
-                alg = defaultInstance.getDeclaredConstructor().newInstance();
+                alg = defaultClass.getDeclaredConstructor().newInstance();
             } catch (Throwable e) { // NOSONAR
-                throw new UnsupportedOperationException("Failed to create default instance of " + defaultInstance, e);
+                throw new UnsupportedOperationException("Failed to create default instance of " + defaultClass, e);
             }
         }
         return alg;

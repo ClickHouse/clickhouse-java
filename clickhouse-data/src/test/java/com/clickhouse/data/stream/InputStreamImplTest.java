@@ -26,7 +26,6 @@ import java.util.function.BiFunction;
 import com.clickhouse.data.ClickHouseByteBuffer;
 import com.clickhouse.data.ClickHouseInputStream;
 import com.clickhouse.data.ClickHouseOutputStream;
-import com.clickhouse.data.format.BinaryStreamUtils;
 
 import org.testng.Assert;
 import org.testng.annotations.DataProvider;
@@ -308,7 +307,6 @@ public class InputStreamImplTest {
                                         ByteBuffer.wrap(new byte[] { 0x68, 0x69 }),
                                         ByteBuffer.wrap(new byte[] { 0x70 }), ClickHouseByteBuffer.EMPTY_BUFFER)),
                         0, null) },
-
         };
 
     }
@@ -433,6 +431,19 @@ public class InputStreamImplTest {
         Assert.assertEquals(in.readBuffer(1).asUnicodeString(), "p");
         Assert.assertFalse(in.isClosed(), "Should be still openning");
         Assert.assertThrows(EOFException.class, () -> in.readBuffer(1));
+        Assert.assertTrue(in.isClosed(), "Should have been closed");
+    }
+
+    @Test(dataProvider = "inputStreamProvider", groups = { "unit" })
+    public void testReadBufferUntilFromInputStream(ClickHouseInputStream in) throws IOException {
+        Assert.assertFalse(in.isClosed(), "Should be openned for read by default");
+        Assert.assertEquals(in.readBufferUntil(new byte[] { 'f', 'g' }).asUnicodeString(), "efg");
+        Assert.assertEquals(in.readBufferUntil(new byte[] { 'i' }).asUnicodeString(), "hi");
+        Assert.assertEquals(in.readBufferUntil(new byte[] { 'p' }).asUnicodeString(), "p");
+        Assert.assertFalse(in.isClosed(), "Should be still openning");
+        Assert.assertTrue(in.readBufferUntil(new byte[0]).isEmpty(), "Should got nothing");
+        Assert.assertFalse(in.isClosed(), "Should be still openning");
+        Assert.assertTrue(in.readBufferUntil(new byte[1]).isEmpty(), "Should got nothing");
         Assert.assertTrue(in.isClosed(), "Should have been closed");
     }
 
@@ -778,6 +789,13 @@ public class InputStreamImplTest {
             Assert.assertTrue(in.isClosed(), "Stream should have been closed");
             Assert.assertThrows(IOException.class, () -> in.readCustom(new CustomReader((byte) 1, (byte) 2)::read));
         }
+    }
+
+    @Test(groups = { "unit" })
+    public void testWeirdStuff() throws IOException {
+        Assert.assertEquals(new byte[0], ClickHouseByteBuffer.EMPTY_BYTES);
+        int i = 1756438978;
+        // BinaryStreamUtils.writeVarInt(null, i);
     }
 
     @Test(groups = { "unit" })
