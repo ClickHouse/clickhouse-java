@@ -372,6 +372,25 @@ public enum ClickHouseClientOption implements ClickHouseOption {
      */
     USE_NO_PROXY("use_no_proxy", false,
             "Whether to access ClickHouse server directly without using system wide proxy including the one defined in JVM system properties."),
+
+    /**
+     *  Whether to access ClickHouse server via proxy.
+     *  Proxy type: IGNORE,
+     *              DIRECT,
+     *              HTTP - if selecting HTTP we need also provide proxy hostname and port.
+     */
+    PROXY_TYPE("proxy_type", "IGNORE",
+                       "Whether to access ClickHouse server via proxy select proxy type."),
+    /**
+     * Set Clickhouse proxy hostname.
+     */
+    PROXY_HOSTNAME("proxy_hostname", "",
+            "Set ClickHouse server proxy hostname."),
+    /**
+     * Set ClickHouse proxy port.
+     */
+    PROXY_PORT("proxy_port", -1,
+            "Set ClickHouse server proxy hostname."),
     /**
      * Whether to use server time zone.
      */

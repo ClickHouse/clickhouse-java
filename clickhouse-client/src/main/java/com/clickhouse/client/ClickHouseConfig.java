@@ -1,6 +1,7 @@
 package com.clickhouse.client;
 
 import java.io.Serializable;
+import java.net.Proxy;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -181,6 +182,18 @@ public class ClickHouseConfig implements ClickHouseDataConfig {
         return options;
     }
 
+    public static enum ProxyType {
+        IGNORE,
+        DIRECT,
+        HTTP,
+        SOCKS;
+
+
+        private ProxyType() {
+        }
+    }
+
+
     // common options optimized for read
     private final boolean async;
     private final boolean autoDiscovery;
@@ -237,7 +250,9 @@ public class ClickHouseConfig implements ClickHouseDataConfig {
     private final boolean useServerTimeZoneForDates;
     private final TimeZone timeZoneForDate;
     private final TimeZone useTimeZone;
-
+    private final ProxyType proxyType;
+    private final String proxyHostName;
+    private final int proxyPort;
     // client specific options
     private final Map<ClickHouseOption, Serializable> options;
     private final ClickHouseCredentials credentials;
@@ -363,6 +378,12 @@ public class ClickHouseConfig implements ClickHouseDataConfig {
         }
         this.metricRegistry = Optional.ofNullable(metricRegistry);
         this.nodeSelector = nodeSelector == null ? ClickHouseNodeSelector.EMPTY : nodeSelector;
+
+        // select the type of proxy to use
+        this.proxyType = extractProxyType(getStrOption(ClickHouseClientOption.PROXY_TYPE));
+        this.proxyHostName = getStrOption(ClickHouseClientOption.PROXY_HOSTNAME);
+        this.proxyPort = getIntOption(ClickHouseClientOption.PROXY_PORT);
+
     }
 
     @Override
@@ -638,6 +659,17 @@ public class ClickHouseConfig implements ClickHouseDataConfig {
         return useNoProxy;
     }
 
+    public ProxyType getProxyType() {
+        return proxyType;
+    }
+    public String getProxyHostname() {
+        return proxyHostName;
+    }
+
+    public int getProxyPort() {
+        return proxyPort;
+    }
+
     public boolean isUseServerTimeZone() {
         return useServerTimeZone;
     }
@@ -839,6 +871,20 @@ public class ClickHouseConfig implements ClickHouseDataConfig {
      */
     public String getStrOption(ClickHouseOption option) {
         return getOption(option, String.class);
+    }
+
+
+    public ProxyType extractProxyType(String strProxyType) {
+        switch (strProxyType) {
+            case "HTTP":
+                return ProxyType.HTTP;
+            case "DIRECT":
+                return ProxyType.DIRECT;
+            case "SOCKS":
+                return ProxyType.SOCKS;
+            default:
+                return ProxyType.IGNORE;
+        }
     }
 
     /**
