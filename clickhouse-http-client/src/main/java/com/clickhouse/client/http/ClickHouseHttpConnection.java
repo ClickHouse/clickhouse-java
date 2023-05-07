@@ -24,6 +24,7 @@ import com.clickhouse.client.ClickHouseRequestManager;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.http.config.ClickHouseHttpOption;
 import com.clickhouse.config.ClickHouseOption;
+import com.clickhouse.data.ClickHouseByteUtils;
 import com.clickhouse.data.ClickHouseChecker;
 import com.clickhouse.data.ClickHouseCompression;
 import com.clickhouse.data.ClickHouseExternalTable;
@@ -242,7 +243,7 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
         log.debug("Failed to read error message[code=%s] from server [%s] due to: %s", errorCode, serverName,
                 e.getMessage());
 
-        int index = ClickHouseUtils.indexOf(bytes, ERROR_MSG_PREFIX);
+        int index = ClickHouseByteUtils.indexOf(bytes, ERROR_MSG_PREFIX);
         final String errorMsg;
         if (index > 0) {
             bytes[--index] = (byte) 'C';

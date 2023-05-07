@@ -10,6 +10,7 @@ import java.util.Arrays;
 import java.util.LinkedList;
 
 import com.clickhouse.data.ClickHouseByteBuffer;
+import com.clickhouse.data.ClickHouseByteUtils;
 import com.clickhouse.data.ClickHouseDataUpdater;
 import com.clickhouse.data.ClickHouseFile;
 import com.clickhouse.data.ClickHouseInputStream;
@@ -177,8 +178,8 @@ public abstract class AbstractByteBufferInputStream extends ClickHouseInputStrea
             } else {
                 int position = buffer.position();
                 int limit = buffer.limit();
-                byte[] bytes = ClickHouseUtils.getOrCopy(buffer, remain);
-                int read = ClickHouseUtils.indexOf(bytes, 0, remain, separator, 0, slen, true);
+                byte[] bytes = ClickHouseByteUtils.getOrCopy(buffer, remain);
+                int read = ClickHouseByteUtils.indexOf(bytes, 0, remain, separator, 0, slen, true);
                 int missed = 0;
                 if (read == -1 || (missed = slen + read - limit) > 0) {
                     while (true) {
@@ -192,16 +193,17 @@ public abstract class AbstractByteBufferInputStream extends ClickHouseInputStrea
                         }
 
                         if (missed > 0) {
-                            bytes = ClickHouseUtils.getOrCopy(buffer, remain);
+                            bytes = ClickHouseByteUtils.getOrCopy(buffer, remain);
                             if (remain < missed) {
-                                if (Arrays.compare(bytes, 0, missed, separator, slen - missed,
-                                        slen - missed + missed) == 0) {
+                                if (ClickHouseByteUtils.equals(bytes, 0, missed, separator, slen - missed,
+                                        slen - missed + missed)) {
                                     missed -= remain;
                                 } else {
                                     missed = 0;
                                 }
                             } else {
-                                if (Arrays.compare(bytes, 0, missed, separator, slen - missed, slen) == 0) {
+                                if (ClickHouseByteUtils.equals(bytes, 0, missed, separator, slen - missed,
+                                        slen)) {
                                     length += missed;
                                     ((Buffer) buffer).position(missed);
                                     list.add(Arrays.copyOfRange(bytes, 0, missed));
@@ -243,7 +245,7 @@ public abstract class AbstractByteBufferInputStream extends ClickHouseInputStrea
             } else {
                 int position = buffer.position();
                 int limit = buffer.limit();
-                byte[] bytes = ClickHouseUtils.getOrCopy(buffer, remain);
+                byte[] bytes = ClickHouseByteUtils.getOrCopy(buffer, remain);
                 int read = reader.update(bytes, 0, remain);
                 if (read == -1) {
                     list.add(bytes);

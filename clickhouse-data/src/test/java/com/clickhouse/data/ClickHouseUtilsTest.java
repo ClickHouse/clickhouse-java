@@ -3,9 +3,6 @@ package com.clickhouse.data;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.nio.Buffer;
-import java.nio.BufferUnderflowException;
-import java.nio.ByteBuffer;
 import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Collections;
@@ -104,41 +101,6 @@ public class ClickHouseUtilsTest {
     }
 
     @Test(groups = { "unit" })
-    public void testGetOrCopy() {
-        Assert.assertEquals(ClickHouseUtils.getOrCopy(null, -1), new byte[0]);
-        Assert.assertEquals(ClickHouseUtils.getOrCopy(ByteBuffer.allocate(0), -1), new byte[0]);
-        Assert.assertEquals(ClickHouseUtils.getOrCopy(ByteBuffer.allocate(1), -1), new byte[0]);
-        Assert.assertEquals(ClickHouseUtils.getOrCopy(ByteBuffer.allocate(1), 0), new byte[0]);
-
-        ByteBuffer buffer = ByteBuffer.wrap(new byte[] { 'a', 'b', 'c', 'd', 'e' }, 0, 3);
-        Assert.assertEquals(ClickHouseUtils.getOrCopy(buffer, 1), new byte[] { 'a' });
-        Assert.assertEquals(buffer.position(), 0);
-        Assert.assertEquals(ClickHouseUtils.getOrCopy(buffer, 2), new byte[] { 'a', 'b' });
-        Assert.assertEquals(buffer.position(), 0);
-        Assert.assertEquals(ClickHouseUtils.getOrCopy(buffer, 3), new byte[] { 'a', 'b', 'c' });
-        Assert.assertEquals(buffer.position(), 0);
-        Assert.assertThrows(BufferUnderflowException.class, () -> ClickHouseUtils.getOrCopy(buffer, 4));
-        Assert.assertEquals(buffer.position(), 0);
-
-        ByteBuffer directBuf = ByteBuffer.allocateDirect(5);
-        directBuf.put(new byte[] { 'a', 'b', 'c', 'd', 'e' });
-        ((Buffer) directBuf).position(0);
-        Assert.assertEquals(ClickHouseUtils.getOrCopy(directBuf, 1), new byte[] { 'a' });
-        Assert.assertEquals(directBuf.position(), 0);
-        Assert.assertEquals(ClickHouseUtils.getOrCopy(directBuf, 2), new byte[] { 'a', 'b' });
-        Assert.assertEquals(directBuf.position(), 0);
-        Assert.assertEquals(ClickHouseUtils.getOrCopy(directBuf, 3), new byte[] { 'a', 'b', 'c' });
-        Assert.assertEquals(directBuf.position(), 0);
-        Assert.assertEquals(ClickHouseUtils.getOrCopy(directBuf, 4), new byte[] { 'a', 'b', 'c', 'd' });
-        Assert.assertEquals(directBuf.position(), 0);
-        Assert.assertEquals(ClickHouseUtils.getOrCopy(directBuf, 5), new byte[] { 'a', 'b', 'c', 'd', 'e' });
-        Assert.assertEquals(directBuf.position(), 0);
-        Assert.assertThrows(BufferUnderflowException.class, () -> ClickHouseUtils.getOrCopy(directBuf, 6));
-        Assert.assertEquals(directBuf.position(), 0);
-        directBuf.clear();
-    }
-
-    @Test(groups = { "unit" })
     public void testGetService() {
         TestServiceInterface service = null;
         try {
@@ -172,54 +134,6 @@ public class ClickHouseUtilsTest {
             Assert.fail("Should not fail");
         }
         Assert.assertNotNull(me);
-    }
-
-    @Test(groups = { "unit" })
-    public void testIndexOf() {
-        Assert.assertEquals(ClickHouseUtils.indexOf(null, null), -1);
-        Assert.assertEquals(ClickHouseUtils.indexOf(null, new byte[0]), -1);
-        Assert.assertEquals(ClickHouseUtils.indexOf(new byte[0], new byte[0]), -1);
-        Assert.assertEquals(ClickHouseUtils.indexOf(new byte[] { 1 }, new byte[0]), 0);
-        Assert.assertEquals(ClickHouseUtils.indexOf(new byte[] { 1, 2, 3 }, new byte[] { 2, 3 }), 1);
-
-        Assert.assertEquals(ClickHouseUtils.indexOf(null, 3, 4, null, 1, 2), -1);
-        Assert.assertEquals(ClickHouseUtils.indexOf(new byte[] { 1, 2, 3 }, 2, 1, new byte[] { 3 }, 0, 1), 2);
-        Assert.assertEquals(ClickHouseUtils.indexOf(new byte[] { 1, 2, 3, 4, 5 }, 1, 3, new byte[] { 3, 4 }, 1, 1), 3);
-        Assert.assertEquals(
-                ClickHouseUtils.indexOf(new byte[] { 1, 2, 3, 4, 5 }, 0, 5, new byte[] { 1, 2, 3, 4, 5 }, 1, 3), 1);
-        Assert.assertEquals(
-                ClickHouseUtils.indexOf(new byte[] { 1, 2, 3, 4, 5 }, 1, 3, new byte[] { 1, 4, 3, 2 }, 1, 2), -1);
-        Assert.assertEquals(
-                ClickHouseUtils.indexOf(new byte[] { 1, 2, 3, 4, 5 }, 1, 4, new byte[] { 1, 4, 5, 6, 3, 2 }, 1, 2),
-                3);
-        Assert.assertEquals(
-                ClickHouseUtils.indexOf(new byte[] { 1, 5 }, 1, 1, new byte[] { 1, 4, 5, 6, 3, 2 }, 2, 2),
-                -1);
-
-        Assert.assertEquals(
-                ClickHouseUtils.indexOf(new byte[] { 1, 5 }, 1, 1, new byte[] { 1, 4, 5, 6, 3, 2 }, 2, 2,
-                        true),
-                1);
-        Assert.assertEquals(
-                ClickHouseUtils.indexOf(new byte[] { 1, 2, 3, 4, 5 }, 1, 3, new byte[] { 1, 4, 5, 6, 3, 2 }, 1, 2,
-                        true),
-                3);
-        Assert.assertEquals(
-                ClickHouseUtils.indexOf(new byte[] { 1, 2, 3, 4, 5 }, 1, 4, new byte[] { 1, 4, 5, 6, 3, 2 }, 1, 2,
-                        true),
-                3);
-        Assert.assertEquals(
-                ClickHouseUtils.indexOf(new byte[] { 1, 2, 3, 4, 5 }, 1, 3, new byte[] { 1, 4, 5, 6, 3, 2 }, 2, 2,
-                        true),
-                -1);
-        Assert.assertEquals(
-                ClickHouseUtils.indexOf(new byte[] { 1, 2, 3, 4, 5 }, 1, 4, new byte[] { 1, 4, 5, 6, 3, 2 }, 2, 2,
-                        true),
-                4);
-        Assert.assertEquals(
-                ClickHouseUtils.indexOf(new byte[] { 1, 2, 3, 4, 5 }, 1, 4, new byte[] { 1, 4, 5, 6, 3, 2 }, 1, 5,
-                        true),
-                3);
     }
 
     @Test(groups = { "unit" })

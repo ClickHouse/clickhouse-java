@@ -8,6 +8,7 @@ import java.util.Arrays;
 import java.util.LinkedList;
 
 import com.clickhouse.data.ClickHouseByteBuffer;
+import com.clickhouse.data.ClickHouseByteUtils;
 import com.clickhouse.data.ClickHouseDataUpdater;
 import com.clickhouse.data.ClickHouseInputStream;
 import com.clickhouse.data.ClickHousePassThruStream;
@@ -186,7 +187,7 @@ public abstract class AbstractByteArrayInputStream extends ClickHouseInputStream
                 closeQuietly();
                 more = false;
             } else {
-                int read = ClickHouseUtils.indexOf(buffer, position, remain, separator, 0, slen, true);
+                int read = ClickHouseByteUtils.indexOf(buffer, position, remain, separator, 0, slen, true);
                 int missed = 0;
                 if (read == -1 || (missed = slen + read - limit) > 0) {
                     while (true) {
@@ -201,14 +202,15 @@ public abstract class AbstractByteArrayInputStream extends ClickHouseInputStream
 
                         if (missed > 0) {
                             if (remain < missed) {
-                                if (Arrays.compare(buffer, position, missed, separator, slen - missed,
-                                        slen - missed + missed) == 0) {
+                                if (ClickHouseByteUtils.equals(buffer, position, missed, separator, slen - missed,
+                                        slen - missed + missed)) {
                                     missed -= remain;
                                 } else {
                                     missed = 0;
                                 }
                             } else {
-                                if (Arrays.compare(buffer, position, missed, separator, slen - missed, slen) == 0) {
+                                if (ClickHouseByteUtils.equals(buffer, position, missed, separator, slen - missed,
+                                        slen)) {
                                     if (!copyBuffer && remain == missed) {
                                         list.add(buffer);
                                     } else {
