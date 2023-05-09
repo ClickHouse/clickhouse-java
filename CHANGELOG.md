@@ -1,4 +1,7 @@
 ## 0.5.0
+### New Features
+* Adding new proxy support [#1338](https://github.com/ClickHouse/clickhouse-java/issues/1338)
+
 ### Bug Fixes
 * Java client threw confusing error when query is invalid.
 
