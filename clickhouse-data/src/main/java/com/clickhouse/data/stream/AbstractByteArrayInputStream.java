@@ -4,9 +4,11 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.StreamCorruptedException;
+import java.util.Arrays;
 import java.util.LinkedList;
 
 import com.clickhouse.data.ClickHouseByteBuffer;
+import com.clickhouse.data.ClickHouseByteUtils;
 import com.clickhouse.data.ClickHouseDataUpdater;
 import com.clickhouse.data.ClickHouseInputStream;
 import com.clickhouse.data.ClickHousePassThruStream;
@@ -167,14 +169,91 @@ public abstract class AbstractByteArrayInputStream extends ClickHouseInputStream
     }
 
     @Override
+    public ClickHouseByteBuffer readBufferUntil(byte[] separator) throws IOException {
+        if (separator == null || separator.length < 1) {
+            return byteBuffer.reset();
+        }
+        ensureOpen();
+
+        boolean copyBuffer = reusableBuffer();
+        int slen = separator.length;
+        LinkedList<byte[]> list = new LinkedList<>();
+        int offset = copyBuffer ? 0 : position;
+        int length = 0;
+        boolean more = true;
+        while (more) {
+            int remain = limit - position;
+            if (remain < 1) {
+                closeQuietly();
+                more = false;
+            } else {
+                int read = ClickHouseByteUtils.indexOf(buffer, position, remain, separator, 0, slen, true);
+                int missed = 0;
+                if (read == -1 || (missed = slen + read - limit) > 0) {
+                    while (true) {
+                        list.add(copyBuffer ? Arrays.copyOfRange(buffer, position, limit) : buffer);
+                        length += remain;
+                        position = limit;
+                        if ((remain = updateBuffer()) < 1) {
+                            closeQuietly();
+                            more = false;
+                            break;
+                        }
+
+                        if (missed > 0) {
+                            if (remain < missed) {
+                                if (ClickHouseByteUtils.equals(buffer, position, missed, separator, slen - missed,
+                                        slen - missed + missed)) {
+                                    missed -= remain;
+                                } else {
+                                    missed = 0;
+                                }
+                            } else {
+                                if (ClickHouseByteUtils.equals(buffer, position, missed, separator, slen - missed,
+                                        slen)) {
+                                    if (!copyBuffer && remain == missed) {
+                                        list.add(buffer);
+                                    } else {
+                                        byte[] bytes = new byte[missed];
+                                        System.arraycopy(buffer, position, bytes, 0, missed);
+                                        list.add(bytes);
+                                    }
+                                    length += missed;
+                                    position += missed;
+                                    more = false;
+                                }
+                                break;
+                            }
+                        } else {
+                            break;
+                        }
+                    }
+                } else {
+                    read += slen;
+                    if (copyBuffer) {
+                        list.add(Arrays.copyOfRange(buffer, position, read));
+                    } else {
+                        list.add(buffer);
+                    }
+                    length += read - position;
+                    position = read;
+                    more = false;
+                }
+            }
+        }
+        return byteBuffer.update(list, offset, length);
+    }
+
+    @Override
     public ClickHouseByteBuffer readCustom(ClickHouseDataUpdater reader) throws IOException {
         if (reader == null) {
             return byteBuffer.reset();
         }
         ensureOpen();
 
+        boolean copyBuffer = reusableBuffer();
         LinkedList<byte[]> list = new LinkedList<>();
-        int offset = position;
+        int offset = copyBuffer ? 0 : position;
         int length = 0;
         boolean more = true;
         while (more) {
@@ -185,18 +264,24 @@ public abstract class AbstractByteArrayInputStream extends ClickHouseInputStream
             } else {
                 int read = reader.update(buffer, position, limit);
                 if (read == -1) {
+                    list.add(copyBuffer ? Arrays.copyOfRange(buffer, position, limit) : buffer);
                     length += remain;
                     position = limit;
-                    list.add(buffer);
                     if (updateBuffer() < 1) {
                         closeQuietly();
                         more = false;
                     }
                 } else {
                     if (read > 0) {
+                        if (copyBuffer) {
+                            byte[] bytes = new byte[read];
+                            System.arraycopy(buffer, position, bytes, 0, read);
+                            list.add(bytes);
+                        } else {
+                            list.add(buffer);
+                        }
                         length += read;
                         position += read;
-                        list.add(buffer);
                     }
                     more = false;
                 }
@@ -234,7 +319,8 @@ public abstract class AbstractByteArrayInputStream extends ClickHouseInputStream
             if (remain < 1) {
                 closeQuietly();
                 throw count == 0 ? new EOFException()
-                        : new StreamCorruptedException(ClickHouseUtils.format(ERROR_INCOMPLETE_READ, count, bytes.length));
+                        : new StreamCorruptedException(
+                                ClickHouseUtils.format(ERROR_INCOMPLETE_READ, count, bytes.length));
             }
 
             if (remain >= length) {

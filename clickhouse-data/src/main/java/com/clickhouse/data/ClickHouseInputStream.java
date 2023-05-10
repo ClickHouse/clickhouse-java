@@ -774,6 +774,16 @@ public abstract class ClickHouseInputStream extends InputStream implements Itera
     protected abstract ClickHouseByteBuffer getBuffer();
 
     /**
+     * Checks whether the internal buffer is reused among multiple reads.
+     *
+     * @return true if the internal buffer is reused among multiple reads; false
+     *         otherwise
+     */
+    protected boolean reusableBuffer() {
+        return false;
+    }
+
+    /**
      * Gets reference to next byte buffer available for read. An empty byte buffer
      * will be returned ({@code nextBuffer().isEmpty() == true}), when it reaches
      * end of the input stream.
@@ -919,6 +929,17 @@ public abstract class ClickHouseInputStream extends InputStream implements Itera
 
         return byteBuffer.update(readBytes(length));
     }
+
+    /**
+     * Reads byte buffer from the input stream until the first match of the
+     * separator.
+     *
+     * @param separator non-empty separator
+     * @return non-null byte buffer
+     * @throws IOException when failed to read bytes from input stream or not able
+     *                     to retrieve all bytes
+     */
+    public abstract ClickHouseByteBuffer readBufferUntil(byte[] separator) throws IOException;
 
     /**
      * Reads a byte as boolean. The byte value can be either 0 (false) or 1 (true).

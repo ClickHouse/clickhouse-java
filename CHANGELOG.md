@@ -1,6 +1,12 @@
 ## 0.5.0
+### Breaking Changes
+* ClickHouseByteBuffer can no longer be extended
+* rename ClickHouseByteUtils methods by removing LE suffix
+* change default databaseTerm from schema to catalog
+
 ### New Features
 * Adding new proxy support [#1338](https://github.com/ClickHouse/clickhouse-java/issues/1338)
+* use VarHandle in JDK 9+ to read/write numbers
 
 ### Bug Fixes
 * Java client threw confusing error when query is invalid.

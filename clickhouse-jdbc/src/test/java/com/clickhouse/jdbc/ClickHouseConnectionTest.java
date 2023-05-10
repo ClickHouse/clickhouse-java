@@ -156,6 +156,7 @@ public class ClickHouseConnectionTest extends JdbcIntegrationTest {
     public void testNonExistDatabase() throws SQLException {
         String database = UUID.randomUUID().toString();
         Properties props = new Properties();
+        props.setProperty(JdbcConfig.PROP_DATABASE_TERM, JdbcConfig.TERM_SCHEMA);
         props.setProperty(ClickHouseClientOption.DATABASE.getKey(), database);
         SQLException exp = null;
         try (ClickHouseConnection conn = newConnection(props)) {

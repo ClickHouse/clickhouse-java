@@ -205,7 +205,7 @@ public abstract class ClickHouseDataProcessor {
         } catch (StreamCorruptedException e) {
             byte[] search = "ode: ".getBytes(StandardCharsets.US_ASCII);
             byte[] bytes = input.getBuffer().array();
-            int index = ClickHouseUtils.indexOf(bytes, search);
+            int index = ClickHouseByteUtils.indexOf(bytes, search);
             if (index > 0 && bytes[--index] == (byte) 'C') {
                 throw new UncheckedIOException(new String(bytes, index, bytes.length - index, StandardCharsets.UTF_8),
                         e);

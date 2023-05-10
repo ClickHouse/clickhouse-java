@@ -49,6 +49,11 @@ public final class EmptyInputStream extends ClickHouseInputStream {
     }
 
     @Override
+    public ClickHouseByteBuffer readBufferUntil(byte[] separator) throws IOException {
+        return byteBuffer.reset();
+    }
+
+    @Override
     public ClickHouseByteBuffer readCustom(ClickHouseDataUpdater reader) throws IOException {
         return getBuffer();
     }

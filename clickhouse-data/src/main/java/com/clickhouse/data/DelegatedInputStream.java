@@ -61,6 +61,11 @@ final class DelegatedInputStream extends ClickHouseInputStream {
     }
 
     @Override
+    public ClickHouseByteBuffer readBufferUntil(byte[] separator) throws IOException {
+        return input.readBufferUntil(separator);
+    }
+
+    @Override
     public ClickHouseByteBuffer readCustom(ClickHouseDataUpdater reader) throws IOException {
         return input.readCustom(reader);
     }

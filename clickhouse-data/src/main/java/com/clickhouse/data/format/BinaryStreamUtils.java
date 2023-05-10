@@ -24,6 +24,7 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 import com.clickhouse.data.ClickHouseByteBuffer;
+import com.clickhouse.data.ClickHouseByteUtils;
 import com.clickhouse.data.ClickHouseChecker;
 import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseInputStream;
@@ -98,8 +99,7 @@ public final class BinaryStreamUtils {
     }
 
     public static int toInt32(byte[] bytes, int offset) {
-        return (0xFF & bytes[offset++]) | ((0xFF & bytes[offset++]) << 8) | ((0xFF & bytes[offset++]) << 16)
-                | ((0xFF & bytes[offset]) << 24);
+        return ClickHouseByteUtils.getInt32(bytes, offset);
     }
 
     public static long toInt64(ClickHouseByteBuffer byteBuffer) {
@@ -107,28 +107,15 @@ public final class BinaryStreamUtils {
     }
 
     public static long toInt64(byte[] bytes, int offset) {
-        return (0xFFL & bytes[offset++]) | ((0xFFL & bytes[offset++]) << 8) | ((0xFFL & bytes[offset++]) << 16)
-                | ((0xFFL & bytes[offset++]) << 24) | ((0xFFL & bytes[offset++]) << 32)
-                | ((0xFFL & bytes[offset++]) << 40) | ((0xFFL & bytes[offset++]) << 48)
-                | ((0xFFL & bytes[offset]) << 56);
+        return ClickHouseByteUtils.getInt64(bytes, offset);
     }
 
     public static void setInt32(byte[] bytes, int offset, int value) {
-        bytes[offset++] = (byte) (0xFF & value);
-        bytes[offset++] = (byte) (0xFF & (value >> 8));
-        bytes[offset++] = (byte) (0xFF & (value >> 16));
-        bytes[offset] = (byte) (0xFF & (value >> 24));
+        ClickHouseByteUtils.setInt32(bytes, offset, value);
     }
 
     public static void setInt64(byte[] bytes, int offset, long value) {
-        bytes[offset++] = (byte) (0xFF & value);
-        bytes[offset++] = (byte) (0xFF & (value >> 8));
-        bytes[offset++] = (byte) (0xFF & (value >> 16));
-        bytes[offset++] = (byte) (0xFF & (value >> 24));
-        bytes[offset++] = (byte) (0xFF & (value >> 32));
-        bytes[offset++] = (byte) (0xFF & (value >> 40));
-        bytes[offset++] = (byte) (0xFF & (value >> 48));
-        bytes[offset] = (byte) (0xFF & (value >> 56));
+        ClickHouseByteUtils.setInt64(bytes, offset, value);
     }
 
     /**

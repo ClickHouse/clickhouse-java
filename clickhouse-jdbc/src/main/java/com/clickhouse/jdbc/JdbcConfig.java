@@ -48,7 +48,7 @@ public class JdbcConfig {
     private static final String DEFAULT_AUTO_COMMIT = BOOLEAN_TRUE;
     private static final String DEFAULT_CREATE_DATABASE = BOOLEAN_FALSE;
     private static final String DEFAULT_CONTINUE_BATCH = BOOLEAN_FALSE;
-    private static final String DEFAULT_DATABASE_TERM = TERM_SCHEMA;
+    private static final String DEFAULT_DATABASE_TERM = TERM_CATALOG;
     private static final String DEFAULT_DIALECT = "";
     private static final String DEFAULT_EXTERNAL_DATABASE = BOOLEAN_TRUE;
     private static final String DEFAULT_FETCH_SIZE = "0";
