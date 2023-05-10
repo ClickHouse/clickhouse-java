@@ -17,6 +17,7 @@ import java.util.Map.Entry;
 
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.config.ClickHouseDefaults;
+import com.clickhouse.client.config.ClickHouseProxyType;
 import com.clickhouse.client.config.ClickHouseSslMode;
 import com.clickhouse.config.ClickHouseBufferingMode;
 import com.clickhouse.config.ClickHouseOption;
@@ -182,18 +183,6 @@ public class ClickHouseConfig implements ClickHouseDataConfig {
         return options;
     }
 
-    public static enum ProxyType {
-        IGNORE,
-        DIRECT,
-        HTTP,
-        SOCKS;
-
-
-        private ProxyType() {
-        }
-    }
-
-
     // common options optimized for read
     private final boolean async;
     private final boolean autoDiscovery;
@@ -250,7 +239,7 @@ public class ClickHouseConfig implements ClickHouseDataConfig {
     private final boolean useServerTimeZoneForDates;
     private final TimeZone timeZoneForDate;
     private final TimeZone useTimeZone;
-    private final ProxyType proxyType;
+    private final ClickHouseProxyType proxyType;
     private final String proxyHostName;
     private final int proxyPort;
     // client specific options
@@ -380,7 +369,7 @@ public class ClickHouseConfig implements ClickHouseDataConfig {
         this.nodeSelector = nodeSelector == null ? ClickHouseNodeSelector.EMPTY : nodeSelector;
 
         // select the type of proxy to use
-        this.proxyType = extractProxyType(getStrOption(ClickHouseClientOption.PROXY_TYPE));
+        this.proxyType = getOption(ClickHouseClientOption.PROXY_TYPE, ClickHouseProxyType.class);
         this.proxyHostName = getStrOption(ClickHouseClientOption.PROXY_HOSTNAME);
         this.proxyPort = getIntOption(ClickHouseClientOption.PROXY_PORT);
 
@@ -659,10 +648,10 @@ public class ClickHouseConfig implements ClickHouseDataConfig {
         return useNoProxy;
     }
 
-    public ProxyType getProxyType() {
+    public ClickHouseProxyType getProxyType() {
         return proxyType;
     }
-    public String getProxyHostname() {
+    public String getProxyHostName() {
         return proxyHostName;
     }
 
@@ -871,20 +860,6 @@ public class ClickHouseConfig implements ClickHouseDataConfig {
      */
     public String getStrOption(ClickHouseOption option) {
         return getOption(option, String.class);
-    }
-
-
-    public ProxyType extractProxyType(String strProxyType) {
-        switch (strProxyType) {
-            case "HTTP":
-                return ProxyType.HTTP;
-            case "DIRECT":
-                return ProxyType.DIRECT;
-            case "SOCKS":
-                return ProxyType.SOCKS;
-            default:
-                return ProxyType.IGNORE;
-        }
     }
 
     /**

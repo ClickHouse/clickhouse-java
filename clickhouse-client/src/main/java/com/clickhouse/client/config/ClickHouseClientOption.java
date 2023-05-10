@@ -377,9 +377,10 @@ public enum ClickHouseClientOption implements ClickHouseOption {
      *  Whether to access ClickHouse server via proxy.
      *  Proxy type: IGNORE,
      *              DIRECT,
-     *              HTTP - if selecting HTTP we need also provide proxy hostname and port.
+     *              HTTP, SOCKS - if selecting HTTP we need also provide proxy hostname and port.
+     *
      */
-    PROXY_TYPE("proxy_type", "IGNORE",
+    PROXY_TYPE("proxy_type", ClickHouseProxyType.IGNORE,
                        "Whether to access ClickHouse server via proxy select proxy type."),
     /**
      * Set Clickhouse proxy hostname.
