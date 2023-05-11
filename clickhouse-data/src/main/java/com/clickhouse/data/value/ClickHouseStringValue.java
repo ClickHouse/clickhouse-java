@@ -190,7 +190,7 @@ public class ClickHouseStringValue implements ClickHouseValue {
 
     @Override
     public BigDecimal asBigDecimal(int scale) {
-        return isNullOrEmpty() ? null : new BigDecimal(asBigInteger(), scale);
+        return isNullOrEmpty() ? null : new BigDecimal(asString(), scale);
     }
 
     @Override
