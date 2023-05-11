@@ -5,9 +5,11 @@ import static java.time.temporal.ChronoUnit.SECONDS;
 import java.io.InputStream;
 import java.net.InetSocketAddress;
 import java.time.Duration;
+import java.util.Map;
 import java.util.Properties;
 import org.testcontainers.containers.BindMode;
 import org.testcontainers.containers.GenericContainer;
+import org.testcontainers.containers.Network;
 import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.images.builder.ImageFromDockerfile;
 import org.testng.annotations.AfterSuite;
@@ -39,6 +41,8 @@ import com.clickhouse.data.ClickHouseVersion;
  */
 @SuppressWarnings("squid:S2187")
 public class ClickHouseServerForTest {
+
+    private static final Network network = Network.newNetwork();
     private static final Properties properties;
 
     private static final String clickhouseServer;
@@ -128,6 +132,8 @@ public class ClickHouseServerForTest {
                     .withClasspathResourceMapping("containers/clickhouse-server", customDirectory, BindMode.READ_ONLY)
                     .withFileSystemBind(System.getProperty("java.io.tmpdir"), getClickHouseContainerTmpDir(),
                             BindMode.READ_WRITE)
+                    .withNetwork(network)
+                    .withNetworkAliases("clickhouse")
                     .waitingFor(Wait.forHttp("/ping").forPort(ClickHouseProtocol.HTTP.getDefaultPort())
                             .forStatusCode(200).withStartupTimeout(Duration.of(60, SECONDS)));
         }
@@ -195,6 +201,23 @@ public class ClickHouseServerForTest {
         }
 
         return ClickHouseNode.builder().address(protocol, new InetSocketAddress(host, port)).build();
+    }
+
+    public static ClickHouseNode getClickHouseNode(ClickHouseProtocol protocol, Map<String, String> options) {
+        String host = clickhouseServer;
+        int port = protocol.getDefaultPort();
+
+        if (clickhouseContainer != null) {
+            host = clickhouseContainer.getHost();
+            port = clickhouseContainer.getMappedPort(port);
+        }
+
+        String url = String.format("http://%s:%d/default", host, port);
+        return ClickHouseNode.of(url, options);
+    }
+
+    public static Network getNetwork() {
+        return network;
     }
 
     @BeforeSuite(groups = { "integration" })
