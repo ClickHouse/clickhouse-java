@@ -111,7 +111,7 @@ public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
 
         switch (proxyType) {
             case HTTP:
-                if ( c.getProxyHostName() == "" || c.getProxyPort() == -1 ) {
+                if ( c.getProxyHostName().equals("") || c.getProxyPort() == -1 ) {
                     log.error("config for HTTP proxy is invalid hostname [%s] port [%d]", c.getProxyHostName(), c.getProxyPort());
                     throw new RuntimeException(String.format("config for HTTP proxy is invalid hostname [%s] port [%d]", c.getProxyHostName(), c.getProxyPort()));
                 }
@@ -122,7 +122,7 @@ public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
                 proxy = Proxy.NO_PROXY;
                 break;
             case SOCKS:
-                if ( c.getProxyHostName() == "" || c.getProxyPort() == -1 ) {
+                if ( c.getProxyHostName().equals("") || c.getProxyPort() == -1 ) {
                     log.error("config for HTTP proxy is invalid hostname [%s] port [%d]", c.getProxyHostName(), c.getProxyPort());
                     throw new RuntimeException(String.format("config for HTTP proxy is invalid hostname [%s] port [%d]", c.getProxyHostName(), c.getProxyPort()));
                 }
