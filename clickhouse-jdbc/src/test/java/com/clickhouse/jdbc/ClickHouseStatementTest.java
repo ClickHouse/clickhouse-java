@@ -1180,6 +1180,36 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
             }
         }
     }
+    
+    @Test(groups = "integration")
+    public void testNestedArrays() throws SQLException {
+        Properties props = new Properties();
+        Object[][] arr1 = null;
+        Object[][] arr2 = null;
+        try (ClickHouseConnection conn = newConnection(props);
+                ClickHouseStatement stmt = conn.createStatement();
+                ResultSet rs = stmt
+                        .executeQuery(
+                                "select 1 id, [['1','2'],['3', '4']] v union all select 2 id, [['5','6'],['7','8']] v order by id")) {
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getInt(1), 1);
+            Assert.assertEquals(rs.getObject(2), arr1 = (Object[][]) rs.getArray(2).getArray());
+            Assert.assertEquals(((Object[][]) rs.getObject(2)).length, 2);
+            Assert.assertEquals(((Object[][]) rs.getObject(2))[0], new Object[] { "1", "2" });
+            Assert.assertEquals(((Object[][]) rs.getObject(2))[1], new Object[] { "3", "4" });
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getInt(1), 2);
+            Assert.assertEquals(rs.getObject(2), arr2 = (Object[][]) rs.getArray(2).getArray());
+            Assert.assertEquals(((Object[][]) rs.getObject(2)).length, 2);
+            Assert.assertEquals(((Object[][]) rs.getObject(2))[0], new Object[] { "5", "6" });
+            Assert.assertEquals(((Object[][]) rs.getObject(2))[1], new Object[] { "7", "8" });
+            Assert.assertFalse(rs.next());
+        }
+
+        Assert.assertTrue(arr1 != arr2);
+        Assert.assertNotEquals(arr1[0], arr2[0]);
+        Assert.assertNotEquals(arr1[1], arr2[1]);
+    }
 
     @Test(groups = "integration")
     public void testNestedDataTypes() throws SQLException {
