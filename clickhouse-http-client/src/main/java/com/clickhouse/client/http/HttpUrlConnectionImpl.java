@@ -130,7 +130,7 @@ public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
                 break;
         }
 
-        if (proxy == null ) {
+        if (proxy != null ) {
             newConn = (HttpURLConnection) new URL(url).openConnection(proxy);
         } else {
             newConn = (HttpURLConnection) new URL(url).openConnection();
