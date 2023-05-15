@@ -82,7 +82,6 @@
     </macros>
 
     <zookeeper>
-        <zookeeper_load_balancing>random</zookeeper_load_balancing>
         <node>
             <host>localhost</host>
             <port>9181</port>
