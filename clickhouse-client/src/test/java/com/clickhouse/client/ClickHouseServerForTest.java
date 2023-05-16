@@ -49,12 +49,34 @@ public class ClickHouseServerForTest {
     private static final String clickhouseVersion;
     private static final GenericContainer<?> clickhouseContainer;
 
+    private static final String proxyHost;
+    private static final int proxyPort;
+    private static final String proxyImage;
+
     static {
         properties = new Properties();
         try (InputStream in = ClickHouseUtils.getFileInputStream("test.properties")) {
             properties.load(in);
         } catch (Exception e) {
             // ignore
+        }
+
+        String proxy = ClickHouseUtils.getProperty("proxyAddress", properties);
+        if (!ClickHouseChecker.isNullOrEmpty(proxy)) { // use external proxy
+            int index = proxy.indexOf(':');
+            if (index > 0) {
+                proxyHost = proxy.substring(0, index);
+                proxyPort = Integer.parseInt(proxy.substring(index + 1));
+            } else {
+                proxyHost = proxy;
+                proxyPort = 8666;
+            }
+            proxyImage = "";
+        } else {
+            proxyHost = "";
+            proxyPort = -1;
+            String image = ClickHouseUtils.getProperty("proxyImage", properties);
+            proxyImage = ClickHouseChecker.isNullOrEmpty(image) ? "ghcr.io/shopify/toxiproxy:2.5.0" : image;
         }
 
         final String containerName = System.getenv("CHC_TEST_CONTAINER_ID");
@@ -214,6 +236,22 @@ public class ClickHouseServerForTest {
 
         String url = String.format("http://%s:%d/default", host, port);
         return ClickHouseNode.of(url, options);
+    }
+
+    public static boolean hasProxyAddress() {
+        return !ClickHouseChecker.isNullOrEmpty(proxyHost);
+    }
+
+    public static String getProxyImage() {
+        return proxyImage;
+    }
+
+    public static String getProxyHost() {
+        return proxyHost;
+    }
+
+    public static int getProxyPort() {
+        return proxyPort;
     }
 
     public static Network getNetwork() {

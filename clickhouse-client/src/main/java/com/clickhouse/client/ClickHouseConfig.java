@@ -1,7 +1,6 @@
 package com.clickhouse.client;
 
 import java.io.Serializable;
-import java.net.Proxy;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -240,7 +239,7 @@ public class ClickHouseConfig implements ClickHouseDataConfig {
     private final TimeZone timeZoneForDate;
     private final TimeZone useTimeZone;
     private final ClickHouseProxyType proxyType;
-    private final String proxyHostName;
+    private final String proxyHost;
     private final int proxyPort;
     // client specific options
     private final Map<ClickHouseOption, Serializable> options;
@@ -370,9 +369,8 @@ public class ClickHouseConfig implements ClickHouseDataConfig {
 
         // select the type of proxy to use
         this.proxyType = getOption(ClickHouseClientOption.PROXY_TYPE, ClickHouseProxyType.class);
-        this.proxyHostName = getStrOption(ClickHouseClientOption.PROXY_HOSTNAME);
+        this.proxyHost = getStrOption(ClickHouseClientOption.PROXY_HOST);
         this.proxyPort = getIntOption(ClickHouseClientOption.PROXY_PORT);
-
     }
 
     @Override
@@ -644,6 +642,14 @@ public class ClickHouseConfig implements ClickHouseDataConfig {
         return useObjectsInArray;
     }
 
+    /**
+     * Checks whether no proxy is used or not.
+     *
+     * @return true if no proxy is used; false otherwise
+     * @deprecated will be dropped in 0.5, please use {@link #getProxyType()}
+     *             instead
+     */
+    @Deprecated
     public boolean isUseNoProxy() {
         return useNoProxy;
     }
@@ -651,8 +657,9 @@ public class ClickHouseConfig implements ClickHouseDataConfig {
     public ClickHouseProxyType getProxyType() {
         return proxyType;
     }
-    public String getProxyHostName() {
-        return proxyHostName;
+
+    public String getProxyHost() {
+        return proxyHost;
     }
 
     public int getProxyPort() {

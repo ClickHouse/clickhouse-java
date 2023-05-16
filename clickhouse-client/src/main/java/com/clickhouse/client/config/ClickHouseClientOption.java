@@ -369,29 +369,27 @@ public enum ClickHouseClientOption implements ClickHouseOption {
     /**
      * Whether to access ClickHouse server directly without using system wide proxy
      * including the one defined in JVM system properties.
+     * 
+     * @deprecated will be dropped in 0.5, please use {@link #PROXY_TYPE} instead
      */
+    @Deprecated
     USE_NO_PROXY("use_no_proxy", false,
             "Whether to access ClickHouse server directly without using system wide proxy including the one defined in JVM system properties."),
 
     /**
-     *  Whether to access ClickHouse server via proxy.
-     *  Proxy type: IGNORE,
-     *              DIRECT,
-     *              HTTP, SOCKS - if selecting HTTP we need also provide proxy hostname and port.
-     *
+     * Type of proxy can be used to access ClickHouse server. To use an HTTP/SOCKS
+     * proxy, you must specify the {@link #PROXY_HOST} and {@link #PROXY_PORT}.
      */
     PROXY_TYPE("proxy_type", ClickHouseProxyType.IGNORE,
-                       "Whether to access ClickHouse server via proxy select proxy type."),
+            "Type of proxy can be used to access ClickHouse server. To use an HTTP/SOCKS proxy, you must specify proxy_host and proxy_port."),
     /**
      * Set Clickhouse proxy hostname.
      */
-    PROXY_HOSTNAME("proxy_hostname", "",
-            "Set ClickHouse server proxy hostname."),
+    PROXY_HOST("proxy_host", "", "Set ClickHouse server proxy hostname."),
     /**
      * Set ClickHouse proxy port.
      */
-    PROXY_PORT("proxy_port", -1,
-            "Set ClickHouse server proxy hostname."),
+    PROXY_PORT("proxy_port", -1, "Set ClickHouse server proxy hostname."),
     /**
      * Whether to use server time zone.
      */
@@ -410,7 +408,6 @@ public enum ClickHouseClientOption implements ClickHouseOption {
      */
     USE_TIME_ZONE("use_time_zone", "", "Time zone of all DateTime* values. "
             + "Only used when use_server_time_zone is false. Empty value means client time zone.");
-
 
     private final String key;
     private final Serializable defaultValue;

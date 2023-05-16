@@ -6,6 +6,7 @@ import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseSslContextProvider;
 import com.clickhouse.client.config.ClickHouseClientOption;
+import com.clickhouse.client.config.ClickHouseProxyType;
 import com.clickhouse.client.http.config.ClickHouseHttpOption;
 import com.clickhouse.data.ClickHouseChecker;
 import com.clickhouse.data.ClickHouseDataStreamFactory;
@@ -28,6 +29,7 @@ import java.io.Reader;
 import java.io.UncheckedIOException;
 import java.net.ConnectException;
 import java.net.HttpURLConnection;
+import java.net.InetSocketAddress;
 import java.net.Proxy;
 import java.net.ProxySelector;
 import java.net.SocketAddress;
@@ -180,8 +182,14 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
         if (executor != null) {
             builder.executor(executor);
         }
-        if (config.isUseNoProxy()) {
+        ClickHouseProxyType proxyType = config.getProxyType();
+        if (config.isUseNoProxy() || proxyType == ClickHouseProxyType.DIRECT) {
             builder.proxy(NoProxySelector.INSTANCE);
+        } else if (proxyType == ClickHouseProxyType.HTTP) {
+            builder.proxy(ProxySelector.of(new InetSocketAddress(config.getProxyHost(), config.getProxyPort())));
+        } else if (proxyType != ClickHouseProxyType.IGNORE) {
+            throw new IllegalArgumentException(
+                    "Only HTTP(s) proxy is supported by HttpClient but we got: " + proxyType);
         }
         if (config.isSsl()) {
             builder.sslContext(ClickHouseSslContextProvider.getProvider().getSslContext(SSLContext.class, config)

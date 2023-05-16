@@ -89,12 +89,17 @@ In the case you don't want to use docker and/or prefer to test against an existi
 - make sure ClickHouse binary(usually `/usr/bin/clickhouse`) is available in PATH, as it's required to test `clickhouse-cli-client`
 - put `test.properties` under either `~/.clickhouse` or `src/test/resources` of your project, with content like below:
   ```properties
+  # ClickHouse server for integration test
   clickhouseServer=x.x.x.x
+  # custom HTTP proxy for integration test
+  proxyAddress=<host>:<port>
+  
   # below properties are only useful for test containers
   #clickhouseVersion=latest
   #clickhouseTimezone=UTC
   #clickhouseImage=clickhouse/clickhouse-server
   #additionalPackages=
+  #proxyImage=ghcr.io/shopify/toxiproxy:2.5.0
   ```
 
 ### Tooling

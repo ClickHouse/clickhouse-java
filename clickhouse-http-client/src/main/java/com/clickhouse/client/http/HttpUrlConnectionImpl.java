@@ -6,7 +6,6 @@ import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseSslContextProvider;
 import com.clickhouse.client.config.ClickHouseClientOption;
-import com.clickhouse.client.config.ClickHouseProxyType;
 import com.clickhouse.client.config.ClickHouseSslMode;
 import com.clickhouse.client.http.config.ClickHouseHttpOption;
 import com.clickhouse.data.ClickHouseChecker;
@@ -29,7 +28,6 @@ import java.io.UncheckedIOException;
 
 import java.net.ConnectException;
 import java.net.HttpURLConnection;
-import java.net.InetSocketAddress;
 import java.net.Proxy;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
@@ -104,48 +102,14 @@ public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
                 displayName, queryId, summary, format, timeZone);
     }
 
-    private HttpURLConnection dispatchProxy(ClickHouseProxyType proxyType, String url) throws IOException {
-        HttpURLConnection newConn = null;
+    private HttpURLConnection newConnection(String url, boolean post) throws IOException {
         ClickHouseConfig c = config;
-        Proxy proxy = null;
-
-        switch (proxyType) {
-            case HTTP:
-                if ( c.getProxyHostName().equals("") || c.getProxyPort() == -1 ) {
-                    log.error("config for HTTP proxy is invalid hostname [%s] port [%d]", c.getProxyHostName(), c.getProxyPort());
-                    throw new RuntimeException(String.format("config for HTTP proxy is invalid hostname [%s] port [%d]", c.getProxyHostName(), c.getProxyPort()));
-                }
-                proxy = new Proxy(Proxy.Type.HTTP, new InetSocketAddress(c.getProxyHostName(), c.getProxyPort()));
-
-                break;
-            case DIRECT:
-                proxy = Proxy.NO_PROXY;
-                break;
-            case SOCKS:
-                if ( c.getProxyHostName().equals("") || c.getProxyPort() == -1 ) {
-                    log.error("config for HTTP proxy is invalid hostname [%s] port [%d]", c.getProxyHostName(), c.getProxyPort());
-                    throw new RuntimeException(String.format("config for HTTP proxy is invalid hostname [%s] port [%d]", c.getProxyHostName(), c.getProxyPort()));
-                }
-                proxy = new Proxy(Proxy.Type.SOCKS, new InetSocketAddress(c.getProxyHostName(), c.getProxyPort()));
-                break;
-        }
-
-        if (proxy != null ) {
+        HttpURLConnection newConn;
+        Proxy proxy = getProxy(c);
+        if (proxy != null) {
             newConn = (HttpURLConnection) new URL(url).openConnection(proxy);
         } else {
             newConn = (HttpURLConnection) new URL(url).openConnection();
-        }
-        return newConn;
-    }
-    private HttpURLConnection newConnection(String url, boolean post) throws IOException {
-        ClickHouseConfig c = config;
-        HttpURLConnection newConn = null;
-
-        if (c.isUseNoProxy()) {
-            // support older versions
-            newConn = dispatchProxy(ClickHouseProxyType.DIRECT, url);
-        } else {
-           newConn = dispatchProxy(c.getProxyType(), url);
         }
 
         if ((newConn instanceof HttpsURLConnection) && c.isSsl()) {
