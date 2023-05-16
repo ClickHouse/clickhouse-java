@@ -44,9 +44,9 @@
                         <configuration>
                             <target>
                                 <ant antfile="${project.build.directory}/${congocc.dir}/build.xml" dir="${project.build.directory}/${congocc.dir}">
-                                    <target name="full-jar" />
+                                    <target name="jar" />
                                 </ant>
-                                <unzip src="${project.build.directory}/${congocc.dir}/congocc-full.jar" dest="${project.build.directory}/classes" />
+                                <unzip src="${project.build.directory}/${congocc.dir}/congocc.jar" dest="${project.build.directory}/classes" />
                             </target>
                         </configuration>
                         <goals>
