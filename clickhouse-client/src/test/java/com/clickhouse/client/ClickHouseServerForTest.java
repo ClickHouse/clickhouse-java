@@ -165,6 +165,10 @@ public class ClickHouseServerForTest {
         return clickhouseVersion;
     }
 
+    public static boolean hasClickHouseContainer() {
+        return clickhouseContainer != null;
+    }
+
     public static GenericContainer<?> getClickHouseContainer() {
         return clickhouseContainer;
     }

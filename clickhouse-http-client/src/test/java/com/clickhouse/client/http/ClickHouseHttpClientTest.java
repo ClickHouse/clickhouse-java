@@ -412,7 +412,9 @@ public class ClickHouseHttpClientTest extends ClientIntegrationTest {
 
             ToxiproxyClient toxiproxyClient = new ToxiproxyClient(toxiproxy.getHost(), toxiproxy.getControlPort());
             toxiproxyClient.createProxy("clickhouse", "0.0.0.0:8666",
-                    ClickHouseServerForTest.getClickHouseAddress(ClickHouseProtocol.HTTP, true));
+                    ClickHouseServerForTest.hasClickHouseContainer()
+                            ? "clickhouse:" + ClickHouseProtocol.HTTP.getDefaultPort()
+                            : ClickHouseServerForTest.getClickHouseAddress(ClickHouseProtocol.HTTP, true));
         }
 
         try {
