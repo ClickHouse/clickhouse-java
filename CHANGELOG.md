@@ -5,6 +5,7 @@
 * change default databaseTerm from schema to catalog
 
 ### New Features
+* Adding new proxy support [#1338](https://github.com/ClickHouse/clickhouse-java/issues/1338)
 * use VarHandle in JDK 9+ to read/write numbers
 
 ### Bug Fixes

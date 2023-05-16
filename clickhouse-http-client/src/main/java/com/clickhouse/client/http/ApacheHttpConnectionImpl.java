@@ -8,6 +8,7 @@ import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseSslContextProvider;
 import com.clickhouse.client.config.ClickHouseClientOption;
+import com.clickhouse.client.config.ClickHouseProxyType;
 import com.clickhouse.client.config.ClickHouseSslMode;
 import com.clickhouse.client.http.config.ClickHouseHttpOption;
 import com.clickhouse.data.ClickHouseChecker;
@@ -30,6 +31,7 @@ import org.apache.hc.client5.http.socket.PlainConnectionSocketFactory;
 import org.apache.hc.client5.http.ssl.DefaultHostnameVerifier;
 import org.apache.hc.client5.http.ssl.SSLConnectionSocketFactory;
 import org.apache.hc.core5.http.Header;
+import org.apache.hc.core5.http.HttpHost;
 import org.apache.hc.core5.http.HttpRequest;
 import org.apache.hc.core5.http.config.Registry;
 import org.apache.hc.core5.http.config.RegistryBuilder;
@@ -50,6 +52,7 @@ import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.net.ConnectException;
 import java.net.HttpURLConnection;
+import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -88,12 +91,17 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
 
         connManager.setMaxTotal(max_connection);
         connManager.setDefaultMaxPerRoute(max_connection);
-        return HttpClientBuilder.create().setConnectionManager(connManager).disableContentCompression().build();
+
+        HttpClientBuilder builder = HttpClientBuilder.create().setConnectionManager(connManager)
+                .disableContentCompression();
+        if (!c.isUseNoProxy() && c.getProxyType() == ClickHouseProxyType.HTTP) {
+            builder.setProxy(new HttpHost(c.getProxyHost(), c.getProxyPort()));
+        }
+        return builder.build();
     }
 
     private ClickHouseHttpResponse buildResponse(ClickHouseConfig config, CloseableHttpResponse response,
-                                                 ClickHouseOutputStream output, Runnable postCloseAction)
-            throws IOException {
+            ClickHouseOutputStream output, Runnable postCloseAction) throws IOException {
         // X-ClickHouse-Server-Display-Name: xxx
         // X-ClickHouse-Query-Id: xxx
         // X-ClickHouse-Format: RowBinaryWithNamesAndTypes
@@ -141,7 +149,7 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
         return new ClickHouseHttpResponse(this,
                 hasCustomOutput ? ClickHouseInputStream.of(source, config.getReadBufferSize(), action)
                         : (hasQueryResult ? ClickHouseClient.getAsyncResponseInputStream(config, source, action)
-                        : ClickHouseClient.getResponseInputStream(config, source, action)),
+                                : ClickHouseClient.getResponseInputStream(config, source, action)),
                 displayName, queryId, summary, format, timeZone);
     }
 
@@ -209,9 +217,8 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
 
     @Override
     protected ClickHouseHttpResponse post(ClickHouseConfig config, String sql, ClickHouseInputStream data,
-                                          List<ClickHouseExternalTable> tables, ClickHouseOutputStream output,
-                                          String url,
-                                          Map<String, String> headers, Runnable postCloseAction) throws IOException {
+            List<ClickHouseExternalTable> tables, ClickHouseOutputStream output, String url,
+            Map<String, String> headers, Runnable postCloseAction) throws IOException {
         HttpPost post = new HttpPost(url == null ? this.url : url);
         setHeaders(post, headers);
         byte[] boundary = null;
@@ -282,7 +289,7 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
 
         private SSLSocketFactory(ClickHouseConfig config) throws SSLException {
             super(ClickHouseSslContextProvider.getProvider().getSslContext(SSLContext.class, config)
-                            .orElse(SSLContexts.createDefault()),
+                    .orElse(SSLContexts.createDefault()),
                     config.getSslMode() == ClickHouseSslMode.STRICT
                             ? new DefaultHostnameVerifier()
                             : (hostname, session) -> true); // NOSONAR
@@ -341,6 +348,9 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
             }
             if (config.hasOption(ClickHouseClientOption.SOCKET_TCP_NODELAY)) {
                 builder.setTcpNoDelay(config.getBoolOption(ClickHouseClientOption.SOCKET_TCP_NODELAY));
+            }
+            if (!config.isUseNoProxy() && config.getProxyType() == ClickHouseProxyType.SOCKS) {
+                builder.setSocksProxyAddress(new InetSocketAddress(config.getProxyHost(), config.getProxyPort()));
             }
             setDefaultSocketConfig(builder.build());
         }

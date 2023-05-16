@@ -25,6 +25,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
+
 import java.net.ConnectException;
 import java.net.HttpURLConnection;
 import java.net.Proxy;
@@ -103,9 +104,13 @@ public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
 
     private HttpURLConnection newConnection(String url, boolean post) throws IOException {
         ClickHouseConfig c = config;
-        HttpURLConnection newConn = c.isUseNoProxy()
-                ? (HttpURLConnection) new URL(url).openConnection(Proxy.NO_PROXY)
-                : (HttpURLConnection) new URL(url).openConnection();
+        HttpURLConnection newConn;
+        Proxy proxy = getProxy(c);
+        if (proxy != null) {
+            newConn = (HttpURLConnection) new URL(url).openConnection(proxy);
+        } else {
+            newConn = (HttpURLConnection) new URL(url).openConnection();
+        }
 
         if ((newConn instanceof HttpsURLConnection) && c.isSsl()) {
             HttpsURLConnection secureConn = (HttpsURLConnection) newConn;

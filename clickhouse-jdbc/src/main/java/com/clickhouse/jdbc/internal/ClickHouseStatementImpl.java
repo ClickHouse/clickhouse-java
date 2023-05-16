@@ -356,13 +356,11 @@ public class ClickHouseStatementImpl extends JdbcWrapper
     }
 
     protected ClickHouseSqlStatement getLastStatement() {
-        ClickHouseSqlStatement stmt = null;
-
-        if (parsedStmts != null && parsedStmts.length > 0) {
-            stmt = parsedStmts[parsedStmts.length - 1];
+        if (parsedStmts == null || parsedStmts.length == 0) {
+            throw new IllegalArgumentException("At least one parsed statement is required");
         }
 
-        return ClickHouseChecker.nonNull(stmt, "ParsedStatement"); // NOSONAR
+        return parsedStmts[parsedStmts.length - 1];
     }
 
     protected void setLastStatement(ClickHouseSqlStatement stmt) {

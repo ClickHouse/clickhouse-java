@@ -5,9 +5,11 @@ import static java.time.temporal.ChronoUnit.SECONDS;
 import java.io.InputStream;
 import java.net.InetSocketAddress;
 import java.time.Duration;
+import java.util.Map;
 import java.util.Properties;
 import org.testcontainers.containers.BindMode;
 import org.testcontainers.containers.GenericContainer;
+import org.testcontainers.containers.Network;
 import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.images.builder.ImageFromDockerfile;
 import org.testng.annotations.AfterSuite;
@@ -39,11 +41,17 @@ import com.clickhouse.data.ClickHouseVersion;
  */
 @SuppressWarnings("squid:S2187")
 public class ClickHouseServerForTest {
+
+    private static final Network network = Network.newNetwork();
     private static final Properties properties;
 
     private static final String clickhouseServer;
     private static final String clickhouseVersion;
     private static final GenericContainer<?> clickhouseContainer;
+
+    private static final String proxyHost;
+    private static final int proxyPort;
+    private static final String proxyImage;
 
     static {
         properties = new Properties();
@@ -51,6 +59,24 @@ public class ClickHouseServerForTest {
             properties.load(in);
         } catch (Exception e) {
             // ignore
+        }
+
+        String proxy = ClickHouseUtils.getProperty("proxyAddress", properties);
+        if (!ClickHouseChecker.isNullOrEmpty(proxy)) { // use external proxy
+            int index = proxy.indexOf(':');
+            if (index > 0) {
+                proxyHost = proxy.substring(0, index);
+                proxyPort = Integer.parseInt(proxy.substring(index + 1));
+            } else {
+                proxyHost = proxy;
+                proxyPort = 8666;
+            }
+            proxyImage = "";
+        } else {
+            proxyHost = "";
+            proxyPort = -1;
+            String image = ClickHouseUtils.getProperty("proxyImage", properties);
+            proxyImage = ClickHouseChecker.isNullOrEmpty(image) ? "ghcr.io/shopify/toxiproxy:2.5.0" : image;
         }
 
         final String containerName = System.getenv("CHC_TEST_CONTAINER_ID");
@@ -128,6 +154,8 @@ public class ClickHouseServerForTest {
                     .withClasspathResourceMapping("containers/clickhouse-server", customDirectory, BindMode.READ_ONLY)
                     .withFileSystemBind(System.getProperty("java.io.tmpdir"), getClickHouseContainerTmpDir(),
                             BindMode.READ_WRITE)
+                    .withNetwork(network)
+                    .withNetworkAliases("clickhouse")
                     .waitingFor(Wait.forHttp("/ping").forPort(ClickHouseProtocol.HTTP.getDefaultPort())
                             .forStatusCode(200).withStartupTimeout(Duration.of(60, SECONDS)));
         }
@@ -135,6 +163,10 @@ public class ClickHouseServerForTest {
 
     public static String getClickHouseVersion() {
         return clickhouseVersion;
+    }
+
+    public static boolean hasClickHouseContainer() {
+        return clickhouseContainer != null;
     }
 
     public static GenericContainer<?> getClickHouseContainer() {
@@ -195,6 +227,39 @@ public class ClickHouseServerForTest {
         }
 
         return ClickHouseNode.builder().address(protocol, new InetSocketAddress(host, port)).build();
+    }
+
+    public static ClickHouseNode getClickHouseNode(ClickHouseProtocol protocol, Map<String, String> options) {
+        String host = clickhouseServer;
+        int port = protocol.getDefaultPort();
+
+        if (clickhouseContainer != null) {
+            host = clickhouseContainer.getHost();
+            port = clickhouseContainer.getMappedPort(port);
+        }
+
+        String url = String.format("http://%s:%d/default", host, port);
+        return ClickHouseNode.of(url, options);
+    }
+
+    public static boolean hasProxyAddress() {
+        return !ClickHouseChecker.isNullOrEmpty(proxyHost);
+    }
+
+    public static String getProxyImage() {
+        return proxyImage;
+    }
+
+    public static String getProxyHost() {
+        return proxyHost;
+    }
+
+    public static int getProxyPort() {
+        return proxyPort;
+    }
+
+    public static Network getNetwork() {
+        return network;
     }
 
     @BeforeSuite(groups = { "integration" })

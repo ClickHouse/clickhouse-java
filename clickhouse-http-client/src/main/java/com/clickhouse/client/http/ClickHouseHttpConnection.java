@@ -4,6 +4,8 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.io.Serializable;
 import java.io.UnsupportedEncodingException;
+import java.net.InetSocketAddress;
+import java.net.Proxy;
 import java.net.URLEncoder;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
@@ -22,6 +24,7 @@ import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseRequestManager;
 import com.clickhouse.client.config.ClickHouseClientOption;
+import com.clickhouse.client.config.ClickHouseProxyType;
 import com.clickhouse.client.http.config.ClickHouseHttpOption;
 import com.clickhouse.config.ClickHouseOption;
 import com.clickhouse.data.ClickHouseByteUtils;
@@ -237,6 +240,29 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
             map.put("content-encoding", config.getRequestCompressAlgorithm().encoding());
         }
         return map;
+    }
+
+    protected static Proxy getProxy(ClickHouseConfig config) {
+        final ClickHouseProxyType proxyType = config.isUseNoProxy() ? ClickHouseProxyType.DIRECT
+                : config.getProxyType();
+
+        Proxy proxy;
+        switch (proxyType) {
+            case HTTP:
+                proxy = new Proxy(Proxy.Type.HTTP, new InetSocketAddress(config.getProxyHost(), config.getProxyPort()));
+                break;
+            case DIRECT:
+                proxy = Proxy.NO_PROXY;
+                break;
+            case SOCKS:
+                proxy = new Proxy(Proxy.Type.SOCKS,
+                        new InetSocketAddress(config.getProxyHost(), config.getProxyPort()));
+                break;
+            default:
+                proxy = null;
+                break;
+        }
+        return proxy;
     }
 
     protected static String parseErrorFromException(String errorCode, String serverName, IOException e, byte[] bytes) {

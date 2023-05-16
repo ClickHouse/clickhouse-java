@@ -3,6 +3,7 @@ package com.clickhouse.client;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.Locale;
+import java.util.Map;
 
 import org.testng.annotations.BeforeTest;
 
@@ -34,7 +35,9 @@ public abstract class BaseIntegrationTest {
     protected ClickHouseNode getServer(ClickHouseProtocol protocol, int port) {
         return ClickHouseServerForTest.getClickHouseNode(protocol, port);
     }
-
+    protected ClickHouseNode getServer(ClickHouseProtocol protocol, Map<String, String> options) {
+        return ClickHouseServerForTest.getClickHouseNode(protocol, options);
+    }
     protected String getIpAddress(ClickHouseNode server) {
         String ipAddress = server.getHost();
         try {
@@ -45,4 +48,5 @@ public abstract class BaseIntegrationTest {
         }
         return ipAddress;
     }
+
 }

@@ -16,6 +16,7 @@ import java.util.Map.Entry;
 
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.config.ClickHouseDefaults;
+import com.clickhouse.client.config.ClickHouseProxyType;
 import com.clickhouse.client.config.ClickHouseSslMode;
 import com.clickhouse.config.ClickHouseBufferingMode;
 import com.clickhouse.config.ClickHouseOption;
@@ -237,7 +238,9 @@ public class ClickHouseConfig implements ClickHouseDataConfig {
     private final boolean useServerTimeZoneForDates;
     private final TimeZone timeZoneForDate;
     private final TimeZone useTimeZone;
-
+    private final ClickHouseProxyType proxyType;
+    private final String proxyHost;
+    private final int proxyPort;
     // client specific options
     private final Map<ClickHouseOption, Serializable> options;
     private final ClickHouseCredentials credentials;
@@ -363,6 +366,11 @@ public class ClickHouseConfig implements ClickHouseDataConfig {
         }
         this.metricRegistry = Optional.ofNullable(metricRegistry);
         this.nodeSelector = nodeSelector == null ? ClickHouseNodeSelector.EMPTY : nodeSelector;
+
+        // select the type of proxy to use
+        this.proxyType = getOption(ClickHouseClientOption.PROXY_TYPE, ClickHouseProxyType.class);
+        this.proxyHost = getStrOption(ClickHouseClientOption.PROXY_HOST);
+        this.proxyPort = getIntOption(ClickHouseClientOption.PROXY_PORT);
     }
 
     @Override
@@ -634,8 +642,28 @@ public class ClickHouseConfig implements ClickHouseDataConfig {
         return useObjectsInArray;
     }
 
+    /**
+     * Checks whether no proxy is used or not.
+     *
+     * @return true if no proxy is used; false otherwise
+     * @deprecated will be dropped in 0.5, please use {@link #getProxyType()}
+     *             instead
+     */
+    @Deprecated
     public boolean isUseNoProxy() {
         return useNoProxy;
+    }
+
+    public ClickHouseProxyType getProxyType() {
+        return proxyType;
+    }
+
+    public String getProxyHost() {
+        return proxyHost;
+    }
+
+    public int getProxyPort() {
+        return proxyPort;
     }
 
     public boolean isUseServerTimeZone() {

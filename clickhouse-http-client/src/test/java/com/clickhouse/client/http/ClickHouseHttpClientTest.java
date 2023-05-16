@@ -3,6 +3,7 @@ package com.clickhouse.client.http;
 import java.io.IOException;
 import java.io.Serializable;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
@@ -18,6 +19,7 @@ import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseRequestManager;
 import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.ClickHouseResponseSummary;
+import com.clickhouse.client.ClickHouseServerForTest;
 import com.clickhouse.client.ClientIntegrationTest;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.config.ClickHouseHealthCheckMethod;
@@ -32,6 +34,9 @@ import com.clickhouse.data.ClickHouseRecord;
 import com.clickhouse.data.ClickHouseVersion;
 import com.clickhouse.data.value.ClickHouseStringValue;
 
+import eu.rekawek.toxiproxy.ToxiproxyClient;
+
+import org.testcontainers.containers.ToxiproxyContainer;
 import org.testng.Assert;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
@@ -393,6 +398,72 @@ public class ClickHouseHttpClientTest extends ClientIntegrationTest {
                 }
 
                 Assert.assertEquals(count, 1);
+            }
+        }
+    }
+
+    @Test(groups = { "integration" })
+    public void testProxyConnection() throws ClickHouseException, IOException {
+        ToxiproxyContainer toxiproxy = null;
+        if (!ClickHouseServerForTest.hasProxyAddress()) {
+            toxiproxy = new ToxiproxyContainer(ClickHouseServerForTest.getProxyImage())
+                    .withNetwork(ClickHouseServerForTest.getNetwork());
+            toxiproxy.start();
+
+            ToxiproxyClient toxiproxyClient = new ToxiproxyClient(toxiproxy.getHost(), toxiproxy.getControlPort());
+            toxiproxyClient.createProxy("clickhouse", "0.0.0.0:8666",
+                    ClickHouseServerForTest.hasClickHouseContainer()
+                            ? "clickhouse:" + ClickHouseProtocol.HTTP.getDefaultPort()
+                            : ClickHouseServerForTest.getClickHouseAddress(ClickHouseProtocol.HTTP, true));
+        }
+
+        try {
+            String proxyHost = toxiproxy != null ? toxiproxy.getHost() : ClickHouseServerForTest.getProxyHost();
+            int proxyPort = toxiproxy != null ? toxiproxy.getMappedPort(8666) : ClickHouseServerForTest.getProxyPort();
+
+            Map<String, String> options = new HashMap<>();
+            // without any proxy options
+            try (ClickHouseClient client = ClickHouseClient.builder().options(getClientOptions())
+                    .nodeSelector(ClickHouseNodeSelector.of(ClickHouseProtocol.HTTP)).build()) {
+                ClickHouseNode server = getServer(ClickHouseProtocol.HTTP, options);
+                Assert.assertTrue(client.ping(server, 30000), "Can not ping");
+                Assert.assertEquals(
+                        client.read(server).query("select 5").executeAndWait().firstRecord().getValue(0).asString(),
+                        "5");
+            }
+
+            options.put("proxy_type", "HTTP");
+            // without hostname and port of the proxy server
+            try (ClickHouseClient client = ClickHouseClient.builder().options(getClientOptions())
+                    .nodeSelector(ClickHouseNodeSelector.of(ClickHouseProtocol.HTTP)).build()) {
+                ClickHouseNode server = getServer(ClickHouseProtocol.HTTP, options);
+                Assert.assertFalse(client.ping(server, 30000), "Ping should fail due to incomplete proxy options");
+                Assert.assertThrows(ClickHouseException.class,
+                        () -> client.read(server).query("select 1").executeAndWait());
+            }
+
+            // without proxy_port
+            options.put("proxy_host", proxyHost);
+            try (ClickHouseClient client = ClickHouseClient.builder().options(getClientOptions())
+                    .nodeSelector(ClickHouseNodeSelector.of(ClickHouseProtocol.HTTP)).build()) {
+                ClickHouseNode server = getServer(ClickHouseProtocol.HTTP, options);
+                Assert.assertFalse(client.ping(server, 30000), "Ping should fail due to incomplete proxy options");
+                Assert.assertThrows(ClickHouseException.class,
+                        () -> client.read(server).query("select 1").executeAndWait());
+            }
+
+            options.put("proxy_port", Integer.toString(proxyPort));
+            try (ClickHouseClient client = ClickHouseClient.builder().options(getClientOptions())
+                    .nodeSelector(ClickHouseNodeSelector.of(ClickHouseProtocol.HTTP)).build()) {
+                ClickHouseNode server = getServer(ClickHouseProtocol.HTTP, options);
+                Assert.assertTrue(client.ping(server, 30000), "Can not ping via proxy");
+                Assert.assertEquals(
+                        client.read(server).query("select 6").executeAndWait().firstRecord().getValue(0).asString(),
+                        "6");
+            }
+        } finally {
+            if (toxiproxy != null) {
+                toxiproxy.stop();
             }
         }
     }
