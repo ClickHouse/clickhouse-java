@@ -12,6 +12,8 @@ import java.sql.SQLWarning;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -44,6 +46,7 @@ import com.clickhouse.data.ClickHouseFile;
 import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.data.ClickHouseInputStream;
 import com.clickhouse.data.ClickHouseOutputStream;
+import com.clickhouse.data.ClickHouseRecord;
 import com.clickhouse.data.ClickHouseUtils;
 import com.clickhouse.data.ClickHouseValues;
 import com.clickhouse.logging.Logger;
@@ -93,6 +96,88 @@ public class ClickHouseStatementImpl extends JdbcWrapper
 
     protected ClickHouseSqlStatement[] parsedStmts;
 
+    private List<ClickHouseSqlStatement> applyDynamicExpressions(ClickHouseSqlStatement stmt, boolean autoTx)
+            throws SQLException {
+        if (!stmt.hasDynamicExpression()) {
+            return Collections.singletonList(stmt);
+        }
+
+        // 1. dynamic expression is select query
+        // 2. dynamic expression cannot have parameter
+        // 3. nested dynamic expressions are not supported
+        Map<String, String> expressions = stmt.getDynamicExpressions();
+        List<ClickHouseSqlStatement> list = new LinkedList<>();
+        list.add(stmt);
+        for (Entry<String, String> entry : expressions.entrySet()) {
+            List<ClickHouseSqlStatement> wip = new LinkedList<>();
+            for (ClickHouseSqlStatement s : list) {
+                String sql = s.getSQL();
+                String placeholder = entry.getKey();
+                String subQuery = entry.getValue();
+                int index = -1;
+                if (ClickHouseChecker.isNullOrEmpty(subQuery) || (index = sql.indexOf(placeholder)) < 0) {
+                    log.warn("Skip dynamic expression (%s) since it does not exist in the query", subQuery);
+                    continue;
+                }
+
+                // get values
+                try (ClickHouseResponse resp = sendRequest(new ClickHouseSqlStatement(subQuery, StatementType.SELECT),
+                        autoTx)) {
+                    for (ClickHouseRecord r : resp.records()) {
+                        int delta = placeholder.length();
+                        // only cares about the first column
+                        String expression = r.getValue(0).asString();
+                        StringBuilder builder;
+                        if (ClickHouseChecker.isNullOrEmpty(expression)) {
+                            builder = new StringBuilder(sql.length() - delta);
+                            builder.append(sql.substring(0, index)).append(sql.substring(index + delta));
+                        } else {
+                            int len = expression.length();
+                            builder = new StringBuilder(sql.length() - delta + len);
+                            builder.append(sql.substring(0, index)).append(expression)
+                                    .append(sql.substring(index + delta));
+                            delta -= len;
+                        }
+
+                        Map<String, Integer> positions = s.getPositions();
+                        if (positions != null && positions.isEmpty()) {
+                            // fix all the positions
+                            Map<String, Integer> m = new LinkedHashMap<>();
+                            for (Entry<String, Integer> p : positions.entrySet()) {
+                                String k = p.getKey();
+                                Integer v = p.getValue();
+                                if (v == null) {
+                                    m.put(k, v);
+                                } else {
+                                    m.put(k, v < index ? v : v.intValue() - delta);
+                                }
+                            }
+                            positions = m;
+                        }
+
+                        wip.add(new ClickHouseSqlStatement(builder.toString(), s.getStatementType(), s.getCluster(),
+                                s.getDatabase(), s.getTable(), s.getInput(), s.getCompressAlgorithm(),
+                                s.getCompressLevel(), s.getFormat(), s.getFile(), s.getParameters(), positions,
+                                s.getSettings(), s.getTempTables(), null));
+                    }
+                } catch (Exception e) {
+                    throw SqlExceptionUtils.handle(e);
+                }
+            }
+            list = wip;
+        }
+        return list;
+    }
+
+    private ClickHouseResponse sendRequest(ClickHouseSqlStatement stmt, boolean autoTx) throws ClickHouseException {
+        if (stmt.hasFormat()) {
+            request.format(ClickHouseFormat.valueOf(stmt.getFormat()));
+        }
+        request.query(stmt.getSQL(), queryId = connection.newQueryId());
+        return autoTx ? request.executeWithinTransaction(connection.isImplicitTransactionSupported())
+                : request.transaction(connection.getTransaction()).executeAndWait();
+    }
+
     private ClickHouseResponse getLastResponse(Map<ClickHouseOption, Serializable> options,
             List<ClickHouseExternalTable> tables, Map<String, String> settings) throws SQLException {
         boolean autoTx = connection.getAutoCommit() && connection.isTransactionSupported();
@@ -103,31 +188,27 @@ public class ClickHouseStatementImpl extends JdbcWrapper
         }
         ClickHouseResponse response = null;
         for (int i = 0, len = parsedStmts.length; i < len; i++) {
-            ClickHouseSqlStatement stmt = parsedStmts[i];
-            response = processSqlStatement(stmt);
-            if (response != null) {
-                updateResult(stmt, response);
-                continue;
-            }
-
-            if (stmt.hasFormat()) {
-                request.format(ClickHouseFormat.valueOf(stmt.getFormat()));
-            }
-            request.query(stmt.getSQL(), queryId = connection.newQueryId());
-            // TODO skip useless queries to reduce network calls and server load
-            try {
-                response = autoTx ? request.executeWithinTransaction(connection.isImplicitTransactionSupported())
-                        : request.transaction(connection.getTransaction()).executeAndWait();
-            } catch (Exception e) {
-                throw SqlExceptionUtils.handle(e);
-            } finally {
-                if (response == null) {
-                    // something went wrong
-                } else if (i + 1 < len) {
-                    response.close();
-                    response = null;
-                } else {
+            for (ClickHouseSqlStatement stmt : applyDynamicExpressions(parsedStmts[i], autoTx)) {
+                response = processSqlStatement(stmt);
+                if (response != null) {
                     updateResult(stmt, response);
+                    continue;
+                }
+
+                // TODO skip useless queries to reduce network calls and server load
+                try {
+                    response = sendRequest(stmt, autoTx);
+                } catch (Exception e) {
+                    throw SqlExceptionUtils.handle(e);
+                } finally {
+                    if (response == null) {
+                        // something went wrong
+                    } else if (i + 1 < len) {
+                        response.close();
+                        response = null;
+                    } else {
+                        updateResult(stmt, response);
+                    }
                 }
             }
         }

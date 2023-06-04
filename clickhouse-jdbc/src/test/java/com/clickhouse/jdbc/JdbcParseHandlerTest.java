@@ -115,9 +115,9 @@ public class JdbcParseHandlerTest {
                         put("DELETE", 0);
                         put("FROM", 8);
                     }
-                }, null, null),
+                }, null, null, null),
                 new ClickHouseSqlStatement("TRUNCATE TABLE  `a\\`' a` . tbl", StatementType.DELETE,
-                        null, "a\\`' a", "tbl", null, null, null, null, null, null, null, null, null));
+                        null, "a\\`' a", "tbl", null, null, null, null, null, null, null, null, null, null));
         Assert.assertEquals(JdbcParseHandler.INSTANCE.handleStatement("delete from  `table\\`'1`",
                 StatementType.DELETE,
                 null, null, "table1", null, null, null, null, null, null, new HashMap<String, Integer>() {
@@ -125,9 +125,9 @@ public class JdbcParseHandlerTest {
                         put("DELETE", 0);
                         put("FROM", 7);
                     }
-                }, null, null),
+                }, null, null, null),
                 new ClickHouseSqlStatement("TRUNCATE TABLE  `table\\`'1`", StatementType.DELETE, null,
-                        null, "table1", null, null, null, null, null, null, null, null, null),
+                        null, "table1", null, null, null, null, null, null, null, null, null, null),
                 null);
     }
 
@@ -140,22 +140,22 @@ public class JdbcParseHandlerTest {
         Assert.assertEquals(
                 JdbcParseHandler.INSTANCE.handleStatement("delete from  `a\\`' a` . tbl where a = b",
                         StatementType.DELETE, null, "a\\`' a", "tbl", null, null, null, null, null, null, positions,
-                        null, null),
+                        null, null, null),
                 new ClickHouseSqlStatement(
                         "ALTER TABLE `a\\`' a`.`tbl` DELETE where a = b SETTINGS mutations_sync=1",
                         StatementType.DELETE, null, "a\\`' a", "tbl", null, null, null, null, null, null, null, null,
-                        null));
+                        null, null));
         positions.put("DELETE", 0);
         positions.put("FROM", 8);
         positions.put("WHERE", 26);
         Assert.assertEquals(
                 JdbcParseHandler.INSTANCE.handleStatement("delete  from  `table\\`'1` where 1",
                         StatementType.DELETE, null, null, "table\\`'1", null, null, null, null, null, null, positions,
-                        null, null),
+                        null, null, null),
                 new ClickHouseSqlStatement(
                         "ALTER TABLE `table\\`'1` DELETE where 1 SETTINGS mutations_sync=1",
                         StatementType.DELETE, null, null, "table\\`'1", null, null, null, null, null,
-                        null, null, null, null));
+                        null, null, null, null, null));
     }
 
     @Test(groups = "unit")
@@ -171,9 +171,9 @@ public class JdbcParseHandlerTest {
         Map<String, String> settings = Collections.singletonMap("a", "1");
         Assert.assertEquals(
                 JdbcParseHandler.INSTANCE.handleStatement(sql1, StatementType.DELETE, null, null, "tbl",
-                        null, null, null, null, null, null, positions, settings, null),
+                        null, null, null, null, null, null, positions, settings, null, null),
                 new ClickHouseSqlStatement("TRUNCATE TABLE tbl settings a=1", StatementType.DELETE,
-                        null, null, "tbl", null, null, null, null, null, null, null, settings, null));
+                        null, null, "tbl", null, null, null, null, null, null, null, settings, null, null));
 
         String sql2 = "delete from tbl where a != 1 and b != 2 settings a=1,b='a'";
         positions = new HashMap<String, Integer>() {
@@ -192,11 +192,11 @@ public class JdbcParseHandlerTest {
         };
         Assert.assertEquals(
                 JdbcParseHandler.INSTANCE.handleStatement(sql2, StatementType.DELETE, null, null, "tbl",
-                        null, null, null, null, null, null, positions, settings, null),
+                        null, null, null, null, null, null, positions, settings, null, null),
                 new ClickHouseSqlStatement(
                         "ALTER TABLE `tbl` DELETE where a != 1 and b != 2 SETTINGS mutations_sync=1, a=1,b='a'",
                         StatementType.DELETE, null, null, "tbl", null, null, null, null, null, null, null,
-                        settings, null));
+                        settings, null, null));
 
         String sql3 = "delete from tbl where a != 1 and b != 2 settings a=1,mutations_sync=2,b='a'";
         positions = new HashMap<String, Integer>() {
@@ -216,11 +216,11 @@ public class JdbcParseHandlerTest {
         };
         Assert.assertEquals(
                 JdbcParseHandler.INSTANCE.handleStatement(sql3, StatementType.DELETE, null, null, "tbl",
-                        null, null, null, null, null, null, positions, settings, null),
+                        null, null, null, null, null, null, positions, settings, null, null),
                 new ClickHouseSqlStatement(
                         "ALTER TABLE `tbl` DELETE where a != 1 and b != 2 settings a=1,mutations_sync=2,b='a'",
                         StatementType.DELETE, null, null, "tbl", null, null, null, null, null, null, null, settings,
-                        null));
+                        null, null));
     }
 
     @Test(groups = "unit")
@@ -232,11 +232,11 @@ public class JdbcParseHandlerTest {
                         put("UPDATE", 0);
                         put("SET", 23);
                     }
-                }, null, null),
+                }, null, null, null),
                 new ClickHouseSqlStatement(
                         "ALTER TABLE `a\\`' a`.`tbl` UPDATE a=1 SETTINGS mutations_sync=1",
                         StatementType.UPDATE, null, "a\\`' a", "tbl", null, null, null, null, null, null, null, null,
-                        null));
+                        null, null));
         Assert.assertEquals(JdbcParseHandler.INSTANCE.handleStatement("update  `table\\`'1` set a=1",
                 StatementType.UPDATE, null, null, "table1", null, null, null, null, null, null,
                 new HashMap<String, Integer>() {
@@ -244,10 +244,10 @@ public class JdbcParseHandlerTest {
                         put("UPDATE", 0);
                         put("SET", 20);
                     }
-                }, null, null),
+                }, null, null, null),
                 new ClickHouseSqlStatement("ALTER TABLE `table1` UPDATE a=1 SETTINGS mutations_sync=1",
                         StatementType.UPDATE, null, null, "table1", null, null, null, null, null, null, null, null,
-                        null));
+                        null, null));
     }
 
     @Test(groups = "unit")
@@ -259,21 +259,21 @@ public class JdbcParseHandlerTest {
                 JdbcParseHandler.INSTANCE.handleStatement(
                         "Update  `a\\`' a` . tbl set a = 2 where a = b",
                         StatementType.UPDATE, null, "a\\`' a", "tbl", null, null, null, null, null, null, positions,
-                        null, null),
+                        null, null, null),
                 new ClickHouseSqlStatement(
                         "ALTER TABLE `a\\`' a`.`tbl` UPDATE a = 2 where a = b SETTINGS mutations_sync=1",
                         StatementType.UPDATE, null, "a\\`' a", "tbl", null, null, null, null, null, null, null, null,
-                        null));
+                        null, null));
         positions.put("UPDATE", 0);
         positions.put("SET", 19);
         Assert.assertEquals(
                 JdbcParseHandler.INSTANCE.handleStatement("update `table\\`'1` set a = b where 1",
                         StatementType.UPDATE, null, null, "table\\`'1", null, null, null, null, null, null, positions,
-                        null, null),
+                        null, null, null),
                 new ClickHouseSqlStatement(
                         "ALTER TABLE `table\\`'1` UPDATE a = b where 1 SETTINGS mutations_sync=1",
                         StatementType.UPDATE, null, null, "table\\`'1", null, null, null, null, null, null, null, null,
-                        null));
+                        null, null));
     }
 
     @Test(groups = "unit")
@@ -289,11 +289,11 @@ public class JdbcParseHandlerTest {
         Map<String, String> settings = Collections.singletonMap("a", "1");
         Assert.assertEquals(
                 JdbcParseHandler.INSTANCE.handleStatement(sql1, StatementType.UPDATE, null, null, "tbl",
-                        null, null, null, null, null, null, positions, settings, null),
+                        null, null, null, null, null, null, positions, settings, null, null),
                 new ClickHouseSqlStatement(
                         "ALTER TABLE `tbl` UPDATE x=1 SETTINGS mutations_sync=1, a=1",
                         StatementType.UPDATE, null, null, "tbl", null, null, null, null, null, null, null, settings,
-                        null));
+                        null, null));
 
         String sql2 = "update tbl set x=1, y=2 where a != 1 and b != 2 settings a=1,b='a'";
         positions = new HashMap<String, Integer>() {
@@ -312,11 +312,11 @@ public class JdbcParseHandlerTest {
         };
         Assert.assertEquals(
                 JdbcParseHandler.INSTANCE.handleStatement(sql2, StatementType.UPDATE, null, null, "tbl",
-                        null, null, null, null, null, null, positions, settings, null),
+                        null, null, null, null, null, null, positions, settings, null, null),
                 new ClickHouseSqlStatement(
                         "ALTER TABLE `tbl` UPDATE x=1, y=2 where a != 1 and b != 2 SETTINGS mutations_sync=1, a=1,b='a'",
                         StatementType.UPDATE, null, null, "tbl", null, null, null, null, null, null, null, settings,
-                        null));
+                        null, null));
 
         String sql3 = "update tbl set x=1,y=2 where a != 1 and b != 2 settings a=1,mutations_sync=2,b='a'";
         positions = new HashMap<String, Integer>() {
@@ -336,10 +336,10 @@ public class JdbcParseHandlerTest {
         };
         Assert.assertEquals(
                 JdbcParseHandler.INSTANCE.handleStatement(sql3, StatementType.UPDATE, null, null, "tbl",
-                        null, null, null, null, null, null, positions, settings, null),
+                        null, null, null, null, null, null, positions, settings, null, null),
                 new ClickHouseSqlStatement(
                         "ALTER TABLE `tbl` UPDATE x=1,y=2 where a != 1 and b != 2 settings a=1,mutations_sync=2,b='a'",
                         StatementType.UPDATE, null, null, "tbl", null, null, null, null, null, null, null, settings,
-                        null));
+                        null, null));
     }
 }

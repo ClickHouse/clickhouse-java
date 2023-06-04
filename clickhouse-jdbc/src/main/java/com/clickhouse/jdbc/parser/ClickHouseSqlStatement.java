@@ -41,19 +41,20 @@ public class ClickHouseSqlStatement {
     private final Map<String, Integer> positions;
     private final Map<String, String> settings;
     private final Set<String> tempTables;
+    private final Map<String, String> expressions;
 
     public ClickHouseSqlStatement(String sql) {
-        this(sql, StatementType.UNKNOWN, null, null, null, null, null, null, null, null, null, null, null, null);
+        this(sql, StatementType.UNKNOWN, null, null, null, null, null, null, null, null, null, null, null, null, null);
     }
 
     public ClickHouseSqlStatement(String sql, StatementType stmtType) {
-        this(sql, stmtType, null, null, null, null, null, null, null, null, null, null, null, null);
+        this(sql, stmtType, null, null, null, null, null, null, null, null, null, null, null, null, null);
     }
 
     public ClickHouseSqlStatement(String sql, StatementType stmtType, String cluster, String database, String table,
             String input, String compressAlgorithm, String compressLevel, String format, String file,
             List<Integer> parameters, Map<String, Integer> positions, Map<String, String> settings,
-            Set<String> tempTables) {
+            Set<String> tempTables, Map<String, String> expressions) {
         this.sql = sql;
         this.stmtType = stmtType;
 
@@ -108,6 +109,14 @@ public class ClickHouseSqlStatement {
             this.tempTables = Collections.unmodifiableSet(s);
         } else {
             this.tempTables = Collections.emptySet();
+        }
+
+        if (expressions != null && !expressions.isEmpty()) {
+            Map<String, String> m = new LinkedHashMap<>();
+            m.putAll(expressions);
+            this.expressions = Collections.unmodifiableMap(m);
+        } else {
+            this.expressions = Collections.emptyMap();
         }
     }
 
@@ -270,6 +279,10 @@ public class ClickHouseSqlStatement {
         return !this.tempTables.isEmpty();
     }
 
+    public boolean hasDynamicExpression() {
+        return !this.expressions.isEmpty();
+    }
+
     public List<Integer> getParameters() {
         return this.parameters;
     }
@@ -305,6 +318,10 @@ public class ClickHouseSqlStatement {
         return this.tempTables;
     }
 
+    public Map<String, String> getDynamicExpressions() {
+        return this.expressions;
+    }
+
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
@@ -314,8 +331,8 @@ public class ClickHouseSqlStatement {
                 .append(", compressAlgorithm=").append(compressAlgorithm).append(", compressLevel=")
                 .append(compressLevel).append(", format=").append(format).append(", outfile=").append(file)
                 .append(", parameters=").append(parameters).append(", positions=").append(positions)
-                .append(", settings=").append(settings).append(", tempTables=").append(settings).append("\nSQL:\n")
-                .append(sql);
+                .append(", settings=").append(settings).append(", tempTables=").append(settings)
+                .append(", expressions=").append(expressions).append("\nSQL:\n").append(sql);
 
         return sb.toString();
     }
@@ -339,6 +356,7 @@ public class ClickHouseSqlStatement {
         result = prime * result + positions.hashCode();
         result = prime * result + settings.hashCode();
         result = prime * result + tempTables.hashCode();
+        result = prime * result + expressions.hashCode();
         return result;
     }
 
@@ -359,6 +377,6 @@ public class ClickHouseSqlStatement {
                 && Objects.equals(compressLevel, other.compressLevel) && Objects.equals(format, other.format)
                 && Objects.equals(file, other.file) && parameters.equals(other.parameters)
                 && positions.equals(other.positions) && settings.equals(other.settings)
-                && tempTables.equals(other.tempTables);
+                && tempTables.equals(other.tempTables) && expressions.equals(other.expressions);
     }
 }

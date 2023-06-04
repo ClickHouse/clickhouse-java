@@ -564,6 +564,34 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
     }
 
     @Test(groups = "integration")
+    public void testDynamicQueries() throws SQLException {
+        try (Connection conn = newConnection(new Properties());
+                Statement stmt = conn.createStatement()) {
+            stmt.execute("drop table if exists test_dynamic_queries; "
+                    + "create table test_dynamic_queries(id Int32, val String)engine=Memory");
+            stmt.executeUpdate("insert into test_dynamic_queries\n"
+                    + "select number, {e select '''' || toString(generateUUIDv4()) || '''' } from numbers(100) where number = {e\n"
+                    + "select number % 7 n from numbers(100) group by n" + "\n}");
+            try (ResultSet rs = stmt.executeQuery("select * from test_dynamic_queries order by id")) {
+                for (int i = 0; i < 7; i++) {
+                    Assert.assertTrue(rs.next());
+                    Assert.assertEquals(rs.getInt(1), i);
+                }
+                Assert.assertFalse(rs.next());
+            }
+
+            stmt.execute("truncate table test_dynamic_queries; "
+                    + "insert into test_dynamic_queries values({e select 567}, 'a')");
+            try (ResultSet rs = stmt.executeQuery("select * from test_dynamic_queries order by id")) {
+                Assert.assertTrue(rs.next());
+                Assert.assertEquals(rs.getInt(1), 567);
+                Assert.assertEquals(rs.getString(2), "a");
+                Assert.assertFalse(rs.next());
+            }
+        }
+    }
+
+    @Test(groups = "integration")
     public void testExecute() throws SQLException {
         try (Connection conn = newConnection(new Properties());
                 Statement stmt = conn.createStatement()) {
@@ -1180,7 +1208,7 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
             }
         }
     }
-    
+
     @Test(groups = "integration")
     public void testNestedArrays() throws SQLException {
         Properties props = new Properties();

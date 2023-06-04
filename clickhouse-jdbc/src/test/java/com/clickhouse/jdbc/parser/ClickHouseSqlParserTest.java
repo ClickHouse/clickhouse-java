@@ -15,6 +15,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map.Entry;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -301,15 +302,17 @@ public class ClickHouseSqlParserTest {
         String sql;
 
         assertEquals(parse(sql = "select\n1"), new ClickHouseSqlStatement[] { new ClickHouseSqlStatement(sql,
-                StatementType.SELECT, null, null, "unknown", null, null, null, null, null, null, null, null, null) });
+                StatementType.SELECT, null, null, "unknown", null, null, null, null, null, null, null, null, null,
+                null) });
         assertEquals(parse(sql = "select\r\n1"), new ClickHouseSqlStatement[] { new ClickHouseSqlStatement(sql,
-                StatementType.SELECT, null, null, "unknown", null, null, null, null, null, null, null, null, null) });
+                StatementType.SELECT, null, null, "unknown", null, null, null, null, null, null, null, null, null,
+                null) });
 
         assertEquals(parse(sql = "select 314 limit 5\nFORMAT JSONCompact;"),
                 new ClickHouseSqlStatement[] {
                         new ClickHouseSqlStatement("select 314 limit 5\nFORMAT JSONCompact",
                                 StatementType.SELECT, null, null, "unknown", null, null, null,
-                                "JSONCompact", null, null, Collections.singletonMap("FORMAT", 19), null, null) });
+                                "JSONCompact", null, null, Collections.singletonMap("FORMAT", 19), null, null, null) });
 
         checkSingleStatement(parse(sql = "select (())"), sql, StatementType.SELECT);
         checkSingleStatement(parse(sql = "select []"), sql, StatementType.SELECT);
@@ -355,15 +358,16 @@ public class ClickHouseSqlParserTest {
                             {
                                 put("TOTALS", 208);
                             }
-                        }, null, null) });
+                        }, null, null, null) });
         assertEquals(parse(sql = loadSql("issue-555_custom-format.sql")),
                 new ClickHouseSqlStatement[] {
                         new ClickHouseSqlStatement(sql, StatementType.SELECT, null, null, "wrd", null, null, null,
-                                "CSVWithNames", null, null, Collections.singletonMap("FORMAT", 1557), null, null) });
+                                "CSVWithNames", null, null, Collections.singletonMap("FORMAT", 1557), null, null,
+                                null) });
         assertEquals(parse(sql = loadSql("with-clause.sql")),
                 new ClickHouseSqlStatement[] {
                         new ClickHouseSqlStatement(sql, StatementType.SELECT, null, null, "unknown", null, null, null,
-                                null, null, null, null, null, null) });
+                                null, null, null, null, null, null, null) });
     }
 
     @Test(groups = "unit")
@@ -449,13 +453,13 @@ public class ClickHouseSqlParserTest {
         assertEquals(parse("use ab;;;select 1; ;\t;\r;\n"),
                 new ClickHouseSqlStatement[] {
                         new ClickHouseSqlStatement("use ab", StatementType.USE, null, "ab",
-                                null, null, null, null, null, null, null, null, null, null),
+                                null, null, null, null, null, null, null, null, null, null, null),
                         new ClickHouseSqlStatement("select 1", StatementType.SELECT) });
         assertEquals(parse("select * from \"a;1\".`b;c`;;;select 1 as `a ; a`; ;\t;\r;\n"),
                 new ClickHouseSqlStatement[] {
                         new ClickHouseSqlStatement("select * from \"a;1\".`b;c`",
                                 StatementType.SELECT, null, "a;1", "b;c", null, null, null, null, null, null, null,
-                                null, null),
+                                null, null, null),
                         new ClickHouseSqlStatement("select 1 as `a ; a`",
                                 StatementType.SELECT) });
     }
@@ -806,6 +810,20 @@ public class ClickHouseSqlParserTest {
         assertEquals(stmts[0].getSQL(), "select `1'2'3`");
         assertEquals(stmts[0].hasTempTable(), true);
         assertEquals(stmts[0].getTempTables(), Collections.singleton("1'2'3"));
+
+        sql = "select {e}";
+        stmts = parse(sql);
+        assertEquals(stmts.length, 1);
+        assertEquals(stmts[0].getSQL(), "select ");
+        assertEquals(stmts[0].hasDynamicExpression(), false);
+        sql = "select {e\nselect 1,\r\n2}";
+        stmts = parse(sql);
+        assertEquals(stmts.length, 1);
+        assertEquals(stmts[0].hasDynamicExpression(), true);
+        assertEquals(stmts[0].getDynamicExpressions().size(), 1);
+        Entry<String, String> entry = stmts[0].getDynamicExpressions().entrySet().iterator().next();
+        assertEquals(entry.getValue(), "select 1,\r\n2");
+        assertEquals(stmts[0].getSQL(), "select " + entry.getKey());
 
         sql = "select {d 1} {t} {tt} {ts 123.1'}";
         stmts = parse(sql);

@@ -150,6 +150,7 @@ TOKEN_MGR_DECLS: {
     final Map<String, Integer> positions = new HashMap<>();
     final Map<String, String> settings = new LinkedHashMap<>();
     final Set<String> tempTables = new LinkedHashSet<>();
+    final Map<String, String> expressions = new LinkedHashMap<>();
 
     public void CommonTokenAction(Token t) {
         if (t.kind != ClickHouseSqlParserConstants.SEMICOLON) {
@@ -229,6 +230,7 @@ TOKEN_MGR_DECLS: {
         positions.clear();
         settings.clear();
         tempTables.clear();
+        expressions.clear();
     }
 
     ClickHouseSqlStatement build(ParseHandler handler) {
@@ -236,12 +238,12 @@ TOKEN_MGR_DECLS: {
         ClickHouseSqlStatement s = null;
         if (handler != null) {
             s = handler.handleStatement(
-                sqlStmt, stmtType, cluster, database, table, input, compressAlgorithm, compressLevel, format, file, parameters, positions, settings, tempTables);
+                sqlStmt, stmtType, cluster, database, table, input, compressAlgorithm, compressLevel, format, file, parameters, positions, settings, tempTables, expressions);
         }
 
         if (s == null) {
             s = new ClickHouseSqlStatement(
-                sqlStmt, stmtType, cluster, database, table, input, compressAlgorithm, compressLevel, format, file, parameters, positions, settings, tempTables);
+                sqlStmt, stmtType, cluster, database, table, input, compressAlgorithm, compressLevel, format, file, parameters, positions, settings, tempTables, expressions);
         }
         
         // reset variables
@@ -290,10 +292,17 @@ SKIP: {
         | "\u2000" | "\u200a" | "\u200b" | "\u200c" | "\u200d" 
         | "\u2028" | "\u2029" | "\u202f" | "\u205f" | "\u2060" | "\u3000" | "\ufeff">
     { append(image); }
-    | <JDBC_LITERAL: ("{d" | "{t" | "{ts" | "{tt") (~["}"])* "}"> {
+    | <JDBC_LITERAL: ("{d" | "{e" | "{t" | "{ts" | "{tt") (~["}"])* "}"> {
         int startIndex = image.indexOf("\'");
         int endIndex = image.lastIndexOf("\'");
-        if (startIndex < 0 || endIndex < 0 || endIndex <= startIndex) {
+        if (image.charAt(1) == 'e' && Character.isWhitespace(image.charAt(2))) { // dynamic expression
+            String expression = image.substring(3, image.lastIndexOf("}")).trim();
+            if (!expression.isEmpty()) {
+                String placeholder = java.util.UUID.randomUUID().toString();
+                builder.append(placeholder);
+                expressions.put(placeholder, expression);
+            }
+        } else if (startIndex < 0 || endIndex < 0 || endIndex <= startIndex) {
             // skip invalid content
         } else if (image.charAt(1) == 'd') { // date
             builder.append("date")

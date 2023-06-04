@@ -60,8 +60,7 @@ public class JdbcParseHandler extends ParseHandler {
 
     private ClickHouseSqlStatement handleDelete(String sql, StatementType stmtType, String cluster, String database,
             String table, String input, String compressAlgorithm, String compressLevel, String format, String file,
-            List<Integer> parameters, Map<String, Integer> positions, Map<String, String> settings,
-            Set<String> tempTables) {
+            List<Integer> parameters, Map<String, Integer> positions, Map<String, String> settings) {
         StringBuilder builder = new StringBuilder();
         int index = positions.get("DELETE");
         if (index > 0) {
@@ -80,13 +79,12 @@ public class JdbcParseHandler extends ParseHandler {
             builder.append("TRUNCATE TABLE").append(sql.substring(index + 4));
         }
         return new ClickHouseSqlStatement(builder.toString(), stmtType, cluster, database, table, input,
-                compressAlgorithm, compressLevel, format, file, parameters, null, settings, null);
+                compressAlgorithm, compressLevel, format, file, parameters, null, settings, null, null);
     }
 
     private ClickHouseSqlStatement handleUpdate(String sql, StatementType stmtType, String cluster, String database,
             String table, String input, String compressAlgorithm, String compressLevel, String format, String file,
-            List<Integer> parameters, Map<String, Integer> positions, Map<String, String> settings,
-            Set<String> tempTables) {
+            List<Integer> parameters, Map<String, Integer> positions, Map<String, String> settings) {
         StringBuilder builder = new StringBuilder();
         int index = positions.get("UPDATE");
         if (index > 0) {
@@ -100,13 +98,12 @@ public class JdbcParseHandler extends ParseHandler {
         builder.append('`').append(table).append('`').append(" UPDATE"); // .append(sql.substring(index + 3));
         addMutationSetting(sql, builder, positions, settings, index + 3);
         return new ClickHouseSqlStatement(builder.toString(), stmtType, cluster, database, table, input,
-                compressAlgorithm, compressLevel, format, file, parameters, null, settings, null);
+                compressAlgorithm, compressLevel, format, file, parameters, null, settings, null, null);
     }
 
     private ClickHouseSqlStatement handleInFileForInsertQuery(String sql, StatementType stmtType, String cluster,
             String database, String table, String input, String compressAlgorithm, String compressLevel, String format,
-            String file, List<Integer> parameters, Map<String, Integer> positions, Map<String, String> settings,
-            Set<String> tempTables) {
+            String file, List<Integer> parameters, Map<String, Integer> positions, Map<String, String> settings) {
         StringBuilder builder = new StringBuilder(sql.length());
         builder.append(sql.substring(0, positions.get("FROM")));
         Integer index = positions.get("SETTINGS");
@@ -124,13 +121,12 @@ public class JdbcParseHandler extends ParseHandler {
             builder.append("FORMAT ").append(format);
         }
         return new ClickHouseSqlStatement(builder.toString(), stmtType, cluster, database, table, input,
-                compressAlgorithm, compressLevel, format, file, parameters, null, settings, null);
+                compressAlgorithm, compressLevel, format, file, parameters, null, settings, null, null);
     }
 
     private ClickHouseSqlStatement handleOutFileForSelectQuery(String sql, StatementType stmtType, String cluster,
             String database, String table, String input, String compressAlgorithm, String compressLevel, String format,
-            String file, List<Integer> parameters, Map<String, Integer> positions, Map<String, String> settings,
-            Set<String> tempTables) {
+            String file, List<Integer> parameters, Map<String, Integer> positions, Map<String, String> settings) {
         StringBuilder builder = new StringBuilder(sql.length());
         builder.append(sql.substring(0, positions.get("INTO")));
         Integer index = positions.get("FORMAT");
@@ -138,30 +134,30 @@ public class JdbcParseHandler extends ParseHandler {
             builder.append(sql.substring(index));
         }
         return new ClickHouseSqlStatement(builder.toString(), stmtType, cluster, database, table, input,
-                compressAlgorithm, compressLevel, format, file, parameters, null, settings, null);
+                compressAlgorithm, compressLevel, format, file, parameters, null, settings, null, null);
     }
 
     @Override
     public ClickHouseSqlStatement handleStatement(String sql, StatementType stmtType, String cluster, String database,
             String table, String input, String compressAlgorithm, String compressLevel, String format, String file,
             List<Integer> parameters, Map<String, Integer> positions, Map<String, String> settings,
-            Set<String> tempTables) {
+            Set<String> tempTables, Map<String, String> expressions) {
         boolean hasFile = allowLocalFile && !ClickHouseChecker.isNullOrEmpty(file) && file.charAt(0) == '\'';
         ClickHouseSqlStatement s = null;
         if (stmtType == StatementType.DELETE) {
             s = allowLightWeightDelete ? s
                     : handleDelete(sql, stmtType, cluster, database, table, input, compressAlgorithm, compressLevel,
-                            format, file, parameters, positions, settings, tempTables);
+                            format, file, parameters, positions, settings);
         } else if (stmtType == StatementType.UPDATE) {
             s = allowLightWeightUpdate ? s
                     : handleUpdate(sql, stmtType, cluster, database, table, input, compressAlgorithm, compressLevel,
-                            format, file, parameters, positions, settings, tempTables);
+                            format, file, parameters, positions, settings);
         } else if (stmtType == StatementType.INSERT && hasFile) {
             s = handleInFileForInsertQuery(sql, stmtType, cluster, database, table, input, compressAlgorithm,
-                    compressLevel, format, file, parameters, positions, settings, tempTables);
+                    compressLevel, format, file, parameters, positions, settings);
         } else if (stmtType == StatementType.SELECT && hasFile) {
             s = handleOutFileForSelectQuery(sql, stmtType, cluster, database, table, input, compressAlgorithm,
-                    compressLevel, format, file, parameters, positions, settings, tempTables);
+                    compressLevel, format, file, parameters, positions, settings);
         }
         return s;
     }
