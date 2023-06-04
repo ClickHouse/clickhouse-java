@@ -145,6 +145,79 @@ public class CombinedResultSetTest {
     }
 
     @Test(groups = "unit")
+    public void testFirstAndLastRow() throws SQLException {
+        ClickHouseConfig config = new ClickHouseConfig();
+        List<ClickHouseColumn> columns = ClickHouseColumn.parse("s String");
+        // no record
+        try (CombinedResultSet rs = new CombinedResultSet(new ClickHouseResultSet("", "",
+                ClickHouseSimpleResponse.of(config, columns, new Object[0][])))) {
+            Assert.assertTrue(rs.isBeforeFirst(), "Should be before the first");
+            Assert.assertFalse(rs.isFirst(), "Should NOT be the first");
+            Assert.assertTrue(rs.isAfterLast(), "Should be after the last");
+            Assert.assertFalse(rs.isLast(), "Should NOT be the last");
+
+            Assert.assertFalse(rs.next(), "Should have no row");
+            Assert.assertTrue(rs.isBeforeFirst(), "Should be before the first");
+            Assert.assertFalse(rs.isFirst(), "Should NOT be the first");
+            Assert.assertTrue(rs.isAfterLast(), "Should be after the last");
+            Assert.assertFalse(rs.isLast(), "Should NOT be the last");
+        }
+
+        // no record(with two empty resultsets)
+        try (CombinedResultSet rs = new CombinedResultSet(new ClickHouseResultSet("", "",
+                ClickHouseSimpleResponse.of(config, columns, new Object[0][])),
+                new ClickHouseResultSet("", "",
+                        ClickHouseSimpleResponse.of(config, columns, new Object[0][])))) {
+            Assert.assertTrue(rs.isBeforeFirst(), "Should be before the first");
+            Assert.assertFalse(rs.isFirst(), "Should NOT be the first");
+            Assert.assertTrue(rs.isAfterLast(), "Should NOT be after the last");
+            Assert.assertFalse(rs.isLast(), "Should NOT be the last");
+
+            Assert.assertFalse(rs.next(), "Should have no row");
+            Assert.assertTrue(rs.isBeforeFirst(), "Should be before the first");
+            Assert.assertFalse(rs.isFirst(), "Should NOT be the first");
+            Assert.assertTrue(rs.isAfterLast(), "Should NOT be after the last");
+            Assert.assertFalse(rs.isLast(), "Should NOT be the last");
+        }
+
+        // one record
+        try (CombinedResultSet rs = new CombinedResultSet(new ClickHouseResultSet("", "",
+                ClickHouseSimpleResponse.of(config, columns,
+                        new Object[][] { new Object[] { "a" } })))) {
+            Assert.assertTrue(rs.isBeforeFirst(), "Should be before the first");
+            Assert.assertFalse(rs.isFirst(), "Should NOT be the first");
+            Assert.assertFalse(rs.isAfterLast(), "Should NOT be after the last");
+            Assert.assertFalse(rs.isLast(), "Should NOT be the last");
+
+            Assert.assertTrue(rs.next(), "Should have one row");
+            Assert.assertFalse(rs.isBeforeFirst(), "Should NOT be before the first");
+            Assert.assertTrue(rs.isFirst(), "Should be the first");
+            Assert.assertFalse(rs.isAfterLast(), "Should NOT be after the last");
+            Assert.assertTrue(rs.isLast(), "Should be the last");
+
+            Assert.assertFalse(rs.next(), "Should have only one row");
+            Assert.assertFalse(rs.isBeforeFirst(), "Should NOT be before the first");
+            Assert.assertTrue(rs.isFirst(), "Should be the first");
+            Assert.assertTrue(rs.isAfterLast(), "Should be after the last");
+            Assert.assertFalse(rs.isLast(), "Should NOT be the last");
+        }
+
+        try (CombinedResultSet rs = new CombinedResultSet(new ClickHouseResultSet("", "",
+                ClickHouseSimpleResponse.of(config, columns,
+                        new Object[][] { new Object[] { "a" }, new Object[] { "b" } })))) {
+            Assert.assertTrue(rs.isBeforeFirst(), "Should be before the first");
+            Assert.assertTrue(rs.next(), "Should have at least one row");
+            Assert.assertTrue(rs.isFirst(), "Should be the first row");
+            Assert.assertEquals(rs.getString(1), "a");
+            Assert.assertTrue(rs.next(), "Should have two rows");
+            Assert.assertEquals(rs.getString(1), "b");
+            Assert.assertTrue(rs.isLast(), "Should be the last row");
+            Assert.assertFalse(rs.next(), "Should have only two rows");
+            Assert.assertTrue(rs.isAfterLast(), "Should be after the last row");
+        }
+    }
+
+    @Test(groups = "unit")
     public void testNext() throws SQLException {
         ClickHouseConfig config = new ClickHouseConfig();
         List<ClickHouseColumn> columns = ClickHouseColumn.parse("s String");
