@@ -75,6 +75,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TimeZone;
 import java.util.UUID;
 import java.util.Map.Entry;
@@ -437,6 +438,45 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
                 Assert.assertEquals(response.firstRecord().getValue(0).asInteger(), 1);
             }
             Assert.assertTrue(getClient().ping(server, timeout));
+        }
+    }
+
+    @Test(groups = { "integration" })
+    public void testWithObjectReuse() throws ClickHouseException {
+        ClickHouseNode server = getServer();
+        int numbers = 10;
+        try (ClickHouseClient client = getClient();
+             ClickHouseResponse response = newRequest(client, server).query("select number from numbers(10)")
+                     .reuseObjects()
+                     .executeAndWait()) {
+            List<ClickHouseRecord> records = new ArrayList<>(10);
+            response.stream().forEach(records::add);
+            Assert.assertEquals(records.size(), 10);
+            // Verify that all records are the same (object reuse)
+            for (int i = 0; i < numbers; i++) {
+                // All values will be 9 (last seen record)
+                Assert.assertEquals(records.get(i).getValue(0).asInteger(), 9);
+            }
+        }
+    }
+
+
+    @Test(groups = { "integration" })
+    public void testWithoutObjectReuse() throws ClickHouseException {
+        int numbers = 10;
+        ClickHouseNode server = getServer();
+        try (ClickHouseClient client = getClient();
+             ClickHouseResponse response = newRequest(client, server).query("select * from numbers(10)")
+                     .executeAndWait()) {
+            List<ClickHouseRecord> records = new ArrayList<>(10);
+            response.stream().forEach(records::add);
+            Assert.assertEquals(records.size(), 10);
+            // Verify that all records are the same (object reuse)
+            for (int i = 0; i < numbers; i++) {
+                // Numbers will increment correctly, as object reuse is disabled by default
+                Assert.assertEquals(records.get(i).getValue(0).asInteger(), i);
+            }
+
         }
     }
 
@@ -850,7 +890,7 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
                  * while (response.hasError()) { int index = 0; for (ClickHouseColumn c :
                  * columns) { // RawValue v = response.getRawValue(index++); // String v =
                  * response.getValue(index++, String.class) }
-                 * 
+                 *
                  * } byte[] bytes = in.readAllBytes(); String str = new String(bytes);
                  */
             } catch (Exception e) {

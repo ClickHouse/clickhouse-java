@@ -146,7 +146,7 @@ public interface ClickHouseDataConfig extends Serializable {
 
     static final ClickHouseFormat DEFAULT_FORMAT = ClickHouseFormat.TabSeparated;
 
-    static final boolean DEFAULT_REUSE_VALUE_WRAPPER = true;
+    static final boolean DEFAULT_REUSE_VALUE_WRAPPER = false;
     static final boolean DEFAULT_USE_BINARY_STRING = false;
     static final boolean DEFAULT_USE_BLOCKING_QUEUE = false;
     static final boolean DEFAULT_USE_COMPILATION = false;

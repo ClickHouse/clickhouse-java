@@ -1768,6 +1768,18 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
     }
 
     /**
+     * Enable object reuse during result collection, resulting in better memmory efficiency.
+     * WARNING: If you plan to pass the underlying {@link com.clickhouse.data.ClickHouseRecord} back without
+     * intermediate extraction, this object will potentially be overwritten with the last seen value of the stream.
+     * @return the request with object reuse enabled
+     */
+    @SuppressWarnings("unchecked")
+    public SelfT reuseObjects() {
+        option(ClickHouseClientOption.REUSE_VALUE_WRAPPER, "true");
+        return (SelfT) this;
+    }
+
+    /**
      * Sets a setting. See
      * https://clickhouse.tech/docs/en/operations/settings/settings/ for more
      * information.
