@@ -442,8 +442,8 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
 
     @Test(groups = { "integration" })
     public void testWithObjectReuse() throws ClickHouseException {
-        ClickHouseNode server = getServer();
         int numbers = 10;
+        ClickHouseNode server = getServer();
         try (ClickHouseClient client = getClient();
              ClickHouseResponse response = newRequest(client, server).query("select * from numbers(10)")
                      .reuseObjects()
