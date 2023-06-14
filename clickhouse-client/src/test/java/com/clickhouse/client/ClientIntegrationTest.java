@@ -445,7 +445,7 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
         ClickHouseNode server = getServer();
         int numbers = 10;
         try (ClickHouseClient client = getClient();
-             ClickHouseResponse response = newRequest(client, server).query("select number from numbers(10)")
+             ClickHouseResponse response = newRequest(client, server).query("select * from numbers(10)")
                      .reuseObjects()
                      .executeAndWait()) {
             List<ClickHouseRecord> records = new ArrayList<>(10);
