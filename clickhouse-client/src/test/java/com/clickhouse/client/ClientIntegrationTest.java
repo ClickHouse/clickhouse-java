@@ -470,7 +470,7 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
             List<ClickHouseRecord> records = new ArrayList<>(10);
             response.stream().forEach(records::add);
             Assert.assertEquals(records.size(), 10);
-            // Verify that all records are the same (object reuse)
+            // Verify all records are unique (different number)
             for (int i = 0; i < numbers; i++) {
                 // Numbers will increment correctly, as object reuse is disabled by default
                 Assert.assertEquals(records.get(i).getValue(0).asInteger(), i);
