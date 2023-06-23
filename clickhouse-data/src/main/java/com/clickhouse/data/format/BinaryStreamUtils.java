@@ -71,7 +71,7 @@ public final class BinaryStreamUtils {
 
     public static final long DATETIME64_MAX = LocalDateTime.of(LocalDate.of(2283, 11, 11), LocalTime.MAX)
             .toEpochSecond(ZoneOffset.UTC);
-    public static final long DATETIME64_MIN = LocalDateTime.of(LocalDate.of(1925, 1, 1), LocalTime.MIN)
+    public static final long DATETIME64_MIN = LocalDateTime.of(LocalDate.of(1900, 1, 1), LocalTime.MIN)
             .toEpochSecond(ZoneOffset.UTC);
 
     public static final long MILLIS_IN_DAY = TimeUnit.DAYS.toMillis(1);
