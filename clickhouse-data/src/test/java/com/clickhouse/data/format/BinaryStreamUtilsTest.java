@@ -1261,7 +1261,7 @@ public class BinaryStreamUtilsTest {
                         null)));
         Assert.assertThrows(IllegalArgumentException.class,
                 () -> getWrittenBytes(o -> BinaryStreamUtils.writeDateTime64(o,
-                        LocalDateTime.of(LocalDate.of(2283, 11, 11).plus(1L, ChronoUnit.DAYS),
+                        LocalDateTime.of(LocalDate.of(2299, 12, 31).plus(1L, ChronoUnit.DAYS),
                                 LocalTime.MIN),
                         null)));
     }
@@ -1336,7 +1336,7 @@ public class BinaryStreamUtilsTest {
                 () -> getWrittenBytes(
                         o -> BinaryStreamUtils.writeDateTime64(o,
                                 LocalDateTime.of(
-                                        LocalDate.of(2283, 11, 11).plus(1L,
+                                        LocalDate.of(2299, 12, 31).plus(1L,
                                                 ChronoUnit.DAYS),
                                         LocalTime.MIN)
                                         .atOffset(ZoneOffset.UTC)
