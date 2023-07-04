@@ -206,7 +206,7 @@ public class ClickHouseColumnTest {
         Assert.assertTrue(column.isAggregateFunction());
         Assert.assertEquals(column.getDataType(), ClickHouseDataType.AggregateFunction);
         Assert.assertEquals(column.getAggregateFunction(), ClickHouseAggregateFunction.quantiles);
-        Assert.assertEquals(column.getFunction(), "quantiles(0.5,0.9)");
+        Assert.assertEquals(column.getFunction(), "quantiles(0.5, 0.9)");
         Assert.assertEquals(column.getNestedColumns(),
                 Collections.singletonList(ClickHouseColumn.of("", "Nullable(UInt64)")));
         Assert.assertFalse(column.isFixedLength(), "Should not have fixed length in byte");

@@ -440,7 +440,7 @@ public final class ClickHouseUtils {
 
     /**
      * Escape quotes in given string.
-     * 
+     *
      * @param str   string
      * @param quote quote to escape
      * @return escaped string
@@ -466,7 +466,7 @@ public final class ClickHouseUtils {
 
     /**
      * Unescape quoted string.
-     * 
+     *
      * @param str quoted string
      * @return unescaped string
      */
@@ -1460,7 +1460,7 @@ public final class ClickHouseUtils {
     }
 
     public static int readParameters(String args, int startIndex, int len, List<String> params) {
-        char closeBracket = ')'; // startIndex points to the openning bracket
+        char closeBracket = ')'; // startIndex points to the opening bracket
         Deque<Character> stack = new ArrayDeque<>();
         StringBuilder builder = new StringBuilder();
 
@@ -1489,7 +1489,7 @@ public final class ClickHouseUtils {
 
         for (int i = startIndex; i < len; i++) {
             char ch = args.charAt(i);
-            if (Character.isWhitespace(ch)) {
+            if (Character.isWhitespace(ch) && stack.isEmpty()) {
                 continue;
             } else if (isQuote(ch)) {
                 builder.append(ch);

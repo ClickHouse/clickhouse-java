@@ -10,6 +10,7 @@
 
 ### Bug Fixes
 * Java client threw confusing error when query is invalid.
+* JDBC Driver correctly processes `AggregateFunction(Nested(...))` columns
 
 ## 0.4.6, 2023-05-02
 ### New Features
