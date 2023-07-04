@@ -295,6 +295,26 @@ public class ClickHouseResultSetTest extends JdbcIntegrationTest {
         }
     }
 
+    @Test(groups = "integration")
+    public void testNested() throws SQLException {
+        try (ClickHouseConnection conn = newConnection(new Properties());
+                Statement stmt = conn.createStatement()) {
+
+            stmt.execute("set flatten_nested=0; "
+                    + "drop table if exists test_simple_aggregate_nested; "
+                    + "create table test_simple_aggregate_nested(id Int8, n0 SimpleAggregateFunction(anyLast, Nested(a String,b String))) ENGINE = AggregatingMergeTree() ORDER BY (id); "
+                    + "insert into test_simple_aggregate_nested values(1, [tuple('foo1', 'bar1'), tuple('foo11', 'bar11')]), (2, [tuple('foo2', 'bar2'), tuple('foo22', 'bar22')])");
+            ResultSet rs = stmt
+                    .executeQuery(
+                            "select * from test_simple_aggregate_nested");
+            Assert.assertTrue(rs.next());
+            Assert.assertEquals(rs.getInt(1), 1);
+            Map<?, ?> v = rs.getObject(2, Map.class);
+            Assert.assertEquals(v.size(), 2);
+            Assert.assertEquals(v.get("a"), new String[]{"foo1", "foo11"});
+        }
+    }
+
     @Test(dataProvider = "nullableTypes", groups = "integration")
     public void testNullableValues(ClickHouseDataType type, Object value, BiFunction<ResultSet, Integer, Object> func)
             throws SQLException {

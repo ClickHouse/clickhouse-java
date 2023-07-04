@@ -459,7 +459,7 @@ public class ClickHouseUtilsTest {
         List<String> params = new LinkedList<>();
         Assert.assertEquals(ClickHouseUtils.readParameters(args, args.indexOf('('), args.length(), params),
                 args.lastIndexOf(')') + 1);
-        Assert.assertEquals(params, Arrays.asList("quantiles(0.5,'c \\'''([1],2) d',0.9)", "UInt64"));
+        Assert.assertEquals(params, Arrays.asList("quantiles(0.5, 'c \\'''([1],2) d',0.9)", "UInt64"));
 
         params.clear();
         args = "   ('a'/* a*/, 1-- test\n, b)";
@@ -470,6 +470,12 @@ public class ClickHouseUtilsTest {
         args = " a, b c";
         Assert.assertEquals(ClickHouseUtils.readParameters(args, 0, args.length(), params), args.length());
         Assert.assertEquals(params, Arrays.asList("a", "bc"));
+
+        params.clear();
+        args = "column1 SimpleAggregateFunction(anyLast, Nested(a string, b string))";
+        Assert.assertEquals(ClickHouseUtils.readParameters(args, args.indexOf('('), args.length(), params),
+                args.lastIndexOf(')') + 1);
+        Assert.assertEquals(params, Arrays.asList("anyLast", "Nested(a string, b string)"));
     }
 
     @Test(groups = { "unit" })
