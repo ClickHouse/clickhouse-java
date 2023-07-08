@@ -28,13 +28,7 @@ import java.sql.Timestamp;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
-import java.util.Calendar;
-import java.util.Collections;
-import java.util.GregorianCalendar;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.TimeZone;
+import java.util.*;
 
 import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseResponse;
@@ -48,6 +42,7 @@ public class ClickHouseResultSet extends AbstractResultSet {
     private Iterator<ClickHouseRecord> rowCursor;
     private int rowNumber;
     private int lastReadColumn; // 1-based
+    private final Map<String, Integer> columnIndexCache = Collections.synchronizedMap(new HashMap<>());
 
     protected final String database;
     protected final String table;
@@ -215,6 +210,15 @@ public class ClickHouseResultSet extends AbstractResultSet {
             throw SqlExceptionUtils.clientError("Non-empty column label is required");
         }
 
+        Integer index = columnIndexCache.get(columnLabel);
+        if(index == null) {
+            index = findColumnIndex(columnLabel);
+            columnIndexCache.putIfAbsent(columnLabel, index);
+        }
+        return index;
+    }
+
+    private int findColumnIndex(String columnLabel) throws SQLException {
         int index = 0;
         for (ClickHouseColumn c : columns) {
             index++;
