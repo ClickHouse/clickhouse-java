@@ -35,6 +35,13 @@ public enum ClickHouseHttpOption implements ClickHouseOption {
      */
     CUSTOM_SECURE_SOCKET_FACTORY("custom_secure_socket_factory", "", "Custom https socket factory class name."),
     /**
+     * Additional HTTPS socket factory options. Only useful only when {@link #CUSTOM_SECURE_SOCKET_FACTORY} is set.
+     * Accessible {@code com.clickhouse.client.ClickHouseConfig} through {@link #CUSTOM_SECURE_SOCKET_FACTORY} socket factory class constructor.
+     */
+    CUSTOM_SECURE_SOCKET_FACTORY_OPTIONS("custom_secure_socket_factory_options", "",
+            "Additional properties to be useful while creating an instance of CUSTOM_SECURE_SOCKET_FACTORY. "
+                    + "Properties are accessible through ClickHouseConfig."),
+    /**
      * Custom HTTP socket factory class name. Takes effect only when CONNECTION_PROVIDER is set to APACHE_HTTP_CLIENT.<br/>
      * Given class should
      * <ul>
@@ -44,6 +51,13 @@ public enum ClickHouseHttpOption implements ClickHouseOption {
      * </ul>
      */
     CUSTOM_SOCKET_FACTORY("custom_socket_factory", "", "Custom http socket factory class name."),
+    /**
+     * Additional HTTP socket factory options. Only useful only when {@link #CUSTOM_SOCKET_FACTORY} is set.
+     * Accessible from {@code com.clickhouse.client.ClickHouseConfig} through {@link #CUSTOM_SOCKET_FACTORY} socket factory class constructor.
+     */
+    CUSTOM_SOCKET_FACTORY_OPTIONS("custom_socket_factory_options", "",
+            "Additional properties to be useful while creating an instance of CUSTOM_SOCKET_FACTORY. "
+                    + "Properties are accessible through ClickHouseConfig."),
     /**
      * Default server response.
      */
