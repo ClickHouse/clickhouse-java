@@ -25,6 +25,26 @@ public enum ClickHouseHttpOption implements ClickHouseOption {
      */
     CUSTOM_PARAMS("custom_http_params", "", "Custom HTTP query parameters."),
     /**
+     * Custom HTTPS socket factory class name. Takes effect only when CONNECTION_PROVIDER is set to APACHE_HTTP_CLIENT.<br/>
+     * Given class should
+     * <ul>
+     * <li>be accessible from the classpath</li>
+     * <li>extend {@code com.clickhouse.client.internal.apache.hc.client5.http.ssl.SSLConnectionSocketFactory}</li>
+     * <li>have a single arg constructor of {@code com.clickhouse.client.ClickHouseConfig} arg type</li>
+     * </ul>
+     */
+    CUSTOM_SECURE_SOCKET_FACTORY("custom_secure_socket_factory", "", "Custom https socket factory class name."),
+    /**
+     * Custom HTTP socket factory class name. Takes effect only when CONNECTION_PROVIDER is set to APACHE_HTTP_CLIENT.<br/>
+     * Given class should
+     * <ul>
+     * <li>be accessible from the classpath</li>
+     * <li>extend {@code com.clickhouse.client.internal.apache.hc.client5.http.socket.PlainConnectionSocketFactory}}</li>
+     * <li>have a single arg constructor of {@code com.clickhouse.client.ClickHouseConfig} arg type</li>
+     * </ul>
+     */
+    CUSTOM_SOCKET_FACTORY("custom_socket_factory", "", "Custom http socket factory class name."),
+    /**
      * Default server response.
      */
     DEFAULT_RESPONSE("http_server_default_response", "Ok.\n",

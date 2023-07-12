@@ -1,3 +1,6 @@
+### New Features
+* Add support for customer socket factory [#1391](https://github.com/ClickHouse/clickhouse-java/issues/1391)
+
 ## 0.5.0
 ### Breaking Changes
 * ClickHouseByteBuffer can no longer be extended

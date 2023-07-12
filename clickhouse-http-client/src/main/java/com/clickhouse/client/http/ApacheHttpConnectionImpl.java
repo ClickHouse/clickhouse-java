@@ -1,7 +1,6 @@
 package com.clickhouse.client.http;
 
 import com.clickhouse.client.AbstractSocketClient;
-
 import com.clickhouse.client.ClickHouseClient;
 import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseNode;
@@ -42,6 +41,9 @@ import org.apache.hc.core5.ssl.SSLContexts;
 import org.apache.hc.core5.util.Timeout;
 import org.apache.hc.core5.util.VersionInfo;
 
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLException;
+
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -61,9 +63,6 @@ import java.util.TimeZone;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLException;
-
 /**
  * Created by wujianchao on 2022/12/1.
  */
@@ -80,10 +79,26 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
     }
 
     private CloseableHttpClient newConnection(ClickHouseConfig c) throws IOException {
+        String customHttpSocketFactoryClassName = c.getStrOption(ClickHouseHttpOption.CUSTOM_SOCKET_FACTORY);
+        PlainConnectionSocketFactory httpSocketFactory;
+        if (customHttpSocketFactoryClassName.isEmpty()) {
+            httpSocketFactory = SocketFactory.create(c);
+        }
+        else {
+            httpSocketFactory = Utils.getInstance(PlainConnectionSocketFactory.class, customHttpSocketFactoryClassName, new Class[]{ClickHouseConfig.class}, new Object[]{c});
+        }
         RegistryBuilder<ConnectionSocketFactory> r = RegistryBuilder.<ConnectionSocketFactory>create()
-                .register("http", SocketFactory.create(c));
+                .register("http", httpSocketFactory);
         if (c.isSsl()) {
-            r.register("https", SSLSocketFactory.create(c));
+            String customHttpsSocketFactoryClassName = c.getStrOption(ClickHouseHttpOption.CUSTOM_SECURE_SOCKET_FACTORY);
+            SSLConnectionSocketFactory httpsSocketFactory;
+            if(customHttpsSocketFactoryClassName.isEmpty()) {
+                httpsSocketFactory = SSLSocketFactory.create(c);
+            }
+            else {
+                httpsSocketFactory = Utils.getInstance(SSLConnectionSocketFactory.class, customHttpsSocketFactoryClassName, new Class[]{ClickHouseConfig.class}, new Object[]{c});
+            }
+            r.register("https", httpsSocketFactory);
         }
 
         HttpConnectionManager connManager = new HttpConnectionManager(r.build(), c);
