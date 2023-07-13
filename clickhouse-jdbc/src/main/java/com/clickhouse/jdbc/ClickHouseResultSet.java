@@ -42,7 +42,7 @@ public class ClickHouseResultSet extends AbstractResultSet {
     private Iterator<ClickHouseRecord> rowCursor;
     private int rowNumber;
     private int lastReadColumn; // 1-based
-    private final Map<String, Integer> columnIndexCache = Collections.synchronizedMap(new HashMap<>());
+    private Map<String, Integer> columnIndexCache;
 
     protected final String database;
     protected final String table;
@@ -208,6 +208,9 @@ public class ClickHouseResultSet extends AbstractResultSet {
 
         if (columnLabel == null || columnLabel.isEmpty()) {
             throw SqlExceptionUtils.clientError("Non-empty column label is required");
+        }
+        if (columnIndexCache == null) {
+            columnIndexCache = Collections.synchronizedMap(new HashMap<>(columns.size()));
         }
 
         Integer index = columnIndexCache.get(columnLabel);
