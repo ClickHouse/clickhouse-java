@@ -219,7 +219,7 @@ jobs:
           EOF
       - name: Test Java client
         run: |
-          mvn --also-make --batch-mode --projects clickhouse-cli-client,clickhouse-grpc-client,clickhouse-http-client -DclickhouseVersion=${{ matrix.clickhouse }} verify
+          mvn --also-make --batch-mode --projects clickhouse-cli-client,clickhouse-http-client -DclickhouseVersion=${{ matrix.clickhouse }} verify
       - name: Upload test results
         uses: actions/upload-artifact@v2
         if: failure()
@@ -236,7 +236,7 @@ jobs:
       matrix:
         clickhouse: ["22.3", "22.8", "23.3", "latest"]
         # here http, http_client and apache_http_client represent different value of http_connection_provider
-        protocol: ["http", "http_client", "apache_http_client", "grpc"]
+        protocol: ["http", "http_client", "apache_http_client"]
       fail-fast: false
     timeout-minutes: 15
     name: JDBC driver + CH ${{ matrix.clickhouse }} (${{ matrix.protocol }})
@@ -275,7 +275,7 @@ jobs:
           </toolchains>
           EOF
       - name: Install Java client
-        run: mvn --also-make --batch-mode --projects clickhouse-cli-client,clickhouse-grpc-client,clickhouse-http-client -DskipTests install
+        run: mvn --also-make --batch-mode --projects clickhouse-cli-client,clickhouse-http-client -DskipTests install
       - name: Test JDBC driver
         run: |
           mvn --batch-mode --projects clickhouse-jdbc -DclickhouseVersion=${{ matrix.clickhouse }} -Dprotocol=${{ matrix.protocol }} verify
@@ -294,7 +294,7 @@ jobs:
     strategy:
       matrix:
         clickhouse: ["22.3", "22.8", "23.3", "latest"]
-        # grpc is not fully supported, and http_client and apache_http_client do not work in CI environment(due to limited threads?)
+        # http_client and apache_http_client do not work in CI environment(due to limited threads?)
         protocol: ["http"]
         r2dbc: ["1.0.0.RELEASE", "0.9.1.RELEASE"]
       fail-fast: false
@@ -388,7 +388,7 @@ jobs:
           java-version: 8
           cache: "maven"
       - name: Install Java client
-        run: mvn --also-make --batch-mode --projects clickhouse-cli-client,clickhouse-grpc-client,clickhouse-http-client -Dj8 -DskipTests install
+        run: mvn --also-make --batch-mode --projects clickhouse-cli-client,clickhouse-http-client -Dj8 -DskipTests install
       - name: Test JDBC and R2DBC drivers
         run: |
           mvn --batch-mode --projects clickhouse-jdbc,clickhouse-r2dbc -DclickhouseVersion=$PREFERRED_LTS_VERSION \

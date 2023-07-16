@@ -21,7 +21,6 @@ import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.config.ClickHouseClientOption;
-import com.clickhouse.client.grpc.config.ClickHouseGrpcOption;
 import com.clickhouse.data.ClickHouseCompression;
 import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.data.ClickHouseRecord;
@@ -54,29 +53,16 @@ public class ClientState extends BaseState {
         String bufferSize = System.getProperty("bufferSize");
         String compression = System.getProperty("compression");
         String threads = System.getProperty("threads");
-        String window = System.getProperty("window");
 
         ClickHouseClientBuilder builder = ClickHouseClient.builder();
         if (bufferSize != null && !bufferSize.isEmpty()) {
             builder.option(ClickHouseClientOption.BUFFER_SIZE, Integer.parseInt(bufferSize));
         }
-        if (compression != null && !compression.isEmpty()) {
-            // builder.option(ClickHouseClientOption.COMPRESSION,
-            // compression.toUpperCase());
-            if (ClickHouseCompression.NONE.name().equalsIgnoreCase(compression)) {
-                builder.option(ClickHouseGrpcOption.USE_FULL_STREAM_DECOMPRESSION, true);
-            }
-        }
         if (threads != null && !threads.isEmpty()) {
             builder.option(ClickHouseClientOption.MAX_THREADS_PER_CLIENT, Integer.parseInt(threads));
         }
 
-        if (window != null && !window.isEmpty()) {
-            builder.option(ClickHouseGrpcOption.FLOW_CONTROL_WINDOW, Integer.parseInt(window));
-        }
-
-        return builder.option(ClickHouseClientOption.ASYNC, "async".equals(mode))
-                .option(ClickHouseGrpcOption.USE_OKHTTP, "okhttp".equals(transport)).build();
+        return builder.option(ClickHouseClientOption.ASYNC, "async".equals(mode)).build();
     }
 
     @Setup(Level.Trial)

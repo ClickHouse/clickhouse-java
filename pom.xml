@@ -43,7 +43,6 @@
         <!-- client -->
         <module>clickhouse-client</module>
         <module>clickhouse-cli-client</module>
-        <module>clickhouse-grpc-client</module>
         <module>clickhouse-http-client</module>
         <!-- driver -->
         <module>clickhouse-jdbc</module>
@@ -100,10 +99,8 @@
         <compress.version>1.23.0</compress.version>
         <dnsjava.version>3.5.2</dnsjava.version>
         <fastutil.version>8.5.12</fastutil.version>
-        <grpc.version>1.54.1</grpc.version>
         <gson.version>2.10.1</gson.version>
         <jctools.version>4.0.1</jctools.version>
-        <opencensus.version>0.31.1</opencensus.version>
         <protobuf.version>3.22.3</protobuf.version>
         <lz4.version>1.8.0</lz4.version>
         <msgpack.version>0.9.3</msgpack.version>
@@ -139,7 +136,6 @@
         <jar-plugin.version>3.3.0</jar-plugin.version>
         <javadoc-plugin.version>3.5.0</javadoc-plugin.version>
         <native-plugin.version>0.9.20</native-plugin.version>
-        <os-plugin.version>1.7.1</os-plugin.version>
         <protobuf-plugin.version>0.6.1</protobuf-plugin.version>
         <shade-plugin.version>3.4.1</shade-plugin.version>
         <source-plugin.version>3.2.1</source-plugin.version>
@@ -166,11 +162,6 @@
             <dependency>
                 <groupId>${project.groupId}</groupId>
                 <artifactId>com.javacc</artifactId>
-                <version>${repackaged.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>${project.groupId}</groupId>
-                <artifactId>io.grpc</artifactId>
                 <version>${repackaged.version}</version>
             </dependency>
             <dependency>
@@ -228,58 +219,6 @@
                 <groupId>dnsjava</groupId>
                 <artifactId>dnsjava</artifactId>
                 <version>${dnsjava.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>io.grpc</groupId>
-                <artifactId>grpc-api</artifactId>
-                <version>${grpc.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>io.grpc</groupId>
-                <artifactId>grpc-core</artifactId>
-                <version>${grpc.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>io.grpc</groupId>
-                <artifactId>grpc-context</artifactId>
-                <version>${grpc.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>io.grpc</groupId>
-                <artifactId>grpc-netty-shaded</artifactId>
-                <version>${grpc.version}</version>
-            </dependency>
-            <!-- separate classifier did not work well with flatten plugin -->
-            <dependency>
-                <groupId>io.grpc</groupId>
-                <artifactId>grpc-okhttp</artifactId>
-                <version>${grpc.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>io.grpc</groupId>
-                <!-- grpc-protobuf-lite is not compatible with v3 -->
-                <artifactId>grpc-protobuf</artifactId>
-                <version>${grpc.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>io.grpc</groupId>
-                <artifactId>grpc-stub</artifactId>
-                <version>${grpc.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>io.opencensus</groupId>
-                <artifactId>opencensus-api</artifactId>
-                <version>${opencensus.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>io.opencensus</groupId>
-                <artifactId>opencensus-impl</artifactId>
-                <version>${opencensus.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>io.opencensus</groupId>
-                <artifactId>opencensus-contrib-grpc-metrics</artifactId>
-                <version>${opencensus.version}</version>
             </dependency>
             <dependency>
                 <groupId>it.unimi.dsi</groupId>
@@ -439,11 +378,6 @@
         <pluginManagement>
             <plugins>
                 <plugin>
-                    <groupId>kr.motd.maven</groupId>
-                    <artifactId>os-maven-plugin</artifactId>
-                    <version>${os-plugin.version}</version>
-                </plugin>
-                <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-antrun-plugin</artifactId>
                     <version>${antrun-plugin.version}</version>
@@ -588,24 +522,6 @@
                     <groupId>org.sonatype.plugins</groupId>
                     <artifactId>nexus-staging-maven-plugin</artifactId>
                     <version>${staging-plugin.version}</version>
-                </plugin>
-                <plugin>
-                    <groupId>org.xolstice.maven.plugins</groupId>
-                    <artifactId>protobuf-maven-plugin</artifactId>
-                    <version>${protobuf-plugin.version}</version>
-                    <configuration>
-                        <protocArtifact>com.google.protobuf:protoc:${protobuf.version}:exe:${os.detected.classifier}</protocArtifact>
-                        <pluginId>grpc-java</pluginId>
-                        <pluginArtifact>io.grpc:protoc-gen-grpc-java:${grpc.version}:exe:${os.detected.classifier}</pluginArtifact>
-                    </configuration>
-                    <executions>
-                        <execution>
-                            <goals>
-                                <goal>compile</goal>
-                                <goal>compile-custom</goal>
-                            </goals>
-                        </execution>
-                    </executions>
                 </plugin>
                 <plugin>
                     <groupId>io.github.git-commit-id</groupId>

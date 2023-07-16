@@ -6,14 +6,6 @@
     <mysql_port>9004</mysql_port>
     <postgresql_port>9005</postgresql_port>
     <interserver_http_port>9009</interserver_http_port>
-    <grpc_port>9100</grpc_port>
-    <!-- grpc>
-        <enable_ssl>true</enable_ssl>
-        <ssl_cert_file>/etc/clickhouse-server/certs/server.crt</ssl_cert_file>
-        <ssl_key_file>/etc/clickhouse-server/certs/server.key</ssl_key_file>
-        <ssl_require_client_auth>false</ssl_require_client_auth>
-        <ssl_ca_cert_file>/etc/clickhouse-server/certs/myCA.crt</ssl_ca_cert_file>
-    </grpc -->
     <kerberos />
     <openSSL>
         <server>

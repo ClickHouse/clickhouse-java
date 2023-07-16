@@ -3,6 +3,7 @@
 * ClickHouseByteBuffer can no longer be extended
 * rename ClickHouseByteUtils methods by removing LE suffix
 * change default databaseTerm from schema to catalog
+* dropped experimental `clickhouse-grpc-client`
 
 ### New Features
 * Adding new proxy support [#1338](https://github.com/ClickHouse/clickhouse-java/issues/1338)

@@ -9,7 +9,6 @@ public class Constants {
     public static final String DEFAULT_USER = "default";
     public static final String DEFAULT_PASSWD = "";
 
-    public static final int GRPC_PORT = 9100;
     public static final int HTTP_PORT = 8123;
     public static final int MYSQL_PORT = 9004;
     public static final int NATIVE_PORT = 9000;
