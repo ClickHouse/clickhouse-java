@@ -78,7 +78,6 @@
             <groupId>com.clickhouse</groupId>
             <!--
                 change to clickhouse-cli-client for TCP
-                or clickhouse-grpc-client for gRPC
             -->
             <artifactId>clickhouse-http-client</artifactId>
             <version>${clickhouse-java.version}</version>
