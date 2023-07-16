@@ -393,8 +393,8 @@ public class ClickHouseNodeTest extends BaseIntegrationTest {
     @Test(groups = { "integration" })
     public void testProbe() {
         // FIXME does not support ClickHouseProtocol.POSTGRESQL for now
-        ClickHouseProtocol[] protocols = new ClickHouseProtocol[] { ClickHouseProtocol.GRPC,
-                ClickHouseProtocol.HTTP, ClickHouseProtocol.MYSQL, ClickHouseProtocol.TCP };
+        ClickHouseProtocol[] protocols = new ClickHouseProtocol[] { ClickHouseProtocol.HTTP, ClickHouseProtocol.MYSQL,
+                ClickHouseProtocol.TCP };
         ClickHouseVersion serverVersion = ClickHouseVersion
                 .of(System.getProperty("clickhouseVersion", "latest"));
         for (ClickHouseProtocol p : protocols) {

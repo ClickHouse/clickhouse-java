@@ -2,7 +2,7 @@
 
 This is a thin wrapper of ClickHouse native command-line client. It provides an alternative way to communicate with ClickHouse, which might be of use when you prefer:
 
-- TCP/native protocol over HTTP or gRPC
+- TCP/native protocol over HTTP
 - native CLI client instead of pure Java implementation
 - an example of implementing SPI defined in `clickhouse-client` module
 

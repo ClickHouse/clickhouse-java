@@ -19,8 +19,8 @@ import com.clickhouse.benchmark.ServerState;
 
 @State(Scope.Thread)
 public class DriverState extends BaseState {
-    @Param(value = { "clickhouse-jdbc", "clickhouse-grpc-jdbc", "clickhouse-legacy-jdbc", "clickhouse4j",
-            "clickhouse-native-jdbc", "mariadb-java-client", "mysql-connector-java", "postgresql-jdbc" })
+    @Param(value = { "clickhouse-jdbc", "clickhouse-legacy-jdbc", "clickhouse4j", "clickhouse-native-jdbc",
+            "mariadb-java-client", "mysql-connector-java", "postgresql-jdbc" })
     private String client;
 
     @Param(value = { Constants.REUSE_CONNECTION, Constants.NEW_CONNECTION })

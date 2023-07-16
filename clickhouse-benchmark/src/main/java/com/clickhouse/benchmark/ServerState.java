@@ -81,12 +81,10 @@ public class ServerState {
                         + "<tcp_port>9000</tcp_port><mysql_port>9004</mysql_port>"
                         + "<postgresql_port>9005</postgresql_port>"
                         + "<interserver_http_port>9009</interserver_http_port>"
-                        + "<grpc_port>9100</grpc_port></clickhouse>' > /etc/clickhouse-server/config.d/custom.xml")))
-                                .withExposedPorts(Constants.GRPC_PORT, Constants.HTTP_PORT, Constants.MYSQL_PORT,
-
-                                        Constants.NATIVE_PORT)
-                                .waitingFor(Wait.forHttp("/ping").forPort(Constants.HTTP_PORT).forStatusCode(200)
-                                        .withStartupTimeout(Duration.of(60, SECONDS)));
+                        + "</clickhouse>' > /etc/clickhouse-server/config.d/custom.xml")))
+                .withExposedPorts(Constants.HTTP_PORT, Constants.MYSQL_PORT, Constants.NATIVE_PORT)
+                .waitingFor(Wait.forHttp("/ping").forPort(Constants.HTTP_PORT).forStatusCode(200)
+                        .withStartupTimeout(Duration.of(60, SECONDS)));
 
         container.start();
     }
