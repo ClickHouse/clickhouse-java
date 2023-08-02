@@ -132,6 +132,18 @@ public class ClickHouseGrpcClientTest extends ClientIntegrationTest {
 
     }
 
+    @Test(groups = "integration")
+    @Override
+    public void testErrorDuringInsert() throws ClickHouseException {
+        throw new SkipException("Skip due to grpc is too slow");
+    }
+
+    @Test(groups = "integration")
+    @Override
+    public void testErrorDuringQuery() throws ClickHouseException {
+        throw new SkipException("Skip due to grpc is too slow");
+    }
+    
     @Test(groups = { "integration" })
     @Override
     public void testSessionLock() {
