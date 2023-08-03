@@ -347,22 +347,40 @@ public class CombinedResultSet extends AbstractResultSet {
 
     @Override
     public boolean isBeforeFirst() throws SQLException {
-        return nextIndex == 1 && current().isBeforeFirst();
+        return rowNumber == 0 && current().isBeforeFirst();
     }
 
     @Override
     public boolean isAfterLast() throws SQLException {
-        return nextIndex >= results.length && current().isAfterLast();
+        if (nextIndex >= results.length) {
+            return current().isAfterLast();
+        } else {
+            ResultSet rs = current();
+            boolean isAfterLast = false;
+            while ((isAfterLast = rs.isAfterLast()) && next()) {
+                rs = current();
+            }
+            return isAfterLast;
+        }
     }
 
     @Override
     public boolean isFirst() throws SQLException {
-        return nextIndex == 1 && current().isFirst();
+        return rowNumber == 1 && current().isFirst();
     }
 
     @Override
     public boolean isLast() throws SQLException {
-        return (nextIndex >= results.length) && current().isLast();
+        if (nextIndex >= results.length) {
+            return current().isLast();
+        } else {
+            ResultSet rs = current();
+            boolean isLast = false;
+            while ((isLast = rs.isLast()) && next()) {
+                rs = current();
+            }
+            return isLast;
+        }
     }
 
     @Override
