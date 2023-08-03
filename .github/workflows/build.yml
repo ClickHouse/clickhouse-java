@@ -54,7 +54,7 @@ jobs:
           java-version: 8
           cache: "maven"
       - name: Build and install libraries
-        run: mvn --batch-mode --show-version --strict-checksums --threads 2 -Dmaven.wagon.rto=30000 -Dj8 install
+        run: mvn --batch-mode --show-version --strict-checksums --threads 2 -Dmaven.wagon.rto=30000 -DclickhouseVersion=$PREFERRED_LTS_VERSION -Dj8 install
       - name: Compile examples
         run: |
           export LIB_VER=$(grep '<revision>' pom.xml | sed -e 's|[[:space:]]*<[/]*revision>[[:space:]]*||g')

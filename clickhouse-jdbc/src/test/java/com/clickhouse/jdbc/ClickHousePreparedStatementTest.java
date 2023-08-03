@@ -702,7 +702,7 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
                 throw new SkipException("Skip due to error 'unknown key zookeeper_load_balancing'");
             }
             try (PreparedStatement stmt = conn.prepareStatement(
-                    "drop table if exists test_batch_dll_on_cluster on cluster test_shard_localhost")) {
+                    "drop table if exists test_batch_dll_on_cluster on cluster single_node_cluster_localhost")) {
                 stmt.addBatch();
                 stmt.addBatch();
                 Assert.assertEquals(stmt.executeBatch(), new int[] { 0, 0 });

@@ -77,10 +77,10 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
                 throw new SkipException("Skip due to error 'unknown key zookeeper_load_balancing'");
             }
 
-            stmt.addBatch("drop table if exists test_batch_dll_on_cluster on cluster test_shard_localhost");
+            stmt.addBatch("drop table if exists test_batch_dll_on_cluster on cluster single_node_cluster_localhost");
             stmt.addBatch(
-                    "create table if not exists test_batch_dll_on_cluster on cluster test_shard_localhost(a Int64) Engine=MergeTree order by a;"
-                            + "drop table if exists test_batch_dll_on_cluster on cluster test_shard_localhost;");
+                    "create table if not exists test_batch_dll_on_cluster on cluster single_node_cluster_localhost(a Int64) Engine=MergeTree order by a;"
+                            + "drop table if exists test_batch_dll_on_cluster on cluster single_node_cluster_localhost;");
             Assert.assertEquals(stmt.executeBatch(), new int[] { 0, 0, 0 });
 
             stmt.addBatch("drop table if exists test_batch_queries");
@@ -1190,7 +1190,7 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
                 ClickHouseStatement stmt = conn.createStatement();
                 ResultSet rs = stmt
                         .executeQuery(
-                                "select 1 id, [['1','2'],['3', '4']] v union all select 2 id, [['5','6'],['7','8']] v order by id")) {
+                                "select * from (select 1 id, [['1','2'],['3', '4']] v union all select 2 id, [['5','6'],['7','8']] v) order by id")) {
             Assert.assertTrue(rs.next());
             Assert.assertEquals(rs.getInt(1), 1);
             Assert.assertEquals(rs.getObject(2), arr1 = (Object[][]) rs.getArray(2).getArray());
