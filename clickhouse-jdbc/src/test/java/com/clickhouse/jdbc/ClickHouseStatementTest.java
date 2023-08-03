@@ -1190,7 +1190,7 @@ public class ClickHouseStatementTest extends JdbcIntegrationTest {
                 ClickHouseStatement stmt = conn.createStatement();
                 ResultSet rs = stmt
                         .executeQuery(
-                                "select 1 id, [['1','2'],['3', '4']] v union all select 2 id, [['5','6'],['7','8']] v order by id")) {
+                                "select * from (select 1 id, [['1','2'],['3', '4']] v union all select 2 id, [['5','6'],['7','8']] v) order by id")) {
             Assert.assertTrue(rs.next());
             Assert.assertEquals(rs.getInt(1), 1);
             Assert.assertEquals(rs.getObject(2), arr1 = (Object[][]) rs.getArray(2).getArray());
