@@ -7,7 +7,8 @@ module com.clickhouse.client.grpc {
 
     requires transitive com.clickhouse.client;
     requires transitive com.google.gson;
-    requires transitive com.google.protobuf;
+    //requires transitive com.google.protobuf;
+    //requires transitive protobuf.java;
     requires transitive io.grpc;
     // requires transitive grpc.core;
     // requires transitive grpc.protobuf;

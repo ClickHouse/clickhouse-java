@@ -94,8 +94,8 @@ public class Main {
         ClickHouseNode server = ClickHouseNode.builder()
                 .host(System.getProperty("chHost", "localhost"))
                 .port(ClickHouseProtocol.HTTP, Integer.getInteger("chPort", 8123))
-                // .port(ClickHouseProtocol.GRPC, Integer.getInteger("chPort", 9000))
-                // .port(ClickHouseProtocol.TCP, Integer.getInteger("chPort", 9100))
+                // .port(ClickHouseProtocol.GRPC, Integer.getInteger("chPort", 9100))
+                // .port(ClickHouseProtocol.TCP, Integer.getInteger("chPort", 9000))
                 .database("system").credentials(ClickHouseCredentials.fromUserAndPassword(
                         System.getProperty("chUser", "default"), System.getProperty("chPassword", "")))
                 .build();
