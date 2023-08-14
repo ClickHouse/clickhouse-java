@@ -185,7 +185,9 @@ public class ClickHouseConfig implements ClickHouseDataConfig {
     // common options optimized for read
     private final boolean async;
     private final boolean autoDiscovery;
-    private final Map<String, String> customSettings; // serializable
+    private final Map<String, String> customSettings;
+    private final String customSocketFactory;
+    private final Map<String, String> customSocketFactoryOptions;
     private final String clientName;
     private final boolean compressRequest;
     private final ClickHouseCompression compressAlgorithm;
@@ -295,6 +297,9 @@ public class ClickHouseConfig implements ClickHouseDataConfig {
         this.async = (boolean) getOption(ClickHouseClientOption.ASYNC, ClickHouseDefaults.ASYNC);
         this.autoDiscovery = getBoolOption(ClickHouseClientOption.AUTO_DISCOVERY);
         this.customSettings = ClickHouseOption.toKeyValuePairs(getStrOption(ClickHouseClientOption.CUSTOM_SETTINGS));
+        this.customSocketFactory = getStrOption(ClickHouseClientOption.CUSTOM_SOCKET_FACTORY);
+        this.customSocketFactoryOptions = ClickHouseOption
+                .toKeyValuePairs(getStrOption(ClickHouseClientOption.CUSTOM_SOCKET_FACTORY_OPTIONS));
         this.clientName = getStrOption(ClickHouseClientOption.CLIENT_NAME);
         this.compressRequest = getBoolOption(ClickHouseClientOption.DECOMPRESS);
         this.compressAlgorithm = getOption(ClickHouseClientOption.DECOMPRESS_ALGORITHM, ClickHouseCompression.class);
@@ -384,6 +389,14 @@ public class ClickHouseConfig implements ClickHouseDataConfig {
 
     public Map<String, String> getCustomSettings() {
         return customSettings;
+    }
+
+    public String getCustomSocketFactory() {
+        return customSocketFactory;
+    }
+
+    public Map<String, String> getCustomSocketFactoryOptions() {
+        return customSocketFactoryOptions;
     }
 
     public String getClientName() {

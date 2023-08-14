@@ -31,7 +31,18 @@ public enum ClickHouseClientOption implements ClickHouseOption {
     /**
      * Custom server settings for all queries.
      */
-    CUSTOM_SETTINGS("custom_settings", "", "Custom server settings for all queries."),
+    CUSTOM_SETTINGS("custom_settings", "", "Comma separated custom server settings for all queries."),
+    /**
+     * Custom socket factory.
+     */
+    CUSTOM_SOCKET_FACTORY("custom_socket_factory", "",
+            "Full qualified class name of custom socket factory. This is only supported by TCP client and Apache Http Client."),
+    /**
+     * Additional socket factory options. Only useful only when
+     * {@link #CUSTOM_SOCKET_FACTORY} is set.
+     */
+    CUSTOM_SOCKET_FACTORY_OPTIONS("custom_socket_factory_options", "",
+            "Comma separated options for custom socket factory."),
     /**
      * Load balancing policy.
      */

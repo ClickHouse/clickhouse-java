@@ -8,6 +8,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
+import java.lang.reflect.InvocationTargetException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.URLDecoder;
@@ -294,6 +295,32 @@ public final class ClickHouseUtils {
             }
         }
         return params;
+    }
+
+    public static <T> T newInstance(String className, Class<T> returnType, Class<?> callerClass) {
+        if (className == null || className.isEmpty() || returnType == null) {
+            throw new IllegalArgumentException("Non-empty class name and return type are required");
+        } else if (callerClass == null) {
+            callerClass = returnType;
+        }
+
+        try {
+            Class<?> clazz = Class.forName(className, false, callerClass.getClassLoader());
+            if (!returnType.isAssignableFrom(clazz)) {
+                throw new IllegalArgumentException(
+                        format("Invalid %s class type. Input class should be a superclass of %s.", className,
+                                returnType));
+            }
+
+            return returnType.cast(clazz.getConstructor().newInstance());
+        } catch (ClassNotFoundException e) {
+            throw new IllegalArgumentException(format("Class %s is not found in the classpath.", className));
+        } catch (IllegalAccessException | NoSuchMethodException e) {
+            throw new IllegalArgumentException(
+                    format("Class %s does not have a public constructor without any argument.", className));
+        } catch (InstantiationException | InvocationTargetException e) {
+            throw new IllegalArgumentException(format("Error while creating an %s class instance.", className), e);
+        }
     }
 
     /**
