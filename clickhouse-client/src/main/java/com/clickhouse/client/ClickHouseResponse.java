@@ -191,7 +191,7 @@ public interface ClickHouseResponse extends AutoCloseable, Serializable {
     void close();
 
     /**
-     * Checks whether the reponse has been closed or not.
+     * Checks whether the response has been closed or not.
      *
      * @return true if the response has been closed; false otherwise
      */

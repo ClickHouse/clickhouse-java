@@ -1581,7 +1581,7 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
     }
 
     /**
-     * Sets parameterized query and optinally query id.
+     * Sets parameterized query and optionally query id.
      *
      * @param query   non-null parameterized query
      * @param queryId query id, null means no query id
@@ -1603,7 +1603,7 @@ public class ClickHouseRequest<SelfT extends ClickHouseRequest<SelfT>> implement
     }
 
     /**
-     * Sets query and optinally query id.
+     * Sets query and optionally query id.
      *
      * @param query   non-empty query
      * @param queryId query id, null means no query id
