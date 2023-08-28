@@ -193,9 +193,6 @@ public abstract class ClickHouseGrpcChannelFactory {
             builder.enableFullStreamDecompression();
         }
 
-        if (config.isUseNoProxy()) {
-            builder.proxyDetector(NoProxyDetector.INSTANCE);
-        }
         // TODO add interceptor to customize retry
         builder.maxInboundMessageSize(config.getIntOption(ClickHouseGrpcOption.MAX_INBOUND_MESSAGE_SIZE))
                 .maxInboundMetadataSize(config.getIntOption(ClickHouseGrpcOption.MAX_INBOUND_METADATA_SIZE));

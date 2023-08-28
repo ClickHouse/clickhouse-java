@@ -97,7 +97,7 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
 
         HttpClientBuilder builder = HttpClientBuilder.create().setConnectionManager(connManager)
                 .disableContentCompression();
-        if (!c.isUseNoProxy() && c.getProxyType() == ClickHouseProxyType.HTTP) {
+        if (c.getProxyType() == ClickHouseProxyType.HTTP) {
             builder.setProxy(new HttpHost(c.getProxyHost(), c.getProxyPort()));
         }
         return builder.build();
@@ -377,7 +377,7 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
             if (config.hasOption(ClickHouseClientOption.SOCKET_TCP_NODELAY)) {
                 builder.setTcpNoDelay(config.getBoolOption(ClickHouseClientOption.SOCKET_TCP_NODELAY));
             }
-            if (!config.isUseNoProxy() && config.getProxyType() == ClickHouseProxyType.SOCKS) {
+            if (config.getProxyType() == ClickHouseProxyType.SOCKS) {
                 builder.setSocksProxyAddress(new InetSocketAddress(config.getProxyHost(), config.getProxyPort()));
             }
             setDefaultSocketConfig(builder.build());

@@ -378,16 +378,6 @@ public enum ClickHouseClientOption implements ClickHouseOption {
     USE_OBJECTS_IN_ARRAYS("use_objects_in_arrays", ClickHouseDataConfig.DEFAULT_USE_OBJECT_IN_ARRAY,
             "Whether Object[] should be used instead of primitive arrays."),
     /**
-     * Whether to access ClickHouse server directly without using system wide proxy
-     * including the one defined in JVM system properties.
-     * 
-     * @deprecated will be dropped in 0.5, please use {@link #PROXY_TYPE} instead
-     */
-    @Deprecated
-    USE_NO_PROXY("use_no_proxy", false,
-            "Whether to access ClickHouse server directly without using system wide proxy including the one defined in JVM system properties."),
-
-    /**
      * Type of proxy can be used to access ClickHouse server. To use an HTTP/SOCKS
      * proxy, you must specify the {@link #PROXY_HOST} and {@link #PROXY_PORT}.
      */
