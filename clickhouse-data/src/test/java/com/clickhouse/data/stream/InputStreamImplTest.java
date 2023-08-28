@@ -373,7 +373,7 @@ public class InputStreamImplTest {
         }
         Assert.assertEquals(in.available(), 0);
         Assert.assertEquals(in.read(), -1);
-        Assert.assertFalse(in.isClosed(), "Should be still openning");
+        Assert.assertFalse(in.isClosed(), "Should be still opening");
         in.close();
         Assert.assertTrue(in.isClosed(), "Should have been closed");
     }
@@ -385,7 +385,7 @@ public class InputStreamImplTest {
         Assert.assertEquals(in.read(bytes, 1, 6), 6);
         Assert.assertEquals(new String(bytes, 1, 6), "efghip");
         Assert.assertEquals(in.read(bytes), -1);
-        Assert.assertFalse(in.isClosed(), "Should be still openning");
+        Assert.assertFalse(in.isClosed(), "Should be still opening");
         in.close();
         Assert.assertTrue(in.isClosed(), "Should have been closed");
     }
@@ -398,7 +398,7 @@ public class InputStreamImplTest {
             builder.append((char) in.readByte());
         }
         Assert.assertEquals(builder.toString(), "efghip");
-        Assert.assertFalse(in.isClosed(), "Should be still openning");
+        Assert.assertFalse(in.isClosed(), "Should be still opening");
         Assert.assertThrows(EOFException.class, () -> in.readByte());
         Assert.assertTrue(in.isClosed(), "Should have been closed");
     }
@@ -409,7 +409,7 @@ public class InputStreamImplTest {
         Assert.assertEquals(new String(in.readBytes(2)), "ef");
         Assert.assertEquals(new String(in.readBytes(1)), "g");
         Assert.assertEquals(new String(in.readBytes(3)), "hip");
-        Assert.assertFalse(in.isClosed(), "Should be still openning");
+        Assert.assertFalse(in.isClosed(), "Should be still opening");
         Assert.assertThrows(EOFException.class, () -> in.readBytes(1));
         Assert.assertTrue(in.isClosed(), "Should have been closed");
     }
@@ -418,7 +418,7 @@ public class InputStreamImplTest {
     public void testReadBytesAllFromInputStream(ClickHouseInputStream in) throws IOException {
         Assert.assertFalse(in.isClosed(), "Should be openned for read by default");
         Assert.assertEquals(new String(in.readBytes(6)), "efghip");
-        Assert.assertFalse(in.isClosed(), "Should be still openning");
+        Assert.assertFalse(in.isClosed(), "Should be still opening");
         Assert.assertThrows(EOFException.class, () -> in.readBytes(1));
         Assert.assertTrue(in.isClosed(), "Should have been closed");
     }
@@ -429,7 +429,7 @@ public class InputStreamImplTest {
         Assert.assertEquals(in.readBuffer(3).asUnicodeString(), "efg");
         Assert.assertEquals(in.readBuffer(2).asUnicodeString(), "hi");
         Assert.assertEquals(in.readBuffer(1).asUnicodeString(), "p");
-        Assert.assertFalse(in.isClosed(), "Should be still openning");
+        Assert.assertFalse(in.isClosed(), "Should be still opening");
         Assert.assertThrows(EOFException.class, () -> in.readBuffer(1));
         Assert.assertTrue(in.isClosed(), "Should have been closed");
     }
@@ -440,9 +440,9 @@ public class InputStreamImplTest {
         Assert.assertEquals(in.readBufferUntil(new byte[] { 'f', 'g' }).asUnicodeString(), "efg");
         Assert.assertEquals(in.readBufferUntil(new byte[] { 'i' }).asUnicodeString(), "hi");
         Assert.assertEquals(in.readBufferUntil(new byte[] { 'p' }).asUnicodeString(), "p");
-        Assert.assertFalse(in.isClosed(), "Should be still openning");
+        Assert.assertFalse(in.isClosed(), "Should be still opening");
         Assert.assertTrue(in.readBufferUntil(new byte[0]).isEmpty(), "Should got nothing");
-        Assert.assertFalse(in.isClosed(), "Should be still openning");
+        Assert.assertFalse(in.isClosed(), "Should be still opening");
         Assert.assertTrue(in.readBufferUntil(new byte[1]).isEmpty(), "Should got nothing");
         Assert.assertTrue(in.isClosed(), "Should have been closed");
     }
@@ -503,7 +503,7 @@ public class InputStreamImplTest {
         Assert.assertEquals(in.read(bytes, 6, 1), 1);
         Assert.assertEquals(bytes[6], 0x69);
         Assert.assertTrue(in.available() > 0, "Should have more to read");
-        Assert.assertFalse(in.isClosed(), "Should be still openning");
+        Assert.assertFalse(in.isClosed(), "Should be still opening");
         in.close();
         Assert.assertTrue(in.isClosed(), "Should have been closed");
     }
