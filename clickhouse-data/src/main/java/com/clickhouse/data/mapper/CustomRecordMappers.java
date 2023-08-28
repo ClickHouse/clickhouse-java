@@ -42,8 +42,8 @@ final class CustomRecordMappers {
                 return (T) method.invoke(null, r);
             } catch (IllegalAccessException | InvocationTargetException e) {
                 throw new IllegalArgumentException(
-                        ClickHouseUtils.format("Failed to create instance of [%s] using [%s]", clazz.getName(), method,
-                                e));
+                        ClickHouseUtils.format("Failed to create instance of [%s] using [%s]", clazz.getName(), method),
+                        e);
             }
         }
     }
