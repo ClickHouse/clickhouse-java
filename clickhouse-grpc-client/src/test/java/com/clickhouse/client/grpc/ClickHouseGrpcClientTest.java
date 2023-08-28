@@ -96,7 +96,7 @@ public class ClickHouseGrpcClientTest extends ClientIntegrationTest {
         ClickHouseNode server = getServer();
 
         try (ClickHouseClient client = getClient();
-                ClickHouseResponse resp = client.connect(server)
+                ClickHouseResponse resp = client.read(server)
                         .option(ClickHouseClientOption.READ_BUFFER_SIZE, 8)
                         .format(ClickHouseFormat.TabSeparatedWithNamesAndTypes)
                         .query("select number, number+1 from numbers(100)").executeAndWait()) {

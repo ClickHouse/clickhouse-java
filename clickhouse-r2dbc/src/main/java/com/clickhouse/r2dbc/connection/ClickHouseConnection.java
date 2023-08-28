@@ -93,7 +93,7 @@ public class ClickHouseConnection implements Connection {
      */
     @Override
     public Batch createBatch() {
-        ClickHouseRequest<?> req = client.connect(node).option(ClickHouseClientOption.PRODUCT_NAME, PRODUCT_NAME);
+        ClickHouseRequest<?> req = client.read(node).option(ClickHouseClientOption.PRODUCT_NAME, PRODUCT_NAME);
         if (isHttp()) {
             req = req.set("send_progress_in_http_headers", 1);
         }
@@ -113,7 +113,7 @@ public class ClickHouseConnection implements Connection {
 
     @Override
     public Statement createStatement(String sql) {
-        ClickHouseRequest<?> req = client.connect(node).option(ClickHouseClientOption.PRODUCT_NAME, PRODUCT_NAME);
+        ClickHouseRequest<?> req = client.read(node).option(ClickHouseClientOption.PRODUCT_NAME, PRODUCT_NAME);
         if (isHttp()) {
             req = req.set("send_progress_in_http_headers", 1);
         }

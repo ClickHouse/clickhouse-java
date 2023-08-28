@@ -44,7 +44,7 @@ public class ClickHouseHttpConnectionTest {
     @Test(groups = { "unit" })
     public void testBuildUrl() {
         ClickHouseNode server = ClickHouseNode.builder().port(ClickHouseProtocol.HTTP).build();
-        ClickHouseRequest<?> request = ClickHouseClient.newInstance().connect(server);
+        ClickHouseRequest<?> request = ClickHouseClient.newInstance().read(server);
         ClickHouseNode s = request.getServer();
         Assert.assertEquals(ClickHouseHttpConnection.buildUrl(server.getBaseUri(), request),
                 "http://localhost:8123/?compress=1&extremes=0");
@@ -98,7 +98,7 @@ public class ClickHouseHttpConnectionTest {
     @Test(groups = { "unit" })
     public void testDefaultHeaders() {
         ClickHouseNode server = ClickHouseNode.builder().build();
-        ClickHouseRequest<?> request = ClickHouseClient.newInstance().connect(server);
+        ClickHouseRequest<?> request = ClickHouseClient.newInstance().read(server);
         SimpleHttpConnection sc = new SimpleHttpConnection(server, request);
         Assert.assertTrue(!sc.defaultHeaders.isEmpty());
         Assert.assertEquals(sc.defaultHeaders, sc.mergeHeaders(null));
@@ -111,7 +111,7 @@ public class ClickHouseHttpConnectionTest {
     @Test(groups = { "unit" })
     public void testGetBaseUrl() {
         ClickHouseNode server = ClickHouseNode.of("https://localhost/db1");
-        ClickHouseRequest<?> request = ClickHouseClient.newInstance().connect(server);
+        ClickHouseRequest<?> request = ClickHouseClient.newInstance().read(server);
         Assert.assertEquals(ClickHouseHttpConnection.buildUrl(server.getBaseUri(), request),
                 "https://localhost:8443/?compress=1&extremes=0");
         try (SimpleHttpConnection c = new SimpleHttpConnection(server, request)) {
