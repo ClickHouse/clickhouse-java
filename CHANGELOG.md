@@ -3,6 +3,8 @@
 * ClickHouseByteBuffer can no longer be extended
 * rename ClickHouseByteUtils methods by removing LE suffix
 * change default databaseTerm from schema to catalog
+* remove deprecated API load, dump and connect
+* remove use_no_proxy settings
 
 ### New Features
 * Adding new proxy support [#1338](https://github.com/ClickHouse/clickhouse-java/issues/1338)
