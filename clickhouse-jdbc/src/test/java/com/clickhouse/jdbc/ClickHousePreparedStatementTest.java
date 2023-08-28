@@ -4,6 +4,7 @@ import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.net.MalformedURLException;
@@ -16,6 +17,7 @@ import java.sql.Date;
 import java.sql.ParameterMetaData;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Timestamp;
@@ -2002,6 +2004,53 @@ public class ClickHousePreparedStatementTest extends JdbcIntegrationTest {
                 Assert.assertTrue(rs.next());
                 Assert.assertFalse(rs.next());
             }
+        }
+    }
+
+    @Test(groups = "integration")
+    public void testGetMetaData() throws SQLException {
+        try (Connection conn = newConnection(new Properties());
+                PreparedStatement ps = conn.prepareStatement("select ? a, ? b")) {
+            ResultSetMetaData md = ps.getMetaData();
+            Assert.assertEquals(md.getColumnCount(), 2);
+            Assert.assertEquals(md.getColumnName(1), "a");
+            Assert.assertEquals(md.getColumnTypeName(1), "Nullable(Nothing)");
+            Assert.assertEquals(md.getColumnName(2), "b");
+            Assert.assertEquals(md.getColumnTypeName(2), "Nullable(Nothing)");
+
+            ps.setString(1, "x");
+            md = ps.getMetaData();
+            Assert.assertEquals(md.getColumnCount(), 2);
+            Assert.assertEquals(md.getColumnName(1), "a");
+            Assert.assertEquals(md.getColumnTypeName(1), "String");
+            Assert.assertEquals(md.getColumnName(2), "b");
+            Assert.assertEquals(md.getColumnTypeName(2), "Nullable(Nothing)");
+
+            ps.setObject(2, new BigInteger("12345"));
+            md = ps.getMetaData();
+            Assert.assertEquals(md.getColumnCount(), 2);
+            Assert.assertEquals(md.getColumnName(1), "a");
+            Assert.assertEquals(md.getColumnTypeName(1), "String");
+            Assert.assertEquals(md.getColumnName(2), "b");
+            Assert.assertEquals(md.getColumnTypeName(2), "UInt16");
+
+            ps.addBatch();
+            ps.setInt(1, 2);
+            md = ps.getMetaData();
+            Assert.assertEquals(md.getColumnCount(), 2);
+            Assert.assertEquals(md.getColumnName(1), "a");
+            Assert.assertEquals(md.getColumnTypeName(1), "String");
+            Assert.assertEquals(md.getColumnName(2), "b");
+            Assert.assertEquals(md.getColumnTypeName(2), "UInt16");
+
+            ps.clearBatch();
+            ps.clearParameters();
+            md = ps.getMetaData();
+            Assert.assertEquals(md.getColumnCount(), 2);
+            Assert.assertEquals(md.getColumnName(1), "a");
+            Assert.assertEquals(md.getColumnTypeName(1), "Nullable(Nothing)");
+            Assert.assertEquals(md.getColumnName(2), "b");
+            Assert.assertEquals(md.getColumnTypeName(2), "Nullable(Nothing)");
         }
     }
 
