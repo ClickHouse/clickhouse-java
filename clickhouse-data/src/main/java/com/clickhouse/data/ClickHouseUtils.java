@@ -830,9 +830,7 @@ public final class ClickHouseUtils {
                 value = list.get(0);
             }
 
-            if (hasValue) {
-                break;
-            }
+            break;
         }
 
         if (!hasValue) {
@@ -1121,24 +1119,33 @@ public final class ClickHouseUtils {
      * Skip nested multi-line comment.
      *
      * @param args       non-null string to scan
-     * @param startIndex start index, optionally start of the multi-line comment
+     * @param startIndex start index, MUST AFTER the beginning of the multi-line
+     *                   comment
      * @param len        end index, usually length of the given string
      * @return index next to end of the outter most multi-line comment
      * @throws IllegalArgumentException when multi-line comment is unclosed
      */
     public static int skipMultiLineComment(String args, int startIndex, int len) {
-        int openIndex = args.indexOf("/*", startIndex);
-        if (openIndex == startIndex) {
-            openIndex = args.indexOf("/*", startIndex + 2);
-        }
-        int closeIndex = args.indexOf("*/", startIndex);
+        int commentLevel = 1;
 
-        if (closeIndex < startIndex) {
-            throw new IllegalArgumentException("Unclosed multi-line comment");
+        for (int i = startIndex; i < len; i++) {
+            char ch = args.charAt(i);
+            boolean hasNext = i < len - 1;
+            if (ch == '/' && hasNext && args.charAt(i + 1) == '*') {
+                i++;
+                commentLevel++;
+            } else if (ch == '*' && hasNext && args.charAt(i + 1) == '/') {
+                i++;
+                if (--commentLevel == 0) {
+                    return i + 1;
+                }
+            }
+            if (commentLevel <= 0) {
+                break;
+            }
         }
 
-        return openIndex < startIndex || openIndex > closeIndex ? closeIndex + 2
-                : skipMultiLineComment(args, closeIndex + 2, len);
+        throw new IllegalArgumentException("Unclosed multi-line comment");
     }
 
     /**
@@ -1171,7 +1178,7 @@ public final class ClickHouseUtils {
                 i = skipQuotedString(args, i, len, ch) - 1;
             } else if (isOpenBracket(ch)) {
                 i = skipBrackets(args, i, len, ch) - 1;
-            } else if (i + 1 < len) {
+            } else if ((ch == '-' || ch == '/') && i + 1 < len) {
                 char nextCh = args.charAt(i + 1);
                 if (ch == '-' && nextCh == '-') {
                     i = skipSingleLineComment(args, i + 2, len) - 1;
@@ -1255,7 +1262,6 @@ public final class ClickHouseUtils {
             String keyword = keywords[j];
             if (keyword == null || keyword.isEmpty()) {
                 index++;
-                continue;
             } else {
                 int klen = keyword.length();
                 if (index + klen >= len) {
@@ -1269,9 +1275,7 @@ public final class ClickHouseUtils {
                         break;
                     } else {
                         char ch = args.charAt(i);
-                        if (Character.isWhitespace(ch)) {
-                            continue;
-                        } else if (i + 1 < len) {
+                        if ((ch == '-' || ch == '/') && i + 1 < len) {
                             char nextCh = args.charAt(i + 1);
                             if (ch == '-' && nextCh == '-') {
                                 i = skipSingleLineComment(args, i + 2, len) - 1;
@@ -1280,7 +1284,7 @@ public final class ClickHouseUtils {
                             } else {
                                 return len;
                             }
-                        } else {
+                        } else if (!Character.isWhitespace(ch)) {
                             return len;
                         }
                     }
@@ -1299,7 +1303,6 @@ public final class ClickHouseUtils {
                 if (++i < len) {
                     builder.append(args.charAt(i));
                 }
-                continue;
             } else if (isQuote(ch)) {
                 if (ch == quote) {
                     if (i + 1 < len && args.charAt(i + 1) == ch) {
@@ -1334,9 +1337,7 @@ public final class ClickHouseUtils {
         StringBuilder builder = new StringBuilder();
         for (int i = startIndex; i < len; i++) {
             char ch = args.charAt(i);
-            if (Character.isWhitespace(ch)) {
-                continue;
-            } else if (ch == '\'') {
+            if (ch == '\'') {
                 i = readNameOrQuotedString(args, i, len, builder);
                 name = builder.toString();
                 builder.setLength(0);
@@ -1345,28 +1346,23 @@ public final class ClickHouseUtils {
                 if (index >= i) {
                     for (i = index + 1; i < len; i++) {
                         ch = args.charAt(i);
-                        if (Character.isWhitespace(ch)) {
-                            continue;
-                        } else if (ch >= '0' && ch <= '9') {
+                        if (ch >= '0' && ch <= '9') {
                             builder.append(ch);
                         } else if (ch == ',') {
                             values.put(name, Integer.parseInt(builder.toString()));
                             builder.setLength(0);
-                            name = null;
                             break;
                         } else if (ch == ')') {
                             values.put(name, Integer.parseInt(builder.toString()));
                             return i + 1;
-                        } else {
+                        } else if (!Character.isWhitespace(ch)) {
                             throw new IllegalArgumentException("Invalid character when reading enum");
                         }
                     }
-
-                    continue;
                 } else {
                     throw new IllegalArgumentException("Expect = after enum value but not found");
                 }
-            } else {
+            } else if (!Character.isWhitespace(ch)) {
                 throw new IllegalArgumentException("Invalid enum declaration");
             }
         }
@@ -1388,9 +1384,7 @@ public final class ClickHouseUtils {
             if (ch == '[') {
                 startIndex = i + 1;
                 break;
-            } else if (Character.isWhitespace(ch)) {
-                continue;
-            } else if (i + 1 < len) {
+            } else if ((ch == '-' || ch == '/') && i + 1 < len) {
                 char nextCh = args.charAt(i + 1);
                 if (ch == '-' && nextCh == '-') {
                     i = skipSingleLineComment(args, i + 2, len) - 1;
@@ -1400,7 +1394,7 @@ public final class ClickHouseUtils {
                     startIndex = i;
                     break;
                 }
-            } else {
+            } else if (!Character.isWhitespace(ch)) {
                 startIndex = i;
                 break;
             }
@@ -1437,7 +1431,7 @@ public final class ClickHouseUtils {
                 String str = builder.toString();
                 func.accept(str.isEmpty() || ClickHouseValues.NULL_EXPR.equalsIgnoreCase(str) ? null : str);
                 builder.setLength(0);
-            } else if (i + 1 < len) {
+            } else if ((ch == '-' || ch == '/') && i + 1 < len) {
                 char nextCh = args.charAt(i + 1);
                 if (ch == '-' && nextCh == '-') {
                     i = skipSingleLineComment(args, i + 2, len) - 1;
@@ -1469,9 +1463,7 @@ public final class ClickHouseUtils {
             if (ch == '(') {
                 startIndex = i + 1;
                 break;
-            } else if (Character.isWhitespace(ch)) {
-                continue;
-            } else if (i + 1 < len) {
+            } else if ((ch == '-' || ch == '/') && i + 1 < len) {
                 char nextCh = args.charAt(i + 1);
                 if (ch == '-' && nextCh == '-') {
                     i = skipSingleLineComment(args, i + 2, len) - 1;
@@ -1481,16 +1473,33 @@ public final class ClickHouseUtils {
                     startIndex = i;
                     break;
                 }
-            } else {
+            } else if (!Character.isWhitespace(ch)) {
                 startIndex = i;
                 break;
             }
         }
 
+        boolean expectWs = false;
         for (int i = startIndex; i < len; i++) {
             char ch = args.charAt(i);
-            if (Character.isWhitespace(ch) && stack.isEmpty()) {
-                continue;
+            if (Character.isWhitespace(ch)) {
+                if (builder.length() > 0) {
+                    for (int j = i + 1; j < len; j++) {
+                        ch = args.charAt(j);
+                        if (ch == ',' || ch == '=' || ch == '-' || ch == '/' || isOpenBracket(ch)
+                                || isCloseBracket(ch)) {
+                            i = j - 1;
+                            break;
+                        } else if (!Character.isWhitespace(ch)) {
+                            i = j - 1;
+                            if (expectWs) {
+                                builder.append(' ');
+                            }
+                            break;
+                        }
+                    }
+                }
+                expectWs = false;
             } else if (isQuote(ch)) {
                 builder.append(ch);
                 for (int j = i + 1; j < len; j++) {
@@ -1506,10 +1515,12 @@ public final class ClickHouseUtils {
                         }
                     }
                 }
+                expectWs = false;
             } else if (isOpenBracket(ch)) {
                 builder.append(ch);
                 stack.push(closeBracket);
                 closeBracket = getCloseBracket(ch);
+                expectWs = false;
             } else if (ch == closeBracket) {
                 if (stack.isEmpty()) {
                     len = i + 1;
@@ -1518,6 +1529,7 @@ public final class ClickHouseUtils {
                     builder.append(ch);
                     closeBracket = stack.pop();
                 }
+                expectWs = false;
             } else if (ch == ',') {
                 if (!stack.isEmpty()) {
                     builder.append(ch);
@@ -1525,7 +1537,8 @@ public final class ClickHouseUtils {
                     params.add(builder.toString());
                     builder.setLength(0);
                 }
-            } else if (i + 1 < len) {
+                expectWs = false;
+            } else if ((ch == '-' || ch == '/') && i + 1 < len) {
                 char nextCh = args.charAt(i + 1);
                 if (ch == '-' && nextCh == '-') {
                     i = skipSingleLineComment(args, i + 2, len) - 1;
@@ -1534,8 +1547,10 @@ public final class ClickHouseUtils {
                 } else {
                     builder.append(ch);
                 }
+                expectWs = false;
             } else {
                 builder.append(ch);
+                expectWs = ch != '=';
             }
         }
 
