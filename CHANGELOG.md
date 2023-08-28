@@ -6,6 +6,7 @@
 
 ### New Features
 * Adding new proxy support [#1338](https://github.com/ClickHouse/clickhouse-java/issues/1338)
+* Add support for customer socket factory [#1391](https://github.com/ClickHouse/clickhouse-java/issues/1391)
 * use VarHandle in JDK 9+ to read/write numbers
 
 ### Bug Fixes

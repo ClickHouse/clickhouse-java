@@ -4,6 +4,7 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -56,6 +57,23 @@ public class ClickHouseUtilsTest {
         Assert.assertEquals(ClickHouseUtils.extractParameters("*&a=1&!b", null), expected);
         Assert.assertEquals(ClickHouseUtils.extractParameters("*&a=1&!b", new HashMap<>()), expected);
         Assert.assertEquals(ClickHouseUtils.extractParameters("*&a=1&!b", expected), expected);
+    }
+
+    @Test(groups = { "unit" })
+    public void testNewInstance() {
+        Assert.assertThrows(IllegalArgumentException.class, () -> ClickHouseUtils.newInstance(null, null, null));
+        Assert.assertThrows(IllegalArgumentException.class, () -> ClickHouseUtils.newInstance("", Object.class, null));
+        Assert.assertThrows(IllegalArgumentException.class,
+                () -> ClickHouseUtils.newInstance("java.util.List", Object.class, null));
+        Assert.assertThrows(IllegalArgumentException.class,
+                () -> ClickHouseUtils.newInstance("java.util.NoSuchListClass", Object.class, null));
+        Assert.assertThrows(IllegalArgumentException.class,
+                () -> ClickHouseUtils.newInstance("java.lang.Object", ArrayList.class, null));
+        Assert.assertThrows(IllegalArgumentException.class,
+                () -> ClickHouseUtils.newInstance("java.util.ArrayList", Collections.class, null));
+
+        Assert.assertEquals(ClickHouseUtils.newInstance("java.util.ArrayList", List.class, null).getClass(),
+                ArrayList.class);
     }
 
     @Test(groups = { "unit" })

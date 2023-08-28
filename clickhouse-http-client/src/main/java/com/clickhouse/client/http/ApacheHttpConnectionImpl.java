@@ -1,11 +1,11 @@
 package com.clickhouse.client.http;
 
 import com.clickhouse.client.AbstractSocketClient;
-
 import com.clickhouse.client.ClickHouseClient;
 import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseRequest;
+import com.clickhouse.client.ClickHouseSocketFactory;
 import com.clickhouse.client.ClickHouseSslContextProvider;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.config.ClickHouseProxyType;
@@ -42,6 +42,9 @@ import org.apache.hc.core5.ssl.SSLContexts;
 import org.apache.hc.core5.util.Timeout;
 import org.apache.hc.core5.util.VersionInfo;
 
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLException;
+
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -61,9 +64,6 @@ import java.util.TimeZone;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLException;
-
 /**
  * Created by wujianchao on 2022/12/1.
  */
@@ -80,17 +80,20 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
     }
 
     private CloseableHttpClient newConnection(ClickHouseConfig c) throws IOException {
+        final ClickHouseSocketFactory socketFactory = AbstractSocketClient.getCustomSocketFactory(
+                c.getCustomSocketFactory(), ApacheHttpClientSocketFactory.instance, PlainConnectionSocketFactory.class);
+
         RegistryBuilder<ConnectionSocketFactory> r = RegistryBuilder.<ConnectionSocketFactory>create()
-                .register("http", SocketFactory.create(c));
+                .register("http", socketFactory.create(c, PlainConnectionSocketFactory.class));
         if (c.isSsl()) {
-            r.register("https", SSLSocketFactory.create(c));
+            r.register("https", socketFactory.create(c, SSLConnectionSocketFactory.class));
         }
 
         HttpConnectionManager connManager = new HttpConnectionManager(r.build(), c);
-        int max_connection = config.getIntOption(ClickHouseHttpOption.MAX_OPEN_CONNECTIONS);
+        int maxConnection = config.getIntOption(ClickHouseHttpOption.MAX_OPEN_CONNECTIONS);
 
-        connManager.setMaxTotal(max_connection);
-        connManager.setDefaultMaxPerRoute(max_connection);
+        connManager.setMaxTotal(maxConnection);
+        connManager.setDefaultMaxPerRoute(maxConnection);
 
         HttpClientBuilder builder = HttpClientBuilder.create().setConnectionManager(connManager)
                 .disableContentCompression();
@@ -265,6 +268,31 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
     @Override
     public void close() throws IOException {
         client.close();
+    }
+
+    static class ApacheHttpClientSocketFactory implements ClickHouseSocketFactory {
+        static final ApacheHttpClientSocketFactory instance = new ApacheHttpClientSocketFactory();
+
+        @Override
+        public <T> T create(ClickHouseConfig config, Class<T> clazz) throws IOException, UnsupportedOperationException {
+            if (config == null || clazz == null) {
+                throw new IllegalArgumentException("Non-null configuration and class are required");
+            } else if (SSLConnectionSocketFactory.class.equals(clazz)) {
+                return clazz.cast(new SSLSocketFactory(config));
+            } else if (PlainConnectionSocketFactory.class.equals(clazz)) {
+                return clazz.cast(new SocketFactory(config));
+            }
+
+            throw new UnsupportedOperationException(ClickHouseUtils.format("Class %s is not supported", clazz));
+        }
+
+        @Override
+        public boolean supports(Class<?> clazz) {
+            return PlainConnectionSocketFactory.class.equals(clazz) || SSLConnectionSocketFactory.class.equals(clazz);
+        }
+
+        private ApacheHttpClientSocketFactory() {
+        }
     }
 
     static class SocketFactory extends PlainConnectionSocketFactory {

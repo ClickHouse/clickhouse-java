@@ -13,7 +13,10 @@ import java.nio.channels.FileChannel;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
+import java.util.Collections;
 import java.util.Iterator;
+import java.util.Map;
+import java.util.WeakHashMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.LockSupport;
@@ -62,6 +65,19 @@ public class AbstractSocketClient implements AutoCloseable {
 
     private static final Logger log = LoggerFactory.getLogger(AbstractSocketClient.class);
 
+    private static final Map<String, ClickHouseSocketFactory> cache = Collections.synchronizedMap(new WeakHashMap<>());
+
+    public static final ClickHouseSocketFactory getCustomSocketFactory(String className,
+            ClickHouseSocketFactory defaultFactory, Class<?> forClass) {
+        if (ClickHouseChecker.isNullOrEmpty(className) || forClass == null) {
+            return defaultFactory;
+        }
+
+        ClickHouseSocketFactory factory = cache.computeIfAbsent(className,
+                k -> ClickHouseUtils.newInstance(k, ClickHouseSocketFactory.class, defaultFactory.getClass()));
+        return factory.supports(forClass) ? factory : defaultFactory;
+    }
+
     /**
      * Sets socket options. May be called at any time(e.g. before or even after the
      * socket is bound or connected).
@@ -71,7 +87,7 @@ public class AbstractSocketClient implements AutoCloseable {
      * @return the given socket
      * @throws SocketException when there's error setting socket options
      */
-    public static Socket setSocketOptions(ClickHouseConfig config, Socket socket) throws SocketException {
+    public static final Socket setSocketOptions(ClickHouseConfig config, Socket socket) throws SocketException {
         if (socket == null || socket.isClosed()) {
             throw new IllegalArgumentException("Cannot set option(s) on a null or closed socket");
         } else if (config == null) {
@@ -119,7 +135,8 @@ public class AbstractSocketClient implements AutoCloseable {
      * @return the given socket channel
      * @throws IOException when there's error setting socket options
      */
-    public static SocketChannel setSocketOptions(ClickHouseConfig config, SocketChannel socket) throws IOException {
+    public static final SocketChannel setSocketOptions(ClickHouseConfig config, SocketChannel socket)
+            throws IOException {
         if (socket == null || socket.socket().isClosed()) {
             throw new IllegalArgumentException("Cannot set option(s) on a null or closed socket channel");
         } else if (config == null) {
