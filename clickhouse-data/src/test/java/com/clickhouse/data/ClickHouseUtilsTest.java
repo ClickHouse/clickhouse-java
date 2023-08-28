@@ -212,6 +212,19 @@ public class ClickHouseUtilsTest {
 
     @Test(groups = { "unit" })
     public void testSkipMultipleLineComment() {
+        Assert.assertThrows(IllegalArgumentException.class, () -> ClickHouseUtils.skipMultiLineComment("", 0, 0));
+        Assert.assertThrows(IllegalArgumentException.class, () -> ClickHouseUtils.skipMultiLineComment("/", 0, 1));
+        Assert.assertThrows(IllegalArgumentException.class, () -> ClickHouseUtils.skipMultiLineComment("/*", 0, 2));
+        Assert.assertThrows(IllegalArgumentException.class, () -> ClickHouseUtils.skipMultiLineComment("/**", 0, 3));
+        Assert.assertThrows(IllegalArgumentException.class, () -> ClickHouseUtils.skipMultiLineComment("/*/*/", 0, 5));
+        Assert.assertThrows(IllegalArgumentException.class, () -> ClickHouseUtils.skipMultiLineComment("/*/**/", 0, 6));
+        Assert.assertThrows(IllegalArgumentException.class,
+                () -> ClickHouseUtils.skipMultiLineComment("/*/***/", 0, 7));
+
+        Assert.assertEquals(ClickHouseUtils.skipMultiLineComment("/**/", 1, 4), 4);
+        Assert.assertEquals(ClickHouseUtils.skipMultiLineComment("/*/**/*/", 2, 8), 8);
+        Assert.assertEquals(ClickHouseUtils.skipMultiLineComment("/*/*/**/*/*/", 2, 12), 12);
+
         String args = "select 1 /* select 1/*one*/ -- a */, 2";
         Assert.assertEquals(ClickHouseUtils.skipMultiLineComment(args, 11, args.length()),
                 args.lastIndexOf("*/") + 2);
@@ -459,7 +472,7 @@ public class ClickHouseUtilsTest {
         List<String> params = new LinkedList<>();
         Assert.assertEquals(ClickHouseUtils.readParameters(args, args.indexOf('('), args.length(), params),
                 args.lastIndexOf(')') + 1);
-        Assert.assertEquals(params, Arrays.asList("quantiles(0.5, 'c \\'''([1],2) d',0.9)", "UInt64"));
+        Assert.assertEquals(params, Arrays.asList("quantiles(0.5,'c \\'''([1],2) d',0.9)", "UInt64"));
 
         params.clear();
         args = "   ('a'/* a*/, 1-- test\n, b)";
@@ -467,15 +480,15 @@ public class ClickHouseUtilsTest {
         Assert.assertEquals(params, Arrays.asList("'a'", "1", "b"));
 
         params.clear();
-        args = " a, b c";
+        args = " a = 2 -- enum value\n, /** type declaration **/ b  c  , `d` /*e*/ --f";
         Assert.assertEquals(ClickHouseUtils.readParameters(args, 0, args.length(), params), args.length());
-        Assert.assertEquals(params, Arrays.asList("a", "bc"));
+        Assert.assertEquals(params, Arrays.asList("a=2", "b c", "`d`"));
 
         params.clear();
         args = "column1 SimpleAggregateFunction(anyLast, Nested(a string, b string))";
         Assert.assertEquals(ClickHouseUtils.readParameters(args, args.indexOf('('), args.length(), params),
                 args.lastIndexOf(')') + 1);
-        Assert.assertEquals(params, Arrays.asList("anyLast", "Nested(a string, b string)"));
+        Assert.assertEquals(params, Arrays.asList("anyLast", "Nested(a string,b string)"));
     }
 
     @Test(groups = { "unit" })
