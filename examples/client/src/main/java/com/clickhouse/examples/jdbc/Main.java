@@ -23,7 +23,7 @@ import com.clickhouse.data.format.BinaryStreamUtils;
 public class Main {
     static void dropAndCreateTable(ClickHouseNode server, String table) throws ClickHouseException {
         try (ClickHouseClient client = ClickHouseClient.newInstance(server.getProtocol())) {
-            ClickHouseRequest<?> request = client.read(server);
+            ClickHouseRequest<?> request = client.connect(server);
             // or use future chaining
             request.query("drop table if exists " + table).execute().get();
             request.query("create table " + table + "(a String, b Nullable(String)) engine=MergeTree() order by a")
@@ -38,7 +38,7 @@ public class Main {
 
     static long insert(ClickHouseNode server, String table) throws ClickHouseException {
         try (ClickHouseClient client = ClickHouseClient.newInstance(server.getProtocol())) {
-            ClickHouseRequest.Mutation request = client.read(server).write().table(table)
+            ClickHouseRequest.Mutation request = client.connect(server).write().table(table)
                     .format(ClickHouseFormat.RowBinary);
             ClickHouseConfig config = request.getConfig();
             CompletableFuture<ClickHouseResponse> future;
