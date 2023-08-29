@@ -38,7 +38,7 @@ public class ClickHouseConnectionMetadata implements ConnectionMetadata {
         String version = serverVersion.get();
         if (version.isEmpty()) {
             // blocking here
-            try (ClickHouseResponse resp = client.connect(server).query("SELECT version()").executeAndWait()) {
+            try (ClickHouseResponse resp = client.read(server).query("SELECT version()").executeAndWait()) {
                 version = resp.firstRecord().getValue(0).asString();
                 if (!serverVersion.compareAndSet("", version)) {
                     return serverVersion.get();

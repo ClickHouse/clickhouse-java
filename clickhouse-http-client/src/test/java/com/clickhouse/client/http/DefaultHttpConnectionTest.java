@@ -17,7 +17,7 @@ public class DefaultHttpConnectionTest extends BaseIntegrationTest {
         ClickHouseNode server = getServer(ClickHouseProtocol.HTTP);
 
         try (ClickHouseClient client = ClickHouseClient.newInstance()) {
-            ClickHouseRequest<?> req = client.connect(server);
+            ClickHouseRequest<?> req = client.read(server);
 
             ClickHouseHttpConnection conn = ClickHouseHttpConnectionFactory.createConnection(server, req, null);
             Assert.assertNotNull(conn);

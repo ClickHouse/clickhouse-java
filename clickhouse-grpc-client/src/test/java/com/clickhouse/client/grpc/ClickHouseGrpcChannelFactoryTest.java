@@ -14,7 +14,7 @@ public class ClickHouseGrpcChannelFactoryTest extends BaseIntegrationTest {
     public void testGetFactory() {
         ClickHouseNode server = getServer(ClickHouseProtocol.GRPC);
         try (ClickHouseClient client = ClickHouseClient.newInstance()) {
-            ClickHouseRequest<?> request = client.connect(server);
+            ClickHouseRequest<?> request = client.read(server);
             Assert.assertTrue(ClickHouseGrpcChannelFactory.getFactory(request.getConfig(),
                     server) instanceof NettyChannelFactoryImpl);
             Assert.assertTrue(ClickHouseGrpcChannelFactory.getFactory(

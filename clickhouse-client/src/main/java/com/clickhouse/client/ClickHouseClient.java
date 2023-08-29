@@ -365,29 +365,6 @@ public interface ClickHouseClient extends AutoCloseable {
     }
 
     /**
-     * Dumps a table or query result from server into a file. File will be
-     * created/overwrited as needed.
-     *
-     * @param server       non-null server to connect to
-     * @param tableOrQuery table name or a select query
-     * @param format       output format to use
-     * @param compression  compression algorithm to use
-     * @param file         output file
-     * @return non-null future object to get result
-     * @throws IllegalArgumentException if any of server, tableOrQuery, and output
-     *                                  is null
-     * @throws CompletionException      when error occurred during execution
-     * @deprecated will be dropped in 0.5, please use
-     *             {@link #dump(ClickHouseNode, String, String, ClickHouseCompression, ClickHouseFormat)}
-     *             instead
-     */
-    @Deprecated
-    static CompletableFuture<ClickHouseResponseSummary> dump(ClickHouseNode server, String tableOrQuery,
-            ClickHouseFormat format, ClickHouseCompression compression, String file) {
-        return dump(server, tableOrQuery, file, compression, format);
-    }
-
-    /**
      * Dumps a table or query result from server into output stream.
      *
      * @param server       non-null server to connect to
@@ -436,31 +413,6 @@ public interface ClickHouseClient extends AutoCloseable {
                 }
             }
         });
-    }
-
-    /**
-     * Dumps a table or query result from server into output stream.
-     *
-     * @param server       non-null server to connect to
-     * @param tableOrQuery table name or a select query
-     * @param format       output format to use, null means
-     *                     {@link ClickHouseFormat#TabSeparated}
-     * @param compression  compression algorithm to use, null means
-     *                     {@link ClickHouseCompression#NONE}
-     * @param output       output stream, which will be closed automatically at the
-     *                     end of the call
-     * @return future object to get result
-     * @throws IllegalArgumentException if any of server, tableOrQuery, and output
-     *                                  is null
-     * @throws CompletionException      when error occurred during execution
-     * @deprecated will be dropped in 0.5, please use
-     *             {@link #dump(ClickHouseNode, String, OutputStream, ClickHouseCompression, ClickHouseFormat)}
-     *             instead
-     */
-    @Deprecated
-    static CompletableFuture<ClickHouseResponseSummary> dump(ClickHouseNode server, String tableOrQuery,
-            ClickHouseFormat format, ClickHouseCompression compression, OutputStream output) {
-        return dump(server, tableOrQuery, output, compression, format);
     }
 
     /**
@@ -544,50 +496,6 @@ public interface ClickHouseClient extends AutoCloseable {
     }
 
     /**
-     * Loads data from a file into table using specified format and compression
-     * algorithm.
-     *
-     * @param server      non-null server to connect to
-     * @param table       non-null target table
-     * @param format      input format to use
-     * @param compression compression algorithm to use
-     * @param file        file to load
-     * @return future object to get result
-     * @throws IllegalArgumentException if any of server, table, and input is null
-     * @throws CompletionException      when error occurred during execution
-     * @deprecated will be dropped in 0.5, please use
-     *             {@link #load(ClickHouseNode, String, String, ClickHouseCompression, ClickHouseFormat)}
-     *             instead
-     */
-    @Deprecated
-    static CompletableFuture<ClickHouseResponseSummary> load(ClickHouseNode server, String table,
-            ClickHouseFormat format, ClickHouseCompression compression, String file) {
-        return load(server, table, file, compression, format);
-    }
-
-    /**
-     * Loads data from a custom writer into a table using specified format and
-     * compression algorithm.
-     *
-     * @param server      non-null server to connect to
-     * @param table       non-null target table
-     * @param writer      non-null custom writer to generate data
-     * @param compression compression algorithm to use
-     * @param format      input format to use
-     * @return future object to get result
-     * @throws IllegalArgumentException if any of server, table, and writer is null
-     * @throws CompletionException      when error occurred during execution
-     * @deprecated will be dropped in 0.5, please use
-     *             {@link #load(ClickHouseNode, String, ClickHouseWriter, ClickHouseCompression, ClickHouseFormat)}
-     *             instead
-     */
-    @Deprecated
-    static CompletableFuture<ClickHouseResponseSummary> load(ClickHouseNode server, String table,
-            ClickHouseFormat format, ClickHouseCompression compression, ClickHouseWriter writer) {
-        return load(server, table, writer, compression, format);
-    }
-
-    /**
      * Loads data from input stream into a table using specified format and
      * compression algorithm.
      *
@@ -623,29 +531,6 @@ public interface ClickHouseClient extends AutoCloseable {
                 }
             }
         });
-    }
-
-    /**
-     * Loads data from input stream into a table using specified format and
-     * compression algorithm.
-     *
-     * @param server      non-null server to connect to
-     * @param table       non-null target table
-     * @param format      input format to use
-     * @param compression compression algorithm to use
-     * @param input       input stream, which will be closed automatically at the
-     *                    end of the call
-     * @return future object to get result
-     * @throws IllegalArgumentException if any of server, table, and input is null
-     * @throws CompletionException      when error occurred during execution
-     * @deprecated will be dropped in 0.5, please use
-     *             {@link #load(ClickHouseNode, String, InputStream, ClickHouseCompression, ClickHouseFormat)}
-     *             instead
-     */
-    @Deprecated
-    static CompletableFuture<ClickHouseResponseSummary> load(ClickHouseNode server, String table,
-            ClickHouseFormat format, ClickHouseCompression compression, InputStream input) {
-        return load(server, table, input, compression, format);
     }
 
     /**
@@ -904,70 +789,6 @@ public interface ClickHouseClient extends AutoCloseable {
      */
     default boolean accept(ClickHouseProtocol protocol) {
         return protocol == null || protocol == ClickHouseProtocol.ANY;
-    }
-
-    /**
-     * Connects to one or more ClickHouse servers. Same as
-     * {@code connect(ClickHouseNodes.of(uri))}.
-     *
-     * @param endpoints non-empty URIs separated by comma
-     * @return non-null request object holding references to this client and node
-     *         provider
-     * @deprecated will be dropped in 0.5, please use {@link #read(String)} instead
-     */
-    @Deprecated
-    default ClickHouseRequest<?> connect(String endpoints) {
-        return read(endpoints);
-    }
-
-    /**
-     * Connects to a list of managed ClickHouse servers.
-     *
-     * @param nodes non-null list of servers to connect to
-     * @return non-null request object holding references to this client and node
-     *         provider
-     * @deprecated will be dropped in 0.5, please use {@link #read(ClickHouseNodes)}
-     *             instead
-     */
-    @Deprecated
-    default ClickHouseRequest<?> connect(ClickHouseNodes nodes) {
-        return read(nodes);
-    }
-
-    /**
-     * Connects to a ClickHouse server.
-     *
-     * @param node non-null server for read
-     * @return non-null request object holding references to this client and node
-     *         provider
-     * @deprecated will be dropped in 0.5, please use {@link #read(ClickHouseNode)}
-     *             instead
-     */
-    @Deprecated
-    default ClickHouseRequest<?> connect(ClickHouseNode node) {
-        return read(node);
-    }
-
-    /**
-     * Connects to a ClickHouse server defined by the given
-     * {@link java.util.function.Function}. You can pass either
-     * {@link ClickHouseCluster}, {@link ClickHouseNodes} or {@link ClickHouseNode}
-     * here, as all of them implemented the same interface.
-     *
-     * <p>
-     * Please be aware that this is nothing but an intention, so no network
-     * communication happens until {@link #execute(ClickHouseRequest)} is
-     * invoked(usually triggered by {@code request.execute()}).
-     *
-     * @param nodeFunc function to get a {@link ClickHouseNode} to connect to
-     * @return non-null request object holding references to this client and node
-     *         provider
-     * @deprecated will be dropped in 0.5, please use {@link #read(Function, Map)}
-     *             instead
-     */
-    @Deprecated
-    default ClickHouseRequest<?> connect(Function<ClickHouseNodeSelector, ClickHouseNode> nodeFunc) {
-        return read(nodeFunc, null);
     }
 
     /**

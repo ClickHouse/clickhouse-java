@@ -68,7 +68,7 @@ public class AbstractClientTest {
 
         SimpleClient client = new SimpleClient();
         client.init(new ClickHouseConfig());
-        ClickHouseRequest<?> req = client.connect(ClickHouseNode.builder().build());
+        ClickHouseRequest<?> req = client.read(ClickHouseNode.builder().build());
         ClickHouseConfig config = new ClickHouseConfig();
         sc.init(config);
         Assert.assertNotNull(sc.getExecutor());
@@ -88,7 +88,7 @@ public class AbstractClientTest {
     public void testCloseRunningClient() throws InterruptedException {
         SimpleClient client = new SimpleClient();
         client.init(new ClickHouseConfig());
-        ClickHouseRequest<?> req = client.connect(ClickHouseNode.builder().build());
+        ClickHouseRequest<?> req = client.read(ClickHouseNode.builder().build());
 
         CountDownLatch latch = new CountDownLatch(1);
         new Thread(() -> {
@@ -112,13 +112,13 @@ public class AbstractClientTest {
     public void testGetAndCloseConnection() {
         SimpleClient client = new SimpleClient();
         client.init(new ClickHouseConfig());
-        ClickHouseRequest<?> req = client.connect(ClickHouseNode.builder().build());
+        ClickHouseRequest<?> req = client.read(ClickHouseNode.builder().build());
 
         SimpleClient sc = new SimpleClient();
         sc.init(new ClickHouseConfig());
         Assert.assertEquals(sc.getConnection(req), new Object[] { req.getConfig(), req.getServer() });
 
-        req = client.connect(ClickHouseNode.of("127.0.0.1", ClickHouseProtocol.POSTGRESQL, 9100, "test"));
+        req = client.read(ClickHouseNode.of("127.0.0.1", ClickHouseProtocol.POSTGRESQL, 9100, "test"));
         Object[] conn = sc.getConnection(req);
         Assert.assertEquals(conn, new Object[] { req.getConfig(), req.getServer() });
         sc.close();
@@ -131,12 +131,12 @@ public class AbstractClientTest {
         SimpleClient client = new SimpleClient();
         client.init(new ClickHouseConfig());
         Assert.assertThrows(IllegalArgumentException.class,
-                () -> client.connect(ClickHouseNode.builder().port(ClickHouseProtocol.MYSQL).build()).getServer());
+                () -> client.read(ClickHouseNode.builder().port(ClickHouseProtocol.MYSQL).build()).getServer());
 
-        ClickHouseRequest<?> req = client.connect(ClickHouseNode.builder().build());
+        ClickHouseRequest<?> req = client.read(ClickHouseNode.builder().build());
         SimpleClient sc = new SimpleClient();
         Assert.assertFalse(sc.isInitialized());
-        Assert.assertThrows(IllegalStateException.class, () -> sc.connect(ClickHouseNode.builder().build()));
+        Assert.assertThrows(IllegalStateException.class, () -> sc.read(ClickHouseNode.builder().build()));
         Assert.assertThrows(IllegalStateException.class, () -> sc.getConfig());
         Assert.assertThrows(IllegalStateException.class, () -> sc.getConnection(req));
         Assert.assertThrows(IllegalStateException.class, () -> sc.getExecutor());
@@ -175,9 +175,9 @@ public class AbstractClientTest {
         ClickHouseConfig config = new ClickHouseConfig();
         SimpleClient client = new SimpleClient();
         client.init(config);
-        ClickHouseRequest<?> req1 = client.connect(ClickHouseNode.builder().build());
+        ClickHouseRequest<?> req1 = client.read(ClickHouseNode.builder().build());
         ClickHouseRequest<?> req2 = client
-                .connect(ClickHouseNode.of("127.0.0.1", ClickHouseProtocol.POSTGRESQL, 9100, "test"));
+                .read(ClickHouseNode.of("127.0.0.1", ClickHouseProtocol.POSTGRESQL, 9100, "test"));
 
         Object[] conn1 = client.getConnection(req1);
         CountDownLatch latch = new CountDownLatch(1);

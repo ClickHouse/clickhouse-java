@@ -29,7 +29,7 @@ public class ClickHouseCommandLineClient extends AbstractClient<ClickHouseComman
 
     @Override
     protected boolean checkHealth(ClickHouseNode server, int timeout) {
-        try (ClickHouseCommandLine cli = getConnection(connect(server).query("SELECT 1"));
+        try (ClickHouseCommandLine cli = getConnection(read(server).query("SELECT 1"));
                 ClickHouseCommandLineResponse response = new ClickHouseCommandLineResponse(getConfig(), cli)) {
             return response.firstRecord().getValue(0).asInteger() == 1;
         } catch (Exception e) {

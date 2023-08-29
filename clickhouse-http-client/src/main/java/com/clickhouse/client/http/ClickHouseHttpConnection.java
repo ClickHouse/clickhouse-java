@@ -243,8 +243,7 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
     }
 
     protected static Proxy getProxy(ClickHouseConfig config) {
-        final ClickHouseProxyType proxyType = config.isUseNoProxy() ? ClickHouseProxyType.DIRECT
-                : config.getProxyType();
+        final ClickHouseProxyType proxyType = config.getProxyType();
 
         Proxy proxy;
         switch (proxyType) {

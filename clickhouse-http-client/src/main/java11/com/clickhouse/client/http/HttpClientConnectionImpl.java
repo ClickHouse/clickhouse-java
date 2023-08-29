@@ -183,7 +183,7 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
             builder.executor(executor);
         }
         ClickHouseProxyType proxyType = config.getProxyType();
-        if (config.isUseNoProxy() || proxyType == ClickHouseProxyType.DIRECT) {
+        if (proxyType == ClickHouseProxyType.DIRECT) {
             builder.proxy(NoProxySelector.INSTANCE);
         } else if (proxyType == ClickHouseProxyType.HTTP) {
             builder.proxy(ProxySelector.of(new InetSocketAddress(config.getProxyHost(), config.getProxyPort())));

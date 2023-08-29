@@ -9,6 +9,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import com.clickhouse.client.config.ClickHouseProxyType;
 import com.google.gson.Gson;
 import com.google.gson.stream.JsonReader;
 import io.grpc.ManagedChannel;
@@ -193,7 +195,7 @@ public abstract class ClickHouseGrpcChannelFactory {
             builder.enableFullStreamDecompression();
         }
 
-        if (config.isUseNoProxy()) {
+        if (config.getProxyType() == ClickHouseProxyType.DIRECT) {
             builder.proxyDetector(NoProxyDetector.INSTANCE);
         }
         // TODO add interceptor to customize retry

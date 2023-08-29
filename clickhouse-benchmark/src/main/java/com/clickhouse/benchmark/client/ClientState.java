@@ -92,7 +92,7 @@ public class ClientState extends BaseState {
                 "create table if not exists system.test_insert(id String, i Nullable(UInt64), s Nullable(String), t Nullable(DateTime))engine=Memory" };
 
         for (String sql : sqls) {
-            try (ClickHouseResponse resp = client.connect(server).query(sql).executeAndWait()) {
+            try (ClickHouseResponse resp = client.read(server).query(sql).executeAndWait()) {
 
             }
         }
@@ -102,7 +102,7 @@ public class ClientState extends BaseState {
     public void doTearDown(ServerState serverState) throws ClickHouseException {
         dispose();
 
-        try (ClickHouseResponse resp = client.connect(server).query("truncate table system.test_insert")
+        try (ClickHouseResponse resp = client.read(server).query("truncate table system.test_insert")
                 .executeAndWait()) {
 
         } finally {
@@ -161,7 +161,7 @@ public class ClientState extends BaseState {
     }
 
     public ClickHouseRequest<?> newRequest() {
-        return client.connect(server);
+        return client.read(server);
     }
 
     public void consume(Blackhole blackhole, Future<ClickHouseResponse> future) throws InterruptedException {

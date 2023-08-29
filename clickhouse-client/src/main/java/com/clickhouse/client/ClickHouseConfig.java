@@ -235,7 +235,6 @@ public class ClickHouseConfig implements ClickHouseDataConfig {
     private final boolean useBlockingQueue;
     private final boolean useCompilation;
     private final boolean useObjectsInArray;
-    private final boolean useNoProxy;
     private final boolean useServerTimeZone;
     private final boolean useServerTimeZoneForDates;
     private final TimeZone timeZoneForDate;
@@ -353,7 +352,6 @@ public class ClickHouseConfig implements ClickHouseDataConfig {
         this.useBlockingQueue = getBoolOption(ClickHouseClientOption.USE_BLOCKING_QUEUE);
         this.useCompilation = getBoolOption(ClickHouseClientOption.USE_COMPILATION);
         this.useObjectsInArray = getBoolOption(ClickHouseClientOption.USE_OBJECTS_IN_ARRAYS);
-        this.useNoProxy = getBoolOption(ClickHouseClientOption.USE_NO_PROXY);
         this.useServerTimeZone = getBoolOption(ClickHouseClientOption.USE_SERVER_TIME_ZONE);
         this.useServerTimeZoneForDates = getBoolOption(ClickHouseClientOption.USE_SERVER_TIME_ZONE_FOR_DATES);
 
@@ -662,10 +660,6 @@ public class ClickHouseConfig implements ClickHouseDataConfig {
      * @deprecated will be dropped in 0.5, please use {@link #getProxyType()}
      *             instead
      */
-    @Deprecated
-    public boolean isUseNoProxy() {
-        return useNoProxy;
-    }
 
     public ClickHouseProxyType getProxyType() {
         return proxyType;
