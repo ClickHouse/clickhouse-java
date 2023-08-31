@@ -1,9 +1,6 @@
 package com.clickhouse.client.config;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
+import java.io.*;
 import java.security.KeyFactory;
 import java.security.KeyManagementException;
 import java.security.KeyStore;
@@ -124,6 +121,9 @@ public class ClickHouseDefaultSslContextProvider implements ClickHouseSslContext
         String clientCert = config.getSslCert();
         String clientKey = config.getSslKey();
         String sslRootCert = config.getSslRootCert();
+        String truststorePath = config.getTrustStore();
+        String truststorePassword = config.getTrustStorePassword();
+        String keyStoreType = (!config.getKeyStoreType().isEmpty() && config.getKeyStoreType() !=null) ? config.getKeyStoreType() : KeyStore.getDefaultType();
 
         SSLContext ctx;
         try {
@@ -150,6 +150,20 @@ public class ClickHouseDefaultSslContextProvider implements ClickHouseSslContext
                     factory.init(getKeyStore(sslRootCert, null));
                     tms = factory.getTrustManagers();
                 }
+
+                if (truststorePath != null && !truststorePath.isEmpty()) {
+
+                    try (FileInputStream myKeys = new FileInputStream(truststorePath)) {
+                        KeyStore myTrustStore = KeyStore.getInstance(keyStoreType);
+                        myTrustStore.load(myKeys, truststorePassword.toCharArray());
+                        TrustManagerFactory factory = TrustManagerFactory
+                                .getInstance(TrustManagerFactory.getDefaultAlgorithm());
+                        factory.init(myTrustStore);
+                        tms = factory.getTrustManagers();
+
+                    }
+                }
+
                 sr = new SecureRandom();
             } else {
                 throw new IllegalArgumentException(ClickHouseUtils.format("unspported ssl mode '%s'", sslMode));
