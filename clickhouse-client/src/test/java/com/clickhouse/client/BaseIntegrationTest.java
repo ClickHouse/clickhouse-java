@@ -5,19 +5,20 @@ import java.net.UnknownHostException;
 import java.util.Locale;
 import java.util.Map;
 
+import com.clickhouse.client.config.ClickHouseClientOption;
 import org.testng.annotations.BeforeTest;
 
 /**
  * Base class for all integration tests.
  */
 public abstract class BaseIntegrationTest {
-    @BeforeTest(groups = { "integration" })
+    @BeforeTest(groups = {"integration"})
     public static void setupClickHouseContainer() {
         ClickHouseServerForTest.beforeSuite();
     }
 
     protected ClickHouseNode getSecureServer(ClickHouseProtocol protocol) {
-        return ClickHouseServerForTest.getClickHouseNode(protocol, true, ClickHouseNode.builder().build());
+        return ClickHouseServerForTest.getClickHouseNode(protocol, true, ClickHouseNode.builder().addOption(ClickHouseClientOption.SSL.getKey(), "true").build());
     }
 
     protected ClickHouseNode getSecureServer(ClickHouseProtocol protocol, ClickHouseNode base) {
@@ -35,9 +36,11 @@ public abstract class BaseIntegrationTest {
     protected ClickHouseNode getServer(ClickHouseProtocol protocol, int port) {
         return ClickHouseServerForTest.getClickHouseNode(protocol, port);
     }
+
     protected ClickHouseNode getServer(ClickHouseProtocol protocol, Map<String, String> options) {
         return ClickHouseServerForTest.getClickHouseNode(protocol, options);
     }
+
     protected String getIpAddress(ClickHouseNode server) {
         String ipAddress = server.getHost();
         try {
