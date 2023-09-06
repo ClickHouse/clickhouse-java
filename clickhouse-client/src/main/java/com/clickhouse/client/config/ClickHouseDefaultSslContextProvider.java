@@ -153,9 +153,9 @@ public class ClickHouseDefaultSslContextProvider implements ClickHouseSslContext
 
                 if (truststorePath != null && !truststorePath.isEmpty()) {
 
-                    try (FileInputStream myKeys = new FileInputStream(truststorePath)) {
+                    try (InputStream in = ClickHouseUtils.getFileInputStream(truststorePath)) {
                         KeyStore myTrustStore = KeyStore.getInstance(keyStoreType);
-                        myTrustStore.load(myKeys, truststorePassword.toCharArray());
+                        myTrustStore.load(in, truststorePassword.toCharArray());
                         TrustManagerFactory factory = TrustManagerFactory
                                 .getInstance(TrustManagerFactory.getDefaultAlgorithm());
                         factory.init(myTrustStore);
