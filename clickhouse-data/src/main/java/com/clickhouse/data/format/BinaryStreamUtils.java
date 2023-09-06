@@ -69,9 +69,9 @@ public final class BinaryStreamUtils {
     public static final BigDecimal DECIMAL256_MIN = new BigDecimal(
             "-10000000000000000000000000000000000000000000000000000000000000000000000000000");
 
-    public static final long DATETIME64_MAX = LocalDateTime.of(LocalDate.of(2283, 11, 11), LocalTime.MAX)
+    public static final long DATETIME64_MAX = LocalDateTime.of(2299, 12, 31, 23, 59, 59, 999999999)
             .toEpochSecond(ZoneOffset.UTC);
-    public static final long DATETIME64_MIN = LocalDateTime.of(LocalDate.of(1925, 1, 1), LocalTime.MIN)
+    public static final long DATETIME64_MIN = LocalDateTime.of(1900, 1, 1, 00, 00, 00)
             .toEpochSecond(ZoneOffset.UTC);
 
     public static final long MILLIS_IN_DAY = TimeUnit.DAYS.toMillis(1);
