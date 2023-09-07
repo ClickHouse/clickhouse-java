@@ -47,11 +47,8 @@ public class ClickHouseServerForTest {
     private static final Properties properties;
 
     private static final String clickhouseServer;
-    private static final String clickhouseTLSServer;
     private static final String clickhouseVersion;
-    private static final String clickhouseTLSVersion;
     private static final GenericContainer<?> clickhouseContainer;
-    private static final GenericContainer<?> clickhouseTLSContainer;
 
     private static final String proxyHost;
     private static final int proxyPort;
@@ -88,8 +85,6 @@ public class ClickHouseServerForTest {
         String host = ClickHouseUtils.getProperty("clickhouseServer", properties);
         clickhouseServer = ClickHouseChecker.isNullOrEmpty(host) ? null : host;
 
-        String tlsHost = ClickHouseUtils.getProperty("clickhouseTLSServer", properties);
-        clickhouseTLSServer = ClickHouseChecker.isNullOrEmpty(tlsHost) ? null : tlsHost;
 
         String imageTag = ClickHouseUtils.getProperty("clickhouseVersion", properties);
 
@@ -167,80 +162,6 @@ public class ClickHouseServerForTest {
                             .forStatusCode(200).withStartupTimeout(Duration.of(600, SECONDS)));
         }
 
-        if (clickhouseTLSServer != null) { // use external server
-            clickhouseTLSVersion = ClickHouseChecker.isNullOrEmpty(imageTag)
-                    || ClickHouseVersion.of(imageTag).getYear() == 0 ? "" : imageTag;
-            clickhouseTLSContainer = null;
-        } else { // use test container
-            String timezone = ClickHouseUtils.getProperty("clickhouseTimezone", properties);
-            if (ClickHouseChecker.isNullOrEmpty(timezone)) {
-                timezone = "UTC";
-            }
-
-            String imageName = ClickHouseUtils.getProperty("clickhouseImage", properties);
-            if (ClickHouseChecker.isNullOrEmpty(imageName)) {
-                imageName = "clickhouse/clickhouse-server";
-            }
-
-            int tagIndex = imageName.indexOf(':');
-            int digestIndex = imageName.indexOf('@');
-            if (tagIndex > 0) {
-                imageTag = "";
-                clickhouseTLSVersion = digestIndex > 0 ? imageName.substring(tagIndex + 1, digestIndex)
-                        : imageName.substring(tagIndex + 1);
-            } else if (digestIndex > 0 || ClickHouseChecker.isNullOrEmpty(imageTag)) {
-                clickhouseTLSVersion = imageTag = "";
-            } else {
-                if (ClickHouseVersion.of(imageTag).getYear() == 0) {
-                    clickhouseTLSVersion = "";
-                } else {
-                    clickhouseTLSVersion = imageTag;
-                }
-                imageTag = ":" + imageTag;
-            }
-
-            String imageNameWithTag = imageName + imageTag;
-            String customPackages = ClickHouseUtils.getProperty("additionalPackages", properties);
-            if (!ClickHouseChecker.isNullOrEmpty(clickhouseTLSVersion)
-                    && ClickHouseVersion.check(clickhouseTLSVersion, "(,21.3]")) {
-                if (ClickHouseChecker.isNullOrEmpty(customPackages)) {
-                    customPackages = "tzdata";
-                } else if (!customPackages.contains("tzdata")) {
-                    customPackages += " tzdata";
-                }
-            }
-
-            final String additionalPackages = customPackages;
-            final String customDirectory = "/custom";
-            clickhouseTLSContainer = (ClickHouseChecker.isNullOrEmpty(additionalPackages)
-                    ? new GenericContainer<>(imageNameWithTag)
-                    : new GenericContainer<>(new ImageFromDockerfile().withDockerfileFromBuilder(builder -> builder
-                    .from(imageNameWithTag).run("apt-get update && apt-get install -y " + additionalPackages))))
-                    .withCreateContainerCmdModifier(
-                            it -> {
-                                it.withEntrypoint("/bin/sh");
-                                if (!ClickHouseChecker.isNullOrBlank(containerName + "-tls")) {
-                                    it.withName(containerName + "-tls");
-                                }
-                            })
-                    .withCommand("-c", String.format("chmod +x %1$s/patch && %1$s/patch", customDirectory))
-                    .withEnv("TZ", timezone)
-                    .withExposedPorts(ClickHouseProtocol.GRPC.getDefaultPort(),
-                            ClickHouseProtocol.HTTP.getDefaultPort(),
-                            ClickHouseProtocol.HTTP.getDefaultSecurePort(),
-                            ClickHouseProtocol.MYSQL.getDefaultPort(),
-                            ClickHouseProtocol.TCP.getDefaultPort(),
-                            ClickHouseProtocol.TCP.getDefaultSecurePort(),
-                            ClickHouseProtocol.POSTGRESQL.getDefaultPort())
-                    .withClasspathResourceMapping("containers/clickhouse-server-ssl", customDirectory, BindMode.READ_ONLY)
-                    .withFileSystemBind(System.getProperty("java.io.tmpdir"), getClickHouseContainerTmpDir(),
-                            BindMode.READ_WRITE)
-                    .withNetwork(network)
-                    .withNetworkAliases("clickhouse")
-                    .waitingFor(Wait.forHttps("/ping").forPort(ClickHouseProtocol.HTTP.getDefaultSecurePort()).allowInsecure()
-                            .forStatusCode(200).withStartupTimeout(Duration.of(60, SECONDS)));
-        }
-
     }
 
     public static String getClickHouseVersion() {
@@ -283,9 +204,9 @@ public class ClickHouseServerForTest {
 
     public static ClickHouseNode getClickHouseNode(ClickHouseProtocol protocol, boolean useSecurePort,
                                                    ClickHouseNode template) {
-        String host = useSecurePort ? clickhouseTLSServer : clickhouseServer;
+        String host = clickhouseServer;
         int port = useSecurePort ? protocol.getDefaultSecurePort() : protocol.getDefaultPort();
-        GenericContainer<?> container = useSecurePort ? clickhouseTLSContainer : clickhouseContainer;
+        GenericContainer<?> container = clickhouseContainer;
         if (container != null) {
             host = container.getHost();
             port = container.getMappedPort(port);
@@ -346,10 +267,13 @@ public class ClickHouseServerForTest {
 
     @BeforeSuite(groups = {"integration"})
     public static void beforeSuite() {
-        if (clickhouseContainer != null && clickhouseTLSContainer != null) {
+        if (clickhouseContainer != null) {
+            if (clickhouseContainer.isRunning()) {
+                return;
+            }
+
             try {
-                if (!clickhouseContainer.isRunning()) clickhouseContainer.start();
-                if (!clickhouseTLSContainer.isRunning()) clickhouseTLSContainer.start();
+                clickhouseContainer.start();
             } catch (RuntimeException e) {
                 throw new IllegalStateException(new StringBuilder()
                         .append("Failed to start docker container for integration test.\r\n")

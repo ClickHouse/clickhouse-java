@@ -14,4 +14,10 @@ fi
 \cp -rfv "$(dirname $0)/." $SERVER_CONF_DIR
 find $SERVER_CONF_DIR -type f -name "*.xml" -exec sed -i -e "s|$ROOT_ELEMENT>|$REPLACE_TO>|g" {} \; || true
 
+if chown clickhouse:clickhouse -R /etc/clickhouse-server/certs; then
+    echo "Ownership of /etc/clickhouse-server/certs changed successfully."
+else
+    echo "Failed to change ownership of /etc/clickhouse-server/certs."
+fi
+
 /entrypoint.sh
