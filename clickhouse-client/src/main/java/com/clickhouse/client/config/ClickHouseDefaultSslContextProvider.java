@@ -25,6 +25,7 @@ import javax.net.ssl.SSLException;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.X509TrustManager;
+
 import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseSslContextProvider;
 import com.clickhouse.data.ClickHouseUtils;
@@ -123,7 +124,7 @@ public class ClickHouseDefaultSslContextProvider implements ClickHouseSslContext
         String sslRootCert = config.getSslRootCert();
         String truststorePath = config.getTrustStore();
         String truststorePassword = config.getTrustStorePassword();
-        String keyStoreType = (!config.getKeyStoreType().isEmpty() && config.getKeyStoreType() !=null) ? config.getKeyStoreType() : KeyStore.getDefaultType();
+        String keyStoreType = (!config.getKeyStoreType().isEmpty() && config.getKeyStoreType() != null) ? config.getKeyStoreType() : KeyStore.getDefaultType();
 
         SSLContext ctx;
         try {
@@ -133,24 +134,10 @@ public class ClickHouseDefaultSslContextProvider implements ClickHouseSslContext
             SecureRandom sr = null;
 
             if (sslMode == ClickHouseSslMode.NONE) {
-                tms = new TrustManager[] { new NonValidatingTrustManager() };
+                tms = new TrustManager[]{new NonValidatingTrustManager()};
                 kms = new KeyManager[0];
                 sr = new SecureRandom();
             } else if (sslMode == ClickHouseSslMode.STRICT) {
-                if (clientCert != null && !clientCert.isEmpty()) {
-                    KeyManagerFactory factory = KeyManagerFactory
-                            .getInstance(KeyManagerFactory.getDefaultAlgorithm());
-                    factory.init(getKeyStore(clientCert, clientKey), null);
-                    kms = factory.getKeyManagers();
-                }
-
-                if (sslRootCert != null && !sslRootCert.isEmpty()) {
-                    TrustManagerFactory factory = TrustManagerFactory
-                            .getInstance(TrustManagerFactory.getDefaultAlgorithm());
-                    factory.init(getKeyStore(sslRootCert, null));
-                    tms = factory.getTrustManagers();
-                }
-
                 if (truststorePath != null && !truststorePath.isEmpty()) {
 
                     try (InputStream in = ClickHouseUtils.getFileInputStream(truststorePath)) {
@@ -162,6 +149,20 @@ public class ClickHouseDefaultSslContextProvider implements ClickHouseSslContext
                         tms = factory.getTrustManagers();
 
                     }
+                } else {
+                    if (clientCert != null && !clientCert.isEmpty()) {
+                        KeyManagerFactory factory = KeyManagerFactory
+                                .getInstance(KeyManagerFactory.getDefaultAlgorithm());
+                        factory.init(getKeyStore(clientCert, clientKey), null);
+                        kms = factory.getKeyManagers();
+                    }
+
+                    if (sslRootCert != null && !sslRootCert.isEmpty()) {
+                        TrustManagerFactory factory = TrustManagerFactory
+                                .getInstance(TrustManagerFactory.getDefaultAlgorithm());
+                        factory.init(getKeyStore(sslRootCert, null));
+                        tms = factory.getTrustManagers();
+                    }
                 }
 
                 sr = new SecureRandom();
@@ -171,7 +172,7 @@ public class ClickHouseDefaultSslContextProvider implements ClickHouseSslContext
 
             ctx.init(kms, tms, sr);
         } catch (KeyManagementException | InvalidKeySpecException | NoSuchAlgorithmException | KeyStoreException
-                | CertificateException | IOException | UnrecoverableKeyException e) {
+                 | CertificateException | IOException | UnrecoverableKeyException e) {
             throw new SSLException("Failed to get SSL context", e);
         }
 
