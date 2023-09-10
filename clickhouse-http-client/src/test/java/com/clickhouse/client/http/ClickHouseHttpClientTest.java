@@ -275,7 +275,7 @@ public class ClickHouseHttpClientTest extends ClientIntegrationTest {
         Map<ClickHouseOption, Serializable> options = new HashMap<>();
         options.put(ClickHouseClientOption.SSL, true);
         options.put(ClickHouseClientOption.SSL_MODE, ClickHouseSslMode.STRICT);
-        options.put(ClickHouseClientOption.SSL_ROOT_CERTIFICATE, "containers/clickhouse-server-ssl/server/certs/localhost.crt");
+        options.put(ClickHouseClientOption.SSL_ROOT_CERTIFICATE, "containers/clickhouse-server/certs/localhost.crt");
         try (ClickHouseClient client = getSecureClient(new ClickHouseConfig(options));
              ClickHouseResponse response = newRequest(client, server)
                      .query("select 123").executeAndWait()) {
@@ -289,7 +289,7 @@ public class ClickHouseHttpClientTest extends ClientIntegrationTest {
         ClickHouseNode server = getSecureServer(ClickHouseProtocol.fromUriScheme("https"));
         Map<ClickHouseOption, Serializable> options = new HashMap<>();
         options.put(ClickHouseClientOption.SSL, true);
-        options.put(ClickHouseClientOption.TRUST_STORE, "containers/clickhouse-server-ssl/server/certs/KeyStore.jks");
+        options.put(ClickHouseClientOption.TRUST_STORE, "containers/clickhouse-server/certs/KeyStore.jks");
         options.put(ClickHouseClientOption.KEY_STORE_PASSWORD, "iloveclickhouse");
         try (ClickHouseClient client = getSecureClient(new ClickHouseConfig(options));
              ClickHouseResponse response = newRequest(client, server)
