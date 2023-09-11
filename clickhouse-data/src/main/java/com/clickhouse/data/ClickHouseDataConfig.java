@@ -134,7 +134,7 @@ public interface ClickHouseDataConfig extends Serializable {
 
     static final ClickHouseBufferingMode DEFAULT_BUFFERING_MODE = ClickHouseBufferingMode.RESOURCE_EFFICIENT;
 
-    static final int DEFAULT_BUFFER_SIZE = 4096;
+    static final int DEFAULT_BUFFER_SIZE = 8192;
     static final int DEFAULT_READ_BUFFER_SIZE = DEFAULT_BUFFER_SIZE;
     static final int DEFAULT_WRITE_BUFFER_SIZE = DEFAULT_BUFFER_SIZE;
     static final int DEFAULT_MAX_BUFFER_SIZE = 128 * 1024;
