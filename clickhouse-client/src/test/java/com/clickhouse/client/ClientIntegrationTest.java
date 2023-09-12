@@ -179,12 +179,6 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
         return initClient(ClickHouseClient.builder())
                 .config(new ClickHouseConfig(configs))
                 .nodeSelector(ClickHouseNodeSelector.of(getProtocol()))
-                .option(ClickHouseClientOption.SSL, true)
-                .option(ClickHouseClientOption.SSL_MODE, ClickHouseSslMode.STRICT)
-                .option(ClickHouseClientOption.SSL_ROOT_CERTIFICATE, "containers/clickhouse-server/certs/myCA.crt")
-                .option(ClickHouseClientOption.SSL_CERTIFICATE, "client.crt")
-                .option(ClickHouseClientOption.SSL_KEY, "client.key")
-                .defaultCredentials(ClickHouseCredentials.fromUserAndPassword("me", ""))
                 .build();
     }
 

@@ -7,6 +7,7 @@ import java.net.InetSocketAddress;
 import java.time.Duration;
 import java.util.Map;
 import java.util.Properties;
+
 import org.testcontainers.containers.BindMode;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.Network;
@@ -84,6 +85,7 @@ public class ClickHouseServerForTest {
         String host = ClickHouseUtils.getProperty("clickhouseServer", properties);
         clickhouseServer = ClickHouseChecker.isNullOrEmpty(host) ? null : host;
 
+
         String imageTag = ClickHouseUtils.getProperty("clickhouseVersion", properties);
 
         if (clickhouseServer != null) { // use external server
@@ -134,7 +136,7 @@ public class ClickHouseServerForTest {
             clickhouseContainer = (ClickHouseChecker.isNullOrEmpty(additionalPackages)
                     ? new GenericContainer<>(imageNameWithTag)
                     : new GenericContainer<>(new ImageFromDockerfile().withDockerfileFromBuilder(builder -> builder
-                            .from(imageNameWithTag).run("apt-get update && apt-get install -y " + additionalPackages))))
+                    .from(imageNameWithTag).run("apt-get update && apt-get install -y " + additionalPackages))))
                     .withCreateContainerCmdModifier(
                             it -> {
                                 it.withEntrypoint("/bin/sh");
@@ -157,8 +159,9 @@ public class ClickHouseServerForTest {
                     .withNetwork(network)
                     .withNetworkAliases("clickhouse")
                     .waitingFor(Wait.forHttp("/ping").forPort(ClickHouseProtocol.HTTP.getDefaultPort())
-                            .forStatusCode(200).withStartupTimeout(Duration.of(60, SECONDS)));
+                            .forStatusCode(200).withStartupTimeout(Duration.of(600, SECONDS)));
         }
+
     }
 
     public static String getClickHouseVersion() {
@@ -200,13 +203,13 @@ public class ClickHouseServerForTest {
     }
 
     public static ClickHouseNode getClickHouseNode(ClickHouseProtocol protocol, boolean useSecurePort,
-            ClickHouseNode template) {
+                                                   ClickHouseNode template) {
         String host = clickhouseServer;
         int port = useSecurePort ? protocol.getDefaultSecurePort() : protocol.getDefaultPort();
-
-        if (clickhouseContainer != null) {
-            host = clickhouseContainer.getHost();
-            port = clickhouseContainer.getMappedPort(port);
+        GenericContainer<?> container = clickhouseContainer;
+        if (container != null) {
+            host = container.getHost();
+            port = container.getMappedPort(port);
         } else {
             String config = ClickHouseUtils
                     .getProperty(ClickHouseUtils.format("clickhouse%SPort", protocol.name(), properties));
@@ -262,7 +265,7 @@ public class ClickHouseServerForTest {
         return network;
     }
 
-    @BeforeSuite(groups = { "integration" })
+    @BeforeSuite(groups = {"integration"})
     public static void beforeSuite() {
         if (clickhouseContainer != null) {
             if (clickhouseContainer.isRunning()) {
@@ -281,7 +284,7 @@ public class ClickHouseServerForTest {
         }
     }
 
-    @AfterSuite(groups = { "integration" })
+    @AfterSuite(groups = {"integration"})
     public static void afterSuite() {
         if (clickhouseContainer != null) {
             clickhouseContainer.stop();

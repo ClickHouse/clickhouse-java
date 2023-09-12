@@ -344,6 +344,18 @@ public enum ClickHouseClientOption implements ClickHouseOption {
      */
     SSL_KEY("sslkey", "", "RSA key in PKCS#8 format.", true),
     /**
+     * Key Store type.
+     */
+    KEY_STORE_TYPE("key_store_type", "", "Specifies the type or format of the keystore/truststore file used for SSL/TLS configuration, such as \"JKS\" (Java KeyStore) or \"PKCS12.\"", true),
+    /**
+     * Trust Store.
+     */
+    TRUST_STORE("trust_store", "", "Path to the truststore file", true),
+    /**
+     * Trust Store password.
+     */
+    KEY_STORE_PASSWORD("key_store_password", "", "Password needed to access the keystore file specified in the keystore config", true),
+    /**
      * Transaction timeout in seconds.
      */
     TRANSACTION_TIMEOUT("transaction_timeout", 0,

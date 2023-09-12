@@ -229,6 +229,9 @@ public class ClickHouseConfig implements ClickHouseDataConfig {
     private final String sslRootCert;
     private final String sslCert;
     private final String sslKey;
+    private final String keyStoreType;
+    private final String trustStore;
+    private final String trustStorePassword;
     private final int transactionTimeout;
     private final boolean widenUnsignedTypes;
     private final boolean useBinaryString;
@@ -346,6 +349,9 @@ public class ClickHouseConfig implements ClickHouseDataConfig {
         this.sslRootCert = getStrOption(ClickHouseClientOption.SSL_ROOT_CERTIFICATE);
         this.sslCert = getStrOption(ClickHouseClientOption.SSL_CERTIFICATE);
         this.sslKey = getStrOption(ClickHouseClientOption.SSL_KEY);
+        this.keyStoreType = getStrOption(ClickHouseClientOption.KEY_STORE_TYPE);
+        this.trustStore = getStrOption(ClickHouseClientOption.TRUST_STORE);
+        this.trustStorePassword = getStrOption(ClickHouseClientOption.KEY_STORE_PASSWORD);
         this.transactionTimeout = getIntOption(ClickHouseClientOption.TRANSACTION_TIMEOUT);
         this.widenUnsignedTypes = getBoolOption(ClickHouseClientOption.WIDEN_UNSIGNED_TYPES);
         this.useBinaryString = getBoolOption(ClickHouseClientOption.USE_BINARY_STRING);
@@ -622,6 +628,18 @@ public class ClickHouseConfig implements ClickHouseDataConfig {
 
     public String getSslKey() {
         return sslKey;
+    }
+
+    public String getKeyStoreType() {
+        return keyStoreType;
+    }
+
+    public String getTrustStore() {
+        return trustStore;
+    }
+
+    public String getTrustStorePassword() {
+        return trustStorePassword;
     }
 
     public int getTransactionTimeout() {

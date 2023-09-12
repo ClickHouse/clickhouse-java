@@ -2,10 +2,7 @@ package com.clickhouse.client.http;
 
 import java.io.IOException;
 import java.io.Serializable;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 
 import com.clickhouse.client.ClickHouseClient;
 import com.clickhouse.client.ClickHouseConfig;
@@ -23,6 +20,7 @@ import com.clickhouse.client.ClickHouseServerForTest;
 import com.clickhouse.client.ClientIntegrationTest;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.config.ClickHouseHealthCheckMethod;
+import com.clickhouse.client.config.ClickHouseSslMode;
 import com.clickhouse.client.http.config.ClickHouseHttpOption;
 import com.clickhouse.client.http.config.HttpConnectionProvider;
 import com.clickhouse.config.ClickHouseOption;
@@ -160,9 +158,9 @@ public class ClickHouseHttpClientTest extends ClientIntegrationTest {
         }
         ClickHouseClient.send(server, "SYSTEM FLUSH LOGS").get();
         try (ClickHouseClient client = getClient();
-                ClickHouseResponse response = newRequest(client, server)
-                        .query("select http_user_agent from system.query_log where query='select ''" + uuid + "'''")
-                        .executeAndWait()) {
+             ClickHouseResponse response = newRequest(client, server)
+                     .query("select http_user_agent from system.query_log where query='select ''" + uuid + "'''")
+                     .executeAndWait()) {
             String result = response.firstRecord().getValue(0).asString();
             Assert.assertTrue(result.startsWith("MyCustomClient"));
             Assert.assertTrue(result.indexOf("Http") > 0);
@@ -170,18 +168,18 @@ public class ClickHouseHttpClientTest extends ClientIntegrationTest {
 
         uuid = UUID.randomUUID().toString();
         try (ClickHouseClient client = getClient();
-                ClickHouseResponse response = newRequest(client, server)
-                        .option(ClickHouseClientOption.CLIENT_NAME, "MyCustomClient")
-                        .query(ClickHouseParameterizedQuery.of(client.getConfig(), sql))
-                        .params(ClickHouseStringValue.of(uuid))
-                        .executeAndWait()) {
+             ClickHouseResponse response = newRequest(client, server)
+                     .option(ClickHouseClientOption.CLIENT_NAME, "MyCustomClient")
+                     .query(ClickHouseParameterizedQuery.of(client.getConfig(), sql))
+                     .params(ClickHouseStringValue.of(uuid))
+                     .executeAndWait()) {
             Assert.assertEquals(response.firstRecord().getValue(0).asString(), uuid);
         }
         ClickHouseClient.send(server, "SYSTEM FLUSH LOGS").get();
         try (ClickHouseClient client = getClient();
-                ClickHouseResponse response = newRequest(client, server)
-                        .query("select http_user_agent from system.query_log where query='select ''" + uuid + "'''")
-                        .executeAndWait()) {
+             ClickHouseResponse response = newRequest(client, server)
+                     .query("select http_user_agent from system.query_log where query='select ''" + uuid + "'''")
+                     .executeAndWait()) {
             Assert.assertEquals(response.firstRecord().getValue(0).asString(), "MyCustomClient");
         }
     }
@@ -257,8 +255,8 @@ public class ClickHouseHttpClientTest extends ClientIntegrationTest {
         testImplicitTransaction();
     }
 
-    @Test // (groups = "integration")
-    public void testSslClientAuth() throws ClickHouseException {
+    @Test(groups = {"integration"})
+    public void testSslRootCertificateClientAuth() throws ClickHouseException {
         // NPE on JDK 8:
         // java.lang.NullPointerException
         // at sun.security.provider.JavaKeyStore.convertToBytes(JavaKeyStore.java:822)
@@ -273,15 +271,34 @@ public class ClickHouseHttpClientTest extends ClientIntegrationTest {
         // at java.security.KeyStore.setKeyEntry(KeyStore.java:1140)
         // at
         // com.clickhouse.client.config.ClickHouseDefaultSslContextProvider.getKeyStore(ClickHouseDefaultSslContextProvider.java:105)
-        ClickHouseNode server = getSecureServer(ClickHouseProtocol.HTTP);
-        try (ClickHouseClient client = getSecureClient();
-                ClickHouseResponse response = newRequest(client, server)
-                        .query("select 123").executeAndWait()) {
+        ClickHouseNode server = getSecureServer(ClickHouseProtocol.fromUriScheme("https"));
+        Map<ClickHouseOption, Serializable> options = new HashMap<>();
+        options.put(ClickHouseClientOption.SSL, true);
+        options.put(ClickHouseClientOption.SSL_MODE, ClickHouseSslMode.STRICT);
+        options.put(ClickHouseClientOption.SSL_ROOT_CERTIFICATE, "containers/clickhouse-server/certs/localhost.crt");
+        try (ClickHouseClient client = getSecureClient(new ClickHouseConfig(options));
+             ClickHouseResponse response = newRequest(client, server)
+                     .query("select 123").executeAndWait()) {
             Assert.assertEquals(response.firstRecord().getValue(0).asInteger(), 123);
         }
     }
 
-    @Test(groups = { "integration" })
+
+    @Test(groups = {"integration"})
+    public void testTrustStoreSSLClientAuth() throws ClickHouseException {
+        ClickHouseNode server = getSecureServer(ClickHouseProtocol.fromUriScheme("https"));
+        Map<ClickHouseOption, Serializable> options = new HashMap<>();
+        options.put(ClickHouseClientOption.SSL, true);
+        options.put(ClickHouseClientOption.TRUST_STORE, "containers/clickhouse-server/certs/KeyStore.jks");
+        options.put(ClickHouseClientOption.KEY_STORE_PASSWORD, "iloveclickhouse");
+        try (ClickHouseClient client = getSecureClient(new ClickHouseConfig(options));
+             ClickHouseResponse response = newRequest(client, server)
+                     .query("select 123").executeAndWait()) {
+            Assert.assertEquals(response.firstRecord().getValue(0).asInteger(), 123);
+        }
+    }
+
+    @Test(groups = {"integration"})
     public void testCreateTableAsSelect() throws ClickHouseException {
         ClickHouseNode server = getServer();
         sendAndWait(server, "drop table if exists test_create_table_as_select");
@@ -298,7 +315,7 @@ public class ClickHouseHttpClientTest extends ClientIntegrationTest {
 
             try (ClickHouseResponse resp = request.format(ClickHouseFormat.RowBinaryWithNamesAndTypes)
                     .query("select * from test_create_table_as_select order by i").executeAndWait()) {
-                String[] array = new String[] { "one", "two" };
+                String[] array = new String[]{"one", "two"};
                 int count = 0;
                 for (ClickHouseRecord r : resp.records()) {
                     Assert.assertEquals(r.getValue("i").asInteger(), count + 1);
@@ -311,7 +328,7 @@ public class ClickHouseHttpClientTest extends ClientIntegrationTest {
     }
 
     @Override
-    @Test(groups = { "integration" })
+    @Test(groups = {"integration"})
     public void testMutation() throws ClickHouseException {
         super.testMutation();
 
@@ -319,16 +336,16 @@ public class ClickHouseHttpClientTest extends ClientIntegrationTest {
         sendAndWait(server, "drop table if exists test_http_mutation",
                 "create table test_http_mutation(a String, b Nullable(Int64))engine=Memory");
         try (ClickHouseClient client = getClient();
-                ClickHouseResponse response = newRequest(client, server)
-                        .set("send_progress_in_http_headers", 1)
-                        .query("insert into test_http_mutation select toString(number), number from numbers(1)")
-                        .executeAndWait()) {
+             ClickHouseResponse response = newRequest(client, server)
+                     .set("send_progress_in_http_headers", 1)
+                     .query("insert into test_http_mutation select toString(number), number from numbers(1)")
+                     .executeAndWait()) {
             ClickHouseResponseSummary summary = response.getSummary();
             Assert.assertEquals(summary.getWrittenRows(), 1L);
         }
     }
 
-    @Test(groups = { "integration" })
+    @Test(groups = {"integration"})
     public void testLogComment() throws ClickHouseException, IOException {
         ClickHouseNode server = getServer(ClickHouseProtocol.HTTP);
         String uuid = UUID.randomUUID().toString();
@@ -366,7 +383,7 @@ public class ClickHouseHttpClientTest extends ClientIntegrationTest {
         }
     }
 
-    @Test(groups = { "integration" })
+    @Test(groups = {"integration"})
     public void testPost() throws ClickHouseException {
         ClickHouseNode server = getServer(ClickHouseProtocol.HTTP);
 
@@ -402,7 +419,7 @@ public class ClickHouseHttpClientTest extends ClientIntegrationTest {
         }
     }
 
-    @Test(groups = { "integration" })
+    @Test(groups = {"integration"})
     public void testProxyConnection() throws ClickHouseException, IOException {
         ToxiproxyContainer toxiproxy = null;
         if (!ClickHouseServerForTest.hasProxyAddress()) {
