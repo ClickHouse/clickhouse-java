@@ -57,6 +57,7 @@ import java.net.ConnectException;
 import java.net.HttpURLConnection;
 import java.net.InetSocketAddress;
 import java.net.Socket;
+import java.net.StandardSocketOptions;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
@@ -379,6 +380,22 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
             }
             if (config.getProxyType() == ClickHouseProxyType.SOCKS) {
                 builder.setSocksProxyAddress(new InetSocketAddress(config.getProxyHost(), config.getProxyPort()));
+            }
+            if (config.hasOption(ClickHouseClientOption.SOCKET_RCVBUF)) {
+                int bufferSize = config.getIntOption(ClickHouseClientOption.SOCKET_RCVBUF);
+                builder.setRcvBufSize(bufferSize > 0 ? bufferSize : config.getReadBufferSize());
+            } else {
+                int bufferSize = config.getBufferSize();
+                int maxQueuedBuffers = config.getMaxQueuedBuffers();
+                builder.setRcvBufSize(bufferSize * maxQueuedBuffers);
+            }
+            if (config.hasOption(ClickHouseClientOption.SOCKET_SNDBUF)) {
+                int bufferSize = config.getIntOption(ClickHouseClientOption.SOCKET_SNDBUF);
+                builder.setSndBufSize(bufferSize > 0 ? bufferSize : config.getWriteBufferSize());
+            } else {
+                int bufferSize = config.getBufferSize();
+                int maxQueuedBuffers = config.getMaxQueuedBuffers();
+                builder.setSndBufSize(bufferSize * maxQueuedBuffers);
             }
             setDefaultSocketConfig(builder.build());
         }
