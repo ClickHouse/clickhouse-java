@@ -415,7 +415,7 @@ public class ClickHouseNodes implements ClickHouseNodeManager {
 
             try (ClickHouseClient client = ClickHouseClient.builder().agent(false)
                     .nodeSelector(ClickHouseNodeSelector.of(server.getProtocol())).build()) {
-                ClickHouseRequest<?> request = client.connect(server)
+                ClickHouseRequest<?> request = client.read(server)
                         .format(ClickHouseFormat.RowBinaryWithNamesAndTypes);
                 String clusterName = server.getCluster();
                 Set<String> clusters = new LinkedHashSet<>();

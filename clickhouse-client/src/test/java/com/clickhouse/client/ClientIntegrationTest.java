@@ -148,7 +148,7 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
     }
 
     protected ClickHouseRequest<?> newRequest(ClickHouseClient client, ClickHouseNode server) {
-        ClickHouseRequest<?> request = client.connect(server);
+        ClickHouseRequest<?> request = client.read(server);
         Map<ClickHouseOption, Serializable> options = getClientOptions();
         if (options != null) {
             for (Entry<ClickHouseOption, Serializable> e : options.entrySet()) {

@@ -37,7 +37,7 @@ public class ClickHouseHttpClient extends AbstractClient<ClickHouseHttpConnectio
 
     @Override
     protected boolean checkHealth(ClickHouseNode server, int timeout) {
-        return getConnection(connect(server)).ping(timeout);
+        return getConnection(read(server)).ping(timeout);
     }
 
     @Override

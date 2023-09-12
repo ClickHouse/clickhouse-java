@@ -12,8 +12,8 @@ public enum ClickHouseHttpOption implements ClickHouseOption {
     /**
      * HTTP connection provider.
      */
-    CONNECTION_PROVIDER("http_connection_provider", HttpConnectionProvider.HTTP_URL_CONNECTION,
-            "HTTP connection provider. HTTP_CLIENT is only supported in JDK 11 or above."),
+    CONNECTION_PROVIDER("http_connection_provider", HttpConnectionProvider.APACHE_HTTP_CLIENT,
+            "APACHE HTTP CLIENT connection provider. HTTP_CLIENT is only supported in JDK 11 or above."),
     /**
      * Custom HTTP headers.
      */

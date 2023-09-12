@@ -3,12 +3,15 @@
 * ClickHouseByteBuffer can no longer be extended
 * rename ClickHouseByteUtils methods by removing LE suffix
 * change default databaseTerm from schema to catalog
+* remove deprecated API load, dump and connect
+* remove use_no_proxy settings
 
 ### New Features
 * Adding new proxy support [#1338](https://github.com/ClickHouse/clickhouse-java/issues/1338)
 * Add support for customer socket factory [#1391](https://github.com/ClickHouse/clickhouse-java/issues/1391)
 * use VarHandle in JDK 9+ to read/write numbers
 * Establish secured connection with custom Trust Store file
+* Change default HTTP Client to Apache HTTP client [#1421](https://github.com/ClickHouse/clickhouse-java/issues/1421)
 
 ### Bug Fixes
 * Java client threw confusing error when query is invalid.

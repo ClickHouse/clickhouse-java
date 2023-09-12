@@ -40,7 +40,7 @@ public class ClickHouseClientTest {
     public void testQuery() throws ExecutionException, InterruptedException {
         ClickHouseClient client = ClickHouseClient.builder().build();
         Assert.assertNotNull(client);
-        ClickHouseRequest<?> req = client.connect(ClickHouseNode.builder().build());
+        ClickHouseRequest<?> req = client.read(ClickHouseNode.builder().build());
         Assert.assertNotNull(req);
         Assert.assertNull(req.config);
         Assert.assertNotNull(req.getConfig());
@@ -55,7 +55,7 @@ public class ClickHouseClientTest {
     public void testMutation() throws ExecutionException, InterruptedException {
         ClickHouseClient client = ClickHouseClient.builder().build();
         Assert.assertNotNull(client);
-        Mutation req = client.connect(ClickHouseNode.builder().build()).write();
+        Mutation req = client.read(ClickHouseNode.builder().build()).write();
         Assert.assertNotNull(req);
         Assert.assertNull(req.config);
         Assert.assertNotNull(req.getConfig());

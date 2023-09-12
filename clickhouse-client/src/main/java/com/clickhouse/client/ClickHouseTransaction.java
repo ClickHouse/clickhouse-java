@@ -420,7 +420,7 @@ public final class ClickHouseTransaction implements Serializable {
         }
 
         id.updateAndGet(x -> {
-            try (ClickHouseResponse response = ClickHouseClient.newInstance(server.getProtocol()).connect(server)
+            try (ClickHouseResponse response = ClickHouseClient.newInstance(server.getProtocol()).read(server)
                     .query("KILL TRANSACTION WHERE tid=" + x.asTupleString()).executeAndWait()) {
                 // ignore
             } catch (ClickHouseException e) {
