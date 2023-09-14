@@ -78,7 +78,7 @@
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
         <annotations-api.version>6.0.53</annotations-api.version>
-        <compress.version>1.23.0</compress.version>
+        <compress.version>1.24.0</compress.version>
         <grpc.version>1.57.1</grpc.version>
         <gson.version>2.10.1</gson.version>
         <opencensus.version>0.31.1</opencensus.version>
