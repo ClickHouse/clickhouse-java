@@ -387,10 +387,11 @@ public interface BinaryDataProcessor {
         @Override
         public void serialize(ClickHouseValue value, ClickHouseOutputStream output) throws IOException {
             BigDecimal v = value.asBigDecimal();
-            BinaryStreamUtils.writeInt64(output,
-                    ClickHouseChecker.between(scale == 0 ? v : v.multiply(BigDecimal.TEN.pow(scale)),
-                            ClickHouseValues.TYPE_BIG_DECIMAL, BinaryStreamUtils.DECIMAL64_MIN,
-                            BinaryStreamUtils.DECIMAL64_MAX).longValue());
+            BinaryStreamUtils.writeDecimal64(output, v, scale);
+//            BinaryStreamUtils.writeInt64(output,
+//                    ClickHouseChecker.between(scale == 0 ? v : v.multiply(BigDecimal.TEN.pow(scale)),
+//                            ClickHouseValues.TYPE_BIG_DECIMAL, BinaryStreamUtils.DECIMAL64_MIN,
+//                            BinaryStreamUtils.DECIMAL64_MAX).longValue());
         }
     }
 
