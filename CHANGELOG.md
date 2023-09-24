@@ -1,3 +1,6 @@
+## 0.5.1 
+### Bug Fixes
+
 ## 0.5.0
 ### Breaking Changes
 * ClickHouseByteBuffer can no longer be extended
