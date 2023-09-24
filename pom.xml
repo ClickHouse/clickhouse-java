@@ -142,7 +142,7 @@
         <os-plugin.version>1.7.1</os-plugin.version>
         <protobuf-plugin.version>0.6.1</protobuf-plugin.version>
         <shade-plugin.version>3.5.0</shade-plugin.version>
-        <source-plugin.version>3.3.0</source-plugin.version>
+        <source-plugin.version>3.2.1</source-plugin.version>
         <staging-plugin.version>1.6.13</staging-plugin.version>
         <surefire-plugin.version>3.1.2</surefire-plugin.version>
         <toolchains-plugin.version>3.1.0</toolchains-plugin.version>
