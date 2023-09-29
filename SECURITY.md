@@ -9,25 +9,9 @@ Security fixes will be announced by posting them in the [security changelog](htt
 
 ## Scope and Supported Versions
 
-The following versions of ClickHouse server are currently being supported with security updates:
+Generally the latest release contains the most recent security updates - we increment version numbers based on all changes, including security fixes. 
 
-| Version | Supported |
-|:-|:-|
-| 23.9 | ✔️ |
-| 23.8 | ✔️ |
-| 23.7 | ✔️ |
-| 23.6 | ❌ |
-| 23.5 | ❌ |
-| 23.4 | ❌ |
-| 23.3 | ✔️ |
-| 23.2 | ❌ |
-| 23.1 | ❌ |
-| 22.* | ❌ |
-| 21.* | ❌ |
-| 20.* | ❌ |
-| 19.* | ❌ |
-| 18.* | ❌ |
-| 1.* | ❌ |
+Where applicable we might backport, but generally the latest is the most secure.
 
 ## Reporting a Vulnerability
 
