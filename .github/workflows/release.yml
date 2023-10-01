@@ -13,6 +13,8 @@ jobs:
     name: "Build and Publish Artifact"
     runs-on: "ubuntu-latest"
 
+    permissions: write-all
+
     steps:
       - name: Check out Git repository
         uses: actions/checkout@v3
