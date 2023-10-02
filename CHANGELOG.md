@@ -1,3 +1,7 @@
+## 0.5.1
+### Usability improvement
+* BinaryStreamUtils: Add methods to write nullable fields
+
 ## 0.5.0
 ### Breaking Changes
 * ClickHouseByteBuffer can no longer be extended

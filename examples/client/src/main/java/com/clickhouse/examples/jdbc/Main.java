@@ -51,8 +51,7 @@ public class Main {
                 // writing happens in main thread
                 for (int i = 0; i < 10_000; i++) {
                     BinaryStreamUtils.writeString(stream, String.valueOf(i % 16));
-                    BinaryStreamUtils.writeNonNull(stream);
-                    BinaryStreamUtils.writeString(stream, UUID.randomUUID().toString());
+                    BinaryStreamUtils.writeNullableString(stream, UUID.randomUUID().toString());
                 }
             }
 
