@@ -11,7 +11,7 @@ concurrency:
 
 env:
   PREFERRED_LTS_VERSION: "23.7"
-  CLICKHOUSE_TEST_VERSIONS: ["head"]
+  CLICKHOUSE_TEST_VERSIONS: "["head"]"
 
 extends:
   - .github/workflow/build-template.yml

@@ -8,7 +8,7 @@ concurrency:
 
 env:
   PREFERRED_LTS_VERSION: "23.3"
-  CLICKHOUSE_TEST_VERSIONS: []
+  CLICKHOUSE_TEST_VERSIONS: "[]"
 
 jobs:
   compile:
