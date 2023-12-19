@@ -30,17 +30,23 @@ public class JdbcIssuesTest extends JdbcIntegrationTest {
         String columnNames = "event_id";
         String columnValues = "('event_id String')";
         String sql = String.format("INSERT INTO %s (%s) SELECT %s FROM input %s", TABLE_NAME, columnNames, columnNames, columnValues);
-        System.out.println(sql);
+
         Connection conn = dataSource.getConnection("default", "");
         Statement st = conn.createStatement();
         st.execute(String.format("CREATE TABLE %s (`event_id` String) ENGINE = Log", TABLE_NAME));
 
-        String content = StringUtils.repeat("*", 50000);
-
-        try ( PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1 , content);
-            ps.addBatch();
-            ps.executeBatch();
+        int count = 1;
+        while (count <= 50000) {
+            String content = StringUtils.repeat("*", count);
+            try (PreparedStatement ps = conn.prepareStatement(sql)) {
+                ps.setString(1, content);
+                ps.addBatch();
+                ps.executeBatch();
+            } catch (SQLException sqlException) {
+                sqlException.printStackTrace();
+                System.out.println(count);
+            }
+            count *= 2;
         }
     }
 
