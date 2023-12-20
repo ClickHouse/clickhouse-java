@@ -214,21 +214,18 @@ public class ClickHouseHttpClientTest extends ClientIntegrationTest {
                 .nodeSelector(ClickHouseNodeSelector.of(ClickHouseProtocol.HTTP)).build()) {
             Assert.assertTrue(client.ping(getServer(), 3000));
         }
-// TODO: Understand for what web context feature is used for
-// Disable two web context tests
-//        try (ClickHouseClient client = ClickHouseClient.builder().options(getClientOptions())
-//                .nodeSelector(ClickHouseNodeSelector.of(ClickHouseProtocol.HTTP))
-//                .option(ClickHouseHttpOption.WEB_CONTEXT, "a/b").build()) {
-//            Assert.assertTrue(client.ping(getServer(), 3000));
-//        }
-//
-//        try (ClickHouseClient client = ClickHouseClient.builder().options(getClientOptions())
-//                .nodeSelector(ClickHouseNodeSelector.of(ClickHouseProtocol.HTTP))
-//                .option(ClickHouseHttpOption.WEB_CONTEXT, "a/b")
-//                .option(ClickHouseClientOption.HEALTH_CHECK_METHOD, ClickHouseHealthCheckMethod.PING).build()) {
-//            Assert.assertFalse(client.ping(getServer(), 3000));
-//        }
+        try (ClickHouseClient client = ClickHouseClient.builder().options(getClientOptions())
+                .nodeSelector(ClickHouseNodeSelector.of(ClickHouseProtocol.HTTP))
+                .option(ClickHouseHttpOption.WEB_CONTEXT, "a/b").build()) {
+            Assert.assertTrue(client.ping(getServer(), 3000));
+        }
 
+        try (ClickHouseClient client = ClickHouseClient.builder().options(getClientOptions())
+                .nodeSelector(ClickHouseNodeSelector.of(ClickHouseProtocol.HTTP))
+                .option(ClickHouseHttpOption.WEB_CONTEXT, "a/b")
+                .option(ClickHouseClientOption.HEALTH_CHECK_METHOD, ClickHouseHealthCheckMethod.PING).build()) {
+            Assert.assertFalse(client.ping(getServer(), 3000));
+        }
         try (ClickHouseClient client = ClickHouseClient.builder().options(getClientOptions())
                 .nodeSelector(ClickHouseNodeSelector.of(ClickHouseProtocol.HTTP))
                 .option(ClickHouseHttpOption.WEB_CONTEXT, "/")

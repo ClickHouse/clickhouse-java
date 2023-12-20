@@ -366,6 +366,7 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
         this.config = c;
         this.defaultHeaders = Collections.unmodifiableMap(createDefaultHeaders(c, server, getUserAgent()));
         this.url = buildUrl(server.getBaseUri(), request);
+        log.debug("url [%s]", this.url);
     }
 
     protected void closeQuietly() {
