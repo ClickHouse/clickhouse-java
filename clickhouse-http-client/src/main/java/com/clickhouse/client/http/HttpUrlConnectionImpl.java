@@ -121,9 +121,6 @@ public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
 
             secureConn.setHostnameVerifier(verifier);
             if (sslContext != null) {
-                if(c.getServerHostName() != null && !c.getServerHostName().isEmpty()) {
-                    sslContext.getDefaultSSLParameters().setServerNames(List.of(new SNIHostName(c.getServerHostName())));
-                }
                 secureConn.setSSLSocketFactory(new ClickhouseSSLSocketFactory(sslContext.getSocketFactory(), c));
             }
         }

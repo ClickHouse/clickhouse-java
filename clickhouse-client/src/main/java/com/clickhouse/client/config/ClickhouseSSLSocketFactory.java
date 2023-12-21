@@ -29,9 +29,12 @@ public class ClickhouseSSLSocketFactory extends SSLSocketFactory {
     }
 
     private void setServerNameIndication(SSLSocket socket) {
-        SSLParameters sslParams = socket.getSSLParameters();
-        sslParams.setServerNames(List.of(new SNIHostName(this.config.getServerHostName())));
-        socket.setSSLParameters(sslParams);
+        String serverHostName = this.config.getServerHostName();
+        if(serverHostName != null && !serverHostName.isEmpty()) {
+            SSLParameters sslParams = socket.getSSLParameters();
+            sslParams.setServerNames(List.of(new SNIHostName(serverHostName)));
+            socket.setSSLParameters(sslParams);
+        }
     }
 
     private Socket setup(Socket socket) {
