@@ -107,6 +107,7 @@ public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
         HttpURLConnection newConn;
         Proxy proxy = getProxy(c);
         if (proxy != null) {
+            log.debug("using proxy type [%s] address [%s]", proxy.type().name(), proxy.address().toString());
             newConn = (HttpURLConnection) new URL(url).openConnection(proxy);
         } else {
             newConn = (HttpURLConnection) new URL(url).openConnection();
@@ -150,12 +151,14 @@ public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
 
         if (headers != null && !headers.isEmpty()) {
             for (Entry<String, String> header : headers.entrySet()) {
+                log.debug("Adding header key [%s] value [%s]", header.getKey(), header.getValue());
                 conn.setRequestProperty(header.getKey(), header.getValue());
             }
         }
     }
 
     private void checkResponse(HttpURLConnection conn) throws IOException {
+        log.debug("http response code [%d]", conn.getResponseCode());
         if (conn.getResponseCode() != HttpURLConnection.HTTP_OK) {
             String errorCode = conn.getHeaderField("X-ClickHouse-Exception-Code");
             // String encoding = conn.getHeaderField("Content-Encoding");
