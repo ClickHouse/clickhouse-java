@@ -34,6 +34,7 @@ import javax.net.ssl.SSLSocketFactory;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.config.ClickHouseDefaults;
 import com.clickhouse.client.config.ClickHouseSslMode;
+import com.clickhouse.client.config.ClickhouseSSLSocketFactory;
 import com.clickhouse.config.ClickHouseOption;
 import com.clickhouse.data.ClickHouseChecker;
 import com.clickhouse.data.ClickHouseUtils;
@@ -620,7 +621,7 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
             return probe(host, port, timeout);
         }
 
-        SSLSocketFactory factory = sslContext.getSocketFactory();
+        SSLSocketFactory factory = new ClickhouseSSLSocketFactory(sslContext.getSocketFactory(), config);
         ClickHouseDnsResolver resolver = ClickHouseDnsResolver.getInstance();
         ClickHouseProtocol p = ClickHouseProtocol.HTTP;
         InetSocketAddress address = resolver != null

@@ -7,6 +7,7 @@ import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseSslContextProvider;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.config.ClickHouseSslMode;
+import com.clickhouse.client.config.ClickhouseSSLSocketFactory;
 import com.clickhouse.client.http.config.ClickHouseHttpOption;
 import com.clickhouse.data.ClickHouseChecker;
 import com.clickhouse.data.ClickHouseExternalTable;
@@ -37,9 +38,7 @@ import java.util.TimeZone;
 import java.util.Map.Entry;
 import java.util.concurrent.ExecutorService;
 
-import javax.net.ssl.HostnameVerifier;
-import javax.net.ssl.HttpsURLConnection;
-import javax.net.ssl.SSLContext;
+import javax.net.ssl.*;
 
 public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
     private static final Logger log = LoggerFactory.getLogger(HttpUrlConnectionImpl.class);
@@ -122,7 +121,10 @@ public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
 
             secureConn.setHostnameVerifier(verifier);
             if (sslContext != null) {
-                secureConn.setSSLSocketFactory(sslContext.getSocketFactory());
+                if(c.getServerHostName() != null && !c.getServerHostName().isEmpty()) {
+                    sslContext.getDefaultSSLParameters().setServerNames(List.of(new SNIHostName(c.getServerHostName())));
+                }
+                secureConn.setSSLSocketFactory(new ClickhouseSSLSocketFactory(sslContext.getSocketFactory(), c));
             }
         }
 

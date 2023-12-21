@@ -343,6 +343,8 @@ public enum ClickHouseClientOption implements ClickHouseOption {
      * SSL key.
      */
     SSL_KEY("sslkey", "", "RSA key in PKCS#8 format.", true),
+
+    SERVER_HOST_NAME("server_host_name", "", "The ClickHouse server hostname as identified by the CN or SNI of its TLS certificate. Set this to avoid SSL errors when connecting through a proxy or tunnel with a different hostname"),
     /**
      * Key Store type.
      */
