@@ -36,7 +36,8 @@ public class JdbcIssuesTest extends JdbcIntegrationTest {
         st.execute(String.format("CREATE TABLE %s (`event_id` String) ENGINE = Log", TABLE_NAME));
 
         int count = 1;
-        while (count <= 50000) {
+        boolean failed = false;
+        while (count <= 100000) {
             String content = StringUtils.repeat("*", count);
             try (PreparedStatement ps = conn.prepareStatement(sql)) {
                 ps.setString(1, content);
@@ -44,8 +45,9 @@ public class JdbcIssuesTest extends JdbcIntegrationTest {
                 ps.executeBatch();
             } catch (SQLException sqlException) {
                 sqlException.printStackTrace();
-                System.out.println(count);
+                failed = true;
             }
+            Assert.assertFalse(failed, String.format("Failed when content size %d", count));
             count *= 2;
         }
     }
