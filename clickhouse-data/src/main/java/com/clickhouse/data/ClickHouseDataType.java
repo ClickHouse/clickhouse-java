@@ -88,7 +88,7 @@ public enum ClickHouseDataType {
     Ring(Object.class, false, true, true, 0, 0, 0, 0, 0, true), // same as Array(Point)
     JSON(Object.class, false, false, false, 0, 0, 0, 0, 0, true), // same as Object('JSON')
     Object(Object.class, true, true, false, 0, 0, 0, 0, 0, true),
-    String(String.class, false, true, false, 0, 0, 0, 0, 0, false, "BINARY LARGE OBJECT", "BINARY VARYING", "BLOB",
+    String(String.class, false, false, false, 0, 0, 0, 0, 0, false, "BINARY LARGE OBJECT", "BINARY VARYING", "BLOB",
             "BYTEA", "CHAR", "CHAR LARGE OBJECT", "CHAR VARYING", "CHARACTER", "CHARACTER LARGE OBJECT",
             "CHARACTER VARYING", "CLOB", "GEOMETRY", "LONGBLOB", "LONGTEXT", "MEDIUMBLOB", "MEDIUMTEXT",
             "NATIONAL CHAR", "NATIONAL CHAR VARYING", "NATIONAL CHARACTER", "NATIONAL CHARACTER LARGE OBJECT",
