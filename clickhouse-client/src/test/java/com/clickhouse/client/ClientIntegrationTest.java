@@ -2468,40 +2468,50 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
 
         long numRows = 1000;
 
-        try (ClickHouseClient client = getClient()) {
-            ClickHouseRequest.Mutation request = client.read(server)
-                    .write()
-                    .table(tableName)
-                    .format(ClickHouseFormat.RowBinaryWithDefaults);
-            ClickHouseConfig config = request.getConfig();
-            CompletableFuture<ClickHouseResponse> future;
+        try {
+            try (ClickHouseClient client = getClient()) {
+                ClickHouseRequest.Mutation request = client.read(server)
+                        .write()
+                        .table(tableName)
+                        .format(ClickHouseFormat.RowBinaryWithDefaults);
+                ClickHouseConfig config = request.getConfig();
+                CompletableFuture<ClickHouseResponse> future;
 
-            try (ClickHousePipedOutputStream stream = ClickHouseDataStreamFactory.getInstance()
-                    .createPipedOutputStream(config)) {
-                // start the worker thread which transfer data from the input into ClickHouse
-                future = request.data(stream.getInputStream()).execute();
-                // write bytes into the piped stream
-                LongStream.range(0, numRows).forEachOrdered(
-                        n->  {
-                            try {
-                                BinaryStreamUtils.writeNonNull(stream);
-                                BinaryStreamUtils.writeInt64(stream, n);
-                                BinaryStreamUtils.writeNull(stream); // When using the default
-                                BinaryStreamUtils.writeNull(stream); // When using the default
-                            } catch (IOException e) {
-                                throw new RuntimeException(e);
+                try (ClickHousePipedOutputStream stream = ClickHouseDataStreamFactory.getInstance()
+                        .createPipedOutputStream(config)) {
+                    // start the worker thread which transfer data from the input into ClickHouse
+                    future = request.data(stream.getInputStream()).execute();
+                    // write bytes into the piped stream
+                    LongStream.range(0, numRows).forEachOrdered(
+                            n -> {
+                                try {
+                                    BinaryStreamUtils.writeNonNull(stream);
+                                    BinaryStreamUtils.writeInt64(stream, n);
+                                    BinaryStreamUtils.writeNull(stream); // When using the default
+                                    BinaryStreamUtils.writeNull(stream); // When using the default
+                                } catch (IOException e) {
+                                    throw new RuntimeException(e);
+                                }
                             }
-                        }
-                );
+                    );
 
-                // We need to close the stream before getting a response
-                stream.close();
-                try (ClickHouseResponse response = future.get()) {
-                    ClickHouseResponseSummary summary = response.getSummary();
-                    Assert.assertEquals(summary.getWrittenRows(), numRows, "Num of written rows");
+                    // We need to close the stream before getting a response
+                    stream.close();
+                    try (ClickHouseResponse response = future.get()) {
+                        ClickHouseResponseSummary summary = response.getSummary();
+                        Assert.assertEquals(summary.getWrittenRows(), numRows, "Num of written rows");
+                    }
                 }
-            }
 
+            }
+        } catch (Exception e) {
+            Throwable th = e.getCause();
+            if (th instanceof ClickHouseException) {
+                ClickHouseException ce = (ClickHouseException) th;
+                Assert.assertEquals(73, ce.getErrorCode(), "It's Code: 73. DB::Exception: Unknown format RowBinaryWithDefaults. a server that not support the format");
+            } else {
+                Assert.assertTrue(false, e.getMessage());
+            }
         }
     }
 }
