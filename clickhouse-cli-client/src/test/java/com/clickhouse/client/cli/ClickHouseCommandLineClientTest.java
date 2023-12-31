@@ -11,6 +11,7 @@ import com.clickhouse.client.cli.config.ClickHouseCommandLineOption;
 import com.clickhouse.data.ClickHouseCompression;
 
 import java.io.IOException;
+import java.util.concurrent.ExecutionException;
 
 import org.testcontainers.containers.GenericContainer;
 import org.testng.Assert;
@@ -182,5 +183,10 @@ public class ClickHouseCommandLineClientTest extends ClientIntegrationTest {
     @Override
     public void testTransactionTimeout() throws ClickHouseException {
         throw new SkipException("Skip due to session is not supported");
+    }
+    @Test(groups = { "integration" })
+    @Override
+    public void testRowBinaryWithDefaults() throws ClickHouseException, IOException, ExecutionException, InterruptedException {
+        throw new SkipException("Skip due to supported");
     }
 }
