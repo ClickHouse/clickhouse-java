@@ -82,6 +82,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
+import java.util.stream.LongStream;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 
@@ -2453,6 +2454,54 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
             checkRowCount(tableName, 3);
             request.getTransaction().rollback();
             checkRowCount(tableName, 2);
+        }
+    }
+    @Test(groups = "integration")
+    public void testRowBinaryWithDefaults() throws ClickHouseException, IOException, ExecutionException, InterruptedException {
+        ClickHouseNode server = getServer();
+
+        String tableName = "test_row_binary_with_defaults";
+
+        String tableColumns = String.format("id Int64, updated_at DateTime DEFAULT now(), updated_at_date Date DEFAULT toDate(updated_at)");
+        sendAndWait(server, "drop table if exists " + tableName,
+                "create table " + tableName + " (" + tableColumns + ")engine=Memory");
+
+        long numRows = 1000;
+
+        try (ClickHouseClient client = getClient()) {
+            ClickHouseRequest.Mutation request = client.read(server)
+                    .write()
+                    .table(tableName)
+                    .format(ClickHouseFormat.RowBinaryWithDefaults);
+            ClickHouseConfig config = request.getConfig();
+            CompletableFuture<ClickHouseResponse> future;
+
+            try (ClickHousePipedOutputStream stream = ClickHouseDataStreamFactory.getInstance()
+                    .createPipedOutputStream(config)) {
+                // start the worker thread which transfer data from the input into ClickHouse
+                future = request.data(stream.getInputStream()).execute();
+                // write bytes into the piped stream
+                LongStream.range(0, numRows).forEachOrdered(
+                        n->  {
+                            try {
+                                BinaryStreamUtils.writeNonNull(stream);
+                                BinaryStreamUtils.writeInt64(stream, n);
+                                BinaryStreamUtils.writeNull(stream); // When using the default
+                                BinaryStreamUtils.writeNull(stream); // When using the default
+                            } catch (IOException e) {
+                                throw new RuntimeException(e);
+                            }
+                        }
+                );
+
+                // We need to close the stream before getting a response
+                stream.close();
+                try (ClickHouseResponse response = future.get()) {
+                    ClickHouseResponseSummary summary = response.getSummary();
+                    Assert.assertEquals(summary.getWrittenRows(), numRows, "Num of written rows");
+                }
+            }
+
         }
     }
 }
