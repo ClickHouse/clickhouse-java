@@ -32,7 +32,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  PREFERRED_LTS_VERSION: "23.3"
+  PREFERRED_LTS_VERSION: "23.7"
 
 jobs:
   compile:
