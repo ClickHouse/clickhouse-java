@@ -8,6 +8,7 @@ import org.testng.annotations.Test;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.util.concurrent.ExecutionException;
 
 import com.clickhouse.client.ClickHouseClient;
 import com.clickhouse.client.ClickHouseException;
@@ -197,4 +198,11 @@ public class ClickHouseGrpcClientTest extends ClientIntegrationTest {
     public void testTransactionTimeout() throws ClickHouseException {
         throw new SkipException("Skip due to session is not supported");
     }
+
+    @Test(groups = { "integration" })
+    @Override
+    public void testRowBinaryWithDefaults() throws ClickHouseException, IOException, ExecutionException, InterruptedException {
+        throw new SkipException("Skip due to supported");
+    }
+
 }
