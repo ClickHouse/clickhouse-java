@@ -345,7 +345,6 @@ public class InputBasedPreparedStatement extends AbstractPreparedStatement imple
         }
         // the actual write to the processor
         for (int i = 0, len = values.length; i < len; i++) {
-            ClickHouseColumn col = columns[i];
             ClickHouseValue val = values[i];
             try {
                 processor.write(val);
