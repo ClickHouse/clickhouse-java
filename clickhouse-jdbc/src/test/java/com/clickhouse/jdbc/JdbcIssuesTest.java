@@ -142,7 +142,7 @@ public class JdbcIssuesTest extends JdbcIntegrationTest {
                 try {
                     ps.setString(1, "******");
                     ps.setInt(2, 10);
-                    ps.setString( 3, count == 5 ? null : "--------");
+                    ps.setString( 3, count == 2 ? null : "--------");
                     ps.addBatch();
                 } catch (Exception e) {
                     //e.printStackTrace();
