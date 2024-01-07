@@ -10,13 +10,18 @@ import java.util.Properties;
 import java.util.UUID;
 
 import com.clickhouse.client.config.ClickHouseClientOption;
+import com.clickhouse.client.http.ClickHouseHttpConnectionFactory;
 import com.clickhouse.data.ClickHouseColumn;
 
+import com.clickhouse.logging.Logger;
+import com.clickhouse.logging.LoggerFactory;
 import org.testng.Assert;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 public class ClickHouseDatabaseMetaDataTest extends JdbcIntegrationTest {
+
+    private static final Logger log = LoggerFactory.getLogger(ClickHouseDatabaseMetaDataTest.class);
     @DataProvider(name = "selectedColumns")
     private Object[][] getSelectedColumns() {
         return new Object[][] {
@@ -250,10 +255,13 @@ public class ClickHouseDatabaseMetaDataTest extends JdbcIntegrationTest {
                     ResultSet rs2 = conn.getMetaData().getTables(null, null, null, null)) {
                 int count1 = 0;
                 while (rs1.next()) {
+                    log.debug("%s.%s", rs1.getString(1) , rs1.getString(2));
                     count1++;
                 }
+                System.out.println("---------------------");
                 int count2 = 0;
                 while (rs2.next()) {
+                    log.debug("%s.%s", rs2.getString(1) , rs2.getString(2));
                     count2++;
                 }
 
