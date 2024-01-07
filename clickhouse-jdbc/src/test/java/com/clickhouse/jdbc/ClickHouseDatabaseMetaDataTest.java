@@ -258,10 +258,10 @@ public class ClickHouseDatabaseMetaDataTest extends JdbcIntegrationTest {
                     log.debug("%s.%s", rs1.getString(1) , rs1.getString(2));
                     count1++;
                 }
-                System.out.println("---------------------");
+                log.debug("-----------------------------");
                 int count2 = 0;
                 while (rs2.next()) {
-                    log.debug("%s.%s", rs2.getString(1) , rs2.getString(2));
+                    log.debug("%s.%s", rs2.getString("TABLE_CAT") , rs2.getString("TABLE_NAME"));
                     count2++;
                 }
 
