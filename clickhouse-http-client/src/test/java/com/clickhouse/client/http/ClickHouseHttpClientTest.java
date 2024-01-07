@@ -214,32 +214,6 @@ public class ClickHouseHttpClientTest extends ClientIntegrationTest {
                 .nodeSelector(ClickHouseNodeSelector.of(ClickHouseProtocol.HTTP)).build()) {
             Assert.assertTrue(client.ping(getServer(), 3000));
         }
-// Disable tests for ping
-//        try (ClickHouseClient client = ClickHouseClient.builder().options(getClientOptions())
-//                .nodeSelector(ClickHouseNodeSelector.of(ClickHouseProtocol.HTTP))
-//                .option(ClickHouseHttpOption.WEB_CONTEXT, "a/b").build()) {
-//            Assert.assertTrue(client.ping(getServer(), 3000));
-//        }
-//
-//        try (ClickHouseClient client = ClickHouseClient.builder().options(getClientOptions())
-//                .nodeSelector(ClickHouseNodeSelector.of(ClickHouseProtocol.HTTP))
-//                .option(ClickHouseHttpOption.WEB_CONTEXT, "a/b")
-//                .option(ClickHouseClientOption.HEALTH_CHECK_METHOD, ClickHouseHealthCheckMethod.PING).build()) {
-//            Assert.assertFalse(client.ping(getServer(), 3000));
-//        }
-        try (ClickHouseClient client = ClickHouseClient.builder().options(getClientOptions())
-                .nodeSelector(ClickHouseNodeSelector.of(ClickHouseProtocol.HTTP))
-                .option(ClickHouseHttpOption.WEB_CONTEXT, "/")
-                .option(ClickHouseClientOption.HEALTH_CHECK_METHOD, ClickHouseHealthCheckMethod.PING).build()) {
-            Assert.assertTrue(client.ping(getServer(), 3000));
-        }
-
-        try (ClickHouseClient client = ClickHouseClient.builder().options(getClientOptions())
-                .nodeSelector(ClickHouseNodeSelector.of(ClickHouseProtocol.HTTP))
-                .option(ClickHouseClientOption.HEALTH_CHECK_METHOD, ClickHouseHealthCheckMethod.PING)
-                .removeOption(ClickHouseHttpOption.WEB_CONTEXT).build()) {
-            Assert.assertTrue(client.ping(getServer(), 3000));
-        }
     }
 
     @Test // (groups = "integration")

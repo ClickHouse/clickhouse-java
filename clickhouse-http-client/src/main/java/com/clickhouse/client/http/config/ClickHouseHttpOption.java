@@ -42,16 +42,12 @@ public enum ClickHouseHttpOption implements ClickHouseOption {
      * headers.
      */
     RECEIVE_QUERY_PROGRESS("receive_query_progress", true,
-            "Whether to receive information about the progress of a query in response headers."),
+            "Whether to receive information about the progress of a query in response headers.");
     // SEND_PROGRESS("send_progress_in_http_headers", false,
     // "Enables or disables X-ClickHouse-Progress HTTP response headers in
     // clickhouse-server responses."),
     // SEND_PROGRESS_INTERVAL("http_headers_progress_interval_ms", 3000, ""),
     // WAIT_END_OF_QUERY("wait_end_of_query", false, ""),
-    /**
-     * Web context.
-     */
-    WEB_CONTEXT("web_context", "/", "Web context.");
 
     private final String key;
     private final Serializable defaultValue;
