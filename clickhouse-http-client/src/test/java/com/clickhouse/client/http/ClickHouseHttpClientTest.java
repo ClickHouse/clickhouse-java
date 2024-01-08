@@ -9,6 +9,8 @@ import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseCredentials;
 import com.clickhouse.client.ClickHouseException;
 import com.clickhouse.client.ClickHouseNode;
+import com.clickhouse.client.ClickHouseNode.Status;
+import com.clickhouse.client.ClickHouseNodes;
 import com.clickhouse.client.ClickHouseNodeSelector;
 import com.clickhouse.client.ClickHouseParameterizedQuery;
 import com.clickhouse.client.ClickHouseProtocol;
@@ -213,6 +215,15 @@ public class ClickHouseHttpClientTest extends ClientIntegrationTest {
         try (ClickHouseClient client = ClickHouseClient.builder().options(getClientOptions())
                 .nodeSelector(ClickHouseNodeSelector.of(ClickHouseProtocol.HTTP)).build()) {
             Assert.assertTrue(client.ping(getServer(), 3000));
+        }
+
+        try (ClickHouseClient client = ClickHouseClient.builder().options(getClientOptions())
+                .nodeSelector(ClickHouseNodeSelector.of(ClickHouseProtocol.HTTP)).build()) {
+            ClickHouseNodes nodes = ClickHouseNodes.of("http://notthere," + getServer().getBaseUri());
+            ClickHouseNode nonExistingNode = nodes.getNodes().get(0);
+            nodes.update(nonExistingNode, Status.FAULTY);
+
+            Assert.assertFalse(client.ping(nonExistingNode, 3000));
         }
     }
 
