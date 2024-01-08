@@ -555,15 +555,15 @@ public class ClickHouseNodes implements ClickHouseNodeManager {
         Set<ClickHouseNode> list = new LinkedHashSet<>();
         long currentTime = System.currentTimeMillis();
         boolean checkAll = template.config.getBoolOption(ClickHouseClientOption.CHECK_ALL_NODES);
-        int healthyNodeStartIndex = -1;
+        int numberOfFaultyNodes = -1;
         lock.readLock().lock();
         // TODO:
         // 1) minimize the list;
         // 2) detect flaky node and check it again later in a less frequent way
         try {
             pickNodes(faultyNodes, selector, list, groupSize, currentTime);
+            numberOfFaultyNodes = list.size();
             if (checkAll) {
-                healthyNodeStartIndex = list.size();
                 pickNodes(nodes, selector, list, groupSize, currentTime);
             }
         } finally {
@@ -589,13 +589,14 @@ public class ClickHouseNodes implements ClickHouseNodeManager {
                     update(node, Status.STANDALONE);
                 }
 
+                boolean wasFaultyBefore = numberOfFaultyNodes == -1 || count < numberOfFaultyNodes;
                 if (isAlive) {
-                    if (healthyNodeStartIndex < 0 || count < healthyNodeStartIndex) {
+                    if (wasFaultyBefore) {
                         update(n, Status.HEALTHY);
                     }
                 } else {
                     hasFaultyNode = true;
-                    if (healthyNodeStartIndex >= count) {
+                    if (!wasFaultyBefore) {
                         update(n, Status.FAULTY);
                     }
                 }
