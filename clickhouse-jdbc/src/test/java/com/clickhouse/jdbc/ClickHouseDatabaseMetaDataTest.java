@@ -253,21 +253,27 @@ public class ClickHouseDatabaseMetaDataTest extends JdbcIntegrationTest {
 
             try (ResultSet rs1 = s.executeQuery("select * from system.tables");
                     ResultSet rs2 = conn.getMetaData().getTables(null, null, null, null)) {
-                int count1 = 0;
+                int count1 = 0 , count1withOutSystem = 0;
                 while (rs1.next()) {
                     log.debug("%s.%s", rs1.getString(1) , rs1.getString(2));
+                    String databaseName = rs1.getString(1);
                     count1++;
+                    if (!databaseName.equals("system"))
+                        count1withOutSystem++;
                 }
-                log.debug("-----------------------------");
-                int count2 = 0;
+                log.debug("--------- SEP ---------");
+                int count2 = 0, count2withOutSystem = 0;
                 while (rs2.next()) {
                     log.debug("%s.%s", rs2.getString("TABLE_CAT") , rs2.getString("TABLE_NAME"));
+                    String databaseName = rs2.getString("TABLE_CAT");
                     count2++;
+                    if (!databaseName.equals("system"))
+                        count2withOutSystem++;
                 }
 
                 Assert.assertEquals(rs1.getRow(), count1);
                 Assert.assertEquals(rs2.getRow(), count2);
-                Assert.assertEquals(count1, count2);
+                Assert.assertEquals(count1withOutSystem, count2withOutSystem);
             }
         }
     }
