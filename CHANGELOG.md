@@ -1,5 +1,6 @@
-## 0.5.1 
+## 0.6.0 
 ### Bug Fixes
+
 
 ## 0.5.0
 ### Breaking Changes
