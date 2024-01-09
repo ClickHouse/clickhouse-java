@@ -19,7 +19,7 @@ import org.testng.SkipException;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
-
+@Deprecated (since = "0.6.0", forRemoval = true)
 public class ClickHouseCommandLineClientTest extends ClientIntegrationTest {
     @BeforeClass
     static void init() {
