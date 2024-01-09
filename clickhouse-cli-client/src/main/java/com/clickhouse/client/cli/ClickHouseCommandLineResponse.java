@@ -6,7 +6,7 @@ import java.io.UncheckedIOException;
 import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseResponseSummary;
 import com.clickhouse.client.ClickHouseStreamResponse;
-@Deprecated (since = "0.6.0", forRemoval = true)
+@Deprecated
 public class ClickHouseCommandLineResponse extends ClickHouseStreamResponse {
     private static final long serialVersionUID = 4253185543390807162L;
 
