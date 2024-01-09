@@ -1,6 +1,8 @@
 ## 0.6.0 
 ### Bug Fixes
 
+### Plan to deprecate
+* ClickHouse CLI Client 
 
 ## 0.5.0
 ### Breaking Changes

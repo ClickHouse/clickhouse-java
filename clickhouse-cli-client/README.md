@@ -1,5 +1,7 @@
 # ClickHouse Command-line Client
 
+Note: clickhouse-cli-client package planed to be deprecated from version 0.6.0 
+
 This is a thin wrapper of ClickHouse native command-line client. It provides an alternative way to communicate with ClickHouse, which might be of use when you prefer:
 
 - TCP/native protocol over HTTP or gRPC
