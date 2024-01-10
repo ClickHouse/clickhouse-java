@@ -289,17 +289,11 @@ public interface BinaryDataProcessor {
         @Override
         public void serialize(ClickHouseValue value, ClickHouseOutputStream output) throws IOException {
             LocalDateTime dt = value.asDateTime(scale);
-            long v = ClickHouseChecker.between(
-                    ClickHouseValues.UTC_ZONE.equals(zoneId) ? dt.toEpochSecond(ZoneOffset.UTC)
-                            : dt.atZone(zoneId).toEpochSecond(),
-                    ClickHouseValues.TYPE_DATE_TIME, BinaryStreamUtils.DATETIME64_MIN,
-                    BinaryStreamUtils.DATETIME64_MAX);
-            if (ClickHouseChecker.between(scale, ClickHouseValues.PARAM_SCALE, 0, 9) > 0) {
-                v *= BASES[scale];
-                int nanoSeconds = dt.getNano();
-                if (nanoSeconds > 0L) {
-                    v += nanoSeconds / BASES[9 - scale];
-                }
+            long v =  dt.toEpochSecond(ZoneOffset.UTC);
+            v *= BASES[scale];
+            int nanoSeconds = dt.getNano();
+            if (nanoSeconds > 0L) {
+                v += nanoSeconds / BASES[9 - scale];
             }
 
             BinaryStreamUtils.writeInt64(output, v);
@@ -393,10 +387,7 @@ public interface BinaryDataProcessor {
         @Override
         public void serialize(ClickHouseValue value, ClickHouseOutputStream output) throws IOException {
             BigDecimal v = value.asBigDecimal();
-            BinaryStreamUtils.writeInt64(output,
-                    ClickHouseChecker.between(scale == 0 ? v : v.multiply(BigDecimal.TEN.pow(scale)),
-                            ClickHouseValues.TYPE_BIG_DECIMAL, BinaryStreamUtils.DECIMAL64_MIN,
-                            BinaryStreamUtils.DECIMAL64_MAX).longValue());
+            BinaryStreamUtils.writeDecimal64(output, v, scale);
         }
     }
 
@@ -425,10 +416,7 @@ public interface BinaryDataProcessor {
         @Override
         public void serialize(ClickHouseValue value, ClickHouseOutputStream output) throws IOException {
             BigDecimal v = value.asBigDecimal();
-            BinaryStreamUtils.writeInt128(output,
-                    ClickHouseChecker.between(scale == 0 ? v : v.multiply(BigDecimal.TEN.pow(scale)),
-                            ClickHouseValues.TYPE_BIG_DECIMAL, BinaryStreamUtils.DECIMAL128_MIN,
-                            BinaryStreamUtils.DECIMAL128_MAX).toBigInteger());
+            BinaryStreamUtils.writeDecimal128(output, v, scale);
         }
     }
 
