@@ -909,9 +909,9 @@ public class BinaryStreamUtilsTest {
         Assert.assertEquals(BinaryStreamUtils.readDate32(generateInput(0x17, 0x61, 0, 0), null),
                 LocalDate.of(2038, 1, 19));
 
-        Assert.assertEquals(BinaryStreamUtils.readDate32(generateInput(0xCC, 0xBF, 0xFF, 0xFF), null),
+        Assert.assertEquals(BinaryStreamUtils.readDate32(generateInput(0x21, 0x9C, 0xFF, 0xFF), null),
                 LocalDate.of(1900, 1, 1));
-        Assert.assertEquals(BinaryStreamUtils.readDate32(generateInput(0xCB, 0xBF, 1, 0), null),
+        Assert.assertEquals(BinaryStreamUtils.readDate32(generateInput(0xD1, 0xD6, 1, 0), null),
                 LocalDate.of(2299, 12, 31));
     }
 
@@ -935,11 +935,11 @@ public class BinaryStreamUtilsTest {
                         .withZoneSameInstant(tz.toZoneId())
                         .toLocalDate());
 
-        Assert.assertEquals(BinaryStreamUtils.readDate32(generateInput(0xCC, 0xBF, 0xFF, 0xFF), tz),
+        Assert.assertEquals(BinaryStreamUtils.readDate32(generateInput(0x21, 0x9C, 0xFF, 0xFF), tz),
                 LocalDate.of(1900, 1, 1).atStartOfDay(ClickHouseValues.SYS_ZONE)
                         .withZoneSameInstant(tz.toZoneId())
                         .toLocalDate());
-        Assert.assertEquals(BinaryStreamUtils.readDate32(generateInput(0xCB, 0xBF, 1, 0), tz),
+        Assert.assertEquals(BinaryStreamUtils.readDate32(generateInput(0xD1, 0xD6, 1, 0), tz),
                 LocalDate.of(2299, 12, 31).atStartOfDay(ClickHouseValues.SYS_ZONE)
                         .withZoneSameInstant(tz.toZoneId())
                         .toLocalDate());
@@ -962,10 +962,10 @@ public class BinaryStreamUtilsTest {
 
         Assert.assertEquals(
                 getWrittenBytes(o -> BinaryStreamUtils.writeDate32(o, LocalDate.of(1900, 1, 1), null)),
-                generateBytes(0xCC, 0xBF, 0xFF, 0xFF));
+                generateBytes(0x21, 0x9C, 0xFF, 0xFF));
         Assert.assertEquals(getWrittenBytes(
                 o -> BinaryStreamUtils.writeDate32(o, LocalDate.of(2299, 12, 31), null)),
-                generateBytes(0xCB, 0xBF, 1, 0));
+                generateBytes(0xD1, 0xD6, 1, 0));
 
         Assert.assertThrows(IllegalArgumentException.class, () -> getWrittenBytes(
                 o -> BinaryStreamUtils.writeDate32(o,
