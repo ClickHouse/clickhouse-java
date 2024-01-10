@@ -41,6 +41,7 @@ import com.clickhouse.data.ClickHousePassThruStream;
 import com.clickhouse.data.ClickHouseUtils;
 import com.clickhouse.logging.Logger;
 import com.clickhouse.logging.LoggerFactory;
+// deprecate from version 0.6.0
 @Deprecated
 public class ClickHouseCommandLine implements AutoCloseable {
     private static final Logger log = LoggerFactory.getLogger(ClickHouseCommandLine.class);

@@ -4,6 +4,7 @@ import java.io.Serializable;
 
 import com.clickhouse.config.ClickHouseOption;
 import com.clickhouse.data.ClickHouseChecker;
+// deprecate from version 0.6.0
 @Deprecated
 public enum ClickHouseCommandLineOption implements ClickHouseOption {
     /**
