@@ -1,6 +1,7 @@
 # ClickHouse Command-line Client
 
-Note: clickhouse-cli-client package planed to be deprecated from version 0.6.0 
+## Warning
+`clickhouse-cli-client` package is deprecated from version 0.6.0 and it's going to be removed in `0.7.0`. We recommend using [clickhouse-client](https://clickhouse.com/docs/en/interfaces/cli) instead.
 
 This is a thin wrapper of ClickHouse native command-line client. It provides an alternative way to communicate with ClickHouse, which might be of use when you prefer:
 
