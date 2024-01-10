@@ -1,8 +1,8 @@
 ## 0.6.0 
 ### Bug Fixes
 
-### Plan to deprecate
-* ClickHouse CLI Client 
+### WARNING -- ClickHouse CLI Client deprecation
+`clickhouse-cli-client` package is deprecated from version 0.6.0 and it's going to be removed in `0.7.0`. We recommend using [clickhouse-client](https://clickhouse.com/docs/en/interfaces/cli) instead. 
 
 ## 0.5.0
 ### Breaking Changes
