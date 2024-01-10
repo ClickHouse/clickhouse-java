@@ -1256,13 +1256,15 @@ public class BinaryStreamUtilsTest {
 
         Assert.assertThrows(IllegalArgumentException.class,
                 () -> getWrittenBytes(o -> BinaryStreamUtils.writeDateTime64(o,
-                        LocalDateTime.of(LocalDate.of(1925, 1, 1).minus(1L, ChronoUnit.DAYS),
-                                LocalTime.MAX),
+                        LocalDateTime.of(LocalDate.of(1900, 1, 1),
+                                LocalTime.MIN)
+                        .minus(1L, ChronoUnit.NANOS),
                         null)));
         Assert.assertThrows(IllegalArgumentException.class,
                 () -> getWrittenBytes(o -> BinaryStreamUtils.writeDateTime64(o,
-                        LocalDateTime.of(LocalDate.of(2283, 11, 11).plus(1L, ChronoUnit.DAYS),
-                                LocalTime.MIN),
+                        LocalDateTime.of(LocalDate.of(2299, 12, 31),
+                                LocalTime.MAX)
+                        .plus(1L, ChronoUnit.NANOS),
                         null)));
     }
 
@@ -1325,9 +1327,9 @@ public class BinaryStreamUtilsTest {
                 () -> getWrittenBytes(
                         o -> BinaryStreamUtils.writeDateTime64(o,
                                 LocalDateTime.of(
-                                        LocalDate.of(1925, 1, 1).minus(1L,
-                                                ChronoUnit.DAYS),
-                                        LocalTime.MAX)
+                                        LocalDate.of(1900, 1, 1),
+                                        LocalTime.MIN)
+                                        .minus(1L, ChronoUnit.NANOS)
                                         .atOffset(ZoneOffset.UTC)
                                         .atZoneSameInstant(tz.toZoneId())
                                         .toLocalDateTime(),
@@ -1336,9 +1338,9 @@ public class BinaryStreamUtilsTest {
                 () -> getWrittenBytes(
                         o -> BinaryStreamUtils.writeDateTime64(o,
                                 LocalDateTime.of(
-                                        LocalDate.of(2283, 11, 11).plus(1L,
-                                                ChronoUnit.DAYS),
-                                        LocalTime.MIN)
+                                        LocalDate.of(2299, 12, 31),
+                                        LocalTime.MAX)
+                                        .plus(1L, ChronoUnit.NANOS)
                                         .atOffset(ZoneOffset.UTC)
                                         .atZoneSameInstant(tz.toZoneId())
                                         .toLocalDateTime(),
