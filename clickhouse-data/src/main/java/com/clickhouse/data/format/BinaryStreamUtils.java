@@ -52,8 +52,8 @@ public final class BinaryStreamUtils {
                     (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF,
                     (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF });
 
-    public static final int DATE32_MAX = (int) LocalDate.of(2283, 11, 11).toEpochDay();
-    public static final int DATE32_MIN = (int) LocalDate.of(1925, 1, 1).toEpochDay();
+    public static final int DATE32_MAX = (int) LocalDate.of(2299, 12, 31).toEpochDay();
+    public static final int DATE32_MIN = (int) LocalDate.of(1900, 1, 1).toEpochDay();
 
     public static final BigDecimal DECIMAL32_MAX = new BigDecimal("1000000000");
     public static final BigDecimal DECIMAL32_MIN = new BigDecimal("-1000000000");
@@ -69,9 +69,11 @@ public final class BinaryStreamUtils {
     public static final BigDecimal DECIMAL256_MIN = new BigDecimal(
             "-10000000000000000000000000000000000000000000000000000000000000000000000000000");
 
-    public static final long DATETIME64_MAX = LocalDateTime.of(LocalDate.of(2283, 11, 11), LocalTime.MAX)
+    public static final long DATETIME64_MAX = LocalDateTime.of(LocalDate.of(2299, 12, 31), LocalTime.MAX)
             .toEpochSecond(ZoneOffset.UTC);
-    public static final long DATETIME64_MIN = LocalDateTime.of(LocalDate.of(1925, 1, 1), LocalTime.MIN)
+    public static final long DATETIME64_9_MAX = LocalDateTime.of(2262, 4, 11, 23, 47, 16, 0)
+            .toEpochSecond(ZoneOffset.UTC);
+    public static final long DATETIME64_MIN = LocalDateTime.of(LocalDate.of(1900, 1, 1), LocalTime.MIN)
             .toEpochSecond(ZoneOffset.UTC);
 
     public static final long MILLIS_IN_DAY = TimeUnit.DAYS.toMillis(1);
@@ -1529,7 +1531,9 @@ public final class BinaryStreamUtils {
         long v = ClickHouseChecker.between(
                 tz == null || tz.equals(ClickHouseValues.UTC_TIMEZONE) ? value.toEpochSecond(ZoneOffset.UTC)
                         : value.atZone(tz.toZoneId()).toEpochSecond(),
-                ClickHouseValues.TYPE_DATE_TIME, DATETIME64_MIN, DATETIME64_MAX);
+                ClickHouseValues.TYPE_DATE_TIME,
+                DATETIME64_MIN,
+                scale == 9 ? DATETIME64_9_MAX : DATETIME64_MAX);
         if (ClickHouseChecker.between(scale, ClickHouseValues.PARAM_SCALE, 0, 9) > 0) {
             v *= BASES[scale];
             int nanoSeconds = value.getNano();
