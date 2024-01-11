@@ -289,17 +289,11 @@ public interface BinaryDataProcessor {
         @Override
         public void serialize(ClickHouseValue value, ClickHouseOutputStream output) throws IOException {
             LocalDateTime dt = value.asDateTime(scale);
-            long v = ClickHouseChecker.between(
-                    ClickHouseValues.UTC_ZONE.equals(zoneId) ? dt.toEpochSecond(ZoneOffset.UTC)
-                            : dt.atZone(zoneId).toEpochSecond(),
-                    ClickHouseValues.TYPE_DATE_TIME, BinaryStreamUtils.DATETIME64_MIN,
-                    BinaryStreamUtils.DATETIME64_MAX);
-            if (ClickHouseChecker.between(scale, ClickHouseValues.PARAM_SCALE, 0, 9) > 0) {
-                v *= BASES[scale];
-                int nanoSeconds = dt.getNano();
-                if (nanoSeconds > 0L) {
-                    v += nanoSeconds / BASES[9 - scale];
-                }
+            long v =  dt.toEpochSecond(ZoneOffset.UTC);
+            v *= BASES[scale];
+            int nanoSeconds = dt.getNano();
+            if (nanoSeconds > 0L) {
+                v += nanoSeconds / BASES[9 - scale];
             }
 
             BinaryStreamUtils.writeInt64(output, v);
