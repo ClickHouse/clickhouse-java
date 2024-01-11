@@ -9,12 +9,12 @@ Java libraries for connecting to ClickHouse and processing data in various forma
 ## Features
 
 | Category          | Feature                                                                             | Supported          | Remark                                                                                                                                                                                                                   |
-| ----------------- | ----------------------------------------------------------------------------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| ----------------- | ----------------------------------------------------------------------------------- | ------------------ |--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | API               | [JDBC](https://docs.oracle.com/javase/8/docs/technotes/guides/jdbc/)                | :white_check_mark: |                                                                                                                                                                                                                          |
 |                   | [R2DBC](https://r2dbc.io/)                                                          | :white_check_mark: | supported since 0.4.0                                                                                                                                                                                                    |
 | Protocol          | [HTTP](https://clickhouse.com/docs/en/interfaces/http/)                             | :white_check_mark: | recommended, defaults to `java.net.HttpURLConnection` and it can be changed to `java.net.http.HttpClient`(unstable) or `Apache HTTP Client 5`. Note that the latter was added in 0.4.0 to support custom socket options. |
-|                   | [gRPC](https://clickhouse.com/docs/en/interfaces/grpc/)                             | :white_check_mark: | :warning: experimental, works with 22.3+, known to has issue with lz4 compression and may cause high memory usage on server                                                                                              |
-|                   | [TCP/Native](https://clickhouse.com/docs/en/interfaces/tcp/)                        | :x: | `clickhouse-cli-client`(wrapper of ClickHouse native command-line client) was added in 0.3.2-patch10.                                                                     |
+|                   | [gRPC](https://clickhouse.com/docs/en/interfaces/grpc/)                             | :white_check_mark: | :warning: experimental, works with 22.3+, known to has issue with lz4 compression and may cause high memory usage on server. Planed to be removed from version 0.7.0                                                     |
+|                   | [TCP/Native](https://clickhouse.com/docs/en/interfaces/tcp/)                        | :x: | `clickhouse-cli-client`(wrapper of ClickHouse native command-line client) was added in 0.3.2-patch10.                                                                                                                    |
 |                   | [Local/File](https://clickhouse.com/docs/en/operations/utilities/clickhouse-local/) | :x:                | `clickhouse-cli-client` will be enhanced to support `clickhouse-local`                                                                                                                                                   |
 | Compatibility     | Server < 20.7                                                                       | :x:                | use 0.3.1-patch(or 0.2.6 if you're stuck with JDK 7)                                                                                                                                                                     |
 |                   | Server >= 20.7                                                                      | :white_check_mark: | use 0.3.2 or above. All [active releases](https://github.com/ClickHouse/ClickHouse/pulls?q=is%3Aopen+is%3Apr+label%3Arelease) are supported.                                                                             |
@@ -51,10 +51,10 @@ Java libraries for connecting to ClickHouse and processing data in various forma
 
 ## Planed to be removed
 
-| Feature                        | Version | Remark                                 |
-|--------------------------------|---------|----------------------------------------|
-| Clickhouse ClI Client package  | 0.7.0   | Use clickhouse-client directly instead | 
-
+| Feature                        | Version | Remark                                           |
+|--------------------------------|---------|--------------------------------------------------|
+| Clickhouse ClI Client package  | 0.7.0   | Use clickhouse-client directly instead           | 
+| ClickHouse GRPC Client package | 0.7.0   | Please use the clickhouse http protocol instead  |
 ## Usage
 
 The library can be downloaded from both [Github Releases](../../releases) and [Maven Central](https://repo1.maven.org/maven2/com/clickhouse/). Development snapshots(aka. nightly build) are available on [Sonatype OSSRH](https://s01.oss.sonatype.org/content/repositories/snapshots/com/clickhouse/).

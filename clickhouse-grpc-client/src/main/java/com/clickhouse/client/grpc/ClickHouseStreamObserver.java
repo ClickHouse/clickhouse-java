@@ -28,7 +28,7 @@ import com.clickhouse.data.ClickHousePipedOutputStream;
 import com.clickhouse.data.ClickHouseUtils;
 import com.clickhouse.logging.Logger;
 import com.clickhouse.logging.LoggerFactory;
-
+@Deprecated
 public class ClickHouseStreamObserver implements StreamObserver<Result> {
     private static final Logger log = LoggerFactory.getLogger(ClickHouseStreamObserver.class);
 

@@ -18,7 +18,7 @@ import com.clickhouse.client.config.ClickHouseSslMode;
 import com.clickhouse.client.grpc.config.ClickHouseGrpcOption;
 import com.clickhouse.data.ClickHouseChecker;
 import com.clickhouse.data.ClickHouseUtils;
-
+@Deprecated
 final class NettyChannelFactoryImpl extends ClickHouseGrpcChannelFactory {
     private static final String USER_AGENT = ClickHouseClientOption.buildUserAgent(null, "gRPC-Netty");
 
