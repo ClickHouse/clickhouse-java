@@ -21,6 +21,8 @@ import com.clickhouse.logging.LoggerFactory;
 /**
  * Wrapper of ClickHouse native command-line client.
  */
+// deprecate from version 0.6.0
+@Deprecated
 public class ClickHouseCommandLineClient extends AbstractClient<ClickHouseCommandLine> {
     private static final Logger log = LoggerFactory.getLogger(ClickHouseCommandLineClient.class);
 

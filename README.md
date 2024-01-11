@@ -49,6 +49,12 @@ Java libraries for connecting to ClickHouse and processing data in various forma
 |                   | Implicit Type Conversion                                                            | :white_check_mark: | String/number to Date/Time/Timestamp and more                                                                                                                                                                            |
 |                   | Object mapping                                                                      | :white_check_mark: | supported since 0.4.6, slow and limited to simple data types                                                                                                                                                             |
 
+## Planed to be removed
+
+| Feature                        | Version | Remark                                 |
+|--------------------------------|---------|----------------------------------------|
+| Clickhouse ClI Client package  | 0.7.0   | Use clickhouse-client directly instead | 
+
 ## Usage
 
 The library can be downloaded from both [Github Releases](../../releases) and [Maven Central](https://repo1.maven.org/maven2/com/clickhouse/). Development snapshots(aka. nightly build) are available on [Sonatype OSSRH](https://s01.oss.sonatype.org/content/repositories/snapshots/com/clickhouse/).

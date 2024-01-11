@@ -19,7 +19,8 @@ import org.testng.SkipException;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
-
+// deprecate from version 0.6.0
+@Deprecated
 public class ClickHouseCommandLineClientTest extends ClientIntegrationTest {
     @BeforeClass
     static void init() {

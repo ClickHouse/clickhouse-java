@@ -13,7 +13,7 @@
     <packaging>jar</packaging>
 
     <name>ClickHouse Native Command-line Wrapper</name>
-    <description>Wrapper of ClickHouse native command-line client</description>
+    <description>Wrapper of ClickHouse native command-line client planed to be deprecated from version 0.6.0 and removed at 0.7.0</description>
     <url>https://github.com/ClickHouse/clickhouse-java/tree/main/clickhouse-cli-client</url>
 
     <dependencies>
