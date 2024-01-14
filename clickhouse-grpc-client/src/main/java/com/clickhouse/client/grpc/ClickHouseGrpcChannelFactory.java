@@ -27,7 +27,7 @@ import com.clickhouse.data.ClickHouseChecker;
 import com.clickhouse.data.ClickHouseUtils;
 import com.clickhouse.logging.Logger;
 import com.clickhouse.logging.LoggerFactory;
-
+@Deprecated
 public abstract class ClickHouseGrpcChannelFactory {
     static class NoProxyDetector implements ProxyDetector {
         static final NoProxyDetector INSTANCE = new NoProxyDetector();

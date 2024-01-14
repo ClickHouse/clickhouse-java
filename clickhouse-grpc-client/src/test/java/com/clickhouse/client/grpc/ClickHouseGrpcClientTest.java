@@ -23,7 +23,7 @@ import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.data.ClickHouseInputStream;
 import com.clickhouse.data.ClickHouseRecord;
 import com.clickhouse.data.ClickHouseVersion;
-
+@Deprecated
 public class ClickHouseGrpcClientTest extends ClientIntegrationTest {
     @DataProvider(name = "requestCompressionMatrix")
     @Override
