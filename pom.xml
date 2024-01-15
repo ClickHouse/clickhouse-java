@@ -84,7 +84,7 @@
     </distributionManagement>
 
     <properties>
-        <revision>0.5.0-SNAPSHOT</revision>
+        <revision>0.5.0-gss</revision>
         <project.current.year>2023</project.current.year>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>

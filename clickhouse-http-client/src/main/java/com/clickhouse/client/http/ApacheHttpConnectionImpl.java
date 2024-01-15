@@ -33,6 +33,7 @@ import org.apache.hc.client5.http.ssl.SSLConnectionSocketFactory;
 import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpHost;
 import org.apache.hc.core5.http.HttpRequest;
+import org.apache.hc.core5.http.ProtocolException;
 import org.apache.hc.core5.http.config.Registry;
 import org.apache.hc.core5.http.config.RegistryBuilder;
 import org.apache.hc.core5.http.io.SocketConfig;
@@ -57,8 +58,8 @@ import java.net.ConnectException;
 import java.net.HttpURLConnection;
 import java.net.InetSocketAddress;
 import java.net.Socket;
-import java.net.StandardSocketOptions;
 import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TimeZone;
@@ -398,6 +399,28 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
                 builder.setSndBufSize(bufferSize * maxQueuedBuffers);
             }
             setDefaultSocketConfig(builder.build());
+        }
+    }
+
+    @Override
+    protected String negotiateGssToken(String token) throws IOException {
+        String url = getBaseUrl();
+        HttpGet request = new HttpGet(url);
+        Map<String, String> headers = new HashMap<>();
+        headers.put("Authorization", "Negotiate " + token);
+        setHeaders(request, headers);
+
+        ClickHouseConfig c = config;
+        try (CloseableHttpClient httpClient = newConnection(c);
+                CloseableHttpResponse response = httpClient.execute(request)) {
+            checkResponse(c, response);
+            Header authHeader = response.getHeader("WWW-Authenticate");
+            if (authHeader == null) {
+                throw new RuntimeException("Server did not return authenticate header");
+            }
+            return authHeader.getValue().replaceFirst("Negotiate ", "");
+        } catch (ProtocolException e) {
+            throw new RuntimeException(e);
         }
     }
 }

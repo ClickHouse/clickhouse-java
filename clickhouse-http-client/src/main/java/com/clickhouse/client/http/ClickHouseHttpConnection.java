@@ -15,6 +15,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+
+import org.ietf.jgss.GSSException;
+
 import java.util.Map.Entry;
 
 import com.clickhouse.client.ClickHouseClient;
@@ -25,6 +28,7 @@ import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseRequestManager;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.config.ClickHouseProxyType;
+import com.clickhouse.client.gss.GssAuthorizer;
 import com.clickhouse.client.http.config.ClickHouseHttpOption;
 import com.clickhouse.config.ClickHouseOption;
 import com.clickhouse.data.ClickHouseByteUtils;
@@ -351,8 +355,8 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
     protected final ClickHouseRequestManager rm;
 
     protected final ClickHouseConfig config;
-    protected final Map<String, String> defaultHeaders;
     protected final String url;
+    private Map<String, String> defaultHeaders;
 
     protected ClickHouseHttpConnection(ClickHouseNode server, ClickHouseRequest<?> request) {
         if (server == null || request == null) {
@@ -364,8 +368,36 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
 
         ClickHouseConfig c = request.getConfig();
         this.config = c;
-        this.defaultHeaders = Collections.unmodifiableMap(createDefaultHeaders(c, server, getUserAgent()));
         this.url = buildUrl(server.getBaseUri(), request);
+    }
+
+    abstract protected String negotiateGssToken(String token) throws IOException;
+
+    private String doNegotiateGssToken(String token) {
+        try {
+            return negotiateGssToken(token);
+        } catch (IOException e) {
+            throw new RuntimeException("Can not negotiate GSS token", e);
+        }
+    }
+
+    protected ClickHouseHttpConnection authorize() throws GSSException {
+        ClickHouseCredentials credentials = server.getCredentials(config);
+        if(credentials.useGss() && !credentials.useAccessToken()) {
+            GssAuthorizer authorizer = new GssAuthorizer(config.getKerberosServerName(), server.getHost());
+            do {
+                authorizer.negotiate(this::doNegotiateGssToken);
+            } while (!authorizer.isEstablished());
+            credentials.setAccessToken(authorizer.getToken());
+        }
+        return this;
+    }
+
+    protected Map<String, String> getDefaultHeaders() {     // lazy evaluation because of authorization header
+        if (defaultHeaders == null) {
+            defaultHeaders = Collections.unmodifiableMap(createDefaultHeaders(config, server, getUserAgent()));
+        }
+        return defaultHeaders;
     }
 
     protected void closeQuietly() {

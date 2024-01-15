@@ -5,6 +5,7 @@ module com.clickhouse.client.http {
     provides com.clickhouse.client.ClickHouseClient with com.clickhouse.client.http.ClickHouseHttpClient;
 
     requires java.net.http;
+    requires java.security.jgss;
 
     requires transitive com.clickhouse.client;
 }

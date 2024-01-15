@@ -326,4 +326,31 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
     public void close() {
         // nothing
     }
+
+    @Override
+    protected String negotiateGssToken(String token) throws IOException {
+        HttpRequest request = HttpRequest.newBuilder()
+            .uri(URI.create(url))
+            .version(Version.HTTP_1_1)
+            .header("Authorization", "Negotiate " + token)
+            .timeout(Duration.ofMillis(config.getSocketTimeout()))
+            .build();
+
+        HttpResponse<String> response = null;
+        try {
+            response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IOException("Thread was interrupted during GSS token negotiation", e);
+        }
+
+        if (response.statusCode() != HttpURLConnection.HTTP_OK) {
+            throw new RuntimeException("GSS negotiate token failed. Server returned code " + response.statusCode());
+        }
+
+        return response.headers()
+            .firstValue("WWW-Authenticate")
+            .map(h -> h.replaceFirst("Negotiate ", ""))
+            .orElseThrow(() -> new RuntimeException("Sever did not return authenticate token"));
+    }
 }

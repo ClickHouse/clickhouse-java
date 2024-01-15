@@ -3,6 +3,8 @@ package com.clickhouse.client.http;
 import java.io.IOException;
 import java.util.concurrent.ExecutorService;
 
+import org.ietf.jgss.GSSException;
+
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.http.config.ClickHouseHttpOption;
@@ -17,9 +19,10 @@ public final class ClickHouseHttpConnectionFactory {
             ExecutorService executor) throws IOException {
         HttpConnectionProvider provider = request.getConfig().getOption(ClickHouseHttpOption.CONNECTION_PROVIDER,
                 HttpConnectionProvider.class);
+        ClickHouseHttpConnection connection = null;
         if (provider == HttpConnectionProvider.APACHE_HTTP_CLIENT) {
             try {
-                return new ApacheHttpConnectionImpl(server, request, executor);
+                connection = new ApacheHttpConnectionImpl(server, request, executor);
             } catch (ExceptionInInitializerError | NoClassDefFoundError t) {
                 log.warn("Error when creating %s, fall back to HTTP_URL_CONNECTION", provider, t);
             }
@@ -27,7 +30,15 @@ public final class ClickHouseHttpConnectionFactory {
             log.warn("HTTP_CLIENT is only supported in JDK 11 or above, fall back to HTTP_URL_CONNECTION");
         }
 
-        return new HttpUrlConnectionImpl(server, request, executor);
+        if (connection == null) {
+            connection = new HttpUrlConnectionImpl(server, request, executor);
+        }
+        try {
+            connection.authorize();
+        } catch (GSSException e) {
+            throw new RuntimeException("Can not perform GSS authorization", e);
+        }
+        return connection;
     }
 
     private ClickHouseHttpConnectionFactory() {

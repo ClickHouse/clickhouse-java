@@ -270,4 +270,26 @@ public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
     public void close() {
         conn.disconnect();
     }
+
+    @Override
+    protected String negotiateGssToken(String token) throws IOException {
+        String url = getBaseUrl();
+        HttpURLConnection connection = null;
+        try {
+            connection = newConnection(url, false);
+            connection.setRequestProperty("Authorization", "Negotiate " + token);
+        } finally {
+            if (connection != null) {
+                connection.disconnect();
+            }
+        }
+
+        checkResponse(connection);
+
+        String authHeader = connection.getHeaderField("WWW-Authenticate");
+        if (authHeader == null) {
+            throw new RuntimeException("Server did not return authenticate header");
+        }
+        return authHeader.replaceFirst("Negotiate ", "");
+    }
 }
