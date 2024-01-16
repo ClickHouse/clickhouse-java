@@ -269,11 +269,13 @@ public class ClickHouseServerForTest {
     public static void beforeSuite() {
         if (clickhouseContainer != null) {
             if (clickhouseContainer.isRunning()) {
+                System.out.println(clickhouseContainer.getContainerInfo());
                 return;
             }
 
             try {
                 clickhouseContainer.start();
+                System.out.println(clickhouseContainer.getContainerInfo());
             } catch (RuntimeException e) {
                 throw new IllegalStateException(new StringBuilder()
                         .append("Failed to start docker container for integration test.\r\n")
