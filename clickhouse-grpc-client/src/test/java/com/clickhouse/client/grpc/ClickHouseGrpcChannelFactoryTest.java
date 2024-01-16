@@ -8,7 +8,7 @@ import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.grpc.config.ClickHouseGrpcOption;
-
+@Deprecated
 public class ClickHouseGrpcChannelFactoryTest extends BaseIntegrationTest {
     @Test(groups = { "integration" })
     public void testGetFactory() {

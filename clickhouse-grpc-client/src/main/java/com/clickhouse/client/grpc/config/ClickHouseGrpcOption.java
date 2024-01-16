@@ -8,6 +8,7 @@ import com.clickhouse.data.ClickHouseChecker;
 /**
  * gRPC client options.
  */
+@Deprecated
 public enum ClickHouseGrpcOption implements ClickHouseOption {
     /**
      * Flow control window.

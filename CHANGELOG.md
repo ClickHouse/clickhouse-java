@@ -1,3 +1,12 @@
+## 0.6.0 
+### Bug Fixes
+
+### WARNING -- ClickHouse CLI Client deprecation
+`clickhouse-cli-client` package is deprecated from version 0.6.0 and it's going to be removed in `0.7.0`. We recommend using [clickhouse-client](https://clickhouse.com/docs/en/interfaces/cli) instead. 
+
+### WARNING -- ClickHouse GRPC Client deprecation
+`clickhouse-grpc-client` package is deprecated from version 0.6.0 and it's going to be removed in `0.7.0`. We recommend using [HTTP](https://github.com/ClickHouse/clickhouse-java/blob/main/examples/client/src/main/java/com/clickhouse/examples/jdbc/Main.java) protocol instead.
+
 ## 0.5.0
 ### Breaking Changes
 * ClickHouseByteBuffer can no longer be extended

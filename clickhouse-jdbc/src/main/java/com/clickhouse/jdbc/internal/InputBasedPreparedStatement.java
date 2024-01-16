@@ -326,6 +326,7 @@ public class InputBasedPreparedStatement extends AbstractPreparedStatement imple
 
         ClickHouseDataProcessor processor = getDataProcessor(stream, null, columns);
         int nullAsDefault = getNullAsDefault();
+        // validate the values before the actual write into the processor
         for (int i = 0, len = values.length; i < len; i++) {
             if (!flags[i]) {
                 throw SqlExceptionUtils
@@ -341,6 +342,10 @@ public class InputBasedPreparedStatement extends AbstractPreparedStatement imple
                             "Cannot set null to non-nullable column #%d [%s]", i + 1, col));
                 }
             }
+        }
+        // the actual write to the processor
+        for (int i = 0, len = values.length; i < len; i++) {
+            ClickHouseValue val = values[i];
             try {
                 processor.write(val);
             } catch (IOException e) {
@@ -348,7 +353,6 @@ public class InputBasedPreparedStatement extends AbstractPreparedStatement imple
                 throw SqlExceptionUtils.handle(e);
             }
         }
-
         counter++;
         clearParameters();
     }

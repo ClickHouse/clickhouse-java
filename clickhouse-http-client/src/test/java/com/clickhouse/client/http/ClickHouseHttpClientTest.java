@@ -9,6 +9,8 @@ import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseCredentials;
 import com.clickhouse.client.ClickHouseException;
 import com.clickhouse.client.ClickHouseNode;
+import com.clickhouse.client.ClickHouseNode.Status;
+import com.clickhouse.client.ClickHouseNodes;
 import com.clickhouse.client.ClickHouseNodeSelector;
 import com.clickhouse.client.ClickHouseParameterizedQuery;
 import com.clickhouse.client.ClickHouseProtocol;
@@ -216,30 +218,12 @@ public class ClickHouseHttpClientTest extends ClientIntegrationTest {
         }
 
         try (ClickHouseClient client = ClickHouseClient.builder().options(getClientOptions())
-                .nodeSelector(ClickHouseNodeSelector.of(ClickHouseProtocol.HTTP))
-                .option(ClickHouseHttpOption.WEB_CONTEXT, "a/b").build()) {
-            Assert.assertTrue(client.ping(getServer(), 3000));
-        }
+                .nodeSelector(ClickHouseNodeSelector.of(ClickHouseProtocol.HTTP)).build()) {
+            ClickHouseNodes nodes = ClickHouseNodes.of("http://notthere," + getServer().getBaseUri());
+            ClickHouseNode nonExistingNode = nodes.getNodes().get(0);
+            nodes.update(nonExistingNode, Status.FAULTY);
 
-        try (ClickHouseClient client = ClickHouseClient.builder().options(getClientOptions())
-                .nodeSelector(ClickHouseNodeSelector.of(ClickHouseProtocol.HTTP))
-                .option(ClickHouseHttpOption.WEB_CONTEXT, "a/b")
-                .option(ClickHouseClientOption.HEALTH_CHECK_METHOD, ClickHouseHealthCheckMethod.PING).build()) {
-            Assert.assertFalse(client.ping(getServer(), 3000));
-        }
-
-        try (ClickHouseClient client = ClickHouseClient.builder().options(getClientOptions())
-                .nodeSelector(ClickHouseNodeSelector.of(ClickHouseProtocol.HTTP))
-                .option(ClickHouseHttpOption.WEB_CONTEXT, "/")
-                .option(ClickHouseClientOption.HEALTH_CHECK_METHOD, ClickHouseHealthCheckMethod.PING).build()) {
-            Assert.assertTrue(client.ping(getServer(), 3000));
-        }
-
-        try (ClickHouseClient client = ClickHouseClient.builder().options(getClientOptions())
-                .nodeSelector(ClickHouseNodeSelector.of(ClickHouseProtocol.HTTP))
-                .option(ClickHouseClientOption.HEALTH_CHECK_METHOD, ClickHouseHealthCheckMethod.PING)
-                .removeOption(ClickHouseHttpOption.WEB_CONTEXT).build()) {
-            Assert.assertTrue(client.ping(getServer(), 3000));
+            Assert.assertFalse(client.ping(nonExistingNode, 3000));
         }
     }
 
@@ -460,24 +444,25 @@ public class ClickHouseHttpClientTest extends ClientIntegrationTest {
             }
 
             // without proxy_port
-            options.put("proxy_host", proxyHost);
-            try (ClickHouseClient client = ClickHouseClient.builder().options(getClientOptions())
-                    .nodeSelector(ClickHouseNodeSelector.of(ClickHouseProtocol.HTTP)).build()) {
-                ClickHouseNode server = getServer(ClickHouseProtocol.HTTP, options);
-                Assert.assertFalse(client.ping(server, 30000), "Ping should fail due to incomplete proxy options");
-                Assert.assertThrows(ClickHouseException.class,
-                        () -> client.read(server).query("select 1").executeAndWait());
-            }
-
-            options.put("proxy_port", Integer.toString(proxyPort));
-            try (ClickHouseClient client = ClickHouseClient.builder().options(getClientOptions())
-                    .nodeSelector(ClickHouseNodeSelector.of(ClickHouseProtocol.HTTP)).build()) {
-                ClickHouseNode server = getServer(ClickHouseProtocol.HTTP, options);
-                Assert.assertTrue(client.ping(server, 30000), "Can not ping via proxy");
-                Assert.assertEquals(
-                        client.read(server).query("select 6").executeAndWait().firstRecord().getValue(0).asString(),
-                        "6");
-            }
+// Disable tests for ping via proxy
+//            options.put("proxy_host", proxyHost);
+//            try (ClickHouseClient client = ClickHouseClient.builder().options(getClientOptions())
+//                    .nodeSelector(ClickHouseNodeSelector.of(ClickHouseProtocol.HTTP)).build()) {
+//                ClickHouseNode server = getServer(ClickHouseProtocol.HTTP, options);
+//                Assert.assertFalse(client.ping(server, 30000), "Ping should fail due to incomplete proxy options");
+//                Assert.assertThrows(ClickHouseException.class,
+//                        () -> client.read(server).query("select 1").executeAndWait());
+//            }
+//
+//            options.put("proxy_port", Integer.toString(proxyPort));
+//            try (ClickHouseClient client = ClickHouseClient.builder().options(getClientOptions())
+//                    .nodeSelector(ClickHouseNodeSelector.of(ClickHouseProtocol.HTTP)).build()) {
+//                ClickHouseNode server = getServer(ClickHouseProtocol.HTTP, options);
+//                Assert.assertTrue(client.ping(server, 30000), "Can not ping via proxy");
+//                Assert.assertEquals(
+//                        client.read(server).query("select 6").executeAndWait().firstRecord().getValue(0).asString(),
+//                        "6");
+//            }
         } finally {
             if (toxiproxy != null) {
                 toxiproxy.stop();

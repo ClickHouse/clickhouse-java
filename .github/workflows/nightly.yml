@@ -12,7 +12,7 @@ on:
 
 env:
   CHC_BRANCH: "main"
-  CHC_VERSION: "0.5.0"
+  CHC_VERSION: "0.6.0"
 
 jobs:
   nightly:
