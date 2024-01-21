@@ -9,6 +9,13 @@
 ### WARNING -- ClickHouse GRPC Client deprecation
 `clickhouse-grpc-client` package is deprecated from version 0.6.0 and it's going to be removed in `0.7.0`. We recommend using [HTTP](https://github.com/ClickHouse/clickhouse-java/blob/main/examples/client/src/main/java/com/clickhouse/examples/jdbc/Main.java) protocol instead.
 
+### Bug Fixes
+* Fix faulty node detection in ClickHouseNodes - [#1595](https://github.com/ClickHouse/clickhouse-java/pull/1511)
+* Remove WEB_CONTEXT support - [#1512](https://github.com/ClickHouse/clickhouse-java/issues/1512)
+* Fix while getting addBatch with an exception drop the all batch [#1373](https://github.com/ClickHouse/clickhouse-java/issues/1373)
+* Add support in RowBinaryWithDefaults [#1508](https://github.com/ClickHouse/clickhouse-java/pull/1508)
+* Fix buffering issue caused by decompress flag not to work [#1500](https://github.com/ClickHouse/clickhouse-java/pull/1500)
+
 ## 0.5.0
 ### Breaking Changes
 * ClickHouseByteBuffer can no longer be extended
