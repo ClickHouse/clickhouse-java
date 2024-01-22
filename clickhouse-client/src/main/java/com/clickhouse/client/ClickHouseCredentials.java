@@ -78,7 +78,7 @@ public class ClickHouseCredentials implements Serializable {
      */
     public String getAccessToken() {
         if (isGssEnabled()) {
-            throw new IllegalStateException("No access token specified, please use GSS authentication instead.");
+            throw new IllegalStateException("Authentication with access token disabled. Use GSS auth instead.");
         } 
         if (!useAccessToken()) {
             throw new IllegalStateException("No access token specified, please use user name and password instead.");
@@ -108,7 +108,7 @@ public class ClickHouseCredentials implements Serializable {
             throw new IllegalStateException("No user name and password specified, please use access token instead.");
         }
         if (isGssEnabled()) {
-            throw new IllegalStateException("No password specified. Use GSS authentication instead.");
+            throw new IllegalStateException("Password authentication disabled. Use GSS auth instead.");
         }
         return this.password;
     }
