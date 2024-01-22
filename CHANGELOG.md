@@ -1,5 +1,7 @@
 ## 0.6.1
 
+Kerberos auth (GSS SPNEGO) - supported only for http protocol.
+
 ### Bug Fixes
 
 ## 0.6.0
