@@ -103,7 +103,11 @@ public enum ClickHouseDefaults implements ClickHouseOption {
      * {@link com.clickhouse.client.naming.SrvResolver}(e.g. resolve SRV record to
      * extract both host and port from a given name).
      */
-    SRV_RESOLVE("srv_resolve", false, "Whether to resolve DNS SRV name.");
+    SRV_RESOLVE("srv_resolve", false, "Whether to resolve DNS SRV name."),
+    /**
+     * Enable GSS authentication.
+     */
+    GSS_ENABLED("gss_enabled", false, "Enable GSS authentication. Supported only by HTTP protocol.");
 
     private final String key;
     private final Serializable defaultValue;

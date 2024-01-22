@@ -9,7 +9,6 @@ import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseRequest;
-import com.clickhouse.client.http.config.ClickHouseHttpOption;
 import com.clickhouse.data.ClickHouseExternalTable;
 import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.data.ClickHouseInputStream;
@@ -55,12 +54,14 @@ public class ClickHouseHttpConnectionTest {
         ClickHouseNode server = ClickHouseNode.builder().build();
         ClickHouseRequest<?> request = ClickHouseClient.newInstance().read(server);
         SimpleHttpConnection sc = new SimpleHttpConnection(server, request);
-        Assert.assertTrue(!sc.defaultHeaders.isEmpty());
-        Assert.assertEquals(sc.defaultHeaders, sc.mergeHeaders(null));
+        Map<String, String> defaultHeaders = sc.getDefaultHeaders();
+        Assert.assertTrue(!defaultHeaders.isEmpty());
+        Assert.assertEquals(defaultHeaders, sc.mergeHeaders(null));
 
         sc = new SimpleHttpConnection(server, request.format(ClickHouseFormat.ArrowStream));
-        Assert.assertTrue(!sc.defaultHeaders.isEmpty());
-        Assert.assertEquals(sc.defaultHeaders, sc.mergeHeaders(null));
+        defaultHeaders = sc.getDefaultHeaders();
+        Assert.assertTrue(!defaultHeaders.isEmpty());
+        Assert.assertEquals(defaultHeaders, sc.mergeHeaders(null));
     }
 
     @Test(groups = { "unit" })
