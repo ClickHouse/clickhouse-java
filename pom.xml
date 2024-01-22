@@ -115,6 +115,8 @@
         <testcontainers.version>1.18.3</testcontainers.version>
         <!-- stay 7.5 for JDK 8 support -->
         <testng.version>7.5.1</testng.version>
+        <mockito.version>5.9.0</mockito.version>
+        <powermock.version>2.0.9</powermock.version>
 
         <mariadb-driver.version>3.1.4</mariadb-driver.version>
         <mysql-driver.version>8.1.0</mysql-driver.version>
