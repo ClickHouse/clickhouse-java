@@ -75,6 +75,7 @@ public class GssAuthorizator {
             .append("java.security.auth.login.config=").append(System.getProperty("java.security.auth.login.config")).append(System.lineSeparator())
             .append("spnegoSupport=").append(spnegoSupport).append(System.lineSeparator())
             .append("fromSubject=").append(hasSubject).append(System.lineSeparator())
+            .append("user=").append(this.user).append(System.lineSeparator())
             .toString();
     }
 
