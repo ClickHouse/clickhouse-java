@@ -449,6 +449,10 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
     }
 
     private static Map<String, String> setGssAuthHeader(Map<String, String> headers, ClickHouseConfig config, ClickHouseNode server) {
+        if (headers.containsKey(HEADER_AUTHORIZATION)) {
+            log.debug("Authorization header is present. Skipping");
+            return headers;
+        }
         ClickHouseCredentials credentials = getCredentials(config, server);
         if (credentials.isGssEnabled()) {
             try {
