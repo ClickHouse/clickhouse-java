@@ -453,6 +453,16 @@ public class ClickHouseRowBinaryInputStream implements Closeable {
         return ClickHouseBitmap.deserialize(in, innerType);
     }
 
+    public ClickHouseBitmap[] readBitmapArray(ClickHouseDataType innerType) throws IOException {
+        int length = Utils.readUnsignedLeb128(in);
+        ClickHouseBitmap[] bitmaps = new ClickHouseBitmap[length];
+        for (int i = 0; i < length; i++) {
+            bitmaps[i] = readBitmap(innerType);
+        }
+
+        return bitmaps;
+    }
+
     @Override
     public void close() throws IOException {
         in.close();
