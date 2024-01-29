@@ -390,4 +390,11 @@ public class ClickHouseRowBinaryStream {
     public void writeBitmap(ClickHouseBitmap rb) throws IOException {
         this.writeByteBuffer(Objects.requireNonNull(rb).toByteBuffer());
     }
+
+    public void writeBitmapArray(ClickHouseBitmap[] rbs) throws IOException {
+        writeUnsignedLeb128(Objects.requireNonNull(rbs).length);
+        for (ClickHouseBitmap rb : rbs) {
+            writeBitmap(rb);
+        }
+    }
 }
