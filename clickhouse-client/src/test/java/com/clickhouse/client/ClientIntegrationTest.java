@@ -44,6 +44,7 @@ import com.clickhouse.data.value.UnsignedLong;
 import com.clickhouse.data.value.UnsignedShort;
 
 import org.apache.commons.compress.compressors.lz4.FramedLZ4CompressorInputStream;
+import org.testcontainers.shaded.org.apache.commons.lang3.StringUtils;
 import org.testng.Assert;
 import org.testng.SkipException;
 import org.testng.annotations.DataProvider;
@@ -2526,7 +2527,7 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
                 "create table " + tableName + " (" + tableColumns + ")engine=Memory");
 
         long numRows = 1;
-
+        String content = StringUtils.repeat("*", 50000);
         try {
             try (ClickHouseClient client = getClient()) {
                 ClickHouseRequest.Mutation request = client.read(server)
@@ -2547,7 +2548,7 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
                             n -> {
                                 try {
                                     BinaryStreamUtils.writeInt64(stream, n);
-                                    BinaryStreamUtils.writeString(stream, "a".repeat(50000));
+                                    BinaryStreamUtils.writeString(stream, content);
                                 } catch (IOException e) {
                                     throw new RuntimeException(e);
                                 }
