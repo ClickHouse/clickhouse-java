@@ -3,6 +3,9 @@ package com.clickhouse.client.http;
 import java.io.IOException;
 import java.io.Serializable;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.stream.LongStream;
 
 import com.clickhouse.client.ClickHouseClient;
 import com.clickhouse.client.ClickHouseConfig;
@@ -27,16 +30,20 @@ import com.clickhouse.client.http.config.ClickHouseHttpOption;
 import com.clickhouse.client.http.config.HttpConnectionProvider;
 import com.clickhouse.config.ClickHouseOption;
 import com.clickhouse.data.ClickHouseCompression;
+import com.clickhouse.data.ClickHouseDataStreamFactory;
 import com.clickhouse.data.ClickHouseExternalTable;
 import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.data.ClickHouseInputStream;
+import com.clickhouse.data.ClickHousePipedOutputStream;
 import com.clickhouse.data.ClickHouseRecord;
 import com.clickhouse.data.ClickHouseVersion;
+import com.clickhouse.data.format.BinaryStreamUtils;
 import com.clickhouse.data.value.ClickHouseStringValue;
 
 import eu.rekawek.toxiproxy.ToxiproxyClient;
 
 import org.testcontainers.containers.ToxiproxyContainer;
+import org.testcontainers.shaded.org.apache.commons.lang3.StringUtils;
 import org.testng.Assert;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
@@ -468,5 +475,64 @@ public class ClickHouseHttpClientTest extends ClientIntegrationTest {
                 toxiproxy.stop();
             }
         }
+    }
+    @Test(groups = "integration")
+    public void testDecompressWithLargeChunk() throws ClickHouseException, IOException, ExecutionException, InterruptedException {
+        ClickHouseNode server = getServer();
+
+        String tableName = "test_decompress_with_large_chunk";
+
+        String tableColumns = String.format("id Int64, raw String");
+        sendAndWait(server, "drop table if exists " + tableName,
+                "create table " + tableName + " (" + tableColumns + ")engine=Memory");
+
+        long numRows = 1;
+        String content = StringUtils.repeat("*", 50000);
+        try {
+            try (ClickHouseClient client = getClient()) {
+                ClickHouseRequest.Mutation request = client.read(server)
+                        .write()
+                        .table(tableName)
+                        .decompressClientRequest(true)
+                        //.option(ClickHouseClientOption.USE_BLOCKING_QUEUE, "true")
+                        .format(ClickHouseFormat.RowBinary);
+                ClickHouseConfig config = request.getConfig();
+                CompletableFuture<ClickHouseResponse> future;
+
+                try (ClickHousePipedOutputStream stream = ClickHouseDataStreamFactory.getInstance()
+                        .createPipedOutputStream(config)) {
+                    // start the worker thread which transfer data from the input into ClickHouse
+                    future = request.data(stream.getInputStream()).execute();
+                    // write bytes into the piped stream
+                    LongStream.range(0, numRows).forEachOrdered(
+                            n -> {
+                                try {
+                                    BinaryStreamUtils.writeInt64(stream, n);
+                                    BinaryStreamUtils.writeString(stream, content);
+                                } catch (IOException e) {
+                                    throw new RuntimeException(e);
+                                }
+                            }
+                    );
+
+                    // We need to close the stream before getting a response
+                    stream.close();
+                    try (ClickHouseResponse response = future.get()) {
+                        ClickHouseResponseSummary summary = response.getSummary();
+                        Assert.assertEquals(summary.getWrittenRows(), numRows, "Num of written rows");
+                    }
+                }
+
+            }
+        } catch (Exception e) {
+            Throwable th = e.getCause();
+//            if (th instanceof ClickHouseException) {
+//                ClickHouseException ce = (ClickHouseException) th;
+//                Assert.assertEquals(73, ce.getErrorCode(), "It's Code: 73. DB::Exception: Unknown format RowBinaryWithDefaults. a server that not support the format");
+//            } else {
+            Assert.assertTrue(false, e.getMessage());
+//            }
+        }
+
     }
 }
