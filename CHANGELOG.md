@@ -1,6 +1,7 @@
 ## 0.6.1
 
 ### Bug Fixes
+- Fix buffering issue caused by decompress flag not to work when working with HTTP Client.
 
 ## 0.6.0
 

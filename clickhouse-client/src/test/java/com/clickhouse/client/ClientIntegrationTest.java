@@ -44,6 +44,7 @@ import com.clickhouse.data.value.UnsignedLong;
 import com.clickhouse.data.value.UnsignedShort;
 
 import org.apache.commons.compress.compressors.lz4.FramedLZ4CompressorInputStream;
+import org.testcontainers.shaded.org.apache.commons.lang3.StringUtils;
 import org.testng.Assert;
 import org.testng.SkipException;
 import org.testng.annotations.DataProvider;
