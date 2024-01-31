@@ -7,6 +7,7 @@ import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseSslContextProvider;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.config.ClickHouseProxyType;
+import com.clickhouse.client.gss.GssAuthorizationContext;
 import com.clickhouse.client.http.config.ClickHouseHttpOption;
 import com.clickhouse.data.ClickHouseChecker;
 import com.clickhouse.data.ClickHouseDataStreamFactory;
@@ -173,9 +174,9 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
                 .timeout(Duration.ofMillis(config.getSocketTimeout())).build();
     }
 
-    protected HttpClientConnectionImpl(ClickHouseNode server, ClickHouseRequest<?> request, ExecutorService executor)
+    protected HttpClientConnectionImpl(ClickHouseNode server, ClickHouseRequest<?> request, ExecutorService executor, GssAuthorizationContext gssAuthContext)
             throws IOException {
-        super(server, request);
+        super(server, request, gssAuthContext);
 
         HttpClient.Builder builder = HttpClient.newBuilder().version(Version.HTTP_1_1)
                 .connectTimeout(Duration.ofMillis(config.getConnectionTimeout())).followRedirects(Redirect.NORMAL);

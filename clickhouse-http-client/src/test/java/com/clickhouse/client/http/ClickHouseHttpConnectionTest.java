@@ -1,27 +1,39 @@
 package com.clickhouse.client.http;
 
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.ietf.jgss.GSSException;
+import org.testng.Assert;
+import org.testng.annotations.Test;
+
 import com.clickhouse.client.ClickHouseClient;
 import com.clickhouse.client.ClickHouseConfig;
+import com.clickhouse.client.ClickHouseCredentials;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseRequest;
-import com.clickhouse.client.http.config.ClickHouseHttpOption;
+import com.clickhouse.client.config.ClickHouseClientOption;
+import com.clickhouse.client.gss.GssAuthorizationContext;
 import com.clickhouse.data.ClickHouseExternalTable;
 import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.data.ClickHouseInputStream;
 import com.clickhouse.data.ClickHouseOutputStream;
 
-import org.testng.Assert;
-import org.testng.annotations.Test;
-
 public class ClickHouseHttpConnectionTest {
     static class SimpleHttpConnection extends ClickHouseHttpConnection {
+
+        protected SimpleHttpConnection(ClickHouseNode server, ClickHouseRequest<?> request, GssAuthorizationContext gssAuthContext) {
+            super(server, request, gssAuthContext);
+        }
+
         protected SimpleHttpConnection(ClickHouseNode server, ClickHouseRequest<?> request) {
-            super(server, request);
+            this(server, request, null);
         }
 
         @Override
@@ -61,6 +73,52 @@ public class ClickHouseHttpConnectionTest {
         sc = new SimpleHttpConnection(server, request.format(ClickHouseFormat.ArrowStream));
         Assert.assertTrue(!sc.defaultHeaders.isEmpty());
         Assert.assertEquals(sc.defaultHeaders, sc.mergeHeaders(null));
+    }
+
+    @Test(groups = { "unit" })
+    public void testDefaultHeadersWithGssAuth() throws GSSException {
+        ClickHouseNode server = ClickHouseNode.builder()
+                .credentials(ClickHouseCredentials.withGss("userA"))
+                .addOption(ClickHouseClientOption.KERBEROS_SERVER_NAME.getKey(), "kerbServerName")
+                .build();
+
+        ClickHouseRequest<?> request = ClickHouseClient.newInstance().read(server);
+        GssAuthorizationContext gssAuthMode = mock(GssAuthorizationContext.class);
+        when(gssAuthMode.getAuthToken("userA", "kerbServerName", server.getHost())).thenReturn("AUTH_TOKEN_ABC");
+        SimpleHttpConnection sc = new SimpleHttpConnection(server, request, gssAuthMode);
+        Assert.assertFalse(sc.defaultHeaders.containsKey("authorization"));
+
+        Map<String, String> headers = sc.mergeHeaders(null);
+
+        assertAuthHeader(headers, "AUTH_TOKEN_ABC");
+    }
+
+    @Test(groups = { "unit" })
+    public void testCustomHeadersWithGssAuth() throws GSSException {
+        ClickHouseNode server = ClickHouseNode.builder()
+                .credentials(ClickHouseCredentials.withGss("userB"))
+                .addOption(ClickHouseClientOption.KERBEROS_SERVER_NAME.getKey(), "kerbServerNameB")
+                .build();
+
+        ClickHouseRequest<?> request = ClickHouseClient.newInstance().read(server);
+        GssAuthorizationContext gssAuthMode = mock(GssAuthorizationContext.class);
+        when(gssAuthMode.getAuthToken("userB", "kerbServerNameB", server.getHost())).thenReturn("AUTH_TOKEN_ABCD");
+        SimpleHttpConnection sc = new SimpleHttpConnection(server, request, gssAuthMode);
+        Assert.assertFalse(sc.defaultHeaders.containsKey("authorization"));
+
+        Map<String, String> customHeaders = new HashMap<>();
+        customHeaders.put("Content-type", "application/json");
+
+        Map<String, String> headers = sc.mergeHeaders(customHeaders);
+
+        assertAuthHeader(headers, "AUTH_TOKEN_ABCD");
+    }
+
+    private void assertAuthHeader(Map<String, String> headers, String token) {
+        Assert.assertTrue(!headers.isEmpty());
+        Assert.assertEquals(headers.get("authorization"), "Negotiate " + token);
+        Assert.assertFalse(headers.containsKey("x-clickhouse-user"));
+        Assert.assertFalse(headers.containsKey("x-clickhouse-key"));
     }
 
     @Test(groups = { "unit" })

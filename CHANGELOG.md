@@ -1,5 +1,7 @@
 ## 0.6.1
 
+- Supporting Kerberos auth in HTTP client.
+
 ### Bug Fixes
 
 ## 0.6.0

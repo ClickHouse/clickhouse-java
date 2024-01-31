@@ -146,12 +146,35 @@ public class ClickHouseJdbcUrlParserTest {
         ClickHouseNode server = connInfo.getServer();
         Assert.assertEquals(connInfo.getDefaultCredentials().getUserName(), "default1");
         Assert.assertEquals(connInfo.getDefaultCredentials().getPassword(), "password1");
+        Assert.assertFalse(connInfo.getDefaultCredentials().isGssEnabled());
         Assert.assertEquals(server.getCredentials().get().getUserName(), "user");
         Assert.assertEquals(server.getCredentials().get().getPassword(), "a:passwd");
+        Assert.assertFalse(server.getCredentials().get().isGssEnabled());
 
         server = ClickHouseJdbcUrlParser.parse("jdbc:clickhouse://let%40me%3Ain:let%40me%3Ain@foo.ch", null)
-                .getServer();
+            .getServer();
         Assert.assertEquals(server.getCredentials().get().getUserName(), "let@me:in");
         Assert.assertEquals(server.getCredentials().get().getPassword(), "let@me:in");
+    }
+
+    @Test(groups = "unit")
+    public void testParseGssCredentials() throws SQLException {
+        Properties props = new Properties();
+        props.setProperty("user", "default1");
+        props.setProperty("gss_enabled", "true");
+        ConnectionInfo connInfo = ClickHouseJdbcUrlParser.parse("jdbc:clickhouse://user:a:passwd@foo.ch/test",
+                props);
+        ClickHouseNode server = connInfo.getServer();
+        Assert.assertEquals(connInfo.getDefaultCredentials().getUserName(), "default1");
+        Assert.assertTrue(connInfo.getDefaultCredentials().isGssEnabled());
+        Assert.assertThrows(IllegalStateException.class, () -> connInfo.getDefaultCredentials().getPassword());
+        Assert.assertEquals(server.getCredentials().get().getUserName(), "user");
+        Assert.assertTrue(server.getCredentials().get().isGssEnabled());
+        Assert.assertThrows(IllegalStateException.class, () -> connInfo.getDefaultCredentials().getPassword());
+
+        server = ClickHouseJdbcUrlParser.parse("jdbc:clickhouse://let%40me%3Ain:let%40me%3Ain@foo.ch", null)
+            .getServer();
+        Assert.assertEquals(server.getCredentials().get().getUserName(), "let@me:in");
+        Assert.assertThrows(IllegalStateException.class, () -> connInfo.getDefaultCredentials().getPassword());
     }
 }
