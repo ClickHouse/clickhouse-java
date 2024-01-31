@@ -6,8 +6,11 @@ import com.clickhouse.data.ClickHouseByteBuffer;
 import com.clickhouse.data.ClickHouseDataUpdater;
 import com.clickhouse.data.ClickHousePassThruStream;
 import com.clickhouse.data.ClickHouseOutputStream;
+import com.clickhouse.logging.Logger;
+import com.clickhouse.logging.LoggerFactory;
 
 public abstract class AbstractByteArrayOutputStream extends ClickHouseOutputStream {
+    private static final Logger log = LoggerFactory.getLogger(AbstractByteArrayOutputStream.class);
     protected final byte[] buffer;
 
     protected int position;
@@ -72,6 +75,7 @@ public abstract class AbstractByteArrayOutputStream extends ClickHouseOutputStre
         byte[] b = this.buffer;
         int limit = b.length;
         int length = buffer.length();
+        log.debug("writeBuffer limit:[{}] length:[{}] position:[{}]", limit, length, position);
         if (length <= limit - position) {
             System.arraycopy(buffer.array(), buffer.position(), b, position, length);
             position += length;
