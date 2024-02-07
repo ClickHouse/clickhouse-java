@@ -67,5 +67,13 @@
                 <common_name>me</common_name>
             </ssl_certificates>
         </me>
+        <bob>
+            <profile>default</profile>
+            <networks>
+                <ip>::/0</ip>
+            </networks>
+            <quota>default</quota>
+            <kerberos/>
+        </bob>
     </users>
 </clickhouse>

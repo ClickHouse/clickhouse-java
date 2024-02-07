@@ -19,7 +19,8 @@ import com.clickhouse.logging.LoggerFactory;
 
 public class GssAuthorizationContext implements Serializable {
 
-    private static final Logger LOG = LoggerFactory.getLogger(GssAuthorizationContext.class);
+    private static final String INTEGRATION_TEST_SNAME_PROP_KEY = "clickhouse.test.kerb.sname";
+    private static final Logger log = LoggerFactory.getLogger(GssAuthorizationContext.class);
 
     private final Subject subject;
 
@@ -34,7 +35,7 @@ public class GssAuthorizationContext implements Serializable {
     public String getAuthToken(String user, String serverName, String host) throws GSSException {
         GSSCredential gssCredential = null;
         if (subject != null) {
-            LOG.debug("Getting private credentials from subject");
+            log.debug("Getting private credentials from subject");
             Set<GSSCredential> gssCreds = subject.getPrivateCredentials(GSSCredential.class);
             if (gssCreds != null && !gssCreds.isEmpty()) {
                 gssCredential = gssCreds.iterator().next();
@@ -52,15 +53,30 @@ public class GssAuthorizationContext implements Serializable {
             if (!ClickHouseDefaults.USER.getDefaultValue().equals(user)) {
                 gssClientName = manager.createName(user, GSSName.NT_USER_NAME);
             } else {
-                LOG.debug("GSS credential name ignored. User name is default");
+                log.debug("GSS credential name ignored. User name is default");
             }
             gssCredential = manager.createCredential(gssClientName, 8 * 3600, desiredMech, GSSCredential.INITIATE_ONLY);
         }
-        GSSName gssServerName = manager.createName(serverName + "@" + host, GSSName.NT_HOSTBASED_SERVICE);
+        GSSName gssServerName = manager.createName(getSName(serverName, host), GSSName.NT_HOSTBASED_SERVICE);
         GSSContext secContext = manager.createContext(gssServerName, desiredMech, gssCredential,
                 GSSContext.DEFAULT_LIFETIME);
         secContext.requestMutualAuth(true);
         return Base64.encodeBase64String(secContext.initSecContext(new byte[0], 0, 0));
+    }
+
+    private String getSName(String serverName, String host) {
+        if (System.getProperty(INTEGRATION_TEST_SNAME_PROP_KEY) != null && isLocalhost(host)) {
+            // integration test mode - it allows to integrate with servers
+            // without editing /etc/hosts
+            String serverNameIT = System.getProperty(INTEGRATION_TEST_SNAME_PROP_KEY);
+            log.warn("Integration test mode. Using sname %s", serverNameIT);
+            return serverNameIT;
+        }
+        return serverName + "@" + host;
+    }
+
+    private boolean isLocalhost(String host) {
+        return "localhost".equals(host) || "127.0.0.1".equals(host);
     }
 
     private static Oid getSpnegoMech() throws GSSException {
