@@ -67,6 +67,7 @@ public class ClickHouserDriverWIthGssAuthTest extends JdbcIntegrationTest {
         options.put("refreshKrb5Config", "true");
         options.put("debug", "true");
         krb5Module.initialize(subject, null, null, options);
+        
         try (SystemPropertiesMock mock = SystemPropertiesMock.of(
                 "java.security.krb5.conf", kdcServer.getKrb5Conf(),
                 "sun.security.krb5.debug", "true",
@@ -88,12 +89,12 @@ public class ClickHouserDriverWIthGssAuthTest extends JdbcIntegrationTest {
 
     }
 
-    @BeforeTest
+    @BeforeTest(groups = "integration")
     public static void setupKdc() {
         kdcServer.beforeSuite();
     }
 
-    @AfterTest
+    @AfterTest(groups = "integration")
     public static void shutdownKdc() {
         kdcServer.afterSuite();
     }

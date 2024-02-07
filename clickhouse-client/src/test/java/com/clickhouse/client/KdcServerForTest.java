@@ -4,7 +4,9 @@ import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.UUID;
@@ -26,13 +28,12 @@ public class KdcServerForTest {
 
     private static final int KDC_PORT = 88;
     private static final int ADMIN_PORT = 749;
-    private static final String DOCKER_FILE = "containers/kdc-server/Dockerfile";
     private static final String CLICKHOUSE_SNAME = "HTTP/clickhouse-server.example.com@EXAMPLE.COM";
     private static final String BOB_KEYTAB_NAME = "bob.keytab";
 
     private final GenericContainer<?> kdcContainer;
     private final GenericContainer<?> clickhouseContainer;
-    private final File tmpDir;
+    public final File tmpDir;
     private String bobJaasConfPath;
     private String krb5ConfPath;
     private String bobKeyTabPath;
@@ -60,10 +61,14 @@ public class KdcServerForTest {
     }
 
     private static GenericContainer<?> buildKdcContainer() {
-        String dockerFile = getClassLoader().getResource(DOCKER_FILE).getFile();
-        return new GenericContainer<>(
-            new ImageFromDockerfile().withDockerfile(new File(dockerFile).toPath()))
-            .withExposedPorts(KDC_PORT, ADMIN_PORT);
+        String dockerDir = "containers/kdc-server/";
+        List<String> dockerFiles = Arrays.asList("Dockerfile", "index.html", "kadm5.acl", "kdc.conf", "krb5.conf", "supervisord.conf");
+
+        ImageFromDockerfile dockerImage = new ImageFromDockerfile();
+        for (String file : dockerFiles) {
+            dockerImage = dockerImage.withFileFromClasspath(file, dockerDir + file);
+        }
+        return new GenericContainer<>(dockerImage).withExposedPorts(KDC_PORT, ADMIN_PORT);
     }
 
     public void beforeSuite() {
@@ -92,6 +97,11 @@ public class KdcServerForTest {
 
                 bobKeyTabPath = new File(tmpDir, BOB_KEYTAB_NAME).getAbsolutePath();
                 kdcContainer.copyFileFromContainer("/etc/bob.keytab", bobKeyTabPath);
+
+                if (!new File(bobKeyTabPath).exists()) {
+                    throw new IllegalStateException("Bob keytab not created at " + bobJaasConfPath);
+                }
+                log.info("BOB KEYTAB FILE " + bobKeyTabPath);
 
                 File chServiceKeyTab = new File(tmpDir, "ch.keytab");
                 kdcContainer.copyFileFromContainer("/etc/ch-service.keytab", chServiceKeyTab.getAbsolutePath());
@@ -172,9 +182,5 @@ public class KdcServerForTest {
             }
             return outputFile.getAbsolutePath();
         }
-    }
-
-    private static ClassLoader getClassLoader() {
-        return KdcServerForTest.class.getClassLoader();
     }
 }
