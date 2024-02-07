@@ -18,12 +18,13 @@ import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
 
 import com.clickhouse.client.ClickHouseProtocol;
+import com.clickhouse.client.ClickHouseServerForTest;
 import com.clickhouse.client.KdcServerForTest;
 import com.sun.security.auth.module.Krb5LoginModule;
 
-public class ClickHouserDriverWIthGssAuthTest extends JdbcIntegrationTest {
+public class ClickHouseDriverWithGssAuthTest extends JdbcIntegrationTest {
 
-    private static final KdcServerForTest kdcServer = KdcServerForTest.getInstance();
+    private static final KdcServerForTest kdcServer = new KdcServerForTest(ClickHouseServerForTest.getClickHouseContainer());
 
     @Test(groups = "integration")
     public void testConnect() throws Exception {
@@ -67,7 +68,7 @@ public class ClickHouserDriverWIthGssAuthTest extends JdbcIntegrationTest {
         options.put("refreshKrb5Config", "true");
         options.put("debug", "true");
         krb5Module.initialize(subject, null, null, options);
-        
+
         try (SystemPropertiesMock mock = SystemPropertiesMock.of(
                 "java.security.krb5.conf", kdcServer.getKrb5Conf(),
                 "sun.security.krb5.debug", "true",

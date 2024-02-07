@@ -38,26 +38,14 @@ public class KdcServerForTest {
     private String krb5ConfPath;
     private String bobKeyTabPath;
 
-    private static KdcServerForTest instance;
-
-    public static KdcServerForTest getInstance() {
-        if (instance == null) {
-            synchronized(KdcServerForTest.class) {
-                if (instance == null) {
-                    instance = new KdcServerForTest(ClickHouseServerForTest.getClickHouseContainer());
-                }
-            }
-        }
-        return instance;
-    }
-
-    private KdcServerForTest(GenericContainer<?> clickhouseContainer) {
+    public KdcServerForTest(GenericContainer<?> clickhouseContainer) {
         if (clickhouseContainer == null) {
             throw new IllegalArgumentException("Clickhouse server container can not be null");
         }
         this.clickhouseContainer = clickhouseContainer;
         this.kdcContainer = buildKdcContainer();
         tmpDir = new File(System.getProperty("java.io.tmpdir"), "test-" + UUID.randomUUID());
+        tmpDir.deleteOnExit();
     }
 
     private static GenericContainer<?> buildKdcContainer() {
@@ -129,6 +117,7 @@ public class KdcServerForTest {
             kdcContainer.stop();
             kdcContainer.close();
         }
+        tmpDir.delete();
     }
 
     private void executeCmd(String cmd) throws UnsupportedOperationException, IOException, InterruptedException {
