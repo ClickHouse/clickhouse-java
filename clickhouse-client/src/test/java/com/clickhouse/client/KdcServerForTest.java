@@ -98,11 +98,6 @@ public class KdcServerForTest {
                 bobKeyTabPath = new File(tmpDir, BOB_KEYTAB_NAME).getAbsolutePath();
                 kdcContainer.copyFileFromContainer("/etc/bob.keytab", bobKeyTabPath);
 
-                if (!new File(bobKeyTabPath).exists()) {
-                    throw new IllegalStateException("Bob keytab not created at " + bobJaasConfPath);
-                }
-                log.info("BOB KEYTAB FILE " + bobKeyTabPath);
-
                 File chServiceKeyTab = new File(tmpDir, "ch.keytab");
                 kdcContainer.copyFileFromContainer("/etc/ch-service.keytab", chServiceKeyTab.getAbsolutePath());
                 clickhouseContainer.copyFileToContainer(
