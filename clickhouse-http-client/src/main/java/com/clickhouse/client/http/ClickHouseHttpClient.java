@@ -57,7 +57,9 @@ public class ClickHouseHttpClient extends AbstractClient<ClickHouseHttpConnectio
         if (connection != null) {
             gssAuthContext = connection.getGssAuthorizationContext();
         } else {
-            gssAuthContext = GssAuthorizationContext.initialize();
+            ClickHouseConfig config = request.getConfig();
+            String userName = server.getCredentials(config).getUserName();
+            gssAuthContext = GssAuthorizationContext.initialize(userName, config.getKerberosServerName(), server.getHost());
         }
         try {
             return ClickHouseHttpConnectionFactory.createConnection(server, request, getExecutor(), gssAuthContext);

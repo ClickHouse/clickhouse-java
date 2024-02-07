@@ -35,6 +35,7 @@ public class KdcServerForTest {
     private final File tmpDir;
     private String bobJaasConfPath;
     private String krb5ConfPath;
+    private String bobKeyTabPath;
 
     private static KdcServerForTest instance;
 
@@ -89,8 +90,8 @@ public class KdcServerForTest {
                 executeCmd("kadmin.local add_principal -randkey " + CLICKHOUSE_SNAME);
                 executeCmd("kadmin.local ktadd -k /etc/ch-service.keytab -norandkey " + CLICKHOUSE_SNAME);
 
-                File bobKeyTab = new File(tmpDir, BOB_KEYTAB_NAME);
-                kdcContainer.copyFileFromContainer("/etc/bob.keytab", bobKeyTab.getAbsolutePath());
+                bobKeyTabPath = new File(tmpDir, BOB_KEYTAB_NAME).getAbsolutePath();
+                kdcContainer.copyFileFromContainer("/etc/bob.keytab", bobKeyTabPath);
 
                 File chServiceKeyTab = new File(tmpDir, "ch.keytab");
                 kdcContainer.copyFileFromContainer("/etc/ch-service.keytab", chServiceKeyTab.getAbsolutePath());
@@ -108,6 +109,10 @@ public class KdcServerForTest {
 
     public String getBobJaasConf() {
         return bobJaasConfPath;
+    }
+
+    public String getBobKeyTabPath() {
+        return bobKeyTabPath;
     }
 
     public String getKrb5Conf() {
@@ -143,7 +148,7 @@ public class KdcServerForTest {
     private String createBobJaasConf() throws IOException {
         Map<String, String> params = new HashMap<>();
         params.put("PRINCIPAL", "bob@EXAMPLE.COM");
-        params.put("KEYTAB", new File(tmpDir, BOB_KEYTAB_NAME).getAbsolutePath());
+        params.put("KEYTAB", getBobKeyTabPath());
         return prepareConfigFile("client_jaas.conf", "bob_jaas.conf", params);
     }
 

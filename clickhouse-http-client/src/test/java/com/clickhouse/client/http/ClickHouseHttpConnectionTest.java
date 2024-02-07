@@ -78,13 +78,13 @@ public class ClickHouseHttpConnectionTest {
     @Test(groups = { "unit" })
     public void testDefaultHeadersWithGssAuth() throws GSSException {
         ClickHouseNode server = ClickHouseNode.builder()
-                .credentials(ClickHouseCredentials.withGss("userA"))
+                .credentials(ClickHouseCredentials.withGss("user"))
                 .addOption(ClickHouseClientOption.KERBEROS_SERVER_NAME.getKey(), "kerbServerName")
                 .build();
 
         ClickHouseRequest<?> request = ClickHouseClient.newInstance().read(server);
         GssAuthorizationContext gssAuthMode = mock(GssAuthorizationContext.class);
-        when(gssAuthMode.getAuthToken("userA", "kerbServerName", server.getHost())).thenReturn("AUTH_TOKEN_ABC");
+        when(gssAuthMode.getAuthToken()).thenReturn("AUTH_TOKEN_ABC");
         SimpleHttpConnection sc = new SimpleHttpConnection(server, request, gssAuthMode);
         Assert.assertFalse(sc.defaultHeaders.containsKey("authorization"));
 
@@ -96,13 +96,13 @@ public class ClickHouseHttpConnectionTest {
     @Test(groups = { "unit" })
     public void testCustomHeadersWithGssAuth() throws GSSException {
         ClickHouseNode server = ClickHouseNode.builder()
-                .credentials(ClickHouseCredentials.withGss("userB"))
-                .addOption(ClickHouseClientOption.KERBEROS_SERVER_NAME.getKey(), "kerbServerNameB")
+                .credentials(ClickHouseCredentials.withGss("user"))
+                .addOption(ClickHouseClientOption.KERBEROS_SERVER_NAME.getKey(), "kerbServerName")
                 .build();
 
         ClickHouseRequest<?> request = ClickHouseClient.newInstance().read(server);
         GssAuthorizationContext gssAuthMode = mock(GssAuthorizationContext.class);
-        when(gssAuthMode.getAuthToken("userB", "kerbServerNameB", server.getHost())).thenReturn("AUTH_TOKEN_ABCD");
+        when(gssAuthMode.getAuthToken()).thenReturn("AUTH_TOKEN_ABCD");
         SimpleHttpConnection sc = new SimpleHttpConnection(server, request, gssAuthMode);
         Assert.assertFalse(sc.defaultHeaders.containsKey("authorization"));
 

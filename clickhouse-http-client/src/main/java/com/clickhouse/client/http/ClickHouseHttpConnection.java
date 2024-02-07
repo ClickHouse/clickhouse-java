@@ -466,13 +466,11 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
             if (gssAuthContext == null) {
                 throw new IllegalStateException("GssAuthorizer not initialized");
             }
-            String userName = credentials.getUserName();
             try {
-                headers.put(HEADER_AUTHORIZATION, "Negotiate "
-                        + gssAuthContext.getAuthToken(userName, config.getKerberosServerName(), server.getHost()));
+                headers.put(HEADER_AUTHORIZATION, "Negotiate " + gssAuthContext.getAuthToken());
             } catch (GSSException e) {
-                throw new RuntimeException("Can not generate GSS token for user " + userName + " host "
-                        + server.getHost() + " with name " + config.getKerberosServerName(), e);
+                throw new RuntimeException("Can not generate GSS token for  host " 
+                    + server.getHost() + " with name " + config.getKerberosServerName(), e);
             }
         }
         return headers;
