@@ -24,6 +24,10 @@ import com.clickhouse.data.ClickHouseInputStream;
 import com.clickhouse.data.format.BinaryStreamUtils;
 
 public interface ClickHousePreparedStatement extends PreparedStatement {
+    default ResultSetMetaData describeQueryResult() throws SQLException {
+        return null;
+    }
+
     @Override
     default void setNull(int parameterIndex, int sqlType) throws SQLException {
         setNull(parameterIndex, sqlType, null);
@@ -109,7 +113,12 @@ public interface ClickHousePreparedStatement extends PreparedStatement {
     @Override
     default ResultSetMetaData getMetaData() throws SQLException {
         ResultSet currentResult = getResultSet();
-        return currentResult != null ? currentResult.getMetaData() : null;
+        if (currentResult != null) {
+            return currentResult.getMetaData();
+        } else if (getLargeUpdateCount() != -1L) {
+            return null;
+        }
+        return describeQueryResult();
     }
 
     @Override
