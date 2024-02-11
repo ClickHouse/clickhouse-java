@@ -1,11 +1,10 @@
-FROM minimal-ubuntu
+FROM python:3.9.18-slim-bullseye
 
 ENV DEBIAN_FRONTEND noninteractive
 
 WORKDIR /root/
 
 RUN apt update -y
-RUN apt install -y python3-dev python3-pip
 RUN apt install -y ntp krb5-admin-server krb5-kdc
 RUN pip install supervisor
 
