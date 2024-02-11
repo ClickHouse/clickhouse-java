@@ -7,7 +7,7 @@ package com.clickhouse.examples.jdbc;
  */
 public class GssAuthClient {
 
-    private void execute(String url) {
+    private void execute() {
         String url = "jdbc:ch:http://localhost:8123/default";       // only http protocol supports GSS auth
         Properties props = new Properties();
         props.setProperty("user", "userA");
