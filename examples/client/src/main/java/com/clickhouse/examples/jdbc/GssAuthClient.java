@@ -1,5 +1,11 @@
 package com.clickhouse.examples.jdbc;
 
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.Properties;
+
 /**
  * Sample of using clickhouse jdbc client with kerberos auth.
  * 
@@ -7,7 +13,7 @@ package com.clickhouse.examples.jdbc;
  */
 public class GssAuthClient {
 
-    private void execute() {
+    private void execute() throws SQLException {
         String url = "jdbc:ch:http://localhost:8123/default";       // only http protocol supports GSS auth
         Properties props = new Properties();
         props.setProperty("user", "userA");
@@ -22,7 +28,7 @@ public class GssAuthClient {
     }
     
 
-    public static void main(String...args) {
+    public static void main(String...args) throws SQLException {
         System.setProperty("java.security.krb5.conf", "/etc/krb5.conf");
         System.setProperty("java.security.auth.login.config", "/etc/jaas.conf");
         System.setProperty("javax.security.auth.useSubjectCredsOnly", "false");
