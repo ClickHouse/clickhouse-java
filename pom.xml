@@ -118,7 +118,7 @@
 
         <mariadb-driver.version>3.1.4</mariadb-driver.version>
         <mysql-driver.version>8.1.0</mysql-driver.version>
-        <postgresql-driver.version>42.6.0</postgresql-driver.version>
+        <postgresql-driver.version>42.6.1</postgresql-driver.version>
 
         <repackaged.version>1.9.2</repackaged.version>
         <shade.base>${project.groupId}.client.internal</shade.base>
