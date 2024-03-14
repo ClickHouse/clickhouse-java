@@ -97,7 +97,7 @@
         <brotli.version>0.1.2</brotli.version>
         <brotli4j.version>1.12.0</brotli4j.version>
         <caffeine.version>3.1.7</caffeine.version>
-        <compress.version>1.26.0</compress.version>
+        <compress.version>1.26.1</compress.version>
         <dnsjava.version>3.5.2</dnsjava.version>
         <fastutil.version>8.5.12</fastutil.version>
         <grpc.version>1.57.1</grpc.version>
@@ -112,7 +112,7 @@
         <snappy.version>1.1.10.3</snappy.version>
         <xz.version>1.9</xz.version>
         <zstd-jni.version>1.5.5-5</zstd-jni.version>
-        <testcontainers.version>1.18.3</testcontainers.version>
+        <testcontainers.version>1.19.7</testcontainers.version>
         <!-- stay 7.5 for JDK 8 support -->
         <testng.version>7.5.1</testng.version>
 
@@ -144,7 +144,7 @@
         <shade-plugin.version>3.5.0</shade-plugin.version>
         <source-plugin.version>3.2.1</source-plugin.version>
         <staging-plugin.version>1.6.13</staging-plugin.version>
-        <surefire-plugin.version>3.1.2</surefire-plugin.version>
+        <surefire-plugin.version>3.2.5</surefire-plugin.version>
         <toolchains-plugin.version>3.1.0</toolchains-plugin.version>
         <versions-plugin.version>2.16.0</versions-plugin.version>
 
