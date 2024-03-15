@@ -706,7 +706,7 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
         String tableColumns = String.format("a1 Array(%1$s), a2 Array(Array(%1$s)), a3 Array(Array(Array(%1$s)))",
                 baseType);
         sendAndWait(server, "drop table if exists " + tableName,
-                "create table " + tableName + " (" + tableColumns + ")engine=Memory",
+                "create table " + tableName + " (" + tableColumns + ")engine=Memory SETTINGS allow_suspicious_low_cardinality_types=1",
                 "insert into " + tableName + String.format(
                         " values(%2$s, [[123],[],[4], %2$s], [[[12],[3],[],[4,5]],[[123],[],[4], %2$s]])", baseType,
                         ClickHouseColumn.of("", ClickHouseDataType.Array, false,
