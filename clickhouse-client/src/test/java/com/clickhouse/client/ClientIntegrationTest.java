@@ -733,13 +733,16 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
                                             ClickHouseColumn.of("", baseType)).newArrayValue(server.config).update(expectedValues)
                                     .toSqlExpression()));
         } catch (ClickHouseException e) {
-            if (e.getErrorCode() == ClickHouseException.ERROR_SUSPICIOUS_TYPE_FOR_LOW_CARDINALITY) {
-                // expected to fail after 24.2
-                // TODO: set as default behaviour after few releases
-                return;
-            } else {
-                Assert.fail("Exception code is " + e.getErrorCode(), e);
+            try (ClickHouseClient client = getClient()) {
+                if (e.getErrorCode() == ClickHouseException.ERROR_SUSPICIOUS_TYPE_FOR_LOW_CARDINALITY &&
+                        checkServerVersion(client, server, "[24.2,)")) {
+                    return;
+                }
+            } catch ( Exception e1) {
+                Assert.fail("Failed to check server version", e1);
             }
+
+            Assert.fail("Exception code is " + e.getErrorCode(), e);
         }
         checkPrimitiveArrayValues(server, tableName, tableColumns, baseType, expectedValues);
     }
