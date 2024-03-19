@@ -377,6 +377,16 @@ public class ClickHouseStatementImpl extends JdbcWrapper
             throw new IllegalArgumentException("Failed to parse given SQL: " + sql);
         }
 
+        for (ClickHouseSqlStatement stmt : parsedStmts) {
+            if (stmt.getStatementType() == StatementType.SET) {
+                try {
+                    connection.getClientInfo().put("_ROLES", stmt.getSettings().get("_ROLES"));
+                } catch (Exception e) {
+                    //TODO: fix
+                    throw new RuntimeException(e);
+                }
+            }
+        }
         return getLastStatement();
     }
 
