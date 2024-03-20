@@ -134,6 +134,11 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
             appendQueryParameter(builder, settingKey, "0");
         }
 
+        settingKey = "custom_client_roles"; // TODO: remove custom_ prefix
+        if (!settings.containsKey(settingKey)) {
+            appendQueryParameter(builder, settingKey, "");
+        }
+
         Optional<String> optionalValue = request.getSessionId();
         if (optionalValue.isPresent()) {
             appendQueryParameter(builder, ClickHouseClientOption.SESSION_ID.getKey(), optionalValue.get());

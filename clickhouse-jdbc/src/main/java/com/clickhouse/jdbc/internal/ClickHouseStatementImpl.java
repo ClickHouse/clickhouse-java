@@ -10,11 +10,7 @@ import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.sql.SQLWarning;
 import java.sql.Statement;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -93,6 +89,28 @@ public class ClickHouseStatementImpl extends JdbcWrapper
 
     protected ClickHouseSqlStatement[] parsedStmts;
 
+
+    private void updateClientRolesAndApply(ClickHouseSqlStatement stmt) {
+
+        try {
+
+            if (stmt.getSettings().get("_ROLES_COUNT") != null) {
+                ArrayList<String> clientRoles = new ArrayList<>();
+
+                int i = 0;
+                while (stmt.getSettings().get("_ROLE_" + i) != null) {
+                    clientRoles.add(stmt.getSettings().get("_ROLE_" + i));
+                    i++;
+                }
+
+                request.set("custom_client_roles", String.join(",", clientRoles));
+            }
+        } catch (Exception e) {
+            //TODO: fix
+            throw new RuntimeException(e);
+        }
+    }
+
     private ClickHouseResponse getLastResponse(Map<ClickHouseOption, Serializable> options,
             List<ClickHouseExternalTable> tables, Map<String, String> settings) throws SQLException {
         boolean autoTx = connection.getAutoCommit() && connection.isTransactionSupported();
@@ -104,6 +122,7 @@ public class ClickHouseStatementImpl extends JdbcWrapper
         ClickHouseResponse response = null;
         for (int i = 0, len = parsedStmts.length; i < len; i++) {
             ClickHouseSqlStatement stmt = parsedStmts[i];
+            updateClientRolesAndApply(stmt);
             response = processSqlStatement(stmt);
             if (response != null) {
                 updateResult(stmt, response);
@@ -377,16 +396,6 @@ public class ClickHouseStatementImpl extends JdbcWrapper
             throw new IllegalArgumentException("Failed to parse given SQL: " + sql);
         }
 
-        for (ClickHouseSqlStatement stmt : parsedStmts) {
-            if (stmt.getStatementType() == StatementType.SET) {
-                try {
-                    connection.getClientInfo().put("_ROLES", stmt.getSettings().get("_ROLES"));
-                } catch (Exception e) {
-                    //TODO: fix
-                    throw new RuntimeException(e);
-                }
-            }
-        }
         return getLastStatement();
     }
 
