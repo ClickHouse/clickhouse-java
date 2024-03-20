@@ -852,14 +852,14 @@ public class ClickHouseSqlParserTest {
         Assert.assertEquals(stmts[0].getStatementType(), StatementType.SET);
         Assert.assertEquals(stmts[0].getOperationType(), OperationType.UNKNOWN);
         Assert.assertEquals(stmts[0].getSQL(), simpleStmt);
+        Assert.assertNotNull(stmts[0].getSettings().get("_ROLES"));
 
         final String compositeStmt = "SET ROLE ROL1; SET ROLE ROL2;";
         stmts = parse(compositeStmt);
         Assert.assertEquals(stmts.length, 2);
         for (ClickHouseSqlStatement stmt : stmts) {
             Assert.assertEquals(stmt.getStatementType(), StatementType.SET);
-
-
+            Assert.assertNotNull(stmts[0].getSettings().get("_ROLES"));
         }
 
 

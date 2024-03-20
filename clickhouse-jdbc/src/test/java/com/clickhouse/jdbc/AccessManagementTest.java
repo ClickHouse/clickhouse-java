@@ -14,6 +14,14 @@ public class AccessManagementTest extends JdbcIntegrationTest {
 
     @Test(groups = "integration")
     public void testSetRoleDifferentConnections() throws SQLException {
+        /*
+            Tests:
+            * Simple expressions
+            * Composite expressions with multiple roles
+            * Composite expressions with mixed statements:
+                - update table1 SET a = 1; set role ROL1; update table2 SET b = 2; set role NONE;
+         */
+
         String httpEndpoint = "http://" + getServerAddress(ClickHouseProtocol.HTTP) + "/";
         String url = String.format("jdbc:ch:%s", httpEndpoint);
         ClickHouseDataSource dataSource = new ClickHouseDataSource(url);
