@@ -44,7 +44,8 @@ public class AccessManagementTest extends JdbcIntegrationTest {
             assertRolesEquals(connection, "ROL1", "ROL2");
 
             Statement st = connection.createStatement();
-            st.execute("set role ROL1");
+//            st.execute("set role ROL1");
+            st.execute("set\n role\n ROL1, ROl2");
             assertRolesEquals(connection, "ROL1");
 
         } catch (Exception e) {

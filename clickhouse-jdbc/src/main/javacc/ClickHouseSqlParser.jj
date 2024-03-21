@@ -37,6 +37,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.HashSet;
+import java.util.Collection;
 
 import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.logging.Logger;
@@ -51,6 +53,7 @@ public class ClickHouseSqlParser {
 
     private ClickHouseConfig config;
     private ParseHandler handler;
+    private int anyArgsListStart = -1;
 
     private boolean tokenIn(int tokenIndex, int... tokens) {
         boolean matched = false;
@@ -121,6 +124,34 @@ public class ClickHouseSqlParser {
             token_source.reset();
         }
     }
+
+
+    private void rememberSetStmtArgsStart() {
+        if (token.next != null && "ROLE".equalsIgnoreCase(token.next.image)) {
+            anyArgsListStart = token_source.input_stream.tokenBegin;
+        }
+    }
+
+    private void rememberRolesIfSetStmt() {
+        if (anyArgsListStart > 0) {
+            HashSet<String> roles = new HashSet<>();
+            token_source.attachedAttributes.put("_ROLES", roles);
+            int stmtLength = token_source.builder.length();
+
+            StringBuilder roleBuff = new StringBuilder();
+            // read until the end of the statement or the beginning of the role list - so 2 chars before the role list
+            for (int i = stmtLength - 1; i > 0 && i > anyArgsListStart - 2; i--) {
+                char ch = token_source.builder.charAt(i);
+                if (Character.isLetterOrDigit(ch)) {
+                    roleBuff.append(ch);
+                } else if (!roleBuff.isEmpty()) {
+                    roles.add(roleBuff.reverse().toString());
+                    roleBuff.setLength(0);
+                }
+            }
+        }
+        anyArgsListStart = -1;
+    }
 }
 
 PARSER_END(ClickHouseSqlParser)
@@ -150,6 +181,7 @@ TOKEN_MGR_DECLS: {
     final Map<String, Integer> positions = new HashMap<>();
     final Map<String, String> settings = new LinkedHashMap<>();
     final Set<String> tempTables = new LinkedHashSet<>();
+    final Map<String, Object> attachedAttributes = new HashMap<>();
 
     public void CommonTokenAction(Token t) {
         if (t.kind != ClickHouseSqlParserConstants.SEMICOLON) {
@@ -234,6 +266,16 @@ TOKEN_MGR_DECLS: {
     ClickHouseSqlStatement build(ParseHandler handler) {
         String sqlStmt = builder.toString();
         ClickHouseSqlStatement s = null;
+        if (attachedAttributes.get("_ROLES") != null && attachedAttributes.get("_ROLES") instanceof Collection<?>){
+            Collection<String> roles = (Collection<String>) attachedAttributes.get("_ROLES");
+            settings.put("_ROLES_COUNT", String.valueOf(roles.size()));
+            int i = 0;
+            for (String role : roles) {
+                settings.put("_ROLE_" + i, role);
+                i++;
+            }
+        }
+
         if (handler != null) {
             s = handler.handleStatement(
                 sqlStmt, stmtType, cluster, database, table, input, compressAlgorithm, compressLevel, format, file, parameters, positions, settings, tempTables);
@@ -598,7 +640,8 @@ void tableClause(boolean record): { Token t; } {
 // https://clickhouse.tech/docs/en/sql-reference/statements/set/
 // https://clickhouse.tech/docs/en/sql-reference/statements/set-role/
 void setStmt(): {} { // not interested
-    <SET> (LOOKAHEAD(2) settingExprList() | anyExprList())
+
+    <SET>(LOOKAHEAD(2) settingExprList() | ( {rememberSetStmtArgsStart(); } anyExprList() {rememberRolesIfSetStmt();}))
 }
 
 // https://clickhouse.tech/docs/en/sql-reference/statements/show/
