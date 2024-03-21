@@ -40,8 +40,7 @@ public class Client {
         }
 
         public Builder addEndpoint(Protocol protocol, String host, int port) {
-            String endpoint = String.format("%s://%s:%d/", protocol.toString().toLowerCase(), host, port);
-            System.out.println(endpoint);
+            String endpoint = String.format("%s://%s:%d", protocol.toString().toLowerCase(), host, port);
             this.addEndpoint(endpoint);
             return this;
         }
@@ -72,7 +71,7 @@ public class Client {
     }
 
     private ClickHouseNode getServerNode() {
-        // TODO: implement load balancing
+        // TODO: implement load balancing using existing logic
         return this.serverNodes.get(0);
     }
 
@@ -81,7 +80,7 @@ public class Client {
      * @return true if the server is alive, false otherwise
      */
     public boolean ping() {
-        return ping(TIMEOUT);
+        return ping(Client.TIMEOUT);
     }
 
     /**
