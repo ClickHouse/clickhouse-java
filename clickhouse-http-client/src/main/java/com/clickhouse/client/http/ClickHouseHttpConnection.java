@@ -134,11 +134,6 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
             appendQueryParameter(builder, settingKey, "0");
         }
 
-        settingKey = "custom_client_roles"; // TODO: remove custom_ prefix
-        if (!settings.containsKey(settingKey)) {
-            appendQueryParameter(builder, settingKey, "");
-        }
-
         Optional<String> optionalValue = request.getSessionId();
         if (optionalValue.isPresent()) {
             appendQueryParameter(builder, ClickHouseClientOption.SESSION_ID.getKey(), optionalValue.get());
@@ -194,10 +189,13 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
     }
 
     protected static Map<String, String> createDefaultHeaders(ClickHouseConfig config, ClickHouseNode server,
-            String userAgent) {
+            String userAgent, ClickHouseRequest<?> request) {
         Map<String, String> map = new LinkedHashMap<>();
         boolean hasAuthorizationHeader = false;
         // add customer headers
+        if (request.hasSetting("custom_run_with_roles")) {
+            map.put("X-ClickHouse-User-Roles", request.getSetting(  "custom_run_with_roles", ""));
+        }
         for (Entry<String, String> header : ClickHouseOption
                 .toKeyValuePairs(config.getStrOption(ClickHouseHttpOption.CUSTOM_HEADERS)).entrySet()) {
             String name = header.getKey().toLowerCase(Locale.ROOT);
@@ -368,7 +366,7 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
 
         ClickHouseConfig c = request.getConfig();
         this.config = c;
-        this.defaultHeaders = Collections.unmodifiableMap(createDefaultHeaders(c, server, getUserAgent()));
+        this.defaultHeaders = Collections.unmodifiableMap(createDefaultHeaders(c, server, getUserAgent(), request));
         this.url = buildUrl(server.getBaseUri(), request);
         log.debug("url [%s]", this.url);
     }

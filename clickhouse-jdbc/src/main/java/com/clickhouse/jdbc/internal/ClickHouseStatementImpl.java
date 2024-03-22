@@ -90,24 +90,32 @@ public class ClickHouseStatementImpl extends JdbcWrapper
     protected ClickHouseSqlStatement[] parsedStmts;
 
 
-    private void updateClientRolesAndApply(ClickHouseSqlStatement stmt) {
+    private Set<String> getRequestRoles(ClickHouseSqlStatement stmt) {
+        Set<String> roles = new HashSet<>();
 
-        try {
-
-            if (stmt.getSettings().get("_ROLES_COUNT") != null) {
-                ArrayList<String> clientRoles = new ArrayList<>();
-
-                int i = 0;
-                while (stmt.getSettings().get("_ROLE_" + i) != null) {
-                    clientRoles.add(stmt.getSettings().get("_ROLE_" + i));
-                    i++;
-                }
-
-                request.set("custom_client_roles", String.join(",", clientRoles));
+        for (Map<String, String> settings : Arrays.asList(connection.getConfig().getCustomSettings(),
+                stmt.getSettings())) {
+            int i = 0;
+            String role;
+            while ((role = settings.get("_ROLE_" + i)) != null) {
+                roles.add(role);
+                i++;
             }
-        } catch (Exception e) {
-            //TODO: fix
-            throw new RuntimeException(e);
+        }
+
+        return roles;
+    }
+
+    private void rememberRoles(Set<String> roles) {
+        Map<String, String> settings = connection.getConfig().getCustomSettings();
+        int i = 0;
+        while (settings.remove("_ROLE_" + i) != null) {
+            i++;
+        }
+        i = 0;
+        for (String role : roles) {
+            settings.put("_ROLE_" + i, role);
+            i++;
         }
     }
 
@@ -122,7 +130,6 @@ public class ClickHouseStatementImpl extends JdbcWrapper
         ClickHouseResponse response = null;
         for (int i = 0, len = parsedStmts.length; i < len; i++) {
             ClickHouseSqlStatement stmt = parsedStmts[i];
-            updateClientRolesAndApply(stmt);
             response = processSqlStatement(stmt);
             if (response != null) {
                 updateResult(stmt, response);
@@ -132,11 +139,16 @@ public class ClickHouseStatementImpl extends JdbcWrapper
             if (stmt.hasFormat()) {
                 request.format(ClickHouseFormat.valueOf(stmt.getFormat()));
             }
+            final Set<String> requestRoles = getRequestRoles(stmt);
+            if (!requestRoles.isEmpty()) {
+                request.set("custom_run_with_roles", String.join(",", requestRoles));
+            }
             request.query(stmt.getSQL(), queryId = connection.newQueryId());
             // TODO skip useless queries to reduce network calls and server load
             try {
                 response = autoTx ? request.executeWithinTransaction(connection.isImplicitTransactionSupported())
                         : request.transaction(connection.getTransaction()).executeAndWait();
+                rememberRoles(requestRoles);
             } catch (Exception e) {
                 throw SqlExceptionUtils.handle(e);
             } finally {

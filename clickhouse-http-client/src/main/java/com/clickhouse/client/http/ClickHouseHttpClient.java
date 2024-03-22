@@ -118,7 +118,7 @@ public class ClickHouseHttpClient extends AbstractClient<ClickHouseHttpConnectio
             httpResponse = conn.post(config, sql, sealedRequest.getInputStream().orElse(null),
                     sealedRequest.getExternalTables(), sealedRequest.getOutputStream().orElse(null),
                     ClickHouseHttpConnection.buildUrl(server.getBaseUri(), sealedRequest),
-                    ClickHouseHttpConnection.createDefaultHeaders(config, server, conn.getUserAgent()),
+                    ClickHouseHttpConnection.createDefaultHeaders(config, server, conn.getUserAgent(), sealedRequest),
                     postAction);
         } else {
             httpResponse = conn.post(config, sql, sealedRequest.getInputStream().orElse(null),
