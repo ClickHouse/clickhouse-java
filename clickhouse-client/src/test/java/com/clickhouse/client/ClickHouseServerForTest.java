@@ -214,7 +214,10 @@ public class ClickHouseServerForTest {
         String host = clickhouseServer;
         int port = useSecurePort ? protocol.getDefaultSecurePort() : protocol.getDefaultPort();
         GenericContainer<?> container = clickhouseContainer;
-        if (container != null) {
+        if (isCloud()) {
+            port = 8443;
+            host = System.getenv("CLICKHOUSE_CLOUD_HOST");
+        } else if (container != null) {
             host = container.getHost();
             port = container.getMappedPort(port);
         } else {

@@ -55,4 +55,16 @@ public abstract class BaseIntegrationTest {
     protected boolean isCloud() {
         return ClickHouseServerForTest.isCloud();
     }
+
+    protected String getConnectionProtocol() {
+        if (isCloud()) {
+            return "https";
+        } else {
+            return "http";
+        }
+    }
+
+    protected String getPassword() {
+        return ClickHouseServerForTest.getPassword();
+    }
 }
