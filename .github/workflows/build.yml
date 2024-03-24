@@ -237,7 +237,7 @@ jobs:
     needs: compile
     strategy:
       matrix:
-        clickhouse: ["23.8", "24.3", "24.6", "latest"]
+        clickhouse: ["22.8", "23.3", "23.7", "latest", "cloud"]
         # here http, http_client and apache_http_client represent different value of http_connection_provider
         protocol: ["http", "http_client", "apache_http_client", "grpc"]
       fail-fast: false
@@ -280,6 +280,9 @@ jobs:
       - name: Install Java client
         run: mvn --also-make --batch-mode --no-transfer-progress --projects clickhouse-cli-client,clickhouse-grpc-client,clickhouse-http-client -DskipTests install
       - name: Test JDBC driver
+        env:
+          CLICKHOUSE_CLOUD_HOST: ${{ secrets.INTEGRATIONS_TEAM_TESTS_CLOUD_HOST }}
+          CLICKHOUSE_CLOUD_PASSWORD: ${{ secrets.INTEGRATIONS_TEAM_TESTS_CLOUD_PASSWORD }}
         run: |
           mvn --batch-mode --no-transfer-progress --projects clickhouse-jdbc -DclickhouseVersion=${{ matrix.clickhouse }} -Dprotocol=${{ matrix.protocol }} verify
       - name: Upload test results
