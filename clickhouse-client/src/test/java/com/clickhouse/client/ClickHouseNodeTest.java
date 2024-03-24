@@ -408,7 +408,11 @@ public class ClickHouseNodeTest extends BaseIntegrationTest {
             if (p == ClickHouseProtocol.GRPC && !serverVersion.check("[21.1,)")) {
                 continue;
             }
-            ClickHouseNode node = getServer(ClickHouseProtocol.ANY, p.getDefaultPort());
+            int port = p.getDefaultPort();
+            if (isCloud()) {
+                port = 8433;
+            }
+            ClickHouseNode node = getServer(ClickHouseProtocol.ANY, port);
             ClickHouseNode probedNode = node.probe();
             Assert.assertNotEquals(probedNode, node);
             Assert.assertEquals(probedNode.getProtocol(), p);
