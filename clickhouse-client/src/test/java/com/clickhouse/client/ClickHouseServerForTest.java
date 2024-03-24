@@ -292,6 +292,10 @@ public class ClickHouseServerForTest {
         }
     }
 
+    public static boolean isCloud() {
+        return isCloud;
+    }
+
     @BeforeSuite(groups = {"integration"})
     public static void beforeSuite() {
         if (clickhouseContainer != null) {
