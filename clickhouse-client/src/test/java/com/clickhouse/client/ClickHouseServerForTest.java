@@ -88,82 +88,82 @@ public class ClickHouseServerForTest {
 
 
         String imageTag = ClickHouseUtils.getProperty("clickhouseVersion", properties);
-        if (imageTag.equalsIgnoreCase("cloud")) {
+        if (imageTag != null && imageTag.equalsIgnoreCase("cloud")) {
             isCloud = true;
-        } else {
-            if (clickhouseServer != null) { // use external server
-                clickhouseVersion = ClickHouseChecker.isNullOrEmpty(imageTag)
-                        || ClickHouseVersion.of(imageTag).getYear() == 0 ? "" : imageTag;
-                clickhouseContainer = null;
-            } else { // use test container
-                String timezone = ClickHouseUtils.getProperty("clickhouseTimezone", properties);
-                if (ClickHouseChecker.isNullOrEmpty(timezone)) {
-                    timezone = "UTC";
-                }
-
-                String imageName = ClickHouseUtils.getProperty("clickhouseImage", properties);
-                if (ClickHouseChecker.isNullOrEmpty(imageName)) {
-                    imageName = "clickhouse/clickhouse-server";
-                }
-
-                int tagIndex = imageName.indexOf(':');
-                int digestIndex = imageName.indexOf('@');
-                if (tagIndex > 0) {
-                    imageTag = "";
-                    clickhouseVersion = digestIndex > 0 ? imageName.substring(tagIndex + 1, digestIndex)
-                            : imageName.substring(tagIndex + 1);
-                } else if (digestIndex > 0 || ClickHouseChecker.isNullOrEmpty(imageTag)) {
-                    clickhouseVersion = imageTag = "";
-                } else {
-                    if (ClickHouseVersion.of(imageTag).getYear() == 0) {
-                        clickhouseVersion = "";
-                    } else {
-                        clickhouseVersion = imageTag;
-                    }
-                    imageTag = ":" + imageTag;
-                }
-
-                String imageNameWithTag = imageName + imageTag;
-                String customPackages = ClickHouseUtils.getProperty("additionalPackages", properties);
-                if (!ClickHouseChecker.isNullOrEmpty(clickhouseVersion)
-                        && ClickHouseVersion.check(clickhouseVersion, "(,21.3]")) {
-                    if (ClickHouseChecker.isNullOrEmpty(customPackages)) {
-                        customPackages = "tzdata";
-                    } else if (!customPackages.contains("tzdata")) {
-                        customPackages += " tzdata";
-                    }
-                }
-
-                final String additionalPackages = customPackages;
-                final String customDirectory = "/custom";
-                clickhouseContainer = (ClickHouseChecker.isNullOrEmpty(additionalPackages)
-                        ? new GenericContainer<>(imageNameWithTag)
-                        : new GenericContainer<>(new ImageFromDockerfile().withDockerfileFromBuilder(builder -> builder
-                        .from(imageNameWithTag).run("apt-get update && apt-get install -y " + additionalPackages))))
-                        .withCreateContainerCmdModifier(
-                                it -> {
-                                    it.withEntrypoint("/bin/sh");
-                                    if (!ClickHouseChecker.isNullOrBlank(containerName)) {
-                                        it.withName(containerName);
-                                    }
-                                })
-                        .withCommand("-c", String.format("chmod +x %1$s/patch && %1$s/patch", customDirectory))
-                        .withEnv("TZ", timezone)
-                        .withExposedPorts(ClickHouseProtocol.GRPC.getDefaultPort(),
-                                ClickHouseProtocol.HTTP.getDefaultPort(),
-                                ClickHouseProtocol.HTTP.getDefaultSecurePort(),
-                                ClickHouseProtocol.MYSQL.getDefaultPort(),
-                                ClickHouseProtocol.TCP.getDefaultPort(),
-                                ClickHouseProtocol.TCP.getDefaultSecurePort(),
-                                ClickHouseProtocol.POSTGRESQL.getDefaultPort())
-                        .withClasspathResourceMapping("containers/clickhouse-server", customDirectory, BindMode.READ_ONLY)
-                        .withFileSystemBind(System.getProperty("java.io.tmpdir"), getClickHouseContainerTmpDir(),
-                                BindMode.READ_WRITE)
-                        .withNetwork(network)
-                        .withNetworkAliases("clickhouse")
-                        .waitingFor(Wait.forHttp("/ping").forPort(ClickHouseProtocol.HTTP.getDefaultPort())
-                                .forStatusCode(200).withStartupTimeout(Duration.of(600, SECONDS)));
+            imageTag = "";
+        }
+        if (clickhouseServer != null) { // use external server
+            clickhouseVersion = ClickHouseChecker.isNullOrEmpty(imageTag)
+                    || ClickHouseVersion.of(imageTag).getYear() == 0 ? "" : imageTag;
+            clickhouseContainer = null;
+        } else { // use test container
+            String timezone = ClickHouseUtils.getProperty("clickhouseTimezone", properties);
+            if (ClickHouseChecker.isNullOrEmpty(timezone)) {
+                timezone = "UTC";
             }
+
+            String imageName = ClickHouseUtils.getProperty("clickhouseImage", properties);
+            if (ClickHouseChecker.isNullOrEmpty(imageName)) {
+                imageName = "clickhouse/clickhouse-server";
+            }
+
+            int tagIndex = imageName.indexOf(':');
+            int digestIndex = imageName.indexOf('@');
+            if (tagIndex > 0) {
+                imageTag = "";
+                clickhouseVersion = digestIndex > 0 ? imageName.substring(tagIndex + 1, digestIndex)
+                        : imageName.substring(tagIndex + 1);
+            } else if (digestIndex > 0 || ClickHouseChecker.isNullOrEmpty(imageTag)) {
+                clickhouseVersion = imageTag = "";
+            } else {
+                if (ClickHouseVersion.of(imageTag).getYear() == 0) {
+                    clickhouseVersion = "";
+                } else {
+                    clickhouseVersion = imageTag;
+                }
+                imageTag = ":" + imageTag;
+            }
+
+            String imageNameWithTag = imageName + imageTag;
+            String customPackages = ClickHouseUtils.getProperty("additionalPackages", properties);
+            if (!ClickHouseChecker.isNullOrEmpty(clickhouseVersion)
+                    && ClickHouseVersion.check(clickhouseVersion, "(,21.3]")) {
+                if (ClickHouseChecker.isNullOrEmpty(customPackages)) {
+                    customPackages = "tzdata";
+                } else if (!customPackages.contains("tzdata")) {
+                    customPackages += " tzdata";
+                }
+            }
+
+            final String additionalPackages = customPackages;
+            final String customDirectory = "/custom";
+            clickhouseContainer = (ClickHouseChecker.isNullOrEmpty(additionalPackages)
+                    ? new GenericContainer<>(imageNameWithTag)
+                    : new GenericContainer<>(new ImageFromDockerfile().withDockerfileFromBuilder(builder -> builder
+                    .from(imageNameWithTag).run("apt-get update && apt-get install -y " + additionalPackages))))
+                    .withCreateContainerCmdModifier(
+                            it -> {
+                                it.withEntrypoint("/bin/sh");
+                                if (!ClickHouseChecker.isNullOrBlank(containerName)) {
+                                    it.withName(containerName);
+                                }
+                            })
+                    .withCommand("-c", String.format("chmod +x %1$s/patch && %1$s/patch", customDirectory))
+                    .withEnv("TZ", timezone)
+                    .withExposedPorts(ClickHouseProtocol.GRPC.getDefaultPort(),
+                            ClickHouseProtocol.HTTP.getDefaultPort(),
+                            ClickHouseProtocol.HTTP.getDefaultSecurePort(),
+                            ClickHouseProtocol.MYSQL.getDefaultPort(),
+                            ClickHouseProtocol.TCP.getDefaultPort(),
+                            ClickHouseProtocol.TCP.getDefaultSecurePort(),
+                            ClickHouseProtocol.POSTGRESQL.getDefaultPort())
+                    .withClasspathResourceMapping("containers/clickhouse-server", customDirectory, BindMode.READ_ONLY)
+                    .withFileSystemBind(System.getProperty("java.io.tmpdir"), getClickHouseContainerTmpDir(),
+                            BindMode.READ_WRITE)
+                    .withNetwork(network)
+                    .withNetworkAliases("clickhouse")
+                    .waitingFor(Wait.forHttp("/ping").forPort(ClickHouseProtocol.HTTP.getDefaultPort())
+                            .forStatusCode(200).withStartupTimeout(Duration.of(600, SECONDS)));
         }
     }
 
