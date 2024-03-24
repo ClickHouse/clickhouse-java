@@ -33,7 +33,7 @@ public class JdbcIssuesTest extends JdbcIntegrationTest {
 
         Connection conn = dataSource.getConnection("default", getPassword());
         Statement st = conn.createStatement();
-        st.execute(String.format("DROP TABLE %s", TABLE_NAME));
+        st.execute(String.format("DROP TABLE IF EXISTS %s", TABLE_NAME));
         st.execute(String.format("CREATE TABLE %s (`event_id` String) ENGINE = Memory", TABLE_NAME));
 
         int count = 1;
@@ -69,7 +69,7 @@ public class JdbcIssuesTest extends JdbcIntegrationTest {
 
         Connection conn = dataSource.getConnection("default", getPassword());
         Statement st = conn.createStatement();
-        st.execute(String.format("DROP TABLE %s", TABLE_NAME));
+        st.execute(String.format("DROP TABLE IF EXISTS %s", TABLE_NAME));
         st.execute(String.format("CREATE TABLE %s (`event_id` String) ENGINE = Memory", TABLE_NAME));
 
         int count = 1;
@@ -104,7 +104,7 @@ public class JdbcIssuesTest extends JdbcIntegrationTest {
 
         Connection conn = dataSource.getConnection("default", getPassword());
         Statement st = conn.createStatement();
-        st.execute(String.format("DROP TABLE %s", TABLE_NAME));
+        st.execute(String.format("DROP TABLE IF EXISTS %s", TABLE_NAME));
         st.execute(String.format("CREATE TABLE %s (`event_id` String, `num01` Int8, `event_id_01` String) ENGINE = Memory", TABLE_NAME));
 
         int count = 1;
@@ -137,7 +137,7 @@ public class JdbcIssuesTest extends JdbcIntegrationTest {
         String sql = String.format("INSERT INTO %s (%s) SELECT %s FROM input %s", TABLE_NAME, columnNames, columnNames, columnValues);
         Connection conn = dataSource.getConnection("default", "");
         Statement st = conn.createStatement();
-        st.execute(String.format("DROP TABLE %s", TABLE_NAME));
+        st.execute(String.format("DROP TABLE IF EXISTS %s", TABLE_NAME));
         st.execute(String.format("CREATE TABLE %s (`event_id` String, `num01` Int8, `event_id_01` String) ENGINE = Memory", TABLE_NAME));
         int count = 1;
         boolean failed = false;
