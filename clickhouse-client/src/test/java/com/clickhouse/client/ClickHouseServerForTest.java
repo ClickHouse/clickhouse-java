@@ -249,17 +249,18 @@ public class ClickHouseServerForTest {
 
     public static ClickHouseNode getClickHouseNode(ClickHouseProtocol protocol, Map<String, String> options) {
         String host = clickhouseServer;
+        String url = null;
         int port = protocol.getDefaultPort();
         if (isCloud) {
             host = System.getenv("CLICKHOUSE_CLOUD_HOST");
             port = 8443;
             options.put("password", getPassword());
+            url = String.format("https://%s:%d/default", host, port);
         } else if (clickhouseContainer != null) {
             host = clickhouseContainer.getHost();
             port = clickhouseContainer.getMappedPort(port);
+            url = String.format("http://%s:%d/default", host, port);
         }
-
-        String url = String.format("http://%s:%d/default", host, port);
         return ClickHouseNode.of(url, options);
     }
 
