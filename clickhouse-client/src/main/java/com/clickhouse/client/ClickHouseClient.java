@@ -960,6 +960,7 @@ public interface ClickHouseClient extends AutoCloseable {
                 return resp != null;
             } catch (Exception e) {
                 // ignore
+                e.printStackTrace();
             }
         }
 
