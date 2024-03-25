@@ -258,6 +258,12 @@ public class ClickHouseDoubleValue implements ClickHouseValue {
             resetToNullOrEmpty();
         } else if (value.isEmpty()) {
             resetToDefault();
+        } else if (value.equals("nan")) {
+            set(false, Double.NaN);
+        } else if (value.equals("+inf") || value.equals("inf")) {
+            set(false, Double.POSITIVE_INFINITY);
+        } else if (value.equals("-inf")) {
+            set(false, Double.NEGATIVE_INFINITY);
         } else {
             set(false, Double.parseDouble(value));
         }
