@@ -229,6 +229,7 @@ public class ClickHouseConfig implements ClickHouseDataConfig {
     private final String sslRootCert;
     private final String sslCert;
     private final String sslKey;
+    private final String serverHostName;
     private final String keyStoreType;
     private final String trustStore;
     private final String trustStorePassword;
@@ -349,6 +350,7 @@ public class ClickHouseConfig implements ClickHouseDataConfig {
         this.sslRootCert = getStrOption(ClickHouseClientOption.SSL_ROOT_CERTIFICATE);
         this.sslCert = getStrOption(ClickHouseClientOption.SSL_CERTIFICATE);
         this.sslKey = getStrOption(ClickHouseClientOption.SSL_KEY);
+        this.serverHostName = getStrOption(ClickHouseClientOption.SERVER_HOST_NAME);
         this.keyStoreType = getStrOption(ClickHouseClientOption.KEY_STORE_TYPE);
         this.trustStore = getStrOption(ClickHouseClientOption.TRUST_STORE);
         this.trustStorePassword = getStrOption(ClickHouseClientOption.KEY_STORE_PASSWORD);
@@ -629,6 +631,8 @@ public class ClickHouseConfig implements ClickHouseDataConfig {
     public String getSslKey() {
         return sslKey;
     }
+
+    public String getServerHostName() { return serverHostName; }
 
     public String getKeyStoreType() {
         return keyStoreType;
