@@ -90,33 +90,18 @@ public class ClickHouseStatementImpl extends JdbcWrapper
     protected ClickHouseSqlStatement[] parsedStmts;
 
 
-    private Set<String> getRequestRoles(ClickHouseSqlStatement stmt) {
-        Set<String> roles = new HashSet<>();
+    private HashSet<String> getRequestRoles(ClickHouseSqlStatement stmt) {
+        HashSet<String> roles = new HashSet<>();
 
-        for (Map<String, String> settings : Arrays.asList(connection.getConfig().getCustomSettings(),
-                stmt.getSettings())) {
-            int i = 0;
-            String role;
-            while ((role = settings.get("_ROLE_" + i)) != null) {
-                roles.add(role);
-                i++;
-            }
+        Map<String, String> settings = stmt.getSettings();
+        int i = 0;
+        String role;
+        while ((role = settings.get("_ROLE_" + i)) != null) {
+            roles.add(role);
+            i++;
         }
 
         return roles;
-    }
-
-    private void rememberRoles(Set<String> roles) {
-        Map<String, String> settings = connection.getConfig().getCustomSettings();
-        int i = 0;
-        while (settings.remove("_ROLE_" + i) != null) {
-            i++;
-        }
-        i = 0;
-        for (String role : roles) {
-            settings.put("_ROLE_" + i, role);
-            i++;
-        }
     }
 
     private ClickHouseResponse getLastResponse(Map<ClickHouseOption, Serializable> options,
@@ -139,16 +124,17 @@ public class ClickHouseStatementImpl extends JdbcWrapper
             if (stmt.hasFormat()) {
                 request.format(ClickHouseFormat.valueOf(stmt.getFormat()));
             }
-            final Set<String> requestRoles = getRequestRoles(stmt);
+
+            final HashSet<String> requestRoles = getRequestRoles(stmt);
             if (!requestRoles.isEmpty()) {
-                request.set("custom_run_with_roles", String.join(",", requestRoles));
+                request.set("_set_roles_stmt", requestRoles);
             }
+
             request.query(stmt.getSQL(), queryId = connection.newQueryId());
             // TODO skip useless queries to reduce network calls and server load
             try {
                 response = autoTx ? request.executeWithinTransaction(connection.isImplicitTransactionSupported())
                         : request.transaction(connection.getTransaction()).executeAndWait();
-                rememberRoles(requestRoles);
             } catch (Exception e) {
                 throw SqlExceptionUtils.handle(e);
             } finally {

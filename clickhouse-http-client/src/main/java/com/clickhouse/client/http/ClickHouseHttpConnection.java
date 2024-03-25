@@ -10,12 +10,14 @@ import java.net.URLEncoder;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Map.Entry;
+import java.util.Set;
 
 import com.clickhouse.client.ClickHouseClient;
 import com.clickhouse.client.ClickHouseConfig;
@@ -64,6 +66,8 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
                 .append(urlEncode(value, StandardCharsets.UTF_8)).append('&');
     }
 
+
+
     static String urlEncode(String str, Charset charset) {
         if (charset == null) {
             charset = StandardCharsets.UTF_8;
@@ -77,9 +81,13 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
         }
     }
 
-    static String buildQueryParams(ClickHouseRequest<?> request) {
+    static String buildQueryParams(ClickHouseRequest<?> request, Map<String, Serializable> additionalParams) {
         if (request == null) {
             return "";
+        }
+
+        if (additionalParams == null) {
+            additionalParams = Collections.emptyMap();
         }
 
         ClickHouseConfig config = request.getConfig();
@@ -134,6 +142,13 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
             appendQueryParameter(builder, settingKey, "0");
         }
 
+        // Handle additional parameters
+        if (additionalParams.containsKey("_roles")) {
+            Serializable value = additionalParams.get("_roles");
+            Set<String> roles = !(value instanceof Set) ? Collections.emptySet() : (Set<String>) value;
+            roles.forEach(role -> appendQueryParameter(builder, "custom_role", role));
+        }
+
         Optional<String> optionalValue = request.getSessionId();
         if (optionalValue.isPresent()) {
             appendQueryParameter(builder, ClickHouseClientOption.SESSION_ID.getKey(), optionalValue.get());
@@ -154,6 +169,10 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
         }
 
         for (Map.Entry<String, Serializable> entry : settings.entrySet()) {
+            // Skip internal settings
+            if (entry.getKey().equalsIgnoreCase("_set_roles_stmt")) {
+                continue;
+            }
             appendQueryParameter(builder, entry.getKey(), String.valueOf(entry.getValue()));
         }
 
@@ -163,7 +182,7 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
         return builder.toString();
     }
 
-    static String buildUrl(String baseUrl, ClickHouseRequest<?> request) {
+    static String buildUrl(String baseUrl, ClickHouseRequest<?> request, Map<String, Serializable> additionalParams) {
         StringBuilder builder = new StringBuilder().append(baseUrl);
         // TODO: Using default until we will remove
         String context = "/";
@@ -180,7 +199,7 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
             }
         }
 
-        String query = buildQueryParams(request);
+        String query = buildQueryParams(request, additionalParams);
         if (!query.isEmpty()) {
             builder.append('?').append(query);
         }
@@ -189,13 +208,9 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
     }
 
     protected static Map<String, String> createDefaultHeaders(ClickHouseConfig config, ClickHouseNode server,
-            String userAgent, ClickHouseRequest<?> request) {
+            String userAgent) {
         Map<String, String> map = new LinkedHashMap<>();
         boolean hasAuthorizationHeader = false;
-        // add customer headers
-        if (request.hasSetting("custom_run_with_roles")) {
-            map.put("X-ClickHouse-User-Roles", request.getSetting(  "custom_run_with_roles", ""));
-        }
         for (Entry<String, String> header : ClickHouseOption
                 .toKeyValuePairs(config.getStrOption(ClickHouseHttpOption.CUSTOM_HEADERS)).entrySet()) {
             String name = header.getKey().toLowerCase(Locale.ROOT);
@@ -366,8 +381,8 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
 
         ClickHouseConfig c = request.getConfig();
         this.config = c;
-        this.defaultHeaders = Collections.unmodifiableMap(createDefaultHeaders(c, server, getUserAgent(), request));
-        this.url = buildUrl(server.getBaseUri(), request);
+        this.defaultHeaders = Collections.unmodifiableMap(createDefaultHeaders(c, server, getUserAgent()));
+        this.url = buildUrl(server.getBaseUri(), request, Collections.emptyMap());
         log.debug("url [%s]", this.url);
     }
 

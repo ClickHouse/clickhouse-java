@@ -1,6 +1,7 @@
 package com.clickhouse.client.http;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -46,7 +47,7 @@ public class ClickHouseHttpConnectionTest {
         ClickHouseNode server = ClickHouseNode.builder().port(ClickHouseProtocol.HTTP).build();
         ClickHouseRequest<?> request = ClickHouseClient.newInstance().read(server);
         ClickHouseNode s = request.getServer();
-        Assert.assertEquals(ClickHouseHttpConnection.buildUrl(server.getBaseUri(), request),
+        Assert.assertEquals(ClickHouseHttpConnection.buildUrl(server.getBaseUri(), request, Collections.emptyMap()),
                 "http://localhost:8123/?compress=1&extremes=0");
     }
 
@@ -67,7 +68,7 @@ public class ClickHouseHttpConnectionTest {
     public void testGetBaseUrl() {
         ClickHouseNode server = ClickHouseNode.of("https://localhost/db1");
         ClickHouseRequest<?> request = ClickHouseClient.newInstance().read(server);
-        Assert.assertEquals(ClickHouseHttpConnection.buildUrl(server.getBaseUri(), request),
+        Assert.assertEquals(ClickHouseHttpConnection.buildUrl(server.getBaseUri(), request, Collections.emptyMap()),
                 "https://localhost:8443/?compress=1&extremes=0");
         try (SimpleHttpConnection c = new SimpleHttpConnection(server, request)) {
             Assert.assertEquals(c.getBaseUrl(), "https://localhost:8443/");

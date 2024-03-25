@@ -1,13 +1,17 @@
 package com.clickhouse.client.http;
 
 import java.io.IOException;
+import java.io.Serializable;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.ConcurrentSkipListSet;
 
 import com.clickhouse.client.AbstractClient;
 import com.clickhouse.client.ClickHouseConfig;
@@ -27,6 +31,8 @@ public class ClickHouseHttpClient extends AbstractClient<ClickHouseHttpConnectio
     private static final Logger log = LoggerFactory.getLogger(ClickHouseHttpClient.class);
 
     static final List<ClickHouseProtocol> SUPPORTED = Collections.singletonList(ClickHouseProtocol.HTTP);
+
+    private ConcurrentSkipListSet<String> roles = new ConcurrentSkipListSet<>();
 
     @Override
     protected boolean checkConnection(ClickHouseHttpConnection connection, ClickHouseNode requestServer,
@@ -113,18 +119,30 @@ public class ClickHouseHttpClient extends AbstractClient<ClickHouseHttpConnectio
                     }
                 }
                 : null;
+        Map<String, Serializable> additionalParams = null;
+        if (sealedRequest.hasSetting("_set_roles_stmt")) {
+            additionalParams = Collections.singletonMap("_roles", sealedRequest.getSettings().get("_set_roles_stmt"));
+        } else if (!roles.isEmpty()) {
+            additionalParams = Collections.singletonMap("_roles", roles);
+        }
         if (conn.isReusable()) {
             ClickHouseNode server = sealedRequest.getServer();
             httpResponse = conn.post(config, sql, sealedRequest.getInputStream().orElse(null),
                     sealedRequest.getExternalTables(), sealedRequest.getOutputStream().orElse(null),
-                    ClickHouseHttpConnection.buildUrl(server.getBaseUri(), sealedRequest),
-                    ClickHouseHttpConnection.createDefaultHeaders(config, server, conn.getUserAgent(), sealedRequest),
+                    ClickHouseHttpConnection.buildUrl(server.getBaseUri(), sealedRequest, additionalParams),
+                    ClickHouseHttpConnection.createDefaultHeaders(config, server, conn.getUserAgent()),
                     postAction);
         } else {
             httpResponse = conn.post(config, sql, sealedRequest.getInputStream().orElse(null),
                     sealedRequest.getExternalTables(), sealedRequest.getOutputStream().orElse(null), null, null,
                     postAction);
         }
+
+        // At this point only successful responses are expected
+        if (sealedRequest.hasSetting("_set_roles_stmt")) {
+            rememberRoles((Set<String>) sealedRequest.getSettings().get("_set_roles_stmt"));
+        }
+
         return ClickHouseStreamResponse.of(httpResponse.getConfig(sealedRequest), httpResponse.getInputStream(),
                 sealedRequest.getSettings(), null, httpResponse.summary);
     }
@@ -132,5 +150,10 @@ public class ClickHouseHttpClient extends AbstractClient<ClickHouseHttpConnectio
     @Override
     public final Class<? extends ClickHouseOption> getOptionClass() {
         return ClickHouseHttpOption.class;
+    }
+
+    private void rememberRoles(Set<String> requestedRoles) {
+        roles.clear();
+        roles.addAll(requestedRoles);
     }
 }
