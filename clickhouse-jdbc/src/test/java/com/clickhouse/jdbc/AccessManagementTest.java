@@ -31,22 +31,25 @@ public class AccessManagementTest extends JdbcIntegrationTest {
         try (Connection connection = dataSource.getConnection("default", "")) {
             Statement st = connection.createStatement();
 
-            st.execute("create role ROL1; create role \"role☺,\";");
+//            st.execute("DROP ROLE IF EXISTS ROL1, \"role☺,\"");
+            st.execute("DROP ROLE IF EXISTS ROL1, \"ROL2,☺\"");
+            st.execute("DROP USER IF EXISTS some_user");
+            st.execute("create role ROL1; create role \"ROL2,☺\";");
             st.execute("create user some_user IDENTIFIED WITH no_password");
             st.execute("grant ROL1 to some_user");
-            st.execute("grant \"role☺,\" to some_user");
+            st.execute("grant \"ROL2,☺\" to some_user");
 
         } catch (Exception e) {
             Assert.fail("Failed", e);
         }
 
         try (Connection connection = dataSource.getConnection("some_user", "")) {
-            assertRolesEquals(connection, "ROL1", "role☺,");
+            assertRolesEquals(connection, "ROL1", "ROL2,☺");
 
             Statement st = connection.createStatement();
-//            st.execute("set role ROL1");
-            st.execute("set\n role\n ROL1, \"role☺,\"");
-            assertRolesEquals(connection, "ROL1");
+            st.execute("set role \"ROL2,☺\"");
+//            st.execute("set\n role\n ROL1, \"ROL2,\"");
+            assertRolesEquals(connection, "ROL2,☺");
 
         } catch (Exception e) {
             Assert.fail("Failed", e);

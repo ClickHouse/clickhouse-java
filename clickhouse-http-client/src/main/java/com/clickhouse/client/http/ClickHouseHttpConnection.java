@@ -146,7 +146,7 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
         if (additionalParams.containsKey("_roles")) {
             Serializable value = additionalParams.get("_roles");
             Set<String> roles = !(value instanceof Set) ? Collections.emptySet() : (Set<String>) value;
-            roles.forEach(role -> appendQueryParameter(builder, "custom_role", role));
+            roles.forEach(role -> appendQueryParameter(builder, "role", role));
         }
 
         Optional<String> optionalValue = request.getSessionId();

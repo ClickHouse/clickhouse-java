@@ -132,21 +132,27 @@ public class ClickHouseSqlParser {
         }
     }
 
-    private void rememberRolesIfSetStmt() {
+private void rememberRolesIfSetStmt() {
         if (anyArgsListStart > 0) {
             HashSet<String> roles = new HashSet<>();
             token_source.attachedAttributes.put("_ROLES", roles);
             int stmtLength = token_source.builder.length();
 
             StringBuilder roleBuff = new StringBuilder();
-            // read until the end of the statement or the beginning of the role list - so 2 chars before the role list
-            for (int i = stmtLength - 1; i > 0 && i > anyArgsListStart - 2; i--) {
+            boolean isQuoted = false;
+            for (int i = anyArgsListStart; i < stmtLength; i++) {
                 char ch = token_source.builder.charAt(i);
-                if (Character.isLetterOrDigit(ch)) {
-                    roleBuff.append(ch);
-                } else if (!roleBuff.isEmpty()) {
-                    roles.add(roleBuff.reverse().toString());
+                if (ch == '"' && isQuoted ) {
+                    roles.add(roleBuff.toString());
                     roleBuff.setLength(0);
+                    isQuoted = false;
+                }  else if (ch == '"' && !isQuoted) {
+                    isQuoted = true;
+                } else if (ch == ',' && !isQuoted) {
+                    roles.add(roleBuff.toString());
+                    roleBuff.setLength(0);
+                } else {
+                    roleBuff.append(ch);
                 }
             }
         }
