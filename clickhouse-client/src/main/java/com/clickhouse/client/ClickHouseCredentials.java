@@ -17,6 +17,7 @@ public class ClickHouseCredentials implements Serializable {
     private final String userName;
     private final String password;
     // TODO sslCert
+    private final boolean gssEnabled;
 
     /**
      * Create credentials from access token.
@@ -25,7 +26,7 @@ public class ClickHouseCredentials implements Serializable {
      * @return credentials object for authentication
      */
     public static ClickHouseCredentials fromAccessToken(String accessToken) {
-        return new ClickHouseCredentials(accessToken);
+        return new ClickHouseCredentials(null, null, accessToken, false);
     }
 
     /**
@@ -36,35 +37,38 @@ public class ClickHouseCredentials implements Serializable {
      * @return credentials object for authentication
      */
     public static ClickHouseCredentials fromUserAndPassword(String userName, String password) {
-        return new ClickHouseCredentials(userName, password);
+        return ClickHouseCredentials.fromUserAndPassword(userName, password, false);
+    }
+
+    public static ClickHouseCredentials fromUserAndPassword(String userName, String password, boolean useGss) {
+        ClickHouseChecker.nonBlank(userName, "userName");
+        return new ClickHouseCredentials(userName, password != null ? password : "", null, useGss);
     }
 
     /**
-     * Construct credentials object using access token.
-     *
-     * @param accessToken access token
-     */
-    protected ClickHouseCredentials(String accessToken) {
-        this.accessToken = ClickHouseChecker.nonNull(accessToken, "accessToken");
-        this.userName = null;
-        this.password = null;
-    }
-
-    /**
-     * Construct credentials using user name and password.
-     *
+     * Create credentials for GSS authentication.
+     * 
      * @param userName user name
-     * @param password password
+     * @return credentials object for authentication
      */
-    protected ClickHouseCredentials(String userName, String password) {
-        this.accessToken = null;
+    public static ClickHouseCredentials withGss(String userName) {
+        ClickHouseChecker.nonBlank(userName, "userName");
+        return new ClickHouseCredentials(userName, null, null, true);
+    }
 
-        this.userName = ClickHouseChecker.nonBlank(userName, "userName");
-        this.password = password != null ? password : "";
+    private ClickHouseCredentials(String userName, String password, String accessToken, boolean gssEnabled) {
+        this.userName = userName;
+        this.password = password;
+        this.accessToken = accessToken;
+        this.gssEnabled = gssEnabled;
     }
 
     public boolean useAccessToken() {
         return accessToken != null;
+    }
+
+    public boolean isGssEnabled() {
+        return gssEnabled;
     }
 
     /**
@@ -73,6 +77,9 @@ public class ClickHouseCredentials implements Serializable {
      * @return access token
      */
     public String getAccessToken() {
+        if (isGssEnabled()) {
+            throw new IllegalStateException("Authentication with access token disabled. Use GSS auth instead.");
+        } 
         if (!useAccessToken()) {
             throw new IllegalStateException("No access token specified, please use user name and password instead.");
         }
@@ -100,12 +107,15 @@ public class ClickHouseCredentials implements Serializable {
         if (useAccessToken()) {
             throw new IllegalStateException("No user name and password specified, please use access token instead.");
         }
+        if (isGssEnabled()) {
+            throw new IllegalStateException("Password authentication disabled. Use GSS auth instead.");
+        }
         return this.password;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(accessToken, userName, password);
+        return Objects.hash(accessToken, userName, password, gssEnabled);
     }
 
     @Override
@@ -119,7 +129,7 @@ public class ClickHouseCredentials implements Serializable {
         }
 
         ClickHouseCredentials c = (ClickHouseCredentials) obj;
-        return Objects.equals(accessToken, c.accessToken) && Objects.equals(userName, c.userName)
-                && Objects.equals(password, c.password);
+        return Objects.equals(accessToken, c.accessToken)  && Objects.equals(userName, c.userName)
+                && Objects.equals(password, c.password) && Objects.equals(gssEnabled, c.gssEnabled);
     }
 }

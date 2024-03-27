@@ -232,6 +232,8 @@ public class ClickHouseConfig implements ClickHouseDataConfig {
     private final String keyStoreType;
     private final String trustStore;
     private final String trustStorePassword;
+    private final boolean gssEnabled;
+    private final String kerberosServerName;
     private final int transactionTimeout;
     private final boolean widenUnsignedTypes;
     private final boolean useBinaryString;
@@ -352,6 +354,8 @@ public class ClickHouseConfig implements ClickHouseDataConfig {
         this.keyStoreType = getStrOption(ClickHouseClientOption.KEY_STORE_TYPE);
         this.trustStore = getStrOption(ClickHouseClientOption.TRUST_STORE);
         this.trustStorePassword = getStrOption(ClickHouseClientOption.KEY_STORE_PASSWORD);
+        this.gssEnabled = getBoolOption(ClickHouseClientOption.GSS_ENABLED);
+        this.kerberosServerName = getStrOption(ClickHouseClientOption.KERBEROS_SERVER_NAME);
         this.transactionTimeout = getIntOption(ClickHouseClientOption.TRANSACTION_TIMEOUT);
         this.widenUnsignedTypes = getBoolOption(ClickHouseClientOption.WIDEN_UNSIGNED_TYPES);
         this.useBinaryString = getBoolOption(ClickHouseClientOption.USE_BINARY_STRING);
@@ -368,8 +372,12 @@ public class ClickHouseConfig implements ClickHouseDataConfig {
         this.timeZoneForDate = this.useServerTimeZoneForDates ? this.useTimeZone : null;
 
         if (credentials == null) {
-            this.credentials = ClickHouseCredentials.fromUserAndPassword(getStrOption(ClickHouseDefaults.USER),
-                    getStrOption(ClickHouseDefaults.PASSWORD));
+            String user = getStrOption(ClickHouseDefaults.USER);
+            if (this.gssEnabled) {
+                this.credentials = ClickHouseCredentials.withGss(user);
+            } else {
+                this.credentials = ClickHouseCredentials.fromUserAndPassword(user, getStrOption(ClickHouseDefaults.PASSWORD));
+            }
         } else {
             this.credentials = credentials;
         }
@@ -640,6 +648,14 @@ public class ClickHouseConfig implements ClickHouseDataConfig {
 
     public String getTrustStorePassword() {
         return trustStorePassword;
+    }
+
+    public boolean isGssEnabled() {
+        return gssEnabled;
+    }
+
+    public String getKerberosServerName() {
+        return kerberosServerName;
     }
 
     public int getTransactionTimeout() {

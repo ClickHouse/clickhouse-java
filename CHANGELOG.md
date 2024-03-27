@@ -1,5 +1,7 @@
 ## 0.6.0-patch3
 
+- Supporting Kerberos auth in HTTP client.
+
 ### Bug Fixes
 - Not detecting correctly ClickHouse error code
 - 

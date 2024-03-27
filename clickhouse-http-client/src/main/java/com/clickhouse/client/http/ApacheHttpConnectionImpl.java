@@ -10,6 +10,7 @@ import com.clickhouse.client.ClickHouseSslContextProvider;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.config.ClickHouseProxyType;
 import com.clickhouse.client.config.ClickHouseSslMode;
+import com.clickhouse.client.gss.GssAuthorizationContext;
 import com.clickhouse.client.http.config.ClickHouseHttpOption;
 import com.clickhouse.data.ClickHouseChecker;
 import com.clickhouse.data.ClickHouseExternalTable;
@@ -57,7 +58,6 @@ import java.net.ConnectException;
 import java.net.HttpURLConnection;
 import java.net.InetSocketAddress;
 import java.net.Socket;
-import java.net.StandardSocketOptions;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
@@ -73,9 +73,9 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
 
     private final CloseableHttpClient client;
 
-    protected ApacheHttpConnectionImpl(ClickHouseNode server, ClickHouseRequest<?> request, ExecutorService executor)
+    protected ApacheHttpConnectionImpl(ClickHouseNode server, ClickHouseRequest<?> request, ExecutorService executor, GssAuthorizationContext gssAuthContext)
             throws IOException {
-        super(server, request);
+        super(server, request, gssAuthContext);
 
         client = newConnection(config);
     }

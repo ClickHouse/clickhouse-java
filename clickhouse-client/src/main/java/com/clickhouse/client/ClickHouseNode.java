@@ -509,9 +509,13 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
         ClickHouseCredentials credentials = defaultCredentials;
         String user = "";
         String passwd = "";
+        boolean gssEnabled = false;
         if (credentials != null && !credentials.useAccessToken()) {
             user = credentials.getUserName();
-            passwd = credentials.getPassword();
+            gssEnabled = credentials.isGssEnabled();
+            if (!gssEnabled) {
+                passwd = credentials.getPassword();
+            }
         }
 
         if (!ClickHouseChecker.isNullOrEmpty(rawUserInfo)) {
@@ -535,11 +539,16 @@ public class ClickHouseNode implements Function<ClickHouseNodeSelector, ClickHou
         if (str != null) {
             passwd = str;
         }
+        str = params.remove(ClickHouseDefaults.GSS_ENABLED.getKey());
+        if (str != null) {
+            gssEnabled = Boolean.parseBoolean(str);
+        }
+
         if (!ClickHouseChecker.isNullOrEmpty(user)) {
-            credentials = ClickHouseCredentials.fromUserAndPassword(user, passwd);
+            credentials = ClickHouseCredentials.fromUserAndPassword(user, passwd, gssEnabled);
         } else if (!ClickHouseChecker.isNullOrEmpty(passwd)) {
             credentials = ClickHouseCredentials
-                    .fromUserAndPassword((String) ClickHouseDefaults.USER.getEffectiveDefaultValue(), passwd);
+                    .fromUserAndPassword((String) ClickHouseDefaults.USER.getEffectiveDefaultValue(), passwd, gssEnabled);
         }
         return credentials;
     }
