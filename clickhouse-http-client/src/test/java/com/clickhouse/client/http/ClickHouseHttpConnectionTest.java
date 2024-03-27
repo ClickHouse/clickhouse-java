@@ -95,7 +95,7 @@ public class ClickHouseHttpConnectionTest {
         try {
             URIBuilder uriBuilder = new URIBuilder(new URI(url));
             String queryRole = uriBuilder.getQueryParams().stream()
-                .filter(p -> "custom_role".equals(p.getName()))
+                .filter(p -> "role".equals(p.getName()))
                 .findFirst()
                 .map(p -> p.getValue())
                 .orElse(null);

@@ -45,7 +45,7 @@ public class AccessManagementTest extends JdbcIntegrationTest {
         } catch (SQLException e) {
             if (e.getErrorCode() == ClickHouseException.ERROR_UNKNOWN_SETTING) {
                 String serverVersion = getServerVersion(dataSource.getConnection());
-                if (ClickHouseVersion.of(serverVersion).check("[24.3,)")) {
+                if (ClickHouseVersion.of(serverVersion).check("(,24.2]")) {
                     return;
                 }
             }
