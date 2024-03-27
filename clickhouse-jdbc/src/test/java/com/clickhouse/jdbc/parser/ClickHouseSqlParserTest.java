@@ -843,6 +843,28 @@ public class ClickHouseSqlParserTest {
         assertEquals(stmts[2].getSQL(), "rollback");
     }
 
+    @Test
+    public void testSETRoleStatements() {
+
+        final String simpleStmt = "SET ROLE  ROL1, ROL2";
+        ClickHouseSqlStatement[] stmts = parse(simpleStmt);
+        Assert.assertEquals(stmts.length, 1);
+        Assert.assertEquals(stmts[0].getStatementType(), StatementType.SET);
+        Assert.assertEquals(stmts[0].getOperationType(), OperationType.UNKNOWN);
+        Assert.assertEquals(stmts[0].getSQL(), simpleStmt);
+        Assert.assertNotNull(stmts[0].getSettings().get("_ROLES"));
+
+        final String compositeStmt = "SET ROLE ROL1; SET ROLE ROL2;";
+        stmts = parse(compositeStmt);
+        Assert.assertEquals(stmts.length, 2);
+        for (ClickHouseSqlStatement stmt : stmts) {
+            Assert.assertEquals(stmt.getStatementType(), StatementType.SET);
+            Assert.assertNotNull(stmts[0].getSettings().get("_ROLES"));
+        }
+
+
+    }
+
     // known issue
     public void testTernaryOperator() {
         String sql = "select x > 2 ? 'a' : 'b' from (select number as x from system.numbers limit ?)";

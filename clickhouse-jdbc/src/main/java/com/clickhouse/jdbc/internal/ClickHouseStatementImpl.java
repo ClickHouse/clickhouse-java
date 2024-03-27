@@ -10,11 +10,7 @@ import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.sql.SQLWarning;
 import java.sql.Statement;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -93,6 +89,21 @@ public class ClickHouseStatementImpl extends JdbcWrapper
 
     protected ClickHouseSqlStatement[] parsedStmts;
 
+
+    private HashSet<String> getRequestRoles(ClickHouseSqlStatement stmt) {
+        HashSet<String> roles = new HashSet<>();
+
+        Map<String, String> settings = stmt.getSettings();
+        int i = 0;
+        String role;
+        while ((role = settings.get("_ROLE_" + i)) != null) {
+            roles.add(role);
+            i++;
+        }
+
+        return roles;
+    }
+
     private ClickHouseResponse getLastResponse(Map<ClickHouseOption, Serializable> options,
             List<ClickHouseExternalTable> tables, Map<String, String> settings) throws SQLException {
         boolean autoTx = connection.getAutoCommit() && connection.isTransactionSupported();
@@ -113,6 +124,12 @@ public class ClickHouseStatementImpl extends JdbcWrapper
             if (stmt.hasFormat()) {
                 request.format(ClickHouseFormat.valueOf(stmt.getFormat()));
             }
+
+            final HashSet<String> requestRoles = getRequestRoles(stmt);
+            if (!requestRoles.isEmpty()) {
+                request.set("_set_roles_stmt", requestRoles);
+            }
+
             request.query(stmt.getSQL(), queryId = connection.newQueryId());
             // TODO skip useless queries to reduce network calls and server load
             try {
