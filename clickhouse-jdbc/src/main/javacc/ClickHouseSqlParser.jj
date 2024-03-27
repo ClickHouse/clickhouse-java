@@ -148,7 +148,7 @@ public class ClickHouseSqlParser {
                     isQuoted = false;
                 }  else if (ch == '"') {
                     isQuoted = true;
-                } else if (ch == ',' && !isQuoted && !roleBuff.isEmpty()) {
+                } else if (ch == ',' && !isQuoted && roleBuff.length() > 0) {
                     roles.add(roleBuff.toString());
                     roleBuff.setLength(0);
                 } else if (!Character.isWhitespace(ch)) {
