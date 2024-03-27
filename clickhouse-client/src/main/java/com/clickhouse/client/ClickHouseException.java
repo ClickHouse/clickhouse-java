@@ -25,6 +25,7 @@ public class ClickHouseException extends Exception {
     public static final int ERROR_POCO = 1000;
     public static final int ERROR_TIMEOUT = 159;
     public static final int ERROR_UNKNOWN = 1002;
+    public static final int ERROR_SUSPICIOUS_TYPE_FOR_LOW_CARDINALITY = 455;
 
     static final String MSG_CODE = "Code: ";
     static final String MSG_CONNECT_TIMED_OUT = "connect timed out";
