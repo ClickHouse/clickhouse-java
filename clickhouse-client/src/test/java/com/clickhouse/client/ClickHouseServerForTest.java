@@ -217,6 +217,11 @@ public class ClickHouseServerForTest {
         if (isCloud()) {
             port = 8443;
             host = System.getenv("CLICKHOUSE_CLOUD_HOST");
+            return ClickHouseNode.builder(template)
+                    .address(protocol, new InetSocketAddress(host, port))
+                    .addOption("password", getPassword())
+                    .addOption("user", "default")
+                    .build();
         } else if (container != null) {
             host = container.getHost();
             port = container.getMappedPort(port);
