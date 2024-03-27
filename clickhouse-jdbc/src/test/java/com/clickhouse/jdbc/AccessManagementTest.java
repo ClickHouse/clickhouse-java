@@ -27,9 +27,11 @@ public class AccessManagementTest extends JdbcIntegrationTest {
         properties.setProperty(ClickHouseHttpOption.REMEMBER_LAST_SET_ROLES.getKey(), "true");
         ClickHouseDataSource dataSource = new ClickHouseDataSource(url, properties);
 
-        try (Connection connection = dataSource.getConnection("default", "")) {
+        try (Connection connection = dataSource.getConnection("access_dba", "123")) {
             Statement st = connection.createStatement();
 
+            st.execute("DROP ROLE IF EXISTS " + String.join(", ", roles));
+            st.execute("DROP USER IF EXISTS some_user");
             st.execute("CREATE ROLE " + String.join(", ", roles));
             st.execute("CREATE USER some_user IDENTIFIED WITH no_password");
             st.execute("GRANT " + String.join(", ", roles) + " TO some_user");
@@ -44,7 +46,7 @@ public class AccessManagementTest extends JdbcIntegrationTest {
         } catch (SQLException e) {
             if (e.getErrorCode() == ClickHouseException.ERROR_UNKNOWN_SETTING) {
                 String serverVersion = getServerVersion(dataSource.getConnection());
-                if (ClickHouseVersion.of(serverVersion).check("(,24.2]")) {
+                if (ClickHouseVersion.of(serverVersion).check("(,24.3]")) {
                     return;
                 }
             }

@@ -67,5 +67,20 @@
                 <common_name>me</common_name>
             </ssl_certificates>
         </me>
+        <access_dba>
+            <profile>default</profile>
+            <networks incl="networks" replace="replace">
+                <ip>::/0</ip>
+            </networks>
+            <password>123</password>
+            <quota>default</quota>
+            <grants>
+                <query>GRANT ROLE ADMIN ON *.*</query>
+                <query>GRANT CREATE ROLE ON *.*</query>
+                <query>GRANT CREATE USER ON *.*</query>
+                <query>GRANT DROP USER ON *.*</query>
+                <query>GRANT DROP ROLE ON *.*</query>
+            </grants>
+        </access_dba>
     </users>
 </clickhouse>
