@@ -29,8 +29,7 @@ public class AccessManagementTest extends JdbcIntegrationTest {
 
         try (Connection connection = dataSource.getConnection("default", "")) {
             Statement st = connection.createStatement();
-            st.execute("DROP USER IF EXISTS some_user");
-            st.execute("DROP ROLE IF EXISTS " + String.join(", ", roles));
+
             st.execute("CREATE ROLE " + String.join(", ", roles));
             st.execute("CREATE USER some_user IDENTIFIED WITH no_password");
             st.execute("GRANT " + String.join(", ", roles) + " TO some_user");
