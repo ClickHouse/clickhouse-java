@@ -52,4 +52,19 @@ public abstract class BaseIntegrationTest {
         return ipAddress;
     }
 
+    protected boolean isCloud() {
+        return ClickHouseServerForTest.isCloud();
+    }
+
+    protected String getConnectionProtocol() {
+        if (isCloud()) {
+            return "https";
+        } else {
+            return "http";
+        }
+    }
+
+    protected String getPassword() {
+        return ClickHouseServerForTest.getPassword();
+    }
 }

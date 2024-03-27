@@ -53,6 +53,7 @@ public class ClickHouseServerForTest {
     private static final String proxyHost;
     private static final int proxyPort;
     private static final String proxyImage;
+    private static boolean isCloud = false;
 
     static {
         properties = new Properties();
@@ -87,7 +88,10 @@ public class ClickHouseServerForTest {
 
 
         String imageTag = ClickHouseUtils.getProperty("clickhouseVersion", properties);
-
+        if (imageTag != null && imageTag.equalsIgnoreCase("cloud")) {
+            isCloud = true;
+            imageTag = "";
+        }
         if (clickhouseServer != null) { // use external server
             clickhouseVersion = ClickHouseChecker.isNullOrEmpty(imageTag)
                     || ClickHouseVersion.of(imageTag).getYear() == 0 ? "" : imageTag;
@@ -161,7 +165,6 @@ public class ClickHouseServerForTest {
                     .waitingFor(Wait.forHttp("/ping").forPort(ClickHouseProtocol.HTTP.getDefaultPort())
                             .forStatusCode(200).withStartupTimeout(Duration.of(600, SECONDS)));
         }
-
     }
 
     public static String getClickHouseVersion() {
@@ -186,8 +189,12 @@ public class ClickHouseServerForTest {
 
     public static String getClickHouseAddress(ClickHouseProtocol protocol, boolean useIPaddress) {
         StringBuilder builder = new StringBuilder();
-
-        if (clickhouseContainer != null) {
+        if (isCloud) {
+            String host = System.getenv("CLICKHOUSE_CLOUD_HOST");
+            int port = 8443;
+            builder.append("https://").append(host).append(':').append(port);
+            return builder.toString();
+        } else if (clickhouseContainer != null) {
             builder.append(useIPaddress ? clickhouseContainer.getHost() : clickhouseContainer.getHost())
                     .append(':').append(clickhouseContainer.getMappedPort(protocol.getDefaultPort()));
         } else {
@@ -207,7 +214,15 @@ public class ClickHouseServerForTest {
         String host = clickhouseServer;
         int port = useSecurePort ? protocol.getDefaultSecurePort() : protocol.getDefaultPort();
         GenericContainer<?> container = clickhouseContainer;
-        if (container != null) {
+        if (isCloud()) {
+            port = 8443;
+            host = System.getenv("CLICKHOUSE_CLOUD_HOST");
+            return ClickHouseNode.builder(template)
+                    .address(protocol, new InetSocketAddress(host, port))
+                    .addOption("password", getPassword())
+                    .addOption("user", "default")
+                    .build();
+        } else if (container != null) {
             host = container.getHost();
             port = container.getMappedPort(port);
         } else {
@@ -224,24 +239,36 @@ public class ClickHouseServerForTest {
     public static ClickHouseNode getClickHouseNode(ClickHouseProtocol protocol, int port) {
         String host = clickhouseServer;
 
+        if (isCloud) {
+            host = System.getenv("CLICKHOUSE_CLOUD_HOST");
+            port = 8443;
+            return ClickHouseNode.builder().
+                    address(protocol, new InetSocketAddress(host, port)).
+                    addOption("user", "default").
+                    addOption("password", getPassword()).
+                    build();
+        }
         if (clickhouseContainer != null) {
             host = clickhouseContainer.getHost();
             port = clickhouseContainer.getMappedPort(port);
         }
-
         return ClickHouseNode.builder().address(protocol, new InetSocketAddress(host, port)).build();
     }
 
     public static ClickHouseNode getClickHouseNode(ClickHouseProtocol protocol, Map<String, String> options) {
         String host = clickhouseServer;
+        String url = null;
         int port = protocol.getDefaultPort();
-
-        if (clickhouseContainer != null) {
+        if (isCloud) {
+            host = System.getenv("CLICKHOUSE_CLOUD_HOST");
+            port = 8443;
+            options.put("password", getPassword());
+            url = String.format("https://%s:%d/default", host, port);
+        } else if (clickhouseContainer != null) {
             host = clickhouseContainer.getHost();
             port = clickhouseContainer.getMappedPort(port);
+            url = String.format("http://%s:%d/default", host, port);
         }
-
-        String url = String.format("http://%s:%d/default", host, port);
         return ClickHouseNode.of(url, options);
     }
 
@@ -263,6 +290,19 @@ public class ClickHouseServerForTest {
 
     public static Network getNetwork() {
         return network;
+    }
+
+    public static String getPassword() {
+        // For cloud, the password is set in environment variable
+        if (isCloud) {
+            return System.getenv("CLICKHOUSE_CLOUD_PASSWORD");
+        } else {
+            return "";
+        }
+    }
+
+    public static boolean isCloud() {
+        return isCloud;
     }
 
     @BeforeSuite(groups = {"integration"})

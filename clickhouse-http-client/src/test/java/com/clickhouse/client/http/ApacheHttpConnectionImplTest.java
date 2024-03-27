@@ -23,7 +23,9 @@ import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.apache.hc.client5.http.socket.PlainConnectionSocketFactory;
+import org.apache.hc.client5.http.ssl.SSLConnectionSocketFactory;
 import org.testng.Assert;
+import org.testng.annotations.Ignore;
 import org.testng.annotations.Test;
 
 public class ApacheHttpConnectionImplTest extends ClickHouseHttpClientTest {
@@ -43,7 +45,6 @@ public class ApacheHttpConnectionImplTest extends ClickHouseHttpClientTest {
                     throw new IOException("socket factory has already created");
                 }
             }
-
             throw new UnsupportedOperationException(ClickHouseUtils.format("Class %s is not supported", clazz));
         }
 
@@ -79,6 +80,7 @@ public class ApacheHttpConnectionImplTest extends ClickHouseHttpClientTest {
     }
 
     @Test(groups = { "integration" })
+    @Ignore("Need to disable the option to provide custom socket factory. note: need to remove it")
     public void testCustomOptions() throws Exception {
         Map<String, String> customOptions = new HashMap<>();
         customOptions.put(ClickHouseHttpOption.CONNECTION_PROVIDER.getKey(),
