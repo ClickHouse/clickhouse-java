@@ -1,15 +1,15 @@
-## 0.6.0-patch-3
+## 0.6.0-patch3
 
 ### Bug Fixes
 - Not detecting correctly ClickHouse error code
 - 
-## 0.6.0-patch-2
+## 0.6.0-patch2
 
 ### Dependency Updates
 - org.apache.commons:commons-compress from 1.23.0 to 1.26.1
 - org.postgresql:postgresql from 42.6.0 to 42.6.1
 - 
-## 0.6.0-patch-1
+## 0.6.0-patch1
 
 ### Bug Fixes
 - Fix buffering issue caused by decompress flag not to work when working with HTTP Client.
