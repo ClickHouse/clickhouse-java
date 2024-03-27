@@ -207,6 +207,7 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
     }
 
     protected ClickHouseNode getServer() {
+        if (isCloud()) return getSecureServer(getProtocol());
         return getServer(getProtocol());
     }
 
