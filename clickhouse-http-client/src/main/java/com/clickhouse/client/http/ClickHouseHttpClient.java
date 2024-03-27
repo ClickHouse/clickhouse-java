@@ -120,11 +120,17 @@ public class ClickHouseHttpClient extends AbstractClient<ClickHouseHttpConnectio
                 }
                 : null;
         Map<String, Serializable> additionalParams = null;
-        if (sealedRequest.hasSetting("_set_roles_stmt")) {
-            additionalParams = Collections.singletonMap("_roles", sealedRequest.getSettings().get("_set_roles_stmt"));
-        } else if (!roles.isEmpty()) {
-            additionalParams = Collections.singletonMap("_roles", roles);
+
+        if (config.getBoolOption(ClickHouseHttpOption.REMEMBER_LAST_SET_ROLES)) {
+            if (sealedRequest.hasSetting("_set_roles_stmt")) {
+                additionalParams = Collections.singletonMap("_roles", sealedRequest.getSettings().get("_set_roles_stmt"));
+            } else if (!roles.isEmpty()) {
+                additionalParams = Collections.singletonMap("_roles", roles);
+            }
+        } else {
+            additionalParams = Collections.emptyMap();
         }
+
         if (conn.isReusable()) {
             ClickHouseNode server = sealedRequest.getServer();
             httpResponse = conn.post(config, sql, sealedRequest.getInputStream().orElse(null),
@@ -138,10 +144,13 @@ public class ClickHouseHttpClient extends AbstractClient<ClickHouseHttpConnectio
                     postAction);
         }
 
-        // At this point only successful responses are expected
-        if (sealedRequest.hasSetting("_set_roles_stmt")) {
-            rememberRoles((Set<String>) sealedRequest.getSettings().get("_set_roles_stmt"));
+        if (config.getBoolOption(ClickHouseHttpOption.REMEMBER_LAST_SET_ROLES)) {
+            // At this point only successful responses are expected
+            if (sealedRequest.hasSetting("_set_roles_stmt")) {
+                rememberRoles((Set<String>) sealedRequest.getSettings().get("_set_roles_stmt"));
+            }
         }
+
 
         return ClickHouseStreamResponse.of(httpResponse.getConfig(sealedRequest), httpResponse.getInputStream(),
                 sealedRequest.getSettings(), null, httpResponse.summary);

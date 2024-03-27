@@ -1,7 +1,12 @@
 package com.clickhouse.jdbc;
 
+import com.clickhouse.client.ClickHouseClient;
+import com.clickhouse.client.ClickHouseException;
 import com.clickhouse.client.ClickHouseProtocol;
+import com.clickhouse.client.http.config.ClickHouseHttpOption;
+import com.clickhouse.data.ClickHouseVersion;
 import org.testng.Assert;
+import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 import java.sql.Connection;
@@ -9,51 +14,54 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Arrays;
+import java.util.Properties;
 
 public class AccessManagementTest extends JdbcIntegrationTest {
 
-    @Test(groups = "integration")
-    public void testSetRoleDifferentConnections() throws SQLException {
-        /*
-            Tests:
-            * Simple expressions
-            * Composite expressions with multiple roles
-            * Composite expressions with mixed statements:
-                - update table1 SET a = 1; set role ROL1; update table2 SET b = 2; set role NONE;
-         */
+    @Test(groups = "integration", dataProvider = "setRolesArgsForTestSetRole")
+    public void testSetRoleDifferentConnections(String[] roles, String setRoleExpr, String[] activeRoles) throws SQLException {
 
         String httpEndpoint = "http://" + getServerAddress(ClickHouseProtocol.HTTP) + "/";
         String url = String.format("jdbc:ch:%s", httpEndpoint);
-        ClickHouseDataSource dataSource = new ClickHouseDataSource(url);
-
-
+        Properties properties = new Properties();
+        properties.setProperty(ClickHouseHttpOption.REMEMBER_LAST_SET_ROLES.getKey(), "true");
+        ClickHouseDataSource dataSource = new ClickHouseDataSource(url, properties);
 
         try (Connection connection = dataSource.getConnection("default", "")) {
             Statement st = connection.createStatement();
-
-//            st.execute("DROP ROLE IF EXISTS ROL1, \"role☺,\"");
-            st.execute("DROP ROLE IF EXISTS ROL1, \"ROL2,☺\"");
             st.execute("DROP USER IF EXISTS some_user");
-            st.execute("create role ROL1; create role \"ROL2,☺\";");
-            st.execute("create user some_user IDENTIFIED WITH no_password");
-            st.execute("grant ROL1 to some_user");
-            st.execute("grant \"ROL2,☺\" to some_user");
-
+            st.execute("DROP ROLE IF EXISTS " + String.join(", ", roles));
+            st.execute("CREATE ROLE " + String.join(", ", roles));
+            st.execute("CREATE USER some_user IDENTIFIED WITH no_password");
+            st.execute("GRANT " + String.join(", ", roles) + " TO some_user");
         } catch (Exception e) {
             Assert.fail("Failed", e);
         }
 
         try (Connection connection = dataSource.getConnection("some_user", "")) {
-            assertRolesEquals(connection, "ROL1", "ROL2,☺");
-
             Statement st = connection.createStatement();
-            st.execute("set role \"ROL2,☺\"");
-//            st.execute("set\n role\n ROL1, \"ROL2,\"");
-            assertRolesEquals(connection, "ROL2,☺");
-
+            st.execute(setRoleExpr);
+            assertRolesEquals(connection, activeRoles);
+        } catch (SQLException e) {
+            if (e.getErrorCode() == ClickHouseException.ERROR_UNKNOWN_SETTING) {
+                String serverVersion = getServerVersion(dataSource.getConnection());
+                if (ClickHouseVersion.of(serverVersion).check("[24.3,)")) {
+                    return;
+                }
+            }
+            Assert.fail("Failed", e);
         } catch (Exception e) {
             Assert.fail("Failed", e);
         }
+    }
+
+    @DataProvider(name = "setRolesArgsForTestSetRole")
+    private static Object[][] setRolesArgsForTestSetRole() {
+        return new Object[][]{
+                {new String[]{"ROL1", "ROL2"}, "set role ROL2, ROL1", new String[]{"ROL2"}},
+                {new String[]{"ROL1", "ROL2"}, "set role ROL1,ROL2", new String[]{"ROL1"}},
+                {new String[]{"ROL1", "\"ROL2,☺\""}, "set role  \"ROL2,☺\", ROL1", new String[]{"ROL2,☺"}},
+        };
     }
 
     private void assertRolesEquals(Connection connection, String ...expected) {
@@ -65,11 +73,27 @@ public class AccessManagementTest extends JdbcIntegrationTest {
             String[] roles = (String[]) resultSet.getArray(1).getArray();
             Arrays.sort(roles);
             Arrays.sort(expected);
-            System.out.println("currentRoles = " + Arrays.asList(roles));
+            System.out.print("Roles: ");
+            for (String role : roles) {
+                System.out.print("'" + role+ "', ");
+            }
+            System.out.println();
             Assert.assertEquals(roles, expected);
 
         } catch (Exception e) {
             Assert.fail("Failed", e);
         }
+    }
+
+    private String getServerVersion(Connection connection) {
+        try (Statement stmt = connection.createStatement()) {
+            ResultSet rs = stmt.executeQuery("SELECT version()");
+            if (rs.next()) {
+                return rs.getString(1);
+            }
+        } catch (SQLException e) {
+            Assert.fail("Failed to get server version", e);
+        }
+        return null;
     }
 }

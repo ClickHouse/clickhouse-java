@@ -132,7 +132,7 @@ public class ClickHouseSqlParser {
         }
     }
 
-private void rememberRolesIfSetStmt() {
+    private void rememberRolesIfSetStmt() {
         if (anyArgsListStart > 0) {
             HashSet<String> roles = new HashSet<>();
             token_source.attachedAttributes.put("_ROLES", roles);
@@ -146,12 +146,12 @@ private void rememberRolesIfSetStmt() {
                     roles.add(roleBuff.toString());
                     roleBuff.setLength(0);
                     isQuoted = false;
-                }  else if (ch == '"' && !isQuoted) {
+                }  else if (ch == '"') {
                     isQuoted = true;
-                } else if (ch == ',' && !isQuoted) {
+                } else if (ch == ',' && !isQuoted && !roleBuff.isEmpty()) {
                     roles.add(roleBuff.toString());
                     roleBuff.setLength(0);
-                } else {
+                } else if (!Character.isWhitespace(ch)) {
                     roleBuff.append(ch);
                 }
             }
