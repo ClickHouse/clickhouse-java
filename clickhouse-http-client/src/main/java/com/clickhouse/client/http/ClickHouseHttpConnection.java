@@ -52,9 +52,10 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
     private static final byte[] SUFFIX_STRUCTURE = "_structure\"\r\n\r\n".getBytes(StandardCharsets.US_ASCII);
     private static final byte[] SUFFIX_FILENAME = "\"; filename=\"".getBytes(StandardCharsets.US_ASCII);
 
-    private static final String LOCAL_ADDRESS;
+    private static final String LOCAL_ADDRESS = null;
+    private static final String LOCAL_HOST_NAME = null;
 
-    static {
+    private static String getLocalAddress() {
         // get local address but not localhost
         String address = "";
         try {
@@ -73,7 +74,20 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
         } catch (SocketException e) {
             // ignore
         }
-        LOCAL_ADDRESS = address;
+        return address;
+    }
+
+    private static String getLocalHostName() {
+        // get local address but not localhost
+        String hostName = "";
+        try {
+            InetAddress inetAddress = InetAddress.getLocalHost();
+            hostName = inetAddress.getCanonicalHostName();
+            System.out.println("FQDN: " + hostName);
+        } catch (UnknownHostException e) {
+            // ignore
+        }
+        return hostName;
     }
 
     private static StringBuilder appendQueryParameter(StringBuilder builder, String key, String value) {
@@ -170,7 +184,7 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
             appendQueryParameter(builder, "query_id", optionalValue.get());
         }
 
-        for (Map.Entry<String, Serializable> entry : settings.entrySet()) {
+        for (Entry<String, Serializable> entry : settings.entrySet()) {
             appendQueryParameter(builder, entry.getKey(), String.valueOf(entry.getValue()));
         }
 
@@ -378,6 +392,11 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
     protected ClickHouseHttpConnection(ClickHouseNode server, ClickHouseRequest<?> request) {
         if (server == null || request == null) {
             throw new IllegalArgumentException("Non-null server and request are required");
+        }
+
+        synchronized (ClickHouseHttpConnection.class) {
+            if (LOCAL_ADDRESS == null)
+                LOCAL_ADDRESS = getLocalAddress();
         }
 
         this.server = server;
