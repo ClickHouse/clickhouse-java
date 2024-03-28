@@ -420,7 +420,15 @@ public enum ClickHouseClientOption implements ClickHouseOption {
      * false.
      */
     USE_TIME_ZONE("use_time_zone", "", "Time zone of all DateTime* values. "
-            + "Only used when use_server_time_zone is false. Empty value means client time zone.");
+            + "Only used when use_server_time_zone is false. Empty value means client time zone."),
+    SEND_CLIENT_ADDRESS("send_client_address", true, "Sending client address to ClickHouse server. "
+            + "If true, client address will be sent by http_referer for http protocol or client_hostname for native protocol. "
+            + "you can get it in system.query_log table."),
+    /**
+     * Used only when SEND_CLIENT_ADDRESS is enabled, to specify the client address(ip) or hostname.
+     */
+    PREFER_HOST_NAME_TO_SEND("prefer_host_name_to_send", false, "Used only when SEND_CLIENT_ADDRESS "
+            + "is enabled, to specify the client address(ip) or hostname.");
 
     private final String key;
     private final Serializable defaultValue;

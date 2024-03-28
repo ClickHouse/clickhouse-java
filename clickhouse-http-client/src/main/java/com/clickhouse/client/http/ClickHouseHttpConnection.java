@@ -4,17 +4,10 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.io.Serializable;
 import java.io.UnsupportedEncodingException;
-import java.net.InetSocketAddress;
-import java.net.Proxy;
-import java.net.URLEncoder;
+import java.net.*;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.Map.Entry;
 
 import com.clickhouse.client.ClickHouseClient;
@@ -58,6 +51,35 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
     private static final byte[] SUFFIX_FORMAT = "_format\"\r\n\r\n".getBytes(StandardCharsets.US_ASCII);
     private static final byte[] SUFFIX_STRUCTURE = "_structure\"\r\n\r\n".getBytes(StandardCharsets.US_ASCII);
     private static final byte[] SUFFIX_FILENAME = "\"; filename=\"".getBytes(StandardCharsets.US_ASCII);
+
+    private static class HostNameAndAddress{
+        String hostName;
+        String address;
+    }
+    private static HostNameAndAddress LOCAL_ADDRESS = null;
+
+    private static HostNameAndAddress getLocalAddress() {
+        // get local address but not localhost
+        HostNameAndAddress hostNameAndAddress = new HostNameAndAddress();
+        try {
+            Enumeration<NetworkInterface> networkInterfaces = NetworkInterface.getNetworkInterfaces();
+
+            for (NetworkInterface ni : Collections.list(networkInterfaces)) {
+                Enumeration<InetAddress> inetAddresses = ni.getInetAddresses();
+                for (InetAddress ia : Collections.list(inetAddresses)) {
+                    // We just use the first non-loopback address
+                    if (!ia.isLoopbackAddress()) {
+                        hostNameAndAddress.address = ia.getHostAddress();
+                        hostNameAndAddress.hostName = ia.getCanonicalHostName();
+                        break;
+                    }
+                }
+            }
+        } catch (SocketException e) {
+            // ignore
+        }
+        return hostNameAndAddress;
+    }
 
     private static StringBuilder appendQueryParameter(StringBuilder builder, String key, String value) {
         return builder.append(urlEncode(key, StandardCharsets.UTF_8)).append('=')
@@ -153,7 +175,7 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
             appendQueryParameter(builder, "query_id", optionalValue.get());
         }
 
-        for (Map.Entry<String, Serializable> entry : settings.entrySet()) {
+        for (Entry<String, Serializable> entry : settings.entrySet()) {
             appendQueryParameter(builder, entry.getKey(), String.valueOf(entry.getValue()));
         }
 
@@ -204,6 +226,14 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
                 hasAuthorizationHeader = true;
             }
             map.put(name, value);
+        }
+
+        if (config.getBoolOption(ClickHouseClientOption.SEND_CLIENT_ADDRESS) && !map.containsKey("referer"))
+        {
+            if (config.getBoolOption(ClickHouseClientOption.PREFER_HOST_NAME_TO_SEND))
+                map.put("referer", LOCAL_ADDRESS.hostName);
+            else
+                map.put("referer", LOCAL_ADDRESS.address);
         }
 
         map.put("accept", "*/*");
@@ -356,6 +386,11 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
     protected ClickHouseHttpConnection(ClickHouseNode server, ClickHouseRequest<?> request) {
         if (server == null || request == null) {
             throw new IllegalArgumentException("Non-null server and request are required");
+        }
+
+        synchronized (ClickHouseHttpConnection.class) {
+            if (LOCAL_ADDRESS == null)
+                LOCAL_ADDRESS = getLocalAddress();
         }
 
         this.server = server;
