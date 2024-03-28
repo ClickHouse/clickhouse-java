@@ -1,6 +1,6 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0"
-    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
@@ -9,12 +9,12 @@
         <version>${revision}</version>
     </parent>
 
-    <artifactId>clickhouse-http-client</artifactId>
+    <artifactId>client-v2</artifactId>
     <packaging>jar</packaging>
 
-    <name>ClickHouse HTTP Client</name>
-    <description>HTTP client for ClickHouse</description>
-    <url>https://github.com/ClickHouse/clickhouse-java/tree/main/clickhouse-http-client</url>
+    <name>ClickHouse Client API</name>
+    <description>New client api for ClickHouse</description>
+    <url>https://github.com/ClickHouse/clickhouse-java/tree/main/clickhouse-client-api</url>
 
     <dependencies>
         <dependency>
@@ -23,8 +23,33 @@
             <version>${revision}</version>
         </dependency>
         <dependency>
+            <groupId>${project.parent.groupId}</groupId>
+            <artifactId>clickhouse-http-client</artifactId>
+            <version>${revision}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.httpcomponents.client5</groupId>
+            <artifactId>httpclient5</artifactId>
+            <version>5.2.1</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.httpcomponents.core5</groupId>
+            <artifactId>httpcore5</artifactId>
+            <version>5.2.1</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.httpcomponents.core5</groupId>
+            <artifactId>httpcore5-h2</artifactId>
+            <version>5.2.1</version>
+        </dependency>
+        <dependency>
             <groupId>com.github.luben</groupId>
             <artifactId>zstd-jni</artifactId>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>org.lz4</groupId>
+            <artifactId>lz4-pure-java</artifactId>
             <optional>true</optional>
         </dependency>
         <dependency>
@@ -37,38 +62,6 @@
             <artifactId>commons-compress</artifactId>
             <optional>true</optional>
         </dependency>
-        <dependency>
-            <groupId>org.apache.httpcomponents.client5</groupId>
-            <artifactId>httpclient5</artifactId>
-            <exclusions>
-                <exclusion>
-                    <groupId>org.apache.httpcomponents.core5</groupId>
-                    <artifactId>httpcore5</artifactId>
-                </exclusion>
-            </exclusions>
-            <optional>true</optional>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.httpcomponents.core5</groupId>
-            <artifactId>httpcore5</artifactId>
-            <optional>true</optional>
-        </dependency>
-        <dependency>
-            <groupId>org.brotli</groupId>
-            <artifactId>dec</artifactId>
-            <optional>true</optional>
-        </dependency>
-        <dependency>
-            <groupId>org.lz4</groupId>
-            <artifactId>lz4-pure-java</artifactId>
-            <optional>true</optional>
-        </dependency>
-        <dependency>
-            <groupId>org.tukaani</groupId>
-            <artifactId>xz</artifactId>
-            <optional>true</optional>
-        </dependency>
-
         <!-- necessary for Java 9+ -->
         <dependency>
             <groupId>org.apache.tomcat</groupId>
@@ -76,13 +69,13 @@
             <scope>provided</scope>
         </dependency>
 
-        <dependency>
-            <groupId>${project.parent.groupId}</groupId>
-            <artifactId>clickhouse-client</artifactId>
-            <version>${revision}</version>
-            <type>test-jar</type>
-            <scope>test</scope>
-        </dependency>
+<!--        <dependency>-->
+<!--            <groupId>${project.parent.groupId}</groupId>-->
+<!--            <artifactId>clickhouse-client</artifactId>-->
+<!--            <version>${revision}</version>-->
+<!--            <type>test-jar</type>-->
+<!--            <scope>test</scope>-->
+<!--        </dependency>-->
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-simple</artifactId>
@@ -142,7 +135,7 @@
                             </relocations>
                             <transformers>
                                 <transformer
-                                    implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                                        implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                                     <manifestEntries>
                                         <Automatic-Module-Name>com.clickhouse.client.http</Automatic-Module-Name>
                                     </manifestEntries>

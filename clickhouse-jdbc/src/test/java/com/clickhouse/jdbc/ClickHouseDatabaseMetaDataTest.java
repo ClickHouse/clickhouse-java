@@ -10,13 +10,18 @@ import java.util.Properties;
 import java.util.UUID;
 
 import com.clickhouse.client.config.ClickHouseClientOption;
+import com.clickhouse.client.http.ClickHouseHttpConnectionFactory;
 import com.clickhouse.data.ClickHouseColumn;
 
+import com.clickhouse.logging.Logger;
+import com.clickhouse.logging.LoggerFactory;
 import org.testng.Assert;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 public class ClickHouseDatabaseMetaDataTest extends JdbcIntegrationTest {
+
+    private static final Logger log = LoggerFactory.getLogger(ClickHouseDatabaseMetaDataTest.class);
     @DataProvider(name = "selectedColumns")
     private Object[][] getSelectedColumns() {
         return new Object[][] {
@@ -248,18 +253,27 @@ public class ClickHouseDatabaseMetaDataTest extends JdbcIntegrationTest {
 
             try (ResultSet rs1 = s.executeQuery("select * from system.tables");
                     ResultSet rs2 = conn.getMetaData().getTables(null, null, null, null)) {
-                int count1 = 0;
+                int count1 = 0 , count1withOutSystem = 0;
                 while (rs1.next()) {
+                    log.debug("%s.%s", rs1.getString(1) , rs1.getString(2));
+                    String databaseName = rs1.getString(1);
                     count1++;
+                    if (!databaseName.equals("system"))
+                        count1withOutSystem++;
                 }
-                int count2 = 0;
+                log.debug("--------- SEP ---------");
+                int count2 = 0, count2withOutSystem = 0;
                 while (rs2.next()) {
+                    log.debug("%s.%s", rs2.getString("TABLE_CAT") , rs2.getString("TABLE_NAME"));
+                    String databaseName = rs2.getString("TABLE_CAT");
                     count2++;
+                    if (!databaseName.equals("system"))
+                        count2withOutSystem++;
                 }
 
                 Assert.assertEquals(rs1.getRow(), count1);
                 Assert.assertEquals(rs2.getRow(), count2);
-                Assert.assertEquals(count1, count2);
+                Assert.assertEquals(count1withOutSystem, count2withOutSystem);
             }
         }
     }

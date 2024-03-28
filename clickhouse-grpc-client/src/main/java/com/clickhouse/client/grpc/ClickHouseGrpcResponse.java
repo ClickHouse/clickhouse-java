@@ -14,7 +14,7 @@ import com.clickhouse.client.grpc.impl.Progress;
 import com.clickhouse.client.grpc.impl.Result;
 import com.clickhouse.client.grpc.impl.Stats;
 import com.clickhouse.data.ClickHouseInputStream;
-
+@Deprecated
 public class ClickHouseGrpcResponse extends ClickHouseStreamResponse {
     private final transient ClickHouseStreamObserver observer;
 

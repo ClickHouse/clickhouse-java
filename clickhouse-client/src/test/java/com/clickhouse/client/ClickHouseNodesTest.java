@@ -526,4 +526,17 @@ public class ClickHouseNodesTest {
             Assert.assertEquals(nodes.faultyNodes.size(), 0);
         }
     }
+
+    @Test(groups = { "unit" })
+    public void testHealthCheck() {
+        Map<String, String> options = new HashMap<>();
+        options.put(ClickHouseClientOption.CHECK_ALL_NODES.getKey(), "true");
+        ClickHouseNodes nodes = ClickHouseNodes.of("http://a,http://b", options);
+        Assert.assertEquals(nodes.nodes.size(), 2);
+        Assert.assertEquals(nodes.faultyNodes.size(), 0);
+
+        nodes.check();
+        Assert.assertEquals(nodes.nodes.size(), 0);
+        Assert.assertEquals(nodes.faultyNodes.size(), 2);
+    }
 }

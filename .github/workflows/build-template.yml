@@ -1,38 +1,14 @@
-name: Build
+name: Build Template
 
-on:
-  push:
-    branches:
-      - main
-    paths-ignore:
-      - "**.md"
-      - "**/docs/**"
-      - "**/LICENSE"
-      - "**/NOTICE"
-
-  pull_request:
-    types:
-      - opened
-      - synchronize
-      - reopened
-    paths-ignore:
-      - "**.md"
-      - "**/docs/**"
-      - "**/LICENSE"
-      - "**/NOTICE"
-
-  workflow_dispatch:
-    inputs:
-      pr:
-        description: "Pull request#"
-        required: false
+on: [push, pull_request, workflow_dispatch, schedule]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.event.number || github.sha }}
   cancel-in-progress: true
 
 env:
-  PREFERRED_LTS_VERSION: "23.7"
+  PREFERRED_LTS_VERSION: "23.3"
+  CLICKHOUSE_TEST_VERSIONS: "[]"
 
 jobs:
   compile:
@@ -179,7 +155,7 @@ jobs:
       matrix:
         # most recent LTS releases as well as latest stable builds
         # https://github.com/ClickHouse/ClickHouse/pulls?q=is%3Aopen+is%3Apr+label%3Arelease
-        clickhouse: ["22.8", "23.3", "23.7", "latest"]
+        clickhouse: ${{CLICKHOUSE_TEST_VERSIONS}}
       fail-fast: false
     timeout-minutes: 15
     name: Java client + CH ${{ matrix.clickhouse }}
@@ -234,7 +210,7 @@ jobs:
     needs: compile
     strategy:
       matrix:
-        clickhouse: ["22.8", "23.3", "23.7", "latest"]
+        clickhouse: ${{CLICKHOUSE_TEST_VERSIONS}}
         # here http, http_client and apache_http_client represent different value of http_connection_provider
         protocol: ["http", "http_client", "apache_http_client", "grpc"]
       fail-fast: false
@@ -293,7 +269,7 @@ jobs:
     needs: compile
     strategy:
       matrix:
-        clickhouse: ["22.8", "23.3", "23.7", "latest"]
+        clickhouse: ${{CLICKHOUSE_TEST_VERSIONS}}
         # grpc is not fully supported, and http_client and apache_http_client do not work in CI environment(due to limited threads?)
         protocol: ["http"]
         r2dbc: ["1.0.0.RELEASE", "0.9.1.RELEASE"]

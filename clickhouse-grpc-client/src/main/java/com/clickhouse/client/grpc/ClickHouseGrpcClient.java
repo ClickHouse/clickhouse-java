@@ -12,7 +12,7 @@ import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.UnsupportedProtocolException;
 import com.clickhouse.client.grpc.config.ClickHouseGrpcOption;
 import com.clickhouse.config.ClickHouseOption;
-
+@Deprecated
 public class ClickHouseGrpcClient implements ClickHouseClient {
     private final AtomicReference<ClickHouseClient> ref;
 

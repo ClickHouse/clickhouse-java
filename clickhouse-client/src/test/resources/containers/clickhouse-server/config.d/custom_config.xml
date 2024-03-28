@@ -39,12 +39,13 @@
     </openSSL>
 
     <custom_settings_prefixes>custom_</custom_settings_prefixes>
-    
+
     <!-- single node cluster: single_node_cluster_localhost -->
     <keeper_server>
         <force_recovery>1</force_recovery>
         <tcp_port>9181</tcp_port>
         <server_id>1</server_id>
+        <enable_ipv6>false</enable_ipv6> <!-- disable ipv6 for docker environment -->
 
         <log_storage_path>/var/lib/clickhouse/coordination/log</log_storage_path>
         <snapshot_storage_path>/var/lib/clickhouse/coordination/snapshots</snapshot_storage_path>

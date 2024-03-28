@@ -187,13 +187,14 @@ public class BlockingPipedOutputStream extends ClickHousePipedOutputStream {
             if (length < remain) {
                 b.put(bytes, offset, length);
                 length = 0;
-            } else if (b.position() == 0) {
-                // buffer = ByteBuffer.wrap(bytes, offset, length);
-                buffer = ByteBuffer.allocate(length);
-                buffer.put(bytes, offset, length);
-                updateBuffer(false);
-                buffer = b;
-                length = 0;
+            } else if (b.position() == 0 && length >= b.remaining()) {
+                // if the length is bigger than
+                // allocate with correct buffer size bufferSize
+                b.put(bytes, offset, remain);
+                offset += remain;
+                length -= remain;
+                updateBuffer(true);
+                b = buffer;
             } else {
                 b.put(bytes, offset, remain);
                 offset += remain;

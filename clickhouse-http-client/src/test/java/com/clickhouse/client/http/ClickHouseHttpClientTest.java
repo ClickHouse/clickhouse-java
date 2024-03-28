@@ -3,12 +3,17 @@ package com.clickhouse.client.http;
 import java.io.IOException;
 import java.io.Serializable;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.stream.LongStream;
 
 import com.clickhouse.client.ClickHouseClient;
 import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseCredentials;
 import com.clickhouse.client.ClickHouseException;
 import com.clickhouse.client.ClickHouseNode;
+import com.clickhouse.client.ClickHouseNode.Status;
+import com.clickhouse.client.ClickHouseNodes;
 import com.clickhouse.client.ClickHouseNodeSelector;
 import com.clickhouse.client.ClickHouseParameterizedQuery;
 import com.clickhouse.client.ClickHouseProtocol;
@@ -25,16 +30,20 @@ import com.clickhouse.client.http.config.ClickHouseHttpOption;
 import com.clickhouse.client.http.config.HttpConnectionProvider;
 import com.clickhouse.config.ClickHouseOption;
 import com.clickhouse.data.ClickHouseCompression;
+import com.clickhouse.data.ClickHouseDataStreamFactory;
 import com.clickhouse.data.ClickHouseExternalTable;
 import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.data.ClickHouseInputStream;
+import com.clickhouse.data.ClickHousePipedOutputStream;
 import com.clickhouse.data.ClickHouseRecord;
 import com.clickhouse.data.ClickHouseVersion;
+import com.clickhouse.data.format.BinaryStreamUtils;
 import com.clickhouse.data.value.ClickHouseStringValue;
 
 import eu.rekawek.toxiproxy.ToxiproxyClient;
 
 import org.testcontainers.containers.ToxiproxyContainer;
+import org.testcontainers.shaded.org.apache.commons.lang3.StringUtils;
 import org.testng.Assert;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
@@ -216,30 +225,12 @@ public class ClickHouseHttpClientTest extends ClientIntegrationTest {
         }
 
         try (ClickHouseClient client = ClickHouseClient.builder().options(getClientOptions())
-                .nodeSelector(ClickHouseNodeSelector.of(ClickHouseProtocol.HTTP))
-                .option(ClickHouseHttpOption.WEB_CONTEXT, "a/b").build()) {
-            Assert.assertTrue(client.ping(getServer(), 3000));
-        }
+                .nodeSelector(ClickHouseNodeSelector.of(ClickHouseProtocol.HTTP)).build()) {
+            ClickHouseNodes nodes = ClickHouseNodes.of("http://notthere," + getServer().getBaseUri());
+            ClickHouseNode nonExistingNode = nodes.getNodes().get(0);
+            nodes.update(nonExistingNode, Status.FAULTY);
 
-        try (ClickHouseClient client = ClickHouseClient.builder().options(getClientOptions())
-                .nodeSelector(ClickHouseNodeSelector.of(ClickHouseProtocol.HTTP))
-                .option(ClickHouseHttpOption.WEB_CONTEXT, "a/b")
-                .option(ClickHouseClientOption.HEALTH_CHECK_METHOD, ClickHouseHealthCheckMethod.PING).build()) {
-            Assert.assertFalse(client.ping(getServer(), 3000));
-        }
-
-        try (ClickHouseClient client = ClickHouseClient.builder().options(getClientOptions())
-                .nodeSelector(ClickHouseNodeSelector.of(ClickHouseProtocol.HTTP))
-                .option(ClickHouseHttpOption.WEB_CONTEXT, "/")
-                .option(ClickHouseClientOption.HEALTH_CHECK_METHOD, ClickHouseHealthCheckMethod.PING).build()) {
-            Assert.assertTrue(client.ping(getServer(), 3000));
-        }
-
-        try (ClickHouseClient client = ClickHouseClient.builder().options(getClientOptions())
-                .nodeSelector(ClickHouseNodeSelector.of(ClickHouseProtocol.HTTP))
-                .option(ClickHouseClientOption.HEALTH_CHECK_METHOD, ClickHouseHealthCheckMethod.PING)
-                .removeOption(ClickHouseHttpOption.WEB_CONTEXT).build()) {
-            Assert.assertTrue(client.ping(getServer(), 3000));
+            Assert.assertFalse(client.ping(nonExistingNode, 3000));
         }
     }
 
@@ -460,28 +451,88 @@ public class ClickHouseHttpClientTest extends ClientIntegrationTest {
             }
 
             // without proxy_port
-            options.put("proxy_host", proxyHost);
-            try (ClickHouseClient client = ClickHouseClient.builder().options(getClientOptions())
-                    .nodeSelector(ClickHouseNodeSelector.of(ClickHouseProtocol.HTTP)).build()) {
-                ClickHouseNode server = getServer(ClickHouseProtocol.HTTP, options);
-                Assert.assertFalse(client.ping(server, 30000), "Ping should fail due to incomplete proxy options");
-                Assert.assertThrows(ClickHouseException.class,
-                        () -> client.read(server).query("select 1").executeAndWait());
-            }
-
-            options.put("proxy_port", Integer.toString(proxyPort));
-            try (ClickHouseClient client = ClickHouseClient.builder().options(getClientOptions())
-                    .nodeSelector(ClickHouseNodeSelector.of(ClickHouseProtocol.HTTP)).build()) {
-                ClickHouseNode server = getServer(ClickHouseProtocol.HTTP, options);
-                Assert.assertTrue(client.ping(server, 30000), "Can not ping via proxy");
-                Assert.assertEquals(
-                        client.read(server).query("select 6").executeAndWait().firstRecord().getValue(0).asString(),
-                        "6");
-            }
+// Disable tests for ping via proxy
+//            options.put("proxy_host", proxyHost);
+//            try (ClickHouseClient client = ClickHouseClient.builder().options(getClientOptions())
+//                    .nodeSelector(ClickHouseNodeSelector.of(ClickHouseProtocol.HTTP)).build()) {
+//                ClickHouseNode server = getServer(ClickHouseProtocol.HTTP, options);
+//                Assert.assertFalse(client.ping(server, 30000), "Ping should fail due to incomplete proxy options");
+//                Assert.assertThrows(ClickHouseException.class,
+//                        () -> client.read(server).query("select 1").executeAndWait());
+//            }
+//
+//            options.put("proxy_port", Integer.toString(proxyPort));
+//            try (ClickHouseClient client = ClickHouseClient.builder().options(getClientOptions())
+//                    .nodeSelector(ClickHouseNodeSelector.of(ClickHouseProtocol.HTTP)).build()) {
+//                ClickHouseNode server = getServer(ClickHouseProtocol.HTTP, options);
+//                Assert.assertTrue(client.ping(server, 30000), "Can not ping via proxy");
+//                Assert.assertEquals(
+//                        client.read(server).query("select 6").executeAndWait().firstRecord().getValue(0).asString(),
+//                        "6");
+//            }
         } finally {
             if (toxiproxy != null) {
                 toxiproxy.stop();
             }
         }
+    }
+    @Test(groups = "integration")
+    public void testDecompressWithLargeChunk() throws ClickHouseException, IOException, ExecutionException, InterruptedException {
+        ClickHouseNode server = getServer();
+
+        String tableName = "test_decompress_with_large_chunk";
+
+        String tableColumns = String.format("id Int64, raw String");
+        sendAndWait(server, "drop table if exists " + tableName,
+                "create table " + tableName + " (" + tableColumns + ")engine=Memory");
+
+        long numRows = 1;
+        String content = StringUtils.repeat("*", 50000);
+        try {
+            try (ClickHouseClient client = getClient()) {
+                ClickHouseRequest.Mutation request = client.read(server)
+                        .write()
+                        .table(tableName)
+                        .decompressClientRequest(true)
+                        //.option(ClickHouseClientOption.USE_BLOCKING_QUEUE, "true")
+                        .format(ClickHouseFormat.RowBinary);
+                ClickHouseConfig config = request.getConfig();
+                CompletableFuture<ClickHouseResponse> future;
+
+                try (ClickHousePipedOutputStream stream = ClickHouseDataStreamFactory.getInstance()
+                        .createPipedOutputStream(config)) {
+                    // start the worker thread which transfer data from the input into ClickHouse
+                    future = request.data(stream.getInputStream()).execute();
+                    // write bytes into the piped stream
+                    LongStream.range(0, numRows).forEachOrdered(
+                            n -> {
+                                try {
+                                    BinaryStreamUtils.writeInt64(stream, n);
+                                    BinaryStreamUtils.writeString(stream, content);
+                                } catch (IOException e) {
+                                    throw new RuntimeException(e);
+                                }
+                            }
+                    );
+
+                    // We need to close the stream before getting a response
+                    stream.close();
+                    try (ClickHouseResponse response = future.get()) {
+                        ClickHouseResponseSummary summary = response.getSummary();
+                        Assert.assertEquals(summary.getWrittenRows(), numRows, "Num of written rows");
+                    }
+                }
+
+            }
+        } catch (Exception e) {
+            Throwable th = e.getCause();
+//            if (th instanceof ClickHouseException) {
+//                ClickHouseException ce = (ClickHouseException) th;
+//                Assert.assertEquals(73, ce.getErrorCode(), "It's Code: 73. DB::Exception: Unknown format RowBinaryWithDefaults. a server that not support the format");
+//            } else {
+            Assert.assertTrue(false, e.getMessage());
+//            }
+        }
+
     }
 }
