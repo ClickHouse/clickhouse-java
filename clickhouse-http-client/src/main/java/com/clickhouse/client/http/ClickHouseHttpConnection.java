@@ -52,12 +52,15 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
     private static final byte[] SUFFIX_STRUCTURE = "_structure\"\r\n\r\n".getBytes(StandardCharsets.US_ASCII);
     private static final byte[] SUFFIX_FILENAME = "\"; filename=\"".getBytes(StandardCharsets.US_ASCII);
 
-    private static final String LOCAL_ADDRESS = null;
-    private static final String LOCAL_HOST_NAME = null;
+    private static class HostNameAndAddress{
+        String hostName;
+        String address;
+    }
+    private static HostNameAndAddress LOCAL_ADDRESS = null;
 
-    private static String getLocalAddress() {
+    private static HostNameAndAddress getLocalAddress() {
         // get local address but not localhost
-        String address = "";
+        HostNameAndAddress hostNameAndAddress = new HostNameAndAddress();
         try {
             Enumeration<NetworkInterface> networkInterfaces = NetworkInterface.getNetworkInterfaces();
 
@@ -66,7 +69,8 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
                 for (InetAddress ia : Collections.list(inetAddresses)) {
                     // We just use the first non-loopback address
                     if (!ia.isLoopbackAddress()) {
-                        address = ia.getHostAddress();
+                        hostNameAndAddress.address = ia.getHostAddress();
+                        hostNameAndAddress.hostName = ia.getCanonicalHostName();
                         break;
                     }
                 }
@@ -74,20 +78,7 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
         } catch (SocketException e) {
             // ignore
         }
-        return address;
-    }
-
-    private static String getLocalHostName() {
-        // get local address but not localhost
-        String hostName = "";
-        try {
-            InetAddress inetAddress = InetAddress.getLocalHost();
-            hostName = inetAddress.getCanonicalHostName();
-            System.out.println("FQDN: " + hostName);
-        } catch (UnknownHostException e) {
-            // ignore
-        }
-        return hostName;
+        return hostNameAndAddress;
     }
 
     private static StringBuilder appendQueryParameter(StringBuilder builder, String key, String value) {
@@ -237,9 +228,12 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
             map.put(name, value);
         }
 
-        if (!LOCAL_ADDRESS.isEmpty() && !map.containsKey("referer"))
+        if (config.getBoolOption(ClickHouseClientOption.SEND_CLIENT_ADDRESS) && !map.containsKey("referer"))
         {
-            map.put("referer", LOCAL_ADDRESS);
+            if (config.getBoolOption(ClickHouseClientOption.PREFER_HOST_NAME_TO_SEND))
+                map.put("referer", LOCAL_ADDRESS.hostName);
+            else
+                map.put("referer", LOCAL_ADDRESS.address);
         }
 
         map.put("accept", "*/*");
