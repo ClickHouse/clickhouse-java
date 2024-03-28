@@ -387,6 +387,17 @@ public class ClickHouseRowBinaryProcessorTest extends BaseDataProcessorTest {
                 BinaryStreamUtilsTest.generateInput(1, 2, 0x41, 0x31));
         Assert.assertTrue(value instanceof ClickHouseArrayValue);
         Assert.assertEquals(value.asObject(), new String[] { "A1" });
+        value = deserialize(null, config,
+                ClickHouseColumn.of("a", "Array(Array(Array(Nullable(String))))"),
+                BinaryStreamUtilsTest.generateInput(1, 1, 1, 1, 1, 1, 2, 0x41, 0x31));
+        Assert.assertTrue(value instanceof ClickHouseArrayValue);
+        Assert.assertNotNull(value.asArray());
+        value = deserialize(null, config,
+                ClickHouseColumn.of("a", "Array(Array(Array(Nullable(String))))"),
+                BinaryStreamUtilsTest.generateInput(1, 0));
+        Assert.assertTrue(value instanceof ClickHouseArrayValue);
+        //Assert.assertEquals(value.asObject(), new String[][][] { new String[][] { new String[] { "A1" } } });
+        Assert.assertNotNull(value.asArray());
         value = deserialize(null, binConf,
                 ClickHouseColumn.of("a", "Array(String)"),
                 BinaryStreamUtilsTest.generateInput(1, 2, 0x41, 0x31));
