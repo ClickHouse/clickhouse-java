@@ -9,12 +9,14 @@ import com.clickhouse.data.ClickHouseCityHash;
 import com.clickhouse.data.ClickHouseOutputStream;
 import com.clickhouse.data.ClickHousePassThruStream;
 
+import com.clickhouse.logging.Logger;
+import com.clickhouse.logging.LoggerFactory;
 import net.jpountz.lz4.LZ4Compressor;
 import net.jpountz.lz4.LZ4Factory;
 
 public class Lz4OutputStream extends AbstractByteArrayOutputStream {
     private static final LZ4Factory factory = LZ4Factory.fastestInstance();
-
+    private static final Logger log = LoggerFactory.getLogger(Lz4OutputStream.class);
     private final OutputStream output;
 
     private final LZ4Compressor compressor;
@@ -22,6 +24,11 @@ public class Lz4OutputStream extends AbstractByteArrayOutputStream {
 
     @Override
     protected void flushBuffer() throws IOException {
+        log.debug("flushBuffer [{}:{}]", 0, position);
+        if (position == 0) {
+            log.debug("flushBuffer: nothing to flush");
+            return;
+        }
         byte[] block = compressedBlock;
         block[16] = Lz4InputStream.MAGIC;
         int compressed = compressor.compress(buffer, 0, position, block, 25);
@@ -37,6 +44,7 @@ public class Lz4OutputStream extends AbstractByteArrayOutputStream {
 
     @Override
     protected void flushBuffer(byte[] bytes, int offset, int length) throws IOException {
+        log.debug("flushBuffer [{}:{}]", offset, length);
         int maxLen = compressor.maxCompressedLength(length) + 15;
         byte[] block = maxLen <= compressedBlock.length ? compressedBlock : new byte[maxLen];
         block[16] = Lz4InputStream.MAGIC;

@@ -6,12 +6,14 @@ on:
       version:
         description: "Release version"
         required: true
-        default: "0.5.0-SNAPSHOT"
+        default: "0.6.0-SNAPSHOT"
 
 jobs:
   release:
     name: "Build and Publish Artifact"
     runs-on: "ubuntu-latest"
+
+    permissions: write-all
 
     steps:
       - name: Check out Git repository

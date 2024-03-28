@@ -13,7 +13,7 @@
     <packaging>jar</packaging>
 
     <name>ClickHouse gRPC Client</name>
-    <description>gRPC client for ClickHouse</description>
+    <description>gRPC client for ClickHouse planed to be deprecated from version 0.6.0 and removed at 0.7.0</description>
     <url>https://github.com/ClickHouse/clickhouse-java/tree/main/clickhouse-grpc-client</url>
 
     <dependencies>

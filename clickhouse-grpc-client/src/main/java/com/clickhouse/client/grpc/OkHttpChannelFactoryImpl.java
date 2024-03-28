@@ -11,7 +11,7 @@ import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseSslContextProvider;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.grpc.config.ClickHouseGrpcOption;
-
+@Deprecated
 final class OkHttpChannelFactoryImpl extends ClickHouseGrpcChannelFactory {
     private static final String USER_AGENT = ClickHouseClientOption.buildUserAgent(null, "gRPC-OkHttp");
 

@@ -17,6 +17,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
 import com.clickhouse.client.ClickHouseRequest.Mutation;
@@ -945,7 +946,9 @@ public interface ClickHouseClient extends AutoCloseable {
             if (server.getProtocol() == ClickHouseProtocol.ANY) {
                 server = ClickHouseNode.probe(server.getHost(), server.getPort(), timeout);
             }
-            try (ClickHouseResponse resp = read(server) // create request
+            // Request to this specific ClickHouse node
+            ClickHouseRequest<?> request = new ClickHouseRequest<>(this, server, new AtomicReference<>(server), server.config.getAllOptions(), false);
+            try (ClickHouseResponse resp = request
                     .option(ClickHouseClientOption.ASYNC, false) // use current thread
                     .option(ClickHouseClientOption.CONNECTION_TIMEOUT, timeout)
                     .option(ClickHouseClientOption.SOCKET_TIMEOUT, timeout)
@@ -957,6 +960,7 @@ public interface ClickHouseClient extends AutoCloseable {
                 return resp != null;
             } catch (Exception e) {
                 // ignore
+                e.printStackTrace();
             }
         }
 

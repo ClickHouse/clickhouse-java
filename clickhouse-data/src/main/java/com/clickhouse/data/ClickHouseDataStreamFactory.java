@@ -136,7 +136,7 @@ public class ClickHouseDataStreamFactory {
             throws IOException {
         ClickHouseFormat format = ClickHouseChecker.nonNull(config, ClickHouseDataConfig.TYPE_NAME).getFormat();
         ClickHouseDataProcessor processor = null;
-        if (ClickHouseFormat.RowBinary == format || ClickHouseFormat.RowBinaryWithNamesAndTypes == format) {
+        if (ClickHouseFormat.RowBinary == format || ClickHouseFormat.RowBinaryWithNamesAndTypes == format || ClickHouseFormat.RowBinaryWithDefaults == format) {
             processor = new ClickHouseRowBinaryProcessor(config, input, output, columns, settings);
         } else if (format.isText()) {
             processor = new ClickHouseTabSeparatedProcessor(config, input, output, columns, settings);
