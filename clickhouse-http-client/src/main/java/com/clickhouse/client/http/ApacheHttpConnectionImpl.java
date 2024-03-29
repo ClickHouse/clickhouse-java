@@ -206,6 +206,17 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
             errorMsg = parseErrorFromException(errorCode != null ? errorCode.getValue() : null,
                     serverName != null ? serverName.getValue() : null, e, bytes);
         }
+        if (errorMsg != null && errorMsg.isEmpty()) {
+            // if we have both errorCode and serverName, we can wrap them into the exception message ????
+            if (errorCode != null && serverName != null ) {
+                String errorCodeValue = errorCode.getValue();
+                String serverNameValue = serverName.getValue();
+                if (errorCodeValue != null && serverNameValue != null) {
+                    throw new IOException(
+                            ClickHouseUtils.format("Code: %s, server: %s, %s", errorCodeValue, serverNameValue, response.toString()));
+                }
+            }
+        }
         throw new IOException(errorMsg);
     }
 

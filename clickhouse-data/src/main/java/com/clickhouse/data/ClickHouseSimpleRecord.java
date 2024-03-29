@@ -1,7 +1,9 @@
 package com.clickhouse.data;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Default implementation of {@link com.clickhouse.data.ClickHouseRecord},
@@ -13,6 +15,7 @@ public class ClickHouseSimpleRecord implements ClickHouseRecord {
 
     private final List<ClickHouseColumn> columns;
     private ClickHouseValue[] values;
+    private Map<String, Integer> columnsIndexes = null;
 
     /**
      * Creates a record object to wrap given values.
@@ -83,19 +86,25 @@ public class ClickHouseSimpleRecord implements ClickHouseRecord {
 
     @Override
     public ClickHouseValue getValue(String name) {
-        int index = 0;
-        for (ClickHouseColumn c : columns) {
-            if (c.getColumnName().equalsIgnoreCase(name)) {
-                return getValue(index);
-            }
-            index++;
-        }
+        if(columnsIndexes == null)
+            columnsIndexes = new HashMap<>(columns.size());
 
-        throw new IllegalArgumentException(ClickHouseUtils.format("Unable to find column [%s]", name));
+        return getValue(columnsIndexes.computeIfAbsent(name, this::computeColumnIndex));
     }
 
     @Override
     public int size() {
         return values.length;
+    }
+
+    private int computeColumnIndex(String name) {
+        int index = 0;
+        for (ClickHouseColumn c : columns) {
+            if (c.getColumnName().equalsIgnoreCase(name)) {
+                return index;
+            }
+            index++;
+        }
+        throw new IllegalArgumentException(ClickHouseUtils.format("Unable to find column [%s]", name));
     }
 }

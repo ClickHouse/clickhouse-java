@@ -3,7 +3,6 @@ package com.clickhouse.client;
 import com.clickhouse.client.ClickHouseClientBuilder.Agent;
 import com.clickhouse.client.ClickHouseTransaction.XID;
 import com.clickhouse.client.config.ClickHouseClientOption;
-import com.clickhouse.client.config.ClickHouseSslMode;
 import com.clickhouse.config.ClickHouseBufferingMode;
 import com.clickhouse.config.ClickHouseOption;
 import com.clickhouse.config.ClickHouseRenameMethod;
@@ -44,7 +43,6 @@ import com.clickhouse.data.value.UnsignedLong;
 import com.clickhouse.data.value.UnsignedShort;
 
 import org.apache.commons.compress.compressors.lz4.FramedLZ4CompressorInputStream;
-import org.testcontainers.shaded.org.apache.commons.lang3.StringUtils;
 import org.testng.Assert;
 import org.testng.SkipException;
 import org.testng.annotations.DataProvider;
@@ -294,7 +292,12 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
                                 UnsignedLong.valueOf(5L) } },
                 { "Nullable(Float32)", new Float[] { null, -2F, 3F, -4F, 5F } },
                 { "Nullable(Float64)", new Double[] { 1D, null, 3D, -4D, 5D } },
+        };
+    }
 
+    @DataProvider(name = "primitiveArrayLowCardinalityMatrix")
+    protected Object[][] getPrimitiveArrayLowCardinalityMatrix() {
+        return new Object[][]{
                 { "LowCardinality(Int8)", new int[] { -1, 2, -3, 4, -5 } },
                 { "LowCardinality(UInt8)", new int[] { 1, 2, 3, 4, 5 } },
                 { "LowCardinality(Int16)", new int[] { -1, 2, -3, 4, -5 } },
@@ -710,6 +713,41 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
                                 ClickHouseColumn.of("", baseType)).newArrayValue(server.config).update(expectedValues)
                                 .toSqlExpression()));
 
+        checkPrimitiveArrayValues(server, tableName, tableColumns, baseType, expectedValues);
+    }
+
+    @Test(dataProvider = "primitiveArrayLowCardinalityMatrix", groups = "integration")
+    public void testPrimitiveArrayWithLowCardinality(String baseType, Object expectedValues) throws ClickHouseException {
+        ClickHouseNode server = getServer();
+
+        String tableName = "test_primitive_array_"
+                + baseType.replace('(', '_').replace(')', ' ').trim().toLowerCase();
+        String tableColumns = String.format("a1 Array(%1$s), a2 Array(Array(%1$s)), a3 Array(Array(Array(%1$s)))",
+                baseType);
+        try {
+            sendAndWait(server, "drop table if exists " + tableName,
+                    "create table " + tableName + " (" + tableColumns + ")engine=Memory",
+                    "insert into " + tableName + String.format(
+                            " values(%2$s, [[123],[],[4], %2$s], [[[12],[3],[],[4,5]],[[123],[],[4], %2$s]])", baseType,
+                            ClickHouseColumn.of("", ClickHouseDataType.Array, false,
+                                            ClickHouseColumn.of("", baseType)).newArrayValue(server.config).update(expectedValues)
+                                    .toSqlExpression()));
+        } catch (ClickHouseException e) {
+            try (ClickHouseClient client = getClient()) {
+                if (e.getErrorCode() == ClickHouseException.ERROR_SUSPICIOUS_TYPE_FOR_LOW_CARDINALITY &&
+                        checkServerVersion(client, server, "[24.2,)")) {
+                    return;
+                }
+            } catch ( Exception e1) {
+                Assert.fail("Failed to check server version", e1);
+            }
+
+            Assert.fail("Exception code is " + e.getErrorCode(), e);
+        }
+        checkPrimitiveArrayValues(server, tableName, tableColumns, baseType, expectedValues);
+    }
+
+    private void checkPrimitiveArrayValues(ClickHouseNode server, String tableName, String tableColumns, String baseType, Object expectedValues) throws ClickHouseException {
         try (ClickHouseClient client = getClient()) {
             ClickHouseRequest<?> request = newRequest(client, server)
                     .format(ClickHouseFormat.RowBinaryWithNamesAndTypes);
@@ -761,6 +799,7 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
             }
         }
     }
+
 
     @Test(groups = { "integration" })
     public void testQueryWithNoResult() throws ExecutionException, InterruptedException {
