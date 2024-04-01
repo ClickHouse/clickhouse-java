@@ -14,7 +14,10 @@
         <ssl_require_client_auth>false</ssl_require_client_auth>
         <ssl_ca_cert_file>/etc/clickhouse-server/certs/myCA.crt</ssl_ca_cert_file>
     </grpc -->
-    <kerberos />
+    <kerberos>
+        <realm>EXAMPLE.COM</realm>
+        <keytab>/etc/krb5.keytab</keytab>
+    </kerberos>
     <openSSL replace="1">
         <server>
             <certificateFile>/etc/clickhouse-server/certs/localhost.crt</certificateFile>

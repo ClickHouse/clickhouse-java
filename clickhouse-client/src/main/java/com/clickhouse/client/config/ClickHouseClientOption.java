@@ -355,6 +355,14 @@ public enum ClickHouseClientOption implements ClickHouseOption {
      * Trust Store password.
      */
     KEY_STORE_PASSWORD("key_store_password", "", "Password needed to access the keystore file specified in the keystore config", true),
+	/**
+	 * Enable GSS authorization.
+	 */
+    GSS_ENABLED("gss_enabled", false, "Enable Authorization via GSS. Supported only for http protocol"),
+    /**
+     * Kerberos server name. Used by GSS authorization.
+     */
+    KERBEROS_SERVER_NAME("kerberos_server_name", "clickhouse", "Kerberos server name for GSS authorization"),
     /**
      * Transaction timeout in seconds.
      */

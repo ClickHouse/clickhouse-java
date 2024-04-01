@@ -7,6 +7,7 @@ import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseSslContextProvider;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.config.ClickHouseSslMode;
+import com.clickhouse.client.gss.GssAuthorizationContext;
 import com.clickhouse.client.http.config.ClickHouseHttpOption;
 import com.clickhouse.data.ClickHouseChecker;
 import com.clickhouse.data.ClickHouseExternalTable;
@@ -193,9 +194,9 @@ public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
         }
     }
 
-    protected HttpUrlConnectionImpl(ClickHouseNode server, ClickHouseRequest<?> request, ExecutorService executor)
+    protected HttpUrlConnectionImpl(ClickHouseNode server, ClickHouseRequest<?> request, ExecutorService executor, GssAuthorizationContext gssAuthContext)
             throws IOException {
-        super(server, request);
+        super(server, request, gssAuthContext);
 
         conn = newConnection(url, true);
     }

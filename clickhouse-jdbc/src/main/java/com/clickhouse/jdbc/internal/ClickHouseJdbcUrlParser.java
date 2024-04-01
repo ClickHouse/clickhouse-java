@@ -33,8 +33,9 @@ public class ClickHouseJdbcUrlParser {
             if (props != null && !props.isEmpty()) {
                 String user = props.getProperty(ClickHouseDefaults.USER.getKey(), "");
                 String passwd = props.getProperty(ClickHouseDefaults.PASSWORD.getKey(), "");
+                String gssEnabled = props.getProperty(ClickHouseDefaults.GSS_ENABLED.getKey(), "" + ClickHouseDefaults.GSS_ENABLED.getDefaultValue());
                 if (!ClickHouseChecker.isNullOrEmpty(user)) {
-                    c = ClickHouseCredentials.fromUserAndPassword(user, passwd);
+                    c = ClickHouseCredentials.fromUserAndPassword(user, passwd, Boolean.parseBoolean(gssEnabled));
                 }
             }
             this.credentials = c;
