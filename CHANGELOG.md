@@ -2,13 +2,14 @@
 
 ### Bug Fixes
 - Not detecting correctly ClickHouse error code
-- 
+- Fix JDBC read error - Multidimensional empty errors raise a java.lang.ArrayStoreException
+  
 ## 0.6.0-patch2
 
 ### Dependency Updates
 - org.apache.commons:commons-compress from 1.23.0 to 1.26.1
 - org.postgresql:postgresql from 42.6.0 to 42.6.1
-- 
+  
 ## 0.6.0-patch1
 
 ### Bug Fixes
