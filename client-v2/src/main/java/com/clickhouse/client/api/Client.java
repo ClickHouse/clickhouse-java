@@ -2,7 +2,12 @@ package com.clickhouse.client.api;
 
 import com.clickhouse.client.ClickHouseClient;
 import com.clickhouse.client.ClickHouseNode;
+import com.clickhouse.client.ClickHouseParameterizedQuery;
 import com.clickhouse.client.ClickHouseProtocol;
+import com.clickhouse.client.ClickHouseRequest;
+import com.clickhouse.client.api.data_formats.DataFormat;
+import com.clickhouse.client.api.query.QueryResponse;
+import com.clickhouse.client.api.query.QuerySettings;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -91,5 +96,24 @@ public class Client {
     public boolean ping(int timeout) {
         ClickHouseClient clientPing = ClickHouseClient.newInstance(ClickHouseProtocol.HTTP);
         return clientPing.ping(getServerNode(), timeout);
+    }
+
+    /**
+     * Sends data query to the server and returns a reference to a result descriptor.
+     * Control is returned when server accepted the query and started processing it.
+     * <br/>
+     * The caller should use {@link ClickHouseParameterizedQuery} to render the `sqlQuery` with parameters.
+     *
+     *
+     * @param sqlQuery - complete SQL query.
+     * @param settings
+     * @return
+     */
+    public <TDataFormat extends DataFormat> QueryResponse<TDataFormat> query(String sqlQuery, TDataFormat outputFormat,
+                                                                             QuerySettings<?>... settings) {
+        ClickHouseClient clientQuery = ClickHouseClient.newInstance(ClickHouseProtocol.HTTP);
+        ClickHouseRequest request = clientQuery.read(getServerNode());
+        request.query(sqlQuery);
+        return new QueryResponse(clientQuery.execute(request));
     }
 }
