@@ -1,15 +1,11 @@
 package com.clickhouse.client.api;
 
-import com.clickhouse.client.ClickHouseClient;
-import com.clickhouse.client.ClickHouseNode;
-import com.clickhouse.client.ClickHouseProtocol;
+import com.clickhouse.client.*;
+import com.clickhouse.data.ClickHouseColumn;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.io.InputStream;
+import java.net.SocketException;
+import java.util.*;
 
 public class Client {
     public static final int TIMEOUT = 30_000;
@@ -92,4 +88,25 @@ public class Client {
         ClickHouseClient clientPing = ClickHouseClient.newInstance(ClickHouseProtocol.HTTP);
         return clientPing.ping(getServerNode(), timeout);
     }
+
+
+    /**
+     * Insert data into ClickHouse using a POJO
+     */
+    public ClickHouseResponse insert(String tableName,
+                                     List<Object> data,
+                                     ClickHouseSettings settings,
+                                     List<ClickHouseColumn> columns) throws ClickHouseException, SocketException {
+        return null;//This is just a placeholder
+    }
+
+    /**
+     * Insert data into ClickHouse using a binary stream
+     */
+    public ClickHouseResponse insert(String tableName,
+                                     InputStream data,
+                                     ClickHouseSettings settings) throws ClickHouseException, SocketException {
+        return null;//This is just a placeholder
+    }
+
 }
