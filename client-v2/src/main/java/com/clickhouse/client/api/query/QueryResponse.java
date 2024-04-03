@@ -27,19 +27,14 @@ import java.util.function.Consumer;
  *
  *
  */
-public class QueryResponse<TDataFormat> {
+public class QueryResponse {
 
     private final Future<ClickHouseResponse> responseRef;
 
     private long completeTimeout = TimeUnit.MINUTES.toMillis(1);
 
-    private final TDataFormat dataFormat;
-
-    private Iterator<ClickHouseRecord> recordsIterator;
-
-    public QueryResponse(Future<ClickHouseResponse> responseRef, TDataFormat dataFormat) {
+    public QueryResponse(Future<ClickHouseResponse> responseRef) {
         this.responseRef = responseRef;
-        this.dataFormat = dataFormat;
     }
 
     public boolean isDone() {

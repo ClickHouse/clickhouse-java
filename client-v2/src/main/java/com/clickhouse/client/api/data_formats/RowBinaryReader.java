@@ -18,4 +18,9 @@ public class RowBinaryReader implements RecordReader {
        // TODO: implementation of record reader will get raw stream from response and will read records from it
         return false;
     }
+
+    @Override
+    public boolean canRead(String dataFormat) {
+        return "RowBinary".equalsIgnoreCase(dataFormat);
+    }
 }

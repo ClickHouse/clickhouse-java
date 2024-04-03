@@ -1,27 +1,49 @@
 package com.clickhouse.client.api.query;
 
 
-import lombok.Builder;
+import com.clickhouse.client.config.ClickHouseClientOption;
 import lombok.Getter;
-import lombok.experimental.SuperBuilder;
 
 import java.util.Map;
 
-@Builder
 @Getter
 public class QuerySettings {
 
     private Map<String, Object> rawSettings;
 
-    public enum CompressionMethod {
-        LZ4,
-        ZSTD,
-        NONE
+    public String getCompressAlgorithm() {
+        return (String) rawSettings.get(ClickHouseClientOption.COMPRESS_ALGORITHM.getKey());
     }
 
-    private CompressionMethod compressionMethod;
+    public String getFormat() {
+        return (String) rawSettings.get(ClickHouseClientOption.FORMAT.getKey());
+    }
 
-    private Integer readTimeout;
+    public String getQueryID() {
+        return (String) rawSettings.get("query_id");
+    }
 
-    private String queryID;
+    public static class Builder {
+        private QuerySettings settings = new QuerySettings();
+
+        public Builder compressAlgorithm(String algortihm) {
+            settings.rawSettings.put(ClickHouseClientOption.COMPRESS_ALGORITHM.getKey(), algortihm);
+            return this;
+        }
+        public Builder format(String format) {
+            settings.rawSettings.put(ClickHouseClientOption.FORMAT.getKey(), format);
+            return this;
+        }
+        public Builder queryID(String queryID) {
+            settings.rawSettings.put("query_id", queryID);
+            return this;
+        }
+        public Builder addSetting(String key, Object value) {
+            settings.rawSettings.put(key, value);
+            return this;
+        }
+        public QuerySettings build() {
+            return settings;
+        }
+    }
 }

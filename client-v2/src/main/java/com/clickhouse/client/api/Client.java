@@ -5,7 +5,6 @@ import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseParameterizedQuery;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseRequest;
-import com.clickhouse.client.api.data_formats.DataFormat;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
 
@@ -109,13 +108,12 @@ public class Client {
      * @param settings
      * @return
      */
-    public <TDataFormat extends DataFormat> QueryResponse<TDataFormat> query(String sqlQuery, Map<String, Object> qparams,
-                                                                TDataFormat outputFormat, QuerySettings settings) {
+    public QueryResponse query(String sqlQuery, Map<String, Object> qparams, QuerySettings settings) {
         ClickHouseClient clientQuery = ClickHouseClient.newInstance(ClickHouseProtocol.HTTP);
         ClickHouseRequest request = clientQuery.read(getServerNode());
         request.query(sqlQuery, settings.getQueryID());
         // TODO: convert qparams to map[string, string]
         request.params(qparams);
-        return new QueryResponse<>(clientQuery.execute(request), outputFormat);
+        return new QueryResponse(clientQuery.execute(request));
     }
 }

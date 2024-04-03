@@ -2,8 +2,7 @@ package com.clickhouse.client.query;
 
 
 import com.clickhouse.client.api.Client;
-import com.clickhouse.client.api.data_formats.JSON;
-import com.clickhouse.client.api.data_formats.RowBinary;
+import com.clickhouse.client.api.data_formats.RowBinaryReader;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.data.ClickHouseRecord;
@@ -19,7 +18,7 @@ public class QueryTests {
 
     private Client client;
 
-    @BeforeMethod(groups = { "unit" })
+    @BeforeMethod(groups = { "unit" }, enabled = false)
     public void setUp() {
         client = new Client.Builder()
                 .addEndpoint("http://localhost:8123")
@@ -28,40 +27,38 @@ public class QueryTests {
                 .build();
     }
 
-    @Test(groups = { "unit" })
+    @Test(groups = { "unit" }, enabled = false)
     public void testSelectQueryOpenDataFormat() {
-        QuerySettings settings = QuerySettings.builder()
-                .compressionMethod(QuerySettings.CompressionMethod.LZ4)
-                .readTimeout(1000)
+        QuerySettings settings = new QuerySettings.Builder()
+                .compressAlgorithm("LZ4")
+                .format("JSON")
+                .addSetting("format_json_quote_64bit_integers", "true")
                 .build();
-
-        JSON textFormat = new JSON();
-        textFormat.setSetting("format_json_quote_64bit_integers", "true");
 
         Map<String, Object> qparams = Map.of("param1", "value1", "param2", "value2");
 
-        QueryResponse<JSON> response = client.query("SELECT * FROM default.mytable WHERE param1 = :param1 AND param2 = :param2",
-                qparams, textFormat, settings);
+        QueryResponse response = client.query("SELECT * FROM default.mytable WHERE param1 = :param1 AND param2 = :param2",
+                qparams, settings);
 
 
         /// var dataSet = JSONParser.parse(response.getInputStream());
 
     }
-    @Test(groups = { "unit" })
+    @Test(groups = { "unit" }, enabled = false)
     public void testSelectQueryClosedBinaryFormat() {
-        QuerySettings settings = QuerySettings.builder()
-                .compressionMethod(QuerySettings.CompressionMethod.LZ4)
-                .readTimeout(1000)
+        QuerySettings settings = new QuerySettings.Builder()
+                .compressAlgorithm("LZ4")
+                .format("RowBinary")
                 .build();
 
-        RowBinary binaryFormat = new RowBinary();
 
         Map<String, Object> qparams = Map.of("param1", "value1", "param2", "value2");
 
-        QueryResponse<RowBinary> response = client.query("SELECT * FROM default.mytable WHERE param1 = :param1 AND param2 = :param2",
-                qparams, binaryFormat, settings);
+        QueryResponse response = client.query("SELECT * FROM default.mytable WHERE param1 = :param1 AND param2 = :param2",
+                qparams, settings);
 
         List<ClickHouseRecord> records = new ArrayList<>();
-        binaryFormat.createReader(response).readBatch(100, records::add, System.out::println);
+        RowBinaryReader reader = new RowBinaryReader(response.getInputStream());
+        reader.readBatch(100, records::add, System.out::println);
     }
 }

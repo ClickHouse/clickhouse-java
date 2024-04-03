@@ -7,6 +7,14 @@ import java.util.function.Consumer;
 public interface RecordReader {
 
     /**
+     * Check if the reader can read the specified data format.
+     *
+     * @param dataFormat
+     * @return true if the reader can read the specified data format, false otherwise
+     */
+    boolean canRead(String dataFormat);
+
+    /**
      * Read a batch of records from a stream.
      *
      * @param size the maximum number of records to read
