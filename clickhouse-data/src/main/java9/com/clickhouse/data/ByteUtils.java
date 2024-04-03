@@ -7,7 +7,7 @@ import java.util.Arrays;
 
 public final class ByteUtils {
     public boolean equals(byte[] a, int aFromIndex, int aToIndex, byte[] b, int bFromIndex, int bToIndex) {
-        return Arrays.equals(a, aFromIndex, aToIndex, a, bFromIndex, bToIndex);
+        return Arrays.equals(a, aFromIndex, aToIndex, b, bFromIndex, bToIndex);
     }
 
     public byte getInt8(byte[] bytes, int offset) {
