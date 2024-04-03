@@ -95,7 +95,7 @@ public class Client {
      */
     public ClickHouseResponse insert(String tableName,
                                      List<Object> data,
-                                     ClickHouseSettings settings,
+                                     InsertSettings settings,
                                      List<ClickHouseColumn> columns) throws ClickHouseException, SocketException {
         return null;//This is just a placeholder
     }
@@ -105,7 +105,7 @@ public class Client {
      */
     public ClickHouseResponse insert(String tableName,
                                      InputStream data,
-                                     ClickHouseSettings settings) throws ClickHouseException, SocketException {
+                                     InsertSettings settings) throws ClickHouseException, SocketException {
         return null;//This is just a placeholder
     }
 

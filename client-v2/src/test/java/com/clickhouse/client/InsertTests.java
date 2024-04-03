@@ -1,6 +1,6 @@
 package com.clickhouse.client;
 
-import com.clickhouse.client.api.ClickHouseSettings;
+import com.clickhouse.client.api.InsertSettings;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.generators.InsertDataGenerator;
 import com.clickhouse.data.ClickHouseColumn;
@@ -28,7 +28,7 @@ public class InsertTests {
 
     @Test
     public void insertSimplePOJOs() throws ClickHouseException, SocketException {
-        ClickHouseSettings settings = new ClickHouseSettings.Builder()
+        InsertSettings settings = new InsertSettings.Builder()
                 .addDeduplicationToken("1234567890")
                 .addQueryId(String.valueOf(UUID.randomUUID()))
                 .build();
@@ -44,7 +44,7 @@ public class InsertTests {
 
     @Test
     public void insertSimpleRowBinary() throws ClickHouseException, SocketException {
-        ClickHouseSettings settings = new ClickHouseSettings.Builder()
+        InsertSettings settings = new InsertSettings.Builder()
                 .addFormat(ClickHouseFormat.RowBinary)
                 .addDeduplicationToken("1234567890")
                 .addQueryId(String.valueOf(UUID.randomUUID()))

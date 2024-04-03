@@ -2,14 +2,12 @@ package com.clickhouse.client.api;
 
 import com.clickhouse.data.ClickHouseFormat;
 
-import java.util.*;
-
-public class ClickHouseSettings {
+public class InsertSettings {
     private final String deduplicationToken;
     private final String queryId;
     private final ClickHouseFormat format;
 
-    private ClickHouseSettings(Builder builder) {
+    private InsertSettings(Builder builder) {
         this.deduplicationToken = builder.deduplicationToken;
         this.queryId = builder.queryId;
         this.format = builder.format;
@@ -49,8 +47,8 @@ public class ClickHouseSettings {
             return this;
         }
 
-        public ClickHouseSettings build() {
-            return new ClickHouseSettings(this);
+        public InsertSettings build() {
+            return new InsertSettings(this);
         }
     }
 }
