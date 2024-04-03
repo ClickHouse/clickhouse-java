@@ -75,7 +75,6 @@
             <password>123</password>
             <quota>default</quota>
             <access_management>1</access_management>
-
         </access_dba>
     </users>
 </clickhouse>

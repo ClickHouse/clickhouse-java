@@ -1,3 +1,11 @@
+## Latest
+
+### New Features
+- [HTTP] Persistence of a role after it is set by `SET ROLE <role>` 
+
+### Bug Fixes
+- Fix param error in ByteUtils#equals in java9 [#1551](https://github.com/ClickHouse/clickhouse-java/issues/1551)
+
 ## 0.6.0-patch3
 
 ### Bug Fixes
