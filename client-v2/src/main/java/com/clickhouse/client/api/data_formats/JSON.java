@@ -1,5 +1,7 @@
 package com.clickhouse.client.api.data_formats;
 
+import com.clickhouse.data.ClickHouseInputStream;
+
 public class JSON extends DataFormat {
 
     public JSON() {

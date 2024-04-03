@@ -1,46 +1,27 @@
 package com.clickhouse.client.api.query;
 
-public class QuerySettings<TValue> {
 
-    private String key;
-    private TValue value;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.experimental.SuperBuilder;
 
-    public QuerySettings(String key, TValue defaultValue) {
-        this.key = key;
-        this.value = defaultValue;
+import java.util.Map;
+
+@Builder
+@Getter
+public class QuerySettings {
+
+    private Map<String, Object> rawSettings;
+
+    public enum CompressionMethod {
+        LZ4,
+        ZSTD,
+        NONE
     }
 
-    public String getKey() {
-        return key;
-    }
+    private CompressionMethod compressionMethod;
 
-    public TValue getValue() {
-        return value;
-    }
+    private Integer readTimeout;
 
-
-    public static class Compression extends QuerySettings<Compression.Method> {
-
-        public enum Method {
-            LZ4,
-            ZSTD,
-            NONE
-        }
-
-        public Compression(Method method) {
-            super("compression", method);
-        }
-    }
-
-    public static class ReadTimeout extends QuerySettings<Integer> {
-        public ReadTimeout(int timeout) {
-            super("read_timeout", timeout);
-        }
-    }
-
-    public static class QueryID extends QuerySettings<String> {
-        public QueryID(String queryID) {
-            super("query_id", queryID);
-        }
-    }
+    private String queryID;
 }

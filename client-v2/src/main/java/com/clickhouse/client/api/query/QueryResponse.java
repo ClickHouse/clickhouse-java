@@ -2,10 +2,14 @@ package com.clickhouse.client.api.query;
 
 import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.api.data_formats.DataFormat;
+import com.clickhouse.data.ClickHouseInputStream;
 import com.clickhouse.data.ClickHouseRecord;
 
 import java.util.Iterator;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 
 /**
@@ -23,60 +27,41 @@ import java.util.function.Consumer;
  *
  *
  */
-public class QueryResponse<TOutDataFormat extends DataFormat> {
+public class QueryResponse<TDataFormat> {
 
     private final Future<ClickHouseResponse> responseRef;
 
-    public QueryResponse(Future<ClickHouseResponse> responseRef) {
+    private long completeTimeout = TimeUnit.MINUTES.toMillis(1);
+
+    private final TDataFormat dataFormat;
+
+    private Iterator<ClickHouseRecord> recordsIterator;
+
+    public QueryResponse(Future<ClickHouseResponse> responseRef, TDataFormat dataFormat) {
         this.responseRef = responseRef;
+        this.dataFormat = dataFormat;
     }
 
     public boolean isDone() {
         return responseRef.isDone();
     }
 
-    /**
-     * Read full dataset from response. It is blocking operation.
-     * @param consumer a function to convert record to custom object and storing somewhere
-     */
-    public void readFull(Consumer<ClickHouseRecord> consumer) {
-        try (ClickHouseResponse response = responseRef.get()) {
-            response.records().forEach(consumer); // very simple implementation
-        } catch (Exception e) {
-            throw new RuntimeException(e); // TODO: handle exception
-        }
-    }
-
-    /**
-     * Read full dataset from response. It is blocking operation.
-     *
-     * @return a list of records
-     */
-    public Iterable<ClickHouseRecord> readFull() {
-        try (ClickHouseResponse response = responseRef.get()) {
-            return response.records(); // very simple implementation
-        } catch (Exception e) {
-            throw new RuntimeException(e); // TODO: handle exception
-        }
-    }
-
-
-    /**
-     * Read one record from response. It is blocking operation.
-     *
-     * @return a record
-     */
-    public ClickHouseRecord readOne() {
-        if (recordsIterator == null) {
-            try (ClickHouseResponse response = responseRef.get()) {
-                recordsIterator = response.records().iterator(); // very simple implementation
-            } catch (Exception e) {
+    public void ensureDone() {
+        if (!isDone()) {
+            try {
+                responseRef.get(completeTimeout, TimeUnit.MILLISECONDS);
+            } catch (TimeoutException | InterruptedException | ExecutionException e) {
                 throw new RuntimeException(e); // TODO: handle exception
             }
         }
-
-        return recordsIterator.next();
     }
 
-    private Iterator<ClickHouseRecord> recordsIterator;
+    public ClickHouseInputStream getInputStream() {
+        ensureDone();
+        try {
+            return responseRef.get().getInputStream();
+        } catch (Exception e) {
+            throw new RuntimeException(e); // TODO: handle exception
+        }
+    }
 }

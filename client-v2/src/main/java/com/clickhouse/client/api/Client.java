@@ -109,11 +109,13 @@ public class Client {
      * @param settings
      * @return
      */
-    public <TDataFormat extends DataFormat> QueryResponse<TDataFormat> query(String sqlQuery, TDataFormat outputFormat,
-                                                                             QuerySettings<?>... settings) {
+    public <TDataFormat extends DataFormat> QueryResponse<TDataFormat> query(String sqlQuery, Map<String, Object> qparams,
+                                                                TDataFormat outputFormat, QuerySettings settings) {
         ClickHouseClient clientQuery = ClickHouseClient.newInstance(ClickHouseProtocol.HTTP);
         ClickHouseRequest request = clientQuery.read(getServerNode());
-        request.query(sqlQuery);
-        return new QueryResponse(clientQuery.execute(request));
+        request.query(sqlQuery, settings.getQueryID());
+        // TODO: convert qparams to map[string, string]
+        request.params(qparams);
+        return new QueryResponse<>(clientQuery.execute(request), outputFormat);
     }
 }
