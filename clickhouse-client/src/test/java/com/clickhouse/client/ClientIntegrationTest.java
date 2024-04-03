@@ -47,6 +47,7 @@ import org.testng.Assert;
 import org.testng.SkipException;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
+import org.testng.asserts.Assertion;
 
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
@@ -2004,7 +2005,7 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
     @Test(groups = "integration")
     public void testErrorDuringQuery() throws ClickHouseException {
         ClickHouseNode server = getServer();
-        String query = "select number, throwIf(number>=100000000) from numbers(500000000)";
+        String query = "select number, throwIf(number>=10000000) from numbers(500000000)";
         long count = 0L;
         try (ClickHouseClient client = getClient();
                 ClickHouseResponse resp = newRequest(client, server)
