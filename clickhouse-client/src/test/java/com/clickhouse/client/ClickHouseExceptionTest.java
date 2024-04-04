@@ -106,6 +106,31 @@ public class ClickHouseExceptionTest {
         Assert.assertEquals(e.getErrorCode(), 12345);
         Assert.assertEquals(e.getCause(), cause.getCause());
         Assert.assertEquals(e.getMessage(), cause.getCause().getMessage() + ", server " + server);
+
+        cause = new ExecutionException(new IllegalArgumentException("Code:12345. Something goes wrong..."));
+        e = ClickHouseException.of(cause, server);
+        Assert.assertEquals(e.getErrorCode(), 12345);
+        Assert.assertEquals(e.getCause(), cause.getCause());
+        Assert.assertEquals(e.getMessage(), cause.getCause().getMessage() + ", server " + server);
+
+        cause = new ExecutionException(new IllegalArgumentException("Poco::Exception. Code: 1000, "));
+        e = ClickHouseException.of(cause, server);
+        Assert.assertEquals(e.getErrorCode(), 1000);
+        Assert.assertEquals(e.getCause(), cause.getCause());
+        Assert.assertEquals(e.getMessage(), cause.getCause().getMessage() + ", server " + server);
+
+        cause = new ExecutionException(new IllegalArgumentException("Code:       123"));
+        e = ClickHouseException.of(cause, server);
+        Assert.assertEquals(e.getErrorCode(), 123);
+        Assert.assertEquals(e.getCause(), cause.getCause());
+        Assert.assertEquals(e.getMessage(), cause.getCause().getMessage() + ", server " + server);
+
+        cause = new ExecutionException(new IllegalArgumentException("Code: ab123"));
+        e = ClickHouseException.of(cause, server);
+        Assert.assertEquals(e.getErrorCode(), 1002);
+        Assert.assertEquals(e.getCause(), cause.getCause());
+        Assert.assertEquals(e.getMessage(), cause.getCause().getMessage() + ", server " + server);
+
     }
 
     @Test(groups = { "unit" })
