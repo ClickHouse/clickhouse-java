@@ -1,5 +1,20 @@
 package com.clickhouse.client.http;
 
+import com.clickhouse.client.AbstractClient;
+import com.clickhouse.client.ClickHouseConfig;
+import com.clickhouse.client.ClickHouseException;
+import com.clickhouse.client.ClickHouseNode;
+import com.clickhouse.client.ClickHouseProtocol;
+import com.clickhouse.client.ClickHouseRequest;
+import com.clickhouse.client.ClickHouseResponse;
+import com.clickhouse.client.ClickHouseStreamResponse;
+import com.clickhouse.client.ClickHouseTransaction;
+import com.clickhouse.client.http.config.ClickHouseHttpOption;
+import com.clickhouse.config.ClickHouseOption;
+import com.clickhouse.data.ClickHouseChecker;
+import com.clickhouse.logging.Logger;
+import com.clickhouse.logging.LoggerFactory;
+
 import java.io.IOException;
 import java.io.Serializable;
 import java.io.UncheckedIOException;
@@ -9,28 +24,12 @@ import java.net.SocketException;
 import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
+import java.util.Enumeration;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentSkipListSet;
-
-import com.clickhouse.client.AbstractClient;
-import com.clickhouse.client.ClickHouseConfig;
-import com.clickhouse.client.ClickHouseException;
-import com.clickhouse.client.ClickHouseNode;
-import com.clickhouse.client.ClickHouseProtocol;
-import com.clickhouse.client.ClickHouseRequest;
-import com.clickhouse.client.ClickHouseResponse;
-import com.clickhouse.client.ClickHouseTransaction;
-import com.clickhouse.client.ClickHouseStreamResponse;
-import com.clickhouse.client.config.ClickHouseClientOption;
-import com.clickhouse.client.http.config.ClickHouseHttpOption;
-import com.clickhouse.config.ClickHouseOption;
-import com.clickhouse.data.ClickHouseChecker;
-import com.clickhouse.logging.Logger;
-import com.clickhouse.logging.LoggerFactory;
 
 public class ClickHouseHttpClient extends AbstractClient<ClickHouseHttpConnection> {
     private static final Logger log = LoggerFactory.getLogger(ClickHouseHttpClient.class);
