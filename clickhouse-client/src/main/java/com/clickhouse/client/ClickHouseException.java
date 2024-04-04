@@ -5,6 +5,8 @@ import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
 import java.util.Locale;
 import java.util.concurrent.TimeoutException;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Exception thrown from ClickHouse server. See full list at
@@ -29,6 +31,7 @@ public class ClickHouseException extends Exception {
 
     static final String MSG_CODE = "Code: ";
     static final String MSG_CONNECT_TIMED_OUT = "connect timed out";
+    static final Pattern ERROR_CODE_PATTERN = Pattern.compile("Code:[ ]*(\\d+)");
 
     private final int errorCode;
 
@@ -61,27 +64,10 @@ public class ClickHouseException extends Exception {
     private static int extractErrorCode(String errorMessage) {
         if (errorMessage == null || errorMessage.isEmpty()) {
             return ERROR_UNKNOWN;
-        } else if (errorMessage.startsWith("Poco::Exception. Code: 1000, ")) {
-            return ERROR_POCO;
         }
-
-        int startIndex = errorMessage.indexOf(' ');
-        if (startIndex >= 0) {
-            for (int i = ++startIndex, len = errorMessage.length(); i < len; i++) {
-                char ch = errorMessage.charAt(i);
-                if (ch == '.' || ch == ',' || Character.isWhitespace(ch)) {
-                    try {
-                        return Integer.parseInt(errorMessage.substring(startIndex, i));
-                    } catch (NumberFormatException e) {
-                        // ignore
-                    }
-                    break;
-                }
-            }
-        }
-
-        // this is confusing as usually it's a client-side exception
-        return ERROR_UNKNOWN;
+        Matcher matcher = ERROR_CODE_PATTERN.matcher(errorMessage);
+        // when not match, this is confusing as usually it's a client-side exception
+        return matcher.find() ? Integer.parseInt(matcher.group(1)) : ERROR_UNKNOWN;
     }
 
     static Throwable getRootCause(Throwable t) {

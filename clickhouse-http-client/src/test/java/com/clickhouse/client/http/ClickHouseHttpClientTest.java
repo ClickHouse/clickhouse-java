@@ -535,4 +535,24 @@ public class ClickHouseHttpClientTest extends ClientIntegrationTest {
         }
 
     }
+
+    @Test(groups = {"integration"})
+    public void testLongHttpHeaderReferer() throws ClickHouseException {
+        super.testMutation();
+
+        StringBuilder referer = new StringBuilder();
+        for (int i = 0; i < 100; i++) {
+            referer.append(i);
+        }
+        ClickHouseNode server = getServer();
+        try (ClickHouseClient client = getClient();
+             ClickHouseResponse response = newRequest(client, server)
+                     .option(ClickHouseHttpOption.CUSTOM_HEADERS, "Referer=" + referer)
+                     .set("send_progress_in_http_headers", 1)
+                     .query("select 1")
+                     .executeAndWait()) {
+            ClickHouseResponseSummary summary = response.getSummary();
+            Assert.assertEquals(summary.getReadRows(), 1L);
+        }
+    }
 }
