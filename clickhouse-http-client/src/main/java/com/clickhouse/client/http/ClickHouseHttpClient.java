@@ -2,11 +2,11 @@ package com.clickhouse.client.http;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.net.InetAddress;
+import java.net.NetworkInterface;
+import java.net.SocketException;
 import java.nio.charset.StandardCharsets;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.CompletionException;
 
 import com.clickhouse.client.AbstractClient;
@@ -18,8 +18,10 @@ import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.ClickHouseTransaction;
 import com.clickhouse.client.ClickHouseStreamResponse;
+import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.client.http.config.ClickHouseHttpOption;
 import com.clickhouse.config.ClickHouseOption;
+import com.clickhouse.data.ClickHouseChecker;
 import com.clickhouse.logging.Logger;
 import com.clickhouse.logging.LoggerFactory;
 
@@ -27,6 +29,57 @@ public class ClickHouseHttpClient extends AbstractClient<ClickHouseHttpConnectio
     private static final Logger log = LoggerFactory.getLogger(ClickHouseHttpClient.class);
 
     static final List<ClickHouseProtocol> SUPPORTED = Collections.singletonList(ClickHouseProtocol.HTTP);
+
+    public static class HostNameAndAddress{
+        public String hostName;
+        public String address;
+    }
+
+    private static HostNameAndAddress getLocalHost() {
+        // get local address but not localhost
+        HostNameAndAddress hostNameAndAddress = new HostNameAndAddress();
+        try {
+            Enumeration<NetworkInterface> networkInterfaces = NetworkInterface.getNetworkInterfaces();
+
+            for (NetworkInterface ni : Collections.list(networkInterfaces)) {
+                Enumeration<InetAddress> inetAddresses = ni.getInetAddresses();
+                for (InetAddress ia : Collections.list(inetAddresses)) {
+                    // We just use the first non-loopback address
+                    if (!ia.isLoopbackAddress()) {
+                        hostNameAndAddress.address = ia.getHostAddress();
+                        hostNameAndAddress.hostName = ia.getCanonicalHostName();
+                        break;
+                    }
+                }
+            }
+        } catch (SocketException e) {
+            // ignore
+        }
+        return hostNameAndAddress;
+    }
+
+    public static String getReferer(ClickHouseConfig config) {
+        String referer = null;
+        if (!ClickHouseChecker.isNullOrEmpty(config.getStrOption(ClickHouseHttpOption.SEND_HTTP_CLIENT_ID)))
+        {
+            if (ClickHouseChecker.isNullOrEmpty(ClickHouseOption.toKeyValuePairs(config.getStrOption(ClickHouseHttpOption.CUSTOM_HEADERS)).get("referer"))) {
+                if (config.getStrOption(ClickHouseHttpOption.SEND_HTTP_CLIENT_ID).equals("HOST_NAME"))
+                    referer = LOCAL_HOST.hostName;
+                else
+                    referer = LOCAL_HOST.address;
+            }
+        }
+        return referer;
+    }
+
+    public static HostNameAndAddress LOCAL_HOST = null;
+
+    public ClickHouseHttpClient() {
+        synchronized (this) {
+            if (LOCAL_HOST == null)
+                LOCAL_HOST = getLocalHost();
+        }
+    }
 
     @Override
     protected boolean checkConnection(ClickHouseHttpConnection connection, ClickHouseNode requestServer,
@@ -118,7 +171,7 @@ public class ClickHouseHttpClient extends AbstractClient<ClickHouseHttpConnectio
             httpResponse = conn.post(config, sql, sealedRequest.getInputStream().orElse(null),
                     sealedRequest.getExternalTables(), sealedRequest.getOutputStream().orElse(null),
                     ClickHouseHttpConnection.buildUrl(server.getBaseUri(), sealedRequest),
-                    ClickHouseHttpConnection.createDefaultHeaders(config, server, conn.getUserAgent()),
+                    ClickHouseHttpConnection.createDefaultHeaders(config, server, conn.getUserAgent(), getReferer(config)),
                     postAction);
         } else {
             httpResponse = conn.post(config, sql, sealedRequest.getInputStream().orElse(null),
