@@ -3,7 +3,6 @@ package com.clickhouse.client.query;
 
 import com.clickhouse.client.BaseIntegrationTest;
 import com.clickhouse.client.ClickHouseClient;
-import com.clickhouse.client.ClickHouseClientBuilder;
 import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseNodeSelector;
@@ -20,6 +19,7 @@ import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -45,7 +45,9 @@ public class QueryTests extends BaseIntegrationTest {
                 .setFormat("JSON")
                 .setSetting("format_json_quote_64bit_integers", "true");
 
-        Map<String, Object> qparams = Map.of("param1", "value1", "param2", "value2");
+        Map<String, Object> qparams = new HashMap<>();
+        qparams.put("param1", "value1");
+        qparams.put("param2", "value2");
 
         QueryResponse response = client.query("SELECT * FROM default.mytable WHERE param1 = :param1 AND param2 = :param2",
                 qparams, settings);
@@ -62,7 +64,9 @@ public class QueryTests extends BaseIntegrationTest {
                 .setFormat("JSON")
                 .setSetting("format_json_quote_64bit_integers", "true");
 
-        Map<String, Object> qparams = Map.of("param1", "value1", "param2", "value2");
+        Map<String, Object> qparams = new HashMap<>();
+        qparams.put("param1", "value1");
+        qparams.put("param2", "value2");
 
         QueryResponse response = client.query("SELECT * FROM default.mytable WHERE param1 = :param1 AND param2 = :param2",
                 qparams, settings);
