@@ -1,16 +1,12 @@
 package com.clickhouse.client.api.query;
 
 import com.clickhouse.client.ClickHouseResponse;
-import com.clickhouse.client.api.data_formats.DataFormat;
 import com.clickhouse.data.ClickHouseInputStream;
-import com.clickhouse.data.ClickHouseRecord;
 
-import java.util.Iterator;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.function.Consumer;
 
 /**
  * Response class provides interface to input stream of response data.

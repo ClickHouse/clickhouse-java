@@ -5,8 +5,11 @@ import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseParameterizedQuery;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseRequest;
+import com.clickhouse.client.api.metadata.TableSchema;
+import com.clickhouse.client.api.internal.TableSchemaParser;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
+import com.clickhouse.data.ClickHouseFormat;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -115,5 +118,18 @@ public class Client {
         // TODO: convert qparams to map[string, string]
         request.params(qparams);
         return new QueryResponse(clientQuery.execute(request));
+    }
+
+    public TableSchema getTableSchema(String table, String database) {
+        ClickHouseClient clientQuery = ClickHouseClient.newInstance(ClickHouseProtocol.HTTP);
+        ClickHouseRequest request = clientQuery.read(getServerNode());
+        // XML - because java has a built-in XML parser. Will consider CSV later.
+        request.query("DESCRIBE TABLE " + table + " FORMAT " + ClickHouseFormat.TSKV.name());
+        TableSchema tableSchema= new TableSchema();
+        try {
+            return new TableSchemaParser().createFromBinaryResponse(clientQuery.execute(request).get(), table, database);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to get table schema", e);
+        }
     }
 }
