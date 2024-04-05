@@ -1,3 +1,8 @@
+## latest 
+
+### Bug Fixes
+- Change RowBinaryWithDefaults settings. Output is changed from true to false
+
 ## 0.6.0-patch3
 
 ### Bug Fixes
