@@ -1,28 +1,26 @@
 package com.clickhouse.client.api;
 
+import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.data.ClickHouseFormat;
 
+import java.util.HashMap;
+import java.util.Map;
+
 public class InsertSettings {
-    private final String deduplicationToken;
-    private final String queryId;
-    private final ClickHouseFormat format;
+    Map<String, Object> rawSettings = new HashMap<>();
 
     private InsertSettings(Builder builder) {
-        this.deduplicationToken = builder.deduplicationToken;
-        this.queryId = builder.queryId;
-        this.format = builder.format;
+        //rawSettings.put(ClickHouseClientOption.DEDUPE_TOKEN.getKey(), builder.deduplicationToken);
+        //rawSettings.put(ClickHouseClientOption.QUERY_ID.getKey(), builder.queryId);
+        rawSettings.put(ClickHouseClientOption.FORMAT.getKey(), builder.format);
     }
 
-    public String getDeduplicationToken() {
-        return deduplicationToken;
+    public Object getSetting(String option) {
+        return rawSettings.get(option);
     }
 
-    public String getQueryId() {
-        return queryId;
-    }
-
-    public ClickHouseFormat getFormat() {
-        return format;
+    public void setSetting(String option, Object value) {
+        rawSettings.put(option, value);
     }
 
     public static class Builder {

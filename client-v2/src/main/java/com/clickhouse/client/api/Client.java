@@ -2,6 +2,7 @@ package com.clickhouse.client.api;
 
 import com.clickhouse.client.*;
 import com.clickhouse.data.ClickHouseColumn;
+import com.clickhouse.data.ClickHouseSerializer;
 
 import java.io.InputStream;
 import java.net.SocketException;
@@ -91,12 +92,22 @@ public class Client {
 
 
     /**
+     * Register the POJO
+     */
+    public void register(Class<?> clazz, TableSchema schema) {
+        //This is just a placeholder
+        //Create a new POJOSerializer with static .serialize(object, columns) methods
+    }
+
+    /**
      * Insert data into ClickHouse using a POJO
      */
     public ClickHouseResponse insert(String tableName,
                                      List<Object> data,
                                      InsertSettings settings,
                                      List<ClickHouseColumn> columns) throws ClickHouseException, SocketException {
+        //Lookup the Serializer for the POJO
+        //Call the static .serialize method on the POJOSerializer for each object in the list
         return null;//This is just a placeholder
     }
 
