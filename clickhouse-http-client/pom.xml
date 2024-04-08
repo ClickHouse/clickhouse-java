@@ -105,11 +105,10 @@
         </dependency>
         <dependency>
             <groupId>org.wiremock</groupId>
-            <artifactId>wiremock-standalone</artifactId>
+            <artifactId>wiremock</artifactId>
             <version>3.5.2</version>
             <scope>test</scope>
         </dependency>
-
     </dependencies>
 
     <build>
