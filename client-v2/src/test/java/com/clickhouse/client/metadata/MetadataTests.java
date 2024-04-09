@@ -34,7 +34,6 @@ public class MetadataTests extends BaseIntegrationTest {
                 .build();
     }
 
-
     @Test(groups = { "integration" })
     public void testGetTableSchema() {
         prepareDataSet("describe_table");
@@ -49,7 +48,6 @@ public class MetadataTests extends BaseIntegrationTest {
         List<ClickHouseColumn> columns = schema.getColumns();
         Assert.assertEquals(columns.get(0).getColumnName(), "param1");
         Assert.assertEquals(columns.get(0).getDataType().name(), "UInt32");
-
     }
 
     @SneakyThrows

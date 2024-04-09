@@ -17,6 +17,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Future;
 
 public class Client {
     public static final int TIMEOUT = 30_000;
@@ -111,25 +113,26 @@ public class Client {
      * @param settings
      * @return
      */
-    public QueryResponse query(String sqlQuery, Map<String, Object> qparams, QuerySettings settings) {
+    public Future<QueryResponse> query(String sqlQuery, Map<String, Object> qparams, QuerySettings settings) {
         ClickHouseClient clientQuery = ClickHouseClient.newInstance(ClickHouseProtocol.HTTP);
         ClickHouseRequest request = clientQuery.read(getServerNode());
         request.query(sqlQuery, settings.getQueryID());
         // TODO: convert qparams to map[string, string]
         request.params(qparams);
-        return new QueryResponse(clientQuery.execute(request));
+        return CompletableFuture.completedFuture(new QueryResponse(clientQuery.execute(request)));
     }
 
     public TableSchema getTableSchema(String table, String database) {
-        ClickHouseClient clientQuery = ClickHouseClient.newInstance(ClickHouseProtocol.HTTP);
-        ClickHouseRequest request = clientQuery.read(getServerNode());
-        // XML - because java has a built-in XML parser. Will consider CSV later.
-        request.query("DESCRIBE TABLE " + table + " FORMAT " + ClickHouseFormat.TSKV.name());
-        TableSchema tableSchema= new TableSchema();
-        try {
-            return new TableSchemaParser().createFromBinaryResponse(clientQuery.execute(request).get(), table, database);
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to get table schema", e);
+        try (ClickHouseClient clientQuery = ClickHouseClient.newInstance(ClickHouseProtocol.HTTP)) {
+            ClickHouseRequest request = clientQuery.read(getServerNode());
+            // XML - because java has a built-in XML parser. Will consider CSV later.
+            request.query("DESCRIBE TABLE " + table + " FORMAT " + ClickHouseFormat.TSKV.name());
+            TableSchema tableSchema = new TableSchema();
+            try {
+                return new TableSchemaParser().createFromBinaryResponse(clientQuery.execute(request).get(), table, database);
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to get table schema", e);
+            }
         }
     }
 }

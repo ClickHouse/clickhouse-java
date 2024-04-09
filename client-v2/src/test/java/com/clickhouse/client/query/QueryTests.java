@@ -15,6 +15,7 @@ import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.data.ClickHouseRecord;
 import lombok.SneakyThrows;
+import org.testng.Assert;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
@@ -23,6 +24,8 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 
 public class QueryTests extends BaseIntegrationTest {
 
@@ -49,7 +52,7 @@ public class QueryTests extends BaseIntegrationTest {
         qparams.put("param1", "value1");
         qparams.put("param2", "value2");
 
-        QueryResponse response = client.query("SELECT * FROM default.mytable WHERE param1 = :param1 AND param2 = :param2",
+        Future<QueryResponse> response = client.query("SELECT * FROM default.mytable WHERE param1 = :param1 AND param2 = :param2",
                 qparams, settings);
 
 
@@ -68,12 +71,16 @@ public class QueryTests extends BaseIntegrationTest {
         qparams.put("param1", "value1");
         qparams.put("param2", "value2");
 
-        QueryResponse response = client.query("SELECT * FROM default.mytable WHERE param1 = :param1 AND param2 = :param2",
+        Future<QueryResponse> response = client.query("SELECT * FROM default.mytable WHERE param1 = :param1 AND param2 = :param2",
                 qparams, settings);
 
         List<ClickHouseRecord> records = new ArrayList<>();
-        RowBinaryReader reader = new RowBinaryReader(response.getInputStream());
-        reader.readBatch(100, records::add, System.out::println);
+        try {
+            RowBinaryReader reader = new RowBinaryReader(response.get().getInputStream());
+            reader.readBatch(100, records::add, System.out::println);
+        } catch (InterruptedException | ExecutionException e) {
+            Assert.fail("failed to get response", e);
+        }
     }
 
     @SneakyThrows
