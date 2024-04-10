@@ -28,10 +28,9 @@ public class InsertTests {
 
     @Test
     public void insertSimplePOJOs() throws ClickHouseException, SocketException {
-        InsertSettings settings = new InsertSettings.Builder()
-                .addDeduplicationToken("1234567890")
-                .addQueryId(String.valueOf(UUID.randomUUID()))
-                .build();
+        InsertSettings settings = new InsertSettings()
+                .setDeduplicationToken("1234567890")
+                .setQueryId(String.valueOf(UUID.randomUUID()));
 
         String table = "simple_pojo_table";
         List<Object> simplePOJOs = InsertDataGenerator.generateSimplePOJOs();
@@ -44,11 +43,10 @@ public class InsertTests {
 
     @Test
     public void insertSimpleRowBinary() throws ClickHouseException, SocketException {
-        InsertSettings settings = new InsertSettings.Builder()
-                .addFormat(ClickHouseFormat.RowBinary)
-                .addDeduplicationToken("1234567890")
-                .addQueryId(String.valueOf(UUID.randomUUID()))
-                .build();
+        InsertSettings settings = new InsertSettings()
+                .setFormat(ClickHouseFormat.RowBinary)
+                .setDeduplicationToken("1234567890")
+                .setQueryId(String.valueOf(UUID.randomUUID()));
 
         String table = "row_binary_table";
         InputStream dataStream = InsertDataGenerator.generateSimpleRowBinaryData();

@@ -7,12 +7,15 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class InsertSettings {
-    Map<String, Object> rawSettings = new HashMap<>();
+    Map<String, Object> rawSettings;
 
-    private InsertSettings(Builder builder) {
-        //rawSettings.put(ClickHouseClientOption.DEDUPE_TOKEN.getKey(), builder.deduplicationToken);
-        //rawSettings.put(ClickHouseClientOption.QUERY_ID.getKey(), builder.queryId);
-        rawSettings.put(ClickHouseClientOption.FORMAT.getKey(), builder.format);
+    public InsertSettings() {
+        rawSettings = new HashMap<>();
+    }
+
+    public InsertSettings(Map<String, Object> settings) {
+        rawSettings = new HashMap<>();
+        rawSettings.putAll(settings);
     }
 
     public Object getSetting(String option) {
@@ -23,30 +26,19 @@ public class InsertSettings {
         rawSettings.put(option, value);
     }
 
-    public static class Builder {
-        private String deduplicationToken = "";
-        private String queryId = "";
-        private ClickHouseFormat format = ClickHouseFormat.RowBinary;
 
-        public Builder() {}
+    public InsertSettings setFormat(ClickHouseFormat format) {
+        rawSettings.put(ClickHouseClientOption.FORMAT.getKey(), format);
+        return this;
+    }
 
-        public Builder addDeduplicationToken(String deduplicationToken) {
-            this.deduplicationToken = deduplicationToken;
-            return this;
-        }
+    public InsertSettings setDeduplicationToken(String deduplicationToken) {
+        rawSettings.put("insert_deduplication_token", deduplicationToken);
+        return this;
+    }
 
-        public Builder addQueryId(String queryId) {
-            this.queryId = queryId;
-            return this;
-        }
-
-        public Builder addFormat(ClickHouseFormat format) {
-            this.format = format;
-            return this;
-        }
-
-        public InsertSettings build() {
-            return new InsertSettings(this);
-        }
+    public InsertSettings setQueryId(String queryId) {
+        rawSettings.put("query_id", queryId);
+        return this;
     }
 }
