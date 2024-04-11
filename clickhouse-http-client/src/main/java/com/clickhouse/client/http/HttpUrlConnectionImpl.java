@@ -31,8 +31,11 @@ import java.net.HttpURLConnection;
 import java.net.Proxy;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TimeZone;
 import java.util.Map.Entry;
 import java.util.concurrent.ExecutorService;
@@ -146,12 +149,21 @@ public class HttpUrlConnectionImpl extends ClickHouseHttpConnection {
         return value != null ? value : defaultValue;
     }
 
+    private static final Set<String> maskedHeaders = new HashSet<>(Arrays.asList("authorization",
+            "proxy-authorization","x-clickhouse-key"));
+
     private void setHeaders(HttpURLConnection conn, Map<String, String> headers) {
         headers = mergeHeaders(headers);
 
         if (headers != null && !headers.isEmpty()) {
             for (Entry<String, String> header : headers.entrySet()) {
-                log.debug("Adding header key [%s] value [%s]", header.getKey(), header.getValue());
+                if (log.isDebugEnabled()) {
+                    String value = header.getValue();
+                    if (value != null && maskedHeaders.contains(header.getKey().toLowerCase())) {
+                        value = "******";
+                    }
+                    log.debug("Adding header key [%s] value [%s]", header.getKey(), value);
+                }
                 conn.setRequestProperty(header.getKey(), header.getValue());
             }
         }
