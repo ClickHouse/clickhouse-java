@@ -3,7 +3,6 @@ package com.clickhouse.client;
 import java.net.ConnectException;
 import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
-import java.util.Locale;
 import java.util.concurrent.TimeoutException;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -119,10 +118,7 @@ public class ClickHouseException extends Exception {
     public static boolean isConnectTimedOut(Throwable t) {
         if (t instanceof SocketTimeoutException || t instanceof TimeoutException) {
             String msg = t.getMessage();
-            if (msg != null && msg.length() >= MSG_CONNECT_TIMED_OUT.length()) {
-                msg = msg.substring(0, MSG_CONNECT_TIMED_OUT.length()).toLowerCase(Locale.ROOT);
-            }
-            return MSG_CONNECT_TIMED_OUT.equals(msg);
+            return msg != null && msg.toLowerCase().contains(MSG_CONNECT_TIMED_OUT);
         }
 
         return false;

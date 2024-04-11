@@ -1,17 +1,8 @@
 package com.clickhouse.client.grpc;
 
-import org.apache.commons.compress.compressors.lz4.FramedLZ4CompressorInputStream;
-import org.testng.Assert;
-import org.testng.SkipException;
-import org.testng.annotations.DataProvider;
-import org.testng.annotations.Test;
-
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
-import java.util.concurrent.ExecutionException;
-
 import com.clickhouse.client.ClickHouseClient;
 import com.clickhouse.client.ClickHouseException;
+import com.clickhouse.client.ClickHouseLoadBalancingPolicy;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseResponse;
@@ -23,6 +14,15 @@ import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.data.ClickHouseInputStream;
 import com.clickhouse.data.ClickHouseRecord;
 import com.clickhouse.data.ClickHouseVersion;
+import org.apache.commons.compress.compressors.lz4.FramedLZ4CompressorInputStream;
+import org.testng.Assert;
+import org.testng.SkipException;
+import org.testng.annotations.DataProvider;
+import org.testng.annotations.Test;
+
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.util.concurrent.ExecutionException;
 @Deprecated
 public class ClickHouseGrpcClientTest extends ClientIntegrationTest {
     @DataProvider(name = "requestCompressionMatrix")
@@ -144,7 +144,7 @@ public class ClickHouseGrpcClientTest extends ClientIntegrationTest {
     public void testErrorDuringQuery() throws ClickHouseException {
         throw new SkipException("Skip due to grpc is too slow");
     }
-    
+
     @Test(groups = { "integration" })
     @Override
     public void testSessionLock() {
@@ -205,4 +205,13 @@ public class ClickHouseGrpcClientTest extends ClientIntegrationTest {
         throw new SkipException("Skip due to supported");
     }
 
+    @Test(dataProvider = "loadBalancingPolicies", groups = {"unit"})
+    public void testLoadBalancingPolicyFailover(ClickHouseLoadBalancingPolicy loadBalancingPolicy) {
+        throw new SkipException("Skip due to failover is not supported");
+    }
+
+    @Test(groups = {"integration"})
+    public void testFailover() {
+        throw new SkipException("Skip due to failover is not supported");
+    }
 }

@@ -41,13 +41,11 @@ import com.clickhouse.data.value.UnsignedByte;
 import com.clickhouse.data.value.UnsignedInteger;
 import com.clickhouse.data.value.UnsignedLong;
 import com.clickhouse.data.value.UnsignedShort;
-
 import org.apache.commons.compress.compressors.lz4.FramedLZ4CompressorInputStream;
 import org.testng.Assert;
 import org.testng.SkipException;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
-import org.testng.asserts.Assertion;
 
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
@@ -75,9 +73,10 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Properties;
 import java.util.TimeZone;
 import java.util.UUID;
-import java.util.Map.Entry;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -150,13 +149,23 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
 
     protected ClickHouseRequest<?> newRequest(ClickHouseClient client, ClickHouseNode server) {
         ClickHouseRequest<?> request = client.read(server);
+        setClientOptions(request);
+        return request;
+    }
+
+    protected ClickHouseRequest<?> newRequest(ClickHouseClient client, ClickHouseNodes servers) {
+        ClickHouseRequest<?> request = client.read(servers);
+        setClientOptions(request);
+        return request;
+    }
+
+    private void setClientOptions(ClickHouseRequest<?> request) {
         Map<ClickHouseOption, Serializable> options = getClientOptions();
         if (options != null) {
             for (Entry<ClickHouseOption, Serializable> e : options.entrySet()) {
                 request.option(e.getKey(), e.getValue());
             }
         }
-        return request;
     }
 
     protected abstract ClickHouseProtocol getProtocol();
@@ -396,6 +405,16 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
                 { ClickHouseDataType.String.name(), "0", "-1", "1" },
                 { ClickHouseDataType.UUID.name(), "00000000-0000-0000-0000-000000000000",
                         "00000000-0000-0000-ffff-ffffffffffff", "00000000-0000-0000-0000-000000000001" } };
+    }
+
+    @DataProvider(name = "loadBalancingPolicies")
+    protected Object[][] getLoadBalancingPolicies() {
+        return new Object[][]{
+                {ClickHouseLoadBalancingPolicy.of(null)},
+                {ClickHouseLoadBalancingPolicy.of(ClickHouseLoadBalancingPolicy.FIRST_ALIVE)},
+                {ClickHouseLoadBalancingPolicy.of(ClickHouseLoadBalancingPolicy.ROUND_ROBIN)},
+                {ClickHouseLoadBalancingPolicy.of(ClickHouseLoadBalancingPolicy.RANDOM)},
+        };
     }
 
     @Test(groups = { "unit" })
@@ -886,7 +905,7 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
                  * while (response.hasError()) { int index = 0; for (ClickHouseColumn c :
                  * columns) { // RawValue v = response.getRawValue(index++); // String v =
                  * response.getValue(index++, String.class) }
-                 * 
+                 *
                  * } byte[] bytes = in.readAllBytes(); String str = new String(bytes);
                  */
             } catch (Exception e) {
@@ -2553,6 +2572,52 @@ public abstract class ClientIntegrationTest extends BaseIntegrationTest {
             } else {
                 Assert.assertTrue(false, e.getMessage());
             }
+        }
+    }
+
+    @Test(dataProvider = "loadBalancingPolicies", groups = {"unit"})
+    public void testLoadBalancingPolicyFailover(ClickHouseLoadBalancingPolicy loadBalancingPolicy) {
+        String firstEndpoint = "111.1.1.1";
+        String secondEndpoint = "222.2.2.2";
+
+        Properties props = new Properties();
+        props.setProperty("failover", "1");
+
+        // nodes where the first node is failed
+        ClickHouseNodes nodes = ClickHouseNodes.of(
+                getProtocol() + "://" + firstEndpoint + "," + secondEndpoint,
+                props
+        );
+
+        try (ClickHouseClient client = getClient();
+             ClickHouseResponse response = newRequest(client, nodes.nodes.getFirst())
+                     .query("select 1")
+                     .executeAndWait()) {
+            Assert.fail("Exception expected for query on failed node");
+        } catch (Exception failoverException) {
+            ClickHouseNode failoverNode = loadBalancingPolicy.suggest(nodes, nodes.nodes.getFirst(), failoverException);
+            Assert.assertEquals(failoverNode.getHost(), secondEndpoint, "The next node is expected to be suggested by the load balancing policy");
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testFailover() throws ClickHouseException {
+        ClickHouseNode availableNode = getServer();
+        Properties props = new Properties();
+        props.setProperty("failover", "1");
+
+        // nodes with the first node is unavailable
+        ClickHouseNodes nodes = ClickHouseNodes.of(
+                getProtocol() + "://111.1.1.1," + availableNode.getBaseUri(),
+                props
+        );
+
+        // should fail over to next node and successfully perform request if the first node is failed
+        try (ClickHouseClient client = getClient();
+             ClickHouseResponse response = newRequest(client, nodes)
+                     .query("select 1")
+                     .executeAndWait()) {
+            Assert.assertEquals(response.firstRecord().getValue(0).asInteger(), 1);
         }
     }
 }

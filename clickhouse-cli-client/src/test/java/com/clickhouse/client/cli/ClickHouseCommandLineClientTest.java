@@ -3,22 +3,21 @@ package com.clickhouse.client.cli;
 import com.clickhouse.client.ClickHouseClient;
 import com.clickhouse.client.ClickHouseClientBuilder;
 import com.clickhouse.client.ClickHouseException;
+import com.clickhouse.client.ClickHouseLoadBalancingPolicy;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseServerForTest;
 import com.clickhouse.client.ClientIntegrationTest;
 import com.clickhouse.client.cli.config.ClickHouseCommandLineOption;
 import com.clickhouse.data.ClickHouseCompression;
-
-import java.io.IOException;
-import java.util.concurrent.ExecutionException;
-
 import org.testcontainers.containers.GenericContainer;
-import org.testng.Assert;
 import org.testng.SkipException;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
+
+import java.io.IOException;
+import java.util.concurrent.ExecutionException;
 // deprecate from version 0.6.0
 @Deprecated
 public class ClickHouseCommandLineClientTest extends ClientIntegrationTest {
@@ -189,5 +188,15 @@ public class ClickHouseCommandLineClientTest extends ClientIntegrationTest {
     @Override
     public void testRowBinaryWithDefaults() throws ClickHouseException, IOException, ExecutionException, InterruptedException {
         throw new SkipException("Skip due to supported");
+    }
+
+    @Test(dataProvider = "loadBalancingPolicies", groups = {"unit"})
+    public void testLoadBalancingPolicyFailover(ClickHouseLoadBalancingPolicy loadBalancingPolicy) {
+        throw new SkipException("Skip due to failover is not supported");
+    }
+
+    @Test(groups = {"integration"})
+    public void testFailover() {
+        throw new SkipException("Skip due to failover is not supported");
     }
 }
