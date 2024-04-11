@@ -254,7 +254,7 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
         try {
             response = client.execute(post);
         } catch (IOException e) {
-            throw new ConnectException(ClickHouseUtils.format("HTTP request failed: %s", post));
+            throw new ConnectException(ClickHouseUtils.format("HTTP request failed: %s", e.getMessage()));
         }
 
         checkResponse(config, response);
