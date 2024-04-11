@@ -2,7 +2,14 @@ package com.clickhouse.client.api;
 
 import com.clickhouse.client.ClickHouseClient;
 import com.clickhouse.client.ClickHouseNode;
+import com.clickhouse.client.ClickHouseParameterizedQuery;
 import com.clickhouse.client.ClickHouseProtocol;
+import com.clickhouse.client.ClickHouseRequest;
+import com.clickhouse.client.api.metadata.TableSchema;
+import com.clickhouse.client.api.internal.TableSchemaParser;
+import com.clickhouse.client.api.query.QueryResponse;
+import com.clickhouse.client.api.query.QuerySettings;
+import com.clickhouse.data.ClickHouseFormat;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -10,6 +17,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Future;
 
 public class Client {
     public static final int TIMEOUT = 30_000;
@@ -91,5 +100,39 @@ public class Client {
     public boolean ping(int timeout) {
         ClickHouseClient clientPing = ClickHouseClient.newInstance(ClickHouseProtocol.HTTP);
         return clientPing.ping(getServerNode(), timeout);
+    }
+
+    /**
+     * Sends data query to the server and returns a reference to a result descriptor.
+     * Control is returned when server accepted the query and started processing it.
+     * <br/>
+     * The caller should use {@link ClickHouseParameterizedQuery} to render the `sqlQuery` with parameters.
+     *
+     *
+     * @param sqlQuery - complete SQL query.
+     * @param settings
+     * @return
+     */
+    public Future<QueryResponse> query(String sqlQuery, Map<String, Object> qparams, QuerySettings settings) {
+        ClickHouseClient clientQuery = ClickHouseClient.newInstance(ClickHouseProtocol.HTTP);
+        ClickHouseRequest request = clientQuery.read(getServerNode());
+        request.query(sqlQuery, settings.getQueryID());
+        // TODO: convert qparams to map[string, string]
+        request.params(qparams);
+        return CompletableFuture.completedFuture(new QueryResponse(clientQuery.execute(request)));
+    }
+
+    public TableSchema getTableSchema(String table, String database) {
+        try (ClickHouseClient clientQuery = ClickHouseClient.newInstance(ClickHouseProtocol.HTTP)) {
+            ClickHouseRequest request = clientQuery.read(getServerNode());
+            // XML - because java has a built-in XML parser. Will consider CSV later.
+            request.query("DESCRIBE TABLE " + table + " FORMAT " + ClickHouseFormat.TSKV.name());
+            TableSchema tableSchema = new TableSchema();
+            try {
+                return new TableSchemaParser().createFromBinaryResponse(clientQuery.execute(request).get(), table, database);
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to get table schema", e);
+            }
+        }
     }
 }
