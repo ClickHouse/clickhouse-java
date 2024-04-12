@@ -2,6 +2,7 @@
 
 ### Bug Fixes
 - Change RowBinaryWithDefaults settings. Output is changed from true to false
+- Fix failover for Apache HTTP client. Connect timeout error is not detected correctly
 
 ## 0.6.0-patch3
 
