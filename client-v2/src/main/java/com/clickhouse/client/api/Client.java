@@ -2,7 +2,6 @@ package com.clickhouse.client.api;
 
 import com.clickhouse.client.*;
 import com.clickhouse.data.ClickHouseColumn;
-import com.clickhouse.data.ClickHouseSerializer;
 
 import java.io.InputStream;
 import java.net.SocketException;
@@ -109,7 +108,7 @@ public class Client {
     /**
      * Insert data into ClickHouse using a POJO
      */
-    public ClickHouseResponse insert(String tableName,
+    public Future<InsertResponse> insert(String tableName,
                                      List<Object> data,
                                      InsertSettings settings,
                                      List<ClickHouseColumn> columns) throws ClickHouseException, SocketException {
@@ -121,7 +120,7 @@ public class Client {
     /**
      * Insert data into ClickHouse using a binary stream
      */
-    public ClickHouseResponse insert(String tableName,
+    public Future<InsertResponse> insert(String tableName,
                                      InputStream data,
                                      InsertSettings settings) throws ClickHouseException, SocketException {
         return null;//This is just a placeholder
