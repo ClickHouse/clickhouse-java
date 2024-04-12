@@ -1,22 +1,17 @@
 package com.clickhouse.client.api;
 
-import com.clickhouse.client.ClickHouseClient;
-import com.clickhouse.client.ClickHouseNode;
-import com.clickhouse.client.ClickHouseParameterizedQuery;
-import com.clickhouse.client.ClickHouseProtocol;
-import com.clickhouse.client.ClickHouseRequest;
+import com.clickhouse.client.*;
+import com.clickhouse.data.ClickHouseColumn;
+
+import java.io.InputStream;
+import java.net.SocketException;
+import java.util.*;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.internal.TableSchemaParser;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.data.ClickHouseFormat;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Future;
 
@@ -101,6 +96,36 @@ public class Client {
         ClickHouseClient clientPing = ClickHouseClient.newInstance(ClickHouseProtocol.HTTP);
         return clientPing.ping(getServerNode(), timeout);
     }
+
+    /**
+     * Register the POJO
+     */
+    public void register(Class<?> clazz, TableSchema schema) {
+        //This is just a placeholder
+        //Create a new POJOSerializer with static .serialize(object, columns) methods
+    }
+
+    /**
+     * Insert data into ClickHouse using a POJO
+     */
+    public Future<InsertResponse> insert(String tableName,
+                                     List<Object> data,
+                                     InsertSettings settings,
+                                     List<ClickHouseColumn> columns) throws ClickHouseException, SocketException {
+        //Lookup the Serializer for the POJO
+        //Call the static .serialize method on the POJOSerializer for each object in the list
+        return null;//This is just a placeholder
+    }
+
+    /**
+     * Insert data into ClickHouse using a binary stream
+     */
+    public Future<InsertResponse> insert(String tableName,
+                                     InputStream data,
+                                     InsertSettings settings) throws ClickHouseException, SocketException {
+        return null;//This is just a placeholder
+    }
+
 
     /**
      * Sends data query to the server and returns a reference to a result descriptor.

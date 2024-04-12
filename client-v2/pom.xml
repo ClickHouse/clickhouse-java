@@ -69,15 +69,12 @@
             <scope>provided</scope>
         </dependency>
 
-        <!-- START: Temporary test dependencies -->
         <dependency>
             <groupId>${project.parent.groupId}</groupId>
             <artifactId>clickhouse-client</artifactId>
             <version>${revision}</version>
-            <type>test-jar</type>
-            <scope>test</scope>
+            <scope>compile</scope>
         </dependency>
-        <!-- END: Temporary test dependencies -->
 
         <dependency>
             <groupId>org.slf4j</groupId>
