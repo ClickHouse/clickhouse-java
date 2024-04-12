@@ -4,17 +4,10 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.io.Serializable;
 import java.io.UnsupportedEncodingException;
-import java.net.InetSocketAddress;
-import java.net.Proxy;
-import java.net.URLEncoder;
+import java.net.*;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.Map.Entry;
 
 import com.clickhouse.client.ClickHouseClient;
@@ -153,7 +146,7 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
             appendQueryParameter(builder, "query_id", optionalValue.get());
         }
 
-        for (Map.Entry<String, Serializable> entry : settings.entrySet()) {
+        for (Entry<String, Serializable> entry : settings.entrySet()) {
             appendQueryParameter(builder, entry.getKey(), String.valueOf(entry.getValue()));
         }
 
@@ -189,7 +182,7 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
     }
 
     protected static Map<String, String> createDefaultHeaders(ClickHouseConfig config, ClickHouseNode server,
-            String userAgent) {
+            String userAgent, String referer) {
         Map<String, String> map = new LinkedHashMap<>();
         boolean hasAuthorizationHeader = false;
         // add customer headers
@@ -204,6 +197,10 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
                 hasAuthorizationHeader = true;
             }
             map.put(name, value);
+        }
+
+        if (!ClickHouseChecker.isNullOrEmpty(referer)) {
+            map.put("referer", referer);
         }
 
         map.put("accept", "*/*");
@@ -363,7 +360,7 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
 
         ClickHouseConfig c = request.getConfig();
         this.config = c;
-        this.defaultHeaders = Collections.unmodifiableMap(createDefaultHeaders(c, server, getUserAgent()));
+        this.defaultHeaders = Collections.unmodifiableMap(createDefaultHeaders(c, server, getUserAgent(), ClickHouseHttpClient.getReferer(config)));
         this.url = buildUrl(server.getBaseUri(), request);
         log.debug("url [%s]", this.url);
     }

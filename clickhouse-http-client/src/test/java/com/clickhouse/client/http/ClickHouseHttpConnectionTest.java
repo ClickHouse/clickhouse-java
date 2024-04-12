@@ -73,4 +73,27 @@ public class ClickHouseHttpConnectionTest {
             Assert.assertEquals(c.getBaseUrl(), "https://localhost:8443/");
         }
     }
+
+    @Test(groups = { "unit" })
+    public void testReferer() {
+
+        ClickHouseNode server = ClickHouseNode.of("https://localhost/db1");
+        ClickHouseRequest<?> request = ClickHouseClient.newInstance().read(server);
+
+        try (SimpleHttpConnection sc = new SimpleHttpConnection(server, request)) {
+            Assert.assertFalse(sc.defaultHeaders.containsKey("referer"));
+        }
+
+        request.option(ClickHouseHttpOption.SEND_HTTP_CLIENT_ID, "IP_ADDRESS");
+        try (SimpleHttpConnection sc = new SimpleHttpConnection(server, request)) {
+            Assert.assertTrue(sc.defaultHeaders.containsKey("referer"));
+            Assert.assertEquals(ClickHouseHttpClient.LOCAL_HOST.address, sc.defaultHeaders.get("referer"));
+        }
+
+        request.option(ClickHouseHttpOption.SEND_HTTP_CLIENT_ID, "HOST_NAME");
+        try (SimpleHttpConnection sc = new SimpleHttpConnection(server, request)) {
+            Assert.assertTrue(sc.defaultHeaders.containsKey("referer"));
+            Assert.assertEquals(ClickHouseHttpClient.LOCAL_HOST.hostName, sc.defaultHeaders.get("referer"));
+        }
+    }
 }

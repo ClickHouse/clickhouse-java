@@ -2,6 +2,7 @@ package com.clickhouse.client.http;
 
 import com.clickhouse.client.ClickHouseClient;
 import com.clickhouse.client.ClickHouseConfig;
+import com.clickhouse.client.ClickHouseException;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseRequest;
@@ -22,6 +23,9 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import com.github.tomakehurst.wiremock.WireMockServer;
+import com.github.tomakehurst.wiremock.client.WireMock;
+import com.github.tomakehurst.wiremock.http.Fault;
 import org.apache.hc.client5.http.socket.PlainConnectionSocketFactory;
 import org.testng.Assert;
 import org.testng.annotations.Test;
@@ -113,6 +117,31 @@ public class ApacheHttpConnectionImplTest extends ClickHouseHttpClientTest {
             Assert.assertTrue(CustomSocketFactory.created.get());
         } finally {
             CustomSocketFactory.created.set(false);
+        }
+    }
+
+    private WireMockServer faultyServer;
+
+    @Test(groups = {"unit"})
+    public void testFailureWhileRequest() {
+        faultyServer = new WireMockServer(9090);
+        faultyServer.start();
+        try {
+            faultyServer.addStubMapping(WireMock.post(WireMock.anyUrl())
+                    .willReturn(WireMock.aResponse().withFault(Fault.EMPTY_RESPONSE)).build());
+
+            ClickHouseHttpClient httpClient = new ClickHouseHttpClient();
+            ClickHouseConfig config = new ClickHouseConfig();
+            httpClient.init(config);
+            ClickHouseRequest request = httpClient.read("http://localhost:9090/").query("SELECT 1");
+
+            try {
+                httpClient.executeAndWait(request);
+            } catch (ClickHouseException e) {
+                Assert.assertEquals(e.getErrorCode(), ClickHouseException.ERROR_NETWORK);
+            }
+        } finally {
+            faultyServer.stop();
         }
     }
 }
