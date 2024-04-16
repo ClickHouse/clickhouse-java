@@ -94,10 +94,6 @@ public class Client {
             this.configuration.put("socket_rcvbuf", String.valueOf(size));
             return this;
         }
-        public Builder setSocketRcvbuf(long amount, ChronoUnit unit) {
-            this.setSocketRcvbuf(Duration.of(amount, unit).toMillis());
-            return this;
-        }
         public Builder setSocketSndbuf(long size) {
             this.configuration.put("socket_sndbuf", String.valueOf(size));
             return this;
