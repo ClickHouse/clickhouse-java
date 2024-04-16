@@ -5,6 +5,8 @@ import com.clickhouse.data.ClickHouseColumn;
 
 import java.io.InputStream;
 import java.net.SocketException;
+import java.time.Duration;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.internal.TableSchemaParser;
@@ -14,6 +16,8 @@ import com.clickhouse.data.ClickHouseFormat;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Future;
+
+import static java.time.temporal.ChronoUnit.SECONDS;
 
 public class Client {
     public static final int TIMEOUT = 30_000;
@@ -35,6 +39,11 @@ public class Client {
         public Builder() {
             this.endpoints = new HashSet<>();
             this.configuration = new HashMap<String, String>();
+            // TODO: set defaults configuration values
+            this.setConnectTimeout(30, SECONDS)
+                .setSocketTimeout(2, SECONDS)
+                .setSocketRcvbuf(804800)
+                .setSocketSndbuf(804800);
         }
 
         public Builder addEndpoint(String endpoint) {
@@ -63,7 +72,48 @@ public class Client {
             this.configuration.put("password", password);
             return this;
         }
+        // SOCKET SETTINGS
+        public Builder setConnectTimeout(long size) {
+            this.configuration.put("connect_timeout", String.valueOf(size));
+            return this;
+        }
+        public Builder setConnectTimeout(long amount, ChronoUnit unit) {
+            this.setConnectTimeout(Duration.of(amount, unit).toMillis());
+            return this;
+        }
 
+        public Builder setSocketTimeout(long size) {
+            this.configuration.put("socket_timeout", String.valueOf(size));
+            return this;
+        }
+        public Builder setSocketTimeout(long amount, ChronoUnit unit) {
+            this.setSocketTimeout(Duration.of(amount, unit).toMillis());
+            return this;
+        }
+        public Builder setSocketRcvbuf(long size) {
+            this.configuration.put("socket_rcvbuf", String.valueOf(size));
+            return this;
+        }
+        public Builder setSocketSndbuf(long size) {
+            this.configuration.put("socket_sndbuf", String.valueOf(size));
+            return this;
+        }
+        public Builder setSocketReuseaddr(boolean value) {
+            this.configuration.put("socket_reuseaddr", String.valueOf(value));
+            return this;
+        }
+        public Builder setSocketKeepalive(boolean value) {
+            this.configuration.put("socket_keepalive", String.valueOf(value));
+            return this;
+        }
+        public Builder setSocketTcpNodelay(boolean value) {
+            this.configuration.put("socket_tcp_nodelay", String.valueOf(value));
+            return this;
+        }
+        public Builder setSocketLinger(int secondsToWait) {
+            this.configuration.put("socket_linger", String.valueOf(secondsToWait));
+            return this;
+        }
         public Client build() {
             // check if endpoint are empty. so can not initiate client
             if (this.endpoints.isEmpty()) {
