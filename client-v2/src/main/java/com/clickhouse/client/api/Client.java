@@ -110,8 +110,8 @@ public class Client {
             this.configuration.put("socket_tcp_nodelay", String.valueOf(value));
             return this;
         }
-        public Builder setSocketLinger(int size) {
-            this.configuration.put("socket_linger", String.valueOf(size));
+        public Builder setSocketLinger(int secondsToWait) {
+            this.configuration.put("socket_linger", String.valueOf(secondsToWait));
             return this;
         }
         public Client build() {
