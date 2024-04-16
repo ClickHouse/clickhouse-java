@@ -77,6 +77,13 @@
         </dependency>
 
         <dependency>
+            <groupId>${project.parent.groupId}</groupId>
+            <artifactId>clickhouse-client</artifactId>
+            <version>${revision}</version>
+            <type>test-jar</type>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-simple</artifactId>
             <scope>test</scope>
