@@ -12,7 +12,6 @@ import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseRecord;
-import lombok.SneakyThrows;
 import org.testng.Assert;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
@@ -50,35 +49,37 @@ public class MetadataTests extends BaseIntegrationTest {
         Assert.assertEquals(columns.get(0).getDataType().name(), "UInt32");
     }
 
-    @SneakyThrows
     private void prepareDataSet(String tableName) {
 
-        ClickHouseClient client = ClickHouseClient.builder().config(new ClickHouseConfig())
+        try (ClickHouseClient client = ClickHouseClient.builder().config(new ClickHouseConfig())
                 .nodeSelector(ClickHouseNodeSelector.of(ClickHouseProtocol.HTTP))
-                .build();
+                .build()) {
 
-        ClickHouseRequest request = client.read(getServer(ClickHouseProtocol.HTTP))
-                .query("CREATE TABLE IF NOT EXISTS default." + tableName + " (param1 UInt32, param2 UInt16) ENGINE = Memory");
-        request.executeAndWait();
+            ClickHouseRequest request = client.read(getServer(ClickHouseProtocol.HTTP))
+                    .query("CREATE TABLE IF NOT EXISTS default." + tableName + " (param1 UInt32, param2 UInt16) ENGINE = Memory");
+            request.executeAndWait();
 
-        request = client.write(getServer(ClickHouseProtocol.HTTP))
-                .query("INSERT INTO default." + tableName + " VALUES (1, 2), (3, 4), (5, 6)");
-        request.executeAndWait();
+            request = client.write(getServer(ClickHouseProtocol.HTTP))
+                    .query("INSERT INTO default." + tableName + " VALUES (1, 2), (3, 4), (5, 6)");
+            request.executeAndWait();
 
 
-        if (false) {
-            // debug check
-            ClickHouseResponse response = client.read(getServer(ClickHouseProtocol.HTTP))
-                    .query("SELECT * FROM default." + tableName + " ORDER BY param1 ASC")
-                    .executeAndWait();
+            if (false) {
+                // debug check
+                ClickHouseResponse response = client.read(getServer(ClickHouseProtocol.HTTP))
+                        .query("SELECT * FROM default." + tableName + " ORDER BY param1 ASC")
+                        .executeAndWait();
 
-            Iterator<ClickHouseRecord> iter = response.records().iterator();
-            while (iter.hasNext()) {
-                ClickHouseRecord r = iter.next();
-                if (r.size() > 0) {
-                    System.out.println(r.getValue(0).asString());
+                Iterator<ClickHouseRecord> iter = response.records().iterator();
+                while (iter.hasNext()) {
+                    ClickHouseRecord r = iter.next();
+                    if (r.size() > 0) {
+                        System.out.println(r.getValue(0).asString());
+                    }
                 }
             }
+        } catch (Exception e) {
+            Assert.fail("Failed to prepare data set", e);
         }
     }
 }

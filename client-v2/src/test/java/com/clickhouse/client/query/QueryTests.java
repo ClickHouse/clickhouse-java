@@ -14,7 +14,6 @@ import com.clickhouse.client.api.data_formats.RowBinaryReader;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.data.ClickHouseRecord;
-import lombok.SneakyThrows;
 import org.testng.Assert;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
@@ -83,31 +82,34 @@ public class QueryTests extends BaseIntegrationTest {
         }
     }
 
-    @SneakyThrows
     private void prepareDataSet() {
+        try (
+            ClickHouseClient client = ClickHouseClient.builder().config(new ClickHouseConfig())
+                    .nodeSelector(ClickHouseNodeSelector.of(ClickHouseProtocol.HTTP))
+                    .build()) {
 
-        ClickHouseClient client = ClickHouseClient.builder().config(new ClickHouseConfig())
-                .nodeSelector(ClickHouseNodeSelector.of(ClickHouseProtocol.HTTP))
-                .build();
 
-        ClickHouseRequest request = client.read(getServer(ClickHouseProtocol.HTTP))
-                .query("CREATE TABLE IF NOT EXISTS default.query_test_table (param1 UInt32, param2 UInt32) ENGINE = Memory");
-        request.executeAndWait();
+            ClickHouseRequest request = client.read(getServer(ClickHouseProtocol.HTTP))
+                    .query("CREATE TABLE IF NOT EXISTS default.query_test_table (param1 UInt32, param2 UInt32) ENGINE = Memory");
+            request.executeAndWait();
 
-        request = client.write(getServer(ClickHouseProtocol.HTTP))
-                .query("INSERT INTO default.query_test_table VALUES (1, 2), (3, 4), (5, 6)");
-        request.executeAndWait();
+            request = client.write(getServer(ClickHouseProtocol.HTTP))
+                    .query("INSERT INTO default.query_test_table VALUES (1, 2), (3, 4), (5, 6)");
+            request.executeAndWait();
 
-        ClickHouseResponse response = client.read(getServer(ClickHouseProtocol.HTTP))
-                .query("SELECT * FROM default.query_test_table")
-                .executeAndWait();
+            ClickHouseResponse response = client.read(getServer(ClickHouseProtocol.HTTP))
+                    .query("SELECT * FROM default.query_test_table")
+                    .executeAndWait();
 
-        Iterator<ClickHouseRecord> iter = response.records().iterator();
-        while (iter.hasNext()) {
-            ClickHouseRecord r = iter.next();
-            if (r.size() > 0) {
-                System.out.println(r.getValue(0).asString());
+            Iterator<ClickHouseRecord> iter = response.records().iterator();
+            while (iter.hasNext()) {
+                ClickHouseRecord r = iter.next();
+                if (r.size() > 0) {
+                    System.out.println(r.getValue(0).asString());
+                }
             }
+        }catch ( Exception e) {
+            Assert.fail("failed to prepare data set", e);
         }
     }
 }
