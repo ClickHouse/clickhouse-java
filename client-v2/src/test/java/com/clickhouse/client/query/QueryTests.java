@@ -36,7 +36,7 @@ public class QueryTests extends BaseIntegrationTest {
 
     private Client client;
 
-    @BeforeMethod(groups = { "unit" })
+    @BeforeMethod(groups = { "integration" })
     public void setUp() {
         ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
         client = new Client.Builder()
@@ -46,7 +46,7 @@ public class QueryTests extends BaseIntegrationTest {
                 .build();
     }
 
-    @Test(groups = { "unit" })
+    @Test(groups = { "integration" })
     public void testSimpleSelectTableFormat() {
         prepareDataSet();
         QuerySettings settings = new QuerySettings()
