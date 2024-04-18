@@ -1,6 +1,8 @@
 package com.clickhouse.client.api.query;
 
+import com.clickhouse.client.ClickHouseClient;
 import com.clickhouse.client.ClickHouseResponse;
+import com.clickhouse.client.api.Client;
 import com.clickhouse.data.ClickHouseInputStream;
 
 import java.util.concurrent.ExecutionException;
@@ -23,13 +25,16 @@ import java.util.concurrent.TimeoutException;
  *
  *
  */
-public class QueryResponse {
+public class QueryResponse implements AutoCloseable {
 
     private final Future<ClickHouseResponse> responseRef;
 
     private long completeTimeout = TimeUnit.MINUTES.toMillis(1);
 
-    public QueryResponse(Future<ClickHouseResponse> responseRef) {
+    private ClickHouseClient client;
+
+    public QueryResponse(ClickHouseClient client, Future<ClickHouseResponse> responseRef) {
+        this.client = client;
         this.responseRef = responseRef;
     }
 
@@ -53,6 +58,15 @@ public class QueryResponse {
             return responseRef.get().getInputStream();
         } catch (Exception e) {
             throw new RuntimeException(e); // TODO: handle exception
+        }
+    }
+
+    @Override
+    public void close() throws Exception {
+        try {
+            client.close();
+        } catch (Exception e) {
+            // TODO: decide about logging
         }
     }
 }

@@ -1,11 +1,11 @@
-package com.clickhouse.client.api;
+package com.clickhouse.client.api.internal;
 
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 
-public class ClientSettings {
+public class ValidationUtils {
 
     public static void checkRange(int value, int min, int max, String name) {
         if (value < min || value > max) {

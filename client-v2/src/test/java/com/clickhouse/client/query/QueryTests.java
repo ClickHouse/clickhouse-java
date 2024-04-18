@@ -10,6 +10,7 @@ import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.Protocol;
 import com.clickhouse.client.api.data_formats.RowBinaryReader;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
@@ -18,7 +19,12 @@ import org.testng.Assert;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.StringReader;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -28,35 +34,43 @@ import java.util.concurrent.Future;
 
 public class QueryTests extends BaseIntegrationTest {
 
-
     private Client client;
 
-    @BeforeMethod(groups = { "unit" }, enabled = false)
+    @BeforeMethod(groups = { "unit" })
     public void setUp() {
         ClickHouseNode node = getServer(ClickHouseProtocol.HTTP);
         client = new Client.Builder()
-                .addEndpoint(node.getHost() + ":" + node.getPort())
+                .addEndpoint(Protocol.HTTP, node.getHost(), node.getPort())
                 .addUsername("default")
                 .addPassword("")
                 .build();
     }
 
-    @Test(groups = { "unit" }, enabled = false)
-    public void testSelectQueryOpenDataFormat() {
+    @Test(groups = { "unit" })
+    public void testSimpleSelectTableFormat() {
+        prepareDataSet();
         QuerySettings settings = new QuerySettings()
-                .setFormat("JSON")
-                .setSetting("format_json_quote_64bit_integers", "true");
+                .setFormat("TabSeparated");
 
         Map<String, Object> qparams = new HashMap<>();
         qparams.put("param1", "value1");
         qparams.put("param2", "value2");
 
-        Future<QueryResponse> response = client.query("SELECT * FROM default.mytable WHERE param1 = :param1 AND param2 = :param2",
-                qparams, settings);
+        Future<QueryResponse> response = client.query("SELECT * FROM default.query_test_table",
+                Collections.emptyMap(), settings);
 
+        try {
+            BufferedReader br = new BufferedReader(new InputStreamReader(response.get().getInputStream()));
+            String line = null;
+            while ((line = br.readLine()) != null) {
+                System.out.println(line);
+            }
+        } catch ( InterruptedException | ExecutionException e) {
+            Assert.fail("failed to get response", e);
+        } catch (IOException e) {
+            Assert.fail("failed to read response", e);
 
-        /// var dataSet = JSONParser.parse(response.getInputStream());
-
+        }
     }
     @Test(groups = { "integration" }, enabled = false)
     public void testSelectQueryClosedBinaryFormat() {
