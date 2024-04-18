@@ -50,7 +50,7 @@ public class QueryTests extends BaseIntegrationTest {
     public void testSimpleSelectTableFormat() {
         prepareDataSet();
         QuerySettings settings = new QuerySettings()
-                .setFormat("TabSeparated");
+                .setFormat("JSON");
 
         Map<String, Object> qparams = new HashMap<>();
         qparams.put("param1", "value1");

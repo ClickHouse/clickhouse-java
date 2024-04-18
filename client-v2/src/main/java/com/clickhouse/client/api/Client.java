@@ -149,6 +149,7 @@ public class Client {
     public Future<QueryResponse> query(String sqlQuery, Map<String, Object> qparams, QuerySettings settings) {
         ClickHouseClient client = createClient();
         ClickHouseRequest<?> request = client.read(getServerNode());
+        request.options(SettingsConverter.toRequestOptions(settings.getAllSettings()));
         request.settings(SettingsConverter.toRequestSettings(settings.getAllSettings()));
         request.query(sqlQuery, settings.getQueryID());
         request.format(ClickHouseFormat.valueOf(settings.getFormat()));
@@ -188,33 +189,24 @@ public class Client {
         return COMPRESS_ALGORITHMS;
     }
 
-    private static final Set<String> OUTPUT_FORMATS = ValidationUtils.whiteList("Native", "JSON", "JSONCompact",
-            "TabSeparated", "TabSeparatedRaw", "TabSeparatedWithNames", "TabSeparatedWithNamesAndTypes", "Pretty",
-            "PrettyCompact", "PrettyCompactMonoBlock", "PrettyNoEscapes", "PrettySpace", "PrettySpaceNoEscapes",
-            "PrettyCompactSpace", "PrettyCompactSpaceNoEscapes", "PrettyNoEscapesAndQuoting",
-            "PrettySpaceNoEscapesAndQuoting", "PrettyCompactNoEscapesAndQuoting",
-            "PrettyCompactSpaceNoEscapesAndQuoting", "PrettyNoEscapesAndQuotingMonoBlock",
-            "PrettySpaceNoEscapesAndQuotingMonoBlock", "PrettyCompactNoEscapesAndQuotingMonoBlock",
-            "PrettyCompactSpaceNoEscapesAndQuotingMonoBlock", "PrettyNoEscapesAndQuotingSpace",
-            "PrettySpaceNoEscapesAndQuotingSpace", "PrettyCompactNoEscapesAndQuotingSpace",
-            "PrettyCompactSpaceNoEscapesAndQuotingSpace", "PrettyNoEscapesAndQuotingSpaceMonoBlock",
-            "PrettySpaceNoEscapesAndQuotingSpaceMonoBlock", "PrettyCompactNoEscapesAndQuotingSpaceMonoBlock",
-            "PrettyCompactSpaceNoEscapesAndQuotingSpaceMonoBlock", "PrettyNoEscapesAndQuotingSpaceWithEscapes",
-            "PrettySpaceNoEscapesAndQuotingSpaceWithEscapes", "PrettyCompactNoEscapesAndQuotingSpaceWithEscapes",
-            "PrettyCompactSpaceNoEscapesAndQuotingSpaceWithEscapes",
-            "PrettyNoEscapesAndQuotingSpaceWithEscapesMonoBlock",
-            "PrettySpaceNoEscapesAndQuotingSpaceWithEscapesMonoBlock",
-            "PrettyCompactNoEscapesAndQuotingSpaceWithEscapesMonoBlock",
-            "PrettyCompactSpaceNoEscapesAndQuotingSpaceWithEscapesMonoBlock",
-            "PrettyNoEscapesAndQuotingSpaceWithEscapesAndNulls",
-            "PrettySpaceNoEscapesAndQuotingSpaceWithEscapesAndNulls",
-            "PrettyCompactNoEscapesAndQuotingSpaceWithEscapesAndNulls",
-            "PrettyCompactSpaceNoEscapesAndQuotingSpaceWithEscapesAndNulls",
-            "PrettyNoEscapesAndQuotingSpaceWithEscapesAndNullsMonoBlock",
-            "PrettySpaceNoEscapesAndQuotingSpaceWithEscapesAndNullsMonoBlock",
-            "PrettyCompactNoEscapesAndQuotingSpaceWithEscapesAndNull");
+    private static final Set<String> OUTPUT_FORMATS = createFormatWhitelist("output");
+
+    private static final Set<String> INPUT_FORMATS = createFormatWhitelist("input");
 
     public static Set<String> getOutputFormats() {
         return OUTPUT_FORMATS;
+    }
+
+    private static Set<String> createFormatWhitelist(String shouldSupport) {
+        Set<String> formats = new HashSet<>();
+        boolean supportOutput = "output".equals(shouldSupport);
+        boolean supportInput = "input".equals(shouldSupport);
+        boolean supportBoth = "both".equals(shouldSupport);
+        for (ClickHouseFormat format : ClickHouseFormat.values()) {
+            if ((supportOutput && format.supportsOutput()) || (supportInput && format.supportsInput()) || (supportBoth)) {
+                formats.add(format.name());
+            }
+        }
+        return Collections.unmodifiableSet(formats);
     }
 }
