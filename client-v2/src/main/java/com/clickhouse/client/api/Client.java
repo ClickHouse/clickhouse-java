@@ -1,6 +1,8 @@
 package com.clickhouse.client.api;
 
 import com.clickhouse.client.*;
+import com.clickhouse.client.api.internal.SettingsConverter;
+import com.clickhouse.client.api.internal.ValidationUtils;
 import com.clickhouse.data.ClickHouseColumn;
 
 import java.io.InputStream;
@@ -13,6 +15,10 @@ import com.clickhouse.client.api.internal.TableSchemaParser;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.data.ClickHouseFormat;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
+import org.slf4j.helpers.BasicMDCAdapter;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Future;
@@ -24,6 +30,8 @@ public class Client {
     private Set<String> endpoints;
     private Map<String, String> configuration;
     private List<ClickHouseNode> serverNodes = new ArrayList<>();
+    private static final  Logger LOG = LoggerFactory.getLogger(Client.class);
+
     private Client(Set<String> endpoints, Map<String,String> configuration) {
         this.endpoints = endpoints;
         this.configuration = configuration;
@@ -189,16 +197,22 @@ public class Client {
      * @return
      */
     public Future<QueryResponse> query(String sqlQuery, Map<String, Object> qparams, QuerySettings settings) {
-        ClickHouseClient clientQuery = ClickHouseClient.newInstance(ClickHouseProtocol.HTTP);
-        ClickHouseRequest request = clientQuery.read(getServerNode());
+        ClickHouseClient client = createClient();
+        ClickHouseRequest<?> request = client.read(getServerNode());
+        request.options(SettingsConverter.toRequestOptions(settings.getAllSettings()));
+        request.settings(SettingsConverter.toRequestSettings(settings.getAllSettings()));
         request.query(sqlQuery, settings.getQueryID());
-        // TODO: convert qparams to map[string, string]
-        request.params(qparams);
-        return CompletableFuture.completedFuture(new QueryResponse(clientQuery.execute(request)));
+        request.format(ClickHouseFormat.valueOf(settings.getFormat()));
+        if (qparams != null && !qparams.isEmpty()) {
+            request.params(qparams);
+        }
+        MDC.put("queryId", settings.getQueryID());
+        LOG.debug("Executing request: {}", request);
+        return CompletableFuture.completedFuture(new QueryResponse(client, request.execute()));
     }
 
     public TableSchema getTableSchema(String table, String database) {
-        try (ClickHouseClient clientQuery = ClickHouseClient.newInstance(ClickHouseProtocol.HTTP)) {
+        try (ClickHouseClient clientQuery = createClient()) {
             ClickHouseRequest request = clientQuery.read(getServerNode());
             // XML - because java has a built-in XML parser. Will consider CSV later.
             request.query("DESCRIBE TABLE " + table + " FORMAT " + ClickHouseFormat.TSKV.name());
@@ -209,5 +223,40 @@ public class Client {
                 throw new RuntimeException("Failed to get table schema", e);
             }
         }
+    }
+
+
+    private ClickHouseClient createClient() {
+        ClickHouseConfig clientConfig = new ClickHouseConfig();
+        return ClickHouseClient.builder().config(clientConfig)
+                .nodeSelector(ClickHouseNodeSelector.of(ClickHouseProtocol.HTTP))
+                .build();
+    }
+
+    private static final Set<String> COMPRESS_ALGORITHMS = ValidationUtils.whiteList("LZ4", "LZ4HC", "ZSTD", "ZSTDHC", "NONE");
+
+    public static Set<String> getCompressAlgorithms() {
+        return COMPRESS_ALGORITHMS;
+    }
+
+    private static final Set<String> OUTPUT_FORMATS = createFormatWhitelist("output");
+
+    private static final Set<String> INPUT_FORMATS = createFormatWhitelist("input");
+
+    public static Set<String> getOutputFormats() {
+        return OUTPUT_FORMATS;
+    }
+
+    private static Set<String> createFormatWhitelist(String shouldSupport) {
+        Set<String> formats = new HashSet<>();
+        boolean supportOutput = "output".equals(shouldSupport);
+        boolean supportInput = "input".equals(shouldSupport);
+        boolean supportBoth = "both".equals(shouldSupport);
+        for (ClickHouseFormat format : ClickHouseFormat.values()) {
+            if ((supportOutput && format.supportsOutput()) || (supportInput && format.supportsInput()) || (supportBoth)) {
+                formats.add(format.name());
+            }
+        }
+        return Collections.unmodifiableSet(formats);
     }
 }
