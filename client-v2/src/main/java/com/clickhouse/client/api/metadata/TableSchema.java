@@ -52,5 +52,15 @@ public class TableSchema {
         columns.add(ClickHouseColumn.of(name, type));
         metadata.computeIfAbsent(name, k -> new HashMap<>()).put("type", type);
     }
+
+    public boolean containsColumn(String name) {
+        for (ClickHouseColumn column : columns) {
+            if (column.getColumnName().equalsIgnoreCase(name)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
 }
 

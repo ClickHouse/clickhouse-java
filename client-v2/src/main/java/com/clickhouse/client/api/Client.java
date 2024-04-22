@@ -5,7 +5,11 @@ import com.clickhouse.client.api.internal.SettingsConverter;
 import com.clickhouse.client.api.internal.ValidationUtils;
 import com.clickhouse.data.ClickHouseColumn;
 
+import java.beans.Introspector;
+import java.io.BufferedInputStream;
 import java.io.InputStream;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.net.SocketException;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
@@ -15,6 +19,7 @@ import com.clickhouse.client.api.internal.TableSchemaParser;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.data.ClickHouseFormat;
+import com.clickhouse.data.format.BinaryStreamUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
@@ -22,6 +27,7 @@ import org.slf4j.helpers.BasicMDCAdapter;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Future;
+import java.util.stream.Collectors;
 
 import static java.time.temporal.ChronoUnit.SECONDS;
 
@@ -30,6 +36,7 @@ public class Client {
     private Set<String> endpoints;
     private Map<String, String> configuration;
     private List<ClickHouseNode> serverNodes = new ArrayList<>();
+    private Map<Class<?>, POJOSerializer> serializers = new HashMap<>();
     private static final  Logger LOG = LoggerFactory.getLogger(Client.class);
 
     private Client(Set<String> endpoints, Map<String,String> configuration) {
@@ -161,6 +168,32 @@ public class Client {
     public void register(Class<?> clazz, TableSchema schema) {
         //This is just a placeholder
         //Create a new POJOSerializer with static .serialize(object, columns) methods
+
+        serializers.put(clazz, (obj, stream, columns) -> {
+            List<Method> getters = Arrays.stream(clazz.getMethods())
+                    .filter(n -> {
+                        String methodName = n.getName();
+                        if (methodName.startsWith("get")) {
+                            String fieldName = methodName.substring(3);
+                            return schema.containsColumn(fieldName);
+                        }
+                        return false;
+                    })//We only care about fields that are in the schema
+                    .toList();
+
+            for (Method method : getters) {
+                LOG.info("Method: {}", method.getName());
+                System.out.println(method.getName());
+                try {
+                    Object value = method.invoke(obj);
+                    System.out.println(value);
+                    //Serialize the value to the stream
+                    BinaryStreamUtils.writeString(stream, value.toString());//This is just a placeholder
+                } catch (Exception e) {
+                    LOG.error("Error invoking method: {}", method.getName());
+                }
+            }
+        });
     }
 
     /**

@@ -2,9 +2,9 @@ package com.clickhouse.client.api;
 
 import com.clickhouse.data.ClickHouseColumn;
 
-import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.List;
 
 public interface POJOSerializer {
-    InputStream serialize(Object obj, List<ClickHouseColumn> columns);
+    void serialize(Object obj, OutputStream outputStream, List<ClickHouseColumn> columns);
 }

@@ -3,6 +3,7 @@ package com.clickhouse.client;
 import com.clickhouse.client.api.InsertResponse;
 import com.clickhouse.client.api.InsertSettings;
 import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.generators.InsertDataGenerator;
 import com.clickhouse.data.ClickHouseColumn;
 import com.clickhouse.data.ClickHouseFormat;
@@ -27,6 +28,16 @@ public class InsertTests {
                 .addUsername("default")
                 .addPassword("")
                 .build();
+    }
+
+    @Test(groups = { "unit" }, enabled = true)
+    public void registerSimplePOJOs() throws ClickHouseException, SocketException, ExecutionException, InterruptedException {
+        System.out.println("registerSimplePOJOs");
+        InsertSettings settings = new InsertSettings()
+                .setDeduplicationToken("1234567890")
+                .setQueryId(String.valueOf(UUID.randomUUID()));
+
+        client.register(Object.class, new TableSchema());
     }
 
     @Test(groups = { "unit" }, enabled = false)
