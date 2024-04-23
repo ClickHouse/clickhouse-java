@@ -1,10 +1,15 @@
-## Latest
+## Latest 
 
 ### New Features
-- [HTTP] Persistence of a role after it is set by `SET ROLE <role>` 
+- Added possibility to set client ID in `Referer` HTTP Header (https://github.com/ClickHouse/clickhouse-java/issues/1572)
+- [HTTP] Persistence of a role after it is set by `SET ROLE <role>`
 
 ### Bug Fixes
-- Fix param error in ByteUtils#equals in java9 [#1551](https://github.com/ClickHouse/clickhouse-java/issues/1551)
+- Change RowBinaryWithDefaults settings. Output is changed from true to false
+- Fix fail over for Apache HTTP client. Connect timeout error is not detected correctly
+- Fix password logging in DEBUG (https://github.com/ClickHouse/clickhouse-java/issues/1571)
+- Fix handling "NoHttpResponseException" in Apache HTTP client
+- Fix param error in ByteUtils#equals in java9 
 
 ## 0.6.0-patch3
 

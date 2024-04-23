@@ -1,16 +1,5 @@
 package com.clickhouse.data;
 
-import java.io.Serializable;
-import java.lang.reflect.Array;
-import java.time.OffsetDateTime;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Objects;
-import java.util.TimeZone;
-
 import com.clickhouse.data.value.ClickHouseArrayValue;
 import com.clickhouse.data.value.ClickHouseBigDecimalValue;
 import com.clickhouse.data.value.ClickHouseBigIntegerValue;
@@ -45,6 +34,17 @@ import com.clickhouse.data.value.array.ClickHouseFloatArrayValue;
 import com.clickhouse.data.value.array.ClickHouseIntArrayValue;
 import com.clickhouse.data.value.array.ClickHouseLongArrayValue;
 import com.clickhouse.data.value.array.ClickHouseShortArrayValue;
+
+import java.io.Serializable;
+import java.lang.reflect.Array;
+import java.time.OffsetDateTime;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Objects;
+import java.util.TimeZone;
 
 /**
  * This class represents a column defined in database.

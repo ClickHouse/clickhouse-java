@@ -103,7 +103,7 @@ In the case you don't want to use docker and/or prefer to test against an existi
   ```
 
 ### Tooling
-We use [TestNG](http://org.testng/doc) as testing framework and for running ClickHouse Local instance [testcontainers](https://www.testcontainers.org/modules/databases/clickhouse/).
+We use [TestNG](https://testng.org/) as testing framework and for running ClickHouse Local instance [testcontainers](https://www.testcontainers.org/modules/databases/clickhouse/).
 
 ### Running unit tests
 

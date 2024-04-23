@@ -3,6 +3,7 @@ package com.clickhouse.client.http;
 import com.clickhouse.client.AbstractSocketClient;
 import com.clickhouse.client.ClickHouseClient;
 import com.clickhouse.client.ClickHouseConfig;
+import com.clickhouse.client.ClickHouseException;
 import com.clickhouse.client.ClickHouseNode;
 import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.ClickHouseSocketFactory;
@@ -249,7 +250,12 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
         ClickHouseHttpEntity postBody = new ClickHouseHttpEntity(config, contentType, contentEncoding, boundary,
                 sql, data, tables);
         post.setEntity(postBody);
-        CloseableHttpResponse response = client.execute(post);
+        CloseableHttpResponse response;
+        try {
+            response = client.execute(post);
+        } catch (IOException e) {
+            throw new ConnectException(ClickHouseUtils.format("HTTP request failed: %s", e.getMessage()));
+        }
 
         checkResponse(config, response);
         // buildResponse should use the config of current request in case of reusable
