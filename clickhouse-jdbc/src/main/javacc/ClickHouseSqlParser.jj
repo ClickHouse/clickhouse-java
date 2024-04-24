@@ -143,8 +143,6 @@ public class ClickHouseSqlParser {
             for (int i = anyArgsListStart; i < stmtLength; i++) {
                 char ch = token_source.builder.charAt(i);
                 if (ch == '"' && isQuoted ) {
-                    roles.add(roleBuff.toString());
-                    roleBuff.setLength(0);
                     isQuoted = false;
                 }  else if (ch == '"') {
                     isQuoted = true;

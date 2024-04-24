@@ -69,7 +69,7 @@ public class AccessManagementTest extends JdbcIntegrationTest {
                         HttpConnectionProvider.APACHE_HTTP_CLIENT.name()},
                 {new String[]{"ROL1", "\"ROL2,☺\""}, "set role  \"ROL2,☺\", ROL1", new String[]{"ROL2,☺", "ROL1"},
                         HttpConnectionProvider.APACHE_HTTP_CLIENT.name()},
-                {new String[]{"ROL1", "ROL2"}, "set role  ROL2 ,   ROL1,  ", new String[]{"ROL", "ROL1"},
+                {new String[]{"ROL1", "ROL2"}, "set role  ROL2 ,   ROL1  ", new String[]{"ROL2", "ROL1"},
                         HttpConnectionProvider.APACHE_HTTP_CLIENT.name()},
         };
     }
