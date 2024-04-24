@@ -1,9 +1,9 @@
 package com.clickhouse.jdbc;
 
-import com.clickhouse.client.ClickHouseClient;
 import com.clickhouse.client.ClickHouseException;
 import com.clickhouse.client.ClickHouseProtocol;
 import com.clickhouse.client.http.config.ClickHouseHttpOption;
+import com.clickhouse.client.http.config.HttpConnectionProvider;
 import com.clickhouse.data.ClickHouseVersion;
 import org.testng.Assert;
 import org.testng.annotations.DataProvider;
@@ -19,12 +19,14 @@ import java.util.Properties;
 public class AccessManagementTest extends JdbcIntegrationTest {
 
     @Test(groups = "integration", dataProvider = "setRolesArgsForTestSetRole")
-    public void testSetRoleDifferentConnections(String[] roles, String setRoleExpr, String[] activeRoles) throws SQLException {
+    public void testSetRoleDifferentConnections(String[] roles, String setRoleExpr, String[] activeRoles,
+                                                String connectionProvider) throws SQLException {
 
         String httpEndpoint = "http://" + getServerAddress(ClickHouseProtocol.HTTP) + "/";
         String url = String.format("jdbc:ch:%s", httpEndpoint);
         Properties properties = new Properties();
         properties.setProperty(ClickHouseHttpOption.REMEMBER_LAST_SET_ROLES.getKey(), "true");
+        properties.setProperty(ClickHouseHttpOption.CONNECTION_PROVIDER.getKey(), connectionProvider);
         ClickHouseDataSource dataSource = new ClickHouseDataSource(url, properties);
 
         try (Connection connection = dataSource.getConnection("access_dba", "123")) {
@@ -59,13 +61,20 @@ public class AccessManagementTest extends JdbcIntegrationTest {
     @DataProvider(name = "setRolesArgsForTestSetRole")
     private static Object[][] setRolesArgsForTestSetRole() {
         return new Object[][]{
-                {new String[]{"ROL1", "ROL2"}, "set role ROL2, ROL1", new String[]{"ROL2"}},
-                {new String[]{"ROL1", "ROL2"}, "set role ROL1,ROL2", new String[]{"ROL1"}},
-                {new String[]{"ROL1", "\"ROL2,☺\""}, "set role  \"ROL2,☺\", ROL1", new String[]{"ROL2,☺"}},
+                {new String[]{"ROL1", "ROL2"}, "set role ROL2", new String[]{"ROL2"},
+                        HttpConnectionProvider.HTTP_URL_CONNECTION.name()},
+                {new String[]{"ROL1", "ROL2"}, "set role ROL2", new String[]{"ROL2"},
+                        HttpConnectionProvider.APACHE_HTTP_CLIENT.name()},
+                {new String[]{"ROL1", "ROL2"}, "set role ROL2, ROL1", new String[]{"ROL1", "ROL2"},
+                        HttpConnectionProvider.APACHE_HTTP_CLIENT.name()},
+                {new String[]{"ROL1", "\"ROL2,☺\""}, "set role  \"ROL2,☺\", ROL1", new String[]{"ROL2,☺", "ROL1"},
+                        HttpConnectionProvider.APACHE_HTTP_CLIENT.name()},
+                {new String[]{"ROL1", "ROL2"}, "set role  ROL2 ,   ROL1,  ", new String[]{"ROL", "ROL1"},
+                        HttpConnectionProvider.APACHE_HTTP_CLIENT.name()},
         };
     }
 
-    private void assertRolesEquals(Connection connection, String ...expected) {
+    private void assertRolesEquals(Connection connection, String... expected) {
         try {
             Statement st = connection.createStatement();
             ResultSet resultSet = st.executeQuery("select currentRoles()");
@@ -76,7 +85,7 @@ public class AccessManagementTest extends JdbcIntegrationTest {
             Arrays.sort(expected);
             System.out.print("Roles: ");
             for (String role : roles) {
-                System.out.print("'" + role+ "', ");
+                System.out.print("'" + role + "', ");
             }
             System.out.println();
             Assert.assertEquals(roles, expected);

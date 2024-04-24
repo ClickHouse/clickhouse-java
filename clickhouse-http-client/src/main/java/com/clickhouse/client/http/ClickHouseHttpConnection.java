@@ -374,7 +374,8 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
     protected final Map<String, String> defaultHeaders;
     protected final String url;
 
-    protected ClickHouseHttpConnection(ClickHouseNode server, ClickHouseRequest<?> request) {
+    protected ClickHouseHttpConnection(ClickHouseNode server, ClickHouseRequest<?> request,
+                                       Map<String, Serializable> additionalParams) {
         if (server == null || request == null) {
             throw new IllegalArgumentException("Non-null server and request are required");
         }
@@ -385,7 +386,7 @@ public abstract class ClickHouseHttpConnection implements AutoCloseable {
         ClickHouseConfig c = request.getConfig();
         this.config = c;
         this.defaultHeaders = Collections.unmodifiableMap(createDefaultHeaders(c, server, getUserAgent(), ClickHouseHttpClient.getReferer(config)));
-        this.url = buildUrl(server.getBaseUri(), request, Collections.emptyMap());
+        this.url = buildUrl(server.getBaseUri(), request, additionalParams);
         log.debug("url [%s]", this.url);
     }
 

@@ -155,6 +155,9 @@ public class ClickHouseSqlParser {
                     roleBuff.append(ch);
                 }
             }
+            if (roleBuff.length() > 0) {
+                roles.add(roleBuff.toString());
+            }
         }
         anyArgsListStart = -1;
     }

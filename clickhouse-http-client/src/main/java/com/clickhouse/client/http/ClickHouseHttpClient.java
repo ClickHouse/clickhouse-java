@@ -114,7 +114,8 @@ public class ClickHouseHttpClient extends AbstractClient<ClickHouseHttpConnectio
         }
 
         try {
-            return ClickHouseHttpConnectionFactory.createConnection(server, request, getExecutor());
+
+            return ClickHouseHttpConnectionFactory.createConnection(server, request, getExecutor(), buildAdditionalReqParams(request));
         } catch (IOException e) {
             throw new CompletionException(e);
         }
@@ -146,6 +147,18 @@ public class ClickHouseHttpClient extends AbstractClient<ClickHouseHttpConnectio
         return builder.toString();
     }
 
+    private Map<String, Serializable> buildAdditionalReqParams(ClickHouseRequest<?> sealedRequest) {
+        ClickHouseConfig config = sealedRequest.getConfig();
+        if (config.getBoolOption(ClickHouseHttpOption.REMEMBER_LAST_SET_ROLES)) {
+            if (sealedRequest.hasSetting("_set_roles_stmt")) {
+                return Collections.singletonMap("_roles", sealedRequest.getSettings().get("_set_roles_stmt"));
+            } else if (!roles.isEmpty()) {
+                return Collections.singletonMap("_roles", roles);
+            }
+        }
+        return Collections.emptyMap();
+    }
+
     @Override
     protected ClickHouseResponse send(ClickHouseRequest<?> sealedRequest) throws ClickHouseException, IOException {
         ClickHouseHttpConnection conn = getConnection(sealedRequest);
@@ -174,19 +187,10 @@ public class ClickHouseHttpClient extends AbstractClient<ClickHouseHttpConnectio
                     }
                 }
                 : null;
-        Map<String, Serializable> additionalParams = null;
-
-        if (config.getBoolOption(ClickHouseHttpOption.REMEMBER_LAST_SET_ROLES)) {
-            if (sealedRequest.hasSetting("_set_roles_stmt")) {
-                additionalParams = Collections.singletonMap("_roles", sealedRequest.getSettings().get("_set_roles_stmt"));
-            } else if (!roles.isEmpty()) {
-                additionalParams = Collections.singletonMap("_roles", roles);
-            }
-        } else {
-            additionalParams = Collections.emptyMap();
-        }
 
         if (conn.isReusable()) {
+            Map<String, Serializable> additionalParams = buildAdditionalReqParams(sealedRequest);
+
             ClickHouseNode server = sealedRequest.getServer();
             httpResponse = conn.post(config, sql, sealedRequest.getInputStream().orElse(null),
                     sealedRequest.getExternalTables(), sealedRequest.getOutputStream().orElse(null),

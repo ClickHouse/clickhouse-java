@@ -1,16 +1,5 @@
 package com.clickhouse.client.http;
 
-import java.io.IOException;
-import java.io.Serializable;
-import java.net.URI;
-import java.net.URL;
-import java.net.URLDecoder;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-
 import com.clickhouse.client.ClickHouseClient;
 import com.clickhouse.client.ClickHouseConfig;
 import com.clickhouse.client.ClickHouseNode;
@@ -21,18 +10,23 @@ import com.clickhouse.data.ClickHouseExternalTable;
 import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.data.ClickHouseInputStream;
 import com.clickhouse.data.ClickHouseOutputStream;
-
 import org.apache.hc.core5.net.URIBuilder;
 import org.testng.Assert;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 import org.testng.collections.Sets;
-import org.testng.internal.invokers.Arguments;
+
+import java.io.IOException;
+import java.io.Serializable;
+import java.net.URI;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
 public class ClickHouseHttpConnectionTest {
     static class SimpleHttpConnection extends ClickHouseHttpConnection {
         protected SimpleHttpConnection(ClickHouseNode server, ClickHouseRequest<?> request) {
-            super(server, request);
+            super(server, request, Collections.emptyMap());
         }
 
         @Override
