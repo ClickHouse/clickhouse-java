@@ -2,6 +2,7 @@
 
 ### New Features
 - Added possibility to set client ID in `Referer` HTTP Header (https://github.com/ClickHouse/clickhouse-java/issues/1572)
+- [HTTP] Persistence of a role after it is set by `SET ROLE <role>`
 
 ### Bug Fixes
 - Change RowBinaryWithDefaults settings. Output is changed from true to false

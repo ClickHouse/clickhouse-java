@@ -18,6 +18,7 @@ public class ClickHouseException extends Exception {
      */
     private static final long serialVersionUID = -2417038200885554382L;
 
+    public static final int ERROR_UNKNOWN_SETTING = 115;
     public static final int ERROR_ABORTED = 236;
     public static final int ERROR_CANCELLED = 394;
     public static final int ERROR_NETWORK = 210;

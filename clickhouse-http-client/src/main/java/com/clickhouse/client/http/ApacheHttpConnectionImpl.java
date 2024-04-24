@@ -60,6 +60,7 @@ import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.StandardSocketOptions;
 import java.nio.charset.StandardCharsets;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.TimeZone;
@@ -76,7 +77,7 @@ public class ApacheHttpConnectionImpl extends ClickHouseHttpConnection {
 
     protected ApacheHttpConnectionImpl(ClickHouseNode server, ClickHouseRequest<?> request, ExecutorService executor)
             throws IOException {
-        super(server, request);
+        super(server, request, Collections.emptyMap());
 
         client = newConnection(config);
     }

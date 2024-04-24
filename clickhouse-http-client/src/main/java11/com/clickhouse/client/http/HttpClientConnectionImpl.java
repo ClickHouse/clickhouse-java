@@ -52,6 +52,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.io.Serializable;
+import java.util.Map;
 
 import javax.net.ssl.SSLContext;
 
@@ -173,9 +175,9 @@ public class HttpClientConnectionImpl extends ClickHouseHttpConnection {
                 .timeout(Duration.ofMillis(config.getSocketTimeout())).build();
     }
 
-    protected HttpClientConnectionImpl(ClickHouseNode server, ClickHouseRequest<?> request, ExecutorService executor)
-            throws IOException {
-        super(server, request);
+    protected HttpClientConnectionImpl(ClickHouseNode server, ClickHouseRequest<?> request, ExecutorService executor,
+                                       Map<String, Serializable> additionalParams) throws IOException {
+        super(server, request, additionalParams);
 
         HttpClient.Builder builder = HttpClient.newBuilder().version(Version.HTTP_1_1)
                 .connectTimeout(Duration.ofMillis(config.getConnectionTimeout())).followRedirects(Redirect.NORMAL);

@@ -1,6 +1,9 @@
 package com.clickhouse.client.http;
 
 import java.io.IOException;
+import java.io.Serializable;
+import java.util.Collections;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 
 import com.clickhouse.client.ClickHouseNode;
@@ -14,7 +17,14 @@ public final class ClickHouseHttpConnectionFactory {
     private static final Logger log = LoggerFactory.getLogger(ClickHouseHttpConnectionFactory.class);
 
     public static ClickHouseHttpConnection createConnection(ClickHouseNode server, ClickHouseRequest<?> request,
-            ExecutorService executor) throws IOException {
+                                                            ExecutorService executor) throws IOException
+    {
+        return createConnection(server, request, executor, Collections.emptyMap());
+    }
+
+    public static ClickHouseHttpConnection createConnection(ClickHouseNode server, ClickHouseRequest<?> request,
+                                                            ExecutorService executor, Map<String,
+            Serializable> additionalRequestParams) throws IOException {
         HttpConnectionProvider provider = request.getConfig().getOption(ClickHouseHttpOption.CONNECTION_PROVIDER,
                 HttpConnectionProvider.class);
         if (provider == HttpConnectionProvider.APACHE_HTTP_CLIENT) {
@@ -27,7 +37,7 @@ public final class ClickHouseHttpConnectionFactory {
             log.warn("HTTP_CLIENT is only supported in JDK 11 or above, fall back to HTTP_URL_CONNECTION");
         }
 
-        return new HttpUrlConnectionImpl(server, request, executor);
+        return new HttpUrlConnectionImpl(server, request, executor, additionalRequestParams);
     }
 
     private ClickHouseHttpConnectionFactory() {

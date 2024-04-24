@@ -67,5 +67,14 @@
                 <common_name>me</common_name>
             </ssl_certificates>
         </me>
+        <access_dba>
+            <profile>default</profile>
+            <networks incl="networks" replace="replace">
+                <ip>::/0</ip>
+            </networks>
+            <password>123</password>
+            <quota>default</quota>
+            <access_management>1</access_management>
+        </access_dba>
     </users>
 </clickhouse>
