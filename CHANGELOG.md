@@ -1,5 +1,7 @@
 ## Latest 
 
+## 0.6.0-patch4
+
 ### New Features
 - Added possibility to set client ID in `Referer` HTTP Header (https://github.com/ClickHouse/clickhouse-java/issues/1572)
 - [HTTP] Persistence of a role after it is set by `SET ROLE <role>`
