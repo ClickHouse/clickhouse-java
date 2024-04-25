@@ -255,6 +255,8 @@ public class Client {
                 }
             }
         }
+
+        this.serializers.put(clazz, serializers);
     }
 
     /**
