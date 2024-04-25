@@ -27,7 +27,9 @@ import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.internal.TableSchemaParser;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
+import com.clickhouse.data.ClickHouseDataStreamFactory;
 import com.clickhouse.data.ClickHouseFormat;
+import com.clickhouse.data.ClickHousePipedOutputStream;
 import com.clickhouse.data.format.BinaryStreamUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -221,19 +223,43 @@ public class Client {
     public Future<InsertResponse> insert(String tableName,
                                          List<Object> data,
                                          InsertSettings settings) throws ClickHouseException, IOException, InvocationTargetException, IllegalAccessException {
-        //Lookup the Serializer for the POJO
-        //Call the static .serialize method on the POJOSerializer for each object in the list
-        List<POJOSerializer> serializers = this.serializers.get(data.get(0).getClass());
-        if (serializers == null || serializers.isEmpty()) {
-            throw new IllegalArgumentException("No serializer found for the given class. Please register() before calling this method.");
+        if (data == null || data.isEmpty()) {
+            throw new IllegalArgumentException("Data cannot be empty");
         }
 
-        for (Object obj: data) {
-            for (POJOSerializer serializer: serializers) {
-                serializer.serialize(data, null);
+        CompletableFuture<InsertResponse> future = new CompletableFuture<>();
+        try (ClickHouseClient client = createClient()) {
+            ClickHouseRequest.Mutation request = client.write(getServerNode());
+            if (settings != null) {
+                if (settings.getSetting("query_id") != null) {
+                    request.table(tableName, settings.getSetting("query_id").toString());
+                } else {
+                    request.table(tableName);
+                }
+
+                if (settings.getSetting("insert_deduplication_token") != null) {
+                    request.set("insert_deduplication_token", settings.getSetting("insert_deduplication_token").toString());
+                }
+            }
+
+            try(ClickHousePipedOutputStream stream = ClickHouseDataStreamFactory.getInstance().createPipedOutputStream(new ClickHouseConfig())) {
+                //Lookup the Serializer for the POJO
+                //Call the static .serialize method on the POJOSerializer for each object in the list
+                Map<ClickHouseColumn, POJOSerializer> serializers = this.serializers.get(data.get(0).getClass());
+                if (serializers == null || serializers.isEmpty()) {
+                    throw new IllegalArgumentException("No serializer found for the given class. Please register() before calling this method.");
+                }
+
+                future = CompletableFuture.completedFuture(new InsertResponse(client, request.data(stream.getInputStream()).execute()));
+                for (Object obj : data) {
+                    for (POJOSerializer serializer : serializers.values()) {
+                        serializer.serialize(obj, stream);
+                    }
+                }
             }
         }
 
+        return future;
     }
 
     /**
