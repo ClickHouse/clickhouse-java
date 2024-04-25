@@ -1,4 +1,4 @@
-package com.clickhouse.client.api;
+package com.clickhouse.client.api.insert;
 
 import java.io.IOException;
 import java.io.OutputStream;

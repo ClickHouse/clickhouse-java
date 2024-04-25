@@ -1,7 +1,7 @@
 package com.clickhouse.client;
 
-import com.clickhouse.client.api.InsertResponse;
-import com.clickhouse.client.api.InsertSettings;
+import com.clickhouse.client.api.insert.InsertResponse;
+import com.clickhouse.client.api.insert.InsertSettings;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.generators.InsertDataGenerator;

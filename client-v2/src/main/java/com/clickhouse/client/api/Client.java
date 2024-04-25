@@ -1,16 +1,20 @@
 package com.clickhouse.client.api;
 
 import com.clickhouse.client.*;
+import com.clickhouse.client.api.insert.InsertResponse;
+import com.clickhouse.client.api.insert.InsertSettings;
+import com.clickhouse.client.api.insert.POJOSerializer;
+import com.clickhouse.client.api.internal.SerializerUtils;
 import com.clickhouse.client.api.internal.SettingsConverter;
 import com.clickhouse.client.api.internal.ValidationUtils;
 import com.clickhouse.data.ClickHouseColumn;
 
-import java.beans.Introspector;
-import java.io.BufferedInputStream;
 import java.io.InputStream;
-import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.net.Inet4Address;
+import java.net.Inet6Address;
 import java.net.SocketException;
 import java.time.Duration;
 import java.time.LocalDate;
@@ -21,17 +25,14 @@ import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.internal.TableSchemaParser;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
-import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.data.format.BinaryStreamUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
-import org.slf4j.helpers.BasicMDCAdapter;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Future;
-import java.util.stream.Collectors;
 
 import static java.time.temporal.ChronoUnit.SECONDS;
 
@@ -184,72 +185,23 @@ public class Client {
                 ClickHouseColumn column = schema.getColumnByName(fieldName);
                 if(column != null) {//Check if the field is in the schema
                     getters.put(fieldName, method);
-                    serializers.add((obj, stream, columns) -> {
+                    serializers.add((obj, stream, columns) -> {//Create the field serializer
                         if (columns == null || columns.contains(fieldName)) {
                             Method getter = getters.get(fieldName);
                             Object value = getter.invoke(obj);
 
-                            //Serialize the value to the stream based on the type
-                            switch (column.getDataType()) {
-                                case Int8:
-                                    BinaryStreamUtils.writeInt8(stream, (Integer) value);
-                                    break;
-                                case Int16:
-                                    BinaryStreamUtils.writeInt16(stream, (Integer) value);
-                                    break;
-                                case Int32:
-                                    BinaryStreamUtils.writeInt32(stream, (Integer) value);
-                                    break;
-                                case Int64:
-                                    BinaryStreamUtils.writeInt64(stream, (Long) value);
-                                    break;
-                                case UInt8:
-                                    BinaryStreamUtils.writeUnsignedInt8(stream, (Integer) value);
-                                    break;
-                                case UInt16:
-                                    BinaryStreamUtils.writeUnsignedInt16(stream, (Integer) value);
-                                    break;
-                                case UInt32:
-                                    BinaryStreamUtils.writeUnsignedInt32(stream, (Long) value);
-                                    break;
-                                case UInt64:
-                                    BinaryStreamUtils.writeUnsignedInt64(stream, (Long) value);
-                                    break;
-                                case Float32:
-                                    BinaryStreamUtils.writeFloat32(stream, (Float) value);
-                                    break;
-                                case Float64:
-                                    BinaryStreamUtils.writeFloat64(stream, (Double) value);
-                                    break;
-                                case String:
-                                    BinaryStreamUtils.writeString(stream, value.toString());
-                                    break;
-                                case FixedString:
-                                    BinaryStreamUtils.writeFixedString(stream, value.toString(), column.getPrecision());
-                                    break;
-                                case Date:
-                                    BinaryStreamUtils.writeDate(stream, (LocalDate) value);
-                                    break;
-                                case DateTime:
-                                    BinaryStreamUtils.writeDateTime(stream, (LocalDateTime) value, column.getTimeZone());
-                                    break;
-                                case Enum8:
-                                    BinaryStreamUtils.writeEnum8(stream, (Byte) value);
-                                case Enum16:
-                                    assert value instanceof Integer;
-                                    BinaryStreamUtils.writeEnum16(stream, (Integer) value);
-                                    break;
-                                case Decimal32:
-                                    BinaryStreamUtils.writeDecimal32(stream, (BigDecimal) value, column.getScale());
-                                    break;
-                                case Decimal64:
-                                    BinaryStreamUtils.writeDecimal64(stream, (BigDecimal) value, column.getScale());
-                                    break;
-                                case Decimal128:
-                                    BinaryStreamUtils.writeDecimal128(stream, (BigDecimal) value, column.getScale());
-                                    break;
-
+                            //Handle null values
+                            if (value == null) {
+                                BinaryStreamUtils.writeNull(stream);
+                                return;
+                            } else {//If nullable, we have to specify that the value is not null
+                                if (column.isNullable()) {
+                                    BinaryStreamUtils.writeNonNull(stream);
+                                }
                             }
+
+                            //Handle the different types
+                            SerializerUtils.serializeData(stream, value, column);
                         }
                     });
                 }
@@ -263,9 +215,9 @@ public class Client {
      * Insert data into ClickHouse using a POJO
      */
     public Future<InsertResponse> insert(String tableName,
-                                     List<Object> data,
-                                     InsertSettings settings,
-                                     List<ClickHouseColumn> columns) throws ClickHouseException, SocketException {
+                                         List<Object> data,
+                                         InsertSettings settings,
+                                         List<ClickHouseColumn> columns) throws ClickHouseException, SocketException {
         //Lookup the Serializer for the POJO
         //Call the static .serialize method on the POJOSerializer for each object in the list
         return null;//This is just a placeholder

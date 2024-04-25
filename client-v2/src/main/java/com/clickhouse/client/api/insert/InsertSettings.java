@@ -1,4 +1,4 @@
-package com.clickhouse.client.api;
+package com.clickhouse.client.api.insert;
 
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.data.ClickHouseFormat;
