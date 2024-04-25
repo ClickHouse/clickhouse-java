@@ -53,14 +53,14 @@ public class TableSchema {
         metadata.computeIfAbsent(name, k -> new HashMap<>()).put("type", type);
     }
 
-    public boolean containsColumn(String name) {
+    public ClickHouseColumn getColumnByName(String name) {
         for (ClickHouseColumn column : columns) {
             if (column.getColumnName().equalsIgnoreCase(name)) {
-                return true;
+                return column;//TODO: Try to deep clone the column rather than reference pass
             }
         }
 
-        return false;
+        return null;
     }
 }
 

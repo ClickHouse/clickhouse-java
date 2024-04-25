@@ -10,14 +10,18 @@ import java.io.BufferedInputStream;
 import java.io.InputStream;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.math.BigDecimal;
 import java.net.SocketException;
 import java.time.Duration;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.internal.TableSchemaParser;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
+import com.clickhouse.data.ClickHouseDataType;
 import com.clickhouse.data.ClickHouseFormat;
 import com.clickhouse.data.format.BinaryStreamUtils;
 import org.slf4j.Logger;
@@ -36,7 +40,7 @@ public class Client {
     private Set<String> endpoints;
     private Map<String, String> configuration;
     private List<ClickHouseNode> serverNodes = new ArrayList<>();
-    private Map<Class<?>, POJOSerializer> serializers = new HashMap<>();
+    private Map<Class<?>, List<POJOSerializer>> serializers = new HashMap<>();
     private static final  Logger LOG = LoggerFactory.getLogger(Client.class);
 
     private Client(Set<String> endpoints, Map<String,String> configuration) {
@@ -166,34 +170,91 @@ public class Client {
      * Register the POJO
      */
     public void register(Class<?> clazz, TableSchema schema) {
-        //This is just a placeholder
         //Create a new POJOSerializer with static .serialize(object, columns) methods
+        Map<String, Method> getters = new HashMap<>();
+        List<POJOSerializer> serializers = new ArrayList<>();
 
-        serializers.put(clazz, (obj, stream, columns) -> {
-            List<Method> getters = Arrays.stream(clazz.getMethods())
-                    .filter(n -> {
-                        String methodName = n.getName();
-                        if (methodName.startsWith("get")) {
-                            String fieldName = methodName.substring(3);
-                            return schema.containsColumn(fieldName);
+        //Retrieve all methods
+        for (Method method: clazz.getMethods()) {
+            String methodName = method.getName();
+            if (method.getName().startsWith("get") &&
+                    method.getParameterCount() == 0 &&
+                    method.getReturnType() != void.class) {//Make sure they're getter methods
+                String fieldName = methodName.substring(3);//Get the field name
+                ClickHouseColumn column = schema.getColumnByName(fieldName);
+                if(column != null) {//Check if the field is in the schema
+                    getters.put(fieldName, method);
+                    serializers.add((obj, stream, columns) -> {
+                        if (columns == null || columns.contains(fieldName)) {
+                            Method getter = getters.get(fieldName);
+                            Object value = getter.invoke(obj);
+
+                            //Serialize the value to the stream based on the type
+                            switch (column.getDataType()) {
+                                case Int8:
+                                    BinaryStreamUtils.writeInt8(stream, (Integer) value);
+                                    break;
+                                case Int16:
+                                    BinaryStreamUtils.writeInt16(stream, (Integer) value);
+                                    break;
+                                case Int32:
+                                    BinaryStreamUtils.writeInt32(stream, (Integer) value);
+                                    break;
+                                case Int64:
+                                    BinaryStreamUtils.writeInt64(stream, (Long) value);
+                                    break;
+                                case UInt8:
+                                    BinaryStreamUtils.writeUnsignedInt8(stream, (Integer) value);
+                                    break;
+                                case UInt16:
+                                    BinaryStreamUtils.writeUnsignedInt16(stream, (Integer) value);
+                                    break;
+                                case UInt32:
+                                    BinaryStreamUtils.writeUnsignedInt32(stream, (Long) value);
+                                    break;
+                                case UInt64:
+                                    BinaryStreamUtils.writeUnsignedInt64(stream, (Long) value);
+                                    break;
+                                case Float32:
+                                    BinaryStreamUtils.writeFloat32(stream, (Float) value);
+                                    break;
+                                case Float64:
+                                    BinaryStreamUtils.writeFloat64(stream, (Double) value);
+                                    break;
+                                case String:
+                                    BinaryStreamUtils.writeString(stream, value.toString());
+                                    break;
+                                case FixedString:
+                                    BinaryStreamUtils.writeFixedString(stream, value.toString(), column.getPrecision());
+                                    break;
+                                case Date:
+                                    BinaryStreamUtils.writeDate(stream, (LocalDate) value);
+                                    break;
+                                case DateTime:
+                                    BinaryStreamUtils.writeDateTime(stream, (LocalDateTime) value, column.getTimeZone());
+                                    break;
+                                case Enum8:
+                                    BinaryStreamUtils.writeEnum8(stream, (Byte) value);
+                                case Enum16:
+                                    assert value instanceof Integer;
+                                    BinaryStreamUtils.writeEnum16(stream, (Integer) value);
+                                    break;
+                                case Decimal32:
+                                    BinaryStreamUtils.writeDecimal32(stream, (BigDecimal) value, column.getScale());
+                                    break;
+                                case Decimal64:
+                                    BinaryStreamUtils.writeDecimal64(stream, (BigDecimal) value, column.getScale());
+                                    break;
+                                case Decimal128:
+                                    BinaryStreamUtils.writeDecimal128(stream, (BigDecimal) value, column.getScale());
+                                    break;
+
+                            }
                         }
-                        return false;
-                    })//We only care about fields that are in the schema
-                    .toList();
-
-            for (Method method : getters) {
-                LOG.info("Method: {}", method.getName());
-                System.out.println(method.getName());
-                try {
-                    Object value = method.invoke(obj);
-                    System.out.println(value);
-                    //Serialize the value to the stream
-                    BinaryStreamUtils.writeString(stream, value.toString());//This is just a placeholder
-                } catch (Exception e) {
-                    LOG.error("Error invoking method: {}", method.getName());
+                    });
                 }
             }
-        });
+        }
     }
 
     /**
