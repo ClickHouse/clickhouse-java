@@ -127,7 +127,7 @@ public class SerializerUtils {
             case Date32:
                 BinaryStreamUtils.writeDate32(stream, (LocalDate) value);
                 break;
-            case DateTime:
+            case DateTime: //TODO: Discuss LocalDateTime vs ZonedDateTime and time zones (Who uses LocalDateTime?)
                 BinaryStreamUtils.writeDateTime(stream, (LocalDateTime) value, column.getTimeZone());
                 break;
             case DateTime64:

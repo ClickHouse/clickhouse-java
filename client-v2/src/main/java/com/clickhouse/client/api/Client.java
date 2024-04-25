@@ -9,7 +9,9 @@ import com.clickhouse.client.api.internal.SettingsConverter;
 import com.clickhouse.client.api.internal.ValidationUtils;
 import com.clickhouse.data.ClickHouseColumn;
 
+import java.io.IOException;
 import java.io.InputStream;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -41,7 +43,8 @@ public class Client {
     private Set<String> endpoints;
     private Map<String, String> configuration;
     private List<ClickHouseNode> serverNodes = new ArrayList<>();
-    private Map<Class<?>, List<POJOSerializer>> serializers = new HashMap<>();
+    private Map<Class<?>, Map<ClickHouseColumn, POJOSerializer>> serializers;
+    private Map<Class<?>, Map<String, Method>> getters;
     private static final  Logger LOG = LoggerFactory.getLogger(Client.class);
 
     private Client(Set<String> endpoints, Map<String,String> configuration) {
@@ -50,6 +53,8 @@ public class Client {
         this.endpoints.forEach(endpoint -> {
             this.serverNodes.add(ClickHouseNode.of(endpoint, this.configuration));
         });
+        this.serializers = new HashMap<>();
+        this.getters = new HashMap<>();
     }
 
     public static class Builder {
@@ -173,7 +178,7 @@ public class Client {
     public void register(Class<?> clazz, TableSchema schema) {
         //Create a new POJOSerializer with static .serialize(object, columns) methods
         Map<String, Method> getters = new HashMap<>();
-        List<POJOSerializer> serializers = new ArrayList<>();
+        Map<ClickHouseColumn, POJOSerializer> serializers = new HashMap<>();
 
         //Retrieve all methods
         for (Method method: clazz.getMethods()) {
@@ -185,30 +190,29 @@ public class Client {
                 ClickHouseColumn column = schema.getColumnByName(fieldName);
                 if(column != null) {//Check if the field is in the schema
                     getters.put(fieldName, method);
-                    serializers.add((obj, stream, columns) -> {//Create the field serializer
-                        if (columns == null || columns.contains(fieldName)) {
-                            Method getter = getters.get(fieldName);
-                            Object value = getter.invoke(obj);
+                    serializers.put(column, (obj, stream) -> {//Create the field serializer
+                        Method getter = this.getters.get(clazz).get(fieldName);
+                        Object value = getter.invoke(obj);
 
-                            //Handle null values
-                            if (value == null) {
-                                BinaryStreamUtils.writeNull(stream);
-                                return;
-                            } else {//If nullable, we have to specify that the value is not null
-                                if (column.isNullable()) {
-                                    BinaryStreamUtils.writeNonNull(stream);
-                                }
+                        //Handle null values
+                        if (value == null) {
+                            BinaryStreamUtils.writeNull(stream);
+                            return;
+                        } else {//If nullable, we have to specify that the value is not null
+                            if (column.isNullable()) {
+                                BinaryStreamUtils.writeNonNull(stream);
                             }
-
-                            //Handle the different types
-                            SerializerUtils.serializeData(stream, value, column);
                         }
+
+                        //Handle the different types
+                        SerializerUtils.serializeData(stream, value, column);
                     });
                 }
             }
         }
 
         this.serializers.put(clazz, serializers);
+        this.getters.put(clazz, getters);
     }
 
     /**
@@ -216,11 +220,20 @@ public class Client {
      */
     public Future<InsertResponse> insert(String tableName,
                                          List<Object> data,
-                                         InsertSettings settings,
-                                         List<ClickHouseColumn> columns) throws ClickHouseException, SocketException {
+                                         InsertSettings settings) throws ClickHouseException, IOException, InvocationTargetException, IllegalAccessException {
         //Lookup the Serializer for the POJO
         //Call the static .serialize method on the POJOSerializer for each object in the list
-        return null;//This is just a placeholder
+        List<POJOSerializer> serializers = this.serializers.get(data.get(0).getClass());
+        if (serializers == null || serializers.isEmpty()) {
+            throw new IllegalArgumentException("No serializer found for the given class. Please register() before calling this method.");
+        }
+
+        for (Object obj: data) {
+            for (POJOSerializer serializer: serializers) {
+                serializer.serialize(data, null);
+            }
+        }
+
     }
 
     /**
