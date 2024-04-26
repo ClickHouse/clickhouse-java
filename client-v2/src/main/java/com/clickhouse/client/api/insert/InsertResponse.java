@@ -4,23 +4,22 @@ import com.clickhouse.client.ClickHouseClient;
 import com.clickhouse.client.ClickHouseResponse;
 import com.clickhouse.client.ClickHouseResponseSummary;
 
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
+public class InsertResponse implements AutoCloseable {
+    private final ClickHouseResponse responseRef;
+    private final ClickHouseClient client;
 
-public class InsertResponse {
-    private Future<ClickHouseResponse> responseRef;
-    private ClickHouseClient client;
-
-    public InsertResponse(ClickHouseClient client, Future<ClickHouseResponse> responseRef) {
+    public InsertResponse(ClickHouseClient client, ClickHouseResponse responseRef) {
         this.responseRef = responseRef;
         this.client = client;
     }
 
-    public boolean isDone() {
-        return responseRef.isDone();
+    public ClickHouseResponseSummary getSummary() {
+        return responseRef.getSummary();
     }
 
-    public ClickHouseResponseSummary getSummary() throws ExecutionException, InterruptedException {
-        return responseRef.get().getSummary();
+    @Override
+    public void close() {
+        responseRef.close();
+        client.close();
     }
 }

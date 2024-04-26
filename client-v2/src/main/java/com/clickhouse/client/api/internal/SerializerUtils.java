@@ -5,6 +5,7 @@ import com.clickhouse.data.format.BinaryStreamUtils;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.lang.reflect.Method;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.Inet4Address;
@@ -116,10 +117,10 @@ public class SerializerUtils {
                 BinaryStreamUtils.writeBoolean(stream, (Boolean) value);
                 break;
             case String:
-                BinaryStreamUtils.writeString(stream, value.toString());
+                BinaryStreamUtils.writeString(stream, (String) value);
                 break;
             case FixedString:
-                BinaryStreamUtils.writeFixedString(stream, value.toString(), column.getPrecision());
+                BinaryStreamUtils.writeFixedString(stream, (String) value, column.getPrecision());
                 break;
             case Date:
                 BinaryStreamUtils.writeDate(stream, (LocalDate) value);
