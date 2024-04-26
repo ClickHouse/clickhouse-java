@@ -323,7 +323,6 @@ public class Client {
         ClickHouseConfig clientConfig = new ClickHouseConfig();
         return ClickHouseClient.builder()
                 .config(clientConfig)
-                .option(ClickHouseClientOption.DECOMPRESS, false)
                 .nodeSelector(ClickHouseNodeSelector.of(ClickHouseProtocol.HTTP))
                 .build();
     }
