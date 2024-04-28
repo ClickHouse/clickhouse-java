@@ -271,10 +271,29 @@ public class Client {
     /**
      * Insert data into ClickHouse using a binary stream
      */
-    public Future<InsertResponse> insert(String tableName,
+    public InsertResponse insert(String tableName,
                                      InputStream data,
-                                     InsertSettings settings) throws ClickHouseException, IOException {
-        return null;//Placeholder
+                                     InsertSettings settings) throws IOException, ExecutionException, InterruptedException {
+        InsertResponse response;
+        try (ClickHouseClient client = createClient()) {
+            ClickHouseRequest.Mutation request = createMutationRequest(client.write(getServerNode()), tableName, settings)
+                    .format((ClickHouseFormat) settings.getSetting(ClickHouseClientOption.FORMAT.getKey()));
+
+            Future<ClickHouseResponse> future;
+            try(ClickHousePipedOutputStream stream = ClickHouseDataStreamFactory.getInstance().createPipedOutputStream(request.getConfig())) {
+                future = request.data(stream.getInputStream()).execute();
+
+                //Copy the data from the input stream to the output stream
+                byte[] buffer = new byte[4096];
+                int bytesRead;
+                while ((bytesRead = data.read(buffer)) != -1) {
+                    stream.write(buffer, 0, bytesRead);
+                }
+            }
+            response = new InsertResponse(client, future.get());
+        }
+
+        return response;
     }
 
 
@@ -325,6 +344,21 @@ public class Client {
                 .config(clientConfig)
                 .nodeSelector(ClickHouseNodeSelector.of(ClickHouseProtocol.HTTP))
                 .build();
+    }
+
+    private ClickHouseRequest.Mutation createMutationRequest(ClickHouseRequest.Mutation request, String tableName, InsertSettings settings) {
+        if (settings == null) return request.table(tableName);
+
+        if (settings.getSetting("query_id") != null) {
+            request.table(tableName, settings.getSetting("query_id").toString());
+        } else {
+            request.table(tableName);
+        }
+
+        if (settings.getSetting("insert_deduplication_token") != null) {
+            request.set("insert_deduplication_token", settings.getSetting("insert_deduplication_token").toString());
+        }
+        return request;
     }
 
     private static final Set<String> COMPRESS_ALGORITHMS = ValidationUtils.whiteList("LZ4", "LZ4HC", "ZSTD", "ZSTDHC", "NONE");
