@@ -74,7 +74,7 @@ public class InsertTests extends BaseIntegrationTest {
 
         String table = "row_binary_table";
         InputStream dataStream = InsertDataGenerator.generateSimpleRowBinaryData();
-        Future<InsertResponse> response = client.insert(table, dataStream, settings);
-        assertNotEquals(response.get(), null);
+        InsertResponse response = client.insert(table, dataStream, settings);
+        assertNotEquals(response, null);
     }
 }

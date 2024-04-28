@@ -10,6 +10,8 @@ import com.clickhouse.client.api.internal.ValidationUtils;
 import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.data.ClickHouseColumn;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.InvocationTargetException;
@@ -230,42 +232,29 @@ public class Client {
         if (data == null || data.isEmpty()) {
             throw new IllegalArgumentException("Data cannot be empty");
         }
+        //Add format to the settings
+        if (settings == null) {
+            settings = new InsertSettings();
+        }
+        settings.setFormat(ClickHouseFormat.RowBinary);
 
-        InsertResponse response = null;
-        try (ClickHouseClient client = createClient()) {
-            ClickHouseRequest.Mutation request = client.write(getServerNode()).format(ClickHouseFormat.RowBinary);
-            if (settings != null) {
-                if (settings.getSetting("query_id") != null) {
-                    request.table(tableName, settings.getSetting("query_id").toString());
-                } else {
-                    request.table(tableName);
-                }
+        //Create an output stream to write the data to
+        ByteArrayOutputStream stream = new ByteArrayOutputStream();
 
-                if (settings.getSetting("insert_deduplication_token") != null) {
-                    request.set("insert_deduplication_token", settings.getSetting("insert_deduplication_token").toString());
-                }
-            }
-
-            Future<ClickHouseResponse> future;
-            try(ClickHousePipedOutputStream stream = ClickHouseDataStreamFactory.getInstance().createPipedOutputStream(request.getConfig())) {
-                future = request.data(stream.getInputStream()).execute();
-                //Lookup the Serializer for the POJO
-                //Call the static .serialize method on the POJOSerializer for each object in the list
-                List<POJOSerializer> serializers = this.serializers.get(data.get(0).getClass());
-                if (serializers == null || serializers.isEmpty()) {
-                    throw new IllegalArgumentException("No serializer found for the given class. Please register() before calling this method.");
-                }
-
-                for (Object obj : data) {
-                    for (POJOSerializer serializer : serializers) {
-                        serializer.serialize(obj, stream);
-                    }
-                }
-            }
-            response = new InsertResponse(client, future.get());
+        //Lookup the Serializer for the POJO
+        List<POJOSerializer> serializers = this.serializers.get(data.get(0).getClass());
+        if (serializers == null || serializers.isEmpty()) {
+            throw new IllegalArgumentException("No serializer found for the given class. Please register() before calling this method.");
         }
 
-        return response;
+        //Call the static .serialize method on the POJOSerializer for each object in the list
+        for (Object obj : data) {
+            for (POJOSerializer serializer : serializers) {
+                serializer.serialize(obj, stream);
+            }
+        }
+
+        return insert(tableName, new ByteArrayInputStream(stream.toByteArray()), settings);
     }
 
     /**
