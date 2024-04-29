@@ -65,40 +65,40 @@ public class SerializerUtils {
         //Serialize the value to the stream based on the type
         switch (column.getDataType()) {
             case Int8:
-                BinaryStreamUtils.writeInt8(stream, (Integer) value);
+                BinaryStreamUtils.writeInt8(stream, convertToInteger(value));
                 break;
             case Int16:
-                BinaryStreamUtils.writeInt16(stream, (Integer) value);
+                BinaryStreamUtils.writeInt16(stream, convertToInteger(value));
                 break;
             case Int32:
-                BinaryStreamUtils.writeInt32(stream, (Integer) value);
+                BinaryStreamUtils.writeInt32(stream, convertToInteger(value));
                 break;
             case Int64:
-                BinaryStreamUtils.writeInt64(stream, (Long) value);
+                BinaryStreamUtils.writeInt64(stream, convertToLong(value));
                 break;
             case Int128:
-                BinaryStreamUtils.writeInt128(stream, (BigInteger) value);
+                BinaryStreamUtils.writeInt128(stream, convertToBigInteger(value));
                 break;
             case Int256:
-                BinaryStreamUtils.writeInt256(stream, (BigInteger) value);
+                BinaryStreamUtils.writeInt256(stream, convertToBigInteger(value));
                 break;
             case UInt8:
-                BinaryStreamUtils.writeUnsignedInt8(stream, (Integer) value);
+                BinaryStreamUtils.writeUnsignedInt8(stream, convertToInteger(value));
                 break;
             case UInt16:
-                BinaryStreamUtils.writeUnsignedInt16(stream, (Integer) value);
+                BinaryStreamUtils.writeUnsignedInt16(stream, convertToInteger(value));
                 break;
             case UInt32:
-                BinaryStreamUtils.writeUnsignedInt32(stream, (Long) value);
+                BinaryStreamUtils.writeUnsignedInt32(stream, convertToLong(value));
                 break;
             case UInt64:
-                BinaryStreamUtils.writeUnsignedInt64(stream, (Long) value);
+                BinaryStreamUtils.writeUnsignedInt64(stream, convertToLong(value));
                 break;
             case UInt128:
-                BinaryStreamUtils.writeUnsignedInt128(stream, (BigInteger) value);
+                BinaryStreamUtils.writeUnsignedInt128(stream, convertToBigInteger(value));
                 break;
             case UInt256:
-                BinaryStreamUtils.writeUnsignedInt256(stream, (BigInteger) value);
+                BinaryStreamUtils.writeUnsignedInt256(stream, convertToBigInteger(value));
                 break;
             case Float32:
                 BinaryStreamUtils.writeFloat32(stream, (Float) value);
@@ -141,7 +141,7 @@ public class SerializerUtils {
                 BinaryStreamUtils.writeEnum8(stream, (Byte) value);
                 break;
             case Enum16:
-                BinaryStreamUtils.writeEnum16(stream, (Integer) value);
+                BinaryStreamUtils.writeEnum16(stream, convertToInteger(value));
                 break;
             case IPv4:
                 BinaryStreamUtils.writeInet4Address(stream, (Inet4Address) value);
@@ -153,4 +153,47 @@ public class SerializerUtils {
                 throw new UnsupportedOperationException("Unsupported data type: " + column.getDataType());
         }
     }
+
+
+    public static Integer convertToInteger(Object value) {
+        if (value instanceof Integer) {
+            return (Integer) value;
+        } else if (value instanceof Number) {
+            return ((Number) value).intValue();
+        } else if (value instanceof String) {
+            return Integer.parseInt((String) value);
+        } else if (value instanceof Boolean) {
+            return ((Boolean) value) ? 1 : 0;
+        } else {
+            throw new IllegalArgumentException("Cannot convert " + value + " to Integer");
+        }
+    }
+
+    public static Long convertToLong(Object value) {
+        if (value instanceof Long) {
+            return (Long) value;
+        } else if (value instanceof Number) {
+            return ((Number) value).longValue();
+        } else if (value instanceof String) {
+            return Long.parseLong((String) value);
+        } else if (value instanceof Boolean) {
+            return ((Boolean) value) ? 1L : 0L;
+        } else {
+            throw new IllegalArgumentException("Cannot convert " + value + " to Long");
+        }
+    }
+
+    public static BigInteger convertToBigInteger(Object value) {
+        if (value instanceof BigInteger) {
+            return (BigInteger) value;
+        } else if (value instanceof Number) {
+            return BigInteger.valueOf(((Number) value).longValue());
+        } else if (value instanceof String) {
+            return new BigInteger((String) value);
+        } else {
+            throw new IllegalArgumentException("Cannot convert " + value + " to BigInteger");
+        }
+    }
+
+
 }

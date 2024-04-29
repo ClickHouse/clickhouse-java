@@ -203,6 +203,10 @@ public class Client {
         for (ClickHouseColumn column : schema.getColumns()) {
             String columnName = column.getColumnName().toLowerCase().replace("_", "");
             serializers.add((obj, stream) -> {
+                if (!getterMethods.containsKey(columnName)) {
+                    LOG.warn("No getter method found for column: {}", columnName);
+                    return;
+                }
                 Method getterMethod = this.getterMethods.get(clazz).get(columnName);
                 Object value = getterMethod.invoke(obj);
 
@@ -218,6 +222,7 @@ public class Client {
 
                 //Handle the different types
                 SerializerUtils.serializeData(stream, value, column);
+
             });
         }
         this.serializers.put(clazz, serializers);
