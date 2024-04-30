@@ -188,7 +188,7 @@ public class Client {
         List<POJOSerializer> serializers = new ArrayList<>();
         Map<String, Method> getterMethods = new HashMap<>();
 
-        for (Method method: clazz.getMethods()) {
+        for (Method method: clazz.getMethods()) {//Clean up the method names
             String methodName = method.getName();
             if (methodName.startsWith("get") || methodName.startsWith("has")) {
                 methodName = methodName.substring(3).toLowerCase();
@@ -198,7 +198,7 @@ public class Client {
                 getterMethods.put(methodName, method);
             }
         }
-        this.getterMethods.put(clazz, getterMethods);
+        this.getterMethods.put(clazz, getterMethods);//Store the getter methods for later use
 
         for (ClickHouseColumn column : schema.getColumns()) {
             String columnName = column.getColumnName().toLowerCase().replace("_", "");
@@ -222,7 +222,6 @@ public class Client {
 
                 //Handle the different types
                 SerializerUtils.serializeData(stream, value, column);
-
             });
         }
         this.serializers.put(clazz, serializers);

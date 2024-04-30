@@ -1,6 +1,8 @@
 package com.clickhouse.client.insert;
 
 import com.clickhouse.client.api.metadata.TableSchema;
+import com.clickhouse.data.ClickHouseEnum;
+import org.apache.commons.lang3.RandomStringUtils;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -64,7 +66,7 @@ public class SamplePOJO {
 
     public SamplePOJO() {
         int8 = RandomGenerator.getDefault().nextInt(-127, 128);
-        int16 = RandomGenerator.getDefault().nextInt(-32768,32768);
+        int16 = RandomGenerator.getDefault().nextInt(-32767,32768);
         int32 = RandomGenerator.getDefault().nextInt();
         int64 = RandomGenerator.getDefault().nextLong(9223372036854775807L);
         int128 = BigInteger.valueOf(RandomGenerator.getDefault().nextLong());
@@ -74,8 +76,8 @@ public class SamplePOJO {
         uint16 = RandomGenerator.getDefault().nextInt(0, 65536);
         uint32 = RandomGenerator.getDefault().nextLong(0, 4294967296L);
         uint64 = RandomGenerator.getDefault().nextLong(0, Long.MAX_VALUE);
-        uint128 = BigInteger.valueOf(RandomGenerator.getDefault().nextLong());
-        uint256 = BigInteger.valueOf(RandomGenerator.getDefault().nextLong());
+        uint128 = BigInteger.valueOf(RandomGenerator.getDefault().nextLong(0, Long.MAX_VALUE));
+        uint256 = BigInteger.valueOf(RandomGenerator.getDefault().nextLong(0, Long.MAX_VALUE));
 
         float32 = RandomGenerator.getDefault().nextFloat();
         float64 = RandomGenerator.getDefault().nextDouble();
@@ -87,8 +89,8 @@ public class SamplePOJO {
 
         bool = RandomGenerator.getDefault().nextBoolean();
 
-        string = "string" + RandomGenerator.getDefault().nextInt();
-        fixedString = "fixed" + RandomGenerator.getDefault().nextInt();
+        string = RandomStringUtils.randomAlphabetic(1, 512);
+        fixedString = RandomStringUtils.randomAlphabetic(3);
 
         date = LocalDate.now();
         date32 = LocalDate.now();
@@ -98,8 +100,8 @@ public class SamplePOJO {
 
         uuid = UUID.randomUUID();
 
-        enum8 = (byte) RandomGenerator.getDefault().nextInt();
-        enum16 = RandomGenerator.getDefault().nextInt();
+        enum8 = (byte) RandomGenerator.getDefault().nextInt(0, 27);
+        enum16 = RandomGenerator.getDefault().nextInt(0, 27);
 
         try {
             Random random = new Random();
@@ -115,9 +117,9 @@ public class SamplePOJO {
             ipv6 = null;
         }
 
-        array = List.of("a", "b", "c");
-        tuple = List.of(1, 2, 3);
-        map = Map.of("a", 1, "b", 2, "c", 3);
+        array = List.of("a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z");
+        tuple = List.of(1, 2, 3, 4, 5, 6, 7, 8, 9, 10);
+        map = Map.of("a", 1, "b", 2, "c", 3, "d", 4, "e", 5, "f", 6, "g", 7, "h", 8, "i", 9, "j", 10);
 
         inner = new SamplePOJOInner();
     }
@@ -423,7 +425,7 @@ public class SamplePOJO {
         schema.addColumn("bool", "UInt8");
 
         schema.addColumn("string", "String");
-        schema.addColumn("fixedString", "FixedString(10)");
+        schema.addColumn("fixedString", "FixedString(3)");
 
         schema.addColumn("date", "Date");
         schema.addColumn("date32", "Date");
@@ -433,14 +435,14 @@ public class SamplePOJO {
 
         schema.addColumn("uuid", "UUID");
 
-        schema.addColumn("enum8", "Enum8('a' = 1, 'b' = 2, 'c' = 3)");
-        schema.addColumn("enum16", "Enum16('a' = 1, 'b' = 2, 'c' = 3)");
+        schema.addColumn("enum8", "Enum8('a' = 1, 'b' = 2, 'c' = 3, 'd' = 4, 'e' = 5, 'f' = 6, 'g' = 7, 'h' = 8, 'i' = 9, 'j' = 10, 'k' = 11, 'l' = 12, 'm' = 13, 'n' = 14, 'o' = 15, 'p' = 16, 'q' = 17, 'r' = 18, 's' = 19, 't' = 20, 'u' = 21, 'v' = 22, 'w' = 23, 'x' = 24, 'y' = 25, 'z' = 26)");
+        schema.addColumn("enum16", "Enum16('a' = 1, 'b' = 2, 'c' = 3, 'd' = 4, 'e' = 5, 'f' = 6, 'g' = 7, 'h' = 8, 'i' = 9, 'j' = 10, 'k' = 11, 'l' = 12, 'm' = 13, 'n' = 14, 'o' = 15, 'p' = 16, 'q' = 17, 'r' = 18, 's' = 19, 't' = 20, 'u' = 21, 'v' = 22, 'w' = 23, 'x' = 24, 'y' = 25, 'z' = 26)");
 
         schema.addColumn("ipv4", "IPv4");
         schema.addColumn("ipv6", "IPv6");
 
         schema.addColumn("array", "Array(String)");
-        schema.addColumn("tuple", "Tuple(Int32, Int32, Int32)");
+        schema.addColumn("tuple", "Tuple(Int32, Int32, Int32, Int32, Int32, Int32, Int32, Int32, Int32, Int32)");
         schema.addColumn("map", "Map(String, Int32)");
 
         return schema;
@@ -454,16 +456,7 @@ public class SamplePOJO {
             if (i > 0) {
                 sb.append(", ");
             }
-            sb.append(schema.getColumns().get(i).getColumnName()).append(" ").append(schema.getColumns().get(i).getDataType());
-            String type = String.valueOf(schema.getColumns().get(i).getDataType());
-
-            if (type.startsWith("Decimal")) {
-                sb.append("(").append(schema.getColumns().get(i).getScale()).append(")");
-            }
-
-            if (type.startsWith("FixedString")) {
-                sb.append("(").append(schema.getColumns().get(i).getPrecision()).append(")");
-            }
+            sb.append(schema.getColumns().get(i).getColumnName()).append(" ").append(schema.getColumns().get(i).getOriginalTypeName());
         }
         sb.append(") ENGINE = Memory");
         return sb.toString();

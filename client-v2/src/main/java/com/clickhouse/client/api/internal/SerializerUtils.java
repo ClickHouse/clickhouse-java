@@ -21,10 +21,13 @@ import static com.clickhouse.data.ClickHouseDataType.*;
 
 public class SerializerUtils {
     public static void serializeData(OutputStream stream, Object value, ClickHouseColumn column) throws IOException {
+        //Serialize the value to the stream based on the data type
         switch (column.getDataType()) {
             case Array:
-            case Tuple:
                 serializeArrayData(stream, value, column);
+                break;
+            case Tuple:
+                serializeTupleData(stream, value, column);
                 break;
             case Map:
                 serializeMapData(stream, value, column);
@@ -43,6 +46,15 @@ public class SerializerUtils {
         BinaryStreamUtils.writeVarInt(stream, values.size());
         for (Object val : values) {
             serializeData(stream, val, column.getArrayBaseColumn());
+        }
+    }
+
+    private static void serializeTupleData(OutputStream stream, Object value, ClickHouseColumn column) throws IOException {
+        //Serialize the tuple to the stream
+        //The tuple is a list of values
+        List<?> values = (List<?>) value;
+        for (int i = 0; i < values.size(); i++) {
+            serializeData(stream, values.get(i), column.getNestedColumns().get(i));
         }
     }
 
