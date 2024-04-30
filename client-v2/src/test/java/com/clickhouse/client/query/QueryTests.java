@@ -18,6 +18,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.testng.Assert;
 import org.testng.annotations.BeforeMethod;
+import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 import java.io.BufferedReader;
@@ -47,6 +48,12 @@ public class QueryTests extends BaseIntegrationTest {
                 .addUsername("default")
                 .addPassword("")
                 .build();
+        try {
+            Thread.sleep(100);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        System.out.println(node.getPort());
     }
 
     @Test(groups = {"integration"})
@@ -114,13 +121,25 @@ public class QueryTests extends BaseIntegrationTest {
 
     }
 
-    @Test(groups = {"integration"})
-    public void testRowBinaryQuery() throws ExecutionException, InterruptedException{
+    @DataProvider(name = "rowBinaryFormats")
+    ClickHouseFormat[] getRowBinaryFormats() {
+
+        return new ClickHouseFormat[]{
+                ClickHouseFormat.RowBinary,
+                ClickHouseFormat.RowBinaryWithNames,
+                ClickHouseFormat.RowBinaryWithNamesAndTypes,
+                ClickHouseFormat.Native
+        };
+    }
+
+    @Test(groups = {"integration"}, dataProvider = "rowBinaryFormats")
+    public void testRowBinaryQueries(ClickHouseFormat format) throws ExecutionException, InterruptedException {
         final int rows = 10;
         // TODO: replace with dataset with all primitive types of data
-        List<Map<String, Object>> data = prepareDataSet(DATASET_TABLE, DATASET_COLUMNS, DATASET_VALUE_GENERATORS, rows);
-        QuerySettings settings = new QuerySettings().setFormat(ClickHouseFormat.RowBinary.name());
-        Future<QueryResponse> response = client.query("SELECT * FROM " + DATASET_TABLE, null, settings);
+        // TODO: reusing same table name may lead to a conflict in tests?
+        List<Map<String, Object>> data = prepareDataSet(DATASET_TABLE + "_" + format.name(), DATASET_COLUMNS, DATASET_VALUE_GENERATORS, rows);
+        QuerySettings settings = new QuerySettings().setFormat(format.name());
+        Future<QueryResponse> response = client.query("SELECT * FROM " + DATASET_TABLE + "_" + format.name(), null, settings);
 
         QueryResponse queryResponse = response.get();
 
@@ -133,7 +152,7 @@ public class QueryTests extends BaseIntegrationTest {
                 Map<String, Object> expectedRecord = dataIterator.next();
                 System.out.println(expectedRecord);
 
-                reader.readToMap(record, client.getTableSchema(DATASET_TABLE));
+                reader.readToMap(record, client.getTableSchema(DATASET_TABLE + "_" + format.name()));
                 System.out.println(record);
                 Assert.assertEquals(record, expectedRecord);
             }

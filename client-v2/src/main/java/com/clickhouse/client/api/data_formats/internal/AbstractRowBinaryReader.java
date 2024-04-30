@@ -30,7 +30,8 @@ public abstract class AbstractRowBinaryReader implements ClickHouseBinaryStreamR
 
     protected AbstractRowBinaryReader(InputStream inputStream, QuerySettings querySettings) {
         this.inputStream = inputStream;
-        this.chInputStream = ClickHouseInputStream.of(inputStream);
+        this.chInputStream = inputStream instanceof ClickHouseInputStream ?
+                (ClickHouseInputStream) inputStream : ClickHouseInputStream.of(inputStream);
         this.settings = new HashMap<>(querySettings.getAllSettings());
     }
 
@@ -154,9 +155,9 @@ public abstract class AbstractRowBinaryReader implements ClickHouseBinaryStreamR
                 case Point:
                     return (T) BinaryStreamUtils.readGeoPoint(chInputStream);
                 case Polygon:
-                    return (T)BinaryStreamUtils.readGeoPolygon(chInputStream);
+                    return (T) BinaryStreamUtils.readGeoPolygon(chInputStream);
                 case MultiPolygon:
-                    return (T)BinaryStreamUtils.readGeoMultiPolygon(chInputStream);
+                    return (T) BinaryStreamUtils.readGeoMultiPolygon(chInputStream);
                 case Ring:
                     return (T) BinaryStreamUtils.readGeoRing(chInputStream);
 

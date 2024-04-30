@@ -1,5 +1,6 @@
 package com.clickhouse.client.api.data_formats;
 
+import com.clickhouse.client.api.data_formats.internal.NativeStreamReader;
 import com.clickhouse.client.api.data_formats.internal.RowBinaryStreamReader;
 import com.clickhouse.client.api.data_formats.internal.RowBinaryWithNamesAndTypesReader;
 import com.clickhouse.client.api.data_formats.internal.RowBinaryWithNamesStreamReader;
@@ -36,7 +37,7 @@ public interface ClickHouseBinaryStreamReader {
                 case RowBinaryWithNamesAndTypes:
                     return new RowBinaryWithNamesAndTypesReader(response.getInputStream(), settings);
                 case Native:
-                    throw new UnsupportedOperationException("Native format is not supported yet");
+                    return new NativeStreamReader(response.getInputStream(), settings);
                 default:
                     throw new IllegalStateException("Format: " + response.getFormat() + " is not compatible with RowBinaryStreamReader");
             }
