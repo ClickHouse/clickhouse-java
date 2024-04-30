@@ -1,26 +1,40 @@
 package com.clickhouse.client.api;
 
-import com.clickhouse.client.*;
+import com.clickhouse.client.ClickHouseClient;
+import com.clickhouse.client.ClickHouseConfig;
+import com.clickhouse.client.ClickHouseException;
+import com.clickhouse.client.ClickHouseNode;
+import com.clickhouse.client.ClickHouseNodeSelector;
+import com.clickhouse.client.ClickHouseParameterizedQuery;
+import com.clickhouse.client.ClickHouseProtocol;
+import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.api.internal.SettingsConverter;
+import com.clickhouse.client.api.internal.TableSchemaParser;
 import com.clickhouse.client.api.internal.ValidationUtils;
+import com.clickhouse.client.api.metadata.TableSchema;
+import com.clickhouse.client.api.query.QueryResponse;
+import com.clickhouse.client.api.query.QuerySettings;
+import com.clickhouse.client.config.ClickHouseClientOption;
 import com.clickhouse.data.ClickHouseColumn;
+import com.clickhouse.data.ClickHouseFormat;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 
 import java.io.InputStream;
 import java.net.SocketException;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
-import java.util.*;
-import com.clickhouse.client.api.metadata.TableSchema;
-import com.clickhouse.client.api.internal.TableSchemaParser;
-import com.clickhouse.client.api.query.QueryResponse;
-import com.clickhouse.client.api.query.QuerySettings;
-import com.clickhouse.data.ClickHouseFormat;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.slf4j.MDC;
-import org.slf4j.helpers.BasicMDCAdapter;
-
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
 import static java.time.temporal.ChronoUnit.SECONDS;
@@ -31,6 +45,7 @@ public class Client {
     private Map<String, String> configuration;
     private List<ClickHouseNode> serverNodes = new ArrayList<>();
     private static final  Logger LOG = LoggerFactory.getLogger(Client.class);
+    private ExecutorService queryExecutor;
 
     private Client(Set<String> endpoints, Map<String,String> configuration) {
         this.endpoints = endpoints;
@@ -38,6 +53,18 @@ public class Client {
         this.endpoints.forEach(endpoint -> {
             this.serverNodes.add(ClickHouseNode.of(endpoint, this.configuration));
         });
+
+        final int numThreads = Integer.parseInt(configuration.getOrDefault(
+                ClickHouseClientOption.MAX_THREADS_PER_CLIENT.getKey(), "3"));
+        this.queryExecutor = Executors.newFixedThreadPool(numThreads, r -> {
+            Thread t = new Thread(r);
+            t.setName("ClickHouse-Query-Executor");
+            t.setUncaughtExceptionHandler((t1, e) -> {
+                LOG.error("Uncaught exception in thread {}", t1.getName(), e);
+            });
+            return t;
+        });
+        LOG.debug("Query executor created with {} threads", numThreads);
     }
 
     public static class Builder {
@@ -190,7 +217,8 @@ public class Client {
      * Control is returned when server accepted the query and started processing it.
      * <br/>
      * The caller should use {@link ClickHouseParameterizedQuery} to render the `sqlQuery` with parameters.
-     *
+     * Format may be specified in either the `sqlQuery` or the `settings`.
+     * If specified in both, the `sqlQuery` will take precedence.
      *
      * @param sqlQuery - complete SQL query.
      * @param settings
@@ -199,16 +227,38 @@ public class Client {
     public Future<QueryResponse> query(String sqlQuery, Map<String, Object> qparams, QuerySettings settings) {
         ClickHouseClient client = createClient();
         ClickHouseRequest<?> request = client.read(getServerNode());
+
+        ExecutorService executor = queryExecutor;
+        if (settings.getExecutorService() != null) {
+            executor = settings.getExecutorService();
+        }
+
         request.options(SettingsConverter.toRequestOptions(settings.getAllSettings()));
         request.settings(SettingsConverter.toRequestSettings(settings.getAllSettings()));
         request.query(sqlQuery, settings.getQueryID());
-        request.format(ClickHouseFormat.valueOf(settings.getFormat()));
+        final ClickHouseFormat format = ClickHouseFormat.valueOf(settings.getFormat());
+        request.format(format);
         if (qparams != null && !qparams.isEmpty()) {
             request.params(qparams);
         }
-        MDC.put("queryId", settings.getQueryID());
-        LOG.debug("Executing request: {}", request);
-        return CompletableFuture.completedFuture(new QueryResponse(client, request.execute()));
+
+        CompletableFuture<QueryResponse> future = new CompletableFuture<>();
+        executor.submit(() -> {
+            MDC.put("queryId", settings.getQueryID());
+            LOG.debug("Executing request: {}", request);
+            try {
+                future.complete(new QueryResponse(client, request.execute(), settings, format));
+            } catch (Exception e) {
+                future.completeExceptionally(e);
+            } finally {
+                MDC.remove("queryId");
+            }
+        });
+        return future;
+    }
+
+    public TableSchema getTableSchema(String table) {
+        return getTableSchema(table, "default");
     }
 
     public TableSchema getTableSchema(String table, String database) {
