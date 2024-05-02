@@ -283,7 +283,7 @@ public class Client {
                 future = request.data(stream.getInputStream()).execute();
 
                 //Copy the data from the input stream to the output stream
-                byte[] buffer = new byte[256000];
+                byte[] buffer = new byte[8196];
                 int bytesRead;
                 while ((bytesRead = data.read(buffer)) != -1) {
                     stream.write(buffer, 0, bytesRead);
