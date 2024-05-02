@@ -1,78 +1,75 @@
 package com.clickhouse.client.api.data_formats.internal;
 
+import com.clickhouse.client.api.ClientException;
+import com.clickhouse.client.api.data_formats.ClickHouseRowBinaryStreamReader;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.QuerySettings;
+import com.clickhouse.data.ClickHouseColumn;
+import com.clickhouse.data.format.BinaryStreamUtils;
 
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
-public class RowBinaryWithNamesAndTypesReader extends AbstractRowBinaryReader {
-
-    private List<String> columns = null;
-
-    private List<String> types = null;
+public class RowBinaryWithNamesAndTypesReader extends AbstractRowBinaryReader implements ClickHouseRowBinaryStreamReader {
 
     public RowBinaryWithNamesAndTypesReader(InputStream inputStream, QuerySettings querySettings) {
-        super(inputStream, querySettings);
+        super(inputStream, querySettings, null);
+        setSchema(readSchema());
     }
 
+    private TableSchema readSchema() {
+        try {
+            TableSchema headerSchema = new TableSchema();
+            List<String> columns = new ArrayList<>();
+            int nCol = chInputStream.readVarInt();
+            for (int i = 0; i < nCol; i++) {
+                columns.add(chInputStream.readUnicodeString());
+            }
 
-    /**
-     * Reads a row to a map using column definitions from the stream
-     *
-     * @param record
-     */
-    public void readToMap(Map<String, Object> record) throws IOException {
-        if (columns == null) {
-            readHeader();
+            for (int i = 0; i < nCol; i++) {
+                headerSchema.addColumn(columns.get(i), chInputStream.readUnicodeString());
+            }
+
+            return headerSchema;
+        } catch (IOException e) {
+            throw new ClientException("Failed to read header", e);
         }
-
     }
-
 
     /**
      * Reads a row to a map using column definitions from the schema.
      * If column type mismatch and cannot be converted, an exception will be thrown.
      *
      * @param record data destination
-     * @param schema table scheme
      * @throws IOException
      */
     @Override
-    public void readToMap(Map<String, Object> record, TableSchema schema) throws IOException {
-        if (columns == null) {
-            readHeader();
+    public void readToMap(Map<String, Object> record) throws IOException {
+        for (ClickHouseColumn column : getSchema().getColumns()) {
+            record.put(column.getColumnName(), binaryStreamReader.readValue(column.getDataType()));
         }
-
-        super.readToMap(record, schema);
     }
 
-    private void readHeader() throws IOException {
-        columns = new ArrayList<>();
-        int nCol = chInputStream.readVarInt();
-        for (int i = 0; i < nCol; i++) {
-            columns.add(chInputStream.readUnicodeString());
+    @Override
+    public boolean next() {
+        if (hasNext) {
+            try {
+                readToMap(currentRecord);
+                return true;
+            } catch (EOFException e) {
+                hasNext = false;
+                return false;
+            } catch (IOException e) {
+                hasNext = false;
+                throw new ClientException("Failed to read row", e);
+            }
         }
-
-        columns = Collections.unmodifiableList(columns);
-
-        types = new ArrayList<>();
-        for (int i = 0; i < nCol; i++) {
-            types.add(chInputStream.readUnicodeString());
-        }
-
-        types = Collections.unmodifiableList(types);
-    }
-
-    public List<String> getColumns() {
-        return columns;
-    }
-
-    public List<String> getTypes() {
-        return types;
+        return false;
     }
 }

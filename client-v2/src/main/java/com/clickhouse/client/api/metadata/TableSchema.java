@@ -18,9 +18,12 @@ public class TableSchema {
 
     private Map<String, Map<String, Object>> metadata;
 
+    private Map<String, Integer> colIndex;
+
     public TableSchema() {
         this.metadata = new HashMap<>();
         this.columns = new ArrayList<>();
+        this.colIndex = new HashMap<>();
     }
 
     /**
@@ -50,7 +53,18 @@ public class TableSchema {
 
     public void addColumn(String name, String type) {
         columns.add(ClickHouseColumn.of(name, type));
-        metadata.computeIfAbsent(name, k -> new HashMap<>()).put("type", type);
+        Map<String, Object> columnMetadata = new HashMap<>();
+        columnMetadata.put("type", type);
+        metadata.put(name, columnMetadata);
+        colIndex.put(name, columns.size() - 1);
+    }
+
+    public String indexToName(int index) {
+        return columns.get(index).getColumnName();
+    }
+
+    public int nameToIndex(String name) {
+        return colIndex.get(name).intValue();
     }
 }
 

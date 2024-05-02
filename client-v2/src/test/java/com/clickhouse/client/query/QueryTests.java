@@ -11,6 +11,11 @@ import com.clickhouse.client.ClickHouseRequest;
 import com.clickhouse.client.api.Client;
 import com.clickhouse.client.api.Protocol;
 import com.clickhouse.client.api.data_formats.ClickHouseBinaryStreamReader;
+import com.clickhouse.client.api.data_formats.ClickHouseRowBinaryStreamReader;
+import com.clickhouse.client.api.data_formats.internal.NativeStreamReader;
+import com.clickhouse.client.api.data_formats.internal.RowBinaryWithNamesAndTypesReader;
+import com.clickhouse.client.api.data_formats.internal.RowBinaryWithNamesStreamReader;
+import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.QueryResponse;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.data.ClickHouseFormat;
@@ -103,7 +108,7 @@ public class QueryTests extends BaseIntegrationTest {
                 while ((line = br.readLine()) != null) {
                     System.out.println(line);
                     records.add(objectMapper.readTree(line));
-                    Assert.assertEquals(records.get(0).get("param4").isTextual(),expectedIterator.next());
+                    Assert.assertEquals(records.get(0).get("param4").isTextual(), expectedIterator.next());
                 }
             } catch (IOException e) {
                 Assert.fail("failed to read response", e);
@@ -125,8 +130,6 @@ public class QueryTests extends BaseIntegrationTest {
     ClickHouseFormat[] getRowBinaryFormats() {
 
         return new ClickHouseFormat[]{
-                ClickHouseFormat.RowBinary,
-                ClickHouseFormat.RowBinaryWithNames,
                 ClickHouseFormat.RowBinaryWithNamesAndTypes,
                 ClickHouseFormat.Native
         };
@@ -137,27 +140,88 @@ public class QueryTests extends BaseIntegrationTest {
         final int rows = 10;
         // TODO: replace with dataset with all primitive types of data
         // TODO: reusing same table name may lead to a conflict in tests?
-        List<Map<String, Object>> data = prepareDataSet(DATASET_TABLE + "_" + format.name(), DATASET_COLUMNS, DATASET_VALUE_GENERATORS, rows);
+
+        List<Map<String, Object>> data = prepareDataSet(DATASET_TABLE + "_" + format.name(), DATASET_COLUMNS,
+                DATASET_VALUE_GENERATORS, rows);
         QuerySettings settings = new QuerySettings().setFormat(format.name());
         Future<QueryResponse> response = client.query("SELECT * FROM " + DATASET_TABLE + "_" + format.name(), null, settings);
-
         QueryResponse queryResponse = response.get();
 
         Map<String, Object> record = new HashMap<>();
-        ClickHouseBinaryStreamReader reader = ClickHouseBinaryStreamReader.create(queryResponse, settings);
+        TableSchema tableSchema = client.getTableSchema(DATASET_TABLE + "_" + format.name());
+        ClickHouseRowBinaryStreamReader reader = null;
+        switch (format) {
+            case Native:
+                reader = new NativeStreamReader(queryResponse.getInputStream(), settings);
+                break;
+            case RowBinaryWithNamesAndTypes:
+                reader = new RowBinaryWithNamesAndTypesReader(queryResponse.getInputStream(), settings);
+                break;
+            default:
+                Assert.fail("unsupported format: " + format.name());
+        }
 
         Iterator<Map<String, Object>> dataIterator = data.iterator();
         try {
             while (dataIterator.hasNext()) {
                 Map<String, Object> expectedRecord = dataIterator.next();
-                System.out.println(expectedRecord);
-
-                reader.readToMap(record, client.getTableSchema(DATASET_TABLE + "_" + format.name()));
-                System.out.println(record);
+                reader.readToMap(record);
                 Assert.assertEquals(record, expectedRecord);
             }
         } catch (IOException e) {
             Assert.fail("failed to read response", e);
+        }
+    }
+
+    @Test(groups = {"integration"})
+    public void testBinaryStreamReader() throws Exception {
+        final String table = "dynamic_schema_test_table";
+        List<Map<String, Object>> data = prepareDataSet(table, DATASET_COLUMNS,
+                DATASET_VALUE_GENERATORS, 10);
+        QuerySettings settings = new QuerySettings().setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes.name());
+        Future<QueryResponse> response = client.query("SELECT param1, param3, hostname() as host FROM " + table, null, settings);
+        QueryResponse queryResponse = response.get();
+
+        TableSchema schema = new TableSchema();
+        schema.addColumn("param1", "UInt32");
+        schema.addColumn("param3", "String");
+        schema.addColumn("host", "String");
+        ClickHouseBinaryStreamReader reader = new RowBinaryWithNamesAndTypesReader(queryResponse.getInputStream(), settings);
+        while (reader.hasNext()) {
+            Assert.assertTrue(reader.next());
+            String hostName = reader.readValue("host");
+            Long param1 = reader.readValue("param1");
+            String param3 = reader.readValue("param3");
+
+            System.out.println("host: " + hostName + ", param1: " + param1 + ", param3: " + param3);
+
+            Assert.assertEquals(reader.readValue(1), param1);
+            Assert.assertEquals(reader.readValue(2), param3);
+            Assert.assertEquals(reader.readValue(3), hostName);
+        }
+
+        Assert.assertFalse(reader.next());
+    }
+
+    @Test(groups = {"integration"})
+    public void testRowStreamReader() throws Exception {
+        final String table = "dynamic_schema_row_test_table";
+        final int rows = 10;
+        List<Map<String, Object>> data = prepareDataSet(table, DATASET_COLUMNS, DATASET_VALUE_GENERATORS, rows);
+        QuerySettings settings = new QuerySettings().setFormat(ClickHouseFormat.RowBinaryWithNamesAndTypes.name());
+        Future<QueryResponse> response = client.query("SELECT param1, param3, hostname() as host FROM " + table, null, settings);
+
+        QueryResponse queryResponse = response.get();
+        TableSchema schema = new TableSchema();
+        schema.addColumn("param1", "UInt32");
+        schema.addColumn("param3", "String");
+        schema.addColumn("host", "String");
+        ClickHouseRowBinaryStreamReader reader = new RowBinaryWithNamesAndTypesReader(queryResponse.getInputStream(), settings);
+
+        Map<String, Object> record = new HashMap<>();
+        for (int i = 0; i < rows; i++) {
+            record.clear();
+            reader.readToMap(record);
         }
     }
 
@@ -192,7 +256,7 @@ public class QueryTests extends BaseIntegrationTest {
                                                      int rows) {
         List<Map<String, Object>> data = new ArrayList<>(rows);
         try (
-            ClickHouseClient client = ClickHouseClient.builder().config(new ClickHouseConfig())
+                ClickHouseClient client = ClickHouseClient.builder().config(new ClickHouseConfig())
                         .nodeSelector(ClickHouseNodeSelector.of(ClickHouseProtocol.HTTP))
                         .build()) {
 

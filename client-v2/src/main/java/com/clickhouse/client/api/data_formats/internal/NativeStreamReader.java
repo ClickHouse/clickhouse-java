@@ -1,5 +1,6 @@
 package com.clickhouse.client.api.data_formats.internal;
 
+import com.clickhouse.client.api.data_formats.ClickHouseRowBinaryStreamReader;
 import com.clickhouse.client.api.metadata.TableSchema;
 import com.clickhouse.client.api.query.QuerySettings;
 import com.clickhouse.data.ClickHouseDataType;
@@ -10,29 +11,24 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-public class NativeStreamReader extends AbstractRowBinaryReader {
+public class NativeStreamReader extends AbstractRowBinaryReader implements ClickHouseRowBinaryStreamReader {
 
     private Block currentBlock;
 
     private int blockRowIndex;
 
     public NativeStreamReader(InputStream inputStream, QuerySettings settings) {
-        super(inputStream, settings);
+        super(inputStream, settings, null);
     }
 
     @Override
-    public void readToMap(Map<String, Object> record, TableSchema schema) throws IOException {
+    public void readToMap(Map<String, Object> record) throws IOException {
         if (currentBlock == null || blockRowIndex >= currentBlock.getnRows()) {
             readBlock();
         }
 
         currentBlock.fillRecord(blockRowIndex, record);
         blockRowIndex++;
-    }
-
-    @Override
-    public void reset() throws IOException {
-
     }
 
     private void readBlock() throws IOException {
@@ -49,11 +45,31 @@ public class NativeStreamReader extends AbstractRowBinaryReader {
             ClickHouseDataType dataType = ClickHouseDataType.of(types.get(i));
             List<Object> values = new ArrayList<>(nRows);
             for (int j = 0; j < nRows; j++) {
-                Object value = readValue(dataType);
+                Object value = binaryStreamReader.readValue(dataType);
                 values.add(value);
             }
             currentBlock.add(values);
         }
+    }
+
+    @Override
+    public <T> T readValue(int colIndex) throws IOException {
+        return null;
+    }
+
+    @Override
+    public <T> T readValue(String colName) throws IOException {
+        return null;
+    }
+
+    @Override
+    public boolean hasNext() {
+        return false;
+    }
+
+    @Override
+    public boolean next() {
+        return false;
     }
 
     private static class Block {
